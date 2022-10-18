@@ -13,7 +13,7 @@ require (
 	github.com/emersion/go-imap-specialuse v0.0.0-20201101201809-1ab93d3d150e
 	github.com/emersion/go-message v0.16.0
 	github.com/emersion/go-sasl v0.0.0-20220912192320-0145f2c60ead
-	github.com/emersion/go-smtp v0.15.0
+	github.com/emersion/go-smtp v0.15.1-0.20221018181223-201c9ab124e4
 	github.com/emersion/go-vcard v0.0.0-20220507122617-d4056df0ec4a
 	github.com/emersion/go-webdav v0.3.2-0.20220531141108-9bc7a8f15b2f
 	github.com/fernet/fernet-go v0.0.0-20211208181803-9f70042a33ee

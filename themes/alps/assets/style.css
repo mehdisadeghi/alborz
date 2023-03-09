@@ -656,7 +656,7 @@ main table tfoot {
 .action-group label,
 .action-group input,
 .action-group textarea,
-.action-group select {
+.action-group select[multiple] {
   display: block;
   width: 100%;
 }
@@ -667,7 +667,7 @@ main table tfoot {
   float: left;
 }
 
-.action-group select {
+.action-group select[multiple] {
   height: 10rem;
 }
 

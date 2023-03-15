@@ -143,7 +143,7 @@ func newIMAPBaseRenderData(ctx *alps.Context,
 		return nil, fmt.Errorf("failed to load settings: %v", err)
 	}
 
-	subscriptions := make(map[string]*MailboxStatus)
+	statuses := make(map[string]*MailboxStatus)
 	var mailboxes []MailboxInfo
 	var active, inbox *MailboxStatus
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
@@ -170,7 +170,7 @@ func newIMAPBaseRenderData(ctx *alps.Context,
 			if status, err := getMailboxStatus(c, sub); err != nil {
 				return err
 			} else {
-				subscriptions[sub] = status
+				statuses[sub] = status
 			}
 		}
 		return nil
@@ -179,21 +179,24 @@ func newIMAPBaseRenderData(ctx *alps.Context,
 		return nil, err
 	}
 
-	var categorized CategorizedMailboxes
+	if mboxName != "" {
+		statuses[mboxName] = active
+	}
+	statuses["INBOX"] = inbox
 
+	var categorized CategorizedMailboxes
 	for i := range mailboxes {
 		// Populate unseen & active states
 		if active != nil && mailboxes[i].Name == active.Name {
-			mailboxes[i].Unseen = int(active.Unseen)
-			mailboxes[i].Total = int(active.Messages)
 			mailboxes[i].Active = true
 		}
-		if mailboxes[i].Name == inbox.Name {
-			mailboxes[i].Unseen = int(inbox.Unseen)
-			mailboxes[i].Total = int(inbox.Messages)
+		status := statuses[mailboxes[i].Name]
+		if status != nil {
+			mailboxes[i].Unseen = int(status.Unseen)
+			mailboxes[i].Total = int(status.Messages)
 		}
 
-		categorized.Append(mailboxes[i], subscriptions[mailboxes[i].Name])
+		categorized.Append(mailboxes[i], status)
 	}
 
 	return &IMAPBaseRenderData{
@@ -202,7 +205,7 @@ func newIMAPBaseRenderData(ctx *alps.Context,
 		Mailboxes:            mailboxes,
 		Inbox:                inbox,
 		Mailbox:              active,
-		Subscriptions:        subscriptions,
+		Subscriptions:        statuses,
 	}, nil
 }
 

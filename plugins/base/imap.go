@@ -4,37 +4,41 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
+	//"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/emersion/go-imap"
-	imapspecialuse "github.com/emersion/go-imap-specialuse"
-	imapclient "github.com/emersion/go-imap/client"
+	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/textproto"
 )
 
 type MailboxInfo struct {
-	*imap.MailboxInfo
+	*imap.ListData
 
 	Active bool
 	Total  int
 	Unseen int
 }
 
+func (mbox *MailboxInfo) Name() string {
+	return mbox.Mailbox
+}
+
 func (mbox *MailboxInfo) URL() *url.URL {
 	return &url.URL{
-		Path: fmt.Sprintf("/mailbox/%v", url.PathEscape(mbox.Name)),
+		Path: fmt.Sprintf("/mailbox/%v", url.PathEscape(mbox.Name())),
 	}
 }
 
 func (mbox *MailboxInfo) HasAttr(flag string) bool {
-	for _, attr := range mbox.Attributes {
-		if attr == flag {
+	for _, attr := range mbox.Attrs {
+		if string(attr) == flag {
 			return true
 		}
 	}
@@ -42,50 +46,51 @@ func (mbox *MailboxInfo) HasAttr(flag string) bool {
 }
 
 func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
-	ch := make(chan *imap.MailboxInfo, 10)
-	done := make(chan error, 1)
-	go func() {
-		done <- conn.List("", "*", ch)
-	}()
-
 	var mailboxes []MailboxInfo
-	for mbox := range ch {
+	list := conn.List("", "*", nil)
+	for {
+		mbox := list.Next()
+		if mbox == nil {
+			break
+		}
 		mailboxes = append(mailboxes, MailboxInfo{mbox, false, -1, -1})
 	}
-
-	if err := <-done; err != nil {
+	if err := list.Close(); err != nil {
 		return nil, fmt.Errorf("failed to list mailboxes: %v", err)
 	}
 
 	sort.Slice(mailboxes, func(i, j int) bool {
-		if mailboxes[i].Name == "INBOX" {
+		if mailboxes[i].Mailbox == "INBOX" {
 			return true
 		}
-		if mailboxes[j].Name == "INBOX" {
+		if mailboxes[j].Mailbox == "INBOX" {
 			return false
 		}
-		return mailboxes[i].Name < mailboxes[j].Name
+		return mailboxes[i].Mailbox < mailboxes[j].Mailbox
 	})
 	return mailboxes, nil
 }
 
 type MailboxStatus struct {
-	*imap.MailboxStatus
+	*imap.StatusData
+}
+
+func (mbox *MailboxStatus) Name() string {
+	return mbox.Mailbox
 }
 
 func (mbox *MailboxStatus) URL() *url.URL {
 	return &url.URL{
-		Path: fmt.Sprintf("/mailbox/%v", url.PathEscape(mbox.Name)),
+		Path: fmt.Sprintf("/mailbox/%v", url.PathEscape(mbox.Name())),
 	}
 }
 
 func getMailboxStatus(conn *imapclient.Client, name string) (*MailboxStatus, error) {
-	items := []imap.StatusItem{
-		imap.StatusMessages,
-		imap.StatusUidValidity,
-		imap.StatusUnseen,
-	}
-	status, err := conn.Status(name, items)
+	status, err := conn.Status(name, &imap.StatusOptions{
+		NumMessages: true,
+		UIDValidity: true,
+		NumUnseen:   true,
+	}).Wait()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get mailbox status: %v", err)
 	}
@@ -100,28 +105,29 @@ const (
 )
 
 func getMailboxByType(conn *imapclient.Client, mboxType mailboxType) (*MailboxInfo, error) {
-	ch := make(chan *imap.MailboxInfo, 10)
-	done := make(chan error, 1)
-	go func() {
-		done <- conn.List("", "%", ch)
-	}()
-
 	// TODO: configurable fallback names?
-	var attr string
+	var attr imap.MailboxAttr
 	var fallbackNames []string
 	switch mboxType {
 	case mailboxSent:
-		attr = imapspecialuse.Sent
+		attr = imap.MailboxAttrSent
 		fallbackNames = []string{"Sent"}
 	case mailboxDrafts:
-		attr = imapspecialuse.Drafts
+		attr = imap.MailboxAttrDrafts
 		fallbackNames = []string{"Draft", "Drafts"}
 	}
 
+	list := conn.List("", "%", nil)
+
 	var attrMatched bool
-	var best *imap.MailboxInfo
-	for mbox := range ch {
-		for _, a := range mbox.Attributes {
+	var best *imap.ListData
+	for {
+		mbox := list.Next()
+		if mbox == nil {
+			break
+		}
+
+		for _, a := range mbox.Attrs {
 			if attr == a {
 				best = mbox
 				attrMatched = true
@@ -133,14 +139,13 @@ func getMailboxByType(conn *imapclient.Client, mboxType mailboxType) (*MailboxIn
 		}
 
 		for _, fallback := range fallbackNames {
-			if strings.EqualFold(fallback, mbox.Name) {
+			if strings.EqualFold(fallback, mbox.Mailbox) {
 				best = mbox
 				break
 			}
 		}
 	}
-
-	if err := <-done; err != nil {
+	if err := list.Close(); err != nil {
 		return nil, fmt.Errorf("failed to get mailbox with attribute %q: %v", attr, err)
 	}
 
@@ -151,9 +156,8 @@ func getMailboxByType(conn *imapclient.Client, mboxType mailboxType) (*MailboxIn
 }
 
 func ensureMailboxSelected(conn *imapclient.Client, mboxName string) error {
-	mbox := conn.Mailbox()
-	if mbox == nil || mbox.Name != mboxName {
-		if _, err := conn.Select(mboxName, false); err != nil {
+	if mbox := conn.Mailbox(); mbox == nil || mbox.Name != mboxName {
+		if _, err := conn.Select(mboxName, nil).Wait(); err != nil {
 			return fmt.Errorf("failed to select mailbox: %v", err)
 		}
 	}
@@ -161,26 +165,28 @@ func ensureMailboxSelected(conn *imapclient.Client, mboxName string) error {
 }
 
 type IMAPMessage struct {
-	*imap.Message
+	*imapclient.FetchMessageBuffer
 
 	Mailbox string
 }
 
 func (msg *IMAPMessage) URL() *url.URL {
 	return &url.URL{
-		Path: fmt.Sprintf("/message/%v/%v", url.PathEscape(msg.Mailbox), msg.Uid),
+		Path: fmt.Sprintf("/message/%v/%v", url.PathEscape(msg.Mailbox), msg.UID),
 	}
 }
 
-func newIMAPPartNode(msg *IMAPMessage, path []int, part *imap.BodyStructure) *IMAPPartNode {
-	filename, _ := part.Filename()
-	return &IMAPPartNode{
+func newIMAPPartNode(msg *IMAPMessage, path []int, part imap.BodyStructure) *IMAPPartNode {
+	node := &IMAPPartNode{
 		Path:     path,
-		MIMEType: strings.ToLower(part.MIMEType + "/" + part.MIMESubType),
-		Filename: filename,
+		MIMEType: part.MediaType(),
 		Message:  msg,
-		Size:     part.Size,
 	}
+	if singlePart, ok := part.(*imap.BodyStructureSinglePart); ok {
+		node.Filename = singlePart.Filename()
+		node.Size = singlePart.Size
+	}
+	return node
 }
 
 func (msg *IMAPMessage) TextPart() *IMAPPartNode {
@@ -190,21 +196,26 @@ func (msg *IMAPMessage) TextPart() *IMAPPartNode {
 
 	var best *IMAPPartNode
 	isTextPlain := false
-	msg.BodyStructure.Walk(func(path []int, part *imap.BodyStructure) bool {
-		if !strings.EqualFold(part.MIMEType, "text") {
-			return true
-		}
-		if part.Disposition != "" && !strings.EqualFold(part.Disposition, "inline") {
+	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
+		singlePart, ok := part.(*imap.BodyStructureSinglePart)
+		if !ok {
 			return true
 		}
 
-		switch strings.ToLower(part.MIMESubType) {
+		if !strings.EqualFold(singlePart.Type, "text") {
+			return true
+		}
+		if disp := singlePart.Disposition(); disp != nil && !strings.EqualFold(disp.Value, "inline") {
+			return true
+		}
+
+		switch strings.ToLower(singlePart.Subtype) {
 		case "plain":
 			isTextPlain = true
-			best = newIMAPPartNode(msg, path, part)
+			best = newIMAPPartNode(msg, path, singlePart)
 		case "html":
 			if !isTextPlain {
-				best = newIMAPPartNode(msg, path, part)
+				best = newIMAPPartNode(msg, path, singlePart)
 			}
 		}
 		return true
@@ -219,16 +230,21 @@ func (msg *IMAPMessage) HTMLPart() *IMAPPartNode {
 	}
 
 	var best *IMAPPartNode
-	msg.BodyStructure.Walk(func(path []int, part *imap.BodyStructure) bool {
-		if !strings.EqualFold(part.MIMEType, "text") {
-			return true
-		}
-		if part.Disposition != "" && !strings.EqualFold(part.Disposition, "inline") {
+	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
+		singlePart, ok := part.(*imap.BodyStructureSinglePart)
+		if !ok {
 			return true
 		}
 
-		if part.MIMESubType == "html" {
-			best = newIMAPPartNode(msg, path, part)
+		if !strings.EqualFold(singlePart.Type, "text") {
+			return true
+		}
+		if disp := singlePart.Disposition(); disp != nil && !strings.EqualFold(disp.Value, "inline") {
+			return true
+		}
+
+		if singlePart.Subtype == "html" {
+			best = newIMAPPartNode(msg, path, singlePart)
 		}
 		return true
 	})
@@ -242,12 +258,17 @@ func (msg *IMAPMessage) Attachments() []IMAPPartNode {
 	}
 
 	var attachments []IMAPPartNode
-	msg.BodyStructure.Walk(func(path []int, part *imap.BodyStructure) bool {
-		if !strings.EqualFold(part.Disposition, "attachment") {
+	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
+		singlePart, ok := part.(*imap.BodyStructureSinglePart)
+		if !ok {
 			return true
 		}
 
-		attachments = append(attachments, *newIMAPPartNode(msg, path, part))
+		if disp := singlePart.Disposition(); disp == nil || !strings.EqualFold(disp.Value, "attachment") {
+			return true
+		}
+
+		attachments = append(attachments, *newIMAPPartNode(msg, path, singlePart))
 		return true
 	})
 	return attachments
@@ -274,7 +295,7 @@ func (msg *IMAPMessage) PartByPath(path []int) *IMAPPartNode {
 	}
 
 	var result *IMAPPartNode
-	msg.BodyStructure.Walk(func(p []int, part *imap.BodyStructure) bool {
+	msg.BodyStructure.Walk(func(p []int, part imap.BodyStructure) bool {
 		if result == nil && pathsEqual(path, p) {
 			result = newIMAPPartNode(msg, p, part)
 		}
@@ -289,9 +310,13 @@ func (msg *IMAPMessage) PartByID(id string) *IMAPPartNode {
 	}
 
 	var result *IMAPPartNode
-	msg.BodyStructure.Walk(func(path []int, part *imap.BodyStructure) bool {
-		if result == nil && part.Id == "<"+id+">" {
-			result = newIMAPPartNode(msg, path, part)
+	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
+		singlePart, ok := part.(*imap.BodyStructureSinglePart)
+		if !ok {
+			return result == nil
+		}
+		if result == nil && singlePart.ID == "<"+id+">" {
+			result = newIMAPPartNode(msg, path, singlePart)
 		}
 		return result == nil
 	})
@@ -342,29 +367,29 @@ func (node IMAPPartNode) String() string {
 	}
 }
 
-func imapPartTree(msg *IMAPMessage, bs *imap.BodyStructure, path []int) *IMAPPartNode {
-	if !strings.EqualFold(bs.MIMEType, "multipart") && len(path) == 0 {
-		path = []int{1}
-	}
-
-	filename, _ := bs.Filename()
-
+func imapPartTree(msg *IMAPMessage, bs imap.BodyStructure, path []int) *IMAPPartNode {
 	node := &IMAPPartNode{
 		Path:     path,
-		MIMEType: strings.ToLower(bs.MIMEType + "/" + bs.MIMESubType),
-		Filename: filename,
-		Children: make([]IMAPPartNode, len(bs.Parts)),
+		MIMEType: bs.MediaType(),
 		Message:  msg,
-		Size:     bs.Size,
 	}
 
-	for i, part := range bs.Parts {
-		num := i + 1
+	switch bs := bs.(type) {
+	case *imap.BodyStructureMultiPart:
+		for i, part := range bs.Children {
+			num := i + 1
 
-		partPath := append([]int(nil), path...)
-		partPath = append(partPath, num)
+			partPath := append([]int(nil), path...)
+			partPath = append(partPath, num)
 
-		node.Children[i] = *imapPartTree(msg, part, partPath)
+			node.Children = append(node.Children, *imapPartTree(msg, part, partPath))
+		}
+	case *imap.BodyStructureSinglePart:
+		if len(path) == 0 {
+			node.Path = []int{1}
+		}
+		node.Filename = bs.Filename()
+		node.Size = bs.Size
 	}
 
 	return node
@@ -378,9 +403,9 @@ func (msg *IMAPMessage) PartTree() *IMAPPartNode {
 	return imapPartTree(msg, msg.BodyStructure, nil)
 }
 
-func (msg *IMAPMessage) HasFlag(flag string) bool {
+func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 	for _, f := range msg.Flags {
-		if imap.CanonicalFlag(f) == flag {
+		if f == flag {
 			return true
 		}
 	}
@@ -388,11 +413,11 @@ func (msg *IMAPMessage) HasFlag(flag string) bool {
 }
 
 func listMessages(conn *imapclient.Client, mbox *MailboxStatus, page, messagesPerPage int) ([]IMAPMessage, error) {
-	if err := ensureMailboxSelected(conn, mbox.Name); err != nil {
+	if err := ensureMailboxSelected(conn, mbox.Name()); err != nil {
 		return nil, err
 	}
 
-	to := int(mbox.Messages) - page*messagesPerPage
+	to := int(*mbox.NumMessages) - page*messagesPerPage
 	from := to - messagesPerPage + 1
 	if from <= 0 {
 		from = 1
@@ -401,29 +426,21 @@ func listMessages(conn *imapclient.Client, mbox *MailboxStatus, page, messagesPe
 		return nil, nil
 	}
 
-	var seqSet imap.SeqSet
-	seqSet.AddRange(uint32(from), uint32(to))
-
-	fetch := []imap.FetchItem{
-		imap.FetchFlags,
-		imap.FetchEnvelope,
-		imap.FetchUid,
-		imap.FetchBodyStructure,
+	seqSet := imap.SeqSetRange(uint32(from), uint32(to))
+	items := []imap.FetchItem{
+		imap.FetchItemFlags,
+		imap.FetchItemEnvelope,
+		imap.FetchItemUID,
+		imap.FetchItemBodyStructure,
 	}
-
-	ch := make(chan *imap.Message, 10)
-	done := make(chan error, 1)
-	go func() {
-		done <- conn.Fetch(&seqSet, fetch, ch)
-	}()
-
-	msgs := make([]IMAPMessage, 0, to-from)
-	for msg := range ch {
-		msgs = append(msgs, IMAPMessage{msg, mbox.Name})
-	}
-
-	if err := <-done; err != nil {
+	imapMsgs, err := conn.Fetch(seqSet, items, nil).Collect()
+	if err != nil {
 		return nil, fmt.Errorf("failed to fetch message list: %v", err)
+	}
+
+	var msgs []IMAPMessage
+	for _, msg := range imapMsgs {
+		msgs = append(msgs, IMAPMessage{msg, mbox.Name()})
 	}
 
 	// Reverse list of messages
@@ -441,10 +458,11 @@ func searchMessages(conn *imapclient.Client, mboxName, query string, page, messa
 	}
 
 	criteria := PrepareSearch(query)
-	nums, err := conn.Search(criteria)
+	data, err := conn.Search(criteria, nil).Wait()
 	if err != nil {
 		return nil, 0, fmt.Errorf("UID SEARCH failed: %v", err)
 	}
+	nums := data.AllNums()
 	total = len(nums)
 
 	from := page * messagesPerPage
@@ -462,33 +480,25 @@ func searchMessages(conn *imapclient.Client, mboxName, query string, page, messa
 		indexes[num] = i
 	}
 
-	var seqSet imap.SeqSet
-	seqSet.AddNum(nums...)
-
-	fetch := []imap.FetchItem{
-		imap.FetchEnvelope,
-		imap.FetchFlags,
-		imap.FetchUid,
-		imap.FetchBodyStructure,
+	seqSet := imap.SeqSetNum(nums...)
+	items := []imap.FetchItem{
+		imap.FetchItemEnvelope,
+		imap.FetchItemFlags,
+		imap.FetchItemUID,
+		imap.FetchItemBodyStructure,
+	}
+	results, err := conn.Fetch(seqSet, items, nil).Collect()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
 	}
 
-	ch := make(chan *imap.Message, 10)
-	done := make(chan error, 1)
-	go func() {
-		done <- conn.Fetch(&seqSet, fetch, ch)
-	}()
-
 	msgs = make([]IMAPMessage, len(nums))
-	for msg := range ch {
+	for _, msg := range results {
 		i, ok := indexes[msg.SeqNum]
 		if !ok {
 			continue
 		}
 		msgs[i] = IMAPMessage{msg, mboxName}
-	}
-
-	if err := <-done; err != nil {
-		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
 	}
 
 	return msgs, total, nil
@@ -499,58 +509,64 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid uint32, partPa
 		return nil, nil, err
 	}
 
-	seqSet := new(imap.SeqSet)
-	seqSet.AddNum(uid)
+	seqSet := imap.SeqSetNum(uid)
 
-	var partHeaderSection imap.BodySectionName
-	partHeaderSection.Peek = true
+	headerItem := &imap.FetchItemBodySection{
+		Peek: true,
+		Part: partPath,
+	}
 	if len(partPath) > 0 {
-		partHeaderSection.Specifier = imap.MIMESpecifier
+		headerItem.Specifier = imap.PartSpecifierMIME
 	} else {
-		partHeaderSection.Specifier = imap.HeaderSpecifier
+		headerItem.Specifier = imap.PartSpecifierHeader
 	}
-	partHeaderSection.Path = partPath
 
-	var partBodySection imap.BodySectionName
+	bodyItem := &imap.FetchItemBodySection{
+		Part: partPath,
+	}
 	if len(partPath) > 0 {
-		partBodySection.Specifier = imap.EntireSpecifier
+		bodyItem.Specifier = imap.PartSpecifierNone
 	} else {
-		partBodySection.Specifier = imap.TextSpecifier
-	}
-	partBodySection.Path = partPath
-
-	fetch := []imap.FetchItem{
-		imap.FetchEnvelope,
-		imap.FetchUid,
-		imap.FetchBodyStructure,
-		imap.FetchFlags,
-		imap.FetchRFC822Size,
-		partHeaderSection.FetchItem(),
-		partBodySection.FetchItem(),
+		bodyItem.Specifier = imap.PartSpecifierText
 	}
 
-	ch := make(chan *imap.Message, 1)
-	if err := conn.UidFetch(seqSet, fetch, ch); err != nil {
+	items := []imap.FetchItem{
+		imap.FetchItemEnvelope,
+		imap.FetchItemUID,
+		imap.FetchItemBodyStructure,
+		imap.FetchItemFlags,
+		imap.FetchItemRFC822Size,
+		headerItem,
+		bodyItem,
+	}
+
+	// TODO: stream attachments
+	msgs, err := conn.UIDFetch(seqSet, items, nil).Collect()
+	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
-	}
-
-	msg := <-ch
-	if msg == nil {
+	} else if len(msgs) == 0 {
 		return nil, nil, fmt.Errorf("server didn't return message")
 	}
+	msg := msgs[0]
 
-	body := msg.GetBody(&partHeaderSection)
-	if body == nil {
-		return nil, nil, fmt.Errorf("server didn't return message")
+	var headerBuf, bodyBuf []byte
+	for item, b := range msg.BodySection {
+		if item.Specifier == headerItem.Specifier {
+			headerBuf = b
+		} else if item.Specifier == bodyItem.Specifier {
+			bodyBuf = b
+		}
+	}
+	if headerBuf == nil || bodyBuf == nil {
+		return nil, nil, fmt.Errorf("server didn't return header and body")
 	}
 
-	headerReader := bufio.NewReader(body)
-	h, err := textproto.ReadHeader(headerReader)
+	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(headerBuf)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read part header: %v", err)
 	}
 
-	part, err := message.New(message.Header{h}, msg.GetBody(&partBodySection))
+	part, err := message.New(message.Header{h}, bytes.NewReader(bodyBuf))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create message reader: %v", err)
 	}
@@ -563,11 +579,12 @@ func markMessageAnswered(conn *imapclient.Client, mboxName string, uid uint32) e
 		return err
 	}
 
-	seqSet := new(imap.SeqSet)
-	seqSet.AddNum(uid)
-	item := imap.FormatFlagsOp(imap.AddFlags, true)
-	flags := []interface{}{imap.AnsweredFlag}
-	return conn.UidStore(seqSet, item, flags, nil)
+	seqSet := imap.SeqSetNum(uid)
+	return conn.UIDStore(seqSet, &imap.StoreFlags{
+		Op:     imap.StoreFlagsAdd,
+		Silent: true,
+		Flags:  []imap.Flag{imap.FlagAnswered},
+	}, nil).Close()
 }
 
 func appendMessage(c *imapclient.Client, msg *OutgoingMessage, mboxType mailboxType) (*MailboxInfo, error) {
@@ -586,28 +603,36 @@ func appendMessage(c *imapclient.Client, msg *OutgoingMessage, mboxType mailboxT
 		return nil, err
 	}
 
-	flags := []string{imap.SeenFlag}
+	flags := []imap.Flag{imap.FlagSeen}
 	if mboxType == mailboxDrafts {
-		flags = append(flags, imap.DraftFlag)
+		flags = append(flags, imap.FlagDraft)
 	}
-	if err := c.Append(mbox.Name, flags, time.Now(), &buf); err != nil {
+	options := imap.AppendOptions{Flags: flags}
+	appendCmd := c.Append(mbox.Name(), int64(buf.Len()), &options)
+	defer appendCmd.Close()
+	if _, err := io.Copy(appendCmd, &buf); err != nil {
+		return nil, err
+	}
+	if err := appendCmd.Close(); err != nil {
 		return nil, err
 	}
 	return mbox, nil
 }
 
-func deleteMessage(c *imapclient.Client, mboxName string, uid uint32) error {
-	if err := ensureMailboxSelected(c, mboxName); err != nil {
+func deleteMessage(conn *imapclient.Client, mboxName string, uid uint32) error {
+	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return err
 	}
 
-	seqSet := new(imap.SeqSet)
-	seqSet.AddNum(uid)
-	item := imap.FormatFlagsOp(imap.AddFlags, true)
-	flags := []interface{}{imap.DeletedFlag}
-	if err := c.UidStore(seqSet, item, flags, nil); err != nil {
+	seqSet := imap.SeqSetNum(uid)
+	err := conn.UIDStore(seqSet, &imap.StoreFlags{
+		Op:     imap.StoreFlagsAdd,
+		Silent: true,
+		Flags:  []imap.Flag{imap.FlagDeleted},
+	}, nil).Close()
+	if err != nil {
 		return err
 	}
 
-	return c.Expunge(nil)
+	return conn.Expunge().Close()
 }

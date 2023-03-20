@@ -15,7 +15,7 @@
 
             {{ if and (ne .Mailbox.Name "Archive") (ne .Mailbox.Name "Drafts") (ne .Mailbox.Name "Sent") }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
-              <input type="hidden" name="uids" value="{{.Message.Uid}}">
+              <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="to" value="Archive">
               <input type="hidden" name="next" value="{{$back}}">
               <button>Archive</button>
@@ -24,7 +24,7 @@
 
             {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name "Sent") (ne .Mailbox.Name "Drafts") }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
-              <input type="hidden" name="uids" value="{{.Message.Uid}}">
+              <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="to" value="INBOX">
               <button>
               {{ if (eq .Mailbox.Name "Junk") }}
@@ -38,7 +38,7 @@
 
             {{ if or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name "Trash") }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
-              <input type="hidden" name="uids" value="{{.Message.Uid}}">
+              <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
               <input type="hidden" name="to" value="Junk">
               <button>Report Spam</button>
@@ -47,13 +47,13 @@
 
             {{ if or (eq .Mailbox.Name "Trash") (eq .Mailbox.Name "Junk") }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete">
-              <input type="hidden" name="uids" value="{{.Message.Uid}}">
+              <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
               <button>Delete Permanently</button>
             </form>
             {{ else }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
-              <input type="hidden" name="uids" value="{{.Message.Uid}}">
+              <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
               <input type="hidden" name="to" value="Trash">
               <button>Delete</button>
@@ -61,7 +61,7 @@
             {{ end }}
 
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/flag">
-              <input type="hidden" name="uids" value="{{.Message.Uid}}">
+              <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="action" value="remove">
               <input type="hidden" name="flags" value="\Seen">
               <input type="hidden" name="next" value="{{$back}}">
@@ -69,7 +69,7 @@
             </form>
 
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
-              <input type="hidden" name="uids" value="{{.Message.Uid}}">
+              <input type="hidden" name="uids" value="{{.Message.UID}}">
               <select class="action-group" name="to">
                 {{range .Mailboxes}}
                   <option value="{{.Name}}" {{if eq .Name $.Mailbox.Name}}selected>Move to...{{else}}>{{.Name}}{{ end }}</option>
@@ -176,8 +176,8 @@
       {{define "addr-list"}}
         {{range $i, $addr := .}}
           {{if $i}},{{end}}
-          <strong>{{.PersonalName}}</strong>
-          &lt;<a href="/compose?to={{.Address}}">{{.Address}}</a>&gt;
+          <strong>{{.Name}}</strong>
+          &lt;<a href="/compose?to={{.Addr}}">{{.Addr}}</a>&gt;
         {{end}}
       {{end}}
 

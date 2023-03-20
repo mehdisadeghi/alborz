@@ -17,7 +17,7 @@ func init() {
 	// Setup a function called when the mailbox view is rendered
 	p.Inject("mailbox.html", func(ctx *alps.Context, kdata alps.RenderData) error {
 		data := kdata.(*alpsbase.MailboxRenderData)
-		fmt.Println("The mailbox view for " + data.Mailbox.Name + " is being rendered")
+		fmt.Println("The mailbox view for " + data.Mailbox.Name() + " is being rendered")
 		// Set extra data that can be accessed from the mailbox.html template
 		data.Extra["Example"] = "Hi from Go"
 		return nil

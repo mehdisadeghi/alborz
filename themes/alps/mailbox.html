@@ -23,15 +23,15 @@
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
           <div class="message-list-checkbox {{$classes}}">
-            <input type="checkbox" name="uids" value="{{.Uid}}" form="messages-form">
+            <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form">
           </div>
           <div class="message-list-sender {{$classes}}">
             {{ range .Envelope.From }}
-            <a href='?query=from:"{{.MailboxName}}@{{.HostName}}"'>
-            {{ if .PersonalName }}
-              {{.PersonalName}}
+            <a href='?query=from:"{{.Addr}}"'>
+            {{ if .Name }}
+              {{.Name}}
             {{ else }}
-              {{.MailboxName}}@{{.HostName}}
+              {{.Addr}}
             {{ end }}
             </a>
             {{ end }}
@@ -41,7 +41,7 @@
             {{if .HasFlag "\\Answered"}}<span class="Replied">↩</span>{{end}}
             {{if .HasFlag "$Forwarded"}}<span class="Forwarded">↪</span>{{end}}
             <form method="POST" action="/message/{{.Mailbox}}/flag">
-              <input type="hidden" name="uids" value="{{.Message.Uid}}">
+              <input type="hidden" name="uids" value="{{.UID}}">
               {{ if .HasFlag "\\Flagged" -}}
               <input type="hidden" name="action" value="remove">
               {{ else }}

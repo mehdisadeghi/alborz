@@ -7,15 +7,13 @@ import (
 	"io/ioutil"
 	"mime"
 	"net/http"
-	"net/textproto"
 	"net/url"
 	"strconv"
 	"strings"
 
 	"git.sr.ht/~migadu/alps"
-	"github.com/emersion/go-imap"
-	imapmove "github.com/emersion/go-imap-move"
-	imapclient "github.com/emersion/go-imap/client"
+	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-smtp"
@@ -113,7 +111,7 @@ func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
 		Info:   &mi,
 		Status: status,
 	}
-	if name := mi.Name; name == "INBOX" {
+	if name := mi.Mailbox; name == "INBOX" {
 		cc.Common.Inbox = details
 	} else if name == "Drafts" {
 		cc.Common.Drafts = details
@@ -187,13 +185,13 @@ func newIMAPBaseRenderData(ctx *alps.Context,
 	var categorized CategorizedMailboxes
 	for i := range mailboxes {
 		// Populate unseen & active states
-		if active != nil && mailboxes[i].Name == active.Name {
+		if active != nil && mailboxes[i].Name() == active.Mailbox {
 			mailboxes[i].Active = true
 		}
-		status := statuses[mailboxes[i].Name]
+		status := statuses[mailboxes[i].Name()]
 		if status != nil {
-			mailboxes[i].Unseen = int(status.Unseen)
-			mailboxes[i].Total = int(status.Messages)
+			mailboxes[i].Unseen = int(*status.NumUnseen)
+			mailboxes[i].Total = int(*status.NumMessages)
 		}
 
 		categorized.Append(mailboxes[i], status)
@@ -216,12 +214,12 @@ func handleGetMailbox(ctx *alps.Context) error {
 	}
 
 	mbox := ibase.Mailbox
-	title := mbox.Name
+	title := mbox.Name()
 	if title == "INBOX" {
 		title = "Inbox"
 	}
-	if mbox.Unseen > 0 {
-		title = fmt.Sprintf("(%d) %s", mbox.Unseen, title)
+	if *mbox.NumUnseen > 0 {
+		title = fmt.Sprintf("(%d) %s", *mbox.NumUnseen, title)
 	}
 	ibase.BaseRenderData.WithTitle(title)
 
@@ -248,7 +246,7 @@ func handleGetMailbox(ctx *alps.Context) error {
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
 		var err error
 		if query != "" {
-			msgs, total, err = searchMessages(c, mbox.Name, query, page, messagesPerPage)
+			msgs, total, err = searchMessages(c, mbox.Name(), query, page, messagesPerPage)
 		} else {
 			msgs, err = listMessages(c, mbox, page, messagesPerPage)
 		}
@@ -273,7 +271,7 @@ func handleGetMailbox(ctx *alps.Context) error {
 		if page > 0 {
 			prevPage = page - 1
 		}
-		if (page+1)*messagesPerPage < int(mbox.Messages) {
+		if (page+1)*messagesPerPage < int(*mbox.NumMessages) {
 			nextPage = page + 1
 		}
 	}
@@ -309,7 +307,7 @@ func handleNewMailbox(ctx *alps.Context) error {
 		}
 
 		err := ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-			return c.Create(name)
+			return c.Create(name, nil).Wait()
 		})
 
 		if err != nil {
@@ -335,11 +333,11 @@ func handleDeleteMailbox(ctx *alps.Context) error {
 	}
 
 	mbox := ibase.Mailbox
-	ibase.BaseRenderData.WithTitle("Delete folder '" + mbox.Name + "'")
+	ibase.BaseRenderData.WithTitle("Delete folder '" + mbox.Name() + "'")
 
 	if ctx.Request().Method == http.MethodPost {
 		ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-			return c.Delete(mbox.Name)
+			return c.Delete(mbox.Name()).Wait()
 		})
 		ctx.Session.PutNotice("Mailbox deleted.")
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
@@ -429,11 +427,13 @@ func handleGetPart(ctx *alps.Context, raw bool) error {
 
 	var msg *IMAPMessage
 	var part *message.Entity
+	var selected *imapclient.SelectedMailbox
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
 		var err error
-		if msg, part, err = getMessagePart(c, mbox.Name, uid, partPath); err != nil {
+		if msg, part, err = getMessagePart(c, mbox.Name(), uid, partPath); err != nil {
 			return err
 		}
+		selected = c.Mailbox()
 		return nil
 	})
 	if err != nil {
@@ -485,12 +485,11 @@ func handleGetPart(ctx *alps.Context, raw bool) error {
 	}
 
 	flags := make(map[string]bool)
-	for _, f := range mbox.PermanentFlags {
-		f = imap.CanonicalFlag(f)
-		if f == imap.TryCreateFlag {
+	for _, f := range selected.PermanentFlags {
+		if f == imap.FlagWildcard {
 			continue
 		}
-		flags[f] = msg.HasFlag(f)
+		flags[string(f)] = msg.HasFlag(f)
 	}
 
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject)
@@ -500,7 +499,7 @@ func handleGetPart(ctx *alps.Context, raw bool) error {
 		Message:            msg,
 		Part:               msg.PartByPath(partPath),
 		View:               view,
-		MailboxPage:        int(mbox.Messages-msg.SeqNum) / messagesPerPage,
+		MailboxPage:        int(*mbox.NumMessages-msg.SeqNum) / messagesPerPage,
 		Flags:              flags,
 	})
 }
@@ -686,20 +685,21 @@ func handleCompose(ctx *alps.Context, msg *OutgoingMessage, options *composeOpti
 					}
 				}
 
-				if err := ensureMailboxSelected(c, drafts.Name); err != nil {
+				if err := ensureMailboxSelected(c, drafts.Name()); err != nil {
 					return err
 				}
 
-				criteria := &imap.SearchCriteria{
-					Header: make(textproto.MIMEHeader),
+				// TODO: use APPENDUID instead when available
+				criteria := imap.SearchCriteria{
+					Header: []imap.SearchCriteriaHeaderField{
+						{Key: "Message-Id", Value: msg.MessageID},
+					},
 				}
-				criteria.Header.Add("Message-Id", msg.MessageID)
-				if uids, err := c.UidSearch(criteria); err != nil {
+				if data, err := c.UIDSearch(&criteria, nil).Wait(); err != nil {
 					return err
+				} else if uids := data.AllNums(); len(uids) != 1 {
+					panic(fmt.Errorf("Duplicate message ID"))
 				} else {
-					if len(uids) != 1 {
-						panic(fmt.Errorf("Duplicate message ID"))
-					}
 					uid = uids[0]
 				}
 				return nil
@@ -709,7 +709,7 @@ func handleCompose(ctx *alps.Context, msg *OutgoingMessage, options *composeOpti
 			}
 			ctx.Session.PutNotice("Message saved as draft.")
 			return ctx.Redirect(http.StatusFound, fmt.Sprintf(
-				"/message/%s/%d/edit?part=1", drafts.Name, uid))
+				"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
 		} else {
 			return submitCompose(ctx, msg, options)
 		}
@@ -789,10 +789,10 @@ func handleCancelAttachment(ctx *alps.Context) error {
 	return ctx.JSON(http.StatusOK, nil)
 }
 
-func unwrapIMAPAddressList(addrs []*imap.Address) []string {
+func unwrapIMAPAddressList(addrs []imap.Address) []string {
 	l := make([]string, len(addrs))
 	for i, addr := range addrs {
-		l[i] = addr.Address()
+		l[i] = addr.Addr()
 	}
 	return l
 }
@@ -852,7 +852,7 @@ func handleReply(ctx *alps.Context) error {
 		hdr.GenerateMessageID()
 		mid, _ := hdr.MessageID()
 		msg.MessageID = "<" + mid + ">"
-		msg.InReplyTo = inReplyTo.Envelope.MessageId
+		msg.InReplyTo = inReplyTo.Envelope.MessageID
 		// TODO: populate From from known user addresses and inReplyTo.Envelope.To
 		replyTo := inReplyTo.Envelope.ReplyTo
 		if len(replyTo) == 0 {
@@ -987,12 +987,12 @@ func handleEdit(ctx *alps.Context) error {
 		msg.Text = string(b)
 
 		if len(source.Envelope.From) > 0 {
-			msg.From = source.Envelope.From[0].Address()
+			msg.From = source.Envelope.From[0].Addr()
 		}
 		msg.To = unwrapIMAPAddressList(source.Envelope.To)
 		msg.Subject = source.Envelope.Subject
 		msg.InReplyTo = source.Envelope.InReplyTo
-		msg.MessageID = source.Envelope.MessageId
+		msg.MessageID = source.Envelope.MessageID
 
 		attachments := source.Attachments()
 		for i := range attachments {
@@ -1042,15 +1042,12 @@ func handleMove(ctx *alps.Context) error {
 	}
 
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-		mc := imapmove.NewClient(c)
-
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
 
-		var seqSet imap.SeqSet
-		seqSet.AddNum(uids...)
-		if err := mc.UidMoveWithFallback(&seqSet, to); err != nil {
+		seqSet := imap.SeqSetNum(uids...)
+		if _, err := c.UIDMove(seqSet, to).Wait(); err != nil {
 			return fmt.Errorf("failed to move message: %v", err)
 		}
 
@@ -1093,23 +1090,18 @@ func handleDelete(ctx *alps.Context) error {
 			return err
 		}
 
-		var seqSet imap.SeqSet
-		seqSet.AddNum(uids...)
-
-		item := imap.FormatFlagsOp(imap.AddFlags, true)
-		flags := []interface{}{imap.DeletedFlag}
-		if err := c.UidStore(&seqSet, item, flags, nil); err != nil {
+		seqSet := imap.SeqSetNum(uids...)
+		err := c.UIDStore(seqSet, &imap.StoreFlags{
+			Op:     imap.StoreFlagsAdd,
+			Silent: true,
+			Flags:  []imap.Flag{imap.FlagDeleted},
+		}, nil).Close()
+		if err != nil {
 			return fmt.Errorf("failed to add deleted flag: %v", err)
 		}
 
-		if err := c.Expunge(nil); err != nil {
+		if err := c.Expunge().Close(); err != nil {
 			return fmt.Errorf("failed to expunge mailbox: %v", err)
-		}
-
-		// Deleting a message invalidates our cached message count
-		// TODO: listen to async updates instead
-		if _, err := c.Select(mboxName, false); err != nil {
-			return fmt.Errorf("failed to select mailbox: %v", err)
 		}
 
 		return nil
@@ -1155,16 +1147,21 @@ func handleSetFlags(ctx *alps.Context) error {
 		actionStr = ctx.QueryParam("action")
 	}
 
-	var op imap.FlagsOp
+	var op imap.StoreFlagsOp
 	switch actionStr {
 	case "", "set":
-		op = imap.SetFlags
+		op = imap.StoreFlagsSet
 	case "add":
-		op = imap.AddFlags
+		op = imap.StoreFlagsAdd
 	case "remove":
-		op = imap.RemoveFlags
+		op = imap.StoreFlagsDel
 	default:
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid 'action' value")
+	}
+
+	l := make([]imap.Flag, len(flags))
+	for i, s := range flags {
+		l[i] = imap.Flag(s)
 	}
 
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
@@ -1172,17 +1169,14 @@ func handleSetFlags(ctx *alps.Context) error {
 			return err
 		}
 
-		var seqSet imap.SeqSet
-		seqSet.AddNum(uids...)
-
-		storeItems := make([]interface{}, len(flags))
-		for i, f := range flags {
-			storeItems[i] = f
-		}
-
-		item := imap.FormatFlagsOp(op, true)
-		if err := c.UidStore(&seqSet, item, storeItems, nil); err != nil {
-			return fmt.Errorf("failed to add deleted flag: %v", err)
+		seqSet := imap.SeqSetNum(uids...)
+		err := c.UIDStore(seqSet, &imap.StoreFlags{
+			Op:     op,
+			Silent: true,
+			Flags:  l,
+		}, nil).Close()
+		if err != nil {
+			return fmt.Errorf("failed to set flags: %v", err)
 		}
 
 		return nil
@@ -1194,7 +1188,7 @@ func handleSetFlags(ctx *alps.Context) error {
 	if path := formOrQueryParam(ctx, "next"); path != "" {
 		return ctx.Redirect(http.StatusFound, path)
 	}
-	if len(uids) != 1 || (op == imap.RemoveFlags && len(flags) == 1 && flags[0] == imap.SeenFlag) {
+	if len(uids) != 1 || (op == imap.StoreFlagsDel && len(l) == 1 && l[0] == imap.FlagSeen) {
 		// Redirecting to the message view would mark the message as read again
 		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
 	}

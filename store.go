@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"sync"
 
-	imapmetadata "github.com/emersion/go-imap-metadata"
-	imapclient "github.com/emersion/go-imap/client"
+	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/labstack/echo/v4"
 )
 
@@ -76,12 +76,7 @@ var errIMAPMetadataUnsupported = fmt.Errorf("alps: IMAP server doesn't support M
 
 func newIMAPStore(session *Session) (*imapStore, error) {
 	err := session.DoIMAP(func(c *imapclient.Client) error {
-		mc := imapmetadata.NewClient(c)
-		ok, err := mc.SupportMetadata()
-		if err != nil {
-			return fmt.Errorf("alps: failed to check for IMAP METADATA support: %v", err)
-		}
-		if !ok {
+		if caps := c.Caps(); !caps.Has(imap.CapMetadata) && !caps.Has(imap.CapMetadataServer) {
 			return errIMAPMetadataUnsupported
 		}
 		return nil
@@ -101,21 +96,23 @@ func (s *imapStore) Get(key string, out interface{}) error {
 		return err
 	}
 
-	var entries map[string]string
+	var entries map[string]*[]byte
 	err := s.session.DoIMAP(func(c *imapclient.Client) error {
-		mc := imapmetadata.NewClient(c)
-		var err error
-		entries, err = mc.GetMetadata("", []string{s.key(key)}, nil)
-		return err
+		data, err := c.GetMetadata("", []string{s.key(key)}, nil).Wait()
+		if err != nil {
+			return err
+		}
+		entries = data.EntryValues
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("alps: failed to fetch IMAP store entry %q: %v", key, err)
 	}
 	v, ok := entries[s.key(key)]
-	if !ok {
+	if !ok || v == nil {
 		return ErrNoStoreEntry
 	}
-	if err := json.Unmarshal([]byte(v), out); err != nil {
+	if err := json.Unmarshal(*v, out); err != nil {
 		return fmt.Errorf("alps: failed to unmarshal IMAP store entry %q: %v", key, err)
 	}
 	return s.cache.Put(key, out)
@@ -126,12 +123,9 @@ func (s *imapStore) Put(key string, v interface{}) error {
 	if err != nil {
 		return fmt.Errorf("alps: failed to marshal IMAP store entry %q: %v", key, err)
 	}
-	entries := map[string]string{
-		s.key(key): string(b),
-	}
+	entries := map[string]*[]byte{s.key(key): &b}
 	err = s.session.DoIMAP(func(c *imapclient.Client) error {
-		mc := imapmetadata.NewClient(c)
-		return mc.SetMetadata("", entries)
+		return c.SetMetadata("", entries).Wait()
 	})
 	if err != nil {
 		return fmt.Errorf("alps: failed to put IMAP store entry %q: %v", key, err)

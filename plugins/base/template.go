@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/emersion/go-imap"
+	"github.com/emersion/go-imap/v2"
 )
 
 const (
@@ -23,23 +23,23 @@ var templateFuncs = template.FuncMap{
 	"formatdate": func(t time.Time) string {
 		return t.Format("Mon Jan 02 15:04")
 	},
-	"formatflag": func(flag string) string {
+	"formatflag": func(flag imap.Flag) string {
 		switch flag {
-		case imap.SeenFlag:
+		case imap.FlagSeen:
 			return "Seen"
-		case imap.AnsweredFlag:
+		case imap.FlagAnswered:
 			return "Answered"
-		case imap.FlaggedFlag:
+		case imap.FlagFlagged:
 			return "Starred"
-		case imap.DraftFlag:
+		case imap.FlagDraft:
 			return "Draft"
 		default:
-			return flag
+			return string(flag)
 		}
 	},
-	"ismutableflag": func(flag string) bool {
+	"ismutableflag": func(flag imap.Flag) bool {
 		switch flag {
-		case imap.AnsweredFlag, imap.DeletedFlag, imap.DraftFlag:
+		case imap.FlagAnswered, imap.FlagDeleted, imap.FlagDraft:
 			return false
 		default:
 			return true

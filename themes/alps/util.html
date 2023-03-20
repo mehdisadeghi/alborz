@@ -9,10 +9,8 @@
     {{- end -}}
     {{- if .Info.HasAttr "\\HasChildren" }}/{{ end }}
   </a>
-  {{ if .Status }}
-  {{ if .Status.Unseen }}
-  <span class="unseen">({{.Status.Unseen}})</span>
-  {{ end }}
+  {{ if gt .Info.Unseen 0 }}
+  <span class="unseen">({{.Info.Unseen}})</span>
   {{ end }}
 </li>
 {{ else }}

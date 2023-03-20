@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
-	imapclient "github.com/emersion/go-imap/client"
+	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 	"github.com/google/uuid"
@@ -84,6 +84,11 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 	s.imapLocker.Lock()
 	defer s.imapLocker.Unlock()
 
+	if s.imapConn != nil && s.imapConn.State() == imap.ConnStateLogout {
+		s.imapConn.Close()
+		s.imapConn = nil
+	}
+
 	if s.imapConn == nil {
 		var err error
 		s.imapConn, err = s.manager.connectIMAP(s.username, s.password)
@@ -93,6 +98,8 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 		}
 	}
 
+	// TODO: to avoid races wrt. disconnection, re-run f if it returns
+	// io.UnexpectedEOF
 	return f(s.imapConn)
 }
 
@@ -210,19 +217,17 @@ type SessionManager struct {
 	dialIMAP DialIMAPFunc
 	dialSMTP DialSMTPFunc
 	logger   echo.Logger
-	debug    bool
 
 	locker   sync.Mutex
 	sessions map[string]*Session // protected by locker
 }
 
-func newSessionManager(dialIMAP DialIMAPFunc, dialSMTP DialSMTPFunc, logger echo.Logger, debug bool) *SessionManager {
+func newSessionManager(dialIMAP DialIMAPFunc, dialSMTP DialSMTPFunc, logger echo.Logger) *SessionManager {
 	return &SessionManager{
 		sessions: make(map[string]*Session),
 		dialIMAP: dialIMAP,
 		dialSMTP: dialSMTP,
 		logger:   logger,
-		debug:    debug,
 	}
 }
 
@@ -238,13 +243,9 @@ func (sm *SessionManager) connectIMAP(username, password string) (*imapclient.Cl
 		return nil, err
 	}
 
-	if err := c.Login(username, password); err != nil {
+	if err := c.Login(username, password).Wait(); err != nil {
 		c.Logout()
 		return nil, AuthError{err}
-	}
-
-	if sm.debug {
-		c.SetDebug(os.Stderr)
 	}
 
 	return c, nil
@@ -308,18 +309,7 @@ func (sm *SessionManager) Put(username, password string) (*Session, error) {
 
 		alive := true
 		for alive {
-			var loggedOut <-chan struct{}
-			s.imapLocker.Lock()
-			if s.imapConn != nil {
-				loggedOut = s.imapConn.LoggedOut()
-			}
-			s.imapLocker.Unlock()
-
 			select {
-			case <-loggedOut:
-				s.imapLocker.Lock()
-				s.imapConn = nil
-				s.imapLocker.Unlock()
 			case <-s.pings:
 				if !timer.Stop() {
 					<-timer.C
@@ -336,7 +326,7 @@ func (sm *SessionManager) Put(username, password string) (*Session, error) {
 
 		s.imapLocker.Lock()
 		if s.imapConn != nil {
-			s.imapConn.Logout()
+			s.imapConn.Close()
 		}
 		s.imapLocker.Unlock()
 

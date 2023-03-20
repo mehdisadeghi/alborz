@@ -3,16 +3,15 @@ package alpsbase
 import (
 	"bufio"
 	"bytes"
-	"net/textproto"
 	"strings"
 
-	"github.com/emersion/go-imap"
+	"github.com/emersion/go-imap/v2"
 )
 
 func searchCriteriaHeader(k, v string) *imap.SearchCriteria {
 	return &imap.SearchCriteria{
-		Header: map[string][]string{
-			k: []string{v},
+		Header: []imap.SearchCriteriaHeaderField{
+			{Key: k, Value: v},
 		},
 	}
 }
@@ -24,7 +23,7 @@ func searchCriteriaOr(criteria ...*imap.SearchCriteria) *imap.SearchCriteria {
 	or := criteria[0]
 	for _, c := range criteria[1:] {
 		or = &imap.SearchCriteria{
-			Or: [][2]*imap.SearchCriteria{{or, c}},
+			Or: [][2]imap.SearchCriteria{{*or, *c}},
 		}
 	}
 	return or
@@ -36,24 +35,7 @@ func searchCriteriaAnd(criteria ...*imap.SearchCriteria) *imap.SearchCriteria {
 	}
 	and := criteria[0]
 	for _, c := range criteria[1:] {
-		// TODO: Maybe pitch the AND and OR functions to go-imap upstream
-		if c.Header != nil {
-			if and.Header == nil {
-				and.Header = make(textproto.MIMEHeader)
-			}
-
-			for key, value := range c.Header {
-				if _, ok := and.Header[key]; !ok {
-					and.Header[key] = nil
-				}
-				and.Header[key] = append(and.Header[key], value...)
-			}
-		}
-		and.Body = append(and.Body, c.Body...)
-		and.Text = append(and.Text, c.Text...)
-		and.WithFlags = append(and.WithFlags, c.WithFlags...)
-		and.WithoutFlags = append(and.WithoutFlags, c.WithoutFlags...)
-		// TODO: Merge more things
+		and.And(c)
 	}
 	return and
 }

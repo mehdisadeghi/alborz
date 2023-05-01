@@ -46,14 +46,28 @@ func (mbox *MailboxInfo) HasAttr(flag string) bool {
 }
 
 func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
+	var options imap.ListOptions
+	if conn.Caps().Has(imap.CapListStatus) {
+		options.ReturnStatus = &imap.StatusOptions{
+			NumMessages: true,
+			UIDValidity: true,
+			NumUnseen:   true,
+		}
+	}
+
 	var mailboxes []MailboxInfo
-	list := conn.List("", "*", nil)
+	list := conn.List("", "*", &options)
 	for {
-		mbox := list.Next()
-		if mbox == nil {
+		data := list.Next()
+		if data == nil {
 			break
 		}
-		mailboxes = append(mailboxes, MailboxInfo{mbox, false, -1, -1})
+		mbox := MailboxInfo{data, false, -1, -1}
+		if mbox.Status != nil {
+			mbox.Unseen = int(*mbox.Status.NumUnseen)
+			mbox.Total = int(*mbox.Status.NumMessages)
+		}
+		mailboxes = append(mailboxes, mbox)
 	}
 	if err := list.Close(); err != nil {
 		return nil, fmt.Errorf("failed to list mailboxes: %v", err)

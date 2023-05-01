@@ -150,6 +150,18 @@ func newIMAPBaseRenderData(ctx *alps.Context,
 			return err
 		}
 
+		if c.Caps().Has(imap.CapListStatus) {
+			for _, mbox := range mailboxes {
+				if mbox.Status == nil {
+					continue
+				}
+				statuses[mbox.Name()] = &MailboxStatus{mbox.Status}
+			}
+			inbox = statuses["INBOX"]
+			active = statuses[mboxName]
+			return nil
+		}
+
 		if mboxName != "" {
 			if active, err = getMailboxStatus(c, mboxName); err != nil {
 				return echo.NewHTTPError(http.StatusNotFound, err)

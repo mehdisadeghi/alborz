@@ -190,13 +190,21 @@ func (msg *OutgoingMessage) WriteTo(w io.Writer) error {
 }
 
 func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
-	addr, _ := mail.ParseAddress(msg.From)
+	addr, err := mail.ParseAddress(msg.From)
+	if err != nil {
+		return fmt.Errorf("parsing 'From' address failed: %v", err)
+	}
+
 	if err := c.Mail(addr.Address, nil); err != nil {
 		return fmt.Errorf("MAIL FROM failed: %v", err)
 	}
 
 	for _, to := range msg.To {
-		addr, _ := mail.ParseAddress(to)
+		addr, err := mail.ParseAddress(to)
+		if err != nil {
+			return fmt.Errorf("parsing 'To' address failed: %v", err)
+		}
+
 		if err := c.Rcpt(addr.Address); err != nil {
 			return fmt.Errorf("RCPT TO failed: %v (%s)", err, addr.Address)
 		}

@@ -441,13 +441,13 @@ func listMessages(conn *imapclient.Client, mbox *MailboxStatus, page, messagesPe
 	}
 
 	seqSet := imap.SeqSetRange(uint32(from), uint32(to))
-	items := []imap.FetchItem{
-		imap.FetchItemFlags,
-		imap.FetchItemEnvelope,
-		imap.FetchItemUID,
-		imap.FetchItemBodyStructure,
+	options := imap.FetchOptions{
+		Flags:         true,
+		Envelope:      true,
+		UID:           true,
+		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
 	}
-	imapMsgs, err := conn.Fetch(seqSet, items, nil).Collect()
+	imapMsgs, err := conn.Fetch(seqSet, &options).Collect()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch message list: %v", err)
 	}
@@ -495,13 +495,13 @@ func searchMessages(conn *imapclient.Client, mboxName, query string, page, messa
 	}
 
 	seqSet := imap.SeqSetNum(nums...)
-	items := []imap.FetchItem{
-		imap.FetchItemEnvelope,
-		imap.FetchItemFlags,
-		imap.FetchItemUID,
-		imap.FetchItemBodyStructure,
+	options := imap.FetchOptions{
+		Envelope:      true,
+		Flags:         true,
+		UID:           true,
+		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
 	}
-	results, err := conn.Fetch(seqSet, items, nil).Collect()
+	results, err := conn.Fetch(seqSet, &options).Collect()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
 	}
@@ -544,18 +544,17 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid uint32, partPa
 		bodyItem.Specifier = imap.PartSpecifierText
 	}
 
-	items := []imap.FetchItem{
-		imap.FetchItemEnvelope,
-		imap.FetchItemUID,
-		imap.FetchItemBodyStructure,
-		imap.FetchItemFlags,
-		imap.FetchItemRFC822Size,
-		headerItem,
-		bodyItem,
+	options := imap.FetchOptions{
+		Envelope:      true,
+		UID:           true,
+		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+		Flags:         true,
+		RFC822Size:    true,
+		BodySection:   []*imap.FetchItemBodySection{headerItem, bodyItem},
 	}
 
 	// TODO: stream attachments
-	msgs, err := conn.UIDFetch(seqSet, items, nil).Collect()
+	msgs, err := conn.UIDFetch(seqSet, &options).Collect()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
 	} else if len(msgs) == 0 {

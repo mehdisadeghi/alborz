@@ -185,27 +185,23 @@
       {{ $text := .Message.TextPart }}
       <div class="tabs">
         {{/* https://github.com/golang/go/issues/31103 */}}
+        {{ if $text }}
+        {{ if ne $text.MIMEType "text/html" }}
         <a
           href="?part={{$text.PathString}}"
           {{ if eq $text.PathString .Part.PathString }}
           class="active"
           {{ end }}
-        >
-        {{ if eq $text.MIMEType "text/html" }}
-        HTML
-        {{ else }}
-        Plain text
+        >Plain text</a>
         {{ end }}
-        </a>
-        {{ if and $html $text }}
-        {{ if ne $html.PathString $text.PathString }}
+        {{ end }}
+        {{ if $html }}
         <a
           href="?part={{$html.PathString}}"
           {{ if eq $html.PathString .Part.PathString }}
           class="active"
           {{ end }}
         >HTML</a>
-        {{ end }}
         {{ end }}
         <a href="{{.Message.URL}}/raw?plain=1">Raw email</a>
       </div>

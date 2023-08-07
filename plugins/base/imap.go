@@ -471,12 +471,28 @@ func searchMessages(conn *imapclient.Client, mboxName, query string, page, messa
 		return nil, 0, err
 	}
 
-	criteria := PrepareSearch(query)
-	data, err := conn.Search(criteria, nil).Wait()
-	if err != nil {
-		return nil, 0, fmt.Errorf("UID SEARCH failed: %v", err)
+	searchCriteria := PrepareSearch(query)
+
+	var nums []uint32
+	if !conn.Caps().Has(imap.CapSort) {
+		data, err := conn.Search(searchCriteria, nil).Wait()
+		if err != nil {
+			return nil, 0, fmt.Errorf("SEARCH failed: %v", err)
+		}
+		nums = data.AllNums()
+	} else {
+		sortOptions := &imapclient.SortOptions{
+			SearchCriteria: searchCriteria,
+			SortCriteria: []imapclient.SortCriterion{
+				{Key: imapclient.SortKeyDate, Reverse: true},
+			},
+		}
+		nums, err = conn.Sort(sortOptions).Wait()
+		if err != nil {
+			return nil, 0, fmt.Errorf("SORT failed: %v", err)
+		}
 	}
-	nums := data.AllNums()
+
 	total = len(nums)
 
 	from := page * messagesPerPage

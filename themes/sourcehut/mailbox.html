@@ -60,10 +60,10 @@
             </span>
             <span class="text-normal from">
               {{ range .Envelope.From }}
-                {{ if .PersonalName }}
-                  {{ .PersonalName }}
+                {{ if .Name }}
+                  {{ .Name }}
                 {{ else }}
-                  {{ .MailboxName }}@{{ .HostName }}
+                  {{ .Addr }}
                 {{ end }}
               {{ end }}
             </span>

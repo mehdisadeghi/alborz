@@ -404,7 +404,7 @@ type MessageRenderData struct {
 	Part        *IMAPPartNode
 	View        interface{}
 	MailboxPage int
-	Flags       map[string]bool
+	Flags       map[imap.Flag]bool
 }
 
 func handleGetPart(ctx *alps.Context, raw bool) error {
@@ -488,12 +488,12 @@ func handleGetPart(ctx *alps.Context, raw bool) error {
 		view = nil
 	}
 
-	flags := make(map[string]bool)
+	flags := make(map[imap.Flag]bool)
 	for _, f := range selected.PermanentFlags {
 		if f == imap.FlagWildcard {
 			continue
 		}
-		flags[string(f)] = msg.HasFlag(f)
+		flags[f] = msg.HasFlag(f)
 	}
 
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject)

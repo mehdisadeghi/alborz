@@ -205,7 +205,7 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
 			return fmt.Errorf("parsing 'To' address failed: %v", err)
 		}
 
-		if err := c.Rcpt(addr.Address); err != nil {
+		if err := c.Rcpt(addr.Address, nil); err != nil {
 			return fmt.Errorf("RCPT TO failed: %v (%s)", err, addr.Address)
 		}
 	}

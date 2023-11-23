@@ -427,7 +427,12 @@ func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 }
 
 func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {
+	// A NOOP will ensure we notice any new message
+	noop := conn.Noop()
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
+		return nil, 0, err
+	}
+	if err := noop.Wait(); err != nil {
 		return nil, 0, err
 	}
 

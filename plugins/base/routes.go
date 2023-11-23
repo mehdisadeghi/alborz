@@ -260,8 +260,7 @@ func handleGetMailbox(ctx *alps.Context) error {
 		if query != "" {
 			msgs, total, err = searchMessages(c, mbox.Name(), query, page, messagesPerPage)
 		} else {
-			msgs, err = listMessages(c, mbox, page, messagesPerPage)
-			total = int(*mbox.NumMessages)
+			msgs, total, err = listMessages(c, mbox.Name(), page, messagesPerPage)
 		}
 		if err != nil {
 			return err

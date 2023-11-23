@@ -426,18 +426,21 @@ func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 	return false
 }
 
-func listMessages(conn *imapclient.Client, mbox *MailboxStatus, page, messagesPerPage int) ([]IMAPMessage, error) {
-	if err := ensureMailboxSelected(conn, mbox.Name()); err != nil {
-		return nil, err
+func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {
+	if err := ensureMailboxSelected(conn, mboxName); err != nil {
+		return nil, 0, err
 	}
 
-	to := int(*mbox.NumMessages) - page*messagesPerPage
+	mbox := conn.Mailbox()
+	total = int(mbox.NumMessages)
+
+	to := total - page*messagesPerPage
 	from := to - messagesPerPage + 1
 	if from <= 0 {
 		from = 1
 	}
 	if to <= 0 {
-		return nil, nil
+		return nil, total, nil
 	}
 
 	seqSet := imap.SeqSetRange(uint32(from), uint32(to))
@@ -449,12 +452,11 @@ func listMessages(conn *imapclient.Client, mbox *MailboxStatus, page, messagesPe
 	}
 	imapMsgs, err := conn.Fetch(seqSet, &options).Collect()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch message list: %v", err)
+		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
 	}
 
-	var msgs []IMAPMessage
 	for _, msg := range imapMsgs {
-		msgs = append(msgs, IMAPMessage{msg, mbox.Name()})
+		msgs = append(msgs, IMAPMessage{msg, mboxName})
 	}
 
 	// Reverse list of messages
@@ -463,7 +465,7 @@ func listMessages(conn *imapclient.Client, mbox *MailboxStatus, page, messagesPe
 		msgs[i], msgs[opp] = msgs[opp], msgs[i]
 	}
 
-	return msgs, nil
+	return msgs, total, nil
 }
 
 func searchMessages(conn *imapclient.Client, mboxName, query string, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {

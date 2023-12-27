@@ -1,6 +1,7 @@
 package alpscaldav
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -34,23 +35,23 @@ func newClient(u *url.URL, session *alps.Session) (*caldav.Client, error) {
 	return c, nil
 }
 
-func getCalendar(u *url.URL, session *alps.Session) (*caldav.Client, *caldav.Calendar, error) {
+func getCalendar(ctx context.Context, u *url.URL, session *alps.Session) (*caldav.Client, *caldav.Calendar, error) {
 	c, err := newClient(u, session)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	principal, err := c.FindCurrentUserPrincipal()
+	principal, err := c.FindCurrentUserPrincipal(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query CalDAV principal: %v", err)
 	}
 
-	calendarHomeSet, err := c.FindCalendarHomeSet(principal)
+	calendarHomeSet, err := c.FindCalendarHomeSet(ctx, principal)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query CalDAV calendar home set: %v", err)
 	}
 
-	calendars, err := c.FindCalendars(calendarHomeSet)
+	calendars, err := c.FindCalendars(ctx, calendarHomeSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find calendars: %v", err)
 	}

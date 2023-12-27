@@ -96,7 +96,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 		end := start.AddDate(0, 1, 0)
 
 		// TODO: multi-calendar support
-		c, calendar, err := getCalendar(u, ctx.Session)
+		c, calendar, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -125,7 +125,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 				}},
 			},
 		}
-		events, err := c.QueryCalendar(calendar.Path, &query)
+		events, err := c.QueryCalendar(ctx.Request().Context(), calendar.Path, &query)
 		if err != nil {
 			return fmt.Errorf("failed to query calendar: %v", err)
 		}
@@ -209,7 +209,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 		end := start.AddDate(0, 0, 1)
 
 		// TODO: multi-calendar support
-		c, calendar, err := getCalendar(u, ctx.Session)
+		c, calendar, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -238,7 +238,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 				}},
 			},
 		}
-		events, err := c.QueryCalendar(calendar.Path, &query)
+		events, err := c.QueryCalendar(ctx.Request().Context(), calendar.Path, &query)
 		if err != nil {
 			return fmt.Errorf("failed to query calendar: %v", err)
 		}
@@ -260,7 +260,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 			return err
 		}
 
-		c, calendar, err := getCalendar(u, ctx.Session)
+		c, calendar, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -283,7 +283,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 			},
 		}
 
-		events, err := c.MultiGetCalendar(path, &multiGet)
+		events, err := c.MultiGetCalendar(ctx.Request().Context(), path, &multiGet)
 		if err != nil {
 			return fmt.Errorf("failed to multi-get calendar: %v", err)
 		}
@@ -306,7 +306,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 			return err
 		}
 
-		c, calendar, err := getCalendar(u, ctx.Session)
+		c, calendar, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -314,7 +314,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 		var co *caldav.CalendarObject
 		var event *ical.Event
 		if calendarObjectPath != "" {
-			co, err = c.GetCalendarObject(calendarObjectPath)
+			co, err = c.GetCalendarObject(ctx.Request().Context(), calendarObjectPath)
 			if err != nil {
 				return fmt.Errorf("failed to get CalDAV event: %v", err)
 			}
@@ -377,7 +377,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 			} else {
 				p = path.Join(calendar.Path, newID.String()+".ics")
 			}
-			co, err = c.PutCalendarObject(p, cal)
+			co, err = c.PutCalendarObject(ctx.Request().Context(), p, cal)
 			if err != nil {
 				return fmt.Errorf("failed to put calendar object: %v", err)
 			}
@@ -407,12 +407,12 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 			return err
 		}
 
-		c, _, err := getCalendar(u, ctx.Session)
+		c, _, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
 		if err != nil {
 			return err
 		}
 
-		if err := c.RemoveAll(path); err != nil {
+		if err := c.RemoveAll(ctx.Request().Context(), path); err != nil {
 			return fmt.Errorf("failed to delete calendar object: %v", err)
 		}
 

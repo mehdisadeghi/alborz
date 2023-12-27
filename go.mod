@@ -12,7 +12,7 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20220912192320-0145f2c60ead
 	github.com/emersion/go-smtp v0.18.1
 	github.com/emersion/go-vcard v0.0.0-20230815062825-8fda7d206ec9
-	github.com/emersion/go-webdav v0.4.0
+	github.com/emersion/go-webdav v0.4.1-0.20231227221649-7e076258d6c1
 	github.com/fernet/fernet-go v0.0.0-20211208181803-9f70042a33ee
 	github.com/google/uuid v1.3.1
 	github.com/kr/pretty v0.1.0 // indirect
@@ -23,7 +23,6 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
-	github.com/teambition/rrule-go v1.8.2 // indirect
 	github.com/yuin/gopher-lua v1.1.0
 	gitlab.com/golang-commonmark/linkify v0.0.0-20200225224916-64bca66f6ad3
 	golang.org/x/net v0.15.0

@@ -1,6 +1,7 @@
 package alpscarddav
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -40,7 +41,7 @@ func (p *plugin) client(session *alps.Session) (*carddav.Client, error) {
 	return newClient(p.url, session)
 }
 
-func (p *plugin) clientWithAddressBook(session *alps.Session) (*carddav.Client, *carddav.AddressBook, error) {
+func (p *plugin) clientWithAddressBook(ctx context.Context, session *alps.Session) (*carddav.Client, *carddav.AddressBook, error) {
 	c, err := newClient(p.url, session)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create CardDAV client: %v", err)
@@ -48,12 +49,12 @@ func (p *plugin) clientWithAddressBook(session *alps.Session) (*carddav.Client, 
 
 	homeSet, ok := p.homeSetCache[session.Username()]
 	if !ok {
-		principal, err := c.FindCurrentUserPrincipal()
+		principal, err := c.FindCurrentUserPrincipal(ctx)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to query CardDAV principal: %v", err)
 		}
 
-		homeSet, err = c.FindAddressBookHomeSet(principal)
+		homeSet, err = c.FindAddressBookHomeSet(ctx, principal)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to query CardDAV address book home set: %v", err)
 		}
@@ -62,7 +63,7 @@ func (p *plugin) clientWithAddressBook(session *alps.Session) (*carddav.Client, 
 		// TODO: evict entries from the cache if it's getting too big
 	}
 
-	addressBooks, err := c.FindAddressBooks(homeSet)
+	addressBooks, err := c.FindAddressBooks(ctx, homeSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query CardDAV address books: %v", err)
 	}
@@ -86,7 +87,7 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 		u.Scheme = "http"
 	}
 	if u.Scheme == "" {
-		s, err := carddav.Discover(u.Host)
+		s, err := carddav.DiscoverContextURL(context.Background(), u.Host)
 		if err != nil {
 			srv.Logger().Printf("carddav: failed to discover CardDAV server: %v", err)
 			return nil, nil
@@ -114,7 +115,7 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 	p.Inject("compose.html", func(ctx *alps.Context, _data alps.RenderData) error {
 		data := _data.(*alpsbase.ComposeRenderData)
 
-		c, addressBook, err := p.clientWithAddressBook(ctx.Session)
+		c, addressBook, err := p.clientWithAddressBook(ctx.Request().Context(), ctx.Session)
 		if err == errNoAddressBook {
 			return nil
 		} else if err != nil {
@@ -129,7 +130,7 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 				Name: vcard.FieldEmail,
 			}},
 		}
-		addrs, err := c.QueryAddressBook(addressBook.Path, &query)
+		addrs, err := c.QueryAddressBook(ctx.Request().Context(), addressBook.Path, &query)
 		if err != nil {
 			return fmt.Errorf("failed to query CardDAV addresses: %v", err)
 		}

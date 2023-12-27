@@ -47,7 +47,7 @@ func registerRoutes(p *plugin) {
 	p.GET("/contacts", func(ctx *alps.Context) error {
 		queryText := ctx.QueryParam("query")
 
-		c, addressBook, err := p.clientWithAddressBook(ctx.Session)
+		c, addressBook, err := p.clientWithAddressBook(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -78,7 +78,7 @@ func registerRoutes(p *plugin) {
 			}
 		}
 
-		aos, err := c.QueryAddressBook(addressBook.Path, &query)
+		aos, err := c.QueryAddressBook(ctx.Request().Context(), addressBook.Path, &query)
 		if err != nil {
 			return fmt.Errorf("failed to query CardDAV addresses: %v", err)
 		}
@@ -97,7 +97,7 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		c, addressBook, err := p.clientWithAddressBook(ctx.Session)
+		c, addressBook, err := p.clientWithAddressBook(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -111,7 +111,7 @@ func registerRoutes(p *plugin) {
 				},
 			},
 		}
-		aos, err := c.MultiGetAddressBook(path, &multiGet)
+		aos, err := c.MultiGetAddressBook(ctx.Request().Context(), path, &multiGet)
 		if err != nil {
 			return fmt.Errorf("failed to query CardDAV address: %v", err)
 		}
@@ -133,7 +133,7 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		c, addressBook, err := p.clientWithAddressBook(ctx.Session)
+		c, addressBook, err := p.clientWithAddressBook(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -141,7 +141,7 @@ func registerRoutes(p *plugin) {
 		var ao *carddav.AddressObject
 		var card vcard.Card
 		if addressObjectPath != "" {
-			ao, err = c.GetAddressObject(addressObjectPath)
+			ao, err = c.GetAddressObject(ctx.Request().Context(), addressObjectPath)
 			if err != nil {
 				return fmt.Errorf("failed to query CardDAV address: %v", err)
 			}
@@ -194,7 +194,7 @@ func registerRoutes(p *plugin) {
 			} else {
 				p = path.Join(addressBook.Path, id.String()+".vcf")
 			}
-			ao, err = c.PutAddressObject(p, card)
+			ao, err = c.PutAddressObject(ctx.Request().Context(), p, card)
 			if err != nil {
 				return fmt.Errorf("failed to put address object: %v", err)
 			}
@@ -227,7 +227,7 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		if err := c.RemoveAll(path); err != nil {
+		if err := c.RemoveAll(ctx.Request().Context(), path); err != nil {
 			return fmt.Errorf("failed to delete address object: %v", err)
 		}
 

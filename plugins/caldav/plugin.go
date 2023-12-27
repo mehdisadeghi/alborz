@@ -1,9 +1,12 @@
 package alpscaldav
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
+
+	"github.com/emersion/go-webdav/caldav"
 
 	"git.sr.ht/~migadu/alps"
 )
@@ -46,10 +49,15 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 		u.Scheme = "http"
 	}
 	if u.Scheme == "" {
-		// TODO
-		err := fmt.Errorf("discovery not yet implemented")
-		srv.Logger().Printf("caldav: failed to discover CalDAV server: %v", err)
-		return nil, nil
+		s, err := caldav.DiscoverContextURL(context.Background(), u.Host)
+		if err != nil {
+			srv.Logger().Printf("caldav: failed to discover CalDAV server: %v", err)
+			return nil, nil
+		}
+		u, err = url.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("caldav: Discover returned an invalid URL: %v", err)
+		}
 	}
 
 	if err := sanityCheckURL(u); err != nil {

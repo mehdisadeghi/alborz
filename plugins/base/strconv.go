@@ -5,9 +5,11 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/emersion/go-imap/v2"
 )
 
-func parseUid(s string) (uint32, error) {
+func parseUid(s string) (imap.UID, error) {
 	uid, err := strconv.ParseUint(s, 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("invalid UID: %v", err)
@@ -15,10 +17,10 @@ func parseUid(s string) (uint32, error) {
 	if uid == 0 {
 		return 0, fmt.Errorf("UID must be non-zero")
 	}
-	return uint32(uid), nil
+	return imap.UID(uid), nil
 }
 
-func parseMboxAndUid(mboxString, uidString string) (string, uint32, error) {
+func parseMboxAndUid(mboxString, uidString string) (string, imap.UID, error) {
 	mboxName, err := url.PathUnescape(mboxString)
 	if err != nil {
 		return "", 0, fmt.Errorf("invalid mailbox name: %v", err)
@@ -27,8 +29,8 @@ func parseMboxAndUid(mboxString, uidString string) (string, uint32, error) {
 	return mboxName, uid, err
 }
 
-func parseUidList(values []string) ([]uint32, error) {
-	var uids []uint32
+func parseUidList(values []string) ([]imap.UID, error) {
+	var uids []imap.UID
 	for _, v := range values {
 		uid, err := parseUid(v)
 		if err != nil {

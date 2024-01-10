@@ -514,7 +514,7 @@ type ComposeRenderData struct {
 
 type messagePath struct {
 	Mailbox string
-	Uid     uint32
+	Uid     imap.UID
 }
 
 type composeOptions struct {
@@ -674,7 +674,7 @@ func handleCompose(ctx *alps.Context, msg *OutgoingMessage, options *composeOpti
 		if saveAsDraft {
 			var (
 				drafts *MailboxInfo
-				uid    uint32
+				uid    imap.UID
 			)
 			err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
 				drafts, err = appendMessage(c, msg, mailboxDrafts)
@@ -700,7 +700,7 @@ func handleCompose(ctx *alps.Context, msg *OutgoingMessage, options *composeOpti
 				}
 				if data, err := c.UIDSearch(&criteria, nil).Wait(); err != nil {
 					return err
-				} else if uids := data.AllNums(); len(uids) != 1 {
+				} else if uids := data.AllUIDs(); len(uids) != 1 {
 					panic(fmt.Errorf("Duplicate message ID"))
 				} else {
 					uid = uids[0]
@@ -1049,8 +1049,7 @@ func handleMove(ctx *alps.Context) error {
 			return err
 		}
 
-		seqSet := imap.SeqSetNum(uids...)
-		if _, err := c.UIDMove(seqSet, to).Wait(); err != nil {
+		if _, err := c.Move(imap.UIDSetNum(uids...), to).Wait(); err != nil {
 			return fmt.Errorf("failed to move message: %v", err)
 		}
 
@@ -1093,8 +1092,7 @@ func handleDelete(ctx *alps.Context) error {
 			return err
 		}
 
-		seqSet := imap.SeqSetNum(uids...)
-		err := c.UIDStore(seqSet, &imap.StoreFlags{
+		err := c.Store(imap.UIDSetNum(uids...), &imap.StoreFlags{
 			Op:     imap.StoreFlagsAdd,
 			Silent: true,
 			Flags:  []imap.Flag{imap.FlagDeleted},
@@ -1172,8 +1170,7 @@ func handleSetFlags(ctx *alps.Context) error {
 			return err
 		}
 
-		seqSet := imap.SeqSetNum(uids...)
-		err := c.UIDStore(seqSet, &imap.StoreFlags{
+		err := c.Store(imap.UIDSetNum(uids...), &imap.StoreFlags{
 			Op:     op,
 			Silent: true,
 			Flags:  l,

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-smtp"
 )
@@ -56,7 +57,7 @@ func (att *formAttachment) Filename() string {
 
 type imapAttachment struct {
 	Mailbox string
-	Uid     uint32
+	Uid     imap.UID
 	Node    *IMAPPartNode
 
 	Body []byte

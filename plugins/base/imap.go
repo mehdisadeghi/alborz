@@ -448,7 +448,8 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 		return nil, total, nil
 	}
 
-	seqSet := imap.SeqSetRange(uint32(from), uint32(to))
+	var seqSet imap.SeqSet
+	seqSet.AddRange(uint32(from), uint32(to))
 	options := imap.FetchOptions{
 		Flags:         true,
 		Envelope:      true,
@@ -486,7 +487,7 @@ func searchMessages(conn *imapclient.Client, mboxName, query string, page, messa
 		if err != nil {
 			return nil, 0, fmt.Errorf("SEARCH failed: %v", err)
 		}
-		nums = data.AllNums()
+		nums = data.AllSeqNums()
 	} else {
 		sortOptions := &imapclient.SortOptions{
 			SearchCriteria: searchCriteria,
@@ -541,12 +542,10 @@ func searchMessages(conn *imapclient.Client, mboxName, query string, page, messa
 	return msgs, total, nil
 }
 
-func getMessagePart(conn *imapclient.Client, mboxName string, uid uint32, partPath []int) (*IMAPMessage, *message.Entity, error) {
+func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, nil, err
 	}
-
-	seqSet := imap.SeqSetNum(uid)
 
 	headerItem := &imap.FetchItemBodySection{
 		Peek: true,
@@ -577,7 +576,7 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid uint32, partPa
 	}
 
 	// TODO: stream attachments
-	msgs, err := conn.UIDFetch(seqSet, &options).Collect()
+	msgs, err := conn.Fetch(imap.UIDSetNum(uid), &options).Collect()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
 	} else if len(msgs) == 0 {
@@ -610,13 +609,12 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid uint32, partPa
 	return &IMAPMessage{msg, mboxName}, part, nil
 }
 
-func markMessageAnswered(conn *imapclient.Client, mboxName string, uid uint32) error {
+func markMessageAnswered(conn *imapclient.Client, mboxName string, uid imap.UID) error {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return err
 	}
 
-	seqSet := imap.SeqSetNum(uid)
-	return conn.UIDStore(seqSet, &imap.StoreFlags{
+	return conn.Store(imap.UIDSetNum(uid), &imap.StoreFlags{
 		Op:     imap.StoreFlagsAdd,
 		Silent: true,
 		Flags:  []imap.Flag{imap.FlagAnswered},
@@ -655,13 +653,12 @@ func appendMessage(c *imapclient.Client, msg *OutgoingMessage, mboxType mailboxT
 	return mbox, nil
 }
 
-func deleteMessage(conn *imapclient.Client, mboxName string, uid uint32) error {
+func deleteMessage(conn *imapclient.Client, mboxName string, uid imap.UID) error {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return err
 	}
 
-	seqSet := imap.SeqSetNum(uid)
-	err := conn.UIDStore(seqSet, &imap.StoreFlags{
+	err := conn.Store(imap.UIDSetNum(uid), &imap.StoreFlags{
 		Op:     imap.StoreFlagsAdd,
 		Silent: true,
 		Flags:  []imap.Flag{imap.FlagDeleted},

@@ -64,8 +64,14 @@ func parsePartPath(s string) ([]int, error) {
 
 func parseAddressList(s string) []string {
 	l := strings.Split(s, ",")
-	for i, addr := range l {
-		l[i] = strings.TrimSpace(addr)
+	ret := make([]string, 0, len(l))
+	for _, addr := range l {
+		if addr == "" {
+			continue
+		}
+
+		ret = append(ret, strings.TrimSpace(addr))
 	}
-	return l
+
+	return ret
 }

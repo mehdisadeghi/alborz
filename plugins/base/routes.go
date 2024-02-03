@@ -595,6 +595,8 @@ func handleCompose(ctx *alps.Context, msg *OutgoingMessage, options *composeOpti
 
 		msg.From = ctx.FormValue("from")
 		msg.To = parseAddressList(ctx.FormValue("to"))
+		msg.Cc = parseAddressList(ctx.FormValue("cc"))
+		msg.Bcc = parseAddressList(ctx.FormValue("bcc"))
 		msg.Subject = ctx.FormValue("subject")
 		msg.Text = ctx.FormValue("text")
 		msg.InReplyTo = ctx.FormValue("in_reply_to")
@@ -735,7 +737,6 @@ func handleComposeNew(ctx *alps.Context) error {
 	}
 
 	// These are common mailto URL query parameters
-	// TODO: cc, bcc
 	var hdr mail.Header
 	hdr.GenerateMessageID()
 	mid, _ := hdr.MessageID()

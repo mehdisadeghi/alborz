@@ -81,6 +81,8 @@ func (att *imapAttachment) Filename() string {
 type OutgoingMessage struct {
 	From        string
 	To          []string
+	Cc          []string
+	Bcc         []string
 	Subject     string
 	MessageID   string
 	InReplyTo   string
@@ -123,6 +125,19 @@ func writeAttachment(mw *mail.Writer, att Attachment) error {
 	return nil
 }
 
+func prepareAddressList(addresses []string) ([]*mail.Address, error) {
+	l := make([]*mail.Address, len(addresses))
+	for i, rcpt := range addresses {
+		addr, err := mail.ParseAddress(rcpt)
+		if err != nil {
+			return nil, err
+		}
+		l[i] = addr
+	}
+
+	return l, nil
+}
+
 func (msg *OutgoingMessage) WriteTo(w io.Writer) error {
 	fromAddr, err := mail.ParseAddress(msg.From)
 	if err != nil {
@@ -130,19 +145,21 @@ func (msg *OutgoingMessage) WriteTo(w io.Writer) error {
 	}
 	from := []*mail.Address{fromAddr}
 
-	to := make([]*mail.Address, len(msg.To))
-	for i, rcpt := range msg.To {
-		addr, err := mail.ParseAddress(rcpt)
-		if err != nil {
-			return err
-		}
-		to[i] = addr
+	to, err := prepareAddressList(msg.To)
+	if err != nil {
+		return err
+	}
+
+	cc, err := prepareAddressList(msg.Cc)
+	if err != nil {
+		return err
 	}
 
 	var h mail.Header
 	h.SetDate(time.Now())
 	h.SetAddressList("From", from)
 	h.SetAddressList("To", to)
+	h.SetAddressList("Cc", cc)
 	if msg.Subject != "" {
 		h.SetText("Subject", msg.Subject)
 	}
@@ -200,10 +217,10 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
 		return fmt.Errorf("MAIL FROM failed: %v", err)
 	}
 
-	for _, to := range msg.To {
+	for _, to := range append(msg.To, append(msg.Bcc, msg.Cc...)...) {
 		addr, err := mail.ParseAddress(to)
 		if err != nil {
-			return fmt.Errorf("parsing 'To' address failed: %v", err)
+			return fmt.Errorf("parsing address %q failed: %v", to, err)
 		}
 
 		if err := c.Rcpt(addr.Address, nil); err != nil {

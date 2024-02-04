@@ -811,65 +811,94 @@ func handleReply(ctx *alps.Context) error {
 
 	var msg OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		// Populate fields from original message
-		partPath, err := parsePartPath(ctx.QueryParam("part"))
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
-		}
-
-		var inReplyTo *IMAPMessage
-		var part *message.Entity
-		err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-			var err error
-			inReplyTo, part, err = getMessagePart(c, inReplyToPath.Mailbox, inReplyToPath.Uid, partPath)
-			return err
-		})
+		msg, err = populateMessageFromOriginalMessage(ctx, inReplyToPath)
 		if err != nil {
 			return err
-		}
-
-		mimeType, _, err := part.Header.ContentType()
-		if err != nil {
-			return fmt.Errorf("failed to parse part Content-Type: %v", err)
-		}
-
-		if mimeType == "text/plain" {
-			msg.Text, err = quote(part.Body)
-			if err != nil {
-				return err
-			}
-		} else if mimeType == "text/html" {
-			text, err := html2text.FromReader(part.Body, html2text.Options{})
-			if err != nil {
-				return err
-			}
-			msg.Text, err = quote(strings.NewReader(text))
-			if err != nil {
-				return nil
-			}
-		} else {
-			err := fmt.Errorf("cannot forward %q part", mimeType)
-			return echo.NewHTTPError(http.StatusBadRequest, err)
-		}
-
-		var hdr mail.Header
-		hdr.GenerateMessageID()
-		mid, _ := hdr.MessageID()
-		msg.MessageID = "<" + mid + ">"
-		msg.InReplyTo = inReplyTo.Envelope.MessageID
-		// TODO: populate From from known user addresses and inReplyTo.Envelope.To
-		replyTo := inReplyTo.Envelope.ReplyTo
-		if len(replyTo) == 0 {
-			replyTo = inReplyTo.Envelope.From
-		}
-		msg.To = unwrapIMAPAddressList(replyTo)
-		msg.Subject = inReplyTo.Envelope.Subject
-		if !strings.HasPrefix(strings.ToLower(msg.Subject), "re:") {
-			msg.Subject = "Re: " + msg.Subject
 		}
 	}
 
 	return handleCompose(ctx, &msg, &composeOptions{InReplyTo: &inReplyToPath})
+}
+
+func populateMessageFromOriginalMessage(ctx *alps.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
+	var ret OutgoingMessage
+
+	partPath, err := parsePartPath(ctx.QueryParam("part"))
+	if err != nil {
+		return ret, echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+
+	var inReplyTo *IMAPMessage
+	var part *message.Entity
+	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		var err error
+		inReplyTo, part, err = getMessagePart(c, inReplyToPath.Mailbox,
+			inReplyToPath.Uid, partPath)
+		return err
+	})
+	if err != nil {
+		return ret, err
+	}
+
+	mimeType, _, err := part.Header.ContentType()
+	if err != nil {
+		return ret, fmt.Errorf("failed to parse part Content-Type: %v", err)
+	}
+
+	var text string
+	switch mimeType {
+	case "text/plain":
+		ret.Text, err = quote(part.Body)
+	case "text/html":
+		text, err = html2text.FromReader(part.Body, html2text.Options{})
+		if err != nil {
+			return ret, err
+		}
+
+		ret.Text, err = quote(strings.NewReader(text))
+
+	default:
+		err := fmt.Errorf("cannot forward %q part", mimeType)
+		err = echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	if err != nil {
+		return ret, err
+	}
+
+	var hdr mail.Header
+	hdr.GenerateMessageID()
+	mid, _ := hdr.MessageID()
+	ret.MessageID = "<" + mid + ">"
+	ret.InReplyTo = inReplyTo.Envelope.MessageID
+	// TODO: populate From from known user addresses and inReplyTo.Envelope.To
+	replyTo := inReplyTo.Envelope.ReplyTo
+	if len(replyTo) == 0 {
+		replyTo = inReplyTo.Envelope.From
+	}
+	ret.To = unwrapIMAPAddressList(replyTo)
+
+	if ctx.QueryParam("all") != "" {
+		filtered := filterOutUsername(ctx.Session.Username(),
+			inReplyTo.Envelope.To)
+		ret.To = unwrapIMAPAddressList(append(replyTo, filtered...))
+		ret.Cc = unwrapIMAPAddressList(inReplyTo.Envelope.Cc)
+	}
+
+	ret.Subject = inReplyTo.Envelope.Subject
+	if !strings.HasPrefix(strings.ToLower(ret.Subject), "re:") {
+		ret.Subject = "Re: " + ret.Subject
+	}
+
+	return ret, nil
+}
+
+func filterOutUsername(username string, addresses []imap.Address) []imap.Address {
+	for i, addr := range addresses {
+		if addr.Addr() == username {
+			return append(addresses[:i], addresses[i+1:]...)
+		}
+	}
+	return addresses
 }
 
 func handleForward(ctx *alps.Context) error {

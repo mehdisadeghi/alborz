@@ -32,18 +32,17 @@ func (s *Server) dialIMAP() (*imapclient.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to IMAPS server: %v", err)
 		}
+	} else if !s.imap.insecure {
+		c, err = imapclient.DialStartTLS(s.imap.host, options)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to IMAP server: %v", err)
+		}
 	} else {
 		conn, err := net.Dial("tcp", s.imap.host)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to IMAP server: %v", err)
 		}
 		c = imapclient.New(conn, options)
-		if !s.imap.insecure {
-			if err := c.StartTLS(nil); err != nil {
-				c.Close()
-				return nil, fmt.Errorf("STARTTLS failed: %v", err)
-			}
-		}
 	}
 
 	return c, err

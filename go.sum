@@ -10,8 +10,8 @@ github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkp
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/emersion/go-ical v0.0.0-20220601085725-0864dccc089f h1:feGUUxxvOtWVOhTko8Cbmp33a+tU0IMZxMEmnkoAISQ=
 github.com/emersion/go-ical v0.0.0-20220601085725-0864dccc089f/go.mod h1:2MKFUgfNMULRxqZkadG1Vh44we3y5gJAtTBlVsx1BKQ=
-github.com/emersion/go-imap/v2 v2.0.0-alpha.8 h1:OCh6kS5N7/3AXfJ+may4CA4C0asg4F9PWQN4355nVaQ=
-github.com/emersion/go-imap/v2 v2.0.0-alpha.8/go.mod h1:HVKGwfmw6RkfT33vW8DQpSlvGJatNivoFNl/z/Sq4vE=
+github.com/emersion/go-imap/v2 v2.0.0-beta.1 h1:6kXAnBoLHEEJQGvdBAFzoy/dzQvx1G2d2ntRCNUeMYc=
+github.com/emersion/go-imap/v2 v2.0.0-beta.1/go.mod h1:HVKGwfmw6RkfT33vW8DQpSlvGJatNivoFNl/z/Sq4vE=
 github.com/emersion/go-message v0.18.0 h1:7LxAXHRpSeoO/Wom3ZApVZYG7c3d17yCScYce8WiXA8=
 github.com/emersion/go-message v0.18.0/go.mod h1:Zi69ACvzaoV/MBnrxfVBPV3xWEuCmC2nEN39oJF4B8A=
 github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21/go.mod h1:iL2twTeMvZnrg54ZoPDNfJaJaqy0xIQFuBdrLsmspwQ=

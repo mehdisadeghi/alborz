@@ -869,7 +869,7 @@ func populateMessageFromOriginalMessage(ctx *alps.Context, inReplyToPath message
 	hdr.GenerateMessageID()
 	mid, _ := hdr.MessageID()
 	ret.MessageID = "<" + mid + ">"
-	ret.InReplyTo = inReplyTo.Envelope.MessageID
+	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
 	// TODO: populate From from known user addresses and inReplyTo.Envelope.To
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
@@ -957,7 +957,7 @@ func handleForward(ctx *alps.Context) error {
 			!strings.HasPrefix(strings.ToLower(msg.Subject), "fw:") {
 			msg.Subject = "Fwd: " + msg.Subject
 		}
-		msg.InReplyTo = source.Envelope.InReplyTo
+		msg.InReplyTo = formatMsgIDList(source.Envelope.InReplyTo)
 
 		attachments := source.Attachments()
 		for i := range attachments {
@@ -1024,8 +1024,8 @@ func handleEdit(ctx *alps.Context) error {
 		}
 		msg.To = unwrapIMAPAddressList(source.Envelope.To)
 		msg.Subject = source.Envelope.Subject
-		msg.InReplyTo = source.Envelope.InReplyTo
-		msg.MessageID = source.Envelope.MessageID
+		msg.InReplyTo = formatMsgIDList(source.Envelope.InReplyTo)
+		msg.MessageID = "<" + source.Envelope.MessageID + ">"
 
 		attachments := source.Attachments()
 		for i := range attachments {
@@ -1040,6 +1040,13 @@ func handleEdit(ctx *alps.Context) error {
 	}
 
 	return handleCompose(ctx, &msg, &composeOptions{Draft: &sourcePath})
+}
+
+func formatMsgIDList(l []string) string {
+	if len(l) == 0 {
+		return ""
+	}
+	return "<" + strings.Join(l, ">, <") + ">"
 }
 
 func formOrQueryParam(ctx *alps.Context, k string) string {

@@ -102,7 +102,7 @@ func (s *imapStore) Get(key string, out interface{}) error {
 		if err != nil {
 			return err
 		}
-		entries = data.EntryValues
+		entries = data.Entries
 		return nil
 	})
 	if err != nil {

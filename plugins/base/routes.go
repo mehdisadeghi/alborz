@@ -845,18 +845,17 @@ func populateMessageFromOriginalMessage(ctx *alps.Context, inReplyToPath message
 		return ret, fmt.Errorf("failed to parse part Content-Type: %v", err)
 	}
 
-	var text string
 	switch mimeType {
 	case "text/plain":
 		ret.Text, err = quote(part.Body)
 	case "text/html":
+		var text string
 		text, err = html2text.FromReader(part.Body, html2text.Options{})
 		if err != nil {
 			return ret, err
 		}
 
 		ret.Text, err = quote(strings.NewReader(text))
-
 	default:
 		err := fmt.Errorf("cannot forward %q part", mimeType)
 		err = echo.NewHTTPError(http.StatusBadRequest, err)
@@ -933,19 +932,23 @@ func handleForward(ctx *alps.Context) error {
 			return fmt.Errorf("failed to parse part Content-Type: %v", err)
 		}
 
-		if mimeType == "text/plain" {
+		switch mimeType {
+		case "text/plain":
 			msg.Text, err = quote(part.Body)
+		case "text/html":
+			var text string
+			text, err = html2text.FromReader(part.Body, html2text.Options{})
 			if err != nil {
 				return err
 			}
-		} else if mimeType == "text/html" {
-			msg.Text, err = html2text.FromReader(part.Body, html2text.Options{})
-			if err != nil {
-				return err
-			}
-		} else {
+
+			msg.Text, err = quote(strings.NewReader(text))
+		default:
 			err := fmt.Errorf("cannot forward %q part", mimeType)
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			err = echo.NewHTTPError(http.StatusBadRequest, err)
+		}
+		if err != nil {
+			return err
 		}
 
 		var hdr mail.Header

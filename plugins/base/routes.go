@@ -857,8 +857,8 @@ func populateMessageFromOriginalMessage(ctx *alps.Context, inReplyToPath message
 
 		ret.Text, err = quote(strings.NewReader(text))
 	default:
-		err := fmt.Errorf("cannot forward %q part", mimeType)
-		err = echo.NewHTTPError(http.StatusBadRequest, err)
+		defErr := fmt.Errorf("cannot forward %q part", mimeType)
+		err = echo.NewHTTPError(http.StatusBadRequest, defErr)
 	}
 	if err != nil {
 		return ret, err
@@ -944,8 +944,8 @@ func handleForward(ctx *alps.Context) error {
 
 			msg.Text, err = quote(strings.NewReader(text))
 		default:
-			err := fmt.Errorf("cannot forward %q part", mimeType)
-			err = echo.NewHTTPError(http.StatusBadRequest, err)
+			defErr := fmt.Errorf("cannot forward %q part", mimeType)
+			err = echo.NewHTTPError(http.StatusBadRequest, defErr)
 		}
 		if err != nil {
 			return err

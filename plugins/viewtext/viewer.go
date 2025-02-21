@@ -40,6 +40,8 @@ var allowedSchemes = map[string]bool{
 	"sftp":   true,
 	"ftps":   true,
 	"tel":    true,
+	"irc":    true,
+	"ircs":   true,
 }
 
 func executeTemplate(name string, data interface{}) (template.HTML, error) {

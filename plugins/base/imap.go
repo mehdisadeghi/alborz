@@ -584,14 +584,8 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 	}
 	msg := msgs[0]
 
-	var headerBuf, bodyBuf []byte
-	for item, b := range msg.BodySection {
-		if item.Specifier == headerItem.Specifier {
-			headerBuf = b
-		} else if item.Specifier == bodyItem.Specifier {
-			bodyBuf = b
-		}
-	}
+	headerBuf := msg.FindBodySection(headerItem)
+	bodyBuf := msg.FindBodySection(bodyItem)
 	if headerBuf == nil || bodyBuf == nil {
 		return nil, nil, fmt.Errorf("server didn't return header and body")
 	}

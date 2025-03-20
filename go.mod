@@ -6,9 +6,9 @@ require (
 	github.com/aymerick/douceur v0.2.0
 	github.com/chris-ramon/douceur v0.2.0
 	github.com/dustin/go-humanize v1.0.1
-	github.com/emersion/go-ical v0.0.0-20240127095438-fc1c9d8fb2b6
+	github.com/emersion/go-ical v0.0.0-20250313142940-aefc67679264
 	github.com/emersion/go-imap/v2 v2.0.0-beta.5
-	github.com/emersion/go-message v0.18.1
+	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.21.3
 	github.com/emersion/go-vcard v0.0.0-20241024213814-c9703dde27ff
@@ -20,14 +20,14 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/yuin/gopher-lua v1.1.1
 	gitlab.com/golang-commonmark/linkify v0.0.0-20200225224916-64bca66f6ad3
-	golang.org/x/net v0.33.0
+	golang.org/x/net v0.35.0
 	jaytaylor.com/html2text v0.0.0-20230321000545-74c2419ad056
 	layeh.com/gopher-luar v1.0.11
 )
 
 require (
 	github.com/gorilla/css v1.0.1 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
@@ -36,8 +36,8 @@ require (
 	github.com/teambition/rrule-go v1.8.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
-	golang.org/x/time v0.8.0 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/time v0.10.0 // indirect
 )

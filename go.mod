@@ -1,16 +1,16 @@
 module git.sr.ht/~migadu/alps
 
-go 1.18
+go 1.19
 
 require (
 	github.com/aymerick/douceur v0.2.0
 	github.com/chris-ramon/douceur v0.2.0
 	github.com/dustin/go-humanize v1.0.1
-	github.com/emersion/go-ical v0.0.0-20250313142940-aefc67679264
-	github.com/emersion/go-imap/v2 v2.0.0-beta.5
+	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
+	github.com/emersion/go-imap/v2 v2.0.0-beta.6
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
-	github.com/emersion/go-smtp v0.21.3
+	github.com/emersion/go-smtp v0.23.0
 	github.com/emersion/go-vcard v0.0.0-20241024213814-c9703dde27ff
 	github.com/emersion/go-webdav v0.6.0
 	github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611

@@ -796,9 +796,17 @@ func handleCancelAttachment(ctx *alps.Context) error {
 func unwrapIMAPAddressList(addrs []imap.Address) []string {
 	l := make([]string, len(addrs))
 	for i, addr := range addrs {
-		l[i] = addr.Addr()
+		l[i] = unwrapIMAPAddress(addr)
 	}
 	return l
+}
+
+func unwrapIMAPAddress(addr imap.Address) string {
+	address := addr.Addr()
+	if addr.Name != "" {
+		address = fmt.Sprintf("%q <%s>", addr.Name, address)
+	}
+	return address
 }
 
 func handleReply(ctx *alps.Context) error {

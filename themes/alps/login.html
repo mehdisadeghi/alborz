@@ -24,6 +24,12 @@
       </div>
       {{end}}
 
+      {{ if .GlobalData.Notice }}
+      <div class="alert">
+	{{ .GlobalData.Notice }}
+      </div>
+      {{ end }}
+
       <div class="action-group">
         <button type="submit">Sign in</button>
       </div>

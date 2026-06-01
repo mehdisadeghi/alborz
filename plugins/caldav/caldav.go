@@ -3,6 +3,7 @@ package alpscaldav
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -12,22 +13,92 @@ import (
 
 var errNoCalendar = fmt.Errorf("caldav: no calendar found")
 
-type authRoundTripper struct {
+// webdavRoundTripper handles authentication and follows redirects while
+// preserving the HTTP method. Go's default client changes non-GET/HEAD
+// methods to GET on 301/302 redirects, which breaks WebDAV.
+type webdavRoundTripper struct {
 	upstream http.RoundTripper
 	session  *alps.Session
 }
 
-func (rt *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (rt *webdavRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	rt.session.SetHTTPBasicAuth(req)
-	return rt.upstream.RoundTrip(req)
+
+	resp, err := rt.upstream.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		loc := resp.Header.Get("Location")
+		if loc != "" {
+			resp.Body.Close()
+			return rt.followRedirect(req, loc, 10)
+		}
+	}
+
+	return resp, nil
+}
+
+func (rt *webdavRoundTripper) followRedirect(orig *http.Request, location string, maxRedirects int) (*http.Response, error) {
+	if maxRedirects <= 0 {
+		return nil, fmt.Errorf("too many redirects")
+	}
+
+	locURL, err := orig.URL.Parse(location)
+	if err != nil {
+		return nil, err
+	}
+
+	var body io.ReadCloser
+	if orig.GetBody != nil {
+		body, err = orig.GetBody()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	req, err := http.NewRequestWithContext(orig.Context(), orig.Method, locURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	for k, v := range orig.Header {
+		if k != "Authorization" {
+			req.Header[k] = v
+		}
+	}
+
+	rt.session.SetHTTPBasicAuth(req)
+
+	resp, err := rt.upstream.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		loc := resp.Header.Get("Location")
+		if loc != "" {
+			resp.Body.Close()
+			return rt.followRedirect(req, loc, maxRedirects-1)
+		}
+	}
+
+	return resp, nil
 }
 
 func newClient(u *url.URL, session *alps.Session) (*caldav.Client, error) {
-	rt := authRoundTripper{
+	rt := &webdavRoundTripper{
 		upstream: http.DefaultTransport,
 		session:  session,
 	}
-	c, err := caldav.NewClient(&http.Client{Transport: &rt}, u.String())
+	httpClient := &http.Client{
+		Transport: rt,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	c, err := caldav.NewClient(httpClient, u.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CalDAV client: %v", err)
 	}

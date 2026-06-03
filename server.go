@@ -139,13 +139,14 @@ func (s *Server) parseIMAPUpstream() error {
 		}
 	}
 
+	s.e.Logger.Printf("Configured upstream IMAP server: %v", u)
+
 	c, err := s.dialIMAP()
 	if err != nil {
-		return fmt.Errorf("failed to connect to IMAP server: %v", err)
+		s.e.Logger.Printf("Warning: IMAP server %v not reachable at startup: %v", u, err)
+	} else {
+		c.Close()
 	}
-	c.Close()
-
-	s.e.Logger.Printf("Configured upstream IMAP server: %v", u)
 	return nil
 }
 
@@ -181,13 +182,14 @@ func (s *Server) parseSMTPUpstream() error {
 		}
 	}
 
+	s.e.Logger.Printf("Configured upstream SMTP server: %v", u)
+
 	c, err := s.dialSMTP()
 	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %v", err)
+		s.e.Logger.Printf("Warning: SMTP server %v not reachable at startup: %v", u, err)
+	} else {
+		c.Close()
 	}
-	c.Close()
-
-	s.e.Logger.Printf("Configured upstream SMTP server: %v", u)
 	return nil
 }
 

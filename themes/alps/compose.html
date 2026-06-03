@@ -51,6 +51,7 @@
             type="text"
             name="subject"
             id="subject"
+            dir="auto"
             value="{{.Message.Subject}}"
             {{ if $to }} autofocus{{ end }}
           />
@@ -88,7 +89,7 @@
         </div>
 
         <div class="text">
-          <textarea name="text" class="body">{{.Message.Text}}</textarea>
+          <textarea name="text" class="body" dir="auto">{{.Message.Text}}</textarea>
           <div id="send-progress" style="display: none">
             <!--
               Font Awesome Free 5.3.1 by @fontawesome - https://fontawesome.com

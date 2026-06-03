@@ -52,6 +52,7 @@
         name="subject"
         id="subject"
         class="form-control"
+        dir="auto"
         value="{{.Message.Subject}}"
         {{ if .Message.To }}
         autofocus
@@ -63,6 +64,7 @@
         class="form-control"
         cols="80"
         rows="20"
+        dir="auto"
       >{{.Message.Text}}</textarea>
     </div>
     <div class="pull-right">

@@ -18,7 +18,7 @@
       <form method="post">
         <label>
           <span>Event name</span>
-          <input type="text" name="summary" id="summary" value="{{.Event.Props.Text "SUMMARY"}}">
+          <input type="text" name="summary" id="summary" dir="auto" value="{{.Event.Props.Text "SUMMARY"}}">
         </label>
 
         <label class="event-date">
@@ -33,7 +33,7 @@
           <input type="time" name="end-time" id="end-time" value="{{.Event.DateTimeEnd nil | formatinputtime}}"/>
         </label>
 
-        <textarea name="description" id="description">{{.Event.Props.Text "DESCRIPTION"}}</textarea>
+        <textarea name="description" id="description" dir="auto">{{.Event.Props.Text "DESCRIPTION"}}</textarea>
 
         <div class="actions">
           <button type="submit">Save</button>

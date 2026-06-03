@@ -94,7 +94,7 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 		s.imapConn, err = s.manager.connectIMAP(s.username, s.password)
 		if err != nil {
 			s.Close()
-			return fmt.Errorf("failed to re-connect to IMAP server: %v", err)
+			return fmt.Errorf("failed to re-connect to IMAP server: %w", err)
 		}
 	}
 

@@ -16,7 +16,7 @@ import (
 // TODO: dim quotes and "On xxx, xxx wrote:" lines
 
 const (
-	tplStr     = `<pre>{{range .}}{{.}}{{end}}</pre>`
+	tplStr     = `<pre dir="auto">{{range .}}{{.}}{{end}}</pre>`
 	linkTplStr = `<a href="{{.Href}}" target="_blank" rel="nofollow noopener">{{.Text}}</a>`
 )
 

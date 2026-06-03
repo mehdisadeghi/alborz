@@ -2,10 +2,12 @@ package alpsbase
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -372,6 +374,11 @@ func handleLogin(ctx *alps.Context) error {
 			if _, ok := err.(alps.AuthError); ok {
 				renderData.BaseRenderData.GlobalData.Notice = "Failed to login!"
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
+			}
+			var netErr *net.OpError
+			if errors.As(err, &netErr) {
+				renderData.BaseRenderData.GlobalData.Notice = fmt.Sprintf("Failed to login: %v", netErr.Err)
+				return ctx.Render(http.StatusServiceUnavailable, "login.html", &renderData)
 			}
 			return fmt.Errorf("failed to put connection in pool: %v", err)
 		}

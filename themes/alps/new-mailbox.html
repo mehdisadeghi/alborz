@@ -9,7 +9,7 @@
       <form method="POST">
         <h2>Create new folder</h2>
         <label for="name">Name</label>
-        <input type="text" name="name" id="name" autofocus />
+        <input type="text" name="name" id="name" dir="auto" autofocus />
         {{ if .Error }}<p>{{ .Error }}</p>{{ end }}
         <div class="actions">
           <button type="submit">Save</button>

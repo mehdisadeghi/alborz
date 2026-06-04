@@ -4,9 +4,15 @@
 <div class="page-wrap">
   <aside>
     <a href="/contacts/create" class="new">New contact</a>
-    <!-- TODO: fetch list of address books -->
-    <a href="#" class="active">{{.AddressBook.Name}}</a>
-    <a href="#">Personal</a>
+    <form method="post" id="addressbook-filter">
+      {{range .AddressBooks}}
+      <label class="addressbook-item">
+        <input type="checkbox" name="book" value="{{.Path}}" {{if .Visible}}checked{{end}} data-submit-on-change>
+        {{.Name}}
+      </label>
+      {{end}}
+      <button>Apply</button>
+    </form>
   </aside>
 
   <div class="container">

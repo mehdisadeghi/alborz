@@ -4,9 +4,15 @@
 <div class="page-wrap">
   <aside>
     <a href="/calendar/create" class="new">New event</a>
-    <!-- TODO: fetch list of address books -->
-    <a href="#" class="active">{{.Calendar.Name}}</a>
-    <a href="#">Personal</a>
+    <form method="post" id="calendar-filter">
+      {{range .Calendars}}
+      <label class="calendar-item">
+        <input type="checkbox" name="cal" value="{{.Path}}" {{if .Visible}}checked{{end}} data-submit-on-change>
+        {{.Name}}
+      </label>
+      {{end}}
+      <button>Apply</button>
+    </form>
   </aside>
 
   <div class="container">

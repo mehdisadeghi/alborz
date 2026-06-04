@@ -1,0 +1,49 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+
+<div class="page-wrap">
+  <aside>
+    <a href="/calendar/create" class="new">New event</a>
+  </aside>
+
+  <div class="container">
+    <main class="calendar-date">
+      <section class="actions">
+        <div class="actions-wrap">
+          <div class="actions-left">
+            <a href="/calendar/date?date={{.PrevPage}}">&#8249; Prev</a>
+          </div>
+          <div class="actions-message">
+            <h2>{{.Time.Format "Monday, January 2, 2006"}}</h2>
+          </div>
+          <div class="actions-right">
+            <a href="/calendar/date?date={{.NextPage}}">Next &#8250;</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="events-list">
+        {{$base := .}}
+        {{if .Events}}
+        <ul>
+          {{range .Events}}
+          {{$event := index .Data.Events 0}}
+          {{$color := call $base.ColorForPath .Path}}
+          <li>
+            <a href="{{.URL}}">
+              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
+              <span class="time">{{($event.DateTimeStart nil).Format "15:04"}}</span>
+              <span class="summary">{{$event.Props.Text "SUMMARY"}}</span>
+            </a>
+          </li>
+          {{end}}
+        </ul>
+        {{else}}
+        <p class="empty-list">No events on this day.</p>
+        {{end}}
+      </section>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

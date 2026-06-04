@@ -1,0 +1,51 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+
+<div class="page-wrap">
+  <aside>
+    <a href="/tasks/create" class="new {{if not .CalendarObject}}active{{end}}">New task</a>
+    <a href="/tasks">{{.Calendar.Name}}</a>
+  </aside>
+
+  <div class="container">
+    <main class="create-update">
+      <form method="post">
+        <h2>
+          {{if .CalendarObject}}Edit{{else}}Create{{end}} task
+        </h2>
+
+        {{$summary := ""}}
+        {{$desc := ""}}
+        {{$due := ""}}
+        {{if .Todo}}
+          {{$summary = .Todo.Props.Text "SUMMARY"}}
+          {{$desc = .Todo.Props.Text "DESCRIPTION"}}
+          {{$dueProp := .Todo.Props.Get "DUE"}}
+          {{if $dueProp}}{{$due = $dueProp.Value}}{{end}}
+        {{end}}
+
+        <label>
+          <span>Summary</span>
+          <input type="text" name="summary" id="summary" dir="auto" value="{{$summary}}" required />
+        </label>
+
+        <label>
+          <span>Due date</span>
+          <input type="date" name="due-date" id="due-date" value="{{$due}}" />
+        </label>
+
+        <label>
+          <span>Description</span>
+          <textarea name="description" id="description" dir="auto" rows="4">{{$desc}}</textarea>
+        </label>
+
+        <div class="actions">
+          <button type="submit">Save</button>
+          <a class="button-link" href="/tasks">Cancel</a>
+        </div>
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

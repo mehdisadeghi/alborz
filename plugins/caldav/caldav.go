@@ -19,10 +19,35 @@ import (
 var errNoCalendar = fmt.Errorf("caldav: no calendar found")
 
 type CalendarInfo struct {
-	Path    string
-	Name    string
-	Color   string
-	Visible bool
+	Path                  string
+	Name                  string
+	Color                 string
+	Visible               bool
+	SupportedComponentSet []string
+}
+
+func (c CalendarInfo) SupportsTodo() bool {
+	if len(c.SupportedComponentSet) == 0 {
+		return true
+	}
+	for _, comp := range c.SupportedComponentSet {
+		if comp == "VTODO" {
+			return true
+		}
+	}
+	return false
+}
+
+func (c CalendarInfo) SupportsEvent() bool {
+	if len(c.SupportedComponentSet) == 0 {
+		return true
+	}
+	for _, comp := range c.SupportedComponentSet {
+		if comp == "VEVENT" {
+			return true
+		}
+	}
+	return false
 }
 
 type davMultiStatus struct {
@@ -45,6 +70,11 @@ type davCollectionProps struct {
 	} `xml:"resourcetype"`
 	DisplayName   string `xml:"displayname"`
 	CalendarColor string `xml:"http://apple.com/ns/ical/ calendar-color"`
+	ComponentSet  struct {
+		Comps []struct {
+			Name string `xml:"name,attr"`
+		} `xml:"urn:ietf:params:xml:ns:caldav comp"`
+	} `xml:"urn:ietf:params:xml:ns:caldav supported-calendar-component-set"`
 }
 
 func newHTTPClient(session *alps.Session) *http.Client {
@@ -106,11 +136,11 @@ func canonicalCollectionPath(href string) string {
 	return href
 }
 
-// listCalendars fetches the calendar list with names and colors in a single
-// PROPFIND.
+// listCalendars fetches the calendar list with names, colors, and supported
+// component sets in a single PROPFIND.
 func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, homeSet string) ([]CalendarInfo, error) {
 	fullURL := baseURL.ResolveReference(&url.URL{Path: homeSet}).String()
-	ms, err := doPropfind(ctx, client, fullURL, `<D:propfind xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:resourcetype/><D:displayname/><A:calendar-color/></D:prop></D:propfind>`)
+	ms, err := doPropfind(ctx, client, fullURL, `<D:propfind xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:resourcetype/><D:displayname/><C:supported-calendar-component-set/><A:calendar-color/></D:prop></D:propfind>`)
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +151,7 @@ func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, h
 		// Found and missing properties come in separate propstats.
 		var isCalendar bool
 		var name, color string
+		var comps []string
 		for _, ps := range resp.PropStat {
 			if !strings.Contains(ps.Status, "200") {
 				continue
@@ -134,14 +165,18 @@ func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, h
 			if c := strings.TrimSpace(ps.Prop.CalendarColor); c != "" {
 				color = c
 			}
+			for _, comp := range ps.Prop.ComponentSet.Comps {
+				comps = append(comps, comp.Name)
+			}
 		}
 		if !isCalendar {
 			continue
 		}
 		infos = append(infos, CalendarInfo{
-			Path:  href,
-			Name:  name,
-			Color: color,
+			Path:                  href,
+			Name:                  name,
+			Color:                 color,
+			SupportedComponentSet: comps,
 		})
 	}
 
@@ -295,4 +330,20 @@ func newCalendarObjectList(cos []caldav.CalendarObject) []CalendarObject {
 
 func (ao CalendarObject) URL() string {
 	return "/calendar/" + url.PathEscape(ao.Path)
+}
+
+type TaskObject struct {
+	*caldav.CalendarObject
+}
+
+func newTaskObjectList(cos []caldav.CalendarObject) []TaskObject {
+	l := make([]TaskObject, len(cos))
+	for i := range cos {
+		l[i] = TaskObject{&cos[i]}
+	}
+	return l
+}
+
+func (t TaskObject) URL() string {
+	return "/tasks/" + url.PathEscape(t.Path)
 }

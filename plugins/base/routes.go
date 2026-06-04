@@ -109,6 +109,9 @@ type CategorizedMailboxes struct {
 }
 
 func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
+	if mi.IsInternal() {
+		return
+	}
 	details := &MailboxDetails{
 		Info:   &mi,
 		Status: status,

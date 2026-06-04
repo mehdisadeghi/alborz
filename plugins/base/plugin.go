@@ -37,10 +37,15 @@ func init() {
 		if ctx.Session == nil {
 			return nil
 		}
+		settings, err := LoadSettings(ctx.Session.Store())
+		if err != nil {
+			return nil // Don't fail render on settings error
+		}
 		// Unset means times keep their stored zones.
 		if loc := UserLocation(ctx); loc != time.UTC {
 			data.Global().Timezone = loc
 		}
+		data.Global().FirstDayOfWeek = settings.FirstDayOfWeek
 		return nil
 	})
 

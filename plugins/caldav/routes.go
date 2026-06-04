@@ -22,7 +22,7 @@ type CalendarRenderData struct {
 	alps.BaseRenderData
 	Time               time.Time
 	Now                time.Time
-	Dates              [7 * 6]time.Time
+	Dates              []time.Time
 	Calendars          []CalendarInfo
 	Calendar           *CalendarInfo // first calendar, for the bundled upstream themes
 	Events             []CalendarObject
@@ -221,6 +221,10 @@ func registerRoutes(p *plugin) {
 	})
 
 	p.GET("/calendar", func(ctx *alps.Context) error {
+		baseSettings, err := alpsbase.LoadSettings(ctx.Session.Store())
+		if err != nil {
+			return fmt.Errorf("failed to load settings: %v", err)
+		}
 		loc := alpsbase.UserLocation(ctx)
 
 		var start time.Time
@@ -235,12 +239,19 @@ func registerRoutes(p *plugin) {
 			now := time.Now().In(loc)
 			start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		}
+		firstDayOfWeek := baseSettings.FirstDayOfWeek
 
 		// Pad a week each way: the grid shows adjacent-month days, and a
 		// fixed window keeps the cache key stable.
 		monthEnd := start.AddDate(0, 1, 0)
 		queryStart := start.AddDate(0, 0, -7)
 		queryEnd := monthEnd.AddDate(0, 0, 7)
+
+		offset := (int(start.Weekday()) - firstDayOfWeek + 7) % 7
+		gridStart := start.AddDate(0, 0, -offset)
+		daysInMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+		totalCells := offset + daysInMonth
+		rows := (totalCells + 6) / 7
 
 		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
@@ -340,12 +351,11 @@ func registerRoutes(p *plugin) {
 			events = append(events, result.events...)
 		}
 
-		// Build the calendar grid (6 weeks, Sunday-start) in the user's timezone
-		var dates [7 * 6]time.Time
-		initialDate := start.AddDate(0, 0, -int(start.Weekday()))
+		dates := make([]time.Time, rows*7)
+		d := gridStart
 		for i := 0; i < len(dates); i++ {
-			dates[i] = initialDate
-			initialDate = initialDate.AddDate(0, 0, 1)
+			dates[i] = d
+			d = d.AddDate(0, 0, 1)
 		}
 
 		// Bucket by calendar day in the display timezone; both sides of

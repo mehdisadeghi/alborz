@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	inputDateLayout = "2006-01-02"
-	inputTimeLayout = "15:04"
+	inputDateLayout     = "2006-01-02"
+	inputTimeLayout     = "15:04"
+	inputDateTimeLayout = "2006-01-02T15:04"
 )
 
 var templateFuncs = template.FuncMap{
@@ -57,6 +58,12 @@ var templateFuncs = template.FuncMap{
 			return ""
 		}
 		return t.Format(inputTimeLayout)
+	},
+	"formatinputdatetime": func(t time.Time) string {
+		if t.IsZero() {
+			return ""
+		}
+		return t.Format(inputDateTimeLayout)
 	},
 	"humantime": humanize.Time,
 }

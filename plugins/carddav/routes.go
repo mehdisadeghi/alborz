@@ -14,6 +14,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const maxAddressBookQueryConcurrency = 4
+
 type AddressBookRenderData struct {
 	alps.BaseRenderData
 	AddressBooks   []AddressBookInfo
@@ -136,16 +138,38 @@ func registerRoutes(p *plugin) {
 			}
 		}
 
-		var aos []carddav.AddressObject
+		type abQueryResult struct {
+			name     string
+			contacts []carddav.AddressObject
+			err      error
+		}
+
+		var visibleAddressBooks []AddressBookInfo
 		for _, abInfo := range addressBookInfos {
-			if !abInfo.Visible {
-				continue
+			if abInfo.Visible {
+				visibleAddressBooks = append(visibleAddressBooks, abInfo)
 			}
-			abContacts, err := c.QueryAddressBook(ctx.Request().Context(), abInfo.Path, &query)
-			if err != nil {
-				return fmt.Errorf("failed to query address book %s: %v", abInfo.Name, err)
+		}
+
+		reqCtx := ctx.Request().Context()
+		results := make(chan abQueryResult, len(visibleAddressBooks))
+		sem := make(chan struct{}, maxAddressBookQueryConcurrency)
+		for _, abInfo := range visibleAddressBooks {
+			go func() {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				abContacts, err := c.QueryAddressBook(reqCtx, abInfo.Path, &query)
+				results <- abQueryResult{name: abInfo.Name, contacts: abContacts, err: err}
+			}()
+		}
+
+		var aos []carddav.AddressObject
+		for i := 0; i < len(visibleAddressBooks); i++ {
+			result := <-results
+			if result.err != nil {
+				return fmt.Errorf("failed to query address book %s: %v", result.name, result.err)
 			}
-			aos = append(aos, abContacts...)
+			aos = append(aos, result.contacts...)
 		}
 
 		return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{

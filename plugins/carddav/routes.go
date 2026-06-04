@@ -338,7 +338,7 @@ func registerRoutes(p *plugin) {
 	p.POST("/contacts/:path/edit", updateContact)
 
 	p.POST("/contacts/:path/delete", func(ctx *alps.Context) error {
-		path, err := parseObjectPath(ctx.Param("path"))
+		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
@@ -348,7 +348,7 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		if err := c.RemoveAll(ctx.Request().Context(), path); err != nil {
+		if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
 			return fmt.Errorf("failed to delete address object: %v", err)
 		}
 

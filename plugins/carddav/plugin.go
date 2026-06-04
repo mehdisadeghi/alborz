@@ -8,6 +8,7 @@ import (
 
 	"git.sr.ht/~migadu/alps"
 	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
+	"git.sr.ht/~migadu/alps/plugins/davcache"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
@@ -24,7 +25,6 @@ func sanityCheckURL(u *url.URL) error {
 	}
 	resp.Body.Close()
 
-	// Servers might require authentication to perform an OPTIONS request
 	if resp.StatusCode/100 != 2 && resp.StatusCode != http.StatusUnauthorized {
 		return fmt.Errorf("HTTP request failed: %v %v", resp.StatusCode, resp.Status)
 	}
@@ -33,17 +33,18 @@ func sanityCheckURL(u *url.URL) error {
 
 type plugin struct {
 	alps.GoPlugin
-	url *url.URL
+	url   *url.URL
+	cache *davcache.Cache
 }
 
 func (p *plugin) client(session *alps.Session) (*carddav.Client, error) {
-	return newClient(p.url, session)
+	return newClient(p.url, p.httpClient(session))
 }
 
 func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alps.Session) (*carddav.Client, []AddressBookInfo, error) {
-	c, err := newClient(p.url, session)
+	c, err := newClient(p.url, p.httpClient(session))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create CardDAV client: %v", err)
+		return nil, nil, err
 	}
 
 	principal, err := c.FindCurrentUserPrincipal(ctx)
@@ -56,7 +57,7 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alps.Sessi
 		return nil, nil, fmt.Errorf("failed to query CardDAV address book home set: %v", err)
 	}
 
-	infos, err := listAddressBooks(ctx, newHTTPClient(session), p.url, homeSet)
+	infos, err := listAddressBooks(ctx, p.httpClient(session), p.url, homeSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query CardDAV address books: %v", err)
 	}
@@ -110,6 +111,12 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 		GoPlugin: alps.GoPlugin{Name: "carddav"},
 		url:      u,
 	}
+	p.cache = davcache.New()
+	p.cache.Start()
+	p.CloseFunc = func() error {
+		p.cache.Stop()
+		return nil
+	}
 
 	registerRoutes(p)
 
@@ -131,7 +138,6 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 				Name: vcard.FieldEmail,
 			}},
 		}
-		// TODO: cache the results
 		var emails []string
 		for _, ab := range addressBooks {
 			addrs, err := c.QueryAddressBook(ctx.Request().Context(), ab.Path, &query)

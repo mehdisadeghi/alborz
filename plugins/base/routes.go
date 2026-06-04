@@ -1259,11 +1259,13 @@ type Settings struct {
 	From            string
 	Subscriptions   []string
 	Timezone        string
+	FirstDayOfWeek  int // 0 = Sunday, 1 = Monday (default)
 }
 
 func LoadSettings(s alps.Store) (*Settings, error) {
 	settings := &Settings{
 		MessagesPerPage: 50,
+		FirstDayOfWeek:  1, // Monday
 	}
 	if err := s.Get(settingsKey, settings); err != nil && err != alps.ErrNoStoreEntry {
 		return nil, err
@@ -1328,6 +1330,12 @@ func handleSettings(ctx *alps.Context) error {
 		settings.Signature = ctx.FormValue("signature")
 		settings.From = ctx.FormValue("from")
 		settings.Timezone = ctx.FormValue("timezone")
+		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
+			settings.FirstDayOfWeek, err = strconv.Atoi(fdow)
+			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {
+				return echo.NewHTTPError(http.StatusBadRequest, "invalid first day of week")
+			}
+		}
 
 		params, err := ctx.FormParams()
 		if err != nil {

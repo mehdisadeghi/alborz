@@ -71,6 +71,15 @@
             placeholder="Auto-detect" />
           <small>Leave empty to auto-detect from browser</small>
         </div>
+
+        <div class="action-group">
+          <label for="first_day_of_week">First day of week</label>
+          <select name="first_day_of_week" id="first_day_of_week">
+            <option value="1" {{if eq .Settings.FirstDayOfWeek 1}}selected{{end}}>Monday</option>
+            <option value="0" {{if eq .Settings.FirstDayOfWeek 0}}selected{{end}}>Sunday</option>
+            <option value="6" {{if eq .Settings.FirstDayOfWeek 6}}selected{{end}}>Saturday</option>
+          </select>
+        </div>
         <script>
           (function() {
             var tz = document.getElementById('timezone');

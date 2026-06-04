@@ -35,9 +35,10 @@ type CalendarRenderData struct {
 type CalendarDateRenderData struct {
 	alps.BaseRenderData
 	Time               time.Time
-	Calendar           *CalendarInfo
 	Events             []CalendarObject
 	PrevPage, NextPage string
+
+	ColorForPath func(string) string
 }
 
 type EventRenderData struct {
@@ -380,10 +381,19 @@ func registerRoutes(p *plugin) {
 		}
 		end := start.AddDate(0, 0, 1)
 
-		// TODO: multi-calendar support
-		c, calendarInfo, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
+		}
+
+		settings, err := loadSettings(ctx.Session.Store())
+		if err != nil {
+			return fmt.Errorf("failed to load CalDAV settings: %v", err)
+		}
+
+		visibleSet := make(map[string]bool)
+		for _, path := range settings.VisibleCalendars {
+			visibleSet[canonicalCollectionPath(path)] = true
 		}
 
 		query := caldav.CalendarQuery{
@@ -400,6 +410,10 @@ func registerRoutes(p *plugin) {
 						"DURATION",
 					},
 				}},
+				Expand: &caldav.CalendarExpandRequest{
+					Start: start,
+					End:   end,
+				},
 			},
 			CompFilter: caldav.CompFilter{
 				Name: "VCALENDAR",
@@ -410,19 +424,37 @@ func registerRoutes(p *plugin) {
 				}},
 			},
 		}
-		events, err := c.QueryCalendar(ctx.Request().Context(), calendarInfo.Path, &query)
-		if err != nil {
-			return fmt.Errorf("failed to query calendar: %v", err)
+
+		var events []caldav.CalendarObject
+		for _, cal := range calendars {
+			if !cal.SupportsEvent() {
+				continue
+			}
+			if settings.CalendarFilter && !visibleSet[cal.Path] {
+				continue
+			}
+			calEvents, err := c.QueryCalendar(ctx.Request().Context(), cal.Path, &query)
+			if err != nil {
+				return fmt.Errorf("failed to query calendar %s: %v", cal.Name, err)
+			}
+			events = append(events, calEvents...)
 		}
 
 		return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).
-				WithTitle(calendarInfo.Name + " Calendar: " + start.Format("January 02, 2006")),
+				WithTitle("Calendar: " + start.Format("January 02, 2006")),
 			Time:     start,
 			Events:   newCalendarObjectList(events),
-			Calendar: calendarInfo,
 			PrevPage: start.AddDate(0, 0, -1).Format(datePageLayout),
 			NextPage: start.AddDate(0, 0, 1).Format(datePageLayout),
+			ColorForPath: func(eventPath string) string {
+				for _, cal := range calendars {
+					if strings.HasPrefix(eventPath, cal.Path) {
+						return cal.Color
+					}
+				}
+				return ""
+			},
 		})
 	})
 

@@ -818,6 +818,11 @@ main.calendar .date h4 {
 
 main.calendar .date h4 .da { font-size: 1.2rem; }
 
+main.calendar-date .events-list ul {
+  list-style: none;
+  padding: 0;
+}
+
 #calendar-filter, #addressbook-filter, #task-filter {display: flex; flex-direction: column;}
 
 .color-dot {

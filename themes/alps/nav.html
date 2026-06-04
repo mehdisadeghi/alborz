@@ -22,6 +22,14 @@
       {{ end }}
     >Contacts</a>
     {{ end }}
+    {{ if call .GlobalData.HavePlugin "caldav" }}
+    <a
+      href="/tasks"
+      {{ if eq $page "tasks" }}
+      class="active"
+      {{ end }}
+    >Tasks</a>
+    {{ end }}
     {{ if .GlobalData.LoggedIn }}
     <div>
       <span>{{ .GlobalData.Username }}</span>

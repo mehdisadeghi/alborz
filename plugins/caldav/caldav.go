@@ -1,11 +1,14 @@
 package alpscaldav
 
 import (
+	"bytes"
 	"context"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"sort"
 	"strings"
 
@@ -18,7 +21,136 @@ var errNoCalendar = fmt.Errorf("caldav: no calendar found")
 type CalendarInfo struct {
 	Path    string
 	Name    string
+	Color   string
 	Visible bool
+}
+
+type davMultiStatus struct {
+	Responses []davResponse `xml:"response"`
+}
+
+type davResponse struct {
+	Href     string        `xml:"href"`
+	PropStat []davPropStat `xml:"propstat"`
+}
+
+type davPropStat struct {
+	Status string             `xml:"status"`
+	Prop   davCollectionProps `xml:"prop"`
+}
+
+type davCollectionProps struct {
+	ResourceType struct {
+		Calendar *struct{} `xml:"urn:ietf:params:xml:ns:caldav calendar,omitempty"`
+	} `xml:"resourcetype"`
+	DisplayName   string `xml:"displayname"`
+	CalendarColor string `xml:"http://apple.com/ns/ical/ calendar-color"`
+}
+
+func newHTTPClient(session *alps.Session) *http.Client {
+	return &http.Client{
+		Transport: &webdavRoundTripper{
+			upstream: http.DefaultTransport,
+			session:  session,
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
+func doPropfind(ctx context.Context, client *http.Client, path string, body string) (*davMultiStatus, error) {
+	var buf bytes.Buffer
+	buf.WriteString(xml.Header)
+	buf.WriteString(body)
+
+	req, err := http.NewRequestWithContext(ctx, "PROPFIND", path, &buf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Depth", "1")
+	req.Header.Set("Content-Type", "text/xml; charset=\"utf-8\"")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusMultiStatus {
+		return nil, fmt.Errorf("expected multistatus response, got %s", resp.Status)
+	}
+
+	var ms davMultiStatus
+	if err := xml.NewDecoder(resp.Body).Decode(&ms); err != nil {
+		return nil, err
+	}
+	return &ms, nil
+}
+
+// canonicalCollectionPath normalizes a collection href or stored path so
+// identities compare stably regardless of server formatting. The trailing
+// slash keeps requests redirect-free and prefix matches collision-safe.
+func canonicalCollectionPath(href string) string {
+	href = strings.TrimSpace(href)
+	if u, err := url.Parse(href); err == nil {
+		href = u.Path
+	}
+	if !strings.HasPrefix(href, "/") {
+		href = "/" + href
+	}
+	href = path.Clean(href)
+	if href != "/" {
+		href += "/"
+	}
+	return href
+}
+
+// listCalendars fetches the calendar list with names and colors in a single
+// PROPFIND.
+func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, homeSet string) ([]CalendarInfo, error) {
+	fullURL := baseURL.ResolveReference(&url.URL{Path: homeSet}).String()
+	ms, err := doPropfind(ctx, client, fullURL, `<D:propfind xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:resourcetype/><D:displayname/><A:calendar-color/></D:prop></D:propfind>`)
+	if err != nil {
+		return nil, err
+	}
+
+	var infos []CalendarInfo
+	for _, resp := range ms.Responses {
+		href := canonicalCollectionPath(resp.Href)
+		// Found and missing properties come in separate propstats.
+		var isCalendar bool
+		var name, color string
+		for _, ps := range resp.PropStat {
+			if !strings.Contains(ps.Status, "200") {
+				continue
+			}
+			if ps.Prop.ResourceType.Calendar != nil {
+				isCalendar = true
+			}
+			if ps.Prop.DisplayName != "" {
+				name = ps.Prop.DisplayName
+			}
+			if c := strings.TrimSpace(ps.Prop.CalendarColor); c != "" {
+				color = c
+			}
+		}
+		if !isCalendar {
+			continue
+		}
+		infos = append(infos, CalendarInfo{
+			Path:  href,
+			Name:  name,
+			Color: color,
+		})
+	}
+
+	// Servers list collections in storage order; sort them for a stable
+	// sidebar.
+	sort.Slice(infos, func(i, j int) bool {
+		return strings.ToLower(infos[i].Name) < strings.ToLower(infos[j].Name)
+	})
+	return infos, nil
 }
 
 // webdavRoundTripper handles authentication and follows redirects while
@@ -130,27 +262,14 @@ func (p *plugin) clientWithCalendars(ctx context.Context, session *alps.Session)
 		return nil, nil, fmt.Errorf("failed to query CalDAV calendar home set: %v", err)
 	}
 
-	calendars, err := c.FindCalendars(ctx, calendarHomeSet)
+	infos, err := listCalendars(ctx, newHTTPClient(session), p.url, calendarHomeSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find calendars: %v", err)
 	}
-	if len(calendars) == 0 {
+	if len(infos) == 0 {
 		return nil, nil, errNoCalendar
 	}
 
-	infos := make([]CalendarInfo, len(calendars))
-	for i, cal := range calendars {
-		infos[i] = CalendarInfo{
-			Path: cal.Path,
-			Name: cal.Name,
-		}
-	}
-
-	// Servers list collections in storage order; sort them for a stable
-	// sidebar.
-	sort.Slice(infos, func(i, j int) bool {
-		return strings.ToLower(infos[i].Name) < strings.ToLower(infos[j].Name)
-	})
 	return c, infos, nil
 }
 

@@ -27,6 +27,7 @@ type CalendarRenderData struct {
 	PrevTime, NextTime time.Time
 
 	EventsForDate func(time.Time) []CalendarObject
+	ColorForPath  func(string) string
 	DaySuffix     func(n int) string
 	Sub           func(a, b int) int
 }
@@ -52,9 +53,16 @@ type UpdateEventRenderData struct {
 	Event          *ical.Event
 }
 
+type Settings struct {
+	CalendarFilter   bool
+	VisibleCalendars []string
+}
+
 const (
-	monthPageLayout = "2006-01"
-	datePageLayout  = "2006-01-02"
+	monthPageLayout             = "2006-01"
+	datePageLayout              = "2006-01-02"
+	maxCalendarQueryConcurrency = 4
+	settingsKey                 = "caldav.settings"
 )
 
 func parseObjectPath(s string) (string, error) {
@@ -80,13 +88,6 @@ func parseTime(dateStr, timeStr string) (time.Time, error) {
 	}
 	return t, nil
 }
-
-type Settings struct {
-	CalendarFilter   bool
-	VisibleCalendars []string
-}
-
-const settingsKey = "caldav.settings"
 
 func loadSettings(store alps.Store) (*Settings, error) {
 	settings := &Settings{}
@@ -141,7 +142,7 @@ func registerRoutes(p *plugin) {
 		calendarFilter := settings.CalendarFilter
 		visibleSet := make(map[string]bool)
 		for _, path := range settings.VisibleCalendars {
-			visibleSet[path] = true
+			visibleSet[canonicalCollectionPath(path)] = true
 		}
 
 		calendarInfos := make([]CalendarInfo, len(calendars))
@@ -150,6 +151,7 @@ func registerRoutes(p *plugin) {
 			calendarInfos[i] = CalendarInfo{
 				Path:    cal.Path,
 				Name:    cal.Name,
+				Color:   cal.Color,
 				Visible: visible,
 			}
 		}
@@ -178,16 +180,44 @@ func registerRoutes(p *plugin) {
 			},
 		}
 
-		var events []caldav.CalendarObject
+		type calendarQueryResult struct {
+			name   string
+			events []caldav.CalendarObject
+			err    error
+		}
+
+		visibleCalendars := make([]CalendarInfo, 0, len(calendarInfos))
 		for _, calInfo := range calendarInfos {
-			if !calInfo.Visible {
-				continue
+			if calInfo.Visible {
+				visibleCalendars = append(visibleCalendars, calInfo)
 			}
-			calEvents, err := c.QueryCalendar(ctx.Request().Context(), calInfo.Path, &query)
-			if err != nil {
-				return fmt.Errorf("failed to query calendar %s: %v", calInfo.Name, err)
+		}
+
+		reqCtx := ctx.Request().Context()
+		results := make(chan calendarQueryResult, len(visibleCalendars))
+		sem := make(chan struct{}, maxCalendarQueryConcurrency)
+		for _, calInfo := range visibleCalendars {
+			calInfo := calInfo
+			go func() {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				calEvents, err := c.QueryCalendar(reqCtx, calInfo.Path, &query)
+				results <- calendarQueryResult{
+					name:   calInfo.Name,
+					events: calEvents,
+					err:    err,
+				}
+			}()
+		}
+
+		var events []caldav.CalendarObject
+		for i := 0; i < len(visibleCalendars); i++ {
+			result := <-results
+			if result.err != nil {
+				return fmt.Errorf("failed to query calendar %s: %v", result.name, result.err)
 			}
-			events = append(events, calEvents...)
+			events = append(events, result.events...)
 		}
 
 		// TODO: Time zones are hard
@@ -230,6 +260,15 @@ func registerRoutes(p *plugin) {
 				return nil
 			},
 
+			ColorForPath: func(eventPath string) string {
+				for _, cal := range calendarInfos {
+					if strings.HasPrefix(eventPath, cal.Path) {
+						return cal.Color
+					}
+				}
+				return ""
+			},
+
 			DaySuffix: func(n int) string {
 				if n%100 >= 11 && n%100 <= 13 {
 					return "th"
@@ -270,7 +309,7 @@ func registerRoutes(p *plugin) {
 		end := start.AddDate(0, 0, 1)
 
 		// TODO: multi-calendar support
-		c, calendar, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		c, calendarInfo, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -299,17 +338,17 @@ func registerRoutes(p *plugin) {
 				}},
 			},
 		}
-		events, err := c.QueryCalendar(ctx.Request().Context(), calendar.Path, &query)
+		events, err := c.QueryCalendar(ctx.Request().Context(), calendarInfo.Path, &query)
 		if err != nil {
 			return fmt.Errorf("failed to query calendar: %v", err)
 		}
 
 		return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).
-				WithTitle(calendar.Name + " Calendar: " + start.Format("January 02, 2006")),
+				WithTitle(calendarInfo.Name + " Calendar: " + start.Format("January 02, 2006")),
 			Time:     start,
 			Events:   newCalendarObjectList(events),
-			Calendar: calendar,
+			Calendar: calendarInfo,
 			PrevPage: start.AddDate(0, 0, -1).Format(datePageLayout),
 			NextPage: start.AddDate(0, 0, 1).Format(datePageLayout),
 		})
@@ -376,7 +415,7 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		c, calendar, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		c, calendarInfo, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -445,7 +484,7 @@ func registerRoutes(p *plugin) {
 			if co != nil {
 				p = co.Path
 			} else {
-				p = path.Join(calendar.Path, newID.String()+".ics")
+				p = path.Join(calendarInfo.Path, newID.String()+".ics")
 			}
 			co, err = c.PutCalendarObject(ctx.Request().Context(), p, cal)
 			if err != nil {
@@ -459,7 +498,7 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Render(http.StatusOK, "update-event.html", &UpdateEventRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle("Update " + summary),
-			Calendar:       calendar,
+			Calendar:       calendarInfo,
 			CalendarObject: co,
 			Event:          event,
 		})

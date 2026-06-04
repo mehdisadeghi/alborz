@@ -119,7 +119,7 @@
           </tr>
           <tr>
             <th>Date:</th>
-            <td>{{.Message.Envelope.Date | formatdate}}</td>
+            <td>{{.GlobalData.FormatDate .Message.Envelope.Date}}</td>
           </tr>
           <tr>
             <th>To:</th><td>{{template "addr-list" .Message.Envelope.To}}</td>

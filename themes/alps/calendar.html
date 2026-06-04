@@ -55,7 +55,7 @@
               <li>
                 {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
                 <span class="start-time">
-                  {{($event.DateTimeStart nil).Format "15:04"}}
+                  {{$base.GlobalData.FormatTime ($event.DateTimeStart nil)}}
                 </span>
                 {{$event.Props.Text "SUMMARY"}}
               </li>

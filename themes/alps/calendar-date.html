@@ -32,7 +32,7 @@
           <li>
             <a href="{{.URL}}">
               {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-              <span class="time">{{($event.DateTimeStart nil).Format "15:04"}}</span>
+              <span class="time">{{$base.GlobalData.FormatTime ($event.DateTimeStart nil)}}</span>
               <span class="summary">{{$event.Props.Text "SUMMARY"}}</span>
             </a>
           </li>

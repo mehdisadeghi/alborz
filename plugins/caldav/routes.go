@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"git.sr.ht/~migadu/alps"
+	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
 	"github.com/google/uuid"
@@ -183,6 +184,8 @@ func registerRoutes(p *plugin) {
 	})
 
 	p.GET("/calendar", func(ctx *alps.Context) error {
+		loc := alpsbase.UserLocation(ctx)
+
 		var start time.Time
 		if s := ctx.QueryParam("month"); s != "" {
 			var err error
@@ -190,9 +193,10 @@ func registerRoutes(p *plugin) {
 			if err != nil {
 				return fmt.Errorf("failed to parse month: %v", err)
 			}
+			start = time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc)
 		} else {
-			now := time.Now()
-			start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+			now := time.Now().In(loc)
+			start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		}
 
 		// Pad a week each way: the grid shows adjacent-month days, and a
@@ -299,30 +303,36 @@ func registerRoutes(p *plugin) {
 			events = append(events, result.events...)
 		}
 
-		// TODO: Time zones are hard
+		// Build the calendar grid (6 weeks, Sunday-start) in the user's timezone
 		var dates [7 * 6]time.Time
-		initialDate := start.UTC()
-		initialDate = initialDate.AddDate(0, 0, -int(initialDate.Weekday()))
+		initialDate := start.AddDate(0, 0, -int(start.Weekday()))
 		for i := 0; i < len(dates); i++ {
 			dates[i] = initialDate
 			initialDate = initialDate.AddDate(0, 0, 1)
 		}
 
+		// Bucket by calendar day in the display timezone; both sides of
+		// the map must build keys with the same loc pointer, as time.Time
+		// map equality includes the location.
+		day := func(t time.Time) time.Time {
+			t = t.In(loc)
+			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
+		}
 		eventMap := make(map[time.Time][]CalendarObject)
 		for _, ev := range events {
 			ev := ev // make a copy
 			// TODO: include event on each date for which it is active
 			co := ev.Data.Events()[0]
 			startTime, _ := co.DateTimeStart(nil)
-			startTime = startTime.UTC().Truncate(time.Hour * 24)
-			eventMap[startTime] = append(eventMap[startTime], CalendarObject{&ev})
+			key := day(startTime)
+			eventMap[key] = append(eventMap[key], CalendarObject{&ev})
 		}
 
 		return ctx.Render(http.StatusOK, "calendar.html", &CalendarRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).
 				WithTitle("Calendar: " + start.Format("January 2006")),
 			Time:      start,
-			Now:       time.Now(), // TODO: Use client time zone
+			Now:       time.Now().In(loc),
 			Calendars: calendarInfos,
 			Calendar:  &calendars[0],
 			Dates:     dates,
@@ -333,7 +343,7 @@ func registerRoutes(p *plugin) {
 			NextTime:  start.AddDate(0, 1, 0),
 
 			EventsForDate: func(when time.Time) []CalendarObject {
-				if events, ok := eventMap[when.Truncate(time.Hour*24)]; ok {
+				if events, ok := eventMap[day(when)]; ok {
 					return events
 				}
 				return nil
@@ -374,16 +384,18 @@ func registerRoutes(p *plugin) {
 	})
 
 	p.GET("/calendar/date", func(ctx *alps.Context) error {
+		loc := alpsbase.UserLocation(ctx)
+
 		var start time.Time
 		if s := ctx.QueryParam("date"); s != "" {
 			var err error
-			start, err = time.Parse(datePageLayout, s)
+			start, err = time.ParseInLocation(datePageLayout, s, loc)
 			if err != nil {
 				return fmt.Errorf("failed to parse date: %v", err)
 			}
 		} else {
-			now := time.Now()
-			start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+			now := time.Now().In(loc)
+			start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 		}
 		end := start.AddDate(0, 0, 1)
 
@@ -621,7 +633,7 @@ func registerRoutes(p *plugin) {
 				end = start.Add(24 * time.Hour)
 			}
 
-			event.Props.SetDateTime(ical.PropDateTimeStamp, time.Now())
+			event.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 			event.Props.SetText(ical.PropSummary, summary)
 			event.Props.SetDateTime(ical.PropDateTimeStart, start)
 			event.Props.SetDateTime(ical.PropDateTimeEnd, end)
@@ -874,6 +886,8 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
+		loc := alpsbase.UserLocation(ctx)
+
 		c, allCalendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
@@ -930,7 +944,7 @@ func registerRoutes(p *plugin) {
 				return echo.NewHTTPError(http.StatusBadRequest, "unknown calendar")
 			}
 
-			todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now())
+			todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 			todo.Props.SetText(ical.PropSummary, summary)
 
 			if description != "" {
@@ -941,7 +955,7 @@ func registerRoutes(p *plugin) {
 			}
 
 			if dueDate != "" {
-				due, err := time.Parse(inputDateLayout, dueDate)
+				due, err := time.ParseInLocation(inputDateLayout, dueDate, loc)
 				if err != nil {
 					return echo.NewHTTPError(http.StatusBadRequest, "invalid due date")
 				}
@@ -1038,9 +1052,9 @@ func registerRoutes(p *plugin) {
 			todo.Props.Del(ical.PropCompleted)
 		} else {
 			todo.Props.SetText(ical.PropStatus, "COMPLETED")
-			todo.Props.SetDateTime(ical.PropCompleted, time.Now())
+			todo.Props.SetDateTime(ical.PropCompleted, time.Now().UTC())
 		}
-		todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now())
+		todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 
 		_, err = c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data)
 		if err != nil {

@@ -1,10 +1,16 @@
 package alpscarddav
 
 import (
+	"bytes"
+	"context"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"path"
+	"sort"
+	"strings"
 
 	"git.sr.ht/~migadu/alps"
 	"github.com/emersion/go-webdav/carddav"
@@ -15,7 +21,136 @@ var errNoAddressBook = fmt.Errorf("carddav: no address book found")
 type AddressBookInfo struct {
 	Path    string
 	Name    string
+	Color   string
 	Visible bool
+}
+
+type davMultiStatus struct {
+	Responses []davResponse `xml:"response"`
+}
+
+type davResponse struct {
+	Href     string        `xml:"href"`
+	PropStat []davPropStat `xml:"propstat"`
+}
+
+type davPropStat struct {
+	Status string             `xml:"status"`
+	Prop   davCollectionProps `xml:"prop"`
+}
+
+type davCollectionProps struct {
+	ResourceType struct {
+		AddressBook *struct{} `xml:"urn:ietf:params:xml:ns:carddav addressbook,omitempty"`
+	} `xml:"resourcetype"`
+	DisplayName      string `xml:"displayname"`
+	AddressBookColor string `xml:"http://inf-it.com/ns/ab/ addressbook-color"`
+}
+
+func newHTTPClient(session *alps.Session) *http.Client {
+	return &http.Client{
+		Transport: &webdavRoundTripper{
+			upstream: http.DefaultTransport,
+			session:  session,
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
+func doPropfind(ctx context.Context, client *http.Client, path string, body string) (*davMultiStatus, error) {
+	var buf bytes.Buffer
+	buf.WriteString(xml.Header)
+	buf.WriteString(body)
+
+	req, err := http.NewRequestWithContext(ctx, "PROPFIND", path, &buf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Depth", "1")
+	req.Header.Set("Content-Type", "text/xml; charset=\"utf-8\"")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusMultiStatus {
+		return nil, fmt.Errorf("expected multistatus response, got %s", resp.Status)
+	}
+
+	var ms davMultiStatus
+	if err := xml.NewDecoder(resp.Body).Decode(&ms); err != nil {
+		return nil, err
+	}
+	return &ms, nil
+}
+
+// canonicalCollectionPath normalizes a collection href or stored path so
+// identities compare stably regardless of server formatting. The trailing
+// slash keeps requests redirect-free and prefix matches collision-safe.
+func canonicalCollectionPath(href string) string {
+	href = strings.TrimSpace(href)
+	if u, err := url.Parse(href); err == nil {
+		href = u.Path
+	}
+	if !strings.HasPrefix(href, "/") {
+		href = "/" + href
+	}
+	href = path.Clean(href)
+	if href != "/" {
+		href += "/"
+	}
+	return href
+}
+
+// listAddressBooks fetches the address book list with names and colors in a
+// single PROPFIND.
+func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL, homeSet string) ([]AddressBookInfo, error) {
+	fullURL := baseURL.ResolveReference(&url.URL{Path: homeSet}).String()
+	ms, err := doPropfind(ctx, client, fullURL, `<D:propfind xmlns:D="DAV:" xmlns:I="http://inf-it.com/ns/ab/"><D:prop><D:resourcetype/><D:displayname/><I:addressbook-color/></D:prop></D:propfind>`)
+	if err != nil {
+		return nil, err
+	}
+
+	var infos []AddressBookInfo
+	for _, resp := range ms.Responses {
+		href := canonicalCollectionPath(resp.Href)
+		// Found and missing properties come in separate propstats.
+		var isAddressBook bool
+		var name, color string
+		for _, ps := range resp.PropStat {
+			if !strings.Contains(ps.Status, "200") {
+				continue
+			}
+			if ps.Prop.ResourceType.AddressBook != nil {
+				isAddressBook = true
+			}
+			if ps.Prop.DisplayName != "" {
+				name = ps.Prop.DisplayName
+			}
+			if c := strings.TrimSpace(ps.Prop.AddressBookColor); c != "" {
+				color = c
+			}
+		}
+		if !isAddressBook {
+			continue
+		}
+		infos = append(infos, AddressBookInfo{
+			Path:  href,
+			Name:  name,
+			Color: color,
+		})
+	}
+
+	// Servers list collections in storage order; sort them for a stable
+	// sidebar.
+	sort.Slice(infos, func(i, j int) bool {
+		return strings.ToLower(infos[i].Name) < strings.ToLower(infos[j].Name)
+	})
+	return infos, nil
 }
 
 // webdavRoundTripper handles authentication and follows redirects while

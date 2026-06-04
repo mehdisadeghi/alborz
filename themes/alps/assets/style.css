@@ -820,6 +820,15 @@ main.calendar .date h4 .da { font-size: 1.2rem; }
 
 #calendar-filter, #addressbook-filter {display: flex; flex-direction: column;}
 
+.color-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 main.settings form {
   max-width: 600px;
 }

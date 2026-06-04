@@ -20,7 +20,15 @@ type AddressBookRenderData struct {
 	AddressBook    *AddressBookInfo // first book, for the bundled upstream themes
 	AddressObjects []AddressObject
 	Query          string
+	ColorForPath   func(string) string
 }
+
+type Settings struct {
+	AddressBookFilter   bool
+	VisibleAddressBooks []string
+}
+
+const settingsKey = "carddav.settings"
 
 type AddressObjectRenderData struct {
 	alps.BaseRenderData
@@ -43,13 +51,6 @@ func parseObjectPath(s string) (string, error) {
 	}
 	return p, nil
 }
-
-type Settings struct {
-	AddressBookFilter   bool
-	VisibleAddressBooks []string
-}
-
-const settingsKey = "carddav.settings"
 
 func registerRoutes(p *plugin) {
 	p.POST("/contacts", func(ctx *alps.Context) error {
@@ -85,7 +86,7 @@ func registerRoutes(p *plugin) {
 		addressBookFilter := settings.AddressBookFilter
 		visibleSet := make(map[string]bool)
 		for _, path := range settings.VisibleAddressBooks {
-			visibleSet[path] = true
+			visibleSet[canonicalCollectionPath(path)] = true
 		}
 
 		addressBookInfos := make([]AddressBookInfo, len(addressBooks))
@@ -94,6 +95,7 @@ func registerRoutes(p *plugin) {
 			addressBookInfos[i] = AddressBookInfo{
 				Path:    ab.Path,
 				Name:    ab.Name,
+				Color:   ab.Color,
 				Visible: visible,
 			}
 		}
@@ -142,6 +144,14 @@ func registerRoutes(p *plugin) {
 			AddressBook:    &addressBookInfos[0],
 			AddressObjects: newAddressObjectList(aos),
 			Query:          queryText,
+			ColorForPath: func(contactPath string) string {
+				for _, ab := range addressBookInfos {
+					if strings.HasPrefix(contactPath, ab.Path) {
+						return ab.Color
+					}
+				}
+				return ""
+			},
 		})
 	})
 

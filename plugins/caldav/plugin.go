@@ -16,6 +16,11 @@ const (
 	inputTimeLayout = "15:04"
 )
 
+type plugin struct {
+	alps.GoPlugin
+	url *url.URL
+}
+
 func sanityCheckURL(u *url.URL) error {
 	req, err := http.NewRequest(http.MethodOptions, u.String(), nil)
 	if err != nil {
@@ -66,9 +71,12 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 
 	srv.Logger().Printf("Configured upstream CalDAV server: %v", u)
 
-	p := alps.GoPlugin{Name: "caldav"}
+	p := &plugin{
+		GoPlugin: alps.GoPlugin{Name: "caldav"},
+		url:      u,
+	}
 
-	registerRoutes(&p, u)
+	registerRoutes(p)
 
 	return p.Plugin(), nil
 }

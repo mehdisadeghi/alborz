@@ -114,8 +114,8 @@ func newClient(u *url.URL, session *alps.Session) (*caldav.Client, error) {
 	return c, nil
 }
 
-func getCalendars(ctx context.Context, u *url.URL, session *alps.Session) (*caldav.Client, []caldav.Calendar, error) {
-	c, err := newClient(u, session)
+func (p *plugin) clientWithCalendars(ctx context.Context, session *alps.Session) (*caldav.Client, []CalendarInfo, error) {
+	c, err := newClient(p.url, session)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -138,16 +138,24 @@ func getCalendars(ctx context.Context, u *url.URL, session *alps.Session) (*cald
 		return nil, nil, errNoCalendar
 	}
 
+	infos := make([]CalendarInfo, len(calendars))
+	for i, cal := range calendars {
+		infos[i] = CalendarInfo{
+			Path: cal.Path,
+			Name: cal.Name,
+		}
+	}
+
 	// Servers list collections in storage order; sort them for a stable
 	// sidebar.
-	sort.Slice(calendars, func(i, j int) bool {
-		return strings.ToLower(calendars[i].Name) < strings.ToLower(calendars[j].Name)
+	sort.Slice(infos, func(i, j int) bool {
+		return strings.ToLower(infos[i].Name) < strings.ToLower(infos[j].Name)
 	})
-	return c, calendars, nil
+	return c, infos, nil
 }
 
-func getCalendar(ctx context.Context, u *url.URL, session *alps.Session) (*caldav.Client, *caldav.Calendar, error) {
-	c, calendars, err := getCalendars(ctx, u, session)
+func (p *plugin) clientWithCalendar(ctx context.Context, session *alps.Session) (*caldav.Client, *CalendarInfo, error) {
+	c, calendars, err := p.clientWithCalendars(ctx, session)
 	if err != nil {
 		return nil, nil, err
 	}

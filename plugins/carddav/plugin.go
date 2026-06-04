@@ -35,34 +35,27 @@ func sanityCheckURL(u *url.URL) error {
 
 type plugin struct {
 	alps.GoPlugin
-	url          *url.URL
-	homeSetCache map[string]string
+	url *url.URL
 }
 
 func (p *plugin) client(session *alps.Session) (*carddav.Client, error) {
 	return newClient(p.url, session)
 }
 
-func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alps.Session) (*carddav.Client, []carddav.AddressBook, error) {
+func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alps.Session) (*carddav.Client, []AddressBookInfo, error) {
 	c, err := newClient(p.url, session)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create CardDAV client: %v", err)
 	}
 
-	homeSet, ok := p.homeSetCache[session.Username()]
-	if !ok {
-		principal, err := c.FindCurrentUserPrincipal(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to query CardDAV principal: %v", err)
-		}
+	principal, err := c.FindCurrentUserPrincipal(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to query CardDAV principal: %v", err)
+	}
 
-		homeSet, err = c.FindAddressBookHomeSet(ctx, principal)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to query CardDAV address book home set: %v", err)
-		}
-
-		p.homeSetCache[session.Username()] = homeSet
-		// TODO: evict entries from the cache if it's getting too big
+	homeSet, err := c.FindAddressBookHomeSet(ctx, principal)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to query CardDAV address book home set: %v", err)
 	}
 
 	addressBooks, err := c.FindAddressBooks(ctx, homeSet)
@@ -73,15 +66,23 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alps.Sessi
 		return nil, nil, errNoAddressBook
 	}
 
+	infos := make([]AddressBookInfo, len(addressBooks))
+	for i, ab := range addressBooks {
+		infos[i] = AddressBookInfo{
+			Path: ab.Path,
+			Name: ab.Name,
+		}
+	}
+
 	// Servers list collections in storage order; sort them for a stable
 	// sidebar.
-	sort.Slice(addressBooks, func(i, j int) bool {
-		return strings.ToLower(addressBooks[i].Name) < strings.ToLower(addressBooks[j].Name)
+	sort.Slice(infos, func(i, j int) bool {
+		return strings.ToLower(infos[i].Name) < strings.ToLower(infos[j].Name)
 	})
-	return c, addressBooks, nil
+	return c, infos, nil
 }
 
-func (p *plugin) clientWithAddressBook(ctx context.Context, session *alps.Session) (*carddav.Client, *carddav.AddressBook, error) {
+func (p *plugin) clientWithAddressBook(ctx context.Context, session *alps.Session) (*carddav.Client, *AddressBookInfo, error) {
 	c, addressBooks, err := p.clientWithAddressBooks(ctx, session)
 	if err != nil {
 		return nil, nil, err
@@ -121,9 +122,8 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 	srv.Logger().Printf("Configured upstream CardDAV server: %v", u)
 
 	p := &plugin{
-		GoPlugin:     alps.GoPlugin{Name: "carddav"},
-		url:          u,
-		homeSetCache: make(map[string]string),
+		GoPlugin: alps.GoPlugin{Name: "carddav"},
+		url:      u,
 	}
 
 	registerRoutes(p)

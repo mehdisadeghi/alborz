@@ -34,20 +34,20 @@ type CalendarRenderData struct {
 type CalendarDateRenderData struct {
 	alps.BaseRenderData
 	Time               time.Time
-	Calendar           *caldav.Calendar
+	Calendar           *CalendarInfo
 	Events             []CalendarObject
 	PrevPage, NextPage string
 }
 
 type EventRenderData struct {
 	alps.BaseRenderData
-	Calendar *caldav.Calendar
+	Calendar *CalendarInfo
 	Event    CalendarObject
 }
 
 type UpdateEventRenderData struct {
 	alps.BaseRenderData
-	Calendar       *caldav.Calendar
+	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject // nil if creating a new contact
 	Event          *ical.Event
 }
@@ -96,7 +96,7 @@ func loadSettings(store alps.Store) (*Settings, error) {
 	return settings, nil
 }
 
-func registerRoutes(p *alps.GoPlugin, u *url.URL) {
+func registerRoutes(p *plugin) {
 	p.POST("/calendar", func(ctx *alps.Context) error {
 		settings, err := loadSettings(ctx.Session.Store())
 		if err != nil {
@@ -128,7 +128,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 		}
 		end := start.AddDate(0, 1, 0)
 
-		c, calendars, err := getCalendars(ctx.Request().Context(), u, ctx.Session)
+		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -270,7 +270,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 		end := start.AddDate(0, 0, 1)
 
 		// TODO: multi-calendar support
-		c, calendar, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
+		c, calendar, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -321,7 +321,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 			return err
 		}
 
-		c, calendars, err := getCalendars(ctx.Request().Context(), u, ctx.Session)
+		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -376,7 +376,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 			return err
 		}
 
-		c, calendar, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
+		c, calendar, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
@@ -477,7 +477,7 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 			return err
 		}
 
-		c, _, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
+		c, _, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}

@@ -12,6 +12,12 @@ import (
 
 var errNoAddressBook = fmt.Errorf("carddav: no address book found")
 
+type AddressBookInfo struct {
+	Path    string
+	Name    string
+	Visible bool
+}
+
 // webdavRoundTripper handles authentication and follows redirects while
 // preserving the HTTP method. Go's default client changes non-GET/HEAD
 // methods to GET on 301/302 redirects, which breaks WebDAV.

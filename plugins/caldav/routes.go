@@ -20,7 +20,8 @@ type CalendarRenderData struct {
 	Time               time.Time
 	Now                time.Time
 	Dates              [7 * 6]time.Time
-	Calendar           *caldav.Calendar
+	Calendars          []CalendarInfo
+	Calendar           *CalendarInfo // first calendar, for the bundled upstream themes
 	Events             []CalendarObject
 	PrevPage, NextPage string
 	PrevTime, NextTime time.Time
@@ -80,7 +81,39 @@ func parseTime(dateStr, timeStr string) (time.Time, error) {
 	return t, nil
 }
 
+type Settings struct {
+	CalendarFilter   bool
+	VisibleCalendars []string
+}
+
+const settingsKey = "caldav.settings"
+
+func loadSettings(store alps.Store) (*Settings, error) {
+	settings := &Settings{}
+	if err := store.Get(settingsKey, settings); err != nil && err != alps.ErrNoStoreEntry {
+		return nil, err
+	}
+	return settings, nil
+}
+
 func registerRoutes(p *alps.GoPlugin, u *url.URL) {
+	p.POST("/calendar", func(ctx *alps.Context) error {
+		settings, err := loadSettings(ctx.Session.Store())
+		if err != nil {
+			return fmt.Errorf("failed to load CalDAV settings: %v", err)
+		}
+		params, err := ctx.FormParams()
+		if err != nil {
+			return err
+		}
+		settings.CalendarFilter = true
+		settings.VisibleCalendars = params["cal"]
+		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+			return fmt.Errorf("failed to save CalDAV settings: %v", err)
+		}
+		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
+	})
+
 	p.GET("/calendar", func(ctx *alps.Context) error {
 		var start time.Time
 		if s := ctx.QueryParam("month"); s != "" {
@@ -95,12 +128,31 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 		}
 		end := start.AddDate(0, 1, 0)
 
-		// TODO: multi-calendar support
-		c, calendar, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
+		c, calendars, err := getCalendars(ctx.Request().Context(), u, ctx.Session)
 		if err != nil {
 			return err
 		}
 
+		settings, err := loadSettings(ctx.Session.Store())
+		if err != nil {
+			return fmt.Errorf("failed to load CalDAV settings: %v", err)
+		}
+
+		calendarFilter := settings.CalendarFilter
+		visibleSet := make(map[string]bool)
+		for _, path := range settings.VisibleCalendars {
+			visibleSet[path] = true
+		}
+
+		calendarInfos := make([]CalendarInfo, len(calendars))
+		for i, cal := range calendars {
+			visible := !calendarFilter || visibleSet[cal.Path]
+			calendarInfos[i] = CalendarInfo{
+				Path:    cal.Path,
+				Name:    cal.Name,
+				Visible: visible,
+			}
+		}
 		query := caldav.CalendarQuery{
 			CompRequest: caldav.CalendarCompRequest{
 				Name:  "VCALENDAR",
@@ -125,9 +177,17 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 				}},
 			},
 		}
-		events, err := c.QueryCalendar(ctx.Request().Context(), calendar.Path, &query)
-		if err != nil {
-			return fmt.Errorf("failed to query calendar: %v", err)
+
+		var events []caldav.CalendarObject
+		for _, calInfo := range calendarInfos {
+			if !calInfo.Visible {
+				continue
+			}
+			calEvents, err := c.QueryCalendar(ctx.Request().Context(), calInfo.Path, &query)
+			if err != nil {
+				return fmt.Errorf("failed to query calendar %s: %v", calInfo.Name, err)
+			}
+			events = append(events, calEvents...)
 		}
 
 		// TODO: Time zones are hard
@@ -151,16 +211,17 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 
 		return ctx.Render(http.StatusOK, "calendar.html", &CalendarRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).
-				WithTitle(calendar.Name + " Calendar: " + start.Format("January 2006")),
-			Time:     start,
-			Now:      time.Now(), // TODO: Use client time zone
-			Calendar: calendar,
-			Dates:    dates,
-			Events:   newCalendarObjectList(events),
-			PrevPage: start.AddDate(0, -1, 0).Format(monthPageLayout),
-			NextPage: start.AddDate(0, 1, 0).Format(monthPageLayout),
-			PrevTime: start.AddDate(0, -1, 0),
-			NextTime: start.AddDate(0, 1, 0),
+				WithTitle("Calendar: " + start.Format("January 2006")),
+			Time:      start,
+			Now:       time.Now(), // TODO: Use client time zone
+			Calendars: calendarInfos,
+			Calendar:  &calendarInfos[0],
+			Dates:     dates,
+			Events:    newCalendarObjectList(events),
+			PrevPage:  start.AddDate(0, -1, 0).Format(monthPageLayout),
+			NextPage:  start.AddDate(0, 1, 0).Format(monthPageLayout),
+			PrevTime:  start.AddDate(0, -1, 0),
+			NextTime:  start.AddDate(0, 1, 0),
 
 			EventsForDate: func(when time.Time) []CalendarObject {
 				if events, ok := eventMap[when.Truncate(time.Hour*24)]; ok {
@@ -260,9 +321,18 @@ func registerRoutes(p *alps.GoPlugin, u *url.URL) {
 			return err
 		}
 
-		c, calendar, err := getCalendar(ctx.Request().Context(), u, ctx.Session)
+		c, calendars, err := getCalendars(ctx.Request().Context(), u, ctx.Session)
 		if err != nil {
 			return err
+		}
+
+		// The object's path starts with its calendar's.
+		calendar := &calendars[0]
+		for i := range calendars {
+			if strings.HasPrefix(path, calendars[i].Path) {
+				calendar = &calendars[i]
+				break
+			}
 		}
 
 		multiGet := caldav.CalendarMultiGet{

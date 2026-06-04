@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
+	"strings"
 
 	"git.sr.ht/~migadu/alps"
 	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
@@ -41,7 +43,7 @@ func (p *plugin) client(session *alps.Session) (*carddav.Client, error) {
 	return newClient(p.url, session)
 }
 
-func (p *plugin) clientWithAddressBook(ctx context.Context, session *alps.Session) (*carddav.Client, *carddav.AddressBook, error) {
+func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alps.Session) (*carddav.Client, []carddav.AddressBook, error) {
 	c, err := newClient(p.url, session)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create CardDAV client: %v", err)
@@ -69,6 +71,20 @@ func (p *plugin) clientWithAddressBook(ctx context.Context, session *alps.Sessio
 	}
 	if len(addressBooks) == 0 {
 		return nil, nil, errNoAddressBook
+	}
+
+	// Servers list collections in storage order; sort them for a stable
+	// sidebar.
+	sort.Slice(addressBooks, func(i, j int) bool {
+		return strings.ToLower(addressBooks[i].Name) < strings.ToLower(addressBooks[j].Name)
+	})
+	return c, addressBooks, nil
+}
+
+func (p *plugin) clientWithAddressBook(ctx context.Context, session *alps.Session) (*carddav.Client, *carddav.AddressBook, error) {
+	c, addressBooks, err := p.clientWithAddressBooks(ctx, session)
+	if err != nil {
+		return nil, nil, err
 	}
 	return c, &addressBooks[0], nil
 }
@@ -115,7 +131,7 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 	p.Inject("compose.html", func(ctx *alps.Context, _data alps.RenderData) error {
 		data := _data.(*alpsbase.ComposeRenderData)
 
-		c, addressBook, err := p.clientWithAddressBook(ctx.Request().Context(), ctx.Session)
+		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
 		if err == errNoAddressBook {
 			return nil
 		} else if err != nil {
@@ -130,16 +146,16 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 				Name: vcard.FieldEmail,
 			}},
 		}
-		addrs, err := c.QueryAddressBook(ctx.Request().Context(), addressBook.Path, &query)
-		if err != nil {
-			return fmt.Errorf("failed to query CardDAV addresses: %v", err)
-		}
-
 		// TODO: cache the results
-		emails := make([]string, 0, len(addrs))
-		for _, addr := range addrs {
-			cardEmails := addr.Card.Values(vcard.FieldEmail)
-			emails = append(emails, cardEmails...)
+		var emails []string
+		for _, ab := range addressBooks {
+			addrs, err := c.QueryAddressBook(ctx.Request().Context(), ab.Path, &query)
+			if err != nil {
+				return fmt.Errorf("failed to query CardDAV addresses: %v", err)
+			}
+			for _, addr := range addrs {
+				emails = append(emails, addr.Card.Values(vcard.FieldEmail)...)
+			}
 		}
 
 		data.Extra["EmailSuggestions"] = emails

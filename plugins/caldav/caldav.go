@@ -6,12 +6,20 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
+	"strings"
 
 	"git.sr.ht/~migadu/alps"
 	"github.com/emersion/go-webdav/caldav"
 )
 
 var errNoCalendar = fmt.Errorf("caldav: no calendar found")
+
+type CalendarInfo struct {
+	Path    string
+	Name    string
+	Visible bool
+}
 
 // webdavRoundTripper handles authentication and follows redirects while
 // preserving the HTTP method. Go's default client changes non-GET/HEAD
@@ -106,7 +114,7 @@ func newClient(u *url.URL, session *alps.Session) (*caldav.Client, error) {
 	return c, nil
 }
 
-func getCalendar(ctx context.Context, u *url.URL, session *alps.Session) (*caldav.Client, *caldav.Calendar, error) {
+func getCalendars(ctx context.Context, u *url.URL, session *alps.Session) (*caldav.Client, []caldav.Calendar, error) {
 	c, err := newClient(u, session)
 	if err != nil {
 		return nil, nil, err
@@ -128,6 +136,20 @@ func getCalendar(ctx context.Context, u *url.URL, session *alps.Session) (*calda
 	}
 	if len(calendars) == 0 {
 		return nil, nil, errNoCalendar
+	}
+
+	// Servers list collections in storage order; sort them for a stable
+	// sidebar.
+	sort.Slice(calendars, func(i, j int) bool {
+		return strings.ToLower(calendars[i].Name) < strings.ToLower(calendars[j].Name)
+	})
+	return c, calendars, nil
+}
+
+func getCalendar(ctx context.Context, u *url.URL, session *alps.Session) (*caldav.Client, *caldav.Calendar, error) {
+	c, calendars, err := getCalendars(ctx, u, session)
+	if err != nil {
+		return nil, nil, err
 	}
 	return c, &calendars[0], nil
 }

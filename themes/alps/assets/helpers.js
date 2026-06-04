@@ -11,4 +11,15 @@ if (check_all) {
 	});
 }
 
+const submit_on_change = document.querySelectorAll("[data-submit-on-change]");
+for (let i = 0; i < submit_on_change.length; i++) {
+	submit_on_change[i].addEventListener("change", ev => {
+		ev.currentTarget.form.submit();
+	});
+	const button = submit_on_change[i].form.querySelector("button");
+	if (button) {
+		button.style.display = "none";
+	}
+}
+
 // @license-end

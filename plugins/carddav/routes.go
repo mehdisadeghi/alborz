@@ -16,7 +16,8 @@ import (
 
 type AddressBookRenderData struct {
 	alps.BaseRenderData
-	AddressBook    *carddav.AddressBook
+	AddressBooks   []AddressBookInfo
+	AddressBook    *AddressBookInfo // first book, for the bundled upstream themes
 	AddressObjects []AddressObject
 	Query          string
 }
@@ -43,13 +44,58 @@ func parseObjectPath(s string) (string, error) {
 	return p, nil
 }
 
+type Settings struct {
+	AddressBookFilter   bool
+	VisibleAddressBooks []string
+}
+
+const settingsKey = "carddav.settings"
+
 func registerRoutes(p *plugin) {
+	p.POST("/contacts", func(ctx *alps.Context) error {
+		settings := &Settings{}
+		if err := ctx.Session.Store().Get(settingsKey, settings); err != nil && err != alps.ErrNoStoreEntry {
+			return fmt.Errorf("failed to load CardDAV settings: %v", err)
+		}
+		params, err := ctx.FormParams()
+		if err != nil {
+			return err
+		}
+		settings.AddressBookFilter = true
+		settings.VisibleAddressBooks = params["book"]
+		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+			return fmt.Errorf("failed to save CardDAV settings: %v", err)
+		}
+		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
+	})
+
 	p.GET("/contacts", func(ctx *alps.Context) error {
 		queryText := ctx.QueryParam("query")
 
-		c, addressBook, err := p.clientWithAddressBook(ctx.Request().Context(), ctx.Session)
+		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
+		}
+
+		settings := &Settings{}
+		if err := ctx.Session.Store().Get(settingsKey, settings); err != nil && err != alps.ErrNoStoreEntry {
+			return fmt.Errorf("failed to load CardDAV settings: %v", err)
+		}
+
+		addressBookFilter := settings.AddressBookFilter
+		visibleSet := make(map[string]bool)
+		for _, path := range settings.VisibleAddressBooks {
+			visibleSet[path] = true
+		}
+
+		addressBookInfos := make([]AddressBookInfo, len(addressBooks))
+		for i, ab := range addressBooks {
+			visible := !addressBookFilter || visibleSet[ab.Path]
+			addressBookInfos[i] = AddressBookInfo{
+				Path:    ab.Path,
+				Name:    ab.Name,
+				Visible: visible,
+			}
 		}
 
 		query := carddav.AddressBookQuery{
@@ -78,14 +124,22 @@ func registerRoutes(p *plugin) {
 			}
 		}
 
-		aos, err := c.QueryAddressBook(ctx.Request().Context(), addressBook.Path, &query)
-		if err != nil {
-			return fmt.Errorf("failed to query CardDAV addresses: %v", err)
+		var aos []carddav.AddressObject
+		for _, abInfo := range addressBookInfos {
+			if !abInfo.Visible {
+				continue
+			}
+			abContacts, err := c.QueryAddressBook(ctx.Request().Context(), abInfo.Path, &query)
+			if err != nil {
+				return fmt.Errorf("failed to query address book %s: %v", abInfo.Name, err)
+			}
+			aos = append(aos, abContacts...)
 		}
 
 		return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx),
-			AddressBook:    addressBook,
+			AddressBooks:   addressBookInfos,
+			AddressBook:    &addressBookInfos[0],
 			AddressObjects: newAddressObjectList(aos),
 			Query:          queryText,
 		})
@@ -97,9 +151,17 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		c, addressBook, err := p.clientWithAddressBook(ctx.Request().Context(), ctx.Session)
+		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
+		}
+		// The object's path starts with its address book's.
+		addressBook := &addressBooks[0]
+		for i := range addressBooks {
+			if strings.HasPrefix(path, addressBooks[i].Path) {
+				addressBook = &addressBooks[i]
+				break
+			}
 		}
 
 		multiGet := carddav.AddressBookMultiGet{

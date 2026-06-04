@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -27,6 +28,9 @@ type GlobalRenderData struct {
 	HavePlugin func(name string) bool
 
 	Notice string
+
+	// User's timezone location for date formatting
+	Timezone *time.Location
 
 	// additional plugin-specific data
 	Extra map[string]interface{}
@@ -48,6 +52,30 @@ type BaseRenderData struct {
 // Global implements RenderData.
 func (brd *BaseRenderData) Global() *GlobalRenderData {
 	return &brd.GlobalData
+}
+
+// FormatDate formats a time in the user's timezone.
+func (g *GlobalRenderData) FormatDate(t time.Time) string {
+	if g.Timezone != nil {
+		t = t.In(g.Timezone)
+	}
+	return t.Format("Mon Jan 02 15:04")
+}
+
+// FormatTime formats just the time portion in the user's timezone.
+func (g *GlobalRenderData) FormatTime(t time.Time) string {
+	if g.Timezone != nil {
+		t = t.In(g.Timezone)
+	}
+	return t.Format("15:04")
+}
+
+// InTimezone converts a time to the user's timezone.
+func (g *GlobalRenderData) InTimezone(t time.Time) time.Time {
+	if g.Timezone != nil {
+		return t.In(g.Timezone)
+	}
+	return t
 }
 
 // RenderData is implemented by template data structs. It can be used to inject

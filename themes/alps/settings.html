@@ -61,6 +61,27 @@
             required />
         </div>
 
+        <div class="action-group">
+          <label for="timezone">Timezone</label>
+          <input
+            type="text"
+            name="timezone"
+            id="timezone"
+            value="{{.Settings.Timezone}}"
+            placeholder="Auto-detect" />
+          <small>Leave empty to auto-detect from browser</small>
+        </div>
+        <script>
+          (function() {
+            var tz = document.getElementById('timezone');
+            if (tz && !tz.value) {
+              try {
+                tz.placeholder = Intl.DateTimeFormat().resolvedOptions().timeZone;
+              } catch(e) {}
+            }
+          })();
+        </script>
+
         <button type="submit">Save settings</button>
       </form>
     </main>

@@ -1,5 +1,13 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
+// Set timezone cookie for server-side date formatting
+try {
+	const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	if (tz && document.cookie.indexOf("timezone=") === -1) {
+		document.cookie = "timezone=" + tz + ";path=/;max-age=31536000;SameSite=Lax";
+	}
+} catch (e) {}
+
 const check_all = document.getElementById("action-checkbox-all");
 if (check_all) {
 	check_all.style.display = "inherit";

@@ -56,7 +56,10 @@ func (p *goPlugin) Inject(ctx *Context, name string, data RenderData) error {
 }
 
 func (p *goPlugin) Close() error {
-	return nil
+	if p.p.CloseFunc == nil {
+		return nil
+	}
+	return p.p.CloseFunc()
 }
 
 type goPluginRoute struct {
@@ -74,6 +77,9 @@ type goPluginRoute struct {
 //	alps.RegisterPluginLoader(p.Loader())
 type GoPlugin struct {
 	Name string
+	// CloseFunc releases plugin resources on server close or reload;
+	// nil means nothing to release.
+	CloseFunc func() error
 
 	routes []goPluginRoute
 

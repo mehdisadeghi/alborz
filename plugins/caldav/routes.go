@@ -58,6 +58,8 @@ type UpdateEventRenderData struct {
 type Settings struct {
 	CalendarFilter   bool
 	VisibleCalendars []string
+	TaskFilter       bool
+	VisibleTasks     []string
 	ShowCompleted    bool
 }
 
@@ -171,8 +173,8 @@ func registerRoutes(p *plugin) {
 		if err != nil {
 			return err
 		}
-		settings.CalendarFilter = true
-		settings.VisibleCalendars = params["cal"]
+		settings.TaskFilter = true
+		settings.VisibleTasks = params["cal"]
 		settings.ShowCompleted = params.Get("show-completed") == "1"
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save CalDAV settings: %v", err)
@@ -192,7 +194,12 @@ func registerRoutes(p *plugin) {
 			now := time.Now()
 			start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 		}
-		end := start.AddDate(0, 1, 0)
+
+		// Pad a week each way: the grid shows adjacent-month days, and a
+		// fixed window keeps the cache key stable.
+		monthEnd := start.AddDate(0, 1, 0)
+		queryStart := start.AddDate(0, 0, -7)
+		queryEnd := monthEnd.AddDate(0, 0, 7)
 
 		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
@@ -239,16 +246,16 @@ func registerRoutes(p *plugin) {
 					},
 				}},
 				Expand: &caldav.CalendarExpandRequest{
-					Start: start,
-					End:   end,
+					Start: queryStart,
+					End:   queryEnd,
 				},
 			},
 			CompFilter: caldav.CompFilter{
 				Name: "VCALENDAR",
 				Comps: []caldav.CompFilter{{
 					Name:  "VEVENT",
-					Start: start,
-					End:   end,
+					Start: queryStart,
+					End:   queryEnd,
 				}},
 			},
 		}
@@ -669,17 +676,17 @@ func registerRoutes(p *plugin) {
 	p.POST("/calendar/:path/update", updateEvent)
 
 	p.POST("/calendar/:path/delete", func(ctx *alps.Context) error {
-		path, err := parseObjectPath(ctx.Param("path"))
+		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
 
-		c, _, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
 
-		if err := c.RemoveAll(ctx.Request().Context(), path); err != nil {
+		if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
 			return fmt.Errorf("failed to delete calendar object: %v", err)
 		}
 
@@ -698,9 +705,9 @@ func registerRoutes(p *plugin) {
 			return fmt.Errorf("failed to load CalDAV settings: %v", err)
 		}
 
-		calendarFilter := settings.CalendarFilter
+		taskFilter := settings.TaskFilter
 		visibleSet := make(map[string]bool)
-		for _, path := range settings.VisibleCalendars {
+		for _, path := range settings.VisibleTasks {
 			visibleSet[canonicalCollectionPath(path)] = true
 		}
 
@@ -709,7 +716,7 @@ func registerRoutes(p *plugin) {
 			if !cal.SupportsTodo() {
 				continue
 			}
-			visible := !calendarFilter || visibleSet[cal.Path]
+			visible := !taskFilter || visibleSet[cal.Path]
 			calendarInfos = append(calendarInfos, CalendarInfo{
 				Path:                  cal.Path,
 				Name:                  cal.Name,
@@ -987,17 +994,17 @@ func registerRoutes(p *plugin) {
 	p.POST("/tasks/:path/edit", updateTask)
 
 	p.POST("/tasks/:path/delete", func(ctx *alps.Context) error {
-		path, err := parseObjectPath(ctx.Param("path"))
+		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
 
-		c, _, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
 
-		if err := c.RemoveAll(ctx.Request().Context(), path); err != nil {
+		if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
 			return fmt.Errorf("failed to delete task: %v", err)
 		}
 
@@ -1010,7 +1017,7 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		c, _, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}

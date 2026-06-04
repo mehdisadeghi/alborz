@@ -53,12 +53,12 @@ type davCollectionProps struct {
 	} `xml:"current-user-privilege-set>privilege"`
 }
 
-func newHTTPClient(session *alps.Session) *http.Client {
+func (p *plugin) httpClient(session *alps.Session) *http.Client {
 	return &http.Client{
-		Transport: &webdavRoundTripper{
+		Transport: p.cache.Transport(session.Username(), &webdavRoundTripper{
 			upstream: http.DefaultTransport,
 			session:  session,
-		},
+		}, nil),
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -242,17 +242,7 @@ func (rt *webdavRoundTripper) followRedirect(orig *http.Request, location string
 	return resp, nil
 }
 
-func newClient(u *url.URL, session *alps.Session) (*carddav.Client, error) {
-	rt := &webdavRoundTripper{
-		upstream: http.DefaultTransport,
-		session:  session,
-	}
-	httpClient := &http.Client{
-		Transport: rt,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
+func newClient(u *url.URL, httpClient *http.Client) (*carddav.Client, error) {
 	return carddav.NewClient(httpClient, u.String())
 }
 

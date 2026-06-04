@@ -7,7 +7,7 @@
     <form method="post" id="addressbook-filter">
       {{range .AddressBooks}}
       <label class="addressbook-item">
-        <input type="checkbox" name="book" value="{{.Path}}" {{if .Visible}}checked{{end}} data-submit-on-change>
+        <input type="checkbox" name="book" value="{{.Path}}" {{if .Visible}}checked{{end}} data-submit-on-change {{if .Color}}style="accent-color:{{.Color}}"{{end}}>
         {{.Name}}
       </label>
       {{end}}
@@ -25,10 +25,12 @@
       <section class="contacts">
         <div class="contact-grid">
           {{range .AddressObjects}}
+          {{$color := call $.ColorForPath .Path}}
           <div class="contact-list-checkbox">
             <input type="checkbox" name="paths" value="{{.Path}}" form="address-book-form">
           </div>
           <div class="contact-list-name">
+            {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
             <a href="{{.URL}}">
               {{.Card.Value "FN"}}
             </a>

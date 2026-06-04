@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
-	"strings"
 
 	"git.sr.ht/~migadu/alps"
 	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
@@ -58,27 +56,14 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alps.Sessi
 		return nil, nil, fmt.Errorf("failed to query CardDAV address book home set: %v", err)
 	}
 
-	addressBooks, err := c.FindAddressBooks(ctx, homeSet)
+	infos, err := listAddressBooks(ctx, newHTTPClient(session), p.url, homeSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query CardDAV address books: %v", err)
 	}
-	if len(addressBooks) == 0 {
+	if len(infos) == 0 {
 		return nil, nil, errNoAddressBook
 	}
 
-	infos := make([]AddressBookInfo, len(addressBooks))
-	for i, ab := range addressBooks {
-		infos[i] = AddressBookInfo{
-			Path: ab.Path,
-			Name: ab.Name,
-		}
-	}
-
-	// Servers list collections in storage order; sort them for a stable
-	// sidebar.
-	sort.Slice(infos, func(i, j int) bool {
-		return strings.ToLower(infos[i].Name) < strings.ToLower(infos[j].Name)
-	})
 	return c, infos, nil
 }
 

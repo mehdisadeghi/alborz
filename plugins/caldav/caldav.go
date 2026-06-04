@@ -23,6 +23,7 @@ type CalendarInfo struct {
 	Name                  string
 	Color                 string
 	Visible               bool
+	Writable              bool
 	SupportedComponentSet []string
 }
 
@@ -75,6 +76,11 @@ type davCollectionProps struct {
 			Name string `xml:"name,attr"`
 		} `xml:"urn:ietf:params:xml:ns:caldav comp"`
 	} `xml:"urn:ietf:params:xml:ns:caldav supported-calendar-component-set"`
+	Privileges []struct {
+		Write        *struct{} `xml:"DAV: write"`
+		WriteContent *struct{} `xml:"DAV: write-content"`
+		Bind         *struct{} `xml:"DAV: bind"`
+	} `xml:"current-user-privilege-set>privilege"`
 }
 
 func newHTTPClient(session *alps.Session) *http.Client {
@@ -140,7 +146,7 @@ func canonicalCollectionPath(href string) string {
 // component sets in a single PROPFIND.
 func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, homeSet string) ([]CalendarInfo, error) {
 	fullURL := baseURL.ResolveReference(&url.URL{Path: homeSet}).String()
-	ms, err := doPropfind(ctx, client, fullURL, `<D:propfind xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:resourcetype/><D:displayname/><C:supported-calendar-component-set/><A:calendar-color/></D:prop></D:propfind>`)
+	ms, err := doPropfind(ctx, client, fullURL, `<D:propfind xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:resourcetype/><D:displayname/><C:supported-calendar-component-set/><D:current-user-privilege-set/><A:calendar-color/></D:prop></D:propfind>`)
 	if err != nil {
 		return nil, err
 	}
@@ -152,6 +158,7 @@ func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, h
 		var isCalendar bool
 		var name, color string
 		var comps []string
+		writable, privKnown := false, false
 		for _, ps := range resp.PropStat {
 			if !strings.Contains(ps.Status, "200") {
 				continue
@@ -168,14 +175,22 @@ func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, h
 			for _, comp := range ps.Prop.ComponentSet.Comps {
 				comps = append(comps, comp.Name)
 			}
+			for _, p := range ps.Prop.Privileges {
+				privKnown = true
+				if p.Write != nil || p.WriteContent != nil || p.Bind != nil {
+					writable = true
+				}
+			}
 		}
 		if !isCalendar {
 			continue
 		}
 		infos = append(infos, CalendarInfo{
-			Path:                  href,
-			Name:                  name,
-			Color:                 color,
+			Path:  href,
+			Name:  name,
+			Color: color,
+			// Servers that report no privileges get the benefit of the doubt.
+			Writable:              writable || !privKnown,
 			SupportedComponentSet: comps,
 		})
 	}

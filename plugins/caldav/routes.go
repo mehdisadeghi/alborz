@@ -270,7 +270,6 @@ func registerRoutes(p *plugin) {
 		results := make(chan calendarQueryResult, len(visibleCalendars))
 		sem := make(chan struct{}, maxCalendarQueryConcurrency)
 		for _, calInfo := range visibleCalendars {
-			calInfo := calInfo
 			go func() {
 				sem <- struct{}{}
 				defer func() { <-sem }()
@@ -425,7 +424,13 @@ func registerRoutes(p *plugin) {
 			},
 		}
 
-		var events []caldav.CalendarObject
+		type dateQueryResult struct {
+			name   string
+			events []caldav.CalendarObject
+			err    error
+		}
+
+		var visibleCalendars []CalendarInfo
 		for _, cal := range calendars {
 			if !cal.SupportsEvent() {
 				continue
@@ -433,11 +438,28 @@ func registerRoutes(p *plugin) {
 			if settings.CalendarFilter && !visibleSet[cal.Path] {
 				continue
 			}
-			calEvents, err := c.QueryCalendar(ctx.Request().Context(), cal.Path, &query)
-			if err != nil {
-				return fmt.Errorf("failed to query calendar %s: %v", cal.Name, err)
+			visibleCalendars = append(visibleCalendars, cal)
+		}
+
+		reqCtx := ctx.Request().Context()
+		results := make(chan dateQueryResult, len(visibleCalendars))
+		sem := make(chan struct{}, maxCalendarQueryConcurrency)
+		for _, cal := range visibleCalendars {
+			go func() {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				calEvents, err := c.QueryCalendar(reqCtx, cal.Path, &query)
+				results <- dateQueryResult{name: cal.Name, events: calEvents, err: err}
+			}()
+		}
+
+		var events []caldav.CalendarObject
+		for i := 0; i < len(visibleCalendars); i++ {
+			result := <-results
+			if result.err != nil {
+				return fmt.Errorf("failed to query calendar %s: %v", result.name, result.err)
 			}
-			events = append(events, calEvents...)
+			events = append(events, result.events...)
 		}
 
 		return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
@@ -720,18 +742,40 @@ func registerRoutes(p *plugin) {
 			},
 		}
 
-		var taskGroups []TaskGroup
+		type taskQueryResult struct {
+			cal   CalendarInfo
+			tasks []caldav.CalendarObject
+			err   error
+		}
+
+		var visibleCalendars []CalendarInfo
 		for _, cal := range calendarInfos {
-			if !cal.Visible {
-				continue
+			if cal.Visible {
+				visibleCalendars = append(visibleCalendars, cal)
 			}
-			calTasks, err := c.QueryCalendar(ctx.Request().Context(), cal.Path, &query)
-			if err != nil {
-				return fmt.Errorf("failed to query tasks from %s: %v", cal.Name, err)
+		}
+
+		reqCtx := ctx.Request().Context()
+		results := make(chan taskQueryResult, len(visibleCalendars))
+		sem := make(chan struct{}, maxCalendarQueryConcurrency)
+		for _, cal := range visibleCalendars {
+			go func() {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				calTasks, err := c.QueryCalendar(reqCtx, cal.Path, &query)
+				results <- taskQueryResult{cal: cal, tasks: calTasks, err: err}
+			}()
+		}
+
+		var taskGroups []TaskGroup
+		for i := 0; i < len(visibleCalendars); i++ {
+			result := <-results
+			if result.err != nil {
+				return fmt.Errorf("failed to query tasks from %s: %v", result.cal.Name, result.err)
 			}
 
 			var filtered []caldav.CalendarObject
-			for _, task := range calTasks {
+			for _, task := range result.tasks {
 				todo := getFirstTodo(task.Data)
 				if todo == nil {
 					continue
@@ -745,7 +789,7 @@ func registerRoutes(p *plugin) {
 
 			if len(filtered) > 0 {
 				taskGroups = append(taskGroups, TaskGroup{
-					Calendar: cal,
+					Calendar: result.cal,
 					Tasks:    newTaskObjectList(filtered),
 				})
 			}

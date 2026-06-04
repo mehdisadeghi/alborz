@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	inputDateLayout = "2006-01-02"
-	inputTimeLayout = "15:04"
+	inputDateLayout     = "2006-01-02"
+	inputDateTimeLayout = "2006-01-02T15:04"
 )
 
 type plugin struct {

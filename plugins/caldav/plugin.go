@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/emersion/go-webdav/caldav"
-
 	"git.sr.ht/~migadu/alps"
+	"git.sr.ht/~migadu/alps/plugins/davcache"
+	"github.com/emersion/go-webdav/caldav"
 )
 
 const (
@@ -18,7 +18,8 @@ const (
 
 type plugin struct {
 	alps.GoPlugin
-	url *url.URL
+	url   *url.URL
+	cache *davcache.Cache
 }
 
 func sanityCheckURL(u *url.URL) error {
@@ -33,7 +34,6 @@ func sanityCheckURL(u *url.URL) error {
 	}
 	resp.Body.Close()
 
-	// Servers might require authentication to perform an OPTIONS request
 	if resp.StatusCode/100 != 2 && resp.StatusCode != http.StatusUnauthorized {
 		return fmt.Errorf("HTTP request failed: %v %v", resp.StatusCode, resp.Status)
 	}
@@ -74,6 +74,12 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 	p := &plugin{
 		GoPlugin: alps.GoPlugin{Name: "caldav"},
 		url:      u,
+	}
+	p.cache = davcache.New()
+	p.cache.Start()
+	p.CloseFunc = func() error {
+		p.cache.Stop()
+		return nil
 	}
 
 	registerRoutes(p)

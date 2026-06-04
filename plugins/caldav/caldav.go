@@ -83,12 +83,12 @@ type davCollectionProps struct {
 	} `xml:"current-user-privilege-set>privilege"`
 }
 
-func newHTTPClient(session *alps.Session) *http.Client {
+func (p *plugin) httpClient(session *alps.Session) *http.Client {
 	return &http.Client{
-		Transport: &webdavRoundTripper{
+		Transport: p.cache.Transport(session.Username(), &webdavRoundTripper{
 			upstream: http.DefaultTransport,
 			session:  session,
-		},
+		}, nil),
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -277,17 +277,7 @@ func (rt *webdavRoundTripper) followRedirect(orig *http.Request, location string
 	return resp, nil
 }
 
-func newClient(u *url.URL, session *alps.Session) (*caldav.Client, error) {
-	rt := &webdavRoundTripper{
-		upstream: http.DefaultTransport,
-		session:  session,
-	}
-	httpClient := &http.Client{
-		Transport: rt,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
+func newClient(u *url.URL, httpClient *http.Client) (*caldav.Client, error) {
 	c, err := caldav.NewClient(httpClient, u.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CalDAV client: %v", err)
@@ -297,7 +287,7 @@ func newClient(u *url.URL, session *alps.Session) (*caldav.Client, error) {
 }
 
 func (p *plugin) clientWithCalendars(ctx context.Context, session *alps.Session) (*caldav.Client, []CalendarInfo, error) {
-	c, err := newClient(p.url, session)
+	c, err := newClient(p.url, p.httpClient(session))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -312,7 +302,7 @@ func (p *plugin) clientWithCalendars(ctx context.Context, session *alps.Session)
 		return nil, nil, fmt.Errorf("failed to query CalDAV calendar home set: %v", err)
 	}
 
-	infos, err := listCalendars(ctx, newHTTPClient(session), p.url, calendarHomeSet)
+	infos, err := listCalendars(ctx, p.httpClient(session), p.url, calendarHomeSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find calendars: %v", err)
 	}

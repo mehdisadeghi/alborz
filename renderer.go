@@ -32,6 +32,9 @@ type GlobalRenderData struct {
 	// User's timezone location for date formatting
 	Timezone *time.Location
 
+	// First day of week: 0=Sunday, 1=Monday (default), 6=Saturday
+	FirstDayOfWeek int
+
 	// additional plugin-specific data
 	Extra map[string]interface{}
 }
@@ -78,6 +81,16 @@ func (g *GlobalRenderData) InTimezone(t time.Time) time.Time {
 	return t
 }
 
+// Weekdays returns weekday names starting from FirstDayOfWeek.
+func (g *GlobalRenderData) Weekdays() []string {
+	names := []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+	result := make([]string, 7)
+	for i := 0; i < 7; i++ {
+		result[i] = names[(g.FirstDayOfWeek+i)%7]
+	}
+	return result
+}
+
 // RenderData is implemented by template data structs. It can be used to inject
 // additional data to all templates.
 type RenderData interface {
@@ -102,10 +115,11 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	ctx, isactx := ectx.(*Context)
 
 	global := GlobalRenderData{
-		Extra: make(map[string]interface{}),
-		Path:  strings.Split(ectx.Request().URL.Path, "/")[1:],
-		Title: "Webmail",
-		URL:   ectx.Request().URL,
+		Extra:          make(map[string]interface{}),
+		Path:           strings.Split(ectx.Request().URL.Path, "/")[1:],
+		Title:          "Webmail",
+		URL:            ectx.Request().URL,
+		FirstDayOfWeek: 1, // Monday default
 
 		HavePlugin: func(name string) bool {
 			if !isactx {

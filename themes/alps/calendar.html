@@ -22,13 +22,9 @@
       </section>
 
       <section class="dates">
-        <h4 class="weekday sunday-top">Sunday</h4>
-        <h4 class="weekday monday-top">Monday</h4>
-        <h4 class="weekday tuesday-top">Tuesday</h4>
-        <h4 class="weekday wednesday-top">Wednesday</h4>
-        <h4 class="weekday thursday-top">Thursday</h4>
-        <h4 class="weekday friday-top">Friday</h4>
-        <h4 class="weekday saturday-top">Saturday</h4>
+        {{range .GlobalData.Weekdays}}
+        <h4 class="weekday">{{.}}</h4>
+        {{end}}
 
         {{$base := .}}
         {{range .Dates}}
@@ -72,14 +68,6 @@
           </h4>
         </div>
         {{end}}
-
-        <h4 class="weekday sunday-bottom">Sunday</h4>
-        <h4 class="weekday monday-bottom">Monday</h4>
-        <h4 class="weekday tuesday-bottom">Tuesday</h4>
-        <h4 class="weekday wednesday-bottom">Wednesday</h4>
-        <h4 class="weekday thursday-bottom">Thursday</h4>
-        <h4 class="weekday friday-bottom">Friday</h4>
-        <h4 class="weekday saturday-bottom">Saturday</h4>
       </section>
 
       <section class="actions">

@@ -106,16 +106,10 @@ func parseObjectPath(s string) (string, error) {
 	return p, nil
 }
 
-func parseTime(dateStr, timeStr string) (time.Time, error) {
-	layout := inputDateLayout
-	s := dateStr
-	if timeStr != "" {
-		layout = inputDateLayout + "T" + inputTimeLayout
-		s = dateStr + "T" + timeStr
-	}
-	t, err := time.Parse(layout, s)
+func parseDateTime(s string, loc *time.Location) (time.Time, error) {
+	t, err := time.ParseInLocation(inputDateTimeLayout, s, loc)
 	if err != nil {
-		err = fmt.Errorf("malformed date: %v", err)
+		err = fmt.Errorf("malformed datetime: %v", err)
 		return time.Time{}, echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 	return t, nil
@@ -560,6 +554,8 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
+		loc := alpsbase.UserLocation(ctx)
+
 		c, allCalendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
@@ -617,11 +613,11 @@ func registerRoutes(p *plugin) {
 			}
 
 			// TODO: whole-day events
-			start, err := parseTime(ctx.FormValue("start-date"), ctx.FormValue("start-time"))
+			start, err := parseDateTime(ctx.FormValue("start"), loc)
 			if err != nil {
 				return err
 			}
-			end, err := parseTime(ctx.FormValue("end-date"), ctx.FormValue("end-time"))
+			end, err := parseDateTime(ctx.FormValue("end"), loc)
 			if err != nil {
 				return err
 			}

@@ -9,11 +9,10 @@
 
   <div class="container">
     <main class="create-update">
-      <h2>
-        {{if .CalendarObject}}Edit{{else}}Create{{end}} event
-      </h2>
-
       <form method="post">
+        <h2>
+          {{if .CalendarObject}}Edit{{else}}Create{{end}} event
+        </h2>
         {{if not .CalendarObject}}
         <label>
           <span>Calendar</span>
@@ -30,16 +29,14 @@
           <input type="text" name="summary" id="summary" dir="auto" value="{{.Event.Props.Text "SUMMARY"}}">
         </label>
 
-        <label class="event-date">
+        <label>
           <span>Starts at</span>
-          <input type="date" name="start-date" id="start-date" value="{{.Event.DateTimeStart nil | formatinputdate}}"/>
-          <input type="time" name="start-time" id="start-time" value="{{.Event.DateTimeStart nil | formatinputtime}}"/>
+          <input type="datetime-local" name="start" id="start" value="{{.GlobalData.InTimezone (.Event.DateTimeStart nil) | formatinputdatetime}}"/>
         </label>
 
-        <label class="event-date">
+        <label>
           <span>Ends at</span>
-          <input type="date" name="end-date" id="end-date" value="{{.Event.DateTimeEnd nil | formatinputdate}}"/>
-          <input type="time" name="end-time" id="end-time" value="{{.Event.DateTimeEnd nil | formatinputtime}}"/>
+          <input type="datetime-local" name="end" id="end" value="{{.GlobalData.InTimezone (.Event.DateTimeEnd nil) | formatinputdatetime}}"/>
         </label>
 
         <label>

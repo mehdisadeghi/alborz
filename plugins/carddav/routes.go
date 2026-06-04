@@ -24,13 +24,13 @@ type AddressBookRenderData struct {
 
 type AddressObjectRenderData struct {
 	alps.BaseRenderData
-	AddressBook   *carddav.AddressBook
+	AddressBook   *AddressBookInfo
 	AddressObject AddressObject
 }
 
 type UpdateAddressObjectRenderData struct {
 	alps.BaseRenderData
-	AddressBook   *carddav.AddressBook
+	AddressBook   *AddressBookInfo
 	AddressObject *carddav.AddressObject // nil if creating a new contact
 	Card          vcard.Card
 }
@@ -217,15 +217,8 @@ func registerRoutes(p *plugin) {
 			emails := strings.Split(ctx.FormValue("emails"), ",")
 
 			if _, ok := card[vcard.FieldVersion]; !ok {
-				// Some CardDAV servers (e.g. Google) don't support vCard 4.0
-				var version = "4.0"
-				if !addressBook.SupportsAddressData(vcard.MIMEType, version) {
-					version = "3.0"
-				}
-				if !addressBook.SupportsAddressData(vcard.MIMEType, version) {
-					return fmt.Errorf("upstream CardDAV server doesn't support vCard %v", version)
-				}
-				card.SetValue(vcard.FieldVersion, version)
+				// Default to vCard 4.0
+				card.SetValue(vcard.FieldVersion, "4.0")
 			}
 
 			if field := card.Preferred(vcard.FieldFormattedName); field != nil {

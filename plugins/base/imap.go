@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,6 +44,13 @@ func (mbox *MailboxInfo) HasAttr(flag string) bool {
 		}
 	}
 	return false
+}
+
+func (mbox *MailboxInfo) IsInternal() bool {
+	if strings.HasPrefix(mbox.Mailbox, ".") {
+		return true
+	}
+	return slices.Contains(mbox.Attrs, imap.MailboxAttrNoSelect)
 }
 
 func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {

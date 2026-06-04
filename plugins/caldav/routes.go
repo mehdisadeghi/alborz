@@ -48,8 +48,9 @@ type EventRenderData struct {
 
 type UpdateEventRenderData struct {
 	alps.BaseRenderData
+	Calendars      []CalendarInfo
 	Calendar       *CalendarInfo
-	CalendarObject *caldav.CalendarObject // nil if creating a new contact
+	CalendarObject *caldav.CalendarObject // nil if creating a new event
 	Event          *ical.Event
 }
 
@@ -79,6 +80,7 @@ type TaskRenderData struct {
 
 type UpdateTaskRenderData struct {
 	alps.BaseRenderData
+	Calendars      []CalendarInfo
 	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject
 	Todo           *ical.Component
@@ -127,6 +129,15 @@ func getFirstTodo(cal *ical.Calendar) *ical.Component {
 	for _, child := range cal.Children {
 		if child.Name == ical.CompToDo {
 			return child
+		}
+	}
+	return nil
+}
+
+func calendarByPath(calendars []CalendarInfo, path string) *CalendarInfo {
+	for i := range calendars {
+		if calendars[i].Path == path {
+			return &calendars[i]
 		}
 	}
 	return nil
@@ -226,6 +237,10 @@ func registerRoutes(p *plugin) {
 						"DURATION",
 					},
 				}},
+				Expand: &caldav.CalendarExpandRequest{
+					Start: start,
+					End:   end,
+				},
 			},
 			CompFilter: caldav.CompFilter{
 				Name: "VCALENDAR",
@@ -472,13 +487,30 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		c, calendarInfo, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		c, allCalendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
 
+		var calendars []CalendarInfo
+		for _, cal := range allCalendars {
+			if cal.SupportsEvent() {
+				calendars = append(calendars, cal)
+			}
+		}
+		if len(calendars) == 0 {
+			return fmt.Errorf("no calendars support events")
+		}
+		writable := make([]CalendarInfo, 0, len(calendars))
+		for _, cal := range calendars {
+			if cal.Writable {
+				writable = append(writable, cal)
+			}
+		}
+
 		var co *caldav.CalendarObject
 		var event *ical.Event
+		var currentCalendar *CalendarInfo
 		if calendarObjectPath != "" {
 			co, err = c.GetCalendarObject(ctx.Request().Context(), calendarObjectPath)
 			if err != nil {
@@ -489,13 +521,27 @@ func registerRoutes(p *plugin) {
 				return fmt.Errorf("expected exactly one event, got %d", len(events))
 			}
 			event = &events[0]
+			for i := range calendars {
+				if strings.HasPrefix(co.Path, calendars[i].Path) {
+					currentCalendar = &calendars[i]
+					break
+				}
+			}
 		} else {
+			if len(writable) == 0 {
+				return fmt.Errorf("no writable calendars")
+			}
 			event = ical.NewEvent()
+			currentCalendar = &writable[0]
 		}
 
 		if ctx.Request().Method == "POST" {
 			summary := ctx.FormValue("summary")
 			description := ctx.FormValue("description")
+			calendarPath := ctx.FormValue("calendar")
+			if co == nil && calendarByPath(writable, calendarPath) == nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "unknown calendar")
+			}
 
 			// TODO: whole-day events
 			start, err := parseTime(ctx.FormValue("start-date"), ctx.FormValue("start-time"))
@@ -537,13 +583,13 @@ func registerRoutes(p *plugin) {
 			cal.Props.SetText(ical.PropVersion, "2.0")
 			cal.Children = append(cal.Children, event.Component)
 
-			var p string
+			var savePath string
 			if co != nil {
-				p = co.Path
+				savePath = co.Path
 			} else {
-				p = path.Join(calendarInfo.Path, newID.String()+".ics")
+				savePath = path.Join(calendarPath, newID.String()+".ics")
 			}
-			co, err = c.PutCalendarObject(ctx.Request().Context(), p, cal)
+			co, err = c.PutCalendarObject(ctx.Request().Context(), savePath, cal)
 			if err != nil {
 				return fmt.Errorf("failed to put calendar object: %v", err)
 			}
@@ -555,7 +601,8 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Render(http.StatusOK, "update-event.html", &UpdateEventRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle("Update " + summary),
-			Calendar:       calendarInfo,
+			Calendars:      writable,
+			Calendar:       currentCalendar,
 			CalendarObject: co,
 			Event:          event,
 		})
@@ -744,13 +791,30 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		c, calendarInfo, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		c, allCalendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
 
+		var calendars []CalendarInfo
+		for _, cal := range allCalendars {
+			if cal.SupportsTodo() {
+				calendars = append(calendars, cal)
+			}
+		}
+		if len(calendars) == 0 {
+			return fmt.Errorf("no calendars support tasks")
+		}
+		writable := make([]CalendarInfo, 0, len(calendars))
+		for _, cal := range calendars {
+			if cal.Writable {
+				writable = append(writable, cal)
+			}
+		}
+
 		var co *caldav.CalendarObject
 		var todo *ical.Component
+		var currentCalendar *CalendarInfo
 		if taskPath != "" {
 			co, err = c.GetCalendarObject(ctx.Request().Context(), taskPath)
 			if err != nil {
@@ -760,14 +824,28 @@ func registerRoutes(p *plugin) {
 			if todo == nil {
 				return fmt.Errorf("no VTODO component found")
 			}
+			for i := range calendars {
+				if strings.HasPrefix(co.Path, calendars[i].Path) {
+					currentCalendar = &calendars[i]
+					break
+				}
+			}
 		} else {
+			if len(writable) == 0 {
+				return fmt.Errorf("no writable calendars")
+			}
 			todo = ical.NewComponent(ical.CompToDo)
+			currentCalendar = &writable[0]
 		}
 
 		if ctx.Request().Method == "POST" {
 			summary := ctx.FormValue("summary")
 			description := ctx.FormValue("description")
 			dueDate := ctx.FormValue("due-date")
+			calendarPath := ctx.FormValue("calendar")
+			if co == nil && calendarByPath(writable, calendarPath) == nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "unknown calendar")
+			}
 
 			todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now())
 			todo.Props.SetText(ical.PropSummary, summary)
@@ -796,18 +874,18 @@ func registerRoutes(p *plugin) {
 			}
 
 			var cal *ical.Calendar
-			var taskPath string
+			var savePath string
 			if co != nil {
 				cal = co.Data
-				taskPath = co.Path
+				savePath = co.Path
 			} else {
 				cal = ical.NewCalendar()
 				cal.Props.SetText(ical.PropProductID, "-//emersion.fr//alps//EN")
 				cal.Props.SetText(ical.PropVersion, "2.0")
 				cal.Children = append(cal.Children, todo)
-				taskPath = path.Join(calendarInfo.Path, newID.String()+".ics")
+				savePath = path.Join(calendarPath, newID.String()+".ics")
 			}
-			co, err = c.PutCalendarObject(ctx.Request().Context(), taskPath, cal)
+			co, err = c.PutCalendarObject(ctx.Request().Context(), savePath, cal)
 			if err != nil {
 				return fmt.Errorf("failed to save task: %v", err)
 			}
@@ -819,7 +897,8 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Render(http.StatusOK, "update-task.html", &UpdateTaskRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle("Update " + summary),
-			Calendar:       calendarInfo,
+			Calendars:      writable,
+			Calendar:       currentCalendar,
 			CalendarObject: co,
 			Todo:           todo,
 		})

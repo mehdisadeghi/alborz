@@ -38,6 +38,7 @@ type AddressObjectRenderData struct {
 
 type UpdateAddressObjectRenderData struct {
 	alps.BaseRenderData
+	AddressBooks  []AddressBookInfo
 	AddressBook   *AddressBookInfo
 	AddressObject *carddav.AddressObject // nil if creating a new contact
 	Card          vcard.Card
@@ -50,6 +51,15 @@ func parseObjectPath(s string) (string, error) {
 		return "", echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 	return p, nil
+}
+
+func addressBookByPath(addressBooks []AddressBookInfo, path string) *AddressBookInfo {
+	for i := range addressBooks {
+		if addressBooks[i].Path == path {
+			return &addressBooks[i]
+		}
+	}
+	return nil
 }
 
 func registerRoutes(p *plugin) {
@@ -205,26 +215,47 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		c, addressBook, err := p.clientWithAddressBook(ctx.Request().Context(), ctx.Session)
+		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
 		}
-
 		var ao *carddav.AddressObject
 		var card vcard.Card
+		writable := make([]AddressBookInfo, 0, len(addressBooks))
+		for _, ab := range addressBooks {
+			if ab.Writable {
+				writable = append(writable, ab)
+			}
+		}
+
+		var currentAddressBook *AddressBookInfo
 		if addressObjectPath != "" {
 			ao, err = c.GetAddressObject(ctx.Request().Context(), addressObjectPath)
 			if err != nil {
 				return fmt.Errorf("failed to query CardDAV address: %v", err)
 			}
 			card = ao.Card
+			for i := range addressBooks {
+				if strings.HasPrefix(ao.Path, addressBooks[i].Path) {
+					currentAddressBook = &addressBooks[i]
+					break
+				}
+			}
 		} else {
+			if len(writable) == 0 {
+				return fmt.Errorf("no writable address books")
+			}
 			card = make(vcard.Card)
+			currentAddressBook = &writable[0]
 		}
 
 		if ctx.Request().Method == "POST" {
 			fn := ctx.FormValue("fn")
 			emails := strings.Split(ctx.FormValue("emails"), ",")
+			addressBookPath := ctx.FormValue("addressbook")
+			if ao == nil && addressBookByPath(writable, addressBookPath) == nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "unknown address book")
+			}
 
 			if _, ok := card[vcard.FieldVersion]; !ok {
 				// Default to vCard 4.0
@@ -253,13 +284,13 @@ func registerRoutes(p *plugin) {
 				card.SetValue(vcard.FieldUID, id.URN())
 			}
 
-			var p string
+			var savePath string
 			if ao != nil {
-				p = ao.Path
+				savePath = ao.Path
 			} else {
-				p = path.Join(addressBook.Path, id.String()+".vcf")
+				savePath = path.Join(addressBookPath, id.String()+".vcf")
 			}
-			ao, err = c.PutAddressObject(ctx.Request().Context(), p, card)
+			ao, err = c.PutAddressObject(ctx.Request().Context(), savePath, card)
 			if err != nil {
 				return fmt.Errorf("failed to put address object: %v", err)
 			}
@@ -269,7 +300,8 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Render(http.StatusOK, "update-address-object.html", &UpdateAddressObjectRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx),
-			AddressBook:    addressBook,
+			AddressBooks:   writable,
+			AddressBook:    currentAddressBook,
 			AddressObject:  ao,
 			Card:           card,
 		})

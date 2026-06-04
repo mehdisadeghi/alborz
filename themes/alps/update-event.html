@@ -3,10 +3,8 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/calendar/create" class="new active">New event</a>
-    <!-- TODO: fetch list of address books -->
-    <a href="#">{{.Calendar.Name}}</a>
-    <a href="#">Personal</a>
+    <a href="/calendar/create" class="new {{if not .CalendarObject}}active{{end}}">New event</a>
+    {{if .CalendarObject}}<a href="/calendar">{{.Calendar.Name}}</a>{{end}}
   </aside>
 
   <div class="container">
@@ -16,6 +14,17 @@
       </h2>
 
       <form method="post">
+        {{if not .CalendarObject}}
+        <label>
+          <span>Calendar</span>
+          <select name="calendar">
+            {{range .Calendars}}
+            <option value="{{.Path}}" {{if eq .Path $.Calendar.Path}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </label>
+        {{end}}
+
         <label>
           <span>Event name</span>
           <input type="text" name="summary" id="summary" dir="auto" value="{{.Event.Props.Text "SUMMARY"}}">
@@ -23,17 +32,20 @@
 
         <label class="event-date">
           <span>Starts at</span>
-          <input type="date" name="start" id="start" value="{{.Event.DateTimeStart nil | formatinputdate}}"/>
+          <input type="date" name="start-date" id="start-date" value="{{.Event.DateTimeStart nil | formatinputdate}}"/>
           <input type="time" name="start-time" id="start-time" value="{{.Event.DateTimeStart nil | formatinputtime}}"/>
         </label>
 
         <label class="event-date">
           <span>Ends at</span>
-          <input type="date" name="end" id="end" value="{{.Event.DateTimeEnd nil | formatinputdate}}"/>
+          <input type="date" name="end-date" id="end-date" value="{{.Event.DateTimeEnd nil | formatinputdate}}"/>
           <input type="time" name="end-time" id="end-time" value="{{.Event.DateTimeEnd nil | formatinputtime}}"/>
         </label>
 
-        <textarea name="description" id="description" dir="auto">{{.Event.Props.Text "DESCRIPTION"}}</textarea>
+        <label>
+          <span>Description</span>
+          <textarea name="description" id="description" dir="auto">{{.Event.Props.Text "DESCRIPTION"}}</textarea>
+        </label>
 
         <div class="actions">
           <button type="submit">Save</button>

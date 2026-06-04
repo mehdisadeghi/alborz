@@ -818,6 +818,8 @@ main.calendar .date h4 {
 
 main.calendar .date h4 .da { font-size: 1.2rem; }
 
+#calendar-filter, #addressbook-filter {display: flex; flex-direction: column;}
+
 main.settings form {
   max-width: 600px;
 }

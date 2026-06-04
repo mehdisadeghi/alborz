@@ -4,7 +4,7 @@
 <div class="page-wrap">
   <aside>
     <a href="/tasks/create" class="new {{if not .CalendarObject}}active{{end}}">New task</a>
-    <a href="/tasks">{{.Calendar.Name}}</a>
+    {{if .CalendarObject}}<a href="/tasks">{{.Calendar.Name}}</a>{{end}}
   </aside>
 
   <div class="container">
@@ -22,6 +22,17 @@
           {{$desc = .Todo.Props.Text "DESCRIPTION"}}
           {{$dueProp := .Todo.Props.Get "DUE"}}
           {{if $dueProp}}{{$due = $dueProp.Value}}{{end}}
+        {{end}}
+
+        {{if not .CalendarObject}}
+        <label>
+          <span>Calendar</span>
+          <select name="calendar">
+            {{range .Calendars}}
+            <option value="{{.Path}}" {{if eq .Path $.Calendar.Path}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </label>
         {{end}}
 
         <label>

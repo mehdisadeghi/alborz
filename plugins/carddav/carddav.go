@@ -19,10 +19,11 @@ import (
 var errNoAddressBook = fmt.Errorf("carddav: no address book found")
 
 type AddressBookInfo struct {
-	Path    string
-	Name    string
-	Color   string
-	Visible bool
+	Path     string
+	Name     string
+	Color    string
+	Visible  bool
+	Writable bool
 }
 
 type davMultiStatus struct {
@@ -45,6 +46,11 @@ type davCollectionProps struct {
 	} `xml:"resourcetype"`
 	DisplayName      string `xml:"displayname"`
 	AddressBookColor string `xml:"http://inf-it.com/ns/ab/ addressbook-color"`
+	Privileges       []struct {
+		Write        *struct{} `xml:"DAV: write"`
+		WriteContent *struct{} `xml:"DAV: write-content"`
+		Bind         *struct{} `xml:"DAV: bind"`
+	} `xml:"current-user-privilege-set>privilege"`
 }
 
 func newHTTPClient(session *alps.Session) *http.Client {
@@ -110,7 +116,7 @@ func canonicalCollectionPath(href string) string {
 // single PROPFIND.
 func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL, homeSet string) ([]AddressBookInfo, error) {
 	fullURL := baseURL.ResolveReference(&url.URL{Path: homeSet}).String()
-	ms, err := doPropfind(ctx, client, fullURL, `<D:propfind xmlns:D="DAV:" xmlns:I="http://inf-it.com/ns/ab/"><D:prop><D:resourcetype/><D:displayname/><I:addressbook-color/></D:prop></D:propfind>`)
+	ms, err := doPropfind(ctx, client, fullURL, `<D:propfind xmlns:D="DAV:" xmlns:I="http://inf-it.com/ns/ab/"><D:prop><D:resourcetype/><D:displayname/><I:addressbook-color/><D:current-user-privilege-set/></D:prop></D:propfind>`)
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +127,7 @@ func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL
 		// Found and missing properties come in separate propstats.
 		var isAddressBook bool
 		var name, color string
+		writable, privKnown := false, false
 		for _, ps := range resp.PropStat {
 			if !strings.Contains(ps.Status, "200") {
 				continue
@@ -134,6 +141,12 @@ func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL
 			if c := strings.TrimSpace(ps.Prop.AddressBookColor); c != "" {
 				color = c
 			}
+			for _, p := range ps.Prop.Privileges {
+				privKnown = true
+				if p.Write != nil || p.WriteContent != nil || p.Bind != nil {
+					writable = true
+				}
+			}
 		}
 		if !isAddressBook {
 			continue
@@ -142,6 +155,8 @@ func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL
 			Path:  href,
 			Name:  name,
 			Color: color,
+			// Servers that report no privileges get the benefit of the doubt.
+			Writable: writable || !privKnown,
 		})
 	}
 

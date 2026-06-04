@@ -1,0 +1,58 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+
+<div class="page-wrap">
+  <aside>
+    <a href="/tasks/create" class="new">New task</a>
+    <a href="/tasks" class="active">{{.Calendar.Name}}</a>
+  </aside>
+
+  <div class="container">
+    <main class="task">
+      {{$todo := index .Task.Data.Children 0}}
+      {{$summary := $todo.Props.Text "SUMMARY"}}
+      {{$desc := $todo.Props.Text "DESCRIPTION"}}
+      {{$status := $todo.Props.Text "STATUS"}}
+      {{$due := $todo.Props.Get "DUE"}}
+
+      <section class="actions">
+        <div class="actions-wrap">
+          <div class="actions-message">
+            <div class="action-group">
+              <a href="/tasks" class="button-link">Back</a>
+            </div>
+            <div class="action-group">
+              <a href="{{.Task.URL}}/edit" class="button-link">Edit</a>
+            </div>
+            <form class="action-group" action="{{.Task.URL}}/complete" method="post">
+              <button type="submit">
+                {{if eq $status "COMPLETED"}}Mark incomplete{{else}}Mark complete{{end}}
+              </button>
+            </form>
+            <form class="action-group" action="{{.Task.URL}}/delete" method="post">
+              <button type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section class="details">
+        <h1 class="{{if eq $status "COMPLETED"}}completed{{end}}">{{$summary}}</h1>
+        <dl>
+          <dt>Status</dt>
+          <dd>{{if eq $status "COMPLETED"}}Completed{{else}}Pending{{end}}</dd>
+          {{if $due}}
+          <dt>Due date</dt>
+          <dd>{{$due.Value}}</dd>
+          {{end}}
+          {{if $desc}}
+          <dt>Description</dt>
+          <dd>{{$desc}}</dd>
+          {{end}}
+        </dl>
+      </section>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

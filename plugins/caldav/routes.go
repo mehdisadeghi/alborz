@@ -56,6 +56,32 @@ type UpdateEventRenderData struct {
 type Settings struct {
 	CalendarFilter   bool
 	VisibleCalendars []string
+	ShowCompleted    bool
+}
+
+type TaskGroup struct {
+	Calendar CalendarInfo
+	Tasks    []TaskObject
+}
+
+type TasksRenderData struct {
+	alps.BaseRenderData
+	Calendars     []CalendarInfo
+	TaskGroups    []TaskGroup
+	ShowCompleted bool
+}
+
+type TaskRenderData struct {
+	alps.BaseRenderData
+	Calendar *CalendarInfo
+	Task     TaskObject
+}
+
+type UpdateTaskRenderData struct {
+	alps.BaseRenderData
+	Calendar       *CalendarInfo
+	CalendarObject *caldav.CalendarObject
+	Todo           *ical.Component
 }
 
 const (
@@ -97,6 +123,15 @@ func loadSettings(store alps.Store) (*Settings, error) {
 	return settings, nil
 }
 
+func getFirstTodo(cal *ical.Calendar) *ical.Component {
+	for _, child := range cal.Children {
+		if child.Name == ical.CompToDo {
+			return child
+		}
+	}
+	return nil
+}
+
 func registerRoutes(p *plugin) {
 	p.POST("/calendar", func(ctx *alps.Context) error {
 		settings, err := loadSettings(ctx.Session.Store())
@@ -109,6 +144,24 @@ func registerRoutes(p *plugin) {
 		}
 		settings.CalendarFilter = true
 		settings.VisibleCalendars = params["cal"]
+		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+			return fmt.Errorf("failed to save CalDAV settings: %v", err)
+		}
+		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
+	})
+
+	p.POST("/tasks", func(ctx *alps.Context) error {
+		settings, err := loadSettings(ctx.Session.Store())
+		if err != nil {
+			return fmt.Errorf("failed to load CalDAV settings: %v", err)
+		}
+		params, err := ctx.FormParams()
+		if err != nil {
+			return err
+		}
+		settings.CalendarFilter = true
+		settings.VisibleCalendars = params["cal"]
+		settings.ShowCompleted = params.Get("show-completed") == "1"
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save CalDAV settings: %v", err)
 		}
@@ -145,15 +198,19 @@ func registerRoutes(p *plugin) {
 			visibleSet[canonicalCollectionPath(path)] = true
 		}
 
-		calendarInfos := make([]CalendarInfo, len(calendars))
-		for i, cal := range calendars {
-			visible := !calendarFilter || visibleSet[cal.Path]
-			calendarInfos[i] = CalendarInfo{
-				Path:    cal.Path,
-				Name:    cal.Name,
-				Color:   cal.Color,
-				Visible: visible,
+		var calendarInfos []CalendarInfo
+		for _, cal := range calendars {
+			if !cal.SupportsEvent() {
+				continue
 			}
+			visible := !calendarFilter || visibleSet[cal.Path]
+			calendarInfos = append(calendarInfos, CalendarInfo{
+				Path:                  cal.Path,
+				Name:                  cal.Name,
+				Color:                 cal.Color,
+				Visible:               visible,
+				SupportedComponentSet: cal.SupportedComponentSet,
+			})
 		}
 		query := caldav.CalendarQuery{
 			CompRequest: caldav.CalendarCompRequest{
@@ -245,7 +302,7 @@ func registerRoutes(p *plugin) {
 			Time:      start,
 			Now:       time.Now(), // TODO: Use client time zone
 			Calendars: calendarInfos,
-			Calendar:  &calendarInfos[0],
+			Calendar:  &calendars[0],
 			Dates:     dates,
 			Events:    newCalendarObjectList(events),
 			PrevPage:  start.AddDate(0, -1, 0).Format(monthPageLayout),
@@ -526,5 +583,308 @@ func registerRoutes(p *plugin) {
 		}
 
 		return ctx.Redirect(http.StatusFound, "/calendar")
+	})
+
+	// Tasks routes
+	p.GET("/tasks", func(ctx *alps.Context) error {
+		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+
+		settings, err := loadSettings(ctx.Session.Store())
+		if err != nil {
+			return fmt.Errorf("failed to load CalDAV settings: %v", err)
+		}
+
+		calendarFilter := settings.CalendarFilter
+		visibleSet := make(map[string]bool)
+		for _, path := range settings.VisibleCalendars {
+			visibleSet[canonicalCollectionPath(path)] = true
+		}
+
+		var calendarInfos []CalendarInfo
+		for _, cal := range calendars {
+			if !cal.SupportsTodo() {
+				continue
+			}
+			visible := !calendarFilter || visibleSet[cal.Path]
+			calendarInfos = append(calendarInfos, CalendarInfo{
+				Path:                  cal.Path,
+				Name:                  cal.Name,
+				Color:                 cal.Color,
+				Visible:               visible,
+				SupportedComponentSet: cal.SupportedComponentSet,
+			})
+		}
+
+		showCompleted := settings.ShowCompleted
+
+		query := caldav.CalendarQuery{
+			CompRequest: caldav.CalendarCompRequest{
+				Name:  "VCALENDAR",
+				Props: []string{"VERSION"},
+				Comps: []caldav.CalendarCompRequest{{
+					Name: "VTODO",
+					Props: []string{
+						"SUMMARY",
+						"UID",
+						"DUE",
+						"STATUS",
+						"DESCRIPTION",
+					},
+				}},
+			},
+			CompFilter: caldav.CompFilter{
+				Name:  "VCALENDAR",
+				Comps: []caldav.CompFilter{{Name: "VTODO"}},
+			},
+		}
+
+		var taskGroups []TaskGroup
+		for _, cal := range calendarInfos {
+			if !cal.Visible {
+				continue
+			}
+			calTasks, err := c.QueryCalendar(ctx.Request().Context(), cal.Path, &query)
+			if err != nil {
+				return fmt.Errorf("failed to query tasks from %s: %v", cal.Name, err)
+			}
+
+			var filtered []caldav.CalendarObject
+			for _, task := range calTasks {
+				todo := getFirstTodo(task.Data)
+				if todo == nil {
+					continue
+				}
+				status, _ := todo.Props.Text("STATUS")
+				if status == "COMPLETED" && !showCompleted {
+					continue
+				}
+				filtered = append(filtered, task)
+			}
+
+			if len(filtered) > 0 {
+				taskGroups = append(taskGroups, TaskGroup{
+					Calendar: cal,
+					Tasks:    newTaskObjectList(filtered),
+				})
+			}
+		}
+
+		return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
+			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle("Tasks"),
+			Calendars:      calendarInfos,
+			TaskGroups:     taskGroups,
+			ShowCompleted:  showCompleted,
+		})
+	})
+
+	p.GET("/tasks/:path", func(ctx *alps.Context) error {
+		path, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+
+		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+
+		// The object's path starts with its calendar's.
+		calendar := &calendars[0]
+		for i := range calendars {
+			if strings.HasPrefix(path, calendars[i].Path) {
+				calendar = &calendars[i]
+				break
+			}
+		}
+
+		multiGet := caldav.CalendarMultiGet{
+			CompRequest: caldav.CalendarCompRequest{
+				Name:  "VCALENDAR",
+				Props: []string{"VERSION"},
+				Comps: []caldav.CalendarCompRequest{{
+					Name: "VTODO",
+					Props: []string{
+						"SUMMARY",
+						"DESCRIPTION",
+						"UID",
+						"DUE",
+						"STATUS",
+					},
+				}},
+			},
+		}
+
+		tasks, err := c.MultiGetCalendar(ctx.Request().Context(), path, &multiGet)
+		if err != nil {
+			return fmt.Errorf("failed to get task: %v", err)
+		}
+		if len(tasks) != 1 {
+			return fmt.Errorf("expected exactly one task with path %q, got %v", path, len(tasks))
+		}
+		task := &tasks[0]
+		todo := getFirstTodo(task.Data)
+		if todo == nil {
+			return fmt.Errorf("no VTODO component found")
+		}
+		summary, _ := todo.Props.Text("SUMMARY")
+
+		return ctx.Render(http.StatusOK, "task.html", &TaskRenderData{
+			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle(summary),
+			Calendar:       calendar,
+			Task:           TaskObject{task},
+		})
+	})
+
+	updateTask := func(ctx *alps.Context) error {
+		taskPath, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+
+		c, calendarInfo, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+
+		var co *caldav.CalendarObject
+		var todo *ical.Component
+		if taskPath != "" {
+			co, err = c.GetCalendarObject(ctx.Request().Context(), taskPath)
+			if err != nil {
+				return fmt.Errorf("failed to get task: %v", err)
+			}
+			todo = getFirstTodo(co.Data)
+			if todo == nil {
+				return fmt.Errorf("no VTODO component found")
+			}
+		} else {
+			todo = ical.NewComponent(ical.CompToDo)
+		}
+
+		if ctx.Request().Method == "POST" {
+			summary := ctx.FormValue("summary")
+			description := ctx.FormValue("description")
+			dueDate := ctx.FormValue("due-date")
+
+			todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now())
+			todo.Props.SetText(ical.PropSummary, summary)
+
+			if description != "" {
+				description = strings.ReplaceAll(description, "\r", "")
+				todo.Props.SetText(ical.PropDescription, description)
+			} else {
+				todo.Props.Del(ical.PropDescription)
+			}
+
+			if dueDate != "" {
+				due, err := time.Parse(inputDateLayout, dueDate)
+				if err != nil {
+					return echo.NewHTTPError(http.StatusBadRequest, "invalid due date")
+				}
+				todo.Props.SetDateTime(ical.PropDue, due)
+			} else {
+				todo.Props.Del(ical.PropDue)
+			}
+
+			newID := uuid.New()
+			if prop := todo.Props.Get(ical.PropUID); prop == nil {
+				todo.Props.SetText(ical.PropUID, newID.String())
+				todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
+			}
+
+			var cal *ical.Calendar
+			var taskPath string
+			if co != nil {
+				cal = co.Data
+				taskPath = co.Path
+			} else {
+				cal = ical.NewCalendar()
+				cal.Props.SetText(ical.PropProductID, "-//emersion.fr//alps//EN")
+				cal.Props.SetText(ical.PropVersion, "2.0")
+				cal.Children = append(cal.Children, todo)
+				taskPath = path.Join(calendarInfo.Path, newID.String()+".ics")
+			}
+			co, err = c.PutCalendarObject(ctx.Request().Context(), taskPath, cal)
+			if err != nil {
+				return fmt.Errorf("failed to save task: %v", err)
+			}
+
+			return ctx.Redirect(http.StatusFound, TaskObject{co}.URL())
+		}
+
+		summary, _ := todo.Props.Text("SUMMARY")
+
+		return ctx.Render(http.StatusOK, "update-task.html", &UpdateTaskRenderData{
+			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle("Update " + summary),
+			Calendar:       calendarInfo,
+			CalendarObject: co,
+			Todo:           todo,
+		})
+	}
+
+	p.GET("/tasks/create", updateTask)
+	p.POST("/tasks/create", updateTask)
+
+	p.GET("/tasks/:path/edit", updateTask)
+	p.POST("/tasks/:path/edit", updateTask)
+
+	p.POST("/tasks/:path/delete", func(ctx *alps.Context) error {
+		path, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+
+		c, _, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+
+		if err := c.RemoveAll(ctx.Request().Context(), path); err != nil {
+			return fmt.Errorf("failed to delete task: %v", err)
+		}
+
+		return ctx.Redirect(http.StatusFound, "/tasks")
+	})
+
+	p.POST("/tasks/:path/complete", func(ctx *alps.Context) error {
+		taskPath, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+
+		c, _, err := p.clientWithCalendar(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+
+		co, err := c.GetCalendarObject(ctx.Request().Context(), taskPath)
+		if err != nil {
+			return fmt.Errorf("failed to get task: %v", err)
+		}
+
+		todo := getFirstTodo(co.Data)
+		if todo == nil {
+			return fmt.Errorf("no VTODO component found")
+		}
+
+		status, _ := todo.Props.Text("STATUS")
+		if status == "COMPLETED" {
+			todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
+			todo.Props.Del(ical.PropCompleted)
+		} else {
+			todo.Props.SetText(ical.PropStatus, "COMPLETED")
+			todo.Props.SetDateTime(ical.PropCompleted, time.Now())
+		}
+		todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now())
+
+		_, err = c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data)
+		if err != nil {
+			return fmt.Errorf("failed to update task: %v", err)
+		}
+
+		return ctx.Redirect(http.StatusFound, "/tasks")
 	})
 }

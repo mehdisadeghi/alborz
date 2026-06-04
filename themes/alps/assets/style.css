@@ -818,7 +818,7 @@ main.calendar .date h4 {
 
 main.calendar .date h4 .da { font-size: 1.2rem; }
 
-#calendar-filter, #addressbook-filter {display: flex; flex-direction: column;}
+#calendar-filter, #addressbook-filter, #task-filter {display: flex; flex-direction: column;}
 
 .color-dot {
   display: inline-block;
@@ -904,4 +904,111 @@ button:active,
   color: #721c24;
   border-color: #f5c6cb;
   max-width: 600px;
+}
+
+/* Tasks */
+.task-list {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-list .tasks {
+  padding: 0.5rem;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.task-item.completed .task-summary {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.task-checkbox {
+  margin-right: 0.5rem;
+}
+
+.checkbox-button {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid #666;
+  border-radius: 3px;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  padding: 0;
+}
+
+.checkbox-button.checked {
+  background: #4a4;
+  border-color: #4a4;
+  color: white;
+}
+
+.task-content {
+  flex-grow: 1;
+}
+
+.task-summary {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.task-summary:hover {
+  text-decoration: underline;
+}
+
+.task-due {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+main.task .details h1.completed {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+.task-group {
+  margin-bottom: 1rem;
+}
+
+.task-group-header {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+  margin: 0.5rem 0;
+}
+
+.show-completed-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #eee;
+}
+
+.show-completed-toggle input {
+  width: auto;
 }

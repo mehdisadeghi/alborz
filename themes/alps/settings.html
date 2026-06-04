@@ -39,7 +39,7 @@
           <select name="subscriptions" id="subscriptions" multiple>
             {{ $subs := .Subscriptions }}
             {{ range .Mailboxes }}
-            {{ if and (ne .Name "INBOX") (not (.HasAttr "\\Noselect")) }}
+            {{ if and (ne .Name "INBOX") (not .IsInternal) }}
             <option
               value="{{.Name}}"
               {{ if $subs.Has .Name }}

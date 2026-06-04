@@ -40,11 +40,11 @@
           </tr>
           <tr>
             <th>Start date:</th>
-            <td>{{$event.DateTimeStart nil | formatdate}}</td>
+            <td>{{.GlobalData.FormatDate ($event.DateTimeStart nil)}}</td>
           </tr>
           <tr>
             <th>End date:</th>
-            <td>{{$event.DateTimeEnd nil | formatdate}}</td>
+            <td>{{.GlobalData.FormatDate ($event.DateTimeEnd nil)}}</td>
           </tr>
           <!-- TODO: List of attendees, room -->
         </table>

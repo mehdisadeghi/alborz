@@ -61,6 +61,16 @@
             required />
         </div>
 
+        <div class="action-group">
+          <label for="timezone">Timezone</label>
+          <input
+            type="text"
+            name="timezone"
+            id="timezone"
+            value="{{.Settings.Timezone}}"
+            placeholder="Auto-detect" />
+          <small>Leave empty to auto-detect from browser</small>
+        </div>
         <button type="submit">Save settings</button>
       </form>
     </main>

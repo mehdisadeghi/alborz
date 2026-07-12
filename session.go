@@ -60,6 +60,9 @@ type Session struct {
 	imapLocker sync.Mutex
 	imapConn   *imapclient.Client // protected by locker, can be nil
 
+	sieveLocker sync.Mutex
+	sieveConn   SieveClient // protected by locker, can be nil
+
 	attachmentsLocker sync.Mutex
 	attachments       map[string]*Attachment // protected by attachmentsLocker
 }
@@ -126,6 +129,32 @@ func (s *Session) DoSMTP(f func(*smtp.Client) error) error {
 	}
 
 	return nil
+}
+
+// DoSieve executes a ManageSieve operation on this session. The client can
+// only be used from inside f. The connection is kept for later operations so
+// the server doesn't have to re-authenticate every time.
+func (s *Session) DoSieve(f func(SieveClient) error) error {
+	s.sieveLocker.Lock()
+	defer s.sieveLocker.Unlock()
+
+	if s.sieveConn != nil {
+		// The server may have dropped the idle connection; a NOOP is
+		// far cheaper than reconnecting and re-authenticating.
+		if err := s.sieveConn.Noop(); err != nil {
+			s.sieveConn.Close()
+			s.sieveConn = nil
+		}
+	}
+	if s.sieveConn == nil {
+		c, err := s.manager.dialSieve(s.username, s.password)
+		if err != nil {
+			return err
+		}
+		s.sieveConn = c
+	}
+
+	return f(s.sieveConn)
 }
 
 // SetHTTPBasicAuth adds an Authorization header field to the request with
@@ -214,20 +243,22 @@ type (
 // SessionManager keeps track of active sessions. It connects and re-connects
 // to the upstream IMAP server as necessary. It prunes expired sessions.
 type SessionManager struct {
-	dialIMAP DialIMAPFunc
-	dialSMTP DialSMTPFunc
-	logger   echo.Logger
+	dialIMAP  DialIMAPFunc
+	dialSMTP  DialSMTPFunc
+	dialSieve DialSieveFunc
+	logger    echo.Logger
 
 	locker   sync.Mutex
 	sessions map[string]*Session // protected by locker
 }
 
-func newSessionManager(dialIMAP DialIMAPFunc, dialSMTP DialSMTPFunc, logger echo.Logger) *SessionManager {
+func newSessionManager(dialIMAP DialIMAPFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger) *SessionManager {
 	return &SessionManager{
-		sessions: make(map[string]*Session),
-		dialIMAP: dialIMAP,
-		dialSMTP: dialSMTP,
-		logger:   logger,
+		sessions:  make(map[string]*Session),
+		dialIMAP:  dialIMAP,
+		dialSMTP:  dialSMTP,
+		dialSieve: dialSieve,
+		logger:    logger,
 	}
 }
 
@@ -329,6 +360,12 @@ func (sm *SessionManager) Put(username, password string) (*Session, error) {
 			s.imapConn.Close()
 		}
 		s.imapLocker.Unlock()
+
+		s.sieveLocker.Lock()
+		if s.sieveConn != nil {
+			s.sieveConn.Close()
+		}
+		s.sieveLocker.Unlock()
 
 		sm.locker.Lock()
 		delete(sm.sessions, token)

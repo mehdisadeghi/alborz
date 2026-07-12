@@ -41,6 +41,10 @@ type Server struct {
 		tls      bool
 		insecure bool
 	}
+	sieve struct {
+		host     string
+		insecure bool
+	}
 }
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
@@ -64,8 +68,11 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	if err := s.parseSMTPUpstream(); err != nil {
 		return nil, err
 	}
+	if err := s.parseSieveUpstream(); err != nil {
+		return nil, err
+	}
 
-	s.Sessions = newSessionManager(s.dialIMAP, s.dialSMTP, e.Logger)
+	s.Sessions = newSessionManager(s.dialIMAP, s.dialSMTP, s.dialSieve, e.Logger)
 	return s, nil
 }
 

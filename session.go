@@ -5,9 +5,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
@@ -16,6 +19,7 @@ import (
 	"github.com/emersion/go-smtp"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"go.guido-berhoerster.org/managesieve"
 )
 
 // TODO: make this configurable
@@ -59,6 +63,9 @@ type Session struct {
 
 	imapLocker sync.Mutex
 	imapConn   *imapclient.Client // protected by locker, can be nil
+
+	sieveLocker sync.Mutex
+	sieveConn   SieveClient // protected by locker, can be nil
 
 	attachmentsLocker sync.Mutex
 	attachments       map[string]*Attachment // protected by attachmentsLocker
@@ -126,6 +133,59 @@ func (s *Session) DoSMTP(f func(*smtp.Client) error) error {
 	}
 
 	return nil
+}
+
+// DoSieve executes a ManageSieve operation on this session. The client can
+// only be used from inside f. The connection is kept for later operations so
+// the server doesn't have to re-authenticate every time.
+func (s *Session) DoSieve(f func(SieveClient) error) error {
+	s.sieveLocker.Lock()
+	defer s.sieveLocker.Unlock()
+
+	if s.sieveConn != nil {
+		// The kept connection is used as is: probing it first would cost
+		// every page a round trip to guard against the rare case that the
+		// server dropped it, which the retry below handles anyway.
+		err := f(s.sieveConn)
+		var serverErr *managesieve.ServerError
+		if err == nil || errors.As(err, &serverErr) {
+			// The server answered, so the connection is healthy.
+			return err
+		}
+		// Anything else leaves the connection dead or out of sync; drop
+		// it either way, but only a dropped connection warrants a silent
+		// retry. A garbled exchange must surface, or a write could be
+		// repeated on the server.
+		s.sieveConn.Close()
+		s.sieveConn = nil
+		if !isSieveConnClosed(err) {
+			return err
+		}
+	}
+
+	c, err := s.manager.dialSieve(s.username, s.password)
+	if err != nil {
+		return err
+	}
+	s.sieveConn = c
+
+	return f(s.sieveConn)
+}
+
+// isSieveConnClosed reports whether the operation failed because the server
+// had dropped the connection, the one error worth retrying on a fresh one. A
+// script the server rejects must not be silently sent twice.
+func isSieveConnClosed(err error) bool {
+	if err == nil {
+		return false
+	}
+	var closed *managesieve.ConnClosedError
+	if errors.As(err, &closed) {
+		return true
+	}
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ECONNRESET)
 }
 
 // SetHTTPBasicAuth adds an Authorization header field to the request with
@@ -214,20 +274,22 @@ type (
 // SessionManager keeps track of active sessions. It connects and re-connects
 // to the upstream IMAP server as necessary. It prunes expired sessions.
 type SessionManager struct {
-	dialIMAP DialIMAPFunc
-	dialSMTP DialSMTPFunc
-	logger   echo.Logger
+	dialIMAP  DialIMAPFunc
+	dialSMTP  DialSMTPFunc
+	dialSieve DialSieveFunc
+	logger    echo.Logger
 
 	locker   sync.Mutex
 	sessions map[string]*Session // protected by locker
 }
 
-func newSessionManager(dialIMAP DialIMAPFunc, dialSMTP DialSMTPFunc, logger echo.Logger) *SessionManager {
+func newSessionManager(dialIMAP DialIMAPFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger) *SessionManager {
 	return &SessionManager{
-		sessions: make(map[string]*Session),
-		dialIMAP: dialIMAP,
-		dialSMTP: dialSMTP,
-		logger:   logger,
+		sessions:  make(map[string]*Session),
+		dialIMAP:  dialIMAP,
+		dialSMTP:  dialSMTP,
+		dialSieve: dialSieve,
+		logger:    logger,
 	}
 }
 
@@ -329,6 +391,12 @@ func (sm *SessionManager) Put(username, password string) (*Session, error) {
 			s.imapConn.Close()
 		}
 		s.imapLocker.Unlock()
+
+		s.sieveLocker.Lock()
+		if s.sieveConn != nil {
+			s.sieveConn.Close()
+		}
+		s.sieveLocker.Unlock()
 
 		sm.locker.Lock()
 		delete(sm.sessions, token)

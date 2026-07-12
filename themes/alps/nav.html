@@ -30,6 +30,14 @@
       {{ end }}
     >Tasks</a>
     {{ end }}
+    {{ if call .GlobalData.HavePlugin "sieve" }}
+    <a
+      href="/filters"
+      {{ if eq $page "filters" }}
+      class="active"
+      {{ end }}
+    >Filters</a>
+    {{ end }}
     {{ if .GlobalData.LoggedIn }}
     <div>
       <span>{{ .GlobalData.Username }}</span>

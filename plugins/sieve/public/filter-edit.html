@@ -1,0 +1,44 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+
+<div class="page-wrap">
+  <aside>
+    <a href="/filters/create" class="new {{if not .Name}}active{{end}}">New filter</a>
+    {{if .Name}}<a href="/filters">Filters</a>{{end}}
+  </aside>
+
+  <div class="container">
+    <main class="create-update">
+      <form method="post" action="/filters" class="filter">
+        <h2>
+          {{if .Name}}Edit{{else}}Create{{end}} filter
+        </h2>
+
+        {{ if .Error }}
+        <div class="alert">{{.Error}}</div>
+        {{ end }}
+
+        <label>
+          <span>Name</span>
+          {{ if .Name }}
+          <input type="text" name="name" id="name" value="{{.Name}}" readonly />
+          {{ else }}
+          <input type="text" name="name" id="name" required />
+          {{ end }}
+        </label>
+
+        <label class="script">
+          <span>Sieve script</span>
+          <textarea name="content" id="content" spellcheck="false">{{.Content}}</textarea>
+        </label>
+
+        <div class="actions">
+          <button type="submit">Save</button>
+          <a class="button-link" href="/filters">Cancel</a>
+        </div>
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

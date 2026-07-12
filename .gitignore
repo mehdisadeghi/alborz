@@ -9,4 +9,5 @@
 !/plugins/lua
 !/plugins/viewhtml
 !/plugins/viewtext
+!/plugins/sieve
 !/plugins/davcache

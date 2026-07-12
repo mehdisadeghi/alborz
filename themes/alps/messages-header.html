@@ -3,21 +3,26 @@
 </div>
 <div class="actions-wrap">
   <div class="actions-message">
+    {{$common := .CategorizedMailboxes.Common}}
+    {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
+    {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
+    {{$trash := ""}}{{with $common.Trash}}{{$trash = .Info.Name}}{{end}}
+
     <div class="action-group">
-      {{ if and (eq .Mailbox.Name "INBOX") (not (eq .Mailbox.Name "Archive")) }}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to=Archive">Archive</button>
+      {{ if and $archive (eq .Mailbox.Name "INBOX") }}
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$archive | pathescape}}">Archive</button>
       {{ end }}
     </div>
 
     <div class="action-group">
-      {{ if or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name "Trash") }}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to=Junk">Report Spam</button>
+      {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$junk | pathescape}}">Report Spam</button>
       {{ end }}
     </div>
 
     <div class="action-group">
-      {{ if ne .Mailbox.Name "Trash"}}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to=Trash">Delete</button>
+      {{ if and $trash (ne .Mailbox.Name $trash) }}
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$trash | pathescape}}">Delete</button>
       {{ else }}
       <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/delete">Delete Permanently</button>
       {{ end }}

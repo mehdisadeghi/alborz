@@ -13,21 +13,28 @@
             {{$back := printf "%v?page=%v" .Mailbox.URL .MailboxPage}}
             <a href="{{$back}}" class="button-link">« Back</a>
 
-            {{ if and (ne .Mailbox.Name "Archive") (ne .Mailbox.Name "Drafts") (ne .Mailbox.Name "Sent") }}
+            {{$common := .CategorizedMailboxes.Common}}
+            {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
+            {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
+            {{$trash := ""}}{{with $common.Trash}}{{$trash = .Info.Name}}{{end}}
+            {{$drafts := ""}}{{with $common.Drafts}}{{$drafts = .Info.Name}}{{end}}
+            {{$sent := ""}}{{with $common.Sent}}{{$sent = .Info.Name}}{{end}}
+
+            {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
-              <input type="hidden" name="to" value="Archive">
+              <input type="hidden" name="to" value="{{$archive}}">
               <input type="hidden" name="next" value="{{$back}}">
               <button>Archive</button>
             </form>
             {{ end }}
 
-            {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name "Sent") (ne .Mailbox.Name "Drafts") }}
+            {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="to" value="INBOX">
               <button>
-              {{ if (eq .Mailbox.Name "Junk") }}
+              {{ if eq .Mailbox.Name $junk }}
               Not Spam
               {{ else }}
               Move to Inbox
@@ -36,16 +43,16 @@
             </form>
             {{ end }}
 
-            {{ if or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name "Trash") }}
+            {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
-              <input type="hidden" name="to" value="Junk">
+              <input type="hidden" name="to" value="{{$junk}}">
               <button>Report Spam</button>
             </form>
             {{ end }}
 
-            {{ if or (eq .Mailbox.Name "Trash") (eq .Mailbox.Name "Junk") }}
+            {{ if or (eq .Mailbox.Name $trash) (eq .Mailbox.Name $junk) (not $trash) }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
@@ -55,7 +62,7 @@
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
-              <input type="hidden" name="to" value="Trash">
+              <input type="hidden" name="to" value="{{$trash}}">
               <button>Delete</button>
             </form>
             {{ end }}

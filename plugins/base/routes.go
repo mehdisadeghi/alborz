@@ -116,17 +116,19 @@ func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
 		Info:   &mi,
 		Status: status,
 	}
-	if name := mi.Mailbox; name == "INBOX" {
+	name := mi.Mailbox
+	// Check special-use attributes first (RFC 6154)
+	if name == "INBOX" {
 		cc.Common.Inbox = details
-	} else if name == "Drafts" {
+	} else if mi.HasAttr(string(imap.MailboxAttrDrafts)) || name == "Drafts" || name == "Draft" {
 		cc.Common.Drafts = details
-	} else if name == "Sent" {
+	} else if mi.HasAttr(string(imap.MailboxAttrSent)) || name == "Sent" {
 		cc.Common.Sent = details
-	} else if name == "Junk" {
+	} else if mi.HasAttr(string(imap.MailboxAttrJunk)) || name == "Junk" || name == "Spam" {
 		cc.Common.Junk = details
-	} else if name == "Trash" {
+	} else if mi.HasAttr(string(imap.MailboxAttrTrash)) || name == "Trash" {
 		cc.Common.Trash = details
-	} else if name == "Archive" {
+	} else if mi.HasAttr(string(imap.MailboxAttrArchive)) || name == "Archive" {
 		cc.Common.Archive = details
 	} else {
 		cc.Additional = append(cc.Additional, *details)

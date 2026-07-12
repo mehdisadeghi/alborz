@@ -38,7 +38,12 @@ func main() {
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence")
 
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: alps [options...] <upstream servers...>\n")
+		fmt.Fprint(flag.CommandLine.Output(), `usage: alps [options...] <upstream servers...>
+
+Upstreams are imap[s]://, smtp[s]://, sieve:// or +insecure URLs, or a
+bare domain for SRV auto-discovery.
+
+`)
 		flag.PrintDefaults()
 	}
 
@@ -46,16 +51,17 @@ func main() {
 
 	options.Upstreams = flag.Args()
 	if len(options.Upstreams) == 0 {
+		fmt.Fprintln(flag.CommandLine.Output(), "alps: no upstream servers specified")
 		flag.Usage()
-		return
+		os.Exit(2)
 	}
 	options.ThemesPath = themesPath
 
 	if loginKey != "" {
 		fernetKey, err := fernet.DecodeKey(loginKey)
 		if err != nil {
-			flag.Usage()
-			return
+			fmt.Fprintf(flag.CommandLine.Output(), "alps: invalid -login-key: %v\n", err)
+			os.Exit(2)
 		}
 		options.LoginKey = fernetKey
 	}

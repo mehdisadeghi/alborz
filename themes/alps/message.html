@@ -78,8 +78,11 @@
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <select class="action-group" name="to">
+                <option value="" disabled selected>Move to...</option>
                 {{range .Mailboxes}}
-                  <option value="{{.Name}}" {{if eq .Name $.Mailbox.Name}}selected>Move to...{{else}}>{{.Name}}{{ end }}</option>
+                  {{if and (not .IsInternal) (ne .Name $.Mailbox.Name)}}
+                  <option value="{{.Name}}">{{.Name}}</option>
+                  {{end}}
                 {{end}}
               </select>
               <button class="action-group" type="submit">Move</button>

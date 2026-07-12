@@ -1101,7 +1101,8 @@ func handleMove(ctx *alps.Context) error {
 
 	to := formOrQueryParam(ctx, "to")
 	if to == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "missing 'to' form parameter")
+		ctx.Session.PutNotice("No destination folder selected.")
+		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
 	}
 
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {

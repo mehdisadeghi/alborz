@@ -1,0 +1,50 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+
+<div class="page-wrap">
+  <aside>
+    <a href="/filters/create" class="new">New filter</a>
+  </aside>
+
+  <div class="container">
+    <main class="task-list">
+      <section class="actions">
+        <div class="actions-wrap">
+          <div class="actions-message">
+            <h2>Filters</h2>
+          </div>
+        </div>
+      </section>
+
+      <section class="tasks">
+        {{ range .Scripts }}
+        <div class="task-item">
+          <div class="task-content">
+            <a href="/filters/{{.Name | pathescape}}" class="task-summary">{{.Name}}</a>
+            {{ if .Active }}
+            <span class="task-due">Active</span>
+            {{ end }}
+          </div>
+          {{ if .Active }}
+          <form method="post" action="/filters/deactivate">
+            <button>Deactivate</button>
+          </form>
+          {{ else }}
+          <form method="post" action="/filters/{{.Name | pathescape}}/activate">
+            <button>Activate</button>
+          </form>
+          {{ end }}
+          <form method="post" action="/filters/{{.Name | pathescape}}/delete">
+            <button>Delete</button>
+          </form>
+        </div>
+        {{ end }}
+        {{ if not .Scripts }}
+        <p class="empty-list">No filters yet.</p>
+        {{ end }}
+      </section>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

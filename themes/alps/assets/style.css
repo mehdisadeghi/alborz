@@ -240,6 +240,26 @@ main.create-update:has(.headers) form {
   flex-direction: column;
 }
 
+/* Sieve filter editor - the script pane fills the remaining space */
+main.create-update form.filter {
+  flex: 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+main.create-update form.filter > label.script {
+  flex: 1 auto;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+main.create-update form.filter > label.script > textarea {
+  flex: 1 auto;
+  font-family: monospace;
+  resize: none;
+}
+
 /* Simple create forms (event, task, contact) */
 main.create-update > form > label {
   display: block;

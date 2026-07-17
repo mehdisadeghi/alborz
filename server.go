@@ -435,6 +435,12 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			ectx.Response().Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:")
 			// DNS prefetching has privacy implications
 			ectx.Response().Header().Set("X-DNS-Prefetch-Control", "off")
+			// Asset URLs are not versioned; make browsers revalidate so
+			// theme and plugin asset changes are picked up
+			path := ectx.Request().URL.Path
+			if strings.HasPrefix(path, "/themes/") || strings.HasPrefix(path, "/plugins/") {
+				ectx.Response().Header().Set("Cache-Control", "no-cache")
+			}
 			return next(ectx)
 		}
 	})

@@ -220,6 +220,13 @@ main.login > section {
   padding: 1rem;
 }
 
+main.login .version {
+  margin-top: 1rem;
+  text-align: center;
+  color: #999;
+  font-size: 0.8rem;
+}
+
 aside a.new.active,
 main.create-update {
   background-color: #f6fff6;

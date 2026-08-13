@@ -17,6 +17,7 @@ import (
 
 const (
 	cookieName           = "alps_session"
+	accountsCookieName   = "alps_accounts"
 	loginTokenCookieName = "alps_login_token"
 )
 
@@ -339,9 +340,22 @@ type Context struct {
 	echo.Context
 	Server  *Server
 	Session *Session // nil if user isn't logged in
+
+	// Request-scoped account list. The accounts cookie only reflects
+	// the request, so consecutive account changes in one handler must
+	// read their own writes here.
+	accounts       []*Session
+	accountsLoaded bool
 }
 
 var aLongTimeAgo = time.Unix(233431200, 0)
+
+// secureCookies reports whether cookies should be marked Secure. Behind a
+// TLS-terminating reverse proxy the request itself is plain HTTP, so the
+// forwarded protocol decides, which Scheme consults.
+func (ctx *Context) secureCookies() bool {
+	return ctx.Scheme() == "https"
+}
 
 // SetSession sets a cookie for the provided session. Passing a nil session
 // unsets the cookie.
@@ -350,7 +364,7 @@ func (ctx *Context) SetSession(s *Session) {
 		Name:     cookieName,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.IsTLS(),
+		Secure:   ctx.secureCookies(),
 	}
 	if s != nil {
 		cookie.Value = s.token
@@ -358,6 +372,140 @@ func (ctx *Context) SetSession(s *Session) {
 		cookie.Expires = aLongTimeAgo // unset the cookie
 	}
 	ctx.SetCookie(&cookie)
+}
+
+// Account describes one signed-in account for the account switcher.
+type Account struct {
+	Username string
+	Active   bool
+}
+
+// accountSessions returns the live sessions listed in the accounts cookie in
+// order. The active session is always a member; expired entries are pruned
+// and the cookie rewritten.
+func (ctx *Context) accountSessions() []*Session {
+	if ctx.accountsLoaded {
+		return ctx.accounts
+	}
+
+	var tokens []string
+	if cookie, err := ctx.Cookie(accountsCookieName); err == nil {
+		tokens = strings.Split(cookie.Value, "|")
+	}
+
+	var sessions []*Session
+	changed := false
+	activeListed := false
+	for _, token := range tokens {
+		s, err := ctx.Server.Sessions.get(token)
+		if err != nil {
+			changed = true
+			continue
+		}
+		if s == ctx.Session {
+			activeListed = true
+		}
+		sessions = append(sessions, s)
+	}
+	if ctx.Session != nil && !activeListed {
+		sessions = append([]*Session{ctx.Session}, sessions...)
+		changed = true
+	}
+	if changed {
+		ctx.setAccountSessions(sessions)
+	} else {
+		ctx.accounts = sessions
+		ctx.accountsLoaded = true
+	}
+	return sessions
+}
+
+func (ctx *Context) setAccountSessions(sessions []*Session) {
+	ctx.accounts = sessions
+	ctx.accountsLoaded = true
+
+	cookie := http.Cookie{
+		Name:     accountsCookieName,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   ctx.secureCookies(),
+	}
+	if len(sessions) == 0 {
+		cookie.Expires = aLongTimeAgo // unset the cookie
+	} else {
+		tokens := make([]string, len(sessions))
+		for i, s := range sessions {
+			tokens[i] = s.token
+		}
+		cookie.Value = strings.Join(tokens, "|")
+	}
+	ctx.SetCookie(&cookie)
+}
+
+// Accounts lists the signed-in accounts in switcher order.
+func (ctx *Context) Accounts() []Account {
+	sessions := ctx.accountSessions()
+	accounts := make([]Account, len(sessions))
+	for i, s := range sessions {
+		accounts[i] = Account{Username: s.username, Active: s == ctx.Session}
+	}
+	return accounts
+}
+
+// AddAccount makes s the active session and appends it to the account list.
+// A previous session for the same username is closed and replaced in place.
+func (ctx *Context) AddAccount(s *Session) {
+	sessions := ctx.accountSessions()
+	replaced := false
+	for i, other := range sessions {
+		if other.username == s.username {
+			other.Close()
+			sessions[i] = s
+			replaced = true
+		}
+	}
+	if !replaced {
+		sessions = append(sessions, s)
+	}
+	ctx.Session = s
+	ctx.SetSession(s)
+	ctx.setAccountSessions(sessions)
+}
+
+// SwitchAccount makes the listed account with the given username active. It
+// reports false when no live session for that username remains.
+func (ctx *Context) SwitchAccount(username string) bool {
+	for _, s := range ctx.accountSessions() {
+		if s.username == username {
+			ctx.Session = s
+			ctx.SetSession(s)
+			return true
+		}
+	}
+	return false
+}
+
+// Logout closes the active session, removes it from the account list, and
+// promotes the next remaining account, whose session is returned. A nil
+// return means no account is left and both cookies were cleared.
+func (ctx *Context) Logout() *Session {
+	var remaining []*Session
+	for _, s := range ctx.accountSessions() {
+		if s != ctx.Session {
+			remaining = append(remaining, s)
+		}
+	}
+	ctx.Session.Close()
+	ctx.setAccountSessions(remaining)
+	if len(remaining) == 0 {
+		ctx.Session = nil
+		ctx.SetSession(nil)
+		return nil
+	}
+	ctx.Session = remaining[0]
+	ctx.SetSession(ctx.Session)
+	return ctx.Session
 }
 
 type loginToken struct {
@@ -371,7 +519,7 @@ func (ctx *Context) SetLoginToken(username, password string) {
 		Name:     loginTokenCookieName,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.IsTLS(),
+		Secure:   ctx.secureCookies(),
 		Path:     "/login",
 	}
 	if username == "" {
@@ -544,7 +692,11 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			} else if err != nil {
 				return err
 			}
-			ctx.Session.ping()
+			// Every signed-in account is in use, not only the active
+			// one: the switcher lists them all, so they all stay alive.
+			for _, session := range ctx.accountSessions() {
+				session.ping()
+			}
 
 			return next(ctx)
 		}

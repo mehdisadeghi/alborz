@@ -46,6 +46,7 @@ func registerRoutes(p *alps.GoPlugin) {
 
 	p.GET("/login", handleLogin)
 	p.POST("/login", handleLogin)
+	p.POST("/switch", handleSwitch)
 
 	p.GET("/logout", handleLogout)
 
@@ -379,16 +380,21 @@ func handleLogin(ctx *alps.Context) error {
 	username := ctx.FormValue("username")
 	password := ctx.FormValue("password")
 	remember := ctx.FormValue("remember-me")
+	add := ctx.QueryParam("add") == "1"
 
 	renderData := struct {
 		alps.BaseRenderData
 		CanRememberMe bool
+		Add           bool
 	}{
 		BaseRenderData: *alps.NewBaseRenderData(ctx),
 		CanRememberMe:  ctx.Server.Options.LoginKey != nil,
+		Add:            add,
 	}
 
-	if username == "" && password == "" {
+	// The remembered credentials would re-login the account the user
+	// already has, not add a new one.
+	if username == "" && password == "" && !add {
 		username, password = ctx.GetLoginToken()
 	}
 
@@ -412,7 +418,7 @@ func handleLogin(ctx *alps.Context) error {
 			}
 			return fmt.Errorf("failed to put connection in pool: %v", err)
 		}
-		ctx.SetSession(s)
+		ctx.AddAccount(s)
 
 		if remember == "on" {
 			ctx.SetLoginToken(username, password)
@@ -428,10 +434,20 @@ func handleLogin(ctx *alps.Context) error {
 }
 
 func handleLogout(ctx *alps.Context) error {
-	ctx.Session.Close()
-	ctx.SetSession(nil)
+	if next := ctx.Logout(); next != nil {
+		next.PutNotice("Signed in as " + next.Username() + ".")
+		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+	}
 	ctx.SetLoginToken("", "")
 	return ctx.Redirect(http.StatusFound, "/login")
+}
+
+func handleSwitch(ctx *alps.Context) error {
+	if !ctx.SwitchAccount(ctx.FormValue("account")) {
+		ctx.Session.PutNotice("That session has expired, sign in again.")
+		return ctx.Redirect(http.StatusFound, "/login?add=1")
+	}
+	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 }
 
 type MessageRenderData struct {

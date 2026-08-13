@@ -48,7 +48,7 @@
               <input type="hidden" name="action" value="add">
               {{ end }}
               <input type="hidden" name="flags" value="\Flagged">
-              <input type="hidden" name="next" value="{{$.GlobalData.URL.Path}}">
+              <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
               <button class="flag-button button-link" type="submit">
                 {{- if .HasFlag "\\Flagged" -}}
                 ★

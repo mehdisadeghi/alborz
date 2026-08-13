@@ -31,6 +31,9 @@
     </li>
     {{ with .CategorizedMailboxes }}
     {{ with .Common.Inbox }}{{ template "mbox-link" . }}{{ end }}
+    <li {{ if $.Starred }}class="active"{{ end }}>
+      <a href="/mailbox/INBOX?starred=1">Starred</a>
+    </li>
     {{ with .Common.Drafts }}{{ template "mbox-link" . }}{{ end }}
     {{ with .Common.Sent }}{{ template "mbox-link" . }}{{ end }}
     {{ with .Common.Junk }}{{ template "mbox-link" . }}{{ end }}

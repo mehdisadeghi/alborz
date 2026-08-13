@@ -40,7 +40,19 @@
     {{ end }}
     {{ if .GlobalData.LoggedIn }}
     <div>
-      <span>{{ .GlobalData.Username }}</span>
+      <details class="accounts">
+        <summary>{{ .GlobalData.Username }}</summary>
+        <div class="accounts-menu">
+          {{/* Every account keeps its row across switches; only the
+               mark moves with the choice. */}}
+          {{ range .GlobalData.Accounts }}
+          <form method="post" action="/switch">
+            <button type="submit" name="account" value="{{ .Username }}"{{ if .Active }} class="active" disabled{{ end }}>{{ .Username }}</button>
+          </form>
+          {{ end }}
+          <a href="/login?add=1">Add account</a>
+        </div>
+      </details>
       <a href="/settings">Settings</a>
       <a href="/logout">Sign Out</a>
     </div>

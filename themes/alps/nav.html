@@ -40,7 +40,21 @@
     {{ end }}
     {{ if .GlobalData.LoggedIn }}
     <div>
-      <span>{{ .GlobalData.Username }}</span>
+      <details class="accounts">
+        <summary>{{ .GlobalData.Username }}</summary>
+        <div class="accounts-menu">
+          {{/* The summary names the current account; the menu lists
+               the others, so no entry repeats it. */}}
+          {{ range .GlobalData.Accounts }}
+          {{ if not .Active }}
+          <form method="post" action="/switch">
+            <button type="submit" name="account" value="{{ .Username }}">{{ .Username }}</button>
+          </form>
+          {{ end }}
+          {{ end }}
+          <a href="/login?add=1">Add account</a>
+        </div>
+      </details>
       <a href="/settings">Settings</a>
       <a href="/logout">Sign Out</a>
     </div>

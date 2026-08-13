@@ -115,8 +115,34 @@ header nav { min-height: 1rem; }
 /*header nav strong { color: #555; }*/
 header nav > a { margin-right: 1rem; }
 header nav span { color: #757373; }
-header nav div { float: right; }
-header nav div > a{  margin-left: 1rem; }
+header nav > div { float: right; }
+header nav > div > a{  margin-left: 1rem; }
+
+header nav .accounts { display: inline-block; position: relative; }
+header nav .accounts summary { cursor: pointer; color: #757373; }
+header nav .accounts-menu {
+  position: absolute;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  min-width: max-content;
+  padding: 0.5rem;
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+header nav .accounts-menu .active { font-weight: 500; }
+header nav .accounts-menu button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #15c;
+  text-align: left;
+  cursor: pointer;
+}
 header a.active { font-weight: bold; color: black; text-decoration: none; }
 
 header .notice {

@@ -81,13 +81,15 @@ type IMAPBaseRenderData struct {
 	Mailbox              *MailboxStatus
 	Inbox                *MailboxStatus
 	Subscriptions        map[string]*MailboxStatus
+	Starred              bool
 }
 
 type MailboxRenderData struct {
 	IMAPBaseRenderData
-	Messages           []IMAPMessage
-	PrevPage, NextPage int
-	Query              string
+	Messages                  []IMAPMessage
+	PrevPage, NextPage        int
+	RangeFrom, RangeTo, Total int
+	Query                     string
 }
 
 type MailboxDetails struct {
@@ -201,10 +203,14 @@ func newIMAPBaseRenderData(ctx *alps.Context,
 	}
 	statuses["INBOX"] = inbox
 
+	// The starred view filters the active mailbox; highlight the Starred
+	// sidebar entry instead of the mailbox itself.
+	starred := ctx.QueryParam("starred") == "1"
+
 	var categorized CategorizedMailboxes
 	for i := range mailboxes {
 		// Populate unseen & active states
-		if active != nil && mailboxes[i].Name() == active.Mailbox {
+		if active != nil && mailboxes[i].Name() == active.Mailbox && !starred {
 			mailboxes[i].Active = true
 		}
 		status := statuses[mailboxes[i].Name()]
@@ -223,6 +229,7 @@ func newIMAPBaseRenderData(ctx *alps.Context,
 		Inbox:                inbox,
 		Mailbox:              active,
 		Subscriptions:        statuses,
+		Starred:              starred,
 	}, nil
 }
 
@@ -237,7 +244,9 @@ func handleGetMailbox(ctx *alps.Context) error {
 	if title == "INBOX" {
 		title = "Inbox"
 	}
-	if *mbox.NumUnseen > 0 {
+	if ibase.Starred {
+		title = "Starred"
+	} else if *mbox.NumUnseen > 0 {
 		title = fmt.Sprintf("(%d) %s", *mbox.NumUnseen, title)
 	}
 	ibase.BaseRenderData.WithTitle(title)
@@ -264,15 +273,16 @@ func handleGetMailbox(ctx *alps.Context) error {
 	)
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
 		var err error
-		if query != "" {
-			msgs, total, err = searchMessages(c, mbox.Name(), query, page, messagesPerPage)
-		} else {
+		switch {
+		case query != "":
+			msgs, total, err = searchMessages(c, mbox.Name(), PrepareSearch(query), page, messagesPerPage)
+		case ibase.Starred:
+			criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+			msgs, total, err = searchMessages(c, mbox.Name(), criteria, page, messagesPerPage)
+		default:
 			msgs, total, err = listMessages(c, mbox.Name(), page, messagesPerPage)
 		}
-		if err != nil {
-			return err
-		}
-		return nil
+		return err
 	})
 	if err != nil {
 		return err
@@ -286,11 +296,20 @@ func handleGetMailbox(ctx *alps.Context) error {
 		nextPage = page + 1
 	}
 
+	rangeFrom, rangeTo := 0, 0
+	if len(msgs) > 0 {
+		rangeFrom = page*messagesPerPage + 1
+		rangeTo = page*messagesPerPage + len(msgs)
+	}
+
 	return ctx.Render(http.StatusOK, "mailbox.html", &MailboxRenderData{
 		IMAPBaseRenderData: *ibase,
 		Messages:           msgs,
 		PrevPage:           prevPage,
 		NextPage:           nextPage,
+		RangeFrom:          rangeFrom,
+		RangeTo:            rangeTo,
+		Total:              total,
 		Query:              query,
 	})
 }

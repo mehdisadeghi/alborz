@@ -44,13 +44,14 @@
     <button>Search</button>
   </form>
 
-  {{if or (ge .PrevPage 0) (ge .NextPage 0) }}
+  {{if gt .RangeFrom 0}}
   <div class="actions-pagination">
+    <span class="pagination-range">{{.RangeFrom}}&ndash;{{.RangeTo}} of {{.Total}}</span>
     {{if ge .PrevPage 0}}
-      <a href="?page={{.PrevPage}}{{with .Query}}&query={{.}}{{end}}" class="button-link">«</a>
+      <a href="?page={{.PrevPage}}{{with .Query}}&query={{.}}{{end}}{{if .Starred}}&starred=1{{end}}" class="button-link">«</a>
     {{end}}
     {{if ge .NextPage 0}}
-      <a href="?page={{.NextPage}}{{with .Query}}&query={{.}}{{end}}" class="button-link">»</a>
+      <a href="?page={{.NextPage}}{{with .Query}}&query={{.}}{{end}}{{if .Starred}}&starred=1{{end}}" class="button-link">»</a>
     {{end}}
   </div>
   {{ end }}

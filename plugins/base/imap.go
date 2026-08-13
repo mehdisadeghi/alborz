@@ -482,12 +482,10 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 	return msgs, total, nil
 }
 
-func searchMessages(conn *imapclient.Client, mboxName, query string, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {
+func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *imap.SearchCriteria, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
 	}
-
-	searchCriteria := PrepareSearch(query)
 
 	var nums []uint32
 	if !conn.Caps().Has(imap.CapSort) {

@@ -11,7 +11,14 @@ import (
 	"github.com/emersion/go-message/charset"
 )
 
-func (s *Server) dialIMAP() (*imapclient.Client, error) {
+// dialIMAP connects to the domain's upstream IMAP server. It is the
+// gatekeeper for the domain whitelist: unknown domains are rejected here.
+func (s *Server) dialIMAP(domain string) (*imapclient.Client, error) {
+	d, ok := s.upstreamsFor(domain)
+	if !ok {
+		return nil, UnknownDomainError{domain}
+	}
+
 	// TODO: don't print passwords to debug logs
 	var debugWriter io.Writer
 	if s.Options.Debug {
@@ -27,18 +34,18 @@ func (s *Server) dialIMAP() (*imapclient.Client, error) {
 
 	var c *imapclient.Client
 	var err error
-	if s.imap.tls {
-		c, err = imapclient.DialTLS(s.imap.host, options)
+	if d.imap.tls {
+		c, err = imapclient.DialTLS(d.imap.host, options)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to IMAPS server: %w", err)
 		}
-	} else if !s.imap.insecure {
-		c, err = imapclient.DialStartTLS(s.imap.host, options)
+	} else if !d.imap.insecure {
+		c, err = imapclient.DialStartTLS(d.imap.host, options)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to IMAP server: %w", err)
 		}
 	} else {
-		conn, err := net.Dial("tcp", s.imap.host)
+		conn, err := net.Dial("tcp", d.imap.host)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to IMAP server: %w", err)
 		}

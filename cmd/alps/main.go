@@ -71,10 +71,15 @@ func main() {
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence")
 
 	flag.Usage = func() {
-		fmt.Fprint(flag.CommandLine.Output(), `usage: alps [options...] <upstream servers...>
+		fmt.Fprint(flag.CommandLine.Output(), `usage: alps [options...] <upstreams...>
 
-Upstreams are imap[s]://, smtp[s]://, sieve:// or +insecure URLs, or a
-bare domain for SRV auto-discovery.
+Plain imap[s]://, smtp[s]://, sieve://, https:// or +insecure URLs
+configure a single provider accepting logins of any domain. Alternatively,
+each argument serves one mail domain and logins are only accepted for the
+listed domains: a bare domain uses SRV auto-discovery, and explicit
+upstreams are given as repeated domain=url arguments, e.g.:
+
+  alps example.org example.com=imaps://mail.example.com
 
 `)
 		flag.PrintDefaults()

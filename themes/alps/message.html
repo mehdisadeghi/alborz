@@ -11,8 +11,6 @@
         <div class="actions-wrap">
           <div class="actions-message">
             {{$back := printf "%v?page=%v" .Mailbox.URL .MailboxPage}}
-            <a href="{{$back}}" class="button-link">« Back</a>
-
             {{$common := .CategorizedMailboxes.Common}}
             {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
             {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}

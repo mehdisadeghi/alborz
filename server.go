@@ -425,7 +425,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		return func(ectx echo.Context) error {
 			// `style-src 'unsafe-inline'` is required for e-mails with
 			// embedded stylesheets
-			ectx.Response().Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'")
+			ectx.Response().Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:")
 			// DNS prefetching has privacy implications
 			ectx.Response().Header().Set("X-DNS-Prefetch-Control", "off")
 			return next(ectx)

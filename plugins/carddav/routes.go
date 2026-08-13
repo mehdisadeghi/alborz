@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"strings"
 
 	"git.sr.ht/~migadu/alps"
@@ -36,6 +37,7 @@ type AddressObjectRenderData struct {
 	alps.BaseRenderData
 	AddressBook   *AddressBookInfo
 	AddressObject AddressObject
+	Birthday      string
 }
 
 type UpdateAddressObjectRenderData struct {
@@ -44,6 +46,17 @@ type UpdateAddressObjectRenderData struct {
 	AddressBook   *AddressBookInfo
 	AddressObject *carddav.AddressObject // nil if creating a new contact
 	Card          vcard.Card
+	Birthday      string
+}
+
+// birthdayValue renders BDAY in the HTML date-input format, accepting both
+// the vCard 4.0 basic format (19850412) and the dashed 3.0 form.
+func birthdayValue(card vcard.Card) string {
+	v := card.PreferredValue(vcard.FieldBirthday)
+	if len(v) == 8 {
+		return v[:4] + "-" + v[4:6] + "-" + v[6:]
+	}
+	return v
 }
 
 func parseObjectPath(s string) (string, error) {
@@ -116,13 +129,13 @@ func registerRoutes(p *plugin) {
 			DataRequest: carddav.AddressDataRequest{
 				Props: []string{
 					vcard.FieldFormattedName,
+					vcard.FieldName,
 					vcard.FieldEmail,
+					vcard.FieldTelephone,
+					vcard.FieldPhoto,
 					vcard.FieldUID,
 				},
 			},
-			PropFilters: []carddav.PropFilter{{
-				Name: vcard.FieldFormattedName,
-			}},
 		}
 
 		if queryText != "" {
@@ -172,6 +185,12 @@ func registerRoutes(p *plugin) {
 			aos = append(aos, result.contacts...)
 		}
 
+		sort.Slice(aos, func(i, j int) bool {
+			nameI := aos[i].Card.PreferredValue(vcard.FieldFormattedName)
+			nameJ := aos[j].Card.PreferredValue(vcard.FieldFormattedName)
+			return strings.ToLower(nameI) < strings.ToLower(nameJ)
+		})
+
 		return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx),
 			AddressBooks:   addressBookInfos,
@@ -210,11 +229,7 @@ func registerRoutes(p *plugin) {
 
 		multiGet := carddav.AddressBookMultiGet{
 			DataRequest: carddav.AddressDataRequest{
-				Props: []string{
-					vcard.FieldFormattedName,
-					vcard.FieldEmail,
-					vcard.FieldUID,
-				},
+				AllProp: true,
 			},
 		}
 		aos, err := c.MultiGetAddressBook(ctx.Request().Context(), path, &multiGet)
@@ -230,6 +245,7 @@ func registerRoutes(p *plugin) {
 			BaseRenderData: *alps.NewBaseRenderData(ctx),
 			AddressBook:    addressBook,
 			AddressObject:  AddressObject{ao},
+			Birthday:       birthdayValue(ao.Card),
 		})
 	})
 
@@ -297,11 +313,57 @@ func registerRoutes(p *plugin) {
 			// TODO: params are lost here
 			var emailFields []*vcard.Field
 			for _, email := range emails {
-				emailFields = append(emailFields, &vcard.Field{
-					Value: strings.TrimSpace(email),
-				})
+				if email = strings.TrimSpace(email); email != "" {
+					emailFields = append(emailFields, &vcard.Field{Value: email})
+				}
 			}
-			card[vcard.FieldEmail] = emailFields
+			if len(emailFields) > 0 {
+				card[vcard.FieldEmail] = emailFields
+			} else {
+				delete(card, vcard.FieldEmail)
+			}
+
+			var telFields []*vcard.Field
+			for _, tel := range strings.Split(ctx.FormValue("tels"), ",") {
+				if tel = strings.TrimSpace(tel); tel != "" {
+					telFields = append(telFields, &vcard.Field{Value: tel})
+				}
+			}
+			if len(telFields) > 0 {
+				card[vcard.FieldTelephone] = telFields
+			} else {
+				delete(card, vcard.FieldTelephone)
+			}
+
+			// An empty form value removes the property.
+			setValue := func(key, value string) {
+				if value == "" {
+					delete(card, key)
+				} else if field := card.Preferred(key); field != nil {
+					field.Value = value
+				} else {
+					card.Add(key, &vcard.Field{Value: value})
+				}
+			}
+			setValue(vcard.FieldOrganization, strings.TrimSpace(ctx.FormValue("org")))
+			setValue(vcard.FieldTitle, strings.TrimSpace(ctx.FormValue("title")))
+			setValue(vcard.FieldBirthday, strings.ReplaceAll(ctx.FormValue("bday"), "-", ""))
+			setValue(vcard.FieldURL, strings.TrimSpace(ctx.FormValue("url")))
+			setValue(vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
+
+			// Free-form address lives in the street component; other
+			// structured components from synced cards are preserved.
+			street := strings.TrimSpace(ctx.FormValue("adr"))
+			if adr := card.Address(); adr != nil {
+				if street == "" {
+					delete(card, vcard.FieldAddress)
+				} else {
+					adr.StreetAddress = street
+					card.SetAddress(adr)
+				}
+			} else if street != "" {
+				card.AddAddress(&vcard.Address{StreetAddress: street})
+			}
 
 			id := uuid.New()
 			if _, ok := card[vcard.FieldUID]; !ok {
@@ -328,6 +390,7 @@ func registerRoutes(p *plugin) {
 			AddressBook:    currentAddressBook,
 			AddressObject:  ao,
 			Card:           card,
+			Birthday:       birthdayValue(card),
 		})
 	}
 

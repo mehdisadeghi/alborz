@@ -36,7 +36,41 @@
             name="emails"
             id="emails"
             value="{{join (.Card.Values "EMAIL") ", "}}"
+            placeholder="a@example.org, b@example.org"
             multiple />
+        </label>
+        <label>
+          <span>Phone numbers</span>
+          <input type="tel" name="tels" id="tels" value="{{join (.Card.Values "TEL") ", "}}"
+            placeholder="+49 151 2345678, 030 123456" />
+        </label>
+        <label>
+          <span>Organization</span>
+          <input type="text" name="org" id="org" dir="auto" value="{{.Card.PreferredValue "ORG"}}" />
+        </label>
+        <label>
+          <span>Job title</span>
+          <input type="text" name="title" id="title" dir="auto" value="{{.Card.PreferredValue "TITLE"}}" />
+        </label>
+        <label>
+          <span>Birthday</span>
+          <input type="date" name="bday" id="bday" value="{{.Birthday}}" />
+        </label>
+        <label>
+          <span>Website</span>
+          <input type="url" name="url" id="url" value="{{.Card.PreferredValue "URL"}}"
+            placeholder="https://example.org" />
+        </label>
+        <label>
+          <span>Address</span>
+          <textarea name="adr" id="adr" dir="auto" rows="3"
+            placeholder="1 Example Street
+City 12345
+Country">{{with .Card.Address}}{{.StreetAddress}}{{end}}</textarea>
+        </label>
+        <label>
+          <span>Note</span>
+          <textarea name="note" id="note" dir="auto" rows="3">{{.Card.PreferredValue "NOTE"}}</textarea>
         </label>
 
         <div class="actions">

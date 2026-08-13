@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"git.sr.ht/~migadu/alps"
 	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
@@ -113,6 +115,47 @@ func parseDateTime(s string, loc *time.Location) (time.Time, error) {
 		return time.Time{}, echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 	return t, nil
+}
+
+func detectScript(s string) string {
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			switch {
+			case unicode.Is(unicode.Arabic, r):
+				return "arabic"
+			case unicode.Is(unicode.Hebrew, r):
+				return "hebrew"
+			case unicode.Is(unicode.Cyrillic, r):
+				return "cyrillic"
+			case unicode.Is(unicode.Han, r):
+				return "han"
+			case unicode.Is(unicode.Hiragana, r) || unicode.Is(unicode.Katakana, r):
+				return "japanese"
+			case unicode.Is(unicode.Hangul, r):
+				return "hangul"
+			case unicode.Is(unicode.Greek, r):
+				return "greek"
+			case unicode.Is(unicode.Latin, r):
+				return "latin"
+			default:
+				return "other"
+			}
+		}
+	}
+	return "other"
+}
+
+func sortTasksByScript(tasks []TaskObject) {
+	sort.SliceStable(tasks, func(i, j int) bool {
+		todoI := getFirstTodo(tasks[i].Data)
+		todoJ := getFirstTodo(tasks[j].Data)
+		if todoI == nil || todoJ == nil {
+			return false
+		}
+		summaryI, _ := todoI.Props.Text("SUMMARY")
+		summaryJ, _ := todoJ.Props.Text("SUMMARY")
+		return detectScript(summaryI) < detectScript(summaryJ)
+	})
 }
 
 func loadSettings(store alps.Store) (*Settings, error) {
@@ -322,6 +365,14 @@ func registerRoutes(p *plugin) {
 			eventMap[key] = append(eventMap[key], CalendarObject{&ev})
 		}
 
+		for _, evs := range eventMap {
+			sort.Slice(evs, func(i, j int) bool {
+				ti, _ := evs[i].Data.Events()[0].DateTimeStart(nil)
+				tj, _ := evs[j].Data.Events()[0].DateTimeStart(nil)
+				return ti.Before(tj)
+			})
+		}
+
 		return ctx.Render(http.StatusOK, "calendar.html", &CalendarRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).
 				WithTitle("Calendar: " + start.Format("January 2006")),
@@ -474,6 +525,12 @@ func registerRoutes(p *plugin) {
 			}
 			events = append(events, result.events...)
 		}
+
+		sort.Slice(events, func(i, j int) bool {
+			ti, _ := events[i].Data.Events()[0].DateTimeStart(nil)
+			tj, _ := events[j].Data.Events()[0].DateTimeStart(nil)
+			return ti.Before(tj)
+		})
 
 		return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).
@@ -803,12 +860,18 @@ func registerRoutes(p *plugin) {
 			}
 
 			if len(filtered) > 0 {
+				tasks := newTaskObjectList(filtered)
+				sortTasksByScript(tasks)
 				taskGroups = append(taskGroups, TaskGroup{
 					Calendar: result.cal,
-					Tasks:    newTaskObjectList(filtered),
+					Tasks:    tasks,
 				})
 			}
 		}
+
+		sort.Slice(taskGroups, func(i, j int) bool {
+			return strings.ToLower(taskGroups[i].Calendar.Name) < strings.ToLower(taskGroups[j].Calendar.Name)
+		})
 
 		return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
 			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle("Tasks"),

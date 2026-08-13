@@ -261,3 +261,26 @@ func newAddressObjectList(aos []carddav.AddressObject) []AddressObject {
 func (ao AddressObject) URL() string {
 	return "/contacts/" + url.PathEscape(ao.Path)
 }
+
+func (ao AddressObject) DisplayName() string {
+	if fn := ao.Card.PreferredValue("FN"); fn != "" {
+		return fn
+	}
+	if n := ao.Card.Name(); n != nil {
+		parts := []string{n.GivenName, n.AdditionalName, n.FamilyName}
+		var nonEmpty []string
+		for _, p := range parts {
+			if p != "" {
+				nonEmpty = append(nonEmpty, p)
+			}
+		}
+		if len(nonEmpty) > 0 {
+			return strings.Join(nonEmpty, " ")
+		}
+	}
+	return ""
+}
+
+func (ao AddressObject) PhotoURL() string {
+	return ao.Card.PreferredValue("PHOTO")
+}

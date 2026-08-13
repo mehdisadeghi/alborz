@@ -1,4 +1,7 @@
 /koushin
+/alps
+/alps-linux
+/GNUmakefile
 /themes/*
 !/themes/sourcehut
 !/themes/alps

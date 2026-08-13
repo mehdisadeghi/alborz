@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
+	"sync"
 
 	"git.sr.ht/~migadu/alps"
 	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
@@ -35,6 +37,9 @@ type plugin struct {
 	alps.GoPlugin
 	urls  map[string]*url.URL // CardDAV endpoint per served mail domain
 	cache *davcache.Cache
+
+	jarsMu sync.Mutex
+	jars   map[string]http.CookieJar // per username
 }
 
 func (p *plugin) client(session *alps.Session) (*carddav.Client, error) {
@@ -43,6 +48,23 @@ func (p *plugin) client(session *alps.Session) (*carddav.Client, error) {
 		return nil, errNoAddressBook
 	}
 	return newClient(u, p.httpClient(session))
+}
+
+// jar returns the user's persistent cookie jar. Reusing the DAV server's
+// session cookie lets it skip re-authenticating every single request.
+func (p *plugin) jar(session *alps.Session) http.CookieJar {
+	p.jarsMu.Lock()
+	defer p.jarsMu.Unlock()
+	j, ok := p.jars[session.Username()]
+	if !ok {
+		var err error
+		j, err = cookiejar.New(nil)
+		if err != nil {
+			panic(err) // cannot happen with nil options
+		}
+		p.jars[session.Username()] = j
+	}
+	return j
 }
 
 // davURL resolves the session's CardDAV endpoint, falling back to the
@@ -146,6 +168,7 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 	p := &plugin{
 		GoPlugin: alps.GoPlugin{Name: "carddav"},
 		urls:     urls,
+		jars:     make(map[string]http.CookieJar),
 	}
 	p.EnabledFunc = func(ctx *alps.Context) bool {
 		if ctx.Session == nil {

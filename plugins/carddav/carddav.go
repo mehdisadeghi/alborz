@@ -54,11 +54,13 @@ type davCollectionProps struct {
 }
 
 func (p *plugin) httpClient(session *alps.Session) *http.Client {
+	jar := p.jar(session)
 	return &http.Client{
 		Transport: p.cache.Transport(session.Username(), &webdavRoundTripper{
 			upstream: http.DefaultTransport,
 			session:  session,
-		}, nil),
+		}, jar),
+		Jar: jar,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

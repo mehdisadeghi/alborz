@@ -1,7 +1,7 @@
 GO ?= go
 ADDR ?= localhost:1323
-# Upstream servers, e.g.:
-# ARGS = imaps://mail.example.org smtps://mail.example.org sieve://mail.example.org
+# Served mail domains, bare for SRV discovery or with explicit upstreams:
+# ARGS = example.org example.com=imaps://mail.example.com example.com=smtps://mail.example.com
 ARGS ?=
 
 .PHONY: build run watch fmt login-key

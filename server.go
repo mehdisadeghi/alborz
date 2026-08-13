@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,11 @@ type Server struct {
 	mutex   sync.RWMutex // used for server reload
 	plugins []Plugin
 
+	domains map[string]*domainUpstreams
+}
+
+// domainUpstreams holds the upstream servers for one served mail domain.
+type domainUpstreams struct {
 	// maps protocols to URLs (protocol can be empty for auto-discovery)
 	upstreams map[string]*url.URL
 
@@ -50,30 +56,85 @@ type Server struct {
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options}
 
-	s.upstreams = make(map[string]*url.URL, len(options.Upstreams))
-	for _, upstream := range options.Upstreams {
-		u, err := parseUpstream(upstream)
+	s.domains = make(map[string]*domainUpstreams)
+	for _, arg := range options.Upstreams {
+		name, spec, explicit := strings.Cut(arg, "=")
+		if !explicit && strings.Contains(arg, "://") {
+			// An upstream-style plain URL configures the unnamed
+			// provider, which accepts logins of any domain.
+			name, spec = "", arg
+		} else if name == "" || strings.ContainsAny(name, ":/") {
+			return nil, fmt.Errorf("invalid upstream %q: expected url, domain or domain=url", arg)
+		} else if !explicit {
+			spec = name
+		}
+		u, err := parseUpstream(spec)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse upstream %q: %v", upstream, err)
+			return nil, fmt.Errorf("failed to parse upstream %q: %v", arg, err)
 		}
-		if _, ok := s.upstreams[u.Scheme]; ok {
-			return nil, fmt.Errorf("found two upstream servers for scheme %q", u.Scheme)
+		d, ok := s.domains[name]
+		if !ok {
+			d = &domainUpstreams{upstreams: make(map[string]*url.URL)}
+			s.domains[name] = d
 		}
-		s.upstreams[u.Scheme] = u
+		if _, ok := d.upstreams[u.Scheme]; ok {
+			return nil, fmt.Errorf("domain %q: found two upstream servers for scheme %q", name, u.Scheme)
+		}
+		d.upstreams[u.Scheme] = u
+	}
+	if len(s.domains) == 0 {
+		return nil, fmt.Errorf("no upstreams specified")
+	}
+	if _, ok := s.domains[""]; ok && len(s.domains) > 1 {
+		return nil, fmt.Errorf("cannot mix plain upstream URLs with domains")
 	}
 
-	if err := s.parseIMAPUpstream(); err != nil {
-		return nil, err
+	for _, name := range s.Domains() {
+		// A domain without a reachable IMAP or SMTP configuration (e.g.
+		// missing SRV records) must not take the whole server down with it.
+		if err := s.parseIMAPUpstream(name); err != nil {
+			s.e.Logger.Printf("Warning: dropping domain %q: %v", name, err)
+			delete(s.domains, name)
+			continue
+		}
+		if err := s.parseSMTPUpstream(name); err != nil {
+			s.e.Logger.Printf("Warning: dropping domain %q: %v", name, err)
+			delete(s.domains, name)
+			continue
+		}
+		if err := s.parseSieveUpstream(name); err != nil {
+			return nil, err
+		}
 	}
-	if err := s.parseSMTPUpstream(); err != nil {
-		return nil, err
-	}
-	if err := s.parseSieveUpstream(); err != nil {
-		return nil, err
+	if len(s.domains) == 0 {
+		return nil, fmt.Errorf("no usable domains left")
 	}
 
 	s.Sessions = newSessionManager(s.dialIMAP, s.dialSMTP, s.dialSieve, e.Logger)
 	return s, nil
+}
+
+// Domains lists the served mail domains in stable order.
+func (s *Server) Domains() []string {
+	names := make([]string, 0, len(s.domains))
+	for name := range s.domains {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// UnknownDomainError is returned when a login address does not belong to a
+// served domain.
+type UnknownDomainError struct {
+	Domain string
+}
+
+func (err UnknownDomainError) Error() string {
+	if err.Domain == "" {
+		return "log in with a full user@domain address"
+	}
+	return fmt.Sprintf("mail domain %q is not served here", err.Domain)
 }
 
 func (s *Server) Close() {
@@ -96,14 +157,28 @@ func (err *NoUpstreamError) Error() string {
 	return fmt.Sprintf("no upstream server configured for schemes %v", err.schemes)
 }
 
-// Upstream retrieves the configured upstream server URL for the provided
+// upstreamsFor resolves the domain's provider, falling back to the unnamed
+// provider, which accepts any domain.
+func (s *Server) upstreamsFor(domain string) (*domainUpstreams, bool) {
+	d, ok := s.domains[domain]
+	if !ok {
+		d, ok = s.domains[""]
+	}
+	return d, ok
+}
+
+// Upstream retrieves the domain's upstream server URL for the provided
 // schemes. If no configured upstream server matches, a *NoUpstreamError is
 // returned. An empty URL.Scheme means that the caller needs to perform
 // auto-discovery with URL.Host.
-func (s *Server) Upstream(schemes ...string) (*url.URL, error) {
+func (s *Server) Upstream(domain string, schemes ...string) (*url.URL, error) {
+	d, ok := s.upstreamsFor(domain)
+	if !ok {
+		return nil, UnknownDomainError{domain}
+	}
 	var urls []*url.URL
 	for _, scheme := range append(schemes, "") {
-		u, ok := s.upstreams[scheme]
+		u, ok := d.upstreams[scheme]
 		if ok {
 			urls = append(urls, u)
 		}
@@ -117,38 +192,40 @@ func (s *Server) Upstream(schemes ...string) (*url.URL, error) {
 	return urls[0], nil
 }
 
-func (s *Server) parseIMAPUpstream() error {
-	u, err := s.Upstream("imap", "imaps", "imap+insecure")
+func (s *Server) parseIMAPUpstream(domain string) error {
+	d := s.domains[domain]
+
+	u, err := s.Upstream(domain, "imap", "imaps", "imap+insecure")
 	if err != nil {
-		return fmt.Errorf("failed to parse upstream IMAP server: %v", err)
+		return fmt.Errorf("domain %q: failed to parse upstream IMAP server: %v", domain, err)
 	}
 
 	if u.Scheme == "" {
 		u, err = discoverIMAP(u.Host)
 		if err != nil {
-			return fmt.Errorf("failed to discover IMAP server: %v", err)
+			return fmt.Errorf("domain %q: failed to discover IMAP server: %v", domain, err)
 		}
 	}
 
 	switch u.Scheme {
 	case "imaps":
-		s.imap.tls = true
+		d.imap.tls = true
 	case "imap+insecure":
-		s.imap.insecure = true
+		d.imap.insecure = true
 	}
 
-	s.imap.host = u.Host
-	if !strings.ContainsRune(s.imap.host, ':') {
+	d.imap.host = u.Host
+	if !strings.ContainsRune(d.imap.host, ':') {
 		if u.Scheme == "imaps" {
-			s.imap.host += ":993"
+			d.imap.host += ":993"
 		} else {
-			s.imap.host += ":143"
+			d.imap.host += ":143"
 		}
 	}
 
-	s.e.Logger.Printf("Configured upstream IMAP server: %v", u)
+	s.e.Logger.Printf("Domain %q: configured upstream IMAP server: %v", domain, u)
 
-	c, err := s.dialIMAP()
+	c, err := s.dialIMAP(domain)
 	if err != nil {
 		s.e.Logger.Printf("Warning: IMAP server %v not reachable at startup: %v", u, err)
 	} else {
@@ -157,41 +234,43 @@ func (s *Server) parseIMAPUpstream() error {
 	return nil
 }
 
-func (s *Server) parseSMTPUpstream() error {
-	u, err := s.Upstream("smtp", "smtps", "smtp+insecure")
+func (s *Server) parseSMTPUpstream(domain string) error {
+	d := s.domains[domain]
+
+	u, err := s.Upstream(domain, "smtp", "smtps", "smtp+insecure")
 	if _, ok := err.(*NoUpstreamError); ok {
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("failed to parse upstream SMTP server: %v", err)
+		return fmt.Errorf("domain %q: failed to parse upstream SMTP server: %v", domain, err)
 	}
 
 	if u.Scheme == "" {
 		u, err = discoverSMTP(u.Host)
 		if err != nil {
-			s.e.Logger.Printf("Failed to discover SMTP server: %v", err)
+			s.e.Logger.Printf("Domain %q: failed to discover SMTP server: %v", domain, err)
 			return nil
 		}
 	}
 
 	switch u.Scheme {
 	case "smtps":
-		s.smtp.tls = true
+		d.smtp.tls = true
 	case "smtp+insecure":
-		s.smtp.insecure = true
+		d.smtp.insecure = true
 	}
 
-	s.smtp.host = u.Host
-	if !strings.ContainsRune(s.smtp.host, ':') {
+	d.smtp.host = u.Host
+	if !strings.ContainsRune(d.smtp.host, ':') {
 		if u.Scheme == "smtps" {
-			s.smtp.host += ":465"
+			d.smtp.host += ":465"
 		} else {
-			s.smtp.host += ":587"
+			d.smtp.host += ":587"
 		}
 	}
 
-	s.e.Logger.Printf("Configured upstream SMTP server: %v", u)
+	s.e.Logger.Printf("Domain %q: configured upstream SMTP server: %v", domain, u)
 
-	c, err := s.dialSMTP()
+	c, err := s.dialSMTP(domain)
 	if err != nil {
 		s.e.Logger.Printf("Warning: SMTP server %v not reachable at startup: %v", u, err)
 	} else {

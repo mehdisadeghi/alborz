@@ -94,6 +94,14 @@ func (g *GlobalRenderData) Weekdays() []string {
 	return result
 }
 
+// pluginEnabled reports whether the plugin applies to the request's
+// session. The Enabled method is optional so that the Plugin interface
+// stays unchanged for plugins serving every domain.
+func pluginEnabled(p Plugin, ctx *Context) bool {
+	e, ok := p.(interface{ Enabled(*Context) bool })
+	return !ok || e.Enabled(ctx)
+}
+
 // RenderData is implemented by template data structs. It can be used to inject
 // additional data to all templates.
 type RenderData interface {
@@ -130,7 +138,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 			}
 			for _, plugin := range ctx.Server.plugins {
 				if plugin.Name() == name {
-					return true
+					return pluginEnabled(plugin, ctx)
 				}
 			}
 			return false
@@ -183,6 +191,9 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 	}
 
 	for _, plugin := range ctx.Server.plugins {
+		if !pluginEnabled(plugin, ctx) {
+			continue
+		}
 		if err := plugin.Inject(ctx, name, renderData); err != nil {
 			return fmt.Errorf("failed to run plugin %q: %v", plugin.Name(), err)
 		}

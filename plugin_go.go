@@ -55,6 +55,13 @@ func (p *goPlugin) Inject(ctx *Context, name string, data RenderData) error {
 	return nil
 }
 
+func (p *goPlugin) Enabled(ctx *Context) bool {
+	if p.p.EnabledFunc == nil {
+		return true
+	}
+	return p.p.EnabledFunc(ctx)
+}
+
 func (p *goPlugin) Close() error {
 	if p.p.CloseFunc == nil {
 		return nil
@@ -80,6 +87,9 @@ type GoPlugin struct {
 	// CloseFunc releases plugin resources on server close or reload;
 	// nil means nothing to release.
 	CloseFunc func() error
+	// EnabledFunc reports per-request availability; nil means always
+	// enabled.
+	EnabledFunc func(*Context) bool
 
 	routes []goPluginRoute
 

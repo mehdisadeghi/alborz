@@ -287,10 +287,11 @@ func newClient(u *url.URL, httpClient *http.Client) (*caldav.Client, error) {
 }
 
 func (p *plugin) clientWithCalendars(ctx context.Context, session *alps.Session) (*caldav.Client, []CalendarInfo, error) {
-	c, err := newClient(p.url, p.httpClient(session))
+	c, err := p.client(session)
 	if err != nil {
 		return nil, nil, err
 	}
+	davBase, _ := p.davURL(session)
 
 	principal, err := c.FindCurrentUserPrincipal(ctx)
 	if err != nil {
@@ -302,7 +303,7 @@ func (p *plugin) clientWithCalendars(ctx context.Context, session *alps.Session)
 		return nil, nil, fmt.Errorf("failed to query CalDAV calendar home set: %v", err)
 	}
 
-	infos, err := listCalendars(ctx, p.httpClient(session), p.url, calendarHomeSet)
+	infos, err := listCalendars(ctx, p.httpClient(session), davBase, calendarHomeSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find calendars: %v", err)
 	}

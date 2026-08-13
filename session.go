@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +52,7 @@ func (err AuthError) Error() string {
 type Session struct {
 	manager            *SessionManager
 	username, password string
+	domain             string
 	token              string
 	closed             chan struct{}
 	pings              chan struct{}
@@ -81,6 +83,12 @@ func (s *Session) Username() string {
 	return s.username
 }
 
+// Domain returns the domain part of the session's address, which selects the
+// upstream servers.
+func (s *Session) Domain() string {
+	return s.domain
+}
+
 // DoIMAP executes an IMAP operation on this session. The IMAP client can only
 // be used from inside f.
 func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
@@ -94,7 +102,7 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 
 	if s.imapConn == nil {
 		var err error
-		s.imapConn, err = s.manager.connectIMAP(s.username, s.password)
+		s.imapConn, err = s.manager.connectIMAP(s.domain, s.username, s.password)
 		if err != nil {
 			s.Close()
 			return fmt.Errorf("failed to re-connect to IMAP server: %w", err)
@@ -109,7 +117,7 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 // DoSMTP executes an SMTP operation on this session. The SMTP client can only
 // be used from inside f.
 func (s *Session) DoSMTP(f func(*smtp.Client) error) error {
-	c, err := s.manager.dialSMTP()
+	c, err := s.manager.dialSMTP(s.domain)
 	if err != nil {
 		return err
 	}
@@ -147,7 +155,7 @@ func (s *Session) DoSieve(f func(SieveClient) error) error {
 		}
 	}
 	if s.sieveConn == nil {
-		c, err := s.manager.dialSieve(s.username, s.password)
+		c, err := s.manager.dialSieve(s.domain, s.username, s.password)
 		if err != nil {
 			return err
 		}
@@ -234,10 +242,10 @@ func (s *Session) Store() Store {
 }
 
 type (
-	// DialIMAPFunc connects to the upstream IMAP server.
-	DialIMAPFunc func() (*imapclient.Client, error)
-	// DialSMTPFunc connects to the upstream SMTP server.
-	DialSMTPFunc func() (*smtp.Client, error)
+	// DialIMAPFunc connects to the domain's upstream IMAP server.
+	DialIMAPFunc func(domain string) (*imapclient.Client, error)
+	// DialSMTPFunc connects to the domain's upstream SMTP server.
+	DialSMTPFunc func(domain string) (*smtp.Client, error)
 )
 
 // SessionManager keeps track of active sessions. It connects and re-connects
@@ -268,8 +276,8 @@ func (sm *SessionManager) Close() {
 	}
 }
 
-func (sm *SessionManager) connectIMAP(username, password string) (*imapclient.Client, error) {
-	c, err := sm.dialIMAP()
+func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapclient.Client, error) {
+	c, err := sm.dialIMAP(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -294,9 +302,11 @@ func (sm *SessionManager) get(token string) (*Session, error) {
 }
 
 // Put connects to the IMAP server and creates a new session. If authentication
-// fails, the error will be of type AuthError.
+// fails, the error will be of type AuthError. Addresses outside the served
+// domains are rejected with UnknownDomainError.
 func (sm *SessionManager) Put(username, password string) (*Session, error) {
-	c, err := sm.connectIMAP(username, password)
+	_, domain, _ := strings.Cut(username, "@")
+	c, err := sm.connectIMAP(domain, username, password)
 	if err != nil {
 		return nil, err
 	}
@@ -324,6 +334,7 @@ func (sm *SessionManager) Put(username, password string) (*Session, error) {
 		imapConn:    c,
 		username:    username,
 		password:    password,
+		domain:      domain,
 		token:       token,
 		attachments: make(map[string]*Attachment),
 	}

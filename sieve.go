@@ -32,33 +32,35 @@ type SieveClient interface {
 	Close() error
 }
 
-// DialSieveFunc connects to the upstream ManageSieve server and
+// DialSieveFunc connects to the domain's upstream ManageSieve server and
 // authenticates with the given credentials.
-type DialSieveFunc func(username, password string) (SieveClient, error)
+type DialSieveFunc func(domain, username, password string) (SieveClient, error)
 
-func (s *Server) parseSieveUpstream() error {
+func (s *Server) parseSieveUpstream(domain string) error {
+	d := s.domains[domain]
+
 	// Unlike Server.Upstream, the scheme-less bare domain upstream must
 	// not win over an explicit sieve:// URL, so look up schemes directly.
 	var u *url.URL
 	for _, scheme := range []string{"sieve", "sieve+insecure"} {
-		v, ok := s.upstreams[scheme]
+		v, ok := d.upstreams[scheme]
 		if !ok {
 			continue
 		}
 		if u != nil {
-			return fmt.Errorf("multiple upstream ManageSieve servers configured")
+			return fmt.Errorf("domain %q: multiple upstream ManageSieve servers configured", domain)
 		}
 		u = v
 	}
 	if u == nil {
-		v, ok := s.upstreams[""]
+		v, ok := d.upstreams[""]
 		if !ok {
 			return nil
 		}
 		var err error
 		u, err = discoverSieve(v.Host)
 		if err != nil {
-			s.e.Logger.Printf("Failed to discover ManageSieve server: %v", err)
+			s.e.Logger.Printf("Domain %q: failed to discover ManageSieve server: %v", domain, err)
 			return nil
 		}
 		if u == nil {
@@ -72,30 +74,33 @@ func (s *Server) parseSieveUpstream() error {
 		host = net.JoinHostPort(host, "4190")
 	}
 
-	s.sieve.host = host
-	s.sieve.insecure = u.Scheme == "sieve+insecure"
+	d.sieve.host = host
+	d.sieve.insecure = u.Scheme == "sieve+insecure"
 
-	s.e.Logger.Printf("Configured upstream ManageSieve server: %v", host)
+	s.e.Logger.Printf("Domain %q: configured upstream ManageSieve server: %v", domain, host)
 	return nil
 }
 
-// SieveEnabled reports whether an upstream ManageSieve server is configured.
-func (s *Server) SieveEnabled() bool {
-	return s.sieve.host != ""
+// SieveEnabled reports whether an upstream ManageSieve server is configured
+// for the domain.
+func (s *Server) SieveEnabled(domain string) bool {
+	d, ok := s.upstreamsFor(domain)
+	return ok && d.sieve.host != ""
 }
 
-func (s *Server) dialSieve(username, password string) (SieveClient, error) {
-	if s.sieve.host == "" {
-		return nil, fmt.Errorf("ManageSieve is disabled")
+func (s *Server) dialSieve(domain, username, password string) (SieveClient, error) {
+	d, _ := s.upstreamsFor(domain)
+	if d.sieve.host == "" {
+		return nil, fmt.Errorf("ManageSieve is disabled for domain %q", domain)
 	}
 
-	c, err := managesieve.Dial(s.sieve.host)
+	c, err := managesieve.Dial(d.sieve.host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ManageSieve server: %v", err)
 	}
 
-	host, _, _ := net.SplitHostPort(s.sieve.host)
-	if !s.sieve.insecure {
+	host, _, _ := net.SplitHostPort(d.sieve.host)
+	if !d.sieve.insecure {
 		if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
 			c.Close()
 			return nil, fmt.Errorf("STARTTLS failed: %v", err)

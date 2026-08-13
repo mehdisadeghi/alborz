@@ -35,19 +35,34 @@ func sanityCheckURL(u *url.URL) error {
 
 type plugin struct {
 	alps.GoPlugin
-	url   *url.URL
+	urls  map[string]*url.URL // CardDAV endpoint per served mail domain
 	cache *davcache.Cache
 }
 
 func (p *plugin) client(session *alps.Session) (*carddav.Client, error) {
-	return newClient(p.url, p.httpClient(session))
+	u, ok := p.davURL(session)
+	if !ok {
+		return nil, errNoAddressBook
+	}
+	return newClient(u, p.httpClient(session))
+}
+
+// davURL resolves the session's CardDAV endpoint, falling back to the
+// unnamed provider's.
+func (p *plugin) davURL(session *alps.Session) (*url.URL, bool) {
+	u, ok := p.urls[session.Domain()]
+	if !ok {
+		u, ok = p.urls[""]
+	}
+	return u, ok
 }
 
 func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alps.Session) (*carddav.Client, []AddressBookInfo, error) {
-	c, err := newClient(p.url, p.httpClient(session))
+	c, err := p.client(session)
 	if err != nil {
 		return nil, nil, err
 	}
+	davBase, _ := p.davURL(session)
 
 	principal, err := c.FindCurrentUserPrincipal(ctx)
 	if err != nil {
@@ -59,7 +74,7 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alps.Sessi
 		return nil, nil, fmt.Errorf("failed to query CardDAV address book home set: %v", err)
 	}
 
-	infos, err := listAddressBooks(ctx, p.httpClient(session), p.url, homeSet)
+	infos, err := listAddressBooks(ctx, p.httpClient(session), davBase, homeSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query CardDAV address books: %v", err)
 	}
@@ -78,13 +93,17 @@ func (p *plugin) clientWithAddressBook(ctx context.Context, session *alps.Sessio
 	return c, &addressBooks[0], nil
 }
 
-func newPlugin(srv *alps.Server) (alps.Plugin, error) {
-	u, err := srv.Upstream("carddavs", "carddav+insecure", "https", "http+insecure")
+// domainURL resolves the domain's CardDAV endpoint; nil without error means
+// the domain has none.
+func domainURL(srv *alps.Server, domain string) (*url.URL, error) {
+	u, err := srv.Upstream(domain, "carddavs", "carddav+insecure", "https", "http+insecure")
 	if _, ok := err.(*alps.NoUpstreamError); ok {
 		return nil, nil
 	} else if err != nil {
-		return nil, fmt.Errorf("carddav: failed to parse upstream CardDAV server: %v", err)
+		return nil, fmt.Errorf("carddav: domain %q: failed to parse upstream CardDAV server: %v", domain, err)
 	}
+	v := *u // don't mutate the server's upstream config
+	u = &v
 	switch u.Scheme {
 	case "carddavs":
 		u.Scheme = "https"
@@ -94,7 +113,7 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 	if u.Scheme == "" {
 		s, err := carddav.DiscoverContextURL(context.Background(), u.Host)
 		if err != nil {
-			srv.Logger().Printf("carddav: failed to discover CardDAV server: %v", err)
+			srv.Logger().Printf("carddav: domain %q: failed to discover CardDAV server: %v", domain, err)
 			return nil, nil
 		}
 		u, err = url.Parse(s)
@@ -104,14 +123,38 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 	}
 
 	if err := sanityCheckURL(u); err != nil {
-		return nil, fmt.Errorf("carddav: failed to connect to CardDAV server %q: %v", u, err)
+		return nil, fmt.Errorf("carddav: domain %q: failed to connect to CardDAV server %q: %v", domain, u, err)
 	}
 
-	srv.Logger().Printf("Configured upstream CardDAV server: %v", u)
+	srv.Logger().Printf("Domain %q: configured upstream CardDAV server: %v", domain, u)
+	return u, nil
+}
+
+func newPlugin(srv *alps.Server) (alps.Plugin, error) {
+	urls := make(map[string]*url.URL)
+	for _, domain := range srv.Domains() {
+		u, err := domainURL(srv, domain)
+		if err != nil {
+			return nil, err
+		}
+		if u != nil {
+			urls[domain] = u
+		}
+	}
+	if len(urls) == 0 {
+		return nil, nil
+	}
 
 	p := &plugin{
 		GoPlugin: alps.GoPlugin{Name: "carddav"},
-		url:      u,
+		urls:     urls,
+	}
+	p.EnabledFunc = func(ctx *alps.Context) bool {
+		if ctx.Session == nil {
+			return false
+		}
+		_, ok := p.davURL(ctx.Session)
+		return ok
 	}
 	p.cache = davcache.New()
 	p.cache.Start()

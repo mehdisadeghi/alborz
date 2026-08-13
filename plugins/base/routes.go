@@ -395,8 +395,14 @@ func handleLogin(ctx *alps.Context) error {
 	if username != "" && password != "" {
 		s, err := ctx.Server.Sessions.Put(username, password)
 		if err != nil {
+			ctx.Logger().Printf("Login failed for %q: %v", username, err)
 			if _, ok := err.(alps.AuthError); ok {
 				renderData.BaseRenderData.GlobalData.Notice = "Failed to login!"
+				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
+			}
+			var domainErr alps.UnknownDomainError
+			if errors.As(err, &domainErr) {
+				renderData.BaseRenderData.GlobalData.Notice = "Failed to login: " + domainErr.Error()
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
 			}
 			var netErr *net.OpError

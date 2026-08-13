@@ -24,15 +24,26 @@
 
       <section class="contacts">
         <div class="contact-grid">
+          {{if .AddressObjects}}
+          <div class="contact-list-checkbox"></div>
+          <div class="contact-list-photo"></div>
+          <div class="contact-list-header">Name</div>
+          <div class="contact-list-header">Email</div>
+          <div class="contact-list-header">Phone</div>
+          {{end}}
           {{range .AddressObjects}}
           {{$color := call $.ColorForPath .Path}}
+          {{$photo := .PhotoURL}}
           <div class="contact-list-checkbox">
             <input type="checkbox" name="paths" value="{{.Path}}" form="address-book-form">
+          </div>
+          <div class="contact-list-photo">
+            {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
           </div>
           <div class="contact-list-name">
             {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
             <a href="{{.URL}}">
-              {{.Card.Value "FN"}}
+              {{.DisplayName}}
             </a>
           </div>
           <div class="contact-list-email">
@@ -40,6 +51,9 @@
             {{if $email}}
               <a href="/compose?to={{$email}}">{{$email}}</a>
             {{end}}
+          </div>
+          <div class="contact-list-phone">
+            {{.Card.PreferredValue "TEL"}}
           </div>
           {{end}}
           {{if not .AddressObjects}}

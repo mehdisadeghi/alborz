@@ -3,8 +3,10 @@ package alpscarddav
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"git.sr.ht/~migadu/alps"
 	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
@@ -117,6 +119,23 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 		p.cache.Stop()
 		return nil
 	}
+
+	p.TemplateFuncs(template.FuncMap{
+		"photodatauri": func(data string) template.URL {
+			if data == "" {
+				return ""
+			}
+			// Remote photo URLs would leak the viewer's address and the
+			// CSP blocks them anyway; show nothing instead.
+			if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
+				return ""
+			}
+			if strings.HasPrefix(data, "data:") {
+				return template.URL(data)
+			}
+			return template.URL("data:image/jpeg;base64," + data)
+		},
+	})
 
 	registerRoutes(p)
 

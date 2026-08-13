@@ -379,6 +379,7 @@ type Options struct {
 	ThemesPath string
 	Debug      bool
 	LoginKey   *fernet.Key
+	Version    string
 }
 
 // New creates a new server.

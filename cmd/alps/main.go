@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,6 +27,37 @@ import (
 )
 
 var themesPath = "./themes"
+
+// Version from the VCS metadata the go tool embeds into the binary;
+// empty for unstamped builds such as go run.
+func buildVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	var revision, date string
+	var dirty bool
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			revision = s.Value
+		case "vcs.time":
+			date, _, _ = strings.Cut(s.Value, "T")
+		case "vcs.modified":
+			dirty = s.Value == "true"
+		}
+	}
+	if revision == "" {
+		return ""
+	}
+	if len(revision) > 7 {
+		revision = revision[:7]
+	}
+	if dirty {
+		revision += "-dirty"
+	}
+	return strings.TrimSpace(revision + " " + date)
+}
 
 func main() {
 	var (
@@ -56,6 +89,7 @@ bare domain for SRV auto-discovery.
 		os.Exit(2)
 	}
 	options.ThemesPath = themesPath
+	options.Version = buildVersion()
 
 	if loginKey != "" {
 		fernetKey, err := fernet.DecodeKey(loginKey)

@@ -29,6 +29,9 @@ type GlobalRenderData struct {
 
 	Notice string
 
+	// Build version, empty when the binary carries no VCS metadata
+	Version string
+
 	// User's timezone location for date formatting
 	Timezone *time.Location
 
@@ -132,6 +135,10 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 			}
 			return false
 		},
+	}
+
+	if isactx {
+		global.Version = ctx.Server.Options.Version
 	}
 
 	if isactx && ctx.Session != nil {

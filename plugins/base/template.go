@@ -17,6 +17,23 @@ const (
 )
 
 var templateFuncs = template.FuncMap{
+	// Registered here rather than in the carddav plugin because the theme
+	// references it and a template function must exist at parse time even
+	// when that plugin is absent.
+	"photodatauri": func(data string) template.URL {
+		if data == "" {
+			return ""
+		}
+		// Remote photo URLs would leak the viewer's address and the
+		// CSP blocks them anyway; show nothing instead.
+		if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
+			return ""
+		}
+		if strings.HasPrefix(data, "data:") {
+			return template.URL(data)
+		}
+		return template.URL("data:image/jpeg;base64," + data)
+	},
 	"tuple": func(values ...interface{}) []interface{} {
 		return values
 	},

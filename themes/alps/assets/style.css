@@ -446,7 +446,6 @@ main.message .tabs a:hover {
 
 main.message pre,
 main.message iframe,
-main.contact .details,
 main.event pre {
   flex: 1 auto;
   padding: 1rem;
@@ -487,11 +486,63 @@ main.message .message-header .parts li {
   margin-left: 0;
 }
 
-main.contact dl {
+/* View pages (contact, task, event) */
+main.contact .details,
+main.task .details,
+main.event .details {
+  padding: 1rem;
+}
+
+main.contact .details h1,
+main.task .details h1,
+main.event .details h1 {
+  margin: 0 0 1rem 0;
+}
+
+main.contact dl,
+main.task dl {
   display: grid;
   grid-template-columns: auto 1fr;
-  grid-template-rows: 1fr;
-  grid-gap: 1rem;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+main.contact dl dt,
+main.task dl dt {
+  font-weight: 500;
+  color: #666;
+}
+
+main.contact dl dd,
+main.task dl dd {
+  margin: 0;
+}
+
+main.contact dl dd.contact-address {
+  white-space: pre-line;
+}
+
+main.event .details table {
+  border-collapse: collapse;
+}
+
+main.event .details th,
+main.event .details td {
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+}
+
+main.event .details th {
+  color: #666;
+  font-weight: 500;
+}
+
+.contact-photo {
+  float: right;
+  max-width: 120px;
+  max-height: 120px;
+  border-radius: 8px;
+  margin-left: 1rem;
 }
 
 main.create-update .actions {
@@ -637,6 +688,8 @@ main table tfoot {
   display: flex;
   flex-grow: 1;
   flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .actions-search {
@@ -649,14 +702,13 @@ main table tfoot {
   margin-left: 1rem;
   display: flex;
   flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.actions-pagination .button-link {
-  padding: 0.3rem 0.5rem;
-}
-
-.actions-pagination .button-link:not(:last-child) {
-  margin-right: 0.3rem;
+.actions-pagination h3 {
+  margin: 0;
+  font-weight: 500;
 }
 
 .action-group:not(:last-child) {
@@ -698,6 +750,25 @@ main table tfoot {
   align-items: center;
 }
 
+.actions-left,
+.actions-right {
+  display: flex;
+  align-items: center;
+}
+
+.actions-left a,
+.actions-right a {
+  padding: 0.3rem 0.5rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.actions-message h2 {
+  margin: 0;
+  text-align: center;
+  flex-grow: 1;
+}
+
 .message-list-checkbox,
 .contact-list-checkbox {
   align-self: center;
@@ -716,8 +787,27 @@ main table tfoot {
 
 .contact-grid {
   display: grid;
-  grid-template-columns: auto 1fr 3fr;
+  grid-template-columns: auto 2rem 1fr 2fr 1fr;
   grid-template-rows: auto;
+}
+
+.contact-list-photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.contact-list-photo img {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.contact-list-header {
+  font-weight: bold;
+  color: #666;
+  border-bottom: 1px solid #ccc;
 }
 
 .message-list .messages .message-grid > *,

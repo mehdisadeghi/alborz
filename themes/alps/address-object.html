@@ -32,12 +32,43 @@
       </section>
 
       <section class="details">
-        {{$fn := .AddressObject.Card.Value "FN"}}
-        <h1>{{$fn}}</h1>
+        {{$photo := .AddressObject.PhotoURL}}
+        {{if $photo}}
+        <img class="contact-photo" src="{{photodatauri $photo}}" alt="">
+        {{end}}
+        <h1>{{.AddressObject.DisplayName}}</h1>
         <dl>
           {{range .AddressObject.Card.Values "EMAIL"}}
-          <dt>Email address</dt>
+          <dt>Email</dt>
           <dd><a href="/compose?to={{.}}">{{.}}</a></dd>
+          {{end}}
+          {{range .AddressObject.Card.Values "TEL"}}
+          <dt>Phone</dt>
+          <dd><a href="tel:{{.}}">{{.}}</a></dd>
+          {{end}}
+          {{with .AddressObject.Card.PreferredValue "ORG"}}
+          <dt>Organization</dt>
+          <dd>{{.}}</dd>
+          {{end}}
+          {{with .AddressObject.Card.PreferredValue "TITLE"}}
+          <dt>Job title</dt>
+          <dd>{{.}}</dd>
+          {{end}}
+          {{with $.Birthday}}
+          <dt>Birthday</dt>
+          <dd>{{.}}</dd>
+          {{end}}
+          {{with .AddressObject.Card.PreferredValue "URL"}}
+          <dt>Website</dt>
+          <dd><a href="{{.}}">{{.}}</a></dd>
+          {{end}}
+          {{with .AddressObject.Card.Address}}
+          <dt>Address</dt>
+          <dd class="contact-address">{{.StreetAddress}}</dd>
+          {{end}}
+          {{with .AddressObject.Card.Value "NOTE"}}
+          <dt>Notes</dt>
+          <dd class="contact-address">{{.}}</dd>
           {{end}}
         </dl>
       </section>

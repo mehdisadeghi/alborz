@@ -22,6 +22,7 @@ type GlobalRenderData struct {
 
 	// if logged in
 	Username string
+	Accounts []Account
 
 	Title string
 
@@ -152,6 +153,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	if isactx && ctx.Session != nil {
 		global.LoggedIn = true
 		global.Username = ctx.Session.username
+		global.Accounts = ctx.Accounts()
 		global.Notice = ctx.Session.PopNotice()
 	}
 

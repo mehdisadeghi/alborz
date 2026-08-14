@@ -18,7 +18,8 @@ import (
 const (
 	cookieName           = "alps_session"
 	accountsCookieName   = "alps_accounts"
-	loginTokenCookieName = "alps_login_token"
+	activeUserCookieName = "alps_user"
+	loginTokenCookieName = "alps_login_tokens"
 )
 
 // Server holds all the alps server state.
@@ -368,8 +369,29 @@ func (ctx *Context) SetSession(s *Session) {
 	}
 	if s != nil {
 		cookie.Value = s.token
+		ctx.setActiveUser(s.username)
 	} else {
 		cookie.Expires = aLongTimeAgo // unset the cookie
+	}
+	ctx.SetCookie(&cookie)
+}
+
+// setActiveUser records the active account's username so the login page can
+// re-authenticate the same identity after its session expired. It
+// deliberately survives session expiry; only the final logout clears it.
+func (ctx *Context) setActiveUser(username string) {
+	cookie := http.Cookie{
+		Name:     activeUserCookieName,
+		Path:     "/",
+		Expires:  time.Now().Add(30 * 24 * time.Hour),
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   ctx.secureCookies(),
+	}
+	if username == "" {
+		cookie.Expires = aLongTimeAgo // unset the cookie
+	} else {
+		cookie.Value = url.QueryEscape(username)
 	}
 	ctx.SetCookie(&cookie)
 }
@@ -488,7 +510,7 @@ func (ctx *Context) SwitchAccount(username string) bool {
 
 // Logout closes the active session, removes it from the account list, and
 // promotes the next remaining account, whose session is returned. A nil
-// return means no account is left and both cookies were cleared.
+// return means no account is left and the cookies were cleared.
 func (ctx *Context) Logout() *Session {
 	var remaining []*Session
 	for _, s := range ctx.accountSessions() {
@@ -498,9 +520,11 @@ func (ctx *Context) Logout() *Session {
 	}
 	ctx.Session.Close()
 	ctx.setAccountSessions(remaining)
+	ctx.forgetLoginToken(ctx.Session.username)
 	if len(remaining) == 0 {
 		ctx.Session = nil
 		ctx.SetSession(nil)
+		ctx.setActiveUser("")
 		return nil
 	}
 	ctx.Session = remaining[0]
@@ -513,23 +537,57 @@ type loginToken struct {
 	Password string
 }
 
+// SetLoginToken remembers the account's credentials for automatic
+// re-authentication after session expiry. Re-login of a known account
+// updates its entry in place. The cookie spans the site so logging
+// out at /logout can forget the account's credentials; the payload
+// stays fernet-encrypted with the server's login key.
 func (ctx *Context) SetLoginToken(username, password string) {
+	tokens := ctx.loginTokens()
+	updated := false
+	for i := range tokens {
+		if tokens[i].Username == username {
+			tokens[i].Password = password
+			updated = true
+		}
+	}
+	if !updated {
+		tokens = append(tokens, loginToken{username, password})
+	}
+	ctx.storeLoginTokens(tokens)
+}
+
+// forgetLoginToken drops the account's remembered credentials, so logging
+// out also forgets how to log back in.
+func (ctx *Context) forgetLoginToken(username string) {
+	tokens := ctx.loginTokens()
+	kept := make([]loginToken, 0, len(tokens))
+	for _, t := range tokens {
+		if t.Username != username {
+			kept = append(kept, t)
+		}
+	}
+	if len(kept) < len(tokens) {
+		ctx.storeLoginTokens(kept)
+	}
+}
+
+func (ctx *Context) storeLoginTokens(tokens []loginToken) {
 	cookie := http.Cookie{
 		Expires:  time.Now().Add(30 * 24 * time.Hour),
 		Name:     loginTokenCookieName,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 		Secure:   ctx.secureCookies(),
-		Path:     "/login",
+		Path:     "/",
 	}
-	if username == "" {
+	if len(tokens) == 0 {
 		cookie.Expires = aLongTimeAgo // unset the cookie
 		ctx.SetCookie(&cookie)
 		return
 	}
 
-	loginToken := loginToken{username, password}
-	payload, err := json.Marshal(loginToken)
+	payload, err := json.Marshal(tokens)
 	if err != nil {
 		panic(err) // Should never happen
 	}
@@ -548,30 +606,71 @@ func (ctx *Context) SetLoginToken(username, password string) {
 	ctx.SetCookie(&cookie)
 }
 
-func (ctx *Context) GetLoginToken() (string, string) {
+func (ctx *Context) loginTokens() []loginToken {
 	cookie, err := ctx.Cookie(loginTokenCookieName)
 	if err != nil || cookie == nil {
-		return "", ""
+		return nil
 	}
 
 	fkey := ctx.Server.Options.LoginKey
 	if fkey == nil {
-		return "", ""
+		return nil
 	}
 
 	bytes := fernet.VerifyAndDecrypt([]byte(cookie.Value),
 		24*time.Hour*30, []*fernet.Key{fkey})
 	if bytes == nil {
-		return "", ""
+		return nil
 	}
 
-	var token loginToken
-	err = json.Unmarshal(bytes, &token)
-	if err != nil {
-		panic(err) // Should never happen
+	var tokens []loginToken
+	if err := json.Unmarshal(bytes, &tokens); err != nil {
+		// A cookie from the single-account format; forget it.
+		return nil
 	}
+	return tokens
+}
 
-	return token.Username, token.Password
+// RestoreRememberedAccounts signs every remembered account back in,
+// leaving the recorded active one active, and reports whether any
+// account came back.
+func (ctx *Context) RestoreRememberedAccounts() bool {
+	// The accounts sign in concurrently: one unreachable upstream must
+	// not add its timeout to the others' wait.
+	tokens := ctx.loginTokens()
+	sessions := make([]*Session, len(tokens))
+	var wg sync.WaitGroup
+	for i, token := range tokens {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s, err := ctx.Server.Sessions.Put(token.Username, token.Password)
+			if err != nil {
+				ctx.Logger().Printf("Login failed for %q: %v", token.Username, err)
+				return
+			}
+			sessions[i] = s
+		}()
+	}
+	wg.Wait()
+
+	restored := false
+	for _, s := range sessions {
+		if s == nil {
+			continue
+		}
+		ctx.AddAccount(s)
+		restored = true
+	}
+	if !restored {
+		return false
+	}
+	if cookie, err := ctx.Cookie(activeUserCookieName); err == nil && cookie != nil {
+		if active, err := url.QueryUnescape(cookie.Value); err == nil {
+			ctx.SwitchAccount(active)
+		}
+	}
+	return true
 }
 
 func isPublic(path string) bool {

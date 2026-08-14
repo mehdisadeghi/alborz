@@ -10,7 +10,7 @@ build:
 	$(GO) build -o alps ./cmd/alps
 
 run: build
-	./alps -addr $(ADDR) $(ARGS)
+	./alps -theme alborz -addr $(ADDR) $(ARGS)
 
 # Rebuild and restart on Go changes; reload templates in the running
 # server (SIGUSR1, keeps sessions) on theme changes.

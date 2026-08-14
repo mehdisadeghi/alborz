@@ -5,6 +5,7 @@
 /themes/*
 !/themes/sourcehut
 !/themes/alps
+!/themes/alborz
 /plugins/*
 !/plugins/base
 !/plugins/caldav

@@ -392,10 +392,10 @@ func handleLogin(ctx *alps.Context) error {
 		Add:            add,
 	}
 
-	// The remembered credentials would re-login the account the user
+	// The remembered credentials would re-login the accounts the user
 	// already has, not add a new one.
-	if username == "" && password == "" && !add {
-		username, password = ctx.GetLoginToken()
+	if username == "" && password == "" && !add && ctx.RestoreRememberedAccounts() {
+		return loginRedirect(ctx)
 	}
 
 	if username != "" && password != "" {
@@ -424,13 +424,18 @@ func handleLogin(ctx *alps.Context) error {
 			ctx.SetLoginToken(username, password)
 		}
 
-		if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != "/login" {
-			return ctx.Redirect(http.StatusFound, path)
-		}
-		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+		return loginRedirect(ctx)
 	}
 
 	return ctx.Render(http.StatusOK, "login.html", &renderData)
+}
+
+// loginRedirect honors the next parameter after a successful login.
+func loginRedirect(ctx *alps.Context) error {
+	if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != "/login" {
+		return ctx.Redirect(http.StatusFound, path)
+	}
+	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 }
 
 func handleLogout(ctx *alps.Context) error {
@@ -438,7 +443,6 @@ func handleLogout(ctx *alps.Context) error {
 		next.PutNotice("Signed in as " + next.Username() + ".")
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	}
-	ctx.SetLoginToken("", "")
 	return ctx.Redirect(http.StatusFound, "/login")
 }
 

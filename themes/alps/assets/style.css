@@ -769,7 +769,7 @@ main table tfoot {
   font-weight: 500;
 }
 
-.actions-pagination .pagination-range {
+.pagination-range {
   color: #666;
   white-space: nowrap;
 }

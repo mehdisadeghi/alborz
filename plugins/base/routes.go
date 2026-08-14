@@ -457,6 +457,13 @@ type MessageRenderData struct {
 	View        interface{}
 	MailboxPage int
 	Flags       map[imap.Flag]bool
+
+	// Neighbors in the view the message was opened from; nil when absent.
+	NewerURL *url.URL
+	OlderURL *url.URL
+	Position int
+	Total    int
+	Query    string
 }
 
 func handleGetPart(ctx *alps.Context, raw bool) error {
@@ -481,19 +488,46 @@ func handleGetPart(ctx *alps.Context, raw bool) error {
 	}
 	messagesPerPage := settings.MessagesPerPage
 
+	query := ctx.QueryParam("query")
+	var criteria *imap.SearchCriteria
+	if query != "" {
+		criteria = PrepareSearch(query)
+	} else if ibase.Starred {
+		criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+	}
+
 	var msg *IMAPMessage
 	var part *message.Entity
 	var selected *imapclient.SelectedMailbox
+	var newerUID, olderUID imap.UID
+	var position, totalMsgs int
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
 		var err error
 		if msg, part, err = getMessagePart(c, mbox.Name(), uid, partPath); err != nil {
 			return err
 		}
 		selected = c.Mailbox()
-		return nil
+		if !raw {
+			newerUID, olderUID, position, totalMsgs, err = messageNeighbors(c, msg.SeqNum, criteria)
+		}
+		return err
 	})
 	if err != nil {
 		return err
+	}
+
+	// A link naming no part, like Newer and Older, opens the part the
+	// mailbox rows would link to; the bare envelope has no viewer.
+	if !raw && ctx.QueryParam("part") == "" {
+		preferred := msg.TextPart()
+		if preferred == nil {
+			preferred = msg.HTMLPart()
+		}
+		if preferred != nil && len(preferred.Path) > 0 {
+			q := ctx.Request().URL.Query()
+			q.Set("part", preferred.PathString())
+			return ctx.Redirect(http.StatusFound, msg.URL().String()+"?"+q.Encode())
+		}
 	}
 
 	mimeType, _, err := part.Header.ContentType()
@@ -557,6 +591,11 @@ func handleGetPart(ctx *alps.Context, raw bool) error {
 		View:               view,
 		MailboxPage:        int(*mbox.NumMessages-msg.SeqNum) / messagesPerPage,
 		Flags:              flags,
+		NewerURL:           messageURL(mbox.Name(), newerUID),
+		OlderURL:           messageURL(mbox.Name(), olderUID),
+		Position:           position,
+		Total:              totalMsgs,
+		Query:              query,
 	})
 }
 

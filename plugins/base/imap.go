@@ -193,8 +193,16 @@ type IMAPMessage struct {
 }
 
 func (msg *IMAPMessage) URL() *url.URL {
+	return messageURL(msg.Mailbox, msg.UID)
+}
+
+// messageURL returns nil for the zero UID so templates can elide the link.
+func messageURL(mboxName string, uid imap.UID) *url.URL {
+	if uid == 0 {
+		return nil
+	}
 	return &url.URL{
-		Path: fmt.Sprintf("/message/%v/%v", url.PathEscape(msg.Mailbox), msg.UID),
+		Path: fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uid),
 	}
 }
 
@@ -482,29 +490,37 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 	return msgs, total, nil
 }
 
+// searchSeqNums returns the sequence numbers matching criteria in display
+// order, using SORT when the server supports it.
+func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria) ([]uint32, error) {
+	if !conn.Caps().Has(imap.CapSort) {
+		data, err := conn.Search(criteria, nil).Wait()
+		if err != nil {
+			return nil, fmt.Errorf("SEARCH failed: %v", err)
+		}
+		return data.AllSeqNums(), nil
+	}
+	sortOptions := &imapclient.SortOptions{
+		SearchCriteria: criteria,
+		SortCriteria: []imapclient.SortCriterion{
+			{Key: imapclient.SortKeyDate, Reverse: true},
+		},
+	}
+	nums, err := conn.Sort(sortOptions).Wait()
+	if err != nil {
+		return nil, fmt.Errorf("SORT failed: %v", err)
+	}
+	return nums, nil
+}
+
 func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *imap.SearchCriteria, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
 	}
 
-	var nums []uint32
-	if !conn.Caps().Has(imap.CapSort) {
-		data, err := conn.Search(searchCriteria, nil).Wait()
-		if err != nil {
-			return nil, 0, fmt.Errorf("SEARCH failed: %v", err)
-		}
-		nums = data.AllSeqNums()
-	} else {
-		sortOptions := &imapclient.SortOptions{
-			SearchCriteria: searchCriteria,
-			SortCriteria: []imapclient.SortCriterion{
-				{Key: imapclient.SortKeyDate, Reverse: true},
-			},
-		}
-		nums, err = conn.Sort(sortOptions).Wait()
-		if err != nil {
-			return nil, 0, fmt.Errorf("SORT failed: %v", err)
-		}
+	nums, err := searchSeqNums(conn, searchCriteria)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	total = len(nums)
@@ -546,6 +562,71 @@ func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *im
 	}
 
 	return msgs, total, nil
+}
+
+// messageNeighbors locates the message in its view's display order and
+// returns the UIDs shown before (newer) and after (older) it, along with its
+// 1-based position and the view's total. criteria narrows the walk to the
+// filtered view the message was opened from; nil walks the whole mailbox.
+// A zero position means the message is not part of the filtered view.
+func messageNeighbors(conn *imapclient.Client, seqNum uint32, criteria *imap.SearchCriteria) (newer, older imap.UID, pos, total int, err error) {
+	var newerSeq, olderSeq uint32
+	if criteria == nil {
+		total = int(conn.Mailbox().NumMessages)
+		pos = total - int(seqNum) + 1
+		if int(seqNum) < total {
+			newerSeq = seqNum + 1
+		}
+		if seqNum > 1 {
+			olderSeq = seqNum - 1
+		}
+	} else {
+		nums, err := searchSeqNums(conn, criteria)
+		if err != nil {
+			return 0, 0, 0, 0, err
+		}
+		total = len(nums)
+		i := -1
+		for j, num := range nums {
+			if num == seqNum {
+				i = j
+				break
+			}
+		}
+		if i < 0 {
+			return 0, 0, 0, 0, nil
+		}
+		pos = i + 1
+		if i > 0 {
+			newerSeq = nums[i-1]
+		}
+		if i < len(nums)-1 {
+			olderSeq = nums[i+1]
+		}
+	}
+
+	var seqs []uint32
+	for _, s := range []uint32{newerSeq, olderSeq} {
+		if s != 0 {
+			seqs = append(seqs, s)
+		}
+	}
+	if len(seqs) == 0 {
+		return 0, 0, pos, total, nil
+	}
+	msgs, err := conn.Fetch(imap.SeqSetNum(seqs...), &imap.FetchOptions{UID: true}).Collect()
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("failed to fetch neighbor UIDs: %v", err)
+	}
+	for _, m := range msgs {
+		if m.SeqNum == newerSeq {
+			newer = m.UID
+		}
+		if m.SeqNum == olderSeq {
+			older = m.UID
+		}
+	}
+	return newer, older, pos, total, nil
 }
 
 func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {

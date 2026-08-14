@@ -104,6 +104,18 @@
                 style="display: none"
               >Print</a>
             </span>
+
+            <span class="action-group">
+              {{ if .Position }}
+              <span class="pagination-range">{{.Position}} of {{.Total}}</span>
+              {{ end }}
+              {{ if .NewerURL }}
+              <a class="button-link" href="{{.NewerURL}}{{if .Starred}}?starred=1{{else if .Query}}?query={{.Query}}{{end}}">&lsaquo; Newer</a>
+              {{ end }}
+              {{ if .OlderURL }}
+              <a class="button-link" href="{{.OlderURL}}{{if .Starred}}?starred=1{{else if .Query}}?query={{.Query}}{{end}}">Older &rsaquo;</a>
+              {{ end }}
+            </span>
           </div>
         </div>
       </section>

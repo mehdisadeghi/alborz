@@ -59,7 +59,7 @@
             </form>
           </div>
           <div class="message-list-subject {{$classes}}">
-            <a href="{{if .TextPart}}{{.TextPart.URL false}}{{else}}{{.URL}}{{end}}">
+            <a href="{{if .TextPart}}{{.TextPart.URL false}}{{if $.Starred}}&starred=1{{else if $.Query}}&query={{$.Query}}{{end}}{{else}}{{.URL}}{{if $.Starred}}?starred=1{{else if $.Query}}?query={{$.Query}}{{end}}{{end}}">
               {{if .Envelope.Subject}}
                 {{.Envelope.Subject}}
               {{else}}

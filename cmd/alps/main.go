@@ -68,7 +68,7 @@ func main() {
 	flag.StringVar(&options.Theme, "theme", "", "default theme")
 	flag.StringVar(&addr, "addr", ":1323", "listening address")
 	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
-	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence")
+	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $ALPS_LOGIN_KEY)")
 
 	flag.Usage = func() {
 		fmt.Fprint(flag.CommandLine.Output(), `usage: alps [options...] <upstreams...>
@@ -86,6 +86,11 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 
 	flag.Parse()
+
+	// The environment keeps the key out of the process list.
+	if loginKey == "" {
+		loginKey = os.Getenv("ALPS_LOGIN_KEY")
+	}
 
 	options.Upstreams = flag.Args()
 	if len(options.Upstreams) == 0 {

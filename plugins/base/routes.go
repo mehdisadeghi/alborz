@@ -432,7 +432,10 @@ func handleLogin(ctx *alps.Context) error {
 
 // loginRedirect honors the next parameter after a successful login.
 func loginRedirect(ctx *alps.Context) error {
-	if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != "/login" {
+	// A second leading slash or backslash would make the target
+	// scheme-relative, redirecting off-site.
+	if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != "/login" &&
+		!strings.HasPrefix(path, "//") && !strings.HasPrefix(path, "/\\") {
 		return ctx.Redirect(http.StatusFound, path)
 	}
 	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")

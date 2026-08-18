@@ -1,0 +1,132 @@
+/* Monochrome like e-ink: black on paper, inverted in the dark, serif
+   type and square corners. The doubled :root outweighs the scheme
+   blocks in the base sheet. */
+:root:root {
+  color-scheme: light;
+
+  --fg: #000;
+  --fg-dim: #222;
+  --fg-muted: #444;
+  --fg-faint: #777;
+
+  --bg: #fff;
+  --bg-well: #fff;
+  --bg-inset: #f0f0f0;
+  --bg-button: #fff;
+  --bg-active: #eee;
+
+  --border: #000;
+  --border-light: #bbb;
+  --border-faint: #ddd;
+  --border-strong: #000;
+
+  --link: #000;
+  --link-read: #333;
+  --link-unread: #000;
+
+  --green: #000;
+  --green-dark: #000;
+  --bg-green: #fff;
+  --border-green: #000;
+  --flag: #000;
+
+  --notice-fg: #000;
+  --notice-bg: #fff;
+  --notice-border: #000;
+  --alert-fg: #000;
+  --alert-bg: #fff;
+  --alert-border: #000;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --fg: #fff;
+    --fg-dim: #ddd;
+    --fg-muted: #bbb;
+    --fg-faint: #888;
+
+    --bg: #000;
+    --bg-well: #000;
+    --bg-inset: #151515;
+    --bg-button: #000;
+    --bg-active: #222;
+
+    --border: #fff;
+    --border-light: #555;
+    --border-faint: #333;
+    --border-strong: #fff;
+
+    --link: #fff;
+    --link-read: #ccc;
+    --link-unread: #fff;
+
+    --green: #fff;
+    --green-dark: #fff;
+    --bg-green: #000;
+    --border-green: #fff;
+    --flag: #fff;
+
+    --notice-fg: #fff;
+    --notice-bg: #000;
+    --notice-border: #fff;
+    --alert-fg: #fff;
+    --alert-bg: #000;
+    --alert-border: #fff;
+  }
+}
+
+:root:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --fg: #fff;
+  --fg-dim: #ddd;
+  --fg-muted: #bbb;
+  --fg-faint: #888;
+
+  --bg: #000;
+  --bg-well: #000;
+  --bg-inset: #151515;
+  --bg-button: #000;
+  --bg-active: #222;
+
+  --border: #fff;
+  --border-light: #555;
+  --border-faint: #333;
+  --border-strong: #fff;
+
+  --link: #fff;
+  --link-read: #ccc;
+  --link-unread: #fff;
+
+  --green: #fff;
+  --green-dark: #fff;
+  --bg-green: #000;
+  --border-green: #fff;
+  --flag: #fff;
+
+  --notice-fg: #fff;
+  --notice-bg: #000;
+  --notice-border: #fff;
+  --alert-fg: #fff;
+  --alert-bg: #000;
+  --alert-border: #fff;
+}
+
+body {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea,
+select,
+button,
+.button,
+.button-link {
+  border-radius: 0;
+  box-shadow: none;
+}

@@ -41,6 +41,9 @@ type GlobalRenderData struct {
 	// Forced color scheme: "light" or "dark", empty to follow the system
 	ColorScheme string
 
+	// Theme variant stylesheet under assets/themes, empty for the default
+	Theme string
+
 	// additional plugin-specific data
 	Extra map[string]interface{}
 }
@@ -151,6 +154,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	if isactx {
 		global.Version = ctx.Server.Options.Version
 		global.ColorScheme = ctx.ColorScheme()
+		global.Theme = ctx.Theme()
 	}
 
 	if isactx && ctx.Session != nil {

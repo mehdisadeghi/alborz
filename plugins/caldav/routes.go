@@ -10,12 +10,12 @@ import (
 	"time"
 	"unicode"
 
+	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
 )
 
 type CalendarRenderData struct {
@@ -24,7 +24,6 @@ type CalendarRenderData struct {
 	Now                time.Time
 	Dates              []time.Time
 	Calendars          []CalendarInfo
-	Calendar           *CalendarInfo // first calendar, for the bundled upstream themes
 	Events             []CalendarObject
 	PrevPage, NextPage string
 	PrevTime, NextTime time.Time
@@ -389,7 +388,6 @@ func registerRoutes(p *plugin) {
 			Time:      start,
 			Now:       time.Now().In(loc),
 			Calendars: calendarInfos,
-			Calendar:  &calendars[0],
 			Dates:     dates,
 			Events:    newCalendarObjectList(events),
 			PrevPage:  start.AddDate(0, -1, 0).Format(monthPageLayout),

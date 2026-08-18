@@ -7,9 +7,9 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/emersion/go-message"
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"github.com/emersion/go-message"
 )
 
 const tplSrc = `

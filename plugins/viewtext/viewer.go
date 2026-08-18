@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/emersion/go-message"
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"github.com/emersion/go-message"
 	"gitlab.com/golang-commonmark/linkify"
 )
 

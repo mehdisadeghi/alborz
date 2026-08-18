@@ -76,9 +76,44 @@ select {
     scroll-behavior: auto !important;
   }
 }
-/** { box-sizing: content-box; }*/
+:root {
+  --fg: #000;
+  --fg-dim: #555;
+  --fg-muted: #666;
+  --fg-faint: #999;
+
+  --bg: #fff;          /* chrome and raised surfaces */
+  --bg-well: #f6f6f6;  /* content area behind surfaces */
+  --bg-inset: #eee;
+  --bg-button: #f5f5f5;
+  --bg-active: #f8f8f8;
+
+  --border: #e0e0e0;
+  --border-light: #eee;
+  --border-faint: #f2f2f2;
+  --border-strong: #ccc;
+
+  --link: #15c;
+  --link-read: #77c;
+  --link-unread: #00c;
+
+  --green: #4a4;
+  --green-dark: #008d47;
+  --bg-green: #f6fff6;
+  --border-green: #afa;
+  --flag: #bfa300;
+
+  --notice-fg: #0c5460;
+  --notice-bg: #d1ecf1;
+  --notice-border: #bee5eb;
+  --alert-fg: #721c24;
+  --alert-bg: #f8d7da;
+  --alert-border: #f5c6cb;
+}
+
 body { font-family: arial,sans-serif; font-size: 13px; padding: 0; margin: 0;
   min-width: 1024px; min-height: 100vh; display: flex; flex-direction: column;
+  background-color: var(--bg); color: var(--fg);
 }
 
 input[type="text"],
@@ -92,12 +127,12 @@ textarea,
 select {
   margin: 0;
   border: none;
-  border: 1px solid #e0e0e0;
-  box-shadow: inset 1px 1px 0 #f8f8f8;
+  border: 1px solid var(--border);
+  box-shadow: inset 1px 1px 0 var(--bg-active);
   border-radius: 2px;
   font-size: 13px;
   padding: 0.3rem 0.5rem 0.3rem 0.5rem;
-  background-color: white;
+  background-color: var(--bg);
 }
 
 .page-wrap {
@@ -106,20 +141,20 @@ select {
   flex-direction: row;
 }
 
-a { color: #15c; }
+a { color: var(--link); }
 button { font-size: 1rem; }
-header { border-bottom: 1px solid #e0e0e0;}
+header { border-bottom: 1px solid var(--border);}
 header nav,
 footer { padding: 0.5rem 1rem 0.5rem 0.5rem; }
 header nav { min-height: 1rem; }
-/*header nav strong { color: #555; }*/
+/*header nav strong { color: var(--fg-dim); }*/
 header nav > a { margin-right: 1rem; }
-header nav span { color: #757373; }
+header nav span { color: var(--fg-muted); }
 header nav > div { float: right; }
 header nav > div > a{  margin-left: 1rem; }
 
 header nav .accounts { display: inline-block; position: relative; }
-header nav .accounts summary { cursor: pointer; color: #757373; }
+header nav .accounts summary { cursor: pointer; color: var(--fg-muted); }
 header nav .accounts-menu {
   position: absolute;
   left: 0;
@@ -130,8 +165,8 @@ header nav .accounts-menu {
   gap: 0.25rem;
   min-width: max-content;
   padding: 0.5rem;
-  background-color: #fff;
-  border: 1px solid #e0e0e0;
+  background-color: var(--bg);
+  border: 1px solid var(--border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 header nav .accounts-menu .active { font-weight: 500; }
@@ -139,16 +174,16 @@ header nav .accounts-menu button {
   padding: 0;
   border: none;
   background: none;
-  color: #15c;
+  color: var(--link);
   text-align: left;
   cursor: pointer;
 }
-header a.active { font-weight: bold; color: black; text-decoration: none; }
+header a.active { font-weight: bold; color: var(--fg); text-decoration: none; }
 
 header .notice {
-    color: #0c5460;
-    background-color: #d1ecf1;
-    border: 1px solid #bee5eb;
+    color: var(--notice-fg);
+    background-color: var(--notice-bg);
+    border: 1px solid var(--notice-border);
     padding: 0.5rem;
     text-align: center;
 }
@@ -193,17 +228,17 @@ aside li a {
 
 aside .active {
   font-weight: bold;
-  color: black;
+  color: var(--fg);
   text-decoration: none;
 }
 
 aside .active,
 aside .new.active {
-  background-color: #f6f6f6;
+  background-color: var(--bg-well);
 }
 
 aside .new.active {
-  color: #008d47;
+  color: var(--green-dark);
 }
 
 aside button {
@@ -219,11 +254,11 @@ aside button {
 }
 
 aside .active button:hover {
-  background: white;
+  background: var(--bg);
 }
 
 aside button:hover {
-  background: #f6f6f6;
+  background: var(--bg-well);
 }
 
 main {
@@ -232,7 +267,7 @@ main {
   flex-direction: column;
   padding: 0.5rem 1rem 0.5rem 0.5rem;
   min-width: 0;
-  background-color: #f6f6f6;
+  background-color: var(--bg-well);
 }
 
 main.login {
@@ -241,7 +276,7 @@ main.login {
 
 main.login > section {
   align-self: center;
-  background: white;
+  background: var(--bg);
   min-width: 20rem;
   padding: 1rem;
 }
@@ -249,13 +284,13 @@ main.login > section {
 main.login .version {
   margin-top: 1rem;
   text-align: center;
-  color: #999;
+  color: var(--fg-faint);
   font-size: 0.8rem;
 }
 
 aside a.new.active,
 main.create-update {
-  background-color: #f6fff6;
+  background-color: var(--bg-green);
 }
 
 main.create-update {
@@ -344,9 +379,9 @@ main.create-update #attachment-list {
 
   width: 25rem;
   height: 100%;
-  background: #eee;
+  background: var(--bg-inset);
   overflow-y: scroll;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-light);
 
   display: flex;
   flex-direction: column;
@@ -354,7 +389,7 @@ main.create-update #attachment-list {
 
 main.create-update #attachment-list .help {
   text-align: center;
-  color: #555;
+  color: var(--fg-dim);
   margin-top: 1rem;
 }
 
@@ -364,7 +399,7 @@ main.create-update #attachment-list .upload {
   display: flex;
   margin: 0.5rem;
   padding: 0.25rem 0.5rem;
-  background: white;
+  background: var(--bg);
   align-items: center;
 }
 
@@ -384,7 +419,7 @@ main.create-update #attachment-list .upload button {
 main.create-update #attachment-list .upload .progress {
   position: absolute;
   height: 5px;
-  background: #50C878;
+  background: var(--green);
   bottom: 0;
   left: 0;
 }
@@ -395,7 +430,7 @@ main.create-update #attachment-list .upload .error {
 
 main.create-update #attachment-list .upload.error .error {
   display: block;
-  color: red;
+  color: var(--alert-fg);
 }
 
 main.create-update .text {
@@ -442,7 +477,7 @@ main.create-update .text textarea {
   }
 }
 
-main table { border-collapse: collapse; width: 100%; border: 1px solid #eee; }
+main table { border-collapse: collapse; width: 100%; border: 1px solid var(--border-light); }
 main table td {
   white-space: nowrap;
   padding: 0.3rem;
@@ -450,30 +485,30 @@ main table td {
   text-overflow: ellipsis;
   max-width: 200px;
 }
-main table tbody tr { border-bottom: 1px solid #eee; }
+main table tbody tr { border-bottom: 1px solid var(--border-light); }
 main table td a { text-decoration: none; }
 
 
 main table td a:hover { text-decoration: underline; }
 
 main.message table,
-main.event table { background-color: white; }
+main.event table { background-color: var(--bg); }
 main.message th,
 main.event th { width: 5%;}
 main.message h1,
 main.event h1 { font-size: 1.2rem; padding: 0.5rem;}
 main.message .remote-content {
-  background: #eeffee;
+  background: var(--bg-green);
 }
 
 main.message .remote-content td {
-  color: black;
+  color: var(--fg);
 }
 
 main.message .tabs {
   margin: 0.3rem 0 0 0;
   padding: 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-light);
   overflow: visible;
 }
 
@@ -487,14 +522,14 @@ main.message .tabs a {
   border-color: transparent;
   border-width: 1px;
   text-decoration: none;
-  color: #555;
+  color: var(--fg-dim);
 }
 
 main.message .tabs a.active,
 main.message .tabs a:hover {
-  background-color: white;
-  border-color: #eee #eee white #eee;
-  color: black;
+  background-color: var(--bg);
+  border-color: var(--border-light) var(--border-light) var(--bg) var(--border-light);
+  color: var(--fg);
 }
 
 main.message pre,
@@ -503,11 +538,16 @@ main.event pre {
   flex: 1 auto;
   padding: 1rem;
   margin: 0;
-  background-color: white;
+  background-color: var(--bg);
   border-style: solid;
-  border-color: #eee;
+  border-color: var(--border-light);
   border-width: 0 1px 1px 1px;
   max-width: 100%;
+}
+
+/* E-mail documents assume a light canvas, whatever the UI theme. */
+main.message iframe {
+  background-color: white;
 }
 
 main.message pre,
@@ -525,8 +565,8 @@ main.message .message-header .parts {
   width: 30%;
   margin-left: 0.3rem;
   padding: 0.3rem 0.5rem;
-  background: white;
-  border-top: 1px solid #f2f2f2;
+  background: var(--bg);
+  border-top: 1px solid var(--border-faint);
 }
 
 main.message .message-header .parts ul {
@@ -563,7 +603,7 @@ main.task dl {
 main.contact dl dt,
 main.task dl dt {
   font-weight: 500;
-  color: #666;
+  color: var(--fg-muted);
 }
 
 main.contact dl dd,
@@ -586,7 +626,7 @@ main.event .details td {
 }
 
 main.event .details th {
-  color: #666;
+  color: var(--fg-muted);
   font-weight: 500;
 }
 
@@ -636,50 +676,50 @@ main.create-update .actions > *:not(:last-child) {
   display: inline-block;
   padding: 0;
   border: none;
-  color: #BFA300;
+  color: var(--flag);
   font-size: 13pt;
   background: transparent;
 }
 
 .message-list-unread.message-list-flags .flag-button:hover {
-  background: #f8f8f8;
+  background: var(--bg-active);
 }
 
-.message-list-subject a { color: #77c; }
+.message-list-subject a { color: var(--link-read); }
 
 .message-list-unread.message-list-sender,
 .message-list-unread.message-list-subject,
 .message-list-unread.message-list-date { font-weight: bold; }
 
 .message-list-unread.message-list-sender,
-.message-list-unread.message-list-date { color: black;}
+.message-list-unread.message-list-date { color: var(--fg);}
 
 .message-list-unread.message-list-subject {
   font-weight: normal;
-  color: #555;
+  color: var(--fg-dim);
 }
 
 .message-list-date {
   text-align: right;
 }
 
-.message-list-unread.message-list-subject a { color: #00c; }
+.message-list-unread.message-list-subject a { color: var(--link-unread); }
 
 .message-list-unread {
-  background-color: white;
+  background-color: var(--bg);
   opacity: 1;
 }
 
 .message-list-unread:nth-child(5n+1) {
-  border-left: 1px solid #f2f2f2;
+  border-left: 1px solid var(--border-faint);
 }
 
 .message-list-unread:nth-child(5n+5) {
-  border-right: 1px solid #f2f2f2;
+  border-right: 1px solid var(--border-faint);
 }
 
 aside .new {
-  color: #008d47;
+  color: var(--green-dark);
   font-weight: bold;
   /*background-color: #f5fcf2;*/
   text-decoration: none;
@@ -691,12 +731,12 @@ main table th {
 }
 
 main table thead {
-  border-bottom: 1px solid #e0e0e0;
-  background-color: white;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg);
 }
 main table tfoot {
-  border-top: 1px solid #e0e0e0;
-  background-color: white;
+  border-top: 1px solid var(--border);
+  background-color: var(--bg);
 }
 
 .message-list,
@@ -711,18 +751,18 @@ main table tfoot {
 .actions {
   display: flex;
   flex-direction: row;
-  background-color: white;
+  background-color: var(--bg);
   padding: 0.3rem;
 }
 
 .message-list .actions:first-child,
 .contact-list .actions:first-child {
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border);
 }
 
 .message-list .actions:last-child,
 .contact-list .actions:last-child {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border);
 }
 
 .actions input[type="text"] {
@@ -765,7 +805,7 @@ main table tfoot {
 }
 
 .pagination-range {
-  color: #666;
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 
@@ -866,8 +906,8 @@ main table tfoot {
 
 .contact-list-header {
   font-weight: bold;
-  color: #666;
-  border-bottom: 1px solid #ccc;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .message-list .messages .message-grid > *,
@@ -889,7 +929,7 @@ main table tfoot {
   grid-column-start: 1;
   grid-column-end: 10;
   font-size: 1.1rem;
-  color: #333;
+  color: var(--fg-dim);
   margin-top: 1rem;
 }
 
@@ -910,17 +950,17 @@ main.calendar .dates .weekday {
 }
 
 main.calendar .date {
-  border: 1px solid #eee;
+  border: 1px solid var(--border-light);
   padding: 0.3rem;
-  background: white;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   position: relative;
 }
 
 main.calendar .date.active {
-  background-color: #f6fff6;
-  border: 1px solid #afa;
+  background-color: var(--bg-green);
+  border: 1px solid var(--border-green);
 }
 
 main.calendar .date .date-link {
@@ -929,8 +969,8 @@ main.calendar .date .date-link {
 }
 
 main.calendar .date.extra {
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
+  background: var(--bg-well);
+  border: 1px solid var(--border-faint);
   opacity: 0.5;
 }
 
@@ -945,18 +985,18 @@ main.calendar .date.extra .events {
 }
 
 main.calendar .events .start-time {
-  color: #444;
+  color: var(--fg-dim);
 }
 
 main.calendar .events .overflow {
-  color: #444;
+  color: var(--fg-dim);
   text-align: right;
 }
 
 main.calendar .date h4 {
   font-weight: normal;
   text-align: right;
-  color: #666;
+  color: var(--fg-muted);
 }
 
 main.calendar .date h4 .da { font-size: 1.2rem; }
@@ -982,11 +1022,11 @@ main.settings form {
 }
 
 main.settings button {
-  background-color: white;
+  background-color: var(--bg);
 }
 
 main.settings button:hover {
-  background-color: #f8f8f8;
+  background-color: var(--bg-active);
 }
 
 input[type="submit"],
@@ -1002,10 +1042,10 @@ button,
   padding: 0.3rem 0.3rem 0.25rem;
   min-width: 1rem;
   font-size: 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   border-radius: 3px;
   vertical-align: middle;
-  color: #000;
+  color: var(--fg);
 }
 .button-link {
   border: 1px solid transparent;
@@ -1019,38 +1059,38 @@ input[type="submit"],
 .button,
 button,
 .button-link {
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  color: black;
+  background-color: var(--bg-button);
+  border: 1px solid var(--border);
+  color: var(--fg);
 }
 
 .button:hover,
 button:hover,
 .button-link:hover {
-  background-color: white;
+  background-color: var(--bg);
   text-decoration: none;
 }
 
 button[disabled], button[disabled]:hover {
-  color: #555;
-  background-color: #c5c5c5;
+  color: var(--fg-dim);
+  background-color: var(--border-strong);
   cursor: default;
 }
 
 .button:active,
 button:active,
 .button-link:active {
-  color: #ccc;
-  background-color: #f8f8f8;
+  color: var(--border-strong);
+  background-color: var(--bg-active);
 }
 
 .alert {
   padding: 0.5rem;
   border: 1px solid transparent;
   margin: 1rem 0;
-  background: #f8d7da;
-  color: #721c24;
-  border-color: #f5c6cb;
+  background: var(--alert-bg);
+  color: var(--alert-fg);
+  border-color: var(--alert-border);
   max-width: 600px;
 }
 
@@ -1069,12 +1109,12 @@ button:active,
   display: flex;
   align-items: center;
   padding: 0.5rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .task-item.completed .task-summary {
   text-decoration: line-through;
-  color: #888;
+  color: var(--fg-faint);
 }
 
 .task-checkbox {
@@ -1084,9 +1124,9 @@ button:active,
 .checkbox-button {
   width: 1.5rem;
   height: 1.5rem;
-  border: 2px solid #666;
+  border: 2px solid var(--fg-muted);
   border-radius: 3px;
-  background: white;
+  background: var(--bg);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1096,9 +1136,9 @@ button:active,
 }
 
 .checkbox-button.checked {
-  background: #4a4;
-  border-color: #4a4;
-  color: white;
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--bg);
 }
 
 .task-content {
@@ -1117,12 +1157,12 @@ button:active,
 
 .task-due {
   font-size: 0.85rem;
-  color: #666;
+  color: var(--fg-muted);
 }
 
 main.task .details h1.completed {
   text-decoration: line-through;
-  color: #888;
+  color: var(--fg-faint);
 }
 
 .checkbox-label {
@@ -1142,7 +1182,7 @@ main.task .details h1.completed {
 .task-group-header {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #555;
+  color: var(--fg-dim);
   margin: 0.5rem 0;
 }
 
@@ -1151,10 +1191,10 @@ main.task .details h1.completed {
   align-items: center;
   gap: 0.3rem;
   font-size: 0.85rem;
-  color: #666;
+  color: var(--fg-muted);
   margin-top: 1rem;
   padding-top: 0.5rem;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-light);
 }
 
 .show-completed-toggle input {

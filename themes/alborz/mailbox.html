@@ -22,6 +22,7 @@
           {{ end }}
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
+          <div class="message-row">
           <div class="message-list-checkbox {{$classes}}">
             <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form">
           </div>
@@ -69,6 +70,7 @@
           </div>
           <div class="message-list-date {{$classes}}">
             {{ .Envelope.Date | humantime }}
+          </div>
           </div>
           {{ end }}
 

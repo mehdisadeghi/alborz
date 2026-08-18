@@ -714,15 +714,16 @@ func registerRoutes(p *plugin) {
 				event.Props.SetText(ical.PropUID, newID.String())
 			}
 
-			cal := ical.NewCalendar()
-			cal.Props.SetText(ical.PropProductID, "-//emersion.fr//alps//EN")
-			cal.Props.SetText(ical.PropVersion, "2.0")
-			cal.Children = append(cal.Children, event.Component)
-
+			var cal *ical.Calendar
 			var savePath string
 			if co != nil {
+				cal = co.Data
 				savePath = co.Path
 			} else {
+				cal = ical.NewCalendar()
+				cal.Props.SetText(ical.PropProductID, "-//emersion.fr//alps//EN")
+				cal.Props.SetText(ical.PropVersion, "2.0")
+				cal.Children = append(cal.Children, event.Component)
 				savePath = path.Join(calendarPath, newID.String()+".ics")
 			}
 			co, err = c.PutCalendarObject(ctx.Request().Context(), savePath, cal)

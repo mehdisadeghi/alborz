@@ -1,17 +1,19 @@
 # Themes
 
-They should be put in `themes/<name>/`.
+The alborz theme is embedded in the binary. A theme in `themes/<name>/`
+overrides it file by file, so it only carries the files it changes.
 
-Templates in `themes/<name>/*.html` override default templates in plugins.
-Assets in `themes/<name>/assets/*` are served by the HTTP server at
-`/themes/<name>/assets/*`.
+Templates in `themes/<name>/*.html` override embedded and plugin templates.
+Assets are served at `/assets/*`, from `themes/<name>/assets/*` when the
+file exists on disk and from the embedded theme otherwise.
 
 # Plugins
 
-Plugins can be written in Go or in Lua and live in `plugins/<name>/`.
+Plugins can be written in Go or in Lua.
 
-Plugins can provide their own templates in `plugins/<name>/public/*.html`.
-Assets in `plugins/<name>/public/assets/*` are served by the HTTP server at
+Go plugin templates and assets are embedded in the binary; files in
+`plugins/<name>/public/` override them one by one. Lua plugins live on
+disk in `plugins/<name>/`. Assets are served at
 `/plugins/<name>/assets/*`.
 
 ## Go plugins

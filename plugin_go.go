@@ -2,8 +2,12 @@ package alborz
 
 import (
 	"html/template"
+	"io/fs"
 	"net/http"
+	"os"
+	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -18,6 +22,18 @@ func (p *goPlugin) Name() string {
 
 func (p *goPlugin) LoadTemplate(t *template.Template) error {
 	t.Funcs(p.p.templateFuncs)
+
+	if p.p.Files != nil {
+		names, err := fs.Glob(p.p.Files, "public/*.html")
+		if err != nil {
+			return err
+		}
+		if len(names) > 0 {
+			if _, err := t.ParseFS(p.p.Files, "public/*.html"); err != nil {
+				return err
+			}
+		}
+	}
 
 	paths, err := filepath.Glob(PluginDir + "/" + p.p.Name + "/public/*.html")
 	if err != nil {
@@ -40,7 +56,23 @@ func (p *goPlugin) SetRoutes(group *echo.Group) {
 		})
 	}
 
-	group.Static("/plugins/"+p.p.Name+"/assets", PluginDir+"/"+p.p.Name+"/public/assets")
+	// Assets are served from the embedded files, with the plugin directory
+	// on disk taking precedence file by file, like templates.
+	group.GET("/plugins/"+p.p.Name+"/assets/*", func(ectx echo.Context) error {
+		name := strings.TrimPrefix(path.Clean("/"+ectx.Param("*")), "/")
+		if name == "" {
+			return echo.ErrNotFound
+		}
+		diskPath := filepath.Join(PluginDir, p.p.Name, "public", "assets", name)
+		if _, err := os.Stat(diskPath); err == nil {
+			return ectx.File(diskPath)
+		}
+		if p.p.Files == nil {
+			return echo.ErrNotFound
+		}
+		http.ServeFileFS(ectx.Response(), ectx.Request(), p.p.Files, path.Join("public/assets", name))
+		return nil
+	})
 }
 
 func (p *goPlugin) Inject(ctx *Context, name string, data RenderData) error {
@@ -84,6 +116,11 @@ type goPluginRoute struct {
 //	alborz.RegisterPluginLoader(p.Loader())
 type GoPlugin struct {
 	Name string
+	// Files is the plugin's embedded public directory: templates in
+	// public/*.html and assets in public/assets. A file with the same
+	// name in plugins/<name>/public on disk overrides its embedded
+	// counterpart. Nil means the plugin ships no templates or assets.
+	Files fs.FS
 	// CloseFunc releases plugin resources on server close or reload;
 	// nil means nothing to release.
 	CloseFunc func() error

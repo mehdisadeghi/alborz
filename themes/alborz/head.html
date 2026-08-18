@@ -7,6 +7,9 @@
     <meta name="theme-color" content="#1f1f1f" media="(prefers-color-scheme: dark)">
     <title>{{.GlobalData.Title}}</title>
     <link rel="stylesheet" href="/assets/style.css">
+    {{- with .GlobalData.Theme}}
+    <link rel="stylesheet" href="/assets/themes/{{.}}.css">
+    {{- end}}
     <link rel="stylesheet" href="/assets/print.css" media="print">
     <link rel="icon" type="image/png" href="/assets/favicon-196x196.png" sizes="196x196" />
     <link rel="icon" type="image/png" href="/assets/favicon-96x96.png" sizes="96x96" />

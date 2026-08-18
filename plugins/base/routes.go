@@ -1388,6 +1388,7 @@ type SettingsRenderData struct {
 	Settings      *Settings
 	Subscriptions Subscriptions
 	ColorScheme   string // per-user browser preference
+	Theme         string
 }
 
 type Subscriptions []string
@@ -1425,6 +1426,7 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.From = ctx.FormValue("from")
 		settings.Timezone = ctx.FormValue("timezone")
 		ctx.SetColorScheme(ctx.FormValue("color_scheme"))
+		ctx.SetTheme(ctx.FormValue("theme"))
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
 			settings.FirstDayOfWeek, err = strconv.Atoi(fdow)
 			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {
@@ -1454,5 +1456,6 @@ func handleSettings(ctx *alborz.Context) error {
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),
 		ColorScheme:    ctx.ColorScheme(),
+		Theme:          ctx.Theme(),
 	})
 }

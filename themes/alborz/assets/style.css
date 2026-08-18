@@ -77,6 +77,8 @@ select {
   }
 }
 :root {
+  color-scheme: light dark;
+
   --fg: #000;
   --fg-dim: #555;
   --fg-muted: #666;
@@ -111,6 +113,42 @@ select {
   --alert-border: #f5c6cb;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #ddd;
+    --fg-dim: #a8a8a8;
+    --fg-muted: #909090;
+    --fg-faint: #6e6e6e;
+
+    --bg: #1f1f1f;
+    --bg-well: #141414;
+    --bg-inset: #2a2a2a;
+    --bg-button: #2c2c2c;
+    --bg-active: #363636;
+
+    --border: #3c3c3c;
+    --border-light: #333;
+    --border-faint: #2a2a2a;
+    --border-strong: #555;
+
+    --link: #7aa2f7;
+    --link-read: #8d9cd8;
+    --link-unread: #a8c7fa;
+
+    --green-dark: #3fb968;
+    --bg-green: #17211a;
+    --border-green: #2c4a33;
+    --flag: #d9b62a;
+
+    --notice-fg: #9ed6e0;
+    --notice-bg: #12343b;
+    --notice-border: #1c4a54;
+    --alert-fg: #f1aeb5;
+    --alert-bg: #35181c;
+    --alert-border: #58232b;
+  }
+}
+
 body { font-family: arial,sans-serif; font-size: 13px; padding: 0; margin: 0;
   min-width: 1024px; min-height: 100vh; display: flex; flex-direction: column;
   background-color: var(--bg); color: var(--fg);
@@ -142,6 +180,7 @@ select {
 }
 
 a { color: var(--link); }
+hr { border: 0; border-top: 1px solid var(--border); }
 button { font-size: 1rem; }
 header { border-bottom: 1px solid var(--border);}
 header nav,

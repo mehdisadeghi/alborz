@@ -1,4 +1,4 @@
-package alpsviewhtml
+package alborzviewhtml
 
 import (
 	"io"
@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"git.sr.ht/~migadu/alps"
-	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
 	"github.com/labstack/echo/v4"
+	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 )
 
 var (
@@ -19,10 +19,10 @@ var (
 )
 
 func init() {
-	p := alps.GoPlugin{Name: "viewhtml"}
+	p := alborz.GoPlugin{Name: "viewhtml"}
 
-	p.Inject("message.html", func(ctx *alps.Context, _data alps.RenderData) error {
-		data := _data.(*alpsbase.MessageRenderData)
+	p.Inject("message.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
+		data := _data.(*alborzbase.MessageRenderData)
 		data.Extra["RemoteResourcesAllowed"] = ctx.QueryParam("allow-remote-resources") == "1"
 		hasRemoteResources := false
 		if v := ctx.Get("viewhtml.hasRemoteResources"); v != nil {
@@ -32,7 +32,7 @@ func init() {
 		return nil
 	})
 
-	p.GET("/proxy", func(ctx *alps.Context) error {
+	p.GET("/proxy", func(ctx *alborz.Context) error {
 		if !proxyEnabled {
 			return echo.NewHTTPError(http.StatusForbidden, "proxy disabled")
 		}
@@ -69,5 +69,5 @@ func init() {
 		return ctx.Stream(http.StatusOK, mediaType, &lr)
 	})
 
-	alps.RegisterPluginLoader(p.Loader())
+	alborz.RegisterPluginLoader(p.Loader())
 }

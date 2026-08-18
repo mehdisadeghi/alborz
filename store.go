@@ -1,4 +1,4 @@
-package alps
+package alborz
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 )
 
 // ErrNoStoreEntry is returned by Store.Get when the entry doesn't exist.
-var ErrNoStoreEntry = fmt.Errorf("alps: no such entry in store")
+var ErrNoStoreEntry = fmt.Errorf("alborz: no such entry in store")
 
 // Store allows storing per-user persistent data.
 //
@@ -72,7 +72,7 @@ type imapStore struct {
 	cache   *memoryStore
 }
 
-var errIMAPMetadataUnsupported = fmt.Errorf("alps: IMAP server doesn't support METADATA extension")
+var errIMAPMetadataUnsupported = fmt.Errorf("alborz: IMAP server doesn't support METADATA extension")
 
 func newIMAPStore(session *Session) (*imapStore, error) {
 	err := session.DoIMAP(func(c *imapclient.Client) error {
@@ -88,7 +88,7 @@ func newIMAPStore(session *Session) (*imapStore, error) {
 }
 
 func (s *imapStore) key(key string) string {
-	return "/private/vendor/alps/" + key
+	return "/private/vendor/alborz/" + key
 }
 
 func (s *imapStore) Get(key string, out interface{}) error {
@@ -106,14 +106,14 @@ func (s *imapStore) Get(key string, out interface{}) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("alps: failed to fetch IMAP store entry %q: %v", key, err)
+		return fmt.Errorf("alborz: failed to fetch IMAP store entry %q: %v", key, err)
 	}
 	v, ok := entries[s.key(key)]
 	if !ok || v == nil {
 		return ErrNoStoreEntry
 	}
 	if err := json.Unmarshal(*v, out); err != nil {
-		return fmt.Errorf("alps: failed to unmarshal IMAP store entry %q: %v", key, err)
+		return fmt.Errorf("alborz: failed to unmarshal IMAP store entry %q: %v", key, err)
 	}
 	return s.cache.Put(key, out)
 }
@@ -121,14 +121,14 @@ func (s *imapStore) Get(key string, out interface{}) error {
 func (s *imapStore) Put(key string, v interface{}) error {
 	b, err := json.Marshal(v)
 	if err != nil {
-		return fmt.Errorf("alps: failed to marshal IMAP store entry %q: %v", key, err)
+		return fmt.Errorf("alborz: failed to marshal IMAP store entry %q: %v", key, err)
 	}
 	entries := map[string]*[]byte{s.key(key): &b}
 	err = s.session.DoIMAP(func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()
 	})
 	if err != nil {
-		return fmt.Errorf("alps: failed to put IMAP store entry %q: %v", key, err)
+		return fmt.Errorf("alborz: failed to put IMAP store entry %q: %v", key, err)
 	}
 
 	return s.cache.Put(key, v)

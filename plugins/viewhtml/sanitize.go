@@ -1,4 +1,4 @@
-package alpsviewhtml
+package alborzviewhtml
 
 import (
 	"bytes"
@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 
-	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
 	"github.com/aymerick/douceur/css"
 	cssparser "github.com/chris-ramon/douceur/parser"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"github.com/microcosm-cc/bluemonday"
 	"golang.org/x/net/html"
 )
@@ -71,7 +71,7 @@ var allowedStyles = map[string]bool{
 }
 
 type sanitizer struct {
-	msg                  *alpsbase.IMAPMessage
+	msg                  *alborzbase.IMAPMessage
 	allowRemoteResources bool
 	hasRemoteResources   bool
 }

@@ -1,4 +1,4 @@
-package alps
+package alborz
 
 import (
 	"html/template"
@@ -9,7 +9,7 @@ import (
 // PluginDir is the path to the plugins directory.
 const PluginDir = "plugins"
 
-// Plugin extends alps with additional functionality.
+// Plugin extends alborz with additional functionality.
 type Plugin interface {
 	// Name should return the plugin name.
 	Name() string

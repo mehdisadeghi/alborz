@@ -1,4 +1,4 @@
-package alpscarddav
+package alborzcarddav
 
 import (
 	"bytes"
@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"git.sr.ht/~migadu/alps"
 	"github.com/emersion/go-webdav/carddav"
+	"git.mehdix.org/alborz"
 )
 
 var errNoAddressBook = fmt.Errorf("carddav: no address book found")
@@ -53,7 +53,7 @@ type davCollectionProps struct {
 	} `xml:"current-user-privilege-set>privilege"`
 }
 
-func (p *plugin) httpClient(session *alps.Session) *http.Client {
+func (p *plugin) httpClient(session *alborz.Session) *http.Client {
 	jar := p.jar(session)
 	return &http.Client{
 		Transport: p.cache.Transport(session.Username(), &webdavRoundTripper{
@@ -175,7 +175,7 @@ func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL
 // methods to GET on 301/302 redirects, which breaks WebDAV.
 type webdavRoundTripper struct {
 	upstream http.RoundTripper
-	session  *alps.Session
+	session  *alborz.Session
 }
 
 func (rt *webdavRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {

@@ -1,22 +1,22 @@
-// Package exampleplugin is an example Go plugin for alps.
+// Package exampleplugin is an example Go plugin for alborz.
 //
-// To enable it, import this package from cmd/alps/main.go.
+// To enable it, import this package from cmd/alborz/main.go.
 package exampleplugin
 
 import (
 	"fmt"
 	"net/http"
 
-	"git.sr.ht/~migadu/alps"
-	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
+	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 )
 
 func init() {
-	p := alps.GoPlugin{Name: "example"}
+	p := alborz.GoPlugin{Name: "example"}
 
 	// Setup a function called when the mailbox view is rendered
-	p.Inject("mailbox.html", func(ctx *alps.Context, kdata alps.RenderData) error {
-		data := kdata.(*alpsbase.MailboxRenderData)
+	p.Inject("mailbox.html", func(ctx *alborz.Context, kdata alborz.RenderData) error {
+		data := kdata.(*alborzbase.MailboxRenderData)
 		fmt.Println("The mailbox view for " + data.Mailbox.Name() + " is being rendered")
 		// Set extra data that can be accessed from the mailbox.html template
 		data.Extra["Example"] = "Hi from Go"
@@ -24,7 +24,7 @@ func init() {
 	})
 
 	// Wire up a new route
-	p.GET("/example", func(ctx *alps.Context) error {
+	p.GET("/example", func(ctx *alborz.Context) error {
 		return ctx.String(http.StatusOK, "This is an example page.")
 	})
 
@@ -35,5 +35,5 @@ func init() {
 		},
 	})
 
-	alps.RegisterPluginLoader(p.Loader())
+	alborz.RegisterPluginLoader(p.Loader())
 }

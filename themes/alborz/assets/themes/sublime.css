@@ -1,0 +1,38 @@
+/* Monokai, the Sublime Text look. Always dark, whatever the scheme.
+   The doubled :root outweighs the scheme blocks in the base sheet. */
+:root:root {
+  color-scheme: dark;
+
+  --fg: #f8f8f2;
+  --fg-dim: #c8c8bb;
+  --fg-muted: #90918b;
+  --fg-faint: #75715e;
+
+  --bg: #272822;
+  --bg-well: #1e1f1c;
+  --bg-inset: #32332c;
+  --bg-button: #3e3d32;
+  --bg-active: #49483e;
+
+  --border: #49483e;
+  --border-light: #3a3b34;
+  --border-faint: #32332c;
+  --border-strong: #75715e;
+
+  --link: #66d9ef;
+  --link-read: #8ba7ad;
+  --link-unread: #a6e22e;
+
+  --green: #a6e22e;
+  --green-dark: #a6e22e;
+  --bg-green: #2c2d24;
+  --border-green: #49483e;
+  --flag: #e6db74;
+
+  --notice-fg: #66d9ef;
+  --notice-bg: #23282b;
+  --notice-border: #34424a;
+  --alert-fg: #f92672;
+  --alert-bg: #2d2026;
+  --alert-border: #4d2436;
+}

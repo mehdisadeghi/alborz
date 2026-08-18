@@ -73,6 +73,15 @@
         </div>
 
         <div class="action-group">
+          <label for="color_scheme">Appearance</label>
+          <select name="color_scheme" id="color_scheme">
+            <option value="" {{if eq .ColorScheme ""}}selected{{end}}>System</option>
+            <option value="light" {{if eq .ColorScheme "light"}}selected{{end}}>Light</option>
+            <option value="dark" {{if eq .ColorScheme "dark"}}selected{{end}}>Dark</option>
+          </select>
+        </div>
+
+        <div class="action-group">
           <label for="first_day_of_week">First day of week</label>
           <select name="first_day_of_week" id="first_day_of_week">
             <option value="1" {{if eq .Settings.FirstDayOfWeek 1}}selected{{end}}>Monday</option>

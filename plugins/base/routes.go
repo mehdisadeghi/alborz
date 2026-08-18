@@ -1352,7 +1352,7 @@ type Settings struct {
 	From            string
 	Subscriptions   []string
 	Timezone        string
-	FirstDayOfWeek  int // 0 = Sunday, 1 = Monday (default)
+	FirstDayOfWeek  int    // 0 = Sunday, 1 = Monday (default)
 }
 
 func LoadSettings(s alborz.Store) (*Settings, error) {
@@ -1387,6 +1387,7 @@ type SettingsRenderData struct {
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
+	ColorScheme   string // per-user browser preference
 }
 
 type Subscriptions []string
@@ -1423,6 +1424,7 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.Signature = ctx.FormValue("signature")
 		settings.From = ctx.FormValue("from")
 		settings.Timezone = ctx.FormValue("timezone")
+		ctx.SetColorScheme(ctx.FormValue("color_scheme"))
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
 			settings.FirstDayOfWeek, err = strconv.Atoi(fdow)
 			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {
@@ -1451,5 +1453,6 @@ func handleSettings(ctx *alborz.Context) error {
 		Settings:       settings,
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),
+		ColorScheme:    ctx.ColorScheme(),
 	})
 }

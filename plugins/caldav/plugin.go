@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/emersion/go-webdav/caldav"
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/plugins/davcache"
+	"github.com/emersion/go-webdav/caldav"
 )
 
 const (

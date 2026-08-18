@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/emersion/go-webdav/caldav"
 	"git.mehdix.org/alborz"
+	"github.com/emersion/go-webdav/caldav"
 )
 
 var errNoCalendar = fmt.Errorf("caldav: no calendar found")

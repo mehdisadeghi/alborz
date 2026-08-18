@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -127,7 +128,12 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		e.Logger.SetLevel(log.DEBUG)
 	}
 
-	go e.Start(addr)
+	go func() {
+		if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(os.Stderr, "alborz: %v\n", err)
+			os.Exit(1)
+		}
+	}()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGUSR1, syscall.SIGINT)

@@ -1,4 +1,4 @@
-package alpscaldav
+package alborzcaldav
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"sync"
 
-	"git.sr.ht/~migadu/alps"
-	"git.sr.ht/~migadu/alps/plugins/davcache"
 	"github.com/emersion/go-webdav/caldav"
+	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/plugins/davcache"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 )
 
 type plugin struct {
-	alps.GoPlugin
+	alborz.GoPlugin
 	urls  map[string]*url.URL // CalDAV endpoint per served mail domain
 	cache *davcache.Cache
 
@@ -27,7 +27,7 @@ type plugin struct {
 	jars   map[string]http.CookieJar // per username
 }
 
-func (p *plugin) client(session *alps.Session) (*caldav.Client, error) {
+func (p *plugin) client(session *alborz.Session) (*caldav.Client, error) {
 	u, ok := p.davURL(session)
 	if !ok {
 		return nil, errNoCalendar
@@ -37,7 +37,7 @@ func (p *plugin) client(session *alps.Session) (*caldav.Client, error) {
 
 // jar returns the user's persistent cookie jar. Reusing the DAV server's
 // session cookie lets it skip re-authenticating every single request.
-func (p *plugin) jar(session *alps.Session) http.CookieJar {
+func (p *plugin) jar(session *alborz.Session) http.CookieJar {
 	p.jarsMu.Lock()
 	defer p.jarsMu.Unlock()
 	j, ok := p.jars[session.Username()]
@@ -54,7 +54,7 @@ func (p *plugin) jar(session *alps.Session) http.CookieJar {
 
 // davURL resolves the session's CalDAV endpoint, falling back to the
 // unnamed provider's.
-func (p *plugin) davURL(session *alps.Session) (*url.URL, bool) {
+func (p *plugin) davURL(session *alborz.Session) (*url.URL, bool) {
 	u, ok := p.urls[session.Domain()]
 	if !ok {
 		u, ok = p.urls[""]
@@ -82,9 +82,9 @@ func sanityCheckURL(u *url.URL) error {
 
 // domainURL resolves the domain's CalDAV endpoint; nil without error means
 // the domain has none.
-func domainURL(srv *alps.Server, domain string) (*url.URL, error) {
+func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
 	u, err := srv.Upstream(domain, "caldavs", "caldav+insecure", "https", "http+insecure")
-	if _, ok := err.(*alps.NoUpstreamError); ok {
+	if _, ok := err.(*alborz.NoUpstreamError); ok {
 		return nil, nil
 	} else if err != nil {
 		return nil, fmt.Errorf("caldav: domain %q: failed to parse upstream caldav server: %v", domain, err)
@@ -117,7 +117,7 @@ func domainURL(srv *alps.Server, domain string) (*url.URL, error) {
 	return u, nil
 }
 
-func newPlugin(srv *alps.Server) (alps.Plugin, error) {
+func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	urls := make(map[string]*url.URL)
 	for _, domain := range srv.Domains() {
 		u, err := domainURL(srv, domain)
@@ -133,11 +133,11 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 	}
 
 	p := &plugin{
-		GoPlugin: alps.GoPlugin{Name: "caldav"},
+		GoPlugin: alborz.GoPlugin{Name: "caldav"},
 		urls:     urls,
 		jars:     make(map[string]http.CookieJar),
 	}
-	p.EnabledFunc = func(ctx *alps.Context) bool {
+	p.EnabledFunc = func(ctx *alborz.Context) bool {
 		if ctx.Session == nil {
 			return false
 		}
@@ -157,7 +157,7 @@ func newPlugin(srv *alps.Server) (alps.Plugin, error) {
 }
 
 func init() {
-	alps.RegisterPluginLoader(func(s *alps.Server) ([]alps.Plugin, error) {
+	alborz.RegisterPluginLoader(func(s *alborz.Server) ([]alborz.Plugin, error) {
 		p, err := newPlugin(s)
 		if err != nil {
 			return nil, err
@@ -165,6 +165,6 @@ func init() {
 		if p == nil {
 			return nil, nil
 		}
-		return []alps.Plugin{p}, err
+		return []alborz.Plugin{p}, err
 	})
 }

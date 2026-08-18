@@ -73,6 +73,17 @@
         </div>
 
         <div class="action-group">
+          <label for="theme">Theme</label>
+          <select name="theme" id="theme">
+            <option value="" {{if eq .Theme ""}}selected{{end}}>Default</option>
+            <option value="sublime" {{if eq .Theme "sublime"}}selected{{end}}>Sublime</option>
+            <option value="sourcehut" {{if eq .Theme "sourcehut"}}selected{{end}}>Sourcehut</option>
+            <option value="glass" {{if eq .Theme "glass"}}selected{{end}}>Glass</option>
+            <option value="ink" {{if eq .Theme "ink"}}selected{{end}}>Ink</option>
+          </select>
+        </div>
+
+        <div class="action-group">
           <label for="color_scheme">Appearance</label>
           <select name="color_scheme" id="color_scheme">
             <option value="" {{if eq .ColorScheme ""}}selected{{end}}>System</option>

@@ -1,0 +1,57 @@
+/* Frosted translucency over a soft gradient, the iOS glass look.
+   The doubled :root outweighs the scheme blocks in the base sheet. */
+:root:root {
+  color-scheme: light;
+
+  --fg: #1b1b1f;
+  --fg-dim: #48484f;
+  --fg-muted: #63636b;
+  --fg-faint: #8e8e96;
+
+  --bg: rgba(255, 255, 255, 0.62);
+  --bg-well: rgba(255, 255, 255, 0.28);
+  --bg-inset: rgba(255, 255, 255, 0.45);
+  --bg-button: rgba(255, 255, 255, 0.55);
+  --bg-active: rgba(255, 255, 255, 0.78);
+
+  --border: rgba(28, 28, 30, 0.14);
+  --border-light: rgba(28, 28, 30, 0.1);
+  --border-faint: rgba(28, 28, 30, 0.06);
+  --border-strong: rgba(28, 28, 30, 0.28);
+
+  --link: #0a66ff;
+  --link-read: #5a76b8;
+  --link-unread: #0047d6;
+
+  --green: #34c759;
+  --green-dark: #1e8f43;
+  --bg-green: rgba(52, 199, 89, 0.12);
+  --border-green: rgba(52, 199, 89, 0.35);
+  --flag: #cc9a06;
+
+  --notice-fg: #0c5460;
+  --notice-bg: rgba(209, 236, 241, 0.7);
+  --notice-border: rgba(190, 229, 235, 0.8);
+  --alert-fg: #a11224;
+  --alert-bg: rgba(248, 215, 218, 0.72);
+  --alert-border: rgba(245, 198, 203, 0.8);
+}
+
+body {
+  background: linear-gradient(155deg, #c9d9ff 0%, #f3d9f0 45%, #d3f0e0 100%) fixed;
+}
+
+/* No backdrop-filter here: a filtered header would become the containing
+   block for the account panel it hosts, which docks to the drawer as a
+   fixed element on small screens. */
+header {
+  background-color: var(--bg);
+}
+
+aside,
+.actions,
+header nav .accounts-menu,
+main.login > section {
+  backdrop-filter: blur(18px) saturate(1.6);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+}

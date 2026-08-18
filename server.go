@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -25,6 +26,7 @@ const (
 	activeUserCookieName = "alborz_user"
 	loginTokenCookieName = "alborz_login_tokens"
 	schemeCookieName     = "alborz_scheme"
+	themeCookieName      = "alborz_theme"
 )
 
 // Server holds all the alborz server state.
@@ -549,6 +551,20 @@ func (ctx *Context) SetColorScheme(scheme string) {
 // ColorScheme returns the user's forced scheme, empty for the system.
 func (ctx *Context) ColorScheme() string {
 	return ctx.pref(schemeCookieName, func(v string) bool { return v == "light" || v == "dark" })
+}
+
+// themeVariants are the selectable stylesheet overlays; the value is
+// validated here since it lands in a stylesheet URL.
+var themeVariants = []string{"sublime", "sourcehut", "glass", "ink"}
+
+// SetTheme stores the theme variant choice per user.
+func (ctx *Context) SetTheme(theme string) {
+	ctx.setPref(themeCookieName, theme, slices.Contains(themeVariants, theme))
+}
+
+// Theme returns the user's theme variant, empty for the default.
+func (ctx *Context) Theme() string {
+	return ctx.pref(themeCookieName, func(v string) bool { return slices.Contains(themeVariants, v) })
 }
 
 func (ctx *Context) Logout() *Session {

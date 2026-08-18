@@ -24,6 +24,7 @@ const (
 	accountsCookieName   = "alborz_accounts"
 	activeUserCookieName = "alborz_user"
 	loginTokenCookieName = "alborz_login_tokens"
+	schemeCookieName     = "alborz_scheme"
 )
 
 // Server holds all the alborz server state.
@@ -515,6 +516,41 @@ func (ctx *Context) SwitchAccount(username string) bool {
 // Logout closes the active session, removes it from the account list, and
 // promotes the next remaining account, whose session is returned. A nil
 // return means no account is left and the cookies were cleared.
+// setPref stores a per-user display preference in the browser; empty
+// clears it back to the default.
+func (ctx *Context) setPref(name, value string, valid bool) {
+	cookie := http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   ctx.secureCookies(),
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
+	}
+	if value == "" || !valid {
+		cookie.Expires = aLongTimeAgo // unset the cookie
+	}
+	ctx.SetCookie(&cookie)
+}
+
+func (ctx *Context) pref(name string, valid func(string) bool) string {
+	if c, err := ctx.Cookie(name); err == nil && valid(c.Value) {
+		return c.Value
+	}
+	return ""
+}
+
+// SetColorScheme stores the forced light or dark scheme per user.
+func (ctx *Context) SetColorScheme(scheme string) {
+	ctx.setPref(schemeCookieName, scheme, scheme == "light" || scheme == "dark")
+}
+
+// ColorScheme returns the user's forced scheme, empty for the system.
+func (ctx *Context) ColorScheme() string {
+	return ctx.pref(schemeCookieName, func(v string) bool { return v == "light" || v == "dark" })
+}
+
 func (ctx *Context) Logout() *Session {
 	var remaining []*Session
 	for _, s := range ctx.accountSessions() {

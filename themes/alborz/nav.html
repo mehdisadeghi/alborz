@@ -1,5 +1,11 @@
+{{ if .GlobalData.LoggedIn }}
+<input type="checkbox" id="sidebar" class="sidebar-toggle">
+{{ end }}
 <header>
   <nav>
+    {{ if .GlobalData.LoggedIn }}
+    <label for="sidebar" class="sidebar-button" aria-label="Folders">☰</label>
+    {{ end }}
     {{$page := (index .GlobalData.Path 0)}}
     <a href="/"
       {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}
@@ -65,3 +71,6 @@
   </div>
   {{ end }}
 </header>
+{{ if .GlobalData.LoggedIn }}
+<label for="sidebar" class="sidebar-backdrop"></label>
+{{ end }}

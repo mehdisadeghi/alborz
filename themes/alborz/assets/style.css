@@ -150,7 +150,7 @@ select {
 }
 
 body { font-family: arial,sans-serif; font-size: 13px; padding: 0; margin: 0;
-  min-width: 1024px; min-height: 100vh; display: flex; flex-direction: column;
+  min-height: 100vh; display: flex; flex-direction: column;
   background-color: var(--bg); color: var(--fg);
 }
 
@@ -250,7 +250,7 @@ footer { text-align: end; }
   padding: 1rem 0;
 }
 
-aside { flex: 0 0 180px; }
+aside { flex: 0 0 clamp(140px, 15vw, 180px); }
 
 aside img { display: block; }
 
@@ -321,8 +321,17 @@ main.login {
 main.login > section {
   align-self: center;
   background: var(--bg);
-  min-width: 20rem;
-  padding: 1rem;
+  width: min(26rem, 100%);
+  padding: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+main.login button {
+  width: 100%;
+  padding-block: 0.6rem;
+  font-weight: bold;
 }
 
 main.login .version {
@@ -421,7 +430,9 @@ main.create-update #attachment-list {
   grid-row-start: 1;
   grid-row-end: 7;
 
-  width: 25rem;
+  /* Fluid beside the fields; the fixed width forced the page to
+     scroll sideways on narrower desktops. */
+  width: clamp(10rem, 28vw, 25rem);
   height: 100%;
   background: var(--bg-inset);
   overflow-y: scroll;
@@ -754,11 +765,15 @@ main.create-update .actions > *:not(:last-child) {
   opacity: 1;
 }
 
-.message-list-unread:nth-child(5n+1) {
+.message-row {
+  display: contents;
+}
+
+.message-list-unread:first-child {
   border-inline-start: 1px solid var(--border-faint);
 }
 
-.message-list-unread:nth-child(5n+5) {
+.message-list-unread:last-child {
   border-inline-end: 1px solid var(--border-faint);
 }
 
@@ -810,7 +825,11 @@ main table tfoot {
 }
 
 .actions input[type="text"] {
+  /* The explicit width shrinks the intrinsic size the toolbar wraps
+     on; flex-grow then widens the field when there is room. */
   flex: 1;
+  width: 6rem;
+  min-width: 3.5rem;
   margin: 0;
 }
 
@@ -825,8 +844,10 @@ main table tfoot {
   display: flex;
   flex-grow: 1;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .actions-search {
@@ -835,8 +856,23 @@ main table tfoot {
   flex-grow: 1;
 }
 
+/* Five-digit mailbox counts must not push the toolbar to two lines
+   at half-screen widths; the range is secondary and shrinks first,
+   then goes entirely before the toolbar would wrap. */
+.pagination-range {
+  font-size: 0.85rem;
+}
+
+@media (width <= 45rem) {
+  .pagination-range { display: none; }
+}
+
+.actions-search button {
+  padding-inline: 0.5rem;
+}
+
 .actions-pagination {
-  margin-inline-start: 1rem;
+  margin-inline-start: 0.5rem;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -954,7 +990,7 @@ main table tfoot {
   border-bottom: 1px solid var(--border-strong);
 }
 
-.message-list .messages .message-grid > *,
+.message-list .messages .message-list-item,
 .contact-list .contacts .contact-grid > * {
   white-space: nowrap;
   padding: 0.3rem;
@@ -1243,4 +1279,218 @@ main.task .details h1.completed {
 
 .show-completed-toggle input {
   width: auto;
+}
+
+/* Small screens: the desktop minimum width no longer applies and the
+   sidebar becomes an off-canvas drawer, driven by the checkbox in the
+   header so no script is involved. */
+.sidebar-toggle,
+.sidebar-button,
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (width <= 600px) {
+  body { min-width: 0; }
+
+  .sidebar-button {
+    display: inline-block;
+    cursor: pointer;
+    padding: 0 0.3rem;
+    margin-inline-end: 0.5rem;
+    font-size: 1.2rem;
+  }
+
+  /* Error pages have no sidebar, so no button to open one. */
+  body:not(:has(aside)) .sidebar-button { display: none; }
+
+  /* The header is a single swipeable row; the account block leaves it
+     and docks at the bottom of the open drawer instead. */
+  header nav {
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  header nav > a { margin-inline-end: 0.75rem; }
+
+  header nav > div { float: none; display: none; }
+
+  .sidebar-toggle:checked ~ header nav > div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    position: fixed;
+    bottom: 0;
+    inset-inline-start: 0;
+    width: 14rem;
+    z-index: 21;
+    padding: 0.75rem;
+    background-color: var(--bg);
+    border-top: 1px solid var(--border);
+    border-inline-end: 1px solid var(--border);
+  }
+
+  .sidebar-toggle:checked ~ header nav > div > a { margin-inline-start: 0; }
+
+  .sidebar-toggle:checked ~ header .accounts-menu {
+    position: static;
+    padding-block: 0;
+    padding-inline: 1rem 0;
+    border: 0;
+    box-shadow: none;
+  }
+
+  aside {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: -14rem;
+    width: 14rem;
+    z-index: 20;
+    overflow-y: auto;
+    padding-bottom: 10rem; /* room for the docked account block */
+    background-color: var(--bg);
+    border-inline-end: 1px solid var(--border);
+    transition: inset-inline-start 0.15s ease-out;
+  }
+
+  .sidebar-toggle:checked ~ .page-wrap aside { inset-inline-start: 0; }
+
+  body:has(.sidebar-toggle:checked) { overflow: hidden; }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+
+  .sidebar-toggle:checked ~ .sidebar-backdrop { display: block; }
+
+  /* Lists and toolbars run edge to edge; standalone forms keep an inset. */
+  main { padding: 0; }
+  main.create-update,
+  main.settings { padding: 0.75rem; }
+
+  main.login > section { width: 100%; }
+
+  /* The mailbox becomes two-line rows: sender and date on top, subject
+     and flags below. */
+  .message-grid { display: block; }
+
+  .message-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check sender date"
+      "check subject flags";
+    column-gap: 0.5rem;
+    padding-inline: 0.5rem;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .message-row:has(.message-list-unread) { background-color: var(--bg); }
+
+  .message-list .messages .message-list-item {
+    padding: 0.15rem 0;
+    border-inline: 0;
+  }
+
+  .message-list-checkbox { grid-area: check; }
+  /* The sender is a from-search link, but the subject is the row's real
+     action; only it keeps the link color. */
+  .message-list-sender { grid-area: sender; }
+  .message-list-sender a { color: inherit; }
+  .message-list-date {
+    grid-area: date;
+    justify-content: flex-end;
+    font-size: 0.8rem;
+  }
+  .message-list-subject { grid-area: subject; }
+  .message-list-flags { grid-area: flags; }
+
+  /* Toolbars compact to two rows: the buttons and the count share the
+     first, the search gets the second. */
+  .actions {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+    column-gap: 0.3rem;
+    padding: 0.3rem 0.5rem;
+  }
+
+  /* The select-all checkbox shares the first toolbar row. */
+  .message-list .actions,
+  .contact-list .actions {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+
+  .message-list .actions > .message-list-checkbox,
+  .contact-list .actions > .message-list-checkbox {
+    padding-block: 0.4rem;
+    padding-inline: 0.5rem;
+  }
+
+  .actions button,
+  .actions .button-link {
+    white-space: nowrap;
+  }
+
+  .actions-wrap { flex-wrap: wrap; row-gap: 0.3rem; min-width: 0; }
+  .actions-message { flex-wrap: wrap; row-gap: 0.3rem; column-gap: 0.3rem; }
+  .actions-search { order: 2; flex-basis: 100%; }
+  .actions-wrap .action-group { margin-inline-start: 0; }
+  .actions-pagination { margin-inline-start: auto; }
+  .actions-pagination h3 { font-size: 0.8rem; }
+
+  /* Message view: header fields wrap and the parts pane stacks below. */
+  main.message .message-header { flex-direction: column; }
+  main.message .message-header .parts {
+    width: auto;
+    margin-inline-start: 0;
+    margin-top: 0.3rem;
+  }
+  main.message th, main.event th { width: auto; }
+  main.message td {
+    white-space: normal;
+    max-width: none;
+    overflow-wrap: anywhere;
+  }
+
+  /* Compose: single header column, attachments below the fields. */
+  main.create-update .headers { grid-template-columns: auto minmax(0, 1fr); }
+  main.create-update #attachment-list {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    width: auto;
+    height: 8rem;
+  }
+
+  /* Contacts: name and phone only; the e-mail column waits for the
+     detail page. */
+  .contact-grid { grid-template-columns: auto 2rem minmax(0, 1fr) auto; }
+  .contact-list .contacts .contact-grid > .contact-list-email,
+  .contact-list .contacts .contact-grid > .contact-list-header:nth-child(4) {
+    display: none;
+  }
+  .contact-list-phone { font-size: 0.8rem; }
+
+  /* Calendar: a compact month with single-letter weekdays and events
+     reduced to their color dots; the day link opens the full list. */
+  main.calendar .dates { grid-gap: 2px; padding: 0; }
+  main.calendar .dates .weekday { font-size: 0; }
+  main.calendar .dates .weekday::first-letter { font-size: 0.8rem; }
+  main.calendar .date { padding: 2px; min-height: 3rem; }
+  main.calendar .date h4 { font-size: 0.7rem; }
+  main.calendar .date h4 .da { font-size: 0.9rem; }
+  main.calendar .date ul { padding-inline-start: 0; }
+  main.calendar .events li { display: inline; font-size: 0; }
+  main.calendar .events li .color-dot {
+    width: 6px;
+    height: 6px;
+    margin-inline-end: 2px;
+  }
+  main.calendar .events .overflow { font-size: 0.7rem; }
 }

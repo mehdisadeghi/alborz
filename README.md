@@ -1,36 +1,57 @@
-# [alps]
+# Alborz
 
-[![GoDoc](https://godoc.org/git.sr.ht/~migadu/alps?status.svg)](https://godoc.org/git.sr.ht/~migadu/alps)
-[![builds.sr.ht status](https://builds.sr.ht/~migadu/alps/commits.svg)](https://builds.sr.ht/~migadu/alps/commits?)
+![](shahalborz.jpg)
+*Shahalborz, Alborz mountains. Image based on a [photo by nomad] on
+SummitPost.*
 
-A simple and extensible webmail.
+A simple and pragmatic webmail. Alborz is a fork of [alps].
+
+## Fork additions
+
+- serves multiple mail domains, logins whitelisted by domain
+- account switcher and a unified mail view across accounts
+- full-text body search, server-side sorting, and a starred view
+- sieve filter editor
+- CalDAV tasks and calendar date and list views
+- extended vCard contact fields with photos
+- responsive UI with dark scheme, theme variants, and RTL support
+- CalDAV/CardDAV caching at the HTTP transport with ctag revalidation
+
+See [INSTALLATION.md](INSTALLATION.md) for building and a systemd unit.
 
 ## Usage
 
 Assuming SRV DNS records are properly set up (see [RFC 6186]):
 
-    go run ./cmd/alps example.org
+    go run ./cmd/alborz example.org
 
 To manually specify upstream servers:
 
-    go run ./cmd/alps imaps://mail.example.org:993 smtps://mail.example.org:465
+    go run ./cmd/alborz imaps://mail.example.org:993 smtps://mail.example.org:465
 
-Add `-theme alps` to use the alps theme. See `docs/cli.md` for more
-information.
+To serve multiple mail domains, one argument per domain:
+
+    go run ./cmd/alborz example.org example.com=imaps://mail.example.com example.com=smtps://mail.example.com
+
+See `docs/cli.md` for more information.
 
 When developing themes and plugins, the script `contrib/hotreload.sh` can be
-used to automatically reload alps on file changes.
+used to automatically reload alborz on file changes.
 
 ## Contributing
 
-Send patches on the [mailing list], report bugs on the [issue tracker].
+Report issues and send patches at [github.com/mehdisadeghi/alborz].
+
+## Acknowledgements
+
+This fork builds on the work of Simon Ser, Drew DeVault, and the other
+[alps] contributors.
 
 ## License
 
 MIT
 
 [alps]: https://sr.ht/~migadu/alps
+[photo by nomad]: https://www.summitpost.org/shah-alborz-north-west/389048/c-154044
 [RFC 6186]: https://tools.ietf.org/html/rfc6186
-[Go plugin helpers]: https://godoc.org/git.sr.ht/~migadu/alps#GoPlugin
-[mailing list]: https://lists.sr.ht/~migadu/alps-devel
-[issue tracker]: https://todo.sr.ht/~migadu/alps
+[github.com/mehdisadeghi/alborz]: https://github.com/mehdisadeghi/alborz

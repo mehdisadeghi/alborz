@@ -145,19 +145,19 @@ a { color: var(--link); }
 button { font-size: 1rem; }
 header { border-bottom: 1px solid var(--border);}
 header nav,
-footer { padding: 0.5rem 1rem 0.5rem 0.5rem; }
+footer { padding-block: 0.5rem; padding-inline: 0.5rem 1rem; }
 header nav { min-height: 1rem; }
 /*header nav strong { color: var(--fg-dim); }*/
-header nav > a { margin-right: 1rem; }
+header nav > a { margin-inline-end: 1rem; }
 header nav span { color: var(--fg-muted); }
-header nav > div { float: right; }
-header nav > div > a{  margin-left: 1rem; }
+header nav > div { float: inline-end; }
+header nav > div > a{  margin-inline-start: 1rem; }
 
 header nav .accounts { display: inline-block; position: relative; }
 header nav .accounts summary { cursor: pointer; color: var(--fg-muted); }
 header nav .accounts-menu {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -175,7 +175,7 @@ header nav .accounts-menu button {
   border: none;
   background: none;
   color: var(--link);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 header a.active { font-weight: bold; color: var(--fg); text-decoration: none; }
@@ -188,7 +188,7 @@ header .notice {
     text-align: center;
 }
 
-footer { text-align: right; }
+footer { text-align: end; }
 
 .actions { padding: 0.5rem; }
 
@@ -248,7 +248,7 @@ aside button {
   text-align: center;
   display: inline-block;
   padding: 0 0.3rem;
-  margin-right: 0.3rem;
+  margin-inline-end: 0.3rem;
   border: none;
   background: transparent;
 }
@@ -265,7 +265,7 @@ main {
   flex: 1 100%;
   display: flex;
   flex-direction: column;
-  padding: 0.5rem 1rem 0.5rem 0.5rem;
+  padding-block: 0.5rem; padding-inline: 0.5rem 1rem;
   min-width: 0;
   background-color: var(--bg-well);
 }
@@ -404,7 +404,7 @@ main.create-update #attachment-list .upload {
 }
 
 main.create-update #attachment-list *:not(:last-child) {
-  margin-right: 0.25rem;
+  margin-inline-end: 0.25rem;
 }
 
 main.create-update #attachment-list .upload .filename {
@@ -421,7 +421,7 @@ main.create-update #attachment-list .upload .progress {
   height: 5px;
   background: var(--green);
   bottom: 0;
-  left: 0;
+  inset-inline-start: 0;
 }
 
 main.create-update #attachment-list .upload .error {
@@ -447,7 +447,7 @@ main.create-update .text textarea {
 
 #send-progress {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 0;
   width: 100%;
   height: 100%;
@@ -460,7 +460,7 @@ main.create-update .text textarea {
 
 #send-progress svg {
   height: 1.2rem;
-  margin-right: 0.3rem;
+  margin-inline-end: 0.3rem;
   animation: fa-spin 2s infinite linear;
 }
 
@@ -563,7 +563,7 @@ main.message .message-header {
 
 main.message .message-header .parts {
   width: 30%;
-  margin-left: 0.3rem;
+  margin-inline-start: 0.3rem;
   padding: 0.3rem 0.5rem;
   background: var(--bg);
   border-top: 1px solid var(--border-faint);
@@ -576,7 +576,7 @@ main.message .message-header .parts ul {
 }
 
 main.message .message-header .parts li {
-  margin-left: 0;
+  margin-inline-start: 0;
 }
 
 /* View pages (contact, task, event) */
@@ -622,7 +622,7 @@ main.event .details table {
 main.event .details th,
 main.event .details td {
   padding: 0.3rem 0.5rem;
-  text-align: left;
+  text-align: start;
 }
 
 main.event .details th {
@@ -631,11 +631,11 @@ main.event .details th {
 }
 
 .contact-photo {
-  float: right;
+  float: inline-end;
   max-width: 120px;
   max-height: 120px;
   border-radius: 8px;
-  margin-left: 1rem;
+  margin-inline-start: 1rem;
 }
 
 main.create-update .actions {
@@ -643,7 +643,7 @@ main.create-update .actions {
   flex-direction: row;
   align-items: center;
   background: transparent;
-  padding-left: 0;
+  padding-inline-start: 0;
   margin-top: 1rem;
 }
 
@@ -654,12 +654,12 @@ main.create-update .actions .button-link {
 }
 
 main.create-update .actions > *:not(:last-child) {
-  margin-right: 1rem;
+  margin-inline-end: 1rem;
 }
 
 .actions h3 {
   align-self: center;
-  margin: 0 1.3rem 0 1rem;
+  margin-block: 0; margin-inline: 1rem 1.3rem;
 }
 
 .message-list-flags {
@@ -700,7 +700,7 @@ main.create-update .actions > *:not(:last-child) {
 }
 
 .message-list-date {
-  text-align: right;
+  text-align: end;
 }
 
 .message-list-unread.message-list-subject a { color: var(--link-unread); }
@@ -711,11 +711,11 @@ main.create-update .actions > *:not(:last-child) {
 }
 
 .message-list-unread:nth-child(5n+1) {
-  border-left: 1px solid var(--border-faint);
+  border-inline-start: 1px solid var(--border-faint);
 }
 
 .message-list-unread:nth-child(5n+5) {
-  border-right: 1px solid var(--border-faint);
+  border-inline-end: 1px solid var(--border-faint);
 }
 
 aside .new {
@@ -726,7 +726,7 @@ aside .new {
 }
 
 main table th {
-  text-align: left;
+  text-align: start;
   padding: 0.3rem; font-weight: normal;
 }
 
@@ -771,10 +771,10 @@ main table tfoot {
 }
 
 .actions input[type="text"] + button {
-  margin-left: -4rem;
+  margin-inline-start: -4rem;
   width: 4rem;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
 }
 
 .actions-wrap {
@@ -792,7 +792,7 @@ main table tfoot {
 }
 
 .actions-pagination {
-  margin-left: 1rem;
+  margin-inline-start: 1rem;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -814,7 +814,7 @@ main table tfoot {
 }
 
 .actions-wrap .action-group {
-  margin-left: 0.3rem;
+  margin-inline-start: 0.3rem;
   margin-bottom: 0;
 }
 
@@ -833,7 +833,7 @@ main table tfoot {
 .action-group .checkbox input {
   display: inline;
   width: 1rem;
-  float: left;
+  float: inline-start;
 }
 
 .action-group select[multiple] {
@@ -921,7 +921,7 @@ main table tfoot {
 }
 
 .followups a:not(:first-child) {
-  margin-left: 0.3rem;
+  margin-inline-start: 0.3rem;
 }
 
 .empty-list {
@@ -965,7 +965,7 @@ main.calendar .date.active {
 
 main.calendar .date .date-link {
   position: absolute;
-  top: 0; right: 0; bottom: 0; left: 0;
+  inset: 0;
 }
 
 main.calendar .date.extra {
@@ -977,7 +977,7 @@ main.calendar .date.extra {
 main.calendar .date ul {
   list-style: none;
   margin: 0;
-  padding-left: 0.3rem;
+  padding-inline-start: 0.3rem;
 }
 
 main.calendar .date.extra .events {
@@ -990,12 +990,12 @@ main.calendar .events .start-time {
 
 main.calendar .events .overflow {
   color: var(--fg-dim);
-  text-align: right;
+  text-align: end;
 }
 
 main.calendar .date h4 {
   font-weight: normal;
-  text-align: right;
+  text-align: end;
   color: var(--fg-muted);
 }
 
@@ -1013,7 +1013,7 @@ main.calendar-date .events-list ul {
   width: 8px;
   height: 8px;
   border-radius: 2px;
-  margin-right: 4px;
+  margin-inline-end: 4px;
   vertical-align: middle;
 }
 
@@ -1118,7 +1118,7 @@ button:active,
 }
 
 .task-checkbox {
-  margin-right: 0.5rem;
+  margin-inline-end: 0.5rem;
 }
 
 .checkbox-button {

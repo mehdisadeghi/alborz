@@ -1,11 +1,11 @@
-package alpssieve
+package alborzsieve
 
 import (
-	"git.sr.ht/~migadu/alps"
+	"git.mehdix.org/alborz"
 )
 
 func init() {
-	alps.RegisterPluginLoader(func(srv *alps.Server) ([]alps.Plugin, error) {
+	alborz.RegisterPluginLoader(func(srv *alborz.Server) ([]alborz.Plugin, error) {
 		enabled := false
 		for _, domain := range srv.Domains() {
 			if srv.SieveEnabled(domain) {
@@ -16,13 +16,13 @@ func init() {
 			return nil, nil
 		}
 
-		p := alps.GoPlugin{
+		p := alborz.GoPlugin{
 			Name: "sieve",
-			EnabledFunc: func(ctx *alps.Context) bool {
+			EnabledFunc: func(ctx *alborz.Context) bool {
 				return ctx.Session != nil && ctx.Server.SieveEnabled(ctx.Session.Domain())
 			},
 		}
 		registerRoutes(&p)
-		return []alps.Plugin{p.Plugin()}, nil
+		return []alborz.Plugin{p.Plugin()}, nil
 	})
 }

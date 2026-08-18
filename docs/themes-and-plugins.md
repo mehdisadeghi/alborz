@@ -17,7 +17,7 @@ Assets in `plugins/<name>/public/assets/*` are served by the HTTP server at
 ## Go plugins
 
 They can use the [Go plugin helpers] and need to be included at compile-time in
-`cmd/alps/main.go`.
+`cmd/alborz/main.go`.
 
 ## Lua plugins
 
@@ -25,8 +25,8 @@ The entry point is at `plugins/<name>/main.lua`.
 
 API:
 
-* `alps.on_render(name, f)`: prior to rendering the template `name`, call
+* `alborz.on_render(name, f)`: prior to rendering the template `name`, call
   `f` with the template data (the special name `*` matches all templates)
-* `alps.set_filter(name, f)`: set a template function
-* `alps.set_route(method, path, f)`: register a new HTTP route, `f` will be
+* `alborz.set_filter(name, f)`: set a template function
+* `alborz.set_route(method, path, f)`: register a new HTTP route, `f` will be
   called with the HTTP context

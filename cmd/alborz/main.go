@@ -11,19 +11,19 @@ import (
 	"syscall"
 	"time"
 
-	"git.sr.ht/~migadu/alps"
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	"git.mehdix.org/alborz"
 
-	_ "git.sr.ht/~migadu/alps/plugins/base"
-	_ "git.sr.ht/~migadu/alps/plugins/caldav"
-	_ "git.sr.ht/~migadu/alps/plugins/carddav"
-	_ "git.sr.ht/~migadu/alps/plugins/lua"
-	_ "git.sr.ht/~migadu/alps/plugins/sieve"
-	_ "git.sr.ht/~migadu/alps/plugins/viewhtml"
-	_ "git.sr.ht/~migadu/alps/plugins/viewtext"
+	_ "git.mehdix.org/alborz/plugins/base"
+	_ "git.mehdix.org/alborz/plugins/caldav"
+	_ "git.mehdix.org/alborz/plugins/carddav"
+	_ "git.mehdix.org/alborz/plugins/lua"
+	_ "git.mehdix.org/alborz/plugins/sieve"
+	_ "git.mehdix.org/alborz/plugins/viewhtml"
+	_ "git.mehdix.org/alborz/plugins/viewtext"
 )
 
 var themesPath = "./themes"
@@ -63,15 +63,15 @@ func main() {
 	var (
 		addr     string
 		loginKey string
-		options  alps.Options
+		options  alborz.Options
 	)
 	flag.StringVar(&options.Theme, "theme", "", "default theme")
 	flag.StringVar(&addr, "addr", ":1323", "listening address")
 	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
-	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $ALPS_LOGIN_KEY)")
+	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
 
 	flag.Usage = func() {
-		fmt.Fprint(flag.CommandLine.Output(), `usage: alps [options...] <upstreams...>
+		fmt.Fprint(flag.CommandLine.Output(), `usage: alborz [options...] <upstreams...>
 
 Plain imap[s]://, smtp[s]://, sieve://, https:// or +insecure URLs
 configure a single provider accepting logins of any domain. Alternatively,
@@ -89,12 +89,12 @@ upstreams are given as repeated domain=url arguments, e.g.:
 
 	// The environment keeps the key out of the process list.
 	if loginKey == "" {
-		loginKey = os.Getenv("ALPS_LOGIN_KEY")
+		loginKey = os.Getenv("LBRZ_LOGIN_KEY")
 	}
 
 	options.Upstreams = flag.Args()
 	if len(options.Upstreams) == 0 {
-		fmt.Fprintln(flag.CommandLine.Output(), "alps: no upstream servers specified")
+		fmt.Fprintln(flag.CommandLine.Output(), "alborz: no upstream servers specified")
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -104,7 +104,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	if loginKey != "" {
 		fernetKey, err := fernet.DecodeKey(loginKey)
 		if err != nil {
-			fmt.Fprintf(flag.CommandLine.Output(), "alps: invalid -login-key: %v\n", err)
+			fmt.Fprintf(flag.CommandLine.Output(), "alborz: invalid -login-key: %v\n", err)
 			os.Exit(2)
 		}
 		options.LoginKey = fernetKey
@@ -115,7 +115,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	if l, ok := e.Logger.(*log.Logger); ok {
 		l.SetHeader("${time_rfc3339} ${level}")
 	}
-	s, err := alps.New(e, &options)
+	s, err := alborz.New(e, &options)
 	if err != nil {
 		e.Logger.Fatal(err)
 	}

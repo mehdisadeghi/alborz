@@ -1,12 +1,12 @@
-package alpslua
+package alborzlua
 
 import (
 	"fmt"
 	"html/template"
 	"path/filepath"
 
-	"git.sr.ht/~migadu/alps"
 	"github.com/labstack/echo/v4"
+	"git.mehdix.org/alborz"
 	"github.com/yuin/gopher-lua"
 	"layeh.com/gopher-luar"
 )
@@ -69,7 +69,7 @@ func (p *luaPlugin) setRoute(l *lua.LState) int {
 	return 0
 }
 
-func (p *luaPlugin) inject(name string, data alps.RenderData) error {
+func (p *luaPlugin) inject(name string, data alborz.RenderData) error {
 	f, ok := p.renderCallbacks[name]
 	if !ok {
 		return nil
@@ -87,7 +87,7 @@ func (p *luaPlugin) inject(name string, data alps.RenderData) error {
 	return nil
 }
 
-func (p *luaPlugin) Inject(ctx *alps.Context, name string, data alps.RenderData) error {
+func (p *luaPlugin) Inject(ctx *alborz.Context, name string, data alborz.RenderData) error {
 	if err := p.inject("*", data); err != nil {
 		return err
 	}
@@ -158,15 +158,15 @@ func loadLuaPlugin(filename string) (*luaPlugin, error) {
 	return p, nil
 }
 
-func loadAllLuaPlugins(s *alps.Server) ([]alps.Plugin, error) {
+func loadAllLuaPlugins(s *alborz.Server) ([]alborz.Plugin, error) {
 	log := s.Logger()
 
-	filenames, err := filepath.Glob(alps.PluginDir + "/*/main.lua")
+	filenames, err := filepath.Glob(alborz.PluginDir + "/*/main.lua")
 	if err != nil {
 		return nil, fmt.Errorf("filepath.Glob failed: %v", err)
 	}
 
-	plugins := make([]alps.Plugin, 0, len(filenames))
+	plugins := make([]alborz.Plugin, 0, len(filenames))
 	for _, filename := range filenames {
 		log.Printf("Loading Lua plugin %q", filename)
 

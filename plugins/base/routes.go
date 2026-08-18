@@ -1,4 +1,4 @@
-package alpsbase
+package alborzbase
 
 import (
 	"bytes"
@@ -13,18 +13,18 @@ import (
 	"strconv"
 	"strings"
 
-	"git.sr.ht/~migadu/alps"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-smtp"
 	"github.com/labstack/echo/v4"
+	"git.mehdix.org/alborz"
 	"jaytaylor.com/html2text"
 )
 
-func registerRoutes(p *alps.GoPlugin) {
-	p.GET("/", func(ctx *alps.Context) error {
+func registerRoutes(p *alborz.GoPlugin) {
+	p.GET("/", func(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	})
 
@@ -37,10 +37,10 @@ func registerRoutes(p *alps.GoPlugin) {
 	p.GET("/delete-mailbox/:mbox", handleDeleteMailbox)
 	p.POST("/delete-mailbox/:mbox", handleDeleteMailbox)
 
-	p.GET("/message/:mbox/:uid", func(ctx *alps.Context) error {
+	p.GET("/message/:mbox/:uid", func(ctx *alborz.Context) error {
 		return handleGetPart(ctx, false)
 	})
-	p.GET("/message/:mbox/:uid/raw", func(ctx *alps.Context) error {
+	p.GET("/message/:mbox/:uid/raw", func(ctx *alborz.Context) error {
 		return handleGetPart(ctx, true)
 	})
 
@@ -76,7 +76,7 @@ func registerRoutes(p *alps.GoPlugin) {
 }
 
 type IMAPBaseRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	CategorizedMailboxes CategorizedMailboxes
 	Mailboxes            []MailboxInfo
 	Mailbox              *MailboxStatus
@@ -138,8 +138,8 @@ func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
 	}
 }
 
-func newIMAPBaseRenderData(ctx *alps.Context,
-	base *alps.BaseRenderData) (*IMAPBaseRenderData, error) {
+func newIMAPBaseRenderData(ctx *alborz.Context,
+	base *alborz.BaseRenderData) (*IMAPBaseRenderData, error) {
 
 	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
 	if err != nil {
@@ -234,8 +234,8 @@ func newIMAPBaseRenderData(ctx *alps.Context,
 	}, nil
 }
 
-func handleGetMailbox(ctx *alps.Context) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alps.NewBaseRenderData(ctx))
+func handleGetMailbox(ctx *alborz.Context) error {
+	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -320,8 +320,8 @@ type NewMailboxRenderData struct {
 	Error string
 }
 
-func handleNewMailbox(ctx *alps.Context) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alps.NewBaseRenderData(ctx))
+func handleNewMailbox(ctx *alborz.Context) error {
+	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -356,8 +356,8 @@ func handleNewMailbox(ctx *alps.Context) error {
 	})
 }
 
-func handleDeleteMailbox(ctx *alps.Context) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alps.NewBaseRenderData(ctx))
+func handleDeleteMailbox(ctx *alborz.Context) error {
+	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -376,18 +376,18 @@ func handleDeleteMailbox(ctx *alps.Context) error {
 	return ctx.Render(http.StatusOK, "delete-mailbox.html", ibase)
 }
 
-func handleLogin(ctx *alps.Context) error {
+func handleLogin(ctx *alborz.Context) error {
 	username := ctx.FormValue("username")
 	password := ctx.FormValue("password")
 	remember := ctx.FormValue("remember-me")
 	add := ctx.QueryParam("add") == "1"
 
 	renderData := struct {
-		alps.BaseRenderData
+		alborz.BaseRenderData
 		CanRememberMe bool
 		Add           bool
 	}{
-		BaseRenderData: *alps.NewBaseRenderData(ctx),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		CanRememberMe:  ctx.Server.Options.LoginKey != nil,
 		Add:            add,
 	}
@@ -402,11 +402,11 @@ func handleLogin(ctx *alps.Context) error {
 		s, err := ctx.Server.Sessions.Put(username, password)
 		if err != nil {
 			ctx.Logger().Printf("Login failed for %q: %v", username, err)
-			if _, ok := err.(alps.AuthError); ok {
+			if _, ok := err.(alborz.AuthError); ok {
 				renderData.BaseRenderData.GlobalData.Notice = "Failed to login!"
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
 			}
-			var domainErr alps.UnknownDomainError
+			var domainErr alborz.UnknownDomainError
 			if errors.As(err, &domainErr) {
 				renderData.BaseRenderData.GlobalData.Notice = "Failed to login: " + domainErr.Error()
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
@@ -431,7 +431,7 @@ func handleLogin(ctx *alps.Context) error {
 }
 
 // loginRedirect honors the next parameter after a successful login.
-func loginRedirect(ctx *alps.Context) error {
+func loginRedirect(ctx *alborz.Context) error {
 	// A second leading slash or backslash would make the target
 	// scheme-relative, redirecting off-site.
 	if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != "/login" &&
@@ -441,7 +441,7 @@ func loginRedirect(ctx *alps.Context) error {
 	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 }
 
-func handleLogout(ctx *alps.Context) error {
+func handleLogout(ctx *alborz.Context) error {
 	if next := ctx.Logout(); next != nil {
 		next.PutNotice("Signed in as " + next.Username() + ".")
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
@@ -449,7 +449,7 @@ func handleLogout(ctx *alps.Context) error {
 	return ctx.Redirect(http.StatusFound, "/login")
 }
 
-func handleSwitch(ctx *alps.Context) error {
+func handleSwitch(ctx *alborz.Context) error {
 	if !ctx.SwitchAccount(ctx.FormValue("account")) {
 		ctx.Session.PutNotice("That session has expired, sign in again.")
 		return ctx.Redirect(http.StatusFound, "/login?add=1")
@@ -473,12 +473,12 @@ type MessageRenderData struct {
 	Query    string
 }
 
-func handleGetPart(ctx *alps.Context, raw bool) error {
+func handleGetPart(ctx *alborz.Context, raw bool) error {
 	_, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
 	if err != nil {
 		return err
 	}
-	ibase, err := newIMAPBaseRenderData(ctx, alps.NewBaseRenderData(ctx))
+	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -624,12 +624,12 @@ type composeOptions struct {
 
 // Send message, append it to the Sent mailbox, mark the original message as
 // answered
-func submitCompose(ctx *alps.Context, msg *OutgoingMessage, options *composeOptions) error {
+func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOptions) error {
 	err := ctx.Session.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, msg)
 	})
 	if err != nil {
-		if _, ok := err.(alps.AuthError); ok {
+		if _, ok := err.(alborz.AuthError); ok {
 			return echo.NewHTTPError(http.StatusForbidden, err)
 		}
 		return fmt.Errorf("failed to send message: %v", err)
@@ -663,8 +663,8 @@ func submitCompose(ctx *alps.Context, msg *OutgoingMessage, options *composeOpti
 	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 }
 
-func handleCompose(ctx *alps.Context, msg *OutgoingMessage, options *composeOptions) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alps.NewBaseRenderData(ctx))
+func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOptions) error {
+	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -825,7 +825,7 @@ func handleCompose(ctx *alps.Context, msg *OutgoingMessage, options *composeOpti
 	})
 }
 
-func handleComposeNew(ctx *alps.Context) error {
+func handleComposeNew(ctx *alborz.Context) error {
 	text := ctx.QueryParam("body")
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
@@ -848,7 +848,7 @@ func handleComposeNew(ctx *alps.Context) error {
 	}, &composeOptions{})
 }
 
-func handleComposeAttachment(ctx *alps.Context) error {
+func handleComposeAttachment(ctx *alborz.Context) error {
 	reader, err := ctx.Request().MultipartReader()
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{
@@ -865,7 +865,7 @@ func handleComposeAttachment(ctx *alps.Context) error {
 	var uuids []string
 	for _, fh := range form.File["attachments"] {
 		uuid, err := ctx.Session.PutAttachment(fh, form)
-		if err == alps.ErrAttachmentCacheSize {
+		if err == alborz.ErrAttachmentCacheSize {
 			form.RemoveAll()
 			return ctx.JSON(http.StatusBadRequest, map[string]string{
 				"error": "Your attachments exceed the maximum file size. Remove some and try again.",
@@ -883,7 +883,7 @@ func handleComposeAttachment(ctx *alps.Context) error {
 	return ctx.JSON(http.StatusOK, &uuids)
 }
 
-func handleCancelAttachment(ctx *alps.Context) error {
+func handleCancelAttachment(ctx *alborz.Context) error {
 	uuid := ctx.Param("uuid")
 	a := ctx.Session.PopAttachment(uuid)
 	if a != nil {
@@ -908,7 +908,7 @@ func unwrapIMAPAddress(addr imap.Address) string {
 	return address
 }
 
-func handleReply(ctx *alps.Context) error {
+func handleReply(ctx *alborz.Context) error {
 	var inReplyToPath messagePath
 	var err error
 	inReplyToPath.Mailbox, inReplyToPath.Uid, err = parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
@@ -927,7 +927,7 @@ func handleReply(ctx *alps.Context) error {
 	return handleCompose(ctx, &msg, &composeOptions{InReplyTo: &inReplyToPath})
 }
 
-func populateMessageFromOriginalMessage(ctx *alps.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
+func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
 	var ret OutgoingMessage
 
 	partPath, err := parsePartPath(ctx.QueryParam("part"))
@@ -1007,7 +1007,7 @@ func filterOutUsername(username string, addresses []imap.Address) []imap.Address
 	return addresses
 }
 
-func handleForward(ctx *alps.Context) error {
+func handleForward(ctx *alborz.Context) error {
 	var sourcePath messagePath
 	var err error
 	sourcePath.Mailbox, sourcePath.Uid, err = parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
@@ -1084,7 +1084,7 @@ func handleForward(ctx *alps.Context) error {
 	return handleCompose(ctx, &msg, &composeOptions{Forward: &sourcePath})
 }
 
-func handleEdit(ctx *alps.Context) error {
+func handleEdit(ctx *alborz.Context) error {
 	var sourcePath messagePath
 	var err error
 	sourcePath.Mailbox, sourcePath.Uid, err = parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
@@ -1159,14 +1159,14 @@ func formatMsgIDList(l []string) string {
 	return "<" + strings.Join(l, ">, <") + ">"
 }
 
-func formOrQueryParam(ctx *alps.Context, k string) string {
+func formOrQueryParam(ctx *alborz.Context, k string) string {
 	if v := ctx.FormValue(k); v != "" {
 		return v
 	}
 	return ctx.QueryParam(k)
 }
 
-func handleMove(ctx *alps.Context) error {
+func handleMove(ctx *alborz.Context) error {
 	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -1215,7 +1215,7 @@ func handleMove(ctx *alps.Context) error {
 	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
 }
 
-func handleDelete(ctx *alps.Context) error {
+func handleDelete(ctx *alborz.Context) error {
 	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -1266,7 +1266,7 @@ func handleDelete(ctx *alps.Context) error {
 	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
 }
 
-func handleSetFlags(ctx *alps.Context) error {
+func handleSetFlags(ctx *alborz.Context) error {
 	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -1355,12 +1355,12 @@ type Settings struct {
 	FirstDayOfWeek  int // 0 = Sunday, 1 = Monday (default)
 }
 
-func LoadSettings(s alps.Store) (*Settings, error) {
+func LoadSettings(s alborz.Store) (*Settings, error) {
 	settings := &Settings{
 		MessagesPerPage: 50,
 		FirstDayOfWeek:  1, // Monday
 	}
-	if err := s.Get(settingsKey, settings); err != nil && err != alps.ErrNoStoreEntry {
+	if err := s.Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
 	if err := settings.check(); err != nil {
@@ -1383,7 +1383,7 @@ func (s *Settings) check() error {
 }
 
 type SettingsRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
@@ -1400,7 +1400,7 @@ func (s Subscriptions) Has(sub string) bool {
 	return false
 }
 
-func handleSettings(ctx *alps.Context) error {
+func handleSettings(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %v", err)
@@ -1447,7 +1447,7 @@ func handleSettings(ctx *alps.Context) error {
 	}
 
 	return ctx.Render(http.StatusOK, "settings.html", &SettingsRenderData{
-		BaseRenderData: *alps.NewBaseRenderData(ctx),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Settings:       settings,
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),

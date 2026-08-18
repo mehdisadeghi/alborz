@@ -1,4 +1,4 @@
-package alpscaldav
+package alborzcaldav
 
 import (
 	"bytes"
@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"git.sr.ht/~migadu/alps"
 	"github.com/emersion/go-webdav/caldav"
+	"git.mehdix.org/alborz"
 )
 
 var errNoCalendar = fmt.Errorf("caldav: no calendar found")
@@ -83,7 +83,7 @@ type davCollectionProps struct {
 	} `xml:"current-user-privilege-set>privilege"`
 }
 
-func (p *plugin) httpClient(session *alps.Session) *http.Client {
+func (p *plugin) httpClient(session *alborz.Session) *http.Client {
 	jar := p.jar(session)
 	return &http.Client{
 		Transport: p.cache.Transport(session.Username(), &webdavRoundTripper{
@@ -210,7 +210,7 @@ func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, h
 // methods to GET on 301/302 redirects, which breaks WebDAV.
 type webdavRoundTripper struct {
 	upstream http.RoundTripper
-	session  *alps.Session
+	session  *alborz.Session
 }
 
 func (rt *webdavRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -288,7 +288,7 @@ func newClient(u *url.URL, httpClient *http.Client) (*caldav.Client, error) {
 	return c, nil
 }
 
-func (p *plugin) clientWithCalendars(ctx context.Context, session *alps.Session) (*caldav.Client, []CalendarInfo, error) {
+func (p *plugin) clientWithCalendars(ctx context.Context, session *alborz.Session) (*caldav.Client, []CalendarInfo, error) {
 	c, err := p.client(session)
 	if err != nil {
 		return nil, nil, err
@@ -316,7 +316,7 @@ func (p *plugin) clientWithCalendars(ctx context.Context, session *alps.Session)
 	return c, infos, nil
 }
 
-func (p *plugin) clientWithCalendar(ctx context.Context, session *alps.Session) (*caldav.Client, *CalendarInfo, error) {
+func (p *plugin) clientWithCalendar(ctx context.Context, session *alborz.Session) (*caldav.Client, *CalendarInfo, error) {
 	c, calendars, err := p.clientWithCalendars(ctx, session)
 	if err != nil {
 		return nil, nil, err

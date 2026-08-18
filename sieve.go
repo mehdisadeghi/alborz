@@ -1,4 +1,4 @@
-package alps
+package alborz
 
 import (
 	"crypto/tls"
@@ -15,7 +15,7 @@ type SieveScript struct {
 	Active bool
 }
 
-// SieveClient is the subset of the ManageSieve protocol used by alps. It
+// SieveClient is the subset of the ManageSieve protocol used by alborz. It
 // hides the underlying library so that it can be replaced.
 type SieveClient interface {
 	ListScripts() ([]SieveScript, error)

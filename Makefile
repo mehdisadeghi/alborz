@@ -7,15 +7,15 @@ ARGS ?=
 .PHONY: build run watch fmt login-key
 
 build:
-	$(GO) build -o alps ./cmd/alps
+	$(GO) build -o alborz ./cmd/alborz
 
 run: build
-	./alps -theme alborz -addr $(ADDR) $(ARGS)
+	./alborz -theme alborz -addr $(ADDR) $(ARGS)
 
 # Rebuild and restart on Go changes; reload templates in the running
 # server (SIGUSR1, keeps sessions) on theme changes.
 watch:
-	find themes plugins -name '*.html' | entr -n pkill -USR1 -x alps & \
+	find themes plugins -name '*.html' | entr -n pkill -USR1 -x alborz & \
 	find . -name '*.go' | entr -nr $(MAKE) run
 
 fmt:

@@ -1,4 +1,4 @@
-package alpscarddav
+package alborzcarddav
 
 import (
 	"fmt"
@@ -8,17 +8,17 @@ import (
 	"sort"
 	"strings"
 
-	"git.sr.ht/~migadu/alps"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"git.mehdix.org/alborz"
 )
 
 const maxAddressBookQueryConcurrency = 4
 
 type AddressBookRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	AddressBooks   []AddressBookInfo
 	AddressBook    *AddressBookInfo // first book, for the bundled upstream themes
 	AddressObjects []AddressObject
@@ -34,14 +34,14 @@ type Settings struct {
 const settingsKey = "carddav.settings"
 
 type AddressObjectRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	AddressBook   *AddressBookInfo
 	AddressObject AddressObject
 	Birthday      string
 }
 
 type UpdateAddressObjectRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	AddressBooks  []AddressBookInfo
 	AddressBook   *AddressBookInfo
 	AddressObject *carddav.AddressObject // nil if creating a new contact
@@ -78,9 +78,9 @@ func addressBookByPath(addressBooks []AddressBookInfo, path string) *AddressBook
 }
 
 func registerRoutes(p *plugin) {
-	p.POST("/contacts", func(ctx *alps.Context) error {
+	p.POST("/contacts", func(ctx *alborz.Context) error {
 		settings := &Settings{}
-		if err := ctx.Session.Store().Get(settingsKey, settings); err != nil && err != alps.ErrNoStoreEntry {
+		if err := ctx.Session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 			return fmt.Errorf("failed to load CardDAV settings: %v", err)
 		}
 		params, err := ctx.FormParams()
@@ -95,7 +95,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
 	})
 
-	p.GET("/contacts", func(ctx *alps.Context) error {
+	p.GET("/contacts", func(ctx *alborz.Context) error {
 		queryText := ctx.QueryParam("query")
 
 		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
@@ -104,7 +104,7 @@ func registerRoutes(p *plugin) {
 		}
 
 		settings := &Settings{}
-		if err := ctx.Session.Store().Get(settingsKey, settings); err != nil && err != alps.ErrNoStoreEntry {
+		if err := ctx.Session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 			return fmt.Errorf("failed to load CardDAV settings: %v", err)
 		}
 
@@ -192,7 +192,7 @@ func registerRoutes(p *plugin) {
 		})
 
 		return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx),
 			AddressBooks:   addressBookInfos,
 			AddressBook:    &addressBookInfos[0],
 			AddressObjects: newAddressObjectList(aos),
@@ -208,7 +208,7 @@ func registerRoutes(p *plugin) {
 		})
 	})
 
-	p.GET("/contacts/:path", func(ctx *alps.Context) error {
+	p.GET("/contacts/:path", func(ctx *alborz.Context) error {
 		path, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -242,14 +242,14 @@ func registerRoutes(p *plugin) {
 		ao := &aos[0]
 
 		return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx),
 			AddressBook:    addressBook,
 			AddressObject:  AddressObject{ao},
 			Birthday:       birthdayValue(ao.Card),
 		})
 	})
 
-	updateContact := func(ctx *alps.Context) error {
+	updateContact := func(ctx *alborz.Context) error {
 		addressObjectPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -385,7 +385,7 @@ func registerRoutes(p *plugin) {
 		}
 
 		return ctx.Render(http.StatusOK, "update-address-object.html", &UpdateAddressObjectRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx),
 			AddressBooks:   writable,
 			AddressBook:    currentAddressBook,
 			AddressObject:  ao,
@@ -400,7 +400,7 @@ func registerRoutes(p *plugin) {
 	p.GET("/contacts/:path/edit", updateContact)
 	p.POST("/contacts/:path/edit", updateContact)
 
-	p.POST("/contacts/:path/delete", func(ctx *alps.Context) error {
+	p.POST("/contacts/:path/delete", func(ctx *alborz.Context) error {
 		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err

@@ -1,4 +1,4 @@
-package alps
+package alborz
 
 import (
 	"html/template"
@@ -81,7 +81,7 @@ type goPluginRoute struct {
 //
 //	p := GoPlugin{Name: "my-plugin"}
 //	// Define routes, template functions, etc
-//	alps.RegisterPluginLoader(p.Loader())
+//	alborz.RegisterPluginLoader(p.Loader())
 type GoPlugin struct {
 	Name string
 	// CloseFunc releases plugin resources on server close or reload;

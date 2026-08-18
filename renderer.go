@@ -1,4 +1,4 @@
-package alps
+package alborz
 
 import (
 	"fmt"
@@ -120,7 +120,7 @@ type RenderData interface {
 //	}
 //
 //	data := &MyRenderData{
-//	    BaseRenderData: *alps.NewBaseRenderData(ctx),
+//	    BaseRenderData: *alborz.NewBaseRenderData(ctx),
 //	    // other fields...
 //	}
 func NewBaseRenderData(ectx echo.Context) *BaseRenderData {

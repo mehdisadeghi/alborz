@@ -1,4 +1,4 @@
-package alpsviewhtml
+package alborzviewhtml
 
 import (
 	"bytes"
@@ -7,9 +7,9 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"git.sr.ht/~migadu/alps"
-	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
 	"github.com/emersion/go-message"
+	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 )
 
 const tplSrc = `
@@ -24,7 +24,7 @@ var tpl = template.Must(template.New("view-html.html").Parse(tplSrc))
 
 type viewer struct{}
 
-func (viewer) ViewMessagePart(ctx *alps.Context, msg *alpsbase.IMAPMessage, part *message.Entity) (interface{}, error) {
+func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, part *message.Entity) (interface{}, error) {
 	allowRemoteResources := ctx.QueryParam("allow-remote-resources") == "1"
 
 	mimeType, _, err := part.Header.ContentType()
@@ -32,7 +32,7 @@ func (viewer) ViewMessagePart(ctx *alps.Context, msg *alpsbase.IMAPMessage, part
 		return nil, err
 	}
 	if !strings.EqualFold(mimeType, "text/html") {
-		return nil, alpsbase.ErrViewUnsupported
+		return nil, alborzbase.ErrViewUnsupported
 	}
 
 	body, err := ioutil.ReadAll(part.Body)
@@ -61,5 +61,5 @@ func (viewer) ViewMessagePart(ctx *alps.Context, msg *alpsbase.IMAPMessage, part
 }
 
 func init() {
-	alpsbase.RegisterViewer(viewer{})
+	alborzbase.RegisterViewer(viewer{})
 }

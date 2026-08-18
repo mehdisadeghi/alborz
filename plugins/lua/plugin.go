@@ -1,9 +1,9 @@
-package alpslua
+package alborzlua
 
 import (
-	"git.sr.ht/~migadu/alps"
+	"git.mehdix.org/alborz"
 )
 
 func init() {
-	alps.RegisterPluginLoader(loadAllLuaPlugins)
+	alborz.RegisterPluginLoader(loadAllLuaPlugins)
 }

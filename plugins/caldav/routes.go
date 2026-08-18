@@ -1,4 +1,4 @@
-package alpscaldav
+package alborzcaldav
 
 import (
 	"fmt"
@@ -10,16 +10,16 @@ import (
 	"time"
 	"unicode"
 
-	"git.sr.ht/~migadu/alps"
-	alpsbase "git.sr.ht/~migadu/alps/plugins/base"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 )
 
 type CalendarRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	Time               time.Time
 	Now                time.Time
 	Dates              []time.Time
@@ -36,7 +36,7 @@ type CalendarRenderData struct {
 }
 
 type CalendarDateRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	Time               time.Time
 	Events             []CalendarObject
 	PrevPage, NextPage string
@@ -45,13 +45,13 @@ type CalendarDateRenderData struct {
 }
 
 type EventRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	Calendar *CalendarInfo
 	Event    CalendarObject
 }
 
 type UpdateEventRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	Calendars      []CalendarInfo
 	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject // nil if creating a new event
@@ -72,20 +72,20 @@ type TaskGroup struct {
 }
 
 type TasksRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	Calendars     []CalendarInfo
 	TaskGroups    []TaskGroup
 	ShowCompleted bool
 }
 
 type TaskRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	Calendar *CalendarInfo
 	Task     TaskObject
 }
 
 type UpdateTaskRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	Calendars      []CalendarInfo
 	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject
@@ -158,9 +158,9 @@ func sortTasksByScript(tasks []TaskObject) {
 	})
 }
 
-func loadSettings(store alps.Store) (*Settings, error) {
+func loadSettings(store alborz.Store) (*Settings, error) {
 	settings := &Settings{}
-	if err := store.Get(settingsKey, settings); err != nil && err != alps.ErrNoStoreEntry {
+	if err := store.Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
 	return settings, nil
@@ -185,7 +185,7 @@ func calendarByPath(calendars []CalendarInfo, path string) *CalendarInfo {
 }
 
 func registerRoutes(p *plugin) {
-	p.POST("/calendar", func(ctx *alps.Context) error {
+	p.POST("/calendar", func(ctx *alborz.Context) error {
 		settings, err := loadSettings(ctx.Session.Store())
 		if err != nil {
 			return fmt.Errorf("failed to load CalDAV settings: %v", err)
@@ -202,7 +202,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
 	})
 
-	p.POST("/tasks", func(ctx *alps.Context) error {
+	p.POST("/tasks", func(ctx *alborz.Context) error {
 		settings, err := loadSettings(ctx.Session.Store())
 		if err != nil {
 			return fmt.Errorf("failed to load CalDAV settings: %v", err)
@@ -220,12 +220,12 @@ func registerRoutes(p *plugin) {
 		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
 	})
 
-	p.GET("/calendar", func(ctx *alps.Context) error {
-		baseSettings, err := alpsbase.LoadSettings(ctx.Session.Store())
+	p.GET("/calendar", func(ctx *alborz.Context) error {
+		baseSettings, err := alborzbase.LoadSettings(ctx.Session.Store())
 		if err != nil {
 			return fmt.Errorf("failed to load settings: %v", err)
 		}
-		loc := alpsbase.UserLocation(ctx)
+		loc := alborzbase.UserLocation(ctx)
 
 		var start time.Time
 		if s := ctx.QueryParam("month"); s != "" {
@@ -384,7 +384,7 @@ func registerRoutes(p *plugin) {
 		}
 
 		return ctx.Render(http.StatusOK, "calendar.html", &CalendarRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx).
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).
 				WithTitle("Calendar: " + start.Format("January 2006")),
 			Time:      start,
 			Now:       time.Now().In(loc),
@@ -438,8 +438,8 @@ func registerRoutes(p *plugin) {
 		})
 	})
 
-	p.GET("/calendar/date", func(ctx *alps.Context) error {
-		loc := alpsbase.UserLocation(ctx)
+	p.GET("/calendar/date", func(ctx *alborz.Context) error {
+		loc := alborzbase.UserLocation(ctx)
 
 		var start time.Time
 		if s := ctx.QueryParam("date"); s != "" {
@@ -543,7 +543,7 @@ func registerRoutes(p *plugin) {
 		})
 
 		return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx).
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).
 				WithTitle("Calendar: " + start.Format("January 02, 2006")),
 			Time:     start,
 			Events:   newCalendarObjectList(events),
@@ -560,7 +560,7 @@ func registerRoutes(p *plugin) {
 		})
 	})
 
-	p.GET("/calendar/:path", func(ctx *alps.Context) error {
+	p.GET("/calendar/:path", func(ctx *alborz.Context) error {
 		path, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -609,19 +609,19 @@ func registerRoutes(p *plugin) {
 		summary, _ := event.Data.Events()[0].Props.Text("SUMMARY")
 
 		return ctx.Render(http.StatusOK, "event.html", &EventRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle(summary),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 			Calendar:       calendar,
 			Event:          CalendarObject{event},
 		})
 	})
 
-	updateEvent := func(ctx *alps.Context) error {
+	updateEvent := func(ctx *alborz.Context) error {
 		calendarObjectPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
 
-		loc := alpsbase.UserLocation(ctx)
+		loc := alborzbase.UserLocation(ctx)
 
 		c, allCalendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
@@ -721,7 +721,7 @@ func registerRoutes(p *plugin) {
 				savePath = co.Path
 			} else {
 				cal = ical.NewCalendar()
-				cal.Props.SetText(ical.PropProductID, "-//emersion.fr//alps//EN")
+				cal.Props.SetText(ical.PropProductID, "-//mehdix.org//alborz//EN")
 				cal.Props.SetText(ical.PropVersion, "2.0")
 				cal.Children = append(cal.Children, event.Component)
 				savePath = path.Join(calendarPath, newID.String()+".ics")
@@ -737,7 +737,7 @@ func registerRoutes(p *plugin) {
 		summary, _ := event.Props.Text("SUMMARY")
 
 		return ctx.Render(http.StatusOK, "update-event.html", &UpdateEventRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle("Update " + summary),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle("Update " + summary),
 			Calendars:      writable,
 			Calendar:       currentCalendar,
 			CalendarObject: co,
@@ -751,7 +751,7 @@ func registerRoutes(p *plugin) {
 	p.GET("/calendar/:path/update", updateEvent)
 	p.POST("/calendar/:path/update", updateEvent)
 
-	p.POST("/calendar/:path/delete", func(ctx *alps.Context) error {
+	p.POST("/calendar/:path/delete", func(ctx *alborz.Context) error {
 		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -770,7 +770,7 @@ func registerRoutes(p *plugin) {
 	})
 
 	// Tasks routes
-	p.GET("/tasks", func(ctx *alps.Context) error {
+	p.GET("/tasks", func(ctx *alborz.Context) error {
 		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
@@ -885,14 +885,14 @@ func registerRoutes(p *plugin) {
 		})
 
 		return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle("Tasks"),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle("Tasks"),
 			Calendars:      calendarInfos,
 			TaskGroups:     taskGroups,
 			ShowCompleted:  showCompleted,
 		})
 	})
 
-	p.GET("/tasks/:path", func(ctx *alps.Context) error {
+	p.GET("/tasks/:path", func(ctx *alborz.Context) error {
 		path, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -944,19 +944,19 @@ func registerRoutes(p *plugin) {
 		summary, _ := todo.Props.Text("SUMMARY")
 
 		return ctx.Render(http.StatusOK, "task.html", &TaskRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle(summary),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 			Calendar:       calendar,
 			Task:           TaskObject{task},
 		})
 	})
 
-	updateTask := func(ctx *alps.Context) error {
+	updateTask := func(ctx *alborz.Context) error {
 		taskPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
 
-		loc := alpsbase.UserLocation(ctx)
+		loc := alborzbase.UserLocation(ctx)
 
 		c, allCalendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
@@ -1047,7 +1047,7 @@ func registerRoutes(p *plugin) {
 				savePath = co.Path
 			} else {
 				cal = ical.NewCalendar()
-				cal.Props.SetText(ical.PropProductID, "-//emersion.fr//alps//EN")
+				cal.Props.SetText(ical.PropProductID, "-//mehdix.org//alborz//EN")
 				cal.Props.SetText(ical.PropVersion, "2.0")
 				cal.Children = append(cal.Children, todo)
 				savePath = path.Join(calendarPath, newID.String()+".ics")
@@ -1063,7 +1063,7 @@ func registerRoutes(p *plugin) {
 		summary, _ := todo.Props.Text("SUMMARY")
 
 		return ctx.Render(http.StatusOK, "update-task.html", &UpdateTaskRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx).WithTitle("Update " + summary),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle("Update " + summary),
 			Calendars:      writable,
 			Calendar:       currentCalendar,
 			CalendarObject: co,
@@ -1077,7 +1077,7 @@ func registerRoutes(p *plugin) {
 	p.GET("/tasks/:path/edit", updateTask)
 	p.POST("/tasks/:path/edit", updateTask)
 
-	p.POST("/tasks/:path/delete", func(ctx *alps.Context) error {
+	p.POST("/tasks/:path/delete", func(ctx *alborz.Context) error {
 		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -1095,7 +1095,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Redirect(http.StatusFound, "/tasks")
 	})
 
-	p.POST("/tasks/:path/complete", func(ctx *alps.Context) error {
+	p.POST("/tasks/:path/complete", func(ctx *alborz.Context) error {
 		taskPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err

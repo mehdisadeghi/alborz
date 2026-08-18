@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"net/url"
-	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -173,8 +172,7 @@ type renderer struct {
 	themesPath   string
 	defaultTheme string
 
-	base   *template.Template
-	themes map[string]*template.Template
+	theme *template.Template
 }
 
 func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.Context) error {
@@ -202,25 +200,33 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 	}
 
 	// TODO: per-user theme selection
-	t := r.base
-	if r.defaultTheme != "" {
-		t = r.themes[r.defaultTheme]
-	}
-	return t.ExecuteTemplate(w, name, data)
+	return r.theme.ExecuteTemplate(w, name, data)
 }
 
-func loadTheme(themesPath string, name string, base *template.Template) (*template.Template, error) {
+// loadTheme parses the embedded theme, then overlays the same-named theme
+// directory on disk, so a theme only carries the files it changes.
+func loadTheme(themesPath string, name string, base *template.Template) (*template.Template, int, error) {
 	theme, err := base.Clone()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	theme, err = theme.ParseGlob(themesPath + "/" + name + "/*.html")
+	theme, err = theme.ParseFS(embeddedTheme, "themes/alborz/*.html")
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return theme, nil
+	overlays, err := filepath.Glob(themesPath + "/" + name + "/*.html")
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(overlays) > 0 {
+		if theme, err = theme.ParseFiles(overlays...); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return theme, len(overlays), nil
 }
 
 func (r *renderer) Load(plugins []Plugin) error {
@@ -232,33 +238,13 @@ func (r *renderer) Load(plugins []Plugin) error {
 		}
 	}
 
-	themes := make(map[string]*template.Template)
-
-	files, err := ioutil.ReadDir(r.themesPath)
-	if err != nil && !os.IsNotExist(err) {
-		return err
+	theme, overlays, err := loadTheme(r.themesPath, r.defaultTheme, base)
+	if err != nil {
+		return fmt.Errorf("failed to load theme %q: %v", r.defaultTheme, err)
 	}
+	r.logger.Printf("Loaded theme %q, %d files overridden on disk", r.defaultTheme, overlays)
 
-	for _, fi := range files {
-		if !fi.IsDir() {
-			continue
-		}
-
-		r.logger.Printf("Loading theme %q", fi.Name())
-		var err error
-		if themes[fi.Name()], err = loadTheme(r.themesPath, fi.Name(), base); err != nil {
-			return fmt.Errorf("failed to load theme %q: %v", fi.Name(), err)
-		}
-	}
-
-	if r.defaultTheme != "" {
-		if _, ok := themes[r.defaultTheme]; !ok {
-			return fmt.Errorf("failed to find default theme %q", r.defaultTheme)
-		}
-	}
-
-	r.base = base
-	r.themes = themes
+	r.theme = theme
 	return nil
 }
 

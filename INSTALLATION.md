@@ -5,7 +5,11 @@ Installing on a server, assuming existing IMAP and SMTP servers.
     go build -o alborz ./cmd/alborz
     sudo install alborz /usr/local/bin/
     sudo mkdir -p /var/lib/alborz
-    sudo cp -r themes plugins /var/lib/alborz/
+
+The binary is self-contained. In the working directory, a
+`themes/<name>/` directory overrides the built-in theme file by file,
+and `plugins/<name>/public/` does the same for a plugin's templates
+and assets; Lua plugins are picked up from `plugins/<name>/main.lua`.
 
 There is no config file; the arguments are the configuration. Example
 unit for `/etc/systemd/system/alborz.service`:

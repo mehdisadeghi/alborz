@@ -8,11 +8,11 @@ import (
 	"sort"
 	"strings"
 
+	"git.mehdix.org/alborz"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"git.mehdix.org/alborz"
 )
 
 const maxAddressBookQueryConcurrency = 4
@@ -20,7 +20,6 @@ const maxAddressBookQueryConcurrency = 4
 type AddressBookRenderData struct {
 	alborz.BaseRenderData
 	AddressBooks   []AddressBookInfo
-	AddressBook    *AddressBookInfo // first book, for the bundled upstream themes
 	AddressObjects []AddressObject
 	Query          string
 	ColorForPath   func(string) string
@@ -194,7 +193,6 @@ func registerRoutes(p *plugin) {
 		return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx),
 			AddressBooks:   addressBookInfos,
-			AddressBook:    &addressBookInfos[0],
 			AddressObjects: newAddressObjectList(aos),
 			Query:          queryText,
 			ColorForPath: func(contactPath string) string {

@@ -1,8 +1,13 @@
 package alborzsieve
 
 import (
+	"embed"
+
 	"git.mehdix.org/alborz"
 )
+
+//go:embed all:public
+var public embed.FS
 
 func init() {
 	alborz.RegisterPluginLoader(func(srv *alborz.Server) ([]alborz.Plugin, error) {
@@ -17,7 +22,8 @@ func init() {
 		}
 
 		p := alborz.GoPlugin{
-			Name: "sieve",
+			Name:  "sieve",
+			Files: public,
 			EnabledFunc: func(ctx *alborz.Context) bool {
 				return ctx.Session != nil && ctx.Server.SieveEnabled(ctx.Session.Domain())
 			},

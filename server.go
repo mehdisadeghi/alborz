@@ -3,9 +3,13 @@ package alborz
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -661,7 +665,7 @@ func isPublic(path string) bool {
 		parts := strings.Split(path, "/")
 		return len(parts) >= 4 && parts[3] == "assets"
 	}
-	return path == "/login" || strings.HasPrefix(path, "/themes/")
+	return path == "/login" || strings.HasPrefix(path, "/assets/")
 }
 
 func redirectToLogin(ctx *Context) error {
@@ -748,7 +752,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			// Asset URLs are not versioned; make browsers revalidate so
 			// theme and plugin asset changes are picked up
 			path := ectx.Request().URL.Path
-			if strings.HasPrefix(path, "/themes/") || strings.HasPrefix(path, "/plugins/") {
+			if strings.HasPrefix(path, "/assets/") || strings.HasPrefix(path, "/plugins/") {
 				ectx.Response().Header().Set("Cache-Control", "no-cache")
 			}
 			return next(ectx)
@@ -784,7 +788,24 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		}
 	})
 
-	e.Static("/themes", options.ThemesPath)
+	// Assets are served from the embedded theme, with the theme directory
+	// on disk taking precedence file by file, like templates.
+	embeddedAssets, err := fs.Sub(embeddedTheme, "themes/alborz/assets")
+	if err != nil {
+		return nil, err
+	}
+	e.GET("/assets/*", func(ectx echo.Context) error {
+		name := strings.TrimPrefix(path.Clean("/"+ectx.Param("*")), "/")
+		if name == "" {
+			return echo.ErrNotFound
+		}
+		diskPath := filepath.Join(options.ThemesPath, options.Theme, "assets", name)
+		if _, err := os.Stat(diskPath); err == nil {
+			return ectx.File(diskPath)
+		}
+		http.ServeFileFS(ectx.Response(), ectx.Request(), embeddedAssets, name)
+		return nil
+	})
 
 	return s, nil
 }

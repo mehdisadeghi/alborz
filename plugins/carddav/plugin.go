@@ -2,6 +2,7 @@ package alborzcarddav
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -16,6 +17,9 @@ import (
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
+
+//go:embed all:public
+var public embed.FS
 
 func sanityCheckURL(u *url.URL) error {
 	req, err := http.NewRequest(http.MethodOptions, u.String(), nil)
@@ -168,7 +172,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	}
 
 	p := &plugin{
-		GoPlugin: alborz.GoPlugin{Name: "carddav"},
+		GoPlugin: alborz.GoPlugin{Name: "carddav", Files: public},
 		urls:     urls,
 		jars:     make(map[string]http.CookieJar),
 	}

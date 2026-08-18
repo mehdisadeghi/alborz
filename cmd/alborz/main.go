@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	"git.mehdix.org/alborz"
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
-	"git.mehdix.org/alborz"
 
 	_ "git.mehdix.org/alborz/plugins/base"
 	_ "git.mehdix.org/alborz/plugins/caldav"
@@ -65,7 +65,7 @@ func main() {
 		loginKey string
 		options  alborz.Options
 	)
-	flag.StringVar(&options.Theme, "theme", "", "default theme")
+	flag.StringVar(&options.Theme, "theme", "alborz", "theme directory name")
 	flag.StringVar(&addr, "addr", ":1323", "listening address")
 	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")

@@ -3,8 +3,8 @@ package alborzbase
 import (
 	"fmt"
 
-	"github.com/emersion/go-message"
 	"git.mehdix.org/alborz"
+	"github.com/emersion/go-message"
 )
 
 // ErrViewUnsupported is returned by Viewer.ViewMessagePart when the message

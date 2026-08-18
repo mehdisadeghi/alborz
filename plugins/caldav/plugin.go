@@ -2,6 +2,7 @@ package alborzcaldav
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
@@ -12,6 +13,9 @@ import (
 	"git.mehdix.org/alborz/plugins/davcache"
 	"github.com/emersion/go-webdav/caldav"
 )
+
+//go:embed all:public
+var public embed.FS
 
 const (
 	inputDateLayout     = "2006-01-02"
@@ -133,7 +137,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	}
 
 	p := &plugin{
-		GoPlugin: alborz.GoPlugin{Name: "caldav"},
+		GoPlugin: alborz.GoPlugin{Name: "caldav", Files: public},
 		urls:     urls,
 		jars:     make(map[string]http.CookieJar),
 	}

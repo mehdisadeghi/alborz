@@ -1,10 +1,14 @@
 package alborzbase
 
 import (
+	"embed"
 	"time"
 
 	"git.mehdix.org/alborz"
 )
+
+//go:embed all:public
+var public embed.FS
 
 // UserLocation resolves the user's timezone the same way display does:
 // explicit setting first, then the browser-set cookie, else UTC.
@@ -27,7 +31,7 @@ func UserLocation(ctx *alborz.Context) *time.Location {
 }
 
 func init() {
-	p := alborz.GoPlugin{Name: "base"}
+	p := alborz.GoPlugin{Name: "base", Files: public}
 
 	p.TemplateFuncs(templateFuncs)
 	registerRoutes(&p)

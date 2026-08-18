@@ -13,13 +13,13 @@ import (
 	"strconv"
 	"strings"
 
+	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-smtp"
 	"github.com/labstack/echo/v4"
-	"git.mehdix.org/alborz"
 	"jaytaylor.com/html2text"
 )
 

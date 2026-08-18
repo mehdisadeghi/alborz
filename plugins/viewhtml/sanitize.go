@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"github.com/aymerick/douceur/css"
 	cssparser "github.com/chris-ramon/douceur/parser"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"github.com/microcosm-cc/bluemonday"
 	"golang.org/x/net/html"
 )

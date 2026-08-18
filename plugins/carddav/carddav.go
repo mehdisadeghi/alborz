@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/emersion/go-webdav/carddav"
 	"git.mehdix.org/alborz"
+	"github.com/emersion/go-webdav/carddav"
 )
 
 var errNoAddressBook = fmt.Errorf("carddav: no address book found")

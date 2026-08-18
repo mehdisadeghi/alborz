@@ -10,11 +10,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/emersion/go-vcard"
-	"github.com/emersion/go-webdav/carddav"
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/davcache"
+	"github.com/emersion/go-vcard"
+	"github.com/emersion/go-webdav/carddav"
 )
 
 func sanityCheckURL(u *url.URL) error {

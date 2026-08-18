@@ -1,4 +1,4 @@
-module git.sr.ht/~migadu/alps
+module git.mehdix.org/alborz
 
 go 1.25.0
 

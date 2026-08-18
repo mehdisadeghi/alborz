@@ -1,4 +1,4 @@
-package alps
+package alborz
 
 import (
 	"encoding/json"
@@ -16,13 +16,13 @@ import (
 )
 
 const (
-	cookieName           = "alps_session"
-	accountsCookieName   = "alps_accounts"
-	activeUserCookieName = "alps_user"
-	loginTokenCookieName = "alps_login_tokens"
+	cookieName           = "alborz_session"
+	accountsCookieName   = "alborz_accounts"
+	activeUserCookieName = "alborz_user"
+	loginTokenCookieName = "alborz_login_tokens"
 )
 
-// Server holds all the alps server state.
+// Server holds all the alborz server state.
 type Server struct {
 	e        *echo.Echo
 	Sessions *SessionManager
@@ -336,7 +336,7 @@ func (s *Server) Logger() echo.Logger {
 //
 // Use a type assertion to get it from a echo.Context:
 //
-//	ctx := ectx.(*alps.Context)
+//	ctx := ectx.(*alborz.Context)
 type Context struct {
 	echo.Context
 	Server  *Server

@@ -1,10 +1,10 @@
-package alpsviewtext
+package alborzviewtext
 
 import (
-	"git.sr.ht/~migadu/alps"
+	"git.mehdix.org/alborz"
 )
 
 func init() {
-	p := alps.GoPlugin{Name: "viewtext"}
-	alps.RegisterPluginLoader(p.Loader())
+	p := alborz.GoPlugin{Name: "viewtext"}
+	alborz.RegisterPluginLoader(p.Loader())
 }

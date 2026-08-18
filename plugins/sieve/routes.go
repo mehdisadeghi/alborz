@@ -1,26 +1,26 @@
-package alpssieve
+package alborzsieve
 
 import (
 	"net/http"
 	"net/url"
 
-	"git.sr.ht/~migadu/alps"
 	"github.com/labstack/echo/v4"
+	"git.mehdix.org/alborz"
 )
 
 type FiltersRenderData struct {
-	alps.BaseRenderData
-	Scripts []alps.SieveScript
+	alborz.BaseRenderData
+	Scripts []alborz.SieveScript
 }
 
 type FilterRenderData struct {
-	alps.BaseRenderData
+	alborz.BaseRenderData
 	Name    string
 	Content string
 	Error   string
 }
 
-func registerRoutes(p *alps.GoPlugin) {
+func registerRoutes(p *alborz.GoPlugin) {
 	p.GET("/filters", handleListFilters)
 	p.GET("/filters/create", handleCreateFilter)
 	p.GET("/filters/:name", handleEditFilter)
@@ -30,7 +30,7 @@ func registerRoutes(p *alps.GoPlugin) {
 	p.POST("/filters/:name/delete", handleDeleteFilter)
 }
 
-func filterName(ctx *alps.Context) (string, error) {
+func filterName(ctx *alborz.Context) (string, error) {
 	name, err := url.PathUnescape(ctx.Param("name"))
 	if err != nil {
 		return "", echo.NewHTTPError(http.StatusBadRequest, err)
@@ -38,9 +38,9 @@ func filterName(ctx *alps.Context) (string, error) {
 	return name, nil
 }
 
-func handleListFilters(ctx *alps.Context) error {
-	var scripts []alps.SieveScript
-	err := ctx.Session.DoSieve(func(c alps.SieveClient) error {
+func handleListFilters(ctx *alborz.Context) error {
+	var scripts []alborz.SieveScript
+	err := ctx.Session.DoSieve(func(c alborz.SieveClient) error {
 		var err error
 		scripts, err = c.ListScripts()
 		return err
@@ -50,25 +50,25 @@ func handleListFilters(ctx *alps.Context) error {
 	}
 
 	return ctx.Render(http.StatusOK, "filters.html", &FiltersRenderData{
-		BaseRenderData: *alps.NewBaseRenderData(ctx),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Scripts:        scripts,
 	})
 }
 
-func handleCreateFilter(ctx *alps.Context) error {
+func handleCreateFilter(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "filter-edit.html", &FilterRenderData{
-		BaseRenderData: *alps.NewBaseRenderData(ctx),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 	})
 }
 
-func handleEditFilter(ctx *alps.Context) error {
+func handleEditFilter(ctx *alborz.Context) error {
 	name, err := filterName(ctx)
 	if err != nil {
 		return err
 	}
 
 	var content string
-	err = ctx.Session.DoSieve(func(c alps.SieveClient) error {
+	err = ctx.Session.DoSieve(func(c alborz.SieveClient) error {
 		var err error
 		content, err = c.GetScript(name)
 		return err
@@ -78,13 +78,13 @@ func handleEditFilter(ctx *alps.Context) error {
 	}
 
 	return ctx.Render(http.StatusOK, "filter-edit.html", &FilterRenderData{
-		BaseRenderData: *alps.NewBaseRenderData(ctx),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Name:           name,
 		Content:        content,
 	})
 }
 
-func handleSaveFilter(ctx *alps.Context) error {
+func handleSaveFilter(ctx *alborz.Context) error {
 	name := ctx.FormValue("name")
 	content := ctx.FormValue("content")
 	if name == "" {
@@ -92,7 +92,7 @@ func handleSaveFilter(ctx *alps.Context) error {
 	}
 
 	var warnings string
-	err := ctx.Session.DoSieve(func(c alps.SieveClient) error {
+	err := ctx.Session.DoSieve(func(c alborz.SieveClient) error {
 		var err error
 		warnings, err = c.PutScript(name, content)
 		return err
@@ -101,7 +101,7 @@ func handleSaveFilter(ctx *alps.Context) error {
 		// The server rejects invalid scripts; show the reason next to
 		// the script instead of an error page.
 		return ctx.Render(http.StatusUnprocessableEntity, "filter-edit.html", &FilterRenderData{
-			BaseRenderData: *alps.NewBaseRenderData(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx),
 			Name:           name,
 			Content:        content,
 			Error:          err.Error(),
@@ -116,13 +116,13 @@ func handleSaveFilter(ctx *alps.Context) error {
 	return ctx.Redirect(http.StatusFound, "/filters")
 }
 
-func handleActivateFilter(ctx *alps.Context) error {
+func handleActivateFilter(ctx *alborz.Context) error {
 	name, err := filterName(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = ctx.Session.DoSieve(func(c alps.SieveClient) error {
+	err = ctx.Session.DoSieve(func(c alborz.SieveClient) error {
 		return c.ActivateScript(name)
 	})
 	if err != nil {
@@ -133,8 +133,8 @@ func handleActivateFilter(ctx *alps.Context) error {
 	return ctx.Redirect(http.StatusFound, "/filters")
 }
 
-func handleDeactivateFilter(ctx *alps.Context) error {
-	err := ctx.Session.DoSieve(func(c alps.SieveClient) error {
+func handleDeactivateFilter(ctx *alborz.Context) error {
+	err := ctx.Session.DoSieve(func(c alborz.SieveClient) error {
 		return c.ActivateScript("")
 	})
 	if err != nil {
@@ -145,13 +145,13 @@ func handleDeactivateFilter(ctx *alps.Context) error {
 	return ctx.Redirect(http.StatusFound, "/filters")
 }
 
-func handleDeleteFilter(ctx *alps.Context) error {
+func handleDeleteFilter(ctx *alborz.Context) error {
 	name, err := filterName(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = ctx.Session.DoSieve(func(c alps.SieveClient) error {
+	err = ctx.Session.DoSieve(func(c alborz.SieveClient) error {
 		return c.DeleteScript(name)
 	})
 	if err != nil {

@@ -1,14 +1,14 @@
-package alpsbase
+package alborzbase
 
 import (
 	"time"
 
-	"git.sr.ht/~migadu/alps"
+	"git.mehdix.org/alborz"
 )
 
 // UserLocation resolves the user's timezone the same way display does:
 // explicit setting first, then the browser-set cookie, else UTC.
-func UserLocation(ctx *alps.Context) *time.Location {
+func UserLocation(ctx *alborz.Context) *time.Location {
 	tz := ""
 	if settings, err := LoadSettings(ctx.Session.Store()); err == nil {
 		tz = settings.Timezone
@@ -27,13 +27,13 @@ func UserLocation(ctx *alps.Context) *time.Location {
 }
 
 func init() {
-	p := alps.GoPlugin{Name: "base"}
+	p := alborz.GoPlugin{Name: "base"}
 
 	p.TemplateFuncs(templateFuncs)
 	registerRoutes(&p)
 
 	// Inject timezone into all templates
-	p.Inject("*", func(ctx *alps.Context, data alps.RenderData) error {
+	p.Inject("*", func(ctx *alborz.Context, data alborz.RenderData) error {
 		if ctx.Session == nil {
 			return nil
 		}
@@ -49,5 +49,5 @@ func init() {
 		return nil
 	})
 
-	alps.RegisterPluginLoader(p.Loader())
+	alborz.RegisterPluginLoader(p.Loader())
 }

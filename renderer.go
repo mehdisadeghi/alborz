@@ -38,6 +38,9 @@ type GlobalRenderData struct {
 	// First day of week: 0=Sunday, 1=Monday (default), 6=Saturday
 	FirstDayOfWeek int
 
+	// Forced color scheme: "light" or "dark", empty to follow the system
+	ColorScheme string
+
 	// additional plugin-specific data
 	Extra map[string]interface{}
 }
@@ -147,6 +150,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Version = ctx.Server.Options.Version
+		global.ColorScheme = ctx.ColorScheme()
 	}
 
 	if isactx && ctx.Session != nil {

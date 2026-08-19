@@ -19,6 +19,17 @@ if (check_all) {
 	});
 }
 
+// Escape leaves the search: it clears the term and drops focus, which
+// also collapses the overlay the small-screen magnifier opens.
+for (const search of document.querySelectorAll(".actions-search input")) {
+	search.addEventListener("keydown", ev => {
+		if (ev.key === "Escape") {
+			ev.currentTarget.value = "";
+			ev.currentTarget.blur();
+		}
+	});
+}
+
 const submit_on_change = document.querySelectorAll("[data-submit-on-change]");
 for (let i = 0; i < submit_on_change.length; i++) {
 	submit_on_change[i].addEventListener("change", ev => {

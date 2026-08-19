@@ -1,24 +1,13 @@
 <div class="message-list-checkbox">
-  <input type="checkbox" id="action-checkbox-all" style="display: none"/>
+  <input type="checkbox" id="action-checkbox-all" aria-label="Select all" style="display: none"/>
 </div>
 <div class="actions-wrap">
   <div class="actions-message">
+    <h2>{{if .Starred}}Starred{{else if eq .Mailbox.Name "INBOX"}}Inbox{{else}}{{.Mailbox.Name}}{{end}}</h2>
     {{$common := .CategorizedMailboxes.Common}}
     {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
     {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
     {{$trash := ""}}{{with $common.Trash}}{{$trash = .Info.Name}}{{end}}
-
-    <div class="action-group">
-      {{ if and $archive (eq .Mailbox.Name "INBOX") }}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$archive | pathescape}}">Archive</button>
-      {{ end }}
-    </div>
-
-    <div class="action-group">
-      {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$junk | pathescape}}">Report Spam</button>
-      {{ end }}
-    </div>
 
     <div class="action-group">
       {{ if and $trash (ne .Mailbox.Name $trash) }}
@@ -29,14 +18,15 @@
     </div>
 
     <div class="action-group">
-      {{ if not (eq .Mailbox.Name "INBOX") }}
-      <a class="button-link" href="/delete-mailbox/{{.Mailbox.Name | pathescape}}">Delete folder</a>
+      {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$junk | pathescape}}">Spam</button>
       {{ end }}
     </div>
+
   </div>
 
   <form method="get" class="actions-search">
-    <input type="text" name="query" dir="auto" value="{{.Query}}" placeholder="Search messages...">
+    <input type="text" name="query" dir="auto" value="{{.Query}}" placeholder="Search messages..." aria-label="Search messages">
     <button>Search</button>
   </form>
 
@@ -50,5 +40,21 @@
       <a href="?page={{.NextPage}}{{with .Query}}&query={{.}}{{end}}{{if .Starred}}&starred=1{{end}}" class="button-link">»</a>
     {{end}}
   </div>
+  {{ end }}
+
+  {{$common := .CategorizedMailboxes.Common}}
+  {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
+  {{ if or (and $archive (eq .Mailbox.Name "INBOX")) (ne .Mailbox.Name "INBOX") }}
+  <details class="overflow">
+    <summary class="button" aria-label="More actions">⋮</summary>
+    <div class="overflow-menu">
+      {{ if and $archive (eq .Mailbox.Name "INBOX") }}
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$archive | pathescape}}">Archive</button>
+      {{ end }}
+      {{ if not (eq .Mailbox.Name "INBOX") }}
+      <a class="button-link" href="/delete-mailbox/{{.Mailbox.Name | pathescape}}">Delete folder</a>
+      {{ end }}
+    </div>
+  </details>
   {{ end }}
 </div>

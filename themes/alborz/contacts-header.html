@@ -1,13 +1,17 @@
 <div class="message-list-checkbox">
-  <input type="checkbox" id="action-checkbox-all"/>
+  <input type="checkbox" id="action-checkbox-all" aria-label="Select all"/>
 </div>
 <div class="actions-wrap">
-  <form method="get" class="actions-search action-group">
+  <div class="actions-message">
+  </div>
+
+  <form method="get" class="actions-search">
     <input
       type="text"
       name="query"
       value="{{.Query}}"
-      placeholder="Search contacts...">
+      placeholder="Search contacts..."
+      aria-label="Search contacts">
     <button>Search</button>
   </form>
 

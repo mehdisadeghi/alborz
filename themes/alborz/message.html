@@ -18,37 +18,14 @@
             {{$drafts := ""}}{{with $common.Drafts}}{{$drafts = .Info.Name}}{{end}}
             {{$sent := ""}}{{with $common.Sent}}{{$sent = .Info.Name}}{{end}}
 
-            {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
-              <input type="hidden" name="uids" value="{{.Message.UID}}">
-              <input type="hidden" name="to" value="{{$archive}}">
-              <input type="hidden" name="next" value="{{$back}}">
-              <button>Archive</button>
-            </form>
-            {{ end }}
-
-            {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
-              <input type="hidden" name="uids" value="{{.Message.UID}}">
-              <input type="hidden" name="to" value="INBOX">
-              <button>
-              {{ if eq .Mailbox.Name $junk }}
-              Not Spam
-              {{ else }}
-              Move to Inbox
-              {{ end }}
-              </button>
-            </form>
-            {{ end }}
-
-            {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
-              <input type="hidden" name="uids" value="{{.Message.UID}}">
-              <input type="hidden" name="next" value="{{$back}}">
-              <input type="hidden" name="to" value="{{$junk}}">
-              <button>Report Spam</button>
-            </form>
-            {{ end }}
+            <span class="followups action-group">
+              {{if .Message.HasFlag "\\Draft"}}
+                <a class="action-group button-link" href="{{.Message.URL}}/edit{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">Edit draft</a>
+              {{else}}
+                <a class="action-group button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">Reply</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/forward{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">Forward</a>
+              {{end}}
+            </span>
 
             {{ if or (eq .Mailbox.Name $trash) (eq .Mailbox.Name $junk) (not $trash) }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete">
@@ -65,46 +42,16 @@
             </form>
             {{ end }}
 
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/flag">
-              <input type="hidden" name="uids" value="{{.Message.UID}}">
-              <input type="hidden" name="action" value="remove">
-              <input type="hidden" name="flags" value="\Seen">
-              <input type="hidden" name="next" value="{{$back}}">
-              <button>Mark&nbsp;Unread</button>
-            </form>
-
+            {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
-              <select class="action-group" name="to">
-                <option value="" disabled selected>Move to...</option>
-                {{range .Mailboxes}}
-                  {{if and (not .IsInternal) (ne .Name $.Mailbox.Name)}}
-                  <option value="{{.Name}}">{{.Name}}</option>
-                  {{end}}
-                {{end}}
-              </select>
-              <button class="action-group" type="submit">Move</button>
+              <input type="hidden" name="next" value="{{$back}}">
+              <input type="hidden" name="to" value="{{$junk}}">
+              <button>Spam</button>
             </form>
+            {{ end }}
 
-            <span class="followups action-group">
-              {{if .Message.HasFlag "\\Draft"}}
-                <a class="action-group button-link" href="{{.Message.URL}}/edit{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">Edit draft</a>
-              {{else}}
-                <a class="action-group button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">Reply</a>
-                <a class="action-group button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}&all=true{{end}}">Reply all</a>
-                <a class="action-group button-link" href="{{.Message.URL}}/forward{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">Forward</a>
-              {{end}}
-            </span>
-
-            <span class="action-group">
-              <a
-                class="action-group button-link"
-                id="print"
-                href="#"
-                style="display: none"
-              >Print</a>
-            </span>
-
+            <div class="actions-end">
             <span class="action-group">
               {{ if .Position }}
               <span class="pagination-range">{{.Position}} of {{.Total}}</span>
@@ -116,6 +63,67 @@
               <a class="button-link" href="{{.OlderURL}}{{if .Starred}}?starred=1{{else if .Query}}?query={{.Query}}{{end}}">Older &rsaquo;</a>
               {{ end }}
             </span>
+
+            <details class="overflow">
+              <summary class="button" aria-label="More actions">⋮</summary>
+              <div class="overflow-menu">
+                {{if not (.Message.HasFlag "\\Draft")}}
+                <a class="button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}&all=true{{end}}">Reply all</a>
+                {{end}}
+
+                {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
+                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
+                  <input type="hidden" name="uids" value="{{.Message.UID}}">
+                  <input type="hidden" name="to" value="{{$archive}}">
+                  <input type="hidden" name="next" value="{{$back}}">
+                  <button>Archive</button>
+                </form>
+                {{ end }}
+
+                {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
+                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
+                  <input type="hidden" name="uids" value="{{.Message.UID}}">
+                  <input type="hidden" name="to" value="INBOX">
+                  <button>
+                  {{ if eq .Mailbox.Name $junk }}
+                  Not Spam
+                  {{ else }}
+                  Move to Inbox
+                  {{ end }}
+                  </button>
+                </form>
+                {{ end }}
+
+                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/flag">
+                  <input type="hidden" name="uids" value="{{.Message.UID}}">
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="flags" value="\Seen">
+                  <input type="hidden" name="next" value="{{$back}}">
+                  <button>Mark&nbsp;Unread</button>
+                </form>
+
+                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
+                  <input type="hidden" name="uids" value="{{.Message.UID}}">
+                  <select name="to">
+                    <option value="" disabled selected>Move to...</option>
+                    {{range .Mailboxes}}
+                      {{if and (not .IsInternal) (ne .Name $.Mailbox.Name)}}
+                      <option value="{{.Name}}">{{.Name}}</option>
+                      {{end}}
+                    {{end}}
+                  </select>
+                  <button type="submit">Move</button>
+                </form>
+
+                <a
+                  class="button-link"
+                  id="print"
+                  href="#"
+                  style="display: none"
+                >Print</a>
+              </div>
+            </details>
+            </div>
           </div>
         </div>
       </section>

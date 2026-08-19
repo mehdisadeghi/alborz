@@ -49,6 +49,9 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		return nil, fmt.Errorf("failed to sanitize HTML part: %v", err)
 	}
 
+	// E-mails size images for their own layout; cap them to the frame.
+	body = append([]byte(`<style>img { max-width: 100%; height: auto; }</style>`), body...)
+
 	ctx.Set("viewhtml.hasRemoteResources", san.hasRemoteResources)
 
 	var buf bytes.Buffer

@@ -2,6 +2,7 @@ package alborz
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -132,6 +133,21 @@ func (s *Server) Domains() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// ErrNotFound marks errors the HTTP layer answers with 404.
+var ErrNotFound = errors.New("not found")
+
+// notFoundError carries the sentence the info page shows.
+type notFoundError struct{ msg string }
+
+func (e *notFoundError) Error() string { return e.msg }
+func (e *notFoundError) Unwrap() error { return ErrNotFound }
+
+// NotFoundf builds a not-found error whose text names the missing
+// subject.
+func NotFoundf(format string, args ...interface{}) error {
+	return &notFoundError{fmt.Sprintf(format, args...)}
 }
 
 // UnknownDomainError is returned when a login address does not belong to a
@@ -811,6 +827,8 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		code := http.StatusInternalServerError
 		if he, ok := err.(*echo.HTTPError); ok {
 			code = he.Code
+		} else if errors.Is(err, ErrNotFound) {
+			code = http.StatusNotFound
 		}
 
 		type ErrorRenderData struct {

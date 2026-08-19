@@ -840,8 +840,13 @@ main table tfoot {
   display: flex;
 }
 
-.message-list section {
+/* Rows stay scannable on wide monitors: the cap bounds the eye travel
+   from subject to date, as the reading view's 800px cap already does. */
+.message-list section,
+.contact-list section,
+.task-list section {
   width: 100%;
+  max-width: 90rem;
 }
 
 .actions {
@@ -916,6 +921,10 @@ main table tfoot {
   gap: 0.5rem;
 }
 
+.actions-wrap > .actions-pagination:first-child {
+  margin-inline-start: 0;
+}
+
 .actions-pagination h3 {
   margin: 0;
   font-weight: 500;
@@ -928,6 +937,11 @@ main table tfoot {
 
 .action-group:not(:last-child) {
   margin-bottom: 1rem;
+}
+
+/* Conditional action groups render empty; keep them out of the gaps. */
+.action-group:not(:has(*)) {
+  display: none;
 }
 
 .actions-wrap .action-group {
@@ -980,8 +994,8 @@ main table tfoot {
 
 .actions-message h2 {
   margin: 0;
-  text-align: center;
   flex-grow: 1;
+  font-size: 1.1rem;
 }
 
 .message-list-checkbox,
@@ -1025,6 +1039,29 @@ main table tfoot {
   font-weight: bold;
   color: var(--fg-muted);
   border-bottom: 1px solid var(--border-strong);
+}
+
+/* Rows are not hyperlink soup: links show their nature on hover, as
+   the tables these grids replaced did. */
+.message-grid a,
+.contact-grid a {
+  text-decoration: none;
+}
+
+.message-grid a:hover,
+.contact-grid a:hover {
+  text-decoration: underline;
+}
+
+/* Every list shares the same row rhythm: a hairline between rows, as
+   the task and filter lists already do. */
+.message-list .messages .message-list-item,
+.contact-list .contacts .contact-grid > * {
+  border-bottom: 1px solid var(--border-light);
+}
+
+.contact-list .contacts .contact-grid > .contact-list-header {
+  border-bottom-color: var(--border-strong);
 }
 
 .message-list .messages .message-list-item,
@@ -1225,6 +1262,7 @@ button:active,
 .task-item {
   display: flex;
   align-items: center;
+  gap: 0.3rem;
   padding: 0.5rem;
   border-bottom: 1px solid var(--border-light);
 }
@@ -1260,6 +1298,17 @@ button:active,
 
 .task-content {
   flex-grow: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.task-content .task-summary {
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-summary {
@@ -1430,9 +1479,11 @@ main.task .details h1.completed {
 
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
 
+  /* The two-line row draws one separator on its wrapper. */
   .message-list .messages .message-list-item {
     padding: 0.15rem 0;
     border-inline: 0;
+    border-bottom: 0;
   }
 
   .message-list-checkbox { grid-area: check; }

@@ -25,6 +25,7 @@
 
   </div>
 
+  <div class="actions-end">
   <form method="get" class="actions-search">
     <input type="text" name="query" dir="auto" value="{{.Query}}" placeholder="Search messages..." aria-label="Search messages">
     <button>Search</button>
@@ -34,12 +35,54 @@
   <div class="actions-pagination">
     <span class="pagination-range">{{.RangeFrom}}&ndash;{{.RangeTo}} of {{.Total}}</span>
     {{if ge .PrevPage 0}}
-      <a href="?page={{.PrevPage}}{{with .Query}}&query={{.}}{{end}}{{if .Starred}}&starred=1{{end}}" class="button-link">«</a>
+      <a href="?page={{.PrevPage}}{{with .Query}}&query={{.}}{{end}}{{if .Starred}}&starred=1{{end}}{{with .Sort}}&sort={{.}}&dir={{$.SortDir}}{{end}}" class="button-link">«</a>
     {{end}}
     {{if ge .NextPage 0}}
-      <a href="?page={{.NextPage}}{{with .Query}}&query={{.}}{{end}}{{if .Starred}}&starred=1{{end}}" class="button-link">»</a>
+      <a href="?page={{.NextPage}}{{with .Query}}&query={{.}}{{end}}{{if .Starred}}&starred=1{{end}}{{with .Sort}}&sort={{.}}&dir={{$.SortDir}}{{end}}" class="button-link">»</a>
     {{end}}
   </div>
+  {{ end }}
+
+  {{ if .SortSupported }}
+  {{$keep := ""}}
+  {{with .Query}}{{$keep = printf "&query=%s" .}}{{end}}
+  {{if .Starred}}{{$keep = printf "%s&starred=1" $keep}}{{end}}
+  {{$active := .Sort}}
+  {{if eq $active ""}}{{$active = "date"}}{{end}}
+  {{$flip := "desc"}}
+  {{if eq .SortDir "desc"}}{{$flip = "asc"}}{{end}}
+  {{$arrow := "↑"}}
+  {{if eq .SortDir "desc"}}{{$arrow = "↓"}}{{end}}
+  <details class="overflow">
+    <summary class="button sort-button" aria-label="Sort by"></summary>
+    <div class="overflow-menu">
+      {{if eq $active "date"}}
+      <a class="button-link" href="?sort=date&dir={{$flip}}{{$keep}}"><strong>Date {{$arrow}}</strong></a>
+      {{else}}
+      <a class="button-link" href="?sort=date{{$keep}}">Date</a>
+      {{end}}
+      {{if eq $active "starred"}}
+      <a class="button-link" href="?sort=starred&dir={{$flip}}{{$keep}}"><strong>Starred {{$arrow}}</strong></a>
+      {{else}}
+      <a class="button-link" href="?sort=starred{{$keep}}">Starred</a>
+      {{end}}
+      {{if eq $active "from"}}
+      <a class="button-link" href="?sort=from&dir={{$flip}}{{$keep}}"><strong>Sender {{$arrow}}</strong></a>
+      {{else}}
+      <a class="button-link" href="?sort=from{{$keep}}">Sender</a>
+      {{end}}
+      {{if eq $active "subject"}}
+      <a class="button-link" href="?sort=subject&dir={{$flip}}{{$keep}}"><strong>Subject {{$arrow}}</strong></a>
+      {{else}}
+      <a class="button-link" href="?sort=subject{{$keep}}">Subject</a>
+      {{end}}
+      {{if eq $active "size"}}
+      <a class="button-link" href="?sort=size&dir={{$flip}}{{$keep}}"><strong>Size {{$arrow}}</strong></a>
+      {{else}}
+      <a class="button-link" href="?sort=size{{$keep}}">Size</a>
+      {{end}}
+    </div>
+  </details>
   {{ end }}
 
   {{$common := .CategorizedMailboxes.Common}}
@@ -66,4 +109,5 @@
       {{ end }}
     </div>
   </details>
+  </div>
 </div>

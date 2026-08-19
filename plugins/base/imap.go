@@ -190,6 +190,9 @@ type IMAPMessage struct {
 	*imapclient.FetchMessageBuffer
 
 	Mailbox string
+
+	// Account owning the message, set only in the unified view
+	Account string
 }
 
 func (msg *IMAPMessage) URL() *url.URL {
@@ -478,7 +481,7 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 	}
 
 	for _, msg := range imapMsgs {
-		msgs = append(msgs, IMAPMessage{msg, mboxName})
+		msgs = append(msgs, IMAPMessage{msg, mboxName, ""})
 	}
 
 	// Reverse list of messages
@@ -600,7 +603,7 @@ func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *im
 		if !ok {
 			continue
 		}
-		msgs[i] = IMAPMessage{msg, mboxName}
+		msgs[i] = IMAPMessage{msg, mboxName, ""}
 	}
 
 	return msgs, total, nil
@@ -729,7 +732,7 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 		return nil, nil, fmt.Errorf("failed to create message reader: %v", err)
 	}
 
-	return &IMAPMessage{msg, mboxName}, part, nil
+	return &IMAPMessage{msg, mboxName, ""}, part, nil
 }
 
 func markMessageAnswered(conn *imapclient.Client, mboxName string, uid imap.UID) error {
@@ -791,4 +794,37 @@ func deleteMessage(conn *imapclient.Client, mboxName string, uid imap.UID) error
 	}
 
 	return conn.Expunge().Close()
+}
+
+// resolveRole maps a unified role name to the session's folder carrying
+// that special use, or "" when the account has none.
+func resolveRole(conn *imapclient.Client, role string) (string, error) {
+	if role == "INBOX" {
+		return "INBOX", nil
+	}
+	mailboxes, err := listMailboxes(conn)
+	if err != nil {
+		return "", err
+	}
+	var categorized CategorizedMailboxes
+	for i := range mailboxes {
+		categorized.Append(mailboxes[i], nil)
+	}
+	var details *MailboxDetails
+	switch role {
+	case "Drafts":
+		details = categorized.Common.Drafts
+	case "Sent":
+		details = categorized.Common.Sent
+	case "Junk":
+		details = categorized.Common.Junk
+	case "Trash":
+		details = categorized.Common.Trash
+	case "Archive":
+		details = categorized.Common.Archive
+	}
+	if details == nil {
+		return "", nil
+	}
+	return details.Info.Name(), nil
 }

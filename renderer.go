@@ -38,6 +38,9 @@ type GlobalRenderData struct {
 	// First day of week: 0=Sunday, 1=Monday (default), 6=Saturday
 	FirstDayOfWeek int
 
+	// Unified marks the merged all-accounts view
+	Unified bool
+
 	// Forced color scheme: "light" or "dark", empty to follow the system
 	ColorScheme string
 
@@ -155,6 +158,10 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.Version = ctx.Server.Options.Version
 		global.ColorScheme = ctx.ColorScheme()
 		global.Theme = ctx.Theme()
+	}
+
+	if isactx {
+		global.Unified = ctx.Unified
 	}
 
 	if isactx && ctx.Session != nil {

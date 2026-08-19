@@ -47,15 +47,39 @@ var allowedStyles = map[string]bool{
 	"background-image":  true,
 	"background-repeat": true,
 
-	"border":        true,
-	"border-color":  true,
-	"border-radius": true,
-	"height":        true,
-	"margin":        true,
-	"padding":       true,
-	"width":         true,
-	"max-width":     true,
-	"min-width":     true,
+	"border":         true,
+	"border-color":   true,
+	"border-radius":  true,
+	"border-style":   true,
+	"border-width":   true,
+	"border-top":     true,
+	"border-right":   true,
+	"border-bottom":  true,
+	"border-left":    true,
+	"height":         true,
+	"max-height":     true,
+	"min-height":     true,
+	"margin":         true,
+	"margin-top":     true,
+	"margin-right":   true,
+	"margin-bottom":  true,
+	"margin-left":    true,
+	"padding":        true,
+	"padding-top":    true,
+	"padding-right":  true,
+	"padding-bottom": true,
+	"padding-left":   true,
+	"width":          true,
+	"max-width":      true,
+	"min-width":      true,
+
+	"background-position": true,
+	"background-size":     true,
+
+	"box-shadow": true,
+	"box-sizing": true,
+	"display":    true,
+	"opacity":    true,
 
 	"clear": true,
 	"float": true,
@@ -225,10 +249,14 @@ func (san *sanitizer) sanitizeHTML(b []byte) ([]byte, error) {
 	// bluemonday must always be run last
 	p := bluemonday.UGCPolicy()
 
-	// TODO: use bluemonday's AllowStyles once it's released and
-	// supports <style>
+	// bluemonday gates style elements behind AllowUnsafe since 1.0.17;
+	// scripts stay disallowed, and the stylesheet content was already
+	// filtered above. Classes and ids stay so the rules have something
+	// to match.
+	p.AllowUnsafe(true)
 	p.AllowElements("style")
-	p.AllowAttrs("style").Globally()
+	p.AllowElementsContent("style")
+	p.AllowAttrs("style", "class", "id").Globally()
 
 	p.AddTargetBlankToFullyQualifiedLinks(true)
 	p.RequireNoFollowOnLinks(true)

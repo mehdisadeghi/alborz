@@ -94,10 +94,14 @@ func splitSearchTokens(buf []byte, eof bool) (int, []byte, error) {
 }
 
 // TODO: Document search functionality somewhere
-func PrepareSearch(terms string) *imap.SearchCriteria {
-	// XXX: If Migadu's IMAP servers can learn a better Full-Text Search then
-	// we can probably start matching on the message bodies by default (gated
-	// behind some kind of flag, perhaps)
+//
+// Bare terms search TEXT: all headers and the body, matched by the
+// server. No capability reliably tells whether the server holds a
+// full-text index, so the server is trusted either way; headersOnly
+// is the per-account escape to the four-header search when an
+// unindexed scan is too slow. from:, subject:, and friends still
+// narrow the field, and body: always searches the body.
+func PrepareSearch(terms string, headersOnly bool) *imap.SearchCriteria {
 	var criteria *imap.SearchCriteria
 
 	scanner := bufio.NewScanner(strings.NewReader(terms))
@@ -106,15 +110,20 @@ func PrepareSearch(terms string) *imap.SearchCriteria {
 	for scanner.Scan() {
 		term := scanner.Text()
 		if !strings.ContainsRune(term, ':') {
-			criteria = searchCriteriaAnd(
-				criteria,
-				searchCriteriaOr(
-					searchCriteriaHeader("From", term),
-					searchCriteriaHeader("To", term),
-					searchCriteriaHeader("Cc", term),
-					searchCriteriaHeader("Subject", term),
-				),
-			)
+			if headersOnly {
+				criteria = searchCriteriaAnd(
+					criteria,
+					searchCriteriaOr(
+						searchCriteriaHeader("From", term),
+						searchCriteriaHeader("To", term),
+						searchCriteriaHeader("Cc", term),
+						searchCriteriaHeader("Subject", term),
+					),
+				)
+			} else {
+				criteria = searchCriteriaAnd(
+					criteria, &imap.SearchCriteria{Text: []string{term}})
+			}
 		} else {
 			parts := strings.SplitN(term, ":", 2)
 			key, value := parts[0], parts[1]

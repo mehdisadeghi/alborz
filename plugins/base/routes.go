@@ -290,7 +290,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 				var accountTotal int
 				switch {
 				case query != "":
-					accountMsgs, accountTotal, err = searchMessages(c, folder, PrepareSearch(query), 0, window, "", true)
+					accountMsgs, accountTotal, err = searchMessages(c, folder, PrepareSearch(query, settings.SearchHeadersOnly), 0, window, "", true)
 				case starred:
 					criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 					accountMsgs, accountTotal, err = searchMessages(c, folder, criteria, 0, window, "", true)
@@ -423,7 +423,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		sortSupported = c.Caps().Has(imap.CapSort)
 		switch {
 		case query != "":
-			msgs, total, err = searchMessages(c, mbox.Name(), PrepareSearch(query), page, messagesPerPage, sortKey, reverse)
+			msgs, total, err = searchMessages(c, mbox.Name(), PrepareSearch(query, settings.SearchHeadersOnly), page, messagesPerPage, sortKey, reverse)
 		case ibase.Starred:
 			criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 			msgs, total, err = searchMessages(c, mbox.Name(), criteria, page, messagesPerPage, sortKey, reverse)
@@ -655,7 +655,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	query := ctx.QueryParam("query")
 	var criteria *imap.SearchCriteria
 	if query != "" {
-		criteria = PrepareSearch(query)
+		criteria = PrepareSearch(query, settings.SearchHeadersOnly)
 	} else if ibase.Starred {
 		criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 	}
@@ -1512,6 +1512,9 @@ type Settings struct {
 	Subscriptions   []string
 	Timezone        string
 	FirstDayOfWeek  int    // 0 = Sunday, 1 = Monday (default)
+
+	// Stored negated so the zero value keeps body search on by default.
+	SearchHeadersOnly bool
 }
 
 func LoadSettings(s alborz.Store) (*Settings, error) {
@@ -1584,6 +1587,7 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.Signature = ctx.FormValue("signature")
 		settings.From = ctx.FormValue("from")
 		settings.Timezone = ctx.FormValue("timezone")
+		settings.SearchHeadersOnly = ctx.FormValue("search_body") != "on"
 		ctx.SetColorScheme(ctx.FormValue("color_scheme"))
 		ctx.SetTheme(ctx.FormValue("theme"))
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {

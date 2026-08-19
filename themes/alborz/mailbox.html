@@ -76,7 +76,7 @@
 
           {{ end }}
           {{if not .Messages}}
-          <p class="empty-list">Nothing here yet.</p>
+          <p class="empty-list">{{if .Query}}No results for “{{.Query}}”.{{else if .Starred}}No starred messages.{{else}}Nothing here yet.{{end}}</p>
           {{end}}
         </div>
       </section>

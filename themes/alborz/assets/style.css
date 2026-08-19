@@ -1004,6 +1004,10 @@ main table tfoot {
 .actions-message h2 {
   margin: 0;
   flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 1.1rem;
 }
 
@@ -1235,9 +1239,67 @@ button:hover,
 }
 
 button[disabled], button[disabled]:hover {
-  color: var(--fg-dim);
-  background-color: var(--border-strong);
+  color: var(--fg-muted);
+  background-color: var(--bg-button);
+  border-color: var(--border-light);
   cursor: default;
+}
+
+/* Overflow menus keep secondary actions behind a ⋮, in the same
+   dropdown shape as the account menu. */
+details.overflow {
+  position: relative;
+  display: inline-block;
+}
+
+.actions-wrap details.overflow {
+  margin-inline-start: 0.3rem;
+}
+
+details.overflow > summary {
+  list-style: none;
+  user-select: none;
+}
+
+details.overflow > summary::-webkit-details-marker {
+  display: none;
+}
+
+.actions-end {
+  display: flex;
+  flex-grow: 1;
+  align-items: center;
+  gap: 0.3rem;
+  margin-inline-start: auto;
+}
+
+.overflow-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 2px);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  min-width: max-content;
+  padding: 0.5rem;
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.overflow-menu form {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.overflow-menu button,
+.overflow-menu .button-link {
+  width: 100%;
+  text-align: start;
 }
 
 .button:active,
@@ -1517,17 +1579,40 @@ main.task .details h1.completed {
     padding: 0.3rem 0.5rem;
   }
 
-  /* The select-all checkbox shares the first toolbar row. */
+  /* The select-all checkbox shares the first toolbar row, in the same
+     column as the row checkboxes below it. */
   .message-list .actions,
   .contact-list .actions {
     flex-wrap: nowrap;
     align-items: flex-start;
+    padding-inline: 0;
   }
+
+  /* The drawer toggle stays focusable for the keyboard, just unseen. */
+  .sidebar-toggle {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    opacity: 0;
+  }
+
+  .sidebar-toggle:focus-visible ~ header .sidebar-button {
+    outline: 2px solid var(--link);
+  }
+
+  .actions { position: relative; }
 
   .message-list .actions > .message-list-checkbox,
   .contact-list .actions > .message-list-checkbox {
     padding-block: 0.4rem;
     padding-inline: 0.5rem;
+  }
+
+  .contact-list .actions > .message-list-checkbox {
+    padding-inline: 0.3rem;
   }
 
   .actions button,
@@ -1537,7 +1622,66 @@ main.task .details h1.completed {
 
   .actions-wrap { flex-wrap: wrap; row-gap: 0.3rem; min-width: 0; }
   .actions-message { flex-wrap: wrap; row-gap: 0.3rem; column-gap: 0.3rem; }
-  .actions-search { order: 2; flex-basis: 100%; }
+
+  /* The search collapses to a bare magnifier icon; focusing it overlays
+     the whole toolbar row with the input. */
+  .actions-search {
+    margin-inline-start: auto;
+    flex-grow: 0;
+  }
+
+  .actions-search input[type="text"] {
+    width: 2rem;
+    min-width: 0;
+    border: none;
+    box-shadow: none;
+    color: transparent;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-5.2-5.2'/%3E%3C/svg%3E") center / 1.2rem no-repeat;
+  }
+
+  .actions-search input::placeholder { color: transparent; }
+  .actions-search button { display: none; }
+
+  .actions-search:focus-within {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    margin: 0;
+    padding: 0.3rem 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    background-color: var(--bg);
+  }
+
+  .actions-search:focus-within input {
+    flex: 1;
+    width: 100%;
+    color: inherit;
+    border: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .actions-search:focus-within input::placeholder {
+    color: var(--fg-faint);
+  }
+
+  .actions-search:focus-within button { display: inline-block; }
+
+  /* Alone in its toolbar, the search already has the row and stays a
+     full input. */
+  .task-list .actions-search { flex-grow: 1; margin-inline-start: 0; }
+  .task-list .actions-search input {
+    width: 100%;
+    flex: 1;
+    color: inherit;
+    border: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .task-list .actions-search input::placeholder { color: var(--fg-faint); }
+  .task-list .actions-search button { display: inline-block; }
+
+  main.message .pagination-range { display: none; }
   .actions-wrap .action-group { margin-inline-start: 0; }
   .actions-pagination { margin-inline-start: auto; }
   .actions-pagination h3 { font-size: 0.8rem; }

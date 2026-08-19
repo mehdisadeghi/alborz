@@ -23,16 +23,14 @@
     <main class="task-list">
       <section class="actions">
         <div class="actions-wrap">
-          <div class="actions-message">
-            <h2>Tasks</h2>
-          </div>
-          <form method="get" class="actions-search action-group">
+          <form method="get" class="actions-search">
             <input
               type="text"
               name="query"
               dir="auto"
               value="{{.Query}}"
-              placeholder="Search tasks...">
+              placeholder="Search tasks..."
+              aria-label="Search tasks">
             <button>Search</button>
           </form>
         </div>

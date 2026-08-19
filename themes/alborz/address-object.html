@@ -35,6 +35,10 @@
         {{end}}
         <h1>{{.AddressObject.DisplayName}}</h1>
         <dl>
+          {{with .AddressObject.Card.PreferredValue "NICKNAME"}}
+          <dt>Nickname</dt>
+          <dd>{{.}}</dd>
+          {{end}}
           {{range .AddressObject.Card.Values "EMAIL"}}
           <dt>Email</dt>
           <dd><a href="/compose?to={{.}}">{{.}}</a></dd>

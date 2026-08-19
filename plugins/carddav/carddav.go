@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
 
@@ -280,7 +281,12 @@ func (ao AddressObject) DisplayName() string {
 			return strings.Join(nonEmpty, " ")
 		}
 	}
-	return ""
+	for _, field := range []string{vcard.FieldNickname, vcard.FieldOrganization, vcard.FieldEmail, vcard.FieldTelephone} {
+		if v := ao.Card.PreferredValue(field); v != "" {
+			return v
+		}
+	}
+	return ao.Path
 }
 
 func (ao AddressObject) PhotoURL() string {

@@ -77,6 +77,7 @@ type TasksRenderData struct {
 	Calendars     []CalendarInfo
 	TaskGroups    []TaskGroup
 	ShowCompleted bool
+	Query         string
 }
 
 type TaskRenderData struct {
@@ -814,6 +815,7 @@ func registerRoutes(p *plugin) {
 		}
 
 		showCompleted := settings.ShowCompleted
+		search := ctx.QueryParam("query")
 
 		query := caldav.CalendarQuery{
 			CompRequest: caldav.CalendarCompRequest{
@@ -878,6 +880,14 @@ func registerRoutes(p *plugin) {
 				if status == "COMPLETED" && !showCompleted {
 					continue
 				}
+				if search != "" {
+					summary, _ := todo.Props.Text("SUMMARY")
+					description, _ := todo.Props.Text("DESCRIPTION")
+					haystack := strings.ToLower(summary + "\n" + description)
+					if !strings.Contains(haystack, strings.ToLower(search)) {
+						continue
+					}
+				}
 				filtered = append(filtered, task)
 			}
 
@@ -900,6 +910,7 @@ func registerRoutes(p *plugin) {
 			Calendars:      calendarInfos,
 			TaskGroups:     taskGroups,
 			ShowCompleted:  showCompleted,
+			Query:          search,
 		})
 	})
 

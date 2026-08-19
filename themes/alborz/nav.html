@@ -47,13 +47,18 @@
     {{ if .GlobalData.LoggedIn }}
     <div>
       <details class="accounts">
-        <summary>{{ .GlobalData.Username }}</summary>
+        <summary>{{ if .GlobalData.Unified }}All accounts{{ else }}{{ .GlobalData.Username }}{{ end }}</summary>
         <div class="accounts-menu">
           {{/* Every account keeps its row across switches; only the
                mark moves with the choice. */}}
           {{ range .GlobalData.Accounts }}
           <form method="post" action="/switch">
-            <button type="submit" name="account" value="{{ .Username }}"{{ if .Active }} class="active" disabled{{ end }}>{{ .Username }}</button>
+            <button type="submit" name="account" value="{{ .Username }}"{{ if and .Active (not $.GlobalData.Unified) }} class="active" disabled{{ end }}>{{ .Username }}</button>
+          </form>
+          {{ end }}
+          {{ if gt (len .GlobalData.Accounts) 1 }}
+          <form method="post" action="/switch">
+            <button type="submit" name="account" value="unified"{{ if .GlobalData.Unified }} class="active" disabled{{ end }}>All accounts</button>
           </form>
           {{ end }}
           <a href="/login?add=1">Add account</a>

@@ -1159,11 +1159,13 @@ func formatMsgIDList(l []string) string {
 	return "<" + strings.Join(l, ">, <") + ">"
 }
 
+// The explicit query parameter a button carries wins over a form field,
+// so the bulk move selector cannot leak into other actions.
 func formOrQueryParam(ctx *alborz.Context, k string) string {
-	if v := ctx.FormValue(k); v != "" {
+	if v := ctx.QueryParam(k); v != "" {
 		return v
 	}
-	return ctx.QueryParam(k)
+	return ctx.FormValue(k)
 }
 
 func handleMove(ctx *alborz.Context) error {

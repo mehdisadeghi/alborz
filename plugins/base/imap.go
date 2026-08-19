@@ -490,21 +490,25 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 	return msgs, total, nil
 }
 
-// searchSeqNums returns the sequence numbers matching criteria in display
-// order, using SORT when the server supports it.
-func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria) ([]uint32, error) {
-	if !conn.Caps().Has(imap.CapSort) {
-		data, err := conn.Search(criteria, nil).Wait()
-		if err != nil {
-			return nil, fmt.Errorf("SEARCH failed: %v", err)
-		}
-		return data.AllSeqNums(), nil
-	}
+// sortKeys maps a sort key from the query string to the SORT key sent
+// to the server, along with the direction each defaults to; picking the
+// active key again reverses it. "" is the default newest-first view.
+var sortKeys = map[string]struct {
+	key      imapclient.SortKey
+	descends bool
+}{
+	"":        {imapclient.SortKeyDate, true},
+	"date":    {imapclient.SortKeyDate, true},
+	"starred": {imapclient.SortKeyDate, true},
+	"from":    {imapclient.SortKeyFrom, false},
+	"subject": {imapclient.SortKeySubject, false},
+	"size":    {imapclient.SortKeySize, true},
+}
+
+func sortSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, crit imapclient.SortCriterion) ([]uint32, error) {
 	sortOptions := &imapclient.SortOptions{
 		SearchCriteria: criteria,
-		SortCriteria: []imapclient.SortCriterion{
-			{Key: imapclient.SortKeyDate, Reverse: true},
-		},
+		SortCriteria:   []imapclient.SortCriterion{crit},
 	}
 	nums, err := conn.Sort(sortOptions).Wait()
 	if err != nil {
@@ -513,12 +517,50 @@ func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria) ([]ui
 	return nums, nil
 }
 
-func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *imap.SearchCriteria, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {
+// searchSeqNums returns the sequence numbers matching criteria in display
+// order, using SORT when the server supports it. The SORT vocabulary has
+// no flag key, so the starred order concatenates two queries, each newest
+// first within its group.
+func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, sort string, reverse bool) ([]uint32, error) {
+	if !conn.Caps().Has(imap.CapSort) {
+		data, err := conn.Search(criteria, nil).Wait()
+		if err != nil {
+			return nil, fmt.Errorf("SEARCH failed: %v", err)
+		}
+		return data.AllSeqNums(), nil
+	}
+
+	if sort == "starred" {
+		flagged := *criteria
+		flagged.Flag = append(append([]imap.Flag{}, criteria.Flag...), imap.FlagFlagged)
+		unflagged := *criteria
+		unflagged.NotFlag = append(append([]imap.Flag{}, criteria.NotFlag...), imap.FlagFlagged)
+
+		first, second := &flagged, &unflagged
+		if !reverse {
+			first, second = second, first
+		}
+		byDate := imapclient.SortCriterion{Key: imapclient.SortKeyDate, Reverse: true}
+		nums, err := sortSeqNums(conn, first, byDate)
+		if err != nil {
+			return nil, err
+		}
+		rest, err := sortSeqNums(conn, second, byDate)
+		if err != nil {
+			return nil, err
+		}
+		return append(nums, rest...), nil
+	}
+
+	return sortSeqNums(conn, criteria, imapclient.SortCriterion{Key: sortKeys[sort].key, Reverse: reverse})
+}
+
+func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *imap.SearchCriteria, page, messagesPerPage int, sort string, reverse bool) (msgs []IMAPMessage, total int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
 	}
 
-	nums, err := searchSeqNums(conn, searchCriteria)
+	nums, err := searchSeqNums(conn, searchCriteria, sort, reverse)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -581,7 +623,7 @@ func messageNeighbors(conn *imapclient.Client, seqNum uint32, criteria *imap.Sea
 			olderSeq = seqNum - 1
 		}
 	} else {
-		nums, err := searchSeqNums(conn, criteria)
+		nums, err := searchSeqNums(conn, criteria, "", true)
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}

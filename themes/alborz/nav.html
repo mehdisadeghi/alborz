@@ -47,16 +47,21 @@
     {{ if .GlobalData.LoggedIn }}
     <div>
       <details class="accounts">
-        <summary>{{ .GlobalData.Username }}</summary>
+        <summary>{{ if .GlobalData.Unified }}All accounts{{ else }}{{ .GlobalData.Username }}{{ end }}</summary>
         <div class="accounts-menu">
-          {{/* The summary names the current account; the menu lists
+          {{/* The summary names the current choice; the menu lists
                the others, so no entry repeats it. */}}
           {{ range .GlobalData.Accounts }}
-          {{ if not .Active }}
+          {{ if or $.GlobalData.Unified (not .Active) }}
           <form method="post" action="/switch">
             <button type="submit" name="account" value="{{ .Username }}">{{ .Username }}</button>
           </form>
           {{ end }}
+          {{ end }}
+          {{ if and (gt (len .GlobalData.Accounts) 1) (not .GlobalData.Unified) }}
+          <form method="post" action="/switch">
+            <button type="submit" name="account" value="unified">All accounts</button>
+          </form>
           {{ end }}
           <a href="/login?add=1">Add account</a>
         </div>

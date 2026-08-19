@@ -1179,6 +1179,15 @@ main.calendar-date .events-list ul {
   vertical-align: middle;
 }
 
+/* In the unified view the checkbox cell carries the account color as
+   a K-9 style stripe; a full-height bar reads at a glance where a dot
+   would not. */
+.message-list-checkbox .color-dot {
+  width: 4px;
+  height: 1.4rem;
+  margin-inline-end: 0;
+}
+
 main.settings form {
   max-width: 600px;
 }
@@ -1577,7 +1586,10 @@ main.task .details h1.completed {
     border-bottom: 0;
   }
 
-  .message-list-checkbox { grid-area: check; }
+  /* The cell stretches so the account stripe can fill the row; the
+     checkbox inside stays centered. */
+  .message-list-checkbox { grid-area: check; align-self: stretch; }
+  .message-list-checkbox .color-dot { height: 100%; }
   /* The sender is a from-search link, but the subject is the row's real
      action; only it keeps the link color. */
   .message-list-sender { grid-area: sender; }

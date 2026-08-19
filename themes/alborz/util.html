@@ -22,6 +22,21 @@
 
 {{ define "aside" }}
 <aside>
+  {{ if .GlobalData.Unified }}
+  {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
+  <ul>
+    <li>
+      <a href="/compose" class="new{{ if eq $.GlobalData.URL.Path "/compose" }} active{{ end }}">Compose&nbsp;mail</a>
+    </li>
+    <li {{ if and (eq $active "Inbox") (not .Starred) }}class="active"{{ end }}><a href="/mailbox/INBOX">Inbox</a></li>
+    <li {{ if .Starred }}class="active"{{ end }}><a href="/mailbox/INBOX?starred=1">Starred</a></li>
+    <li {{ if eq $active "Drafts" }}class="active"{{ end }}><a href="/mailbox/Drafts">Drafts</a></li>
+    <li {{ if eq $active "Sent" }}class="active"{{ end }}><a href="/mailbox/Sent">Sent</a></li>
+    <li {{ if eq $active "Junk" }}class="active"{{ end }}><a href="/mailbox/Junk">Junk</a></li>
+    <li {{ if eq $active "Trash" }}class="active"{{ end }}><a href="/mailbox/Trash">Trash</a></li>
+    <li {{ if eq $active "Archive" }}class="active"{{ end }}><a href="/mailbox/Archive">Archive</a></li>
+  </ul>
+  {{ else }}
   <ul>
     <!-- the logo image, dimensions 200x32 may be present or not -->
     <li>
@@ -52,5 +67,6 @@
       ">Create&nbsp;new&nbsp;folder</a>
     </li>
   </ul>
+  {{ end }}
 </aside>
 {{ end }}

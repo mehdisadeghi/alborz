@@ -1,5 +1,7 @@
 <div class="message-list-checkbox">
+  {{ if not .GlobalData.Unified }}
   <input type="checkbox" id="action-checkbox-all" aria-label="Select all" style="display: none"/>
+  {{ end }}
 </div>
 <div class="actions-wrap">
   <div class="actions-message">
@@ -9,6 +11,7 @@
     {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
     {{$trash := ""}}{{with $common.Trash}}{{$trash = .Info.Name}}{{end}}
 
+    {{ if not .GlobalData.Unified }}
     <div class="action-group">
       {{ if and $trash (ne .Mailbox.Name $trash) }}
       <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$trash | pathescape}}">Delete</button>
@@ -22,6 +25,7 @@
       <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$junk | pathescape}}">Spam</button>
       {{ end }}
     </div>
+    {{ end }}
 
   </div>
 
@@ -85,6 +89,7 @@
   </details>
   {{ end }}
 
+  {{ if not .GlobalData.Unified }}
   {{$common := .CategorizedMailboxes.Common}}
   {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
   <details class="overflow">
@@ -109,5 +114,6 @@
       {{ end }}
     </div>
   </details>
+  {{ end }}
   </div>
 </div>

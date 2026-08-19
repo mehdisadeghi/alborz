@@ -415,4 +415,28 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Redirect(http.StatusFound, "/contacts")
 	})
+
+	p.POST("/contacts/delete", func(ctx *alborz.Context) error {
+		params, err := ctx.FormParams()
+		if err != nil {
+			return err
+		}
+		paths := params["paths"]
+		if len(paths) == 0 {
+			return ctx.Redirect(http.StatusFound, "/contacts")
+		}
+
+		c, err := p.client(ctx.Session)
+		if err != nil {
+			return err
+		}
+
+		for _, objPath := range paths {
+			if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
+				return fmt.Errorf("failed to delete address object: %v", err)
+			}
+		}
+
+		return ctx.Redirect(http.StatusFound, "/contacts")
+	})
 }

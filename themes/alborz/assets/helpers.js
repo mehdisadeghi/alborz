@@ -8,15 +8,34 @@ try {
 	}
 } catch (e) {}
 
+// Bulk actions operate on the checked rows: the select-all box appears,
+// and the action buttons are disabled while nothing is selected.
 const check_all = document.getElementById("action-checkbox-all");
-if (check_all) {
-	check_all.style.display = "inherit";
-	check_all.addEventListener("click", ev => {
-		const inputs = document.querySelectorAll(".message-list-checkbox input");
-		for (let i = 0; i < inputs.length; i++) {
-			inputs[i].checked = ev.target.checked;
+for (const formId of ["messages-form", "address-book-form"]) {
+	const boxes = document.querySelectorAll(`input[type="checkbox"][form="${formId}"]`);
+	if (boxes.length === 0) {
+		continue;
+	}
+	const buttons = document.querySelectorAll(`button[form="${formId}"]`);
+	const update = () => {
+		const any = Array.prototype.some.call(boxes, box => box.checked);
+		for (const button of buttons) {
+			button.disabled = !any;
 		}
-	});
+	};
+	for (const box of boxes) {
+		box.addEventListener("change", update);
+	}
+	if (check_all) {
+		check_all.style.display = "inherit";
+		check_all.addEventListener("click", ev => {
+			for (const box of boxes) {
+				box.checked = ev.target.checked;
+			}
+			update();
+		});
+	}
+	update();
 }
 
 // Escape leaves the search: it clears the term and drops focus, which

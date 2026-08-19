@@ -10,8 +10,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
@@ -237,7 +240,133 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 	}, nil
 }
 
+// unifiedRoles are the folder roles the merged all-accounts view offers;
+// each resolves per account through its special-use attributes.
+var unifiedRoles = []string{"INBOX", "Drafts", "Sent", "Junk", "Trash", "Archive"}
+
+func handleUnifiedMailbox(ctx *alborz.Context) error {
+	role, err := url.PathUnescape(ctx.Param("mbox"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	if !slices.Contains(unifiedRoles, role) {
+		return echo.NewHTTPError(http.StatusNotFound, "no such unified folder")
+	}
+
+	page, err := readPage(ctx)
+	if err != nil {
+		return err
+	}
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
+	}
+	messagesPerPage := settings.MessagesPerPage
+	query := ctx.QueryParam("query")
+	starred := ctx.QueryParam("starred") == "1"
+
+	// Each account contributes its own newest window; after the merge the
+	// requested page is cut from the combined order.
+	window := (page + 1) * messagesPerPage
+	var (
+		mu    sync.Mutex
+		wg    sync.WaitGroup
+		msgs  []IMAPMessage
+		total int
+	)
+	errs := make([]error, len(ctx.Sessions()))
+	answered := make([][]IMAPMessage, len(ctx.Sessions()))
+	for i, s := range ctx.Sessions() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = s.DoIMAP(func(c *imapclient.Client) error {
+				folder, err := resolveRole(c, role)
+				if err != nil || folder == "" {
+					return err
+				}
+				var accountMsgs []IMAPMessage
+				var accountTotal int
+				switch {
+				case query != "":
+					accountMsgs, accountTotal, err = searchMessages(c, folder, PrepareSearch(query), 0, window, "", true)
+				case starred:
+					criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+					accountMsgs, accountTotal, err = searchMessages(c, folder, criteria, 0, window, "", true)
+				default:
+					accountMsgs, accountTotal, err = listMessages(c, folder, 0, window)
+				}
+				if err != nil {
+					return err
+				}
+				for j := range accountMsgs {
+					accountMsgs[j].Account = s.Username()
+				}
+				mu.Lock()
+				answered[i] = accountMsgs
+				total += accountTotal
+				mu.Unlock()
+				return nil
+			})
+		}()
+	}
+	wg.Wait()
+	// Absorbed in the accounts' order, not the order they answered in:
+	// the sort below is stable, so rows of equal rank would otherwise
+	// change places from one request to the next, and a page cut out of
+	// them would repeat a row or lose one.
+	for _, rows := range answered {
+		msgs = append(msgs, rows...)
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+
+	sort.SliceStable(msgs, func(i, j int) bool {
+		return msgs[i].Envelope.Date.After(msgs[j].Envelope.Date)
+	})
+	from := page * messagesPerPage
+	to := from + messagesPerPage
+	if from > len(msgs) {
+		from = len(msgs)
+	}
+	if to > len(msgs) {
+		to = len(msgs)
+	}
+	msgs = msgs[from:to]
+
+	prevPage, nextPage := pager(page, messagesPerPage, total)
+	title := role
+	if role == "INBOX" {
+		title = "Inbox"
+	}
+	if starred {
+		title = "Starred"
+	}
+
+	return ctx.Render(http.StatusOK, "mailbox.html", &MailboxRenderData{
+		IMAPBaseRenderData: IMAPBaseRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(title + " — all accounts"),
+			Mailbox:        &MailboxStatus{&imap.StatusData{Mailbox: title}},
+			Starred:        starred,
+		},
+		Messages:  msgs,
+		PrevPage:  prevPage,
+		NextPage:  nextPage,
+		RangeFrom: from + 1,
+		RangeTo:   to,
+		Total:     total,
+		Query:     query,
+	})
+}
+
 func handleGetMailbox(ctx *alborz.Context) error {
+	if ctx.Unified {
+		return handleUnifiedMailbox(ctx)
+	}
+
 	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
@@ -255,12 +384,9 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	}
 	ibase.BaseRenderData.WithTitle(title)
 
-	page := 0
-	if pageStr := ctx.QueryParam("page"); pageStr != "" {
-		var err error
-		if page, err = strconv.Atoi(pageStr); err != nil || page < 0 {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid page index")
-		}
+	page, err := readPage(ctx)
+	if err != nil {
+		return err
 	}
 
 	settings, err := LoadSettings(ctx.Session.Store())
@@ -309,13 +435,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		return err
 	}
 
-	prevPage, nextPage := -1, -1
-	if page > 0 {
-		prevPage = page - 1
-	}
-	if (page+1)*messagesPerPage < total {
-		nextPage = page + 1
-	}
+	prevPage, nextPage := pager(page, messagesPerPage, total)
 
 	rangeFrom, rangeTo := 0, 0
 	if len(msgs) > 0 {
@@ -336,6 +456,30 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		SortDir:            map[bool]string{true: "desc", false: "asc"}[reverse],
 		SortSupported:      sortSupported,
 	})
+}
+
+// readPage is the page of a list the URL asks for.
+func readPage(ctx *alborz.Context) (int, error) {
+	page := 0
+	if raw := ctx.QueryParam("page"); raw != "" {
+		var err error
+		if page, err = strconv.Atoi(raw); err != nil || page < 0 {
+			return 0, echo.NewHTTPError(http.StatusBadRequest, "invalid page index")
+		}
+	}
+	return page, nil
+}
+
+// pager is the pages either side of page, -1 where there is none.
+func pager(page, perPage, total int) (prev, next int) {
+	prev, next = -1, -1
+	if page > 0 {
+		prev = page - 1
+	}
+	if (page+1)*perPage < total {
+		next = page + 1
+	}
+	return prev, next
 }
 
 type NewMailboxRenderData struct {
@@ -473,6 +617,11 @@ func handleLogout(ctx *alborz.Context) error {
 }
 
 func handleSwitch(ctx *alborz.Context) error {
+	if ctx.FormValue("account") == "unified" {
+		ctx.SetUnified(true)
+		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+	}
+	ctx.SetUnified(false)
 	if !ctx.SwitchAccount(ctx.FormValue("account")) {
 		ctx.Session.PutNotice("That session has expired, sign in again.")
 		return ctx.Redirect(http.StatusFound, "/login?add=1")
@@ -1377,7 +1526,7 @@ type Settings struct {
 	From            string
 	Subscriptions   []string
 	Timezone        string
-	FirstDayOfWeek  int    // 0 = Sunday, 1 = Monday (default)
+	FirstDayOfWeek  int // 0 = Sunday, 1 = Monday (default)
 }
 
 func LoadSettings(s alborz.Store) (*Settings, error) {

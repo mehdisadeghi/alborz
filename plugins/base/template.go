@@ -1,6 +1,8 @@
 package alborzbase
 
 import (
+	"fmt"
+	"hash/fnv"
 	"html/template"
 	"net/url"
 	"strings"
@@ -17,6 +19,12 @@ const (
 )
 
 var templateFuncs = template.FuncMap{
+	// Typed CSS, or html/template poisons the value in a style attribute.
+	"accountcolor": func(username string) template.CSS {
+		h := fnv.New32a()
+		h.Write([]byte(username))
+		return template.CSS(fmt.Sprintf("hsl(%d 65%% 45%%)", h.Sum32()%360))
+	},
 	// Registered here rather than in the carddav plugin because the theme
 	// references it and a template function must exist at parse time even
 	// when that plugin is absent.

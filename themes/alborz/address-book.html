@@ -57,7 +57,7 @@
           </div>
           {{end}}
           {{if not .AddressObjects}}
-          <p class="empty-list">Nothing here yet.</p>
+          <p class="empty-list">{{if .Query}}No results for “{{.Query}}”.{{else}}Nothing here yet.{{end}}</p>
           {{end}}
         </div>
       </section>

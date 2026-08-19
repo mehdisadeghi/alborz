@@ -65,7 +65,7 @@
         </div>
         {{end}}
         {{if not .TaskGroups}}
-        <p class="empty-list">No tasks yet.</p>
+        <p class="empty-list">{{if .Query}}No results for “{{.Query}}”.{{else}}No tasks yet.{{end}}</p>
         {{end}}
       </section>
     </main>

@@ -24,7 +24,11 @@
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
           <div class="message-row">
           <div class="message-list-checkbox {{$classes}}">
+            {{ if $.GlobalData.Unified }}
+            <span class="color-dot" style="background:{{accountcolor .Account}}" title="{{.Account}}"></span>
+            {{ else }}
             <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form">
+            {{ end }}
           </div>
           <div class="message-list-sender {{$classes}}">
             {{ range .Envelope.From }}
@@ -41,7 +45,7 @@
             {{if .Attachments}}<span class="Has attachments">📎</span>{{end}}
             {{if .HasFlag "\\Answered"}}<span class="Replied">↩</span>{{end}}
             {{if .HasFlag "$Forwarded"}}<span class="Forwarded">↪</span>{{end}}
-            <form method="POST" action="/message/{{.Mailbox}}/flag">
+            <form method="POST" action="/message/{{.Mailbox}}/flag{{ if $.GlobalData.Unified }}?account={{.Account}}{{ end }}">
               <input type="hidden" name="uids" value="{{.UID}}">
               {{ if .HasFlag "\\Flagged" -}}
               <input type="hidden" name="action" value="remove">
@@ -60,7 +64,11 @@
             </form>
           </div>
           <div class="message-list-subject {{$classes}}">
+            {{if $.GlobalData.Unified}}
+            <a href="{{.URL}}?account={{.Account}}">
+            {{else}}
             <a href="{{if .TextPart}}{{.TextPart.URL false}}{{if $.Starred}}&starred=1{{else if $.Query}}&query={{$.Query}}{{end}}{{else}}{{.URL}}{{if $.Starred}}?starred=1{{else if $.Query}}?query={{$.Query}}{{end}}{{end}}">
+            {{end}}
               {{if .Envelope.Subject}}
                 {{.Envelope.Subject}}
               {{else}}

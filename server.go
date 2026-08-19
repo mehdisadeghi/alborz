@@ -25,6 +25,7 @@ const (
 	accountsCookieName   = "alborz_accounts"
 	activeUserCookieName = "alborz_user"
 	loginTokenCookieName = "alborz_login_tokens"
+	unifiedCookieName    = "alborz_unified"
 	schemeCookieName     = "alborz_scheme"
 	themeCookieName      = "alborz_theme"
 )
@@ -349,6 +350,11 @@ type Context struct {
 	Server  *Server
 	Session *Session // nil if user isn't logged in
 
+	// Unified marks the merged all-accounts view; Session then anchors
+	// to one of the accounts while handlers aware of the view iterate
+	// Sessions.
+	Unified bool
+
 	// Request-scoped account list. The accounts cookie only reflects
 	// the request, so consecutive account changes in one handler must
 	// read their own writes here.
@@ -480,6 +486,32 @@ func (ctx *Context) Accounts() []Account {
 		accounts[i] = Account{Username: s.username, Active: s == ctx.Session}
 	}
 	return accounts
+}
+
+// Sessions lists the live sessions of every signed-in account, the
+// active one included.
+func (ctx *Context) Sessions() []*Session {
+	return ctx.accountSessions()
+}
+
+// SetUnified turns the merged all-accounts view on or off; it needs at
+// least two signed-in accounts to turn on.
+func (ctx *Context) SetUnified(on bool) {
+	cookie := http.Cookie{
+		Name:     unifiedCookieName,
+		Value:    "1",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   ctx.secureCookies(),
+	}
+	if !on || len(ctx.accountSessions()) < 2 {
+		cookie.Expires = aLongTimeAgo
+		ctx.Unified = false
+	} else {
+		ctx.Unified = true
+	}
+	ctx.SetCookie(&cookie)
 }
 
 // AddAccount makes s the active session and appends it to the account list.
@@ -851,6 +883,14 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			// one: the switcher lists them all, so they all stay alive.
 			for _, session := range ctx.accountSessions() {
 				session.ping()
+			}
+
+			// A row of the unified view carries its account; following it
+			// switches the whole context there.
+			if acct := ctx.QueryParam("account"); acct != "" && ctx.SwitchAccount(acct) {
+				ctx.SetUnified(false)
+			} else if _, err := ctx.Cookie(unifiedCookieName); err == nil && len(ctx.accountSessions()) > 1 {
+				ctx.Unified = true
 			}
 
 			return next(ctx)

@@ -45,6 +45,7 @@ type UpdateAddressObjectRenderData struct {
 	AddressBook   *AddressBookInfo
 	AddressObject *carddav.AddressObject // nil if creating a new contact
 	Card          vcard.Card
+	Name          string
 	Birthday      string
 }
 
@@ -131,6 +132,8 @@ func registerRoutes(p *plugin) {
 					vcard.FieldName,
 					vcard.FieldEmail,
 					vcard.FieldTelephone,
+					vcard.FieldNickname,
+					vcard.FieldOrganization,
 					vcard.FieldPhoto,
 					vcard.FieldUID,
 				},
@@ -141,6 +144,18 @@ func registerRoutes(p *plugin) {
 			query.PropFilters = []carddav.PropFilter{
 				{
 					Name:        vcard.FieldFormattedName,
+					TextMatches: []carddav.TextMatch{{Text: queryText}},
+				},
+				{
+					Name:        vcard.FieldName,
+					TextMatches: []carddav.TextMatch{{Text: queryText}},
+				},
+				{
+					Name:        vcard.FieldNickname,
+					TextMatches: []carddav.TextMatch{{Text: queryText}},
+				},
+				{
+					Name:        vcard.FieldOrganization,
 					TextMatches: []carddav.TextMatch{{Text: queryText}},
 				},
 				{
@@ -185,8 +200,8 @@ func registerRoutes(p *plugin) {
 		}
 
 		sort.Slice(aos, func(i, j int) bool {
-			nameI := aos[i].Card.PreferredValue(vcard.FieldFormattedName)
-			nameJ := aos[j].Card.PreferredValue(vcard.FieldFormattedName)
+			nameI := AddressObject{&aos[i]}.DisplayName()
+			nameJ := AddressObject{&aos[j]}.DisplayName()
 			return strings.ToLower(nameI) < strings.ToLower(nameJ)
 		})
 
@@ -388,6 +403,7 @@ func registerRoutes(p *plugin) {
 			AddressBook:    currentAddressBook,
 			AddressObject:  ao,
 			Card:           card,
+			Name:           map[bool]string{true: "", false: AddressObject{ao}.DisplayName()}[ao == nil],
 			Birthday:       birthdayValue(card),
 		})
 	}

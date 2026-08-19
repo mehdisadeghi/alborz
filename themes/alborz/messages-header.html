@@ -44,17 +44,26 @@
 
   {{$common := .CategorizedMailboxes.Common}}
   {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
-  {{ if or (and $archive (eq .Mailbox.Name "INBOX")) (ne .Mailbox.Name "INBOX") }}
   <details class="overflow">
     <summary class="button" aria-label="More actions">⋮</summary>
     <div class="overflow-menu">
       {{ if and $archive (eq .Mailbox.Name "INBOX") }}
       <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$archive | pathescape}}">Archive</button>
       {{ end }}
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen">Mark read</button>
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen">Mark unread</button>
+      <select form="messages-form" name="to" aria-label="Move to folder">
+        <option value="" disabled selected>Move to...</option>
+        {{range .Mailboxes}}
+          {{if and (not .IsInternal) (ne .Name $.Mailbox.Name)}}
+          <option value="{{.Name}}">{{.Name}}</option>
+          {{end}}
+        {{end}}
+      </select>
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move">Move</button>
       {{ if not (eq .Mailbox.Name "INBOX") }}
       <a class="button-link" href="/delete-mailbox/{{.Mailbox.Name | pathescape}}">Delete folder</a>
       {{ end }}
     </div>
   </details>
-  {{ end }}
 </div>

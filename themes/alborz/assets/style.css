@@ -925,6 +925,10 @@ main table tfoot {
   margin-inline-start: 0;
 }
 
+.actions-wrap > .actions-pagination:last-child {
+  margin-inline-start: auto;
+}
+
 .actions-pagination h3 {
   margin: 0;
   font-weight: 500;

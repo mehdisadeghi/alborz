@@ -576,11 +576,8 @@ main.create-update .text textarea {
 
 main table { border-collapse: collapse; width: 100%; border: 1px solid var(--border-light); }
 main table td {
-  white-space: nowrap;
   padding: 0.3rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
+  overflow-wrap: anywhere;
 }
 main table tbody tr { border-bottom: 1px solid var(--border-light); }
 main table td a { text-decoration: none; }

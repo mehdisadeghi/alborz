@@ -25,6 +25,8 @@ type CalendarRenderData struct {
 	Dates              []time.Time
 	Calendars          []CalendarInfo
 	Events             []CalendarObject
+	Page               string // the shown month as a ?month= value
+	View               string // "" for the month grid, "list" for the agenda
 	PrevPage, NextPage string
 	PrevTime, NextTime time.Time
 
@@ -240,6 +242,15 @@ func registerRoutes(p *plugin) {
 		}
 		firstDayOfWeek := baseSettings.FirstDayOfWeek
 
+		view := ctx.QueryParam("view")
+		if view != "" && view != "list" {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid view")
+		}
+		template := "calendar.html"
+		if view == "list" {
+			template = "calendar-list.html"
+		}
+
 		// Pad a week each way: the grid shows adjacent-month days, and a
 		// fixed window keeps the cache key stable.
 		monthEnd := start.AddDate(0, 1, 0)
@@ -382,7 +393,7 @@ func registerRoutes(p *plugin) {
 			})
 		}
 
-		return ctx.Render(http.StatusOK, "calendar.html", &CalendarRenderData{
+		return ctx.Render(http.StatusOK, template, &CalendarRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).
 				WithTitle("Calendar: " + start.Format("January 2006")),
 			Time:      start,
@@ -390,6 +401,8 @@ func registerRoutes(p *plugin) {
 			Calendars: calendarInfos,
 			Dates:     dates,
 			Events:    newCalendarObjectList(events),
+			Page:      start.Format(monthPageLayout),
+			View:      view,
 			PrevPage:  start.AddDate(0, -1, 0).Format(monthPageLayout),
 			NextPage:  start.AddDate(0, 1, 0).Format(monthPageLayout),
 			PrevTime:  start.AddDate(0, -1, 0),

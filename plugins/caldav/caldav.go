@@ -16,7 +16,9 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-var errNoCalendar = fmt.Errorf("caldav: no calendar found")
+// The account's domain has no CalDAV server, or it holds no calendar;
+// the HTTP layer answers 404 rather than crashing on direct URLs.
+var errNoCalendar = alborz.NotFoundf("caldav: no calendar found")
 
 type CalendarInfo struct {
 	Path                  string

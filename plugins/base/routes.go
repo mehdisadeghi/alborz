@@ -694,6 +694,10 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		}
 	}
 
+	if len(partPath) > 0 && msg.PartByPath(partPath) == nil {
+		return echo.NewHTTPError(http.StatusNotFound, "no such message part")
+	}
+
 	mimeType, _, err := part.Header.ContentType()
 	if err != nil {
 		return fmt.Errorf("failed to parse part Content-Type: %v", err)

@@ -17,7 +17,9 @@ import (
 	"github.com/emersion/go-webdav/carddav"
 )
 
-var errNoAddressBook = fmt.Errorf("carddav: no address book found")
+// The account's domain has no CardDAV server, or it holds no book;
+// the HTTP layer answers 404 rather than crashing on direct URLs.
+var errNoAddressBook = alborz.NotFoundf("carddav: no address book found")
 
 type AddressBookInfo struct {
 	Path     string

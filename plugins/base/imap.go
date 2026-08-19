@@ -12,6 +12,7 @@ import (
 	"strings"
 	//"time"
 
+	"git.mehdix.org/alborz"
 	"github.com/dustin/go-humanize"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -712,13 +713,18 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
 	} else if len(msgs) == 0 {
-		return nil, nil, fmt.Errorf("server didn't return message")
+		return nil, nil, alborz.NotFoundf("no such message")
 	}
 	msg := msgs[0]
 
 	headerBuf := msg.FindBodySection(headerItem)
 	bodyBuf := msg.FindBodySection(bodyItem)
 	if headerBuf == nil || bodyBuf == nil {
+		// The server answers a part path the message doesn't have
+		// with a fetch result missing the asked-for sections.
+		if len(partPath) > 0 {
+			return nil, nil, alborz.NotFoundf("no such message part")
+		}
 		return nil, nil, fmt.Errorf("server didn't return header and body")
 	}
 

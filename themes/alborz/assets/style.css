@@ -876,10 +876,13 @@ main table tfoot {
 }
 
 .actions input[type="text"] + button {
-  margin-inline-start: -4rem;
-  width: 4rem;
   border-start-start-radius: 0;
   border-end-start-radius: 0;
+}
+
+.actions input[type="text"] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
 }
 
 .actions-wrap {

@@ -47,8 +47,20 @@ type GlobalRenderData struct {
 	// Theme variant stylesheet under assets/themes, empty for the default
 	Theme string
 
+	// UI language code: the user's cookie choice, else negotiated
+	// from Accept-Language
+	Lang string
+
 	// additional plugin-specific data
 	Extra map[string]interface{}
+}
+
+// Dir is the writing direction of the UI language.
+func (g *GlobalRenderData) Dir() string {
+	if g.Lang == "fa" {
+		return "rtl"
+	}
+	return "ltr"
 }
 
 // BaseRenderData is the base type for templates. It should be extended with
@@ -67,6 +79,11 @@ type BaseRenderData struct {
 // Global implements RenderData.
 func (brd *BaseRenderData) Global() *GlobalRenderData {
 	return &brd.GlobalData
+}
+
+// T translates a namespaced string key into the UI language.
+func (brd *BaseRenderData) T(key string) string {
+	return translate(brd.GlobalData.Lang, key)
 }
 
 // FormatDate formats a time in the user's timezone.
@@ -93,14 +110,29 @@ func (g *GlobalRenderData) InTimezone(t time.Time) time.Time {
 	return t
 }
 
-// Weekdays returns weekday names starting from FirstDayOfWeek.
+// Weekdays returns translated weekday names starting from
+// FirstDayOfWeek.
 func (g *GlobalRenderData) Weekdays() []string {
-	names := []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
 	result := make([]string, 7)
 	for i := 0; i < 7; i++ {
-		result[i] = names[(g.FirstDayOfWeek+i)%7]
+		result[i] = translate(g.Lang, dayKeys[(g.FirstDayOfWeek+i)%7])
 	}
 	return result
+}
+
+// WeekdayName translates the weekday of t.
+func (g *GlobalRenderData) WeekdayName(t time.Time) string {
+	return translate(g.Lang, dayKeys[int(t.Weekday())])
+}
+
+// MonthName translates the month of t.
+func (g *GlobalRenderData) MonthName(t time.Time) string {
+	return translate(g.Lang, monthKeys[t.Month()-1])
+}
+
+// MonthYear renders the calendar heading for t's month.
+func (g *GlobalRenderData) MonthYear(t time.Time) string {
+	return fmt.Sprintf("%s %d", g.MonthName(t), t.Year())
 }
 
 // pluginEnabled reports whether the plugin applies to the request's
@@ -134,12 +166,14 @@ type RenderData interface {
 func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	ctx, isactx := ectx.(*Context)
 
+	lang := requestLanguage(ectx)
 	global := GlobalRenderData{
 		Extra:          make(map[string]interface{}),
 		Path:           strings.Split(ectx.Request().URL.Path, "/")[1:],
-		Title:          "Webmail",
+		Title:          translate(lang, "title.webmail"),
 		URL:            ectx.Request().URL,
 		FirstDayOfWeek: 1, // Monday default
+		Lang:           lang,
 
 		HavePlugin: func(name string) bool {
 			if !isactx {
@@ -175,6 +209,32 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		GlobalData: global,
 		Extra:      make(map[string]interface{}),
 	}
+}
+
+// T translates a namespaced string key into the request's UI
+// language, for strings built on the Go side.
+func (ctx *Context) T(key string) string {
+	return translate(requestLanguage(ctx), key)
+}
+
+// requestLanguage resolves the request's UI language: the cookie
+// choice wins, else the Accept-Language negotiation.
+func requestLanguage(ectx echo.Context) string {
+	if c, err := ectx.Cookie(langCookieName); err == nil && IsLanguage(c.Value) {
+		return c.Value
+	}
+	return MatchLanguage(ectx.Request().Header.Get("Accept-Language"))
+}
+
+// RenderInfo renders a full page carrying one explanatory sentence,
+// for valid routes whose answer is a state, not content: an
+// unconfigured section, a message that does not exist.
+func RenderInfo(ctx *Context, code int, message string) error {
+	data := struct {
+		BaseRenderData
+		Message string
+	}{*NewBaseRenderData(ctx), message}
+	return ctx.Render(code, "info.html", &data)
 }
 
 func (brd *BaseRenderData) WithTitle(title string) *BaseRenderData {

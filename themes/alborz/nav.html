@@ -1,5 +1,5 @@
 {{ if .GlobalData.LoggedIn }}
-<input type="checkbox" id="sidebar" class="sidebar-toggle" aria-label="Folders and account">
+<input type="checkbox" id="sidebar" class="sidebar-toggle" aria-label="{{$.T "nav.drawer"}}">
 {{ end }}
 <header>
   <nav>
@@ -11,14 +11,14 @@
       {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}
       class="active"
       {{ end }}
-    >Email</a>
+    >{{$.T "nav.email"}}</a>
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
       href="/calendar"
       {{ if eq $page "calendar" }}
       class="active"
       {{ end }}
-    >Calendar</a>
+    >{{$.T "nav.calendar"}}</a>
     {{ end }}
     {{ if call .GlobalData.HavePlugin "carddav" }}
     <a
@@ -26,7 +26,7 @@
       {{ if eq $page "contacts" }}
       class="active"
       {{ end }}
-    >Contacts</a>
+    >{{$.T "nav.contacts"}}</a>
     {{ end }}
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
@@ -34,7 +34,7 @@
       {{ if eq $page "tasks" }}
       class="active"
       {{ end }}
-    >Tasks</a>
+    >{{$.T "nav.tasks"}}</a>
     {{ end }}
     {{ if call .GlobalData.HavePlugin "sieve" }}
     <a
@@ -42,12 +42,12 @@
       {{ if eq $page "filters" }}
       class="active"
       {{ end }}
-    >Filters</a>
+    >{{$.T "nav.filters"}}</a>
     {{ end }}
     {{ if .GlobalData.LoggedIn }}
     <div>
       <details class="accounts">
-        <summary>{{ if .GlobalData.Unified }}All accounts{{ else }}{{ .GlobalData.Username }}{{ end }}</summary>
+        <summary>{{ if .GlobalData.Unified }}{{$.T "nav.allaccounts"}}{{ else }}{{ .GlobalData.Username }}{{ end }}</summary>
         <div class="accounts-menu">
           {{/* The summary names the current choice; the menu lists
                the others, so no entry repeats it. */}}
@@ -60,21 +60,21 @@
           {{ end }}
           {{ if and (gt (len .GlobalData.Accounts) 1) (not .GlobalData.Unified) }}
           <form method="post" action="/switch">
-            <button type="submit" name="account" value="unified">All accounts</button>
+            <button type="submit" name="account" value="unified">{{$.T "nav.allaccounts"}}</button>
           </form>
           {{ end }}
-          <a href="/login?add=1">Add account</a>
+          <a href="/login?add=1">{{$.T "nav.addaccount"}}</a>
         </div>
       </details>
-      <a href="/settings">Settings</a>
-      <a href="/logout">Sign Out</a>
+      <a href="/settings">{{$.T "nav.settings"}}</a>
+      <a href="/logout">{{$.T "nav.signout"}}</a>
     </div>
     {{ end }}
   </nav>
   {{ if .GlobalData.Notice }}
   <div class="notice">
     {{ .GlobalData.Notice }}
-    <a href="{{.GlobalData.URL.String}}">Dismiss</a>
+    <a href="{{.GlobalData.URL.String}}">{{$.T "nav.dismiss"}}</a>
   </div>
   {{ end }}
 </header>

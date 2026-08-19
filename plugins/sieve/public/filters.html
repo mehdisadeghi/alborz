@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/filters/create" class="new">New filter</a>
+    <a href="/filters/create" class="new">{{$.T "filters.new"}}</a>
   </aside>
 
   <div class="container">
@@ -14,25 +14,25 @@
           <div class="task-content">
             <a href="/filters/{{.Name | pathescape}}" class="task-summary">{{.Name}}</a>
             {{ if .Active }}
-            <span class="task-due">Active</span>
+            <span class="task-due">{{$.T "filters.active"}}</span>
             {{ end }}
           </div>
           {{ if .Active }}
           <form method="post" action="/filters/deactivate">
-            <button>Deactivate</button>
+            <button>{{$.T "filters.deactivate"}}</button>
           </form>
           {{ else }}
           <form method="post" action="/filters/{{.Name | pathescape}}/activate">
-            <button>Activate</button>
+            <button>{{$.T "filters.activate"}}</button>
           </form>
           {{ end }}
           <form method="post" action="/filters/{{.Name | pathescape}}/delete">
-            <button>Delete</button>
+            <button>{{$.T "common.delete"}}</button>
           </form>
         </div>
         {{ end }}
         {{ if not .Scripts }}
-        <p class="empty-list">No filters yet.</p>
+        <p class="empty-list">{{$.T "filters.empty"}}</p>
         {{ end }}
       </section>
     </main>

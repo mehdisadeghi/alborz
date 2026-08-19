@@ -91,6 +91,9 @@ type MailboxRenderData struct {
 	PrevPage, NextPage        int
 	RangeFrom, RangeTo, Total int
 	Query                     string
+	Sort                      string
+	SortDir                   string
+	SortSupported             bool
 }
 
 type MailboxDetails struct {
@@ -268,18 +271,35 @@ func handleGetMailbox(ctx *alborz.Context) error {
 
 	query := ctx.QueryParam("query")
 
+	sortKey := ctx.QueryParam("sort")
+	if _, ok := sortKeys[sortKey]; !ok {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
+	}
+	sortDir := ctx.QueryParam("dir")
+	if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
+	}
+	reverse := sortKeys[sortKey].descends
+	if sortDir != "" {
+		reverse = sortDir == "desc"
+	}
+
 	var (
-		msgs  []IMAPMessage
-		total int
+		msgs          []IMAPMessage
+		total         int
+		sortSupported bool
 	)
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
 		var err error
+		sortSupported = c.Caps().Has(imap.CapSort)
 		switch {
 		case query != "":
-			msgs, total, err = searchMessages(c, mbox.Name(), PrepareSearch(query), page, messagesPerPage)
+			msgs, total, err = searchMessages(c, mbox.Name(), PrepareSearch(query), page, messagesPerPage, sortKey, reverse)
 		case ibase.Starred:
 			criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-			msgs, total, err = searchMessages(c, mbox.Name(), criteria, page, messagesPerPage)
+			msgs, total, err = searchMessages(c, mbox.Name(), criteria, page, messagesPerPage, sortKey, reverse)
+		case (sortKey != "" || sortDir != "") && sortSupported:
+			msgs, total, err = searchMessages(c, mbox.Name(), &imap.SearchCriteria{}, page, messagesPerPage, sortKey, reverse)
 		default:
 			msgs, total, err = listMessages(c, mbox.Name(), page, messagesPerPage)
 		}
@@ -312,6 +332,9 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		RangeTo:            rangeTo,
 		Total:              total,
 		Query:              query,
+		Sort:               sortKey,
+		SortDir:            map[bool]string{true: "desc", false: "asc"}[reverse],
+		SortSupported:      sortSupported,
 	})
 }
 

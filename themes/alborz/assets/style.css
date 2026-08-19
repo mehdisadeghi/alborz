@@ -1273,6 +1273,10 @@ details.overflow > summary::-webkit-details-marker {
   margin-inline-start: auto;
 }
 
+.actions-end .actions-search {
+  margin-inline-start: 0;
+}
+
 .overflow-menu {
   position: absolute;
   inset-inline-end: 0;
@@ -1287,6 +1291,27 @@ details.overflow > summary::-webkit-details-marker {
   background-color: var(--bg);
   border: 1px solid var(--border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* Unicode has no shrinking-bars sort glyph, so it is drawn inline,
+   masked so it takes the same text color as its sibling buttons. */
+summary.sort-button {
+  display: inline-block;
+  padding-inline: 0.15rem;
+}
+
+summary.sort-button::before {
+  content: "";
+  display: block;
+  width: 0.85rem;
+  height: 1.15rem;
+  background-color: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5'%3E%3Cpath d='M4 6h16'/%3E%3Cpath d='M4 12h10'/%3E%3Cpath d='M4 18h5'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5'%3E%3Cpath d='M4 6h16'/%3E%3Cpath d='M4 12h10'/%3E%3Cpath d='M4 18h5'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.overflow-menu > strong {
+  padding: 0.3rem;
 }
 
 .overflow-menu form {
@@ -1681,7 +1706,6 @@ main.task .details h1.completed {
   .task-list .actions-search input::placeholder { color: var(--fg-faint); }
   .task-list .actions-search button { display: inline-block; }
 
-  main.message .pagination-range { display: none; }
   .actions-wrap .action-group { margin-inline-start: 0; }
   .actions-pagination { margin-inline-start: auto; }
   .actions-pagination h3 { font-size: 0.8rem; }

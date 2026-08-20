@@ -856,6 +856,13 @@ aside .new {
   text-decoration: none;
 }
 
+/* The create links of the DAV sections sit directly under the aside,
+   without the list rows' padding the mail sidebar gets. */
+aside > a.new {
+  display: block;
+  padding: 0.4rem 0.5rem;
+}
+
 main table th {
   text-align: start;
   padding: 0.3rem; font-weight: normal;

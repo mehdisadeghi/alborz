@@ -380,8 +380,6 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	title := mbox.Label
 	if ibase.Starred {
 		title = ctx.T("mailbox.starred")
-	} else if *mbox.NumUnseen > 0 {
-		title = fmt.Sprintf("(%d) %s", *mbox.NumUnseen, title)
 	}
 	ibase.BaseRenderData.WithTitle(title)
 
@@ -526,6 +524,7 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	}
 
+	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.deletetitle"), mbox.Name()))
 	return ctx.Render(http.StatusOK, "delete-mailbox.html", ibase)
 }
 
@@ -543,6 +542,11 @@ func handleLogin(ctx *alborz.Context) error {
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		CanRememberMe:  ctx.Server.Options.LoginKey != nil,
 		Add:            add,
+	}
+	if add {
+		renderData.BaseRenderData.WithTitle(ctx.T("login.add"))
+	} else {
+		renderData.BaseRenderData.WithTitle(ctx.T("login.short"))
 	}
 
 	// The remembered credentials would re-login the accounts the user
@@ -982,6 +986,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 	}
 
+	ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
 	return ctx.Render(http.StatusOK, "compose.html", &ComposeRenderData{
 		IMAPBaseRenderData: *ibase,
 		Message:            msg,
@@ -1622,7 +1627,7 @@ func handleSettings(ctx *alborz.Context) error {
 	}
 
 	return ctx.Render(http.StatusOK, "settings.html", &SettingsRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
 		Settings:       settings,
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),

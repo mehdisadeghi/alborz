@@ -10,6 +10,14 @@ import (
 // any one account's settings store.
 const langCookieName = "alborz_lang"
 
+// shMonthKeys index the Solar Hijri months, Farvardin first.
+var shMonthKeys = [12]string{
+	"shmonth.farvardin", "shmonth.ordibehesht", "shmonth.khordad",
+	"shmonth.tir", "shmonth.mordad", "shmonth.shahrivar",
+	"shmonth.mehr", "shmonth.aban", "shmonth.azar",
+	"shmonth.dey", "shmonth.bahman", "shmonth.esfand",
+}
+
 // dayKeys index weekday names Sunday-first, like time.Weekday.
 var dayKeys = []string{
 	"day.sun", "day.mon", "day.tue", "day.wed", "day.thu", "day.fri", "day.sat",
@@ -104,7 +112,6 @@ var catalogs = map[string]map[string]string{
 		"aside.junk":      "Junk",
 		"aside.trash":     "Trash",
 		"aside.archive":   "Archive",
-		"aside.back":      "« Back to inbox",
 
 		"login.title":    "Webmail Login",
 		"login.short":    "Login",
@@ -329,7 +336,6 @@ var catalogs = map[string]map[string]string{
 		"aside.junk":      "هرزنامه",
 		"aside.trash":     "زباله‌دان",
 		"aside.archive":   "بایگانی",
-		"aside.back":      "« بازگشت به صندوق ورودی",
 
 		"login.title":    "ورود به ایمیل",
 		"login.short":    "ورود",
@@ -552,7 +558,6 @@ var catalogs = map[string]map[string]string{
 		"aside.junk":      "Spam",
 		"aside.trash":     "Papierkorb",
 		"aside.archive":   "Archiv",
-		"aside.back":      "« Zurück zum Posteingang",
 
 		"login.title":    "Webmail-Anmeldung",
 		"login.short":    "Anmeldung",
@@ -752,7 +757,6 @@ var catalogs = map[string]map[string]string{
 		"aside.junk":      "Spam",
 		"aside.trash":     "Papelera",
 		"aside.archive":   "Archivo",
-		"aside.back":      "« Volver a la bandeja de entrada",
 
 		"login.title":    "Acceso al correo",
 		"login.short":    "Acceso",

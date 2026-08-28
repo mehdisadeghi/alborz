@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"github.com/labstack/echo/v4"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -60,6 +61,9 @@ type plugin struct {
 
 	jarsMu sync.Mutex
 	jars   map[string]http.CookieJar // per username
+
+	// Set in debug mode; logs upstream DAV traffic.
+	debug echo.Logger
 }
 
 func (p *plugin) client(session *alborz.Session) (*carddav.Client, error) {
@@ -147,10 +151,11 @@ type accountBooks struct {
 	books   []AddressBookInfo
 }
 
-// unifiedBooks resolves every signed-in account that has CardDAV, for the
-// merged all-accounts view. An account that fails is logged and skipped;
-// the error surfaces only when no account answered.
-func (p *plugin) unifiedBooks(ctx *alborz.Context) ([]accountBooks, error) {
+// pooledBooks resolves every signed-in account that has CardDAV: the
+// contacts page is always pooled across accounts. An account that fails
+// is logged and skipped; the error surfaces only when no account
+// answered.
+func (p *plugin) pooledBooks(ctx *alborz.Context) ([]accountBooks, error) {
 	var accounts []accountBooks
 	var lastErr error
 	for _, s := range ctx.Sessions() {
@@ -160,7 +165,7 @@ func (p *plugin) unifiedBooks(ctx *alborz.Context) ([]accountBooks, error) {
 		c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), s)
 		if err != nil {
 			lastErr = err
-			ctx.Logger().Printf("carddav: skipping %q in the unified view: %v", s.Username(), err)
+			ctx.Logger().Printf("carddav: skipping %q in the pooled view: %v", s.Username(), err)
 			continue
 		}
 		infos := make([]AddressBookInfo, len(books))
@@ -177,19 +182,6 @@ func (p *plugin) unifiedBooks(ctx *alborz.Context) ([]accountBooks, error) {
 		return nil, errNoAddressBook
 	}
 	return accounts, nil
-}
-
-// routeBooks is what the contacts listing starts from: the one active
-// account, or every account in the unified view.
-func (p *plugin) routeBooks(ctx *alborz.Context) ([]accountBooks, error) {
-	if ctx.Unified {
-		return p.unifiedBooks(ctx)
-	}
-	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
-	if err != nil {
-		return nil, err
-	}
-	return []accountBooks{{session: ctx.Session, client: c, books: books}}, nil
 }
 
 func (p *plugin) clientWithAddressBook(ctx context.Context, session *alborz.Session) (*carddav.Client, *AddressBookInfo, error) {
@@ -264,18 +256,16 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		if ctx.Session == nil {
 			return false
 		}
-		// The unified view offers the section when any account has it,
-		// not only the anchor.
-		if ctx.Unified {
-			for _, s := range ctx.Sessions() {
-				if _, ok := p.davURL(s); ok {
-					return true
-				}
+		// Pooled pages exist when any account has the service.
+		for _, s := range ctx.Sessions() {
+			if _, ok := p.davURL(s); ok {
+				return true
 			}
-			return false
 		}
-		_, ok := p.davURL(ctx.Session)
-		return ok
+		return false
+	}
+	if srv.Options.Debug {
+		p.debug = srv.Logger()
 	}
 	p.cache = davcache.New()
 	p.cache.Start()
@@ -354,4 +344,32 @@ func init() {
 		}
 		return []alborz.Plugin{p}, err
 	})
+}
+
+// BookGroup is one account's writable address books, for create forms.
+type BookGroup struct {
+	Account string
+	Books   []AddressBookInfo
+}
+
+// writableBookGroups lists every account's writable books, so a create
+// form can offer any account as the destination.
+func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]BookGroup, error) {
+	accounts, err := p.pooledBooks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var groups []BookGroup
+	for _, acc := range accounts {
+		var books []AddressBookInfo
+		for _, ab := range acc.books {
+			if ab.Writable {
+				books = append(books, ab)
+			}
+		}
+		if len(books) > 0 {
+			groups = append(groups, BookGroup{Account: acc.account, Books: books})
+		}
+	}
+	return groups, nil
 }

@@ -77,6 +77,8 @@ func registerRoutes(p *alborz.GoPlugin) {
 
 	p.GET("/settings", handleSettings)
 	p.POST("/settings", handleSettings)
+	p.GET("/settings/browser", handleBrowserSettings)
+	p.POST("/settings/browser", handleBrowserSettings)
 }
 
 type IMAPBaseRenderData struct {
@@ -1057,25 +1059,59 @@ func loginRedirect(ctx *alborz.Context) error {
 }
 
 func handleLogout(ctx *alborz.Context) error {
-	listings.evictAll(ctx.Session.Username())
-	if next := ctx.Logout(); next != nil {
-		next.PutNotice(fmt.Sprintf(ctx.T("notice.signedinas"), next.Username()))
+	username := ctx.Session.Username()
+	if ctx.Request().Method == http.MethodPost && ctx.FormValue("account") != "" {
+		username = ctx.FormValue("account")
+	}
+	target := ctx.SessionFor(username)
+	if target == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+	}
+	wasCurrent := target == ctx.DefaultSession
+	listings.evictAll(username)
+	if next := ctx.LogoutAccount(username); next != nil {
+		if wasCurrent {
+			next.PutNotice(fmt.Sprintf(ctx.T("notice.signedinas"), next.Username()))
+		}
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	}
 	return ctx.Redirect(http.StatusFound, "/login")
 }
 
+// switchDestination keeps a scope change on the page it was made from.
+// Pooled sections exist under every scope; the account-scoped ones only
+// outside the merged view. Deeper paths name an object of the account
+// being left, so they return to the inbox, as does a missing or foreign
+// next. The query goes with the old scope and is dropped.
+func switchDestination(next string, unified bool) string {
+	u, err := url.Parse(next)
+	if err != nil || !strings.HasPrefix(u.Path, "/") || u.Host != "" {
+		return "/mailbox/INBOX"
+	}
+	switch u.Path {
+	case "/calendar", "/contacts", "/tasks":
+		return u.Path
+	case "/filters", "/settings":
+		if !unified {
+			return u.Path
+		}
+	}
+	return "/mailbox/INBOX"
+}
+
 func handleSwitch(ctx *alborz.Context) error {
-	if ctx.FormValue("account") == "unified" {
+	unified := ctx.FormValue("account") == "unified"
+	destination := switchDestination(ctx.FormValue("next"), unified)
+	if unified {
 		ctx.SetUnified(true)
-		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+		return ctx.Redirect(http.StatusFound, destination)
 	}
 	ctx.SetUnified(false)
 	if !ctx.SwitchAccount(ctx.FormValue("account")) {
 		ctx.Session.PutNotice(ctx.T("notice.expired"))
 		return ctx.Redirect(http.StatusFound, "/login?add=1")
 	}
-	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+	return ctx.Redirect(http.StatusFound, destination)
 }
 
 type MessageRenderData struct {
@@ -2094,9 +2130,16 @@ type SettingsRenderData struct {
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
-	Language      string // explicit per-user choice, "" follows the browser
-	Theme         string
-	ColorScheme   string
+}
+
+// BrowserSettingsRenderData carries the choices stored in the browser
+// rather than in any account.
+type BrowserSettingsRenderData struct {
+	alborz.BaseRenderData
+	Language    string // explicit per-user choice, "" follows the browser
+	Theme       string
+	ColorScheme string
+	Secondary   string // calendar system shown beside the Gregorian one
 }
 
 type Subscriptions []string
@@ -2166,8 +2209,26 @@ func handleSettings(ctx *alborz.Context) error {
 		Settings:       settings,
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),
+	})
+}
+
+// handleBrowserSettings serves the choices that live in the browser
+// rather than in an account's store. It touches no account, so a server
+// that is down cannot hold the language or the theme hostage.
+func handleBrowserSettings(ctx *alborz.Context) error {
+	if ctx.Request().Method == http.MethodPost {
+		ctx.SetColorScheme(ctx.FormValue("color_scheme"))
+		ctx.SetTheme(ctx.FormValue("theme"))
+		ctx.SetLanguage(ctx.FormValue("language"))
+		ctx.SetSecondaryCalendar(ctx.FormValue("secondary"))
+		return ctx.Redirect(http.StatusFound, "/settings/browser")
+	}
+
+	return ctx.Render(http.StatusOK, "settings-browser.html", &BrowserSettingsRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.forbrowser")),
 		Language:       ctx.Language(),
 		Theme:          ctx.Theme(),
 		ColorScheme:    ctx.ColorScheme(),
+		Secondary:      ctx.SecondaryCalendar(),
 	})
 }

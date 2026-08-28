@@ -3,31 +3,40 @@
 {{template "util.html" .}}
 
 <div class="page-wrap">
-  {{ template "detail-aside" (dict "newHref" "/filters/create" "newLabel" ($.T "filters.new")) }}
+  {{ $aq := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ end }}
+  {{ $current := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $current = . }}{{ end }}
+  <aside>
+    {{ template "account-scope-aside" (dict "accounts" .Accounts "current" $current "path" "/filters" "newhref" (printf "/filters/create%s" $aq) "newlabel" ($.T "filters.new")) }}
+  </aside>
 
   <div class="container">
-    <main class="task-list">
-      <div class="context-crumb">{{ .GlobalData.Username }} › {{$.T "filters.title"}}</div>
-      <section class="tasks">
+    <main class="list">
+      <section class="actions">
+        {{ template "list-toolbar" (dict "title" ($.T "filters.title")) }}
+      </section>
+
+      <div class="context-crumb">{{$current}}</div>
+
+      <section class="list-items">
         {{ range .Scripts }}
-        <div class="task-item">
-          <div class="task-content">
-            <a href="/filters/{{.Name | pathescape}}" class="task-summary">{{.Name}}</a>
+        <div class="list-item">
+          <div class="list-content">
+            <a href="/filters/{{.Name | pathescape}}{{$aq}}" class="list-summary">{{.Name}}</a>
             {{ if .Active }}
-            <span class="task-due">{{$.T "filters.active"}}</span>
+            <span class="list-meta">{{$.T "filters.active"}}</span>
             {{ end }}
           </div>
           {{ if .Active }}
-          <form method="post" action="/filters/deactivate">
+          <form method="post" action="/filters/deactivate{{$aq}}">
             <button>{{$.T "filters.deactivate"}}</button>
           </form>
           {{ else }}
-          <form method="post" action="/filters/{{.Name | pathescape}}/activate">
+          <form method="post" action="/filters/{{.Name | pathescape}}/activate{{$aq}}">
             <button>{{$.T "filters.activate"}}</button>
           </form>
           {{ end }}
-          <form method="post" action="/filters/{{.Name | pathescape}}/delete">
-            <button>{{$.T "common.delete"}}</button>
+          <form method="post" action="/filters/{{.Name | pathescape}}/delete{{$aq}}">
+            <button class="button-danger">{{$.T "common.delete"}}</button>
           </form>
         </div>
         {{ end }}

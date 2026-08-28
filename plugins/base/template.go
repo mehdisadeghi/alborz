@@ -2,12 +2,12 @@ package alborzbase
 
 import (
 	"fmt"
-	"hash/fnv"
 	"html/template"
 	"net/url"
 	"strings"
 	"time"
 
+	"git.mehdix.org/alborz"
 	"github.com/dustin/go-humanize"
 	"github.com/emersion/go-imap/v2"
 )
@@ -19,12 +19,6 @@ const (
 )
 
 var templateFuncs = template.FuncMap{
-	// Typed CSS, or html/template poisons the value in a style attribute.
-	"accountcolor": func(username string) template.CSS {
-		h := fnv.New32a()
-		h.Write([]byte(username))
-		return template.CSS(fmt.Sprintf("hsl(%d 65%% 45%%)", h.Sum32()%360))
-	},
 	// Registered here rather than in the carddav plugin because the theme
 	// references it and a template function must exist at parse time even
 	// when that plugin is absent.
@@ -72,6 +66,34 @@ var templateFuncs = template.FuncMap{
 		return m, nil
 	},
 	"pathescape": url.PathEscape,
+	// An address in a query value keeps its at sign; see AccountParam.
+	"accountparam": alborz.AccountParam,
+	// account renders the query fragment naming an account, or nothing
+	// when there is none. The template.URL return matters: the contextual
+	// escaper normalises those instead of escaping them, so the address
+	// keeps its at sign inside an href or an action.
+	"account": func(sep, username string) template.URL {
+		if username == "" {
+			return ""
+		}
+		return template.URL(sep + "account=" + alborz.AccountParam(username))
+	},
+	// localhref preserves the query separators in application-generated
+	// relative links. html/template otherwise treats a complete dynamic
+	// href as one query value and percent-escapes '&' and '='. Only local
+	// absolute paths, query strings, and fragments are accepted.
+	"localhref": func(raw string) template.URL {
+		if raw == "" {
+			return ""
+		}
+		if strings.HasPrefix(raw, "//") || (raw[0] != '/' && raw[0] != '?' && raw[0] != '#') {
+			return "#"
+		}
+		if _, err := url.Parse(raw); err != nil {
+			return "#"
+		}
+		return template.URL(raw)
+	},
 	"formatdate": func(t time.Time) string {
 		return t.Format("Mon Jan 02 15:04")
 	},

@@ -1329,31 +1329,24 @@ main.calendar-date .events-list ul {
   vertical-align: middle;
 }
 
-/* In the unified view the checkbox cell carries the account color as
-   a K-9 style stripe; a full-height bar reads at a glance where a dot
-   would not. */
-.message-list-checkbox .color-dot {
-  width: 4px;
-  height: 1.4rem;
-  margin-inline-end: 0;
-}
-
 main.settings form {
-  max-width: 600px;
+  width: min(calc(100% - 2 * var(--space-4)), var(--content-form));
+  margin: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
 }
 
-main.settings .settings-section {
-  margin-top: 1.5rem;
-  padding-bottom: 0.25rem;
-  border-bottom: 1px solid var(--border);
-  color: var(--fg-muted);
-}
-
-main.settings button {
+/* The settings page flattens its own controls; the primary Save keeps
+   the accent it declares, which this rule would otherwise repaint in
+   the page background - the same color its label is drawn in. */
+main.settings button:not(.button-primary) {
   background-color: var(--bg);
 }
 
-main.settings button:hover {
+main.settings button:not(.button-primary):hover {
   background-color: var(--bg-active);
 }
 

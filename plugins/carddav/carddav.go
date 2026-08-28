@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"github.com/labstack/echo/v4"
 	"io"
 	"net/http"
 	"net/url"
@@ -67,6 +68,7 @@ func (p *plugin) httpClient(session *alborz.Session) *http.Client {
 		Transport: p.cache.Transport(session.Username(), &webdavRoundTripper{
 			upstream: http.DefaultTransport,
 			session:  session,
+			debug:    p.debug,
 		}, jar),
 		Jar: jar,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -178,18 +180,54 @@ func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL
 	return infos, nil
 }
 
+// logDAVExchange prints one upstream DAV round trip: the query for
+// REPORTs, the status, and what kind of payload came back. Response
+// bodies are re-wrapped so the caller still reads them.
+func logDAVExchange(l echo.Logger, req *http.Request, resp *http.Response, err error) {
+	q := ""
+	if req.Method == "REPORT" && req.GetBody != nil {
+		if r, e := req.GetBody(); e == nil {
+			b, _ := io.ReadAll(r)
+			r.Close()
+			q = " query=" + string(b)
+		}
+	}
+	if err != nil {
+		l.Printf("dav: %s %s error=%v%s", req.Method, req.URL.Path, err, q)
+		return
+	}
+	b, e := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if e != nil {
+		l.Printf("dav: %s %s status=%d read error=%v%s", req.Method, req.URL.Path, resp.StatusCode, e, q)
+		return
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(b))
+	l.Printf("dav: %s %s status=%d bytes=%d events=%d todos=%d cards=%d%s",
+		req.Method, req.URL.Path, resp.StatusCode, len(b),
+		bytes.Count(b, []byte("BEGIN:VEVENT")), bytes.Count(b, []byte("BEGIN:VTODO")),
+		bytes.Count(b, []byte("BEGIN:VCARD")), q)
+}
+
 // webdavRoundTripper handles authentication and follows redirects while
 // preserving the HTTP method. Go's default client changes non-GET/HEAD
 // methods to GET on 301/302 redirects, which breaks WebDAV.
 type webdavRoundTripper struct {
 	upstream http.RoundTripper
 	session  *alborz.Session
+
+	// Debug logger for upstream DAV traffic; nil keeps it silent.
+	// Queries and status lines only, never credentials.
+	debug echo.Logger
 }
 
 func (rt *webdavRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	rt.session.SetHTTPBasicAuth(req)
 
 	resp, err := rt.upstream.RoundTrip(req)
+	if rt.debug != nil {
+		logDAVExchange(rt.debug, req, resp, err)
+	}
 	if err != nil {
 		return nil, err
 	}

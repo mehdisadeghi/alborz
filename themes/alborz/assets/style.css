@@ -1358,6 +1358,23 @@ main.calendar .actions {
   float: inline-start;
 }
 
+/* A set of exclusive choices: the legend reads as the field's label,
+   and the options stack under it like any other group's rows. */
+.action-group.choices {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.action-group.choices legend {
+  padding: 0;
+  color: var(--fg-dim);
+}
+
+.action-group.choices .checkbox {
+  font-weight: normal;
+}
+
 .action-group select[multiple] {
   height: 10rem;
 }

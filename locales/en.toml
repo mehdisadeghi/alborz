@@ -129,8 +129,6 @@
 "calendar.new" = "New event"
 "calendar.newcalendar" = "New calendar"
 "calendar.color" = "Colour"
-"calendar.holdstasks" = "Also holds tasks"
-"calendar.holdstaskshint" = "Most servers fix this when the calendar is created."
 "calendar.month" = "Month"
 "calendar.list" = "List"
 "calendar.noevents" = "No events this month."
@@ -237,6 +235,12 @@
 
 "settings.alignscript" = "Align each line by its own script"
 "common.source" = "Source"
+"calendar.holds" = "Holds"
+"calendar.holdsboth" = "Events and tasks"
+"calendar.holdsevents" = "Events only"
+"calendar.holdstasks" = "Tasks only"
+"calendar.holdshint" = "Most servers fix this when the collection is created."
+"tasks.newlist" = "New task list"
 # Plural forms last: a TOML table claims every key that follows it.
 
 ["calendar.more"]

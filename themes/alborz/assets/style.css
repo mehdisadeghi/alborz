@@ -1413,6 +1413,85 @@ main.calendar .actions {
 .message-grid .row-account,
 .contact-grid .row-account { display: none; }
 
+/* Ownership trails the sender, dim: the sender cell already answers
+   "who", and "which of mine" is the same question. It never shrinks -
+   a long name truncates first, or the answer disappears exactly on the
+   rows that need it. The subject would be the wrong host: it is the
+   widest, most-truncated cell in the row. */
+.message-list-sender .row-account {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  padding-inline-start: 0.5rem;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A cut word is a defect; a cut sentence ending in an ellipsis is a
+   layout. The cells are flex containers, where text-overflow never
+   reaches the text, so the ellipsis rides the item that holds it. */
+.message-list-sender a,
+.message-list-subject a,
+.contact-list-name a,
+.contact-list-email,
+.contact-list-phone,
+.task-list-summary a,
+.task-list-calendar,
+.event-summary a,
+.event-owner {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  /* Fills the cell rather than shrinking to its text: a flex item sized
+     to its content sits wherever the *cell's* direction starts, and
+     text-align then has no room to place anything. */
+  flex: 1 1 auto;
+}
+
+/* Attachment, replied and forwarded share the star's track: the star
+   holds its leading edge, the marks the trailing one, so both read as
+   columns down the list instead of drifting with the row's contents. */
+/* A secondary calendar's date is a gloss on the primary one, not a
+   second fact: dimmer, and only where both fit. */
+.date-secondary {
+  color: var(--fg-muted);
+  font-size: 0.9em;
+}
+
+.message-mark {
+  flex: 0 0 auto;
+  margin-inline-start: 0.2rem;
+  font-size: 0.8em;
+  color: var(--fg-dim);
+}
+
+.message-mark:first-of-type {
+  margin-inline-start: auto;
+}
+
+/* The opt-in color mark: a short rounded pip on the row's leading edge,
+   centred against the row rather than ruled down its whole height, so
+   it reads as a mark and not as a table border. The color is set on the
+   row and inherits through the display:contents wrapper; the pip is
+   positioned, so switching the marks on never re-flows the list and the
+   header needs no matching reservation. */
+.message-grid.unified > .message-row > *:first-child {
+  position: relative;
+}
+
+.message-grid.unified > .message-row > *:first-child::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: var(--account, transparent);
+}
+
 /* Nested folders indent their content, not their rows: every row spans
    the sidebar, so the active highlight runs edge to edge. */
 aside li.folder-li { padding: 0; display: block; }

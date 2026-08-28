@@ -148,7 +148,7 @@ type TaskRow struct {
 	Calendar  CalendarInfo
 	Summary   string
 	Status    string
-	Due       string
+	Due       time.Time
 	Completed bool
 }
 
@@ -816,6 +816,7 @@ func registerRoutes(p *plugin) {
 
 	// Tasks routes
 	GET("/tasks", func(ctx *alborz.Context) error {
+		loc := alborzbase.UserLocation(ctx)
 		accounts, err := p.pooledCalendars(ctx)
 		if err != nil {
 			return err
@@ -930,10 +931,10 @@ func registerRoutes(p *plugin) {
 					}
 				}
 				summary, _ := todo.Props.Text("SUMMARY")
-				due := ""
-				if prop := todo.Props.Get("DUE"); prop != nil {
-					due = prop.Value
-				}
+				// The raw property value is an iCal timestamp
+				// ("20260830T100000Z"), which is not a thing to show
+				// anyone; parse it and let the page write the date.
+				due, _ := todo.Props.DateTime("DUE", loc)
 				taskRows = append(taskRows, TaskRow{
 					Task:      TaskObject{CalendarObject: &task, Account: result.site.cal.Account},
 					Calendar:  result.site.cal,
@@ -957,11 +958,11 @@ func registerRoutes(p *plugin) {
 			case "calendar":
 				return strings.ToLower(row.Calendar.Name)
 			case "due":
-				// Empty due dates belong after dated tasks in ascending order.
-				if row.Due == "" {
+				// Undated tasks belong after dated ones in ascending order.
+				if row.Due.IsZero() {
 					return "\uffff"
 				}
-				return row.Due
+				return row.Due.Format(time.RFC3339)
 			default:
 				return strings.ToLower(row.Summary)
 			}

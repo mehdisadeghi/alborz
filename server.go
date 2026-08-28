@@ -633,15 +633,25 @@ func (ctx *Context) displayPrefs() displayPrefs {
 
 // SetSecondaryCalendar stores which calendar system is shown alongside
 // the Gregorian dates.
-func (ctx *Context) SetSecondaryCalendar(name string) {
-	ctx.setPref(secondaryCookieName, name, slices.Contains(secondaryCalendars, name))
+func (ctx *Context) SetSecondaryCalendar(name string) error {
+	if !slices.Contains(secondaryCalendars, name) {
+		name = ""
+	}
+	prefs := ctx.displayPrefs()
+	if prefs.Secondary == name {
+		return nil
+	}
+	prefs.Secondary = name
+	if err := ctx.Session.Store().Put(displayKey, &prefs); err != nil {
+		return err
+	}
+	displayMemo.Forget(ctx.Session.Username())
+	return nil
 }
 
 // SecondaryCalendar returns the chosen system, empty for none.
 func (ctx *Context) SecondaryCalendar() string {
-	return ctx.pref(secondaryCookieName, func(v string) bool {
-		return slices.Contains(secondaryCalendars, v)
-	})
+	return ctx.displayPrefs().Secondary
 }
 
 // SetLanguage stores the user's UI language choice in the browser,

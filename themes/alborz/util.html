@@ -69,6 +69,13 @@
 
 {{/* The header row of the event grids; the order is the day's own, so
      the labels do not sort. dict: time event calendar. */}}
+{{/* One date, spelled out and glossed with the secondary calendar when
+     one is chosen. dict: g (the global) and time. */}}
+{{ define "date-full" }}{{ .g.FormatDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
+
+{{/* The same for a date with no time of day: a birthday, a due date. */}}
+{{ define "date-day" }}{{ .g.LongDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
+
 {{ define "event-grid-header" }}
 <div class="event-header-row" role="row">
   <div class="event-list-header event-time" role="columnheader">{{.time}}</div>

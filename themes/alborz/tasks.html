@@ -80,7 +80,11 @@
             {{if $multi}}
             <div class="task-list-account" role="cell" data-label="{{$.T "mailbox.account"}}">{{.Task.Account}}</div>
             {{end}}
-            <div class="task-list-due" role="cell" data-label="{{$.T "tasks.duedate"}}">{{.Due}}</div>
+            {{/* Built before the tag: the escaper cannot follow an attribute that
+                 only some branches write. */}}
+            {{ $due := "" }}{{ $dueTitle := "" }}
+            {{ if not .Due.IsZero }}{{ $due = $.GlobalData.ShortDate .Due }}{{ $dueTitle = $.GlobalData.LongDate .Due }}{{ with $.GlobalData.SecondaryDate .Due }}{{ $dueTitle = printf "%s (%s)" $dueTitle . }}{{ end }}{{ end }}
+            <div class="task-list-due" role="cell" data-label="{{$.T "tasks.duedate"}}" title="{{$dueTitle}}">{{$due}}</div>
           </div>
           {{end}}
           {{else}}

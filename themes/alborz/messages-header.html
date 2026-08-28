@@ -21,26 +21,42 @@
     <span class="toolbar-rule" aria-hidden="true"></span>
     <a class="icon-button" href="/compose" title="{{$.T "aside.compose"}}" aria-label="{{$.T "aside.compose"}}">{{ template "icon" "compose" }}</a>
 
+    {{/* Archive, spam and delete are one set of actions rendered twice:
+         as marks in the toolbar, and as words in the overflow, where
+         the narrow layout keeps them so the toolbar stays one row. The
+         action strings are built once and shared between the two. */}}
+    {{ $archiveAction := "" }}{{ $junkAction := "" }}{{ $junkIcon := "junk" }}{{ $junkLabel := "" }}{{ $trashAction := "" }}{{ $trashLabel := "" }}
     {{ if not .GlobalData.Unified }}
-    <span class="icon-group">
       {{ if and $archive (ne .Mailbox.Name $archive) }}
-      {{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" (printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($archive | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)))) }}
+        {{ $archiveAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($archive | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ end }}
       {{ if and $junk (eq .Mailbox.Name $junk) }}
-      {{ template "action-icon" (dict "icon" "notjunk" "label" ($.T "mailbox.notspam") "form" "messages-form" "formaction" (printf "/message/%s/move?to=INBOX%s" (.Mailbox.Name | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)))) }}
+        {{ $junkIcon = "notjunk" }}{{ $junkLabel = $.T "mailbox.notspam" }}
+        {{ $junkAction = printf "/message/%s/move?to=INBOX%s" (.Mailbox.Name | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ else if and $junk (not (eq .Mailbox.Name $common.Sent.Info.Name)) (not (eq .Mailbox.Name $common.Drafts.Info.Name)) }}
-      {{ template "action-icon" (dict "icon" "junk" "label" ($.T "mailbox.spam") "form" "messages-form" "formaction" (printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($junk | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)))) }}
+        {{ $junkLabel = $.T "mailbox.spam" }}
+        {{ $junkAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($junk | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ end }}
       {{ if and $trash (ne .Mailbox.Name $trash) }}
-      {{ template "action-icon" (dict "icon" "trash" "label" ($.T "mailbox.delete") "class" "icon-danger" "form" "messages-form" "formaction" (printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($trash | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)))) }}
+        {{ $trashLabel = $.T "mailbox.delete" }}
+        {{ $trashAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($trash | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ else }}
-      {{ template "action-icon" (dict "icon" "trash" "label" ($.T "mailbox.deleteperm") "class" "icon-danger" "form" "messages-form" "formaction" (printf "/message/%s/delete%s" (.Mailbox.Name | pathescape) $aq)) }}
+        {{ $trashLabel = $.T "mailbox.deleteperm" }}
+        {{ $trashAction = printf "/message/%s/delete%s" (.Mailbox.Name | pathescape) $aq }}
       {{ end }}
+    <span class="icon-group wide-only">
+      {{ with $archiveAction }}{{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" .) }}{{ end }}
+      {{ with $junkAction }}{{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" .) }}{{ end }}
+      {{ with $trashAction }}{{ template "action-icon" (dict "icon" "trash" "label" $trashLabel "class" "icon-danger" "form" "messages-form" "formaction" .) }}{{ end }}
+    </span>
     </span>
 
     <details class="overflow">
       <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
       <div class="overflow-menu">
+        {{ with $archiveAction }}<button class="narrow-only" form="messages-form" formaction="{{.}}">{{$.T "mailbox.archive"}}</button>{{ end }}
+        {{ with $junkAction }}<button class="narrow-only" form="messages-form" formaction="{{.}}">{{$junkLabel}}</button>{{ end }}
+        {{ with $trashAction }}<button class="narrow-only button-danger" form="messages-form" formaction="{{.}}">{{$trashLabel}}</button>{{ end }}
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
         <select form="messages-form" name="to" aria-label="{{$.T "mailbox.movefolder"}}">

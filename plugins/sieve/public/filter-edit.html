@@ -1,11 +1,10 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
-  <aside>
-    <a href="/filters/create" class="new {{if not .Name}}active{{end}}">{{$.T "filters.new"}}</a>
-    {{if .Name}}<a href="/filters">{{$.T "filters.title"}}</a>{{end}}
-  </aside>
+  {{ $back := "" }}{{ if .Name }}{{ $back = "/filters" }}{{ end }}
+  {{ template "detail-aside" (dict "newHref" "/filters/create" "newLabel" ($.T "filters.new") "newActive" (not .Name) "backHref" $back "backLabel" ($.T "filters.title")) }}
 
   <div class="container">
     <main class="create-update">

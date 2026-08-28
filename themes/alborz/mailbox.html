@@ -11,7 +11,7 @@
         {{ template "messages-header.html" . }}
       </section>
       <section class="messages">
-        <div class="message-grid{{ if .GlobalData.Unified }} unified{{ end }}">
+        <div class="message-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}">
           {{/* Header row; the labels sort where the server can. */}}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hflip := "desc" }}{{ if eq .SortDir "desc" }}{{ $hflip = "asc" }}{{ end }}

@@ -1523,12 +1523,12 @@ main.calendar .actions {
    is set on the row and inherits through the display:contents wrapper;
    the pip is positioned, so switching the marks on never re-flows the
    list. */
-.message-grid.unified .message-list-sender {
+.message-grid.account-colors .message-list-sender {
   position: relative;
   padding-inline-start: 0.6rem;
 }
 
-.message-grid.unified .message-list-sender::before {
+.message-grid.account-colors .message-list-sender::before {
   content: "";
   position: absolute;
   inset-inline-start: 0;
@@ -2780,7 +2780,7 @@ aside ul.merged-roles {
 
   /* The narrow row zeroes the cells' side padding, which is the gap the
      account pip stands in: without it the mark touches the name. */
-  .message-grid.unified .message-list-sender { padding-inline-start: 0.6rem; }
+  .message-grid.account-colors .message-list-sender { padding-inline-start: 0.6rem; }
 
   /* The star sits on one line now rather than spanning both, so the
      control height it carries would be charged to that line. The glyph

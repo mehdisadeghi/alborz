@@ -128,8 +128,10 @@ func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
 		}
 	}
 
+	// An unreachable DAV server must not keep the whole webmail from
+	// starting; requests surface the failure until it recovers.
 	if err := sanityCheckURL(u); err != nil {
-		return nil, fmt.Errorf("caldav: domain %q: failed to connect to CalDAV server %q: %v", domain, u, err)
+		srv.Logger().Printf("Warning: caldav: domain %q: CalDAV server %q not reachable at startup: %v", domain, u, err)
 	}
 
 	srv.Logger().Printf("Domain %q: configured upstream CalDAV server: %v", domain, u)

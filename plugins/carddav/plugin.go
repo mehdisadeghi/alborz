@@ -174,8 +174,10 @@ func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
 		}
 	}
 
+	// An unreachable DAV server must not keep the whole webmail from
+	// starting; requests surface the failure until it recovers.
 	if err := sanityCheckURL(u); err != nil {
-		return nil, fmt.Errorf("carddav: domain %q: failed to connect to CardDAV server %q: %v", domain, u, err)
+		srv.Logger().Printf("Warning: carddav: domain %q: CardDAV server %q not reachable at startup: %v", domain, u, err)
 	}
 
 	srv.Logger().Printf("Domain %q: configured upstream CardDAV server: %v", domain, u)

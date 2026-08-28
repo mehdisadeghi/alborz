@@ -4,15 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{if .GlobalData.Unified}}
-    {{ template "dav-aside-groups" (dict "items" .Calendars "itemclass" "calendar-item") }}
-    {{else}}
-    <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
-    <form method="post" id="calendar-filter">
-      {{ template "dav-aside-filter" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item") }}
-      <button>{{$.T "common.apply"}}</button>
-    </form>
-    {{end}}
+    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "newhref" "/calendar/create" "newlabel" ($.T "calendar.new") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
   </aside>
 
   <div class="container">
@@ -35,6 +27,7 @@
           {{if eq $base.Time.Month .Month}}
             <a href="/calendar/date?date={{.Format "2006-01-02"}}" class="date-link"></a>
           {{end}}
+          <h4><span class="day-label">{{$base.GlobalData.CalendarDayLabel .}}</span>{{ with $base.GlobalData.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}</h4>
           <div class="events">
             {{$events := (call $base.EventsForDate .)}}
             {{if $events}}
@@ -50,22 +43,15 @@
               {{$color := call $base.ColorForPath .Account .Path}}
               <li>
                 {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-                <span class="start-time">
-                  {{$base.GlobalData.FormatTime ($event.DateTimeStart nil)}}
-                </span>
                 {{$event.Props.Text "SUMMARY"}}
               </li>
               {{ end }}{{end}}
               {{if ne $overflow 0}}
-              <li class="overflow">...and {{$overflow}} more</li>
+              <li class="overflow">{{printf ($.T "calendar.more") $overflow}}</li>
               {{end}}
             </ul>
             {{end}}
           </div>
-          <h4>
-            <span class="mo">{{.Format "Jan"}}</span>
-            <span class="da">{{.Format "2"}}{{call $base.DaySuffix .Day}}</span>
-          </h4>
         </div>
         {{end}}
       </section>

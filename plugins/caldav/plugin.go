@@ -32,6 +32,7 @@ const (
 	// deadline of its own is all that keeps a hung server from wedging
 	// every waiter behind the memo.
 	discoveryTimeout = 30 * time.Second
+	requestTimeout   = 10 * time.Second
 )
 
 type plugin struct {

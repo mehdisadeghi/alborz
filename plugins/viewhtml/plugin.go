@@ -2,12 +2,14 @@ package alborzviewhtml
 
 import (
 	"embed"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
@@ -20,6 +22,13 @@ var public embed.FS
 var (
 	proxyEnabled = true
 	proxyMaxSize = 5 * 1024 * 1024 // 5 MiB
+	// A sender's server is not ours and owes us nothing: a slow one
+	// must not hold a request of ours open.
+	proxyTimeout = 10 * time.Second
+	// The browser may keep what it has already been shown, so scrolling
+	// back through a message does not fetch it again.
+	proxyCacheControl = "private, max-age=86400"
+	proxyClient       = &http.Client{Timeout: proxyTimeout}
 )
 
 func init() {
@@ -50,9 +59,13 @@ func init() {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid scheme")
 		}
 
-		resp, err := http.Get(u.String())
+		req, err := http.NewRequestWithContext(ctx.Request().Context(), http.MethodGet, u.String(), nil)
 		if err != nil {
-			return err
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid URL")
+		}
+		resp, err := proxyClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to fetch remote resource within %v: %v", proxyTimeout, err)
 		}
 		defer resp.Body.Close()
 
@@ -68,6 +81,8 @@ func init() {
 			}
 			ctx.Response().Header().Set("Content-Length", strconv.Itoa(size))
 		}
+
+		ctx.Response().Header().Set("Cache-Control", proxyCacheControl)
 
 		lr := io.LimitedReader{resp.Body, int64(proxyMaxSize)}
 		return ctx.Stream(http.StatusOK, mediaType, &lr)

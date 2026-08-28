@@ -122,6 +122,14 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 	e.Use(middleware.Recover())
 	if options.Debug {
+		// The completion logger above stays silent for a request that
+		// never finishes; log arrivals too, so a hang names its URI.
+		e.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				e.Logger.Printf("-> %s %s", c.Request().Method, c.Request().RequestURI)
+				return next(c)
+			}
+		})
 		e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 			Format: "${time_rfc3339} method=${method}, uri=${uri}, status=${status}\n",
 		}))
@@ -136,20 +144,26 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}()
 
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGUSR1, syscall.SIGINT)
+	signal.Notify(sigs, syscall.SIGUSR1, syscall.SIGINT, syscall.SIGTERM)
 
 	for sig := range sigs {
 		if sig == syscall.SIGUSR1 {
 			if err := s.Reload(); err != nil {
 				e.Logger.Errorf("Failed to reload server: %v", err)
 			}
-		} else if sig == syscall.SIGINT {
+		} else {
 			break
 		}
 	}
 
+	fmt.Fprintln(os.Stderr, "alborz: shutting down (up to 5s for active requests; interrupt again to force)")
 	ctx, cancel := context.WithDeadline(context.Background(),
-		time.Now().Add(30*time.Second))
+		time.Now().Add(5*time.Second))
+	go func() {
+		<-sigs
+		fmt.Fprintln(os.Stderr, "alborz: forced exit")
+		os.Exit(1)
+	}()
 	e.Shutdown(ctx)
 	cancel()
 

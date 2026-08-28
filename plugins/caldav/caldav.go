@@ -88,6 +88,8 @@ type davCollectionProps struct {
 func (p *plugin) httpClient(session *alborz.Session) *http.Client {
 	jar := p.jar(session)
 	return &http.Client{
+		// A wedged DAV server fails the request instead of hanging it.
+		Timeout: requestTimeout,
 		Transport: p.cache.Transport(session.Username(), &webdavRoundTripper{
 			upstream: http.DefaultTransport,
 			session:  session,

@@ -30,6 +30,7 @@ func (s *Server) dialIMAP(domain string) (*imapclient.Client, error) {
 		WordDecoder: &mime.WordDecoder{
 			CharsetReader: charset.Reader,
 		},
+		Dialer: &net.Dialer{Timeout: upstreamTimeout},
 	}
 
 	var c *imapclient.Client
@@ -45,7 +46,7 @@ func (s *Server) dialIMAP(domain string) (*imapclient.Client, error) {
 			return nil, fmt.Errorf("failed to connect to IMAP server: %w", err)
 		}
 	} else {
-		conn, err := net.Dial("tcp", d.imap.host)
+		conn, err := net.DialTimeout("tcp", d.imap.host, upstreamTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to IMAP server: %w", err)
 		}

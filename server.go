@@ -598,6 +598,39 @@ func (ctx *Context) Theme() string {
 // the Gregorian one; empty shows none.
 var secondaryCalendars = []string{"shcal"}
 
+// displayKey holds the choices that follow the person rather than the
+// browser, in the account's own store: which calendar someone counts in
+// is not a property of the machine they read mail on.
+const displayKey = "alborz.display"
+
+type displayPrefs struct {
+	Secondary string
+}
+
+// displayMemo keeps the store off the render path. The store does not
+// remember a missing entry, so an unmade choice would otherwise cost a
+// METADATA round trip on every page, behind the lock every IMAP command
+// of the session queues on.
+var displayMemo = NewMemo[displayPrefs](time.Hour)
+
+func (ctx *Context) displayPrefs() displayPrefs {
+	if ctx.Session == nil {
+		return displayPrefs{}
+	}
+	prefs, err := displayMemo.Get(ctx.Session.Username(), func() (displayPrefs, error) {
+		var p displayPrefs
+		err := ctx.Session.Store().Get(displayKey, &p)
+		if err == ErrNoStoreEntry {
+			err = nil
+		}
+		return p, err
+	})
+	if err != nil {
+		ctx.Logger().Printf("failed to read display preferences: %v", err)
+	}
+	return prefs
+}
+
 // SetSecondaryCalendar stores which calendar system is shown alongside
 // the Gregorian dates.
 func (ctx *Context) SetSecondaryCalendar(name string) {

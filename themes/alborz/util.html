@@ -29,42 +29,42 @@
 {{ end }}
 
 {{/* One folder node, nested or flat, any account: (node, "?account=x" or
-     "", highlight-allowed, active-name). Parents that are only path
+     "", highlight-allowed, active-name, global). Parents that are only path
      prefixes render as plain names; branches stay open: no state. */}}
 {{ define "mbox-node" }}
-{{ $n := index . 0 }}{{ $q := index . 1 }}{{ $onacct := index . 2 }}{{ $active := index . 3 }}
+{{ $n := index . 0 }}{{ $q := index . 1 }}{{ $onacct := index . 2 }}{{ $active := index . 3 }}{{ $g := index . 4 }}
 {{ $on := and $n.Details $onacct (eq $active $n.Details.Info.Name) }}
 {{ if $n.Children }}
 <li class="folder-li">
   <details class="folder-branch" open>
-    <summary{{ if $on }} class="active"{{ end }}>{{ template "mbox-node-label" (tuple $n $q) }}</summary>
-    <ul>{{ range $n.Children }}{{ template "mbox-node" (tuple . $q $onacct $active) }}{{ end }}</ul>
+    <summary{{ if $on }} class="active"{{ end }}>{{ template "mbox-node-label" (tuple $n $q $g) }}</summary>
+    <ul>{{ range $n.Children }}{{ template "mbox-node" (tuple . $q $onacct $active $g) }}{{ end }}</ul>
   </details>
 </li>
 {{ else }}
 <li{{ if $on }} class="active"{{ end }}>
-  {{ template "mbox-node-label" (tuple $n $q) }}
+  {{ template "mbox-node-label" (tuple $n $q $g) }}
 </li>
 {{ end }}
 {{ end }}
 
 {{ define "mbox-node-label" }}
-{{ $n := index . 0 }}{{ $q := index . 1 }}
+{{ $n := index . 0 }}{{ $q := index . 1 }}{{ $g := index . 2 }}
 {{ if and $n.Details (not ($n.Details.Info.HasAttr "\\Noselect")) }}
 <a href="{{$n.Details.Info.URL}}{{$q}}">{{$n.Name}}</a>
-{{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$n.Details.Info.Unseen}}</span>{{ end }}
+{{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$g.Num $n.Details.Info.Unseen}}</span>{{ end }}
 {{ else }}
 <span class="noselect">{{$n.Name}}</span>
 {{ end }}
 {{ end }}
 
 {{/* One account's folder list: (Categorized, "?account=x" or "",
-     highlight-allowed, starred, active-name). */}}
+     highlight-allowed, starred, active-name, global). */}}
 {{ define "mbox-list" }}
-{{ $cc := index . 0 }}{{ $q := index . 1 }}{{ $on := index . 2 }}{{ $starred := index . 3 }}{{ $active := index . 4 }}
-{{ with $cc.InboxTree }}{{ template "mbox-node" (tuple . $q (and $on (not $starred)) $active) }}{{ end }}
-{{ range $cc.CommonNodes }}{{ template "mbox-node" (tuple . $q $on $active) }}{{ end }}
-{{ range $cc.AdditionalTree }}{{ template "mbox-node" (tuple . $q $on $active) }}{{ end }}
+{{ $cc := index . 0 }}{{ $q := index . 1 }}{{ $on := index . 2 }}{{ $starred := index . 3 }}{{ $active := index . 4 }}{{ $g := index . 5 }}
+{{ with $cc.InboxTree }}{{ template "mbox-node" (tuple . $q (and $on (not $starred)) $active $g) }}{{ end }}
+{{ range $cc.CommonNodes }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
+{{ range $cc.AdditionalTree }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
 {{ end }}
 
 {{/* The header row of the event grids; the order is the day's own, so
@@ -265,21 +265,21 @@
   <details class="acct-folders"{{ if or (eq $acct $cur) (and (not $acct) (not $all) (eq $.GlobalData.Username $cur)) }} open{{ end }}>
     <summary class="aside-account">{{ .Account }}</summary>
     <ul>
-      {{ template "mbox-list" (tuple .Categorized $q (eq $acct $cur) $starred $active) }}
+      {{ template "mbox-list" (tuple .Categorized $q (eq $acct $cur) $starred $active $.GlobalData) }}
     </ul>
   </details>
   {{ end }}
   {{ else }}
   <ul>
     {{ with .CategorizedMailboxes }}
-    {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active) }}{{ end }}
+    {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
     <li {{ if $starred }}class="active"{{ end }}>
       <a href="/mailbox/INBOX?starred=1">{{$.T "aside.starred"}}</a>
     </li>
-    {{ range .CommonNodes }}{{ template "mbox-node" (tuple . "" (not $starred) $active) }}{{ end }}
+    {{ range .CommonNodes }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
     {{ if .Additional }}
     <hr />
-    {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active) }}{{ end }}
+    {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
     {{ end }}
     {{ end }}
   </ul>

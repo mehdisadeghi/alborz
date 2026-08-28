@@ -108,8 +108,8 @@
               {{end}}
             </a>
           </div>
-          <div class="message-list-date {{$classes}}">
-            {{ .Envelope.Date | humantime }}
+          <div class="message-list-date {{$classes}}" title="{{ $.GlobalData.FormatDate .Date }}{{ with $.GlobalData.SecondaryDate .Date }} ({{.}}){{ end }}">
+            {{ $.GlobalData.Since .Date }}
           </div>
           <div class="message-list-size {{$classes}}">{{ humansize .RFC822Size }}</div>
           </div>

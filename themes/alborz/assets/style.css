@@ -236,6 +236,20 @@ select {
   --alert-border: #58232b;
 }
 
+/* The system stack has no Persian face of its own, so Persian falls to
+   whatever the platform picks. Name the good ones first: any that is
+   installed is used, and nothing is downloaded when none is. */
+:root:lang(fa) {
+  --font-sans: Vazirmatn, Sahel, "IRANSans", "SF Arabic", "Geeza Pro",
+    "Segoe UI", "Noto Naskh Arabic", system-ui, sans-serif;
+}
+
+/* The scrollbar's space is reserved whether or not it is there, so a
+   page that grows past the fold does not shove every fluid column 15px
+   sideways. It is a no-op where scrollbars overlay the content (macOS,
+   touch), which is exactly where there was nothing to fix. */
+:root { scrollbar-gutter: stable; }
+
 body { font-family: var(--font-sans); font-size: var(--text-md); padding: 0; margin: 0;
   min-height: 100vh; display: flex; flex-direction: column;
   background-color: var(--surface); color: var(--fg);

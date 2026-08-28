@@ -2120,7 +2120,7 @@ func handleMove(ctx *alborz.Context) error {
 
 	listings.evict(ctx.Session.Username(), mboxName)
 	listings.evict(ctx.Session.Username(), to)
-	ctx.Session.PutNotice(ctx.T("notice.moved"))
+	ctx.Session.PutNotice(ctx.Tf("notice.moved", len(uids)))
 	if path := formOrQueryParam(ctx, "next"); path != "" {
 		return ctx.Redirect(http.StatusFound, path)
 	}
@@ -2184,7 +2184,7 @@ func emptiedNotice(ctx *alborz.Context, removed int) string {
 	if removed == 0 {
 		return ctx.T("notice.alreadyempty")
 	}
-	return fmt.Sprintf(ctx.T("notice.emptied"), removed)
+	return ctx.Tf("notice.emptied", removed)
 }
 
 // handleEmptyAllMailbox empties the same role folder on every signed-in
@@ -2273,7 +2273,7 @@ func handleDelete(ctx *alborz.Context) error {
 	}
 
 	listings.evict(ctx.Session.Username(), mboxName)
-	ctx.Session.PutNotice(ctx.T("notice.deleted"))
+	ctx.Session.PutNotice(ctx.Tf("notice.deleted", len(uids)))
 	if path := formOrQueryParam(ctx, "next"); path != "" {
 		return ctx.Redirect(http.StatusFound, path)
 	}

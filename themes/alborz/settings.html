@@ -107,6 +107,14 @@
           </select>
         </div>
 
+        <div class="action-group">
+          <label for="secondary">{{$.T "settings.secondary"}}</label>
+          <select name="secondary" id="secondary">
+            <option value="" {{if eq .Secondary ""}}selected{{end}}>{{$.T "settings.secondarynone"}}</option>
+            <option value="shcal" {{if eq .Secondary "shcal"}}selected{{end}}>{{$.T "settings.shcal"}}</option>
+          </select>
+        </div>
+
         <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
       </form>
     </main>

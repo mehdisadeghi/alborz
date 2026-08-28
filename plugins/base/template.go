@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"github.com/dustin/go-humanize"
 	"github.com/emersion/go-imap/v2"
 )
 
@@ -138,5 +137,4 @@ var templateFuncs = template.FuncMap{
 		}
 		return t.Format(inputDateTimeLayout)
 	},
-	"humantime": humanize.Time,
 }

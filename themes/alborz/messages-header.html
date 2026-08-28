@@ -87,7 +87,7 @@
   {{if gt .RangeFrom 0}}
   {{ $prev := "" }}{{if ge .PrevPage 0}}{{$prev = printf "?page=%d%s" .PrevPage $hparams}}{{end}}
   {{ $next := "" }}{{if ge .NextPage 0}}{{$next = printf "?page=%d%s" .NextPage $hparams}}{{end}}
-  {{ template "pagination" (dict "range" (printf "%d–%d %s %d" .RangeFrom .RangeTo ($.T "mailbox.of") .Total) "prev" (dict "href" $prev "label" "«") "next" (dict "href" $next "label" "»")) }}
+  {{ template "pagination" (dict "range" ($.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total) "prev" (dict "href" $prev "title" ($.T "mailbox.prevpage")) "next" (dict "href" $next "title" ($.T "mailbox.nextpage"))) }}
   {{ end }}
 
   {{ if .SortSupported }}

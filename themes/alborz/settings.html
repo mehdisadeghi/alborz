@@ -5,7 +5,7 @@
   <aside>
     <ul>
       <li>
-        <a href="/mailbox/INBOX">« Back to inbox</a>
+        <a href="/mailbox/INBOX">{{$.T "aside.back"}}</a>
       </li>
     </ul>
   </aside>
@@ -13,8 +13,9 @@
   <div class="container">
     <main class="settings">
       <form method="post">
+        <h3 class="settings-section">{{printf ($.T "settings.foraccount") .GlobalData.Username}}</h3>
         <div class="action-group">
-          <label for="from">Full name</label>
+          <label for="from">{{$.T "settings.fullname"}}</label>
           <input
             type="text"
             name="from"
@@ -25,7 +26,7 @@
         </div>
 
         <div class="action-group">
-          <label for="signature">Message signature</label>
+          <label for="signature">{{$.T "settings.signature"}}</label>
           <textarea
             name="signature"
             id="signature"
@@ -35,7 +36,7 @@
         </div>
 
         <div class="action-group">
-          <label for="subscriptions">Subscribed folders</label>
+          <label for="subscriptions">{{$.T "settings.subs"}}</label>
           <select name="subscriptions" id="subscriptions" multiple>
             {{ $subs := .Subscriptions }}
             {{ range .Mailboxes }}
@@ -52,7 +53,7 @@
         </div>
 
         <div class="action-group">
-          <label for="messages_per_page">Messages per page</label>
+          <label for="messages_per_page">{{$.T "settings.perpage"}}</label>
           <input
             type="number"
             name="messages_per_page"
@@ -61,6 +62,7 @@
             required />
         </div>
 
+
         <div class="action-group">
           <label for="search_body" class="checkbox">
             <input
@@ -68,25 +70,49 @@
               name="search_body"
               id="search_body"
               {{ if not .Settings.SearchHeadersOnly }}checked{{ end }} />
-            Search message bodies
+            {{$.T "settings.searchbody"}}
           </label>
         </div>
 
         <div class="action-group">
-          <label for="timezone">Timezone</label>
+          <label for="timezone">{{$.T "settings.timezone"}}</label>
           <input
             type="text"
             name="timezone"
             id="timezone"
             value="{{.Settings.Timezone}}"
-            placeholder="Auto-detect" />
-          <small>Leave empty to auto-detect from browser</small>
+            placeholder="{{$.T "settings.tzauto"}}" />
+          <small>{{$.T "settings.tzhint"}}</small>
         </div>
 
+
+
         <div class="action-group">
-          <label for="theme">Theme</label>
+          <label for="first_day_of_week">{{$.T "settings.firstday"}}</label>
+          <select name="first_day_of_week" id="first_day_of_week">
+            <option value="1" {{if eq .Settings.FirstDayOfWeek 1}}selected{{end}}>{{$.T "settings.monday"}}</option>
+            <option value="0" {{if eq .Settings.FirstDayOfWeek 0}}selected{{end}}>{{$.T "settings.sunday"}}</option>
+            <option value="6" {{if eq .Settings.FirstDayOfWeek 6}}selected{{end}}>{{$.T "settings.saturday"}}</option>
+          </select>
+        </div>
+
+        <h3 class="settings-section">{{$.T "settings.forbrowser"}}</h3>
+
+                <div class="action-group">
+          <label for="language">{{$.T "settings.language"}}</label>
+          <select name="language" id="language">
+            <option value="" {{ if eq .Language "" }}selected{{ end }}>{{$.T "settings.langauto"}}</option>
+            <option value="en" {{ if eq .Language "en" }}selected{{ end }}>English</option>
+            <option value="fa" {{ if eq .Language "fa" }}selected{{ end }}>فارسی</option>
+            <option value="de" {{ if eq .Language "de" }}selected{{ end }}>Deutsch</option>
+            <option value="es" {{ if eq .Language "es" }}selected{{ end }}>Español</option>
+          </select>
+        </div>
+
+                <div class="action-group">
+          <label for="theme">{{$.T "settings.theme"}}</label>
           <select name="theme" id="theme">
-            <option value="" {{if eq .Theme ""}}selected{{end}}>Default</option>
+            <option value="" {{if eq .Theme ""}}selected{{end}}>{{$.T "settings.themedefault"}}</option>
             <option value="sublime" {{if eq .Theme "sublime"}}selected{{end}}>Sublime</option>
             <option value="sourcehut" {{if eq .Theme "sourcehut"}}selected{{end}}>Sourcehut</option>
             <option value="glass" {{if eq .Theme "glass"}}selected{{end}}>Glass</option>
@@ -94,25 +120,16 @@
           </select>
         </div>
 
-        <div class="action-group">
-          <label for="color_scheme">Appearance</label>
+                <div class="action-group">
+          <label for="color_scheme">{{$.T "settings.appearance"}}</label>
           <select name="color_scheme" id="color_scheme">
-            <option value="" {{if eq .ColorScheme ""}}selected{{end}}>System</option>
-            <option value="light" {{if eq .ColorScheme "light"}}selected{{end}}>Light</option>
-            <option value="dark" {{if eq .ColorScheme "dark"}}selected{{end}}>Dark</option>
+            <option value="" {{if eq .ColorScheme ""}}selected{{end}}>{{$.T "settings.system"}}</option>
+            <option value="light" {{if eq .ColorScheme "light"}}selected{{end}}>{{$.T "settings.light"}}</option>
+            <option value="dark" {{if eq .ColorScheme "dark"}}selected{{end}}>{{$.T "settings.dark"}}</option>
           </select>
         </div>
 
-        <div class="action-group">
-          <label for="first_day_of_week">First day of week</label>
-          <select name="first_day_of_week" id="first_day_of_week">
-            <option value="1" {{if eq .Settings.FirstDayOfWeek 1}}selected{{end}}>Monday</option>
-            <option value="0" {{if eq .Settings.FirstDayOfWeek 0}}selected{{end}}>Sunday</option>
-            <option value="6" {{if eq .Settings.FirstDayOfWeek 6}}selected{{end}}>Saturday</option>
-          </select>
-        </div>
-
-        <button type="submit">Save settings</button>
+        <button type="submit">{{$.T "settings.save"}}</button>
       </form>
     </main>
   </div>

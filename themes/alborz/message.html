@@ -20,10 +20,10 @@
 
             <span class="followups action-group">
               {{if .Message.HasFlag "\\Draft"}}
-                <a class="action-group button-link" href="{{.Message.URL}}/edit{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">Edit draft</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/edit{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">{{$.T "message.editdraft"}}</a>
               {{else}}
-                <a class="action-group button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">Reply</a>
-                <a class="action-group button-link" href="{{.Message.URL}}/forward{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">Forward</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">{{$.T "message.reply"}}</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/forward{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">{{$.T "message.forward"}}</a>
               {{end}}
             </span>
 
@@ -31,14 +31,14 @@
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
-              <button>Delete Permanently</button>
+              <button>{{$.T "mailbox.deleteperm"}}</button>
             </form>
             {{ else }}
             <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
               <input type="hidden" name="to" value="{{$trash}}">
-              <button>Delete</button>
+              <button>{{$.T "mailbox.delete"}}</button>
             </form>
             {{ end }}
 
@@ -47,28 +47,28 @@
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
               <input type="hidden" name="to" value="{{$junk}}">
-              <button>Spam</button>
+              <button>{{$.T "mailbox.spam"}}</button>
             </form>
             {{ end }}
 
             <div class="actions-end">
             <span class="action-group">
               {{ if .Position }}
-              <span class="pagination-range">{{.Position}} of {{.Total}}</span>
+              <span class="pagination-range">{{.Position}} {{$.T "mailbox.of"}} {{.Total}}</span>
               {{ end }}
               {{ if .NewerURL }}
-              <a class="button-link" href="{{.NewerURL}}{{if .Starred}}?starred=1{{else if .Query}}?query={{.Query}}{{end}}">&lsaquo; Newer</a>
+              <a class="button-link" href="{{.NewerURL}}{{if .Starred}}?starred=1{{else if .Query}}?query={{.Query}}{{end}}">{{$.T "message.newer"}}</a>
               {{ end }}
               {{ if .OlderURL }}
-              <a class="button-link" href="{{.OlderURL}}{{if .Starred}}?starred=1{{else if .Query}}?query={{.Query}}{{end}}">Older &rsaquo;</a>
+              <a class="button-link" href="{{.OlderURL}}{{if .Starred}}?starred=1{{else if .Query}}?query={{.Query}}{{end}}">{{$.T "message.older"}}</a>
               {{ end }}
             </span>
 
             <details class="overflow">
-              <summary class="button" aria-label="More actions">⋮</summary>
+              <summary class="button" aria-label="{{$.T "mailbox.more"}}">⋮</summary>
               <div class="overflow-menu">
                 {{if not (.Message.HasFlag "\\Draft")}}
-                <a class="button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}&all=true{{end}}">Reply all</a>
+                <a class="button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}&all=true{{end}}">{{$.T "message.replyall"}}</a>
                 {{end}}
 
                 {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
@@ -76,7 +76,7 @@
                   <input type="hidden" name="uids" value="{{.Message.UID}}">
                   <input type="hidden" name="to" value="{{$archive}}">
                   <input type="hidden" name="next" value="{{$back}}">
-                  <button>Archive</button>
+                  <button>{{$.T "mailbox.archive"}}</button>
                 </form>
                 {{ end }}
 
@@ -86,9 +86,9 @@
                   <input type="hidden" name="to" value="INBOX">
                   <button>
                   {{ if eq .Mailbox.Name $junk }}
-                  Not Spam
+                  {{$.T "message.notspam"}}
                   {{ else }}
-                  Move to Inbox
+                  {{$.T "message.movetoinbox"}}
                   {{ end }}
                   </button>
                 </form>
@@ -99,20 +99,20 @@
                   <input type="hidden" name="action" value="remove">
                   <input type="hidden" name="flags" value="\Seen">
                   <input type="hidden" name="next" value="{{$back}}">
-                  <button>Mark&nbsp;Unread</button>
+                  <button>{{$.T "message.markunread"}}</button>
                 </form>
 
                 <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
                   <input type="hidden" name="uids" value="{{.Message.UID}}">
                   <select name="to">
-                    <option value="" disabled selected>Move to...</option>
+                    <option value="" disabled selected>{{$.T "mailbox.moveto"}}</option>
                     {{range .Mailboxes}}
                       {{if and (not .IsInternal) (ne .Name $.Mailbox.Name)}}
-                      <option value="{{.Name}}">{{.Name}}</option>
+                      <option value="{{.Name}}">{{.Label}}</option>
                       {{end}}
                     {{end}}
                   </select>
-                  <button type="submit">Move</button>
+                  <button type="submit">{{$.T "mailbox.move"}}</button>
                 </form>
 
                 <a
@@ -120,7 +120,7 @@
                   id="print"
                   href="#"
                   style="display: none"
-                >Print</a>
+                >{{$.T "message.print"}}</a>
               </div>
             </details>
             </div>
@@ -132,11 +132,11 @@
         <table>
           <tr>
             <th colspan="2">
-              <h1>
+              <h1 dir="auto">
                {{if .Message.Envelope.Subject}}
                   {{.Message.Envelope.Subject}}
                 {{else}}
-                  (No subject)
+                  {{$.T "mailbox.nosubject"}}
                 {{end}}
               </h1>
             </th>
@@ -165,10 +165,10 @@
           {{ end }}
           {{if and .Extra.HasRemoteResources (not .Extra.RemoteResourcesAllowed)}}
           <tr class="remote-content">
-            <td colspan="2">
-              This message contains remote content, such as external images.
+            <td colspan="2" dir="auto">
+              {{$.T "message.remote"}}
               <a href="?part={{.Part.PathString}}&allow-remote-resources=1">
-                Load remote content »
+                {{$.T "message.loadremote"}}
               </a>
             </td>
           </tr>
@@ -177,7 +177,7 @@
         {{ $attachments := .Message.Attachments }}
         {{ if $attachments }}
         <section class="parts">
-          <h3>Attachments</h3>
+          <h3>{{$.T "message.attachments"}}</h3>
           <ul>
             {{ range .Message.Attachments }}
             <li>
@@ -221,7 +221,7 @@
           {{ if eq $text.PathString .Part.PathString }}
           class="active"
           {{ end }}
-        >Plain text</a>
+        >{{$.T "message.plaintext"}}</a>
         {{ end }}
         {{ end }}
         {{ if $html }}
@@ -230,16 +230,16 @@
           {{ if eq $html.PathString .Part.PathString }}
           class="active"
           {{ end }}
-        >HTML</a>
+        >{{$.T "message.html"}}</a>
         {{ end }}
-        <a href="{{.Message.URL}}/raw?plain=1">Raw email</a>
+        <a href="{{.Message.URL}}/raw?plain=1">{{$.T "message.raw"}}</a>
       </div>
 
       {{if .View}}
         {{.View}}
       {{else}}
-        <p>Can't preview this message part.</p>
-        <a href="{{.Message.URL}}/raw?part={{.Part.PathString}}">Download</a>
+        <p>{{$.T "message.cantpreview"}}</p>
+        <a href="{{.Message.URL}}/raw?part={{.Part.PathString}}">{{$.T "message.download"}}</a>
       {{end}}
     </main>
   </div>

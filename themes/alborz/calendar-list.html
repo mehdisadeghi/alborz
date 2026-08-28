@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/calendar/create" class="new">New event</a>
+    <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
     <form method="post" id="calendar-filter">
       {{range .Calendars}}
       <label class="calendar-item">
@@ -11,7 +11,7 @@
         {{.Name}}
       </label>
       {{end}}
-      <button>Apply</button>
+      <button>{{$.T "common.apply"}}</button>
     </form>
   </aside>
 
@@ -30,22 +30,22 @@
         {{if $events}}
         {{$any = true}}
         <div class="task-group">
-          <h3 class="task-group-header">{{.Format "Monday, January"}} {{.Day}}{{call $base.DaySuffix .Day}}</h3>
+          <h3 class="task-group-header">{{$base.GlobalData.WeekdayName .}}, {{$base.GlobalData.MonthName .}} {{.Day}}</h3>
           {{range $events}}
           {{$event := index .Data.Events 0}}
           {{$color := call $base.ColorForPath .Path}}
           <div class="task-item">
             <div class="task-content">
-              <a href="{{.URL}}" class="task-summary">
+              <a href="{{.URL}}" class="task-summary" dir="auto">
                 <span class="task-due">
                   {{- $start := $event.DateTimeStart nil -}}
                   {{- $end := $event.DateTimeEnd nil -}}
-                {{- if $start.Equal $end -}}
-                All day
-                {{- else -}}
-                {{$base.GlobalData.FormatTime $start}}
-                {{- end -}}
-                              </span>
+                  {{- if $start.Equal $end -}}
+                  {{$.T "calendar.allday"}}
+                  {{- else -}}
+                  {{$base.GlobalData.FormatTime $start}}
+                  {{- end -}}
+                </span>
                 {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
                 {{$event.Props.Text "SUMMARY"}}
               </a>
@@ -57,7 +57,7 @@
         {{end}}
         {{end}}
         {{if not $any}}
-        <p class="empty-list">No events this month.</p>
+        <p class="empty-list">{{$.T "calendar.noevents"}}</p>
         {{end}}
       </section>
     </main>

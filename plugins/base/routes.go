@@ -721,7 +721,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 // window was cut with; date breaks ties so equal keys stay stable.
 func unifiedLess(sortKey string, reverse bool) func(a, b IMAPMessage) int {
 	byDate := func(a, b IMAPMessage) int {
-		return b.Envelope.Date.Compare(a.Envelope.Date)
+		return b.Date().Compare(a.Date())
 	}
 	var cmp func(a, b IMAPMessage) int
 	switch sortKey {

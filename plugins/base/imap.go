@@ -190,6 +190,18 @@ type IMAPMessage struct {
 	ListUnsubscribe string
 }
 
+// Date is when the message is shown to have arrived. A Date header is
+// written by the sender and is not always a date at all - SourceHut
+// sends a bare "2026-08-27", which parses to the zero time and once
+// rendered as "2025 years ago". The server's own INTERNALDATE stands in
+// then: every server keeps one, and no sender can break it.
+func (msg *IMAPMessage) Date() time.Time {
+	if msg.Envelope != nil && !msg.Envelope.Date.IsZero() {
+		return msg.Envelope.Date
+	}
+	return msg.InternalDate
+}
+
 // firstListURI returns the first bracketed URI of an RFC 2369 header
 // whose scheme is wanted, or the first of any scheme when wanted is
 // empty. Such a header is a comma-separated list of <URI> entries.
@@ -507,6 +519,7 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 		Envelope:      true,
 		UID:           true,
 		RFC822Size:    true,
+		InternalDate:  true,
 		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
 	}
 	imapMsgs, err := conn.Fetch(seqSet, &options).Collect()
@@ -625,6 +638,7 @@ func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *im
 		Flags:         true,
 		UID:           true,
 		RFC822Size:    true,
+		InternalDate:  true,
 		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
 	}
 	results, err := conn.Fetch(seqSet, &options).Collect()

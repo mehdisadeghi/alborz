@@ -174,6 +174,22 @@ const (
 	settingsKey                 = "caldav.settings"
 )
 
+// getCalendarObject fetches one event or task without go-webdav's
+// response parsing; see getAddressObject in the carddav plugin for why
+// the ETag makes that fail against Nextcloud.
+func getCalendarObject(ctx *alborz.Context, c *caldav.Client, path string) (*caldav.CalendarObject, error) {
+	body, err := c.Open(ctx.Request().Context(), path)
+	if err != nil {
+		return nil, err
+	}
+	defer body.Close()
+	cal, err := ical.NewDecoder(body).Decode()
+	if err != nil {
+		return nil, err
+	}
+	return &caldav.CalendarObject{Path: path, Data: cal}, nil
+}
+
 func parseObjectPath(s string) (string, error) {
 	p, err := url.PathUnescape(s)
 	if err != nil {
@@ -658,7 +674,7 @@ func registerRoutes(p *plugin) {
 			if err != nil {
 				return err
 			}
-			co, err = c.GetCalendarObject(ctx.Request().Context(), calendarObjectPath)
+			co, err = getCalendarObject(ctx, c, calendarObjectPath)
 			if err != nil {
 				return fmt.Errorf("failed to get CalDAV event: %v", err)
 			}
@@ -1067,7 +1083,7 @@ func registerRoutes(p *plugin) {
 			if err != nil {
 				return err
 			}
-			co, err = c.GetCalendarObject(ctx.Request().Context(), taskPath)
+			co, err = getCalendarObject(ctx, c, taskPath)
 			if err != nil {
 				return fmt.Errorf("failed to get task: %v", err)
 			}
@@ -1218,7 +1234,7 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		co, err := c.GetCalendarObject(ctx.Request().Context(), taskPath)
+		co, err := getCalendarObject(ctx, c, taskPath)
 		if err != nil {
 			return fmt.Errorf("failed to get task: %v", err)
 		}

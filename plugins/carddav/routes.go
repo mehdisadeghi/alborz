@@ -221,7 +221,7 @@ func registerRoutes(p *plugin) {
 		})
 
 		return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
 			AddressBooks:   addressBookInfos,
 			AddressObjects: newAddressObjectList(aos),
 			Query:          queryText,
@@ -270,7 +270,7 @@ func registerRoutes(p *plugin) {
 		ao := &aos[0]
 
 		return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{ao}.DisplayName()),
 			AddressBook:    addressBook,
 			AddressObject:  AddressObject{ao},
 			Birthday:       birthdayValue(ao.Card),

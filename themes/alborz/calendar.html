@@ -47,7 +47,7 @@
               </li>
               {{ end }}{{end}}
               {{if ne $overflow 0}}
-              <li class="overflow">{{printf ($.T "calendar.more") $overflow}}</li>
+              <li class="overflow">{{$base.GlobalData.Tf "calendar.more" $overflow}}</li>
               {{end}}
             </ul>
             {{end}}

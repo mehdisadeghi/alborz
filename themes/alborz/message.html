@@ -88,7 +88,7 @@
           <div class="actions-end">
             <span class="action-group">
               {{ if .Position }}
-              <span class="pagination-range">{{.Position}} {{$.T "mailbox.of"}} {{.Total}}</span>
+              <span class="pagination-range">{{$.GlobalData.Tf "mailbox.position" .Position .Total}}</span>
               {{ end }}
               {{ if .NewerURL }}
               <a class="button-link" href="{{.NewerURL}}{{$navq}}">{{$.T "message.newer"}}</a>

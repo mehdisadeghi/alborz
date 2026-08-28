@@ -23,6 +23,9 @@
   --link-read: #5a76b8;
   --link-unread: #0047d6;
 
+  /* The frosted background is translucent; accent labels need ink. */
+  --on-accent: #fff;
+
   --green: #34c759;
   --green-dark: #1e8f43;
   --bg-green: rgba(52, 199, 89, 0.12);

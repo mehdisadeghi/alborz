@@ -1,19 +1,31 @@
+{{/* One toolbar icon, named by sprite id. The label is the tooltip and
+     the accessible name at once: the button carries no text. */}}
+{{ define "icon" }}
+<svg class="icon icon-{{.}}" aria-hidden="true" focusable="false"><use href="#i-{{.}}"/></svg>
+{{ end }}
+
+{{/* One toolbar button that acts on the checked rows. dict: icon label
+     form formaction [class]. */}}
+{{ define "action-icon" }}
+<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}">{{ template "icon" .icon }}</button>
+{{ end }}
+
 {{/* One sortable column header with the shared three-state cycle.
      dict: label key sort dir dirx exp params reset [idle]
      [class]; dir shows the arrow, dirx marks an explicit direction. */}}
 {{ define "sort-th" }}
 {{ $arrow := "↑" }}{{ if eq .dir "desc" }}{{ $arrow = "↓" }}{{ end }}
 {{ $flip := "desc" }}{{ if eq .dir "desc" }}{{ $flip = "asc" }}{{ end }}
-{{ $text := printf "%s %s" .label $arrow }}
 {{ $idle := .label }}{{ with .idle }}{{ $idle = . }}{{ end }}
 {{ if and .exp (eq .sort .key) }}
 {{ $href := printf "?sort=%s&dir=%s%s" .key $flip .params }}
 {{ if .dirx }}{{ $href = .reset }}{{ end }}
-<a {{ with .class }}class="{{.}}" {{ end }}href="{{$href}}"><strong>{{$text}}</strong></a>
+<a class="sort-header{{with .class}} {{.}}{{end}}" href="{{localhref $href}}"><strong><span class="sort-label">{{.label}}</span><span class="sort-arrow">{{$arrow}}</span></strong></a>
 {{ else }}
 {{ $href := printf "?sort=%s%s" .key .params }}
-<a {{ with .class }}class="{{.}}" {{ end }}href="{{$href}}">{{$idle}}</a>
+<a class="sort-header{{with .class}} {{.}}{{end}}" href="{{localhref $href}}">{{$idle}}</a>
 {{ end }}
+
 {{ end }}
 
 {{/* One folder node, nested or flat, any account: (node, "?account=x" or
@@ -55,8 +67,32 @@
 {{ range $cc.AdditionalTree }}{{ template "mbox-node" (tuple . $q $on $active) }}{{ end }}
 {{ end }}
 
+{{/* The header row of the event grids; the order is the day's own, so
+     the labels do not sort. dict: time event calendar. */}}
+{{ define "event-grid-header" }}
+<div class="event-header-row" role="row">
+  <div class="event-list-header event-time" role="columnheader">{{.time}}</div>
+  <div class="event-list-header event-summary" role="columnheader">{{.event}}</div>
+  <div class="event-list-header event-owner" role="columnheader">{{.calendar}}</div>
+</div>
+{{ end }}
+
+{{/* One event of a day or agenda grid: when it happens, what it is, and
+     which calendar owns it, each in its own track. dict: href when
+     summary color owner timeLabel eventLabel calendarLabel. */}}
+{{ define "event-row" }}
+<div class="event-row" role="row">
+  <div class="event-time" role="cell" data-label="{{.timeLabel}}">{{.when}}</div>
+  <div class="event-summary" role="cell" data-label="{{.eventLabel}}">
+    {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
+    <a href="{{.href}}" dir="auto">{{.summary}}</a>
+  </div>
+  <div class="event-owner" role="cell" data-label="{{.calendarLabel}}">{{.owner}}</div>
+</div>
+{{ end }}
+
 {{/* The aside of the detail and edit pages.
-     dict: newHref newLabel newActive [backHref backLabel backActive]. */}}
+     dict: [newHref] newLabel [newActive] [backHref backLabel backActive]. */}}
 {{ define "toolbar-search" }}
 <form method="get" class="actions-search">
   {{ with .account }}<input type="hidden" name="account" value="{{.}}">{{ end }}
@@ -122,6 +158,7 @@
     </li>
     {{ end }}
   </ul>
+  </details>
   {{ range .SidebarAccounts }}
   {{ $cur := .Account }}
   {{ $q := printf "?account=%s" .Account }}
@@ -129,9 +166,6 @@
     <summary class="aside-account">{{ .Account }}</summary>
     <ul>
       {{ template "mbox-list" (tuple .Categorized $q (eq $acct $cur) $starred $active) }}
-      <li>
-        <a href="/new-mailbox{{$q}}" class="new">{{$.T "aside.newfolder"}}</a>
-      </li>
     </ul>
   </details>
   {{ end }}
@@ -148,10 +182,8 @@
     {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active) }}{{ end }}
     {{ end }}
     {{ end }}
-    <li>
-      <a href="/new-mailbox" class="new{{ if eq $.GlobalData.URL.Path "/new-mailbox" }} active{{ end }}">{{$.T "aside.newfolder"}}</a>
-    </li>
   </ul>
   {{ end }}
+  <a href="/new-mailbox" class="aside-create{{ if eq $.GlobalData.URL.Path "/new-mailbox" }} active{{ end }}">{{$.T "aside.newfolder"}}</a>
 </aside>
 {{ end }}

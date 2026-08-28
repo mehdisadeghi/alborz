@@ -19,6 +19,7 @@
           <div class="actions-message">
             <div class="action-group">
               <a href="{{.Task.URL}}/edit{{$acct}}" class="button-link">{{$.T "common.edit"}}</a>
+              <a href="{{.Task.URL}}/raw{{$acct}}" class="button-link">{{$.T "common.source"}}</a>
             </div>
             <form class="action-group" action="{{.Task.URL}}/complete{{$acct}}" method="post">
               <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">

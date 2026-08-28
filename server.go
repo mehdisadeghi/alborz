@@ -21,6 +21,9 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// brandName suffixes every page title.
+const brandName = "Alborz"
+
 const (
 	cookieName           = "alborz_session"
 	accountsCookieName   = "alborz_accounts"

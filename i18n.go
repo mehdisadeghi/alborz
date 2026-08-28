@@ -95,6 +95,7 @@ var catalogs = map[string]map[string]string{
 		"aside.back":      "« Back to inbox",
 
 		"login.title":    "Webmail Login",
+		"login.short":    "Login",
 		"login.add":      "Add account",
 		"login.username": "Username",
 		"login.password": "Password",
@@ -281,8 +282,7 @@ var catalogs = map[string]map[string]string{
 		"title.update":         "Update %s",
 		"folder.deletetitle":   "Delete folder '%s'",
 
-		"title.webmail": "Webmail",
-		"title.tasks":   "Tasks",
+		"title.tasks": "Tasks",
 	},
 	"fa": {
 		"common.save":        "ذخیره",
@@ -320,6 +320,7 @@ var catalogs = map[string]map[string]string{
 		"aside.back":      "« بازگشت به صندوق ورودی",
 
 		"login.title":    "ورود به ایمیل",
+		"login.short":    "ورود",
 		"login.add":      "افزودن حساب",
 		"login.username": "نام کاربری",
 		"login.password": "گذرواژه",
@@ -504,8 +505,7 @@ var catalogs = map[string]map[string]string{
 		"title.update":         "ویرایش %s",
 		"folder.deletetitle":   "حذف پوشهٔ «%s»",
 
-		"title.webmail": "ایمیل",
-		"title.tasks":   "کارها",
+		"title.tasks": "کارها",
 	},
 	"de": {
 		"common.save":        "Speichern",
@@ -543,6 +543,7 @@ var catalogs = map[string]map[string]string{
 		"aside.back":      "« Zurück zum Posteingang",
 
 		"login.title":    "Webmail-Anmeldung",
+		"login.short":    "Anmeldung",
 		"login.add":      "Konto hinzufügen",
 		"login.username": "Benutzername",
 		"login.password": "Passwort",
@@ -703,9 +704,8 @@ var catalogs = map[string]map[string]string{
 		"notice.filteroff":      "Filter deaktiviert.",
 		"notice.filterdeleted":  "Filter gelöscht.",
 
-		"title.webmail": "Webmail",
-		"title.tasks":   "Aufgaben",
-		"title.update":  "%s bearbeiten",
+		"title.tasks":  "Aufgaben",
+		"title.update": "%s bearbeiten",
 	},
 	"es": {
 		"common.save":        "Guardar",
@@ -743,6 +743,7 @@ var catalogs = map[string]map[string]string{
 		"aside.back":      "« Volver a la bandeja de entrada",
 
 		"login.title":    "Acceso al correo",
+		"login.short":    "Acceso",
 		"login.add":      "Añadir cuenta",
 		"login.username": "Usuario",
 		"login.password": "Contraseña",
@@ -903,8 +904,7 @@ var catalogs = map[string]map[string]string{
 		"notice.filteroff":      "Filtro desactivado.",
 		"notice.filterdeleted":  "Filtro eliminado.",
 
-		"title.webmail": "Correo",
-		"title.tasks":   "Tareas",
-		"title.update":  "Editar %s",
+		"title.tasks":  "Tareas",
+		"title.update": "Editar %s",
 	},
 }

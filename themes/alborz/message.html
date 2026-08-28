@@ -160,7 +160,7 @@
           <tr class="remote-content">
             <td colspan="2" dir="auto">
               {{$.T "message.remote"}}
-              <a href="?part={{.Part.PathString}}&allow-remote-resources=1{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">
+              <a href="?part={{.Part.PathString}}&allow-remote-resources=1{{account "&" $.GlobalData.URLAccount}}">
                 {{$.T "message.loadremote"}}
               </a>
             </td>
@@ -177,9 +177,9 @@
               <a
                 class="nav-link"
                 {{if .IsText}}
-                  href="?part={{.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}"
+                  href="?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}"
                 {{else}}
-                  href="{{$.Message.URL}}/raw?part={{.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}"
+                  href="{{$.Message.URL}}/raw?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}"
                 {{end}}
               >
               {{- if .Filename -}}
@@ -210,7 +210,7 @@
         {{ if $text }}
         {{ if ne $text.MIMEType "text/html" }}
         <a
-          href="?part={{$text.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}"
+          href="?part={{$text.PathString}}{{account "&" $.GlobalData.URLAccount}}"
           {{ if eq $text.PathString .Part.PathString }}
           class="active"
           {{ end }}
@@ -219,20 +219,20 @@
         {{ end }}
         {{ if $html }}
         <a
-          href="?part={{$html.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}"
+          href="?part={{$html.PathString}}{{account "&" $.GlobalData.URLAccount}}"
           {{ if eq $html.PathString .Part.PathString }}
           class="active"
           {{ end }}
         >{{$.T "message.html"}}</a>
         {{ end }}
-        <a href="{{.Message.URL}}/raw?plain=1{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">{{$.T "message.raw"}}</a>
+        <a href="{{.Message.URL}}/raw?plain=1{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.raw"}}</a>
       </div>
 
       {{if .View}}
         {{.View}}
       {{else}}
         <p>{{$.T "message.cantpreview"}}</p>
-        <a href="{{.Message.URL}}/raw?part={{.Part.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">{{$.T "message.download"}}</a>
+        <a href="{{.Message.URL}}/raw?part={{.Part.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.download"}}</a>
       {{end}}
     </main>
   </div>

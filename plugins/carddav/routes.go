@@ -539,6 +539,25 @@ func registerRoutes(p *plugin) {
 		})
 	}
 
+	// The card exactly as the server stores it; see the calendar's raw
+	// view for why it is not parsed.
+	GET("/contacts/:path/raw", func(ctx *alborz.Context) error {
+		path, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+		c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+		body, err := c.Open(ctx.Request().Context(), path)
+		if err != nil {
+			return err
+		}
+		defer body.Close()
+		return ctx.Stream(http.StatusOK, "text/plain; charset=utf-8", body)
+	})
+
 	GET("/contacts/create", updateContact)
 	POST("/contacts/create", updateContact)
 

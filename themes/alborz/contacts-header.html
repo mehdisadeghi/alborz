@@ -1,10 +1,10 @@
 <div class="message-list-checkbox">
-  <input type="checkbox" id="action-checkbox-all" aria-label="Select all"/>
+  <input type="checkbox" id="action-checkbox-all" aria-label="{{$.T "mailbox.selectall"}}"/>
 </div>
 <div class="actions-wrap">
   <div class="actions-message">
     <div class="action-group">
-      <button form="address-book-form" formaction="/contacts/delete">Delete</button>
+      <button form="address-book-form" formaction="/contacts/delete">{{$.T "common.delete"}}</button>
     </div>
   </div>
 
@@ -13,9 +13,9 @@
       type="text"
       name="query"
       value="{{.Query}}"
-      placeholder="Search contacts..."
-      aria-label="Search contacts">
-    <button>Search</button>
+      placeholder="{{$.T "contacts.searchph"}}"
+      aria-label="{{$.T "contacts.searchph"}}">
+    <button>{{$.T "mailbox.search"}}</button>
   </form>
 
   {{/*

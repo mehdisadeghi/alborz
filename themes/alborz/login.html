@@ -2,16 +2,16 @@
 
 <main class="login">
   <section>
-    <h1>{{ if .Add }}Add account{{ else }}Webmail Login{{ end }}</h1>
+    <h1>{{ if .Add }}{{$.T "login.add"}}{{ else }}{{$.T "login.title"}}{{ end }}</h1>
 
     <form method="post" action="">
       <div class="action-group">
-        <label for="username">Username</label>
+        <label for="username">{{$.T "login.username"}}</label>
         <input type="text" name="username" id="username" autocomplete="username" autofocus />
       </div>
 
       <div class="action-group">
-        <label for="password">Password</label>
+        <label for="password">{{$.T "login.password"}}</label>
         <input type="password" name="password" id="password" autocomplete="current-password" />
       </div>
 
@@ -19,7 +19,7 @@
       <div class="action-group">
         <label for="remember-me" class="checkbox">
           <input type="checkbox" name="remember-me" id="remember-me" />
-          Remember me
+          {{$.T "login.remember"}}
         </label>
       </div>
       {{end}}
@@ -31,7 +31,7 @@
       {{ end }}
 
       <div class="action-group">
-        <button type="submit">Sign in</button>
+        <button type="submit">{{$.T "login.signin"}}</button>
       </div>
     </form>
 

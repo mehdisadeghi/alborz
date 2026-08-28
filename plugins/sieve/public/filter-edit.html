@@ -3,15 +3,15 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/filters/create" class="new {{if not .Name}}active{{end}}">New filter</a>
-    {{if .Name}}<a href="/filters">Filters</a>{{end}}
+    <a href="/filters/create" class="new {{if not .Name}}active{{end}}">{{$.T "filters.new"}}</a>
+    {{if .Name}}<a href="/filters">{{$.T "filters.title"}}</a>{{end}}
   </aside>
 
   <div class="container">
     <main class="create-update">
       <form method="post" action="/filters" class="filter">
         <h2>
-          {{if .Name}}Edit{{else}}Create{{end}} filter
+          {{if .Name}}{{$.T "filters.edittitle"}}{{else}}{{$.T "filters.createtitle"}}{{end}}
         </h2>
 
         {{ if .Error }}
@@ -19,7 +19,7 @@
         {{ end }}
 
         <label>
-          <span>Name</span>
+          <span>{{$.T "common.name"}}</span>
           {{ if .Name }}
           <input type="text" name="name" id="name" value="{{.Name}}" readonly />
           {{ else }}
@@ -28,13 +28,13 @@
         </label>
 
         <label class="script">
-          <span>Sieve script</span>
+          <span>{{$.T "filters.script"}}</span>
           <textarea name="content" id="content" spellcheck="false">{{.Content}}</textarea>
         </label>
 
         <div class="actions">
-          <button type="submit">Save</button>
-          <a class="button-link" href="/filters">Cancel</a>
+          <button type="submit">{{$.T "common.save"}}</button>
+          <a class="button-link" href="/filters">{{$.T "common.cancel"}}</a>
         </div>
       </form>
     </main>

@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/contacts/create" class="new">New contact</a>
+    <a href="/contacts/create" class="new">{{$.T "contacts.new"}}</a>
     <a href="/contacts" class="active">{{.AddressBook.Name}}</a>
   </aside>
 
@@ -22,7 +22,7 @@
               action="{{.AddressObject.URL}}/delete"
               method="post"
             >
-              <button type="submit">Delete</button>
+              <button type="submit">{{$.T "common.delete"}}</button>
             </form>
           </div>
         </div>
@@ -36,39 +36,39 @@
         <h1>{{.AddressObject.DisplayName}}</h1>
         <dl>
           {{with .AddressObject.Card.PreferredValue "NICKNAME"}}
-          <dt>Nickname</dt>
+          <dt>{{$.T "contacts.nickname"}}</dt>
           <dd>{{.}}</dd>
           {{end}}
           {{range .AddressObject.Card.Values "EMAIL"}}
-          <dt>Email</dt>
+          <dt>{{$.T "contacts.email"}}</dt>
           <dd><a href="/compose?to={{.}}">{{.}}</a></dd>
           {{end}}
           {{range .AddressObject.Card.Values "TEL"}}
-          <dt>Phone</dt>
-          <dd><a href="tel:{{.}}">{{.}}</a></dd>
+          <dt>{{$.T "contacts.phone"}}</dt>
+          <dd dir="ltr"><a href="tel:{{.}}">{{.}}</a></dd>
           {{end}}
           {{with .AddressObject.Card.PreferredValue "ORG"}}
-          <dt>Organization</dt>
+          <dt>{{$.T "contacts.organization"}}</dt>
           <dd>{{.}}</dd>
           {{end}}
           {{with .AddressObject.Card.PreferredValue "TITLE"}}
-          <dt>Job title</dt>
+          <dt>{{$.T "contacts.jobtitle"}}</dt>
           <dd>{{.}}</dd>
           {{end}}
           {{with $.Birthday}}
-          <dt>Birthday</dt>
+          <dt>{{$.T "contacts.birthday"}}</dt>
           <dd>{{.}}</dd>
           {{end}}
           {{with .AddressObject.Card.PreferredValue "URL"}}
-          <dt>Website</dt>
+          <dt>{{$.T "contacts.website"}}</dt>
           <dd><a href="{{.}}">{{.}}</a></dd>
           {{end}}
           {{with .AddressObject.Card.Address}}
-          <dt>Address</dt>
+          <dt>{{$.T "contacts.address"}}</dt>
           <dd class="contact-address">{{.StreetAddress}}</dd>
           {{end}}
           {{with .AddressObject.Card.Value "NOTE"}}
-          <dt>Notes</dt>
+          <dt>{{$.T "contacts.notes"}}</dt>
           <dd class="contact-address">{{.}}</dd>
           {{end}}
         </dl>

@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/calendar/create" class="new">New event</a>
+    <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
   </aside>
 
   <div class="container">
@@ -17,7 +17,7 @@
             <h2>{{.Time.Format "Monday, January 2, 2006"}}</h2>
           </div>
           <div class="actions-right">
-            <a href="/calendar/date?date={{.NextPage}}">Next &#8250;</a>
+            <a href="/calendar/date?date={{.NextPage}}">{{$.T "calendar.next"}}</a>
           </div>
         </div>
       </section>
@@ -33,13 +33,13 @@
             <a href="{{.URL}}">
               {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
               <span class="time">{{$base.GlobalData.FormatTime ($event.DateTimeStart nil)}}</span>
-              <span class="summary">{{$event.Props.Text "SUMMARY"}}</span>
+              <span class="summary" dir="auto">{{$event.Props.Text "SUMMARY"}}</span>
             </a>
           </li>
           {{end}}
         </ul>
         {{else}}
-        <p class="empty-list">No events on this day.</p>
+        <p class="empty-list">{{$.T "calendar.noeventsday"}}</p>
         {{end}}
       </section>
     </main>

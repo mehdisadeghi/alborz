@@ -14,7 +14,8 @@ A simple and pragmatic webmail. Alborz is a fork of [alps].
 - sieve filter editor
 - CalDAV tasks and calendar date and list views
 - extended vCard contact fields with photos
-- responsive UI with dark scheme, theme variants, and RTL support
+- UI in English, German, Persian, and Spanish
+- responsive UI with dark scheme and theme variants
 - CalDAV/CardDAV caching at the HTTP transport with ctag revalidation
 
 See [INSTALLATION.md](INSTALLATION.md) for building and a systemd unit.

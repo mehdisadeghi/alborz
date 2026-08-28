@@ -26,6 +26,31 @@ type MailboxInfo struct {
 	Active bool
 	Total  int
 	Unseen int
+
+	// Display name: the special-use folders translate, custom folders
+	// keep their real names; the wire name stays in URLs and values.
+	Label string
+}
+
+// role names the special-use category, empty for custom folders. It
+// checks the RFC 6154 attributes first, then the conventional names.
+func (mbox *MailboxInfo) role() string {
+	name := mbox.Mailbox
+	switch {
+	case name == "INBOX":
+		return "inbox"
+	case mbox.HasAttr(string(imap.MailboxAttrDrafts)) || name == "Drafts" || name == "Draft":
+		return "drafts"
+	case mbox.HasAttr(string(imap.MailboxAttrSent)) || name == "Sent":
+		return "sent"
+	case mbox.HasAttr(string(imap.MailboxAttrJunk)) || name == "Junk" || name == "Spam":
+		return "junk"
+	case mbox.HasAttr(string(imap.MailboxAttrTrash)) || name == "Trash":
+		return "trash"
+	case mbox.HasAttr(string(imap.MailboxAttrArchive)) || name == "Archive":
+		return "archive"
+	}
+	return ""
 }
 
 func (mbox *MailboxInfo) Name() string {
@@ -71,7 +96,7 @@ func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
 		if data == nil {
 			break
 		}
-		mbox := MailboxInfo{data, false, -1, -1}
+		mbox := MailboxInfo{ListData: data, Total: -1, Unseen: -1}
 		if mbox.Status != nil {
 			mbox.Unseen = int(*mbox.Status.NumUnseen)
 			mbox.Total = int(*mbox.Status.NumMessages)
@@ -96,6 +121,9 @@ func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
 
 type MailboxStatus struct {
 	*imap.StatusData
+
+	// Display name, like MailboxInfo.Label
+	Label string
 }
 
 func (mbox *MailboxStatus) Name() string {
@@ -117,65 +145,22 @@ func getMailboxStatus(conn *imapclient.Client, name string) (*MailboxStatus, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to get mailbox status: %v", err)
 	}
-	return &MailboxStatus{status}, nil
+	return &MailboxStatus{StatusData: status}, nil
 }
 
-type mailboxType int
-
-const (
-	mailboxSent mailboxType = iota
-	mailboxDrafts
-)
-
-func getMailboxByType(conn *imapclient.Client, mboxType mailboxType) (*MailboxInfo, error) {
-	// TODO: configurable fallback names?
-	var attr imap.MailboxAttr
-	var fallbackNames []string
-	switch mboxType {
-	case mailboxSent:
-		attr = imap.MailboxAttrSent
-		fallbackNames = []string{"Sent"}
-	case mailboxDrafts:
-		attr = imap.MailboxAttrDrafts
-		fallbackNames = []string{"Draft", "Drafts"}
+// getMailboxByRole finds the account's folder for a special-use role
+// through the same classifier the sidebar labels use.
+func getMailboxByRole(conn *imapclient.Client, role string) (*MailboxInfo, error) {
+	mailboxes, err := listMailboxes(conn)
+	if err != nil {
+		return nil, err
 	}
-
-	list := conn.List("", "%", nil)
-
-	var attrMatched bool
-	var best *imap.ListData
-	for {
-		mbox := list.Next()
-		if mbox == nil {
-			break
-		}
-
-		for _, a := range mbox.Attrs {
-			if attr == a {
-				best = mbox
-				attrMatched = true
-				break
-			}
-		}
-		if attrMatched {
-			break
-		}
-
-		for _, fallback := range fallbackNames {
-			if strings.EqualFold(fallback, mbox.Mailbox) {
-				best = mbox
-				break
-			}
+	for i := range mailboxes {
+		if mailboxes[i].role() == role {
+			return &mailboxes[i], nil
 		}
 	}
-	if err := list.Close(); err != nil {
-		return nil, fmt.Errorf("failed to get mailbox with attribute %q: %v", attr, err)
-	}
-
-	if best == nil {
-		return nil, nil
-	}
-	return &MailboxInfo{best, false, -1, -1}, nil
+	return nil, nil
 }
 
 func ensureMailboxSelected(conn *imapclient.Client, mboxName string) error {
@@ -753,8 +738,8 @@ func markMessageAnswered(conn *imapclient.Client, mboxName string, uid imap.UID)
 	}, nil).Close()
 }
 
-func appendMessage(c *imapclient.Client, msg *OutgoingMessage, mboxType mailboxType) (*MailboxInfo, error) {
-	mbox, err := getMailboxByType(c, mboxType)
+func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*MailboxInfo, error) {
+	mbox, err := getMailboxByRole(c, role)
 	if err != nil {
 		return nil, err
 	}
@@ -770,7 +755,7 @@ func appendMessage(c *imapclient.Client, msg *OutgoingMessage, mboxType mailboxT
 	}
 
 	flags := []imap.Flag{imap.FlagSeen}
-	if mboxType == mailboxDrafts {
+	if role == "drafts" {
 		flags = append(flags, imap.FlagDraft)
 	}
 	options := imap.AppendOptions{Flags: flags}

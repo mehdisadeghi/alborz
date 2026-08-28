@@ -2,11 +2,7 @@
 {{ if not (.Info.HasAttr "\\Noselect") }}
 <li {{ if .Info.Active }}class="active"{{ end }}>
   <a href="{{.Info.URL}}">
-    {{- if eq .Info.Name "INBOX" -}}
-      Inbox
-    {{- else -}}
-      {{ .Info.Name }}
-    {{- end -}}
+    {{- .Info.Label -}}
     {{- if .Info.HasAttr "\\HasChildren" }}/{{ end }}
   </a>
   {{ if gt .Info.Unseen 0 }}
@@ -26,15 +22,15 @@
   {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
   <ul>
     <li>
-      <a href="/compose" class="new{{ if eq $.GlobalData.URL.Path "/compose" }} active{{ end }}">Compose&nbsp;mail</a>
+      <a href="/compose" class="new{{ if eq $.GlobalData.URL.Path "/compose" }} active{{ end }}">{{$.T "aside.compose"}}</a>
     </li>
-    <li {{ if and (eq $active "Inbox") (not .Starred) }}class="active"{{ end }}><a href="/mailbox/INBOX">Inbox</a></li>
-    <li {{ if .Starred }}class="active"{{ end }}><a href="/mailbox/INBOX?starred=1">Starred</a></li>
-    <li {{ if eq $active "Drafts" }}class="active"{{ end }}><a href="/mailbox/Drafts">Drafts</a></li>
-    <li {{ if eq $active "Sent" }}class="active"{{ end }}><a href="/mailbox/Sent">Sent</a></li>
-    <li {{ if eq $active "Junk" }}class="active"{{ end }}><a href="/mailbox/Junk">Junk</a></li>
-    <li {{ if eq $active "Trash" }}class="active"{{ end }}><a href="/mailbox/Trash">Trash</a></li>
-    <li {{ if eq $active "Archive" }}class="active"{{ end }}><a href="/mailbox/Archive">Archive</a></li>
+    <li {{ if and (eq $active "Inbox") (not .Starred) }}class="active"{{ end }}><a href="/mailbox/INBOX">{{$.T "aside.inbox"}}</a></li>
+    <li {{ if .Starred }}class="active"{{ end }}><a href="/mailbox/INBOX?starred=1">{{$.T "aside.starred"}}</a></li>
+    <li {{ if eq $active "Drafts" }}class="active"{{ end }}><a href="/mailbox/Drafts">{{$.T "aside.drafts"}}</a></li>
+    <li {{ if eq $active "Sent" }}class="active"{{ end }}><a href="/mailbox/Sent">{{$.T "aside.sent"}}</a></li>
+    <li {{ if eq $active "Junk" }}class="active"{{ end }}><a href="/mailbox/Junk">{{$.T "aside.junk"}}</a></li>
+    <li {{ if eq $active "Trash" }}class="active"{{ end }}><a href="/mailbox/Trash">{{$.T "aside.trash"}}</a></li>
+    <li {{ if eq $active "Archive" }}class="active"{{ end }}><a href="/mailbox/Archive">{{$.T "aside.archive"}}</a></li>
   </ul>
   {{ else }}
   <ul>
@@ -42,12 +38,12 @@
     <li>
       <a href="/compose" class="new
         {{ if eq $.GlobalData.URL.Path "/compose" }}active{{ end }}
-      ">Compose&nbsp;mail</a>
+      ">{{$.T "aside.compose"}}</a>
     </li>
     {{ with .CategorizedMailboxes }}
     {{ with .Common.Inbox }}{{ template "mbox-link" . }}{{ end }}
     <li {{ if $.Starred }}class="active"{{ end }}>
-      <a href="/mailbox/INBOX?starred=1">Starred</a>
+      <a href="/mailbox/INBOX?starred=1">{{$.T "aside.starred"}}</a>
     </li>
     {{ with .Common.Drafts }}{{ template "mbox-link" . }}{{ end }}
     {{ with .Common.Sent }}{{ template "mbox-link" . }}{{ end }}
@@ -64,7 +60,7 @@
     <li>
       <a href="/new-mailbox" class="new
         {{ if eq $.GlobalData.URL.Path "/new-mailbox" }}active{{ end }}
-      ">Create&nbsp;new&nbsp;folder</a>
+      ">{{$.T "aside.newfolder"}}</a>
     </li>
   </ul>
   {{ end }}

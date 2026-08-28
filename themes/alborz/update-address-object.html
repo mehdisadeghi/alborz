@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/contacts/create" class="new {{if not .AddressObject}}active{{end}}">New contact</a>
+    <a href="/contacts/create" class="new {{if not .AddressObject}}active{{end}}">{{$.T "contacts.new"}}</a>
     {{if .AddressObject}}<a href="/contacts">{{.AddressBook.Name}}</a>{{end}}
   </aside>
 
@@ -16,7 +16,7 @@
 
         {{if not .AddressObject}}
         <label>
-          <span>Address book</span>
+          <span>{{$.T "contacts.addressbook"}}</span>
           <select name="addressbook">
             {{range .AddressBooks}}
             <option value="{{.Path}}" {{if eq .Path $.AddressBook.Path}}selected{{end}}>{{.Name}}</option>
@@ -26,11 +26,11 @@
         {{end}}
 
         <label>
-          <span>Name</span>
+          <span>{{$.T "common.name"}}</span>
           <input type="text" name="fn" id="fn" dir="auto" value="{{.Name}}" />
         </label>
         <label>
-          <span>Email addresses</span>
+          <span>{{$.T "contacts.emails"}}</span>
           <input
             type="email"
             name="emails"
@@ -40,42 +40,42 @@
             multiple />
         </label>
         <label>
-          <span>Phone numbers</span>
-          <input type="tel" name="tels" id="tels" value="{{join (.Card.Values "TEL") ", "}}"
+          <span>{{$.T "contacts.phones"}}</span>
+          <input type="tel" dir="ltr" name="tels" id="tels" value="{{join (.Card.Values "TEL") ", "}}"
             placeholder="+49 151 2345678, 030 123456" />
         </label>
         <label>
-          <span>Organization</span>
+          <span>{{$.T "contacts.organization"}}</span>
           <input type="text" name="org" id="org" dir="auto" value="{{.Card.PreferredValue "ORG"}}" />
         </label>
         <label>
-          <span>Job title</span>
+          <span>{{$.T "contacts.jobtitle"}}</span>
           <input type="text" name="title" id="title" dir="auto" value="{{.Card.PreferredValue "TITLE"}}" />
         </label>
         <label>
-          <span>Birthday</span>
+          <span>{{$.T "contacts.birthday"}}</span>
           <input type="date" name="bday" id="bday" value="{{.Birthday}}" />
         </label>
         <label>
-          <span>Website</span>
+          <span>{{$.T "contacts.website"}}</span>
           <input type="url" name="url" id="url" value="{{.Card.PreferredValue "URL"}}"
             placeholder="https://example.org" />
         </label>
         <label>
-          <span>Address</span>
+          <span>{{$.T "contacts.address"}}</span>
           <textarea name="adr" id="adr" dir="auto" rows="3"
             placeholder="1 Example Street
 City 12345
 Country">{{with .Card.Address}}{{.StreetAddress}}{{end}}</textarea>
         </label>
         <label>
-          <span>Note</span>
+          <span>{{$.T "contacts.notes"}}</span>
           <textarea name="note" id="note" dir="auto" rows="3">{{.Card.PreferredValue "NOTE"}}</textarea>
         </label>
 
         <div class="actions">
-          <button type="submit">Save</button>
-          <a class="button-link" href="/contacts">Cancel</a>
+          <button type="submit">{{$.T "common.save"}}</button>
+          <a class="button-link" href="/contacts">{{$.T "common.cancel"}}</a>
         </div>
       </form>
     </main>

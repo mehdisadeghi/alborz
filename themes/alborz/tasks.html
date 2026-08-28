@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/tasks/create" class="new">New task</a>
+    <a href="/tasks/create" class="new">{{$.T "tasks.new"}}</a>
     <form method="post" id="task-filter">
       {{range .Calendars}}
       <label class="calendar-item">
@@ -15,7 +15,7 @@
         <input type="checkbox" name="show-completed" value="1" {{if .ShowCompleted}}checked{{end}} data-submit-on-change>
         Show completed
       </label>
-      <button>Apply</button>
+      <button>{{$.T "common.apply"}}</button>
     </form>
   </aside>
 
@@ -29,9 +29,9 @@
               name="query"
               dir="auto"
               value="{{.Query}}"
-              placeholder="Search tasks..."
-              aria-label="Search tasks">
-            <button>Search</button>
+              placeholder="{{$.T "tasks.searchph"}}"
+              aria-label="{{$.T "tasks.searchph"}}">
+            <button>{{$.T "mailbox.search"}}</button>
           </form>
         </div>
       </section>
@@ -40,7 +40,7 @@
         {{range .TaskGroups}}
         {{$cal := .Calendar}}
         <div class="task-group">
-          <h3 class="task-group-header" {{if $cal.Color}}style="border-left: 3px solid {{$cal.Color}}; padding-left: 0.5rem"{{end}}>
+          <h3 class="task-group-header" {{if $cal.Color}}style="border-inline-start: 3px solid {{$cal.Color}}; padding-inline-start: 0.5rem"{{end}}>
             {{$cal.Name}}
           </h3>
           {{range .Tasks}}
@@ -55,7 +55,7 @@
               </button>
             </form>
             <div class="task-content">
-              <a href="{{.URL}}" class="task-summary">{{$summary}}</a>
+              <a href="{{.URL}}" class="task-summary" dir="auto">{{$summary}}</a>
               {{if $due}}
               <span class="task-due">Due: {{$due.Value}}</span>
               {{end}}
@@ -65,7 +65,7 @@
         </div>
         {{end}}
         {{if not .TaskGroups}}
-        <p class="empty-list">{{if .Query}}No results for “{{.Query}}”.{{else}}No tasks yet.{{end}}</p>
+        <p class="empty-list">{{if .Query}}{{printf ($.T "common.noresults") .Query}}{{else}}{{$.T "tasks.empty"}}{{end}}</p>
         {{end}}
       </section>
     </main>

@@ -2,20 +2,20 @@
 {{if eq .View "list"}}{{$suffix = "&view=list"}}{{end}}
 <div class="actions-wrap">
   <div class="actions-pagination">
-    <a href="?month={{.PrevPage}}{{$suffix}}" class="button-link">« {{.PrevTime.Format "January"}}</a>
-    <h3>{{.Time.Format "January 2006"}}</h3>
-    <a href="?month={{.NextPage}}{{$suffix}}" class="button-link">{{.NextTime.Format "January"}} »</a>
+    <a href="?month={{.PrevPage}}{{$suffix}}" class="button-link">« {{$.GlobalData.MonthName .PrevTime}}</a>
+    <h3>{{$.GlobalData.MonthYear .Time}}</h3>
+    <a href="?month={{.NextPage}}{{$suffix}}" class="button-link">{{$.GlobalData.MonthName .NextTime}} »</a>
     {{if ne .Time.Month .Now.Month}}
-    <a href="/calendar{{with $suffix}}?view=list{{end}}" class="button-link">Today »</a>
+    <a href="/calendar{{with $suffix}}?view=list{{end}}" class="button-link">{{$.T "calendar.today"}}</a>
     {{end}}
   </div>
   <div class="actions-pagination">
     {{if eq .View "list"}}
-    <a href="?month={{.Page}}" class="button-link">Month</a>
-    <strong>List</strong>
+    <a href="?month={{.Page}}" class="button-link">{{$.T "calendar.month"}}</a>
+    <strong>{{$.T "calendar.list"}}</strong>
     {{else}}
-    <strong>Month</strong>
-    <a href="?month={{.Page}}&view=list" class="button-link">List</a>
+    <strong>{{$.T "calendar.month"}}</strong>
+    <a href="?month={{.Page}}&view=list" class="button-link">{{$.T "calendar.list"}}</a>
     {{end}}
   </div>
 </div>

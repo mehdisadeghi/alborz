@@ -1,6 +1,7 @@
 package alborzsieve
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -109,9 +110,9 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	}
 
 	if warnings != "" {
-		ctx.Session.PutNotice("Filter saved with warnings: " + warnings)
+		ctx.Session.PutNotice(fmt.Sprintf(ctx.T("notice.filterwarn"), warnings))
 	} else {
-		ctx.Session.PutNotice("Filter saved.")
+		ctx.Session.PutNotice(ctx.T("notice.filtersaved"))
 	}
 	return ctx.Redirect(http.StatusFound, "/filters")
 }
@@ -129,7 +130,7 @@ func handleActivateFilter(ctx *alborz.Context) error {
 		return err
 	}
 
-	ctx.Session.PutNotice("Filter activated.")
+	ctx.Session.PutNotice(ctx.T("notice.filteron"))
 	return ctx.Redirect(http.StatusFound, "/filters")
 }
 
@@ -141,7 +142,7 @@ func handleDeactivateFilter(ctx *alborz.Context) error {
 		return err
 	}
 
-	ctx.Session.PutNotice("Filter deactivated.")
+	ctx.Session.PutNotice(ctx.T("notice.filteroff"))
 	return ctx.Redirect(http.StatusFound, "/filters")
 }
 
@@ -158,6 +159,6 @@ func handleDeleteFilter(ctx *alborz.Context) error {
 		return err
 	}
 
-	ctx.Session.PutNotice("Filter deleted.")
+	ctx.Session.PutNotice(ctx.T("notice.filterdeleted"))
 	return ctx.Redirect(http.StatusFound, "/filters")
 }

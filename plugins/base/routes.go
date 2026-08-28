@@ -1812,7 +1812,11 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	}
 	ret.To = unwrapIMAPAddressList(replyTo)
 
-	if ctx.QueryParam("all") != "" {
+	// A reply to the list goes to the list and nowhere else, which is
+	// what List-Post names and what the convention expects.
+	if ctx.QueryParam("list") != "" && inReplyTo.ListPost != "" {
+		ret.To = []string{inReplyTo.ListPost}
+	} else if ctx.QueryParam("all") != "" {
 		filtered := filterOutUsername(ctx.Session.Username(),
 			inReplyTo.Envelope.To)
 		ret.To = unwrapIMAPAddressList(append(replyTo, filtered...))

@@ -9,16 +9,23 @@
     <main class="create-update">
 
       <form method="post" enctype="multipart/form-data" id="compose-form">
-        <div class="context-crumb">{{ with .GlobalData.URLAccount }}{{ . }}{{ else }}{{ .GlobalData.Username }}{{ end }}</div>
+        {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
         <input type="hidden" name="message_id" value="{{.Message.MessageID}}">
         <input type="hidden" name="in_reply_to" value="{{.Message.InReplyTo}}">
 
         <div class="headers no-js">
           <label>{{$.T "compose.from"}}</label>
           {{ $sel := $.GlobalData.Username }}{{ with $.GlobalData.URLAccount }}{{ $sel = . }}{{ end }}
+          {{ $multi := gt (len .Identities) 1 }}
           <select name="from_account" id="from">
-            {{ range .GlobalData.Accounts }}
-            <option value="{{.Username}}"{{ if eq .Username $sel }} selected{{ end }}>{{.Username}}</option>
+            {{ range .Identities }}
+            {{ if $multi }}<optgroup label="{{.Account}}">{{ end }}
+            {{ $acct := .Account }}
+            <option value="{{$acct}}"{{ if eq $acct $sel }} selected{{ end }}>{{$acct}}</option>
+            {{ range .Addresses }}
+            <option value="{{$acct}}|{{.}}">{{.}}</option>
+            {{ end }}
+            {{ if $multi }}</optgroup>{{ end }}
             {{ end }}
           </select>
 
@@ -113,9 +120,9 @@
         </datalist>
 
         <div class="actions">
-          <button id="send-button" type="submit">{{$.T "compose.send"}}</button>
+          <button id="send-button" class="button-primary" type="submit">{{$.T "compose.send"}}</button>
           <button id="save-button" type="submit" name="save_as_draft">{{$.T "compose.savedraft"}}</button>
-          <a class="button-link" href="/mailbox/INBOX">{{$.T "common.cancel"}}</a>
+          <a class="button-link button-quiet" href="/mailbox/INBOX">{{$.T "common.cancel"}}</a>
         </div>
       </form>
 

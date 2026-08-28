@@ -7,11 +7,13 @@ import (
 
 	"git.mehdix.org/alborz"
 	"github.com/labstack/echo/v4"
+	"strings"
 )
 
 type FiltersRenderData struct {
 	alborz.BaseRenderData
-	Scripts []alborz.SieveScript
+	Scripts  []alborz.SieveScript
+	Accounts []alborz.Account
 }
 
 type FilterRenderData struct {
@@ -19,16 +21,42 @@ type FilterRenderData struct {
 	Name    string
 	Content string
 	Error   string
+
+	// Accounts that can hold a script, for the create form's
+	// destination; empty when editing, where the script's own account
+	// is already settled.
+	Accounts []alborz.Account
 }
 
 func registerRoutes(p *alborz.GoPlugin) {
-	p.GET("/filters", handleListFilters)
-	p.GET("/filters/create", handleCreateFilter)
-	p.GET("/filters/:name", handleEditFilter)
-	p.POST("/filters", handleSaveFilter)
-	p.POST("/filters/:name/activate", handleActivateFilter)
-	p.POST("/filters/deactivate", handleDeactivateFilter)
-	p.POST("/filters/:name/delete", handleDeleteFilter)
+	requireAccount := func(h func(*alborz.Context) error) func(*alborz.Context) error {
+		return func(ctx *alborz.Context) error {
+			if ctx.URLAccount() != "" && ctx.Server.SieveEnabled(ctx.Session.Domain()) {
+				return h(ctx)
+			}
+			if ctx.Request().Method != http.MethodGet {
+				return echo.NewHTTPError(http.StatusBadRequest, "filters require an account")
+			}
+			if !ctx.Unified && ctx.Server.SieveEnabled(ctx.Session.Domain()) {
+				target := ctx.Request().URL.Path + "?account=" + alborz.AccountParam(ctx.Session.Username())
+				return ctx.Redirect(http.StatusFound, target)
+			}
+			for _, session := range ctx.Sessions() {
+				if ctx.Server.SieveEnabled(session.Domain()) {
+					target := ctx.Request().URL.Path + "?account=" + alborz.AccountParam(session.Username())
+					return ctx.Redirect(http.StatusFound, target)
+				}
+			}
+			return echo.ErrNotFound
+		}
+	}
+	p.GET("/filters", requireAccount(handleListFilters))
+	p.GET("/filters/create", requireAccount(handleCreateFilter))
+	p.GET("/filters/:name", requireAccount(handleEditFilter))
+	p.POST("/filters", requireAccount(handleSaveFilter))
+	p.POST("/filters/:name/activate", requireAccount(handleActivateFilter))
+	p.POST("/filters/deactivate", requireAccount(handleDeactivateFilter))
+	p.POST("/filters/:name/delete", requireAccount(handleDeleteFilter))
 }
 
 func filterName(ctx *alborz.Context) (string, error) {
@@ -53,12 +81,26 @@ func handleListFilters(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "filters.html", &FiltersRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.title")),
 		Scripts:        scripts,
+		Accounts:       sieveAccounts(ctx),
 	})
+}
+
+// sieveAccounts lists the signed-in accounts whose server holds scripts.
+func sieveAccounts(ctx *alborz.Context) []alborz.Account {
+	var accounts []alborz.Account
+	for _, account := range ctx.Accounts() {
+		session := ctx.SessionFor(account.Username)
+		if session != nil && ctx.Server.SieveEnabled(session.Domain()) {
+			accounts = append(accounts, account)
+		}
+	}
+	return accounts
 }
 
 func handleCreateFilter(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "filter-edit.html", &FilterRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		Accounts:       sieveAccounts(ctx),
 	})
 }
 
@@ -88,8 +130,24 @@ func handleEditFilter(ctx *alborz.Context) error {
 func handleSaveFilter(ctx *alborz.Context) error {
 	name := ctx.FormValue("name")
 	content := ctx.FormValue("content")
-	if name == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "missing 'name' form parameter")
+	if strings.TrimSpace(name) == "" {
+		return ctx.Render(http.StatusUnprocessableEntity, "filter-edit.html", &FilterRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			Content:        content,
+			Error:          ctx.T("form.nameneeded"),
+			Accounts:       sieveAccounts(ctx),
+		})
+	}
+
+	// A new script names the account it belongs to, the way a new event
+	// or contact names its collection; the choice holds for this
+	// request only, like following an account-carrying link.
+	if account := ctx.FormValue("account"); account != "" && account != ctx.Session.Username() {
+		session := ctx.SessionFor(account)
+		if session == nil || !ctx.Server.SieveEnabled(session.Domain()) {
+			return echo.NewHTTPError(http.StatusBadRequest, "no filters for that account")
+		}
+		ctx.Session = session
 	}
 
 	var warnings string
@@ -106,6 +164,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 			Name:           name,
 			Content:        content,
 			Error:          err.Error(),
+			Accounts:       sieveAccounts(ctx),
 		})
 	}
 
@@ -114,7 +173,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	} else {
 		ctx.Session.PutNotice(ctx.T("notice.filtersaved"))
 	}
-	return ctx.Redirect(http.StatusFound, "/filters")
+	return ctx.Redirect(http.StatusFound, "/filters?account="+alborz.AccountParam(ctx.Session.Username()))
 }
 
 func handleActivateFilter(ctx *alborz.Context) error {
@@ -131,7 +190,7 @@ func handleActivateFilter(ctx *alborz.Context) error {
 	}
 
 	ctx.Session.PutNotice(ctx.T("notice.filteron"))
-	return ctx.Redirect(http.StatusFound, "/filters")
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
 }
 
 func handleDeactivateFilter(ctx *alborz.Context) error {
@@ -143,7 +202,7 @@ func handleDeactivateFilter(ctx *alborz.Context) error {
 	}
 
 	ctx.Session.PutNotice(ctx.T("notice.filteroff"))
-	return ctx.Redirect(http.StatusFound, "/filters")
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
 }
 
 func handleDeleteFilter(ctx *alborz.Context) error {
@@ -160,5 +219,5 @@ func handleDeleteFilter(ctx *alborz.Context) error {
 	}
 
 	ctx.Session.PutNotice(ctx.T("notice.filterdeleted"))
-	return ctx.Redirect(http.StatusFound, "/filters")
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
 }

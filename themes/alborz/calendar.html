@@ -46,7 +46,7 @@
               {{end}}
 
               {{range $events}}
-              {{$event := index .Data.Events 0}}
+              {{ if .Data.Events }}{{$event := index .Data.Events 0}}
               {{$color := call $base.ColorForPath .Path}}
               <li>
                 {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
@@ -55,7 +55,7 @@
                 </span>
                 {{$event.Props.Text "SUMMARY"}}
               </li>
-              {{end}}
+              {{ end }}{{end}}
               {{if ne $overflow 0}}
               <li class="overflow">...and {{$overflow}} more</li>
               {{end}}

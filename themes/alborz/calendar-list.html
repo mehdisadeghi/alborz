@@ -32,7 +32,7 @@
         <div class="task-group">
           <h3 class="task-group-header">{{$base.GlobalData.WeekdayName .}}, {{$base.GlobalData.MonthName .}} {{.Day}}</h3>
           {{range $events}}
-          {{$event := index .Data.Events 0}}
+          {{ if .Data.Events }}{{$event := index .Data.Events 0}}
           {{$color := call $base.ColorForPath .Path}}
           <div class="task-item">
             <div class="task-content">
@@ -51,6 +51,7 @@
               </a>
             </div>
           </div>
+          {{ end }}
           {{end}}
         </div>
         {{end}}

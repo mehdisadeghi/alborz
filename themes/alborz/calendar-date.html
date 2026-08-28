@@ -27,7 +27,7 @@
         {{if .Events}}
         <ul>
           {{range .Events}}
-          {{$event := index .Data.Events 0}}
+          {{ if .Data.Events }}{{$event := index .Data.Events 0}}
           {{$color := call $base.ColorForPath .Path}}
           <li>
             <a href="{{.URL}}">
@@ -36,7 +36,7 @@
               <span class="summary" dir="auto">{{$event.Props.Text "SUMMARY"}}</span>
             </a>
           </li>
-          {{end}}
+          {{ end }}{{end}}
         </ul>
         {{else}}
         <p class="empty-list">{{$.T "calendar.noeventsday"}}</p>

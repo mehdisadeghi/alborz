@@ -83,6 +83,8 @@ var catalogs = map[string]map[string]string{
 		"nav.dismiss":     "Dismiss",
 		"nav.drawer":      "Folders and account",
 
+		"mailbox.nosender": "Unknown sender",
+
 		"aside.compose":   "Compose mail",
 		"aside.starred":   "Starred",
 		"aside.newfolder": "Create new folder",

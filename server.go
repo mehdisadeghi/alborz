@@ -212,16 +212,22 @@ func (s *Server) upstreamsFor(domain string) (*domainUpstreams, bool) {
 // Upstream retrieves the domain's upstream server URL for the provided
 // schemes. If no configured upstream server matches, a *NoUpstreamError is
 // returned. An empty URL.Scheme means that the caller needs to perform
-// auto-discovery with URL.Host.
+// auto-discovery with URL.Host. An explicit scheme wins over the bare
+// domain, so single protocols can be redirected, e.g. IMAP to loopback on
+// the mail host itself, while the rest keeps its SRV discovery.
 func (s *Server) Upstream(domain string, schemes ...string) (*url.URL, error) {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {
 		return nil, UnknownDomainError{domain}
 	}
 	var urls []*url.URL
-	for _, scheme := range append(schemes, "") {
-		u, ok := d.upstreams[scheme]
-		if ok {
+	for _, scheme := range schemes {
+		if u, ok := d.upstreams[scheme]; ok {
+			urls = append(urls, u)
+		}
+	}
+	if len(urls) == 0 {
+		if u, ok := d.upstreams[""]; ok {
 			urls = append(urls, u)
 		}
 	}

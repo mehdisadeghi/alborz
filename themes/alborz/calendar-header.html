@@ -5,7 +5,7 @@
     <h2>{{$.GlobalData.MonthYear .Time}}{{ with $.GlobalData.SecondaryMonthYear .Time }}<span class="title-secondary">{{.}}</span>{{ end }}</h2>
   </div>
   <div class="actions-end">
-    {{ template "pagination" (dict "prev" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "label" (printf "« %s" ($.GlobalData.MonthName .PrevTime))) "next" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "label" (printf "%s »" ($.GlobalData.MonthName .NextTime)))) }}
+    {{ template "pagination" (dict "prev" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "label" ($.GlobalData.MonthName .PrevTime)) "next" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "label" ($.GlobalData.MonthName .NextTime))) }}
     {{if ne .Time.Month .Now.Month}}
     <div class="actions-pagination">
       <a href="/calendar{{if $suffix}}?view=list{{end}}" class="button-link">{{$.T "calendar.today"}}</a>

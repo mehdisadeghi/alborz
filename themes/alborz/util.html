@@ -107,9 +107,22 @@
 {{ define "pagination" }}
 <div class="actions-pagination">
   {{ with .range }}<span class="pagination-range">{{.}}</span>{{ end }}
-  {{ with .prev }}{{ if .href }}<a href="{{localhref .href}}" class="button-link">{{.label}}</a>{{ end }}{{ end }}
-  {{ with .next }}{{ if .href }}<a href="{{localhref .href}}" class="button-link">{{.label}}</a>{{ end }}{{ end }}
+  {{ template "pager-link" (dict "step" .prev "icon" "prev") }}
+  {{ template "pager-link" (dict "step" .next "icon" "next") }}
 </div>
+{{ end }}
+
+{{/* One step of a pager: a chevron alone where the direction is the
+     whole meaning, the chevron beside the word where the word carries
+     it - a month name, say. dict: step(href label) icon. */}}
+{{ define "pager-link" }}
+{{ with .step }}{{ if .href }}
+{{ if .label }}
+<a href="{{localhref .href}}" class="button-link pager-link">{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}</a>
+{{ else }}
+<a href="{{localhref .href}}" class="icon-button" title="{{.title}}" aria-label="{{.title}}">{{ template "icon" $.icon }}</a>
+{{ end }}
+{{ end }}{{ end }}
 {{ end }}
 
 {{/* One list toolbar: the title on the gutter, search and pagination

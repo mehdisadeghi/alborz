@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/contacts/create" class="new">New contact</a>
+    <a href="/contacts/create" class="new">{{$.T "contacts.new"}}</a>
     <form method="post" id="addressbook-filter">
       {{range .AddressBooks}}
       <label class="addressbook-item">
@@ -11,7 +11,7 @@
         {{.Name}}
       </label>
       {{end}}
-      <button>Apply</button>
+      <button>{{$.T "common.apply"}}</button>
     </form>
   </aside>
 
@@ -27,9 +27,9 @@
           {{if .AddressObjects}}
           <div class="contact-list-checkbox"></div>
           <div class="contact-list-photo"></div>
-          <div class="contact-list-header">Name</div>
-          <div class="contact-list-header">Email</div>
-          <div class="contact-list-header">Phone</div>
+          <div class="contact-list-header">{{$.T "common.name"}}</div>
+          <div class="contact-list-header">{{$.T "contacts.email"}}</div>
+          <div class="contact-list-header">{{$.T "contacts.phone"}}</div>
           {{end}}
           {{range .AddressObjects}}
           {{$color := call $.ColorForPath .Path}}
@@ -42,7 +42,7 @@
           </div>
           <div class="contact-list-name">
             {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-            <a href="{{.URL}}">
+            <a href="{{.URL}}" dir="auto">
               {{.DisplayName}}
             </a>
           </div>
@@ -57,7 +57,7 @@
           </div>
           {{end}}
           {{if not .AddressObjects}}
-          <p class="empty-list">{{if .Query}}No results for “{{.Query}}”.{{else}}Nothing here yet.{{end}}</p>
+          <p class="empty-list">{{if .Query}}{{printf (.T "common.noresults") .Query}}{{else}}{{$.T "common.empty"}}{{end}}</p>
           {{end}}
         </div>
       </section>

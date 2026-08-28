@@ -145,7 +145,7 @@ func (e *notFoundError) Error() string { return e.msg }
 func (e *notFoundError) Unwrap() error { return ErrNotFound }
 
 // NotFoundf builds a not-found error whose text names the missing
-// subject.
+// subject, for the info page the HTTP layer renders.
 func NotFoundf(format string, args ...interface{}) error {
 	return &notFoundError{fmt.Sprintf(format, args...)}
 }
@@ -510,6 +510,83 @@ func (ctx *Context) Sessions() []*Session {
 	return ctx.accountSessions()
 }
 
+// themeVariants are the selectable stylesheet overlays; the value is
+// validated here since it lands in a stylesheet URL.
+var themeVariants = []string{"sublime", "sourcehut", "glass", "ink"}
+
+// setPref stores a per-user display preference in the browser; empty
+// clears it back to the default.
+func (ctx *Context) setPref(name, value string, valid bool) {
+	cookie := http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   ctx.secureCookies(),
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
+	}
+	if value == "" || !valid {
+		cookie.Expires = aLongTimeAgo // unset the cookie
+	}
+	ctx.SetCookie(&cookie)
+}
+
+func (ctx *Context) pref(name string, valid func(string) bool) string {
+	if c, err := ctx.Cookie(name); err == nil && valid(c.Value) {
+		return c.Value
+	}
+	return ""
+}
+
+// SetColorScheme stores the forced light or dark scheme per user.
+func (ctx *Context) SetColorScheme(scheme string) {
+	ctx.setPref(schemeCookieName, scheme, scheme == "light" || scheme == "dark")
+}
+
+// ColorScheme returns the user's forced scheme, empty for the system.
+func (ctx *Context) ColorScheme() string {
+	return ctx.pref(schemeCookieName, func(v string) bool { return v == "light" || v == "dark" })
+}
+
+// SetTheme stores the theme variant choice per user.
+func (ctx *Context) SetTheme(theme string) {
+	ctx.setPref(themeCookieName, theme, slices.Contains(themeVariants, theme))
+}
+
+// Theme returns the user's theme variant, empty for the default.
+func (ctx *Context) Theme() string {
+	return ctx.pref(themeCookieName, func(v string) bool { return slices.Contains(themeVariants, v) })
+}
+
+// SetLanguage stores the user's UI language choice in the browser,
+// per user rather than per account; empty follows Accept-Language
+// again.
+func (ctx *Context) SetLanguage(code string) {
+	cookie := http.Cookie{
+		Name:     langCookieName,
+		Value:    code,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   ctx.secureCookies(),
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
+	}
+	if code == "" || !IsLanguage(code) {
+		cookie.Expires = aLongTimeAgo // unset the cookie
+	}
+	ctx.SetCookie(&cookie)
+}
+
+// Language returns the user's explicit UI language choice, empty when
+// following the browser preference.
+func (ctx *Context) Language() string {
+	if c, err := ctx.Cookie(langCookieName); err == nil && IsLanguage(c.Value) {
+		return c.Value
+	}
+	return ""
+}
+
 // SetUnified turns the merged all-accounts view on or off; it needs at
 // least two signed-in accounts to turn on.
 func (ctx *Context) SetUnified(on bool) {
@@ -566,55 +643,6 @@ func (ctx *Context) SwitchAccount(username string) bool {
 // Logout closes the active session, removes it from the account list, and
 // promotes the next remaining account, whose session is returned. A nil
 // return means no account is left and the cookies were cleared.
-// setPref stores a per-user display preference in the browser; empty
-// clears it back to the default.
-func (ctx *Context) setPref(name, value string, valid bool) {
-	cookie := http.Cookie{
-		Name:     name,
-		Value:    value,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.secureCookies(),
-		Expires:  time.Now().Add(365 * 24 * time.Hour),
-	}
-	if value == "" || !valid {
-		cookie.Expires = aLongTimeAgo // unset the cookie
-	}
-	ctx.SetCookie(&cookie)
-}
-
-func (ctx *Context) pref(name string, valid func(string) bool) string {
-	if c, err := ctx.Cookie(name); err == nil && valid(c.Value) {
-		return c.Value
-	}
-	return ""
-}
-
-// SetColorScheme stores the forced light or dark scheme per user.
-func (ctx *Context) SetColorScheme(scheme string) {
-	ctx.setPref(schemeCookieName, scheme, scheme == "light" || scheme == "dark")
-}
-
-// ColorScheme returns the user's forced scheme, empty for the system.
-func (ctx *Context) ColorScheme() string {
-	return ctx.pref(schemeCookieName, func(v string) bool { return v == "light" || v == "dark" })
-}
-
-// themeVariants are the selectable stylesheet overlays; the value is
-// validated here since it lands in a stylesheet URL.
-var themeVariants = []string{"sublime", "sourcehut", "glass", "ink"}
-
-// SetTheme stores the theme variant choice per user.
-func (ctx *Context) SetTheme(theme string) {
-	ctx.setPref(themeCookieName, theme, slices.Contains(themeVariants, theme))
-}
-
-// Theme returns the user's theme variant, empty for the default.
-func (ctx *Context) Theme() string {
-	return ctx.pref(themeCookieName, func(v string) bool { return slices.Contains(themeVariants, v) })
-}
-
 func (ctx *Context) Logout() *Session {
 	var remaining []*Session
 	for _, s := range ctx.accountSessions() {

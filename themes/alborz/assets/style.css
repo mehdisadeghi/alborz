@@ -797,6 +797,44 @@ main.create-update .actions > *:not(:last-child) {
   text-align: end;
 }
 
+/* Dates, the version, and the message header table (untranslated
+   protocol labels with Latin values) are LTR islands whatever the UI
+   direction; the translated remote-content row opts back out with
+   dir=auto. */
+.message-list-date,
+.version,
+.contact-list-phone,
+main.message table {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* User-written titles order their own script (dir=auto) but align
+   with the UI edge, so Latin and Arabic rows cluster cleanly. */
+.task-list .task-summary,
+.message-list-subject a,
+.message-list-sender a,
+.contact-list-name a,
+main.message h1 {
+  text-align: match-parent;
+}
+
+/* Calendar event rows cluster fully by their own script instead: an
+   LTR event sits left-aligned with its dot on the left, an RTL one
+   mirrored, which reads better than mixed-order single lines. */
+main.calendar .task-summary,
+main.calendar .summary {
+  display: block;
+}
+
+/* dir=auto resolves LTR while a field is empty, pushing a translated
+   placeholder to the wrong edge; while only the placeholder shows,
+   follow the UI direction. */
+[dir="rtl"] input[dir="auto"]:placeholder-shown,
+[dir="rtl"] textarea[dir="auto"]:placeholder-shown {
+  direction: rtl;
+}
+
 .message-list-unread.message-list-subject a { color: var(--link-unread); }
 
 .message-list-unread {
@@ -1195,6 +1233,13 @@ main.calendar-date .events-list ul {
 
 main.settings form {
   max-width: 600px;
+}
+
+main.settings .settings-section {
+  margin-top: 1.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
 }
 
 main.settings button {

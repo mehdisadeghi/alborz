@@ -7,15 +7,23 @@
   <div class="container">
     <main class="create-update">
       <form method="POST">
+        {{ $acct := "" }}{{ with .GlobalData.URLAccount }}{{ $acct = printf "?account=%s" . }}{{ end }}
         <h2>{{$.T "folder.create"}}</h2>
-        <div class="context-crumb">{{ with .GlobalData.URLAccount }}{{ . }}{{ else }}{{ .GlobalData.Username }}{{ end }}</div>
-        <label for="name">{{$.T "folder.name"}}</label>
-        <input type="text" name="name" id="name" dir="auto" autofocus />
-        {{ if .Error }}<p>{{ .Error }}</p>{{ end }}
-        <div class="actions">
-          <button type="submit">{{$.T "common.save"}}</button>
-          <a class="button-link" href="/">{{$.T "common.cancel"}}</a>
-        </div>
+        <label>
+          <span>{{$.T "folder.location"}}</span>
+          <select name="location" required>
+            {{range .LocationGroups}}
+            {{if gt (len $.GlobalData.Accounts) 1}}<optgroup label="{{.Account}}">{{end}}
+            {{range .Locations}}
+            <option value="{{.Key}}"{{if eq .Key $.SelectedLocation}} selected{{end}}>{{.Label}}</option>
+            {{end}}
+            {{if gt (len $.GlobalData.Accounts) 1}}</optgroup>{{end}}
+            {{end}}
+          </select>
+        </label>
+        {{ template "field" (dict "label" ($.T "folder.name") "name" "name" "value" .Name "dir" "auto" "autofocus" true) }}
+        {{ if .Error }}<div class="alert">{{ .Error }}</div>{{ end }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/mailbox/INBOX%s" $acct) "cancelLabel" ($.T "common.cancel")) }}
       </form>
     </main>
   </div>

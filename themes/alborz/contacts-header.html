@@ -1,17 +1,26 @@
-<div class="message-list-checkbox">
-  {{if not .GlobalData.Unified}}
-  <input type="checkbox" id="action-checkbox-all" aria-label="{{$.T "mailbox.selectall"}}"/>
-  {{end}}
-</div>
+{{ $multi := gt (len .GlobalData.Accounts) 1 }}
+{{if not $multi}}{{ template "toolbar-select-all" . }}{{end}}
 <div class="actions-wrap">
   <div class="actions-message">
-    {{if not .GlobalData.Unified}}
+    <h2>{{$.T "nav.contacts"}}</h2>
+    {{if not $multi}}
     <div class="action-group">
-      <button form="address-book-form" formaction="/contacts/delete">{{$.T "common.delete"}}</button>
+      <button form="address-book-form" formaction="/contacts/delete" class="button-danger">{{$.T "common.delete"}}</button>
     </div>
     {{end}}
   </div>
 
-  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "all" $.GlobalData.Unified "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search")) }}
-
+  <div class="actions-end">
+  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search")) }}
+  {{if .AddressObjects}}
+  {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | accountparam) }}{{ end }}
+  {{ $creset := "?" }}{{ if ne $cq "" }}{{ $creset = printf "?%s" (slice $cq 1) }}{{ end }}
+  {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "name" }}{{ end }}
+  {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
+  {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
+  {{ $s := dict "Key" $hsort "Dir" .SortDir "Explicit" $hexp "DirExplicit" $hdirx "Params" $cq "Reset" $creset }}
+  {{ template "sort-menu" (dict "g" $ "s" $s "rows" (tuple
+     (tuple ($.T "common.name") "name") (tuple ($.T "contacts.email") "email") (tuple ($.T "contacts.phone") "phone"))) }}
+  {{end}}
+  </div>
 </div>

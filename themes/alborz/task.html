@@ -23,21 +23,24 @@
             <form class="action-group" action="{{.Task.URL}}/complete{{$acct}}" method="post">
               <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
               <button type="submit">
-                {{if eq $status "COMPLETED"}}Mark incomplete{{else}}Mark complete{{end}}
+                {{if eq $status "COMPLETED"}}{{$.T "tasks.markincomplete"}}{{else}}{{$.T "tasks.markcomplete"}}{{end}}
               </button>
             </form>
             <form class="action-group" action="{{.Task.URL}}/delete{{$acct}}" method="post">
-              <button type="submit">{{$.T "common.delete"}}</button>
+              <button type="submit" class="button-danger">{{$.T "common.delete"}}</button>
             </form>
           </div>
         </div>
       </section>
 
+      {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+      <div class="context-crumb">{{$crumbAcct}} › {{.Calendar.Name}}</div>
+
       <section class="details">
         <h1 class="{{if eq $status "COMPLETED"}}completed{{end}}">{{$summary}}</h1>
         <dl>
           <dt>{{$.T "tasks.status"}}</dt>
-          <dd>{{if eq $status "COMPLETED"}}Completed{{else}}Pending{{end}}</dd>
+          <dd>{{if eq $status "COMPLETED"}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</dd>
           {{if $due}}
           <dt>{{$.T "tasks.duedate"}}</dt>
           <dd>{{$due.Value}}</dd>

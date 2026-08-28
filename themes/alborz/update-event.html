@@ -10,44 +10,38 @@
   <div class="container">
     <main class="create-update">
       <form method="post">
+        {{if .CalendarObject}}
+        {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+        <div class="context-crumb">{{$crumbAcct}} › {{.Calendar.Name}}</div>
+        {{end}}
         <h2>
           {{if .CalendarObject}}{{$.T "calendar.edittitle"}}{{else}}{{$.T "calendar.createtitle"}}{{end}}
         </h2>
+        {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
         {{if not .CalendarObject}}
         <label>
-          <span>{{$.T "common.calendar"}}</span>
-          <select name="calendar">
+          <span>{{$.T "common.saveto"}}</span>
+          {{ $multi := gt (len .GlobalData.Accounts) 1 }}
+          {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .Calendar.Account}}{{$cur = .}}{{end}}
+          <select name="calendar" data-destination-key="event">
+            {{range .AccountCals}}
+            {{ $acct := .Account }}
+            {{ if $multi }}<optgroup label="{{.Account}}">{{ end }}
             {{range .Calendars}}
-            <option value="{{.Path}}" {{if eq .Path $.Calendar.Path}}selected{{end}}>{{.Name}}</option>
+            <option value="{{$acct}}|{{.Path}}" {{if and (eq $acct $cur) (eq .Path $.Calendar.Path)}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+            {{ if $multi }}</optgroup>{{ end }}
             {{end}}
           </select>
         </label>
         {{end}}
 
-        <label>
-          <span>{{$.T "calendar.eventname"}}</span>
-          <input type="text" name="summary" id="summary" dir="auto" value="{{.Event.Props.Text "SUMMARY"}}">
-        </label>
+        {{ template "field" (dict "label" ($.T "calendar.eventname") "name" "summary" "value" (.Event.Props.Text "SUMMARY") "dir" "auto") }}
+        {{ template "field" (dict "label" ($.T "calendar.startsat") "name" "start" "type" "datetime-local" "value" (.GlobalData.InTimezone (.Event.DateTimeStart nil) | formatinputdatetime)) }}
+        {{ template "field" (dict "label" ($.T "calendar.endsat") "name" "end" "type" "datetime-local" "value" (.GlobalData.InTimezone (.Event.DateTimeEnd nil) | formatinputdatetime)) }}
+        {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" (.Event.Props.Text "DESCRIPTION") "dir" "auto") }}
 
-        <label>
-          <span>{{$.T "calendar.startsat"}}</span>
-          <input type="datetime-local" name="start" id="start" value="{{.GlobalData.InTimezone (.Event.DateTimeStart nil) | formatinputdatetime}}"/>
-        </label>
-
-        <label>
-          <span>{{$.T "calendar.endsat"}}</span>
-          <input type="datetime-local" name="end" id="end" value="{{.GlobalData.InTimezone (.Event.DateTimeEnd nil) | formatinputdatetime}}"/>
-        </label>
-
-        <label>
-          <span>{{$.T "common.description"}}</span>
-          <textarea name="description" id="description" dir="auto">{{.Event.Props.Text "DESCRIPTION"}}</textarea>
-        </label>
-
-        <div class="actions">
-          <button type="submit">{{$.T "common.save"}}</button>
-          <a class="button-link" href="/calendar{{$acct}}">{{$.T "common.cancel"}}</a>
-        </div>
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/calendar%s" $acct) "cancelLabel" ($.T "common.cancel")) }}
       </form>
     </main>
   </div>

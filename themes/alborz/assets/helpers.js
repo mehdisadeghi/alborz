@@ -21,26 +21,33 @@ if (tz_input && !tz_input.value) {
 	} catch (e) {}
 }
 
-// Bulk actions operate on the checked rows: the select-all box appears,
-// and the action buttons are disabled while nothing is selected.
+// Bulk actions operate on the checked rows: the select-all box appears
+// where there are rows, and every control bound to the bulk form is
+// disabled while nothing is selected - the move destination as much as
+// the buttons, and an empty list as much as an unselected one.
 const check_all = document.getElementById("action-checkbox-all");
 for (const formId of ["messages-form", "address-book-form"]) {
-	const boxes = document.querySelectorAll(`input[type="checkbox"][form="${formId}"]`);
-	if (boxes.length === 0) {
+	const controls = document.querySelectorAll(
+		`button[form="${formId}"], select[form="${formId}"]`,
+	);
+	if (controls.length === 0) {
 		continue;
 	}
-	const buttons = document.querySelectorAll(`button[form="${formId}"]`);
+	const boxes = document.querySelectorAll(`input[type="checkbox"][form="${formId}"]`);
 	const update = () => {
 		const any = Array.prototype.some.call(boxes, box => box.checked);
-		for (const button of buttons) {
-			button.disabled = !any;
+		for (const control of controls) {
+			control.disabled = !any;
 		}
 	};
 	for (const box of boxes) {
 		box.addEventListener("change", update);
 	}
 	if (check_all) {
+		// Shown either way: a list with nothing in it would otherwise
+		// drop the cell and slide the whole toolbar sideways.
 		check_all.style.display = "inherit";
+		check_all.disabled = boxes.length === 0;
 		check_all.addEventListener("click", ev => {
 			for (const box of boxes) {
 				box.checked = ev.target.checked;
@@ -60,6 +67,21 @@ for (const search of document.querySelectorAll(".actions-search input")) {
 			ev.currentTarget.blur();
 		}
 	});
+}
+
+// Creation has no fixed account context: remember one destination per
+// object type in this browser, while the optgroups continue to show the
+// account namespace only once when the menu is opened.
+for (const select of document.querySelectorAll("select[data-destination-key]")) {
+	const key = "alborz.destination." + select.dataset.destinationKey;
+	try {
+		const saved = localStorage.getItem(key);
+		if (saved && Array.prototype.some.call(select.options, option => option.value === saved)) {
+			select.value = saved;
+		}
+		select.addEventListener("change", () => localStorage.setItem(key, select.value));
+		select.form.addEventListener("submit", () => localStorage.setItem(key, select.value));
+	} catch (e) {}
 }
 
 const submit_on_change = document.querySelectorAll("[data-submit-on-change]");

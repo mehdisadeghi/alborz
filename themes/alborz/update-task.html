@@ -10,9 +10,14 @@
   <div class="container">
     <main class="create-update">
       <form method="post">
+        {{if .CalendarObject}}
+        {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+        <div class="context-crumb">{{$crumbAcct}} › {{.Calendar.Name}}</div>
+        {{end}}
         <h2>
           {{if .CalendarObject}}{{$.T "tasks.edittitle"}}{{else}}{{$.T "tasks.createtitle"}}{{end}}
         </h2>
+        {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
 
         {{$summary := ""}}
         {{$desc := ""}}
@@ -26,34 +31,27 @@
 
         {{if not .CalendarObject}}
         <label>
-          <span>{{$.T "common.calendar"}}</span>
-          <select name="calendar">
+          <span>{{$.T "common.saveto"}}</span>
+          {{ $multi := gt (len .GlobalData.Accounts) 1 }}
+          {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .Calendar.Account}}{{$cur = .}}{{end}}
+          <select name="calendar" data-destination-key="task">
+            {{range .AccountCals}}
+            {{ $acct := .Account }}
+            {{ if $multi }}<optgroup label="{{.Account}}">{{ end }}
             {{range .Calendars}}
-            <option value="{{.Path}}" {{if eq .Path $.Calendar.Path}}selected{{end}}>{{.Name}}</option>
+            <option value="{{$acct}}|{{.Path}}" {{if and (eq $acct $cur) (eq .Path $.Calendar.Path)}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+            {{ if $multi }}</optgroup>{{ end }}
             {{end}}
           </select>
         </label>
         {{end}}
 
-        <label>
-          <span>{{$.T "tasks.summary"}}</span>
-          <input type="text" name="summary" id="summary" dir="auto" value="{{$summary}}" required />
-        </label>
+        {{ template "field" (dict "label" ($.T "tasks.summary") "name" "summary" "value" $summary "dir" "auto" "required" true) }}
+        {{ template "field" (dict "label" ($.T "tasks.duedate") "name" "due-date" "type" "date" "value" $due) }}
+        {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" $desc "dir" "auto" "rows" "4") }}
 
-        <label>
-          <span>{{$.T "tasks.duedate"}}</span>
-          <input type="date" name="due-date" id="due-date" value="{{$due}}" />
-        </label>
-
-        <label>
-          <span>{{$.T "common.description"}}</span>
-          <textarea name="description" id="description" dir="auto" rows="4">{{$desc}}</textarea>
-        </label>
-
-        <div class="actions">
-          <button type="submit">{{$.T "common.save"}}</button>
-          <a class="button-link" href="/tasks{{$acct}}">{{$.T "common.cancel"}}</a>
-        </div>
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/tasks%s" $acct) "cancelLabel" ($.T "common.cancel")) }}
       </form>
     </main>
   </div>

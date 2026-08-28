@@ -170,7 +170,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	global := GlobalRenderData{
 		Extra:          make(map[string]interface{}),
 		Path:           strings.Split(ectx.Request().URL.Path, "/")[1:],
-		Title:          translate(lang, "title.webmail"),
+		Title:          brandName,
 		URL:            ectx.Request().URL,
 		FirstDayOfWeek: 1, // Monday default
 		Lang:           lang,
@@ -237,9 +237,27 @@ func RenderInfo(ctx *Context, code int, message string) error {
 	return ctx.Render(code, "info.html", &data)
 }
 
+// WithTitle sets the page's own title; the brand is appended when
+// the template renders it, so every page carries it.
 func (brd *BaseRenderData) WithTitle(title string) *BaseRenderData {
 	brd.GlobalData.Title = title
 	return brd
+}
+
+// MonthYearIn translates a month heading for the request's language,
+// for titles built before the render data exists.
+func (ctx *Context) MonthYearIn(t time.Time) string {
+	lang := requestLanguage(ctx)
+	return fmt.Sprintf("%s %d", translate(lang, monthKeys[t.Month()-1]), t.Year())
+}
+
+// PageTitle is the browser title: the page's subject and the brand,
+// or the brand alone on pages that name nothing.
+func (g *GlobalRenderData) PageTitle() string {
+	if g.Title == "" || g.Title == brandName {
+		return brandName
+	}
+	return g.Title + " - " + brandName
 }
 
 type renderer struct {

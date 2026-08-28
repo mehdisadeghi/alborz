@@ -51,7 +51,7 @@ func handleListFilters(ctx *alborz.Context) error {
 	}
 
 	return ctx.Render(http.StatusOK, "filters.html", &FiltersRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.title")),
 		Scripts:        scripts,
 	})
 }

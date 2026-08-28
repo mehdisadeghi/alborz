@@ -323,6 +323,13 @@ aside .new.active {
   background-color: var(--bg-well);
 }
 
+/* Detail and edit pages put bare links in the aside; give them the
+   same rhythm the list asides get from their li rows. */
+aside > a {
+  display: block;
+  padding: 0.4rem 0.5rem;
+}
+
 /* Unread counts read as quiet metadata on the right, not brackets. */
 aside .unseen {
   margin-inline-start: auto;
@@ -597,7 +604,29 @@ main.event table { background-color: var(--bg); }
 main.message th,
 main.event th { width: 5%;}
 main.message h1,
-main.event h1 { font-size: 1.2rem; padding: 0.5rem;}
+main.event h1 { font-size: 1.2rem; padding: 0.5rem 0; }
+
+/* Every header row starts on the content gutter; the label keeps its
+   trailing gap toward the value. */
+main.message th,
+main.event th { padding-inline: 0.5rem; }
+main.message td,
+main.event td { padding-inline-start: 0; }
+
+main.message pre {
+  padding-inline: 0.5rem;
+}
+
+/* First columns carry the ink inset; interior cells keep the tighter
+   rhythm between columns. */
+.message-grid > .message-list-checkbox,
+.contact-grid > .contact-list-checkbox {
+  padding-inline-start: 0.5rem;
+}
+
+.message-grid.unified > .message-list-sender {
+  padding-inline-start: 0.5rem;
+}
 main.message .remote-content {
   background: var(--bg-green);
 }
@@ -906,7 +935,16 @@ main table tfoot {
   display: flex;
   flex-direction: row;
   background-color: var(--bg);
-  padding: 0.3rem;
+  /* Two lines rule the page: containers sit on the outer edge, ink
+     starts one step in - the same inset the tab captions use. */
+  padding: 0.3rem 0.5rem;
+}
+
+/* Spacing rides the checkbox itself: when scripts are off and the
+   select-all stays hidden, its empty cell must cost nothing. */
+.message-list .actions #action-checkbox-all,
+.contact-list .actions #action-checkbox-all {
+  margin-inline: 0 0.5rem;
 }
 
 .message-list .actions:first-child,
@@ -1007,6 +1045,15 @@ main table tfoot {
 .actions-wrap .action-group {
   margin-inline-start: 0.3rem;
   margin-bottom: 0;
+}
+
+.actions-wrap .actions-message > .action-group:first-child {
+  margin-inline-start: 0;
+}
+
+/* The group already spaces its members. */
+.followups .action-group {
+  margin-inline-start: 0;
 }
 
 .action-group.grow {
@@ -1389,6 +1436,12 @@ details.overflow > summary::-webkit-details-marker {
 
 .actions-end .actions-search {
   margin-inline-start: 0;
+}
+
+/* The message toolbar's trailing group hugs the right edge; the list
+   pages already get this from their growing search field. */
+main.message .actions-end {
+  justify-content: flex-end;
 }
 
 /* The sort menu duplicates the column headers on desktop; it serves
@@ -1825,7 +1878,9 @@ aside ul.favorites {
   .contact-list .actions {
     flex-wrap: nowrap;
     align-items: flex-start;
-    padding-inline: 0;
+    /* The start edge belongs to the select-all checkbox; the end keeps
+       the toolbar's breathing room. */
+    padding-inline: 0 0.3rem;
   }
 
   /* The drawer toggle stays focusable for the keyboard, just unseen. */
@@ -1845,14 +1900,14 @@ aside ul.favorites {
 
   .actions { position: relative; }
 
-  .message-list .actions > .message-list-checkbox,
-  .contact-list .actions > .message-list-checkbox {
-    padding-block: 0.4rem;
-    padding-inline: 0.5rem;
+  .message-list .actions #action-checkbox-all,
+  .contact-list .actions #action-checkbox-all {
+    margin-block: 0.4rem;
+    margin-inline: 0.5rem;
   }
 
-  .contact-list .actions > .message-list-checkbox {
-    padding-inline: 0.3rem;
+  .contact-list .actions #action-checkbox-all {
+    margin-inline: 0.3rem;
   }
 
   .actions button,

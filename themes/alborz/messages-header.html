@@ -45,12 +45,7 @@
   </div>
 
   <div class="actions-end">
-  <form method="get" class="actions-search">
-    {{with $.GlobalData.URLAccount}}<input type="hidden" name="account" value="{{.}}">{{end}}
-    {{if $.GlobalData.Unified}}<input type="hidden" name="all" value="1">{{end}}
-    <input type="text" name="query" dir="auto" value="{{.Query}}" placeholder="{{$.T "mailbox.searchph"}}" aria-label="{{$.T "mailbox.search"}}">
-    <button>{{$.T "mailbox.search"}}</button>
-  </form>
+  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "all" $.GlobalData.Unified "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search")) }}
 
   {{if gt .RangeFrom 0}}
   <div class="actions-pagination">

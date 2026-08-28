@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"net/url"
 
 	"go.guido-berhoerster.org/managesieve"
 )
@@ -38,26 +37,14 @@ type DialSieveFunc func(domain, username, password string) (SieveClient, error)
 func (s *Server) parseSieveUpstream(domain string) error {
 	d := s.domains[domain]
 
-	// Unlike Server.Upstream, the scheme-less bare domain upstream must
-	// not win over an explicit sieve:// URL, so look up schemes directly.
-	var u *url.URL
-	for _, scheme := range []string{"sieve", "sieve+insecure"} {
-		v, ok := d.upstreams[scheme]
-		if !ok {
-			continue
-		}
-		if u != nil {
-			return fmt.Errorf("domain %q: multiple upstream ManageSieve servers configured", domain)
-		}
-		u = v
+	u, err := s.Upstream(domain, "sieve", "sieve+insecure")
+	if _, ok := err.(*NoUpstreamError); ok {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("domain %q: %v", domain, err)
 	}
-	if u == nil {
-		v, ok := d.upstreams[""]
-		if !ok {
-			return nil
-		}
-		var err error
-		u, err = discoverSieve(v.Host)
+	if u.Scheme == "" {
+		u, err = discoverSieve(u.Host)
 		if err != nil {
 			s.e.Logger.Printf("Domain %q: failed to discover ManageSieve server: %v", domain, err)
 			return nil

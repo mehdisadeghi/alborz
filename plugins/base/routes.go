@@ -2409,6 +2409,9 @@ type SettingsRenderData struct {
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
+	Secondary     string // calendar system shown beside the Gregorian one
+	MaxPerPage    int
+	Error         string
 }
 
 // BrowserSettingsRenderData carries the choices stored in the browser
@@ -2476,6 +2479,9 @@ func handleSettings(ctx *alborz.Context) error {
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save settings: %v", err)
 		}
+		if err := ctx.SetSecondaryCalendar(ctx.FormValue("secondary")); err != nil {
+			return fmt.Errorf("failed to save calendar choice: %v", err)
+		}
 
 		listings.evictAll(ctx.Session.Username())
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings"))
@@ -2486,6 +2492,8 @@ func handleSettings(ctx *alborz.Context) error {
 		Settings:       settings,
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),
+		Secondary:      ctx.SecondaryCalendar(),
+		MaxPerPage:     maxMessagesPerPage,
 	})
 }
 

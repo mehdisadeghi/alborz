@@ -22,8 +22,9 @@ type AddressBookRenderData struct {
 	alborz.BaseRenderData
 	AddressBooks   []AddressBookInfo
 	AddressObjects []AddressObject
+	Sort, SortDir  string
 	Query          string
-	ColorForPath   func(string) string
+	ColorForPath   func(account, path string) string
 }
 
 type Settings struct {
@@ -113,30 +114,34 @@ func registerRoutes(p *plugin) {
 	GET("/contacts", func(ctx *alborz.Context) error {
 		queryText := ctx.QueryParam("query")
 
-		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+		accounts, err := p.routeBooks(ctx)
 		if err != nil {
 			return err
 		}
 
-		settings := &Settings{}
-		if err := ctx.Session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
-			return fmt.Errorf("failed to load CardDAV settings: %v", err)
+		type bookSite struct {
+			account string
+			client  *carddav.Client
+			path    string
+			name    string
 		}
-
-		addressBookFilter := settings.AddressBookFilter
-		visibleSet := make(map[string]bool)
-		for _, path := range settings.VisibleAddressBooks {
-			visibleSet[canonicalCollectionPath(path)] = true
-		}
-
-		addressBookInfos := make([]AddressBookInfo, len(addressBooks))
-		for i, ab := range addressBooks {
-			visible := !addressBookFilter || visibleSet[ab.Path]
-			addressBookInfos[i] = AddressBookInfo{
-				Path:    ab.Path,
-				Name:    ab.Name,
-				Color:   ab.Color,
-				Visible: visible,
+		var addressBookInfos []AddressBookInfo
+		var sites []bookSite
+		for _, acc := range accounts {
+			settings := &Settings{}
+			if err := acc.session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
+				return fmt.Errorf("failed to load CardDAV settings: %v", err)
+			}
+			visibleSet := make(map[string]bool)
+			for _, path := range settings.VisibleAddressBooks {
+				visibleSet[canonicalCollectionPath(path)] = true
+			}
+			for _, ab := range acc.books {
+				ab.Visible = !settings.AddressBookFilter || visibleSet[ab.Path]
+				addressBookInfos = append(addressBookInfos, ab)
+				if ab.Visible {
+					sites = append(sites, bookSite{account: ab.Account, client: acc.client, path: ab.Path, name: ab.Name})
+				}
 			}
 		}
 
@@ -181,53 +186,69 @@ func registerRoutes(p *plugin) {
 		}
 
 		type abQueryResult struct {
-			name     string
+			site     bookSite
 			contacts []carddav.AddressObject
 			err      error
 		}
 
-		var visibleAddressBooks []AddressBookInfo
-		for _, abInfo := range addressBookInfos {
-			if abInfo.Visible {
-				visibleAddressBooks = append(visibleAddressBooks, abInfo)
-			}
-		}
-
 		reqCtx := ctx.Request().Context()
-		results := make(chan abQueryResult, len(visibleAddressBooks))
+		results := make(chan abQueryResult, len(sites))
 		sem := make(chan struct{}, maxAddressBookQueryConcurrency)
-		for _, abInfo := range visibleAddressBooks {
+		for _, site := range sites {
 			go func() {
 				sem <- struct{}{}
 				defer func() { <-sem }()
-				abContacts, err := c.QueryAddressBook(reqCtx, abInfo.Path, &query)
-				results <- abQueryResult{name: abInfo.Name, contacts: abContacts, err: err}
+				abContacts, err := site.client.QueryAddressBook(reqCtx, site.path, &query)
+				results <- abQueryResult{site: site, contacts: abContacts, err: err}
 			}()
 		}
 
-		var aos []carddav.AddressObject
-		for i := 0; i < len(visibleAddressBooks); i++ {
+		var aos []AddressObject
+		for range sites {
 			result := <-results
 			if result.err != nil {
-				return fmt.Errorf("failed to query address book %s: %v", result.name, result.err)
+				return fmt.Errorf("failed to query address book %s: %v", result.site.name, result.err)
 			}
-			aos = append(aos, result.contacts...)
+			for i := range result.contacts {
+				aos = append(aos, AddressObject{AddressObject: &result.contacts[i], Account: result.site.account})
+			}
 		}
 
-		sort.Slice(aos, func(i, j int) bool {
-			nameI := AddressObject{&aos[i]}.DisplayName()
-			nameJ := AddressObject{&aos[j]}.DisplayName()
-			return strings.ToLower(nameI) < strings.ToLower(nameJ)
+		sortKey := ctx.QueryParam("sort")
+		if sortKey != "" && sortKey != "name" && sortKey != "email" {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
+		}
+		sortDir := ctx.QueryParam("dir")
+		if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
+		}
+		key := func(ao AddressObject) string {
+			if sortKey == "email" {
+				return strings.ToLower(ao.Card.PreferredValue("EMAIL"))
+			}
+			return strings.ToLower(ao.DisplayName())
+		}
+		sort.SliceStable(aos, func(i, j int) bool {
+			a, b := key(aos[i]), key(aos[j])
+			if a == b {
+				return strings.ToLower(aos[i].DisplayName()) < strings.ToLower(aos[j].DisplayName())
+			}
+			if sortDir == "desc" {
+				return a > b
+			}
+			return a < b
 		})
 
 		return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
 			AddressBooks:   addressBookInfos,
-			AddressObjects: newAddressObjectList(aos),
+			AddressObjects: aos,
 			Query:          queryText,
-			ColorForPath: func(contactPath string) string {
+			Sort:           sortKey,
+			SortDir:        sortDir,
+			ColorForPath: func(account, contactPath string) string {
 				for _, ab := range addressBookInfos {
-					if strings.HasPrefix(contactPath, ab.Path) {
+					if ab.Account == account && strings.HasPrefix(contactPath, ab.Path) {
 						return ab.Color
 					}
 				}
@@ -270,9 +291,9 @@ func registerRoutes(p *plugin) {
 		ao := &aos[0]
 
 		return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{ao}.DisplayName()),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()),
 			AddressBook:    addressBook,
-			AddressObject:  AddressObject{ao},
+			AddressObject:  AddressObject{AddressObject: ao},
 			Birthday:       birthdayValue(ao.Card),
 		})
 	})
@@ -409,14 +430,14 @@ func registerRoutes(p *plugin) {
 				return fmt.Errorf("failed to put address object: %v", err)
 			}
 
-			return ctx.Redirect(http.StatusFound, AddressObject{ao}.URL())
+			return ctx.Redirect(http.StatusFound, ctx.AccountPath(AddressObject{AddressObject: ao}.URL()))
 		}
 
 		// Both map values would be evaluated eagerly; a missing object
 		// must not reach DisplayName.
 		name := ""
 		if ao != nil {
-			name = AddressObject{ao}.DisplayName()
+			name = AddressObject{AddressObject: ao}.DisplayName()
 		}
 		return ctx.Render(http.StatusOK, "update-address-object.html", &UpdateAddressObjectRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx),
@@ -450,7 +471,7 @@ func registerRoutes(p *plugin) {
 			return fmt.Errorf("failed to delete address object: %v", err)
 		}
 
-		return ctx.Redirect(http.StatusFound, "/contacts")
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/contacts"))
 	})
 
 	POST("/contacts/delete", func(ctx *alborz.Context) error {

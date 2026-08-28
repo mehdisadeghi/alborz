@@ -3,6 +3,18 @@
 
 <div class="page-wrap">
   <aside>
+    {{if .GlobalData.Unified}}
+    {{$prev := ""}}
+    {{range .Calendars}}
+    {{if ne .Account $prev}}{{$prev = .Account}}
+    <div class="aside-account"><span class="color-dot" style="background:{{accountcolor .Account}}"></span> {{.Account}}</div>
+    {{end}}
+    <span class="calendar-item">
+      {{if .Color}}<span class="color-dot" style="background:{{.Color}}"></span>{{end}}
+      {{.Name}}
+    </span>
+    {{end}}
+    {{else}}
     <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
     <form method="post" id="calendar-filter">
       {{range .Calendars}}
@@ -13,6 +25,7 @@
       {{end}}
       <button>{{$.T "common.apply"}}</button>
     </form>
+    {{end}}
   </aside>
 
   <div class="container">
@@ -33,10 +46,10 @@
           <h3 class="task-group-header">{{$base.GlobalData.WeekdayName .}}, {{$base.GlobalData.MonthName .}} {{.Day}}</h3>
           {{range $events}}
           {{ if .Data.Events }}{{$event := index .Data.Events 0}}
-          {{$color := call $base.ColorForPath .Path}}
+          {{$color := call $base.ColorForPath .Account .Path}}
           <div class="task-item">
             <div class="task-content">
-              <a href="{{.URL}}" class="task-summary" dir="auto">
+              <a href="{{.URL}}{{with .Account}}?account={{.}}{{end}}" class="task-summary" dir="auto">
                 <span class="task-due">
                   {{- $start := $event.DateTimeStart nil -}}
                   {{- $end := $event.DateTimeEnd nil -}}

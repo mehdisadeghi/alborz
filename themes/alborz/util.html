@@ -1,66 +1,146 @@
-{{ define "mbox-link" }}
-{{ if not (.Info.HasAttr "\\Noselect") }}
-<li {{ if .Info.Active }}class="active"{{ end }}>
-  <a href="{{.Info.URL}}">
-    {{- .Info.Label -}}
-    {{- if .Info.HasAttr "\\HasChildren" }}/{{ end }}
-  </a>
-  {{ if gt .Info.Unseen 0 }}
-  <span class="unseen">({{.Info.Unseen}})</span>
-  {{ end }}
+{{/* One sortable column header with the shared three-state cycle.
+     dict: label key sort dir dirx exp params reset [idle]
+     [class]; dir shows the arrow, dirx marks an explicit direction. */}}
+{{ define "sort-th" }}
+{{ $arrow := "↑" }}{{ if eq .dir "desc" }}{{ $arrow = "↓" }}{{ end }}
+{{ $flip := "desc" }}{{ if eq .dir "desc" }}{{ $flip = "asc" }}{{ end }}
+{{ $text := printf "%s %s" .label $arrow }}
+{{ $idle := .label }}{{ with .idle }}{{ $idle = . }}{{ end }}
+{{ if and .exp (eq .sort .key) }}
+{{ $href := printf "?sort=%s&dir=%s%s" .key $flip .params }}
+{{ if .dirx }}{{ $href = .reset }}{{ end }}
+<a {{ with .class }}class="{{.}}" {{ end }}href="{{$href}}"><strong>{{$text}}</strong></a>
+{{ else }}
+{{ $href := printf "?sort=%s%s" .key .params }}
+<a {{ with .class }}class="{{.}}" {{ end }}href="{{$href}}">{{$idle}}</a>
+{{ end }}
+{{ end }}
+
+{{/* One folder node, nested or flat, any account: (node, "?account=x" or
+     "", highlight-allowed, active-name). Parents that are only path
+     prefixes render as plain names; branches stay open: no state. */}}
+{{ define "mbox-node" }}
+{{ $n := index . 0 }}{{ $q := index . 1 }}{{ $onacct := index . 2 }}{{ $active := index . 3 }}
+{{ $on := and $n.Details $onacct (eq $active $n.Details.Info.Name) }}
+{{ if $n.Children }}
+<li class="folder-li">
+  <details class="folder-branch" open>
+    <summary{{ if $on }} class="active"{{ end }}>{{ template "mbox-node-label" (tuple $n $q) }}</summary>
+    <ul>{{ range $n.Children }}{{ template "mbox-node" (tuple . $q $onacct $active) }}{{ end }}</ul>
+  </details>
 </li>
 {{ else }}
-<li class="noselect">
-  {{.Info.Name}}{{- if .Info.HasAttr "\\HasChildren" }}/{{ end }}
+<li{{ if $on }} class="active"{{ end }}>
+  {{ template "mbox-node-label" (tuple $n $q) }}
 </li>
+{{ end }}
+{{ end }}
+
+{{ define "mbox-node-label" }}
+{{ $n := index . 0 }}{{ $q := index . 1 }}
+{{ if and $n.Details (not ($n.Details.Info.HasAttr "\\Noselect")) }}
+<a href="{{$n.Details.Info.URL}}{{$q}}">{{$n.Name}}</a>
+{{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$n.Details.Info.Unseen}}</span>{{ end }}
+{{ else }}
+<span class="noselect">{{$n.Name}}</span>
+{{ end }}
+{{ end }}
+
+{{/* One account's folder list: (Categorized, "?account=x" or "",
+     highlight-allowed, starred, active-name). */}}
+{{ define "mbox-list" }}
+{{ $cc := index . 0 }}{{ $q := index . 1 }}{{ $on := index . 2 }}{{ $starred := index . 3 }}{{ $active := index . 4 }}
+{{ with $cc.InboxTree }}{{ template "mbox-node" (tuple . $q (and $on (not $starred)) $active) }}{{ end }}
+{{ range $cc.CommonNodes }}{{ template "mbox-node" (tuple . $q $on $active) }}{{ end }}
+{{ range $cc.AdditionalTree }}{{ template "mbox-node" (tuple . $q $on $active) }}{{ end }}
+{{ end }}
+
+{{/* The aside of the detail and edit pages.
+     dict: newHref newLabel newActive [backHref backLabel backActive]. */}}
+{{ define "detail-aside" }}
+<aside>
+  <a href="{{.newHref}}" class="new{{ if .newActive }} active{{ end }}">{{.newLabel}}</a>
+  {{ if .backHref }}<a href="{{.backHref}}"{{ if .backActive }} class="active"{{ end }}>{{.backLabel}}</a>{{ end }}
+</aside>
+{{ end }}
+
+{{/* Collections grouped by account, read-only, for merged DAV views.
+     dict: items itemclass. */}}
+{{ define "dav-aside-groups" }}
+{{ $prev := "" }}
+{{ range .items }}
+{{ if ne .Account $prev }}{{ $prev = .Account }}
+<div class="aside-account"><span class="color-dot" style="background:{{accountcolor .Account}}"></span> {{.Account}}</div>
+{{ end }}
+<span class="{{$.itemclass}}">
+  {{ if .Color }}<span class="color-dot" style="background:{{.Color}}"></span>{{ end }}
+  {{.Name}}
+</span>
+{{ end }}
+{{ end }}
+
+{{/* Per-collection visibility checkboxes for one account's DAV views.
+     dict: field items itemclass. */}}
+{{ define "dav-aside-filter" }}
+{{ range .items }}
+<label class="{{$.itemclass}}">
+  <input type="checkbox" name="{{$.field}}" value="{{.Path}}" {{ if .Visible }}checked{{ end }} data-submit-on-change {{ if .Color }}style="accent-color:{{.Color}}"{{ end }}>
+  {{.Name}}
+</label>
 {{ end }}
 {{ end }}
 
 {{ define "aside" }}
 <aside>
-  {{ if .GlobalData.Unified }}
-  {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
   <ul>
     <li>
       <a href="/compose" class="new{{ if eq $.GlobalData.URL.Path "/compose" }} active{{ end }}">{{$.T "aside.compose"}}</a>
     </li>
-    <li {{ if and (eq $active "Inbox") (not .Starred) }}class="active"{{ end }}><a href="/mailbox/INBOX">{{$.T "aside.inbox"}}</a></li>
-    <li {{ if .Starred }}class="active"{{ end }}><a href="/mailbox/INBOX?starred=1">{{$.T "aside.starred"}}</a></li>
-    <li {{ if eq $active "Drafts" }}class="active"{{ end }}><a href="/mailbox/Drafts">{{$.T "aside.drafts"}}</a></li>
-    <li {{ if eq $active "Sent" }}class="active"{{ end }}><a href="/mailbox/Sent">{{$.T "aside.sent"}}</a></li>
-    <li {{ if eq $active "Junk" }}class="active"{{ end }}><a href="/mailbox/Junk">{{$.T "aside.junk"}}</a></li>
-    <li {{ if eq $active "Trash" }}class="active"{{ end }}><a href="/mailbox/Trash">{{$.T "aside.trash"}}</a></li>
-    <li {{ if eq $active "Archive" }}class="active"{{ end }}><a href="/mailbox/Archive">{{$.T "aside.archive"}}</a></li>
   </ul>
+  {{ $starred := .Starred }}
+  {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
+  {{ if .SidebarAccounts }}
+  {{/* Every mailbox is a place: merged favorites on top, then each
+       account's own folders; links select scope per request only. */}}
+  {{ $acct := $.GlobalData.URLAccount }}
+  {{ $all := $.GlobalData.Unified }}
+  <ul class="favorites">
+    {{ range tuple (tuple "aside.allinboxes" "INBOX" false) (tuple "aside.starred" "INBOX" true) (tuple "aside.alldrafts" "Drafts" false) (tuple "aside.allsent" "Sent" false) (tuple "aside.alljunk" "Junk" false) (tuple "aside.alltrash" "Trash" false) (tuple "aside.allarchive" "Archive" false) }}
+    {{ $role := index . 1 }}{{ $star := index . 2 }}
+    <li {{ if and $all (eq $active $role) (eq $starred $star) }}class="active"{{ end }}>
+      <a href="/mailbox/{{$role}}?all=1{{ if $star }}&starred=1{{ end }}">{{$.T (index . 0)}}</a>
+      {{ if and (eq $role "INBOX") (not $star) (gt $.AllInboxUnseen 0) }}<span class="unseen">{{$.AllInboxUnseen}}</span>{{ end }}
+    </li>
+    {{ end }}
+  </ul>
+  {{ range .SidebarAccounts }}
+  {{ $cur := .Account }}
+  {{ $q := printf "?account=%s" .Account }}
+  <details class="acct-folders"{{ if or (eq $acct $cur) (and (not $acct) (not $all) (eq $.GlobalData.Username $cur)) }} open{{ end }}>
+    <summary class="aside-account">{{ .Account }}</summary>
+    <ul>
+      {{ template "mbox-list" (tuple .Categorized $q (eq $acct $cur) $starred $active) }}
+      <li>
+        <a href="/new-mailbox{{$q}}" class="new">{{$.T "aside.newfolder"}}</a>
+      </li>
+    </ul>
+  </details>
+  {{ end }}
   {{ else }}
   <ul>
-    <!-- the logo image, dimensions 200x32 may be present or not -->
-    <li>
-      <a href="/compose" class="new
-        {{ if eq $.GlobalData.URL.Path "/compose" }}active{{ end }}
-      ">{{$.T "aside.compose"}}</a>
-    </li>
     {{ with .CategorizedMailboxes }}
-    {{ with .Common.Inbox }}{{ template "mbox-link" . }}{{ end }}
-    <li {{ if $.Starred }}class="active"{{ end }}>
+    {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active) }}{{ end }}
+    <li {{ if $starred }}class="active"{{ end }}>
       <a href="/mailbox/INBOX?starred=1">{{$.T "aside.starred"}}</a>
     </li>
-    {{ with .Common.Drafts }}{{ template "mbox-link" . }}{{ end }}
-    {{ with .Common.Sent }}{{ template "mbox-link" . }}{{ end }}
-    {{ with .Common.Junk }}{{ template "mbox-link" . }}{{ end }}
-    {{ with .Common.Trash }}{{ template "mbox-link" . }}{{ end }}
-    {{ with .Common.Archive }}{{ template "mbox-link" . }}{{ end }}
+    {{ range .CommonNodes }}{{ template "mbox-node" (tuple . "" (not $starred) $active) }}{{ end }}
     {{ if .Additional }}
     <hr />
-    {{ range .Additional }}
-    {{ template "mbox-link" . }}
-    {{ end }}
+    {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active) }}{{ end }}
     {{ end }}
     {{ end }}
     <li>
-      <a href="/new-mailbox" class="new
-        {{ if eq $.GlobalData.URL.Path "/new-mailbox" }}active{{ end }}
-      ">{{$.T "aside.newfolder"}}</a>
+      <a href="/new-mailbox" class="new{{ if eq $.GlobalData.URL.Path "/new-mailbox" }} active{{ end }}">{{$.T "aside.newfolder"}}</a>
     </li>
   </ul>
   {{ end }}

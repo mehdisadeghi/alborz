@@ -1,11 +1,10 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
-  <aside>
-    <a href="/contacts/create" class="new">{{$.T "contacts.new"}}</a>
-    <a href="/contacts" class="active">{{.AddressBook.Name}}</a>
-  </aside>
+  {{$acct := ""}}{{with .GlobalData.URLAccount}}{{$acct = printf "?account=%s" .}}{{end}}
+  {{ template "detail-aside" (dict "newHref" (printf "/contacts/create%s" $acct) "newLabel" ($.T "contacts.new") "backHref" (printf "/contacts%s" $acct) "backLabel" .AddressBook.Name "backActive" true) }}
 
   <div class="container">
     <main class="contact">
@@ -13,13 +12,13 @@
         <div class="actions-wrap">
           <div class="actions-message">
             <div class="action-group">
-              <a href="{{.AddressObject.URL}}/edit" class="button-link">
+              <a href="{{.AddressObject.URL}}/edit{{$acct}}" class="button-link">
                 Edit
               </a>
             </div>
             <form
               class="action-group"
-              action="{{.AddressObject.URL}}/delete"
+              action="{{.AddressObject.URL}}/delete{{$acct}}"
               method="post"
             >
               <button type="submit">{{$.T "common.delete"}}</button>

@@ -323,6 +323,13 @@ aside .new.active {
   background-color: var(--bg-well);
 }
 
+/* Unread counts read as quiet metadata on the right, not brackets. */
+aside .unseen {
+  margin-inline-start: auto;
+  color: var(--fg-muted);
+  font-size: 0.85em;
+}
+
 aside .new.active {
   color: var(--green-dark);
 }
@@ -759,7 +766,6 @@ main.create-update .actions > *:not(:last-child) {
 .message-list-flags {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
 }
 
 .message-list-flags .flag-button {
@@ -794,7 +800,7 @@ main.create-update .actions > *:not(:last-child) {
 }
 
 .message-list-date {
-  text-align: end;
+  text-align: start;
 }
 
 /* Dates, the version, and the message header table (untranslated
@@ -1070,8 +1076,55 @@ main table tfoot {
   display: grid;
   /* Sender column tracks the longest name up to a cap instead of a fixed
      share, so names are rarely truncated. */
-  grid-template-columns: auto fit-content(18rem) auto 1fr auto;
+  /* Fixed tracks: sorting or paging must not shift the headers under
+     the pointer. */
+  grid-template-columns: 2.2rem 14rem 5rem 1fr 8rem 5.5rem;
   grid-template-rows: auto;
+}
+
+/* Merged views spell the owning account in a column of its own. */
+.message-grid.unified {
+  /* The account column hugs its widest address, capped; the set of
+     accounts is constant per view, so nothing shifts on sort. */
+  grid-template-columns: 14rem fit-content(11rem) 5rem 1fr 8rem 5.5rem;
+}
+
+.message-grid .message-list-header {
+  font-weight: bold;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border-strong);
+  /* Match the row cells so labels align with their columns, and pin
+     the empty checkbox header's border to the same baseline. */
+  padding: 0.3rem;
+  align-self: stretch;
+}
+
+.message-grid .message-list-header a { color: inherit; }
+
+/* On desktop the account column replaces the inline label. */
+.message-grid .row-account { display: none; }
+
+.message-list-account {
+  color: var(--fg-muted);
+  font-size: 0.9em;
+}
+
+/* Nested folders indent their content, not their rows: every row spans
+   the sidebar, so the active highlight runs edge to edge. */
+aside li.folder-li { padding: 0; display: block; }
+aside details.folder-branch summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  padding: 0.4rem 0.5rem;
+}
+aside details.folder-branch summary a { flex-grow: 1; }
+aside details.folder-branch > ul > li,
+aside details.folder-branch > ul li.folder-li > details > summary {
+  padding-inline-start: 1.3rem;
+}
+aside details.folder-branch details.folder-branch > ul > li {
+  padding-inline-start: 2.1rem;
 }
 
 .contact-grid {
@@ -1338,6 +1391,12 @@ details.overflow > summary::-webkit-details-marker {
   margin-inline-start: 0;
 }
 
+/* The sort menu duplicates the column headers on desktop; it serves
+   the narrow layout, which has no headers. */
+.actions .sort-overflow {
+  display: none;
+}
+
 .overflow-menu {
   position: absolute;
   inset-inline-end: 0;
@@ -1502,6 +1561,71 @@ main.task .details h1.completed {
   margin-bottom: 1rem;
 }
 
+/* Account headings in the unified sidebars. */
+aside .aside-account {
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  margin: 0.6rem 0 0.2rem;
+}
+
+aside .aside-account:first-of-type {
+  margin-top: 0;
+}
+
+/* Per-account folder sections in the mail aside. */
+aside details.acct-folders > summary.aside-account {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.4rem 0.5rem 0.2rem;
+}
+
+aside details.acct-folders > summary::-webkit-details-marker {
+  display: none;
+}
+
+aside details.acct-folders li {
+  padding-inline-start: 1rem;
+}
+
+/* Branch rows inside a section line up with the leaves; the wrapper
+   stays flat and the summary carries the section indent. */
+aside details.acct-folders li.folder-li {
+  padding: 0;
+}
+
+aside details.acct-folders li.folder-li > details > summary {
+  padding-inline-start: 1rem;
+}
+
+aside details.acct-folders details.folder-branch > ul > li {
+  padding-inline-start: 1.8rem;
+}
+
+aside details.acct-folders details.folder-branch details.folder-branch > ul > li {
+  padding-inline-start: 2.6rem;
+}
+
+aside ul.favorites {
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.3rem;
+}
+
+/* Owning account, spelled quietly where rows merge accounts. */
+.row-account {
+  color: var(--fg-muted);
+  font-size: 0.85em;
+  margin-inline-end: 0.35rem;
+}
+
+/* Page context, breadcrumb-weight: which account and container the
+   page acts on, between the toolbar and the content. */
+.context-crumb {
+  color: var(--fg-muted);
+  font-size: 0.95rem;
+  padding: 0.35rem 0.5rem;
+}
+
 .task-group-header {
   font-size: 0.9rem;
   font-weight: 600;
@@ -1645,6 +1769,14 @@ main.task .details h1.completed {
     border-bottom: 1px solid var(--border-light);
   }
 
+  /* Merged rows have no checkbox; their grid drops the empty slot. */
+  .message-grid.unified .message-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "sender date"
+      "subject flags";
+  }
+
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
 
   /* The two-line row draws one separator on its wrapper. */
@@ -1669,6 +1801,14 @@ main.task .details h1.completed {
   }
   .message-list-subject { grid-area: subject; }
   .message-list-flags { grid-area: flags; }
+  /* The two-line mobile rows keep the inline account label instead of
+     the header row and account column. */
+  .message-grid .message-list-header { display: none; }
+  .message-list .messages .message-list-size { display: none; }
+  .actions .sort-overflow { display: inline-block; }
+  /* Outweighs the shared flex-item rule, which carries three classes. */
+  .message-list .messages .message-list-account { display: none; }
+  .message-grid .row-account { display: inline; }
 
   /* Toolbars compact to two rows: the buttons and the count share the
      first, the search gets the second. */

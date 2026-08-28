@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +32,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	})
 
 	p.GET("/mailbox/:mbox", handleGetMailbox)
+	p.POST("/mailbox/:mbox/empty", handleEmptyMailbox)
 	p.POST("/mailbox/:mbox", handleGetMailbox)
 
 	p.GET("/new-mailbox", handleNewMailbox)
@@ -87,6 +87,20 @@ type IMAPBaseRenderData struct {
 	Inbox                *MailboxStatus
 	Subscriptions        map[string]*MailboxStatus
 	Starred              bool
+
+	// Every account's folder tree, for the multi-account aside; empty
+	// with a single account.
+	SidebarAccounts []AccountSidebar
+}
+
+// AllInboxUnseen sums the accounts' inbox unseen counts for the
+// All-inboxes row.
+func (d *IMAPBaseRenderData) AllInboxUnseen() int {
+	sum := 0
+	for _, acc := range d.SidebarAccounts {
+		sum += acc.InboxUnseen
+	}
+	return sum
 }
 
 type MailboxRenderData struct {
@@ -144,6 +158,88 @@ func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
 	}
 }
 
+// MailboxNode is one folder in the nested sidebar tree. Details is nil
+// for a parent that only exists as a path prefix.
+type MailboxNode struct {
+	Name     string
+	Details  *MailboxDetails
+	Children []MailboxNode
+}
+
+// AdditionalTree nests the custom folders by their hierarchy delimiter,
+// the way desktop clients show them. Folders under INBOX belong to
+// InboxTree instead.
+func (cc CategorizedMailboxes) AdditionalTree() []MailboxNode {
+	var out []MailboxNode
+	for _, n := range cc.additionalForest() {
+		if !strings.EqualFold(n.Name, "INBOX") || n.Details != nil {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// InboxTree returns the inbox with any INBOX-nested folders as children,
+// so they hang under the real Inbox row like desktop clients show them.
+func (cc CategorizedMailboxes) InboxTree() *MailboxNode {
+	inbox := cc.Common.Inbox
+	if inbox == nil {
+		return nil
+	}
+	node := MailboxNode{Name: inbox.Info.Label, Details: inbox}
+	for _, n := range cc.additionalForest() {
+		if strings.EqualFold(n.Name, "INBOX") && n.Details == nil {
+			node.Children = append(node.Children, n.Children...)
+		}
+	}
+	return &node
+}
+
+// CommonNodes lists the special-use folders after the inbox as leaf
+// nodes, so the aside renders every folder kind through one template.
+func (cc CategorizedMailboxes) CommonNodes() []MailboxNode {
+	var nodes []MailboxNode
+	for _, d := range []*MailboxDetails{
+		cc.Common.Drafts, cc.Common.Sent, cc.Common.Junk,
+		cc.Common.Trash, cc.Common.Archive,
+	} {
+		if d != nil {
+			nodes = append(nodes, MailboxNode{Name: d.Info.Label, Details: d})
+		}
+	}
+	return nodes
+}
+
+func (cc CategorizedMailboxes) additionalForest() []MailboxNode {
+	var roots []MailboxNode
+	find := func(nodes *[]MailboxNode, name string) *MailboxNode {
+		for i := range *nodes {
+			if (*nodes)[i].Name == name {
+				return &(*nodes)[i]
+			}
+		}
+		*nodes = append(*nodes, MailboxNode{Name: name})
+		return &(*nodes)[len(*nodes)-1]
+	}
+	for i := range cc.Additional {
+		details := &cc.Additional[i]
+		delim := details.Info.Delim
+		if delim == 0 {
+			roots = append(roots, MailboxNode{Name: details.Info.Name(), Details: details})
+			continue
+		}
+		segments := strings.Split(details.Info.Name(), string(delim))
+		nodes := &roots
+		var node *MailboxNode
+		for _, seg := range segments {
+			node = find(nodes, seg)
+			nodes = &node.Children
+		}
+		node.Details = details
+	}
+	return roots
+}
+
 // sidebar holds the mailbox listing and statuses shown in every IMAP page's
 // aside, before assembly into render data.
 type sidebar struct {
@@ -175,6 +271,69 @@ func (sb sidebar) clone() sidebar {
 		}
 	}
 	return out
+}
+
+// AccountSidebar is one account's folder tree for the mail aside.
+type AccountSidebar struct {
+	Account     string
+	Categorized CategorizedMailboxes
+	InboxUnseen int
+}
+
+// accountSidebars holds each account's raw sidebar so the aside renders
+// without waiting on every account's server; reloads run in the
+// background once an entry goes stale.
+var accountSidebars = alborz.NewBackgroundMemo[sidebar](listingFreshFor)
+
+func sidebarFor(s *alborz.Session) (sidebar, error) {
+	return accountSidebars.Get(s.Username(), func() (sidebar, error) {
+		// Loaded before DoIMAP: on a METADATA server the settings read
+		// is itself a DoIMAP, and the session lock is not reentrant.
+		settings, err := LoadSettings(s.Store())
+		if err != nil {
+			return sidebar{}, err
+		}
+		var sb sidebar
+		err = s.DoIMAP(func(c *imapclient.Client) error {
+			load, err := startSidebar(c, "", "", settings.Subscriptions)
+			if err != nil {
+				return err
+			}
+			sb, err = load.finish()
+			return err
+		})
+		return sb, err
+	})
+}
+
+// sidebarAccounts assembles every signed-in account's folder tree for the
+// aside; empty with a single account, whose aside needs no sections. A
+// failing account is skipped and its section reappears once its server
+// answers again.
+func sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
+	sessions := ctx.Sessions()
+	if len(sessions) < 2 {
+		return nil
+	}
+	var accounts []AccountSidebar
+	for _, s := range sessions {
+		sb, err := sidebarFor(s)
+		if err != nil {
+			ctx.Logger().Printf("sidebar for %q: %v", s.Username(), err)
+			continue
+		}
+		ib := assembleIMAPBase(ctx, &alborz.BaseRenderData{}, "", sb.clone(), false)
+		unseen := 0
+		if ib.Inbox != nil && ib.Inbox.NumUnseen != nil {
+			unseen = int(*ib.Inbox.NumUnseen)
+		}
+		accounts = append(accounts, AccountSidebar{
+			Account:     s.Username(),
+			Categorized: ib.CategorizedMailboxes,
+			InboxUnseen: unseen,
+		})
+	}
+	return accounts
 }
 
 // countedMailboxes names the folders the sidebar shows counts for: the
@@ -344,7 +503,9 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 	// The starred view filters the active mailbox; highlight the Starred
 	// sidebar entry instead of the mailbox itself.
 	starred := ctx.QueryParam("starred") == "1"
-	return assembleIMAPBase(ctx, base, mboxName, sb, starred), nil
+	ibase := assembleIMAPBase(ctx, base, mboxName, sb, starred)
+	ibase.SidebarAccounts = sidebarAccounts(ctx)
+	return ibase, nil
 }
 
 // unifiedRoles are the folder roles the merged all-accounts view offers;
@@ -375,18 +536,32 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	query := ctx.QueryParam("query")
 	starred := ctx.QueryParam("starred") == "1"
 
+	sortKey := ctx.QueryParam("sort")
+	if _, ok := sortKeys[sortKey]; !ok {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
+	}
+	sortDir := ctx.QueryParam("dir")
+	if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
+	}
+	reverse := sortKeys[sortKey].descends
+	if sortDir != "" {
+		reverse = sortDir == "desc"
+	}
+
 	// Each account contributes its own newest window; after the merge the
 	// requested page is cut from the combined order. The first page comes
 	// from the listing cache when it can, the slowest account no longer
 	// gating every click.
 	window := (page + 1) * messagesPerPage
 	cacheable := ctx.Request().Method == http.MethodGet && page == 0 &&
-		query == "" && !starred
+		query == "" && !starred && sortKey == "" && sortDir == ""
 	var (
-		mu    sync.Mutex
-		wg    sync.WaitGroup
-		msgs  []IMAPMessage
-		total int
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		msgs     []IMAPMessage
+		total    int
+		sortable = true
 	)
 	// One span across the whole fan-out: the accounts are queried
 	// concurrently, so its wall-clock is the page's IMAP time.
@@ -439,6 +614,11 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 					snapCmd = c.Status(folder, listingStatusOptions(c))
 				}
 
+				if !c.Caps().Has(imap.CapSort) {
+					mu.Lock()
+					sortable = false
+					mu.Unlock()
+				}
 				var accountMsgs []IMAPMessage
 				var accountTotal int
 				switch {
@@ -447,6 +627,10 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 				case starred:
 					criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 					accountMsgs, accountTotal, err = searchMessages(c, folder, criteria, 0, window, "", true)
+				case (sortKey != "" || sortDir != "") && c.Caps().Has(imap.CapSort):
+					// Each account's window is cut under the requested
+					// order, so the merge sees the right candidates.
+					accountMsgs, accountTotal, err = searchMessages(c, folder, &imap.SearchCriteria{}, 0, window, sortKey, reverse)
 				default:
 					accountMsgs, accountTotal, err = listMessages(c, folder, 0, window)
 				}
@@ -482,9 +666,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		}
 	}
 
-	sort.SliceStable(msgs, func(i, j int) bool {
-		return msgs[i].Envelope.Date.After(msgs[j].Envelope.Date)
-	})
+	slices.SortStableFunc(msgs, unifiedLess(sortKey, reverse))
 	from := page * messagesPerPage
 	to := from + messagesPerPage
 	if from > len(msgs) {
@@ -509,18 +691,87 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 
 	return ctx.Render(http.StatusOK, "mailbox.html", &MailboxRenderData{
 		IMAPBaseRenderData: IMAPBaseRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
-			Mailbox:        &MailboxStatus{StatusData: &imap.StatusData{Mailbox: title}, Label: title},
-			Starred:        starred,
+			BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
+			Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: title}, Label: title},
+			Starred:         starred,
+			SidebarAccounts: sidebarAccounts(ctx),
 		},
-		Messages:  msgs,
-		PrevPage:  prevPage,
-		NextPage:  nextPage,
-		RangeFrom: from + 1,
-		RangeTo:   to,
-		Total:     total,
-		Query:     query,
+		Messages:      msgs,
+		PrevPage:      prevPage,
+		NextPage:      nextPage,
+		RangeFrom:     from + 1,
+		RangeTo:       to,
+		Total:         total,
+		Query:         query,
+		Sort:          sortKey,
+		SortDir:       map[bool]string{true: "desc", false: "asc"}[reverse],
+		SortSupported: sortable,
 	})
+}
+
+// unifiedLess merges the accounts' windows under the same order each
+// window was cut with; date breaks ties so equal keys stay stable.
+func unifiedLess(sortKey string, reverse bool) func(a, b IMAPMessage) int {
+	byDate := func(a, b IMAPMessage) int {
+		return b.Envelope.Date.Compare(a.Envelope.Date)
+	}
+	var cmp func(a, b IMAPMessage) int
+	switch sortKey {
+	case "from":
+		cmp = func(a, b IMAPMessage) int {
+			return strings.Compare(strings.ToLower(senderLabel(a)), strings.ToLower(senderLabel(b)))
+		}
+	case "subject":
+		cmp = func(a, b IMAPMessage) int {
+			return strings.Compare(strings.ToLower(a.Envelope.Subject), strings.ToLower(b.Envelope.Subject))
+		}
+	case "size":
+		cmp = func(a, b IMAPMessage) int {
+			switch {
+			case a.RFC822Size < b.RFC822Size:
+				return -1
+			case a.RFC822Size > b.RFC822Size:
+				return 1
+			}
+			return 0
+		}
+	case "starred":
+		cmp = func(a, b IMAPMessage) int {
+			af, bf := a.HasFlag(imap.FlagFlagged), b.HasFlag(imap.FlagFlagged)
+			if af == bf {
+				return 0
+			}
+			if af {
+				return -1
+			}
+			return 1
+		}
+	default:
+		if reverse {
+			return func(a, b IMAPMessage) int { return byDate(a, b) }
+		}
+		return func(a, b IMAPMessage) int { return -byDate(a, b) }
+	}
+	return func(a, b IMAPMessage) int {
+		c := cmp(a, b)
+		if reverse {
+			c = -c
+		}
+		if c != 0 {
+			return c
+		}
+		return byDate(a, b)
+	}
+}
+
+func senderLabel(m IMAPMessage) string {
+	for _, a := range m.Envelope.From {
+		if a.Name != "" {
+			return a.Name
+		}
+		return a.Addr()
+	}
+	return ""
 }
 
 func handleGetMailbox(ctx *alborz.Context) error {
@@ -635,6 +886,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	}
 
 	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, starred)
+	ibase.SidebarAccounts = sidebarAccounts(ctx)
 	title := ctx.T("mailbox.starred")
 	if !starred && ibase.Mailbox != nil {
 		title = ibase.Mailbox.Label
@@ -703,7 +955,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 		}
 
 		listings.evictAll(ctx.Session.Username())
-		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%s", url.PathEscape(name)))
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%s", url.PathEscape(name))))
 	}
 
 	return ctx.Render(http.StatusOK, "new-mailbox.html", &NewMailboxRenderData{
@@ -727,7 +979,7 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 		})
 		listings.evictAll(ctx.Session.Username())
 		ctx.Session.PutNotice(ctx.T("notice.mailboxdeleted"))
-		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 	}
 
 	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.deletetitle"), mbox.Name()))
@@ -979,6 +1231,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 
 	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, starred)
+	ibase.SidebarAccounts = sidebarAccounts(ctx)
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject)
 	mbox := ibase.Mailbox
 
@@ -1084,7 +1337,19 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 		_, saveAsDraft := formParams["save_as_draft"]
 
-		msg.From = ctx.FormValue("from")
+		// The From dropdown picks the sending account; everything after
+		// this line, SMTP and Sent folder included, follows it.
+		if from := ctx.FormValue("from_account"); from != "" && from != ctx.Session.Username() {
+			session := ctx.SessionFor(from)
+			if session == nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+			}
+			ctx.Session = session
+		}
+		msg.From = ctx.Session.Username()
+		if settings, err := LoadSettings(ctx.Session.Store()); err == nil && settings.From != "" {
+			msg.From = (&mail.Address{Name: settings.From, Address: ctx.Session.Username()}).String()
+		}
 		msg.To = parseAddressList(ctx.FormValue("to"))
 		msg.Cc = parseAddressList(ctx.FormValue("cc"))
 		msg.Bcc = parseAddressList(ctx.FormValue("bcc"))
@@ -1579,13 +1844,13 @@ func handleMove(ctx *alborz.Context) error {
 
 	if len(uids) == 0 {
 		ctx.Session.PutNotice(ctx.T("notice.nomessages"))
-		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
 	}
 
 	to := formOrQueryParam(ctx, "to")
 	if to == "" {
 		ctx.Session.PutNotice(ctx.T("notice.nodestination"))
-		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
 	}
 
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -1610,7 +1875,46 @@ func handleMove(ctx *alborz.Context) error {
 	if path := formOrQueryParam(ctx, "next"); path != "" {
 		return ctx.Redirect(http.StatusFound, path)
 	}
-	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+}
+
+// handleEmptyMailbox expunges everything in a folder, the standard
+// one-click cleanup for Junk and Trash.
+func handleEmptyMailbox(ctx *alborz.Context) error {
+	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
+		if err := ensureMailboxSelected(c, mboxName); err != nil {
+			return err
+		}
+		if n := c.Mailbox().NumMessages; n == 0 {
+			return nil
+		}
+		var seq imap.SeqSet
+		seq.AddRange(1, 0)
+		err := c.Store(seq, &imap.StoreFlags{
+			Op:     imap.StoreFlagsAdd,
+			Silent: true,
+			Flags:  []imap.Flag{imap.FlagDeleted},
+		}, nil).Close()
+		if err != nil {
+			return fmt.Errorf("failed to add deleted flag: %v", err)
+		}
+		if err := c.Expunge().Close(); err != nil {
+			return fmt.Errorf("failed to expunge mailbox: %v", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	listings.evict(ctx.Session.Username(), mboxName)
+	ctx.Session.PutNotice(ctx.T("notice.deleted"))
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
 }
 
 func handleDelete(ctx *alborz.Context) error {
@@ -1630,7 +1934,7 @@ func handleDelete(ctx *alborz.Context) error {
 
 	if len(uids) == 0 {
 		ctx.Session.PutNotice(ctx.T("notice.nomessages"))
-		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
 	}
 
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -1662,7 +1966,7 @@ func handleDelete(ctx *alborz.Context) error {
 	if path := formOrQueryParam(ctx, "next"); path != "" {
 		return ctx.Redirect(http.StatusFound, path)
 	}
-	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
 }
 
 func handleSetFlags(ctx *alborz.Context) error {
@@ -1738,9 +2042,9 @@ func handleSetFlags(ctx *alborz.Context) error {
 	}
 	if len(uids) != 1 || (op == imap.StoreFlagsDel && len(l) == 1 && l[0] == imap.FlagSeen) {
 		// Redirecting to the message view would mark the message as read again
-		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
 	}
-	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uids[0]))
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uids[0])))
 }
 
 const settingsKey = "base.settings"

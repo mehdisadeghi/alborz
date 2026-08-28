@@ -45,6 +45,10 @@ type GlobalRenderData struct {
 	// Unified marks the merged all-accounts view
 	Unified bool
 
+	// Account named by the request's account parameter, for links that
+	// must keep pointing into the same account; empty otherwise.
+	URLAccount string
+
 	// Forced color scheme: "light" or "dark", empty to follow the system
 	ColorScheme string
 
@@ -207,6 +211,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Unified = ctx.Unified
+		global.URLAccount = ctx.urlAccount
 	}
 
 	if isactx && ctx.Session != nil {

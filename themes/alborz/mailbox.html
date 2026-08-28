@@ -11,7 +11,36 @@
         {{ template "messages-header.html" . }}
       </section>
       <section class="messages">
-        <div class="message-grid">
+        <div class="message-grid{{ if .GlobalData.Unified }} unified{{ end }}">
+          {{/* Header row; the labels sort where the server can. */}}
+          {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
+          {{ $hflip := "desc" }}{{ if eq .SortDir "desc" }}{{ $hflip = "asc" }}{{ end }}
+          {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
+          {{ $hreset := ne ($.GlobalData.URL.Query.Get "dir") "" }}
+          {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hbase = "?starred=1" }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | urlquery) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | urlquery) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
+          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | urlquery) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}
+          {{ $harrow := "↑" }}{{ if eq .SortDir "desc" }}{{ $harrow = "↓" }}{{ end }}
+          {{ if not .GlobalData.Unified }}
+          <div class="message-list-header message-list-checkbox"></div>
+          {{ end }}
+          <div class="message-list-header message-list-sender">
+            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.sender") "key" "from" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.sender"}}{{ end }}
+          </div>
+          {{ if .GlobalData.Unified }}
+          <div class="message-list-header message-list-account">{{$.T "mailbox.account"}}</div>
+          {{ end }}
+          <div class="message-list-header message-list-flags">
+            {{ if .SortSupported }}{{ template "sort-th" (dict "label" "★" "key" "starred" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset "idle" "☆") }}{{ end }}
+          </div>
+          <div class="message-list-header message-list-subject">
+            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.subject") "key" "subject" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.subject"}}{{ end }}
+          </div>
+          <div class="message-list-header message-list-date">
+            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.date") "key" "date" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.date"}}{{ end }}
+          </div>
+          <div class="message-list-header message-list-size">
+            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.size") "key" "size" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.size"}}{{ end }}
+          </div>
           {{range .Messages}}
           {{ $classes := "message-list-item" }}
           {{ if not (.HasFlag "\\Seen") }}
@@ -23,14 +52,13 @@
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
           <div class="message-row">
+          {{ if not $.GlobalData.Unified }}
           <div class="message-list-checkbox {{$classes}}">
-            {{ if $.GlobalData.Unified }}
-            <span class="color-dot" style="background:{{accountcolor .Account}}" title="{{.Account}}"></span>
-            {{ else }}
             <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form">
-            {{ end }}
           </div>
+          {{ end }}
           <div class="message-list-sender {{$classes}}">
+            {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{.Account}}</span>{{ end }}
             {{ if not .Envelope.From }}{{$.T "mailbox.nosender"}}{{ end }}
             {{ range .Envelope.From }}
             <a dir="auto" href='?query=from:"{{.Addr}}"'>
@@ -42,11 +70,11 @@
             </a>
             {{ end }}
           </div>
+          {{ if $.GlobalData.Unified }}
+          <div class="message-list-account {{$classes}}"><span title="{{.Account}}">{{.Account}}</span></div>
+          {{ end }}
           <div class="message-list-flags {{$classes}}">
-            {{if .Attachments}}<span class="Has attachments">📎</span>{{end}}
-            {{if .HasFlag "\\Answered"}}<span class="Replied">↩</span>{{end}}
-            {{if .HasFlag "$Forwarded"}}<span class="Forwarded">↪</span>{{end}}
-            <form method="POST" action="/message/{{.Mailbox}}/flag{{ if $.GlobalData.Unified }}?account={{.Account}}{{ end }}">
+            <form method="POST" action="/message/{{.Mailbox}}/flag{{ if $.GlobalData.Unified }}?account={{.Account}}{{ else }}{{ with $.GlobalData.URLAccount }}?account={{.}}{{ end }}{{ end }}">
               <input type="hidden" name="uids" value="{{.UID}}">
               {{ if .HasFlag "\\Flagged" -}}
               <input type="hidden" name="action" value="remove">
@@ -63,12 +91,21 @@
                 {{- end -}}
               </button>
             </form>
-          </div>
+            {{if .Attachments}}<span class="Has attachments">📎</span>{{end}}
+            {{if .HasFlag "\\Answered"}}<span class="Replied">↩</span>{{end}}
+            {{if .HasFlag "$Forwarded"}}<span class="Forwarded">↪</span>{{end}}
+                      </div>
           <div class="message-list-subject {{$classes}}">
             {{if $.GlobalData.Unified}}
             <a href="{{.URL}}?account={{.Account}}">
             {{else}}
-            <a href="{{if .TextPart}}{{.TextPart.URL false}}{{if $.Starred}}&starred=1{{else if $.Query}}&query={{$.Query}}{{end}}{{else}}{{.URL}}{{if $.Starred}}?starred=1{{else if $.Query}}?query={{$.Query}}{{end}}{{end}}">
+            {{/* Built in one piece: the escaper cannot follow a URL whose
+                 query grows across branches. */}}
+            {{$link := ""}}{{$sep := "?"}}
+            {{if .TextPart}}{{$link = printf "%v" (.TextPart.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
+            {{if $.Starred}}{{$link = printf "%s%sstarred=1" $link $sep}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | urlquery)}}{{$sep = "&"}}{{end}}
+            {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | urlquery)}}{{end}}
+            <a href="{{$link}}">
             {{end}}
               {{if .Envelope.Subject}}
                 <bdi dir="auto">{{.Envelope.Subject}}</bdi>
@@ -80,6 +117,7 @@
           <div class="message-list-date {{$classes}}">
             {{ .Envelope.Date | humantime }}
           </div>
+          <div class="message-list-size {{$classes}}">{{ humansize .RFC822Size }}</div>
           </div>
           {{ end }}
 

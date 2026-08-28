@@ -82,3 +82,10 @@ func (m *Memo[T]) Get(user string, load func() (T, error)) (T, error) {
 	}
 	return e.val, nil
 }
+
+// Forget drops the user's value, for writes that invalidate it.
+func (m *Memo[T]) Forget(user string) {
+	m.mu.Lock()
+	delete(m.entries, user)
+	m.mu.Unlock()
+}

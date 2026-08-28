@@ -27,6 +27,9 @@ type AddressBookInfo struct {
 	Color    string
 	Visible  bool
 	Writable bool
+
+	// Account owning the book, set only in the unified view
+	Account string
 }
 
 type davMultiStatus struct {
@@ -255,14 +258,9 @@ func newClient(u *url.URL, httpClient *http.Client) (*carddav.Client, error) {
 
 type AddressObject struct {
 	*carddav.AddressObject
-}
 
-func newAddressObjectList(aos []carddav.AddressObject) []AddressObject {
-	l := make([]AddressObject, len(aos))
-	for i := range aos {
-		l[i] = AddressObject{&aos[i]}
-	}
-	return l
+	// Account owning the contact, set only in the unified view
+	Account string
 }
 
 func (ao AddressObject) URL() string {

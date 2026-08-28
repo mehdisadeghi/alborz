@@ -146,7 +146,8 @@ func (p *plugin) clientWithAddressBook(ctx context.Context, session *alborz.Sess
 }
 
 // domainURL resolves the domain's CardDAV endpoint; nil without error means
-// the domain has none.
+// the domain has none. It reads DNS and config only, so startup never
+// waits on the server itself.
 func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
 	u, err := srv.Upstream(domain, "carddavs", "carddav+insecure", "https", "http+insecure")
 	if _, ok := err.(*alborz.NoUpstreamError); ok {
@@ -172,10 +173,6 @@ func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
 		if err != nil {
 			return nil, fmt.Errorf("carddav: Discover returned an invalid URL: %v", err)
 		}
-	}
-
-	if err := sanityCheckURL(u); err != nil {
-		return nil, fmt.Errorf("carddav: domain %q: failed to connect to CardDAV server %q: %v", domain, u, err)
 	}
 
 	srv.Logger().Printf("Domain %q: configured upstream CardDAV server: %v", domain, u)
@@ -273,6 +270,16 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		return nil
 	})
 
+	// Asking whether a server answers may take seconds each; it runs
+	// after the port is open, and a request surfaces an unreachable one
+	// until it recovers.
+	for domain, u := range urls {
+		go func() {
+			if err := sanityCheckURL(u); err != nil {
+				srv.Logger().Printf("Warning: carddav: domain %q: CardDAV server %q not reachable at startup: %v", domain, u, err)
+			}
+		}()
+	}
 	return p.Plugin(), nil
 }
 

@@ -100,7 +100,8 @@ func sanityCheckURL(u *url.URL) error {
 }
 
 // domainURL resolves the domain's CalDAV endpoint; nil without error means
-// the domain has none.
+// the domain has none. It reads DNS and config only, so startup never
+// waits on the server itself.
 func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
 	u, err := srv.Upstream(domain, "caldavs", "caldav+insecure", "https", "http+insecure")
 	if _, ok := err.(*alborz.NoUpstreamError); ok {
@@ -126,10 +127,6 @@ func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
 		if err != nil {
 			return nil, fmt.Errorf("caldav: Discover returned an invalid URL: %v", err)
 		}
-	}
-
-	if err := sanityCheckURL(u); err != nil {
-		return nil, fmt.Errorf("caldav: domain %q: failed to connect to CalDAV server %q: %v", domain, u, err)
 	}
 
 	srv.Logger().Printf("Domain %q: configured upstream CalDAV server: %v", domain, u)
@@ -173,6 +170,16 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 
 	registerRoutes(p)
 
+	// Asking whether a server answers may take seconds each; it runs
+	// after the port is open, and a request surfaces an unreachable one
+	// until it recovers.
+	for domain, u := range urls {
+		go func() {
+			if err := sanityCheckURL(u); err != nil {
+				srv.Logger().Printf("Warning: caldav: domain %q: CalDAV server %q not reachable at startup: %v", domain, u, err)
+			}
+		}()
+	}
 	return p.Plugin(), nil
 }
 

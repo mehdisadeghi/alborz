@@ -61,7 +61,9 @@ type Session struct {
 	closed             chan struct{}
 	pings              chan struct{}
 	store              Store
-	notice             string
+
+	noticeLocker sync.Mutex
+	notice       string // protected by noticeLocker
 
 	imapLocker sync.Mutex
 	imapConn   *imapclient.Client // protected by locker, can be nil
@@ -258,10 +260,14 @@ func (s *Session) PopAttachment(uuid string) *Attachment {
 }
 
 func (s *Session) PutNotice(n string) {
+	s.noticeLocker.Lock()
 	s.notice = n
+	s.noticeLocker.Unlock()
 }
 
 func (s *Session) PopNotice() string {
+	s.noticeLocker.Lock()
+	defer s.noticeLocker.Unlock()
 	n := s.notice
 	s.notice = ""
 	return n

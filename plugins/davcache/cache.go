@@ -154,6 +154,19 @@ func collectionOf(p string) string {
 	return path.Dir(p) + "/"
 }
 
+// parentOf returns the collection holding this one, empty at the root.
+func parentOf(collection string) string {
+	trimmed := strings.TrimSuffix(collection, "/")
+	if trimmed == "" {
+		return ""
+	}
+	parent := path.Dir(trimmed)
+	if parent == "/" || parent == "." {
+		return ""
+	}
+	return parent + "/"
+}
+
 // The separator cannot appear in URL paths, which may contain spaces.
 func cacheKey(method, urlPath, depth string, body []byte) string {
 	sum := sha256.Sum256(body)
@@ -190,7 +203,13 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if !cacheable(req.Method) {
 		resp, err := t.next.RoundTrip(req)
 		if err == nil && resp.StatusCode < 300 {
-			u.evict(collectionOf(req.URL.Path))
+			collection := collectionOf(req.URL.Path)
+			u.evict(collection)
+			// Creating or removing a collection changes what its parent
+			// lists, and that listing is how the sidebar is built.
+			if parent := parentOf(collection); parent != "" {
+				u.evict(parent)
+			}
 		}
 		return resp, err
 	}

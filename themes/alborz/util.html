@@ -102,55 +102,155 @@
 </form>
 {{ end }}
 
+{{/* One pagination group: an optional range, then prev and next links.
+     dict: [range] [prev href label] [next href label]. */}}
+{{ define "pagination" }}
+<div class="actions-pagination">
+  {{ with .range }}<span class="pagination-range">{{.}}</span>{{ end }}
+  {{ with .prev }}{{ if .href }}<a href="{{localhref .href}}" class="button-link">{{.label}}</a>{{ end }}{{ end }}
+  {{ with .next }}{{ if .href }}<a href="{{localhref .href}}" class="button-link">{{.label}}</a>{{ end }}{{ end }}
+</div>
+{{ end }}
+
+{{/* One list toolbar: the title on the gutter, search and pagination
+     docked right. dict: [title] [search] [pagination]. */}}
+{{ define "list-toolbar" }}
+<div class="actions-wrap">
+  {{ if .title }}<div class="actions-message"><h2>{{.title}}</h2></div>{{ end }}
+  {{ if or .search .pagination }}
+  <div class="actions-end">
+    {{ with .search }}{{ template "toolbar-search" . }}{{ end }}
+    {{ with .pagination }}{{ template "pagination" . }}{{ end }}
+  </div>
+  {{ end }}
+</div>
+{{ end }}
+
+{{/* The bulk-select-all checkbox cell; scripts reveal it and gate the
+     bulk buttons on a checked row. */}}
+{{ define "toolbar-select-all" }}
+<div class="message-list-checkbox">
+  <input type="checkbox" id="action-checkbox-all" aria-label="{{$.T "mailbox.selectall"}}" style="display: none"/>
+</div>
+{{ end }}
+
 {{ define "detail-aside" }}
 <aside>
-  <a href="{{.newHref}}" class="new{{ if .newActive }} active{{ end }}">{{.newLabel}}</a>
+  {{ if .newHref }}<a href="{{.newHref}}" class="new{{ if .newActive }} active{{ end }}">{{.newLabel}}</a>{{ end }}
   {{ if .backHref }}<a href="{{.backHref}}"{{ if .backActive }} class="active"{{ end }}>{{.backLabel}}</a>{{ end }}
 </aside>
 {{ end }}
 
-{{/* Collections grouped by account, read-only, for merged DAV views.
-     dict: items itemclass. */}}
-{{ define "dav-aside-groups" }}
+{{/* One stacked form field: a full-width caption over its control.
+     dict: label name [type] [value] [dir] [placeholder] [required]
+           [rows] [autofocus]. */}}
+{{ define "field" }}
+<label>
+  <span>{{.label}}</span>
+  {{ if .rows }}
+  <textarea name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} rows="{{.rows}}"{{ if .autofocus }} autofocus{{ end }}>{{.value}}</textarea>
+  {{ else }}
+  <input type="{{with .type}}{{.}}{{else}}text{{end}}" name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} value="{{.value}}"{{ if .placeholder }} placeholder="{{.placeholder}}"{{ end }}{{ if .required }} required{{ end }}{{ if .autofocus }} autofocus{{ end }}>
+  {{ end }}
+</label>
+{{ end }}
+
+{{/* Save/cancel footer of a create or update form.
+     dict: save [cancel cancelLabel]. */}}
+{{ define "form-actions" }}
+<div class="actions">
+  <button type="submit" class="button-primary">{{.save}}</button>
+  {{ if .cancel }}<a class="button-link button-quiet" href="{{.cancel}}">{{.cancelLabel}}</a>{{ end }}
+</div>
+{{ end }}
+
+{{/* One collection's visibility checkbox: (item, field, itemclass). */}}
+{{ define "dav-filter-item" }}
+{{ $i := index . 0 }}{{ $field := index . 1 }}{{ $class := index . 2 }}
+<label class="{{$class}}" title="{{$i.Name}}">
+  <input type="checkbox" name="{{$field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }}>
+  <span>{{$i.Name}}</span>
+</label>
+{{ end }}
+
+{{/* The DAV aside: one create entry (the form picks the destination
+     account), then per account its visibility form, under a heading
+     when several accounts pool. One account renders zero chrome.
+     dict: items field itemclass action apply newhref newlabel multi
+     next. */}}
+{{ define "dav-aside-group-filters" }}
+<a href="{{.newhref}}" class="new">{{.newlabel}}</a>
+{{ with .collectionhref }}<a href="{{.}}" class="aside-create">{{$.collectionlabel}}</a>{{ end }}
 {{ $prev := "" }}
 {{ range .items }}
-{{ if ne .Account $prev }}{{ $prev = .Account }}
-<div class="aside-account"><span class="color-dot" style="background:{{accountcolor .Account}}"></span> {{.Account}}</div>
+{{ if ne .Account $prev }}
+{{ if ne $prev "" }}<button>{{$.apply}}</button></form>{{ end }}
+{{ $prev = .Account }}
+<form method="post" action="{{$.action}}{{account "?" .Account}}" class="aside-filter" data-source-group>
+<input type="hidden" name="next" value="{{$.next}}">
+{{ if $.multi }}
+<label class="aside-account source-account-toggle">
+  <input type="checkbox" data-source-account-toggle aria-label="{{.Account}}">
+  <span>{{.Account}}</span>
+</label>
 {{ end }}
-<span class="{{$.itemclass}}">
-  {{ if .Color }}<span class="color-dot" style="background:{{.Color}}"></span>{{ end }}
-  {{.Name}}
-</span>
+{{ end }}
+{{ template "dav-filter-item" (tuple . $.field $.itemclass) }}
+{{ end }}
+{{ if ne $prev "" }}<button>{{$.apply}}</button></form>{{ end }}
+{{ end }}
+
+{{/* Account-scoped sections choose scope in the navigation rail, in the
+     same place as mail folders and DAV collection filters. The content
+     pane only reports the chosen scope. dict: accounts current path
+     newhref newlabel. */}}
+{{ define "account-scope-aside" }}
+{{ with .newhref }}<a href="{{.}}" class="new">{{$.newlabel}}</a>{{ end }}
+{{ if gt (len .accounts) 1 }}
+<ul class="account-scope-list">
+  {{ range .accounts }}
+  <li{{if eq .Username $.current}} class="active"{{end}}>
+    <a href="{{$.path}}{{account "?" .Username}}">{{.Username}}</a>
+  </li>
+  {{ end }}
+</ul>
 {{ end }}
 {{ end }}
 
-{{/* Per-collection visibility checkboxes for one account's DAV views.
-     dict: field items itemclass. */}}
-{{ define "dav-aside-filter" }}
-{{ range .items }}
-<label class="{{$.itemclass}}">
-  <input type="checkbox" name="{{$.field}}" value="{{.Path}}" {{ if .Visible }}checked{{ end }} data-submit-on-change {{ if .Color }}style="accent-color:{{.Color}}"{{ end }}>
-  {{.Name}}
-</label>
-{{ end }}
+{{/* The settings rail: one entry per account for the pane that writes
+     to that account's server, then the pane that writes to this browser
+     and belongs to no account. dict: accounts current browser. */}}
+{{ define "settings-aside" }}
+<aside>
+  {{ if not .browser }}
+  {{ template "account-scope-aside" (dict "accounts" .accounts "current" .current "path" "/settings") }}
+  {{ else }}
+  <ul class="account-scope-list">
+    {{ range .accounts }}
+    <li><a href="/settings{{account "?" .Username}}">{{.Username}}</a></li>
+    {{ end }}
+  </ul>
+  {{ end }}
+  <a href="/settings/browser" class="aside-create{{ if .browser }} active{{ end }}">{{.browserLabel}}</a>
+</aside>
 {{ end }}
 
 {{ define "aside" }}
 <aside>
-  <ul>
-    <li>
-      <a href="/compose" class="new{{ if eq $.GlobalData.URL.Path "/compose" }} active{{ end }}">{{$.T "aside.compose"}}</a>
-    </li>
-  </ul>
+  {{/* Composing lives in the toolbar, pinned after the title's rule, so
+       the rail is folders and nothing else. */}}
   {{ $starred := .Starred }}
   {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
   {{ if .SidebarAccounts }}
-  {{/* Every mailbox is a place: merged favorites on top, then each
-       account's own folders; links select scope per request only. */}}
+  {{/* Every mailbox is a place: the merged roles on top, then each
+       account's own folders; links select scope per request only. The
+       heading carries the scope, so the rows name the bare role. */}}
   {{ $acct := $.GlobalData.URLAccount }}
   {{ $all := $.GlobalData.Unified }}
-  <ul class="favorites">
-    {{ range tuple (tuple "aside.allinboxes" "INBOX" false) (tuple "aside.starred" "INBOX" true) (tuple "aside.alldrafts" "Drafts" false) (tuple "aside.allsent" "Sent" false) (tuple "aside.alljunk" "Junk" false) (tuple "aside.alltrash" "Trash" false) (tuple "aside.allarchive" "Archive" false) }}
+  <details class="acct-folders aggregate-folders" open>
+  <summary class="aside-account">{{$.T "nav.allaccounts"}}</summary>
+  <ul class="merged-roles">
+    {{ range tuple (tuple "aside.inbox" "INBOX" false) (tuple "aside.starred" "INBOX" true) (tuple "aside.drafts" "Drafts" false) (tuple "aside.sent" "Sent" false) (tuple "aside.junk" "Junk" false) (tuple "aside.trash" "Trash" false) (tuple "aside.archive" "Archive" false) }}
     {{ $role := index . 1 }}{{ $star := index . 2 }}
     <li {{ if and $all (eq $active $role) (eq $starred $star) }}class="active"{{ end }}>
       <a href="/mailbox/{{$role}}?all=1{{ if $star }}&starred=1{{ end }}">{{$.T (index . 0)}}</a>

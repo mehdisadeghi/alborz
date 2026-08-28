@@ -1,6 +1,7 @@
 package alborzcarddav
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -78,7 +79,21 @@ func addressBookByPath(addressBooks []AddressBookInfo, path string) *AddressBook
 }
 
 func registerRoutes(p *plugin) {
-	p.POST("/contacts", func(ctx *alborz.Context) error {
+	// A missing address book is a state to explain, not an error: every
+	// route in the section answers with the account named.
+	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
+		return func(ctx *alborz.Context) error {
+			err := h(ctx)
+			if errors.Is(err, errNoAddressBook) {
+				return alborz.RenderInfo(ctx, http.StatusOK,
+					fmt.Sprintf(ctx.T("contacts.unconfigured"), ctx.Session.Username()))
+			}
+			return err
+		}
+	}
+	GET := func(path string, h func(*alborz.Context) error) { p.GoPlugin.GET(path, guard(h)) }
+	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }
+	POST("/contacts", func(ctx *alborz.Context) error {
 		settings := &Settings{}
 		if err := ctx.Session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 			return fmt.Errorf("failed to load CardDAV settings: %v", err)
@@ -95,7 +110,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
 	})
 
-	p.GET("/contacts", func(ctx *alborz.Context) error {
+	GET("/contacts", func(ctx *alborz.Context) error {
 		queryText := ctx.QueryParam("query")
 
 		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
@@ -221,7 +236,7 @@ func registerRoutes(p *plugin) {
 		})
 	})
 
-	p.GET("/contacts/:path", func(ctx *alborz.Context) error {
+	GET("/contacts/:path", func(ctx *alborz.Context) error {
 		path, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -408,13 +423,13 @@ func registerRoutes(p *plugin) {
 		})
 	}
 
-	p.GET("/contacts/create", updateContact)
-	p.POST("/contacts/create", updateContact)
+	GET("/contacts/create", updateContact)
+	POST("/contacts/create", updateContact)
 
-	p.GET("/contacts/:path/edit", updateContact)
-	p.POST("/contacts/:path/edit", updateContact)
+	GET("/contacts/:path/edit", updateContact)
+	POST("/contacts/:path/edit", updateContact)
 
-	p.POST("/contacts/:path/delete", func(ctx *alborz.Context) error {
+	POST("/contacts/:path/delete", func(ctx *alborz.Context) error {
 		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -432,7 +447,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Redirect(http.StatusFound, "/contacts")
 	})
 
-	p.POST("/contacts/delete", func(ctx *alborz.Context) error {
+	POST("/contacts/delete", func(ctx *alborz.Context) error {
 		params, err := ctx.FormParams()
 		if err != nil {
 			return err

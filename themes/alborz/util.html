@@ -57,6 +57,15 @@
 
 {{/* The aside of the detail and edit pages.
      dict: newHref newLabel newActive [backHref backLabel backActive]. */}}
+{{ define "toolbar-search" }}
+<form method="get" class="actions-search">
+  {{ with .account }}<input type="hidden" name="account" value="{{.}}">{{ end }}
+  {{ if .all }}<input type="hidden" name="all" value="1">{{ end }}
+  <input type="text" name="query" dir="auto" value="{{.query}}" placeholder="{{.placeholder}}" aria-label="{{.placeholder}}">
+  <button>{{.button}}</button>
+</form>
+{{ end }}
+
 {{ define "detail-aside" }}
 <aside>
   <a href="{{.newHref}}" class="new{{ if .newActive }} active{{ end }}">{{.newLabel}}</a>

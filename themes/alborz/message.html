@@ -1,3 +1,13 @@
+{{/* One message move action: dict mbox aq uid next to label. */}}
+{{ define "msg-move-form" }}
+<form class="action-group" method="post" action="/message/{{.mbox | pathescape}}/move{{.aq}}">
+  <input type="hidden" name="uids" value="{{.uid}}">
+  {{ with .next }}<input type="hidden" name="next" value="{{.}}">{{ end }}
+  <input type="hidden" name="to" value="{{.to}}">
+  <button>{{.label}}</button>
+</form>
+{{ end }}
+
 {{template "head.html" .}}
 {{template "nav.html" .}}
 {{template "util.html" .}}
@@ -5,6 +15,9 @@
 <div class="page-wrap">
   {{ $current := .Mailbox }}
   {{ $aq := "" }}{{ $aamp := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ $aamp = printf "&account=%s" . }}{{ end }}
+  {{/* The query strings every action shares, built once. */}}
+  {{ $partq := $aq }}{{ $partallq := $aq }}{{ with .Message.TextPart }}{{ $partq = printf "?part=%s%s" .PathString $aamp }}{{ $partallq = printf "?part=%s&all=true%s" .PathString $aamp }}{{ end }}
+  {{ $navq := $aq }}{{ if .Starred }}{{ $navq = printf "?starred=1%s" $aamp }}{{ else if .Query }}{{ $navq = printf "?query=%s%s" (.Query | urlquery) $aamp }}{{ end }}
   {{ template "aside" . }}
   <div class="container">
     <main class="message">
@@ -21,10 +34,10 @@
 
             <span class="followups action-group">
               {{if .Message.HasFlag "\\Draft"}}
-                <a class="action-group button-link" href="{{.Message.URL}}/edit{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.editdraft"}}</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/edit{{$partq}}">{{$.T "message.editdraft"}}</a>
               {{else}}
-                <a class="action-group button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.reply"}}</a>
-                <a class="action-group button-link" href="{{.Message.URL}}/forward{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.forward"}}</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/reply{{$partq}}">{{$.T "message.reply"}}</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/forward{{$partq}}">{{$.T "message.forward"}}</a>
               {{end}}
             </span>
 
@@ -35,21 +48,11 @@
               <button>{{$.T "mailbox.deleteperm"}}</button>
             </form>
             {{ else }}
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
-              <input type="hidden" name="uids" value="{{.Message.UID}}">
-              <input type="hidden" name="next" value="{{$back}}">
-              <input type="hidden" name="to" value="{{$trash}}">
-              <button>{{$.T "mailbox.delete"}}</button>
-            </form>
+{{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $trash "label" ($.T "mailbox.delete")) }}
             {{ end }}
 
             {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
-              <input type="hidden" name="uids" value="{{.Message.UID}}">
-              <input type="hidden" name="next" value="{{$back}}">
-              <input type="hidden" name="to" value="{{$junk}}">
-              <button>{{$.T "mailbox.spam"}}</button>
-            </form>
+{{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $junk "label" ($.T "mailbox.spam")) }}
             {{ end }}
 
             <div class="actions-end">
@@ -58,10 +61,10 @@
               <span class="pagination-range">{{.Position}} {{$.T "mailbox.of"}} {{.Total}}</span>
               {{ end }}
               {{ if .NewerURL }}
-              <a class="button-link" href="{{.NewerURL}}{{if .Starred}}?starred=1{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else if .Query}}?query={{.Query}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.newer"}}</a>
+              <a class="button-link" href="{{.NewerURL}}{{$navq}}">{{$.T "message.newer"}}</a>
               {{ end }}
               {{ if .OlderURL }}
-              <a class="button-link" href="{{.OlderURL}}{{if .Starred}}?starred=1{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else if .Query}}?query={{.Query}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.older"}}</a>
+              <a class="button-link" href="{{.OlderURL}}{{$navq}}">{{$.T "message.older"}}</a>
               {{ end }}
             </span>
 
@@ -69,30 +72,16 @@
               <summary class="button" aria-label="{{$.T "mailbox.more"}}">⋮</summary>
               <div class="overflow-menu">
                 {{if not (.Message.HasFlag "\\Draft")}}
-                <a class="button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}&all=true{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.replyall"}}</a>
+                <a class="button-link" href="{{.Message.URL}}/reply{{$partallq}}">{{$.T "message.replyall"}}</a>
                 {{end}}
 
                 {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
-                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
-                  <input type="hidden" name="uids" value="{{.Message.UID}}">
-                  <input type="hidden" name="to" value="{{$archive}}">
-                  <input type="hidden" name="next" value="{{$back}}">
-                  <button>{{$.T "mailbox.archive"}}</button>
-                </form>
+{{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $archive "label" ($.T "mailbox.archive")) }}
                 {{ end }}
 
                 {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
-                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
-                  <input type="hidden" name="uids" value="{{.Message.UID}}">
-                  <input type="hidden" name="to" value="INBOX">
-                  <button>
-                  {{ if eq .Mailbox.Name $junk }}
-                  {{$.T "message.notspam"}}
-                  {{ else }}
-                  {{$.T "message.movetoinbox"}}
-                  {{ end }}
-                  </button>
-                </form>
+{{ $inboxlabel := $.T "message.movetoinbox" }}{{ if eq .Mailbox.Name $junk }}{{ $inboxlabel = $.T "message.notspam" }}{{ end }}
+                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "to" "INBOX" "label" $inboxlabel) }}
                 {{ end }}
 
                 <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/flag{{$aq}}">

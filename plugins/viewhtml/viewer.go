@@ -15,9 +15,11 @@ import (
 const tplSrc = `
 <!-- allow-same-origin is required to resize the frame with its content -->
 <!-- allow-popups is required for target="_blank" links -->
+<div id="email-frame-wrap">
 <iframe id="email-frame" srcdoc="{{.}}" sandbox="allow-same-origin allow-popups"></iframe>
-<script src="/plugins/viewhtml/assets/script.js"></script>
-<link rel="stylesheet" href="/plugins/viewhtml/assets/style.css">
+</div>
+<script src="/plugins/viewhtml/assets/script.js?v=5"></script>
+<link rel="stylesheet" href="/plugins/viewhtml/assets/style.css?v=5">
 `
 
 var tpl = template.Must(template.New("view-html.html").Parse(tplSrc))

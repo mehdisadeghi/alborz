@@ -48,6 +48,8 @@ const discoveryTTL = 5 * time.Minute
 // waiter behind the memo.
 const discoveryTimeout = 30 * time.Second
 
+const requestTimeout = 10 * time.Second
+
 type plugin struct {
 	alborz.GoPlugin
 	urls  map[string]*url.URL // CardDAV endpoint per served mail domain

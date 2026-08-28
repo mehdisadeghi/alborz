@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"time"
 
 	"go.guido-berhoerster.org/managesieve"
 )
@@ -80,12 +81,20 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 		return nil, fmt.Errorf("ManageSieve is disabled for domain %q", domain)
 	}
 
-	c, err := managesieve.Dial(d.sieve.host)
+	host, _, _ := net.SplitHostPort(d.sieve.host)
+	// One deadline spans greeting, STARTTLS and authentication; a wedged
+	// server fails the request instead of hanging it. Cleared on success.
+	conn, err := net.DialTimeout("tcp", d.sieve.host, upstreamTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ManageSieve server: %v", err)
 	}
+	conn.SetDeadline(time.Now().Add(upstreamTimeout))
+	c, err := managesieve.NewClient(conn, host)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to connect to ManageSieve server: %v", err)
+	}
 
-	host, _, _ := net.SplitHostPort(d.sieve.host)
 	if !d.sieve.insecure {
 		if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
 			c.Close()
@@ -97,6 +106,7 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 		c.Close()
 		return nil, AuthError{err}
 	}
+	conn.SetDeadline(time.Time{})
 
 	return &sieveClient{c}, nil
 }

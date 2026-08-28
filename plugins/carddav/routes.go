@@ -8,6 +8,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-vcard"
@@ -38,7 +39,8 @@ type AddressObjectRenderData struct {
 	alborz.BaseRenderData
 	AddressBook   *AddressBookInfo
 	AddressObject AddressObject
-	Birthday      string
+	Birthday      string    // the input format, for the edit form
+	BirthdayDate  time.Time // the same day, for the page to write out
 }
 
 type UpdateAddressObjectRenderData struct {
@@ -54,6 +56,19 @@ type UpdateAddressObjectRenderData struct {
 
 // birthdayValue renders BDAY in the HTML date-input format, accepting both
 // the vCard 4.0 basic format (19850412) and the dashed 3.0 form.
+// birthdayDate parses BDAY into a day, so the page can spell it out in
+// the reader's language and calendar instead of printing the stored
+// digits. A vCard may carry a birthday with no year (--0412); that one
+// has no date to give.
+func birthdayDate(card vcard.Card) time.Time {
+	v := birthdayValue(card)
+	day, err := time.Parse("2006-01-02", v)
+	if err != nil {
+		return time.Time{}
+	}
+	return day
+}
+
 func birthdayValue(card vcard.Card) string {
 	v := card.PreferredValue(vcard.FieldBirthday)
 	if len(v) == 8 {
@@ -303,6 +318,7 @@ func registerRoutes(p *plugin) {
 			AddressBook:    addressBook,
 			AddressObject:  AddressObject{AddressObject: ao},
 			Birthday:       birthdayValue(ao.Card),
+			BirthdayDate:   birthdayDate(ao.Card),
 		})
 	})
 

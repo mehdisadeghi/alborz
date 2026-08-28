@@ -59,7 +59,7 @@
           {{end}}
           {{with $.Birthday}}
           <dt>{{$.T "contacts.birthday"}}</dt>
-          <dd>{{.}}</dd>
+          <dd>{{ if $.BirthdayDate.IsZero }}{{.}}{{ else }}{{ template "date-day" (dict "g" $.Global "time" $.BirthdayDate) }}{{ end }}</dd>
           {{end}}
           {{with .AddressObject.Card.PreferredValue "URL"}}
           <dt>{{$.T "contacts.website"}}</dt>

@@ -159,7 +159,7 @@
           </tr>
           <tr>
             <th>{{$.T "message.date"}}:</th>
-            <td>{{.GlobalData.FormatDate .Message.Envelope.Date}}</td>
+            <td>{{ template "date-full" (dict "g" .Global "time" .Message.Date) }}</td>
           </tr>
           <tr>
             <th>{{$.T "compose.to"}}:</th><td>{{template "addr-list" .Message.Envelope.To}}</td>

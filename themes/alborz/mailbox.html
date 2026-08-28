@@ -23,11 +23,11 @@
           {{ if not .GlobalData.Unified }}
           <div class="message-list-header message-list-checkbox"></div>
           {{ end }}
-          <div class="message-list-header message-list-sender">
-            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.sender") "key" "from" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.sender"}}{{ end }}
-          </div>
           <div class="message-list-header message-list-flags">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" "★" "key" "starred" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset "idle" "☆" "class" "flag-sort") }}{{ end }}
+          </div>
+          <div class="message-list-header message-list-sender">
+            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.sender") "key" "from" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.sender"}}{{ end }}
           </div>
           <div class="message-list-header message-list-subject">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.subject") "key" "subject" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.subject"}}{{ end }}

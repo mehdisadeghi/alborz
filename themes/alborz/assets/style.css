@@ -663,7 +663,8 @@ main.create-update #attachment-list {
   width: clamp(10rem, 28vw, 25rem);
   height: 100%;
   background: var(--bg-inset);
-  overflow-y: scroll;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   border: 1px solid var(--border-light);
 
   display: flex;
@@ -1048,14 +1049,14 @@ main.create-update .actions > *:not(:last-child) {
   text-align: start;
 }
 
-/* Dates, the version, and the message header table (untranslated
-   protocol labels with Latin values) are LTR islands whatever the UI
-   direction; the translated remote-content row opts back out with
-   dir=auto. */
-.message-list-date,
+/* The version string, phone numbers and a size with its unit read left
+   to right whatever the UI direction: without the isolation an RTL page
+   orders "246 B" as two runs and prints "B 246". Dates and the message
+   header used to join them, back when both were untranslated Latin;
+   they are translated now and follow the page like the rest of it. */
 .colophon,
-.contact-list-phone,
-main.message table {
+.message-list-size,
+.contact-list-phone {
   direction: ltr;
   unicode-bidi: isolate;
 }
@@ -1141,6 +1142,7 @@ main table tfoot {
 
 .actions {
   display: flex;
+  position: relative;
   flex-direction: row;
   align-items: center;
   min-height: var(--toolbar-height);
@@ -1361,14 +1363,14 @@ main.calendar .actions {
      share, so names are rarely truncated. */
   /* Fixed tracks: sorting or paging must not shift the headers under
      the pointer. */
-  grid-template-columns: 2.2rem 14rem 5rem 1fr 8rem 5.5rem;
+  grid-template-columns: 2.2rem 4.4rem 14rem 1fr 8rem 5.5rem;
   grid-template-rows: auto;
 }
 
 /* Merged desktop rows stay dense; ownership becomes dim secondary text in
    the mobile card layout and remains explicit on detail pages. */
 .message-grid.unified {
-  grid-template-columns: 14rem 5rem 1fr 8rem 5.5rem;
+  grid-template-columns: 4.4rem 14rem 1fr 8rem 5.5rem;
 }
 
 /* One header style for every list table: muted bold labels on one
@@ -1884,11 +1886,21 @@ details.overflow > summary::-webkit-details-marker {
   pointer-events: none;
 }
 
+/* A step of a pager that carries a word: the mark sits against the word
+   rather than in a target of its own. */
+.pager-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
 /* An arrow means "back towards the sender" or "on to someone else",
    which swap sides with the script; a box or a bin does not. */
 [dir="rtl"] .icon-reply,
 [dir="rtl"] .icon-reply-all,
-[dir="rtl"] .icon-forward {
+[dir="rtl"] .icon-forward,
+[dir="rtl"] .icon-prev,
+[dir="rtl"] .icon-next {
   transform: scaleX(-1);
 }
 
@@ -1951,6 +1963,64 @@ details.overflow > summary::-webkit-details-marker {
   background: var(--border);
 }
 
+/* Search is a mark like the others until it is asked for: a field wide
+   enough to type in would take a third of the row and push everything
+   else about as the window resizes. Focusing it lays the field over the
+   whole toolbar, which needs no script - focus is native. */
+.actions-search {
+  margin-inline-start: auto;
+  flex-grow: 0;
+  width: auto;
+  min-width: 0;
+}
+
+.actions-end .actions-search { margin-inline-start: auto; }
+
+.actions-search input[type="text"] {
+  width: var(--control-height);
+  height: var(--control-height);
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  color: transparent;
+  cursor: pointer;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4.4-4.4'/%3E%3C/svg%3E") center / 1.15rem no-repeat;
+}
+
+.actions-search input[type="text"]:hover { background-color: var(--surface-selected); }
+
+.actions-search input::placeholder { color: transparent; }
+.actions-search button { display: none; }
+
+/* Asked for, the field grows where it stands, pushing the row leftwards
+   rather than covering it, so nothing appears to change places. It gives
+   width back before the marks do, and only the count steps aside. */
+.actions-search:focus-within {
+  flex: 0 1 24rem;
+  min-width: 7rem;
+  gap: 0.3rem;
+}
+
+.actions:has(.actions-search:focus-within) .actions-pagination {
+  display: none;
+}
+
+.actions-search:focus-within input {
+  flex: 1;
+  width: 100%;
+  height: auto;
+  cursor: text;
+  color: inherit;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.actions-search:focus-within input::placeholder { color: var(--fg-faint); }
+.actions-search:focus-within button { display: inline-block; }
+
 /* The trailing group shrinks with its contents rather than holding a
    width the row does not have; nothing here may overlap its neighbour. */
 .actions-end {
@@ -1964,7 +2034,7 @@ details.overflow > summary::-webkit-details-marker {
 }
 
 /* The page range is the first thing to go: the arrows still page. */
-@media (width <= 60rem) {
+@media (width <= 45rem) {
   .pagination-range { display: none; }
 }
 
@@ -2622,54 +2692,6 @@ aside ul.merged-roles {
   /* Too little width to reserve a track; the title takes what is left. */
   .actions-message h2 { flex: 1 1 auto; max-width: none; }
 
-  /* The search collapses to a bare magnifier icon; focusing it overlays
-     the whole toolbar row with the input. */
-  .actions-search {
-    margin-inline-start: auto;
-    flex-grow: 0;
-    width: auto;
-  }
-
-  .actions-end { justify-content: flex-end; }
-  .actions-end .actions-search { margin-inline-start: auto; }
-
-  .actions-search input[type="text"] {
-    width: 2rem;
-    min-width: 0;
-    border: none;
-    box-shadow: none;
-    color: transparent;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-5.2-5.2'/%3E%3C/svg%3E") center / 1.2rem no-repeat;
-  }
-
-  .actions-search input::placeholder { color: transparent; }
-  .actions-search button { display: none; }
-
-  .actions-search:focus-within {
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    margin: 0;
-    padding: 0.3rem 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    background-color: var(--bg);
-  }
-
-  .actions-search:focus-within input {
-    flex: 1;
-    width: 100%;
-    color: inherit;
-    border: 1px solid var(--border);
-    background: var(--bg);
-  }
-
-  .actions-search:focus-within input::placeholder {
-    color: var(--fg-faint);
-  }
-
-  .actions-search:focus-within button { display: inline-block; }
 
   .actions-wrap .action-group { margin-inline-start: 0; }
   .actions-pagination { margin-inline-start: auto; }

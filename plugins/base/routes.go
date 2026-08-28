@@ -256,7 +256,8 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 	if !slices.Contains(unifiedRoles, role) {
-		return echo.NewHTTPError(http.StatusNotFound, "no such unified folder")
+		return echo.NewHTTPError(http.StatusNotFound,
+			fmt.Sprintf("%q is not a unified folder", role))
 	}
 
 	page := 0
@@ -695,7 +696,8 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 
 	if len(partPath) > 0 && msg.PartByPath(partPath) == nil {
-		return echo.NewHTTPError(http.StatusNotFound, "no such message part")
+		return echo.NewHTTPError(http.StatusNotFound,
+			fmt.Sprintf("message %v has no part %v", uid, ctx.QueryParam("part")))
 	}
 
 	mimeType, _, err := part.Header.ContentType()

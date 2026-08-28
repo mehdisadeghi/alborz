@@ -853,10 +853,27 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 
 	e.HTTPErrorHandler = func(err error, ctx echo.Context) {
 		code := http.StatusInternalServerError
-		if he, ok := err.(*echo.HTTPError); ok {
+		var he *echo.HTTPError
+		if errors.As(err, &he) {
 			code = he.Code
 		} else if errors.Is(err, ErrNotFound) {
 			code = http.StatusNotFound
+		}
+
+		// Not-found answers name what is missing instead of showing
+		// the generic error page.
+		if code == http.StatusNotFound {
+			message := err.Error()
+			if he != nil {
+				if m, ok := he.Message.(string); ok {
+					message = m
+				}
+			}
+			if actx, ok := ctx.Get("context").(*Context); ok {
+				if err := RenderInfo(actx, code, message); err == nil {
+					return
+				}
+			}
 		}
 
 		type ErrorRenderData struct {

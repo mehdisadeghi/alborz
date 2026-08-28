@@ -803,6 +803,28 @@ func registerRoutes(p *plugin) {
 		})
 	}
 
+	// The object exactly as the server stores it. Nothing here parses
+	// it: a raw view is only useful while it is verbatim.
+	rawObject := func(ctx *alborz.Context) error {
+		path, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+		c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+		body, err := c.Open(ctx.Request().Context(), path)
+		if err != nil {
+			return err
+		}
+		defer body.Close()
+		return ctx.Stream(http.StatusOK, "text/plain; charset=utf-8", body)
+	}
+
+	GET("/calendar/:path/raw", rawObject)
+	GET("/tasks/:path/raw", rawObject)
+
 	GET("/calendars/create", handleCreateCalendar(p))
 	POST("/calendars/create", handleCreateCalendar(p))
 

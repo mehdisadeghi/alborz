@@ -10,73 +10,45 @@
   <div class="container">
     <main class="create-update">
       <form method="post">
+        {{if .AddressObject}}
+        {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+        <div class="context-crumb">{{$crumbAcct}} › {{.AddressBook.Name}}</div>
+        {{end}}
         <h2>
-          {{if .AddressObject}}Edit{{else}}Create{{end}} contact
+          {{if .AddressObject}}{{$.T "contacts.edittitle"}}{{else}}{{$.T "contacts.createtitle"}}{{end}}
         </h2>
+        {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
 
         {{if not .AddressObject}}
         <label>
-          <span>{{$.T "contacts.addressbook"}}</span>
-          <select name="addressbook">
-            {{range .AddressBooks}}
-            <option value="{{.Path}}" {{if eq .Path $.AddressBook.Path}}selected{{end}}>{{.Name}}</option>
+          <span>{{$.T "common.saveto"}}</span>
+          {{ $multi := gt (len .GlobalData.Accounts) 1 }}
+          {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .AddressBook.Account}}{{$cur = .}}{{end}}
+          <select name="addressbook" data-destination-key="contact">
+            {{range .AccountBooks}}
+            {{ $acct := .Account }}
+            {{ if $multi }}<optgroup label="{{.Account}}">{{ end }}
+            {{range .Books}}
+            <option value="{{$acct}}|{{.Path}}" {{if and (eq $acct $cur) (eq .Path $.AddressBook.Path)}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+            {{ if $multi }}</optgroup>{{ end }}
             {{end}}
           </select>
         </label>
         {{end}}
 
-        <label>
-          <span>{{$.T "common.name"}}</span>
-          <input type="text" name="fn" id="fn" dir="auto" value="{{.Name}}" />
-        </label>
-        <label>
-          <span>{{$.T "contacts.emails"}}</span>
-          <input
-            type="email"
-            name="emails"
-            id="emails"
-            value="{{join (.Card.Values "EMAIL") ", "}}"
-            placeholder="a@example.org, b@example.org"
-            multiple />
-        </label>
-        <label>
-          <span>{{$.T "contacts.phones"}}</span>
-          <input type="tel" dir="ltr" name="tels" id="tels" value="{{join (.Card.Values "TEL") ", "}}"
-            placeholder="+49 151 2345678, 030 123456" />
-        </label>
-        <label>
-          <span>{{$.T "contacts.organization"}}</span>
-          <input type="text" name="org" id="org" dir="auto" value="{{.Card.PreferredValue "ORG"}}" />
-        </label>
-        <label>
-          <span>{{$.T "contacts.jobtitle"}}</span>
-          <input type="text" name="title" id="title" dir="auto" value="{{.Card.PreferredValue "TITLE"}}" />
-        </label>
-        <label>
-          <span>{{$.T "contacts.birthday"}}</span>
-          <input type="date" name="bday" id="bday" value="{{.Birthday}}" />
-        </label>
-        <label>
-          <span>{{$.T "contacts.website"}}</span>
-          <input type="url" name="url" id="url" value="{{.Card.PreferredValue "URL"}}"
-            placeholder="https://example.org" />
-        </label>
-        <label>
-          <span>{{$.T "contacts.address"}}</span>
-          <textarea name="adr" id="adr" dir="auto" rows="3"
-            placeholder="1 Example Street
-City 12345
-Country">{{with .Card.Address}}{{.StreetAddress}}{{end}}</textarea>
-        </label>
-        <label>
-          <span>{{$.T "contacts.notes"}}</span>
-          <textarea name="note" id="note" dir="auto" rows="3">{{.Card.PreferredValue "NOTE"}}</textarea>
-        </label>
+        {{ template "field" (dict "label" ($.T "common.name") "name" "fn" "value" .Name "dir" "auto") }}
+        {{ template "field" (dict "label" ($.T "contacts.emails") "name" "emails" "type" "email" "value" (join (.Card.Values "EMAIL") ", ") "placeholder" "a@example.org, b@example.org") }}
+        {{ template "field" (dict "label" ($.T "contacts.phones") "name" "tels" "type" "tel" "value" (join (.Card.Values "TEL") ", ") "dir" "ltr" "placeholder" "+49 151 2345678, 030 123456") }}
+        {{ template "field" (dict "label" ($.T "contacts.organization") "name" "org" "value" (.Card.PreferredValue "ORG") "dir" "auto") }}
+        {{ template "field" (dict "label" ($.T "contacts.jobtitle") "name" "title" "value" (.Card.PreferredValue "TITLE") "dir" "auto") }}
+        {{ template "field" (dict "label" ($.T "contacts.birthday") "name" "bday" "type" "date" "value" .Birthday) }}
+        {{ template "field" (dict "label" ($.T "contacts.website") "name" "url" "type" "url" "value" (.Card.PreferredValue "URL") "placeholder" "https://example.org") }}
+        {{$adr := ""}}{{with .Card.Address}}{{$adr = .StreetAddress}}{{end}}
+        {{ template "field" (dict "label" ($.T "contacts.address") "name" "adr" "value" $adr "dir" "auto" "rows" "3" "placeholder" "1 Example Street\nCity 12345\nCountry") }}
+        {{ template "field" (dict "label" ($.T "contacts.notes") "name" "note" "value" (.Card.PreferredValue "NOTE") "dir" "auto" "rows" "3") }}
 
-        <div class="actions">
-          <button type="submit">{{$.T "common.save"}}</button>
-          <a class="button-link" href="/contacts{{$acct}}">{{$.T "common.cancel"}}</a>
-        </div>
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/contacts%s" $acct) "cancelLabel" ($.T "common.cancel")) }}
       </form>
     </main>
   </div>

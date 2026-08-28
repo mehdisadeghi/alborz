@@ -4,15 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{if .GlobalData.Unified}}
-    {{ template "dav-aside-groups" (dict "items" .AddressBooks "itemclass" "addressbook-item") }}
-    {{else}}
-    <a href="/contacts/create" class="new">{{$.T "contacts.new"}}</a>
-    <form method="post" id="addressbook-filter">
-      {{ template "dav-aside-filter" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item") }}
-      <button>{{$.T "common.apply"}}</button>
-    </form>
-    {{end}}
+    {{ template "dav-aside-group-filters" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "apply" ($.T "common.apply") "newhref" "/contacts/create" "newlabel" ($.T "contacts.new") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
   </aside>
 
   <div class="container">
@@ -23,38 +15,41 @@
       </section>
 
       <section class="contacts">
-        <div class="contact-grid">
+        {{ $multi := gt (len .GlobalData.Accounts) 1 }}
+        <div class="contact-grid{{if $multi}} multi{{end}}">
           {{if .AddressObjects}}
-          {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | urlquery) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $cq = printf "%s&all=1" $cq }}{{ end }}
+          {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | accountparam) }}{{ end }}
           {{ $creset := "?" }}{{ if ne $cq "" }}{{ $creset = printf "?%s" (slice $cq 1) }}{{ end }}
-          {{ $arrow := "↑" }}{{ if eq .SortDir "desc" }}{{ $arrow = "↓" }}{{ end }}
-          {{ $flip := "desc" }}{{ if eq .SortDir "desc" }}{{ $flip = "asc" }}{{ end }}
-          <div class="contact-list-checkbox"></div>
-          <div class="contact-list-photo"></div>
+          {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "name" }}{{ end }}
+          {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
+          {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
+          {{if not $multi}}<div class="contact-list-header contact-list-checkbox"></div>{{end}}
+          <div class="contact-list-header contact-list-photo"></div>
           <div class="contact-list-header">
-            {{ template "sort-th" (dict "label" ($.T "common.name") "key" "name" "sort" .Sort "dir" .SortDir "exp" (ne .Sort "") "params" $cq "reset" $creset "dirx" (ne .SortDir "")) }}
+            {{ template "sort-th" (dict "label" ($.T "common.name") "key" "name" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
           <div class="contact-list-header">
-            {{ template "sort-th" (dict "label" ($.T "contacts.email") "key" "email" "sort" .Sort "dir" .SortDir "exp" (ne .Sort "") "params" $cq "reset" $creset "dirx" (ne .SortDir "")) }}
+            {{ template "sort-th" (dict "label" ($.T "contacts.email") "key" "email" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
-          <div class="contact-list-header">{{$.T "contacts.phone"}}</div>
+          <div class="contact-list-header">
+            {{ template "sort-th" (dict "label" ($.T "contacts.phone") "key" "phone" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
+          </div>
           {{end}}
           {{range .AddressObjects}}
           {{$color := call $.ColorForPath .Account .Path}}
           {{$photo := .PhotoURL}}
+          {{if not $multi}}
           <div class="contact-list-checkbox">
-            {{if $.GlobalData.Unified}}
-            <span class="color-dot" style="background:{{accountcolor .Account}}" title="{{.Account}}"></span>
-            {{else}}
             <input type="checkbox" name="paths" value="{{.Path}}" form="address-book-form">
-            {{end}}
           </div>
+          {{end}}
           <div class="contact-list-photo">
             {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
           </div>
           <div class="contact-list-name">
             {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-            <a href="{{.URL}}{{with .Account}}?account={{.}}{{end}}" dir="auto">
+            {{if $multi}}<span class="row-account">{{.Account}}</span>{{end}}
+            <a href="{{.URL}}{{account "?" .Account}}" dir="auto">
               {{.DisplayName}}
             </a>
           </div>

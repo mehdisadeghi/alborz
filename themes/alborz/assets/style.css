@@ -79,6 +79,36 @@ select {
 :root {
   color-scheme: light dark;
 
+  /* Product foundations. Theme stylesheets only need to replace the
+     palette below; spacing, type, shape, and component geometry stay
+     identical across every visual theme. */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 9px;
+  --control-height: 2rem;
+  --toolbar-height: 2.75rem;
+  --sidebar-width: clamp(10rem, 15vw, 13rem);
+  --drawer-width: 15rem;
+  --content-list: 90rem;
+  --content-form: 46rem;
+  --content-reading: 54rem;
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.09), 0 4px 16px rgba(0, 0, 0, 0.04);
+
   --fg: #000;
   --fg-dim: #555;
   --fg-muted: #666;
@@ -111,6 +141,21 @@ select {
   --alert-fg: #721c24;
   --alert-bg: #f8d7da;
   --alert-border: #f5c6cb;
+
+  /* Semantic aliases consumed by components. */
+  --surface: var(--bg);
+  --surface-subtle: var(--bg-well);
+  --surface-inset: var(--bg-inset);
+  --surface-selected: var(--bg-active);
+  --surface-accent: var(--bg-green);
+  --accent: var(--green-dark);
+  --accent-strong: var(--green);
+  /* Label drawn on an accent fill; a theme whose background is
+     translucent overrides it with an opaque ink of its own. */
+  --on-accent: var(--bg);
+  --danger: var(--alert-fg);
+  --danger-surface: var(--alert-bg);
+  --focus-ring: color-mix(in srgb, var(--link) 68%, transparent);
 }
 
 /* The dark palette applies with the system preference unless the user
@@ -191,9 +236,9 @@ select {
   --alert-border: #58232b;
 }
 
-body { font-family: arial,sans-serif; font-size: 13px; padding: 0; margin: 0;
+body { font-family: var(--font-sans); font-size: var(--text-md); padding: 0; margin: 0;
   min-height: 100vh; display: flex; flex-direction: column;
-  background-color: var(--bg); color: var(--fg);
+  background-color: var(--surface); color: var(--fg);
 }
 
 input[type="text"],
@@ -206,13 +251,14 @@ input[type="time"],
 textarea,
 select {
   margin: 0;
-  border: none;
   border: 1px solid var(--border);
-  box-shadow: inset 1px 1px 0 var(--bg-active);
-  border-radius: 2px;
-  font-size: 13px;
-  padding: 0.3rem 0.5rem 0.3rem 0.5rem;
-  background-color: var(--bg);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-sm);
+  min-height: var(--control-height);
+  font-size: inherit;
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--surface);
+  color: var(--fg);
 }
 
 .page-wrap {
@@ -223,32 +269,78 @@ select {
 
 a { color: var(--link); }
 hr { border: 0; border-top: 1px solid var(--border); }
-button { font-size: 1rem; }
-header { border-bottom: 1px solid var(--border);}
-header nav,
-footer { padding-block: 0.5rem; padding-inline: 0.5rem 1rem; }
-header nav { min-height: 1rem; }
-/*header nav strong { color: var(--fg-dim); }*/
-header nav > a { margin-inline-end: 1rem; }
+button { font-size: inherit; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+:where(a, button, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+:where(input, textarea, select):focus-visible {
+  border-color: var(--link);
+}
+header {
+  position: relative;
+  z-index: 12;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+header nav {
+  min-height: var(--toolbar-height);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-2) var(--space-4);
+}
+footer { padding: var(--space-2) var(--space-4); }
+header nav > a {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+}
+header nav > a:hover { border-bottom-color: var(--border-strong); }
 header nav span { color: var(--fg-muted); }
-header nav > div { float: inline-end; }
-header nav > div > a{  margin-inline-start: 1rem; }
+header nav > div {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
 
 header nav .accounts { display: inline-block; position: relative; }
 header nav .accounts summary { cursor: pointer; color: var(--fg-muted); }
+/* The switcher sits at the end of the header, so the panel hangs from
+   its trailing edge and grows inwards; anchored at the start it grows
+   towards the page edge and leaves the canvas once two accounts, or
+   one long address, make it wide. */
 header nav .accounts-menu {
   position: absolute;
-  inset-inline-start: 0;
+  inset-inline-end: 0;
   z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: max-content;
-  padding: 0.5rem;
-  background-color: var(--bg);
+  padding: var(--space-2);
+  background-color: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
 }
 header nav .accounts-menu .active {
   font-weight: 500;
@@ -264,19 +356,36 @@ header nav .accounts-menu button {
   text-align: start;
   cursor: pointer;
 }
-header a.active { font-weight: bold; color: var(--fg); text-decoration: none; }
+header nav .account-menu-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+header nav .account-menu-row > form { margin: 0; }
+header nav .account-menu-row > form:first-child { grid-column: 1; }
+header nav .account-menu-row .account-signout { grid-column: 2; }
+header nav .account-menu-row .account-signout button {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+header nav .account-menu-row .account-signout button:hover { color: var(--danger); }
+header a.active {
+  font-weight: 650;
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+  text-decoration: none;
+}
 
 header .notice {
     color: var(--notice-fg);
     background-color: var(--notice-bg);
     border: 1px solid var(--notice-border);
-    padding: 0.5rem;
+    padding: var(--space-2);
     text-align: center;
 }
 
 footer { text-align: end; }
-
-.actions { padding: 0.5rem; }
 
 .container {
   flex: 1 auto;
@@ -292,7 +401,11 @@ footer { text-align: end; }
   padding: 1rem 0;
 }
 
-aside { flex: 0 0 clamp(140px, 15vw, 180px); }
+aside {
+  flex: 0 0 var(--sidebar-width);
+  background: var(--surface);
+  border-inline-end: 1px solid var(--border-light);
+}
 
 aside img { display: block; }
 
@@ -305,7 +418,10 @@ aside ul {
 aside li {
   width: 100%;
   display: flex;
-  padding: 0.4rem 0.5rem;
+  min-height: 2rem;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-inline-start: 2px solid transparent;
 }
 
 aside li a {
@@ -320,14 +436,17 @@ aside .active {
 
 aside .active,
 aside .new.active {
-  background-color: var(--bg-well);
+  background-color: var(--surface-selected);
+  border-inline-start: 2px solid var(--accent);
 }
 
 /* Detail and edit pages put bare links in the aside; give them the
    same rhythm the list asides get from their li rows. */
 aside > a {
   display: block;
-  padding: 0.4rem 0.5rem;
+  min-height: 2rem;
+  padding: 0.35rem var(--space-2);
+  border-inline-start: 2px solid transparent;
 }
 
 /* Unread counts read as quiet metadata on the right, not brackets. */
@@ -338,7 +457,8 @@ aside .unseen {
 }
 
 aside .new.active {
-  color: var(--green-dark);
+  color: var(--accent);
+  background: var(--surface-accent);
 }
 
 aside button {
@@ -365,9 +485,9 @@ main {
   flex: 1 100%;
   display: flex;
   flex-direction: column;
-  padding-block: 0.5rem; padding-inline: 0.5rem 1rem;
+  padding: 0;
   min-width: 0;
-  background-color: var(--bg-well);
+  background-color: var(--surface-subtle);
 }
 
 main.login {
@@ -376,12 +496,12 @@ main.login {
 
 main.login > section {
   align-self: center;
-  background: var(--bg);
+  background: var(--surface);
   width: min(26rem, 100%);
-  padding: 2rem;
+  padding: var(--space-8);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised);
 }
 
 main.login button {
@@ -415,6 +535,7 @@ main.create-update:has(.headers) form {
   flex: 1 auto;
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
 /* Sieve filter editor - the script pane fills the remaining space */
@@ -422,6 +543,7 @@ main.create-update form.filter {
   flex: 1 auto;
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
 main.create-update form.filter > label.script {
@@ -433,18 +555,22 @@ main.create-update form.filter > label.script {
 
 main.create-update form.filter > label.script > textarea {
   flex: 1 auto;
-  font-family: monospace;
+  font-family: var(--font-mono);
   resize: none;
 }
 
 /* Simple create forms (event, task, contact) */
 main.create-update > form > label {
   display: block;
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--space-3);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 main.create-update > form > label > span {
   display: block;
+  margin-bottom: var(--space-1);
 }
 
 main.create-update > form > label > input,
@@ -457,6 +583,12 @@ main.create-update > form > label > textarea {
 
 main.create-update > form > label > textarea {
   min-height: 8rem;
+  resize: vertical;
+}
+
+main.create-update > form > label > input[readonly] {
+  color: var(--fg-muted);
+  background: var(--surface-inset);
 }
 
 /* Compose form headers grid */
@@ -618,10 +750,15 @@ main.message pre {
 }
 
 /* First columns carry the ink inset; interior cells keep the tighter
-   rhythm between columns. */
-.message-grid > .message-list-checkbox,
-.contact-grid > .contact-list-checkbox {
+   rhythm between columns. The cell stretches like its neighbours, or
+   its bottom border draws above theirs and steps the row hairline;
+   the input stays centred by the cell's own flex. Rows nest their
+   cells in a display:contents wrapper, so this reaches past it - the
+   toolbar's select-all is not in the grid and stays centred. */
+.message-grid .message-list-checkbox,
+.contact-grid .contact-list-checkbox {
   padding-inline-start: 0.5rem;
+  align-self: stretch;
 }
 
 .message-grid.unified > .message-list-sender {
@@ -713,20 +850,28 @@ main.message .message-header .parts li {
 main.contact .details,
 main.task .details,
 main.event .details {
-  padding: 1rem;
+  width: min(calc(100% - 2 * var(--space-4)), var(--content-reading));
+  margin: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
 }
 
 main.contact .details h1,
 main.task .details h1,
 main.event .details h1 {
-  margin: 0 0 1rem 0;
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-xl);
+  line-height: 1.3;
 }
 
 main.contact dl,
 main.task dl {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
   margin: 0;
 }
 
@@ -795,6 +940,37 @@ main.create-update .actions > *:not(:last-child) {
 .message-list-flags {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+}
+
+/* Star track: the row's button carries the hit area, so the track is
+   its width and the header's mark sits on the same centre. */
+.message-list-flags > form {
+  flex: 0 0 var(--control-height);
+  display: flex;
+  justify-content: center;
+}
+
+/* The header's star is the same mark as the rows', drawn at the same
+   size on the same centre; only its ink follows the header. */
+.message-list-header.message-list-flags .flag-sort {
+  width: var(--control-height);
+  justify-content: center;
+  font-size: 13pt;
+  line-height: 1;
+}
+
+/* Sorted, the arrow trails outside the star's track: centring the pair
+   would slide the star out from under the ones in the rows. */
+.message-list-header.message-list-flags .flag-sort:has(.sort-arrow) {
+  width: auto;
+  justify-content: flex-start;
+}
+
+.message-list-header.message-list-flags .flag-sort .sort-label {
+  display: inline-block;
+  width: var(--control-height);
+  text-align: center;
 }
 
 .message-list-flags .flag-button {
@@ -846,20 +1022,12 @@ main.message table {
 
 /* User-written titles order their own script (dir=auto) but align
    with the UI edge, so Latin and Arabic rows cluster cleanly. */
-.task-list .task-summary,
+.list .list-summary,
 .message-list-subject a,
 .message-list-sender a,
 .contact-list-name a,
 main.message h1 {
   text-align: match-parent;
-}
-
-/* Calendar event rows cluster fully by their own script instead: an
-   LTR event sits left-aligned with its dot on the left, an RTL one
-   mirrored, which reads better than mixed-order single lines. */
-main.calendar .task-summary,
-main.calendar .summary {
-  display: block;
 }
 
 /* dir=auto resolves LTR while a field is empty, pushing a translated
@@ -926,18 +1094,20 @@ main table tfoot {
    from subject to date, as the reading view's 800px cap already does. */
 .message-list section,
 .contact-list section,
-.task-list section {
+.list section {
   width: 100%;
-  max-width: 90rem;
+  max-width: var(--content-list);
 }
 
 .actions {
   display: flex;
   flex-direction: row;
-  background-color: var(--bg);
+  align-items: center;
+  min-height: var(--toolbar-height);
+  background-color: var(--surface);
   /* Two lines rule the page: containers sit on the outer edge, ink
      starts one step in - the same inset the tab captions use. */
-  padding: 0.3rem 0.5rem;
+  padding: var(--space-1) var(--space-2);
 }
 
 /* Spacing rides the checkbox itself: when scripts are off and the
@@ -948,7 +1118,9 @@ main table tfoot {
 }
 
 .message-list .actions:first-child,
-.contact-list .actions:first-child {
+.contact-list .actions:first-child,
+.list .actions,
+main.calendar .actions {
   border-bottom: 1px solid var(--border);
 }
 
@@ -1015,6 +1187,18 @@ main table tfoot {
   gap: 0.5rem;
 }
 
+.actions-pagination > strong {
+  min-height: var(--control-height);
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-selected);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
 .actions-wrap > .actions-pagination:first-child {
   margin-inline-start: 0;
 }
@@ -1078,25 +1262,24 @@ main table tfoot {
   height: 10rem;
 }
 
-.actions-message,
-.actions-contacts {
+.actions-message {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: row;
-  flex-grow: 1;
   align-items: center;
+  min-width: 0;
 }
 
-.actions-left,
-.actions-right {
-  display: flex;
-  align-items: center;
-}
 
-.actions-left a,
-.actions-right a {
-  padding: 0.3rem 0.5rem;
-  text-decoration: none;
-  color: inherit;
+
+/* The title takes the room it needs and yields it under pressure: a
+   reserved track wastes it on short names and refuses to give it back
+   on a narrow window, which is how controls came to overlap. It keeps
+   a floor so it never collapses to nothing, and truncates past it. */
+.actions-message h2:not(:last-child) {
+  flex: 0 1 auto;
+  min-width: 5rem;
+  max-width: 22rem;
 }
 
 .actions-message h2 {
@@ -1106,7 +1289,9 @@ main table tfoot {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
+  line-height: 1.25;
+  font-weight: 650;
 }
 
 .message-list-checkbox,
@@ -1164,6 +1349,7 @@ aside details.folder-branch summary {
   cursor: pointer;
   display: flex;
   padding: 0.4rem 0.5rem;
+  border-inline-start: 2px solid transparent;
 }
 aside details.folder-branch summary a { flex-grow: 1; }
 aside details.folder-branch > ul > li,
@@ -1180,6 +1366,130 @@ aside details.folder-branch details.folder-branch > ul > li {
   grid-template-rows: auto;
 }
 
+/* Pooled contacts keep the desktop table dense; ownership appears in the
+   mobile name card and on the detail page. */
+.contact-grid.multi {
+  grid-template-columns: 2rem 1fr 2fr 1fr;
+}
+
+/* Event lists - a day, or a month's agenda - share the aligned grammar
+   of the mail, contacts and task tables: when, what, and whose, each in
+   its own track, so the owner never trails a summary of random length. */
+.event-grid {
+  display: grid;
+  grid-template-columns: 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+}
+
+.event-header-row,
+.event-row { display: contents; }
+
+.event-header-row > *,
+.event-row > * {
+  min-height: 2.5rem;
+  padding: 0.4rem var(--space-2);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.event-row:hover > * { background: var(--surface-selected); }
+
+.event-time,
+.event-owner { color: var(--fg-muted); }
+
+.event-summary a {
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-summary a:hover { text-decoration: underline; }
+
+/* Each day of the agenda opens a band across every track. */
+.event-grid .event-day-header {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.4rem var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--fg-muted);
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--border);
+}
+
+.event-grid .empty-list { grid-column: 1 / -1; }
+
+/* Tasks use the same aligned, sortable table grammar as mail and contacts.
+   The first track is only the completion action, not a verbose status field. */
+.task-list {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-list .tasks { flex-grow: 1; }
+
+.task-grid {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(12rem, 1fr) minmax(8rem, 14rem) 10rem;
+}
+
+.task-grid.multi {
+  grid-template-columns: 2.75rem minmax(12rem, 1fr) minmax(8rem, 14rem) 10rem;
+}
+
+.task-header-row,
+.task-row { display: contents; }
+
+.task-row > * {
+  min-height: 2.5rem;
+  padding: 0.4rem var(--space-2);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.task-row:hover > * { background: var(--surface-selected); }
+
+.task-list-summary a {
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-list-summary a:hover { text-decoration: underline; }
+
+.task-row.completed .task-list-summary a {
+  color: var(--fg-faint);
+  text-decoration: line-through;
+}
+
+.task-list-status { gap: var(--space-2); }
+
+/* The status column sorts through a glyph, like the mail flag column:
+   the track stays fixed so the arrow never widens it. */
+.task-grid .task-list-status .status-sort {
+  width: 1rem;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.task-grid .task-list-status .status-sort:has(.sort-arrow) { width: auto; }
+.task-list-status .task-checkbox { margin: 0; }
+.task-list-account { display: none; }
+.task-list-calendar,
+.task-list-account,
+.task-list-due {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
 .contact-list-photo {
   display: flex;
   align-items: center;
@@ -1193,11 +1503,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   object-fit: cover;
 }
 
-.contact-list-header {
-  font-weight: bold;
-  color: var(--fg-muted);
-  border-bottom: 1px solid var(--border-strong);
-}
+
 
 /* Rows are not hyperlink soup: links show their nature on hover, as
    the tables these grids replaced did. */
@@ -1218,14 +1524,11 @@ aside details.folder-branch details.folder-branch > ul > li {
   border-bottom: 1px solid var(--border-light);
 }
 
-.contact-list .contacts .contact-grid > .contact-list-header {
-  border-bottom-color: var(--border-strong);
-}
-
 .message-list .messages .message-list-item,
 .contact-list .contacts .contact-grid > * {
   white-space: nowrap;
-  padding: 0.3rem;
+  min-height: 2.35rem;
+  padding: 0.4rem var(--space-2);
   overflow: hidden;
   text-overflow: ellipsis;
   display: flex;
@@ -1240,39 +1543,52 @@ aside details.folder-branch details.folder-branch > ul > li {
   text-align: center;
   grid-column-start: 1;
   grid-column-end: 10;
-  font-size: 1.1rem;
+  font-size: var(--text-md);
   color: var(--fg-dim);
-  margin-top: 1rem;
+  margin: var(--space-8) var(--space-4);
+  padding: var(--space-6);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 52%, transparent);
 }
 
 main.calendar .dates {
   flex-grow: 1;
-  padding: 0.3rem;
+  padding: 0;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   grid-template-rows: min-content;
   grid-auto-rows: 1fr;
-  grid-gap: 0.3rem;
+  gap: 1px;
+  background: var(--border-light);
 }
 
 main.calendar .dates .weekday {
   text-align: center;
-  font-size: 1.1rem;
-  font-weight: normal;
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--fg-muted);
+  background: var(--surface);
 }
 
+/* A month cell is mostly event titles: the day label and the grid keep
+   the space they need, everything else is given back to the text. */
 main.calendar .date {
-  border: 1px solid var(--border-light);
-  padding: 0.3rem;
-  background: var(--bg);
+  border: 0;
+  padding: var(--space-1);
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   position: relative;
+  min-width: 0;
 }
 
+main.calendar .date:hover { background: var(--surface-selected); }
+
 main.calendar .date.active {
-  background-color: var(--bg-green);
-  border: 1px solid var(--border-green);
+  background-color: var(--surface-accent);
+  box-shadow: inset 0 0 0 1px var(--border-green);
 }
 
 main.calendar .date .date-link {
@@ -1281,23 +1597,37 @@ main.calendar .date .date-link {
 }
 
 main.calendar .date.extra {
-  background: var(--bg-well);
-  border: 1px solid var(--border-faint);
-  opacity: 0.5;
+  background: var(--surface-subtle);
+  opacity: 0.58;
 }
 
 main.calendar .date ul {
   list-style: none;
   margin: 0;
-  padding-inline-start: 0.3rem;
+  padding-inline-start: 0;
+}
+
+main.calendar .date .events {
+  min-width: 0;
+  overflow: hidden;
+}
+
+main.calendar .date .events li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  line-height: 1.45;
 }
 
 main.calendar .date.extra .events {
   visibility: hidden;
 }
 
-main.calendar .events .start-time {
-  color: var(--fg-dim);
+main.calendar .date .events .color-dot {
+  width: 6px;
+  height: 6px;
+  margin-inline-end: 3px;
 }
 
 main.calendar .events .overflow {
@@ -1359,37 +1689,55 @@ button,
   text-decoration: none;
   text-align: center;
   display: inline-block;
-  /*padding: 0.4rem 0.4rem 0.35rem;*/
-  padding: 0.3rem 0.3rem 0.25rem;
-  min-width: 1rem;
-  font-size: 12px;
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-2);
+  min-width: var(--control-height);
+  font-size: var(--text-sm);
+  line-height: 1.25;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   vertical-align: middle;
   color: var(--fg);
-}
-.button-link {
-  border: 1px solid transparent;
-  text-decoration: none;
-}
-.button-link:hover {
-  text-decoration: underline;
-}
-
-input[type="submit"],
-.button,
-button,
-.button-link {
   background-color: var(--bg-button);
-  border: 1px solid var(--border);
-  color: var(--fg);
 }
 
 .button:hover,
 button:hover,
 .button-link:hover {
-  background-color: var(--bg);
+  background-color: var(--surface-selected);
+  border-color: var(--border-strong);
   text-decoration: none;
+}
+
+.button-link,
+.button-quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.button-primary {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 650;
+}
+
+.button-primary:hover {
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.button-danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  background: transparent;
+}
+
+.button-danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-surface);
 }
 
 button[disabled], button[disabled]:hover {
@@ -1419,12 +1767,118 @@ details.overflow > summary::-webkit-details-marker {
   display: none;
 }
 
+/* The sprite is markup, not a picture: it draws nothing itself. */
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* An arrow means "back towards the sender" or "on to someone else",
+   which swap sides with the script; a box or a bin does not. */
+[dir="rtl"] .icon-reply,
+[dir="rtl"] .icon-reply-all,
+[dir="rtl"] .icon-forward {
+  transform: scaleX(-1);
+}
+
+/* An icon control is a square target with no border of its own: the
+   toolbar reads as marks on a surface rather than a row of boxes. Its
+   width does not follow any language, which is the point. The scoped
+   selector outweighs the shared button rule's frame. */
+.actions .icon-button,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  height: var(--control-height);
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+
+.actions .icon-button:hover,
+.icon-button:hover {
+  background: var(--surface-selected);
+  color: var(--fg);
+}
+
+.actions .icon-button:disabled,
+.icon-button:disabled {
+  color: var(--fg-faint);
+  cursor: default;
+  background: transparent;
+}
+
+.actions .icon-button.icon-danger:hover,
+.icon-button.icon-danger:hover {
+  color: var(--danger);
+  background: var(--danger-surface);
+}
+
+/* Actions of one kind sit together; the gap between groups is the only
+   thing that separates them. */
+.icon-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  margin-inline-end: var(--space-2);
+}
+
+/* The rule after the title is the toolbar's fixed point: what follows it
+   begins in the same place whatever the title says. */
+.toolbar-rule {
+  flex: none;
+  width: 1px;
+  align-self: stretch;
+  margin-inline: var(--space-2);
+  background: var(--border);
+}
+
+/* The trailing group shrinks with its contents rather than holding a
+   width the row does not have; nothing here may overlap its neighbour. */
 .actions-end {
   display: flex;
-  flex-grow: 1;
+  flex: 0 1 auto;
+  min-width: 0;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.3rem;
   margin-inline-start: auto;
+}
+
+/* The page range is the first thing to go: the arrows still page. */
+@media (width <= 60rem) {
+  .pagination-range { display: none; }
+}
+
+/* Below this the row genuinely cannot hold its controls - a folder whose
+   delete says "permanently" is the widest case - so it wraps to two rows
+   rather than letting them slide over one another. Overlap is a defect;
+   a second row is a layout. */
+@media (width <= 52rem) {
+  .actions-wrap {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+  }
 }
 
 .actions-end .actions-search {
@@ -1459,22 +1913,6 @@ main.message .actions-end {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
-/* Unicode has no shrinking-bars sort glyph, so it is drawn inline,
-   masked so it takes the same text color as its sibling buttons. */
-summary.sort-button {
-  display: inline-block;
-  padding-inline: 0.15rem;
-}
-
-summary.sort-button::before {
-  content: "";
-  display: block;
-  width: 0.85rem;
-  height: 1.15rem;
-  background-color: currentColor;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5'%3E%3Cpath d='M4 6h16'/%3E%3Cpath d='M4 12h10'/%3E%3Cpath d='M4 18h5'/%3E%3C/svg%3E") center / contain no-repeat;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5'%3E%3Cpath d='M4 6h16'/%3E%3Cpath d='M4 12h10'/%3E%3Cpath d='M4 18h5'/%3E%3C/svg%3E") center / contain no-repeat;
-}
 
 .overflow-menu > strong {
   padding: 0.3rem;
@@ -1510,26 +1948,29 @@ button:active,
   max-width: 600px;
 }
 
-/* Tasks */
-.task-list {
+/* Grouped lists (tasks, calendar agenda, filters) */
+.list {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
 }
 
-.task-list .tasks {
-  padding: 0.5rem;
+.list .list-items {
+  padding: 0;
 }
 
-.task-item {
+.list-item {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.5rem;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+  padding: 0.45rem var(--space-2);
   border-bottom: 1px solid var(--border-light);
 }
 
-.task-item.completed .task-summary {
+.list-item:hover { background: var(--surface-selected); }
+
+.list-item.completed .list-summary {
   text-decoration: line-through;
   color: var(--fg-faint);
 }
@@ -1538,17 +1979,23 @@ button:active,
   margin-inline-end: 0.5rem;
 }
 
+/* A task's completion toggle is a checkbox in every way but the
+   element: it must not inherit the button box, which is twice the
+   size of the checkboxes the rest of the app draws. */
 .checkbox-button {
-  width: 1.5rem;
-  height: 1.5rem;
-  border: 2px solid var(--fg-muted);
+  width: 1rem;
+  height: 1rem;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--border-strong);
   border-radius: 3px;
   background: var(--bg);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 0.7rem;
+  line-height: 1;
   padding: 0;
 }
 
@@ -1558,33 +2005,33 @@ button:active,
   color: var(--bg);
 }
 
-.task-content {
+.list-content {
   flex-grow: 1;
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
-.task-content .task-summary {
+.list-content .list-summary {
   flex-grow: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.task-summary {
+.list-summary {
   display: block;
   color: inherit;
   text-decoration: none;
 }
 
-.task-summary:hover {
+.list-summary:hover {
   text-decoration: underline;
 }
 
-.task-due {
-  font-size: 0.85rem;
+.list-meta {
+  font-size: var(--text-xs);
   color: var(--fg-muted);
 }
 
@@ -1593,21 +2040,9 @@ main.task .details h1.completed {
   color: var(--fg-faint);
 }
 
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
 
-.checkbox-label input {
-  width: auto;
-}
 
-.task-group {
-  margin-bottom: 1rem;
-}
-
-/* Account headings in the unified sidebars. */
+/* Account headings in the asides. */
 aside .aside-account {
   color: var(--fg-muted);
   font-size: 0.85rem;
@@ -1618,16 +2053,73 @@ aside .aside-account:first-of-type {
   margin-top: 0;
 }
 
+aside .source-account-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: 0.6rem;
+  padding-inline: var(--space-2);
+  cursor: pointer;
+}
+
+aside .source-account-toggle input {
+  width: auto;
+  margin: 0;
+}
+
+aside .source-account-toggle span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Account is the namespace; indent its collections instead of repeating
+   that namespace in every collection label. A collection is one row:
+   the box, then the name, truncated - a name that wraps under its own
+   checkbox reads as two entries. The title carries the full name. */
+aside form[data-source-group] > label:not(.source-account-toggle) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline-start: calc(var(--space-2) + 1.25rem);
+}
+
+aside form[data-source-group] > label:not(.source-account-toggle) input {
+  flex: none;
+  margin: 0;
+}
+
+aside form[data-source-group] > label:not(.source-account-toggle) span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Per-account folder sections in the mail aside. */
 aside details.acct-folders > summary.aside-account {
   cursor: pointer;
   list-style: none;
   padding: 0.4rem 0.5rem 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 aside details.acct-folders > summary::-webkit-details-marker {
   display: none;
 }
+
+aside details.acct-folders > summary::before {
+  content: "›";
+  display: inline-block;
+  width: 0.75rem;
+  text-align: center;
+  transition: transform 0.1s ease-out;
+}
+
+aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
 
 aside details.acct-folders li {
   padding-inline-start: 1rem;
@@ -1651,13 +2143,21 @@ aside details.acct-folders details.folder-branch details.folder-branch > ul > li
   padding-inline-start: 2.6rem;
 }
 
-aside ul.favorites {
+/* The create entry closes the list it adds to, quiet where Compose is
+   the aside's one accent. */
+aside a.aside-create {
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+
+aside a.aside-create:hover { color: var(--fg); }
+
+aside ul.merged-roles {
   border-bottom: 1px solid var(--border-light);
   padding-bottom: 0.3rem;
   margin-bottom: 0.3rem;
 }
 
-/* Owning account, spelled quietly where rows merge accounts. */
 .row-account {
   color: var(--fg-muted);
   font-size: 0.85em;
@@ -1668,28 +2168,17 @@ aside ul.favorites {
    page acts on, between the toolbar and the content. */
 .context-crumb {
   color: var(--fg-muted);
-  font-size: 0.95rem;
-  padding: 0.35rem 0.5rem;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  min-height: 2rem;
+  padding: 0.4rem var(--space-2);
+  background: color-mix(in srgb, var(--surface) 58%, var(--surface-subtle));
+  border-bottom: 1px solid var(--border-light);
 }
 
-.task-group-header {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--fg-dim);
-  margin: 0.5rem 0;
-}
-
+/* Calendar groups indent under their account heading. */
 /* Folding is the native details element; the marker is hidden so the
    headers look exactly as before, the pointer being the only hint. */
-.task-group > summary {
-  list-style: none;
-  cursor: pointer;
-}
-
-.task-group > summary::-webkit-details-marker {
-  display: none;
-}
-
 .show-completed-toggle {
   display: flex;
   align-items: center;
@@ -1715,7 +2204,17 @@ aside ul.favorites {
 }
 
 @media (width <= 600px) {
-  body { min-width: 0; }
+  body { min-width: 0; font-size: var(--text-md); }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="file"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  textarea,
+  select { font-size: 16px; }
 
   .sidebar-button {
     display: inline-block;
@@ -1735,9 +2234,12 @@ aside ul.favorites {
     align-items: center;
     overflow-x: auto;
     white-space: nowrap;
+    gap: var(--space-3);
+    min-height: 3rem;
+    padding-inline: var(--space-2);
   }
 
-  header nav > a { margin-inline-end: 0.75rem; }
+  header nav > a { min-height: 3rem; }
 
   header nav > div { float: none; display: none; }
 
@@ -1749,7 +2251,7 @@ aside ul.favorites {
     position: fixed;
     bottom: 0;
     inset-inline-start: 0;
-    width: 14rem;
+    width: var(--drawer-width);
     z-index: 21;
     padding: 0.75rem;
     background-color: var(--bg);
@@ -1770,8 +2272,8 @@ aside ul.favorites {
   aside {
     position: fixed;
     inset-block: 0;
-    inset-inline-start: -14rem;
-    width: 14rem;
+    inset-inline-start: calc(-1 * var(--drawer-width));
+    width: var(--drawer-width);
     z-index: 20;
     overflow-y: auto;
     padding-bottom: 10rem; /* room for the docked account block */
@@ -1795,8 +2297,118 @@ aside ul.favorites {
 
   /* Lists and toolbars run edge to edge; standalone forms keep an inset. */
   main { padding: 0; }
-  main.create-update,
-  main.settings { padding: 0.75rem; }
+  main.create-update { padding: var(--space-2); }
+  main.settings { padding: 0; }
+
+  /* Task columns collapse into a compact two-line row. Completion stays
+     beside the title; list, account, and due metadata remain explicit. */
+  /* The event grid becomes a card per event: summary on top, when and
+     whose on the line below, the same shape the task rows take. */
+  .event-grid { display: block; }
+
+  .event-header-row { display: none; }
+
+  .event-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-2);
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .event-row > * {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .event-row:hover > * { background: transparent; }
+
+  .event-row .event-summary {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    font-weight: 600;
+  }
+
+  .event-row .event-time { grid-column: 1; grid-row: 2; }
+
+  .event-row .event-owner {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .task-grid,
+  .task-grid.multi { display: block; }
+
+  .task-header-row { display: none; }
+
+  .task-row {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: var(--space-2);
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .task-row > * {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .task-row:hover > * { background: transparent; }
+
+  .task-row .task-list-status {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: start;
+  }
+
+
+  .task-row .task-list-summary {
+    grid-column: 2 / -1;
+    grid-row: 1;
+    font-weight: 600;
+  }
+
+  .task-row .task-list-calendar {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .task-row .task-list-account,
+  .task-row .task-list-due {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .task-row .task-list-account { display: flex; }
+
+  .task-grid.multi .task-row .task-list-due:empty { display: none; }
+  .task-grid.multi .task-row .task-list-due:not(:empty) {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    justify-self: start;
+  }
+
+  main.create-update > form {
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+  }
+
+  main.settings form,
+  main.contact .details,
+  main.task .details,
+  main.event .details {
+    width: calc(100% - 2 * var(--space-2));
+    margin: var(--space-2);
+    padding: var(--space-3);
+  }
 
   main.login > section { width: 100%; }
 
@@ -1832,10 +2444,8 @@ aside ul.favorites {
     border-bottom: 0;
   }
 
-  /* The cell stretches so the account stripe can fill the row; the
-     checkbox inside stays centered. */
+  /* The checkbox cell stretches with the two-line row. */
   .message-list-checkbox { grid-area: check; align-self: stretch; }
-  .message-list-checkbox .color-dot { height: 100%; }
   /* The sender is a from-search link, but the subject is the row's real
      action; only it keeps the link color. */
   .message-list-sender { grid-area: sender; }
@@ -1906,17 +2516,24 @@ aside ul.favorites {
   .actions button,
   .actions .button-link {
     white-space: nowrap;
+    min-height: 2.25rem;
   }
 
   .actions-wrap { flex-wrap: wrap; row-gap: 0.3rem; min-width: 0; }
   .actions-message { flex-wrap: wrap; row-gap: 0.3rem; column-gap: 0.3rem; }
+  /* Too little width to reserve a track; the title takes what is left. */
+  .actions-message h2 { flex: 1 1 auto; max-width: none; }
 
   /* The search collapses to a bare magnifier icon; focusing it overlays
      the whole toolbar row with the input. */
   .actions-search {
     margin-inline-start: auto;
     flex-grow: 0;
+    width: auto;
   }
+
+  .actions-end { justify-content: flex-end; }
+  .actions-end .actions-search { margin-inline-start: auto; }
 
   .actions-search input[type="text"] {
     width: 2rem;
@@ -1956,22 +2573,22 @@ aside ul.favorites {
 
   .actions-search:focus-within button { display: inline-block; }
 
-  /* Alone in its toolbar, the search already has the row and stays a
-     full input. */
-  .task-list .actions-search { flex-grow: 1; margin-inline-start: 0; }
-  .task-list .actions-search input {
-    width: 100%;
-    flex: 1;
-    color: inherit;
-    border: 1px solid var(--border);
-    background: var(--bg);
-  }
-  .task-list .actions-search input::placeholder { color: var(--fg-faint); }
-  .task-list .actions-search button { display: inline-block; }
-
   .actions-wrap .action-group { margin-inline-start: 0; }
   .actions-pagination { margin-inline-start: auto; }
   .actions-pagination h3 { font-size: 0.8rem; }
+
+  aside li,
+  aside > a,
+  aside details.folder-branch summary {
+    min-height: 2.75rem;
+    align-items: center;
+  }
+
+  .list-item,
+  .message-list .messages .message-list-item,
+  .contact-list .contacts .contact-grid > * {
+    min-height: 2.75rem;
+  }
 
   /* Message view: header fields wrap and the parts pane stacks below. */
   main.message .message-header { flex-direction: column; }
@@ -1999,8 +2616,20 @@ aside ul.favorites {
   /* Contacts: name and phone only; the e-mail column waits for the
      detail page. */
   .contact-grid { grid-template-columns: auto 2rem minmax(0, 1fr) auto; }
-  .contact-list .contacts .contact-grid > .contact-list-email,
-  .contact-list .contacts .contact-grid > .contact-list-header:nth-child(4) {
+  .contact-grid.multi { grid-template-columns: 2rem minmax(0, 1fr) auto; }
+  .contact-grid .contact-list-header { display: none; }
+  .contact-list-name {
+    flex-direction: column;
+    align-items: flex-start !important;
+    justify-content: center;
+  }
+  .contact-grid .row-account {
+    display: block;
+    margin: 0;
+    font-size: 0.7rem;
+    line-height: 1.2;
+  }
+  .contact-list .contacts .contact-grid > .contact-list-email {
     display: none;
   }
   .contact-list-phone { font-size: 0.8rem; }

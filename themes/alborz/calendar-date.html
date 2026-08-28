@@ -1,48 +1,41 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
   <aside>
-    {{if not .GlobalData.Unified}}
-    <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
-    {{end}}
+    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "newhref" "/calendar/create" "newlabel" ($.T "calendar.new") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
   </aside>
 
   <div class="container">
-    <main class="calendar-date">
+    <main class="list">
       <section class="actions">
-        <div class="actions-wrap">
-          <div class="actions-left">
-            <a href="/calendar/date?date={{.PrevPage}}">&#8249; Prev</a>
-          </div>
-          <div class="actions-message">
-            <h2>{{.Time.Format "Monday, January 2, 2006"}}</h2>
-          </div>
-          <div class="actions-right">
-            <a href="/calendar/date?date={{.NextPage}}">{{$.T "calendar.next"}}</a>
-          </div>
-        </div>
+        {{ $dayTitle := .GlobalData.LongDate .Time }}{{ with .GlobalData.SecondaryDate .Time }}{{ $dayTitle = printf "%s · %s" $dayTitle . }}{{ end }}
+        {{ template "list-toolbar" (dict "title" $dayTitle "pagination" (dict "prev" (dict "href" (printf "/calendar/date?date=%s" .PrevPage) "label" ($.T "calendar.prev")) "next" (dict "href" (printf "/calendar/date?date=%s" .NextPage) "label" ($.T "calendar.next"))) ) }}
       </section>
 
-      <section class="events-list">
+      <section class="events">
         {{$base := .}}
-        {{if .Events}}
-        <ul>
+        <div class="event-grid" role="table">
+          {{if .Events}}
+          {{ template "event-grid-header" (dict "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
           {{range .Events}}
+          {{ $obj := . }}
           {{ if .Data.Events }}{{$event := index .Data.Events 0}}
-          {{$color := call $base.ColorForPath .Account .Path}}
-          <li>
-            <a href="{{.URL}}{{with .Account}}?account={{.}}{{end}}">
-              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-              <span class="time">{{$base.GlobalData.FormatTime ($event.DateTimeStart nil)}}</span>
-              <span class="summary" dir="auto">{{$event.Props.Text "SUMMARY"}}</span>
-            </a>
-          </li>
+          {{ $when := $.T "calendar.allday" }}{{ if not $obj.AllDay }}{{ $when = $base.GlobalData.FormatTime ($event.DateTimeStart nil) }}{{ end }}
+          {{ $href := $obj.URL }}{{ with $obj.Account }}{{ $href = printf "%s?account=%s" $obj.URL (. | accountparam) }}{{ end }}
+          {{ template "event-row" (dict
+             "href" $href
+             "when" $when
+             "summary" ($event.Props.Text "SUMMARY")
+             "color" (call $base.ColorForPath .Account .Path)
+             "owner" (call $base.OwnerLabel .Account .Path)
+             "timeLabel" ($.T "calendar.time") "eventLabel" ($.T "calendar.event") "calendarLabel" ($.T "common.calendar")) }}
           {{ end }}{{end}}
-        </ul>
-        {{else}}
-        <p class="empty-list">{{$.T "calendar.noeventsday"}}</p>
-        {{end}}
+          {{else}}
+          <p class="empty-list">{{$.T "calendar.noeventsday"}}</p>
+          {{end}}
+        </div>
       </section>
     </main>
   </div>

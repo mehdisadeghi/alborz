@@ -1,10 +1,17 @@
 {{/* One message move action: dict mbox aq uid next to label. */}}
+{{/* One move of the open message. With an icon it belongs in the
+     toolbar, with a label in the overflow menu. dict: mbox aq uid next
+     to label [icon] [class]. */}}
 {{ define "msg-move-form" }}
 <form class="action-group" method="post" action="/message/{{.mbox | pathescape}}/move{{.aq}}">
   <input type="hidden" name="uids" value="{{.uid}}">
   {{ with .next }}<input type="hidden" name="next" value="{{.}}">{{ end }}
   <input type="hidden" name="to" value="{{.to}}">
+  {{ if .icon }}
+  <button class="icon-button{{with .class}} {{.}}{{end}}" title="{{.label}}" aria-label="{{.label}}">{{ template "icon" .icon }}</button>
+  {{ else }}
   <button>{{.label}}</button>
+  {{ end }}
 </form>
 {{ end }}
 
@@ -32,30 +39,53 @@
             {{$drafts := ""}}{{with $common.Drafts}}{{$drafts = .Info.Name}}{{end}}
             {{$sent := ""}}{{with $common.Sent}}{{$sent = .Info.Name}}{{end}}
 
-            <span class="followups action-group">
+            <span class="toolbar-rule" aria-hidden="true"></span>
+
+            {{/* Answering the message, then disposing of it: two groups
+                 of marks, each the same width in every language. */}}
+            <span class="icon-group followups">
               {{if .Message.HasFlag "\\Draft"}}
-                <a class="action-group button-link" href="{{.Message.URL}}/edit{{$partq}}">{{$.T "message.editdraft"}}</a>
+                <a class="button-link" href="{{.Message.URL}}/edit{{$partq}}">{{$.T "message.editdraft"}}</a>
               {{else}}
-                <a class="action-group button-link" href="{{.Message.URL}}/reply{{$partq}}">{{$.T "message.reply"}}</a>
-                <a class="action-group button-link" href="{{.Message.URL}}/forward{{$partq}}">{{$.T "message.forward"}}</a>
+                <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.reply"}}" aria-label="{{$.T "message.reply"}}">{{ template "icon" "reply" }}</a>
+                <a class="icon-button" href="{{.Message.URL}}/reply{{$partallq}}" title="{{$.T "message.replyall"}}" aria-label="{{$.T "message.replyall"}}">{{ template "icon" "reply-all" }}</a>
+                <a class="icon-button" href="{{.Message.URL}}/forward{{$partq}}" title="{{$.T "message.forward"}}" aria-label="{{$.T "message.forward"}}">{{ template "icon" "forward" }}</a>
               {{end}}
             </span>
 
-            {{ if or (eq .Mailbox.Name $trash) (eq .Mailbox.Name $junk) (not $trash) }}
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete{{$aq}}">
-              <input type="hidden" name="uids" value="{{.Message.UID}}">
-              <input type="hidden" name="next" value="{{$back}}">
-              <button>{{$.T "mailbox.deleteperm"}}</button>
-            </form>
-            {{ else }}
-{{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $trash "label" ($.T "mailbox.delete")) }}
+            <span class="icon-group">
+              {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
+              {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $archive "label" ($.T "mailbox.archive") "icon" "archive") }}
+              {{ end }}
+              {{ if and $junk (ne .Mailbox.Name $junk) (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
+              {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $junk "label" ($.T "mailbox.spam") "icon" "junk") }}
+              {{ else if and $junk (eq .Mailbox.Name $junk) }}
+              {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" "INBOX" "label" ($.T "mailbox.notspam") "icon" "notjunk") }}
+              {{ end }}
+              {{ if or (eq .Mailbox.Name $trash) (eq .Mailbox.Name $junk) (not $trash) }}
+              <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete{{$aq}}">
+                <input type="hidden" name="uids" value="{{.Message.UID}}">
+                <input type="hidden" name="next" value="{{$back}}">
+                <button class="icon-button icon-danger" title="{{$.T "mailbox.deleteperm"}}" aria-label="{{$.T "mailbox.deleteperm"}}">{{ template "icon" "trash" }}</button>
+              </form>
+              {{ else }}
+              {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $trash "label" ($.T "mailbox.delete") "icon" "trash" "class" "icon-danger") }}
+              {{ end }}
+            </span>
+
+            {{/* A list message answers its list, and lets go of it. */}}
+            {{ with .Message.ListPost }}
+            <span class="icon-group">
+              <a class="button-link" href="{{localhref (printf "%v/reply%s" $.Message.URL $partlistq)}}" title="{{.}}">{{$.T "message.replylist"}}</a>
+              {{ with $.Message.ListUnsubscribe }}
+              <a class="button-link" href="{{.}}" rel="nofollow noopener noreferrer" target="_blank">{{$.T "message.unsubscribe"}}</a>
+              {{ end }}
+            </span>
             {{ end }}
 
-            {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
-{{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $junk "label" ($.T "mailbox.spam")) }}
-            {{ end }}
+          </div>
 
-            <div class="actions-end">
+          <div class="actions-end">
             <span class="action-group">
               {{ if .Position }}
               <span class="pagination-range">{{.Position}} {{$.T "mailbox.of"}} {{.Total}}</span>
@@ -69,19 +99,10 @@
             </span>
 
             <details class="overflow">
-              <summary class="button" aria-label="{{$.T "mailbox.more"}}">⋮</summary>
+              <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
               <div class="overflow-menu">
-                {{if not (.Message.HasFlag "\\Draft")}}
-                <a class="button-link" href="{{.Message.URL}}/reply{{$partallq}}">{{$.T "message.replyall"}}</a>
-                {{end}}
-
-                {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
-{{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $archive "label" ($.T "mailbox.archive")) }}
-                {{ end }}
-
-                {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
-{{ $inboxlabel := $.T "message.movetoinbox" }}{{ if eq .Mailbox.Name $junk }}{{ $inboxlabel = $.T "message.notspam" }}{{ end }}
-                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "to" "INBOX" "label" $inboxlabel) }}
+                {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $junk) }}
+                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "to" "INBOX" "label" ($.T "message.movetoinbox")) }}
                 {{ end }}
 
                 <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/flag{{$aq}}">
@@ -114,7 +135,6 @@
               </div>
             </details>
             </div>
-          </div>
         </div>
       </section>
 
@@ -135,24 +155,24 @@
             </th>
           </tr>
           <tr>
-            <th>From:</th>
+            <th>{{$.T "compose.from"}}:</th>
             <td>{{template "addr-list" .Message.Envelope.From}}</td>
           </tr>
           <tr>
-            <th>Date:</th>
+            <th>{{$.T "message.date"}}:</th>
             <td>{{.GlobalData.FormatDate .Message.Envelope.Date}}</td>
           </tr>
           <tr>
-            <th>To:</th><td>{{template "addr-list" .Message.Envelope.To}}</td>
+            <th>{{$.T "compose.to"}}:</th><td>{{template "addr-list" .Message.Envelope.To}}</td>
           </tr>
           {{if .Message.Envelope.Cc}}
           <tr>
-            <th>Cc:</th><td>{{template "addr-list" .Message.Envelope.Cc}}</td>
+            <th>{{$.T "compose.cc"}}:</th><td>{{template "addr-list" .Message.Envelope.Cc}}</td>
           </tr>
           {{end}}
           {{if .Message.Envelope.Bcc}}
           <tr>
-            <th>Bcc:</th>
+            <th>{{$.T "compose.bcc"}}:</th>
             <td>{{template "addr-list" .Message.Envelope.Bcc}}</td>
           </tr>
           {{ end }}

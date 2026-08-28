@@ -13,7 +13,7 @@
           <div class="actions-message">
             <div class="action-group">
               <a href="{{.AddressObject.URL}}/edit{{$acct}}" class="button-link">
-                Edit
+                {{$.T "common.edit"}}
               </a>
             </div>
             <form
@@ -21,11 +21,14 @@
               action="{{.AddressObject.URL}}/delete{{$acct}}"
               method="post"
             >
-              <button type="submit">{{$.T "common.delete"}}</button>
+              <button type="submit" class="button-danger">{{$.T "common.delete"}}</button>
             </form>
           </div>
         </div>
       </section>
+
+      {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+      <div class="context-crumb">{{$crumbAcct}} › {{.AddressBook.Name}}</div>
 
       <section class="details">
         {{$photo := .AddressObject.PhotoURL}}

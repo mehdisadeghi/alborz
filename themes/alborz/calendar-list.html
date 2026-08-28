@@ -1,75 +1,47 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
   <aside>
-    {{if .GlobalData.Unified}}
-    {{$prev := ""}}
-    {{range .Calendars}}
-    {{if ne .Account $prev}}{{$prev = .Account}}
-    <div class="aside-account"><span class="color-dot" style="background:{{accountcolor .Account}}"></span> {{.Account}}</div>
-    {{end}}
-    <span class="calendar-item">
-      {{if .Color}}<span class="color-dot" style="background:{{.Color}}"></span>{{end}}
-      {{.Name}}
-    </span>
-    {{end}}
-    {{else}}
-    <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
-    <form method="post" id="calendar-filter">
-      {{range .Calendars}}
-      <label class="calendar-item">
-        <input type="checkbox" name="cal" value="{{.Path}}" {{if .Visible}}checked{{end}} data-submit-on-change {{if .Color}}style="accent-color:{{.Color}}"{{end}}>
-        {{.Name}}
-      </label>
-      {{end}}
-      <button>{{$.T "common.apply"}}</button>
-    </form>
-    {{end}}
+    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "newhref" "/calendar/create" "newlabel" ($.T "calendar.new") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
   </aside>
 
   <div class="container">
-    <main class="task-list">
+    <main class="list">
       <section class="actions">
         {{ template "calendar-header.html" . }}
       </section>
 
-      <section class="tasks">
+      <section class="events">
         {{$base := .}}
         {{$any := false}}
-        {{range .Dates}}
-        {{if eq .Month $base.Time.Month}}
-        {{$events := call $base.EventsForDate .}}
-        {{if $events}}
-        {{$any = true}}
-        <div class="task-group">
-          <h3 class="task-group-header">{{$base.GlobalData.WeekdayName .}}, {{$base.GlobalData.MonthName .}} {{.Day}}</h3>
+        <div class="event-grid" role="table">
+          {{ template "event-grid-header" (dict "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
+          {{range .Dates}}
+          {{if eq .Month $base.Time.Month}}
+          {{$events := call $base.EventsForDate .}}
+          {{if $events}}
+          {{$any = true}}
+          <h3 class="event-day-header" role="rowheader">{{$base.GlobalData.WeekdayName .}}, {{$base.GlobalData.MonthName .}} {{.Day}}</h3>
           {{range $events}}
+          {{ $obj := . }}
           {{ if .Data.Events }}{{$event := index .Data.Events 0}}
-          {{$color := call $base.ColorForPath .Account .Path}}
-          <div class="task-item">
-            <div class="task-content">
-              <a href="{{.URL}}{{with .Account}}?account={{.}}{{end}}" class="task-summary" dir="auto">
-                <span class="task-due">
-                  {{- $start := $event.DateTimeStart nil -}}
-                  {{- $end := $event.DateTimeEnd nil -}}
-                  {{- if $start.Equal $end -}}
-                  {{$.T "calendar.allday"}}
-                  {{- else -}}
-                  {{$base.GlobalData.FormatTime $start}}
-                  {{- end -}}
-                </span>
-                {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-                {{$event.Props.Text "SUMMARY"}}
-              </a>
-            </div>
-          </div>
+          {{ $when := $.T "calendar.allday" }}{{ if not $obj.AllDay }}{{ $when = $base.GlobalData.FormatTime ($event.DateTimeStart nil) }}{{ end }}
+          {{ $href := $obj.URL }}{{ with $obj.Account }}{{ $href = printf "%s?account=%s" $obj.URL (. | accountparam) }}{{ end }}
+          {{ template "event-row" (dict
+             "href" $href
+             "when" $when
+             "summary" ($event.Props.Text "SUMMARY")
+             "color" (call $base.ColorForPath .Account .Path)
+             "owner" (call $base.OwnerLabel .Account .Path)
+             "timeLabel" ($.T "calendar.time") "eventLabel" ($.T "calendar.event") "calendarLabel" ($.T "common.calendar")) }}
           {{ end }}
           {{end}}
+          {{end}}
+          {{end}}
+          {{end}}
         </div>
-        {{end}}
-        {{end}}
-        {{end}}
         {{if not $any}}
         <p class="empty-list">{{$.T "calendar.noevents"}}</p>
         {{end}}

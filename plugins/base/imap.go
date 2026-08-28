@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	//"time"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/dustin/go-humanize"
@@ -780,35 +780,39 @@ func deleteMessage(conn *imapclient.Client, mboxName string, uid imap.UID) error
 	return conn.Expunge().Close()
 }
 
-// resolveRole maps a unified role name to the session's folder carrying
+// unifiedFolders memoizes each account's role-to-folder resolution for the
+// unified view: folder names change rarely, so one LIST per account per
+// interval replaces one per click.
+var unifiedFolders = alborz.NewMemo[map[string]string](5 * time.Minute)
+
+// resolveRole maps a unified role name to the account's folder carrying
 // that special use, or "" when the account has none.
-func resolveRole(conn *imapclient.Client, role string) (string, error) {
-	if role == "INBOX" {
-		return "INBOX", nil
-	}
-	mailboxes, err := listMailboxes(conn)
+func resolveRole(conn *imapclient.Client, username, role string) (string, error) {
+	folders, err := unifiedFolders.Get(username, func() (map[string]string, error) {
+		mailboxes, err := listMailboxes(conn)
+		if err != nil {
+			return nil, err
+		}
+		var categorized CategorizedMailboxes
+		for i := range mailboxes {
+			categorized.Append(mailboxes[i], nil)
+		}
+		folders := map[string]string{"INBOX": "INBOX"}
+		for role, details := range map[string]*MailboxDetails{
+			"Drafts":  categorized.Common.Drafts,
+			"Sent":    categorized.Common.Sent,
+			"Junk":    categorized.Common.Junk,
+			"Trash":   categorized.Common.Trash,
+			"Archive": categorized.Common.Archive,
+		} {
+			if details != nil {
+				folders[role] = details.Info.Name()
+			}
+		}
+		return folders, nil
+	})
 	if err != nil {
 		return "", err
 	}
-	var categorized CategorizedMailboxes
-	for i := range mailboxes {
-		categorized.Append(mailboxes[i], nil)
-	}
-	var details *MailboxDetails
-	switch role {
-	case "Drafts":
-		details = categorized.Common.Drafts
-	case "Sent":
-		details = categorized.Common.Sent
-	case "Junk":
-		details = categorized.Common.Junk
-	case "Trash":
-		details = categorized.Common.Trash
-	case "Archive":
-		details = categorized.Common.Archive
-	}
-	if details == nil {
-		return "", nil
-	}
-	return details.Info.Name(), nil
+	return folders[role], nil
 }

@@ -29,6 +29,30 @@ const (
 	listingFresh
 )
 
+// listingSep joins a folder to what narrows it inside a cache key. It
+// cannot occur in a folder name, so a prefix match finds every view of
+// one folder when the folder changes.
+const listingSep = "\x00"
+
+// maxListingEntries bounds a map whose keys include user input: a search
+// makes an entry, so a crawler could otherwise mint them faster than the
+// age sweep retires them.
+const maxListingEntries = 512
+
+// listingView names one cached view: the folder itself when nothing
+// narrows it, otherwise the folder and the narrowing. A search is as
+// cacheable as a plain listing; only its key is longer.
+func listingView(folder, query string, starred bool, sortKey, sortDir string) string {
+	if query == "" && !starred && sortKey == "" && sortDir == "" {
+		return folder
+	}
+	starredMark := ""
+	if starred {
+		starredMark = "starred"
+	}
+	return strings.Join([]string{folder, query, starredMark, sortKey, sortDir}, listingSep)
+}
+
 // listingEntry is one cached folder view. Unified entries, keyed by role
 // with a "#" prefix, carry no sidebar.
 type listingEntry struct {
@@ -91,6 +115,17 @@ func (lc *listingCache) store(user, view string, e *listingEntry) {
 			delete(lc.entries, k)
 		}
 	}
+	// Whatever the sweep left, the oldest go until the map is in bounds.
+	for len(lc.entries) > maxListingEntries {
+		var oldestKey listingKey
+		var oldest time.Time
+		for k, e := range lc.entries {
+			if oldest.IsZero() || e.created.Before(oldest) {
+				oldestKey, oldest = k, e.created
+			}
+		}
+		delete(lc.entries, oldestKey)
+	}
 	lc.mu.Unlock()
 }
 
@@ -103,13 +138,17 @@ func (lc *listingCache) refresh(user, view string) {
 	lc.mu.Unlock()
 }
 
-// evict drops the user's entry for one folder, along with the unified
-// entries, whose role names hide which folders they map to.
+// evict drops every cached view of one folder - the plain listing and
+// each search or sort over it - along with the unified entries, whose
+// role names hide which folders they map to.
 func (lc *listingCache) evict(user, folder string) {
 	lc.mu.Lock()
-	delete(lc.entries, listingKey{user, folder})
 	for k := range lc.entries {
-		if k.user == user && strings.HasPrefix(k.view, "#") {
+		if k.user != user {
+			continue
+		}
+		if k.view == folder || strings.HasPrefix(k.view, folder+listingSep) ||
+			strings.HasPrefix(k.view, "#") {
 			delete(lc.entries, k)
 		}
 	}

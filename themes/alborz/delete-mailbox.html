@@ -8,12 +8,13 @@
     <main class="create-update">
       <form method="POST">
         <h2>{{printf ($.T "folder.deleteask") .Mailbox.Name}}</h2>
+        {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
         <div class="alert">
           {{printf ($.T "folder.deletewarn") .Mailbox.Name}}
         </div>
         <div class="actions">
-          <button type="submit">{{printf ($.T "folder.deletedo") .Mailbox.Name}}</button>
-          <a class="button-link" href="/">{{$.T "common.cancel"}}</a>
+          <button type="submit" class="button-danger">{{printf ($.T "folder.deletedo") .Mailbox.Name}}</button>
+          <a class="button-link button-quiet" href="/">{{$.T "common.cancel"}}</a>
         </div>
       </form>
     </main>

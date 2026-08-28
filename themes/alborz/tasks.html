@@ -23,16 +23,7 @@
     <main class="task-list">
       <section class="actions">
         <div class="actions-wrap">
-          <form method="get" class="actions-search">
-            <input
-              type="text"
-              name="query"
-              dir="auto"
-              value="{{.Query}}"
-              placeholder="{{$.T "tasks.searchph"}}"
-              aria-label="{{$.T "tasks.searchph"}}">
-            <button>{{$.T "mailbox.search"}}</button>
-          </form>
+          {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "all" $.GlobalData.Unified "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search")) }}
         </div>
       </section>
 

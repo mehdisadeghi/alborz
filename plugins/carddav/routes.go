@@ -43,11 +43,12 @@ type AddressObjectRenderData struct {
 
 type UpdateAddressObjectRenderData struct {
 	alborz.BaseRenderData
-	AddressBooks  []AddressBookInfo
+	AccountBooks  []BookGroup
 	AddressBook   *AddressBookInfo
 	AddressObject *carddav.AddressObject // nil if creating a new contact
 	Card          vcard.Card
 	Name          string
+	Error         string
 	Birthday      string
 }
 
@@ -108,13 +109,13 @@ func registerRoutes(p *plugin) {
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save CardDAV settings: %v", err)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
 	})
 
 	GET("/contacts", func(ctx *alborz.Context) error {
 		queryText := ctx.QueryParam("query")
 
-		accounts, err := p.routeBooks(ctx)
+		accounts, err := p.pooledBooks(ctx)
 		if err != nil {
 			return err
 		}
@@ -215,7 +216,9 @@ func registerRoutes(p *plugin) {
 		}
 
 		sortKey := ctx.QueryParam("sort")
-		if sortKey != "" && sortKey != "name" && sortKey != "email" {
+		switch sortKey {
+		case "", "name", "email", "phone", "account":
+		default:
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
 		}
 		sortDir := ctx.QueryParam("dir")
@@ -223,8 +226,13 @@ func registerRoutes(p *plugin) {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
 		}
 		key := func(ao AddressObject) string {
-			if sortKey == "email" {
+			switch sortKey {
+			case "email":
 				return strings.ToLower(ao.Card.PreferredValue("EMAIL"))
+			case "phone":
+				return strings.ToLower(ao.Card.PreferredValue("TEL"))
+			case "account":
+				return strings.ToLower(ao.Account)
 			}
 			return strings.ToLower(ao.DisplayName())
 		}
@@ -304,21 +312,18 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
-		if err != nil {
-			return err
-		}
+		var c *carddav.Client
+		var addressBooks []AddressBookInfo
+		var groups []BookGroup
 		var ao *carddav.AddressObject
 		var card vcard.Card
-		writable := make([]AddressBookInfo, 0, len(addressBooks))
-		for _, ab := range addressBooks {
-			if ab.Writable {
-				writable = append(writable, ab)
-			}
-		}
 
 		var currentAddressBook *AddressBookInfo
 		if addressObjectPath != "" {
+			c, addressBooks, err = p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+			if err != nil {
+				return err
+			}
 			ao, err = c.GetAddressObject(ctx.Request().Context(), addressObjectPath)
 			if err != nil {
 				return fmt.Errorf("failed to query CardDAV address: %v", err)
@@ -331,19 +336,63 @@ func registerRoutes(p *plugin) {
 				}
 			}
 		} else {
-			if len(writable) == 0 {
+			// Creation is a pooled operation. The active account may quite
+			// legitimately have no address book while another account does.
+			groups, err = p.writableBookGroups(ctx)
+			if err != nil {
+				return err
+			}
+			if len(groups) == 0 || len(groups[0].Books) == 0 {
 				return fmt.Errorf("no writable address books")
 			}
 			card = make(vcard.Card)
-			currentAddressBook = &writable[0]
+			currentAddressBook = &groups[0].Books[0]
 		}
 
 		if ctx.Request().Method == "POST" {
 			fn := ctx.FormValue("fn")
 			emails := strings.Split(ctx.FormValue("emails"), ",")
 			addressBookPath := ctx.FormValue("addressbook")
-			if ao == nil && addressBookByPath(writable, addressBookPath) == nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "unknown address book")
+
+			reject := func(message string) error {
+				return ctx.Render(http.StatusUnprocessableEntity, "update-address-object.html", &UpdateAddressObjectRenderData{
+					BaseRenderData: *alborz.NewBaseRenderData(ctx),
+					AccountBooks:   groups,
+					AddressBook:    currentAddressBook,
+					AddressObject:  ao,
+					Card:           card,
+					Name:           fn,
+					Birthday:       birthdayValue(card),
+					Error:          message,
+				})
+			}
+			if strings.TrimSpace(fn) == "" {
+				return reject(ctx.T("form.nameneeded"))
+			}
+
+			saveClient := c
+			var createAcct string
+			if ao == nil {
+				// The form's choice names its owner as "account|path".
+				acct, bookPath, ok := strings.Cut(addressBookPath, "|")
+				session := ctx.SessionFor(acct)
+				if !ok || session == nil {
+					return reject(ctx.T("form.destinationneeded"))
+				}
+				c2, books2, err := p.clientWithAddressBooks(ctx.Request().Context(), session)
+				if err != nil {
+					return err
+				}
+				var w2 []AddressBookInfo
+				for _, ab := range books2 {
+					if ab.Writable {
+						w2 = append(w2, ab)
+					}
+				}
+				if addressBookByPath(w2, bookPath) == nil {
+					return echo.NewHTTPError(http.StatusBadRequest, "unknown address book")
+				}
+				saveClient, addressBookPath, createAcct = c2, bookPath, acct
 			}
 
 			if _, ok := card[vcard.FieldVersion]; !ok {
@@ -425,12 +474,17 @@ func registerRoutes(p *plugin) {
 			} else {
 				savePath = path.Join(addressBookPath, id.String()+".vcf")
 			}
-			ao, err = c.PutAddressObject(ctx.Request().Context(), savePath, card)
+			ao, err = saveClient.PutAddressObject(ctx.Request().Context(), savePath, card)
 			if err != nil {
 				return fmt.Errorf("failed to put address object: %v", err)
 			}
 
-			return ctx.Redirect(http.StatusFound, ctx.AccountPath(AddressObject{AddressObject: ao}.URL()))
+			return func() error {
+				if createAcct != "" {
+					return ctx.Redirect(http.StatusFound, AddressObject{AddressObject: ao}.URL()+"?account="+alborz.AccountParam(createAcct))
+				}
+				return ctx.Redirect(http.StatusFound, ctx.AccountPath(AddressObject{AddressObject: ao}.URL()))
+			}()
 		}
 
 		// Both map values would be evaluated eagerly; a missing object
@@ -441,7 +495,7 @@ func registerRoutes(p *plugin) {
 		}
 		return ctx.Render(http.StatusOK, "update-address-object.html", &UpdateAddressObjectRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx),
-			AddressBooks:   writable,
+			AccountBooks:   groups,
 			AddressBook:    currentAddressBook,
 			AddressObject:  ao,
 			Card:           card,

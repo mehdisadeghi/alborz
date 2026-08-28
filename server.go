@@ -35,6 +35,10 @@ const (
 	unifiedCookieName    = "alborz_unified"
 	schemeCookieName     = "alborz_scheme"
 	themeCookieName      = "alborz_theme"
+	secondaryCookieName  = "alborz_secondary"
+	// TimezoneCookieName is written by the page, not by us: the browser
+	// is the only party that knows its own zone.
+	TimezoneCookieName = "alborz_tz"
 )
 
 // Server holds all the alborz server state.
@@ -385,8 +389,9 @@ func (s *Server) Logger() echo.Logger {
 //	ctx := ectx.(*alborz.Context)
 type Context struct {
 	echo.Context
-	Server  *Server
-	Session *Session // nil if user isn't logged in
+	Server         *Server
+	Session        *Session // request-scoped account; nil if not logged in
+	DefaultSession *Session // account stored in the session cookie
 
 	// Unified marks the merged all-accounts view; Session then anchors
 	// to one of the accounts while handlers aware of the view iterate
@@ -541,7 +546,7 @@ func (ctx *Context) Sessions() []*Session {
 
 // themeVariants are the selectable stylesheet overlays; the value is
 // validated here since it lands in a stylesheet URL.
-var themeVariants = []string{"sublime", "sourcehut", "glass", "ink"}
+var themeVariants = []string{"sublime", "glass", "ink"}
 
 // setPref stores a per-user display preference in the browser; empty
 // clears it back to the default.
@@ -586,6 +591,23 @@ func (ctx *Context) SetTheme(theme string) {
 // Theme returns the user's theme variant, empty for the default.
 func (ctx *Context) Theme() string {
 	return ctx.pref(themeCookieName, func(v string) bool { return slices.Contains(themeVariants, v) })
+}
+
+// secondaryCalendars are the calendar systems that can be shown beside
+// the Gregorian one; empty shows none.
+var secondaryCalendars = []string{"shcal"}
+
+// SetSecondaryCalendar stores which calendar system is shown alongside
+// the Gregorian dates.
+func (ctx *Context) SetSecondaryCalendar(name string) {
+	ctx.setPref(secondaryCookieName, name, slices.Contains(secondaryCalendars, name))
+}
+
+// SecondaryCalendar returns the chosen system, empty for none.
+func (ctx *Context) SecondaryCalendar() string {
+	return ctx.pref(secondaryCookieName, func(v string) bool {
+		return slices.Contains(secondaryCalendars, v)
+	})
 }
 
 // SetLanguage stores the user's UI language choice in the browser,
@@ -652,6 +674,7 @@ func (ctx *Context) AddAccount(s *Session) {
 		sessions = append(sessions, s)
 	}
 	ctx.Session = s
+	ctx.DefaultSession = s
 	ctx.SetSession(s)
 	ctx.setAccountSessions(sessions)
 }
@@ -662,13 +685,38 @@ func (ctx *Context) URLAccount() string {
 	return ctx.urlAccount
 }
 
+// AccountParam escapes an address for a query value while leaving the at
+// sign alone: '@' is legal there unescaped, and a percent-escaped address
+// makes every account-carrying link unreadable. '+' stays escaped, since
+// a bare one would read as a space.
+func AccountParam(username string) string {
+	return strings.ReplaceAll(url.QueryEscape(username), "%40", "@")
+}
+
 // AccountPath appends the request's account parameter to path, so a flow
 // started under one account redirects back into it.
 func (ctx *Context) AccountPath(path string) string {
 	if ctx.urlAccount == "" {
 		return path
 	}
-	return path + "?account=" + url.QueryEscape(ctx.urlAccount)
+	return path + "?account=" + AccountParam(ctx.urlAccount)
+}
+
+// NextOr returns the local page a form asked to return to, or fallback
+// when the request names none, names another host, or names something
+// that is not an absolute path. A setting written from a page belongs
+// to that page: the form carries where it was submitted from, and the
+// handler comes back to it instead of a fixed landing page.
+func (ctx *Context) NextOr(fallback string) string {
+	next := ctx.FormValue("next")
+	if next == "" {
+		return fallback
+	}
+	u, err := url.Parse(next)
+	if err != nil || u.Host != "" || !strings.HasPrefix(u.Path, "/") {
+		return fallback
+	}
+	return u.String()
 }
 
 // SessionFor returns the listed account's live session without making it
@@ -690,6 +738,7 @@ func (ctx *Context) SwitchAccount(username string) bool {
 		return false
 	}
 	ctx.Session = s
+	ctx.DefaultSession = s
 	ctx.SetSession(s)
 	return true
 }
@@ -698,24 +747,41 @@ func (ctx *Context) SwitchAccount(username string) bool {
 // promotes the next remaining account, whose session is returned. A nil
 // return means no account is left and the cookies were cleared.
 func (ctx *Context) Logout() *Session {
+	return ctx.LogoutAccount(ctx.Session.username)
+}
+
+// LogoutAccount closes exactly the named account. Logging out a background
+// account preserves the current session; logging out the current account
+// promotes the first remaining one.
+func (ctx *Context) LogoutAccount(username string) *Session {
 	var remaining []*Session
+	var target *Session
 	for _, s := range ctx.accountSessions() {
-		if s != ctx.Session {
-			remaining = append(remaining, s)
+		if s.username == username {
+			target = s
+			continue
 		}
+		remaining = append(remaining, s)
 	}
-	ctx.Session.Close()
+	if target == nil {
+		return ctx.DefaultSession
+	}
+	target.Close()
 	ctx.setAccountSessions(remaining)
-	ctx.forgetLoginToken(ctx.Session.username)
+	ctx.forgetLoginToken(target.username)
 	if len(remaining) == 0 {
 		ctx.Session = nil
+		ctx.DefaultSession = nil
 		ctx.SetSession(nil)
 		ctx.setActiveUser("")
 		return nil
 	}
-	ctx.Session = remaining[0]
-	ctx.SetSession(ctx.Session)
-	return ctx.Session
+	if ctx.DefaultSession == target || ctx.DefaultSession == nil {
+		ctx.DefaultSession = remaining[0]
+	}
+	ctx.Session = ctx.DefaultSession
+	ctx.SetSession(ctx.DefaultSession)
+	return ctx.DefaultSession
 }
 
 type loginToken struct {
@@ -1056,6 +1122,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			} else if err != nil {
 				return err
 			}
+			ctx.DefaultSession = ctx.Session
 			// Every signed-in account is in use, not only the active
 			// one: the switcher lists them all, so they all stay alive.
 			for _, session := range ctx.accountSessions() {
@@ -1072,10 +1139,12 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				}
 				ctx.Session = session
 				ctx.urlAccount = acct
-			} else if ctx.QueryParam("all") == "1" && len(ctx.accountSessions()) > 1 {
+			} else if strings.HasPrefix(ctx.Request().URL.Path, "/mailbox/") &&
+				ctx.QueryParam("all") == "1" && len(ctx.accountSessions()) > 1 {
 				// The merged view as a place, not a mode: nothing sticks.
 				ctx.Unified = true
-			} else if _, err := ctx.Cookie(unifiedCookieName); err == nil && len(ctx.accountSessions()) > 1 {
+			} else if _, err := ctx.Cookie(unifiedCookieName); strings.HasPrefix(ctx.Request().URL.Path, "/mailbox/") &&
+				err == nil && len(ctx.accountSessions()) > 1 {
 				ctx.Unified = true
 			}
 

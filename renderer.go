@@ -6,12 +6,19 @@ import (
 	"io"
 	"net/url"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
 
-	"git.mehdix.org/alborz/shcal"
+	"github.com/dromara/carbon/v2"
+	"github.com/dromara/carbon/v2/calendar/persian"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
+	"golang.org/x/text/number"
+	"golang.org/x/text/unicode/bidi"
 )
 
 // GlobalRenderData contains data available in all templates.
@@ -101,20 +108,110 @@ func (brd *BaseRenderData) T(key string) string {
 	return translate(brd.GlobalData.Lang, key)
 }
 
-// FormatDate formats a time in the user's timezone.
-func (g *GlobalRenderData) FormatDate(t time.Time) string {
-	if g.Timezone != nil {
-		t = t.In(g.Timezone)
+// carbonLangs holds one prepared carbon language per UI language. They
+// are built once and only read afterwards, which is what makes sharing
+// them across requests safe.
+var carbonLangs = map[string]*carbon.Language{}
+
+// carbonFixes correct what carbon's own locale files get wrong.
+var carbonFixes = map[string]map[string]string{
+	// German says "vor" and "in" with the dative, which takes -n in the
+	// plural; carbon ships "vor 3 Tage".
+	"de": {
+		"year":  "1 Jahr|%d Jahren",
+		"month": "1 Monat|%d Monaten",
+		"day":   "1 Tag|%d Tagen",
+	},
+	// Spanish writes its months and weekdays in lower case, and keeps
+	// their accents.
+	"es": {
+		"months":       "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre",
+		"short_months": "ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic",
+		"weeks":        "domingo|lunes|martes|miércoles|jueves|viernes|sábado",
+		"short_weeks":  "dom|lun|mar|mié|jue|vie|sáb",
+	},
+}
+
+func init() {
+	for _, code := range languages {
+		lang := carbon.NewLanguage().SetLocale(code)
+		if fixes, ok := carbonFixes[code]; ok {
+			lang.SetResources(fixes)
+		}
+		if lang.Error != nil {
+			panic(fmt.Sprintf("alborz: carbon has no usable %q locale: %v", code, lang.Error))
+		}
+		carbonLangs[code] = lang
 	}
-	return t.Format("Mon Jan 02 15:04")
+}
+
+// at reads t in the user's zone under the page's language, so every
+// name carbon spells comes back translated.
+func (g *GlobalRenderData) at(t time.Time) *carbon.Carbon {
+	lang, ok := carbonLangs[g.Lang]
+	if !ok {
+		lang = carbonLangs["en"]
+	}
+	return carbon.CreateFromStdTime(g.InTimezone(t)).SetLanguage(lang)
+}
+
+// Since dates a message the way a list reads it, in the reader's
+// language: "5 minutes ago", "vor 3 Tagen", "۸ ماه پیش". The exact date
+// belongs in the row's tooltip, where precision costs no width.
+func (g *GlobalRenderData) Since(t time.Time) string {
+	return g.shapeDigits(g.at(t).DiffForHumans())
+}
+
+// FormatDate states a full date and time: a message header and an event
+// page have the room to spell out what a list column abbreviates.
+func (g *GlobalRenderData) FormatDate(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return fmt.Sprintf("%s%s %s", g.LongDate(t), g.comma(), g.FormatTime(t))
+}
+
+// comma is the list separator of the page's script.
+func (g *GlobalRenderData) comma() string {
+	if g.Lang == "fa" {
+		return "،"
+	}
+	return ","
+}
+
+// ShortDate is a bare date, counted in the secondary calendar when one
+// is chosen: a reader who asked to count in Solar Hijri counts there
+// wherever a single date fits. The year is left off within this one.
+func (g *GlobalRenderData) ShortDate(t time.Time) string {
+	c := g.at(t)
+	day, year, month := c.Day(), c.Year(), c.ToShortMonthString()
+	thisYear := g.at(time.Now()).Year()
+	if g.Secondary == shcalName {
+		d, now := g.persian(t), g.persian(time.Now())
+		day, year, thisYear = d.Day(), d.Year(), now.Year()
+		month = g.shMonthName(d)
+	}
+	p := g.printer()
+	var s, yearSep string
+	switch g.Lang {
+	case "de":
+		s, yearSep = p.Sprintf("%d. %s", day, month), " "
+	case "es", "fa":
+		s, yearSep = p.Sprintf("%d %s", day, month), " "
+	default:
+		// Only English separates the day from the year with a comma.
+		s, yearSep = p.Sprintf("%s %d", month, day), ", "
+	}
+	if year != thisYear {
+		s = s + yearSep + g.year(year)
+	}
+	return s
 }
 
 // FormatTime formats just the time portion in the user's timezone.
 func (g *GlobalRenderData) FormatTime(t time.Time) string {
-	if g.Timezone != nil {
-		t = t.In(g.Timezone)
-	}
-	return t.Format("15:04")
+	t = g.InTimezone(t)
+	return g.printer().Sprintf("%02d:%02d", t.Hour(), t.Minute())
 }
 
 // InTimezone converts a time to the user's timezone.
@@ -125,96 +222,278 @@ func (g *GlobalRenderData) InTimezone(t time.Time) time.Time {
 	return t
 }
 
+// weekOne is a Sunday, so that adding a weekday index to it names that
+// weekday. Any Sunday would do; this one is arbitrary.
+var weekOne = time.Date(2023, time.January, 1, 12, 0, 0, 0, time.UTC)
+
 // Weekdays returns translated weekday names starting from
 // FirstDayOfWeek.
 func (g *GlobalRenderData) Weekdays() []string {
 	result := make([]string, 7)
-	for i := 0; i < 7; i++ {
-		result[i] = translate(g.Lang, dayKeys[(g.FirstDayOfWeek+i)%7])
+	for i := range result {
+		result[i] = g.WeekdayName(weekOne.AddDate(0, 0, (g.FirstDayOfWeek+i)%7))
 	}
 	return result
 }
 
 // WeekdayName translates the weekday of t.
 func (g *GlobalRenderData) WeekdayName(t time.Time) string {
-	return translate(g.Lang, dayKeys[int(t.Weekday())])
+	return g.at(t).ToWeekString()
 }
 
 // MonthName translates the month of t.
 func (g *GlobalRenderData) MonthName(t time.Time) string {
-	return translate(g.Lang, monthKeys[t.Month()-1])
+	return g.at(t).ToMonthString()
+}
+
+// replyPrefix matches the marks a mail client puts in front of a
+// subject when it answers or forwards one, in the languages alborz
+// speaks plus the ones its lists carry, and a list's [tag].
+var replyPrefix = regexp.MustCompile(`^\s*(?i:(re|aw|sv|antw|fw|fwd|rv|tr)\s*(\[\d+\])?\s*:|\[[^\]]{1,40}\])\s*`)
+
+// SubjectDir is the writing direction a subject should be read in.
+//
+// dir=auto and the bidi algorithm both take the first strong character,
+// which a reply prefix supplies: "Re: درخواست راهنمایی" is a Persian
+// subject that renders left to right because two Latin letters happen
+// to lead it. The prefixes are stripped first, so the direction comes
+// from what the subject actually says; x/text then applies the same
+// rule to the remainder.
+func SubjectDir(subject string) string {
+	stripped := subject
+	for {
+		trimmed := replyPrefix.ReplaceAllString(stripped, "")
+		if trimmed == stripped {
+			break
+		}
+		stripped = trimmed
+	}
+	if strings.TrimSpace(stripped) == "" {
+		stripped = subject
+	}
+	if strings.TrimSpace(stripped) == "" {
+		return "auto"
+	}
+	// Order must run before the direction is asked for: x/text panics
+	// on a paragraph it has not ordered yet.
+	var p bidi.Paragraph
+	if _, err := p.SetString(stripped); err != nil {
+		return "auto"
+	}
+	if _, err := p.Order(); err != nil {
+		return "auto"
+	}
+	if p.IsLeftToRight() {
+		return "ltr"
+	}
+	return "rtl"
+}
+
+// ShortAccount names an account as briefly as it can still be told
+// apart: the domain alone while it is the only account signed in there,
+// the whole address once two accounts share one domain.
+func ShortAccount(account string, accounts []Account) string {
+	_, domain, ok := strings.Cut(account, "@")
+	if !ok {
+		return account
+	}
+	for _, a := range accounts {
+		if a.Username != account && strings.HasSuffix(a.Username, "@"+domain) {
+			return account
+		}
+	}
+	return domain
+}
+
+// AccountLabel is ShortAccount for the accounts of the page.
+func (g GlobalRenderData) AccountLabel(account string) string {
+	return ShortAccount(account, g.Accounts)
+}
+
+// AccountColor is the mark a merged row wears in the opt-in color mode.
+// The hues are spread over the accounts actually signed in, in name
+// order, so no two are a shade apart: hashing each name on its own gave
+// two of three accounts 25 and 27 degrees, which reads as one color.
+// The mark is a reading aid layered on the account's name, never the
+// only thing that says whose a row is.
+func (g GlobalRenderData) AccountColor(account string) template.CSS {
+	names := make([]string, len(g.Accounts))
+	for i, a := range g.Accounts {
+		names[i] = a.Username
+	}
+	slices.Sort(names)
+	i := slices.Index(names, account)
+	if i < 0 {
+		return ""
+	}
+	return template.CSS(fmt.Sprintf("hsl(%d 60%% 45%%)", i*360/len(names)))
+}
+
+// printers write numbers the way each language writes them - Persian
+// digits on a Persian page, each locale's own grouping - out of CLDR's
+// tables in x/text. Nothing here knows what a digit looks like.
+var printers = map[string]*message.Printer{}
+
+func init() {
+	for _, code := range languages {
+		printers[code] = message.NewPrinter(language.MustParse(code))
+	}
+}
+
+// The receivers below are values, not pointers: templates hand the
+// global to a define inside a tuple, which boxes it and leaves pointer
+// methods out of reach.
+func (g GlobalRenderData) printer() *message.Printer {
+	if p, ok := printers[g.Lang]; ok {
+		return p
+	}
+	return printers["en"]
+}
+
+// Num writes a count as the page's language writes one, grouped:
+// 12345 is "12,345", "12.345" or "۱۲٬۳۴۵".
+func (g GlobalRenderData) Num(n int) string {
+	return g.printer().Sprintf("%d", n)
+}
+
+// year writes a year, which no language groups: 2026 is never "2,026".
+func (g GlobalRenderData) year(n int) string {
+	return g.printer().Sprint(number.Decimal(n, number.NoSeparator()))
+}
+
+// Tf translates a format string and fills it in the page's language, so
+// the numbers inside a sentence are written like the sentence.
+func (g GlobalRenderData) Tf(key string, args ...interface{}) string {
+	count := 1
+	if len(args) > 0 {
+		if n, ok := args[0].(int); ok {
+			count = n
+		}
+	}
+	return g.printer().Sprintf(translateCount(g.Lang, key, count), args...)
+}
+
+// persianDigits shapes the digits inside a string a library already
+// formatted. It exists only for carbon, which fills its own relative
+// phrases ("%d ماه پیش") with Latin numerals and offers no hook: every
+// number alborz formats itself goes through a printer instead.
+var persianDigits = [10]rune{'۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'}
+
+// LatinDigits rewrites the digit shapes someone may type - Persian
+// (U+06F0..) or Arabic (U+0660..) - into the Latin ones every parser
+// expects. A page that counts in Persian digits invites them back.
+func LatinDigits(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= '۰' && r <= '۹':
+			return '0' + (r - '۰')
+		case r >= '٠' && r <= '٩':
+			return '0' + (r - '٠')
+		}
+		return r
+	}, s)
+}
+
+// shapeDigits rewrites the digits of a string that came back from a
+// library, leaving one that still carries a Latin word alone: "399 B"
+// half-converted reads worse than either script does whole.
+func (g GlobalRenderData) shapeDigits(s string) string {
+	if g.Lang != "fa" || strings.ContainsFunc(s, isLatinLetter) {
+		return s
+	}
+	return strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return persianDigits[r-'0']
+		}
+		return r
+	}, s)
+}
+
+func isLatinLetter(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+}
+
+// shcalName is the one secondary calendar offered, the Solar Hijri
+// (Jalali) one that Iran and Afghanistan count in.
+const shcalName = "shcal"
+
+// persian reads t in the secondary calendar.
+func (g *GlobalRenderData) persian(t time.Time) *persian.Persian {
+	return persian.FromStdTime(g.InTimezone(t))
 }
 
 // SecondaryDay is the day number of the same date in the secondary
 // calendar, empty when none is chosen. The first day of a month carries
 // its month name, the way the Gregorian labels do.
 func (g *GlobalRenderData) SecondaryDay(t time.Time) string {
-	if g.Secondary != "shcal" {
+	if g.Secondary != shcalName {
 		return ""
 	}
-	d := shcal.FromTime(g.InTimezone(t))
-	if d.Day == 1 {
-		return fmt.Sprintf("%d %s", d.Day, g.shMonthName(d.Month))
+	d := g.persian(t)
+	if d.Day() == 1 {
+		return g.printer().Sprintf("%d %s", d.Day(), g.shMonthName(d))
 	}
-	return fmt.Sprint(d.Day)
+	return g.Num(d.Day())
 }
 
 // SecondaryMonthYear names the secondary months a Gregorian month spans,
 // empty when no secondary calendar is chosen.
 func (g *GlobalRenderData) SecondaryMonthYear(t time.Time) string {
-	if g.Secondary != "shcal" {
+	if g.Secondary != shcalName {
 		return ""
 	}
 	t = g.InTimezone(t)
-	first := shcal.FromTime(time.Date(t.Year(), t.Month(), 1, 12, 0, 0, 0, t.Location()))
-	last := shcal.FromTime(time.Date(t.Year(), t.Month()+1, 0, 12, 0, 0, 0, t.Location()))
-	if first.Month == last.Month && first.Year == last.Year {
-		return fmt.Sprintf("%s %d", g.shMonthName(first.Month), first.Year)
+	first := g.persian(time.Date(t.Year(), t.Month(), 1, 12, 0, 0, 0, t.Location()))
+	last := g.persian(time.Date(t.Year(), t.Month()+1, 0, 12, 0, 0, 0, t.Location()))
+	if first.Month() == last.Month() && first.Year() == last.Year() {
+		return fmt.Sprintf("%s %s", g.shMonthName(first), g.year(first.Year()))
 	}
-	if first.Year == last.Year {
-		return fmt.Sprintf("%s – %s %d", g.shMonthName(first.Month), g.shMonthName(last.Month), last.Year)
+	if first.Year() == last.Year() {
+		return fmt.Sprintf("%s – %s %s", g.shMonthName(first), g.shMonthName(last), g.year(last.Year()))
 	}
-	return fmt.Sprintf("%s %d – %s %d", g.shMonthName(first.Month), first.Year,
-		g.shMonthName(last.Month), last.Year)
+	return fmt.Sprintf("%s %s – %s %s", g.shMonthName(first), g.year(first.Year()),
+		g.shMonthName(last), g.year(last.Year()))
 }
 
 // SecondaryDate is the full secondary date of one day.
 func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
-	if g.Secondary != "shcal" {
+	if g.Secondary != shcalName || t.IsZero() {
 		return ""
 	}
-	d := shcal.FromTime(g.InTimezone(t))
-	return fmt.Sprintf("%d %s %d", d.Day, g.shMonthName(d.Month), d.Year)
+	d := g.persian(t)
+	return g.printer().Sprintf("%d %s %s", d.Day(), g.shMonthName(d), g.year(d.Year()))
 }
 
-func (g *GlobalRenderData) shMonthName(m shcal.Month) string {
-	return translate(g.Lang, shMonthKeys[m-1])
+// shMonthName spells a Solar Hijri month in Persian for a Persian page
+// and transliterates it everywhere else, which is all carbon offers and
+// all the other three languages have a convention for.
+func (g *GlobalRenderData) shMonthName(d *persian.Persian) string {
+	if g.Lang == "fa" {
+		return d.ToMonthString(persian.FaLocale)
+	}
+	return d.ToMonthString(persian.EnLocale)
 }
 
 // CalendarDayLabel keeps ordinary cells to a bare day number and repeats a
 // compact month name only on the first day of each month.
 func (g *GlobalRenderData) CalendarDayLabel(t time.Time) string {
 	if t.Day() != 1 {
-		return fmt.Sprint(t.Day())
+		return g.Num(t.Day())
 	}
-	monthRunes := []rune(g.MonthName(t))
-	if len(monthRunes) > 3 {
-		monthRunes = monthRunes[:3]
-	}
-	month := string(monthRunes)
+	month := g.at(t).ToShortMonthString()
 	switch g.Lang {
 	case "de":
-		return fmt.Sprintf("%d. %s.", t.Day(), month)
+		return g.printer().Sprintf("%d. %s.", t.Day(), month)
 	case "es", "fa":
-		return fmt.Sprintf("%d %s", t.Day(), month)
+		return g.printer().Sprintf("%d %s", t.Day(), month)
 	default:
-		return fmt.Sprintf("%s %d", month, t.Day())
+		return g.printer().Sprintf("%s %d", month, t.Day())
 	}
 }
 
 // MonthYear renders the calendar heading for t's month.
 func (g *GlobalRenderData) MonthYear(t time.Time) string {
-	return fmt.Sprintf("%s %d", g.MonthName(t), t.Year())
+	return fmt.Sprintf("%s %s", g.MonthName(t), g.year(t.Year()))
 }
 
 // LongDate renders a translated day heading without relying on the
@@ -224,13 +503,13 @@ func (g *GlobalRenderData) LongDate(t time.Time) string {
 	month := g.MonthName(t)
 	switch g.Lang {
 	case "fa":
-		return fmt.Sprintf("%s، %d %s %d", weekday, t.Day(), month, t.Year())
+		return g.printer().Sprintf("%s، %d %s %s", weekday, t.Day(), month, g.year(t.Year()))
 	case "de":
-		return fmt.Sprintf("%s, %d. %s %d", weekday, t.Day(), month, t.Year())
+		return g.printer().Sprintf("%s, %d. %s %s", weekday, t.Day(), month, g.year(t.Year()))
 	case "es":
-		return fmt.Sprintf("%s, %d de %s de %d", weekday, t.Day(), month, t.Year())
+		return g.printer().Sprintf("%s, %d de %s de %s", weekday, t.Day(), month, g.year(t.Year()))
 	default:
-		return fmt.Sprintf("%s, %s %d, %d", weekday, month, t.Day(), t.Year())
+		return g.printer().Sprintf("%s, %s %d, %s", weekday, month, t.Day(), g.year(t.Year()))
 	}
 }
 
@@ -322,6 +601,13 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 // T translates a namespaced string key into the request's UI
 // language, for strings built on the Go side.
+// Tf is T with a count and arguments: the plural form the count calls
+// for, filled in with numbers written the way that language writes them.
+func (ctx *Context) Tf(key string, args ...interface{}) string {
+	g := GlobalRenderData{Lang: requestLanguage(ctx)}
+	return g.Tf(key, args...)
+}
+
 func (ctx *Context) T(key string) string {
 	return translate(requestLanguage(ctx), key)
 }
@@ -356,8 +642,8 @@ func (brd *BaseRenderData) WithTitle(title string) *BaseRenderData {
 // MonthYearIn translates a month heading for the request's language,
 // for titles built before the render data exists.
 func (ctx *Context) MonthYearIn(t time.Time) string {
-	lang := requestLanguage(ctx)
-	return fmt.Sprintf("%s %d", translate(lang, monthKeys[t.Month()-1]), t.Year())
+	g := GlobalRenderData{Lang: requestLanguage(ctx)}
+	return g.MonthYear(t)
 }
 
 // PageTitle is the browser title: the page's subject and the brand,

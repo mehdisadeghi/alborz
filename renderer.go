@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+
+	"git.mehdix.org/alborz/shcal"
 )
 
 // GlobalRenderData contains data available in all templates.
@@ -35,6 +37,11 @@ type GlobalRenderData struct {
 
 	// Build version, empty when the binary carries no VCS metadata
 	Version string
+	// Year the page is served in, for the footer's line
+	Year int
+	// Secondary calendar system shown beside the Gregorian dates,
+	// empty for none
+	Secondary string
 
 	// User's timezone location for date formatting
 	Timezone *time.Location
@@ -138,9 +145,93 @@ func (g *GlobalRenderData) MonthName(t time.Time) string {
 	return translate(g.Lang, monthKeys[t.Month()-1])
 }
 
+// SecondaryDay is the day number of the same date in the secondary
+// calendar, empty when none is chosen. The first day of a month carries
+// its month name, the way the Gregorian labels do.
+func (g *GlobalRenderData) SecondaryDay(t time.Time) string {
+	if g.Secondary != "shcal" {
+		return ""
+	}
+	d := shcal.FromTime(g.InTimezone(t))
+	if d.Day == 1 {
+		return fmt.Sprintf("%d %s", d.Day, g.shMonthName(d.Month))
+	}
+	return fmt.Sprint(d.Day)
+}
+
+// SecondaryMonthYear names the secondary months a Gregorian month spans,
+// empty when no secondary calendar is chosen.
+func (g *GlobalRenderData) SecondaryMonthYear(t time.Time) string {
+	if g.Secondary != "shcal" {
+		return ""
+	}
+	t = g.InTimezone(t)
+	first := shcal.FromTime(time.Date(t.Year(), t.Month(), 1, 12, 0, 0, 0, t.Location()))
+	last := shcal.FromTime(time.Date(t.Year(), t.Month()+1, 0, 12, 0, 0, 0, t.Location()))
+	if first.Month == last.Month && first.Year == last.Year {
+		return fmt.Sprintf("%s %d", g.shMonthName(first.Month), first.Year)
+	}
+	if first.Year == last.Year {
+		return fmt.Sprintf("%s – %s %d", g.shMonthName(first.Month), g.shMonthName(last.Month), last.Year)
+	}
+	return fmt.Sprintf("%s %d – %s %d", g.shMonthName(first.Month), first.Year,
+		g.shMonthName(last.Month), last.Year)
+}
+
+// SecondaryDate is the full secondary date of one day.
+func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
+	if g.Secondary != "shcal" {
+		return ""
+	}
+	d := shcal.FromTime(g.InTimezone(t))
+	return fmt.Sprintf("%d %s %d", d.Day, g.shMonthName(d.Month), d.Year)
+}
+
+func (g *GlobalRenderData) shMonthName(m shcal.Month) string {
+	return translate(g.Lang, shMonthKeys[m-1])
+}
+
+// CalendarDayLabel keeps ordinary cells to a bare day number and repeats a
+// compact month name only on the first day of each month.
+func (g *GlobalRenderData) CalendarDayLabel(t time.Time) string {
+	if t.Day() != 1 {
+		return fmt.Sprint(t.Day())
+	}
+	monthRunes := []rune(g.MonthName(t))
+	if len(monthRunes) > 3 {
+		monthRunes = monthRunes[:3]
+	}
+	month := string(monthRunes)
+	switch g.Lang {
+	case "de":
+		return fmt.Sprintf("%d. %s.", t.Day(), month)
+	case "es", "fa":
+		return fmt.Sprintf("%d %s", t.Day(), month)
+	default:
+		return fmt.Sprintf("%s %d", month, t.Day())
+	}
+}
+
 // MonthYear renders the calendar heading for t's month.
 func (g *GlobalRenderData) MonthYear(t time.Time) string {
 	return fmt.Sprintf("%s %d", g.MonthName(t), t.Year())
+}
+
+// LongDate renders a translated day heading without relying on the
+// process locale (time.Format only knows English names).
+func (g *GlobalRenderData) LongDate(t time.Time) string {
+	weekday := g.WeekdayName(t)
+	month := g.MonthName(t)
+	switch g.Lang {
+	case "fa":
+		return fmt.Sprintf("%s، %d %s %d", weekday, t.Day(), month, t.Year())
+	case "de":
+		return fmt.Sprintf("%s, %d. %s %d", weekday, t.Day(), month, t.Year())
+	case "es":
+		return fmt.Sprintf("%s, %d de %s de %d", weekday, t.Day(), month, t.Year())
+	default:
+		return fmt.Sprintf("%s, %s %d, %d", weekday, month, t.Day(), t.Year())
+	}
 }
 
 // pluginEnabled reports whether the plugin applies to the request's
@@ -205,6 +296,8 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Version = ctx.Server.Options.Version
+		global.Year = time.Now().Year()
+		global.Secondary = ctx.SecondaryCalendar()
 		global.ColorScheme = ctx.ColorScheme()
 		global.Theme = ctx.Theme()
 	}

@@ -1174,32 +1174,40 @@ main.calendar .actions {
   border-end-end-radius: 0;
 }
 
+/* One toolbar, one line: a wrapping flex container breaks on the items'
+   full content width, so the title's ellipsis would never get a turn.
+   The narrow layout re-declares wrap and keeps its two rows. */
 .actions-wrap {
   display: flex;
   flex-grow: 1;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
+/* Buttons hold their label on one line; the title yields the width. */
+.actions button,
+.actions .button-link {
+  white-space: nowrap;
+}
+
+/* Search asks for a comfortable width and gives it back before anything
+   else does: it is the widest thing on the row and the least harmed by
+   being narrow. */
 .actions-search {
   display: flex;
   flex-direction: row;
-  flex-grow: 1;
+  flex: 0 1 24rem;
+  width: min(24rem, 42vw);
+  min-width: 7rem;
+  max-width: 30rem;
+  margin-inline-start: auto;
+  order: 100;
 }
 
-/* Five-digit mailbox counts must not push the toolbar to two lines
-   at half-screen widths; the range is secondary and shrinks first,
-   then goes entirely before the toolbar would wrap. */
-.pagination-range {
-  font-size: 0.85rem;
-}
 
-@media (width <= 45rem) {
-  .pagination-range { display: none; }
-}
 
 .actions-search button {
   padding-inline: 0.5rem;
@@ -1238,9 +1246,12 @@ main.calendar .actions {
   font-weight: 500;
 }
 
+/* The count is secondary: it shrinks first and goes entirely before
+   anything that can be clicked. */
 .pagination-range {
   color: var(--fg-muted);
   white-space: nowrap;
+  font-size: 0.85rem;
 }
 
 .action-group:not(:last-child) {
@@ -1340,32 +1351,51 @@ main.calendar .actions {
   grid-template-rows: auto;
 }
 
-/* Merged views spell the owning account in a column of its own. */
+/* Merged desktop rows stay dense; ownership becomes dim secondary text in
+   the mobile card layout and remains explicit on detail pages. */
 .message-grid.unified {
-  /* The account column hugs its widest address, capped; the set of
-     accounts is constant per view, so nothing shifts on sort. */
-  grid-template-columns: 14rem fit-content(11rem) 5rem 1fr 8rem 5.5rem;
+  grid-template-columns: 14rem 5rem 1fr 8rem 5.5rem;
 }
 
-.message-grid .message-list-header {
+/* One header style for every list table: muted bold labels on one
+   border, links inheriting ink, cells padded like their columns. */
+.message-grid .message-list-header,
+.contact-grid .contact-list-header,
+.task-grid .task-list-header,
+.event-grid .event-list-header {
   font-weight: bold;
   color: var(--fg-muted);
   border-bottom: 1px solid var(--border-strong);
   /* Match the row cells so labels align with their columns, and pin
      the empty checkbox header's border to the same baseline. */
-  padding: 0.3rem;
+  min-height: 2rem;
+  padding: 0.4rem var(--space-2);
   align-self: stretch;
 }
 
-.message-grid .message-list-header a { color: inherit; }
+.message-grid .message-list-header a,
+.contact-grid .contact-list-header a,
+.task-grid .task-list-header a,
+.event-grid .event-list-header a { color: inherit; }
 
-/* On desktop the account column replaces the inline label. */
-.message-grid .row-account { display: none; }
-
-.message-list-account {
-  color: var(--fg-muted);
-  font-size: 0.9em;
+/* A sort direction is part of its label. It may overflow a narrow
+   column, but the arrow never detaches onto a second line. */
+.sort-header {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
 }
+
+.sort-header strong {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25em;
+  white-space: nowrap;
+}
+
+/* Account names are secondary card metadata, hidden in dense desktop rows. */
+.message-grid .row-account,
+.contact-grid .row-account { display: none; }
 
 /* Nested folders indent their content, not their rows: every row spans
    the sidebar, so the active highlight runs edge to edge. */
@@ -1662,19 +1692,47 @@ main.calendar .events .overflow {
 }
 
 main.calendar .date h4 {
-  font-weight: normal;
-  text-align: end;
+  font-weight: 500;
+  text-align: start;
+  color: var(--fg-muted);
+  min-height: 1.65rem;
+  margin: 0 0 var(--space-1);
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+main.calendar .date h4 .day-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.65rem;
+  padding-inline: 0.25rem;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+/* The secondary calendar is a gloss on the Gregorian date, never a
+   competitor: same line, quieter ink, smaller. */
+main.calendar .date h4 .day-secondary {
+  margin-inline-start: 0.3rem;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+
+.title-secondary {
+  margin-inline-start: 0.4rem;
+  font-size: var(--text-sm);
+  font-weight: 500;
   color: var(--fg-muted);
 }
 
-main.calendar .date h4 .da { font-size: 1.2rem; }
-
-main.calendar-date .events-list ul {
-  list-style: none;
-  padding: 0;
+main.calendar .date.active h4 .day-label {
+  border-radius: 999px;
+  background: var(--green);
+  color: white;
 }
 
-#calendar-filter, #addressbook-filter, #task-filter {display: flex; flex-direction: column;}
+aside .aside-filter { display: flex; flex-direction: column; }
 
 .color-dot {
   display: inline-block;
@@ -2666,8 +2724,12 @@ aside ul.merged-roles {
   main.calendar .dates .weekday { font-size: 0; }
   main.calendar .dates .weekday::first-letter { font-size: 0.8rem; }
   main.calendar .date { padding: 2px; min-height: 3rem; }
-  main.calendar .date h4 { font-size: 0.7rem; }
-  main.calendar .date h4 .da { font-size: 0.9rem; }
+  main.calendar .date h4 { font-size: 0.7rem; min-height: 1.35rem; }
+  main.calendar .date h4 .day-label { font-size: 0.75rem; min-height: 1.35rem; padding-inline: 2px; }
+  /* The cell is barely wider than its own number here; the secondary
+     shrinks with it and is clipped rather than pushing the grid out. */
+  main.calendar .date h4 { overflow: hidden; white-space: nowrap; }
+  main.calendar .date h4 .day-secondary { font-size: 0.6rem; margin-inline-start: 0.15rem; }
   main.calendar .date ul { padding-inline-start: 0; }
   main.calendar .events li { display: inline; font-size: 0; }
   main.calendar .events li .color-dot {

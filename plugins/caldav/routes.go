@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
@@ -18,6 +17,60 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
+
+// NewCalendarRenderData drives the create-a-calendar form.
+type NewCalendarRenderData struct {
+	alborz.BaseRenderData
+	Accounts []alborz.Account
+	Name     string
+	Account  string
+	Color    string
+	Tasks    bool
+	Error    string
+}
+
+// handleCreateCalendar adds a collection to the chosen account. The
+// component set is the one decision a calendar cannot change later on
+// most servers, so it is asked here rather than assumed.
+func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		data := &NewCalendarRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.newcalendar")),
+			Accounts:       ctx.Accounts(),
+			Account:        ctx.Session.Username(),
+			Color:          "#3366cc",
+			Tasks:          true,
+		}
+		if ctx.Request().Method != http.MethodPost {
+			return ctx.Render(http.StatusOK, "create-calendar.html", data)
+		}
+
+		data.Name = strings.TrimSpace(ctx.FormValue("name"))
+		data.Color = ctx.FormValue("color")
+		data.Tasks = ctx.FormValue("tasks") == "1"
+		if account := ctx.FormValue("account"); account != "" {
+			data.Account = account
+		}
+		if data.Name == "" {
+			data.Error = ctx.T("form.nameneeded")
+			return ctx.Render(http.StatusUnprocessableEntity, "create-calendar.html", data)
+		}
+
+		session := ctx.SessionFor(data.Account)
+		if session == nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+		}
+		components := []string{"VEVENT"}
+		if data.Tasks {
+			components = append(components, "VTODO")
+		}
+		if err := p.createCalendar(ctx.Request().Context(), session, data.Name, components, data.Color); err != nil {
+			data.Error = err.Error()
+			return ctx.Render(http.StatusUnprocessableEntity, "create-calendar.html", data)
+		}
+		return ctx.Redirect(http.StatusFound, "/calendar")
+	}
+}
 
 type CalendarRenderData struct {
 	alborz.BaseRenderData
@@ -33,17 +86,19 @@ type CalendarRenderData struct {
 
 	EventsForDate func(time.Time) []CalendarObject
 	ColorForPath  func(account, path string) string
-	DaySuffix     func(n int) string
+	OwnerLabel    func(account, path string) string
 	Sub           func(a, b int) int
 }
 
 type CalendarDateRenderData struct {
 	alborz.BaseRenderData
 	Time               time.Time
+	Calendars          []CalendarInfo
 	Events             []CalendarObject
 	PrevPage, NextPage string
 
 	ColorForPath func(account, path string) string
+	OwnerLabel   func(account, path string) string
 }
 
 type EventRenderData struct {
@@ -54,10 +109,14 @@ type EventRenderData struct {
 
 type UpdateEventRenderData struct {
 	alborz.BaseRenderData
-	Calendars      []CalendarInfo
+	AccountCals    []CalendarGroup
 	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject // nil if creating a new event
 	Event          *ical.Event
+
+	// Error is shown as an alert on the form just submitted: invalid
+	// input is answered by the page itself, never by a status page.
+	Error string
 }
 
 type Settings struct {
@@ -68,17 +127,29 @@ type Settings struct {
 	ShowCompleted    bool
 }
 
-type TaskGroup struct {
-	Calendar CalendarInfo
-	Tasks    []TaskObject
-}
-
 type TasksRenderData struct {
 	alborz.BaseRenderData
-	Calendars     []CalendarInfo
-	TaskGroups    []TaskGroup
+	Calendars []CalendarInfo
+	Tasks     []TaskRow
+
+	// True when every account shows completed tasks; the single aside
+	// toggle writes all of them.
 	ShowCompleted bool
 	Query         string
+	Sort          string
+	SortDir       string
+}
+
+// TaskRow is the flat, table-shaped representation shared by the task
+// list and its sort controls. Calendar ownership stays explicit instead
+// of being encoded as nested visual groups.
+type TaskRow struct {
+	Task      TaskObject
+	Calendar  CalendarInfo
+	Summary   string
+	Status    string
+	Due       string
+	Completed bool
 }
 
 type TaskRenderData struct {
@@ -89,10 +160,11 @@ type TaskRenderData struct {
 
 type UpdateTaskRenderData struct {
 	alborz.BaseRenderData
-	Calendars      []CalendarInfo
+	AccountCals    []CalendarGroup
 	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject
 	Todo           *ical.Component
+	Error          string
 }
 
 const (
@@ -118,47 +190,6 @@ func parseDateTime(s string, loc *time.Location) (time.Time, error) {
 		return time.Time{}, echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 	return t, nil
-}
-
-func detectScript(s string) string {
-	for _, r := range s {
-		if unicode.IsLetter(r) {
-			switch {
-			case unicode.Is(unicode.Arabic, r):
-				return "arabic"
-			case unicode.Is(unicode.Hebrew, r):
-				return "hebrew"
-			case unicode.Is(unicode.Cyrillic, r):
-				return "cyrillic"
-			case unicode.Is(unicode.Han, r):
-				return "han"
-			case unicode.Is(unicode.Hiragana, r) || unicode.Is(unicode.Katakana, r):
-				return "japanese"
-			case unicode.Is(unicode.Hangul, r):
-				return "hangul"
-			case unicode.Is(unicode.Greek, r):
-				return "greek"
-			case unicode.Is(unicode.Latin, r):
-				return "latin"
-			default:
-				return "other"
-			}
-		}
-	}
-	return "other"
-}
-
-func sortTasksByScript(tasks []TaskObject) {
-	sort.SliceStable(tasks, func(i, j int) bool {
-		todoI := getFirstTodo(tasks[i].Data)
-		todoJ := getFirstTodo(tasks[j].Data)
-		if todoI == nil || todoJ == nil {
-			return false
-		}
-		summaryI, _ := todoI.Props.Text("SUMMARY")
-		summaryJ, _ := todoJ.Props.Text("SUMMARY")
-		return detectScript(summaryI) < detectScript(summaryJ)
-	})
 }
 
 func loadSettings(store alborz.Store) (*Settings, error) {
@@ -216,7 +247,7 @@ func registerRoutes(p *plugin) {
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save CalDAV settings: %v", err)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))
 	})
 
 	POST("/tasks", func(ctx *alborz.Context) error {
@@ -230,11 +261,27 @@ func registerRoutes(p *plugin) {
 		}
 		settings.TaskFilter = true
 		settings.VisibleTasks = params["cal"]
-		settings.ShowCompleted = params.Get("show-completed") == "1"
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save CalDAV settings: %v", err)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
+	})
+
+	// One toggle for the pooled page: a view option that reads as one
+	// control writes every account's setting.
+	POST("/tasks/show-completed", func(ctx *alborz.Context) error {
+		on := ctx.FormValue("show-completed") == "1"
+		for _, session := range ctx.Sessions() {
+			settings, err := loadSettings(session.Store())
+			if err != nil {
+				return fmt.Errorf("failed to load CalDAV settings: %v", err)
+			}
+			settings.ShowCompleted = on
+			if err := session.Store().Put(settingsKey, settings); err != nil {
+				return fmt.Errorf("failed to save CalDAV settings: %v", err)
+			}
+		}
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 	})
 
 	GET("/calendar", func(ctx *alborz.Context) error {
@@ -279,7 +326,7 @@ func registerRoutes(p *plugin) {
 		totalCells := offset + daysInMonth
 		rows := (totalCells + 6) / 7
 
-		accounts, err := p.routeCalendars(ctx)
+		accounts, err := p.pooledCalendars(ctx)
 		if err != nil {
 			return err
 		}
@@ -402,23 +449,16 @@ func registerRoutes(p *plugin) {
 				}
 				return ""
 			},
-
-			DaySuffix: func(n int) string {
-				if n%100 >= 11 && n%100 <= 13 {
-					return "th"
+			OwnerLabel: func(account, eventPath string) string {
+				for _, cal := range calendarInfos {
+					if cal.Account == account && strings.HasPrefix(eventPath, cal.Path) {
+						if len(accounts) > 1 {
+							return cal.Name + " — " + account
+						}
+						return cal.Name
+					}
 				}
-				return map[int]string{
-					0: "th",
-					1: "st",
-					2: "nd",
-					3: "rd",
-					4: "th",
-					5: "th",
-					6: "th",
-					7: "th",
-					8: "th",
-					9: "th",
-				}[n%10]
+				return ""
 			},
 
 			Sub: func(a, b int) int {
@@ -444,7 +484,7 @@ func registerRoutes(p *plugin) {
 		}
 		end := start.AddDate(0, 0, 1)
 
-		accounts, err := p.routeCalendars(ctx)
+		accounts, err := p.pooledCalendars(ctx)
 		if err != nil {
 			return err
 		}
@@ -464,11 +504,13 @@ func registerRoutes(p *plugin) {
 				if !cal.SupportsEvent() {
 					continue
 				}
-				if settings.CalendarFilter && !visibleSet[cal.Path] {
-					continue
-				}
+				// The aside lists every calendar with its checkbox state;
+				// only the visible ones are queried.
+				cal.Visible = !settings.CalendarFilter || visibleSet[cal.Path]
 				calendarInfos = append(calendarInfos, cal)
-				sites = append(sites, querySite{account: cal.Account, client: acc.client, path: cal.Path, name: cal.Name})
+				if cal.Visible {
+					sites = append(sites, querySite{account: cal.Account, client: acc.client, path: cal.Path, name: cal.Name})
+				}
 			}
 		}
 
@@ -515,14 +557,26 @@ func registerRoutes(p *plugin) {
 		return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).
 				WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(start) + start.Format(", 2")),
-			Time:     start,
-			Events:   events,
-			PrevPage: start.AddDate(0, 0, -1).Format(datePageLayout),
-			NextPage: start.AddDate(0, 0, 1).Format(datePageLayout),
+			Time:      start,
+			Calendars: calendarInfos,
+			Events:    events,
+			PrevPage:  start.AddDate(0, 0, -1).Format(datePageLayout),
+			NextPage:  start.AddDate(0, 0, 1).Format(datePageLayout),
 			ColorForPath: func(account, eventPath string) string {
 				for _, cal := range calendarInfos {
 					if cal.Account == account && strings.HasPrefix(eventPath, cal.Path) {
 						return cal.Color
+					}
+				}
+				return ""
+			},
+			OwnerLabel: func(account, eventPath string) string {
+				for _, cal := range calendarInfos {
+					if cal.Account == account && strings.HasPrefix(eventPath, cal.Path) {
+						if len(accounts) > 1 {
+							return cal.Name + " — " + account
+						}
+						return cal.Name
 					}
 				}
 				return ""
@@ -593,31 +647,17 @@ func registerRoutes(p *plugin) {
 
 		loc := alborzbase.UserLocation(ctx)
 
-		c, allCalendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
-		if err != nil {
-			return err
-		}
-
+		var c *caldav.Client
 		var calendars []CalendarInfo
-		for _, cal := range allCalendars {
-			if cal.SupportsEvent() {
-				calendars = append(calendars, cal)
-			}
-		}
-		if len(calendars) == 0 {
-			return fmt.Errorf("no calendars support events")
-		}
-		writable := make([]CalendarInfo, 0, len(calendars))
-		for _, cal := range calendars {
-			if cal.Writable {
-				writable = append(writable, cal)
-			}
-		}
-
+		var groups []CalendarGroup
 		var co *caldav.CalendarObject
 		var event *ical.Event
 		var currentCalendar *CalendarInfo
 		if calendarObjectPath != "" {
+			c, calendars, err = p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+			if err != nil {
+				return err
+			}
 			co, err = c.GetCalendarObject(ctx.Request().Context(), calendarObjectPath)
 			if err != nil {
 				return fmt.Errorf("failed to get CalDAV event: %v", err)
@@ -634,32 +674,61 @@ func registerRoutes(p *plugin) {
 				}
 			}
 		} else {
-			if len(writable) == 0 {
+			// Creating is pooled: it must not fail merely because the active
+			// account has no CalDAV collection of this kind.
+			groups, err = p.writableGroups(ctx, CalendarInfo.SupportsEvent)
+			if err != nil {
+				return err
+			}
+			if len(groups) == 0 || len(groups[0].Calendars) == 0 {
 				return fmt.Errorf("no writable calendars")
 			}
 			event = ical.NewEvent()
-			currentCalendar = &writable[0]
+			currentCalendar = &groups[0].Calendars[0]
 		}
 
 		if ctx.Request().Method == "POST" {
 			summary := ctx.FormValue("summary")
 			description := ctx.FormValue("description")
 			calendarPath := ctx.FormValue("calendar")
-			if co == nil && calendarByPath(writable, calendarPath) == nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "unknown calendar")
+
+			// The form answers its own invalid input: the same page with
+			// an alert, never a status page the browser writes.
+			reject := func(message string) error {
+				return ctx.Render(http.StatusUnprocessableEntity, "update-event.html", &UpdateEventRenderData{
+					BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.createtitle")),
+					AccountCals:    groups,
+					Calendar:       currentCalendar,
+					CalendarObject: co,
+					Event:          event,
+					Error:          message,
+				})
+			}
+			if summary == "" {
+				return reject(ctx.T("form.summaryneeded"))
+			}
+
+			saveClient := c
+			var createAcct string
+			if co == nil {
+				// The form's choice names its owner as "account|path".
+				saveClient, calendarPath, createAcct, err = p.resolveCreateCalendar(ctx, calendarPath, CalendarInfo.SupportsEvent)
+				if err != nil {
+					return reject(ctx.T("form.destinationneeded"))
+				}
 			}
 
 			// TODO: whole-day events
 			start, err := parseDateTime(ctx.FormValue("start"), loc)
 			if err != nil {
-				return err
+				return reject(ctx.T("form.datesneeded"))
 			}
 			end, err := parseDateTime(ctx.FormValue("end"), loc)
 			if err != nil {
-				return err
+				return reject(ctx.T("form.datesneeded"))
 			}
 			if start.After(end) {
-				return echo.NewHTTPError(http.StatusBadRequest, "event start is after its end")
+				return reject(ctx.T("form.endbeforestart"))
 			}
 
 			if start == end {
@@ -696,11 +765,14 @@ func registerRoutes(p *plugin) {
 				cal.Children = append(cal.Children, event.Component)
 				savePath = path.Join(calendarPath, newID.String()+".ics")
 			}
-			co, err = c.PutCalendarObject(ctx.Request().Context(), savePath, cal)
+			co, err = saveClient.PutCalendarObject(ctx.Request().Context(), savePath, cal)
 			if err != nil {
 				return fmt.Errorf("failed to put calendar object: %v", err)
 			}
 
+			if createAcct != "" {
+				return ctx.Redirect(http.StatusFound, CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.AccountParam(createAcct))
+			}
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(CalendarObject{CalendarObject: co}.URL()))
 		}
 
@@ -708,12 +780,15 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Render(http.StatusOK, "update-event.html", &UpdateEventRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
-			Calendars:      writable,
+			AccountCals:    groups,
 			Calendar:       currentCalendar,
 			CalendarObject: co,
 			Event:          event,
 		})
 	}
+
+	GET("/calendars/create", handleCreateCalendar(p))
+	POST("/calendars/create", handleCreateCalendar(p))
 
 	GET("/calendar/create", updateEvent)
 	POST("/calendar/create", updateEvent)
@@ -741,7 +816,7 @@ func registerRoutes(p *plugin) {
 
 	// Tasks routes
 	GET("/tasks", func(ctx *alborz.Context) error {
-		accounts, err := p.routeCalendars(ctx)
+		accounts, err := p.pooledCalendars(ctx)
 		if err != nil {
 			return err
 		}
@@ -751,7 +826,7 @@ func registerRoutes(p *plugin) {
 			client        *caldav.Client
 			showCompleted bool
 		}
-		showCompleted := false
+		showCompleted := true
 		var calendarInfos []CalendarInfo
 		var sites []taskSite
 		for _, acc := range accounts {
@@ -759,8 +834,8 @@ func registerRoutes(p *plugin) {
 			if err != nil {
 				return fmt.Errorf("failed to load CalDAV settings: %v", err)
 			}
-			if acc.session == ctx.Session {
-				showCompleted = settings.ShowCompleted
+			if !settings.ShowCompleted {
+				showCompleted = false
 			}
 			visibleSet := make(map[string]bool)
 			for _, path := range settings.VisibleTasks {
@@ -779,6 +854,17 @@ func registerRoutes(p *plugin) {
 		}
 
 		search := ctx.QueryParam("query")
+		sortKey := ctx.QueryParam("sort")
+		sortDir := ctx.QueryParam("dir")
+		if sortKey == "" {
+			sortKey = "summary"
+		}
+		if sortKey != "status" && sortKey != "summary" && sortKey != "account" && sortKey != "calendar" && sortKey != "due" {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid task sort")
+		}
+		if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid task sort direction")
+		}
 
 		query := caldav.CalendarQuery{
 			CompRequest: caldav.CalendarCompRequest{
@@ -819,14 +905,13 @@ func registerRoutes(p *plugin) {
 			}()
 		}
 
-		var taskGroups []TaskGroup
+		var taskRows []TaskRow
 		for range sites {
 			result := <-results
 			if result.err != nil {
 				return fmt.Errorf("failed to query tasks from %s: %v", result.site.cal.Name, result.err)
 			}
 
-			var filtered []caldav.CalendarObject
 			for _, task := range result.tasks {
 				todo := getFirstTodo(task.Data)
 				if todo == nil {
@@ -844,36 +929,63 @@ func registerRoutes(p *plugin) {
 						continue
 					}
 				}
-				filtered = append(filtered, task)
-			}
-
-			if len(filtered) > 0 {
-				tasks := newTaskObjectList(filtered)
-				for i := range tasks {
-					tasks[i].Account = result.site.cal.Account
+				summary, _ := todo.Props.Text("SUMMARY")
+				due := ""
+				if prop := todo.Props.Get("DUE"); prop != nil {
+					due = prop.Value
 				}
-				sortTasksByScript(tasks)
-				taskGroups = append(taskGroups, TaskGroup{
-					Calendar: result.site.cal,
-					Tasks:    tasks,
+				taskRows = append(taskRows, TaskRow{
+					Task:      TaskObject{CalendarObject: &task, Account: result.site.cal.Account},
+					Calendar:  result.site.cal,
+					Summary:   summary,
+					Status:    status,
+					Due:       due,
+					Completed: status == "COMPLETED",
 				})
 			}
 		}
 
-		sort.Slice(taskGroups, func(i, j int) bool {
-			a, b := taskGroups[i].Calendar, taskGroups[j].Calendar
-			if a.Account != b.Account {
-				return a.Account < b.Account
+		value := func(row TaskRow) string {
+			switch sortKey {
+			case "status":
+				if row.Completed {
+					return "1"
+				}
+				return "0"
+			case "account":
+				return strings.ToLower(row.Task.Account)
+			case "calendar":
+				return strings.ToLower(row.Calendar.Name)
+			case "due":
+				// Empty due dates belong after dated tasks in ascending order.
+				if row.Due == "" {
+					return "\uffff"
+				}
+				return row.Due
+			default:
+				return strings.ToLower(row.Summary)
 			}
-			return strings.ToLower(a.Name) < strings.ToLower(b.Name)
+		}
+		sort.SliceStable(taskRows, func(i, j int) bool {
+			a, b := value(taskRows[i]), value(taskRows[j])
+			if a == b {
+				a = strings.ToLower(taskRows[i].Task.Account + "\x00" + taskRows[i].Calendar.Name + "\x00" + taskRows[i].Summary)
+				b = strings.ToLower(taskRows[j].Task.Account + "\x00" + taskRows[j].Calendar.Name + "\x00" + taskRows[j].Summary)
+			}
+			if sortDir == "desc" {
+				return a > b
+			}
+			return a < b
 		})
 
 		return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 			Calendars:      calendarInfos,
-			TaskGroups:     taskGroups,
+			Tasks:          taskRows,
 			ShowCompleted:  showCompleted,
 			Query:          search,
+			Sort:           sortKey,
+			SortDir:        sortDir,
 		})
 	})
 
@@ -943,31 +1055,17 @@ func registerRoutes(p *plugin) {
 
 		loc := alborzbase.UserLocation(ctx)
 
-		c, allCalendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
-		if err != nil {
-			return err
-		}
-
+		var c *caldav.Client
 		var calendars []CalendarInfo
-		for _, cal := range allCalendars {
-			if cal.SupportsTodo() {
-				calendars = append(calendars, cal)
-			}
-		}
-		if len(calendars) == 0 {
-			return fmt.Errorf("no calendars support tasks")
-		}
-		writable := make([]CalendarInfo, 0, len(calendars))
-		for _, cal := range calendars {
-			if cal.Writable {
-				writable = append(writable, cal)
-			}
-		}
-
+		var groups []CalendarGroup
 		var co *caldav.CalendarObject
 		var todo *ical.Component
 		var currentCalendar *CalendarInfo
 		if taskPath != "" {
+			c, calendars, err = p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+			if err != nil {
+				return err
+			}
 			co, err = c.GetCalendarObject(ctx.Request().Context(), taskPath)
 			if err != nil {
 				return fmt.Errorf("failed to get task: %v", err)
@@ -983,11 +1081,15 @@ func registerRoutes(p *plugin) {
 				}
 			}
 		} else {
-			if len(writable) == 0 {
+			groups, err = p.writableGroups(ctx, CalendarInfo.SupportsTodo)
+			if err != nil {
+				return err
+			}
+			if len(groups) == 0 || len(groups[0].Calendars) == 0 {
 				return fmt.Errorf("no writable calendars")
 			}
 			todo = ical.NewComponent(ical.CompToDo)
-			currentCalendar = &writable[0]
+			currentCalendar = &groups[0].Calendars[0]
 		}
 
 		if ctx.Request().Method == "POST" {
@@ -995,8 +1097,29 @@ func registerRoutes(p *plugin) {
 			description := ctx.FormValue("description")
 			dueDate := ctx.FormValue("due-date")
 			calendarPath := ctx.FormValue("calendar")
-			if co == nil && calendarByPath(writable, calendarPath) == nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "unknown calendar")
+
+			reject := func(message string) error {
+				return ctx.Render(http.StatusUnprocessableEntity, "update-task.html", &UpdateTaskRenderData{
+					BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("tasks.createtitle")),
+					AccountCals:    groups,
+					Calendar:       currentCalendar,
+					CalendarObject: co,
+					Todo:           todo,
+					Error:          message,
+				})
+			}
+			if summary == "" {
+				return reject(ctx.T("form.summaryneeded"))
+			}
+
+			saveClient := c
+			var createAcct string
+			if co == nil {
+				// The form's choice names its owner as "account|path".
+				saveClient, calendarPath, createAcct, err = p.resolveCreateCalendar(ctx, calendarPath, CalendarInfo.SupportsTodo)
+				if err != nil {
+					return reject(ctx.T("form.destinationneeded"))
+				}
 			}
 
 			todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
@@ -1012,7 +1135,7 @@ func registerRoutes(p *plugin) {
 			if dueDate != "" {
 				due, err := time.ParseInLocation(inputDateLayout, dueDate, loc)
 				if err != nil {
-					return echo.NewHTTPError(http.StatusBadRequest, "invalid due date")
+					return reject(ctx.T("form.duedate"))
 				}
 				todo.Props.SetDateTime(ical.PropDue, due)
 			} else {
@@ -1037,11 +1160,14 @@ func registerRoutes(p *plugin) {
 				cal.Children = append(cal.Children, todo)
 				savePath = path.Join(calendarPath, newID.String()+".ics")
 			}
-			co, err = c.PutCalendarObject(ctx.Request().Context(), savePath, cal)
+			co, err = saveClient.PutCalendarObject(ctx.Request().Context(), savePath, cal)
 			if err != nil {
 				return fmt.Errorf("failed to save task: %v", err)
 			}
 
+			if createAcct != "" {
+				return ctx.Redirect(http.StatusFound, TaskObject{CalendarObject: co}.URL()+"?account="+alborz.AccountParam(createAcct))
+			}
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(TaskObject{CalendarObject: co}.URL()))
 		}
 
@@ -1049,7 +1175,7 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Render(http.StatusOK, "update-task.html", &UpdateTaskRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
-			Calendars:      writable,
+			AccountCals:    groups,
 			Calendar:       currentCalendar,
 			CalendarObject: co,
 			Todo:           todo,

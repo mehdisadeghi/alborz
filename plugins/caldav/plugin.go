@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"github.com/labstack/echo/v4"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -45,6 +46,9 @@ type plugin struct {
 
 	jarsMu sync.Mutex
 	jars   map[string]http.CookieJar // per username
+
+	// Set in debug mode; logs upstream DAV traffic.
+	debug echo.Logger
 }
 
 func (p *plugin) client(session *alborz.Session) (*caldav.Client, error) {
@@ -164,18 +168,16 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		if ctx.Session == nil {
 			return false
 		}
-		// The unified view offers the section when any account has it,
-		// not only the anchor.
-		if ctx.Unified {
-			for _, s := range ctx.Sessions() {
-				if _, ok := p.davURL(s); ok {
-					return true
-				}
+		// Pooled pages exist when any account has the service.
+		for _, s := range ctx.Sessions() {
+			if _, ok := p.davURL(s); ok {
+				return true
 			}
-			return false
 		}
-		_, ok := p.davURL(ctx.Session)
-		return ok
+		return false
+	}
+	if srv.Options.Debug {
+		p.debug = srv.Logger()
 	}
 	p.cache = davcache.New()
 	p.cache.Start()

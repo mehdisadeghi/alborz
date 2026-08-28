@@ -1,21 +1,24 @@
 {{$suffix := ""}}
 {{if eq .View "list"}}{{$suffix = "&view=list"}}{{end}}
 <div class="actions-wrap">
-  <div class="actions-pagination">
-    <a href="?month={{.PrevPage}}{{$suffix}}" class="button-link">« {{$.GlobalData.MonthName .PrevTime}}</a>
-    <h3>{{$.GlobalData.MonthYear .Time}}</h3>
-    <a href="?month={{.NextPage}}{{$suffix}}" class="button-link">{{$.GlobalData.MonthName .NextTime}} »</a>
-    {{if ne .Time.Month .Now.Month}}
-    <a href="/calendar{{with $suffix}}?view=list{{end}}" class="button-link">{{$.T "calendar.today"}}</a>
-    {{end}}
+  <div class="actions-message">
+    <h2>{{$.GlobalData.MonthYear .Time}}{{ with $.GlobalData.SecondaryMonthYear .Time }}<span class="title-secondary">{{.}}</span>{{ end }}</h2>
   </div>
-  <div class="actions-pagination">
-    {{if eq .View "list"}}
-    <a href="?month={{.Page}}" class="button-link">{{$.T "calendar.month"}}</a>
-    <strong>{{$.T "calendar.list"}}</strong>
-    {{else}}
-    <strong>{{$.T "calendar.month"}}</strong>
-    <a href="?month={{.Page}}&view=list" class="button-link">{{$.T "calendar.list"}}</a>
+  <div class="actions-end">
+    {{ template "pagination" (dict "prev" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "label" (printf "« %s" ($.GlobalData.MonthName .PrevTime))) "next" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "label" (printf "%s »" ($.GlobalData.MonthName .NextTime)))) }}
+    {{if ne .Time.Month .Now.Month}}
+    <div class="actions-pagination">
+      <a href="/calendar{{if $suffix}}?view=list{{end}}" class="button-link">{{$.T "calendar.today"}}</a>
+    </div>
     {{end}}
+    <div class="actions-pagination">
+      {{if eq .View "list"}}
+      <a href="?month={{.Page}}" class="button-link">{{$.T "calendar.month"}}</a>
+      <strong>{{$.T "calendar.list"}}</strong>
+      {{else}}
+      <strong>{{$.T "calendar.month"}}</strong>
+      <a href="?month={{.Page}}&view=list" class="button-link">{{$.T "calendar.list"}}</a>
+      {{end}}
+    </div>
   </div>
 </div>

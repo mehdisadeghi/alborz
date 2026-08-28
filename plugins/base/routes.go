@@ -1483,6 +1483,19 @@ func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 	}
 
+	// The row shows a forwarded mark that nothing here ever set. Unlike
+	// \Answered this is a keyword, which a server is free to refuse, and
+	// the message has already been sent: note the refusal, do not fail
+	// the send over it.
+	if forward := options.Forward; forward != nil {
+		err = ctx.DoIMAP(func(c *imapclient.Client) error {
+			return markMessageForwarded(c, forward.Mailbox, forward.Uid)
+		})
+		if err != nil {
+			ctx.Logger().Printf("failed to mark original message as forwarded: %v", err)
+		}
+	}
+
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		if _, err := appendMessage(c, msg, "sent"); err != nil {
 			return err

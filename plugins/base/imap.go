@@ -823,6 +823,19 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 }
 
 func markMessageAnswered(conn *imapclient.Client, mboxName string, uid imap.UID) error {
+	return addFlag(conn, mboxName, uid, imap.FlagAnswered)
+}
+
+// forwardedFlag is the keyword mail clients agree to mean "this one was
+// forwarded". It is a convention rather than a system flag, so a server
+// may refuse to keep it; the mail has still gone out either way.
+const forwardedFlag imap.Flag = "$Forwarded"
+
+func markMessageForwarded(conn *imapclient.Client, mboxName string, uid imap.UID) error {
+	return addFlag(conn, mboxName, uid, forwardedFlag)
+}
+
+func addFlag(conn *imapclient.Client, mboxName string, uid imap.UID, flag imap.Flag) error {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return err
 	}
@@ -830,7 +843,7 @@ func markMessageAnswered(conn *imapclient.Client, mboxName string, uid imap.UID)
 	return conn.Store(imap.UIDSetNum(uid), &imap.StoreFlags{
 		Op:     imap.StoreFlagsAdd,
 		Silent: true,
-		Flags:  []imap.Flag{imap.FlagAnswered},
+		Flags:  []imap.Flag{flag},
 	}, nil).Close()
 }
 

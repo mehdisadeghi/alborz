@@ -816,7 +816,9 @@ func isPublic(path string) bool {
 func redirectToLogin(ctx *Context) error {
 	path := ctx.Request().URL.Path
 	to := "/login"
-	if path != "/" && path != "/login" {
+	// Only a GET can be resumed after login; an intercepted POST must
+	// not become a GET to its own, often POST-only, route.
+	if ctx.Request().Method == http.MethodGet && path != "/" && path != "/login" {
 		to += "?next=" + url.QueryEscape(ctx.Request().URL.String())
 	}
 	return ctx.Redirect(http.StatusFound, to)

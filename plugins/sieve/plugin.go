@@ -24,8 +24,11 @@ func init() {
 		p := alborz.GoPlugin{
 			Name:  "sieve",
 			Files: public,
+			// Sieve scripts are per-account administration; the unified
+			// view has no single account to administer.
 			EnabledFunc: func(ctx *alborz.Context) bool {
-				return ctx.Session != nil && ctx.Server.SieveEnabled(ctx.Session.Domain())
+				return ctx.Session != nil && !ctx.Unified &&
+					ctx.Server.SieveEnabled(ctx.Session.Domain())
 			},
 		}
 		registerRoutes(&p)

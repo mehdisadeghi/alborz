@@ -139,6 +139,59 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alborz.Ses
 	return c, infos, nil
 }
 
+// accountBooks is one signed-in account's address book set.
+type accountBooks struct {
+	account string
+	session *alborz.Session
+	client  *carddav.Client
+	books   []AddressBookInfo
+}
+
+// unifiedBooks resolves every signed-in account that has CardDAV, for the
+// merged all-accounts view. An account that fails is logged and skipped;
+// the error surfaces only when no account answered.
+func (p *plugin) unifiedBooks(ctx *alborz.Context) ([]accountBooks, error) {
+	var accounts []accountBooks
+	var lastErr error
+	for _, s := range ctx.Sessions() {
+		if _, ok := p.davURL(s); !ok {
+			continue
+		}
+		c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), s)
+		if err != nil {
+			lastErr = err
+			ctx.Logger().Printf("carddav: skipping %q in the unified view: %v", s.Username(), err)
+			continue
+		}
+		infos := make([]AddressBookInfo, len(books))
+		for i, ab := range books {
+			infos[i] = ab
+			infos[i].Account = s.Username()
+		}
+		accounts = append(accounts, accountBooks{account: s.Username(), session: s, client: c, books: infos})
+	}
+	if len(accounts) == 0 {
+		if lastErr != nil {
+			return nil, lastErr
+		}
+		return nil, errNoAddressBook
+	}
+	return accounts, nil
+}
+
+// routeBooks is what the contacts listing starts from: the one active
+// account, or every account in the unified view.
+func (p *plugin) routeBooks(ctx *alborz.Context) ([]accountBooks, error) {
+	if ctx.Unified {
+		return p.unifiedBooks(ctx)
+	}
+	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+	if err != nil {
+		return nil, err
+	}
+	return []accountBooks{{session: ctx.Session, client: c, books: books}}, nil
+}
+
 func (p *plugin) clientWithAddressBook(ctx context.Context, session *alborz.Session) (*carddav.Client, *AddressBookInfo, error) {
 	c, addressBooks, err := p.clientWithAddressBooks(ctx, session)
 	if err != nil {
@@ -209,6 +262,16 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	}
 	p.EnabledFunc = func(ctx *alborz.Context) bool {
 		if ctx.Session == nil {
+			return false
+		}
+		// The unified view offers the section when any account has it,
+		// not only the anchor.
+		if ctx.Unified {
+			for _, s := range ctx.Sessions() {
+				if _, ok := p.davURL(s); ok {
+					return true
+				}
+			}
 			return false
 		}
 		_, ok := p.davURL(ctx.Session)

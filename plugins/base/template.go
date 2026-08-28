@@ -42,8 +42,34 @@ var templateFuncs = template.FuncMap{
 		}
 		return template.URL("data:image/jpeg;base64," + data)
 	},
+	"humansize": func(n int64) string {
+		switch {
+		case n >= 1<<20:
+			return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+		case n >= 1<<10:
+			return fmt.Sprintf("%.0f KB", float64(n)/(1<<10))
+		default:
+			return fmt.Sprintf("%d B", n)
+		}
+	},
 	"tuple": func(values ...interface{}) []interface{} {
 		return values
+	},
+	// Named arguments for shared defines; positional tuples stop scaling
+	// past a few fields.
+	"dict": func(pairs ...interface{}) (map[string]interface{}, error) {
+		if len(pairs)%2 != 0 {
+			return nil, fmt.Errorf("dict: odd number of arguments")
+		}
+		m := make(map[string]interface{}, len(pairs)/2)
+		for i := 0; i < len(pairs); i += 2 {
+			k, ok := pairs[i].(string)
+			if !ok {
+				return nil, fmt.Errorf("dict: key %v is not a string", pairs[i])
+			}
+			m[k] = pairs[i+1]
+		}
+		return m, nil
 	},
 	"pathescape": url.PathEscape,
 	"formatdate": func(t time.Time) string {

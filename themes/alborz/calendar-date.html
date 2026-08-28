@@ -3,7 +3,9 @@
 
 <div class="page-wrap">
   <aside>
+    {{if not .GlobalData.Unified}}
     <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
+    {{end}}
   </aside>
 
   <div class="container">
@@ -28,9 +30,9 @@
         <ul>
           {{range .Events}}
           {{ if .Data.Events }}{{$event := index .Data.Events 0}}
-          {{$color := call $base.ColorForPath .Path}}
+          {{$color := call $base.ColorForPath .Account .Path}}
           <li>
-            <a href="{{.URL}}">
+            <a href="{{.URL}}{{with .Account}}?account={{.}}{{end}}">
               {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
               <span class="time">{{$base.GlobalData.FormatTime ($event.DateTimeStart nil)}}</span>
               <span class="summary" dir="auto">{{$event.Props.Text "SUMMARY"}}</span>

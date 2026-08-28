@@ -164,6 +164,16 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		if ctx.Session == nil {
 			return false
 		}
+		// The unified view offers the section when any account has it,
+		// not only the anchor.
+		if ctx.Unified {
+			for _, s := range ctx.Sessions() {
+				if _, ok := p.davURL(s); ok {
+					return true
+				}
+			}
+			return false
+		}
 		_, ok := p.davURL(ctx.Session)
 		return ok
 	}

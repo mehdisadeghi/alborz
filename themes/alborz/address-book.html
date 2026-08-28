@@ -1,18 +1,18 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
   <aside>
+    {{if .GlobalData.Unified}}
+    {{ template "dav-aside-groups" (dict "items" .AddressBooks "itemclass" "addressbook-item") }}
+    {{else}}
     <a href="/contacts/create" class="new">{{$.T "contacts.new"}}</a>
     <form method="post" id="addressbook-filter">
-      {{range .AddressBooks}}
-      <label class="addressbook-item">
-        <input type="checkbox" name="book" value="{{.Path}}" {{if .Visible}}checked{{end}} data-submit-on-change {{if .Color}}style="accent-color:{{.Color}}"{{end}}>
-        {{.Name}}
-      </label>
-      {{end}}
+      {{ template "dav-aside-filter" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item") }}
       <button>{{$.T "common.apply"}}</button>
     </form>
+    {{end}}
   </aside>
 
   <div class="container">
@@ -25,24 +25,36 @@
       <section class="contacts">
         <div class="contact-grid">
           {{if .AddressObjects}}
+          {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | urlquery) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $cq = printf "%s&all=1" $cq }}{{ end }}
+          {{ $creset := "?" }}{{ if ne $cq "" }}{{ $creset = printf "?%s" (slice $cq 1) }}{{ end }}
+          {{ $arrow := "↑" }}{{ if eq .SortDir "desc" }}{{ $arrow = "↓" }}{{ end }}
+          {{ $flip := "desc" }}{{ if eq .SortDir "desc" }}{{ $flip = "asc" }}{{ end }}
           <div class="contact-list-checkbox"></div>
           <div class="contact-list-photo"></div>
-          <div class="contact-list-header">{{$.T "common.name"}}</div>
-          <div class="contact-list-header">{{$.T "contacts.email"}}</div>
+          <div class="contact-list-header">
+            {{ template "sort-th" (dict "label" ($.T "common.name") "key" "name" "sort" .Sort "dir" .SortDir "exp" (ne .Sort "") "params" $cq "reset" $creset "dirx" (ne .SortDir "")) }}
+          </div>
+          <div class="contact-list-header">
+            {{ template "sort-th" (dict "label" ($.T "contacts.email") "key" "email" "sort" .Sort "dir" .SortDir "exp" (ne .Sort "") "params" $cq "reset" $creset "dirx" (ne .SortDir "")) }}
+          </div>
           <div class="contact-list-header">{{$.T "contacts.phone"}}</div>
           {{end}}
           {{range .AddressObjects}}
-          {{$color := call $.ColorForPath .Path}}
+          {{$color := call $.ColorForPath .Account .Path}}
           {{$photo := .PhotoURL}}
           <div class="contact-list-checkbox">
+            {{if $.GlobalData.Unified}}
+            <span class="color-dot" style="background:{{accountcolor .Account}}" title="{{.Account}}"></span>
+            {{else}}
             <input type="checkbox" name="paths" value="{{.Path}}" form="address-book-form">
+            {{end}}
           </div>
           <div class="contact-list-photo">
             {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
           </div>
           <div class="contact-list-name">
             {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-            <a href="{{.URL}}" dir="auto">
+            <a href="{{.URL}}{{with .Account}}?account={{.}}{{end}}" dir="auto">
               {{.DisplayName}}
             </a>
           </div>

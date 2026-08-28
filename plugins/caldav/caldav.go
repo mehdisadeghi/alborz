@@ -27,6 +27,9 @@ type CalendarInfo struct {
 	Visible               bool
 	Writable              bool
 	SupportedComponentSet []string
+
+	// Account owning the calendar, set only in the unified view
+	Account string
 }
 
 func (c CalendarInfo) SupportsTodo() bool {
@@ -344,12 +347,15 @@ func (p *plugin) clientWithCalendar(ctx context.Context, session *alborz.Session
 
 type CalendarObject struct {
 	*caldav.CalendarObject
+
+	// Account owning the object, set only in the unified view
+	Account string
 }
 
 func newCalendarObjectList(cos []caldav.CalendarObject) []CalendarObject {
 	l := make([]CalendarObject, len(cos))
 	for i := range cos {
-		l[i] = CalendarObject{&cos[i]}
+		l[i] = CalendarObject{CalendarObject: &cos[i]}
 	}
 	return l
 }
@@ -360,16 +366,118 @@ func (ao CalendarObject) URL() string {
 
 type TaskObject struct {
 	*caldav.CalendarObject
+
+	// Account owning the object, set only in the unified view
+	Account string
 }
 
 func newTaskObjectList(cos []caldav.CalendarObject) []TaskObject {
 	l := make([]TaskObject, len(cos))
 	for i := range cos {
-		l[i] = TaskObject{&cos[i]}
+		l[i] = TaskObject{CalendarObject: &cos[i]}
 	}
 	return l
 }
 
 func (t TaskObject) URL() string {
 	return "/tasks/" + url.PathEscape(t.Path)
+}
+
+// accountCalendars is one signed-in account's calendar set.
+type accountCalendars struct {
+	account   string
+	session   *alborz.Session
+	client    *caldav.Client
+	calendars []CalendarInfo
+}
+
+// unifiedCalendars resolves every signed-in account that has CalDAV, for
+// the merged all-accounts view. An account that fails is logged and
+// skipped, so one flaky server does not take the merged view down; the
+// error surfaces only when no account answered.
+func (p *plugin) unifiedCalendars(ctx *alborz.Context) ([]accountCalendars, error) {
+	var accounts []accountCalendars
+	var lastErr error
+	for _, s := range ctx.Sessions() {
+		if _, ok := p.davURL(s); !ok {
+			continue
+		}
+		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), s)
+		if err != nil {
+			lastErr = err
+			ctx.Logger().Printf("caldav: skipping %q in the unified view: %v", s.Username(), err)
+			continue
+		}
+		infos := make([]CalendarInfo, len(calendars))
+		for i, cal := range calendars {
+			infos[i] = cal
+			infos[i].Account = s.Username()
+		}
+		accounts = append(accounts, accountCalendars{
+			account:   s.Username(),
+			session:   s,
+			client:    c,
+			calendars: infos,
+		})
+	}
+	if len(accounts) == 0 {
+		if lastErr != nil {
+			return nil, lastErr
+		}
+		return nil, errNoCalendar
+	}
+	return accounts, nil
+}
+
+// querySite is one visible calendar to query, bound to its account's client.
+type querySite struct {
+	account string
+	client  *caldav.Client
+	path    string
+	name    string
+}
+
+// querySites runs the calendar query against every site, a few at a time,
+// and tags each result with its owning account.
+func querySites(ctx *alborz.Context, sites []querySite, query *caldav.CalendarQuery) ([]CalendarObject, error) {
+	type result struct {
+		site   querySite
+		events []caldav.CalendarObject
+		err    error
+	}
+	reqCtx := ctx.Request().Context()
+	results := make(chan result, len(sites))
+	sem := make(chan struct{}, maxCalendarQueryConcurrency)
+	for _, site := range sites {
+		go func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			events, err := site.client.QueryCalendar(reqCtx, site.path, query)
+			results <- result{site: site, events: events, err: err}
+		}()
+	}
+	var events []CalendarObject
+	for range sites {
+		r := <-results
+		if r.err != nil {
+			return nil, fmt.Errorf("failed to query calendar %s: %v", r.site.name, r.err)
+		}
+		for i := range r.events {
+			events = append(events, CalendarObject{CalendarObject: &r.events[i], Account: r.site.account})
+		}
+	}
+	return events, nil
+}
+
+// routeCalendars is what every calendar route starts from: the one active
+// account, or every account in the unified view.
+func (p *plugin) routeCalendars(ctx *alborz.Context) ([]accountCalendars, error) {
+	if ctx.Unified {
+		return p.unifiedCalendars(ctx)
+	}
+	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+	if err != nil {
+		return nil, err
+	}
+	return []accountCalendars{{session: ctx.Session, client: c, calendars: calendars}}, nil
 }

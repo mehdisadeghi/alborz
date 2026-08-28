@@ -1,3 +1,10 @@
+{{$aq := ""}}{{with .GlobalData.URLAccount}}{{$aq = printf "?account=%s" .}}{{end}}
+{{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
+{{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
+{{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
+{{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | urlquery) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}
+{{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hplain = printf "%s&starred=1" $hplain }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | urlquery) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}
+{{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
 <div class="message-list-checkbox">
   {{ if not .GlobalData.Unified }}
   <input type="checkbox" id="action-checkbox-all" aria-label="{{$.T "mailbox.selectall"}}" style="display: none"/>
@@ -14,23 +21,33 @@
     {{ if not .GlobalData.Unified }}
     <div class="action-group">
       {{ if and $trash (ne .Mailbox.Name $trash) }}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$trash | pathescape}}">{{$.T "mailbox.delete"}}</button>
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$trash | pathescape}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">{{$.T "mailbox.delete"}}</button>
       {{ else }}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/delete">{{$.T "mailbox.deleteperm"}}</button>
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/delete{{$aq}}">{{$.T "mailbox.deleteperm"}}</button>
       {{ end }}
     </div>
 
     <div class="action-group">
       {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$junk | pathescape}}">{{$.T "mailbox.spam"}}</button>
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$junk | pathescape}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">{{$.T "mailbox.spam"}}</button>
       {{ end }}
     </div>
+
+    {{ if or (and $junk (eq .Mailbox.Name $junk)) (and $trash (eq .Mailbox.Name $trash)) }}
+    <div class="action-group">
+      <form method="post" action="/mailbox/{{.Mailbox.Name | pathescape}}/empty{{$aq}}">
+        <button>{{$.T "mailbox.emptyfolder"}}</button>
+      </form>
+    </div>
+    {{ end }}
     {{ end }}
 
   </div>
 
   <div class="actions-end">
   <form method="get" class="actions-search">
+    {{with $.GlobalData.URLAccount}}<input type="hidden" name="account" value="{{.}}">{{end}}
+    {{if $.GlobalData.Unified}}<input type="hidden" name="all" value="1">{{end}}
     <input type="text" name="query" dir="auto" value="{{.Query}}" placeholder="{{$.T "mailbox.searchph"}}" aria-label="{{$.T "mailbox.search"}}">
     <button>{{$.T "mailbox.search"}}</button>
   </form>
@@ -39,52 +56,23 @@
   <div class="actions-pagination">
     <span class="pagination-range">{{.RangeFrom}}&ndash;{{.RangeTo}} {{$.T "mailbox.of"}} {{.Total}}</span>
     {{if ge .PrevPage 0}}
-      <a href="?page={{.PrevPage}}{{with .Query}}&query={{.}}{{end}}{{if .Starred}}&starred=1{{end}}{{with .Sort}}&sort={{.}}&dir={{$.SortDir}}{{end}}" class="button-link">«</a>
+      {{ $prev := printf "?page=%d%s" .PrevPage $hparams }}
+      <a href="{{$prev}}" class="button-link">«</a>
     {{end}}
     {{if ge .NextPage 0}}
-      <a href="?page={{.NextPage}}{{with .Query}}&query={{.}}{{end}}{{if .Starred}}&starred=1{{end}}{{with .Sort}}&sort={{.}}&dir={{$.SortDir}}{{end}}" class="button-link">»</a>
+      {{ $next := printf "?page=%d%s" .NextPage $hparams }}
+      <a href="{{$next}}" class="button-link">»</a>
     {{end}}
   </div>
   {{ end }}
 
   {{ if .SortSupported }}
-  {{$keep := ""}}
-  {{with .Query}}{{$keep = printf "&query=%s" .}}{{end}}
-  {{if .Starred}}{{$keep = printf "%s&starred=1" $keep}}{{end}}
-  {{$active := .Sort}}
-  {{if eq $active ""}}{{$active = "date"}}{{end}}
-  {{$flip := "desc"}}
-  {{if eq .SortDir "desc"}}{{$flip = "asc"}}{{end}}
-  {{$arrow := "↑"}}
-  {{if eq .SortDir "desc"}}{{$arrow = "↓"}}{{end}}
-  <details class="overflow">
+  <details class="overflow sort-overflow">
     <summary class="button sort-button" aria-label="{{$.T "mailbox.sortby"}}"></summary>
     <div class="overflow-menu">
-      {{if eq $active "date"}}
-      <a class="button-link" href="?sort=date&dir={{$flip}}{{$keep}}"><strong>{{$.T "sort.date"}} {{$arrow}}</strong></a>
-      {{else}}
-      <a class="button-link" href="?sort=date{{$keep}}">{{$.T "sort.date"}}</a>
-      {{end}}
-      {{if eq $active "starred"}}
-      <a class="button-link" href="?sort=starred&dir={{$flip}}{{$keep}}"><strong>{{$.T "sort.starred"}} {{$arrow}}</strong></a>
-      {{else}}
-      <a class="button-link" href="?sort=starred{{$keep}}">{{$.T "sort.starred"}}</a>
-      {{end}}
-      {{if eq $active "from"}}
-      <a class="button-link" href="?sort=from&dir={{$flip}}{{$keep}}"><strong>{{$.T "sort.sender"}} {{$arrow}}</strong></a>
-      {{else}}
-      <a class="button-link" href="?sort=from{{$keep}}">{{$.T "sort.sender"}}</a>
-      {{end}}
-      {{if eq $active "subject"}}
-      <a class="button-link" href="?sort=subject&dir={{$flip}}{{$keep}}"><strong>{{$.T "sort.subject"}} {{$arrow}}</strong></a>
-      {{else}}
-      <a class="button-link" href="?sort=subject{{$keep}}">{{$.T "sort.subject"}}</a>
-      {{end}}
-      {{if eq $active "size"}}
-      <a class="button-link" href="?sort=size&dir={{$flip}}{{$keep}}"><strong>{{$.T "sort.size"}} {{$arrow}}</strong></a>
-      {{else}}
-      <a class="button-link" href="?sort=size{{$keep}}">{{$.T "sort.size"}}</a>
-      {{end}}
+      {{ range tuple (tuple "sort.date" "date") (tuple "sort.starred" "starred") (tuple "sort.sender" "from") (tuple "sort.subject" "subject") (tuple "sort.size" "size") }}
+      {{ template "sort-th" (dict "label" ($.T (index . 0)) "key" (index . 1) "sort" $hsort "dir" $.SortDir "exp" $hexp "params" $hplain "reset" $hreset "dirx" $hdirx "class" "button-link") }}
+      {{ end }}
     </div>
   </details>
   {{ end }}
@@ -96,10 +84,10 @@
     <summary class="button" aria-label="{{$.T "mailbox.more"}}">⋮</summary>
     <div class="overflow-menu">
       {{ if and $archive (eq .Mailbox.Name "INBOX") }}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$archive | pathescape}}">{{$.T "mailbox.archive"}}</button>
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move?to={{$archive | pathescape}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">{{$.T "mailbox.archive"}}</button>
       {{ end }}
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen">{{$.T "mailbox.markread"}}</button>
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen">{{$.T "mailbox.markunread"}}</button>
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">{{$.T "mailbox.markread"}}</button>
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">{{$.T "mailbox.markunread"}}</button>
       <select form="messages-form" name="to" aria-label="{{$.T "mailbox.movefolder"}}">
         <option value="" disabled selected>{{$.T "mailbox.moveto"}}</option>
         {{range .Mailboxes}}
@@ -108,9 +96,9 @@
           {{end}}
         {{end}}
       </select>
-      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move">{{$.T "mailbox.move"}}</button>
+      <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">{{$.T "mailbox.move"}}</button>
       {{ if not (eq .Mailbox.Name "INBOX") }}
-      <a class="button-link" href="/delete-mailbox/{{.Mailbox.Name | pathescape}}">{{$.T "mailbox.deletefolder"}}</a>
+      <a class="button-link" href="/delete-mailbox/{{.Mailbox.Name | pathescape}}{{$aq}}">{{$.T "mailbox.deletefolder"}}</a>
       {{ end }}
     </div>
   </details>

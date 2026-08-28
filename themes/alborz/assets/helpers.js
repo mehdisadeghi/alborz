@@ -1,10 +1,14 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
-// Set timezone cookie for server-side date formatting
+// The zone the server formats dates in. This is the one cookie the page
+// writes rather than the server, so it cannot be HttpOnly; it carries the
+// same name, path, policy and lifetime as the rest either way.
 try {
 	const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-	if (tz && document.cookie.indexOf("timezone=") === -1) {
-		document.cookie = "timezone=" + tz + ";path=/;max-age=31536000;SameSite=Lax";
+	if (tz && document.cookie.indexOf("alborz_tz=") === -1) {
+		const secure = location.protocol === "https:" ? ";Secure" : "";
+		document.cookie =
+			"alborz_tz=" + tz + ";path=/;max-age=31536000;SameSite=Strict" + secure;
 	}
 } catch (e) {}
 

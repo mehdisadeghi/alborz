@@ -7,60 +7,72 @@
     <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>
     {{ end }}
     {{$page := (index .GlobalData.Path 0)}}
-    {{/* Tabs keep the account the page is anchored to, so following one
-         never silently falls back to the modal active account. */}}
+    {{/* Mail and Filters keep an explicit account scope. DAV tabs are
+         pooled source views, so they deliberately drop account/all. */}}
     {{$q := ""}}{{with .GlobalData.URLAccount}}{{$q = printf "?account=%s" .}}{{else}}{{if .GlobalData.Unified}}{{$q = "?all=1"}}{{end}}{{end}}
+    {{$filterq := ""}}{{with .GlobalData.URLAccount}}{{$filterq = printf "?account=%s" .}}{{end}}
+    {{$pooled := and (gt (len .GlobalData.Accounts) 1) (or (eq $page "calendar") (eq $page "contacts") (eq $page "tasks"))}}
+    {{$showactive := and (not $pooled) (not .GlobalData.Unified)}}
     <a href="/mailbox/INBOX{{$q}}"
       {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}
-      class="active"
+      class="active" aria-current="page"
       {{ end }}
     >{{$.T "nav.email"}}</a>
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/calendar{{$q}}"
+      href="/calendar"
       {{ if eq $page "calendar" }}
-      class="active"
+      class="active" aria-current="page"
       {{ end }}
     >{{$.T "nav.calendar"}}</a>
     {{ end }}
     {{ if call .GlobalData.HavePlugin "carddav" }}
     <a
-      href="/contacts{{$q}}"
+      href="/contacts"
       {{ if eq $page "contacts" }}
-      class="active"
+      class="active" aria-current="page"
       {{ end }}
     >{{$.T "nav.contacts"}}</a>
     {{ end }}
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/tasks{{$q}}"
+      href="/tasks"
       {{ if eq $page "tasks" }}
-      class="active"
+      class="active" aria-current="page"
       {{ end }}
     >{{$.T "nav.tasks"}}</a>
     {{ end }}
     {{ if call .GlobalData.HavePlugin "sieve" }}
     <a
-      href="/filters{{$q}}"
+      href="/filters{{$filterq}}"
       {{ if eq $page "filters" }}
-      class="active"
+      class="active" aria-current="page"
       {{ end }}
     >{{$.T "nav.filters"}}</a>
     {{ end }}
     {{ if .GlobalData.LoggedIn }}
     <div>
       <details class="accounts">
-        <summary>{{ if .GlobalData.Unified }}{{$.T "nav.allaccounts"}}{{ else }}{{ .GlobalData.Username }}{{ end }}</summary>
+        <summary>{{if $pooled}}{{$.T "nav.accounts"}}{{else if .GlobalData.Unified}}{{$.T "nav.allaccounts"}}{{else}}{{.GlobalData.Username}}{{end}}</summary>
         <div class="accounts-menu">
           {{/* Every account keeps its row across switches; only the
                mark moves with the choice. */}}
           {{ range .GlobalData.Accounts }}
+          <div class="account-menu-row">
           <form method="post" action="/switch">
-            <button type="submit" name="account" value="{{ .Username }}"{{ if and .Active (not $.GlobalData.Unified) }} class="active" disabled{{ end }}>{{ .Username }}</button>
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+            <button type="submit" name="account" value="{{ .Username }}"{{ if and .Active $showactive }} class="active" disabled{{ end }}>{{ .Username }}</button>
           </form>
+          {{if gt (len $.GlobalData.Accounts) 1}}
+          <form method="post" action="/logout" class="account-signout">
+            <button type="submit" name="account" value="{{.Username}}" title="{{$.T "nav.signout"}} {{.Username}}">{{$.T "nav.signout"}}</button>
+          </form>
+          {{end}}
+          </div>
           {{ end }}
           {{ if gt (len .GlobalData.Accounts) 1 }}
           <form method="post" action="/switch">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button type="submit" name="account" value="unified"{{ if .GlobalData.Unified }} class="active" disabled{{ end }}>{{$.T "nav.allaccounts"}}</button>
           </form>
           {{ end }}
@@ -68,7 +80,7 @@
         </div>
       </details>
       <a href="/settings{{$q}}">{{$.T "nav.settings"}}</a>
-      <a href="/logout">{{$.T "nav.signout"}}</a>
+      {{if eq (len .GlobalData.Accounts) 1}}<a href="/logout">{{$.T "nav.signout"}}</a>{{end}}
     </div>
     {{ end }}
   </nav>

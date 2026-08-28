@@ -1,19 +1,17 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
-  <aside>
-    <ul>
-      <li>
-        <a href="/mailbox/INBOX">{{$.T "aside.back"}}</a>
-      </li>
-    </ul>
-  </aside>
+  {{ template "settings-aside" (dict "accounts" .GlobalData.Accounts "current" .GlobalData.Username "browserLabel" ($.T "settings.forbrowser")) }}
 
   <div class="container">
     <main class="settings">
+      <section class="actions">
+        {{ template "list-toolbar" (dict "title" ($.T "nav.settings")) }}
+      </section>
+      <div class="context-crumb">{{printf ($.T "settings.foraccount") .GlobalData.Username}}</div>
       <form method="post">
-        <h3 class="settings-section">{{printf ($.T "settings.foraccount") .GlobalData.Username}}</h3>
         <div class="action-group">
           <label for="from">{{$.T "settings.fullname"}}</label>
           <input
@@ -23,6 +21,19 @@
             dir="auto"
             value="{{.Settings.From}}"
           />
+        </div>
+
+        <div class="action-group">
+          <label for="identities">{{$.T "settings.identities"}}</label>
+          <textarea
+            name="identities"
+            id="identities"
+            rows="3"
+            dir="auto"
+            placeholder="{{$.T "settings.identitiesph"}}"
+          >{{range .Settings.Identities}}{{.}}
+{{end}}</textarea>
+          <small>{{$.T "settings.identitieshint"}}</small>
         </div>
 
         <div class="action-group">
@@ -96,40 +107,7 @@
           </select>
         </div>
 
-        <h3 class="settings-section">{{$.T "settings.forbrowser"}}</h3>
-
-                <div class="action-group">
-          <label for="language">{{$.T "settings.language"}}</label>
-          <select name="language" id="language">
-            <option value="" {{ if eq .Language "" }}selected{{ end }}>{{$.T "settings.langauto"}}</option>
-            <option value="en" {{ if eq .Language "en" }}selected{{ end }}>English</option>
-            <option value="fa" {{ if eq .Language "fa" }}selected{{ end }}>فارسی</option>
-            <option value="de" {{ if eq .Language "de" }}selected{{ end }}>Deutsch</option>
-            <option value="es" {{ if eq .Language "es" }}selected{{ end }}>Español</option>
-          </select>
-        </div>
-
-                <div class="action-group">
-          <label for="theme">{{$.T "settings.theme"}}</label>
-          <select name="theme" id="theme">
-            <option value="" {{if eq .Theme ""}}selected{{end}}>{{$.T "settings.themedefault"}}</option>
-            <option value="sublime" {{if eq .Theme "sublime"}}selected{{end}}>Sublime</option>
-            <option value="sourcehut" {{if eq .Theme "sourcehut"}}selected{{end}}>Sourcehut</option>
-            <option value="glass" {{if eq .Theme "glass"}}selected{{end}}>Glass</option>
-            <option value="ink" {{if eq .Theme "ink"}}selected{{end}}>Ink</option>
-          </select>
-        </div>
-
-                <div class="action-group">
-          <label for="color_scheme">{{$.T "settings.appearance"}}</label>
-          <select name="color_scheme" id="color_scheme">
-            <option value="" {{if eq .ColorScheme ""}}selected{{end}}>{{$.T "settings.system"}}</option>
-            <option value="light" {{if eq .ColorScheme "light"}}selected{{end}}>{{$.T "settings.light"}}</option>
-            <option value="dark" {{if eq .ColorScheme "dark"}}selected{{end}}>{{$.T "settings.dark"}}</option>
-          </select>
-        </div>
-
-        <button type="submit">{{$.T "settings.save"}}</button>
+        <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
       </form>
     </main>
   </div>

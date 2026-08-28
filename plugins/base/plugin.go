@@ -18,7 +18,7 @@ func UserLocation(ctx *alborz.Context) *time.Location {
 		tz = settings.Timezone
 	}
 	if tz == "" {
-		if c, err := ctx.Cookie("timezone"); err == nil {
+		if c, err := ctx.Cookie(alborz.TimezoneCookieName); err == nil {
 			tz = c.Value
 		}
 	}

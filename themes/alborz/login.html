@@ -31,13 +31,13 @@
       {{ end }}
 
       <div class="action-group">
-        <button type="submit">{{$.T "login.signin"}}</button>
+        <button type="submit" class="button-primary">{{$.T "login.signin"}}</button>
       </div>
     </form>
 
-    {{ with .GlobalData.Version }}
-    <p class="version">{{ . }}</p>
-    {{ end }}
+    <p class="colophon">
+      <a href="https://git.mehdix.org/alborz">alborz</a> · {{.GlobalData.Year}}{{ with .GlobalData.Version }} · {{ . }}{{ end }}
+    </p>
   </section>
 </main>
 

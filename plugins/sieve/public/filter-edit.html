@@ -3,12 +3,17 @@
 {{template "util.html" .}}
 
 <div class="page-wrap">
-  {{ $back := "" }}{{ if .Name }}{{ $back = "/filters" }}{{ end }}
-  {{ template "detail-aside" (dict "newHref" "/filters/create" "newLabel" ($.T "filters.new") "newActive" (not .Name) "backHref" $back "backLabel" ($.T "filters.title")) }}
+  {{ $aq := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ end }}
+  {{ $back := "" }}{{ if .Name }}{{ $back = printf "/filters%s" $aq }}{{ end }}
+  {{ template "detail-aside" (dict "newHref" (printf "/filters/create%s" $aq) "newLabel" ($.T "filters.new") "newActive" (not .Name) "backHref" $back "backLabel" ($.T "filters.title")) }}
 
   <div class="container">
     <main class="create-update">
-      <form method="post" action="/filters" class="filter">
+      <form method="post" action="/filters{{$aq}}" class="filter">
+        {{ if .Name }}
+        {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+        <div class="context-crumb">{{$crumbAcct}}</div>
+        {{ end }}
         <h2>
           {{if .Name}}{{$.T "filters.edittitle"}}{{else}}{{$.T "filters.createtitle"}}{{end}}
         </h2>
@@ -17,24 +22,32 @@
         <div class="alert">{{.Error}}</div>
         {{ end }}
 
+        {{ if .Name }}
         <label>
           <span>{{$.T "common.name"}}</span>
-          {{ if .Name }}
           <input type="text" name="name" id="name" value="{{.Name}}" readonly />
-          {{ else }}
-          <input type="text" name="name" id="name" required />
-          {{ end }}
         </label>
+        {{ else }}
+        {{ if gt (len .Accounts) 1 }}
+        <label>
+          <span>{{$.T "common.saveto"}}</span>
+          {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}
+          <select name="account">
+            {{ range .Accounts }}
+            <option value="{{.Username}}"{{ if eq .Username $cur }} selected{{ end }}>{{.Username}}</option>
+            {{ end }}
+          </select>
+        </label>
+        {{ end }}
+        {{ template "field" (dict "label" ($.T "common.name") "name" "name" "required" true) }}
+        {{ end }}
 
         <label class="script">
           <span>{{$.T "filters.script"}}</span>
           <textarea name="content" id="content" spellcheck="false">{{.Content}}</textarea>
         </label>
 
-        <div class="actions">
-          <button type="submit">{{$.T "common.save"}}</button>
-          <a class="button-link" href="/filters">{{$.T "common.cancel"}}</a>
-        </div>
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/filters%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
       </form>
     </main>
   </div>

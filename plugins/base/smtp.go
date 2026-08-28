@@ -79,12 +79,15 @@ func (att *imapAttachment) Filename() string {
 }
 
 type OutgoingMessage struct {
-	From        string
-	To          []string
-	Cc          []string
-	Bcc         []string
-	Subject     string
-	MessageID   string
+	From      string
+	To        []string
+	Cc        []string
+	Bcc       []string
+	Subject   string
+	MessageID string
+	// Mailer names the software that wrote the message, for the
+	// conventional User-Agent header; empty leaves the header out.
+	Mailer      string
 	InReplyTo   string
 	Text        string
 	Attachments []Attachment
@@ -165,6 +168,10 @@ func (msg *OutgoingMessage) WriteTo(w io.Writer) error {
 	}
 	if msg.InReplyTo != "" {
 		h.Set("In-Reply-To", msg.InReplyTo)
+	}
+
+	if msg.Mailer != "" {
+		h.Set("User-Agent", msg.Mailer)
 	}
 
 	h.Set("Message-Id", msg.MessageID)

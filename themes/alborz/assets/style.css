@@ -510,20 +510,46 @@ main.login button {
   font-weight: bold;
 }
 
-main.login .version {
+main.login .colophon {
   margin-top: 1rem;
   text-align: center;
   color: var(--fg-faint);
   font-size: 0.8rem;
 }
 
-aside a.new.active,
-main.create-update {
-  background-color: var(--bg-green);
+main.login .colophon a {
+  color: inherit;
+  text-decoration: none;
 }
 
+main.login .colophon a:hover { text-decoration: underline; }
+
 main.create-update {
-  padding: 1rem;
+  align-items: flex-start;
+  padding: var(--space-4);
+  background: var(--surface-subtle);
+}
+
+main.create-update > form {
+  width: min(100%, var(--content-form));
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+}
+
+main.create-update > form > .context-crumb:first-child {
+  min-height: 0;
+  margin-bottom: var(--space-4);
+  padding: 0 0 var(--space-2);
+  background: transparent;
+}
+
+main.create-update > form > h2 {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-xl);
+  line-height: 1.25;
 }
 
 /* Compose email form - needs flex to fill space */
@@ -1013,7 +1039,7 @@ main.create-update .actions > *:not(:last-child) {
    direction; the translated remote-content row opts back out with
    dir=auto. */
 .message-list-date,
-.version,
+.colophon,
 .contact-list-phone,
 main.message table {
   direction: ltr;

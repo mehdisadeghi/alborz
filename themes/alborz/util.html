@@ -274,7 +274,7 @@
     {{ $role := index . 1 }}{{ $star := index . 2 }}
     <li {{ if and $all (eq $active $role) (eq $starred $star) }}class="active"{{ end }}>
       <a href="/mailbox/{{$role}}?all=1{{ if $star }}&starred=1{{ end }}">{{$.T (index . 0)}}</a>
-      {{ if and (eq $role "INBOX") (not $star) (gt $.AllInboxUnseen 0) }}<span class="unseen">{{$.AllInboxUnseen}}</span>{{ end }}
+      {{ if and (eq $role "INBOX") (not $star) (gt $.AllInboxUnseen 0) }}<span class="unseen">{{$.GlobalData.Num $.AllInboxUnseen}}</span>{{ end }}
     </li>
     {{ end }}
   </ul>

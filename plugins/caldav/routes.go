@@ -453,7 +453,7 @@ func registerRoutes(p *plugin) {
 				for _, cal := range calendarInfos {
 					if cal.Account == account && strings.HasPrefix(eventPath, cal.Path) {
 						if len(accounts) > 1 {
-							return cal.Name + " — " + account
+							return cal.Name + " — " + alborz.ShortAccount(account, ctx.Accounts())
 						}
 						return cal.Name
 					}
@@ -574,7 +574,7 @@ func registerRoutes(p *plugin) {
 				for _, cal := range calendarInfos {
 					if cal.Account == account && strings.HasPrefix(eventPath, cal.Path) {
 						if len(accounts) > 1 {
-							return cal.Name + " — " + account
+							return cal.Name + " — " + alborz.ShortAccount(account, ctx.Accounts())
 						}
 						return cal.Name
 					}

@@ -40,57 +40,82 @@ func searchCriteriaAnd(criteria ...*imap.SearchCriteria) *imap.SearchCriteria {
 	return and
 }
 
-// Splits search up into the longest string of non-functional parts and
-// functional parts
+// splitSearchTokens splits a query into runs of bare text and key:value
+// terms, the value optionally quoted:
 //
-// Input: hello world foo:bar baz trains:"are cool"
-// Output: ["hello world", "foo:bar", "baz", "trains:are cool"]
-func splitSearchTokens(buf []byte, eof bool) (int, []byte, error) {
-	if len(buf) == 0 {
-		return 0, nil, nil
+//	hello world foo:bar baz trains:"are cool"
+//	-> "hello world", "foo:bar", "baz", "trains:are cool"
+//
+// Every path either asks for more input or advances past what it
+// returns. Handing bufio.Scanner a token with no advance leaves it
+// returning that same token forever: an unquoted term ("from:a@b.com",
+// which is what the search box invites) used to spin here inside the
+// IMAP lock, taking the account's other requests down with it.
+func splitSearchTokens(buf []byte, atEOF bool) (int, []byte, error) {
+	start := 0
+	for start < len(buf) && buf[start] == ' ' {
+		start++
+	}
+	if start == len(buf) {
+		return start, nil, nil
+	}
+	rest := buf[start:]
+
+	// The first word carrying a colon opens a term; whatever precedes it
+	// is one run of bare text.
+	term := -1
+	for i := 0; i < len(rest); {
+		word := i + wordLen(rest[i:])
+		if bytes.IndexByte(rest[i:word], ':') >= 0 {
+			term = i
+			break
+		}
+		for i = word; i < len(rest) && rest[i] == ' '; i++ {
+		}
+	}
+	switch {
+	case term > 0:
+		return start + term, bytes.TrimRight(rest[:term], " "), nil
+	case term < 0 && !atEOF:
+		return start, nil, nil
+	case term < 0:
+		return len(buf), bytes.TrimRight(rest, " "), nil
 	}
 
-	if buf[0] == ' ' {
-		return 1, nil, nil
+	colon := bytes.IndexByte(rest, ':')
+	value := rest[colon+1:]
+	if len(value) > 0 && value[0] == '"' {
+		closing := bytes.IndexByte(value[1:], '"')
+		if closing < 0 && !atEOF {
+			return start, nil, nil
+		}
+		if closing < 0 {
+			// Unclosed at the end of the query: take it as written.
+			return len(buf), unquoted(rest[:colon+1], value[1:]), nil
+		}
+		return start + colon + closing + 3, unquoted(rest[:colon+1], value[1:closing+1]), nil
 	}
-
-	colon := bytes.IndexByte(buf, byte(':'))
-	if colon == -1 && eof {
-		return len(buf), buf, nil
-	} else if colon == -1 {
-		return 0, nil, nil
-	} else {
-		space := bytes.LastIndexByte(buf[:colon], byte(' '))
-		if space != -1 {
-			return space, buf[:space], nil
-		}
-
-		var (
-			terminator int
-			quoted     bool
-		)
-		if colon+1 < len(buf) && buf[colon+1] == byte('"') {
-			terminator = bytes.IndexByte(buf[colon+2:], byte('"'))
-			terminator += colon + 3
-			quoted = true
-		} else {
-			terminator = bytes.IndexByte(buf[colon:], byte(' '))
-			terminator += colon
-		}
-
-		if terminator == -1 {
-			return 0, nil, nil
-		} else if terminator == -1 && eof {
-			terminator = len(buf)
-		}
-
-		if quoted {
-			trimmed := append(buf[:colon+1], buf[colon+2:terminator-1]...)
-			return terminator, trimmed, nil
-		}
-
-		return terminator, buf[:terminator], nil
+	word := colon + 1 + wordLen(value)
+	if word == len(rest) && !atEOF {
+		return start, nil, nil
 	}
+	return start + word, rest[:word], nil
+}
+
+// wordLen is the length of b up to its first space, or all of it.
+func wordLen(b []byte) int {
+	if i := bytes.IndexByte(b, ' '); i >= 0 {
+		return i
+	}
+	return len(b)
+}
+
+// unquoted joins a term's key to its value without copying over the
+// caller's buffer, which bufio.Scanner still owns.
+func unquoted(key, value []byte) []byte {
+	token := make([]byte, 0, len(key)+len(value))
+	token = append(token, key...)
+	return append(token, value...)
 }
 
 // TODO: Document search functionality somewhere

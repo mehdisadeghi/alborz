@@ -22,11 +22,11 @@
           <div class="message-list-header message-list-checkbox"></div>
           {{ end }}
           {{ $s := dict "Key" $hsort "Dir" .SortDir "Explicit" $hexp "DirExplicit" $hreset "Params" $hparams "Reset" $hbase }}
-          <div class="message-list-header message-list-sender">
-            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.sender") "key" "from" "s" $s) }}{{ else }}{{$.T "sort.sender"}}{{ end }}
-          </div>
           <div class="message-list-header message-list-flags">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" "★" "key" "starred" "s" $s "idle" "☆" "class" "flag-sort") }}{{ end }}
+          </div>
+          <div class="message-list-header message-list-sender">
+            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.sender") "key" "from" "s" $s) }}{{ else }}{{$.T "sort.sender"}}{{ end }}
           </div>
           <div class="message-list-header message-list-subject">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.subject") "key" "subject" "s" $s) }}{{ else }}{{$.T "sort.subject"}}{{ end }}

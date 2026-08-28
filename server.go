@@ -1,6 +1,8 @@
 package alborz
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +21,7 @@ import (
 
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 // brandName suffixes every page title.
@@ -44,6 +47,16 @@ type Server struct {
 	plugins []Plugin
 
 	domains map[string]*domainUpstreams
+
+	assetsMu sync.Mutex
+	assets   map[string]assetStamp // theme asset content stamps by name
+}
+
+// assetStamp is one cached content digest; key identifies the content the
+// stamp was computed from.
+type assetStamp struct {
+	key   string
+	stamp string
 }
 
 // domainUpstreams holds the upstream servers for one served mail domain.
@@ -68,7 +81,7 @@ type domainUpstreams struct {
 }
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
-	s := &Server{e: e, Options: options}
+	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp)}
 
 	s.domains = make(map[string]*domainUpstreams)
 	for _, arg := range options.Upstreams {
@@ -379,6 +392,9 @@ type Context struct {
 	// read their own writes here.
 	accounts       []*Session
 	accountsLoaded bool
+
+	// Per-request upstream and render durations, reported in Server-Timing.
+	timing *Timing
 }
 
 var aLongTimeAgo = time.Unix(233431200, 0)
@@ -808,6 +824,52 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	return true
 }
 
+// assetURL stamps a theme asset's URL with a digest of its content so the
+// browser can keep it instead of revalidating it on every page; a changed
+// file changes its URL. Disk overrides win over the embedded copy, exactly
+// as serving does.
+func (s *Server) assetURL(name string) string {
+	if stamp := s.assetStamp(name); stamp != "" {
+		return "/assets/" + name + "?v=" + stamp
+	}
+	return "/assets/" + name
+}
+
+// assetStamp returns the asset's content digest. Digests are cached: an
+// embedded asset cannot change while the process runs, and a disk override
+// is re-read when its modification time or size changes, which is what
+// keeps local CSS edits showing up on browser reload.
+func (s *Server) assetStamp(name string) string {
+	key := "embedded"
+	diskPath := filepath.Join(s.Options.ThemesPath, s.Options.Theme, "assets", name)
+	onDisk := false
+	if info, err := os.Stat(diskPath); err == nil {
+		onDisk = true
+		key = fmt.Sprintf("%d.%d", info.ModTime().UnixNano(), info.Size())
+	}
+
+	s.assetsMu.Lock()
+	defer s.assetsMu.Unlock()
+	if e, ok := s.assets[name]; ok && e.key == key {
+		return e.stamp
+	}
+
+	var content []byte
+	var err error
+	if onDisk {
+		content, err = os.ReadFile(diskPath)
+	} else {
+		content, err = fs.ReadFile(embeddedTheme, path.Join("themes/alborz/assets", name))
+	}
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(content)
+	stamp := hex.EncodeToString(sum[:4])
+	s.assets[name] = assetStamp{key: key, stamp: stamp}
+	return stamp
+}
+
 func isPublic(path string) bool {
 	if strings.HasPrefix(path, "/plugins/") {
 		parts := strings.Split(path, "/")
@@ -911,6 +973,16 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		}
 	})
 
+	// HTML and stylesheets shrink several-fold over slow links; binary
+	// assets and raw message parts are left alone.
+	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+		Skipper: func(c echo.Context) bool {
+			p := c.Request().URL.Path
+			return strings.HasSuffix(p, ".png") || strings.HasSuffix(p, "/raw")
+		},
+		MinLength: 1024,
+	}))
+
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ectx echo.Context) error {
 			// `style-src 'unsafe-inline'` is required for e-mails with
@@ -918,8 +990,9 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			ectx.Response().Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:")
 			// DNS prefetching has privacy implications
 			ectx.Response().Header().Set("X-DNS-Prefetch-Control", "off")
-			// Asset URLs are not versioned; make browsers revalidate so
-			// theme and plugin asset changes are picked up
+			// Assets revalidate by default so theme and plugin edits are
+			// picked up; the theme asset handler upgrades URLs stamped
+			// with the current content to immutable.
 			path := ectx.Request().URL.Path
 			if strings.HasPrefix(path, "/assets/") || strings.HasPrefix(path, "/plugins/") {
 				ectx.Response().Header().Set("Cache-Control", "no-cache")
@@ -932,6 +1005,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		return func(ectx echo.Context) error {
 			ctx := &Context{Context: ectx, Server: s}
 			ctx.Set("context", ctx)
+			ctx.installTiming()
 
 			cookie, err := ctx.Cookie(cookieName)
 			if err == http.ErrNoCookie {
@@ -975,6 +1049,11 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		name := strings.TrimPrefix(path.Clean("/"+ectx.Param("*")), "/")
 		if name == "" {
 			return echo.ErrNotFound
+		}
+		// The immutable flag is earned by naming the current content; a
+		// stale version string keeps the no-cache default.
+		if v := ectx.QueryParam("v"); v != "" && v == s.assetStamp(name) {
+			ectx.Response().Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
 		diskPath := filepath.Join(options.ThemesPath, options.Theme, "assets", name)
 		if _, err := os.Stat(diskPath); err == nil {

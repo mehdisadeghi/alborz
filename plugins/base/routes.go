@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
@@ -143,6 +144,152 @@ func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
 	}
 }
 
+// sidebar holds the mailbox listing and statuses shown in every IMAP page's
+// aside, before assembly into render data.
+type sidebar struct {
+	mailboxes     []MailboxInfo
+	statuses      map[string]*MailboxStatus
+	active, inbox *MailboxStatus
+}
+
+// countedMailboxes names the folders the sidebar shows counts for: the
+// page's own, the inbox, the special-use folders, and whatever the user
+// subscribed to. Counting the rest would make the server walk every folder
+// on every page for numbers nothing displays.
+func countedMailboxes(mailboxes []MailboxInfo, mboxName string, subs []string) []string {
+	var names []string
+	seen := make(map[string]bool)
+	add := func(name string) {
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+
+	add("INBOX")
+	add(mboxName)
+	for i := range mailboxes {
+		if mailboxes[i].role() != "" && !mailboxes[i].IsInternal() {
+			add(mailboxes[i].Name())
+		}
+	}
+	for _, sub := range subs {
+		add(sub)
+	}
+	return names
+}
+
+// sidebarLoad is a sidebar whose STATUS commands are still in flight;
+// finish drains them.
+type sidebarLoad struct {
+	sb       sidebar
+	names    []string
+	cmds     []*imapclient.StatusCommand
+	mboxName string
+}
+
+// startSidebar issues the mailbox LIST and, pipelined behind it on the same
+// connection, a SELECT of selectMbox (empty to skip); both are drained here,
+// so on return the connection has selectMbox selected. The STATUS commands
+// for the counted folders are then issued but not drained: the caller runs
+// the page's own commands next and calls finish after, so the statuses share
+// a round trip with the page work instead of costing their own. mboxName
+// names the page's mailbox for status lookup; it need not be selected.
+func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []string) (*sidebarLoad, error) {
+	l := &sidebarLoad{mboxName: mboxName}
+	l.sb.statuses = make(map[string]*MailboxStatus)
+
+	list := startListMailboxes(c)
+	var sel *imapclient.SelectCommand
+	if selectMbox != "" {
+		sel = c.Select(selectMbox, nil)
+	}
+
+	var err error
+	l.sb.mailboxes, err = finishListMailboxes(list)
+	if err != nil {
+		if sel != nil {
+			sel.Wait()
+		}
+		return nil, err
+	}
+	if sel != nil {
+		if _, err := sel.Wait(); err != nil {
+			return nil, alborz.NotFoundf("folder %q does not exist", selectMbox)
+		}
+	}
+
+	l.names = countedMailboxes(l.sb.mailboxes, mboxName, subs)
+	l.cmds = make([]*imapclient.StatusCommand, len(l.names))
+	for i, name := range l.names {
+		l.cmds[i] = c.Status(name, &imap.StatusOptions{
+			NumMessages: true,
+			UIDValidity: true,
+			NumUnseen:   true,
+		})
+	}
+	return l, nil
+}
+
+// finish drains the STATUS commands and completes the sidebar.
+func (l *sidebarLoad) finish() (sidebar, error) {
+	for i, cmd := range l.cmds {
+		data, err := cmd.Wait()
+		if err != nil {
+			// A subscription naming a folder that no longer exists must
+			// not take the page down; only the page's own mailbox does.
+			if l.names[i] == l.mboxName {
+				return l.sb, alborz.NotFoundf("folder %q does not exist", l.mboxName)
+			}
+			continue
+		}
+		l.sb.statuses[l.names[i]] = &MailboxStatus{StatusData: data}
+	}
+	l.sb.inbox = l.sb.statuses["INBOX"]
+	l.sb.active = l.sb.statuses[l.mboxName]
+	return l.sb, nil
+}
+
+// assembleIMAPBase builds the render data from a loaded sidebar, applying
+// labels, unseen counts, and the active highlight.
+func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName string, sb sidebar, starred bool) *IMAPBaseRenderData {
+	if mboxName != "" {
+		sb.statuses[mboxName] = sb.active
+	}
+	sb.statuses["INBOX"] = sb.inbox
+
+	var categorized CategorizedMailboxes
+	for i := range sb.mailboxes {
+		if sb.active != nil && sb.mailboxes[i].Name() == sb.active.Mailbox && !starred {
+			sb.mailboxes[i].Active = true
+		}
+		sb.mailboxes[i].Label = sb.mailboxes[i].Name()
+		if role := sb.mailboxes[i].role(); role != "" {
+			sb.mailboxes[i].Label = ctx.T("aside." + role)
+		}
+		if sb.active != nil && sb.mailboxes[i].Name() == sb.active.Mailbox {
+			sb.active.Label = sb.mailboxes[i].Label
+		}
+		status := sb.statuses[sb.mailboxes[i].Name()]
+		if status != nil {
+			sb.mailboxes[i].Unseen = int(*status.NumUnseen)
+			sb.mailboxes[i].Total = int(*status.NumMessages)
+		}
+		categorized.Append(sb.mailboxes[i], status)
+	}
+
+	return &IMAPBaseRenderData{
+		BaseRenderData:       *base,
+		CategorizedMailboxes: categorized,
+		Mailboxes:            sb.mailboxes,
+		Inbox:                sb.inbox,
+		Mailbox:              sb.active,
+		Subscriptions:        sb.statuses,
+		Starred:              starred,
+	}
+}
+
 func newIMAPBaseRenderData(ctx *alborz.Context,
 	base *alborz.BaseRenderData) (*IMAPBaseRenderData, error) {
 
@@ -156,94 +303,23 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 		return nil, fmt.Errorf("failed to load settings: %v", err)
 	}
 
-	statuses := make(map[string]*MailboxStatus)
-	var mailboxes []MailboxInfo
-	var active, inbox *MailboxStatus
-	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-		var err error
-		if mailboxes, err = listMailboxes(c); err != nil {
+	var sb sidebar
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
+		load, err := startSidebar(c, mboxName, "", settings.Subscriptions)
+		if err != nil {
 			return err
 		}
-
-		if c.Caps().Has(imap.CapListStatus) {
-			for _, mbox := range mailboxes {
-				if mbox.Status == nil {
-					continue
-				}
-				statuses[mbox.Name()] = &MailboxStatus{StatusData: mbox.Status}
-			}
-			inbox = statuses["INBOX"]
-			active = statuses[mboxName]
-			return nil
-		}
-
-		if mboxName != "" {
-			if active, err = getMailboxStatus(c, mboxName); err != nil {
-				return echo.NewHTTPError(http.StatusNotFound, err)
-			}
-		}
-
-		if mboxName == "INBOX" {
-			inbox = active
-		} else {
-			if inbox, err = getMailboxStatus(c, "INBOX"); err != nil {
-				return err
-			}
-		}
-
-		for _, sub := range settings.Subscriptions {
-			if status, err := getMailboxStatus(c, sub); err != nil {
-				return err
-			} else {
-				statuses[sub] = status
-			}
-		}
-		return nil
+		sb, err = load.finish()
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if mboxName != "" {
-		statuses[mboxName] = active
-	}
-	statuses["INBOX"] = inbox
-
 	// The starred view filters the active mailbox; highlight the Starred
 	// sidebar entry instead of the mailbox itself.
 	starred := ctx.QueryParam("starred") == "1"
-
-	var categorized CategorizedMailboxes
-	for i := range mailboxes {
-		// Populate unseen & active states
-		if active != nil && mailboxes[i].Name() == active.Mailbox && !starred {
-			mailboxes[i].Active = true
-		}
-		mailboxes[i].Label = mailboxes[i].Name()
-		if role := mailboxes[i].role(); role != "" {
-			mailboxes[i].Label = ctx.T("aside." + role)
-		}
-		if active != nil && mailboxes[i].Name() == active.Mailbox {
-			active.Label = mailboxes[i].Label
-		}
-		status := statuses[mailboxes[i].Name()]
-		if status != nil {
-			mailboxes[i].Unseen = int(*status.NumUnseen)
-			mailboxes[i].Total = int(*status.NumMessages)
-		}
-
-		categorized.Append(mailboxes[i], status)
-	}
-
-	return &IMAPBaseRenderData{
-		BaseRenderData:       *base,
-		CategorizedMailboxes: categorized,
-		Mailboxes:            mailboxes,
-		Inbox:                inbox,
-		Mailbox:              active,
-		Subscriptions:        statuses,
-		Starred:              starred,
-	}, nil
+	return assembleIMAPBase(ctx, base, mboxName, sb, starred), nil
 }
 
 // unifiedRoles are the folder roles the merged all-accounts view offers;
@@ -283,6 +359,9 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		msgs  []IMAPMessage
 		total int
 	)
+	// One span across the whole fan-out: the accounts are queried
+	// concurrently, so its wall-clock is the page's IMAP time.
+	imapStart := time.Now()
 	errs := make([]error, len(ctx.Sessions()))
 	for i, s := range ctx.Sessions() {
 		wg.Add(1)
@@ -319,6 +398,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		}()
 	}
 	wg.Wait()
+	alborz.AddTiming(ctx.Request().Context(), "imap", imapStart)
 	for _, err := range errs {
 		if err != nil {
 			return err
@@ -371,21 +451,13 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		return handleUnifiedMailbox(ctx)
 	}
 
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
-
-	mbox := ibase.Mailbox
-	title := mbox.Label
-	if ibase.Starred {
-		title = ctx.T("mailbox.starred")
-	}
-	ibase.BaseRenderData.WithTitle(title)
 
 	page := 0
 	if pageStr := ctx.QueryParam("page"); pageStr != "" {
-		var err error
 		if page, err = strconv.Atoi(pageStr); err != nil || page < 0 {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid page index")
 		}
@@ -398,6 +470,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	messagesPerPage := settings.MessagesPerPage
 
 	query := ctx.QueryParam("query")
+	starred := ctx.QueryParam("starred") == "1"
 
 	sortKey := ctx.QueryParam("sort")
 	if _, ok := sortKeys[sortKey]; !ok {
@@ -412,30 +485,48 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		reverse = sortDir == "desc"
 	}
 
+	// One round trip lists the mailboxes and selects the active one; the
+	// message query then runs on the selected mailbox with the sidebar's
+	// STATUS responses riding along, two round trips for the whole page.
 	var (
+		sb            sidebar
 		msgs          []IMAPMessage
 		total         int
 		sortSupported bool
 	)
-	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-		var err error
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
+		load, err := startSidebar(c, mboxName, mboxName, settings.Subscriptions)
+		if err != nil {
+			return err
+		}
 		sortSupported = c.Caps().Has(imap.CapSort)
 		switch {
 		case query != "":
-			msgs, total, err = searchMessages(c, mbox.Name(), PrepareSearch(query, settings.SearchHeadersOnly), page, messagesPerPage, sortKey, reverse)
-		case ibase.Starred:
+			msgs, total, err = searchMessages(c, mboxName, PrepareSearch(query, settings.SearchHeadersOnly), page, messagesPerPage, sortKey, reverse)
+		case starred:
 			criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-			msgs, total, err = searchMessages(c, mbox.Name(), criteria, page, messagesPerPage, sortKey, reverse)
+			msgs, total, err = searchMessages(c, mboxName, criteria, page, messagesPerPage, sortKey, reverse)
 		case (sortKey != "" || sortDir != "") && sortSupported:
-			msgs, total, err = searchMessages(c, mbox.Name(), &imap.SearchCriteria{}, page, messagesPerPage, sortKey, reverse)
+			msgs, total, err = searchMessages(c, mboxName, &imap.SearchCriteria{}, page, messagesPerPage, sortKey, reverse)
 		default:
-			msgs, total, err = listMessages(c, mbox.Name(), page, messagesPerPage)
+			msgs, total, err = listMessages(c, mboxName, page, messagesPerPage)
 		}
+		if err != nil {
+			return err
+		}
+		sb, err = load.finish()
 		return err
 	})
 	if err != nil {
 		return err
 	}
+
+	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, starred)
+	title := ctx.T("mailbox.starred")
+	if !starred && ibase.Mailbox != nil {
+		title = ibase.Mailbox.Label
+	}
+	ibase.BaseRenderData.WithTitle(title)
 
 	prevPage, nextPage := -1, -1
 	if page > 0 {
@@ -487,7 +578,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 			})
 		}
 
-		err := ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		err := ctx.DoIMAP(func(c *imapclient.Client) error {
 			return c.Create(name, nil).Wait()
 		})
 
@@ -517,7 +608,7 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.deletetitle"), mbox.Name()))
 
 	if ctx.Request().Method == http.MethodPost {
-		ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		ctx.DoIMAP(func(c *imapclient.Client) error {
 			return c.Delete(mbox.Name()).Wait()
 		})
 		ctx.Session.PutNotice(ctx.T("notice.mailboxdeleted"))
@@ -636,15 +727,10 @@ type MessageRenderData struct {
 }
 
 func handleGetPart(ctx *alborz.Context, raw bool) error {
-	_, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
 	if err != nil {
 		return err
 	}
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
-	if err != nil {
-		return err
-	}
-	mbox := ibase.Mailbox
 
 	partPath, err := parsePartPath(ctx.QueryParam("part"))
 	if err != nil {
@@ -658,26 +744,43 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	messagesPerPage := settings.MessagesPerPage
 
 	query := ctx.QueryParam("query")
+	starred := ctx.QueryParam("starred") == "1"
 	var criteria *imap.SearchCriteria
 	if query != "" {
 		criteria = PrepareSearch(query, settings.SearchHeadersOnly)
-	} else if ibase.Starred {
+	} else if starred {
 		criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 	}
 
-	var msg *IMAPMessage
-	var part *message.Entity
-	var selected *imapclient.SelectedMailbox
-	var newerUID, olderUID imap.UID
-	var position, totalMsgs int
-	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+	// The rendered view needs the sidebar; its mailbox LIST is issued with
+	// the message's SELECT pipelined behind it, and its STATUS responses
+	// ride along with the message fetch. A raw download skips the sidebar
+	// entirely and only selects to fetch.
+	var (
+		sb                  sidebar
+		msg                 *IMAPMessage
+		part                *message.Entity
+		selected            *imapclient.SelectedMailbox
+		newerUID, olderUID  imap.UID
+		position, totalMsgs int
+	)
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
+		var load *sidebarLoad
 		var err error
-		if msg, part, err = getMessagePart(c, mbox.Name(), uid, partPath); err != nil {
+		if !raw {
+			if load, err = startSidebar(c, mboxName, mboxName, settings.Subscriptions); err != nil {
+				return err
+			}
+		}
+		if msg, part, err = getMessagePart(c, mboxName, uid, partPath); err != nil {
 			return err
 		}
 		selected = c.Mailbox()
 		if !raw {
-			newerUID, olderUID, position, totalMsgs, err = messageNeighbors(c, msg.SeqNum, criteria)
+			if newerUID, olderUID, position, totalMsgs, err = messageNeighbors(c, msg.SeqNum, criteria); err != nil {
+				return err
+			}
+			sb, err = load.finish()
 		}
 		return err
 	})
@@ -756,7 +859,9 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		flags[f] = msg.HasFlag(f)
 	}
 
+	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, starred)
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject)
+	mbox := ibase.Mailbox
 
 	return ctx.Render(http.StatusOK, "message.html", &MessageRenderData{
 		IMAPBaseRenderData: *ibase,
@@ -792,7 +897,7 @@ type composeOptions struct {
 // Send message, append it to the Sent mailbox, mark the original message as
 // answered
 func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOptions) error {
-	err := ctx.Session.DoSMTP(func(c *smtp.Client) error {
+	err := ctx.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, msg)
 	})
 	if err != nil {
@@ -803,7 +908,7 @@ func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 	}
 
 	if inReplyTo := options.InReplyTo; inReplyTo != nil {
-		err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		err = ctx.DoIMAP(func(c *imapclient.Client) error {
 			return markMessageAnswered(c, inReplyTo.Mailbox, inReplyTo.Uid)
 		})
 		if err != nil {
@@ -811,7 +916,7 @@ func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 	}
 
-	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		if _, err := appendMessage(c, msg, "sent"); err != nil {
 			return err
 		}
@@ -888,7 +993,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				}
 
 				var part *message.Entity
-				err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+				err = ctx.DoIMAP(func(c *imapclient.Client) error {
 					var err error
 					_, part, err = getMessagePart(c, original.Mailbox, original.Uid, path)
 					return err
@@ -944,7 +1049,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				drafts *MailboxInfo
 				uid    imap.UID
 			)
-			err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+			err = ctx.DoIMAP(func(c *imapclient.Client) error {
 				drafts, err = appendMessage(c, msg, "drafts")
 				if err != nil {
 					return err
@@ -1105,7 +1210,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 
 	var inReplyTo *IMAPMessage
 	var part *message.Entity
-	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		var err error
 		inReplyTo, part, err = getMessagePart(c, inReplyToPath.Mailbox,
 			inReplyToPath.Uid, partPath)
@@ -1193,7 +1298,7 @@ func handleForward(ctx *alborz.Context) error {
 
 		var source *IMAPMessage
 		var part *message.Entity
-		err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		err = ctx.DoIMAP(func(c *imapclient.Client) error {
 			var err error
 			source, part, err = getMessagePart(c, sourcePath.Mailbox, sourcePath.Uid, partPath)
 			return err
@@ -1272,7 +1377,7 @@ func handleEdit(ctx *alborz.Context) error {
 
 		var source *IMAPMessage
 		var part *message.Entity
-		err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		err = ctx.DoIMAP(func(c *imapclient.Client) error {
 			var err error
 			source, part, err = getMessagePart(c, sourcePath.Mailbox, sourcePath.Uid, partPath)
 			return err
@@ -1362,7 +1467,7 @@ func handleMove(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
 	}
 
-	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
@@ -1405,7 +1510,7 @@ func handleDelete(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
 	}
 
-	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
@@ -1483,7 +1588,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 		l[i] = imap.Flag(s)
 	}
 
-	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
@@ -1583,7 +1688,7 @@ func handleSettings(ctx *alborz.Context) error {
 	}
 
 	var mailboxes []MailboxInfo
-	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		mailboxes, err = listMailboxes(c)
 		return err
 	})

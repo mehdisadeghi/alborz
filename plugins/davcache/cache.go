@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"git.mehdix.org/alborz"
 )
 
 const (
@@ -176,6 +178,9 @@ func requestBody(req *http.Request) ([]byte, error) {
 }
 
 func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	start := time.Now()
+	defer func() { alborz.AddTiming(req.Context(), "dav", start) }()
+
 	u := t.cache.user(t.username)
 
 	u.mu.Lock()

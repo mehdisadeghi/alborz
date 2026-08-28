@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"io"
@@ -144,6 +145,11 @@ func doPropfind(ctx context.Context, client *http.Client, path string, body stri
 // only to existing collections, so the request is built here: a name, the
 // components the collection accepts, and Apple's colour property, which
 // every server that shows colours reads.
+// errCollectionExists reports the address as taken: MKCALENDAR on a
+// resource that is already there is 405, which is what RFC 4918 asks
+// of MKCOL and what SabreDAV answers.
+var errCollectionExists = errors.New("collection already exists")
+
 func doMkcalendar(ctx context.Context, client *http.Client, path, name string, components []string, color string) error {
 	var props bytes.Buffer
 	fmt.Fprintf(&props, "<D:displayname>%s</D:displayname>", xmlEscape(name))
@@ -174,7 +180,11 @@ func doMkcalendar(ctx context.Context, client *http.Client, path, name string, c
 
 	// 201 is the answer; some servers report the created properties in a
 	// 207 instead, which is equally a success.
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusMultiStatus {
+	switch resp.StatusCode {
+	case http.StatusCreated, http.StatusMultiStatus:
+	case http.StatusMethodNotAllowed:
+		return fmt.Errorf("%s: %w", path, errCollectionExists)
+	default:
 		return fmt.Errorf("failed to create calendar: %s", resp.Status)
 	}
 	return nil
@@ -408,10 +418,25 @@ func (p *plugin) createCalendar(ctx context.Context, session *alborz.Session, na
 	if segment == "" {
 		segment = "calendar"
 	}
-	target := davBase.ResolveReference(&url.URL{Path: canonicalCollectionPath(homeSet) + segment + "/"}).String()
 
-	if err := doMkcalendar(ctx, p.httpClient(session), target, name, components, color); err != nil {
-		return err
+	// Two collections may share a display name but not an address, and
+	// a server answers a taken one with 405. Walk to the first free
+	// address rather than making the reader rename what they meant.
+	home := canonicalCollectionPath(homeSet)
+	client := p.httpClient(session)
+	for attempt := 1; ; attempt++ {
+		try := segment
+		if attempt > 1 {
+			try = fmt.Sprintf("%s-%d", segment, attempt)
+		}
+		target := davBase.ResolveReference(&url.URL{Path: home + try + "/"}).String()
+		err := doMkcalendar(ctx, client, target, name, components, color)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, errCollectionExists) || attempt == 20 {
+			return err
+		}
 	}
 	p.calendars.Forget(session.Username())
 	return nil

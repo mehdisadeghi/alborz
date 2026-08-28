@@ -2,7 +2,10 @@
 
 <div class="page-wrap">
   <div class="container error">
-    <h1>{{.Code}}: {{.Status}}</h1>
+    {{/* The status is the protocol's own wording, always Latin: without
+         a direction of its own the code and its colon reorder on an RTL
+         page and it reads "Internal Server Error :500". */}}
+    <h1 dir="ltr">{{.Code}}: {{.Status}}</h1>
     <p>
       {{$.T "error.prefix"}}<a href="/">{{$.T "error.back"}}</a>{{$.T "error.suffix"}}
     </p>

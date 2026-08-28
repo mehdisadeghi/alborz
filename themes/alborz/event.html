@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/calendar/create" class="new">New event</a>
+    <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
     <a href="/calendar" class="active">{{.Calendar.Name}}</a>
   </aside>
 
@@ -13,14 +13,14 @@
         <div class="actions-wrap">
           <div class="actions-message">
             <div class="action-group">
-              <a href="{{.Event.URL}}/update" class="button-link">Edit</a>
+              <a href="{{.Event.URL}}/update" class="button-link">{{$.T "common.edit"}}</a>
             </div>
             <form
               class="action-group"
               action="{{.Event.URL}}/delete"
               method="post"
             >
-              <input type="submit" value="Delete">
+              <input type="submit" value="{{$.T "common.delete"}}">
             </form>
             <!-- TODO: Invite attendees -->
           </div>
@@ -36,11 +36,11 @@
             </th>
           </tr>
           <tr>
-            <th>Start date:</th>
+            <th>{{$.T "calendar.startdate"}}</th>
             <td>{{.GlobalData.FormatDate ($event.DateTimeStart nil)}}</td>
           </tr>
           <tr>
-            <th>End date:</th>
+            <th>{{$.T "calendar.enddate"}}</th>
             <td>{{.GlobalData.FormatDate ($event.DateTimeEnd nil)}}</td>
           </tr>
           <!-- TODO: List of attendees, room -->

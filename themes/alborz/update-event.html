@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/calendar/create" class="new {{if not .CalendarObject}}active{{end}}">New event</a>
+    <a href="/calendar/create" class="new {{if not .CalendarObject}}active{{end}}">{{$.T "calendar.new"}}</a>
     {{if .CalendarObject}}<a href="/calendar">{{.Calendar.Name}}</a>{{end}}
   </aside>
 
@@ -11,11 +11,11 @@
     <main class="create-update">
       <form method="post">
         <h2>
-          {{if .CalendarObject}}Edit{{else}}Create{{end}} event
+          {{if .CalendarObject}}{{$.T "calendar.edittitle"}}{{else}}{{$.T "calendar.createtitle"}}{{end}}
         </h2>
         {{if not .CalendarObject}}
         <label>
-          <span>Calendar</span>
+          <span>{{$.T "common.calendar"}}</span>
           <select name="calendar">
             {{range .Calendars}}
             <option value="{{.Path}}" {{if eq .Path $.Calendar.Path}}selected{{end}}>{{.Name}}</option>
@@ -25,28 +25,28 @@
         {{end}}
 
         <label>
-          <span>Event name</span>
+          <span>{{$.T "calendar.eventname"}}</span>
           <input type="text" name="summary" id="summary" dir="auto" value="{{.Event.Props.Text "SUMMARY"}}">
         </label>
 
         <label>
-          <span>Starts at</span>
+          <span>{{$.T "calendar.startsat"}}</span>
           <input type="datetime-local" name="start" id="start" value="{{.GlobalData.InTimezone (.Event.DateTimeStart nil) | formatinputdatetime}}"/>
         </label>
 
         <label>
-          <span>Ends at</span>
+          <span>{{$.T "calendar.endsat"}}</span>
           <input type="datetime-local" name="end" id="end" value="{{.GlobalData.InTimezone (.Event.DateTimeEnd nil) | formatinputdatetime}}"/>
         </label>
 
         <label>
-          <span>Description</span>
+          <span>{{$.T "common.description"}}</span>
           <textarea name="description" id="description" dir="auto">{{.Event.Props.Text "DESCRIPTION"}}</textarea>
         </label>
 
         <div class="actions">
-          <button type="submit">Save</button>
-          <a class="button-link" href="/calendar">Cancel</a>
+          <button type="submit">{{$.T "common.save"}}</button>
+          <a class="button-link" href="/calendar">{{$.T "common.cancel"}}</a>
         </div>
       </form>
     </main>

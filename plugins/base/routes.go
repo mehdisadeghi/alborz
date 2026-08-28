@@ -125,21 +125,20 @@ func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
 		Info:   &mi,
 		Status: status,
 	}
-	name := mi.Mailbox
-	// Check special-use attributes first (RFC 6154)
-	if name == "INBOX" {
+	switch mi.role() {
+	case "inbox":
 		cc.Common.Inbox = details
-	} else if mi.HasAttr(string(imap.MailboxAttrDrafts)) || name == "Drafts" || name == "Draft" {
+	case "drafts":
 		cc.Common.Drafts = details
-	} else if mi.HasAttr(string(imap.MailboxAttrSent)) || name == "Sent" {
+	case "sent":
 		cc.Common.Sent = details
-	} else if mi.HasAttr(string(imap.MailboxAttrJunk)) || name == "Junk" || name == "Spam" {
+	case "junk":
 		cc.Common.Junk = details
-	} else if mi.HasAttr(string(imap.MailboxAttrTrash)) || name == "Trash" {
+	case "trash":
 		cc.Common.Trash = details
-	} else if mi.HasAttr(string(imap.MailboxAttrArchive)) || name == "Archive" {
+	case "archive":
 		cc.Common.Archive = details
-	} else {
+	default:
 		cc.Additional = append(cc.Additional, *details)
 	}
 }
@@ -171,7 +170,7 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 				if mbox.Status == nil {
 					continue
 				}
-				statuses[mbox.Name()] = &MailboxStatus{mbox.Status}
+				statuses[mbox.Name()] = &MailboxStatus{StatusData: mbox.Status}
 			}
 			inbox = statuses["INBOX"]
 			active = statuses[mboxName]
@@ -219,6 +218,13 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 		// Populate unseen & active states
 		if active != nil && mailboxes[i].Name() == active.Mailbox && !starred {
 			mailboxes[i].Active = true
+		}
+		mailboxes[i].Label = mailboxes[i].Name()
+		if role := mailboxes[i].role(); role != "" {
+			mailboxes[i].Label = ctx.T("aside." + role)
+		}
+		if active != nil && mailboxes[i].Name() == active.Mailbox {
+			active.Label = mailboxes[i].Label
 		}
 		status := statuses[mailboxes[i].Name()]
 		if status != nil {
@@ -338,18 +344,15 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	if (page+1)*messagesPerPage < total {
 		nextPage = page + 1
 	}
-	title := role
-	if role == "INBOX" {
-		title = "Inbox"
-	}
+	title := ctx.T("aside." + strings.ToLower(role))
 	if starred {
-		title = "Starred"
+		title = ctx.T("mailbox.starred")
 	}
 
 	return ctx.Render(http.StatusOK, "mailbox.html", &MailboxRenderData{
 		IMAPBaseRenderData: IMAPBaseRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(title + " — all accounts"),
-			Mailbox:        &MailboxStatus{&imap.StatusData{Mailbox: title}},
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
+			Mailbox:        &MailboxStatus{StatusData: &imap.StatusData{Mailbox: title}, Label: title},
 			Starred:        starred,
 		},
 		Messages:  msgs,
@@ -373,12 +376,9 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	}
 
 	mbox := ibase.Mailbox
-	title := mbox.Name()
-	if title == "INBOX" {
-		title = "Inbox"
-	}
+	title := mbox.Label
 	if ibase.Starred {
-		title = "Starred"
+		title = ctx.T("mailbox.starred")
 	} else if *mbox.NumUnseen > 0 {
 		title = fmt.Sprintf("(%d) %s", *mbox.NumUnseen, title)
 	}
@@ -477,7 +477,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	ibase.BaseRenderData.WithTitle("Create new folder")
+	ibase.BaseRenderData.WithTitle(ctx.T("folder.create"))
 
 	if ctx.Request().Method == http.MethodPost {
 		name := ctx.FormValue("name")
@@ -515,13 +515,13 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 	}
 
 	mbox := ibase.Mailbox
-	ibase.BaseRenderData.WithTitle("Delete folder '" + mbox.Name() + "'")
+	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.deletetitle"), mbox.Name()))
 
 	if ctx.Request().Method == http.MethodPost {
 		ctx.Session.DoIMAP(func(c *imapclient.Client) error {
 			return c.Delete(mbox.Name()).Wait()
 		})
-		ctx.Session.PutNotice("Mailbox deleted.")
+		ctx.Session.PutNotice(ctx.T("notice.mailboxdeleted"))
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	}
 
@@ -555,17 +555,17 @@ func handleLogin(ctx *alborz.Context) error {
 		if err != nil {
 			ctx.Logger().Printf("Login failed for %q: %v", username, err)
 			if _, ok := err.(alborz.AuthError); ok {
-				renderData.BaseRenderData.GlobalData.Notice = "Failed to login!"
+				renderData.BaseRenderData.GlobalData.Notice = ctx.T("notice.loginfailed")
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
 			}
 			var domainErr alborz.UnknownDomainError
 			if errors.As(err, &domainErr) {
-				renderData.BaseRenderData.GlobalData.Notice = "Failed to login: " + domainErr.Error()
+				renderData.BaseRenderData.GlobalData.Notice = fmt.Sprintf(ctx.T("notice.loginerror"), domainErr.Error())
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
 			}
 			var netErr *net.OpError
 			if errors.As(err, &netErr) {
-				renderData.BaseRenderData.GlobalData.Notice = fmt.Sprintf("Failed to login: %v", netErr.Err)
+				renderData.BaseRenderData.GlobalData.Notice = fmt.Sprintf(ctx.T("notice.loginerror"), netErr.Err)
 				return ctx.Render(http.StatusServiceUnavailable, "login.html", &renderData)
 			}
 			return fmt.Errorf("failed to put connection in pool: %v", err)
@@ -595,7 +595,7 @@ func loginRedirect(ctx *alborz.Context) error {
 
 func handleLogout(ctx *alborz.Context) error {
 	if next := ctx.Logout(); next != nil {
-		next.PutNotice("Signed in as " + next.Username() + ".")
+		next.PutNotice(fmt.Sprintf(ctx.T("notice.signedinas"), next.Username()))
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	}
 	return ctx.Redirect(http.StatusFound, "/login")
@@ -608,7 +608,7 @@ func handleSwitch(ctx *alborz.Context) error {
 	}
 	ctx.SetUnified(false)
 	if !ctx.SwitchAccount(ctx.FormValue("account")) {
-		ctx.Session.PutNotice("That session has expired, sign in again.")
+		ctx.Session.PutNotice(ctx.T("notice.expired"))
 		return ctx.Redirect(http.StatusFound, "/login?add=1")
 	}
 	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
@@ -806,7 +806,7 @@ func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 	}
 
 	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-		if _, err := appendMessage(c, msg, mailboxSent); err != nil {
+		if _, err := appendMessage(c, msg, "sent"); err != nil {
 			return err
 		}
 		if draft := options.Draft; draft != nil {
@@ -820,7 +820,7 @@ func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		return fmt.Errorf("failed to save message to Sent mailbox: %v", err)
 	}
 
-	ctx.Session.PutNotice("Message sent.")
+	ctx.Session.PutNotice(ctx.T("notice.sent"))
 	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 }
 
@@ -939,7 +939,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				uid    imap.UID
 			)
 			err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-				drafts, err = appendMessage(c, msg, mailboxDrafts)
+				drafts, err = appendMessage(c, msg, "drafts")
 				if err != nil {
 					return err
 				}
@@ -972,7 +972,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			if err != nil {
 				return fmt.Errorf("failed to save message to Draft mailbox: %v", err)
 			}
-			ctx.Session.PutNotice("Message saved as draft.")
+			ctx.Session.PutNotice(ctx.T("notice.draftsaved"))
 			return ctx.Redirect(http.StatusFound, fmt.Sprintf(
 				"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
 		} else {
@@ -1345,13 +1345,13 @@ func handleMove(ctx *alborz.Context) error {
 	}
 
 	if len(uids) == 0 {
-		ctx.Session.PutNotice("No messages selected.")
+		ctx.Session.PutNotice(ctx.T("notice.nomessages"))
 		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
 	}
 
 	to := formOrQueryParam(ctx, "to")
 	if to == "" {
-		ctx.Session.PutNotice("No destination folder selected.")
+		ctx.Session.PutNotice(ctx.T("notice.nodestination"))
 		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
 	}
 
@@ -1371,7 +1371,7 @@ func handleMove(ctx *alborz.Context) error {
 		return err
 	}
 
-	ctx.Session.PutNotice("Message(s) moved.")
+	ctx.Session.PutNotice(ctx.T("notice.moved"))
 	if path := formOrQueryParam(ctx, "next"); path != "" {
 		return ctx.Redirect(http.StatusFound, path)
 	}
@@ -1394,7 +1394,7 @@ func handleDelete(ctx *alborz.Context) error {
 	}
 
 	if len(uids) == 0 {
-		ctx.Session.PutNotice("No messages selected.")
+		ctx.Session.PutNotice(ctx.T("notice.nomessages"))
 		return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))
 	}
 
@@ -1422,7 +1422,7 @@ func handleDelete(ctx *alborz.Context) error {
 		return err
 	}
 
-	ctx.Session.PutNotice("Message(s) deleted.")
+	ctx.Session.PutNotice(ctx.T("notice.deleted"))
 	if path := formOrQueryParam(ctx, "next"); path != "" {
 		return ctx.Redirect(http.StatusFound, path)
 	}
@@ -1515,7 +1515,7 @@ type Settings struct {
 	From            string
 	Subscriptions   []string
 	Timezone        string
-	FirstDayOfWeek  int    // 0 = Sunday, 1 = Monday (default)
+	FirstDayOfWeek  int // 0 = Sunday, 1 = Monday (default)
 
 	// Stored negated so the zero value keeps body search on by default.
 	SearchHeadersOnly bool
@@ -1553,8 +1553,9 @@ type SettingsRenderData struct {
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
-	ColorScheme   string // per-user browser preference
+	Language      string // explicit per-user choice, "" follows the browser
 	Theme         string
+	ColorScheme   string
 }
 
 type Subscriptions []string
@@ -1594,6 +1595,7 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.SearchHeadersOnly = ctx.FormValue("search_body") != "on"
 		ctx.SetColorScheme(ctx.FormValue("color_scheme"))
 		ctx.SetTheme(ctx.FormValue("theme"))
+		ctx.SetLanguage(ctx.FormValue("language"))
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
 			settings.FirstDayOfWeek, err = strconv.Atoi(fdow)
 			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {
@@ -1622,7 +1624,8 @@ func handleSettings(ctx *alborz.Context) error {
 		Settings:       settings,
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),
-		ColorScheme:    ctx.ColorScheme(),
+		Language:       ctx.Language(),
 		Theme:          ctx.Theme(),
+		ColorScheme:    ctx.ColorScheme(),
 	})
 }

@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/calendar/create" class="new">New event</a>
+    <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
     <form method="post" id="calendar-filter">
       {{range .Calendars}}
       <label class="calendar-item">
@@ -11,7 +11,7 @@
         {{.Name}}
       </label>
       {{end}}
-      <button>Apply</button>
+      <button>{{$.T "common.apply"}}</button>
     </form>
   </aside>
 

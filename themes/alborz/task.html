@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/tasks/create" class="new">New task</a>
+    <a href="/tasks/create" class="new">{{$.T "tasks.new"}}</a>
     <a href="/tasks" class="active">{{.Calendar.Name}}</a>
   </aside>
 
@@ -19,7 +19,7 @@
         <div class="actions-wrap">
           <div class="actions-message">
             <div class="action-group">
-              <a href="{{.Task.URL}}/edit" class="button-link">Edit</a>
+              <a href="{{.Task.URL}}/edit" class="button-link">{{$.T "common.edit"}}</a>
             </div>
             <form class="action-group" action="{{.Task.URL}}/complete" method="post">
               <button type="submit">
@@ -27,7 +27,7 @@
               </button>
             </form>
             <form class="action-group" action="{{.Task.URL}}/delete" method="post">
-              <button type="submit">Delete</button>
+              <button type="submit">{{$.T "common.delete"}}</button>
             </form>
           </div>
         </div>
@@ -36,14 +36,14 @@
       <section class="details">
         <h1 class="{{if eq $status "COMPLETED"}}completed{{end}}">{{$summary}}</h1>
         <dl>
-          <dt>Status</dt>
+          <dt>{{$.T "tasks.status"}}</dt>
           <dd>{{if eq $status "COMPLETED"}}Completed{{else}}Pending{{end}}</dd>
           {{if $due}}
-          <dt>Due date</dt>
+          <dt>{{$.T "tasks.duedate"}}</dt>
           <dd>{{$due.Value}}</dd>
           {{end}}
           {{if $desc}}
-          <dt>Description</dt>
+          <dt>{{$.T "common.description"}}</dt>
           <dd>{{$desc}}</dd>
           {{end}}
         </dl>

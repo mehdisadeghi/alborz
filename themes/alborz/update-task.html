@@ -3,7 +3,7 @@
 
 <div class="page-wrap">
   <aside>
-    <a href="/tasks/create" class="new {{if not .CalendarObject}}active{{end}}">New task</a>
+    <a href="/tasks/create" class="new {{if not .CalendarObject}}active{{end}}">{{$.T "tasks.new"}}</a>
     {{if .CalendarObject}}<a href="/tasks">{{.Calendar.Name}}</a>{{end}}
   </aside>
 
@@ -11,7 +11,7 @@
     <main class="create-update">
       <form method="post">
         <h2>
-          {{if .CalendarObject}}Edit{{else}}Create{{end}} task
+          {{if .CalendarObject}}{{$.T "tasks.edittitle"}}{{else}}{{$.T "tasks.createtitle"}}{{end}}
         </h2>
 
         {{$summary := ""}}
@@ -26,7 +26,7 @@
 
         {{if not .CalendarObject}}
         <label>
-          <span>Calendar</span>
+          <span>{{$.T "common.calendar"}}</span>
           <select name="calendar">
             {{range .Calendars}}
             <option value="{{.Path}}" {{if eq .Path $.Calendar.Path}}selected{{end}}>{{.Name}}</option>
@@ -36,23 +36,23 @@
         {{end}}
 
         <label>
-          <span>Summary</span>
+          <span>{{$.T "tasks.summary"}}</span>
           <input type="text" name="summary" id="summary" dir="auto" value="{{$summary}}" required />
         </label>
 
         <label>
-          <span>Due date</span>
+          <span>{{$.T "tasks.duedate"}}</span>
           <input type="date" name="due-date" id="due-date" value="{{$due}}" />
         </label>
 
         <label>
-          <span>Description</span>
+          <span>{{$.T "common.description"}}</span>
           <textarea name="description" id="description" dir="auto" rows="4">{{$desc}}</textarea>
         </label>
 
         <div class="actions">
-          <button type="submit">Save</button>
-          <a class="button-link" href="/tasks">Cancel</a>
+          <button type="submit">{{$.T "common.save"}}</button>
+          <a class="button-link" href="/tasks">{{$.T "common.cancel"}}</a>
         </div>
       </form>
     </main>

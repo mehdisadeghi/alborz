@@ -4,9 +4,7 @@
   <div class="container error">
     <h1>{{.Code}}: {{.Status}}</h1>
     <p>
-      An error occured. You can try
-      <a href="/">returning to your inbox</a>,
-      or contact support.
+      {{$.T "error.prefix"}}<a href="/">{{$.T "error.back"}}</a>{{$.T "error.suffix"}}
     </p>
   </div>
 </div>

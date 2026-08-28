@@ -749,7 +749,7 @@ func registerRoutes(p *plugin) {
 		summary, _ := event.Props.Text("SUMMARY")
 
 		return ctx.Render(http.StatusOK, "update-event.html", &UpdateEventRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle("Update " + summary),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
 			Calendars:      writable,
 			Calendar:       currentCalendar,
 			CalendarObject: co,
@@ -906,7 +906,7 @@ func registerRoutes(p *plugin) {
 		})
 
 		return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle("Tasks"),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 			Calendars:      calendarInfos,
 			TaskGroups:     taskGroups,
 			ShowCompleted:  showCompleted,
@@ -1085,7 +1085,7 @@ func registerRoutes(p *plugin) {
 		summary, _ := todo.Props.Text("SUMMARY")
 
 		return ctx.Render(http.StatusOK, "update-task.html", &UpdateTaskRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle("Update " + summary),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
 			Calendars:      writable,
 			Calendar:       currentCalendar,
 			CalendarObject: co,

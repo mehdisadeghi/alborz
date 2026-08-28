@@ -38,6 +38,10 @@
           <div class="message-list-header message-list-size">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.size") "key" "size" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.size"}}{{ end }}
           </div>
+          {{/* A link that starts a new query keeps the scope the page is
+               read under: a sender clicked in the merged view searches
+               every account, not whichever one the view is anchored to. */}}
+          {{ $scope := "" }}{{ if $.GlobalData.Unified }}{{ $scope = "&all=1" }}{{ else }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | accountparam) }}{{ end }}{{ end }}
           {{range .Messages}}
           {{ $classes := "message-list-item" }}
           {{ if not (.HasFlag "\\Seen") }}
@@ -48,25 +52,12 @@
           {{ end }}
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
-          <div class="message-row">
+          <div class="message-row"{{ if and $.GlobalData.Unified $.GlobalData.AccountColors }} style="--account: {{ $.GlobalData.AccountColor .Account }}"{{ end }}>
           {{ if not $.GlobalData.Unified }}
           <div class="message-list-checkbox {{$classes}}">
             <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form">
           </div>
           {{ end }}
-          <div class="message-list-sender {{$classes}}">
-            {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{.Account}}</span>{{ end }}
-            {{ if not .Envelope.From }}{{$.T "mailbox.nosender"}}{{ end }}
-            {{ range .Envelope.From }}
-            <a dir="auto" href='?query=from:"{{.Addr}}"'>
-            {{ if .Name }}
-              {{.Name}}
-            {{ else }}
-              {{.Addr}}
-            {{ end }}
-            </a>
-            {{ end }}
-          </div>
           <div class="message-list-flags {{$classes}}">
             <form method="POST" action="/message/{{.Mailbox}}/flag{{ if $.GlobalData.Unified }}{{account "?" .Account}}{{ else }}{{account "?" $.GlobalData.URLAccount}}{{ end }}">
               <input type="hidden" name="uids" value="{{.UID}}">
@@ -85,10 +76,23 @@
                 {{- end -}}
               </button>
             </form>
-            {{if .Attachments}}<span class="Has attachments">📎</span>{{end}}
-            {{if .HasFlag "\\Answered"}}<span class="Replied">↩</span>{{end}}
-            {{if .HasFlag "$Forwarded"}}<span class="Forwarded">↪</span>{{end}}
-                      </div>
+            {{if .Attachments}}<span class="message-mark" title="{{$.T "mailbox.attachment"}}">📎</span>{{end}}
+            {{if .HasFlag "\\Answered"}}<span class="message-mark" title="{{$.T "mailbox.answered"}}">↩︎</span>{{end}}
+            {{if .HasFlag "$Forwarded"}}<span class="message-mark" title="{{$.T "mailbox.forwarded"}}">↪︎</span>{{end}}
+          </div>
+          <div class="message-list-sender {{$classes}}">
+            {{ if not .Envelope.From }}{{$.T "mailbox.nosender"}}{{ end }}
+            {{ range .Envelope.From }}
+            <a dir="auto" href="{{ localhref (printf "?query=from:%s%s" (.Addr | accountparam) $scope) }}">
+            {{ if .Name }}
+              {{.Name}}
+            {{ else }}
+              {{.Addr}}
+            {{ end }}
+            </a>
+            {{ end }}
+            {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ $.GlobalData.AccountLabel .Account }}</span>{{ end }}
+          </div>
           <div class="message-list-subject {{$classes}}">
             {{if $.GlobalData.Unified}}
             <a dir="{{.Envelope.Subject | subjectdir}}" href="{{.URL}}{{account "?" .Account}}">
@@ -107,7 +111,7 @@
                    LTR. The link is a block of its own and isolates by
                    itself. */}}
               {{if .Envelope.Subject}}
-                <bdi dir="auto">{{.Envelope.Subject}}</bdi>
+                {{.Envelope.Subject}}
               {{else}}
                 {{$.T "mailbox.nosubject"}}
               {{end}}

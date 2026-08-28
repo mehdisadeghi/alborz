@@ -2418,10 +2418,11 @@ type SettingsRenderData struct {
 // rather than in any account.
 type BrowserSettingsRenderData struct {
 	alborz.BaseRenderData
-	Language    string // explicit per-user choice, "" follows the browser
-	Theme       string
-	ColorScheme string
-	Secondary   string // calendar system shown beside the Gregorian one
+	Language      string // explicit per-user choice, "" follows the browser
+	Theme         string
+	ColorScheme   string
+	AccountColors bool
+	AlignByScript bool
 }
 
 type Subscriptions []string
@@ -2505,7 +2506,8 @@ func handleBrowserSettings(ctx *alborz.Context) error {
 		ctx.SetColorScheme(ctx.FormValue("color_scheme"))
 		ctx.SetTheme(ctx.FormValue("theme"))
 		ctx.SetLanguage(ctx.FormValue("language"))
-		ctx.SetSecondaryCalendar(ctx.FormValue("secondary"))
+		ctx.SetAccountColors(ctx.FormValue("account_colors") != "")
+		ctx.SetAlignByScript(ctx.FormValue("align_script") != "")
 		return ctx.Redirect(http.StatusFound, "/settings/browser")
 	}
 
@@ -2514,6 +2516,7 @@ func handleBrowserSettings(ctx *alborz.Context) error {
 		Language:       ctx.Language(),
 		Theme:          ctx.Theme(),
 		ColorScheme:    ctx.ColorScheme(),
-		Secondary:      ctx.SecondaryCalendar(),
+		AccountColors:  ctx.AccountColors(),
+		AlignByScript:  ctx.AlignByScript(),
 	})
 }

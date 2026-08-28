@@ -59,6 +59,14 @@ type GlobalRenderData struct {
 	// Unified marks the merged all-accounts view
 	Unified bool
 
+	// AccountColors marks merged rows with a per-account color, an
+	// opt-in reading aid on top of the account's name
+	AccountColors bool
+
+	// AlignByScript lets each line align by its own writing direction
+	// instead of with the interface's edge
+	AlignByScript bool
+
 	// Account named by the request's account parameter, for links that
 	// must keep pointing into the same account; empty otherwise.
 	URLAccount string
@@ -583,6 +591,8 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Unified = ctx.Unified
+		global.AccountColors = ctx.AccountColors()
+		global.AlignByScript = ctx.AlignByScript()
 		global.URLAccount = ctx.urlAccount
 	}
 

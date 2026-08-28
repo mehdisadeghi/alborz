@@ -597,7 +597,7 @@ func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *im
 		if !ok {
 			continue
 		}
-		msgs[i] = IMAPMessage{msg, mboxName, ""}
+		msgs[i] = IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
 	}
 
 	return msgs, total, nil

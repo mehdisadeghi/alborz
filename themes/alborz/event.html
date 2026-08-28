@@ -19,21 +19,20 @@
               action="{{.Event.URL}}/delete{{$acct}}"
               method="post"
             >
-              <input type="submit" value="{{$.T "common.delete"}}">
+              <input type="submit" class="button-danger" value="{{$.T "common.delete"}}">
             </form>
             <!-- TODO: Invite attendees -->
           </div>
         </div>
       </section>
 
+      {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+      <div class="context-crumb">{{$crumbAcct}} › {{.Calendar.Name}}</div>
+
       <section class="details">
         {{ if .Event.Data.Events }}{{$event := index .Event.Data.Events 0}}
+        <h1>{{$event.Props.Text "SUMMARY"}}</h1>
         <table>
-          <tr>
-            <th colspan="2">
-              <h1>{{$event.Props.Text "SUMMARY"}}</h1>
-            </th>
-          </tr>
           <tr>
             <th>{{$.T "calendar.startdate"}}</th>
             <td>{{.GlobalData.FormatDate ($event.DateTimeStart nil)}}</td>

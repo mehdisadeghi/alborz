@@ -426,6 +426,7 @@ func (ctx *Context) secureCookies() bool {
 func (ctx *Context) SetSession(s *Session) {
 	cookie := http.Cookie{
 		Name:     cookieName,
+		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 		Secure:   ctx.secureCookies(),

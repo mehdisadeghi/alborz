@@ -11,6 +11,7 @@
         {{ template "list-toolbar" (dict "title" ($.T "nav.settings")) }}
       </section>
       <div class="context-crumb">{{printf ($.T "settings.foraccount") .GlobalData.Username}}</div>
+      {{ if .Error }}<div class="alert">{{ .Error }}</div>{{ end }}
       <form method="post">
         <div class="action-group">
           <label for="from">{{$.T "settings.fullname"}}</label>
@@ -70,6 +71,8 @@
             name="messages_per_page"
             id="messages_per_page"
             value="{{.Settings.MessagesPerPage}}"
+            min="1"
+            max="{{.MaxPerPage}}"
             required />
         </div>
 

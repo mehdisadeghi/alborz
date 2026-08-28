@@ -2,6 +2,7 @@ package alborzbase
 
 import (
 	"fmt"
+	"net/mail"
 	"net/url"
 	"strconv"
 	"strings"
@@ -62,16 +63,21 @@ func parsePartPath(s string) ([]int, error) {
 	return path, nil
 }
 
-func parseAddressList(s string) []string {
-	l := strings.Split(s, ",")
-	ret := make([]string, 0, len(l))
-	for _, addr := range l {
-		if addr == "" {
-			continue
-		}
-
-		ret = append(ret, strings.TrimSpace(addr))
+// parseAddressList reads one header field's worth of recipients.
+// Splitting on commas cannot do this: a display name is allowed to
+// contain one, and "Doe, John" <j@x.com> then becomes two broken
+// recipients. net/mail knows the grammar.
+func parseAddressList(s string) ([]string, error) {
+	if strings.TrimSpace(s) == "" {
+		return nil, nil
 	}
-
-	return ret
+	list, err := mail.ParseAddressList(s)
+	if err != nil {
+		return nil, err
+	}
+	addresses := make([]string, len(list))
+	for i, addr := range list {
+		addresses[i] = addr.String()
+	}
+	return addresses, nil
 }

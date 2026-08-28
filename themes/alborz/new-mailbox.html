@@ -21,7 +21,7 @@
             {{end}}
           </select>
         </label>
-        {{ template "field" (dict "label" ($.T "folder.name") "name" "name" "value" .Name "dir" "auto" "autofocus" true) }}
+        {{ template "field" (dict "label" ($.T "folder.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true) }}
         {{ if .Error }}<div class="alert">{{ .Error }}</div>{{ end }}
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/mailbox/INBOX%s" $acct) "cancelLabel" ($.T "common.cancel")) }}
       </form>

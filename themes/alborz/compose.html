@@ -40,6 +40,7 @@
             id="to"
             value="{{$to}}"
             list="emails"
+            required
             {{ if not $to }} autofocus{{ end }}
           />
 
@@ -121,7 +122,7 @@
 
         <div class="actions">
           <button id="send-button" class="button-primary" type="submit">{{$.T "compose.send"}}</button>
-          <button id="save-button" type="submit" name="save_as_draft">{{$.T "compose.savedraft"}}</button>
+          <button id="save-button" type="submit" name="save_as_draft" formnovalidate>{{$.T "compose.savedraft"}}</button>
           <a class="button-link button-quiet" href="/mailbox/INBOX">{{$.T "common.cancel"}}</a>
         </div>
       </form>

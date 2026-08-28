@@ -67,6 +67,7 @@ var templateFuncs = template.FuncMap{
 	"pathescape": url.PathEscape,
 	// An address in a query value keeps its at sign; see AccountParam.
 	"accountparam": alborz.AccountParam,
+	"subjectdir":   alborz.SubjectDir,
 	// account renders the query fragment naming an account, or nothing
 	// when there is none. The template.URL return matters: the contextual
 	// escaper normalises those instead of escaping them, so the address

@@ -1423,6 +1423,31 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 type ComposeRenderData struct {
 	IMAPBaseRenderData
 	Message *OutgoingMessage
+	Error   string
+	// Identities offered in the From dropdown, one entry per account.
+	Identities []AccountIdentities
+}
+
+// AccountIdentities lists the addresses an account may send as: the
+// account itself is implied and not repeated in Addresses.
+type AccountIdentities struct {
+	Account   string
+	Addresses []string
+}
+
+// composeIdentities reads each signed-in account's stored identities. A
+// server that cannot be reached contributes its address alone rather
+// than failing the page.
+func composeIdentities(ctx *alborz.Context) []AccountIdentities {
+	var out []AccountIdentities
+	for _, s := range ctx.Sessions() {
+		entry := AccountIdentities{Account: s.Username()}
+		if settings, err := LoadSettings(s.Store()); err == nil {
+			entry.Addresses = settings.Identities
+		}
+		out = append(out, entry)
+	}
+	return out
 }
 
 type messagePath struct {
@@ -1484,6 +1509,13 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		return err
 	}
 
+	// Both the sent copy and the saved draft carry it, so a message says
+	// what wrote it however it left here.
+	msg.Mailer = "alborz"
+	if v := ctx.Server.Options.Version; v != "" {
+		msg.Mailer += "/" + v
+	}
+
 	if msg.From == "" && strings.ContainsRune(ctx.Session.Username(), '@') {
 		settings, err := LoadSettings(ctx.Session.Store())
 		if err != nil {
@@ -1507,18 +1539,29 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 		_, saveAsDraft := formParams["save_as_draft"]
 
-		// The From dropdown picks the sending account; everything after
-		// this line, SMTP and Sent folder included, follows it.
-		if from := ctx.FormValue("from_account"); from != "" && from != ctx.Session.Username() {
-			session := ctx.SessionFor(from)
+		// The From dropdown picks the sending account and, within it, the
+		// address to send as; everything after this line, SMTP and Sent
+		// folder included, follows the account.
+		account, identity := splitIdentityChoice(ctx.FormValue("from_account"))
+		if account != "" && account != ctx.Session.Username() {
+			session := ctx.SessionFor(account)
 			if session == nil {
 				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 			}
 			ctx.Session = session
 		}
+		settings, err := LoadSettings(ctx.Session.Store())
+		if err != nil {
+			return err
+		}
 		msg.From = ctx.Session.Username()
-		if settings, err := LoadSettings(ctx.Session.Store()); err == nil && settings.From != "" {
+		if settings.From != "" {
 			msg.From = (&mail.Address{Name: settings.From, Address: ctx.Session.Username()}).String()
+		}
+		// An identity replaces the address, and carries its own name when
+		// it names one. A stale choice falls back to the account itself.
+		if identity != "" && slices.Contains(settings.Identities, identity) {
+			msg.From = identity
 		}
 		msg.To = parseAddressList(ctx.FormValue("to"))
 		msg.Cc = parseAddressList(ctx.FormValue("cc"))
@@ -1649,6 +1692,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 
 	ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
 	return ctx.Render(http.StatusOK, "compose.html", &ComposeRenderData{
+		Identities:         composeIdentities(ctx),
 		IMAPBaseRenderData: *ibase,
 		Message:            msg,
 	})
@@ -1829,6 +1873,25 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	}
 
 	return ret, nil
+}
+
+// parseIdentities reads the settings textarea: one address per line,
+// blank lines ignored.
+func parseIdentities(raw string) []string {
+	var out []string
+	for _, line := range strings.Split(raw, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+// splitIdentityChoice reads the From dropdown's value: the account, and
+// optionally the identity of that account to send as.
+func splitIdentityChoice(value string) (account, identity string) {
+	account, identity, _ = strings.Cut(value, "|")
+	return account, identity
 }
 
 func filterOutUsername(username string, addresses []imap.Address) []imap.Address {
@@ -2290,9 +2353,13 @@ type Settings struct {
 	MessagesPerPage int
 	Signature       string
 	From            string
-	Subscriptions   []string
-	Timezone        string
-	FirstDayOfWeek  int // 0 = Sunday, 1 = Monday (default)
+	// Identities are the other addresses this mailbox may send as, one
+	// per line, each a bare address or a "Name <address>" pair. The
+	// account's own address is always offered and is not listed here.
+	Identities     []string
+	Subscriptions  []string
+	Timezone       string
+	FirstDayOfWeek int // 0 = Sunday, 1 = Monday (default)
 
 	// Stored negated so the zero value keeps body search on by default.
 	SearchHeadersOnly bool
@@ -2375,11 +2442,9 @@ func handleSettings(ctx *alborz.Context) error {
 		}
 		settings.Signature = ctx.FormValue("signature")
 		settings.From = ctx.FormValue("from")
+		settings.Identities = parseIdentities(ctx.FormValue("identities"))
 		settings.Timezone = ctx.FormValue("timezone")
 		settings.SearchHeadersOnly = ctx.FormValue("search_body") != "on"
-		ctx.SetColorScheme(ctx.FormValue("color_scheme"))
-		ctx.SetTheme(ctx.FormValue("theme"))
-		ctx.SetLanguage(ctx.FormValue("language"))
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
 			settings.FirstDayOfWeek, err = strconv.Atoi(fdow)
 			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {

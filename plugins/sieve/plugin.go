@@ -24,11 +24,19 @@ func init() {
 		p := alborz.GoPlugin{
 			Name:  "sieve",
 			Files: public,
-			// Sieve scripts are per-account administration; the unified
-			// view has no single account to administer.
+			// Sieve scripts are per-account administration, but the section
+			// remains reachable from merged mail. Its route redirects to one
+			// capable account before performing any operation.
 			EnabledFunc: func(ctx *alborz.Context) bool {
-				return ctx.Session != nil && !ctx.Unified &&
-					ctx.Server.SieveEnabled(ctx.Session.Domain())
+				if ctx.Session == nil {
+					return false
+				}
+				for _, session := range ctx.Sessions() {
+					if ctx.Server.SieveEnabled(session.Domain()) {
+						return true
+					}
+				}
+				return false
 			},
 		}
 		registerRoutes(&p)

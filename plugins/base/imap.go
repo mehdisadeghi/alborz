@@ -79,18 +79,18 @@ func (mbox *MailboxInfo) IsInternal() bool {
 	return slices.Contains(mbox.Attrs, imap.MailboxAttrNoSelect)
 }
 
-func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
-	var options imap.ListOptions
-	if conn.Caps().Has(imap.CapListStatus) {
-		options.ReturnStatus = &imap.StatusOptions{
-			NumMessages: true,
-			UIDValidity: true,
-			NumUnseen:   true,
-		}
-	}
+// startListMailboxes issues the mailbox LIST without draining it, so the
+// caller can pipeline further commands behind it on the same connection and
+// pay one round trip for all of them. Counts come from a scoped STATUS pass
+// instead of LIST-STATUS, so the server is not asked to count every folder.
+func startListMailboxes(conn *imapclient.Client) *imapclient.ListCommand {
+	return conn.List("", "*", nil)
+}
 
+// finishListMailboxes drains a command from startListMailboxes into the
+// sorted mailbox list.
+func finishListMailboxes(list *imapclient.ListCommand) ([]MailboxInfo, error) {
 	var mailboxes []MailboxInfo
-	list := conn.List("", "*", &options)
 	for {
 		data := list.Next()
 		if data == nil {
@@ -119,6 +119,10 @@ func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
 	return mailboxes, nil
 }
 
+func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
+	return finishListMailboxes(startListMailboxes(conn))
+}
+
 type MailboxStatus struct {
 	*imap.StatusData
 
@@ -134,18 +138,6 @@ func (mbox *MailboxStatus) URL() *url.URL {
 	return &url.URL{
 		Path: fmt.Sprintf("/mailbox/%v", url.PathEscape(mbox.Name())),
 	}
-}
-
-func getMailboxStatus(conn *imapclient.Client, name string) (*MailboxStatus, error) {
-	status, err := conn.Status(name, &imap.StatusOptions{
-		NumMessages: true,
-		UIDValidity: true,
-		NumUnseen:   true,
-	}).Wait()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get mailbox status: %v", err)
-	}
-	return &MailboxStatus{StatusData: status}, nil
 }
 
 // getMailboxByRole finds the account's folder for a special-use role
@@ -432,13 +424,14 @@ func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 }
 
 func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {
-	// A NOOP will ensure we notice any new message
-	noop := conn.Noop()
-	if err := ensureMailboxSelected(conn, mboxName); err != nil {
-		return nil, 0, err
-	}
-	if err := noop.Wait(); err != nil {
-		return nil, 0, err
+	// A fresh SELECT already reports the message count; only an already
+	// selected mailbox needs a NOOP to notice new mail.
+	if mbox := conn.Mailbox(); mbox != nil && mbox.Name == mboxName {
+		if err := conn.Noop().Wait(); err != nil {
+			return nil, 0, err
+		}
+	} else if _, err := conn.Select(mboxName, nil).Wait(); err != nil {
+		return nil, 0, fmt.Errorf("failed to select mailbox: %v", err)
 	}
 
 	mbox := conn.Mailbox()

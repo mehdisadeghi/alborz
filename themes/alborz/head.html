@@ -6,15 +6,16 @@
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#1f1f1f" media="(prefers-color-scheme: dark)">
     <title>{{.GlobalData.PageTitle}}</title>
-    <link rel="stylesheet" href="/assets/style.css">
+    <link rel="stylesheet" href="{{call .GlobalData.Asset "style.css"}}">
     {{- with .GlobalData.Theme}}
-    <link rel="stylesheet" href="/assets/themes/{{.}}.css">
+    <link rel="stylesheet" href="{{call $.GlobalData.Asset (printf "themes/%s.css" .)}}">
     {{- end}}
-    <link rel="stylesheet" href="/assets/print.css" media="print">
-    <link rel="icon" type="image/png" href="/assets/favicon-196x196.png" sizes="196x196" />
-    <link rel="icon" type="image/png" href="/assets/favicon-96x96.png" sizes="96x96" />
-    <link rel="icon" type="image/png" href="/assets/favicon-32x32.png" sizes="32x32" />
-    <link rel="icon" type="image/png" href="/assets/favicon-16x16.png" sizes="16x16" />
-    <link rel="icon" type="image/png" href="/assets/favicon-128.png" sizes="128x128" />
+    <link rel="stylesheet" href="{{call .GlobalData.Asset "print.css"}}" media="print">
+    <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-196x196.png"}}" sizes="196x196" />
+    <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-96x96.png"}}" sizes="96x96" />
+    <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-32x32.png"}}" sizes="32x32" />
+    <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-16x16.png"}}" sizes="16x16" />
+    <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-128.png"}}" sizes="128x128" />
+    <script defer src="{{call .GlobalData.Asset "helpers.js"}}"></script>
   </head>
   <body>

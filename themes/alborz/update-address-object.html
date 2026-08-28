@@ -37,7 +37,7 @@
         </label>
         {{end}}
 
-        {{ template "field" (dict "label" ($.T "common.name") "name" "fn" "value" .Name "dir" "auto") }}
+        {{ template "field" (dict "label" ($.T "common.name") "name" "fn" "value" .Name "dir" "auto" "required" true) }}
         {{ template "field" (dict "label" ($.T "contacts.emails") "name" "emails" "type" "email" "value" (join (.Card.Values "EMAIL") ", ") "placeholder" "a@example.org, b@example.org") }}
         {{ template "field" (dict "label" ($.T "contacts.phones") "name" "tels" "type" "tel" "value" (join (.Card.Values "TEL") ", ") "dir" "ltr" "placeholder" "+49 151 2345678, 030 123456") }}
         {{ template "field" (dict "label" ($.T "contacts.organization") "name" "org" "value" (.Card.PreferredValue "ORG") "dir" "auto") }}

@@ -36,9 +36,9 @@
         </label>
         {{end}}
 
-        {{ template "field" (dict "label" ($.T "calendar.eventname") "name" "summary" "value" (.Event.Props.Text "SUMMARY") "dir" "auto") }}
-        {{ template "field" (dict "label" ($.T "calendar.startsat") "name" "start" "type" "datetime-local" "value" (.GlobalData.InTimezone (.Event.DateTimeStart nil) | formatinputdatetime)) }}
-        {{ template "field" (dict "label" ($.T "calendar.endsat") "name" "end" "type" "datetime-local" "value" (.GlobalData.InTimezone (.Event.DateTimeEnd nil) | formatinputdatetime)) }}
+        {{ template "field" (dict "label" ($.T "calendar.eventname") "name" "summary" "value" (.Event.Props.Text "SUMMARY") "dir" "auto" "required" true) }}
+        {{ template "field" (dict "label" ($.T "calendar.startsat") "name" "start" "type" "datetime-local" "value" (.GlobalData.InTimezone (.Event.DateTimeStart nil) | formatinputdatetime) "required" true) }}
+        {{ template "field" (dict "label" ($.T "calendar.endsat") "name" "end" "type" "datetime-local" "value" (.GlobalData.InTimezone (.Event.DateTimeEnd nil) | formatinputdatetime) "required" true) }}
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" (.Event.Props.Text "DESCRIPTION") "dir" "auto") }}
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/calendar%s" $acct) "cancelLabel" ($.T "common.cancel")) }}

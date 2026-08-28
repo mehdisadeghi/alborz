@@ -802,7 +802,8 @@ main.message pre {
    cells in a display:contents wrapper, so this reaches past it - the
    toolbar's select-all is not in the grid and stays centred. */
 .message-grid .message-list-checkbox,
-.contact-grid .contact-list-checkbox {
+.contact-grid .contact-list-checkbox,
+.contact-grid.multi .contact-list-photo {
   padding-inline-start: 0.5rem;
   align-self: stretch;
 }
@@ -953,8 +954,10 @@ main.event .details th {
 
 .contact-photo {
   float: inline-end;
-  max-width: 120px;
-  max-height: 120px;
+  width: 120px;
+  height: 120px;
+  aspect-ratio: 1;
+  object-fit: cover;
   border-radius: 8px;
   margin-inline-start: 1rem;
 }
@@ -1558,14 +1561,14 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .contact-grid {
   display: grid;
-  grid-template-columns: auto 2rem 1fr 2fr 1fr;
+  grid-template-columns: auto 2.5rem 1fr 2fr 1fr;
   grid-template-rows: auto;
 }
 
 /* Pooled contacts keep the desktop table dense; ownership appears in the
    mobile name card and on the detail page. */
 .contact-grid.multi {
-  grid-template-columns: 2rem 1fr 2fr 1fr;
+  grid-template-columns: 2.5rem 1fr 2fr 1fr;
 }
 
 /* Event lists - a day, or a month's agenda - share the aligned grammar
@@ -1696,8 +1699,10 @@ aside details.folder-branch details.folder-branch > ul > li {
    24 tall, a circle drawn as an ellipse. It keeps its square, and crops
    rather than stretches whatever shape the card carries. */
 .contact-list-photo img {
+  flex: none;
   width: 1.5rem;
   height: 1.5rem;
+  aspect-ratio: 1;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -2911,9 +2916,12 @@ aside ul.merged-roles {
 
   /* Contacts: name and phone only; the e-mail column waits for the
      detail page. */
-  .contact-grid { grid-template-columns: auto 2rem minmax(0, 1fr) auto; }
-  .contact-grid.multi { grid-template-columns: 2rem minmax(0, 1fr) auto; }
-  .contact-grid .contact-list-header { display: none; }
+  .contact-grid { grid-template-columns: auto 2.5rem minmax(0, 1fr) auto; }
+  .contact-grid.multi { grid-template-columns: 2.5rem minmax(0, 1fr) auto; }
+  /* Matches the shared cell rule's specificity, which sets display on
+     every child of the grid - headers included - and so kept the
+     column titles on screen and every row shifted by four cells. */
+  .contact-list .contacts .contact-grid > .contact-list-header { display: none; }
   .contact-list-name {
     flex-direction: column;
     align-items: flex-start !important;

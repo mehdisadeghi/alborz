@@ -1,11 +1,10 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
-  <aside>
-    <a href="/tasks/create" class="new">{{$.T "tasks.new"}}</a>
-    <a href="/tasks" class="active">{{.Calendar.Name}}</a>
-  </aside>
+  {{$acct := ""}}{{with .GlobalData.URLAccount}}{{$acct = printf "?account=%s" .}}{{end}}
+  {{ template "detail-aside" (dict "newHref" (printf "/tasks/create%s" $acct) "newLabel" ($.T "tasks.new") "backHref" (printf "/tasks%s" $acct) "backLabel" .Calendar.Name "backActive" true) }}
 
   <div class="container">
     <main class="task">
@@ -19,14 +18,15 @@
         <div class="actions-wrap">
           <div class="actions-message">
             <div class="action-group">
-              <a href="{{.Task.URL}}/edit" class="button-link">{{$.T "common.edit"}}</a>
+              <a href="{{.Task.URL}}/edit{{$acct}}" class="button-link">{{$.T "common.edit"}}</a>
             </div>
-            <form class="action-group" action="{{.Task.URL}}/complete" method="post">
+            <form class="action-group" action="{{.Task.URL}}/complete{{$acct}}" method="post">
+              <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
               <button type="submit">
                 {{if eq $status "COMPLETED"}}Mark incomplete{{else}}Mark complete{{end}}
               </button>
             </form>
-            <form class="action-group" action="{{.Task.URL}}/delete" method="post">
+            <form class="action-group" action="{{.Task.URL}}/delete{{$acct}}" method="post">
               <button type="submit">{{$.T "common.delete"}}</button>
             </form>
           </div>

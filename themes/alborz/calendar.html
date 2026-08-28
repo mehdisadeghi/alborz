@@ -1,18 +1,18 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
   <aside>
+    {{if .GlobalData.Unified}}
+    {{ template "dav-aside-groups" (dict "items" .Calendars "itemclass" "calendar-item") }}
+    {{else}}
     <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
     <form method="post" id="calendar-filter">
-      {{range .Calendars}}
-      <label class="calendar-item">
-        <input type="checkbox" name="cal" value="{{.Path}}" {{if .Visible}}checked{{end}} data-submit-on-change {{if .Color}}style="accent-color:{{.Color}}"{{end}}>
-        {{.Name}}
-      </label>
-      {{end}}
+      {{ template "dav-aside-filter" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item") }}
       <button>{{$.T "common.apply"}}</button>
     </form>
+    {{end}}
   </aside>
 
   <div class="container">
@@ -47,7 +47,7 @@
 
               {{range $events}}
               {{ if .Data.Events }}{{$event := index .Data.Events 0}}
-              {{$color := call $base.ColorForPath .Path}}
+              {{$color := call $base.ColorForPath .Account .Path}}
               <li>
                 {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
                 <span class="start-time">

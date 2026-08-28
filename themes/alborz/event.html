@@ -1,11 +1,10 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
-  <aside>
-    <a href="/calendar/create" class="new">{{$.T "calendar.new"}}</a>
-    <a href="/calendar" class="active">{{.Calendar.Name}}</a>
-  </aside>
+  {{$acct := ""}}{{with .GlobalData.URLAccount}}{{$acct = printf "?account=%s" .}}{{end}}
+  {{ template "detail-aside" (dict "newHref" (printf "/calendar/create%s" $acct) "newLabel" ($.T "calendar.new") "backHref" (printf "/calendar%s" $acct) "backLabel" .Calendar.Name "backActive" true) }}
 
   <div class="container">
     <main class="event">
@@ -13,11 +12,11 @@
         <div class="actions-wrap">
           <div class="actions-message">
             <div class="action-group">
-              <a href="{{.Event.URL}}/update" class="button-link">{{$.T "common.edit"}}</a>
+              <a href="{{.Event.URL}}/update{{$acct}}" class="button-link">{{$.T "common.edit"}}</a>
             </div>
             <form
               class="action-group"
-              action="{{.Event.URL}}/delete"
+              action="{{.Event.URL}}/delete{{$acct}}"
               method="post"
             >
               <input type="submit" value="{{$.T "common.delete"}}">

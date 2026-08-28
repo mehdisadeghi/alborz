@@ -401,6 +401,10 @@ type Context struct {
 
 	// Per-request upstream and render durations, reported in Server-Timing.
 	timing *Timing
+
+	// Account named by the request's account parameter, selected for this
+	// request only; empty otherwise.
+	urlAccount string
 }
 
 var aLongTimeAgo = time.Unix(233431200, 0)
@@ -652,17 +656,42 @@ func (ctx *Context) AddAccount(s *Session) {
 	ctx.setAccountSessions(sessions)
 }
 
+// URLAccount returns the account selected by the request's account
+// parameter, "" when none.
+func (ctx *Context) URLAccount() string {
+	return ctx.urlAccount
+}
+
+// AccountPath appends the request's account parameter to path, so a flow
+// started under one account redirects back into it.
+func (ctx *Context) AccountPath(path string) string {
+	if ctx.urlAccount == "" {
+		return path
+	}
+	return path + "?account=" + url.QueryEscape(ctx.urlAccount)
+}
+
+// SessionFor returns the listed account's live session without making it
+// active, nil when the account is not signed in.
+func (ctx *Context) SessionFor(username string) *Session {
+	for _, s := range ctx.accountSessions() {
+		if s.username == username {
+			return s
+		}
+	}
+	return nil
+}
+
 // SwitchAccount makes the listed account with the given username active. It
 // reports false when no live session for that username remains.
 func (ctx *Context) SwitchAccount(username string) bool {
-	for _, s := range ctx.accountSessions() {
-		if s.username == username {
-			ctx.Session = s
-			ctx.SetSession(s)
-			return true
-		}
+	s := ctx.SessionFor(username)
+	if s == nil {
+		return false
 	}
-	return false
+	ctx.Session = s
+	ctx.SetSession(s)
+	return true
 }
 
 // Logout closes the active session, removes it from the account list, and
@@ -1033,10 +1062,19 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				session.ping()
 			}
 
-			// A row of the unified view carries its account; following it
-			// switches the whole context there.
-			if acct := ctx.QueryParam("account"); acct != "" && ctx.SwitchAccount(acct) {
-				ctx.SetUnified(false)
+			// A link may carry the account it belongs to; it selects the
+			// session for this request only, so following it changes no
+			// state and the unified view survives the round trip.
+			if acct := ctx.QueryParam("account"); acct != "" {
+				session := ctx.SessionFor(acct)
+				if session == nil {
+					return RenderInfo(ctx, http.StatusOK, fmt.Sprintf(ctx.T("account.notsignedin"), acct))
+				}
+				ctx.Session = session
+				ctx.urlAccount = acct
+			} else if ctx.QueryParam("all") == "1" && len(ctx.accountSessions()) > 1 {
+				// The merged view as a place, not a mode: nothing sticks.
+				ctx.Unified = true
 			} else if _, err := ctx.Cookie(unifiedCookieName); err == nil && len(ctx.accountSessions()) > 1 {
 				ctx.Unified = true
 			}

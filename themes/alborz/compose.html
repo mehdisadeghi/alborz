@@ -9,12 +9,18 @@
     <main class="create-update">
 
       <form method="post" enctype="multipart/form-data" id="compose-form">
+        <div class="context-crumb">{{ with .GlobalData.URLAccount }}{{ . }}{{ else }}{{ .GlobalData.Username }}{{ end }}</div>
         <input type="hidden" name="message_id" value="{{.Message.MessageID}}">
         <input type="hidden" name="in_reply_to" value="{{.Message.InReplyTo}}">
 
         <div class="headers no-js">
           <label>{{$.T "compose.from"}}</label>
-          <input type="text" name="from" id="from" value="{{.Message.From}}" />
+          {{ $sel := $.GlobalData.Username }}{{ with $.GlobalData.URLAccount }}{{ $sel = . }}{{ end }}
+          <select name="from_account" id="from">
+            {{ range .GlobalData.Accounts }}
+            <option value="{{.Username}}"{{ if eq .Username $sel }} selected{{ end }}>{{.Username}}</option>
+            {{ end }}
+          </select>
 
           <label>{{$.T "compose.to"}}</label>
           {{ $to := .Message.ToString }}

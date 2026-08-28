@@ -457,6 +457,7 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 		Flags:         true,
 		Envelope:      true,
 		UID:           true,
+		RFC822Size:    true,
 		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
 	}
 	imapMsgs, err := conn.Fetch(seqSet, &options).Collect()
@@ -574,6 +575,7 @@ func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *im
 		Envelope:      true,
 		Flags:         true,
 		UID:           true,
+		RFC822Size:    true,
 		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
 	}
 	results, err := conn.Fetch(seqSet, &options).Collect()
@@ -685,9 +687,9 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 	options := imap.FetchOptions{
 		Envelope:      true,
 		UID:           true,
+		RFC822Size:    true,
 		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
 		Flags:         true,
-		RFC822Size:    true,
 		BodySection:   []*imap.FetchItemBodySection{headerItem, bodyItem},
 	}
 

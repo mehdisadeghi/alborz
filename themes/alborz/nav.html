@@ -7,14 +7,17 @@
     <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>
     {{ end }}
     {{$page := (index .GlobalData.Path 0)}}
-    <a href="/"
+    {{/* Tabs keep the account the page is anchored to, so following one
+         never silently falls back to the modal active account. */}}
+    {{$q := ""}}{{with .GlobalData.URLAccount}}{{$q = printf "?account=%s" .}}{{else}}{{if .GlobalData.Unified}}{{$q = "?all=1"}}{{end}}{{end}}
+    <a href="/mailbox/INBOX{{$q}}"
       {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}
       class="active"
       {{ end }}
     >{{$.T "nav.email"}}</a>
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/calendar"
+      href="/calendar{{$q}}"
       {{ if eq $page "calendar" }}
       class="active"
       {{ end }}
@@ -22,7 +25,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "carddav" }}
     <a
-      href="/contacts"
+      href="/contacts{{$q}}"
       {{ if eq $page "contacts" }}
       class="active"
       {{ end }}
@@ -30,7 +33,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/tasks"
+      href="/tasks{{$q}}"
       {{ if eq $page "tasks" }}
       class="active"
       {{ end }}
@@ -38,7 +41,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "sieve" }}
     <a
-      href="/filters"
+      href="/filters{{$q}}"
       {{ if eq $page "filters" }}
       class="active"
       {{ end }}
@@ -64,7 +67,7 @@
           <a href="/login?add=1">{{$.T "nav.addaccount"}}</a>
         </div>
       </details>
-      <a href="/settings">{{$.T "nav.settings"}}</a>
+      <a href="/settings{{$q}}">{{$.T "nav.settings"}}</a>
       <a href="/logout">{{$.T "nav.signout"}}</a>
     </div>
     {{ end }}

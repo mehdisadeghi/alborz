@@ -1642,6 +1642,18 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			defer attachment.Form.RemoveAll()
 		}
 
+		// A message with nowhere to go is not sent, and is not reported
+		// as sent; a draft may of course be addressed later.
+		if !saveAsDraft && len(msg.To) == 0 && len(msg.Cc) == 0 && len(msg.Bcc) == 0 {
+			ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
+			return ctx.Render(http.StatusUnprocessableEntity, "compose.html", &ComposeRenderData{
+				IMAPBaseRenderData: *ibase,
+				Message:            msg,
+				Identities:         composeIdentities(ctx),
+				Error:              ctx.T("form.recipientneeded"),
+			})
+		}
+
 		if saveAsDraft {
 			var (
 				drafts *MailboxInfo

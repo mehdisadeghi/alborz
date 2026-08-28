@@ -1563,9 +1563,22 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		if identity != "" && slices.Contains(settings.Identities, identity) {
 			msg.From = identity
 		}
-		msg.To = parseAddressList(ctx.FormValue("to"))
-		msg.Cc = parseAddressList(ctx.FormValue("cc"))
-		msg.Bcc = parseAddressList(ctx.FormValue("bcc"))
+		for _, field := range []struct {
+			name string
+			into *[]string
+		}{{"to", &msg.To}, {"cc", &msg.Cc}, {"bcc", &msg.Bcc}} {
+			addresses, err := parseAddressList(ctx.FormValue(field.name))
+			if err != nil {
+				ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
+				return ctx.Render(http.StatusUnprocessableEntity, "compose.html", &ComposeRenderData{
+					IMAPBaseRenderData: *ibase,
+					Message:            msg,
+					Identities:         composeIdentities(ctx),
+					Error:              ctx.T("form.recipientinvalid"),
+				})
+			}
+			*field.into = addresses
+		}
 		msg.Subject = ctx.FormValue("subject")
 		msg.Text = ctx.FormValue("text")
 		msg.InReplyTo = ctx.FormValue("in_reply_to")
@@ -2359,7 +2372,11 @@ func handleSetFlags(ctx *alborz.Context) error {
 }
 
 const settingsKey = "base.settings"
-const maxMessagesPerPage = 100
+const (
+	maxMessagesPerPage = 100
+	maxSignature       = 2048
+	maxFullName        = 512
+)
 
 type Settings struct {
 	MessagesPerPage int
@@ -2385,23 +2402,25 @@ func LoadSettings(s alborz.Store) (*Settings, error) {
 	if err := s.Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
-	if err := settings.check(); err != nil {
-		return nil, err
+	if key, limit := settings.check(); key != "" {
+		return nil, fmt.Errorf("stored settings break %s (%d)", key, limit)
 	}
 	return settings, nil
 }
 
-func (s *Settings) check() error {
-	if s.MessagesPerPage <= 0 || s.MessagesPerPage > maxMessagesPerPage {
-		return fmt.Errorf("messages per page out of bounds: %v", s.MessagesPerPage)
+// check reports the first rule the settings break as the key of the
+// message that says so and the limit that message names; the key is
+// empty when they hold.
+func (s *Settings) check() (string, int) {
+	switch {
+	case s.MessagesPerPage <= 0 || s.MessagesPerPage > maxMessagesPerPage:
+		return "form.perpage", maxMessagesPerPage
+	case len(s.Signature) > maxSignature:
+		return "form.signaturelong", maxSignature
+	case len(s.From) > maxFullName:
+		return "form.namelong", maxFullName
 	}
-	if len(s.Signature) > 2048 {
-		return fmt.Errorf("Signature must be 2048 characters or fewer")
-	}
-	if len(s.From) > 512 {
-		return fmt.Errorf("Full name must be 512 characters or fewer")
-	}
-	return nil
+	return "", 0
 }
 
 type SettingsRenderData struct {
@@ -2451,10 +2470,25 @@ func handleSettings(ctx *alborz.Context) error {
 		return err
 	}
 
+	// The form answers its own invalid input, on the page it was typed
+	// on. Digits are read as they were typed: a page that counts in
+	// Persian digits invites them back in its number fields.
+	reject := func(message string) error {
+		return ctx.Render(http.StatusUnprocessableEntity, "settings.html", &SettingsRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
+			Settings:       settings,
+			Mailboxes:      mailboxes,
+			Subscriptions:  Subscriptions(settings.Subscriptions),
+			Secondary:      ctx.SecondaryCalendar(),
+			MaxPerPage:     maxMessagesPerPage,
+			Error:          message,
+		})
+	}
+
 	if ctx.Request().Method == http.MethodPost {
-		settings.MessagesPerPage, err = strconv.Atoi(ctx.FormValue("messages_per_page"))
+		settings.MessagesPerPage, err = strconv.Atoi(alborz.LatinDigits(ctx.FormValue("messages_per_page")))
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid messages per page: %v", err)
+			return reject(fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage))
 		}
 		settings.Signature = ctx.FormValue("signature")
 		settings.From = ctx.FormValue("from")
@@ -2462,9 +2496,9 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.Timezone = ctx.FormValue("timezone")
 		settings.SearchHeadersOnly = ctx.FormValue("search_body") != "on"
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
-			settings.FirstDayOfWeek, err = strconv.Atoi(fdow)
+			settings.FirstDayOfWeek, err = strconv.Atoi(alborz.LatinDigits(fdow))
 			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {
-				return echo.NewHTTPError(http.StatusBadRequest, "invalid first day of week")
+				return reject(ctx.T("form.firstday"))
 			}
 		}
 
@@ -2474,8 +2508,8 @@ func handleSettings(ctx *alborz.Context) error {
 		}
 		settings.Subscriptions = params["subscriptions"]
 
-		if err := settings.check(); err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+		if key, limit := settings.check(); key != "" {
+			return reject(fmt.Sprintf(ctx.T(key), limit))
 		}
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save settings: %v", err)

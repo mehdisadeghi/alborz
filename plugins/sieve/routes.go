@@ -41,7 +41,7 @@ func filterName(ctx *alborz.Context) (string, error) {
 
 func handleListFilters(ctx *alborz.Context) error {
 	var scripts []alborz.SieveScript
-	err := ctx.Session.DoSieve(func(c alborz.SieveClient) error {
+	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		var err error
 		scripts, err = c.ListScripts()
 		return err
@@ -69,7 +69,7 @@ func handleEditFilter(ctx *alborz.Context) error {
 	}
 
 	var content string
-	err = ctx.Session.DoSieve(func(c alborz.SieveClient) error {
+	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		var err error
 		content, err = c.GetScript(name)
 		return err
@@ -93,7 +93,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	}
 
 	var warnings string
-	err := ctx.Session.DoSieve(func(c alborz.SieveClient) error {
+	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		var err error
 		warnings, err = c.PutScript(name, content)
 		return err
@@ -123,7 +123,7 @@ func handleActivateFilter(ctx *alborz.Context) error {
 		return err
 	}
 
-	err = ctx.Session.DoSieve(func(c alborz.SieveClient) error {
+	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.ActivateScript(name)
 	})
 	if err != nil {
@@ -135,7 +135,7 @@ func handleActivateFilter(ctx *alborz.Context) error {
 }
 
 func handleDeactivateFilter(ctx *alborz.Context) error {
-	err := ctx.Session.DoSieve(func(c alborz.SieveClient) error {
+	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.ActivateScript("")
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func handleDeleteFilter(ctx *alborz.Context) error {
 		return err
 	}
 
-	err = ctx.Session.DoSieve(func(c alborz.SieveClient) error {
+	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.DeleteScript(name)
 	})
 	if err != nil {

@@ -27,6 +27,10 @@ type GlobalRenderData struct {
 
 	HavePlugin func(name string) bool
 
+	// Asset builds a theme asset's URL, version-stamped so the browser can
+	// cache it; see Server.assetURL.
+	Asset func(name string) string
+
 	Notice string
 
 	// Build version, empty when the binary carries no VCS metadata
@@ -175,6 +179,13 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		FirstDayOfWeek: 1, // Monday default
 		Lang:           lang,
 
+		Asset: func(name string) string {
+			if !isactx {
+				return "/assets/" + name
+			}
+			return ctx.Server.assetURL(name)
+		},
+
 		HavePlugin: func(name string) bool {
 			if !isactx {
 				return false
@@ -293,7 +304,10 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 	}
 
 	// TODO: per-user theme selection
-	return r.theme.ExecuteTemplate(w, name, data)
+	start := time.Now()
+	err := r.theme.ExecuteTemplate(w, name, data)
+	ctx.timing.add("render", start, time.Now())
+	return err
 }
 
 // loadTheme parses the embedded theme, then overlays the same-named theme

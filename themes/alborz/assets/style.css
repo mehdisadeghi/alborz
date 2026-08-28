@@ -811,7 +811,7 @@ main.message pre {
   align-self: stretch;
 }
 
-.message-grid.unified > .message-list-sender {
+.message-grid.unified > .message-list-flags {
   padding-inline-start: 0.5rem;
 }
 main.message .remote-content {
@@ -1460,7 +1460,6 @@ main.calendar .actions {
 }
 
 /* Account names are secondary card metadata, hidden in dense desktop rows. */
-.message-grid .row-account,
 .contact-grid .row-account { display: none; }
 
 /* Ownership trails the sender, dim: the sender cell already answers
@@ -2740,7 +2739,6 @@ aside ul.merged-roles {
   .message-grid .message-list-header { display: none; }
   .message-list .messages .message-list-size { display: none; }
   .actions .sort-overflow { display: inline-block; }
-  .message-grid .row-account { display: inline; }
 
   /* Toolbars compact to two rows: the buttons and the count share the
      first, the search gets the second. */

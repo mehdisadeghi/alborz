@@ -411,7 +411,7 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Render(http.StatusOK, template, &CalendarRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).
-				WithTitle("Calendar: " + start.Format("January 2006")),
+				WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(start)),
 			Time:      start,
 			Now:       time.Now().In(loc),
 			Calendars: calendarInfos,
@@ -571,7 +571,7 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).
-				WithTitle("Calendar: " + start.Format("January 02, 2006")),
+				WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(start) + start.Format(", 2")),
 			Time:     start,
 			Events:   newCalendarObjectList(events),
 			PrevPage: start.AddDate(0, 0, -1).Format(datePageLayout),

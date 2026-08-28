@@ -476,7 +476,8 @@ func (ctx *Context) accountSessions() []*Session {
 	}
 
 	var tokens []string
-	if cookie, err := ctx.Cookie(accountsCookieName); err == nil {
+	if value, ok := ctx.cookieValue(accountsCookieName, func(string) bool { return true }); ok {
+		cookie := &http.Cookie{Value: value}
 		tokens = strings.Split(cookie.Value, "|")
 	}
 
@@ -552,6 +553,35 @@ var themeVariants = []string{"sublime", "glass", "ink"}
 
 // setPref stores a per-user display preference in the browser; empty
 // clears it back to the default.
+// cookieValues returns every value the request carries for a name.
+// A browser may hold more than one cookie of the same name - an older
+// deploy's, set on a narrower path, outranks ours and is sent first -
+// and http.Request.Cookie only ever returns that first one. Reading one
+// value made a stale cookie shadow the live one for good: the session
+// looked expired, the login page restored it, the redirect came back,
+// and the stale cookie shadowed it again. We cannot delete a cookie
+// whose path we do not know, so we tolerate it instead.
+func (ctx *Context) cookieValues(name string) []string {
+	var values []string
+	for _, c := range ctx.Request().Cookies() {
+		if c.Name == name {
+			values = append(values, c.Value)
+		}
+	}
+	return values
+}
+
+// cookieValue returns the first value for a name that passes valid,
+// so a stale duplicate cannot mask a usable one.
+func (ctx *Context) cookieValue(name string, valid func(string) bool) (string, bool) {
+	for _, v := range ctx.cookieValues(name) {
+		if valid(v) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 func (ctx *Context) setPref(name, value string, valid bool) {
 	cookie := http.Cookie{
 		Name:     name,
@@ -569,8 +599,8 @@ func (ctx *Context) setPref(name, value string, valid bool) {
 }
 
 func (ctx *Context) pref(name string, valid func(string) bool) string {
-	if c, err := ctx.Cookie(name); err == nil && valid(c.Value) {
-		return c.Value
+	if v, ok := ctx.cookieValue(name, valid); ok {
+		return v
 	}
 	return ""
 }
@@ -708,8 +738,8 @@ func (ctx *Context) SetLanguage(code string) {
 // Language returns the user's explicit UI language choice, empty when
 // following the browser preference.
 func (ctx *Context) Language() string {
-	if c, err := ctx.Cookie(langCookieName); err == nil && IsLanguage(c.Value) {
-		return c.Value
+	if c, ok := ctx.cookieValue(langCookieName, IsLanguage); ok {
+		return c
 	}
 	return ""
 }
@@ -1184,20 +1214,27 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			ctx.Set("context", ctx)
 			ctx.installTiming()
 
-			cookie, err := ctx.Cookie(cookieName)
-			if err == http.ErrNoCookie {
+			values := ctx.cookieValues(cookieName)
+			if len(values) == 0 {
 				return handleUnauthenticated(next, ctx)
-			} else if err != nil {
-				return err
 			}
 
-			ctx.Session, err = ctx.Server.Sessions.get(cookie.Value)
-			if err == ErrSessionExpired {
+			var session *Session
+			for _, value := range values {
+				s, err := ctx.Server.Sessions.get(value)
+				if err == nil {
+					session = s
+					break
+				}
+				if err != ErrSessionExpired {
+					return err
+				}
+			}
+			if session == nil {
 				ctx.SetSession(nil)
 				return handleUnauthenticated(next, ctx)
-			} else if err != nil {
-				return err
 			}
+			ctx.Session = session
 			ctx.DefaultSession = ctx.Session
 			// Every signed-in account is in use, not only the active
 			// one: the switcher lists them all, so they all stay alive.

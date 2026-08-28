@@ -25,7 +25,8 @@ type NewCalendarRenderData struct {
 	Name     string
 	Account  string
 	Color    string
-	Tasks    bool
+	Holds    string // "events", "tasks" or "both"
+	ForTasks bool   // reached from the tasks rail
 	Error    string
 }
 
@@ -34,12 +35,25 @@ type NewCalendarRenderData struct {
 // most servers, so it is asked here rather than assumed.
 func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
+		// A task list is a calendar whose component set holds VTODO;
+		// RFC 4791 knows no other kind of collection. One form makes
+		// both, entered from whichever rail wants one.
+		forTasks := ctx.QueryParam("for") == "tasks"
+		holds := "both"
+		if forTasks {
+			holds = "tasks"
+		}
+		title := "calendar.newcalendar"
+		if forTasks {
+			title = "tasks.newlist"
+		}
 		data := &NewCalendarRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.newcalendar")),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T(title)),
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Session.Username(),
 			Color:          "#3366cc",
-			Tasks:          true,
+			Holds:          holds,
+			ForTasks:       forTasks,
 		}
 		if ctx.Request().Method != http.MethodPost {
 			return ctx.Render(http.StatusOK, "create-calendar.html", data)
@@ -47,7 +61,10 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 
 		data.Name = strings.TrimSpace(ctx.FormValue("name"))
 		data.Color = ctx.FormValue("color")
-		data.Tasks = ctx.FormValue("tasks") == "1"
+		// The tasks entrance offers no choice, so it cannot be posted one.
+		if h := ctx.FormValue("holds"); !forTasks && (h == "events" || h == "tasks" || h == "both") {
+			data.Holds = h
+		}
 		if account := ctx.FormValue("account"); account != "" {
 			data.Account = account
 		}
@@ -60,13 +77,21 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 		if session == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
-		components := []string{"VEVENT"}
-		if data.Tasks {
+		var components []string
+		if data.Holds != "tasks" {
+			components = append(components, "VEVENT")
+		}
+		if data.Holds != "events" {
 			components = append(components, "VTODO")
 		}
 		if err := p.createCalendar(ctx.Request().Context(), session, data.Name, components, data.Color); err != nil {
 			data.Error = err.Error()
 			return ctx.Render(http.StatusUnprocessableEntity, "create-calendar.html", data)
+		}
+		// Back to the rail it was asked for, when the new collection
+		// shows there; a task list never appears under calendars.
+		if data.Holds == "tasks" || (data.ForTasks && data.Holds == "both") {
+			return ctx.Redirect(http.StatusFound, "/tasks")
 		}
 		return ctx.Redirect(http.StatusFound, "/calendar")
 	}

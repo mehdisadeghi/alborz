@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "newhref" "/tasks/create" "newlabel" ($.T "tasks.new") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "newhref" "/tasks/create" "newlabel" ($.T "tasks.new") "collectionhref" "/calendars/create?for=tasks" "collectionlabel" ($.T "tasks.newlist") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
     <form method="post" action="/tasks/show-completed" class="aside-filter">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
       <label class="show-completed-toggle">

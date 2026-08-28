@@ -500,7 +500,13 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 		return nil, 0, fmt.Errorf("failed to select mailbox: %v", err)
 	}
 
+	// A selected mailbox can still be gone by the time it is read: a
+	// connection that dropped between the SELECT and here reports none,
+	// and a listing goroutine panicking takes the whole server down.
 	mbox := conn.Mailbox()
+	if mbox == nil {
+		return nil, 0, fmt.Errorf("mailbox %q is no longer selected", mboxName)
+	}
 	total = int(mbox.NumMessages)
 
 	to := total - page*messagesPerPage

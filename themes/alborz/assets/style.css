@@ -1509,6 +1509,17 @@ main.task .details h1.completed {
   margin: 0.5rem 0;
 }
 
+/* Folding is the native details element; the marker is hidden so the
+   headers look exactly as before, the pointer being the only hint. */
+.task-group > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.task-group > summary::-webkit-details-marker {
+  display: none;
+}
+
 .show-completed-toggle {
   display: flex;
   align-items: center;

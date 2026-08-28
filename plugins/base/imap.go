@@ -58,8 +58,11 @@ func (mbox *MailboxInfo) Name() string {
 }
 
 func (mbox *MailboxInfo) URL() *url.URL {
+	// Path holds the decoded form; RawPath carries the escaping, so a
+	// folder with a slash in its name is not encoded twice by String.
 	return &url.URL{
-		Path: fmt.Sprintf("/mailbox/%v", url.PathEscape(mbox.Name())),
+		Path:    "/mailbox/" + mbox.Name(),
+		RawPath: "/mailbox/" + url.PathEscape(mbox.Name()),
 	}
 }
 
@@ -136,7 +139,8 @@ func (mbox *MailboxStatus) Name() string {
 
 func (mbox *MailboxStatus) URL() *url.URL {
 	return &url.URL{
-		Path: fmt.Sprintf("/mailbox/%v", url.PathEscape(mbox.Name())),
+		Path:    "/mailbox/" + mbox.Name(),
+		RawPath: "/mailbox/" + url.PathEscape(mbox.Name()),
 	}
 }
 
@@ -183,7 +187,8 @@ func messageURL(mboxName string, uid imap.UID) *url.URL {
 		return nil
 	}
 	return &url.URL{
-		Path: fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uid),
+		Path:    fmt.Sprintf("/message/%v/%v", mboxName, uid),
+		RawPath: fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uid),
 	}
 }
 

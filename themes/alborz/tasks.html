@@ -39,10 +39,12 @@
       <section class="tasks">
         {{range .TaskGroups}}
         {{$cal := .Calendar}}
-        <div class="task-group">
-          <h3 class="task-group-header" {{if $cal.Color}}style="border-inline-start: 3px solid {{$cal.Color}}; padding-inline-start: 0.5rem"{{end}}>
-            {{$cal.Name}}
-          </h3>
+        <details class="task-group" open>
+          <summary>
+            <h3 class="task-group-header" {{if $cal.Color}}style="border-inline-start: 3px solid {{$cal.Color}}; padding-inline-start: 0.5rem"{{end}}>
+              {{$cal.Name}}
+            </h3>
+          </summary>
           {{range .Tasks}}
           {{$todo := index .Data.Children 0}}
           {{$summary := $todo.Props.Text "SUMMARY"}}
@@ -62,7 +64,7 @@
             </div>
           </div>
           {{end}}
-        </div>
+        </details>
         {{end}}
         {{if not .TaskGroups}}
         <p class="empty-list">{{if .Query}}{{printf ($.T "common.noresults") .Query}}{{else}}{{$.T "tasks.empty"}}{{end}}</p>

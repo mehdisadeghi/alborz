@@ -1513,24 +1513,26 @@ main.calendar .actions {
   margin-inline-start: auto;
 }
 
-/* The opt-in color mark: a short rounded pip on the row's leading edge,
-   centred against the row rather than ruled down its whole height, so
-   it reads as a mark and not as a table border. The color is set on the
-   row and inherits through the display:contents wrapper; the pip is
-   positioned, so switching the marks on never re-flows the list and the
-   header needs no matching reservation. */
-.message-grid.unified > .message-row > *:first-child {
+/* The opt-in color mark: a short rounded pip at the head of the line
+   that names the sender, the height of that line, the way k-9 marks a
+   row. It reads as a mark rather than a table border, and it sits with
+   the account it stands for instead of at an edge of its own. The color
+   is set on the row and inherits through the display:contents wrapper;
+   the pip is positioned, so switching the marks on never re-flows the
+   list. */
+.message-grid.unified .message-list-sender {
   position: relative;
+  padding-inline-start: 0.6rem;
 }
 
-.message-grid.unified > .message-row > *:first-child::before {
+.message-grid.unified .message-list-sender::before {
   content: "";
   position: absolute;
   inset-inline-start: 0;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 1.1rem;
+  height: 1.05em;
   border-radius: 999px;
   background: var(--account, transparent);
 }
@@ -1690,6 +1692,9 @@ aside details.folder-branch details.folder-branch > ul > li {
   justify-content: center;
 }
 
+/* A flex item may shrink below its width, and this one did - 16 wide by
+   24 tall, a circle drawn as an ellipse. It keeps its square, and crops
+   rather than stretches whatever shape the card carries. */
 .contact-list-photo img {
   width: 1.5rem;
   height: 1.5rem;
@@ -1990,6 +1995,8 @@ details.overflow > summary::-webkit-details-marker {
 }
 
 /* The sprite is markup, not a picture: it draws nothing itself. */
+.overflow-menu .narrow-only { display: none; }
+
 .icon-sprite {
   position: absolute;
   width: 0;
@@ -2706,30 +2713,40 @@ aside ul.merged-roles {
      and flags below. */
   .message-grid { display: block; }
 
+  /* Date and star share the trailing column, the date above the star,
+     both flush to the same edge. The star used to sit inside the second
+     line beside the attachment mark, so a row carrying one pushed it
+     out of line; the marks now order to its left and it holds that
+     edge whatever else the row has. */
   .message-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) 6rem;
     grid-template-areas:
-      "check sender date"
+      "check sender  date"
       "check subject flags";
     column-gap: 0.5rem;
     padding-inline: 0.5rem;
+    padding-block: 0.3rem;
     border-bottom: 1px solid var(--border-light);
   }
 
   /* Merged rows have no checkbox; their grid drops the empty slot. */
   .message-grid.unified .message-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) 6rem;
     grid-template-areas:
-      "sender date"
+      "sender  date"
       "subject flags";
   }
 
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
 
-  /* The two-line row draws one separator on its wrapper. */
+  /* The two-line row draws one separator on its wrapper. The desktop
+     min-height applies per cell, which on a two-line row bought two of
+     them: a third of the row's height was empty. The text's own line
+     box sets it here; the row, not the cell, is the tap target. */
   .message-list .messages .message-list-item {
-    padding: 0.15rem 0;
+    padding: 0.1rem 0;
+    min-height: 0;
     border-inline: 0;
     border-bottom: 0;
   }
@@ -2746,7 +2763,31 @@ aside ul.merged-roles {
     font-size: 0.8rem;
   }
   .message-list-subject { grid-area: subject; }
-  .message-list-flags { grid-area: flags; }
+
+  /* Star first, marks after it, both pinned to the row's trailing edge
+     and centred over the two lines. */
+  .message-list-flags {
+    grid-area: flags;
+    align-self: center;
+    justify-content: flex-end;
+    padding-inline-end: 0.15rem;
+  }
+
+  /* The narrow row zeroes the cells' side padding, which is the gap the
+     account pip stands in: without it the mark touches the name. */
+  .message-grid.unified .message-list-sender { padding-inline-start: 0.6rem; }
+
+  /* The star sits on one line now rather than spanning both, so the
+     control height it carries would be charged to that line. The glyph
+     matches the text and the button widens instead, which keeps the row
+     short and the target easy to hit. */
+  .message-list-flags .flag-button {
+    min-height: 0;
+    padding-inline: 0.35rem;
+  }
+
+  .message-list-flags form { order: 2; }
+  .message-mark { order: 1; margin-inline-start: 0.25rem; }
   /* The two-line mobile rows keep the inline account label instead of
      the header row and account column. */
   .message-grid .message-list-header { display: none; }
@@ -2770,9 +2811,11 @@ aside ul.merged-roles {
   .contact-list .actions {
     flex-wrap: nowrap;
     align-items: flex-start;
-    /* The start edge belongs to the select-all checkbox; the end keeps
-       the toolbar's breathing room. */
-    padding-inline: 0 0.3rem;
+    /* Both edges keep a gutter. The start used to be given over to the
+       select-all checkbox, which left the folder's name against the
+       screen wherever there is no checkbox to stand there - every
+       merged view, and every list once the sidebar is gone. */
+    padding-inline: 0.5rem 0.3rem;
   }
 
   /* The drawer toggle stays focusable for the keyboard, just unseen. */
@@ -2795,11 +2838,13 @@ aside ul.merged-roles {
   .message-list .actions #action-checkbox-all,
   .contact-list .actions #action-checkbox-all {
     margin-block: 0.4rem;
-    margin-inline: 0.5rem;
+    /* Sits in the column the row checkboxes below it sit in, now that
+       the toolbar carries its own start gutter. */
+    margin-inline: 0.25rem 0.5rem;
   }
 
   .contact-list .actions #action-checkbox-all {
-    margin-inline: 0.3rem;
+    margin-inline: 0.25rem 0.3rem;
   }
 
   .actions button,
@@ -2825,11 +2870,21 @@ aside ul.merged-roles {
     align-items: center;
   }
 
+  /* Narrow toolbars carry one row: the disposal marks step aside and
+     the overflow spells them out instead, which is what the room is
+     for. */
+  .actions .icon-group.wide-only { display: none; }
+  .overflow-menu .narrow-only { display: block; }
+
   .list-item,
-  .message-list .messages .message-list-item,
   .contact-list .contacts .contact-grid > * {
     min-height: 2.75rem;
   }
+
+  /* A mail row is two lines and is itself the tap target, so the touch
+     minimum belongs to the row. Applied per cell it was charged twice,
+     and a third of the row's height was empty. */
+  .message-row { min-height: 2.75rem; }
 
   /* Message view: header fields wrap and the parts pane stacks below. */
   main.message .message-header { flex-direction: column; }

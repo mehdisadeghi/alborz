@@ -137,6 +137,14 @@ func (mbox *MailboxStatus) Name() string {
 	return mbox.Mailbox
 }
 
+// IsEmpty reports a folder the server says holds nothing, so the
+// controls that would clear it can say so before they are pressed. An
+// absent count means the server did not answer it; the folder is then
+// treated as holding something rather than blocking the action.
+func (mbox *MailboxStatus) IsEmpty() bool {
+	return mbox.NumMessages != nil && *mbox.NumMessages == 0
+}
+
 func (mbox *MailboxStatus) URL() *url.URL {
 	return &url.URL{
 		Path:    "/mailbox/" + mbox.Name(),

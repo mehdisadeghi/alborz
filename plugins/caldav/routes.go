@@ -1,6 +1,7 @@
 package alborzcaldav
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -187,7 +188,21 @@ func calendarByPath(calendars []CalendarInfo, path string) *CalendarInfo {
 }
 
 func registerRoutes(p *plugin) {
-	p.POST("/calendar", func(ctx *alborz.Context) error {
+	// A missing calendar is a state to explain, not an error: every
+	// route in the section answers with the account named.
+	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
+		return func(ctx *alborz.Context) error {
+			err := h(ctx)
+			if errors.Is(err, errNoCalendar) {
+				return alborz.RenderInfo(ctx, http.StatusOK,
+					fmt.Sprintf(ctx.T("calendar.unconfigured"), ctx.Session.Username()))
+			}
+			return err
+		}
+	}
+	GET := func(path string, h func(*alborz.Context) error) { p.GoPlugin.GET(path, guard(h)) }
+	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }
+	POST("/calendar", func(ctx *alborz.Context) error {
 		settings, err := loadSettings(ctx.Session.Store())
 		if err != nil {
 			return fmt.Errorf("failed to load CalDAV settings: %v", err)
@@ -204,7 +219,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
 	})
 
-	p.POST("/tasks", func(ctx *alborz.Context) error {
+	POST("/tasks", func(ctx *alborz.Context) error {
 		settings, err := loadSettings(ctx.Session.Store())
 		if err != nil {
 			return fmt.Errorf("failed to load CalDAV settings: %v", err)
@@ -222,7 +237,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Redirect(http.StatusFound, ctx.Request().URL.RequestURI())
 	})
 
-	p.GET("/calendar", func(ctx *alborz.Context) error {
+	GET("/calendar", func(ctx *alborz.Context) error {
 		baseSettings, err := alborzbase.LoadSettings(ctx.Session.Store())
 		if err != nil {
 			return fmt.Errorf("failed to load settings: %v", err)
@@ -450,7 +465,7 @@ func registerRoutes(p *plugin) {
 		})
 	})
 
-	p.GET("/calendar/date", func(ctx *alborz.Context) error {
+	GET("/calendar/date", func(ctx *alborz.Context) error {
 		loc := alborzbase.UserLocation(ctx)
 
 		var start time.Time
@@ -572,7 +587,7 @@ func registerRoutes(p *plugin) {
 		})
 	})
 
-	p.GET("/calendar/:path", func(ctx *alborz.Context) error {
+	GET("/calendar/:path", func(ctx *alborz.Context) error {
 		path, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -757,13 +772,13 @@ func registerRoutes(p *plugin) {
 		})
 	}
 
-	p.GET("/calendar/create", updateEvent)
-	p.POST("/calendar/create", updateEvent)
+	GET("/calendar/create", updateEvent)
+	POST("/calendar/create", updateEvent)
 
-	p.GET("/calendar/:path/update", updateEvent)
-	p.POST("/calendar/:path/update", updateEvent)
+	GET("/calendar/:path/update", updateEvent)
+	POST("/calendar/:path/update", updateEvent)
 
-	p.POST("/calendar/:path/delete", func(ctx *alborz.Context) error {
+	POST("/calendar/:path/delete", func(ctx *alborz.Context) error {
 		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -782,7 +797,7 @@ func registerRoutes(p *plugin) {
 	})
 
 	// Tasks routes
-	p.GET("/tasks", func(ctx *alborz.Context) error {
+	GET("/tasks", func(ctx *alborz.Context) error {
 		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 		if err != nil {
 			return err
@@ -914,7 +929,7 @@ func registerRoutes(p *plugin) {
 		})
 	})
 
-	p.GET("/tasks/:path", func(ctx *alborz.Context) error {
+	GET("/tasks/:path", func(ctx *alborz.Context) error {
 		path, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -1093,13 +1108,13 @@ func registerRoutes(p *plugin) {
 		})
 	}
 
-	p.GET("/tasks/create", updateTask)
-	p.POST("/tasks/create", updateTask)
+	GET("/tasks/create", updateTask)
+	POST("/tasks/create", updateTask)
 
-	p.GET("/tasks/:path/edit", updateTask)
-	p.POST("/tasks/:path/edit", updateTask)
+	GET("/tasks/:path/edit", updateTask)
+	POST("/tasks/:path/edit", updateTask)
 
-	p.POST("/tasks/:path/delete", func(ctx *alborz.Context) error {
+	POST("/tasks/:path/delete", func(ctx *alborz.Context) error {
 		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -1117,7 +1132,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Redirect(http.StatusFound, "/tasks")
 	})
 
-	p.POST("/tasks/:path/complete", func(ctx *alborz.Context) error {
+	POST("/tasks/:path/complete", func(ctx *alborz.Context) error {
 		taskPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err

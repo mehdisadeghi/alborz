@@ -28,7 +28,7 @@
       </section>
 
       <section class="details">
-        {{$event := index .Event.Data.Events 0}}
+        {{ if .Event.Data.Events }}{{$event := index .Event.Data.Events 0}}
         <table>
           <tr>
             <th colspan="2">
@@ -46,6 +46,7 @@
           <!-- TODO: List of attendees, room -->
         </table>
         <pre>{{$event.Props.Text "DESCRIPTION"}}</pre>
+        {{ end }}
       </section>
     </main>
   </div>

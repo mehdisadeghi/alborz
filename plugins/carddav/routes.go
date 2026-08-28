@@ -412,13 +412,19 @@ func registerRoutes(p *plugin) {
 			return ctx.Redirect(http.StatusFound, AddressObject{ao}.URL())
 		}
 
+		// Both map values would be evaluated eagerly; a missing object
+		// must not reach DisplayName.
+		name := ""
+		if ao != nil {
+			name = AddressObject{ao}.DisplayName()
+		}
 		return ctx.Render(http.StatusOK, "update-address-object.html", &UpdateAddressObjectRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx),
 			AddressBooks:   writable,
 			AddressBook:    currentAddressBook,
 			AddressObject:  ao,
 			Card:           card,
-			Name:           map[bool]string{true: "", false: AddressObject{ao}.DisplayName()}[ao == nil],
+			Name:           name,
 			Birthday:       birthdayValue(card),
 		})
 	}

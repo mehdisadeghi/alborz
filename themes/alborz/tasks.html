@@ -1,22 +1,22 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
   <aside>
+    {{if .GlobalData.Unified}}
+    {{ template "dav-aside-groups" (dict "items" .Calendars "itemclass" "calendar-item") }}
+    {{else}}
     <a href="/tasks/create" class="new">{{$.T "tasks.new"}}</a>
     <form method="post" id="task-filter">
-      {{range .Calendars}}
-      <label class="calendar-item">
-        <input type="checkbox" name="cal" value="{{.Path}}" {{if .Visible}}checked{{end}} data-submit-on-change {{if .Color}}style="accent-color:{{.Color}}"{{end}}>
-        {{.Name}}
-      </label>
-      {{end}}
+      {{ template "dav-aside-filter" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item") }}
       <label class="show-completed-toggle">
         <input type="checkbox" name="show-completed" value="1" {{if .ShowCompleted}}checked{{end}} data-submit-on-change>
         Show completed
       </label>
       <button>{{$.T "common.apply"}}</button>
     </form>
+    {{end}}
   </aside>
 
   <div class="container">
@@ -42,7 +42,7 @@
         <details class="task-group" open>
           <summary>
             <h3 class="task-group-header" {{if $cal.Color}}style="border-inline-start: 3px solid {{$cal.Color}}; padding-inline-start: 0.5rem"{{end}}>
-              {{$cal.Name}}
+              {{if $.GlobalData.Unified}}<span class="color-dot" style="background:{{accountcolor $cal.Account}}" title="{{$cal.Account}}"></span> {{$cal.Account}} &middot; {{end}}{{$cal.Name}}
             </h3>
           </summary>
           {{range .Tasks}}
@@ -51,13 +51,14 @@
           {{$status := $todo.Props.Text "STATUS"}}
           {{$due := $todo.Props.Get "DUE"}}
           <div class="task-item {{if eq $status "COMPLETED"}}completed{{end}}">
-            <form method="post" action="{{.URL}}/complete" class="task-checkbox">
+            <form method="post" action="{{.URL}}/complete{{with .Account}}?account={{.}}{{end}}" class="task-checkbox">
+              <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
               <button type="submit" class="checkbox-button {{if eq $status "COMPLETED"}}checked{{end}}" {{if $cal.Color}}style="border-color:{{$cal.Color}}; {{if eq $status "COMPLETED"}}background:{{$cal.Color}}{{end}}"{{end}}>
                 {{if eq $status "COMPLETED"}}&#10003;{{end}}
               </button>
             </form>
             <div class="task-content">
-              <a href="{{.URL}}" class="task-summary" dir="auto">{{$summary}}</a>
+              <a href="{{.URL}}{{with .Account}}?account={{.}}{{end}}" class="task-summary" dir="auto">{{$summary}}</a>
               {{if $due}}
               <span class="task-due">Due: {{$due.Value}}</span>
               {{end}}

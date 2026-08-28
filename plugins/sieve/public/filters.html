@@ -8,6 +8,7 @@
 
   <div class="container">
     <main class="task-list">
+      <div class="context-crumb">{{ .GlobalData.Username }} › {{$.T "filters.title"}}</div>
       <section class="tasks">
         {{ range .Scripts }}
         <div class="task-item">

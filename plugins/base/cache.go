@@ -114,6 +114,8 @@ func (lc *listingCache) evict(user, folder string) {
 		}
 	}
 	lc.mu.Unlock()
+	// The aside shows the same counts the listings do.
+	accountSidebars.Forget(user)
 }
 
 // evictAll forgets everything cached for the user, for changes that reshape
@@ -126,6 +128,7 @@ func (lc *listingCache) evictAll(user string) {
 		}
 	}
 	lc.mu.Unlock()
+	accountSidebars.Forget(user)
 }
 
 // listingStatusOptions asks for the fields that betray a change to a

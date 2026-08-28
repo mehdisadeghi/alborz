@@ -32,7 +32,7 @@ type CalendarRenderData struct {
 	PrevTime, NextTime time.Time
 
 	EventsForDate func(time.Time) []CalendarObject
-	ColorForPath  func(string) string
+	ColorForPath  func(account, path string) string
 	DaySuffix     func(n int) string
 	Sub           func(a, b int) int
 }
@@ -43,7 +43,7 @@ type CalendarDateRenderData struct {
 	Events             []CalendarObject
 	PrevPage, NextPage string
 
-	ColorForPath func(string) string
+	ColorForPath func(account, path string) string
 }
 
 type EventRenderData struct {
@@ -279,35 +279,33 @@ func registerRoutes(p *plugin) {
 		totalCells := offset + daysInMonth
 		rows := (totalCells + 6) / 7
 
-		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		accounts, err := p.routeCalendars(ctx)
 		if err != nil {
 			return err
 		}
 
-		settings, err := loadSettings(ctx.Session.Store())
-		if err != nil {
-			return fmt.Errorf("failed to load CalDAV settings: %v", err)
-		}
-
-		calendarFilter := settings.CalendarFilter
-		visibleSet := make(map[string]bool)
-		for _, path := range settings.VisibleCalendars {
-			visibleSet[canonicalCollectionPath(path)] = true
-		}
-
+		// Visibility is each account's own setting.
 		var calendarInfos []CalendarInfo
-		for _, cal := range calendars {
-			if !cal.SupportsEvent() {
-				continue
+		var sites []querySite
+		for _, acc := range accounts {
+			settings, err := loadSettings(acc.session.Store())
+			if err != nil {
+				return fmt.Errorf("failed to load CalDAV settings: %v", err)
 			}
-			visible := !calendarFilter || visibleSet[cal.Path]
-			calendarInfos = append(calendarInfos, CalendarInfo{
-				Path:                  cal.Path,
-				Name:                  cal.Name,
-				Color:                 cal.Color,
-				Visible:               visible,
-				SupportedComponentSet: cal.SupportedComponentSet,
-			})
+			visibleSet := make(map[string]bool)
+			for _, path := range settings.VisibleCalendars {
+				visibleSet[canonicalCollectionPath(path)] = true
+			}
+			for _, cal := range acc.calendars {
+				if !cal.SupportsEvent() {
+					continue
+				}
+				cal.Visible = !settings.CalendarFilter || visibleSet[cal.Path]
+				calendarInfos = append(calendarInfos, cal)
+				if cal.Visible {
+					sites = append(sites, querySite{account: cal.Account, client: acc.client, path: cal.Path, name: cal.Name})
+				}
+			}
 		}
 		query := caldav.CalendarQuery{
 			CompRequest: caldav.CalendarCompRequest{
@@ -338,43 +336,9 @@ func registerRoutes(p *plugin) {
 			},
 		}
 
-		type calendarQueryResult struct {
-			name   string
-			events []caldav.CalendarObject
-			err    error
-		}
-
-		visibleCalendars := make([]CalendarInfo, 0, len(calendarInfos))
-		for _, calInfo := range calendarInfos {
-			if calInfo.Visible {
-				visibleCalendars = append(visibleCalendars, calInfo)
-			}
-		}
-
-		reqCtx := ctx.Request().Context()
-		results := make(chan calendarQueryResult, len(visibleCalendars))
-		sem := make(chan struct{}, maxCalendarQueryConcurrency)
-		for _, calInfo := range visibleCalendars {
-			go func() {
-				sem <- struct{}{}
-				defer func() { <-sem }()
-
-				calEvents, err := c.QueryCalendar(reqCtx, calInfo.Path, &query)
-				results <- calendarQueryResult{
-					name:   calInfo.Name,
-					events: calEvents,
-					err:    err,
-				}
-			}()
-		}
-
-		var events []caldav.CalendarObject
-		for i := 0; i < len(visibleCalendars); i++ {
-			result := <-results
-			if result.err != nil {
-				return fmt.Errorf("failed to query calendar %s: %v", result.name, result.err)
-			}
-			events = append(events, result.events...)
+		events, err := querySites(ctx, sites, &query)
+		if err != nil {
+			return err
 		}
 
 		dates := make([]time.Time, rows*7)
@@ -393,12 +357,11 @@ func registerRoutes(p *plugin) {
 		}
 		eventMap := make(map[time.Time][]CalendarObject)
 		for _, ev := range events {
-			ev := ev // make a copy
 			// TODO: include event on each date for which it is active
 			co := ev.Data.Events()[0]
 			startTime, _ := co.DateTimeStart(nil)
 			key := day(startTime)
-			eventMap[key] = append(eventMap[key], CalendarObject{&ev})
+			eventMap[key] = append(eventMap[key], ev)
 		}
 
 		for _, evs := range eventMap {
@@ -416,7 +379,7 @@ func registerRoutes(p *plugin) {
 			Now:       time.Now().In(loc),
 			Calendars: calendarInfos,
 			Dates:     dates,
-			Events:    newCalendarObjectList(events),
+			Events:    events,
 			Page:      start.Format(monthPageLayout),
 			View:      view,
 			PrevPage:  start.AddDate(0, -1, 0).Format(monthPageLayout),
@@ -431,9 +394,9 @@ func registerRoutes(p *plugin) {
 				return nil
 			},
 
-			ColorForPath: func(eventPath string) string {
+			ColorForPath: func(account, eventPath string) string {
 				for _, cal := range calendarInfos {
-					if strings.HasPrefix(eventPath, cal.Path) {
+					if cal.Account == account && strings.HasPrefix(eventPath, cal.Path) {
 						return cal.Color
 					}
 				}
@@ -481,19 +444,32 @@ func registerRoutes(p *plugin) {
 		}
 		end := start.AddDate(0, 0, 1)
 
-		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		accounts, err := p.routeCalendars(ctx)
 		if err != nil {
 			return err
 		}
 
-		settings, err := loadSettings(ctx.Session.Store())
-		if err != nil {
-			return fmt.Errorf("failed to load CalDAV settings: %v", err)
-		}
-
-		visibleSet := make(map[string]bool)
-		for _, path := range settings.VisibleCalendars {
-			visibleSet[canonicalCollectionPath(path)] = true
+		var calendarInfos []CalendarInfo
+		var sites []querySite
+		for _, acc := range accounts {
+			settings, err := loadSettings(acc.session.Store())
+			if err != nil {
+				return fmt.Errorf("failed to load CalDAV settings: %v", err)
+			}
+			visibleSet := make(map[string]bool)
+			for _, path := range settings.VisibleCalendars {
+				visibleSet[canonicalCollectionPath(path)] = true
+			}
+			for _, cal := range acc.calendars {
+				if !cal.SupportsEvent() {
+					continue
+				}
+				if settings.CalendarFilter && !visibleSet[cal.Path] {
+					continue
+				}
+				calendarInfos = append(calendarInfos, cal)
+				sites = append(sites, querySite{account: cal.Account, client: acc.client, path: cal.Path, name: cal.Name})
+			}
 		}
 
 		query := caldav.CalendarQuery{
@@ -525,42 +501,9 @@ func registerRoutes(p *plugin) {
 			},
 		}
 
-		type dateQueryResult struct {
-			name   string
-			events []caldav.CalendarObject
-			err    error
-		}
-
-		var visibleCalendars []CalendarInfo
-		for _, cal := range calendars {
-			if !cal.SupportsEvent() {
-				continue
-			}
-			if settings.CalendarFilter && !visibleSet[cal.Path] {
-				continue
-			}
-			visibleCalendars = append(visibleCalendars, cal)
-		}
-
-		reqCtx := ctx.Request().Context()
-		results := make(chan dateQueryResult, len(visibleCalendars))
-		sem := make(chan struct{}, maxCalendarQueryConcurrency)
-		for _, cal := range visibleCalendars {
-			go func() {
-				sem <- struct{}{}
-				defer func() { <-sem }()
-				calEvents, err := c.QueryCalendar(reqCtx, cal.Path, &query)
-				results <- dateQueryResult{name: cal.Name, events: calEvents, err: err}
-			}()
-		}
-
-		var events []caldav.CalendarObject
-		for i := 0; i < len(visibleCalendars); i++ {
-			result := <-results
-			if result.err != nil {
-				return fmt.Errorf("failed to query calendar %s: %v", result.name, result.err)
-			}
-			events = append(events, result.events...)
+		events, err := querySites(ctx, sites, &query)
+		if err != nil {
+			return err
 		}
 
 		sort.Slice(events, func(i, j int) bool {
@@ -573,12 +516,12 @@ func registerRoutes(p *plugin) {
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).
 				WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(start) + start.Format(", 2")),
 			Time:     start,
-			Events:   newCalendarObjectList(events),
+			Events:   events,
 			PrevPage: start.AddDate(0, 0, -1).Format(datePageLayout),
 			NextPage: start.AddDate(0, 0, 1).Format(datePageLayout),
-			ColorForPath: func(eventPath string) string {
-				for _, cal := range calendars {
-					if strings.HasPrefix(eventPath, cal.Path) {
+			ColorForPath: func(account, eventPath string) string {
+				for _, cal := range calendarInfos {
+					if cal.Account == account && strings.HasPrefix(eventPath, cal.Path) {
 						return cal.Color
 					}
 				}
@@ -638,7 +581,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Render(http.StatusOK, "event.html", &EventRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 			Calendar:       calendar,
-			Event:          CalendarObject{event},
+			Event:          CalendarObject{CalendarObject: event},
 		})
 	})
 
@@ -758,7 +701,7 @@ func registerRoutes(p *plugin) {
 				return fmt.Errorf("failed to put calendar object: %v", err)
 			}
 
-			return ctx.Redirect(http.StatusFound, CalendarObject{co}.URL())
+			return ctx.Redirect(http.StatusFound, ctx.AccountPath(CalendarObject{CalendarObject: co}.URL()))
 		}
 
 		summary, _ := event.Props.Text("SUMMARY")
@@ -793,43 +736,48 @@ func registerRoutes(p *plugin) {
 			return fmt.Errorf("failed to delete calendar object: %v", err)
 		}
 
-		return ctx.Redirect(http.StatusFound, "/calendar")
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/calendar"))
 	})
 
 	// Tasks routes
 	GET("/tasks", func(ctx *alborz.Context) error {
-		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		accounts, err := p.routeCalendars(ctx)
 		if err != nil {
 			return err
 		}
 
-		settings, err := loadSettings(ctx.Session.Store())
-		if err != nil {
-			return fmt.Errorf("failed to load CalDAV settings: %v", err)
+		type taskSite struct {
+			cal           CalendarInfo
+			client        *caldav.Client
+			showCompleted bool
 		}
-
-		taskFilter := settings.TaskFilter
-		visibleSet := make(map[string]bool)
-		for _, path := range settings.VisibleTasks {
-			visibleSet[canonicalCollectionPath(path)] = true
-		}
-
+		showCompleted := false
 		var calendarInfos []CalendarInfo
-		for _, cal := range calendars {
-			if !cal.SupportsTodo() {
-				continue
+		var sites []taskSite
+		for _, acc := range accounts {
+			settings, err := loadSettings(acc.session.Store())
+			if err != nil {
+				return fmt.Errorf("failed to load CalDAV settings: %v", err)
 			}
-			visible := !taskFilter || visibleSet[cal.Path]
-			calendarInfos = append(calendarInfos, CalendarInfo{
-				Path:                  cal.Path,
-				Name:                  cal.Name,
-				Color:                 cal.Color,
-				Visible:               visible,
-				SupportedComponentSet: cal.SupportedComponentSet,
-			})
+			if acc.session == ctx.Session {
+				showCompleted = settings.ShowCompleted
+			}
+			visibleSet := make(map[string]bool)
+			for _, path := range settings.VisibleTasks {
+				visibleSet[canonicalCollectionPath(path)] = true
+			}
+			for _, cal := range acc.calendars {
+				if !cal.SupportsTodo() {
+					continue
+				}
+				cal.Visible = !settings.TaskFilter || visibleSet[cal.Path]
+				calendarInfos = append(calendarInfos, cal)
+				if cal.Visible {
+					sites = append(sites, taskSite{cal: cal, client: acc.client, showCompleted: settings.ShowCompleted})
+				}
+			}
 		}
 
-		showCompleted := settings.ShowCompleted
 		search := ctx.QueryParam("query")
 
 		query := caldav.CalendarQuery{
@@ -854,35 +802,28 @@ func registerRoutes(p *plugin) {
 		}
 
 		type taskQueryResult struct {
-			cal   CalendarInfo
+			site  taskSite
 			tasks []caldav.CalendarObject
 			err   error
 		}
 
-		var visibleCalendars []CalendarInfo
-		for _, cal := range calendarInfos {
-			if cal.Visible {
-				visibleCalendars = append(visibleCalendars, cal)
-			}
-		}
-
 		reqCtx := ctx.Request().Context()
-		results := make(chan taskQueryResult, len(visibleCalendars))
+		results := make(chan taskQueryResult, len(sites))
 		sem := make(chan struct{}, maxCalendarQueryConcurrency)
-		for _, cal := range visibleCalendars {
+		for _, site := range sites {
 			go func() {
 				sem <- struct{}{}
 				defer func() { <-sem }()
-				calTasks, err := c.QueryCalendar(reqCtx, cal.Path, &query)
-				results <- taskQueryResult{cal: cal, tasks: calTasks, err: err}
+				calTasks, err := site.client.QueryCalendar(reqCtx, site.cal.Path, &query)
+				results <- taskQueryResult{site: site, tasks: calTasks, err: err}
 			}()
 		}
 
 		var taskGroups []TaskGroup
-		for i := 0; i < len(visibleCalendars); i++ {
+		for range sites {
 			result := <-results
 			if result.err != nil {
-				return fmt.Errorf("failed to query tasks from %s: %v", result.cal.Name, result.err)
+				return fmt.Errorf("failed to query tasks from %s: %v", result.site.cal.Name, result.err)
 			}
 
 			var filtered []caldav.CalendarObject
@@ -892,7 +833,7 @@ func registerRoutes(p *plugin) {
 					continue
 				}
 				status, _ := todo.Props.Text("STATUS")
-				if status == "COMPLETED" && !showCompleted {
+				if status == "COMPLETED" && !result.site.showCompleted {
 					continue
 				}
 				if search != "" {
@@ -908,16 +849,23 @@ func registerRoutes(p *plugin) {
 
 			if len(filtered) > 0 {
 				tasks := newTaskObjectList(filtered)
+				for i := range tasks {
+					tasks[i].Account = result.site.cal.Account
+				}
 				sortTasksByScript(tasks)
 				taskGroups = append(taskGroups, TaskGroup{
-					Calendar: result.cal,
+					Calendar: result.site.cal,
 					Tasks:    tasks,
 				})
 			}
 		}
 
 		sort.Slice(taskGroups, func(i, j int) bool {
-			return strings.ToLower(taskGroups[i].Calendar.Name) < strings.ToLower(taskGroups[j].Calendar.Name)
+			a, b := taskGroups[i].Calendar, taskGroups[j].Calendar
+			if a.Account != b.Account {
+				return a.Account < b.Account
+			}
+			return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 		})
 
 		return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
@@ -983,7 +931,7 @@ func registerRoutes(p *plugin) {
 		return ctx.Render(http.StatusOK, "task.html", &TaskRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 			Calendar:       calendar,
-			Task:           TaskObject{task},
+			Task:           TaskObject{CalendarObject: task},
 		})
 	})
 
@@ -1094,7 +1042,7 @@ func registerRoutes(p *plugin) {
 				return fmt.Errorf("failed to save task: %v", err)
 			}
 
-			return ctx.Redirect(http.StatusFound, TaskObject{co}.URL())
+			return ctx.Redirect(http.StatusFound, ctx.AccountPath(TaskObject{CalendarObject: co}.URL()))
 		}
 
 		summary, _ := todo.Props.Text("SUMMARY")
@@ -1129,7 +1077,7 @@ func registerRoutes(p *plugin) {
 			return fmt.Errorf("failed to delete task: %v", err)
 		}
 
-		return ctx.Redirect(http.StatusFound, "/tasks")
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/tasks"))
 	})
 
 	POST("/tasks/:path/complete", func(ctx *alborz.Context) error {
@@ -1168,6 +1116,11 @@ func registerRoutes(p *plugin) {
 			return fmt.Errorf("failed to update task: %v", err)
 		}
 
-		return ctx.Redirect(http.StatusFound, "/tasks")
+		// A completion from the merged list returns to it; next comes
+		// from the page's own form, so it must stay a local path.
+		if next := ctx.FormValue("next"); strings.HasPrefix(next, "/") && !strings.HasPrefix(next, "//") {
+			return ctx.Redirect(http.StatusFound, next)
+		}
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/tasks"))
 	})
 }

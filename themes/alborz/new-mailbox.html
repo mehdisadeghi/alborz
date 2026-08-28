@@ -8,6 +8,7 @@
     <main class="create-update">
       <form method="POST">
         <h2>{{$.T "folder.create"}}</h2>
+        <div class="context-crumb">{{ with .GlobalData.URLAccount }}{{ . }}{{ else }}{{ .GlobalData.Username }}{{ end }}</div>
         <label for="name">{{$.T "folder.name"}}</label>
         <input type="text" name="name" id="name" dir="auto" autofocus />
         {{ if .Error }}<p>{{ .Error }}</p>{{ end }}

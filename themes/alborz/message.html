@@ -4,13 +4,14 @@
 
 <div class="page-wrap">
   {{ $current := .Mailbox }}
+  {{ $aq := "" }}{{ $aamp := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ $aamp = printf "&account=%s" . }}{{ end }}
   {{ template "aside" . }}
   <div class="container">
     <main class="message">
       <section class="actions">
         <div class="actions-wrap">
           <div class="actions-message">
-            {{$back := printf "%v?page=%v" .Mailbox.URL .MailboxPage}}
+            {{$back := printf "%v?page=%v%s" .Mailbox.URL .MailboxPage $aamp}}
             {{$common := .CategorizedMailboxes.Common}}
             {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
             {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
@@ -20,21 +21,21 @@
 
             <span class="followups action-group">
               {{if .Message.HasFlag "\\Draft"}}
-                <a class="action-group button-link" href="{{.Message.URL}}/edit{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">{{$.T "message.editdraft"}}</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/edit{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.editdraft"}}</a>
               {{else}}
-                <a class="action-group button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">{{$.T "message.reply"}}</a>
-                <a class="action-group button-link" href="{{.Message.URL}}/forward{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{end}}">{{$.T "message.forward"}}</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.reply"}}</a>
+                <a class="action-group button-link" href="{{.Message.URL}}/forward{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.forward"}}</a>
               {{end}}
             </span>
 
             {{ if or (eq .Mailbox.Name $trash) (eq .Mailbox.Name $junk) (not $trash) }}
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete">
+            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete{{$aq}}">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
               <button>{{$.T "mailbox.deleteperm"}}</button>
             </form>
             {{ else }}
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
+            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
               <input type="hidden" name="to" value="{{$trash}}">
@@ -43,7 +44,7 @@
             {{ end }}
 
             {{ if and $junk (or (eq .Mailbox.Name "INBOX") (eq .Mailbox.Name $trash)) }}
-            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
+            <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
               <input type="hidden" name="uids" value="{{.Message.UID}}">
               <input type="hidden" name="next" value="{{$back}}">
               <input type="hidden" name="to" value="{{$junk}}">
@@ -57,10 +58,10 @@
               <span class="pagination-range">{{.Position}} {{$.T "mailbox.of"}} {{.Total}}</span>
               {{ end }}
               {{ if .NewerURL }}
-              <a class="button-link" href="{{.NewerURL}}{{if .Starred}}?starred=1{{else if .Query}}?query={{.Query}}{{end}}">{{$.T "message.newer"}}</a>
+              <a class="button-link" href="{{.NewerURL}}{{if .Starred}}?starred=1{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else if .Query}}?query={{.Query}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.newer"}}</a>
               {{ end }}
               {{ if .OlderURL }}
-              <a class="button-link" href="{{.OlderURL}}{{if .Starred}}?starred=1{{else if .Query}}?query={{.Query}}{{end}}">{{$.T "message.older"}}</a>
+              <a class="button-link" href="{{.OlderURL}}{{if .Starred}}?starred=1{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else if .Query}}?query={{.Query}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.older"}}</a>
               {{ end }}
             </span>
 
@@ -68,11 +69,11 @@
               <summary class="button" aria-label="{{$.T "mailbox.more"}}">⋮</summary>
               <div class="overflow-menu">
                 {{if not (.Message.HasFlag "\\Draft")}}
-                <a class="button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}&all=true{{end}}">{{$.T "message.replyall"}}</a>
+                <a class="button-link" href="{{.Message.URL}}/reply{{if .Message.TextPart}}?part={{.Message.TextPart.PathString}}&all=true{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}{{else}}{{$aq}}{{end}}">{{$.T "message.replyall"}}</a>
                 {{end}}
 
                 {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
-                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
+                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
                   <input type="hidden" name="uids" value="{{.Message.UID}}">
                   <input type="hidden" name="to" value="{{$archive}}">
                   <input type="hidden" name="next" value="{{$back}}">
@@ -81,7 +82,7 @@
                 {{ end }}
 
                 {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
-                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
+                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
                   <input type="hidden" name="uids" value="{{.Message.UID}}">
                   <input type="hidden" name="to" value="INBOX">
                   <button>
@@ -94,7 +95,7 @@
                 </form>
                 {{ end }}
 
-                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/flag">
+                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/flag{{$aq}}">
                   <input type="hidden" name="uids" value="{{.Message.UID}}">
                   <input type="hidden" name="action" value="remove">
                   <input type="hidden" name="flags" value="\Seen">
@@ -102,7 +103,7 @@
                   <button>{{$.T "message.markunread"}}</button>
                 </form>
 
-                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move">
+                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
                   <input type="hidden" name="uids" value="{{.Message.UID}}">
                   <select name="to">
                     <option value="" disabled selected>{{$.T "mailbox.moveto"}}</option>
@@ -128,6 +129,9 @@
         </div>
       </section>
 
+      {{ with $.GlobalData.URLAccount }}
+      <div class="context-crumb">{{.}} › {{$.Mailbox.Label}}</div>
+      {{ end }}
       <div class="message-header">
         <table>
           <tr>
@@ -167,7 +171,7 @@
           <tr class="remote-content">
             <td colspan="2" dir="auto">
               {{$.T "message.remote"}}
-              <a href="?part={{.Part.PathString}}&allow-remote-resources=1">
+              <a href="?part={{.Part.PathString}}&allow-remote-resources=1{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">
                 {{$.T "message.loadremote"}}
               </a>
             </td>
@@ -184,9 +188,9 @@
               <a
                 class="nav-link"
                 {{if .IsText}}
-                  href="?part={{.PathString}}"
+                  href="?part={{.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}"
                 {{else}}
-                  href="{{$.Message.URL}}/raw?part={{.PathString}}"
+                  href="{{$.Message.URL}}/raw?part={{.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}"
                 {{end}}
               >
               {{- if .Filename -}}
@@ -217,7 +221,7 @@
         {{ if $text }}
         {{ if ne $text.MIMEType "text/html" }}
         <a
-          href="?part={{$text.PathString}}"
+          href="?part={{$text.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}"
           {{ if eq $text.PathString .Part.PathString }}
           class="active"
           {{ end }}
@@ -226,20 +230,20 @@
         {{ end }}
         {{ if $html }}
         <a
-          href="?part={{$html.PathString}}"
+          href="?part={{$html.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}"
           {{ if eq $html.PathString .Part.PathString }}
           class="active"
           {{ end }}
         >{{$.T "message.html"}}</a>
         {{ end }}
-        <a href="{{.Message.URL}}/raw?plain=1">{{$.T "message.raw"}}</a>
+        <a href="{{.Message.URL}}/raw?plain=1{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">{{$.T "message.raw"}}</a>
       </div>
 
       {{if .View}}
         {{.View}}
       {{else}}
         <p>{{$.T "message.cantpreview"}}</p>
-        <a href="{{.Message.URL}}/raw?part={{.Part.PathString}}">{{$.T "message.download"}}</a>
+        <a href="{{.Message.URL}}/raw?part={{.Part.PathString}}{{with $.GlobalData.URLAccount}}&account={{.}}{{end}}">{{$.T "message.download"}}</a>
       {{end}}
     </main>
   </div>

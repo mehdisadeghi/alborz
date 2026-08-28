@@ -1,11 +1,15 @@
 <div class="message-list-checkbox">
+  {{if not .GlobalData.Unified}}
   <input type="checkbox" id="action-checkbox-all" aria-label="{{$.T "mailbox.selectall"}}"/>
+  {{end}}
 </div>
 <div class="actions-wrap">
   <div class="actions-message">
+    {{if not .GlobalData.Unified}}
     <div class="action-group">
       <button form="address-book-form" formaction="/contacts/delete">{{$.T "common.delete"}}</button>
     </div>
+    {{end}}
   </div>
 
   <form method="get" class="actions-search">

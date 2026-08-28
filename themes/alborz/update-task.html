@@ -1,11 +1,11 @@
 {{template "head.html" .}}
 {{template "nav.html" .}}
+{{template "util.html" .}}
 
 <div class="page-wrap">
-  <aside>
-    <a href="/tasks/create" class="new {{if not .CalendarObject}}active{{end}}">{{$.T "tasks.new"}}</a>
-    {{if .CalendarObject}}<a href="/tasks">{{.Calendar.Name}}</a>{{end}}
-  </aside>
+  {{$acct := ""}}{{with .GlobalData.URLAccount}}{{$acct = printf "?account=%s" .}}{{end}}
+  {{ $back := "" }}{{ if .CalendarObject }}{{ $back = printf "/tasks%s" $acct }}{{ end }}
+  {{ template "detail-aside" (dict "newHref" (printf "/tasks/create%s" $acct) "newLabel" ($.T "tasks.new") "newActive" (not .CalendarObject) "backHref" $back "backLabel" .Calendar.Name) }}
 
   <div class="container">
     <main class="create-update">
@@ -52,7 +52,7 @@
 
         <div class="actions">
           <button type="submit">{{$.T "common.save"}}</button>
-          <a class="button-link" href="/tasks">{{$.T "common.cancel"}}</a>
+          <a class="button-link" href="/tasks{{$acct}}">{{$.T "common.cancel"}}</a>
         </div>
       </form>
     </main>

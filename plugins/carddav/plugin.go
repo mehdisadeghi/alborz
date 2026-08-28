@@ -8,6 +8,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"sync"
+	"time"
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
@@ -37,10 +38,23 @@ func sanityCheckURL(u *url.URL) error {
 	return nil
 }
 
+// Age at which a discovered address book list is reloaded in the background
+// while still being served; alborz cannot create or delete books, so a
+// change made on the server shows up one visit late at worst.
+const discoveryTTL = 5 * time.Minute
+
+// The discovery load is detached from its requester's context, so a
+// deadline of its own is all that keeps a hung server from wedging every
+// waiter behind the memo.
+const discoveryTimeout = 30 * time.Second
+
 type plugin struct {
 	alborz.GoPlugin
 	urls  map[string]*url.URL // CardDAV endpoint per served mail domain
 	cache *davcache.Cache
+
+	// Discovered address book list per username; see clientWithAddressBooks.
+	books *alborz.Memo[[]AddressBookInfo]
 
 	jarsMu sync.Mutex
 	jars   map[string]http.CookieJar // per username
@@ -88,19 +102,33 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alborz.Ses
 	}
 	davBase, _ := p.davURL(session)
 
-	principal, err := c.FindCurrentUserPrincipal(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query CardDAV principal: %v", err)
-	}
+	// Principal, home set, and book list are three sequential round trips
+	// answering which address books the account has, so they are found once
+	// per user rather than on every page, compose included. The load
+	// outlives the request that starts it: a second page waiting on it must
+	// not be failed by the first one's reader going away.
+	infos, err := p.books.Get(session.Username(), func() ([]AddressBookInfo, error) {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), discoveryTimeout)
+		defer cancel()
 
-	homeSet, err := c.FindAddressBookHomeSet(ctx, principal)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query CardDAV address book home set: %v", err)
-	}
+		principal, err := c.FindCurrentUserPrincipal(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query CardDAV principal: %v", err)
+		}
 
-	infos, err := listAddressBooks(ctx, p.httpClient(session), davBase, homeSet)
+		homeSet, err := c.FindAddressBookHomeSet(ctx, principal)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query CardDAV address book home set: %v", err)
+		}
+
+		infos, err := listAddressBooks(ctx, p.httpClient(session), davBase, homeSet)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query CardDAV address books: %v", err)
+		}
+		return infos, nil
+	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query CardDAV address books: %v", err)
+		return nil, nil, err
 	}
 	if len(infos) == 0 {
 		return nil, nil, errNoAddressBook
@@ -172,6 +200,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	p := &plugin{
 		GoPlugin: alborz.GoPlugin{Name: "carddav", Files: public},
 		urls:     urls,
+		books:    alborz.NewBackgroundMemo[[]AddressBookInfo](discoveryTTL),
 		jars:     make(map[string]http.CookieJar),
 	}
 	p.EnabledFunc = func(ctx *alborz.Context) bool {
@@ -208,13 +237,34 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 				Name: vcard.FieldEmail,
 			}},
 		}
+		// One query per book, run together like the contacts page does;
+		// sequentially they would delay the compose form by a round trip
+		// each.
+		type bookResult struct {
+			addrs []carddav.AddressObject
+			err   error
+		}
+		reqCtx := ctx.Request().Context()
+		results := make([]bookResult, len(addressBooks))
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, maxAddressBookQueryConcurrency)
+		for i, ab := range addressBooks {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				results[i].addrs, results[i].err = c.QueryAddressBook(reqCtx, ab.Path, &query)
+			}()
+		}
+		wg.Wait()
+
 		var emails []string
-		for _, ab := range addressBooks {
-			addrs, err := c.QueryAddressBook(ctx.Request().Context(), ab.Path, &query)
-			if err != nil {
-				return fmt.Errorf("failed to query CardDAV addresses: %v", err)
+		for _, result := range results {
+			if result.err != nil {
+				return fmt.Errorf("failed to query CardDAV addresses: %v", result.err)
 			}
-			for _, addr := range addrs {
+			for _, addr := range result.addrs {
 				emails = append(emails, addr.Card.Values(vcard.FieldEmail)...)
 			}
 		}

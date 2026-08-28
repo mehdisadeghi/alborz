@@ -297,19 +297,33 @@ func (p *plugin) clientWithCalendars(ctx context.Context, session *alborz.Sessio
 	}
 	davBase, _ := p.davURL(session)
 
-	principal, err := c.FindCurrentUserPrincipal(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query CalDAV principal: %v", err)
-	}
+	// Principal, home set, and calendar list are three sequential round
+	// trips answering which calendars the account has, so they are found
+	// once per user rather than on every page. The load outlives the
+	// request that starts it: a second page waiting on it must not be
+	// failed by the first one's reader going away.
+	infos, err := p.calendars.Get(session.Username(), func() ([]CalendarInfo, error) {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), discoveryTimeout)
+		defer cancel()
 
-	calendarHomeSet, err := c.FindCalendarHomeSet(ctx, principal)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query CalDAV calendar home set: %v", err)
-	}
+		principal, err := c.FindCurrentUserPrincipal(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query CalDAV principal: %v", err)
+		}
 
-	infos, err := listCalendars(ctx, p.httpClient(session), davBase, calendarHomeSet)
+		calendarHomeSet, err := c.FindCalendarHomeSet(ctx, principal)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query CalDAV calendar home set: %v", err)
+		}
+
+		infos, err := listCalendars(ctx, p.httpClient(session), davBase, calendarHomeSet)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find calendars: %v", err)
+		}
+		return infos, nil
+	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find calendars: %v", err)
+		return nil, nil, err
 	}
 	if len(infos) == 0 {
 		return nil, nil, errNoCalendar

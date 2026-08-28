@@ -8,6 +8,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"sync"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/plugins/davcache"
@@ -20,12 +21,26 @@ var public embed.FS
 const (
 	inputDateLayout     = "2006-01-02"
 	inputDateTimeLayout = "2006-01-02T15:04"
+
+	// Age at which a discovered calendar list is reloaded in the
+	// background while still being served; alborz cannot create or delete
+	// calendars, so a change made on the server shows up one visit late
+	// at worst.
+	discoveryTTL = 5 * time.Minute
+
+	// The discovery load is detached from its requester's context, so a
+	// deadline of its own is all that keeps a hung server from wedging
+	// every waiter behind the memo.
+	discoveryTimeout = 30 * time.Second
 )
 
 type plugin struct {
 	alborz.GoPlugin
 	urls  map[string]*url.URL // CalDAV endpoint per served mail domain
 	cache *davcache.Cache
+
+	// Discovered calendar list per username; see clientWithCalendars.
+	calendars *alborz.Memo[[]CalendarInfo]
 
 	jarsMu sync.Mutex
 	jars   map[string]http.CookieJar // per username
@@ -137,9 +152,10 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	}
 
 	p := &plugin{
-		GoPlugin: alborz.GoPlugin{Name: "caldav", Files: public},
-		urls:     urls,
-		jars:     make(map[string]http.CookieJar),
+		GoPlugin:  alborz.GoPlugin{Name: "caldav", Files: public},
+		urls:      urls,
+		calendars: alborz.NewBackgroundMemo[[]CalendarInfo](discoveryTTL),
+		jars:      make(map[string]http.CookieJar),
 	}
 	p.EnabledFunc = func(ctx *alborz.Context) bool {
 		if ctx.Session == nil {

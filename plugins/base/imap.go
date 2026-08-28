@@ -698,7 +698,7 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
 	} else if len(msgs) == 0 {
-		return nil, nil, alborz.NotFoundf("no such message")
+		return nil, nil, alborz.NotFoundf("message %v does not exist in this folder", uid)
 	}
 	msg := msgs[0]
 
@@ -708,7 +708,7 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 		// The server answers a part path the message doesn't have
 		// with a fetch result missing the asked-for sections.
 		if len(partPath) > 0 {
-			return nil, nil, alborz.NotFoundf("no such message part")
+			return nil, nil, alborz.NotFoundf("message %v has no part %v", uid, partPath)
 		}
 		return nil, nil, fmt.Errorf("server didn't return header and body")
 	}

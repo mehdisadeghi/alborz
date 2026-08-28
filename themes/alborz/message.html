@@ -144,7 +144,7 @@
         <table>
           <tr>
             <th colspan="2">
-              <h1 dir="auto">
+              <h1 dir="{{.Message.Envelope.Subject | subjectdir}}">
                {{if .Message.Envelope.Subject}}
                   {{.Message.Envelope.Subject}}
                 {{else}}

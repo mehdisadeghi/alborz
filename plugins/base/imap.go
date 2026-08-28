@@ -183,6 +183,47 @@ type IMAPMessage struct {
 
 	// Account owning the message, set only in the unified view
 	Account string
+
+	// Mailing-list addresses from the whole message's header, empty
+	// unless it was fetched: a part's own header does not carry them.
+	ListPost        string
+	ListUnsubscribe string
+}
+
+// firstListURI returns the first bracketed URI of an RFC 2369 header
+// whose scheme is wanted, or the first of any scheme when wanted is
+// empty. Such a header is a comma-separated list of <URI> entries.
+func firstListURI(value string, wanted ...string) string {
+	for _, field := range strings.Split(value, ",") {
+		field = strings.TrimSpace(field)
+		if !strings.HasPrefix(field, "<") || !strings.HasSuffix(field, ">") {
+			continue
+		}
+		uri := field[1 : len(field)-1]
+		if len(wanted) == 0 {
+			return uri
+		}
+		for _, scheme := range wanted {
+			if strings.HasPrefix(strings.ToLower(uri), scheme+":") {
+				return uri
+			}
+		}
+	}
+	return ""
+}
+
+// setListHeaders records the mailing-list addresses a message carries.
+// List-Post: NO means the list refuses posts, which is not an address.
+func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
+	if post := firstListURI(h.Get("List-Post"), "mailto"); post != "" {
+		msg.ListPost = strings.TrimPrefix(post, "mailto:")
+	}
+	// A one-click https endpoint is preferred; a mailto asks the user to
+	// send a message, which they can at least read before sending.
+	msg.ListUnsubscribe = firstListURI(h.Get("List-Unsubscribe"), "https", "http")
+	if msg.ListUnsubscribe == "" {
+		msg.ListUnsubscribe = firstListURI(h.Get("List-Unsubscribe"), "mailto")
+	}
 }
 
 func (msg *IMAPMessage) URL() *url.URL {
@@ -474,7 +515,7 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 	}
 
 	for _, msg := range imapMsgs {
-		msgs = append(msgs, IMAPMessage{msg, mboxName, ""})
+		msgs = append(msgs, IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName})
 	}
 
 	// Reverse list of messages
@@ -692,13 +733,25 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 		bodyItem.Specifier = imap.PartSpecifierText
 	}
 
+	sections := []*imap.FetchItemBodySection{headerItem, bodyItem}
+	// A part's own header carries no List-Post; ask for the message's in
+	// the same round trip.
+	var rootHeaderItem *imap.FetchItemBodySection
+	if len(partPath) > 0 {
+		rootHeaderItem = &imap.FetchItemBodySection{
+			Peek:      true,
+			Specifier: imap.PartSpecifierHeader,
+		}
+		sections = append(sections, rootHeaderItem)
+	}
+
 	options := imap.FetchOptions{
 		Envelope:      true,
 		UID:           true,
 		RFC822Size:    true,
 		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
 		Flags:         true,
-		BodySection:   []*imap.FetchItemBodySection{headerItem, bodyItem},
+		BodySection:   sections,
 	}
 
 	// TODO: stream attachments
@@ -721,6 +774,13 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 		return nil, nil, fmt.Errorf("server didn't return header and body")
 	}
 
+	rootHeaderBuf := headerBuf
+	if rootHeaderItem != nil {
+		if buf := msg.FindBodySection(rootHeaderItem); buf != nil {
+			rootHeaderBuf = buf
+		}
+	}
+
 	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(headerBuf)))
 	if err != nil {
 		// Broken messages exist in the wild; show the part raw instead
@@ -735,7 +795,11 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 		return nil, nil, fmt.Errorf("failed to create message reader: %v", err)
 	}
 
-	return &IMAPMessage{msg, mboxName, ""}, part, nil
+	out := &IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
+	if rh, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(rootHeaderBuf))); err == nil {
+		out.setListHeaders(rh)
+	}
+	return out, part, nil
 }
 
 func markMessageAnswered(conn *imapclient.Client, mboxName string, uid imap.UID) error {

@@ -77,6 +77,25 @@ func birthdayValue(card vcard.Card) string {
 	return v
 }
 
+// getAddressObject fetches one card without go-webdav's response
+// parsing. Its populateAddressObject runs the ETag through
+// strconv.Unquote, which rejects the weak form ("W/\"...\"") that
+// Nextcloud sends, and every edit of a contact there died with a bare
+// "invalid syntax". Nothing here needs the ETag: the PUT that saves the
+// card sends no If-Match.
+func getAddressObject(ctx *alborz.Context, c *carddav.Client, path string) (*carddav.AddressObject, error) {
+	body, err := c.Open(ctx.Request().Context(), path)
+	if err != nil {
+		return nil, err
+	}
+	defer body.Close()
+	card, err := vcard.NewDecoder(body).Decode()
+	if err != nil {
+		return nil, err
+	}
+	return &carddav.AddressObject{Path: path, Card: card}, nil
+}
+
 func parseObjectPath(s string) (string, error) {
 	p, err := url.PathUnescape(s)
 	if err != nil {
@@ -340,7 +359,7 @@ func registerRoutes(p *plugin) {
 			if err != nil {
 				return err
 			}
-			ao, err = c.GetAddressObject(ctx.Request().Context(), addressObjectPath)
+			ao, err = getAddressObject(ctx, c, addressObjectPath)
 			if err != nil {
 				return fmt.Errorf("failed to query CardDAV address: %v", err)
 			}

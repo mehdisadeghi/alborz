@@ -91,7 +91,7 @@
                       </div>
           <div class="message-list-subject {{$classes}}">
             {{if $.GlobalData.Unified}}
-            <a href="{{.URL}}{{account "?" .Account}}">
+            <a dir="{{.Envelope.Subject | subjectdir}}" href="{{.URL}}{{account "?" .Account}}">
             {{else}}
             {{/* Built in one piece: the escaper cannot follow a URL whose
                  query grows across branches. */}}
@@ -99,8 +99,13 @@
             {{if .TextPart}}{{$link = printf "%v" (.TextPart.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
             {{if $.Starred}}{{$link = printf "%s%sstarred=1" $link $sep}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | urlquery)}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | accountparam)}}{{end}}
-            <a href="{{localhref $link}}">
+            <a dir="{{.Envelope.Subject | subjectdir}}" href="{{localhref $link}}">
             {{end}}
+              {{/* No bdi here: it isolates, and an isolate reads to the
+                   link around it as one neutral object, so dir=auto
+                   found no strong character and called every subject
+                   LTR. The link is a block of its own and isolates by
+                   itself. */}}
               {{if .Envelope.Subject}}
                 <bdi dir="auto">{{.Envelope.Subject}}</bdi>
               {{else}}

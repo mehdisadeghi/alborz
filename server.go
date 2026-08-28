@@ -28,14 +28,15 @@ import (
 const brandName = "Alborz"
 
 const (
-	cookieName           = "alborz_session"
-	accountsCookieName   = "alborz_accounts"
-	activeUserCookieName = "alborz_user"
-	loginTokenCookieName = "alborz_login_tokens"
-	unifiedCookieName    = "alborz_unified"
-	schemeCookieName     = "alborz_scheme"
-	themeCookieName      = "alborz_theme"
-	secondaryCookieName  = "alborz_secondary"
+	cookieName              = "alborz_session"
+	accountsCookieName      = "alborz_accounts"
+	activeUserCookieName    = "alborz_user"
+	loginTokenCookieName    = "alborz_login_tokens"
+	unifiedCookieName       = "alborz_unified"
+	schemeCookieName        = "alborz_scheme"
+	themeCookieName         = "alborz_theme"
+	accountColorsCookieName = "alborz_account_colors"
+	alignCookieName         = "alborz_align"
 	// TimezoneCookieName is written by the page, not by us: the browser
 	// is the only party that knows its own zone.
 	TimezoneCookieName = "alborz_tz"
@@ -592,6 +593,37 @@ func (ctx *Context) SetTheme(theme string) {
 // Theme returns the user's theme variant, empty for the default.
 func (ctx *Context) Theme() string {
 	return ctx.pref(themeCookieName, func(v string) bool { return slices.Contains(themeVariants, v) })
+}
+
+// SetAccountColors stores whether merged lists mark each row with its
+// account's color. It is a reading aid of one browser, not a property
+// of the accounts, so it stays out of their stores.
+func (ctx *Context) SetAccountColors(on bool) {
+	value := ""
+	if on {
+		value = "1"
+	}
+	ctx.setPref(accountColorsCookieName, value, on)
+}
+
+// AccountColors reports whether the color marks are switched on.
+func (ctx *Context) AccountColors() bool {
+	return ctx.pref(accountColorsCookieName, func(v string) bool { return v == "1" }) == "1"
+}
+
+// SetAlignByScript stores whether a line aligns by its own script
+// rather than with the interface's edge.
+func (ctx *Context) SetAlignByScript(on bool) {
+	value := ""
+	if on {
+		value = "1"
+	}
+	ctx.setPref(alignCookieName, value, on)
+}
+
+// AlignByScript reports whether lines align by their own script.
+func (ctx *Context) AlignByScript() bool {
+	return ctx.pref(alignCookieName, func(v string) bool { return v == "1" }) == "1"
 }
 
 // secondaryCalendars are the calendar systems that can be shown beside

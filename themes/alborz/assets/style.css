@@ -786,8 +786,13 @@ main.event th { padding-inline: 0.5rem; }
 main.message td,
 main.event td { padding-inline-start: 0; }
 
+/* A plain-text mail is a column of prose, so it gets a measure. Without
+   one a long line runs the width of the window, and in a mixed-script
+   mailbox an LTR line then starts a screen away from where the RTL
+   lines start. 78ch is the width the format was written for. */
 main.message pre {
   padding-inline: 0.5rem;
+  max-width: 78ch;
 }
 
 /* First columns carry the ink inset; interior cells keep the tighter
@@ -1061,14 +1066,53 @@ main.create-update .actions > *:not(:last-child) {
   unicode-bidi: isolate;
 }
 
-/* User-written titles order their own script (dir=auto) but align
-   with the UI edge, so Latin and Arabic rows cluster cleanly. */
-.list .list-summary,
-.message-list-subject a,
-.message-list-sender a,
-.contact-list-name a,
+
+/* Text somebody else wrote is its own bidi paragraph: plaintext applies
+   the Unicode algorithm's own base-direction rules per paragraph, so a
+   trailing period, question mark or bracket lands on the end its
+   language puts it, whichever direction the page runs in. dir=auto
+   resolves the same direction for `direction`, which is what start
+   below aligns against. */
+main.message h1,
+main.message pre {
+  unicode-bidi: plaintext;
+}
+
+/* User-written titles order their own script (dir=auto) but align with
+   the interface's edge by default, so Latin and Arabic rows cluster
+   cleanly. Said outright rather than through start/match-parent: those
+   resolve against a direction the row itself may have overridden, and
+   which edge a row clusters to is a property of the page, not the row. */
+:root:dir(rtl) .list .list-summary,
+:root:dir(rtl) .message-list-subject a,
+:root:dir(rtl) .message-list-sender a,
+:root:dir(rtl) .contact-list-name a {
+  text-align: right;
+}
+
+:root:dir(ltr) .list .list-summary,
+:root:dir(ltr) .message-list-subject a,
+:root:dir(ltr) .message-list-sender a,
+:root:dir(ltr) .contact-list-name a {
+  text-align: left;
+}
+
 main.message h1 {
   text-align: match-parent;
+}
+
+/* The other reading: each line sits on the edge its own script starts
+   from. :dir() matches the direction the browser calculated for the
+   element - what dir=auto resolved from the text - so the rule follows
+   the row's own script rather than the page's. */
+:root[data-align="script"] .message-list-subject a:dir(ltr),
+:root[data-align="script"] .message-list-sender a:dir(ltr) {
+  text-align: left;
+}
+
+:root[data-align="script"] .message-list-subject a:dir(rtl),
+:root[data-align="script"] .message-list-sender a:dir(rtl) {
+  text-align: right;
 }
 
 /* dir=auto resolves LTR while a field is empty, pushing a translated

@@ -25,6 +25,16 @@ import (
 
 // TODO: make this configurable
 const sessionDuration = 30 * time.Minute
+
+// upstreamTimeout bounds dialing, logging in, and sieve commands. An
+// upstream that accepts the connection but never answers would otherwise
+// hang the request forever, with the login page as the visible casualty.
+const upstreamTimeout = 3 * time.Second
+
+// imapCommandTimeout bounds a single DoIMAP operation. Wider than
+// upstreamTimeout for the two legitimately slow commands: fetching a
+// large attachment and body search without a server-side index.
+const imapCommandTimeout = 10 * time.Second
 const maxAttachmentSize = 32 << 20 // 32 MiB
 
 func generateToken() (string, error) {
@@ -81,7 +91,12 @@ type Attachment struct {
 }
 
 func (s *Session) ping() {
-	s.pings <- struct{}{}
+	// Non-blocking: once the expiry goroutine is gone, a send would
+	// block its caller forever; a dropped ping is harmless.
+	select {
+	case s.pings <- struct{}{}:
+	default:
+	}
 }
 
 // Username returns the session's username.
@@ -117,7 +132,14 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 
 	// TODO: to avoid races wrt. disconnection, re-run f if it returns
 	// io.UnexpectedEOF
-	return f(s.imapConn)
+	c := s.imapConn
+	watchdog := time.AfterFunc(imapCommandTimeout, func() { c.Close() })
+	err := f(c)
+	if !watchdog.Stop() {
+		s.imapConn = nil
+		return fmt.Errorf("IMAP command timed out after %v", imapCommandTimeout)
+	}
+	return err
 }
 
 // DoSMTP executes an SMTP operation on this session. The SMTP client can only
@@ -152,11 +174,26 @@ func (s *Session) DoSieve(f func(SieveClient) error) error {
 	s.sieveLocker.Lock()
 	defer s.sieveLocker.Unlock()
 
+	timedOut := false
+	run := func(c SieveClient) error {
+		watchdog := time.AfterFunc(upstreamTimeout, func() { c.Close() })
+		err := f(c)
+		if !watchdog.Stop() {
+			timedOut = true
+			return fmt.Errorf("sieve command timed out after %v", upstreamTimeout)
+		}
+		return err
+	}
+
 	if s.sieveConn != nil {
 		// The kept connection is used as is: probing it first would cost
 		// every page a round trip to guard against the rare case that the
 		// server dropped it, which the retry below handles anyway.
-		err := f(s.sieveConn)
+		err := run(s.sieveConn)
+		if timedOut {
+			s.sieveConn = nil
+			return err
+		}
 		var serverErr *managesieve.ServerError
 		if err == nil || errors.As(err, &serverErr) {
 			// The server answered, so the connection is healthy.
@@ -179,7 +216,11 @@ func (s *Session) DoSieve(f func(SieveClient) error) error {
 	}
 	s.sieveConn = c
 
-	return f(s.sieveConn)
+	err = run(s.sieveConn)
+	if timedOut {
+		s.sieveConn = nil
+	}
+	return err
 }
 
 // isSieveConnClosed reports whether the operation failed because the server
@@ -319,8 +360,14 @@ func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapc
 		return nil, err
 	}
 
-	if err := c.Login(username, password).Wait(); err != nil {
+	watchdog := time.AfterFunc(upstreamTimeout, func() { c.Close() })
+	err = c.Login(username, password).Wait()
+	timedOut := !watchdog.Stop()
+	if err != nil {
 		c.Logout()
+		if timedOut {
+			return nil, fmt.Errorf("IMAP login timed out after %v", upstreamTimeout)
+		}
 		return nil, AuthError{err}
 	}
 

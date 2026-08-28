@@ -125,8 +125,6 @@
 "calendar.new" = "رویداد جدید"
 "calendar.newcalendar" = "تقویم جدید"
 "calendar.color" = "رنگ"
-"calendar.holdstasks" = "کارها را هم نگه می‌دارد"
-"calendar.holdstaskshint" = "بیشتر سرورها این را هنگام ساخت تقویم تثبیت می‌کنند."
 "calendar.month" = "ماه"
 "calendar.list" = "فهرست"
 "calendar.noevents" = "این ماه رویدادی ندارد."
@@ -237,6 +235,12 @@
 
 "settings.alignscript" = "هم‌ترازی هر خط بر پایهٔ خط خودش"
 "common.source" = "متن خام"
+"calendar.holds" = "در بر می‌گیرد"
+"calendar.holdsboth" = "رویداد و کار"
+"calendar.holdsevents" = "تنها رویداد"
+"calendar.holdstasks" = "تنها کار"
+"calendar.holdshint" = "بیشتر کارسازها این را هنگام ساخت ثابت می‌کنند."
+"tasks.newlist" = "فهرست کار تازه"
 # Plural forms last: a TOML table claims every key that follows it.
 
 ["calendar.more"]

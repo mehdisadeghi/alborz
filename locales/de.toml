@@ -127,8 +127,6 @@
 "calendar.new" = "Neuer Termin"
 "calendar.newcalendar" = "Neuer Kalender"
 "calendar.color" = "Farbe"
-"calendar.holdstasks" = "Enthält auch Aufgaben"
-"calendar.holdstaskshint" = "Die meisten Server legen das beim Anlegen fest."
 "calendar.month" = "Monat"
 "calendar.list" = "Liste"
 "calendar.noevents" = "Keine Termine in diesem Monat."
@@ -237,6 +235,12 @@
 
 "settings.alignscript" = "Jede Zeile nach ihrer eigenen Schrift ausrichten"
 "common.source" = "Quelltext"
+"calendar.holds" = "Enthält"
+"calendar.holdsboth" = "Termine und Aufgaben"
+"calendar.holdsevents" = "Nur Termine"
+"calendar.holdstasks" = "Nur Aufgaben"
+"calendar.holdshint" = "Die meisten Server legen das bei der Erstellung fest."
+"tasks.newlist" = "Neue Aufgabenliste"
 # Plural forms last: a TOML table claims every key that follows it.
 
 ["calendar.more"]

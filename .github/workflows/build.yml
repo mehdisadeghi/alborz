@@ -1,0 +1,70 @@
+# Cross-builds the binary for the machines alborz is actually run on:
+# a workstation or VPS (amd64), an ARM server or Apple-silicon VM
+# (arm64), and a Raspberry Pi or comparable board (armv7). Every push
+# leaves downloadable artifacts; a tag also attaches them to a release,
+# so a deploy never needs a Go toolchain on the target.
+name: build
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+          - goarch: arm64
+          - goarch: arm
+            goarm: "7"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: |
+          set -eu
+          name="alborz-linux-${GOARCH}${GOARM:+v$GOARM}"
+          # -trimpath keeps build machine paths out of the binary; the
+          # revision and date the footer shows are the VCS metadata the
+          # go tool stamps from the checked-out commit alone.
+          go build -trimpath -ldflags '-s -w' -o "$name" ./cmd/alborz
+          sha256sum "$name" > "$name.sha256"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: alborz-linux-${{ matrix.goarch }}${{ matrix.goarm }}
+          path: |
+            alborz-linux-*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: alborz-linux-*
+          fail_on_unmatched_files: true

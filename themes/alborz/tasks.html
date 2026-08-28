@@ -46,7 +46,7 @@
             </h3>
           </summary>
           {{range .Tasks}}
-          {{$todo := index .Data.Children 0}}
+          {{ if .Data.Children }}{{$todo := index .Data.Children 0}}
           {{$summary := $todo.Props.Text "SUMMARY"}}
           {{$status := $todo.Props.Text "STATUS"}}
           {{$due := $todo.Props.Get "DUE"}}
@@ -63,6 +63,7 @@
               {{end}}
             </div>
           </div>
+          {{ end }}
           {{end}}
         </details>
         {{end}}

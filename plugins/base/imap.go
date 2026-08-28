@@ -713,7 +713,11 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 
 	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(headerBuf)))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read part header: %v", err)
+		// Broken messages exist in the wild; show the part raw instead
+		// of failing the whole page.
+		h = textproto.Header{}
+		h.Set("Content-Type", "text/plain; charset=utf-8")
+		bodyBuf = append(headerBuf, bodyBuf...)
 	}
 
 	part, err := message.New(message.Header{h}, bytes.NewReader(bodyBuf))

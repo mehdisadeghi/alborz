@@ -88,32 +88,24 @@
             </span>
 
 
-          </div>
-
-          <div class="actions-end">
-            <span class="action-group">
-              {{ if .Position }}
-              <span class="pagination-range">{{$.GlobalData.Tf "mailbox.position" .Position .Total}}</span>
-              {{ end }}
-              {{/* Newer and older move along the list, not through
-                   pages: the marks point that way. */}}
-              {{ if .NewerURL }}
-              <a class="icon-button" href="{{.NewerURL}}{{$navq}}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}">{{ template "icon" "up" }}</a>
-              {{ end }}
-              {{ if .OlderURL }}
-              <a class="icon-button" href="{{.OlderURL}}{{$navq}}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}">{{ template "icon" "down" }}</a>
-              {{ end }}
-            </span>
+            {{ template "flag-menu" (dict
+               "class" "wide-only"
+               "form" "message-flag-form"
+               "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $aq)
+               "current" .Message.FlagColor
+               "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
 
             <details class="overflow">
               <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
               <div class="overflow-menu">
                 {{/* The colours lead the menu here as they do in the
                      list: the same control belongs in the same place. */}}
-                {{ template "flag-colors" (dict
+                {{ template "flag-menu" (dict
+                   "class" "narrow-only"
                    "form" "message-flag-form"
                    "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $aq)
-                   "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
+                   "current" .Message.FlagColor
+                   "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
                 {{/* On list mail the dangerous reply is the one that
                      answers the list and everyone on it at once, so it
                      is here, spelled out, rather than a mark beside the
@@ -188,6 +180,24 @@
                 >{{$.T "message.print"}}</a>
               </div>
             </details>
+
+          </div>
+
+          <div class="actions-end">
+            <span class="action-group">
+              {{ if .Position }}
+              <span class="pagination-range">{{$.GlobalData.Tf "mailbox.position" .Position .Total}}</span>
+              {{ end }}
+              {{/* Newer and older move along the list, not through
+                   pages: the marks point that way. */}}
+              {{ if .NewerURL }}
+              <a class="icon-button" href="{{.NewerURL}}{{$navq}}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}">{{ template "icon" "up" }}</a>
+              {{ end }}
+              {{ if .OlderURL }}
+              <a class="icon-button" href="{{.OlderURL}}{{$navq}}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}">{{ template "icon" "down" }}</a>
+              {{ end }}
+            </span>
+
             </div>
         </div>
       </section>
@@ -202,7 +212,8 @@
                  does not start from: put beside the first character it
                  sits where a subject's own leading emoji sits and the
                  two read as one mark. */}}
-            <th colspan="2" class="subject-row">
+            <th colspan="2">
+              <div class="subject-row">
               <h1 dir="{{.Message.Envelope.Subject | subjectdir}}">
                {{if .Message.Envelope.Subject}}
                   {{.Message.Envelope.Subject}}
@@ -218,6 +229,7 @@
                       aria-label="{{ if $flagged }}{{$.T "mailbox.flagnone"}}{{ else }}{{$.T "mailbox.flagcolor"}}{{ end }}">
                 {{- if $flagged }}&#9733;{{ else }}&#9734;{{ end -}}
               </button>
+              </div>
             </th>
           </tr>
           <tr>
@@ -285,7 +297,7 @@
         {{range $i, $addr := .}}
           {{if $i}},{{end}}
           <bdi dir="auto"><strong>{{.Name}}</strong>
-          &lt;<a href="/compose?to={{.Addr}}">{{.Addr}}</a>&gt;</bdi>
+          &lt;<a href="{{ localhref (printf "/compose?to=%s" (.Addr | addr)) }}">{{.Addr}}</a>&gt;</bdi>
         {{end}}
       {{end}}
 

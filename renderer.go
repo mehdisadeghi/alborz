@@ -44,6 +44,9 @@ type GlobalRenderData struct {
 
 	// Build version, empty when the binary carries no VCS metadata
 	Version string
+	// ProjectURL is where the footer's name links, when a deployment
+	// names one. Empty prints the name as text.
+	ProjectURL string
 	// Year the page is served in, for the footer's line
 	Year int
 	// Secondary calendar system shown beside the Gregorian dates,
@@ -597,6 +600,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Version = ctx.Server.Options.Version
+		global.ProjectURL = ctx.Server.Options.ProjectURL
 		global.Year = time.Now().Year()
 		global.Secondary = ctx.SecondaryCalendar()
 		global.ColorScheme = ctx.ColorScheme()

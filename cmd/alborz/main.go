@@ -70,6 +70,8 @@ func main() {
 	flag.StringVar(&addr, "addr", ":1323", "listening address")
 	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
+	flag.StringVar(&options.ProjectURL, "project-url", "",
+		"where the footer's project name links; unset prints the name alone")
 
 	flag.Usage = func() {
 		fmt.Fprint(flag.CommandLine.Output(), `usage: alborz [options...] <upstreams...>

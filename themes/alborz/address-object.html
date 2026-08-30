@@ -44,7 +44,7 @@
           {{end}}
           {{range .AddressObject.Card.Values "EMAIL"}}
           <dt>{{$.T "contacts.email"}}</dt>
-          <dd><a href="/compose?to={{.}}">{{.}}</a></dd>
+          <dd><a href="{{ localhref (printf "/compose?to=%s" (. | addr)) }}">{{ template "ltr" . }}</a></dd>
           {{end}}
           {{range .AddressObject.Card.Values "TEL"}}
           <dt>{{$.T "contacts.phone"}}</dt>
@@ -75,6 +75,15 @@
           <dd>{{ template "user-text" . }}</dd>
           {{end}}
         </dl>
+        {{ template "note-box" (dict
+           "action" (printf "/contacts/%s/note%s" (.AddressObject.Path | pathescape) $acct)
+           "next" .GlobalData.URL.RequestURI
+           "label" ($.T "common.addnote") "add" ($.T "common.add")) }}
+        {{/* No created date: a vCard has no property for one, and REV
+             is the last revision rather than the first. */}}
+        {{ template "object-dates" (dict "g" $.Global
+           "modified" .Modified
+           "modifiedLabel" ($.T "common.modified")) }}
       </section>
     </main>
   </div>

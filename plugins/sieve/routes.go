@@ -45,12 +45,12 @@ func registerRoutes(p *alborz.GoPlugin) {
 				return echo.NewHTTPError(http.StatusBadRequest, "filters require an account")
 			}
 			if !ctx.Unified && ctx.Server.SieveEnabled(ctx.Session.Domain()) {
-				target := ctx.Request().URL.Path + "?account=" + alborz.AccountParam(ctx.Session.Username())
+				target := ctx.Request().URL.Path + "?account=" + alborz.AddressParam(ctx.Session.Username())
 				return ctx.Redirect(http.StatusFound, target)
 			}
 			for _, session := range ctx.Sessions() {
 				if ctx.Server.SieveEnabled(session.Domain()) {
-					target := ctx.Request().URL.Path + "?account=" + alborz.AccountParam(session.Username())
+					target := ctx.Request().URL.Path + "?account=" + alborz.AddressParam(session.Username())
 					return ctx.Redirect(http.StatusFound, target)
 				}
 			}
@@ -184,7 +184,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	} else {
 		ctx.Session.PutNotice(ctx.T("notice.filtersaved"))
 	}
-	return ctx.Redirect(http.StatusFound, "/filters?account="+alborz.AccountParam(ctx.Session.Username()))
+	return ctx.Redirect(http.StatusFound, "/filters?account="+alborz.AddressParam(ctx.Session.Username()))
 }
 
 func handleActivateFilter(ctx *alborz.Context) error {

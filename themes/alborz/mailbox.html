@@ -28,7 +28,7 @@
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hreset := ne ($.GlobalData.URL.Query.Get "dir") "" }}
           {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hbase = "?starred=1" }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | addr) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | addr) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
-          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ with $.GlobalData.URL.Query.Get "per-page" }}{{ $hparams = printf "%s&per-page=%s" $hparams . }}{{ end }}
+          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
           {{ $harrow := "↑" }}{{ if eq .SortDir "desc" }}{{ $harrow = "↓" }}{{ end }}
           {{ if not .GlobalData.Unified }}
           <div class="list-header list-checkbox"></div>
@@ -107,7 +107,7 @@
             {{ end }}
             {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
           </div>
-          <div class="message-list-subject {{$classes}}">
+          <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}">
             {{if $.GlobalData.Unified}}
             <a dir="{{.Envelope.Subject | subjectdir}}" href="{{.URL}}{{account "?" .Account}}">
             {{else}}
@@ -130,6 +130,26 @@
                 {{$.T "mailbox.nosubject"}}
               {{end}}
             </a>
+            {{/* What is attached, named under the subject inside the
+                 subject's own cell: the row keeps its box, its hover and
+                 its hairline, and the names take a second line rather
+                 than the subject's width. Three are named and the rest
+                 counted; the count opens the message, where they all
+                 are. */}}
+            {{ $owner := $.GlobalData.URLAccount }}{{ if $.GlobalData.Unified }}{{ $owner = .Account }}{{ end }}
+            {{ with .Attachments }}
+            <span class="attach-line">
+              {{ range $i, $a := . }}{{ if lt $i 3 }}
+              {{ $name := $a.Filename }}{{ if eq $name "" }}{{ $name = $.T "mailbox.attachment" }}{{ end }}
+              <a class="attach-chip" href="{{ localhref (printf "%v%v" ($a.URL true) (account "&" $owner)) }}"
+                 title="{{$name}} ({{$a.SizeString}})">{{ template "ltr" $name }}</a>
+              {{ end }}{{ end }}
+              {{ if gt (len .) 3 }}
+              {{ $rest := sub (len .) 3 }}
+              <span class="attach-more" title="{{$.GlobalData.Tf "mailbox.attachmore" (len .)}}">+{{$.GlobalData.Num $rest}}</span>
+              {{ end }}
+            </span>
+            {{ end }}
           </div>
           <div class="message-list-date {{$classes}}" title="{{ $.GlobalData.FormatDate .Date }}{{ with $.GlobalData.SecondaryDate .Date }} ({{.}}){{ end }}">
             {{ $.GlobalData.Since .Date }}

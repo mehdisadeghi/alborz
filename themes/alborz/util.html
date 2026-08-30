@@ -260,6 +260,28 @@
      holds search, paging and sort. A page fills the two slots and
      shares the rest. dict: g title [subtitle] [selectall] [newhref
      newlabel newicon]. */}}
+{{/* How many rows a page shows. Links, not a select: a select needs a
+     script to act on or a button beside it to submit, and this belongs
+     in the trailing group with the paging it changes - which is also
+     why every link drops the page number, since an offset counted in
+     the old size means nothing in the new one.
+     dict: options current base label. */}}
+{{ define "ipp-menu" }}
+<details class="overflow ipp-overflow">
+  <summary class="icon-button" title="{{.label}}" aria-label="{{.label}}">{{ template "icon" "rows" }}</summary>
+  <div class="overflow-menu">
+    {{ $d := . }}
+    {{ range .options }}
+    {{ if eq . $d.current }}
+    <span class="button-link is-current" aria-current="true">{{$d.g.Num .}}</span>
+    {{ else }}
+    <a class="button-link" href="{{ localhref (printf "?ipp=%d%s" . $d.base) }}">{{$d.g.Num .}}</a>
+    {{ end }}
+    {{ end }}
+  </div>
+</details>
+{{ end }}
+
 {{/* A choice between views. The order never changes and the chosen one
      holds the same box as the others - one border drawn, the rest
      transparent, one weight throughout - so neither the options nor
@@ -406,8 +428,10 @@
   {{/* One collection, for this look at the page only: the URL carries
        the question, the ticks carry the standing preference, and
        neither has to be put back afterwards. */}}
-  <a class="filter-only" href="{{ localhref (printf "%s?%s=%s%s" .action .field ($i.Path | urlquery) (or .keep "")) }}" title="{{.onlylabel}}">{{.onlylabel}}</a>
-  {{ with .edithref }}<a class="filter-edit" href="{{.}}{{$i.Path | pathescape}}{{account "?" $i.Account}}" title="{{$.editlabel}}">{{$.editlabel}}</a>{{ end }}
+  <span class="filter-actions">
+    <a class="filter-only" href="{{ localhref (printf "%s?%s=%s%s" .action .field ($i.Path | urlquery) (or .keep "")) }}" title="{{.onlylabel}}">{{.onlylabel}}</a>
+    {{ with .edithref }}<a class="filter-edit" href="{{.}}{{$i.Path | pathescape}}{{account "?" $i.Account}}" title="{{$.editlabel}}">{{$.editlabel}}</a>{{ end }}
+  </span>
 </div>
 {{ end }}
 

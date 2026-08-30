@@ -4,7 +4,8 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "newhref" "/calendar/create" "newlabel" ($.T "calendar.new") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ $keep := printf "&month=%s&view=list" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+    {{ template "dav-aside-group-filters" (dict "keep" $keep "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
   </aside>
 
   <div class="container">
@@ -18,13 +19,11 @@
            the toolbar, which has no room for a fourth group. */}}
       {{if .ThisMonth}}
       <div class="agenda-span">
-        {{if eq .Span "month"}}
-        <strong>{{$.T "calendar.wholemonth"}}</strong>
-        <a href="?month={{.Page}}&view=list" class="button-link">{{$.T "calendar.fromtoday"}}</a>
-        {{else}}
-        <strong>{{$.T "calendar.fromtoday"}}</strong>
-        <a href="?month={{.Page}}&view=list&span=month" class="button-link">{{$.T "calendar.wholemonth"}}</a>
-        {{end}}
+        {{ template "toggle" (dict "label" ($.T "calendar.list") "items" (tuple
+           (dict "label" ($.T "calendar.fromtoday") "current" (ne .Span "month")
+                 "href" (printf "?month=%s&view=list" .Page))
+           (dict "label" ($.T "calendar.wholemonth") "current" (eq .Span "month")
+                 "href" (printf "?month=%s&view=list&span=month" .Page)))) }}
       </div>
       {{end}}
 
@@ -43,7 +42,7 @@
           {{ $obj := . }}
           {{ if .Data.Events }}{{$event := index .Data.Events 0}}
           {{ $when := $.T "calendar.allday" }}{{ if not $obj.AllDay }}{{ $when = $base.GlobalData.FormatTime ($event.DateTimeStart nil) }}{{ end }}
-          {{ $href := $obj.URL }}{{ with $obj.Account }}{{ $href = printf "%s?account=%s" $obj.URL (. | accountparam) }}{{ end }}
+          {{ $href := $obj.URL }}{{ with $obj.Account }}{{ $href = printf "%s?account=%s" $obj.URL (. | addr) }}{{ end }}
           {{ template "event-row" (dict
              "href" $href
              "when" $when

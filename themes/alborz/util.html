@@ -47,14 +47,15 @@
      details and summary are enough - and no tooltip, since a tooltip is
      invisible on a touch screen and unreadable by anyone reading with a
      keyboard. dict: text [example]. */}}
-{{ define "help" }}
-<details class="help-note">
-  <summary aria-label="{{.text}}">?</summary>
-  <div>
-    <p>{{.text}}</p>
-    {{ with .example }}<p class="help-example"><code>{{.}}</code></p>{{ end }}
-  </div>
-</details>
+{{/* What a field needs said, said under it. A hint, not a disclosure:
+     a panel that opens has to escape whatever layout the form is - and
+     in a two-column grid it landed under the next input - while a line
+     under the control sits wherever the control sits, in every form,
+     at one size, with no state to get wrong. The example is the one
+     part set apart, because it is literal syntax.
+     dict: text [example]. */}}
+{{ define "hint" }}
+<small class="hint">{{.text}}{{ with .example }} <code>{{.}}</code>{{ end }}</small>
 {{ end }}
 
 {{/* An identifier - an address, a domain, a host - printed inside a
@@ -70,8 +71,20 @@
      each colour beside the name of it, one line each, the way a mail
      client has always offered them. dict: form action colors clear
      current [class]. */}}
+{{/* dict: form action title clear colors [current class disabled].
+     The colours act on the checked rows, so the menu is gated like
+     every other control that does: helpers.js disables it with the
+     selection, and a container with nothing in it renders it dim from
+     the start, since there is nothing there to check. */}}
 {{ define "flag-menu" }}
-<details class="overflow flag-menu{{ with .class }} {{.}}{{ end }}">
+{{ if .disabled }}
+<span class="overflow flag-menu{{ with .class }} {{.}}{{ end }}">
+  <span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}">
+    <span class="flag-star">&#9734;</span>{{ template "icon" "down" }}
+  </span>
+</span>
+{{ else }}
+<details class="overflow flag-menu{{ with .class }} {{.}}{{ end }}" data-gated="{{.form}}">
   <summary class="icon-button" title="{{.clear}}" aria-label="{{.title}}">
     <span class="flag-star{{ with .current }} flag-{{.}}{{ end }}">{{ if .current }}&#9733;{{ else }}&#9734;{{ end }}</span>{{ template "icon" "down" }}
   </summary>
@@ -88,6 +101,7 @@
     </button>
   </div>
 </details>
+{{ end }}
 {{ end }}
 
 {{/* Text somebody typed, shown as they typed it: the line breaks they
@@ -171,9 +185,9 @@
 
 {{ define "event-grid-header" }}
 <div class="event-header-row" role="row">
-  <div class="event-list-header event-time" role="columnheader">{{.time}}</div>
-  <div class="event-list-header event-summary" role="columnheader">{{.event}}</div>
-  <div class="event-list-header event-owner" role="columnheader">{{.calendar}}</div>
+  <div class="list-header event-time" role="columnheader">{{.time}}</div>
+  <div class="list-header event-summary" role="columnheader">{{.event}}</div>
+  <div class="list-header event-owner" role="columnheader">{{.calendar}}</div>
 </div>
 {{ end }}
 
@@ -193,12 +207,17 @@
 
 {{/* The aside of the detail and edit pages.
      dict: [newHref] newLabel [newActive] [backHref backLabel backActive]. */}}
+{{/* dict: placeholder button [account all query disabled]. A search
+     over a container the server says is empty has nothing to find, so
+     the field goes dim rather than inviting a query that cannot match.
+     A query already asked keeps it live whatever the count, or the
+     reader could not change what they asked. */}}
 {{ define "toolbar-search" }}
-<form method="get" class="actions-search">
+<form method="get" class="actions-search{{ if .disabled }} is-disabled{{ end }}">
   {{ with .account }}<input type="hidden" name="account" value="{{.}}">{{ end }}
   {{ if .all }}<input type="hidden" name="all" value="1">{{ end }}
-  <input type="text" name="query" dir="auto" value="{{.query}}" placeholder="{{.placeholder}}" aria-label="{{.placeholder}}">
-  <button>{{.button}}</button>
+  <input type="text" name="query" dir="auto" value="{{.query}}" placeholder="{{.placeholder}}" aria-label="{{.placeholder}}"{{ if .disabled }} disabled{{ end }}>
+  <button{{ if .disabled }} disabled{{ end }}>{{.button}}</button>
 </form>
 {{ end }}
 
@@ -214,19 +233,69 @@
 
 {{/* One step of a pager: a chevron alone where the direction is the
      whole meaning, the chevron beside the word where the word carries
-     it - a month name, say. dict: step(href label) icon. */}}
+     it - a month name, say. A step with nowhere to go keeps its place
+     and goes dim, so the toolbar does not change width, height or the
+     position of anything else between the first page and the second.
+     dict: step(href label) icon. */}}
 {{ define "pager-link" }}
-{{ with .step }}{{ if .href }}
+{{ with .step }}
 {{ if .label }}
-<a href="{{localhref .href}}" class="button-link pager-link">{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}</a>
+{{ if .href }}<a href="{{localhref .href}}" class="button-link pager-link">{{ else }}<span class="button-link pager-link" aria-disabled="true">{{ end }}{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}{{ if .href }}</a>{{ else }}</span>{{ end }}
 {{ else }}
+{{ if .href }}
 <a href="{{localhref .href}}" class="icon-button" title="{{.title}}" aria-label="{{.title}}">{{ template "icon" $.icon }}</a>
+{{ else }}
+<span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}">{{ template "icon" $.icon }}</span>
 {{ end }}
-{{ end }}{{ end }}
+{{ end }}
+{{ end }}
 {{ end }}
 
 {{/* One list toolbar: the title on the gutter, search and pagination
      docked right. dict: [title] [search] [pagination]. */}}
+{{/* Every list toolbar is one shape, so a fix to the shape is a fix to
+     every page: the select-all standing in the tick column, then what
+     you are looking at, a rule, the entry that creates one, then the
+     page's own actions; "toolbar-end" opens the trailing group that
+     holds search, paging and sort. A page fills the two slots and
+     shares the rest. dict: g title [subtitle] [selectall] [newhref
+     newlabel newicon]. */}}
+{{/* A choice between views. The order never changes and the chosen one
+     holds the same box as the others - one border drawn, the rest
+     transparent, one weight throughout - so neither the options nor
+     anything beside them moves as the choice moves. dict: label items;
+     each item a dict of label, href, current. */}}
+{{ define "toggle" }}
+<div class="toggle"{{ with .label }} role="group" aria-label="{{.}}"{{ end }}>
+  {{ range .items }}
+  {{ if .current }}
+  <span class="toggle-option is-current" aria-current="true">{{.label}}</span>
+  {{ else }}
+  <a class="toggle-option" href="{{.href}}">{{.label}}</a>
+  {{ end }}
+  {{ end }}
+</div>
+{{ end }}
+
+{{ define "toolbar-head" }}
+{{ if .selectall }}{{ template "toolbar-select-all" .g }}{{ end }}
+<div class="actions-wrap">
+  <div class="actions-message">
+    <h2>{{.title}}{{ with .subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h2>
+    <span class="toolbar-rule" aria-hidden="true"></span>
+    {{ with .newhref }}<a class="icon-button" href="{{.}}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}">{{ template "icon" (or $.newicon "plus") }}</a>{{ end }}
+{{ end }}
+
+{{ define "toolbar-end" }}
+  </div>
+  <div class="actions-end">
+{{ end }}
+
+{{ define "toolbar-foot" }}
+  </div>
+</div>
+{{ end }}
+
 {{ define "list-toolbar" }}
 <div class="actions-wrap">
   {{ if .title }}<div class="actions-message"><h2>{{.title}}</h2></div>{{ end }}
@@ -242,15 +311,25 @@
 {{/* The bulk-select-all checkbox cell; scripts reveal it and gate the
      bulk buttons on a checked row. */}}
 {{ define "toolbar-select-all" }}
-<div class="message-list-checkbox">
-  <input type="checkbox" id="action-checkbox-all" aria-label="{{$.T "mailbox.selectall"}}" style="display: none"/>
+<div class="list-checkbox">
+  {{/* Ticking every row needs a script to cascade the tick, so the box
+       arrives disabled and says why. helpers.js enables it at boot;
+       without one it stays, greyed and explained, rather than leaving a
+       gap where every other client has a control. */}}
+  <input type="checkbox" id="action-checkbox-all" disabled
+         aria-label="{{$.T "mailbox.selectall"}}"
+         title="{{$.T "mailbox.selectalljs"}}"
+         data-title="{{$.T "mailbox.selectall"}}"/>
 </div>
 {{ end }}
 
+{{/* The rail of a detail or edit page: where it came from, then the
+     entry that makes another - the same order every other rail has, so
+     the create entry sits in one place across the app. */}}
 {{ define "detail-aside" }}
 <aside>
-  {{ if .newHref }}<a href="{{.newHref}}" class="new{{ if .newActive }} active{{ end }}">{{.newLabel}}</a>{{ end }}
   {{ if .backHref }}<a href="{{.backHref}}"{{ if .backActive }} class="active"{{ end }}>{{.backLabel}}</a>{{ end }}
+  {{ if .newHref }}<a href="{{.newHref}}" class="aside-create{{ if .newActive }} active{{ end }}">{{.newLabel}}</a>{{ end }}
 </aside>
 {{ end }}
 
@@ -261,6 +340,39 @@
      that wraps its control forwards a click to it, and a date input
      answers that second activation by closing the picker the first one
      opened - so the calendar could be opened and never used. */}}
+{{/* Which account a form writes to, when more than one is signed in.
+     dict: label accounts current [name]. */}}
+{{ define "account-picker" }}
+<label>
+  <span>{{.label}}</span>
+  <select name="{{ or .name "account" }}">
+    {{ range .accounts }}
+    <option value="{{.Username}}"{{ if eq .Username $.current }} selected{{ end }}>{{.Username}}</option>
+    {{ end }}
+  </select>
+</label>
+{{ end }}
+
+{{/* Which collection a form writes to: every account's, grouped under
+     its own name, the compose-From pattern. The value is "account|path"
+     so one select answers both questions. dict: label name key groups
+     account path multi. */}}
+{{ define "collection-picker" }}
+<label>
+  <span>{{.label}}</span>
+  <select name="{{.name}}" data-destination-key="{{.key}}">
+    {{ range .groups }}
+    {{ $acct := .Account }}
+    {{ if $.multi }}<optgroup label="{{.Account}}">{{ end }}
+    {{ range .Collections }}
+    <option value="{{$acct}}|{{.Path}}"{{ if and (eq $acct $.account) (eq .Path $.path) }} selected{{ end }}>{{.Name}}</option>
+    {{ end }}
+    {{ if $.multi }}</optgroup>{{ end }}
+    {{ end }}
+  </select>
+</label>
+{{ end }}
+
 {{ define "field" }}
 <div class="field{{ with .class }} {{.}}{{ end }}">
   <label for="{{.name}}">{{.label}}</label>
@@ -282,28 +394,34 @@
 {{ end }}
 
 {{/* One collection's visibility checkbox: (item, field, itemclass). */}}
+{{/* dict: item field itemclass action onlylabel keep nested [edithref
+     editlabel]. */}}
 {{ define "dav-filter-item" }}
-{{ $i := index . 0 }}{{ $field := index . 1 }}{{ $class := index . 2 }}{{ $only := index . 3 }}{{ $label := index . 4 }}
-<div class="filter-row">
-  <label class="{{$class}}" title="{{$i.Name}}">
-    <input type="checkbox" name="{{$field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }}>
+{{ $i := .item }}
+<div class="filter-row{{ if .nested }} nested{{ end }}">
+  <label class="{{.itemclass}}" title="{{$i.Name}}">
+    <input type="checkbox" name="{{.field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }}>
     <span>{{$i.Name}}</span>
   </label>
   {{/* One collection, for this look at the page only: the URL carries
        the question, the ticks carry the standing preference, and
        neither has to be put back afterwards. */}}
-  <a class="filter-only" href="{{$only}}?{{$field}}={{$i.Path | urlquery}}" title="{{$label}}">{{$label}}</a>
+  <a class="filter-only" href="{{ localhref (printf "%s?%s=%s%s" .action .field ($i.Path | urlquery) .keep) }}" title="{{.onlylabel}}">{{.onlylabel}}</a>
+  {{ with .edithref }}<a class="filter-edit" href="{{.}}{{$i.Path | pathescape}}{{account "?" $i.Account}}" title="{{$.editlabel}}">{{$.editlabel}}</a>{{ end }}
 </div>
 {{ end }}
 
 {{/* The DAV aside: one create entry (the form picks the destination
      account), then per account its visibility form, under a heading
      when several accounts pool. One account renders zero chrome.
-     dict: items field itemclass action apply newhref newlabel multi
-     next. */}}
+     dict: items field itemclass action apply onlylabel keep edithref
+     editlabel collectionhref collectionfor collectionlabel multi
+     next. "keep" is what the "only" link carries so that looking at one
+     collection does not also change which view you are in. */}}
+{{/* Making an object is a toolbar action, beside the list it lands in;
+     the rail holds the collections and closes with the entry that adds
+     one, where the mail rail's Create folder also sits. */}}
 {{ define "dav-aside-group-filters" }}
-<a href="{{.newhref}}" class="new">{{.newlabel}}</a>
-{{ with .collectionhref }}<a href="{{.}}?{{ with $.collectionfor }}for={{.}}&amp;{{ end }}next={{$.next | urlquery}}" class="aside-create">{{$.collectionlabel}}</a>{{ end }}
 {{ $prev := "" }}
 {{ range .items }}
 {{ if ne .Account $prev }}
@@ -318,17 +436,18 @@
 </label>
 {{ end }}
 {{ end }}
-{{ template "dav-filter-item" (tuple . $.field $.itemclass $.action $.onlylabel) }}
+{{ template "dav-filter-item" (dict "item" . "field" $.field "itemclass" $.itemclass "action" $.action "onlylabel" $.onlylabel "keep" $.keep "nested" $.multi "edithref" $.edithref "editlabel" $.editlabel) }}
 {{ end }}
 {{ if ne $prev "" }}<button>{{$.apply}}</button></form>{{ end }}
+{{ with .collectionhref }}<a href="{{.}}?{{ with $.collectionfor }}for={{.}}&amp;{{ end }}next={{$.next | urlquery}}" class="aside-create">{{$.collectionlabel}}</a>{{ end }}
 {{ end }}
 
 {{/* Account-scoped sections choose scope in the navigation rail, in the
      same place as mail folders and DAV collection filters. The content
-     pane only reports the chosen scope. dict: accounts current path
-     newhref newlabel. */}}
+     pane only reports the chosen scope, and the rail closes with the
+     entry that adds one. dict: accounts current path newhref
+     newlabel. */}}
 {{ define "account-scope-aside" }}
-{{ with .newhref }}<a href="{{.}}" class="new">{{$.newlabel}}</a>{{ end }}
 {{ if gt (len .accounts) 1 }}
 <ul class="account-scope-list">
   {{ range .accounts }}
@@ -338,6 +457,7 @@
   {{ end }}
 </ul>
 {{ end }}
+{{ with .newhref }}<a href="{{.}}" class="aside-create">{{$.newlabel}}</a>{{ end }}
 {{ end }}
 
 {{/* The settings rail: one entry per account for the pane that writes
@@ -360,8 +480,6 @@
 
 {{ define "aside" }}
 <aside>
-  {{/* Composing lives in the toolbar, pinned after the title's rule, so
-       the rail is folders and nothing else. */}}
   {{ $starred := .Starred }}
   {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
   {{ if .SidebarAccounts }}
@@ -407,6 +525,9 @@
     {{ end }}
   </ul>
   {{ end }}
+  {{/* A rail lists places and closes with the entry that adds one;
+       making a message is a toolbar action, beside the list it lands
+       in. */}}
   <a href="/new-mailbox" class="aside-create{{ if eq $.GlobalData.URL.Path "/new-mailbox" }} active{{ end }}">{{$.T "aside.newfolder"}}</a>
 </aside>
 {{ end }}

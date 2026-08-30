@@ -34,23 +34,38 @@ for (const formId of ["messages-form", "address-book-form"]) {
 		continue;
 	}
 	const boxes = document.querySelectorAll(`input[type="checkbox"][form="${formId}"]`);
+	// A menu is not a control the browser can disable: mark it, let CSS
+	// dim it and refuse the pointer, and shut it if it was open when the
+	// last row was unchecked.
+	const menus = document.querySelectorAll(`details[data-gated="${formId}"]`);
 	const update = () => {
 		const any = Array.prototype.some.call(boxes, box => box.checked);
 		for (const control of controls) {
 			control.disabled = !any;
+		}
+		for (const menu of menus) {
+			menu.classList.toggle("is-disabled", !any);
+			// The mark goes on the summary as well as the menu: the
+			// hover rules are guarded against a control's own off
+			// state, and CSS cannot ask about an ancestor's.
+			const summary = menu.querySelector("summary");
+			if (summary) {
+				summary.classList.toggle("is-disabled", !any);
+				summary.setAttribute("aria-disabled", String(!any));
+			}
+			if (!any) {
+				menu.open = false;
+			}
 		}
 	};
 	for (const box of boxes) {
 		box.addEventListener("change", update);
 	}
 	if (check_all) {
-		// Shown either way: a list with nothing in it would otherwise
-		// drop the cell and slide the whole toolbar sideways.
-		// Drop the inline rule the markup carries rather than writing
-		// another one over it: display:inherit takes whatever the cell
-		// happens to compute to, which is not the same box in every
-		// engine, and left the control invisible in Firefox.
-		check_all.style.removeProperty("display");
+		// The markup ships it disabled and says it needs a script; this
+		// is the script. From here it is disabled only for the reason
+		// every other bulk control is - an empty list.
+		check_all.title = check_all.dataset.title || "";
 		check_all.disabled = boxes.length === 0;
 		check_all.addEventListener("click", ev => {
 			for (const box of boxes) {

@@ -1131,7 +1131,7 @@ func registerRoutes(p *plugin) {
 			}
 
 			if createAcct != "" {
-				return ctx.Redirect(http.StatusFound, CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.AccountParam(createAcct))
+				return ctx.Redirect(http.StatusFound, CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.AddressParam(createAcct))
 			}
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(CalendarObject{CalendarObject: co}.URL()))
 		}
@@ -1565,7 +1565,7 @@ func registerRoutes(p *plugin) {
 			}
 
 			if createAcct != "" {
-				return ctx.Redirect(http.StatusFound, TaskObject{CalendarObject: co}.URL()+"?account="+alborz.AccountParam(createAcct))
+				return ctx.Redirect(http.StatusFound, TaskObject{CalendarObject: co}.URL()+"?account="+alborz.AddressParam(createAcct))
 			}
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(TaskObject{CalendarObject: co}.URL()))
 		}

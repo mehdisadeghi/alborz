@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "dav-aside-group-filters" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "apply" ($.T "common.apply") "newhref" "/contacts/create" "newlabel" ($.T "contacts.new") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "dav-aside-group-filters" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "edithref" "/address-books/" "editlabel" ($.T "common.edit") "collectionhref" "/address-books/create" "collectionlabel" ($.T "contacts.newbook") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
   </aside>
 
   <div class="container">
@@ -18,51 +18,59 @@
 
       <section class="contacts">
         {{ $multi := gt (len .GlobalData.Accounts) 1 }}
-        <div class="contact-grid{{if $multi}} multi{{end}}">
+        <div class="contact-grid list-grid">
           {{if .AddressObjects}}
-          {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | accountparam) }}{{ end }}
+          {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | addr) }}{{ end }}
           {{ $creset := "?" }}{{ if ne $cq "" }}{{ $creset = printf "?%s" (slice $cq 1) }}{{ end }}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "name" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-          {{if not $multi}}<div class="contact-list-header contact-list-checkbox"></div>{{end}}
-          <div class="contact-list-header contact-list-photo"></div>
-          <div class="contact-list-header">
+          <div class="list-header list-checkbox"></div>
+          <div class="list-header contact-list-photo"></div>
+          <div class="list-header list-primary contact-list-name">
             {{ template "sort-th" (dict "label" ($.T "common.name") "key" "name" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
-          <div class="contact-list-header">
+          <div class="list-header contact-list-email">
             {{ template "sort-th" (dict "label" ($.T "contacts.email") "key" "email" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
-          <div class="contact-list-header">
+          <div class="list-header contact-list-phone">
             {{ template "sort-th" (dict "label" ($.T "contacts.phone") "key" "phone" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
+          </div>
+          {{/* Changed, not added: a vCard has no property for when it
+               was made, and REV is the last revision. */}}
+          <div class="list-header contact-list-changed">
+            {{ template "sort-th" (dict "label" ($.T "common.modified") "key" "changed" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
           {{end}}
           {{range .AddressObjects}}
           {{$color := call $.ColorForPath .Account .Path}}
           {{$photo := .PhotoURL}}
-          {{if not $multi}}
-          <div class="contact-list-checkbox">
-            <input type="checkbox" name="paths" value="{{.Path}}" form="address-book-form">
-          </div>
-          {{end}}
-          <div class="contact-list-photo">
-            {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
-          </div>
-          <div class="contact-list-name">
-            {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-            {{if $multi}}<span class="row-account">{{ template "ltr" .Account }}</span>{{end}}
-            <a href="{{.URL}}{{account "?" .Account}}" dir="auto">
-              {{.DisplayName}}
-            </a>
-          </div>
-          <div class="contact-list-email">
-            {{$email := .Card.PreferredValue "EMAIL"}}
-            {{if $email}}
-              <a href="/compose?to={{$email}}">{{$email}}</a>
-            {{end}}
-          </div>
-          <div class="contact-list-phone">
-            {{.Card.PreferredValue "TEL"}}
+          <div class="contact-row list-row">
+            <div class="contact-list-checkbox list-checkbox list-cell">
+              <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form">
+            </div>
+            <div class="contact-list-photo list-cell">
+              {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
+            </div>
+            <div class="contact-list-name list-primary list-cell">
+              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
+              <a href="{{.URL}}{{account "?" .Account}}" dir="auto">
+                {{.DisplayName}}
+              </a>
+              {{if $multi}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+            </div>
+            <div class="contact-list-email list-cell">
+              {{$email := .Card.PreferredValue "EMAIL"}}
+              {{if $email}}
+                <a href="{{ localhref (printf "/compose?to=%s" ($email | addr)) }}">{{ template "ltr" $email }}</a>
+              {{end}}
+            </div>
+            <div class="contact-list-phone list-cell">
+              {{ template "ltr" (.Card.PreferredValue "TEL") }}
+            </div>
+            {{ $changed := "" }}{{ $changedTitle := "" }}
+            {{ $m := .Modified }}{{ if not $m.IsZero }}{{ $changed = $.GlobalData.Since $m }}{{ $changedTitle = $.GlobalData.FormatDate $m }}{{ end }}
+            <div class="contact-list-changed list-cell" title="{{$changedTitle}}">{{$changed}}</div>
           </div>
           {{end}}
           {{if not .AddressObjects}}

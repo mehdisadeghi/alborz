@@ -73,6 +73,7 @@
 "mailbox.nosubject" = "(Sin asunto)"
 "mailbox.nostarred" = "No hay mensajes destacados."
 "mailbox.selectall" = "Seleccionar todo"
+"mailbox.selectalljs" = "Seleccionar todas las filas necesita JavaScript"
 "mailbox.sortby" = "Ordenar por"
 "mailbox.more" = "Más acciones"
 "mailbox.prevpage" = "Página anterior"
@@ -87,7 +88,8 @@
 "message.reply" = "Responder"
 "message.replyall" = "Responder a todos"
 "message.forward" = "Reenviar"
-"message.forwardedblock" = "---------- Mensaje reenviado ----------"
+"message.forwardattached" = "Reenviar como adjunto"
+"message.forwardedblock" = "---------- Forwarded message ----------"
 "message.replylist" = "Responder a la lista"
 "message.wrote" = "El %s, %s escribió:"
 "message.replyauthor" = "Responder al autor"
@@ -195,6 +197,7 @@
 "settings.signature" = "Firma"
 "settings.identities" = "Enviar como"
 "help.identities" = "Una dirección por línea. Puede llevar un nombre delante, con la dirección entre ángulos (RFC 5322). Al usar una, el mensaje nombra la cuenta como remitente para que pueda comprobarse."
+"help.identitiesexample" = "Tu nombre <tu@example.org>"
 "help.replyto" = "A dónde deben ir las respuestas, cuando no es la dirección desde la que se envía. Déjalo vacío y las respuestas van al remitente."
 "settings.identitiesph" = "Nombre <direccion@example.org>"
 "settings.identitieshint" = "Otras direcciones con las que este buzón puede enviar, una por línea."
@@ -305,3 +308,7 @@ other = "Fwd: %d mensajes"
 ["collection.deletecount"]
 one = "Contiene %d entrada, que también se eliminará."
 other = "Contiene %d entradas, que también se eliminarán."
+
+["mailbox.attachmore"]
+one = "%d adjunto"
+other = "%d adjuntos"

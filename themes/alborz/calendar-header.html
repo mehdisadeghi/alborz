@@ -1,24 +1,23 @@
 {{$suffix := ""}}
 {{if eq .View "list"}}{{$suffix = "&view=list"}}{{end}}
-<div class="actions-wrap">
-  <div class="actions-message">
-    <h2>{{$.GlobalData.MonthYear .Time}}{{ with $.GlobalData.SecondaryMonthYear .Time }}<span class="title-secondary">{{.}}</span>{{ end }}</h2>
-  </div>
-  <div class="actions-end">
+{{if and (eq .View "list") (eq .Span "month")}}{{$suffix = "&view=list&span=month"}}{{end}}
+{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
+{{ template "toolbar-end" }}
     {{ template "pagination" (dict "prev" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "label" ($.GlobalData.MonthName .PrevTime)) "next" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "label" ($.GlobalData.MonthName .NextTime))) }}
-    {{if ne .Time.Month .Now.Month}}
+    {{/* Today keeps its place on the month it would take you to, or
+         every control after it moves the moment you arrive there. */}}
     <div class="actions-pagination">
-      <a href="/calendar{{if $suffix}}?view=list{{end}}" class="button-link">{{$.T "calendar.today"}}</a>
-    </div>
-    {{end}}
-    <div class="actions-pagination">
-      {{if eq .View "list"}}
-      <a href="?month={{.Page}}" class="button-link">{{$.T "calendar.month"}}</a>
-      <strong>{{$.T "calendar.list"}}</strong>
+      {{if ne .Time.Month .Now.Month}}
+      <a href="/calendar{{if $suffix}}?{{slice $suffix 1}}{{end}}" class="button-link">{{$.T "calendar.today"}}</a>
       {{else}}
-      <strong>{{$.T "calendar.month"}}</strong>
-      <a href="?month={{.Page}}&view=list" class="button-link">{{$.T "calendar.list"}}</a>
+      <span class="button-link" aria-disabled="true">{{$.T "calendar.today"}}</span>
       {{end}}
     </div>
-  </div>
-</div>
+    <div class="actions-pagination">
+      {{ template "toggle" (dict "items" (tuple
+         (dict "label" ($.T "calendar.month") "current" (ne .View "list")
+               "href" (printf "?month=%s" .Page))
+         (dict "label" ($.T "calendar.list") "current" (eq .View "list")
+               "href" (printf "?month=%s&view=list" .Page)))) }}
+    </div>
+{{ template "toolbar-foot" }}

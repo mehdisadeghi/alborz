@@ -85,15 +85,12 @@ const photoLongestSide = 320
 // answer is no rather than a slow yes.
 const photoMaxUpload = 12 << 20 // 12 MiB
 
-// applyPhoto replaces, removes or leaves the card's picture. What is
+// applyPhoto replaces or leaves the card's picture; removing it is its
+// own request, since it is an act rather than a pending edit. What is
 // uploaded is never what is stored: it is decoded, reduced to a size a
 // contact list can use, and re-encoded as JPEG, so a card stays small
 // enough to fetch on every visit.
 func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
-	if ctx.FormValue("photo_remove") != "" {
-		delete(card, vcard.FieldPhoto)
-		return nil
-	}
 	file, err := ctx.FormFile("photo")
 	if err != nil || file == nil || file.Size == 0 {
 		return nil // nothing offered; whatever the card has, it keeps
@@ -667,7 +664,7 @@ func registerRoutes(p *plugin) {
 
 			return func() error {
 				if createAcct != "" {
-					return ctx.Redirect(http.StatusFound, AddressObject{AddressObject: ao}.URL()+"?account="+alborz.AccountParam(createAcct))
+					return ctx.Redirect(http.StatusFound, AddressObject{AddressObject: ao}.URL()+"?account="+alborz.AddressParam(createAcct))
 				}
 				return ctx.Redirect(http.StatusFound, ctx.AccountPath(AddressObject{AddressObject: ao}.URL()))
 			}()
@@ -723,36 +720,31 @@ func registerRoutes(p *plugin) {
 	POST("/contacts/:path/edit", updateContact)
 
 	// A line added where the contact is read, not behind the edit form.
+	// A line added where the contact is read, not behind the edit form.
 	POST("/contacts/:path/note", func(ctx *alborz.Context) error {
-		objPath, err := parseObjectPath(ctx.Param("path"))
-		if err != nil {
-			return err
-		}
 		note := strings.TrimSpace(ctx.FormValue("note"))
-		back := ctx.NextOr(ctx.AccountPath("/contacts"))
 		if note == "" {
-			return ctx.Redirect(http.StatusFound, back)
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
 		}
-		c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
-		if err != nil {
-			return err
-		}
-		ao, err := getAddressObject(ctx, c, objPath)
-		if err != nil {
-			return fmt.Errorf("failed to read the contact: %v", err)
-		}
-		card := ao.Card
-		text := alborz.AppendNote(card.Value(vcard.FieldNote), note, time.Now())
-		if field := card.Preferred(vcard.FieldNote); field != nil {
-			field.Value = text
-		} else {
-			card.Add(vcard.FieldNote, &vcard.Field{Value: text})
-		}
-		card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
-		if _, err := c.PutAddressObject(ctx.Request().Context(), ao.Path, card); err != nil {
-			return fmt.Errorf("failed to save the note: %v", err)
-		}
-		return ctx.Redirect(http.StatusFound, back)
+		return editCard(ctx, p, func(card vcard.Card) {
+			text := alborz.AppendNote(card.Value(vcard.FieldNote), note, time.Now())
+			if field := card.Preferred(vcard.FieldNote); field != nil {
+				field.Value = text
+			} else {
+				card.Add(vcard.FieldNote, &vcard.Field{Value: text})
+			}
+		})
+	})
+
+	// Removing the picture is its own request, not a tick the edit form
+	// carries: a submit button inside that form would be the one Enter
+	// reaches from any field, and pressing Enter in a name is not a
+	// request to delete a photo. Idempotent - a contact with no picture
+	// is what it leaves either way.
+	POST("/contacts/:path/photo/delete", func(ctx *alborz.Context) error {
+		return editCard(ctx, p, func(card vcard.Card) {
+			delete(card, vcard.FieldPhoto)
+		})
 	})
 
 	POST("/contacts/:path/delete", func(ctx *alborz.Context) error {
@@ -953,6 +945,30 @@ func handleDeleteBook(p *plugin) func(*alborz.Context) error {
 		p.books.Forget(ctx.Session.Username())
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/contacts"))
 	}
+}
+
+// editCard reads one card, lets the caller change it, and writes it
+// back with a fresh REV. The read is deliberately not go-webdav's: see
+// getAddressObject for the ETag it cannot parse.
+func editCard(ctx *alborz.Context, p *plugin, change func(vcard.Card)) error {
+	objPath, err := parseObjectPath(ctx.Param("path"))
+	if err != nil {
+		return err
+	}
+	c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+	if err != nil {
+		return err
+	}
+	ao, err := getAddressObject(ctx, c, objPath)
+	if err != nil {
+		return fmt.Errorf("failed to read the contact: %v", err)
+	}
+	change(ao.Card)
+	ao.Card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
+	if _, err := c.PutAddressObject(ctx.Request().Context(), ao.Path, ao.Card); err != nil {
+		return fmt.Errorf("failed to save the contact: %v", err)
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
 }
 
 // bookCount says how much a delete would take. -1 means the server did

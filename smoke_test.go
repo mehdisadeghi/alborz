@@ -47,19 +47,32 @@ func startIMAP(t *testing.T) string {
 			t.Fatalf("create %s: %v", mbox.name, err)
 		}
 	}
-	// One plain message and one from a list, since the two render
-	// different toolbars.
-	for _, m := range []struct{ from, subj, extra string }{
-		{"Eve <eve@example.org>", "Ideas for the redesign", ""},
+	// A plain message, one from a list and one carrying an attachment:
+	// the three render different toolbars and different rows, and a
+	// branch nothing opens is a branch nothing checks.
+	for _, m := range []struct{ from, subj, extra, body string }{
+		{"Eve <eve@example.org>", "Ideas for the redesign",
+			"Content-Type: text/plain; charset=UTF-8\r\n", "Body.\r\n"},
 		{"Frank <frank@example.org>", "[discuss] Threading",
 			"List-Id: Rig discuss <discuss.lists.example.org>\r\n" +
 				"List-Post: <mailto:discuss@lists.example.org>\r\n" +
-				"List-Unsubscribe: <https://lists.example.org/u>\r\n"},
+				"List-Unsubscribe: <https://lists.example.org/u>\r\n" +
+				"Content-Type: text/plain; charset=UTF-8\r\n", "Body.\r\n"},
+		{"Bob <bob@example.org>", "Attached docs",
+			"Content-Type: multipart/mixed; boundary=b1\r\n",
+			"--b1\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nBody.\r\n" +
+				"--b1\r\nContent-Type: application/pdf\r\n" +
+				"Content-Disposition: attachment; filename=\"doc.pdf\"\r\n\r\n%PDF-\r\n" +
+				// One attachment with no filename: the row has to name
+				// it something, and that branch is the one a template
+				// conditional skips on every named attachment.
+				"--b1\r\nContent-Type: application/octet-stream\r\n" +
+				"Content-Disposition: attachment\r\n\r\nraw\r\n" +
+				"--b1--\r\n"},
 	} {
 		raw := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\n"+
-			"Message-ID: <%d@test>\r\nMIME-Version: 1.0\r\n%s"+
-			"Content-Type: text/plain; charset=UTF-8\r\n\r\nBody.\r\n",
-			m.from, smokeUser, m.subj, time.Now().Format(time.RFC1123Z), time.Now().UnixNano(), m.extra)
+			"Message-ID: <%d@test>\r\nMIME-Version: 1.0\r\n%s\r\n%s",
+			m.from, smokeUser, m.subj, time.Now().Format(time.RFC1123Z), time.Now().UnixNano(), m.extra, m.body)
 		if _, err := user.Append("INBOX", literal{strings.NewReader(raw), int64(len(raw))},
 			&imap.AppendOptions{}); err != nil {
 			t.Fatalf("seed: %v", err)
@@ -139,8 +152,14 @@ func TestPagesAnswer(t *testing.T) {
 		t.Fatalf("inbox has no messages; the rig seeded none and every other check is vacuous")
 	}
 	uids := messageUIDs(body)
-	if len(uids) < 2 {
-		t.Fatalf("expected the two seeded messages, found %d", len(uids))
+	if len(uids) < 3 {
+		t.Fatalf("expected the three seeded messages, found %d", len(uids))
+	}
+	// The attachment row is the one that exercises the chips and the
+	// part-less reply. A page that renders none of it grades every check
+	// below it as a pass without having run them.
+	if !strings.Contains(body, "attach-chip") {
+		t.Fatalf("the seeded attachment renders no chip; the row it belongs to is unchecked")
 	}
 
 	paths := []string{

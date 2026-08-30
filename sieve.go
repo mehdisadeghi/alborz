@@ -82,13 +82,18 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	}
 
 	host, _, _ := net.SplitHostPort(d.sieve.host)
-	// One deadline spans greeting, STARTTLS and authentication; a wedged
-	// server fails the request instead of hanging it. Cleared on success.
-	conn, err := net.DialTimeout("tcp", d.sieve.host, upstreamTimeout)
+	// Dialing is bounded tightly: a host that does not answer at all is
+	// wrong, not far. Each step of the handshake then gets its own
+	// budget rather than sharing one, since the greeting, the TLS
+	// negotiation and the authentication cost wildly different amounts
+	// against a remote proxy. Cleared on success.
+	conn, err := net.DialTimeout("tcp", d.sieve.host, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ManageSieve server: %v", err)
 	}
-	conn.SetDeadline(time.Now().Add(upstreamTimeout))
+	step := func() { conn.SetDeadline(time.Now().Add(roundTripTimeout)) }
+
+	step()
 	c, err := managesieve.NewClient(conn, host)
 	if err != nil {
 		conn.Close()
@@ -96,12 +101,14 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	}
 
 	if !d.sieve.insecure {
+		step()
 		if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
 			c.Close()
 			return nil, fmt.Errorf("STARTTLS failed: %v", err)
 		}
 	}
 
+	step()
 	if err := c.Authenticate(managesieve.PlainAuth("", username, password, host)); err != nil {
 		c.Close()
 		return nil, AuthError{err}

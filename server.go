@@ -42,6 +42,15 @@ const (
 	TimezoneCookieName = "alborz_tz"
 )
 
+// How long a cookie outlives the browser being closed. Two lives,
+// because a cookie carrying a credential and one carrying a preference
+// are not the same risk: the first is re-earned by signing in again,
+// the second is only an annoyance to lose.
+const (
+	credentialCookieLife = 30 * 24 * time.Hour
+	preferenceCookieLife = 365 * 24 * time.Hour
+)
+
 // Server holds all the alborz server state.
 type Server struct {
 	e        *echo.Echo
@@ -448,7 +457,7 @@ func (ctx *Context) setActiveUser(username string) {
 	cookie := http.Cookie{
 		Name:     activeUserCookieName,
 		Path:     "/",
-		Expires:  time.Now().Add(30 * 24 * time.Hour),
+		Expires:  time.Now().Add(credentialCookieLife),
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 		Secure:   ctx.secureCookies(),
@@ -590,7 +599,7 @@ func (ctx *Context) setPref(name, value string, valid bool) {
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 		Secure:   ctx.secureCookies(),
-		Expires:  time.Now().Add(365 * 24 * time.Hour),
+		Expires:  time.Now().Add(preferenceCookieLife),
 	}
 	if value == "" || !valid {
 		cookie.Expires = aLongTimeAgo // unset the cookie
@@ -727,7 +736,7 @@ func (ctx *Context) SetLanguage(code string) {
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 		Secure:   ctx.secureCookies(),
-		Expires:  time.Now().Add(365 * 24 * time.Hour),
+		Expires:  time.Now().Add(preferenceCookieLife),
 	}
 	if code == "" || !IsLanguage(code) {
 		cookie.Expires = aLongTimeAgo // unset the cookie
@@ -932,7 +941,7 @@ func (ctx *Context) forgetLoginToken(username string) {
 
 func (ctx *Context) storeLoginTokens(tokens []loginToken) {
 	cookie := http.Cookie{
-		Expires:  time.Now().Add(30 * 24 * time.Hour),
+		Expires:  time.Now().Add(credentialCookieLife),
 		Name:     loginTokenCookieName,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
@@ -976,7 +985,7 @@ func (ctx *Context) loginTokens() []loginToken {
 	}
 
 	bytes := fernet.VerifyAndDecrypt([]byte(cookie.Value),
-		24*time.Hour*30, []*fernet.Key{fkey})
+		credentialCookieLife, []*fernet.Key{fkey})
 	if bytes == nil {
 		return nil
 	}

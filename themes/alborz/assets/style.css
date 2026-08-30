@@ -2602,27 +2602,17 @@ aside .aside-account:first-of-type {
   margin-top: 0;
 }
 
-/* Account is the namespace; indent its collections instead of repeating
-   that namespace in every collection label. A collection is one row:
-   the box, then the name, truncated - a name that wraps under its own
-   checkbox reads as two entries. The title carries the full name. */
-aside form.aside-filter > label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding-inline-start: calc(var(--space-2) + 1.25rem);
-}
-
-aside form.aside-filter > label input {
-  flex: none;
-  margin: 0;
-}
-
-aside form.aside-filter > label span {
+aside .filter-name > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Account is the namespace; indent its collections instead of repeating
+   that namespace in every collection label. */
+aside form.aside-filter > .filter-row {
+  padding-inline-start: calc(var(--space-2) + 1.25rem);
 }
 
 /* Per-account folder sections in the mail aside. */

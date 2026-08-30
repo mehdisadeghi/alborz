@@ -29,15 +29,8 @@
         </label>
         {{ else }}
         {{ if gt (len .Accounts) 1 }}
-        <label>
-          <span>{{$.T "common.saveto"}}</span>
-          {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}
-          <select name="account">
-            {{ range .Accounts }}
-            <option value="{{.Username}}"{{ if eq .Username $cur }} selected{{ end }}>{{.Username}}</option>
-            {{ end }}
-          </select>
-        </label>
+        {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}
+        {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" $cur) }}
         {{ end }}
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "required" true) }}
         {{ end }}

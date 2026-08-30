@@ -213,7 +213,7 @@
      next. */}}
 {{ define "dav-aside-group-filters" }}
 <a href="{{.newhref}}" class="new">{{.newlabel}}</a>
-{{ with .collectionhref }}<a href="{{.}}" class="aside-create">{{$.collectionlabel}}</a>{{ end }}
+{{ with .collectionhref }}<a href="{{.}}?{{ with $.collectionfor }}for={{.}}&amp;{{ end }}next={{$.next | urlquery}}" class="aside-create">{{$.collectionlabel}}</a>{{ end }}
 {{ $prev := "" }}
 {{ range .items }}
 {{ if ne .Account $prev }}

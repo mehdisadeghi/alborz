@@ -1513,7 +1513,7 @@ func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 
 	listings.evictAll(ctx.Session.Username())
 	ctx.Session.PutNotice(ctx.T("notice.sent"))
-	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 }
 
 func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOptions) error {

@@ -72,7 +72,7 @@
           {{end}}
           {{with .AddressObject.Card.Value "NOTE"}}
           <dt>{{$.T "contacts.notes"}}</dt>
-          <dd class="contact-address">{{.}}</dd>
+          <dd>{{ template "user-text" . }}</dd>
           {{end}}
         </dl>
       </section>

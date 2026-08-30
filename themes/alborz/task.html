@@ -48,7 +48,7 @@
           {{end}}
           {{if $desc}}
           <dt>{{$.T "common.description"}}</dt>
-          <dd>{{$desc}}</dd>
+          <dd>{{ template "user-text" $desc }}</dd>
           {{end}}
         </dl>
       </section>

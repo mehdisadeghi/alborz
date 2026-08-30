@@ -78,7 +78,7 @@
               {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}{{.Calendar.Name}}
             </div>
             {{if $multi}}
-            <div class="task-list-account" role="cell" data-label="{{$.T "mailbox.account"}}">{{.Task.Account}}</div>
+            <div class="task-list-account" role="cell" data-label="{{$.T "mailbox.account"}}">{{ template "ltr" .Task.Account }}</div>
             {{end}}
             {{/* Built before the tag: the escaper cannot follow an attribute that
                  only some branches write. */}}

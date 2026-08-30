@@ -4,6 +4,19 @@
 <svg class="icon icon-{{.}}" aria-hidden="true" focusable="false"><use href="#i-{{.}}"/></svg>
 {{ end }}
 
+{{/* An identifier - an address, a domain, a host - printed inside a
+     paragraph that may run the other way. It reads left to right on
+     its own, so it is isolated from the text around it rather than
+     ordered by it. */}}
+{{ define "ltr" }}<bdi class="ltr">{{.}}</bdi>{{ end }}
+
+{{/* Text somebody typed, shown as they typed it: the line breaks they
+     put in are kept, and each paragraph reads in its own script rather
+     than in the interface's. Every description, note and comment goes
+     through this - a bare {{.}} collapses their newlines into one line
+     and reads their Persian left to right. */}}
+{{ define "user-text" }}<div class="user-text" dir="auto">{{.}}</div>{{ end }}
+
 {{/* One toolbar button that acts on the checked rows. dict: icon label
      form formaction [class]. */}}
 {{ define "action-icon" }}
@@ -211,7 +224,7 @@
 {{ if $.multi }}
 <label class="aside-account source-account-toggle">
   <input type="checkbox" data-source-account-toggle aria-label="{{.Account}}">
-  <span>{{.Account}}</span>
+  <span>{{ template "ltr" .Account }}</span>
 </label>
 {{ end }}
 {{ end }}
@@ -283,7 +296,7 @@
   {{ $cur := .Account }}
   {{ $q := printf "?account=%s" .Account }}
   <details class="acct-folders"{{ if or (eq $acct $cur) (and (not $acct) (not $all) (eq $.GlobalData.Username $cur)) }} open{{ end }}>
-    <summary class="aside-account">{{ .Account }}</summary>
+    <summary class="aside-account">{{ template "ltr" .Account }}</summary>
     <ul>
       {{ template "mbox-list" (tuple .Categorized $q (eq $acct $cur) $starred $active $.GlobalData) }}
     </ul>

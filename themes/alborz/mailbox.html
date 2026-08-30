@@ -10,8 +10,18 @@
       <section class="actions">
         {{ template "messages-header.html" . }}
       </section>
+      {{/* Which account you are reading. On a wide window the switcher
+           in the header says it; on a phone the header has room for the
+           section tabs alone and the switcher is behind the drawer, so
+           the page says it itself. Only where it is a question: one
+           account signed in has no ambiguity to resolve, and the merged
+           view answers it per row. */}}
+      {{ if and (gt (len .GlobalData.Accounts) 1) (not .GlobalData.Unified) }}
+      <div class="context-crumb narrow-crumb">{{ template "ltr" .GlobalData.Username }}</div>
+      {{ end }}
+
       <section class="messages">
-        <div class="message-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}">
+        <div class="message-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
           {{/* Header row; the labels sort where the server can. */}}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hflip := "desc" }}{{ if eq .SortDir "desc" }}{{ $hflip = "asc" }}{{ end }}
@@ -91,7 +101,7 @@
             {{ end }}
             </a>
             {{ end }}
-            {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ $.GlobalData.AccountLabel .Account }}</span>{{ end }}
+            {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
           </div>
           <div class="message-list-subject {{$classes}}">
             {{if $.GlobalData.Unified}}

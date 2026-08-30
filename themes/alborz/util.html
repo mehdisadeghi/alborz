@@ -4,6 +4,44 @@
 <svg class="icon icon-{{.}}" aria-hidden="true" focusable="false"><use href="#i-{{.}}"/></svg>
 {{ end }}
 
+{{/* A line added to what an object already says. Open on the page
+     rather than behind an edit form: adding a sentence to a task should
+     not mean entering a form, saving, and coming back. It appends,
+     dated, so the field reads as a record rather than as one sentence
+     somebody overwrote. dict: action next label add. */}}
+{{ define "note-box" }}
+<form class="note-box" method="post" action="{{.action}}">
+  <input type="hidden" name="next" value="{{.next}}">
+  <label for="note-add">{{.label}}</label>
+  <textarea name="note" id="note-add" rows="2" dir="auto"></textarea>
+  <button>{{.add}}</button>
+</form>
+{{ end }}
+
+{{/* When an object was written down and when it last changed. Every
+     store keeps both - iCalendar in CREATED and LAST-MODIFIED (3.8.7.1
+     and 3.8.7.3), vCard in REV (6.7.4), WebDAV in getlastmodified - and
+     alborz fetched them and dropped them. They are what tells two
+     similar entries apart. dict: g created modified. */}}
+{{/* When a stored thing was written and last changed. Either may be
+     absent - a vCard has no created date at all - so both are optional
+     and the whole line disappears when neither is known.
+     dict: g [created createdLabel] [modified modifiedLabel]. */}}
+{{ define "object-dates" }}
+{{ $created := .created }}{{ if not $created }}{{ $created = zerotime }}{{ end }}
+{{ $modified := .modified }}{{ if not $modified }}{{ $modified = zerotime }}{{ end }}
+{{ if or (not ($created.IsZero)) (not ($modified.IsZero)) }}
+<div class="object-dates">
+  {{ if not ($created.IsZero) }}
+  <span>{{.createdLabel}} {{ template "date-full" (dict "g" .g "time" $created) }}</span>
+  {{ end }}
+  {{ if not ($modified.IsZero) }}
+  <span>{{.modifiedLabel}} {{ template "date-full" (dict "g" .g "time" $modified) }}</span>
+  {{ end }}
+</div>
+{{ end }}
+{{ end }}
+
 {{/* An identifier - an address, a domain, a host - printed inside a
      paragraph that may run the other way. It reads left to right on
      its own, so it is isolated from the text around it rather than
@@ -230,11 +268,17 @@
 
 {{/* One collection's visibility checkbox: (item, field, itemclass). */}}
 {{ define "dav-filter-item" }}
-{{ $i := index . 0 }}{{ $field := index . 1 }}{{ $class := index . 2 }}
-<label class="{{$class}}" title="{{$i.Name}}">
-  <input type="checkbox" name="{{$field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }}>
-  <span>{{$i.Name}}</span>
-</label>
+{{ $i := index . 0 }}{{ $field := index . 1 }}{{ $class := index . 2 }}{{ $only := index . 3 }}{{ $label := index . 4 }}
+<div class="filter-row">
+  <label class="{{$class}}" title="{{$i.Name}}">
+    <input type="checkbox" name="{{$field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }}>
+    <span>{{$i.Name}}</span>
+  </label>
+  {{/* One collection, for this look at the page only: the URL carries
+       the question, the ticks carry the standing preference, and
+       neither has to be put back afterwards. */}}
+  <a class="filter-only" href="{{$only}}?{{$field}}={{$i.Path | urlquery}}" title="{{$label}}">{{$label}}</a>
+</div>
 {{ end }}
 
 {{/* The DAV aside: one create entry (the form picks the destination
@@ -259,7 +303,7 @@
 </label>
 {{ end }}
 {{ end }}
-{{ template "dav-filter-item" (tuple . $.field $.itemclass) }}
+{{ template "dav-filter-item" (tuple . $.field $.itemclass $.action $.onlylabel) }}
 {{ end }}
 {{ if ne $prev "" }}<button>{{$.apply}}</button></form>{{ end }}
 {{ end }}

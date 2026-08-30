@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "newhref" "/tasks/create" "newlabel" ($.T "tasks.new") "collectionhref" "/calendars/create" "collectionfor" "tasks" "collectionlabel" ($.T "tasks.newlist") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "newhref" "/tasks/create" "newlabel" ($.T "tasks.new") "collectionhref" "/calendars/create" "collectionfor" "tasks" "collectionlabel" ($.T "tasks.newlist") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
     <form method="post" action="/tasks/show-completed" class="aside-filter">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
       <label class="show-completed-toggle">
@@ -59,6 +59,9 @@
             <div class="task-list-header task-list-due" role="columnheader">
               {{template "sort-th" (dict "label" ($.T "tasks.duedate") "key" "due" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
+            <div class="list-header task-list-added" role="columnheader">
+              {{template "sort-th" (dict "label" ($.T "common.added") "key" "added" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
+            </div>
           </div>
 
           {{range .Tasks}}
@@ -85,6 +88,9 @@
             {{ $due := "" }}{{ $dueTitle := "" }}
             {{ if not .Due.IsZero }}{{ $due = $.GlobalData.ShortDate .Due }}{{ $dueTitle = $.GlobalData.LongDate .Due }}{{ with $.GlobalData.SecondaryDate .Due }}{{ $dueTitle = printf "%s (%s)" $dueTitle . }}{{ end }}{{ end }}
             <div class="task-list-due" role="cell" data-label="{{$.T "tasks.duedate"}}" title="{{$dueTitle}}">{{$due}}</div>
+            {{ $added := "" }}{{ $addedTitle := "" }}
+            {{ if not .Added.IsZero }}{{ $added = $.GlobalData.Since .Added }}{{ $addedTitle = $.GlobalData.FormatDate .Added }}{{ with $.GlobalData.SecondaryDate .Added }}{{ $addedTitle = printf "%s (%s)" $addedTitle . }}{{ end }}{{ end }}
+            <div class="task-list-added" role="cell" data-label="{{$.T "common.added"}}" title="{{$addedTitle}}">{{$added}}</div>
           </div>
           {{end}}
           {{else}}

@@ -45,6 +45,14 @@
           <!-- TODO: List of attendees, room -->
         </table>
         {{ template "user-text" ($event.Props.Text "DESCRIPTION") }}
+        {{ template "note-box" (dict
+           "action" (printf "%s/note%s" .Event.URL $acct)
+           "next" .GlobalData.URL.RequestURI
+           "label" ($.T "common.addnote") "add" ($.T "common.add")) }}
+        {{ template "object-dates" (dict "g" .Global
+           "created" ($event.Props.DateTime "CREATED" nil)
+           "modified" ($event.Props.DateTime "LAST-MODIFIED" nil)
+           "createdLabel" ($.T "common.created") "modifiedLabel" ($.T "common.modified")) }}
         {{ end }}
       </section>
     </main>

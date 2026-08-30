@@ -348,8 +348,8 @@ func init() {
 
 // BookGroup is one account's writable address books, for create forms.
 type BookGroup struct {
-	Account string
-	Books   []AddressBookInfo
+	Account     string
+	Collections []AddressBookInfo
 }
 
 // writableBookGroups lists every account's writable books, so a create
@@ -368,7 +368,7 @@ func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]BookGroup, error) {
 			}
 		}
 		if len(books) > 0 {
-			groups = append(groups, BookGroup{Account: acc.account, Books: books})
+			groups = append(groups, BookGroup{Account: acc.account, Collections: books})
 		}
 	}
 	return groups, nil

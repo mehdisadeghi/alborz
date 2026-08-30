@@ -51,6 +51,14 @@
           <dd>{{ template "user-text" $desc }}</dd>
           {{end}}
         </dl>
+        {{ template "note-box" (dict
+           "action" (printf "%s/note%s" .Task.URL $acct)
+           "next" .GlobalData.URL.RequestURI
+           "label" ($.T "common.addnote") "add" ($.T "common.add")) }}
+        {{ template "object-dates" (dict "g" $.Global
+           "created" ($todo.Props.DateTime "CREATED" nil)
+           "modified" ($todo.Props.DateTime "LAST-MODIFIED" nil)
+           "createdLabel" ($.T "common.created") "modifiedLabel" ($.T "common.modified")) }}
       </section>
     </main>
   </div>

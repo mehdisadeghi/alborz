@@ -190,6 +190,61 @@ func doMkcalendar(ctx context.Context, client *http.Client, path, name string, c
 	return nil
 }
 
+// doProppatch renames or recolours a collection. The display name and
+// the colour are the two properties a server will let anyone change;
+// the component set is protected on every server in use, which is why
+// the create form asks for it once and this form does not offer it.
+func doProppatch(ctx context.Context, client *http.Client, target, name, color string) error {
+	var props bytes.Buffer
+	if name != "" {
+		fmt.Fprintf(&props, "<D:displayname>%s</D:displayname>", xmlEscape(name))
+	}
+	if color != "" {
+		fmt.Fprintf(&props, "<A:calendar-color>%s</A:calendar-color>", xmlEscape(color))
+	}
+	if props.Len() == 0 {
+		return nil
+	}
+	var buf bytes.Buffer
+	buf.WriteString(xml.Header)
+	fmt.Fprintf(&buf, `<D:propertyupdate xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/"><D:set><D:prop>%s</D:prop></D:set></D:propertyupdate>`, props.String())
+
+	req, err := http.NewRequestWithContext(ctx, "PROPPATCH", target, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "text/xml; charset=\"utf-8\"")
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusMultiStatus &&
+		resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("failed to change the collection: %s", resp.Status)
+	}
+	return nil
+}
+
+// doDeleteCollection removes a collection and everything in it. WebDAV
+// 9.6 knows no other kind of delete: Depth is infinity and there is no
+// asking. Whatever guard there is belongs on the page before this.
+func doDeleteCollection(ctx context.Context, client *http.Client, target string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, target, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("failed to delete the collection: %s", resp.Status)
+	}
+	return nil
+}
+
 func xmlEscape(s string) string {
 	var buf bytes.Buffer
 	xml.EscapeText(&buf, []byte(s))
@@ -631,8 +686,8 @@ func querySites(ctx *alborz.Context, sites []querySite, query *caldav.CalendarQu
 
 // CalendarGroup is one account's calendars, for create-form selects.
 type CalendarGroup struct {
-	Account   string
-	Calendars []CalendarInfo
+	Account     string
+	Collections []CalendarInfo
 }
 
 // writableGroups lists every account's writable calendars of one kind,
@@ -651,7 +706,7 @@ func (p *plugin) writableGroups(ctx *alborz.Context, supports func(CalendarInfo)
 			}
 		}
 		if len(cals) > 0 {
-			groups = append(groups, CalendarGroup{Account: acc.account, Calendars: cals})
+			groups = append(groups, CalendarGroup{Account: acc.account, Collections: cals})
 		}
 	}
 	return groups, nil

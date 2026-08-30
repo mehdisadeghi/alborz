@@ -19,16 +19,153 @@ import (
 )
 
 // NewCalendarRenderData drives the create-a-calendar form.
-type NewCalendarRenderData struct {
+// NewCollectionRenderData renders create-collection.html, shared with
+// address books. Only a calendar has a component set to choose, so only
+// it offers Holds.
+type NewCollectionRenderData struct {
 	alborz.BaseRenderData
-	Accounts []alborz.Account
-	Name     string
-	Account  string
-	Color    string
-	Holds    string // "events", "tasks" or "both"
-	ForTasks bool   // reached from the tasks rail
-	Next     string // the list it was opened from
-	Error    string
+	Accounts    []alborz.Account
+	Name        string
+	Account     string
+	Color       string
+	Title       string
+	ListHref    string
+	BackLabel   string
+	OffersHolds bool
+	Holds       string // "events", "tasks" or "both"
+	Next        string // the list it was opened from
+	Error       string
+}
+
+// CollectionRenderData drives the page a collection has of its own: its
+// name, its colour, when it was made, and what it holds - which is what
+// a delete has to say out loud before it happens.
+// CollectionRenderData renders collection.html, which serves calendars,
+// task lists and address books alike: the fields are what any of them
+// has, so one page answers for all three.
+type CollectionRenderData struct {
+	alborz.BaseRenderData
+	Name      string
+	Color     string
+	Path      string
+	Account   string
+	Count     int // -1 when the server would not say
+	Base      string
+	ListHref  string
+	BackLabel string
+	Error     string
+}
+
+// handleCollection is a collection's own page. Renaming and recolouring
+// are a PROPPATCH; the component set is not offered, because it is
+// protected on every server in use and changing it would mean copying
+// every object into a new collection - a migration, not an edit.
+func handleCollection(p *plugin) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		collPath, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+		collPath = canonicalCollectionPath(collPath)
+		c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+		info := calendarByPath(calendars, collPath)
+		if info == nil {
+			return alborz.NotFoundf("no such collection")
+		}
+		list := collectionList(*info)
+		label := ctx.T("nav.calendar")
+		if list == "/tasks" {
+			label = ctx.T("nav.tasks")
+		}
+		data := &CollectionRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(info.Name),
+			Name:           info.Name,
+			Color:          info.Color,
+			Path:           info.Path,
+			Account:        ctx.Session.Username(),
+			Count:          collectionCount(ctx, c, *info),
+			Base:           "/calendars/",
+			ListHref:       list,
+			BackLabel:      label,
+		}
+
+		if ctx.Request().Method == http.MethodPost {
+			name := strings.TrimSpace(ctx.FormValue("name"))
+			data.Name, data.Color = name, ctx.FormValue("color")
+			if name == "" {
+				data.Error = ctx.T("form.nameneeded")
+				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
+			}
+			davBase, _ := p.davURL(ctx.Session)
+			target := davBase.ResolveReference(&url.URL{Path: collPath}).String()
+			if err := doProppatch(ctx.Request().Context(), p.httpClient(ctx.Session),
+				target, name, ctx.FormValue("color")); err != nil {
+				data.Error = err.Error()
+				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
+			}
+			p.calendars.Forget(ctx.Session.Username())
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(list)))
+		}
+		return ctx.Render(http.StatusOK, "collection.html", data)
+	}
+}
+
+// handleDeleteCollection removes a collection and everything in it. The
+// page above says how much that is; this only refuses to do it blind.
+func handleDeleteCollection(p *plugin) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		collPath, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+		collPath = canonicalCollectionPath(collPath)
+		_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+		info := calendarByPath(calendars, collPath)
+		if info == nil {
+			return alborz.NotFoundf("no such collection")
+		}
+		davBase, _ := p.davURL(ctx.Session)
+		target := davBase.ResolveReference(&url.URL{Path: collPath}).String()
+		if err := doDeleteCollection(ctx.Request().Context(), p.httpClient(ctx.Session), target); err != nil {
+			return err
+		}
+		p.calendars.Forget(ctx.Session.Username())
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(collectionList(*info)))
+	}
+}
+
+// collectionList is the page a collection belongs to.
+func collectionList(info CalendarInfo) string {
+	if !info.SupportsEvent() {
+		return "/tasks"
+	}
+	return "/calendar"
+}
+
+// collectionCount is how many objects the collection holds, which is
+// what a delete has to state. It is one query the rail already makes
+// for every collection it lists.
+func collectionCount(ctx *alborz.Context, c *caldav.Client, info CalendarInfo) int {
+	comp := "VEVENT"
+	if !info.SupportsEvent() {
+		comp = "VTODO"
+	}
+	query := &caldav.CalendarQuery{
+		CompRequest: caldav.CalendarCompRequest{Name: "VCALENDAR", Props: []string{"VERSION"}},
+		CompFilter:  caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{{Name: comp}}},
+	}
+	objs, err := c.QueryCalendar(ctx.Request().Context(), info.Path, query)
+	if err != nil {
+		ctx.Logger().Printf("failed to count %s: %v", info.Path, err)
+		return -1
+	}
+	return len(objs)
 }
 
 // handleCreateCalendar adds a collection to the chosen account. The
@@ -48,17 +185,24 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 		if forTasks {
 			title = "tasks.newlist"
 		}
-		data := &NewCalendarRenderData{
+		list, label := "/calendar", ctx.T("nav.calendar")
+		if forTasks {
+			list, label = "/tasks", ctx.T("nav.tasks")
+		}
+		data := &NewCollectionRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T(title)),
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Session.Username(),
 			Color:          "#3366cc",
+			Title:          ctx.T(title),
+			ListHref:       list,
+			BackLabel:      label,
+			OffersHolds:    !forTasks,
 			Holds:          holds,
-			ForTasks:       forTasks,
 			Next:           ctx.FormValue("next"),
 		}
 		if ctx.Request().Method != http.MethodPost {
-			return ctx.Render(http.StatusOK, "create-calendar.html", data)
+			return ctx.Render(http.StatusOK, "create-collection.html", data)
 		}
 
 		data.Name = strings.TrimSpace(ctx.FormValue("name"))
@@ -72,7 +216,7 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 		}
 		if data.Name == "" {
 			data.Error = ctx.T("form.nameneeded")
-			return ctx.Render(http.StatusUnprocessableEntity, "create-calendar.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
 
 		session := ctx.SessionFor(data.Account)
@@ -88,11 +232,11 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 		}
 		if err := p.createCalendar(ctx.Request().Context(), session, data.Name, components, data.Color); err != nil {
 			data.Error = err.Error()
-			return ctx.Render(http.StatusUnprocessableEntity, "create-calendar.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
 		// Back to the rail it was asked for, when the new collection
 		// shows there; a task list never appears under calendars.
-		if data.Holds == "tasks" || (data.ForTasks && data.Holds == "both") {
+		if data.Holds == "tasks" || (forTasks && data.Holds == "both") {
 			return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))
@@ -145,7 +289,7 @@ type EventRenderData struct {
 
 type UpdateEventRenderData struct {
 	alborz.BaseRenderData
-	AccountCals    []CalendarGroup
+	Groups         []CalendarGroup
 	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject // nil if creating a new event
 	Event          *ical.Event
@@ -188,11 +332,15 @@ type TasksRenderData struct {
 // list and its sort controls. Calendar ownership stays explicit instead
 // of being encoded as nested visual groups.
 type TaskRow struct {
-	Task      TaskObject
-	Calendar  CalendarInfo
-	Summary   string
-	Status    string
-	Due       time.Time
+	Task     TaskObject
+	Calendar CalendarInfo
+	Summary  string
+	Status   string
+	Due      time.Time
+	// Added is CREATED (RFC 5545 3.8.7.1), which every task alborz has
+	// seen carries and which costs nothing to read: it is in the data
+	// the list already fetched. Zero where the writer left it out.
+	Added     time.Time
 	Completed bool
 }
 
@@ -204,7 +352,7 @@ type TaskRenderData struct {
 
 type UpdateTaskRenderData struct {
 	alborz.BaseRenderData
-	AccountCals    []CalendarGroup
+	Groups         []CalendarGroup
 	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject
 	Todo           *ical.Component
@@ -279,6 +427,35 @@ func fillEventForm(d *UpdateEventRenderData, loc *time.Location) {
 		}
 	}
 	d.EndDate = last.Format(datePageLayout)
+}
+
+// appendNote puts a dated line under what is already there, keeping the
+// two apart with a blank line so the field reads as entries rather than
+// as one paragraph that grew.
+func appendNote(existing, note string, when time.Time) string {
+	note = strings.ReplaceAll(note, "\r", "")
+	stamp := when.Format("2006-01-02 15:04")
+	entry := stamp + "\n" + note
+	if strings.TrimSpace(existing) == "" {
+		return entry
+	}
+	return strings.TrimRight(existing, "\n") + "\n\n" + entry
+}
+
+// onlyCollections is the set a URL asks to see, which stands in for the
+// stored visibility for that request alone. The URL carries the
+// question and stored state carries the preference, so looking at one
+// calendar is a link rather than a setting somebody has to put back.
+func onlyCollections(ctx *alborz.Context, field string) map[string]bool {
+	values := ctx.QueryParams()[field]
+	if len(values) == 0 {
+		return nil
+	}
+	only := make(map[string]bool, len(values))
+	for _, v := range values {
+		only[canonicalCollectionPath(v)] = true
+	}
+	return only
 }
 
 // parseDate reads a bare day from a date input, which is what an
@@ -441,6 +618,7 @@ func registerRoutes(p *plugin) {
 		totalCells := offset + daysInMonth
 		rows := (totalCells + 6) / 7
 
+		only := onlyCollections(ctx, "cal")
 		accounts, err := p.pooledCalendars(ctx)
 		if err != nil {
 			return err
@@ -463,6 +641,9 @@ func registerRoutes(p *plugin) {
 					continue
 				}
 				cal.Visible = !settings.CalendarFilter || visibleSet[cal.Path]
+				if only != nil {
+					cal.Visible = only[cal.Path]
+				}
 				calendarInfos = append(calendarInfos, cal)
 				if cal.Visible {
 					sites = append(sites, querySite{account: cal.Account, client: acc.client, path: cal.Path, name: cal.Name})
@@ -642,6 +823,7 @@ func registerRoutes(p *plugin) {
 		}
 		end := start.AddDate(0, 0, 1)
 
+		only := onlyCollections(ctx, "cal")
 		accounts, err := p.pooledCalendars(ctx)
 		if err != nil {
 			return err
@@ -665,6 +847,9 @@ func registerRoutes(p *plugin) {
 				// The aside lists every calendar with its checkbox state;
 				// only the visible ones are queried.
 				cal.Visible = !settings.CalendarFilter || visibleSet[cal.Path]
+				if only != nil {
+					cal.Visible = only[cal.Path]
+				}
 				calendarInfos = append(calendarInfos, cal)
 				if cal.Visible {
 					sites = append(sites, querySite{account: cal.Account, client: acc.client, path: cal.Path, name: cal.Name})
@@ -838,11 +1023,11 @@ func registerRoutes(p *plugin) {
 			if err != nil {
 				return err
 			}
-			if len(groups) == 0 || len(groups[0].Calendars) == 0 {
+			if len(groups) == 0 || len(groups[0].Collections) == 0 {
 				return fmt.Errorf("no writable calendars")
 			}
 			event = ical.NewEvent()
-			currentCalendar = &groups[0].Calendars[0]
+			currentCalendar = &groups[0].Collections[0]
 		}
 
 		if ctx.Request().Method == "POST" {
@@ -855,7 +1040,7 @@ func registerRoutes(p *plugin) {
 			reject := func(message string) error {
 				return ctx.Render(http.StatusUnprocessableEntity, "update-event.html", &UpdateEventRenderData{
 					BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.createtitle")),
-					AccountCals:    groups,
+					Groups:         groups,
 					Calendar:       currentCalendar,
 					CalendarObject: co,
 					Event:          event,
@@ -968,7 +1153,7 @@ func registerRoutes(p *plugin) {
 
 		data := &UpdateEventRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
-			AccountCals:    groups,
+			Groups:         groups,
 			Calendar:       currentCalendar,
 			CalendarObject: co,
 			Event:          event,
@@ -1001,6 +1186,9 @@ func registerRoutes(p *plugin) {
 
 	GET("/calendars/create", handleCreateCalendar(p))
 	POST("/calendars/create", handleCreateCalendar(p))
+	GET("/calendars/:path", handleCollection(p))
+	POST("/calendars/:path", handleCollection(p))
+	POST("/calendars/:path/delete", handleDeleteCollection(p))
 
 	GET("/calendar/create", updateEvent)
 	POST("/calendar/create", updateEvent)
@@ -1029,6 +1217,7 @@ func registerRoutes(p *plugin) {
 	// Tasks routes
 	GET("/tasks", func(ctx *alborz.Context) error {
 		loc := alborzbase.UserLocation(ctx)
+		only := onlyCollections(ctx, "cal")
 		accounts, err := p.pooledCalendars(ctx)
 		if err != nil {
 			return err
@@ -1059,6 +1248,9 @@ func registerRoutes(p *plugin) {
 					continue
 				}
 				cal.Visible = !settings.TaskFilter || visibleSet[cal.Path]
+				if only != nil {
+					cal.Visible = only[cal.Path]
+				}
 				calendarInfos = append(calendarInfos, cal)
 				if cal.Visible {
 					sites = append(sites, taskSite{cal: cal, client: acc.client, showCompleted: settings.ShowCompleted})
@@ -1072,7 +1264,7 @@ func registerRoutes(p *plugin) {
 		if sortKey == "" {
 			sortKey = "summary"
 		}
-		if sortKey != "status" && sortKey != "summary" && sortKey != "account" && sortKey != "calendar" && sortKey != "due" {
+		if sortKey != "status" && sortKey != "summary" && sortKey != "account" && sortKey != "calendar" && sortKey != "due" && sortKey != "added" {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid task sort")
 		}
 		if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
@@ -1147,12 +1339,14 @@ func registerRoutes(p *plugin) {
 				// ("20260830T100000Z"), which is not a thing to show
 				// anyone; parse it and let the page write the date.
 				due, _ := todo.Props.DateTime("DUE", loc)
+				added, _ := todo.Props.DateTime("CREATED", loc)
 				taskRows = append(taskRows, TaskRow{
 					Task:      TaskObject{CalendarObject: &task, Account: result.site.cal.Account},
 					Calendar:  result.site.cal,
 					Summary:   summary,
 					Status:    status,
 					Due:       due,
+					Added:     added,
 					Completed: status == "COMPLETED",
 				})
 			}
@@ -1175,6 +1369,11 @@ func registerRoutes(p *plugin) {
 					return "\uffff"
 				}
 				return row.Due.Format(time.RFC3339)
+			case "added":
+				if row.Added.IsZero() {
+					return "\uffff"
+				}
+				return row.Added.Format(time.RFC3339)
 			default:
 				return strings.ToLower(row.Summary)
 			}
@@ -1298,11 +1497,11 @@ func registerRoutes(p *plugin) {
 			if err != nil {
 				return err
 			}
-			if len(groups) == 0 || len(groups[0].Calendars) == 0 {
+			if len(groups) == 0 || len(groups[0].Collections) == 0 {
 				return fmt.Errorf("no writable calendars")
 			}
 			todo = ical.NewComponent(ical.CompToDo)
-			currentCalendar = &groups[0].Calendars[0]
+			currentCalendar = &groups[0].Collections[0]
 		}
 
 		if ctx.Request().Method == "POST" {
@@ -1314,7 +1513,7 @@ func registerRoutes(p *plugin) {
 			reject := func(message string) error {
 				return ctx.Render(http.StatusUnprocessableEntity, "update-task.html", &UpdateTaskRenderData{
 					BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("tasks.createtitle")),
-					AccountCals:    groups,
+					Groups:         groups,
 					Calendar:       currentCalendar,
 					CalendarObject: co,
 					Todo:           todo,
@@ -1388,7 +1587,7 @@ func registerRoutes(p *plugin) {
 
 		return ctx.Render(http.StatusOK, "update-task.html", &UpdateTaskRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
-			AccountCals:    groups,
+			Groups:         groups,
 			Calendar:       currentCalendar,
 			CalendarObject: co,
 			Todo:           todo,
@@ -1417,6 +1616,55 @@ func registerRoutes(p *plugin) {
 		}
 
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/tasks"))
+	})
+
+	// A line added to what the object already says, from its own page.
+	// The addition is appended and dated rather than replacing what is
+	// there: a note field people actually use is a record, and the edit
+	// form remains the way to rewrite one.
+	addNote := func(ctx *alborz.Context, comp func(*ical.Calendar) *ical.Component, fallback string) error {
+		objPath, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+		note := strings.TrimSpace(ctx.FormValue("note"))
+		back := ctx.NextOr(ctx.AccountPath(fallback))
+		if note == "" {
+			return ctx.Redirect(http.StatusFound, back)
+		}
+		c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+		co, err := getCalendarObject(ctx, c, objPath)
+		if err != nil {
+			return fmt.Errorf("failed to get object: %v", err)
+		}
+		target := comp(co.Data)
+		if target == nil {
+			return fmt.Errorf("no component to add a note to")
+		}
+		existing, _ := target.Props.Text(ical.PropDescription)
+		target.Props.SetText(ical.PropDescription, appendNote(existing, note, time.Now()))
+		target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
+		target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
+		if _, err := c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {
+			return fmt.Errorf("failed to save the note: %v", err)
+		}
+		return ctx.Redirect(http.StatusFound, back)
+	}
+
+	POST("/tasks/:path/note", func(ctx *alborz.Context) error {
+		return addNote(ctx, func(cal *ical.Calendar) *ical.Component { return getFirstTodo(cal) }, "/tasks")
+	})
+
+	POST("/calendar/:path/note", func(ctx *alborz.Context) error {
+		return addNote(ctx, func(cal *ical.Calendar) *ical.Component {
+			if evs := cal.Events(); len(evs) > 0 {
+				return evs[0].Component
+			}
+			return nil
+		}, "/calendar")
 	})
 
 	POST("/tasks/:path/complete", func(ctx *alborz.Context) error {

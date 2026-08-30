@@ -19,21 +19,8 @@
         </h2>
         {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
         {{if not .CalendarObject}}
-        <label>
-          <span>{{$.T "common.saveto"}}</span>
-          {{ $multi := gt (len .GlobalData.Accounts) 1 }}
-          {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .Calendar.Account}}{{$cur = .}}{{end}}
-          <select name="calendar" data-destination-key="event">
-            {{range .AccountCals}}
-            {{ $acct := .Account }}
-            {{ if $multi }}<optgroup label="{{.Account}}">{{ end }}
-            {{range .Calendars}}
-            <option value="{{$acct}}|{{.Path}}" {{if and (eq $acct $cur) (eq .Path $.Calendar.Path)}}selected{{end}}>{{.Name}}</option>
-            {{end}}
-            {{ if $multi }}</optgroup>{{ end }}
-            {{end}}
-          </select>
-        </label>
+        {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .Calendar.Account}}{{$cur = .}}{{end}}
+        {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "calendar" "key" "event" "groups" .Groups "account" $cur "path" .Calendar.Path "multi" (gt (len .GlobalData.Accounts) 1)) }}
         {{end}}
 
         {{ template "field" (dict "label" ($.T "calendar.eventname") "name" "summary" "value" (.Event.Props.Text "SUMMARY") "dir" "auto" "required" true) }}

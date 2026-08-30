@@ -589,7 +589,7 @@ func registerRoutes(p *plugin) {
 		}
 		paths := params["paths"]
 		if len(paths) == 0 {
-			return ctx.Redirect(http.StatusFound, "/contacts")
+			return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
 		}
 
 		c, err := p.client(ctx.Session)
@@ -603,6 +603,6 @@ func registerRoutes(p *plugin) {
 			}
 		}
 
-		return ctx.Redirect(http.StatusFound, "/contacts")
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
 	})
 }

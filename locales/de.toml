@@ -75,6 +75,7 @@
 "mailbox.selectall" = "Alle auswählen"
 "mailbox.selectalljs" = "Alle Zeilen auszuwählen braucht JavaScript"
 "mailbox.sortby" = "Sortieren nach"
+"mailbox.perpage" = "Zeilen pro Seite"
 "mailbox.more" = "Weitere Aktionen"
 "mailbox.prevpage" = "Vorherige Seite"
 "mailbox.nextpage" = "Nächste Seite"

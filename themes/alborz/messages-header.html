@@ -2,8 +2,8 @@
 {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
 {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
 {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-{{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}
-{{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hplain = printf "%s&starred=1" $hplain }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}
+{{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ $ippbase := $hparams }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
+{{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hplain = printf "%s&starred=1" $hplain }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hplain = printf "%s&ipp=%s" $hplain . }}{{ end }}
 {{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
 {{ $title := .Mailbox.Label }}{{ if .Starred }}{{ $title = $.T "mailbox.starred" }}{{ end }}
 {{/* A folder the server says holds nothing has nothing to select and
@@ -114,6 +114,10 @@
   {{ $prev := "" }}{{if ge .PrevPage 0}}{{$prev = printf "?page=%d%s" .PrevPage $hparams}}{{end}}
   {{ $next := "" }}{{if ge .NextPage 0}}{{$next = printf "?page=%d%s" .NextPage $hparams}}{{end}}
   {{ template "pagination" (dict "range" ($.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total) "prev" (dict "href" $prev "title" ($.T "mailbox.prevpage")) "next" (dict "href" $next "title" ($.T "mailbox.nextpage"))) }}
+  {{ end }}
+
+  {{ if gt .Total 0 }}
+  {{ template "ipp-menu" (dict "g" $.GlobalData "options" .PerPageOptions "current" .PerPage "base" $ippbase "label" ($.T "mailbox.perpage")) }}
   {{ end }}
 
   {{ if .SortSupported }}

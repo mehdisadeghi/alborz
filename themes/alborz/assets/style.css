@@ -436,11 +436,28 @@ footer { text-align: end; }
   padding: 1rem 0;
 }
 
+/* The rail is the width it is declared, on every page. A flex item's
+   min-width is auto, so any row that will not truncate makes the rail
+   as wide as its longest name - which is why the calendar and contact
+   rails were wider than mail's, whose folder rows do truncate. */
 aside {
   flex: 0 0 var(--sidebar-width);
+  min-width: 0;
   background: var(--surface);
   border-inline-end: 1px solid var(--border-light);
 }
+
+/* Every rail row truncates: the name is in the title, and a rail is a
+   list of places, not a place for a name to be read in full. */
+aside .filter-row,
+aside .filter-row > label,
+aside > a,
+aside li,
+aside li a,
+aside summary {
+  min-width: 0;
+}
+
 
 aside img { display: block; }
 
@@ -1433,7 +1450,89 @@ main table tfoot {
   margin-inline: 0.25rem 0.5rem;
 }
 
+/* What is attached, named under the subject inside the subject's own
+   cell. Not a row of its own: a row of its own is outside the row's box,
+   so it takes neither its hover nor its hairline and has to be stitched
+   back on with a border hack. A cell that holds two lines is simply a
+   taller row. */
+/* Names are shown only where the subject column has room for a name.
+   Below that they shrink into bubbles a character wide, which say less
+   than the clip mark already on the row - so they are not shown at all,
+   and the message page names them. The threshold is the window, since
+   without a script that is what the page can measure. */
+.attach-line { display: none; }
 
+/* The column is the second line's layout, so it lives where the second
+   line does. Applied at every width it also reached the rows showing no
+   names, where the subject is the only item and the shared ellipsis rule
+   gives it flex: 1 1 auto - which in a column grows it down the whole
+   cell, leaving the text at the top of a row that centres every other. */
+@media (width >= 60rem) {
+  .message-list-subject.has-attach {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.15rem;
+  }
+
+  /* The subject had the whole cell to itself and still does: the names
+     are under it, never beside it. */
+  .message-list-subject.has-attach > a { max-width: 100%; }
+
+  .attach-line {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+}
+
+/* A name wide enough to tell one file from another and no wider: past
+   that it is a snake across the row and says nothing more, so it
+   truncates and the whole name is in the tooltip. */
+.attach-chip {
+  flex: 0 1 auto;
+  /* Never narrower than a name reads: a chip that cannot show one is
+     not shown. */
+  min-width: 5rem;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+/* What did not fit, counted rather than named. A round box for one
+   digit and a pill for two: the number decides the width, so it always
+   fits inside it. */
+.attach-more {
+  flex: none;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.35rem;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.attach-chip:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
 
 /* A control that acts on a selection and cannot carry the disabled
    attribute - a menu, a form - says so the way a disabled button does:
@@ -1508,7 +1607,30 @@ aside .filter-row {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  position: relative;
 }
+
+/* The two hover affordances lie over the end of the row rather than in
+   it. In the row they held their width while invisible, so a rail of
+   180px gave the name 76 and truncated it against a third of the rail
+   standing empty. Over it, the name has the whole row and the links
+   still appear in the same place, on a surface of their own so they
+   are readable above it. */
+aside .filter-actions {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-2);
+  background: var(--surface);
+  pointer-events: none;
+}
+
+aside .filter-row:hover .filter-actions,
+aside .filter-actions:focus-within { pointer-events: auto; }
 
 aside .filter-row > label { flex: 1 1 auto; min-width: 0; }
 
@@ -1521,10 +1643,43 @@ aside .filter-edit {
   opacity: 0;
 }
 
+/* The group is invisible with its links, or it paints a blank patch
+   over the end of every name. */
+aside .filter-actions { opacity: 0; }
+
+aside .filter-row:hover .filter-actions,
+aside .filter-actions:has(:focus-visible) { opacity: 1; }
+
 aside .filter-row:hover .filter-only,
 aside .filter-row:hover .filter-edit,
 aside .filter-only:focus-visible,
 aside .filter-edit:focus-visible { opacity: 1; }
+
+/* Facts about the account that nobody can change: named quietly under
+   the form that saves the ones they can. */
+.server-info {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.server-info h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.server-info dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.15rem var(--space-3);
+  margin: 0;
+}
+
+.server-info dt { color: var(--fg-faint); }
+.server-info dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
 /* When a stored thing was written and last changed, said once, quietly,
    under what it is about. */
@@ -2857,6 +3012,26 @@ main.message .actions-end {
   display: none;
 }
 
+/* The count of rows belongs beside the paging it changes. It is the
+   least of the trailing group, so it is the first of them to go when
+   the row runs out of room. */
+.actions .ipp-overflow { display: inline-block; }
+
+@media (width < 48rem) {
+  .actions .ipp-overflow { display: none; }
+
+}
+
+/* The count in force is named rather than linked, and holds the same
+   box as the ones beside it: the same weight, one border drawn and the
+   rest transparent. Bolding it would change its width as it is chosen,
+   which is the defect this rule exists to prevent. */
+.overflow-menu .is-current {
+  color: var(--fg);
+  background: var(--surface-selected);
+  border-color: var(--border-strong);
+}
+
 .overflow-menu {
   position: absolute;
   inset-inline-end: 0;
@@ -3433,6 +3608,9 @@ aside ul.merged-roles {
 
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
 
+  /* Two lines is what a phone row has room for; the names are on the
+     message itself. */
+  .attach-line { display: none; }
 
   /* A contact is the same two-line card: name over phone, the photo
      beside the tick and spanning both lines. */

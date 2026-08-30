@@ -75,6 +75,7 @@
 "mailbox.selectall" = "انتخاب همه"
 "mailbox.selectalljs" = "انتخاب همهٔ ردیف‌ها نیازمند جاوااسکریپت است"
 "mailbox.sortby" = "مرتب‌سازی"
+"mailbox.perpage" = "سطر در هر صفحه"
 "mailbox.more" = "کارهای بیشتر"
 "mailbox.prevpage" = "صفحهٔ پیشین"
 "mailbox.nextpage" = "صفحهٔ بعدی"

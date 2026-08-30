@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -119,6 +120,11 @@ type MailboxRenderData struct {
 	Sort                      string
 	SortDir                   string
 	SortSupported             bool
+	// PerPage is the count in force, and PerPageOptions the ladder the
+	// toolbar offers. The reader's own preference is always among them,
+	// so choosing it is how they get back to it.
+	PerPage        int
+	PerPageOptions []int
 }
 
 type MailboxDetails struct {
@@ -707,16 +713,18 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 			Starred:         starred,
 			SidebarAccounts: sidebarAccounts(ctx),
 		},
-		Messages:      msgs,
-		PrevPage:      prevPage,
-		NextPage:      nextPage,
-		RangeFrom:     from + 1,
-		RangeTo:       to,
-		Total:         total,
-		Query:         query,
-		Sort:          sortKey,
-		SortDir:       map[bool]string{true: "desc", false: "asc"}[reverse],
-		SortSupported: sortable,
+		Messages:       msgs,
+		PrevPage:       prevPage,
+		NextPage:       nextPage,
+		RangeFrom:      from + 1,
+		RangeTo:        to,
+		Total:          total,
+		Query:          query,
+		PerPage:        messagesPerPage,
+		PerPageOptions: perPageOptions(settings),
+		Sort:           sortKey,
+		SortDir:        map[bool]string{true: "desc", false: "asc"}[reverse],
+		SortSupported:  sortable,
 	})
 }
 
@@ -931,6 +939,8 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		RangeTo:            rangeTo,
 		Total:              total,
 		Query:              query,
+		PerPage:            messagesPerPage,
+		PerPageOptions:     perPageOptions(settings),
 		Sort:               sortKey,
 		SortDir:            map[bool]string{true: "desc", false: "asc"}[reverse],
 		SortSupported:      sortSupported,
@@ -2785,14 +2795,36 @@ func handleSetFlags(ctx *alborz.Context) error {
 const settingsKey = "base.settings"
 
 // perPage is how many rows a listing shows: the stored preference,
-// unless the URL asks for another count. A query parameter answers for
-// this look at the page only and is not written back - the same shape
-// the sort order and the search term already have - so a link that
-// carries one is a link to a longer page rather than a change to the
+// unless the URL asks for another count with ipp. That parameter answers
+// for this look at the page only and is not written back - the same
+// shape the sort order and the search term already have - so a link
+// carrying one is a link to a longer page rather than a change to the
 // reader's settings. Out-of-range asks fall back to the preference
 // rather than failing: a number in a URL is not a form to validate.
+// perPageLadder is what the toolbar offers besides the reader's own
+// preference. Three steps, not a spinner: the question is "a few more"
+// or "the lot", and a list of links needs no script to answer it.
+var perPageLadder = []int{25, 50, 100}
+
+// perPageOptions is the ladder with the reader's own preference folded
+// in, sorted and without repeats, so the count in force is always one
+// of the choices and picking it is how they return to it.
+func perPageOptions(settings *Settings) []int {
+	seen := map[int]bool{}
+	var out []int
+	for _, n := range append(append([]int{}, perPageLadder...), settings.MessagesPerPage) {
+		if n <= 0 || n > maxMessagesPerPage || seen[n] {
+			continue
+		}
+		seen[n] = true
+		out = append(out, n)
+	}
+	sort.Ints(out)
+	return out
+}
+
 func perPage(ctx *alborz.Context, settings *Settings) int {
-	if raw := ctx.QueryParam("per-page"); raw != "" {
+	if raw := ctx.QueryParam("ipp"); raw != "" {
 		if n, err := strconv.Atoi(alborz.LatinDigits(raw)); err == nil &&
 			n > 0 && n <= maxMessagesPerPage {
 			return n

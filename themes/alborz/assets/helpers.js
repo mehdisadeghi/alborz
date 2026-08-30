@@ -46,7 +46,11 @@ for (const formId of ["messages-form", "address-book-form"]) {
 	if (check_all) {
 		// Shown either way: a list with nothing in it would otherwise
 		// drop the cell and slide the whole toolbar sideways.
-		check_all.style.display = "inherit";
+		// Drop the inline rule the markup carries rather than writing
+		// another one over it: display:inherit takes whatever the cell
+		// happens to compute to, which is not the same box in every
+		// engine, and left the control invisible in Firefox.
+		check_all.style.removeProperty("display");
 		check_all.disabled = boxes.length === 0;
 		check_all.addEventListener("click", ev => {
 			for (const box of boxes) {

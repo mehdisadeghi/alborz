@@ -37,8 +37,19 @@
         {{end}}
 
         {{ template "field" (dict "label" ($.T "calendar.eventname") "name" "summary" "value" (.Event.Props.Text "SUMMARY") "dir" "auto" "required" true) }}
-        {{ template "field" (dict "label" ($.T "calendar.startsat") "name" "start" "type" "datetime-local" "value" (.GlobalData.InTimezone (.Event.DateTimeStart nil) | formatinputdatetime) "required" true) }}
-        {{ template "field" (dict "label" ($.T "calendar.endsat") "name" "end" "type" "datetime-local" "value" (.GlobalData.InTimezone (.Event.DateTimeEnd nil) | formatinputdatetime) "required" true) }}
+
+        {{/* An event that occupies whole days has no time of day, so the
+             form stops asking for one. Both pairs of inputs are in the
+             page and the checkbox decides which the eye and the handler
+             see: a checkbox cannot change an input's type without a
+             script, but it can hide the pair that does not apply. */}}
+        <input type="checkbox" name="allday" value="1" id="allday" class="allday-toggle" {{if .AllDay}}checked{{end}}>
+        <label for="allday" class="allday-label">{{$.T "calendar.allday"}}</label>
+
+        {{ template "field" (dict "class" "timed-field" "label" ($.T "calendar.startsat") "name" "start" "type" "datetime-local" "value" .StartTime) }}
+        {{ template "field" (dict "class" "timed-field" "label" ($.T "calendar.endsat") "name" "end" "type" "datetime-local" "value" .EndTime) }}
+        {{ template "field" (dict "class" "allday-field" "label" ($.T "calendar.startdate") "name" "start_date" "type" "date" "value" .StartDate) }}
+        {{ template "field" (dict "class" "allday-field" "label" ($.T "calendar.lastday") "name" "end_date" "type" "date" "value" .EndDate) }}
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" (.Event.Props.Text "DESCRIPTION") "dir" "auto") }}
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/calendar%s" $acct) "cancelLabel" ($.T "common.cancel")) }}

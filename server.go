@@ -800,12 +800,12 @@ func (ctx *Context) URLAccount() string {
 	return ctx.urlAccount
 }
 
-// AccountParam escapes an address for a query value while leaving the at
-// sign alone: '@' is legal there unescaped, and a percent-escaped address
-// makes every account-carrying link unreadable. '+' stays escaped, since
-// a bare one would read as a space.
-func AccountParam(username string) string {
-	return strings.ReplaceAll(url.QueryEscape(username), "%40", "@")
+// AddressParam writes an address into a URL query the way a reader
+// would type it. RFC 3986 allows "@" unescaped in a query, and every
+// address in alborz's links is one, so escaping it only makes the bar
+// unreadable. Everything else is escaped as usual.
+func AddressParam(address string) string {
+	return strings.ReplaceAll(url.QueryEscape(address), "%40", "@")
 }
 
 // AccountPath appends the request's account parameter to path, so a flow
@@ -814,7 +814,7 @@ func (ctx *Context) AccountPath(path string) string {
 	if ctx.urlAccount == "" {
 		return path
 	}
-	return path + "?account=" + AccountParam(ctx.urlAccount)
+	return path + "?account=" + AddressParam(ctx.urlAccount)
 }
 
 // NextOr returns the local page a form asked to return to, or fallback
@@ -1121,6 +1121,10 @@ type Options struct {
 	Debug      bool
 	LoginKey   *fernet.Key
 	Version    string
+	// ProjectURL is where the footer's name links, for a deployment that
+	// wants to point somewhere. Empty by default: a deployment is not the
+	// author's, and no address of anyone's belongs in a shipped binary.
+	ProjectURL string
 }
 
 // New creates a new server.

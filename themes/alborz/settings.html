@@ -26,7 +26,6 @@
 
         <div class="action-group">
           <label for="identities">{{$.T "settings.identities"}}</label>
-          {{ template "help" (dict "text" ($.T "help.identities") "example" "Mehdi Sadeghi <mx@43.yt>") }}
           <textarea
             name="identities"
             id="identities"
@@ -35,7 +34,7 @@
             placeholder="{{$.T "settings.identitiesph"}}"
           >{{range .Settings.Identities}}{{.}}
 {{end}}</textarea>
-          <small>{{$.T "settings.identitieshint"}}</small>
+          {{ template "hint" (dict "text" ($.T "help.identities") "example" ($.T "help.identitiesexample")) }}
         </div>
 
         <div class="action-group">

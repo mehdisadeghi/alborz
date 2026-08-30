@@ -485,8 +485,13 @@ func (node IMAPPartNode) SizeString() string {
 
 func (node IMAPPartNode) URL(raw bool) *url.URL {
 	u := node.Message.URL()
+	// Both halves or neither: url.URL uses RawPath only while it is a
+	// valid encoding of Path, so appending to one alone silently drops
+	// the escaping and a mailbox named INBOX/Lists became two path
+	// segments. Every download of a part in a nested folder 404d.
 	if raw {
 		u.Path += "/raw"
+		u.RawPath += "/raw"
 	}
 	q := u.Query()
 	q.Set("part", node.PathString())

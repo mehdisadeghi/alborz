@@ -8,6 +8,12 @@
   {{ template "detail-aside" (dict "newHref" (printf "/contacts/create%s" $acct) "newLabel" ($.T "contacts.new") "newActive" (not .AddressObject) "backHref" $back "backLabel" .AddressBook.Name) }}
 
   <div class="container">
+    {{ if and .AddressObject .Photo }}
+    <form id="photo-remove-form" method="post"
+          action="/contacts/{{.AddressObject.Path | pathescape}}/photo/delete{{account "?" .GlobalData.URLAccount}}">
+      <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+    </form>
+    {{ end }}
     <main class="create-update">
       <form method="post" enctype="multipart/form-data">
         {{if .AddressObject}}
@@ -29,14 +35,13 @@
              before it goes anywhere near the server. */}}
         <div class="field photo-field">
           <label for="photo">{{$.T "contacts.photo"}}</label>
-          {{ with .Photo }}<img class="photo-current" src="{{photodatauri .}}" alt="">{{ end }}
-          <input type="file" name="photo" id="photo" accept="image/*">
-          {{ if .Photo }}
-          <label class="photo-remove" for="photo_remove">
-            <input type="checkbox" name="photo_remove" id="photo_remove" value="1">
-            {{$.T "contacts.photoremove"}}
-          </label>
+          {{ with .Photo }}
+          <div class="photo-shown">
+            <img class="photo-current" src="{{photodatauri .}}" alt="">
+            <button type="submit" form="photo-remove-form" class="button-danger photo-remove">{{$.T "contacts.photoremove"}}</button>
+          </div>
           {{ end }}
+          <input type="file" name="photo" id="photo" accept="image/*">
         </div>
 
         {{ template "field" (dict "label" ($.T "common.name") "name" "fn" "value" .Name "dir" "auto" "required" true) }}

@@ -71,14 +71,18 @@
           <div class="message-list-flags {{$classes}}">
             <form method="POST" action="/message/{{.Mailbox}}/flag{{ if $.GlobalData.Unified }}{{account "?" .Account}}{{ else }}{{account "?" $.GlobalData.URLAccount}}{{ end }}">
               <input type="hidden" name="uids" value="{{.UID}}">
+              {{/* Both directions go through the colour, which clears
+                   the bits as well as the flag. Removing \Flagged alone
+                   leaves the colour bits behind, so a mail flagged green
+                   elsewhere came back green the next time it was
+                   starred, however many times you unstarred it. */}}
               {{ if .HasFlag "\\Flagged" -}}
-              <input type="hidden" name="action" value="remove">
+              <input type="hidden" name="color" value="">
               {{ else }}
-              <input type="hidden" name="action" value="add">
+              <input type="hidden" name="color" value="gold">
               {{ end }}
-              <input type="hidden" name="flags" value="\Flagged">
               <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-              <button class="flag-button button-link" type="submit">
+              <button class="flag-button button-link{{ with .FlagColor }} flag-{{.}}{{ end }}" type="submit">
                 {{- if .HasFlag "\\Flagged" -}}
                 ★
                 {{- else -}}

@@ -67,6 +67,9 @@ func registerRoutes(p *alborz.GoPlugin) {
 
 	p.GET("/message/:mbox/:uid/forward", handleForward)
 	p.POST("/message/:mbox/:uid/forward", handleForward)
+	p.POST("/message/:mbox/forward", handleForwardSelection)
+	p.POST("/message/:mbox/:uid/unsubscribe", handleUnsubscribe)
+	p.GET("/message/:mbox/forward", handleForwardAttached)
 
 	p.GET("/message/:mbox/:uid/edit", handleEdit)
 	p.POST("/message/:mbox/:uid/edit", handleEdit)
@@ -1420,10 +1423,20 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	})
 }
 
+// AttachedMessage names a whole message the form carries, for the
+// checkbox that keeps it across a round trip.
+type AttachedMessage struct {
+	Ref  string
+	Name string
+}
+
 type ComposeRenderData struct {
 	IMAPBaseRenderData
 	Message *OutgoingMessage
-	Error   string
+	// Attached are whole messages carried as message/rfc822 parts,
+	// which have no part path in the message being written.
+	Attached []AttachedMessage
+	Error    string
 	// Identities offered in the From dropdown, one entry per account.
 	Identities []AccountIdentities
 }
@@ -1455,9 +1468,82 @@ type messagePath struct {
 	Uid     imap.UID
 }
 
+// attachedMessages is the compose form's record of whole messages
+// carried as attachments: "mailbox/uid", one per entry, re-fetched when
+// the form comes back rather than held in memory between requests.
+const attachedField = "attached_messages"
+
+func parseAttachedRef(s string) (messagePath, error) {
+	i := strings.LastIndex(s, "/")
+	if i < 0 {
+		return messagePath{}, fmt.Errorf("bad attached message %q", s)
+	}
+	var p messagePath
+	var err error
+	p.Mailbox, p.Uid, err = parseMboxAndUid(s[:i], s[i+1:])
+	return p, err
+}
+
+// PartAttachments are the attachments that came from a part of another
+// message, which is the only kind the form can carry back by path. A
+// whole message has no part path and rides in Attached instead.
+func (d *ComposeRenderData) PartAttachments() []*imapAttachment {
+	var out []*imapAttachment
+	for _, att := range d.Message.Attachments {
+		if a, ok := att.(*imapAttachment); ok {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// attachedList names what the form should carry back, reading the
+// attachments already built rather than fetching or remembering
+// anything.
+func attachedList(msg *OutgoingMessage) []AttachedMessage {
+	var out []AttachedMessage
+	for _, att := range msg.Attachments {
+		if m, ok := att.(*messageAttachment); ok {
+			out = append(out, AttachedMessage{Ref: attachedRef(m.Path), Name: m.Name})
+		}
+	}
+	return out
+}
+
+func attachedRef(p messagePath) string {
+	return fmt.Sprintf("%s/%v", url.PathEscape(p.Mailbox), p.Uid)
+}
+
+// attachMessages fetches each named message whole and hangs it off the
+// outgoing one.
+func attachMessages(ctx *alborz.Context, msg *OutgoingMessage, paths []messagePath) error {
+	for _, p := range paths {
+		var body []byte
+		var env *imap.Envelope
+		err := ctx.DoIMAP(func(c *imapclient.Client) error {
+			var err error
+			body, env, err = fetchRawMessage(c, p.Mailbox, p.Uid)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		subject := ""
+		if env != nil {
+			subject = env.Subject
+		}
+		msg.Attachments = append(msg.Attachments, &messageAttachment{
+			Path: p, Name: attachmentName(subject), Body: body,
+		})
+	}
+	return nil
+}
+
 type composeOptions struct {
-	Draft     *messagePath
-	Forward   *messagePath
+	Draft   *messagePath
+	Forward *messagePath
+	// Attached are whole messages carried as message/rfc822 parts.
+	Attached  []messagePath
 	InReplyTo *messagePath
 }
 
@@ -1586,6 +1672,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				return ctx.Render(http.StatusUnprocessableEntity, "compose.html", &ComposeRenderData{
 					IMAPBaseRenderData: *ibase,
 					Message:            msg,
+					Attached:           attachedList(msg),
 					Identities:         composeIdentities(ctx),
 					Error:              ctx.T("form.recipientinvalid"),
 				})
@@ -1601,6 +1688,19 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		if err != nil {
 			return fmt.Errorf("failed to get multipart form: %v", err)
 		}
+
+		var attached []messagePath
+		for _, s := range form.Value[attachedField] {
+			p, err := parseAttachedRef(s)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, err)
+			}
+			attached = append(attached, p)
+		}
+		if err := attachMessages(ctx, msg, attached); err != nil {
+			return err
+		}
+		options.Attached = attached
 
 		// Fetch previous attachments from original message
 		var original *messagePath
@@ -1675,6 +1775,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			return ctx.Render(http.StatusUnprocessableEntity, "compose.html", &ComposeRenderData{
 				IMAPBaseRenderData: *ibase,
 				Message:            msg,
+				Attached:           attachedList(msg),
 				Identities:         composeIdentities(ctx),
 				Error:              ctx.T("form.recipientneeded"),
 			})
@@ -1733,6 +1834,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		Identities:         composeIdentities(ctx),
 		IMAPBaseRenderData: *ibase,
 		Message:            msg,
+		Attached:           attachedList(msg),
 	})
 }
 
@@ -1863,9 +1965,10 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 		return ret, fmt.Errorf("failed to parse part Content-Type: %v", err)
 	}
 
+	var quoted string
 	switch mimeType {
 	case "text/plain":
-		ret.Text, err = quote(part.Body)
+		quoted, err = quote(part.Body)
 	case "text/html":
 		var text string
 		text, err = html2text.FromReader(part.Body, html2text.Options{})
@@ -1873,7 +1976,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 			return ret, err
 		}
 
-		ret.Text, err = quote(strings.NewReader(text))
+		quoted, err = quote(strings.NewReader(text))
 	default:
 		defErr := fmt.Errorf("cannot forward %q part", mimeType)
 		err = echo.NewHTTPError(http.StatusBadRequest, defErr)
@@ -1882,11 +1985,21 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 		return ret, err
 	}
 
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return ret, err
+	}
+	ret.Text = replyBody(ctx, inReplyTo, quoted, settings.ReplyBelowQuote)
+	ret.QuoteBelow = !settings.ReplyBelowQuote
+
 	var hdr mail.Header
 	hdr.GenerateMessageID()
 	mid, _ := hdr.MessageID()
 	ret.MessageID = "<" + mid + ">"
 	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
+	// RFC 5322 3.6.4: the chain is what was there plus what is being
+	// answered, and it is the header threading actually runs on.
+	ret.References = strings.TrimSpace(inReplyTo.References + " " + ret.InReplyTo)
 	// TODO: populate From from known user addresses and inReplyTo.Envelope.To
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
@@ -1911,6 +2024,64 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	}
 
 	return ret, nil
+}
+
+// readAll is the body of a part as it was written.
+func readAll(r io.Reader) (string, error) {
+	b, err := io.ReadAll(r)
+	return string(b), err
+}
+
+// forwardBody is the message being passed on, whole: a separator, the
+// headers that say where it came from, then the body exactly as it
+// arrived. It is not quoted - "> " in front of every line is reply
+// convention, and prefixing a forward is what turned a readable message
+// into a wall of chevrons. The person writes above it.
+func forwardBody(ctx *alborz.Context, original *IMAPMessage, body string) string {
+	g := alborz.NewBaseRenderData(ctx).GlobalData
+	var b strings.Builder
+	b.WriteString("\n\n")
+	b.WriteString(ctx.T("message.forwardedblock"))
+	b.WriteString("\n")
+	if from := original.Envelope.From; len(from) > 0 {
+		fmt.Fprintf(&b, "From: %s\n", addressLine(from[0]))
+	}
+	fmt.Fprintf(&b, "Date: %s\n", g.FormatDate(original.Date()))
+	fmt.Fprintf(&b, "Subject: %s\n", original.Envelope.Subject)
+	if to := original.Envelope.To; len(to) > 0 {
+		fmt.Fprintf(&b, "To: %s\n", strings.Join(unwrapIMAPAddressList(to), ", "))
+	}
+	b.WriteString("\n")
+	b.WriteString(body)
+	return b.String()
+}
+
+func addressLine(a imap.Address) string {
+	if a.Name != "" {
+		return fmt.Sprintf("%s <%s>", a.Name, a.Addr())
+	}
+	return a.Addr()
+}
+
+// replyBody puts the quote where the person writing wants to stand
+// relative to it: above it, which is what most correspondents expect,
+// or below it, which is what a mailing list asks for. Either way the
+// quote is introduced, so a reader can see whose words they are without
+// scrolling to find out.
+func replyBody(ctx *alborz.Context, original *IMAPMessage, quoted string, below bool) string {
+	who := ""
+	if from := original.Envelope.From; len(from) > 0 {
+		who = from[0].Name
+		if who == "" {
+			who = from[0].Addr()
+		}
+	}
+	when := alborz.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
+	attribution := ctx.Tf("message.wrote", when, who)
+	if below {
+		return attribution + "\n" + quoted + "\n"
+	}
+	return "\n\n" + attribution + "\n" + quoted
 }
 
 // parseIdentities reads the settings textarea: one address per line,
@@ -1939,6 +2110,133 @@ func filterOutUsername(username string, addresses []imap.Address) []imap.Address
 		}
 	}
 	return addresses
+}
+
+// handleUnsubscribe takes a list at its word. RFC 8058 lets a sender
+// promise that one POST to the URI in List-Unsubscribe removes the
+// reader, and the POST is made from here rather than from the page: the
+// browser may not post across origins, and the endpoint is the list's,
+// not ours. The URI is read from the message again rather than taken
+// from the form, so a page cannot ask us to post anywhere it likes.
+func handleUnsubscribe(ctx *alborz.Context) error {
+	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	var msg *IMAPMessage
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
+		var err error
+		msg, _, err = getMessagePart(c, mboxName, uid, nil)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/message/%v/%v",
+		url.PathEscape(mboxName), uid)))
+	if msg.OneClick == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "this message offers no one-click unsubscribe")
+	}
+
+	body := strings.NewReader("List-Unsubscribe=One-Click")
+	req, err := http.NewRequestWithContext(ctx.Request().Context(),
+		http.MethodPost, msg.OneClick, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	client := &http.Client{Timeout: unsubscribeTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		ctx.Session.PutNotice(ctx.T("notice.unsubfailed"))
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		ctx.Logger().Printf("unsubscribe %s answered %s", msg.OneClick, resp.Status)
+		ctx.Session.PutNotice(ctx.T("notice.unsubfailed"))
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	ctx.Session.PutNotice(ctx.T("notice.unsubscribed"))
+	return ctx.Redirect(http.StatusFound, back)
+}
+
+// unsubscribeTimeout bounds the one request we make to somebody else's
+// server on the reader's behalf.
+const unsubscribeTimeout = 15 * time.Second
+
+// handleForwardSelection is the list toolbar's Forward: the selection
+// names the message, where the message page names it in the path.
+// Forwarding several at once means attaching each as message/rfc822,
+// which is not built yet, so it says so rather than silently forwarding
+// one of them.
+func handleForwardSelection(ctx *alborz.Context) error {
+	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	params, err := ctx.FormParams()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	uids, err := parseUidList(params["uids"])
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+	if len(uids) == 0 {
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	// One message is passed on inline, where the writer can trim it.
+	// Several cannot be: concatenating them means nothing, so each
+	// travels whole as an attachment, which is what every client that
+	// offers this does.
+	if len(uids) == 1 {
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(
+			fmt.Sprintf("/message/%v/%v/forward", url.PathEscape(mboxName), uids[0])))
+	}
+
+	refs := make([]string, len(uids))
+	for i, uid := range uids {
+		refs[i] = fmt.Sprintf("%v", uid)
+	}
+	q := url.Values{"uids": {strings.Join(refs, ",")}}
+	if a := ctx.URLAccount(); a != "" {
+		q.Set("account", alborz.AccountParam(a))
+	}
+	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/message/%v/forward?%s",
+		url.PathEscape(mboxName), q.Encode()))
+}
+
+// handleForwardAttached composes one message carrying several whole
+// ones. It is a GET so the page can be reloaded and so compose sees the
+// request it expects; the selection arrives in the query.
+func handleForwardAttached(ctx *alborz.Context) error {
+	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	uids, err := parseUidList(strings.Split(ctx.QueryParam("uids"), ","))
+	if err != nil || len(uids) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "no messages to forward")
+	}
+	paths := make([]messagePath, len(uids))
+	for i, uid := range uids {
+		paths[i] = messagePath{Mailbox: mboxName, Uid: uid}
+	}
+	var msg OutgoingMessage
+	if ctx.Request().Method == http.MethodGet {
+		if err := attachMessages(ctx, &msg, paths); err != nil {
+			return err
+		}
+		var hdr mail.Header
+		hdr.GenerateMessageID()
+		mid, _ := hdr.MessageID()
+		msg.MessageID = "<" + mid + ">"
+		msg.Subject = ctx.Tf("message.forwardcount", len(uids))
+		msg.QuoteBelow = true
+	}
+	return handleCompose(ctx, &msg, &composeOptions{Attached: paths})
 }
 
 func handleForward(ctx *alborz.Context) error {
@@ -1973,17 +2271,14 @@ func handleForward(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to parse part Content-Type: %v", err)
 		}
 
+		var body string
 		switch mimeType {
 		case "text/plain":
-			msg.Text, err = quote(part.Body)
+			body, err = readAll(part.Body)
 		case "text/html":
-			var text string
-			text, err = html2text.FromReader(part.Body, html2text.Options{})
-			if err != nil {
-				return err
-			}
-
-			msg.Text, err = quote(strings.NewReader(text))
+			// Lossy, and the only thing a plain-text composer can do
+			// with HTML. Attaching the message instead keeps it whole.
+			body, err = html2text.FromReader(part.Body, html2text.Options{})
 		default:
 			defErr := fmt.Errorf("cannot forward %q part", mimeType)
 			err = echo.NewHTTPError(http.StatusBadRequest, defErr)
@@ -1991,6 +2286,8 @@ func handleForward(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
+		msg.Text = forwardBody(ctx, source, body)
+		msg.QuoteBelow = true
 
 		var hdr mail.Header
 		hdr.GenerateMessageID()
@@ -2001,7 +2298,11 @@ func handleForward(ctx *alborz.Context) error {
 			!strings.HasPrefix(strings.ToLower(msg.Subject), "fw:") {
 			msg.Subject = "Fwd: " + msg.Subject
 		}
-		msg.InReplyTo = formatMsgIDList(source.Envelope.InReplyTo)
+		// A forward starts a thread of its own: it carried the original's
+		// In-Reply-To, which made it a sibling reply to whatever that
+		// message was answering, in a conversation the reader may not
+		// even be in.
+		msg.References = "<" + source.Envelope.MessageID + ">"
 
 		attachments := source.Attachments()
 		for i := range attachments {
@@ -2322,6 +2623,40 @@ func handleSetFlags(ctx *alborz.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
+	// A colour is a flag plus a bit field, so it is set and cleared in
+	// one exchange rather than by asking the page to spell out both.
+	if color, ok := formParams["color"]; ok {
+		add, del := FlagColorFlags(color[0])
+		if add == nil && del == nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "unknown flag colour")
+		}
+		err = ctx.DoIMAP(func(c *imapclient.Client) error {
+			if err := ensureMailboxSelected(c, mboxName); err != nil {
+				return err
+			}
+			for _, step := range []struct {
+				op    imap.StoreFlagsOp
+				flags []imap.Flag
+			}{{imap.StoreFlagsAdd, add}, {imap.StoreFlagsDel, del}} {
+				if len(step.flags) == 0 {
+					continue
+				}
+				if err := c.Store(imap.UIDSetNum(uids...), &imap.StoreFlags{
+					Op: step.op, Silent: true, Flags: step.flags,
+				}, nil).Close(); err != nil {
+					return fmt.Errorf("failed to set flag colour: %v", err)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		listings.evict(ctx.Session.Username(), mboxName)
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(
+			fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))))
+	}
+
 	flags, ok := formParams["flags"]
 	if !ok {
 		flagsStr := ctx.QueryParam("to")
@@ -2405,6 +2740,12 @@ type Settings struct {
 
 	// Stored negated so the zero value keeps body search on by default.
 	SearchHeadersOnly bool
+
+	// ReplyBelowQuote puts the reply after the quoted message, the way a
+	// mailing list expects it, instead of before. Stored positively:
+	// the zero value keeps the reply on top, which is what a mail client
+	// has always done here and what most correspondents expect.
+	ReplyBelowQuote bool
 }
 
 func LoadSettings(s alborz.Store) (*Settings, error) {
@@ -2508,6 +2849,7 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
 		settings.Timezone = ctx.FormValue("timezone")
 		settings.SearchHeadersOnly = ctx.FormValue("search_body") != "on"
+		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
 			settings.FirstDayOfWeek, err = strconv.Atoi(alborz.LatinDigits(fdow))
 			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {

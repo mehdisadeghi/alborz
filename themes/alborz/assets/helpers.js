@@ -125,4 +125,14 @@ for (let i = 0; i < submit_on_change.length; i++) {
 	}
 }
 
+// The cursor belongs where the reply is written, which is above the
+// quote or below it. A browser focusing a textarea puts it at one end
+// or the other depending on the browser; this says which end.
+const caret = document.querySelector("textarea[data-caret]");
+if (caret) {
+	const at = caret.dataset.caret === "start" ? 0 : caret.value.length;
+	caret.focus();
+	caret.setSelectionRange(at, at);
+}
+
 // @license-end

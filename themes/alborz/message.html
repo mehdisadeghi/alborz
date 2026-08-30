@@ -3,7 +3,7 @@
      toolbar, with a label in the overflow menu. dict: mbox aq uid next
      to label [icon] [class]. */}}
 {{ define "msg-move-form" }}
-<form class="action-group" method="post" action="/message/{{.mbox | pathescape}}/move{{.aq}}">
+<form class="action-group{{ with .formclass }} {{.}}{{ end }}" method="post" action="/message/{{.mbox | pathescape}}/move{{.aq}}">
   <input type="hidden" name="uids" value="{{.uid}}">
   {{ with .next }}<input type="hidden" name="next" value="{{.}}">{{ end }}
   <input type="hidden" name="to" value="{{.to}}">
@@ -28,6 +28,11 @@
   {{ template "aside" . }}
   <div class="container">
     <main class="message">
+      {{ $here := printf "%v%s" .Message.URL $partq }}
+      <form id="message-flag-form" method="post">
+        <input type="hidden" name="uids" value="{{.Message.UID}}">
+        <input type="hidden" name="next" value="{{$here}}">
+      </form>
       <section class="actions">
         <div class="actions-wrap">
           <div class="actions-message">
@@ -39,19 +44,30 @@
             {{$drafts := ""}}{{with $common.Drafts}}{{$drafts = .Info.Name}}{{end}}
             {{$sent := ""}}{{with $common.Sent}}{{$sent = .Info.Name}}{{end}}
 
-            {{/* Answering the message, then disposing of it: two groups
-                 of marks, each the same width in every language. */}}
+            {{ $flagged := .Message.HasFlag "\\Flagged" }}
             <span class="icon-group followups">
               {{if .Message.HasFlag "\\Draft"}}
                 <a class="button-link" href="{{.Message.URL}}/edit{{$partq}}">{{$.T "message.editdraft"}}</a>
               {{else}}
+                {{/* Three marks either way, in the same three places:
+                     the reply this message wants, the other reply, then
+                     forward. On list mail the first is the list and the
+                     second is the author, because Reply on a list
+                     usually answers the wrong person - and reply-all,
+                     which answers the list and everyone on it at once,
+                     moves into the overflow where it has to be read. */}}
+                {{ if .Message.ListID }}
+                <a class="icon-button" href="{{.Message.URL}}/reply{{$partlistq}}" title="{{$.T "message.replylist"}} — {{.Message.ListID}}" aria-label="{{$.T "message.replylist"}}">{{ template "icon" "reply-list" }}</a>
+                <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.replyauthor"}}" aria-label="{{$.T "message.replyauthor"}}">{{ template "icon" "reply" }}</a>
+                {{ else }}
                 <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.reply"}}" aria-label="{{$.T "message.reply"}}">{{ template "icon" "reply" }}</a>
                 <a class="icon-button" href="{{.Message.URL}}/reply{{$partallq}}" title="{{$.T "message.replyall"}}" aria-label="{{$.T "message.replyall"}}">{{ template "icon" "reply-all" }}</a>
+                {{ end }}
                 <a class="icon-button" href="{{.Message.URL}}/forward{{$partq}}" title="{{$.T "message.forward"}}" aria-label="{{$.T "message.forward"}}">{{ template "icon" "forward" }}</a>
               {{end}}
             </span>
 
-            <span class="icon-group">
+            <span class="icon-group wide-only">
               {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
               {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $archive "label" ($.T "mailbox.archive") "icon" "archive") }}
               {{ end }}
@@ -92,14 +108,53 @@
             <details class="overflow">
               <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
               <div class="overflow-menu">
-                {{/* A list message answers its list and lets go of it;
-                     both are rare enough to live here in words. */}}
-                {{ with .Message.ListPost }}
-                <a class="button-link" href="{{localhref (printf "%v/reply%s" $.Message.URL $partlistq)}}" title="{{.}}">{{$.T "message.replylist"}}</a>
+                {{/* The colours lead the menu here as they do in the
+                     list: the same control belongs in the same place. */}}
+                {{ template "flag-colors" (dict
+                   "form" "message-flag-form"
+                   "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $aq)
+                   "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
+                {{/* On list mail the dangerous reply is the one that
+                     answers the list and everyone on it at once, so it
+                     is here, spelled out, rather than a mark beside the
+                     two safe ones. */}}
+                {{ if .Message.ListID }}
+                <a class="button-link" href="{{localhref (printf "%v/reply%s" $.Message.URL $partallq)}}">{{$.T "message.replyall"}}</a>
                 {{ end }}
-                {{ with .Message.ListUnsubscribe }}
+                {{/* The same three the toolbar shows on a wide screen,
+                     in words, for the width that cannot hold them. */}}
+                {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
+                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $archive "label" ($.T "mailbox.archive") "formclass" "narrow-only") }}
+                {{ end }}
+                {{ if and $junk (ne .Mailbox.Name $junk) (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
+                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $junk "label" ($.T "mailbox.spam") "formclass" "narrow-only") }}
+                {{ else if and $junk (eq .Mailbox.Name $junk) }}
+                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" "INBOX" "label" ($.T "mailbox.notspam") "formclass" "narrow-only") }}
+                {{ end }}
+                {{ if or (eq .Mailbox.Name $trash) (eq .Mailbox.Name $junk) (not $trash) }}
+                <form class="action-group narrow-only" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete{{$aq}}">
+                  <input type="hidden" name="uids" value="{{.Message.UID}}">
+                  <input type="hidden" name="next" value="{{$back}}">
+                  <button class="button-danger">{{$.T "mailbox.deleteperm"}}</button>
+                </form>
+                {{ else }}
+                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $trash "label" ($.T "mailbox.delete") "formclass" "narrow-only") }}
+                {{ end }}
+
+                <a class="button-link" href="{{localhref (printf "/message/%s/forward?uids=%v%s" (.Mailbox.Name | pathescape) .Message.UID $aamp)}}">{{$.T "message.forwardattached"}}</a>
+                {{/* A list that promises one-click is taken at its
+                     word, from here, since the browser may not post
+                     across origins. Anything else is a page to visit or
+                     a message to write, both of which the reader sees
+                     before anything happens. */}}
+                {{ if .Message.OneClick }}
+                <form method="post" action="{{.Message.URL}}/unsubscribe{{$aq}}">
+                  <input type="hidden" name="next" value="{{$here}}">
+                  <button>{{$.T "message.unsubscribe"}}</button>
+                </form>
+                {{ else }}{{ with .Message.ListUnsubscribe }}
                 <a class="button-link" href="{{.}}" rel="nofollow noopener noreferrer" target="_blank">{{$.T "message.unsubscribe"}}</a>
-                {{ end }}
+                {{ end }}{{ end }}
                 {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $junk) }}
                 {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "to" "INBOX" "label" ($.T "message.movetoinbox")) }}
                 {{ end }}
@@ -143,7 +198,11 @@
       <div class="message-header">
         <table>
           <tr>
-            <th colspan="2">
+            {{/* The star rides the subject line, at the end the subject
+                 does not start from: put beside the first character it
+                 sits where a subject's own leading emoji sits and the
+                 two read as one mark. */}}
+            <th colspan="2" class="subject-row">
               <h1 dir="{{.Message.Envelope.Subject | subjectdir}}">
                {{if .Message.Envelope.Subject}}
                   {{.Message.Envelope.Subject}}
@@ -151,6 +210,14 @@
                   {{$.T "mailbox.nosubject"}}
                 {{end}}
               </h1>
+              <button class="flag-button button-link{{ with .Message.FlagColor }} flag-{{.}}{{ end }}"
+                      form="message-flag-form"
+                      formaction="/message/{{.Mailbox.Name | pathescape}}/flag{{$aq}}"
+                      name="color" value="{{ if $flagged }}{{ else }}gold{{ end }}"
+                      title="{{ if $flagged }}{{$.T "mailbox.flagnone"}}{{ else }}{{$.T "mailbox.flagcolor"}}{{ end }}"
+                      aria-label="{{ if $flagged }}{{$.T "mailbox.flagnone"}}{{ else }}{{$.T "mailbox.flagcolor"}}{{ end }}">
+                {{- if $flagged }}&#9733;{{ else }}&#9734;{{ end -}}
+              </button>
             </th>
           </tr>
           <tr>

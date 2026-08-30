@@ -102,6 +102,14 @@
 
 
         <div class="action-group">
+          <label for="reply_position">{{$.T "settings.replyposition"}}</label>
+          <select name="reply_position" id="reply_position">
+            <option value="above" {{if not .Settings.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replytop"}}</option>
+            <option value="below" {{if .Settings.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replybottom"}}</option>
+          </select>
+        </div>
+
+        <div class="action-group">
           <label for="first_day_of_week">{{$.T "settings.firstday"}}</label>
           <select name="first_day_of_week" id="first_day_of_week">
             <option value="1" {{if eq .Settings.FirstDayOfWeek 1}}selected{{end}}>{{$.T "settings.monday"}}</option>

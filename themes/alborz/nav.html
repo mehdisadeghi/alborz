@@ -53,7 +53,7 @@
     {{ if .GlobalData.LoggedIn }}
     <div>
       <details class="accounts">
-        <summary>{{if $pooled}}{{$.T "nav.accounts"}}{{else if .GlobalData.Unified}}{{$.T "nav.allaccounts"}}{{else}}{{.GlobalData.Username}}{{end}}</summary>
+        <summary>{{if $pooled}}{{$.T "nav.accounts"}}{{else if .GlobalData.Unified}}{{$.T "nav.allaccounts"}}{{else}}{{ template "ltr" .GlobalData.Username }}{{end}}</summary>
         <div class="accounts-menu">
           {{/* Every account keeps its row across switches; only the
                mark moves with the choice. */}}
@@ -61,7 +61,7 @@
           <div class="account-menu-row">
           <form method="post" action="/switch">
             <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-            <button type="submit" name="account" value="{{ .Username }}"{{ if and .Active $showactive }} class="active" disabled{{ end }}>{{ .Username }}</button>
+            <button type="submit" name="account" value="{{ .Username }}"{{ if and .Active $showactive }} class="active" disabled{{ end }}>{{ template "ltr" .Username }}</button>
           </form>
           {{if gt (len $.GlobalData.Accounts) 1}}
           <form method="post" action="/logout" class="account-signout">

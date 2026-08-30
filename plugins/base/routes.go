@@ -1265,6 +1265,11 @@ type MessageRenderData struct {
 	Position int
 	Total    int
 	Query    string
+
+	// Signature is what the page says about the message's authenticity,
+	// as chrome outside the body frame. Its zero value says nothing,
+	// which is what an unsigned message deserves.
+	Signature Signature
 }
 
 func handleGetPart(ctx *alborz.Context, raw bool) error {
@@ -1304,6 +1309,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		selected            *imapclient.SelectedMailbox
 		newerUID, olderUID  imap.UID
 		position, totalMsgs int
+		signature           Signature
 	)
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		var load *sidebarLoad
@@ -1320,6 +1326,14 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		if !raw {
 			if newerUID, olderUID, position, totalMsgs, err = messageNeighbors(c, msg.SeqNum, criteria); err != nil {
 				return err
+			}
+			// Whether the message is from who it says, on the same
+			// connection that has the mailbox open. A message nobody
+			// signed costs nothing here: signedParts walks a structure
+			// already in hand and finds nothing.
+			if msg.BodyStructure != nil {
+				signature = verifySignature(c, mboxName, uid, msg.BodyStructure,
+					messageRootHeader(msg), envelopeSender(msg.Envelope))
 			}
 			sb, err = load.finish()
 		}
@@ -1420,6 +1434,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Position:           position,
 		Total:              totalMsgs,
 		Query:              query,
+		Signature:          signature,
 	})
 }
 

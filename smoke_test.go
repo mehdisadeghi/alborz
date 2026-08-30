@@ -3,6 +3,7 @@ package alborz_test
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
@@ -62,6 +63,16 @@ func startIMAP(t *testing.T) string {
 				"List-Post: <mailto:discuss@lists.example.org>\r\n" +
 				"List-Unsubscribe: <https://lists.example.org/u>\r\n" +
 				"Content-Type: text/plain; charset=UTF-8\r\n", "Body.\r\n"},
+		// HTML with an inline image: the sanitizer rewrites cid: to the
+		// part's own raw URL, which is the one place that URL is built
+		// - and in a folder whose name holds a separator it has to
+		// escape it or the picture 404s.
+		{"Hal <hal@example.org>", "Inline picture",
+			"Content-Type: multipart/related; boundary=r1\r\n",
+			"--r1\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n" +
+				"<p>See <img src=\"cid:pic@rig\"></p>\r\n" +
+				"--r1\r\nContent-Type: image/png\r\nContent-ID: <pic@rig>\r\n\r\nPNG\r\n" +
+				"--r1--\r\n"},
 		{"Bob <bob@example.org>", "Attached docs",
 			"Content-Type: multipart/mixed; boundary=b1\r\n",
 			"--b1\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nBody.\r\n" +
@@ -158,24 +169,38 @@ func TestPagesAnswer(t *testing.T) {
 		t.Fatalf("inbox has no messages; the rig seeded none and every other check is vacuous")
 	}
 	uids := messageUIDs(body)
-	if len(uids) < 3 {
-		t.Fatalf("expected the three seeded messages, found %d", len(uids))
+	if len(uids) < 4 {
+		t.Fatalf("expected the four seeded messages, found %d", len(uids))
 	}
-	// The attachment row is the one that exercises the chips and the
-	// part-less reply. A page that renders none of it grades every check
-	// below it as a pass without having run them.
-	if !strings.Contains(body, "attach-chip") {
-		t.Fatalf("the seeded attachment renders no chip; the row it belongs to is unchecked")
+	// The attachment row is the one that exercises the part-less reply
+	// and the download links. A page that renders none of it grades
+	// every check below it as a pass without having run them.
+	if !strings.Contains(body, "mailbox.attachment") && !strings.Contains(body, "message-mark") {
+		t.Fatalf("the seeded attachment leaves no mark on its row; that row is unchecked")
 	}
 
-	// The nested folder's own rows: a part downloaded from there is the
-	// one URL that has to escape the separator in the mailbox name.
+	// A part downloaded out of a folder whose name holds the hierarchy
+	// separator is the one URL that has to escape it. The links are on
+	// the message page, so the message has to be opened to reach them.
 	nested := get(t, c, base+"/mailbox/INBOX%2FLists")
-	for _, href := range rawPartHrefs(nested) {
-		t.Run(href, func(t *testing.T) { get(t, c, base+href) })
+	nestedUIDs := messageUIDs(nested)
+	if len(nestedUIDs) == 0 {
+		t.Fatal("the nested folder shows no messages; the escaping is unchecked")
 	}
-	if len(rawPartHrefs(nested)) == 0 {
-		t.Fatal("the nested folder shows no downloadable part; the escaping is unchecked")
+	var nestedParts []string
+	for _, uid := range nestedUIDs {
+		page := get(t, c, base+"/message/INBOX%2FLists/"+uid)
+		nestedParts = append(nestedParts, rawPartHrefs(page)...)
+		// The sanitizer rewrites an inline cid: image to the part's own
+		// raw URL; that is the only place alborz builds one, so it is
+		// where the mailbox name's escaping is proved.
+		nestedParts = append(nestedParts, rawPartSrcs(page)...)
+	}
+	if len(nestedParts) == 0 {
+		t.Fatal("no downloadable part in the nested folder; the escaping is unchecked")
+	}
+	for _, href := range nestedParts {
+		t.Run(href, func(t *testing.T) { get(t, c, base+href) })
 	}
 
 	paths := []string{
@@ -204,6 +229,20 @@ func rawPartHrefs(body string) []string {
 	for _, m := range regexp.MustCompile(
 		`href="(/message/[^"]*/raw\?[^"]*)"`).FindAllStringSubmatch(body, -1) {
 		out = append(out, strings.ReplaceAll(m[1], "&amp;", "&"))
+	}
+	return out
+}
+
+// rawPartSrcs finds the part URLs the HTML sanitizer wrote into a
+// rendered message - the inline images, whose src it rewrote. The
+// sanitized document is carried in an iframe's srcdoc, so it arrives
+// attribute-escaped and has to be unescaped before it reads as HTML.
+func rawPartSrcs(body string) []string {
+	var out []string
+	for _, m := range regexp.MustCompile(
+		`src="(/message/[^"]*/raw\?[^"]*)"`).FindAllStringSubmatch(
+		html.UnescapeString(body), -1) {
+		out = append(out, m[1])
 	}
 	return out
 }

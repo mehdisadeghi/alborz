@@ -16,19 +16,110 @@ import (
 	"github.com/emersion/go-smtp"
 )
 
+// wrapColumn is where a line is folded. RFC 5322 2.1.1 caps a line at
+// 998 octets and asks for 78; 72 leaves room for the chevrons a reply
+// will add without pushing the result past that.
+const wrapColumn = 72
+
+// wrapText folds long lines so the message obeys 2.1.1 - a Persian
+// paragraph typed into a textarea is one line however long it runs - and
+// marks the folds as format=flowed (RFC 3676) so a client that
+// understands it can lay the paragraph out for its own window. A line
+// that is quoted, indented or already short is left exactly as it is:
+// preformatted text is the one thing rewrapping destroys.
+func wrapText(text string) string {
+	var out strings.Builder
+	for _, line := range strings.Split(text, "\n") {
+		if len(line) <= wrapColumn || quoteDepth(line) > 0 ||
+			strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
+			out.WriteString(line)
+			out.WriteString("\n")
+			continue
+		}
+		words := strings.Split(line, " ")
+		cur := ""
+		for _, w := range words {
+			switch {
+			case cur == "":
+				cur = w
+			case len(cur)+1+len(w) <= wrapColumn:
+				cur += " " + w
+			default:
+				// A flowed line ends in a space: that is what says the
+				// next line continues it, and what lets the reader's
+				// client fold it differently.
+				out.WriteString(cur)
+				out.WriteString(" \n")
+				cur = w
+			}
+		}
+		out.WriteString(cur)
+		out.WriteString("\n")
+	}
+	return strings.TrimSuffix(out.String(), "\n")
+}
+
+// quoteMaxDepth is how deep a quoted quote is carried. A reply to a
+// reply to a reply says nothing the two above it did not, and a thread
+// that keeps all of them grows a wall of chevrons nobody reads.
+const quoteMaxDepth = 2
+
+// quote marks up the message being answered, trimmed the way a reply is
+// expected to be: the sender's signature goes, since it is not part of
+// what they said; quotes deeper than a couple of levels go, since they
+// are already in the thread; and the blank lines a trim leaves behind
+// collapse, so the quote reads as text rather than as a gap.
 func quote(r io.Reader) (string, error) {
 	scanner := bufio.NewScanner(r)
-	var builder strings.Builder
+	var lines []string
 	for scanner.Scan() {
-		builder.WriteString("> ")
-		builder.Write(scanner.Bytes())
-		builder.WriteString("\n")
+		line := scanner.Text()
+		// RFC 3676 4.3: a line of exactly "-- " starts the signature,
+		// and everything after it belongs to the sender, not the point.
+		if strings.TrimRight(line, "\r") == "-- " {
+			break
+		}
+		if quoteDepth(line) >= quoteMaxDepth {
+			continue
+		}
+		lines = append(lines, line)
 	}
 	if err := scanner.Err(); err != nil {
 		return "", fmt.Errorf("quote: failed to read original message: %s", err)
 	}
+
+	var builder strings.Builder
+	blank := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			blank++
+			if blank > 1 {
+				continue
+			}
+		} else {
+			blank = 0
+		}
+		builder.WriteString("> ")
+		builder.WriteString(line)
+		builder.WriteString("\n")
+	}
 	builder.WriteString("\n")
 	return builder.String(), nil
+}
+
+// quoteDepth counts the chevrons a line already carries.
+func quoteDepth(line string) int {
+	n := 0
+	for _, r := range line {
+		switch r {
+		case '>':
+			n++
+		case ' ', '\t':
+		default:
+			return n
+		}
+	}
+	return n
 }
 
 type Attachment interface {
@@ -87,9 +178,21 @@ type OutgoingMessage struct {
 	MessageID string
 	// Mailer names the software that wrote the message, for the
 	// conventional User-Agent header; empty leaves the header out.
-	Mailer      string
-	InReplyTo   string
-	Text        string
+	Mailer    string
+	InReplyTo string
+	// References is the thread this message belongs to, oldest first
+	// (RFC 5322 3.6.4). Gmail and Thunderbird thread on it before
+	// In-Reply-To, which is why a long thread scattered without it.
+	References string
+	// Sender is the mailbox actually sending, named only when it is not
+	// the one From claims.
+	Sender string
+	// Language is what the body is written in, for Content-Language.
+	Language string
+	Text     string
+	// QuoteBelow says the quoted message sits under the space the reply
+	// is written in, so the compose form can put the cursor there.
+	QuoteBelow  bool
 	Attachments []Attachment
 }
 
@@ -169,6 +272,14 @@ func (msg *OutgoingMessage) WriteTo(w io.Writer) error {
 	if msg.InReplyTo != "" {
 		h.Set("In-Reply-To", msg.InReplyTo)
 	}
+	if msg.References != "" {
+		h.Set("References", msg.References)
+	}
+	// RFC 3282: the language the body is written in, which a mixed-script
+	// mailbox has reason to state and nobody can infer.
+	if msg.Language != "" {
+		h.Set("Content-Language", msg.Language)
+	}
 
 	if msg.Mailer != "" {
 		h.Set("User-Agent", msg.Mailer)
@@ -185,7 +296,11 @@ func (msg *OutgoingMessage) WriteTo(w io.Writer) error {
 	}
 
 	var th mail.InlineHeader
-	th.Set("Content-Type", "text/plain; charset=utf-8")
+	// format=flowed says the soft line breaks above may be undone, so a
+	// paragraph lays itself out in the reader's window instead of at our
+	// column (RFC 3676). A client that does not know it sees text
+	// wrapped at 72, which is what 5322 asks for anyway.
+	th.Set("Content-Type", "text/plain; charset=utf-8; format=flowed")
 
 	tw, err := mw.CreateSingleInline(th)
 	if err != nil {
@@ -193,7 +308,7 @@ func (msg *OutgoingMessage) WriteTo(w io.Writer) error {
 	}
 	defer tw.Close()
 
-	if _, err := io.WriteString(tw, msg.Text); err != nil {
+	if _, err := io.WriteString(tw, wrapText(msg.Text)); err != nil {
 		return fmt.Errorf("failed to write text part: %v", err)
 	}
 

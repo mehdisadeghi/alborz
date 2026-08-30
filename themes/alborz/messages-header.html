@@ -51,12 +51,27 @@
     </span>
     </span>
 
+    {{/* The colours are a menu of their own beside the marks, and a
+         submenu inside the overflow where the row is too narrow for
+         one more control. */}}
+    {{ template "flag-menu" (dict
+       "class" "wide-only"
+       "form" "messages-form"
+       "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount))
+       "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
+
     <details class="overflow">
       <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
       <div class="overflow-menu">
+        {{ template "flag-menu" (dict
+           "class" "narrow-only"
+           "form" "messages-form"
+           "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount))
+           "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
         {{ with $archiveAction }}<button class="narrow-only" form="messages-form" formaction="{{.}}">{{$.T "mailbox.archive"}}</button>{{ end }}
         {{ with $junkAction }}<button class="narrow-only" form="messages-form" formaction="{{.}}">{{$junkLabel}}</button>{{ end }}
         {{ with $trashAction }}<button class="narrow-only button-danger" form="messages-form" formaction="{{.}}">{{$trashLabel}}</button>{{ end }}
+        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/forward{{$aq}}">{{$.T "message.forward"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
         <select form="messages-form" name="to" aria-label="{{$.T "mailbox.movefolder"}}">

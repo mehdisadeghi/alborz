@@ -1,17 +1,13 @@
-{{ $multi := gt (len .GlobalData.Accounts) 1 }}
-{{if not $multi}}{{ template "toolbar-select-all" . }}{{end}}
-<div class="actions-wrap">
-  <div class="actions-message">
-    <h2>{{$.T "nav.contacts"}}</h2>
-    <div class="action-group">
-      <button form="address-book-form" formaction="/contacts/delete" class="button-danger">{{$.T "common.delete"}}</button>
-    </div>
-  </div>
-
-  <div class="actions-end">
-  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search")) }}
-  {{if .AddressObjects}}
-  {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | accountparam) }}{{ end }}
+{{ template "toolbar-head" (dict "g" . "title" ($.T "nav.contacts") "selectall" true "newhref" "/contacts/create" "newlabel" ($.T "contacts.new")) }}
+    <span class="icon-group">
+      {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "address-book-form" "formaction" "/contacts/delete") }}
+    </span>
+{{ template "toolbar-end" }}
+  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query))) }}
+  {{if not .AddressObjects}}
+  <span class="overflow sort-overflow"><span class="icon-button" aria-disabled="true" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "icon" "sort" }}</span></span>
+  {{else}}
+  {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | addr) }}{{ end }}
   {{ $creset := "?" }}{{ if ne $cq "" }}{{ $creset = printf "?%s" (slice $cq 1) }}{{ end }}
   {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "name" }}{{ end }}
   {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
@@ -25,5 +21,4 @@
     </div>
   </details>
   {{end}}
-  </div>
-</div>
+{{ template "toolbar-foot" }}

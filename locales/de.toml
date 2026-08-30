@@ -73,6 +73,7 @@
 "mailbox.nosubject" = "(Kein Betreff)"
 "mailbox.nostarred" = "Keine markierten E-Mails."
 "mailbox.selectall" = "Alle auswählen"
+"mailbox.selectalljs" = "Alle Zeilen auszuwählen braucht JavaScript"
 "mailbox.sortby" = "Sortieren nach"
 "mailbox.more" = "Weitere Aktionen"
 "mailbox.prevpage" = "Vorherige Seite"
@@ -87,7 +88,8 @@
 "message.reply" = "Antworten"
 "message.replyall" = "Allen antworten"
 "message.forward" = "Weiterleiten"
-"message.forwardedblock" = "---------- Weitergeleitete Nachricht ----------"
+"message.forwardattached" = "Als Anhang weiterleiten"
+"message.forwardedblock" = "---------- Forwarded message ----------"
 "message.replylist" = "An die Liste antworten"
 "message.wrote" = "Am %s schrieb %s:"
 "message.replyauthor" = "Dem Autor antworten"
@@ -195,6 +197,7 @@
 "settings.signature" = "Signatur"
 "settings.identities" = "Senden als"
 "help.identities" = "Eine Adresse pro Zeile. Ein Name darf davorstehen, mit der Adresse in spitzen Klammern (RFC 5322). Wird eine davon benutzt, nennt die Nachricht das Konto als Absender, damit die Angabe prüfbar bleibt."
+"help.identitiesexample" = "Ihr Name <sie@example.org>"
 "help.replyto" = "Wohin Antworten gehen sollen, wenn nicht an die Absenderadresse. Leer lassen, dann gehen Antworten an den Absender."
 "settings.identitiesph" = "Name <adresse@example.org>"
 "settings.identitieshint" = "Weitere Adressen, unter denen dieses Postfach senden darf, eine pro Zeile."
@@ -305,3 +308,7 @@ other = "Fwd: %d Nachrichten"
 ["collection.deletecount"]
 one = "Sie enthält %d Eintrag, der mitgelöscht wird."
 other = "Sie enthält %d Einträge, die mitgelöscht werden."
+
+["mailbox.attachmore"]
+one = "%d Anhang"
+other = "%d Anhänge"

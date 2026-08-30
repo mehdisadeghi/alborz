@@ -48,6 +48,17 @@ var templateFuncs = template.FuncMap{
 	"tuple": func(values ...interface{}) []interface{} {
 		return values
 	},
+	// The flag colours, in the order the bit field numbers them, each
+	// with its name in the page's language, so a picker is written once
+	// and stays in step with the model. Takes the render data for its
+	// translator: a method value cannot be passed through a dict.
+	"flagcolors": func(t interface{ T(string) string }) []FlagColorOption {
+		opts := make([]FlagColorOption, len(FlagColors))
+		for i, name := range FlagColors {
+			opts[i] = FlagColorOption{Name: name, Label: t.T("color." + name)}
+		}
+		return opts
+	},
 	// Named arguments for shared defines; positional tuples stop scaling
 	// past a few fields.
 	"dict": func(pairs ...interface{}) (map[string]interface{}, error) {

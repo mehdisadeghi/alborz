@@ -1,14 +1,22 @@
 package alborzcarddav
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"net/http"
 	"net/url"
 	"path"
 	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/image/draw"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-vcard"
@@ -37,6 +45,15 @@ const settingsKey = "carddav.settings"
 
 type AddressObjectRenderData struct {
 	alborz.BaseRenderData
+	// Modified is when the card last changed: REV if the card carries
+	// one (vCard 6.7.4), and the server's own last-modified otherwise.
+	//
+	// There is no Created. A vCard has no property for it - REV is the
+	// last revision, not the first - and the only universal answer is
+	// WebDAV's DAV:creationdate, which the object REPORT does not ask
+	// for. Showing REV as "created" was wrong and said so on every
+	// contact page.
+	Modified      time.Time
 	AddressBook   *AddressBookInfo
 	AddressObject AddressObject
 	Birthday      string    // the input format, for the edit form
@@ -45,13 +62,129 @@ type AddressObjectRenderData struct {
 
 type UpdateAddressObjectRenderData struct {
 	alborz.BaseRenderData
-	AccountBooks  []BookGroup
+	Groups        []BookGroup
 	AddressBook   *AddressBookInfo
 	AddressObject *carddav.AddressObject // nil if creating a new contact
 	Card          vcard.Card
 	Name          string
 	Error         string
 	Birthday      string
+	// Photo is the card's picture as it stands, so the form can show
+	// what it is about to replace.
+	Photo string
+}
+
+// photoLongestSide is what a contact picture is reduced to. The card
+// carries it inline and base64 costs another third, so every fetch of
+// the contact pays for whatever was uploaded - and a face in a list is
+// shown at a few dozen pixels. The server's own limit is not the one
+// that matters; ours is smaller on purpose.
+const photoLongestSide = 320
+
+// photoMaxUpload is what we are willing to decode at all. Beyond it the
+// answer is no rather than a slow yes.
+const photoMaxUpload = 12 << 20 // 12 MiB
+
+// applyPhoto replaces, removes or leaves the card's picture. What is
+// uploaded is never what is stored: it is decoded, reduced to a size a
+// contact list can use, and re-encoded as JPEG, so a card stays small
+// enough to fetch on every visit.
+func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
+	if ctx.FormValue("photo_remove") != "" {
+		delete(card, vcard.FieldPhoto)
+		return nil
+	}
+	file, err := ctx.FormFile("photo")
+	if err != nil || file == nil || file.Size == 0 {
+		return nil // nothing offered; whatever the card has, it keeps
+	}
+	if file.Size > photoMaxUpload {
+		return errors.New(ctx.T("form.phototoolarge"))
+	}
+	f, err := file.Open()
+	if err != nil {
+		return errors.New(ctx.T("form.photounreadable"))
+	}
+	defer f.Close()
+
+	src, _, err := image.Decode(f)
+	if err != nil {
+		return errors.New(ctx.T("form.photounreadable"))
+	}
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w > photoLongestSide || h > photoLongestSide {
+		if w >= h {
+			h = h * photoLongestSide / w
+			w = photoLongestSide
+		} else {
+			w = w * photoLongestSide / h
+			h = photoLongestSide
+		}
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Over, nil)
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 82}); err != nil {
+		return errors.New(ctx.T("form.photounreadable"))
+	}
+	// vCard 4.0 carries the picture as a data URI; 3.0 as an encoded
+	// property. The version is set to 4.0 above for anything we create,
+	// and a synced 3.0 card keeps the shape its server gave it.
+	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+	if card.Value(vcard.FieldVersion) == "3.0" {
+		card.Set(vcard.FieldPhoto, &vcard.Field{
+			Value:  encoded,
+			Params: vcard.Params{"ENCODING": {"b"}, "TYPE": {"JPEG"}},
+		})
+		return nil
+	}
+	card.Set(vcard.FieldPhoto, &vcard.Field{Value: "data:image/jpeg;base64," + encoded})
+	return nil
+}
+
+// cardModified is when the card last changed: the card's own REV where
+// it has one, and the server's last-modified where it has not.
+func cardModified(ao *carddav.AddressObject) time.Time {
+	if rev := cardRevision(ao.Card); !rev.IsZero() {
+		return rev
+	}
+	return ao.ModTime
+}
+
+// cardRevision reads REV (vCard 6.7.4), the moment the card itself says
+// it last changed.
+func cardRevision(card vcard.Card) time.Time {
+	v := card.PreferredValue(vcard.FieldRevision)
+	if v == "" {
+		return time.Time{}
+	}
+	for _, layout := range []string{
+		"20060102T150405Z", "20060102T150405-0700",
+		time.RFC3339, "2006-01-02T15:04:05Z",
+	} {
+		if t, err := time.Parse(layout, v); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
+}
+
+// onlyBooks is the set a URL asks to see, standing in for the stored
+// visibility for that request alone: the URL carries the question and
+// stored state carries the preference, so looking at one address book is
+// a link rather than a setting somebody has to put back.
+func onlyBooks(ctx *alborz.Context) map[string]bool {
+	values := ctx.QueryParams()["book"]
+	if len(values) == 0 {
+		return nil
+	}
+	only := make(map[string]bool, len(values))
+	for _, v := range values {
+		only[canonicalCollectionPath(v)] = true
+	}
+	return only
 }
 
 // birthdayValue renders BDAY in the HTML date-input format, accepting both
@@ -149,6 +282,7 @@ func registerRoutes(p *plugin) {
 	GET("/contacts", func(ctx *alborz.Context) error {
 		queryText := ctx.QueryParam("query")
 
+		only := onlyBooks(ctx)
 		accounts, err := p.pooledBooks(ctx)
 		if err != nil {
 			return err
@@ -173,6 +307,9 @@ func registerRoutes(p *plugin) {
 			}
 			for _, ab := range acc.books {
 				ab.Visible = !settings.AddressBookFilter || visibleSet[ab.Path]
+				if only != nil {
+					ab.Visible = only[ab.Path]
+				}
 				addressBookInfos = append(addressBookInfos, ab)
 				if ab.Visible {
 					sites = append(sites, bookSite{account: ab.Account, client: acc.client, path: ab.Path, name: ab.Name})
@@ -251,7 +388,7 @@ func registerRoutes(p *plugin) {
 
 		sortKey := ctx.QueryParam("sort")
 		switch sortKey {
-		case "", "name", "email", "phone", "account":
+		case "", "name", "email", "phone", "account", "changed":
 		default:
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
 		}
@@ -267,6 +404,14 @@ func registerRoutes(p *plugin) {
 				return strings.ToLower(ao.Card.PreferredValue("TEL"))
 			case "account":
 				return strings.ToLower(ao.Account)
+			case "changed":
+				// A card that says nothing about its age sorts after the
+				// ones that do, in ascending order.
+				t := cardModified(ao.AddressObject)
+				if t.IsZero() {
+					return "\uffff"
+				}
+				return t.Format(time.RFC3339)
 			}
 			return strings.ToLower(ao.DisplayName())
 		}
@@ -338,6 +483,7 @@ func registerRoutes(p *plugin) {
 			AddressObject:  AddressObject{AddressObject: ao},
 			Birthday:       birthdayValue(ao.Card),
 			BirthdayDate:   birthdayDate(ao.Card),
+			Modified:       cardModified(ao),
 		})
 	})
 
@@ -377,11 +523,11 @@ func registerRoutes(p *plugin) {
 			if err != nil {
 				return err
 			}
-			if len(groups) == 0 || len(groups[0].Books) == 0 {
+			if len(groups) == 0 || len(groups[0].Collections) == 0 {
 				return fmt.Errorf("no writable address books")
 			}
 			card = make(vcard.Card)
-			currentAddressBook = &groups[0].Books[0]
+			currentAddressBook = &groups[0].Collections[0]
 		}
 
 		if ctx.Request().Method == "POST" {
@@ -392,12 +538,13 @@ func registerRoutes(p *plugin) {
 			reject := func(message string) error {
 				return ctx.Render(http.StatusUnprocessableEntity, "update-address-object.html", &UpdateAddressObjectRenderData{
 					BaseRenderData: *alborz.NewBaseRenderData(ctx),
-					AccountBooks:   groups,
+					Groups:         groups,
 					AddressBook:    currentAddressBook,
 					AddressObject:  ao,
 					Card:           card,
 					Name:           fn,
 					Birthday:       birthdayValue(card),
+					Photo:          card.PreferredValue(vcard.FieldPhoto),
 					Error:          message,
 				})
 			}
@@ -484,6 +631,10 @@ func registerRoutes(p *plugin) {
 			setValue(vcard.FieldURL, strings.TrimSpace(ctx.FormValue("url")))
 			setValue(vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
 
+			if err := applyPhoto(ctx, card); err != nil {
+				return reject(err.Error())
+			}
+
 			// Free-form address lives in the street component; other
 			// structured components from synced cards are preserved.
 			street := strings.TrimSpace(ctx.FormValue("adr"))
@@ -530,12 +681,13 @@ func registerRoutes(p *plugin) {
 		}
 		return ctx.Render(http.StatusOK, "update-address-object.html", &UpdateAddressObjectRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx),
-			AccountBooks:   groups,
+			Groups:         groups,
 			AddressBook:    currentAddressBook,
 			AddressObject:  ao,
 			Card:           card,
 			Name:           name,
 			Birthday:       birthdayValue(card),
+			Photo:          card.PreferredValue(vcard.FieldPhoto),
 		})
 	}
 
@@ -557,6 +709,12 @@ func registerRoutes(p *plugin) {
 		defer body.Close()
 		return ctx.Stream(http.StatusOK, "text/plain; charset=utf-8", body)
 	})
+
+	GET("/address-books/create", handleCreateBook(p))
+	POST("/address-books/create", handleCreateBook(p))
+	GET("/address-books/:path", handleBook(p))
+	POST("/address-books/:path", handleBook(p))
+	POST("/address-books/:path/delete", handleDeleteBook(p))
 
 	GET("/contacts/create", updateContact)
 	POST("/contacts/create", updateContact)
@@ -592,17 +750,187 @@ func registerRoutes(p *plugin) {
 			return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
 		}
 
-		c, err := p.client(ctx.Session)
-		if err != nil {
-			return err
+		// A pooled list draws rows from several accounts, so a selection
+		// can span them: each row names its own, and the deletions are
+		// grouped so each account's own client makes them.
+		byAccount := map[string][]string{}
+		for _, ref := range paths {
+			account, objPath, ok := strings.Cut(ref, "|")
+			if !ok {
+				return echo.NewHTTPError(http.StatusBadRequest, "unqualified contact")
+			}
+			byAccount[account] = append(byAccount[account], objPath)
 		}
-
-		for _, objPath := range paths {
-			if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
-				return fmt.Errorf("failed to delete address object: %v", err)
+		for account, objPaths := range byAccount {
+			session := ctx.SessionFor(account)
+			if session == nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+			}
+			c, err := p.client(session)
+			if err != nil {
+				return err
+			}
+			for _, objPath := range objPaths {
+				if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
+					return fmt.Errorf("failed to delete address object: %v", err)
+				}
 			}
 		}
 
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
 	})
+}
+
+// CollectionRenderData renders collection.html, the page calendars and
+// address books share.
+type CollectionRenderData struct {
+	alborz.BaseRenderData
+	Name      string
+	Color     string
+	Path      string
+	Account   string
+	Count     int // -1 when the server would not say
+	Base      string
+	ListHref  string
+	BackLabel string
+	Error     string
+}
+
+// NewCollectionRenderData renders create-collection.html. An address
+// book has no component set to choose, so it offers no Holds.
+type NewCollectionRenderData struct {
+	alborz.BaseRenderData
+	Accounts    []alborz.Account
+	Name        string
+	Account     string
+	Color       string
+	Title       string
+	ListHref    string
+	BackLabel   string
+	OffersHolds bool
+	Holds       string
+	Next        string
+	Error       string
+}
+
+func handleCreateBook(p *plugin) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		data := &NewCollectionRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("contacts.newbook")),
+			Accounts:       ctx.Accounts(),
+			Account:        ctx.Session.Username(),
+			Color:          "#3366cc",
+			Title:          ctx.T("contacts.newbook"),
+			ListHref:       "/contacts",
+			BackLabel:      ctx.T("nav.contacts"),
+			Next:           ctx.FormValue("next"),
+		}
+		if ctx.Request().Method != http.MethodPost {
+			return ctx.Render(http.StatusOK, "create-collection.html", data)
+		}
+
+		data.Name = strings.TrimSpace(ctx.FormValue("name"))
+		data.Color = ctx.FormValue("color")
+		if account := ctx.FormValue("account"); account != "" {
+			data.Account = account
+		}
+		if data.Name == "" {
+			data.Error = ctx.T("form.nameneeded")
+			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
+		}
+		session := ctx.SessionFor(data.Account)
+		if session == nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+		}
+		if err := p.createAddressBook(ctx.Request().Context(), session, data.Name, data.Color); err != nil {
+			data.Error = err.Error()
+			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
+		}
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
+	}
+}
+
+func handleBook(p *plugin) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		collPath, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+		collPath = canonicalCollectionPath(collPath)
+		c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+		info := addressBookByPath(books, collPath)
+		if info == nil {
+			return alborz.NotFoundf("no such collection")
+		}
+		data := &CollectionRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(info.Name),
+			Name:           info.Name,
+			Color:          info.Color,
+			Path:           info.Path,
+			Account:        ctx.Session.Username(),
+			Count:          bookCount(ctx, c, *info),
+			Base:           "/address-books/",
+			ListHref:       "/contacts",
+			BackLabel:      ctx.T("nav.contacts"),
+		}
+
+		if ctx.Request().Method == http.MethodPost {
+			name := strings.TrimSpace(ctx.FormValue("name"))
+			data.Name, data.Color = name, ctx.FormValue("color")
+			if name == "" {
+				data.Error = ctx.T("form.nameneeded")
+				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
+			}
+			davBase, _ := p.davURL(ctx.Session)
+			target := davBase.ResolveReference(&url.URL{Path: collPath}).String()
+			if err := doProppatch(ctx.Request().Context(), p.httpClient(ctx.Session),
+				target, name, ctx.FormValue("color")); err != nil {
+				data.Error = err.Error()
+				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
+			}
+			p.books.Forget(ctx.Session.Username())
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
+		}
+		return ctx.Render(http.StatusOK, "collection.html", data)
+	}
+}
+
+func handleDeleteBook(p *plugin) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		collPath, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+		collPath = canonicalCollectionPath(collPath)
+		_, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+		if addressBookByPath(books, collPath) == nil {
+			return alborz.NotFoundf("no such collection")
+		}
+		davBase, _ := p.davURL(ctx.Session)
+		target := davBase.ResolveReference(&url.URL{Path: collPath}).String()
+		if err := doDeleteCollection(ctx.Request().Context(), p.httpClient(ctx.Session), target); err != nil {
+			return err
+		}
+		p.books.Forget(ctx.Session.Username())
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/contacts"))
+	}
+}
+
+// bookCount says how much a delete would take. -1 means the server did
+// not answer, which the page states rather than guessing at.
+func bookCount(ctx *alborz.Context, c *carddav.Client, info AddressBookInfo) int {
+	objs, err := c.QueryAddressBook(ctx.Request().Context(), info.Path, &carddav.AddressBookQuery{
+		DataRequest: carddav.AddressDataRequest{Props: []string{vcard.FieldUID}},
+	})
+	if err != nil {
+		ctx.Logger().Printf("failed to count %s: %v", info.Path, err)
+		return -1
+	}
+	return len(objs)
 }

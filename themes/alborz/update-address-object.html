@@ -9,7 +9,7 @@
 
   <div class="container">
     <main class="create-update">
-      <form method="post">
+      <form method="post" enctype="multipart/form-data">
         {{if .AddressObject}}
         {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
         <div class="context-crumb">{{$crumbAcct}} › {{.AddressBook.Name}}</div>
@@ -20,22 +20,24 @@
         {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
 
         {{if not .AddressObject}}
-        <label>
-          <span>{{$.T "common.saveto"}}</span>
-          {{ $multi := gt (len .GlobalData.Accounts) 1 }}
-          {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .AddressBook.Account}}{{$cur = .}}{{end}}
-          <select name="addressbook" data-destination-key="contact">
-            {{range .AccountBooks}}
-            {{ $acct := .Account }}
-            {{ if $multi }}<optgroup label="{{.Account}}">{{ end }}
-            {{range .Books}}
-            <option value="{{$acct}}|{{.Path}}" {{if and (eq $acct $cur) (eq .Path $.AddressBook.Path)}}selected{{end}}>{{.Name}}</option>
-            {{end}}
-            {{ if $multi }}</optgroup>{{ end }}
-            {{end}}
-          </select>
-        </label>
+        {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .AddressBook.Account}}{{$cur = .}}{{end}}
+        {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "addressbook" "key" "contact" "groups" .Groups "account" $cur "path" .AddressBook.Path "multi" (gt (len .GlobalData.Accounts) 1)) }}
         {{end}}
+
+        {{/* The card carries the picture inline, so what is uploaded is
+             not what is stored: it is decoded, capped and re-encoded
+             before it goes anywhere near the server. */}}
+        <div class="field photo-field">
+          <label for="photo">{{$.T "contacts.photo"}}</label>
+          {{ with .Photo }}<img class="photo-current" src="{{photodatauri .}}" alt="">{{ end }}
+          <input type="file" name="photo" id="photo" accept="image/*">
+          {{ if .Photo }}
+          <label class="photo-remove" for="photo_remove">
+            <input type="checkbox" name="photo_remove" id="photo_remove" value="1">
+            {{$.T "contacts.photoremove"}}
+          </label>
+          {{ end }}
+        </div>
 
         {{ template "field" (dict "label" ($.T "common.name") "name" "fn" "value" .Name "dir" "auto" "required" true) }}
         {{ template "field" (dict "label" ($.T "contacts.emails") "name" "emails" "type" "email" "value" (join (.Card.Values "EMAIL") ", ") "placeholder" "a@example.org, b@example.org") }}

@@ -1,0 +1,46 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ template "detail-aside" (dict "backHref" .ListHref "backLabel" .BackLabel) }}
+
+  <div class="container">
+    <main class="create-update">
+      <form method="post">
+        <input type="hidden" name="next" value="{{.Next}}">
+        <h2>{{.Title}}</h2>
+
+        {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
+
+        {{ if gt (len .Accounts) 1 }}
+        {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}
+        {{ end }}
+
+        {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true) }}
+        {{ template "field" (dict "label" ($.T "common.color") "name" "color" "type" "color" "value" .Color) }}
+
+        {{/* Only a calendar has a choice to make: a task list has
+             already said what it holds, and an address book holds one
+             kind of thing. */}}
+        {{ if .OffersHolds }}
+        <fieldset class="action-group choices">
+          <legend>{{$.T "calendar.holds"}}</legend>
+          {{ range tuple (tuple "both" "calendar.holdsboth") (tuple "events" "calendar.holdsevents") (tuple "tasks" "calendar.holdstasks") }}
+          {{ $v := index . 0 }}
+          <label for="holds-{{$v}}" class="checkbox">
+            <input type="radio" name="holds" id="holds-{{$v}}" value="{{$v}}"{{ if eq $.Holds $v }} checked{{ end }}>
+            {{$.T (index . 1)}}
+          </label>
+          {{ end }}
+          <small>{{$.T "calendar.holdshint"}}</small>
+        </fieldset>
+        {{ end }}
+
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" .ListHref "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

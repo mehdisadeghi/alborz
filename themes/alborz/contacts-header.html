@@ -3,11 +3,9 @@
 <div class="actions-wrap">
   <div class="actions-message">
     <h2>{{$.T "nav.contacts"}}</h2>
-    {{if not $multi}}
     <div class="action-group">
       <button form="address-book-form" formaction="/contacts/delete" class="button-danger">{{$.T "common.delete"}}</button>
     </div>
-    {{end}}
   </div>
 
   <div class="actions-end">

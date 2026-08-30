@@ -75,6 +75,7 @@
 "mailbox.selectall" = "Seleccionar todo"
 "mailbox.selectalljs" = "Seleccionar todas las filas necesita JavaScript"
 "mailbox.sortby" = "Ordenar por"
+"mailbox.perpage" = "Filas por página"
 "mailbox.more" = "Más acciones"
 "mailbox.prevpage" = "Página anterior"
 "mailbox.nextpage" = "Página siguiente"

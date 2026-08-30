@@ -79,6 +79,7 @@
 "mailbox.selectall" = "Select all"
 "mailbox.selectalljs" = "Selecting every row needs JavaScript"
 "mailbox.sortby" = "Sort by"
+"mailbox.perpage" = "Rows per page"
 "mailbox.more" = "More actions"
 "mailbox.prevpage" = "Previous page"
 "mailbox.nextpage" = "Next page"

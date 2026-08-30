@@ -1,7 +1,7 @@
 // Package davcache caches CalDAV and CardDAV traffic at the HTTP transport
 // level. Read responses are served from memory however old they are, and a
-// stale one triggers a single background revalidation against the
-// collection's ctag, so the wait moves off the user's click; writes evict
+// stale one is revalidated against the collection's ctag before it is
+// served, so a change another instance made is seen; writes evict
 // by URL prefix. The plugins above stay unaware of it.
 package davcache
 
@@ -23,14 +23,20 @@ import (
 )
 
 const (
-	// SoftTTL is the age past which an entry is revalidated: in the
-	// background on access, or by the refresh loop while the user is
-	// active.
+	// SoftTTL is the age past which an entry is checked before it is
+	// used: the reader waits on one ctag PROPFIND for the collection,
+	// which renews every stale entry of it at once. The refresh loop
+	// does the same ahead of time while the user is active.
 	SoftTTL = 2 * time.Minute
-	// Entries unused this long are dropped. Until then a cached answer,
-	// however old, is served instantly: calendars and contacts change
-	// rarely, and the refresh a stale read triggers catches the page up
-	// one visit later.
+
+	// ctagTimeout bounds the revalidation a stale read waits on. It is
+	// one PROPFIND for one property; a server that cannot answer it in
+	// this long is answered by going to the source instead.
+	ctagTimeout = 5 * time.Second
+	// Entries unused this long are dropped. Until then an entry within
+	// SoftTTL is served instantly and an older one costs the ctag check
+	// above; calendars and contacts change rarely, so that check almost
+	// always says the whole collection is still good.
 	PruneAfter = 7 * 24 * time.Hour
 
 	ActiveRefreshRate  = 2 * time.Minute
@@ -226,13 +232,26 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	defer fl.Unlock()
 
 	if e := u.get(key); e != nil {
-		// Served as is; age only decides whether one background refresh
-		// of the collection starts, so the next visit is fresh without
-		// this one having waited.
+		// A fresh entry is served as it is. A stale one is checked
+		// before it is served: another instance of alborz, on another
+		// machine, may have written to this collection, and this one
+		// hears about it only by asking. The ask is one small PROPFIND
+		// for the collection's ctag, and an unchanged ctag renews every
+		// stale entry it has - so the cost is one round trip per
+		// collection per SoftTTL, not one per read.
+		//
+		// It used to serve the stale copy and revalidate behind, which
+		// spent the click but left every reader one visit behind the
+		// server, for ever, whenever a second instance was writing.
 		if time.Since(e.fetched) > SoftTTL {
-			u.triggerRefresh(req.URL.Path)
+			if u.revalidate(req.Context(), collectionOf(req.URL.Path), e) {
+				return e.response(req), nil
+			}
+			// The collection moved on: this entry and its neighbours are
+			// gone, and the read below fetches what is there now.
+		} else {
+			return e.response(req), nil
 		}
-		return e.response(req), nil
 	}
 
 	resp, err := t.next.RoundTrip(req)
@@ -374,6 +393,41 @@ func (u *user) refresh(ctx context.Context) {
 			u.release(coll)
 		}
 	}
+}
+
+// revalidate asks the server whether the collection has changed since
+// the entries were taken. It reports true when nothing has: the caller
+// may serve what it holds, and every stale entry of that collection is
+// renewed at once. When the ctag has moved - or cannot be had, which is
+// the same answer for our purposes - the collection is dropped and the
+// caller fetches afresh.
+func (u *user) revalidate(ctx context.Context, coll string, sample *entry) bool {
+	u.mu.Lock()
+	known := u.ctags[coll]
+	u.mu.Unlock()
+
+	// A server that does not report a ctag leaves nothing to compare, so
+	// the entry is not renewable and the read goes through.
+	if known == "" {
+		u.evict(coll)
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, ctagTimeout)
+	defer cancel()
+	if ctag := fetchCtag(ctx, sample.replay, sample.url, coll); ctag != "" && ctag == known {
+		now := time.Now()
+		u.mu.Lock()
+		for _, e := range u.entries {
+			if collectionOf(mustPath(e.url)) == coll {
+				e.fetched = now
+			}
+		}
+		u.mu.Unlock()
+		return true
+	}
+	u.evict(coll)
+	return false
 }
 
 // claim marks the collection as being revalidated; false means someone

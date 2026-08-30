@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-vcard"
@@ -21,6 +23,10 @@ import (
 // The account's domain has no CardDAV server, or it holds no book;
 // the HTTP layer answers 404 rather than crashing on direct URLs.
 var errNoAddressBook = alborz.NotFoundf("carddav: no address book found")
+
+// A collection is already there under that path; the form says so
+// rather than reporting a bare 405.
+var errCollectionExists = errors.New("a collection of that name is already there")
 
 type AddressBookInfo struct {
 	Path     string
@@ -180,6 +186,100 @@ func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL
 	return infos, nil
 }
 
+// doMkcol makes an address book. RFC 5689 extended MKCOL is the way to
+// make one with its properties in the same round trip; a server that
+// refuses it leaves the collection unmade rather than half made.
+func doMkcol(ctx context.Context, client *http.Client, target, name, color string) error {
+	var props bytes.Buffer
+	props.WriteString(`<D:resourcetype><D:collection/><A:addressbook/></D:resourcetype>`)
+	fmt.Fprintf(&props, "<D:displayname>%s</D:displayname>", xmlEscape(name))
+	if color != "" {
+		fmt.Fprintf(&props, "<I:addressbook-color>%s</I:addressbook-color>", xmlEscape(color))
+	}
+	var buf bytes.Buffer
+	buf.WriteString(xml.Header)
+	fmt.Fprintf(&buf, `<D:mkcol xmlns:D="DAV:" xmlns:A="urn:ietf:params:xml:ns:carddav" xmlns:I="http://inf-it.com/ns/ab/"><D:set><D:prop>%s</D:prop></D:set></D:mkcol>`, props.String())
+
+	req, err := http.NewRequestWithContext(ctx, "MKCOL", target, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "text/xml; charset=\"utf-8\"")
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusCreated, http.StatusMultiStatus:
+	case http.StatusMethodNotAllowed:
+		return fmt.Errorf("%s: %w", target, errCollectionExists)
+	default:
+		return fmt.Errorf("failed to create the address book: %s", resp.Status)
+	}
+	return nil
+}
+
+// doProppatch renames or recolours a collection: the two properties a
+// server lets anyone change. The resource type is not among them, which
+// is why the create form asks what it is once and this one does not.
+func doProppatch(ctx context.Context, client *http.Client, target, name, color string) error {
+	var props bytes.Buffer
+	if name != "" {
+		fmt.Fprintf(&props, "<D:displayname>%s</D:displayname>", xmlEscape(name))
+	}
+	if color != "" {
+		fmt.Fprintf(&props, "<I:addressbook-color>%s</I:addressbook-color>", xmlEscape(color))
+	}
+	if props.Len() == 0 {
+		return nil
+	}
+	var buf bytes.Buffer
+	buf.WriteString(xml.Header)
+	fmt.Fprintf(&buf, `<D:propertyupdate xmlns:D="DAV:" xmlns:I="http://inf-it.com/ns/ab/"><D:set><D:prop>%s</D:prop></D:set></D:propertyupdate>`, props.String())
+
+	req, err := http.NewRequestWithContext(ctx, "PROPPATCH", target, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "text/xml; charset=\"utf-8\"")
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusMultiStatus &&
+		resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("failed to change the collection: %s", resp.Status)
+	}
+	return nil
+}
+
+// doDeleteCollection removes a collection and everything in it. WebDAV
+// 9.6 knows no other kind of delete: Depth is infinity and there is no
+// asking. Whatever guard there is belongs on the page before this.
+func doDeleteCollection(ctx context.Context, client *http.Client, target string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, target, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("failed to delete the collection: %s", resp.Status)
+	}
+	return nil
+}
+
+func xmlEscape(s string) string {
+	var buf bytes.Buffer
+	xml.EscapeText(&buf, []byte(s))
+	return buf.String()
+}
+
 // logDAVExchange prints one upstream DAV round trip: the query for
 // REPORTs, the status, and what kind of payload came back. Response
 // bodies are re-wrapped so the caller still reads them.
@@ -331,4 +431,55 @@ func (ao AddressObject) DisplayName() string {
 
 func (ao AddressObject) PhotoURL() string {
 	return ao.Card.PreferredValue("PHOTO")
+}
+
+// createAddressBook makes a book on the account's own server, walking
+// to the first free address: two collections may share a display name
+// but not a path, and a server answers a taken one with 405.
+func (p *plugin) createAddressBook(ctx context.Context, session *alborz.Session, name, color string) error {
+	c, err := p.client(session)
+	if err != nil {
+		return err
+	}
+	davBase, _ := p.davURL(session)
+
+	principal, err := c.FindCurrentUserPrincipal(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to query CardDAV principal: %v", err)
+	}
+	homeSet, err := c.FindAddressBookHomeSet(ctx, principal)
+	if err != nil {
+		return fmt.Errorf("failed to query CardDAV address book home set: %v", err)
+	}
+
+	segment := url.PathEscape(strings.ToLower(strings.ReplaceAll(strings.TrimSpace(name), " ", "-")))
+	if segment == "" {
+		segment = "contacts"
+	}
+	home := canonicalCollectionPath(homeSet)
+	client := p.httpClient(session)
+	for attempt := 1; ; attempt++ {
+		try := segment
+		if attempt > 1 {
+			try = fmt.Sprintf("%s-%d", segment, attempt)
+		}
+		target := davBase.ResolveReference(&url.URL{Path: home + try + "/"}).String()
+		err := doMkcol(ctx, client, target, name, color)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, errCollectionExists) || attempt == 20 {
+			return err
+		}
+	}
+	p.books.Forget(session.Username())
+	return nil
+}
+
+// Modified is when the card last changed, for the list to show. There
+// is no matching Added: a vCard has no property for when it was made,
+// and the only universal answer is WebDAV's DAV:creationdate, which the
+// object REPORT does not ask for.
+func (ao AddressObject) Modified() time.Time {
+	return cardModified(ao.AddressObject)
 }

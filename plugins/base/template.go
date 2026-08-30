@@ -45,6 +45,9 @@ var templateFuncs = template.FuncMap{
 			return fmt.Sprintf("%d B", n)
 		}
 	},
+	// A date a page has no value for, so a template can ask whether
+	// it is set without the caller having to pass a zero time in.
+	"zerotime": func() time.Time { return time.Time{} },
 	"tuple": func(values ...interface{}) []interface{} {
 		return values
 	},

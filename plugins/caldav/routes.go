@@ -429,19 +429,6 @@ func fillEventForm(d *UpdateEventRenderData, loc *time.Location) {
 	d.EndDate = last.Format(datePageLayout)
 }
 
-// appendNote puts a dated line under what is already there, keeping the
-// two apart with a blank line so the field reads as entries rather than
-// as one paragraph that grew.
-func appendNote(existing, note string, when time.Time) string {
-	note = strings.ReplaceAll(note, "\r", "")
-	stamp := when.Format("2006-01-02 15:04")
-	entry := stamp + "\n" + note
-	if strings.TrimSpace(existing) == "" {
-		return entry
-	}
-	return strings.TrimRight(existing, "\n") + "\n\n" + entry
-}
-
 // onlyCollections is the set a URL asks to see, which stands in for the
 // stored visibility for that request alone. The URL carries the
 // question and stored state carries the preference, so looking at one
@@ -1645,7 +1632,7 @@ func registerRoutes(p *plugin) {
 			return fmt.Errorf("no component to add a note to")
 		}
 		existing, _ := target.Props.Text(ical.PropDescription)
-		target.Props.SetText(ical.PropDescription, appendNote(existing, note, time.Now()))
+		target.Props.SetText(ical.PropDescription, alborz.AppendNote(existing, note, time.Now()))
 		target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 		target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
 		if _, err := c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {

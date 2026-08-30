@@ -722,6 +722,39 @@ func registerRoutes(p *plugin) {
 	GET("/contacts/:path/edit", updateContact)
 	POST("/contacts/:path/edit", updateContact)
 
+	// A line added where the contact is read, not behind the edit form.
+	POST("/contacts/:path/note", func(ctx *alborz.Context) error {
+		objPath, err := parseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+		note := strings.TrimSpace(ctx.FormValue("note"))
+		back := ctx.NextOr(ctx.AccountPath("/contacts"))
+		if note == "" {
+			return ctx.Redirect(http.StatusFound, back)
+		}
+		c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+		if err != nil {
+			return err
+		}
+		ao, err := getAddressObject(ctx, c, objPath)
+		if err != nil {
+			return fmt.Errorf("failed to read the contact: %v", err)
+		}
+		card := ao.Card
+		text := alborz.AppendNote(card.Value(vcard.FieldNote), note, time.Now())
+		if field := card.Preferred(vcard.FieldNote); field != nil {
+			field.Value = text
+		} else {
+			card.Add(vcard.FieldNote, &vcard.Field{Value: text})
+		}
+		card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
+		if _, err := c.PutAddressObject(ctx.Request().Context(), ao.Path, card); err != nil {
+			return fmt.Errorf("failed to save the note: %v", err)
+		}
+		return ctx.Redirect(http.StatusFound, back)
+	})
+
 	POST("/contacts/:path/delete", func(ctx *alborz.Context) error {
 		objPath, err := parseObjectPath(ctx.Param("path"))
 		if err != nil {

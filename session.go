@@ -23,18 +23,29 @@ import (
 	"go.guido-berhoerster.org/managesieve"
 )
 
-// TODO: make this configurable
-const sessionDuration = 30 * time.Minute
+// Every bound alborz puts on an upstream, written once and named for
+// what it bounds rather than for how long it is. Two numbers, because
+// there are two kinds of waiting.
+// TODO: make these configurable; how far away a server is belongs to
+// the deployment, not to the binary.
+const (
+	// dialTimeout bounds opening the connection and nothing else: a host
+	// that does not answer at all is wrong rather than far away, and the
+	// login page is the visible casualty of waiting on it.
+	dialTimeout = 3 * time.Second
 
-// upstreamTimeout bounds dialing, logging in, and sieve commands. An
-// upstream that accepts the connection but never answers would otherwise
-// hang the request forever, with the login page as the visible casualty.
-const upstreamTimeout = 3 * time.Second
+	// roundTripTimeout bounds one exchange that legitimately does work -
+	// a step of a login handshake against a proxy that asks its own
+	// backend before answering, a sieve command, an attachment fetch, a
+	// body search with no server-side index. Spending one of these on
+	// four handshake steps at once is what made a distant server look
+	// like a broken one.
+	roundTripTimeout = 10 * time.Second
 
-// imapCommandTimeout bounds a single DoIMAP operation. Wider than
-// upstreamTimeout for the two legitimately slow commands: fetching a
-// large attachment and body search without a server-side index.
-const imapCommandTimeout = 10 * time.Second
+	// sessionDuration is how long a session outlives its last request.
+	sessionDuration = 30 * time.Minute
+)
+
 const maxAttachmentSize = 32 << 20 // 32 MiB
 
 func generateToken() (string, error) {
@@ -133,11 +144,11 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 	// TODO: to avoid races wrt. disconnection, re-run f if it returns
 	// io.UnexpectedEOF
 	c := s.imapConn
-	watchdog := time.AfterFunc(imapCommandTimeout, func() { c.Close() })
+	watchdog := time.AfterFunc(roundTripTimeout, func() { c.Close() })
 	err := f(c)
 	if !watchdog.Stop() {
 		s.imapConn = nil
-		return fmt.Errorf("IMAP command timed out after %v", imapCommandTimeout)
+		return fmt.Errorf("IMAP command timed out after %v", roundTripTimeout)
 	}
 	return err
 }
@@ -176,11 +187,11 @@ func (s *Session) DoSieve(f func(SieveClient) error) error {
 
 	timedOut := false
 	run := func(c SieveClient) error {
-		watchdog := time.AfterFunc(upstreamTimeout, func() { c.Close() })
+		watchdog := time.AfterFunc(roundTripTimeout, func() { c.Close() })
 		err := f(c)
 		if !watchdog.Stop() {
 			timedOut = true
-			return fmt.Errorf("sieve command timed out after %v", upstreamTimeout)
+			return fmt.Errorf("sieve command timed out after %v", roundTripTimeout)
 		}
 		return err
 	}
@@ -360,13 +371,13 @@ func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapc
 		return nil, err
 	}
 
-	watchdog := time.AfterFunc(upstreamTimeout, func() { c.Close() })
+	watchdog := time.AfterFunc(roundTripTimeout, func() { c.Close() })
 	err = c.Login(username, password).Wait()
 	timedOut := !watchdog.Stop()
 	if err != nil {
 		c.Logout()
 		if timedOut {
-			return nil, fmt.Errorf("IMAP login timed out after %v", upstreamTimeout)
+			return nil, fmt.Errorf("IMAP login timed out after %v", roundTripTimeout)
 		}
 		return nil, AuthError{err}
 	}

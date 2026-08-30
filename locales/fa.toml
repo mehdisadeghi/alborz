@@ -158,6 +158,7 @@
 "message.date" = "تاریخ"
 "filters.new" = "فیلتر جدید"
 "filters.title" = "فیلترها"
+"filters.unreachable" = "کارساز فیلترها پاسخ نداد."
 "filters.script" = "اسکریپت Sieve"
 "filters.active" = "فعال"
 "filters.activate" = "فعال‌سازی"

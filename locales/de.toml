@@ -167,6 +167,7 @@
 "message.date" = "Datum"
 "filters.new" = "Neuer Filter"
 "filters.title" = "Filter"
+"filters.unreachable" = "Der Filterserver hat nicht geantwortet."
 "filters.script" = "Sieve-Skript"
 "filters.active" = "Aktiv"
 "filters.activate" = "Aktivieren"

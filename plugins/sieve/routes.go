@@ -14,6 +14,13 @@ type FiltersRenderData struct {
 	alborz.BaseRenderData
 	Scripts  []alborz.SieveScript
 	Accounts []alborz.Account
+	// Server is what the account's filters are kept on, so the page says
+	// who it is talking to rather than leaving it to be guessed.
+	Server string
+	// Unreachable is what the filter server said when it would not
+	// answer. A provider that is down is not an internal error, and the
+	// page says so itself instead of becoming a status page.
+	Unreachable string
 }
 
 type FilterRenderData struct {
@@ -68,21 +75,25 @@ func filterName(ctx *alborz.Context) (string, error) {
 }
 
 func handleListFilters(ctx *alborz.Context) error {
-	var scripts []alborz.SieveScript
+	data := &FiltersRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.title")),
+		Accounts:       sieveAccounts(ctx),
+		Server:         ctx.Server.SieveHost(ctx.Session.Domain()),
+	}
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		var err error
-		scripts, err = c.ListScripts()
+		data.Scripts, err = c.ListScripts()
 		return err
 	})
 	if err != nil {
-		return err
+		// The filters live on somebody else's machine, and it being
+		// unreachable is news about that machine rather than a fault
+		// here. The page says which machine and what it said.
+		ctx.Logger().Printf("failed to list sieve scripts on %s: %v", data.Server, err)
+		data.Unreachable = err.Error()
+		return ctx.Render(http.StatusServiceUnavailable, "filters.html", data)
 	}
-
-	return ctx.Render(http.StatusOK, "filters.html", &FiltersRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.title")),
-		Scripts:        scripts,
-		Accounts:       sieveAccounts(ctx),
-	})
+	return ctx.Render(http.StatusOK, "filters.html", data)
 }
 
 // sieveAccounts lists the signed-in accounts whose server holds scripts.

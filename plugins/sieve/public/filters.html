@@ -15,7 +15,14 @@
         {{ template "list-toolbar" (dict "title" ($.T "filters.title")) }}
       </section>
 
-      <div class="context-crumb">{{$current}}</div>
+      <div class="context-crumb">{{$current}}{{ with .Server }} › {{.}}{{ end }}</div>
+
+      {{ with .Unreachable }}
+      <div class="alert">
+        <strong>{{$.T "filters.unreachable"}}</strong>
+        <p class="code">{{.}}</p>
+      </div>
+      {{ end }}
 
       <section class="list-items">
         {{ range .Scripts }}

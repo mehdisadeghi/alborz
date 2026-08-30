@@ -68,6 +68,17 @@ func (s *Server) parseSieveUpstream(domain string) error {
 	return nil
 }
 
+// SieveHost names the ManageSieve server a domain's filters live on,
+// empty when none is configured. A page that talks to somebody else's
+// machine should say which machine.
+func (s *Server) SieveHost(domain string) string {
+	d, ok := s.upstreamsFor(domain)
+	if !ok {
+		return ""
+	}
+	return d.sieve.host
+}
+
 // SieveEnabled reports whether an upstream ManageSieve server is configured
 // for the domain.
 func (s *Server) SieveEnabled(domain string) bool {

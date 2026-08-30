@@ -27,6 +27,7 @@ type NewCalendarRenderData struct {
 	Color    string
 	Holds    string // "events", "tasks" or "both"
 	ForTasks bool   // reached from the tasks rail
+	Next     string // the list it was opened from
 	Error    string
 }
 
@@ -54,6 +55,7 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 			Color:          "#3366cc",
 			Holds:          holds,
 			ForTasks:       forTasks,
+			Next:           ctx.FormValue("next"),
 		}
 		if ctx.Request().Method != http.MethodPost {
 			return ctx.Render(http.StatusOK, "create-calendar.html", data)
@@ -91,16 +93,25 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 		// Back to the rail it was asked for, when the new collection
 		// shows there; a task list never appears under calendars.
 		if data.Holds == "tasks" || (data.ForTasks && data.Holds == "both") {
-			return ctx.Redirect(http.StatusFound, "/tasks")
+			return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 		}
-		return ctx.Redirect(http.StatusFound, "/calendar")
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))
 	}
 }
 
 type CalendarRenderData struct {
 	alborz.BaseRenderData
-	Time               time.Time
-	Now                time.Time
+	Time time.Time
+	Now  time.Time
+	// Since is the first day the agenda lists: today when today falls in
+	// the month in front of you, the first of the month otherwise. The
+	// grid shows a month; the agenda answers what is next.
+	Since time.Time
+	// Span is "month" when the agenda was asked for the whole of it, and
+	// ThisMonth says whether the choice exists at all - a month with no
+	// today in it has only one answer.
+	Span               string
+	ThisMonth          bool
 	Dates              []time.Time
 	Calendars          []CalendarInfo
 	Events             []CalendarObject

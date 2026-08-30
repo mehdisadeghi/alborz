@@ -1417,6 +1417,79 @@ main table tfoot {
   margin-inline: 0 0.5rem;
 }
 
+/* A field explains itself where it stands: a small mark by the caption
+   that opens a line of prose and an example. Open, it pushes the form
+   down rather than covering it, so nothing is hidden behind it. */
+.help-note {
+  display: inline-block;
+  margin-inline-start: var(--space-1);
+  vertical-align: middle;
+}
+
+.help-note > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+}
+
+.help-note > summary::-webkit-details-marker { display: none; }
+
+.help-note[open] > summary {
+  background: var(--surface-selected);
+  color: var(--fg);
+}
+
+.help-note > div {
+  margin-block: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 2px solid var(--border);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+.help-note p { margin: 0 0 var(--space-1); }
+.help-note p:last-child { margin-bottom: 0; }
+.help-example code { direction: ltr; unicode-bidi: isolate; }
+
+/* The picture the card has, beside the field that replaces it. */
+.photo-field .photo-current {
+  display: block;
+  width: 5rem;
+  height: 5rem;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
+.photo-field .photo-remove {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-weight: 400;
+}
+
+.photo-field .photo-remove input { width: auto; }
+
+/* Disabled means disabled to the eye too: a checkbox the browser has
+   greyed is easy to miss beside a row of live marks, and this one is
+   disabled for a reason worth noticing - there is nothing to select, or
+   there is no script to select it with. */
+#action-checkbox-all:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .message-list .actions:first-child,
 .contact-list .actions:first-child,
 .list .actions,

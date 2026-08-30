@@ -184,8 +184,13 @@ type OutgoingMessage struct {
 	// (RFC 5322 3.6.4). Gmail and Thunderbird thread on it before
 	// In-Reply-To, which is why a long thread scattered without it.
 	References string
-	// Sender is the mailbox actually sending, named only when it is not
-	// the one From claims.
+	// ReplyTo is where answers should go when that is not the From
+	// (RFC 5322 3.6.2): a personal address writing under a shared one,
+	// or a send from an identity whose mailbox is elsewhere.
+	ReplyTo []string
+	// Sender is the mailbox transmitting for a different author
+	// (RFC 5322 3.6.2). Sending under one's own identity is not that
+	// case and sets nothing here; only a true on-behalf-of send would.
 	Sender string
 	// Language is what the body is written in, for Content-Language.
 	Language string
@@ -268,6 +273,18 @@ func (msg *OutgoingMessage) WriteTo(w io.Writer) error {
 	h.SetAddressList("Cc", cc)
 	if msg.Subject != "" {
 		h.SetText("Subject", msg.Subject)
+	}
+	if len(msg.ReplyTo) > 0 {
+		replyTo, err := prepareAddressList(msg.ReplyTo)
+		if err != nil {
+			return err
+		}
+		h.SetAddressList("Reply-To", replyTo)
+	}
+	if msg.Sender != "" {
+		if addr, err := mail.ParseAddress(msg.Sender); err == nil {
+			h.SetAddressList("Sender", []*mail.Address{addr})
+		}
 	}
 	if msg.InReplyTo != "" {
 		h.Set("In-Reply-To", msg.InReplyTo)

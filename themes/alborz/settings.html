@@ -26,6 +26,7 @@
 
         <div class="action-group">
           <label for="identities">{{$.T "settings.identities"}}</label>
+          {{ template "help" (dict "text" ($.T "help.identities") "example" "Mehdi Sadeghi <mx@43.yt>") }}
           <textarea
             name="identities"
             id="identities"

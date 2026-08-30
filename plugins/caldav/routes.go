@@ -150,6 +150,14 @@ type UpdateEventRenderData struct {
 	CalendarObject *caldav.CalendarObject // nil if creating a new event
 	Event          *ical.Event
 
+	// The two shapes the form offers, filled whichever one applies so
+	// that ticking the box does not lose what was already typed.
+	AllDay    bool
+	StartTime string // datetime-local
+	EndTime   string
+	StartDate string // date, and the last day rather than the day after
+	EndDate   string
+
 	// Error is shown as an alert on the form just submitted: invalid
 	// input is answered by the page itself, never by a status page.
 	Error string
@@ -240,6 +248,45 @@ func parseDateTime(s string, loc *time.Location) (time.Time, error) {
 	if err != nil {
 		err = fmt.Errorf("malformed datetime: %v", err)
 		return time.Time{}, echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	return t, nil
+}
+
+// fillEventForm gives the form both shapes of the same event: the times
+// it has, and the days it covers. Ticking the box then costs nothing
+// that was already entered. The last day is shown, not the day after -
+// DTEND is exclusive in iCalendar and inclusive in every head.
+func fillEventForm(d *UpdateEventRenderData, loc *time.Location) {
+	start, _ := d.Event.DateTimeStart(loc)
+	end, _ := d.Event.DateTimeEnd(loc)
+	if prop := d.Event.Props.Get(ical.PropDateTimeStart); prop != nil {
+		d.AllDay = prop.ValueType() == ical.ValueDate
+	}
+	if start.IsZero() {
+		start = time.Now().In(loc)
+	}
+	if !end.After(start) {
+		end = start.Add(time.Hour)
+	}
+	d.StartTime = start.Format(inputDateTimeLayout)
+	d.EndTime = end.Format(inputDateTimeLayout)
+	d.StartDate = start.Format(datePageLayout)
+	last := end
+	if d.AllDay {
+		last = end.AddDate(0, 0, -1)
+		if last.Before(start) {
+			last = start
+		}
+	}
+	d.EndDate = last.Format(datePageLayout)
+}
+
+// parseDate reads a bare day from a date input, which is what an
+// all-day event is given in.
+func parseDate(s string, loc *time.Location) (time.Time, error) {
+	t, err := time.ParseInLocation(datePageLayout, s, loc)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("malformed date: %v", err)
 	}
 	return t, nil
 }
@@ -372,6 +419,22 @@ func registerRoutes(p *plugin) {
 		queryStart := start.AddDate(0, 0, -7)
 		queryEnd := monthEnd.AddDate(0, 0, 7)
 
+		// The agenda answers "what is next", so in the month you are
+		// living in it starts at today; span=month asks for the whole of
+		// it, the same range the grid draws.
+		span := ctx.QueryParam("span")
+		if span != "" && span != "month" {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid span")
+		}
+		since := start
+		thisMonth := false
+		if now := time.Now().In(loc); now.Year() == start.Year() && now.Month() == start.Month() {
+			thisMonth = true
+			if span != "month" {
+				since = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+			}
+		}
+
 		offset := (int(start.Weekday()) - firstDayOfWeek + 7) % 7
 		gridStart := start.AddDate(0, 0, -offset)
 		daysInMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
@@ -454,13 +517,53 @@ func registerRoutes(p *plugin) {
 			t = t.In(loc)
 			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
 		}
+		// An event covers every day between its start and its end, and
+		// the grid has to show it on each of them: bucketing on the
+		// start alone put a two-day conference on the first day and
+		// nowhere else. DTEND is exclusive (RFC 5545 3.8.2.2) both for
+		// an all-day event, whose end is the day after its last, and for
+		// a timed one ending at midnight, which belongs to the day
+		// before - so the last day is the one the instant before the end
+		// falls in. The span is clipped to the grid, since an event may
+		// run for years and the map only holds what is drawn.
+		// A whole-day event is written as DATE (RFC 5545 3.3.4), which
+		// names a calendar day and carries neither a time nor a zone.
+		// Parsed it can only arrive as an instant - midnight UTC - and
+		// putting that instant through the display zone moves it: east
+		// of UTC the last day lands on the day after, which is why a
+		// one-day event was drawn on two while the day page, which asks
+		// the server, showed it on one. The written date is the answer,
+		// so it is read as digits rather than converted.
+		writtenDay := func(t time.Time) time.Time {
+			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
+		}
+		gridEnd := gridStart.AddDate(0, 0, rows*7)
 		eventMap := make(map[time.Time][]CalendarObject)
 		for _, ev := range events {
-			// TODO: include event on each date for which it is active
 			co := ev.Data.Events()[0]
 			startTime, _ := co.DateTimeStart(nil)
-			key := day(startTime)
-			eventMap[key] = append(eventMap[key], ev)
+			endTime, _ := co.DateTimeEnd(nil)
+			var first, last time.Time
+			if ev.AllDay() {
+				first = writtenDay(startTime)
+				last = first
+				if l := writtenDay(endTime).AddDate(0, 0, -1); l.After(last) {
+					last = l
+				}
+			} else {
+				first, last = day(startTime), day(startTime)
+				if endTime.After(startTime) {
+					if l := day(endTime.Add(-time.Nanosecond)); l.After(last) {
+						last = l
+					}
+				}
+			}
+			if first.Before(gridStart) {
+				first = gridStart
+			}
+			for d := first; !d.After(last) && d.Before(gridEnd); d = d.AddDate(0, 0, 1) {
+				eventMap[d] = append(eventMap[d], ev)
+			}
 		}
 
 		for _, evs := range eventMap {
@@ -476,6 +579,9 @@ func registerRoutes(p *plugin) {
 				WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(start)),
 			Time:      start,
 			Now:       time.Now().In(loc),
+			Since:     since,
+			Span:      span,
+			ThisMonth: thisMonth,
 			Calendars: calendarInfos,
 			Dates:     dates,
 			Events:    events,
@@ -753,6 +859,11 @@ func registerRoutes(p *plugin) {
 					Calendar:       currentCalendar,
 					CalendarObject: co,
 					Event:          event,
+					AllDay:         ctx.FormValue("allday") != "",
+					StartTime:      ctx.FormValue("start"),
+					EndTime:        ctx.FormValue("end"),
+					StartDate:      ctx.FormValue("start_date"),
+					EndDate:        ctx.FormValue("end_date"),
 					Error:          message,
 				})
 			}
@@ -770,27 +881,52 @@ func registerRoutes(p *plugin) {
 				}
 			}
 
-			// TODO: whole-day events
-			start, err := parseDateTime(ctx.FormValue("start"), loc)
-			if err != nil {
-				return reject(ctx.T("form.datesneeded"))
-			}
-			end, err := parseDateTime(ctx.FormValue("end"), loc)
-			if err != nil {
-				return reject(ctx.T("form.datesneeded"))
-			}
-			if start.After(end) {
-				return reject(ctx.T("form.endbeforestart"))
-			}
-
-			if start == end {
-				end = start.Add(24 * time.Hour)
+			// An event that occupies whole days has no time of day to
+			// ask for, and asking anyway is what made a two-day
+			// conference impossible to enter.
+			allDay := ctx.FormValue("allday") != ""
+			var start, end time.Time
+			if allDay {
+				start, err = parseDate(ctx.FormValue("start_date"), loc)
+				if err != nil {
+					return reject(ctx.T("form.datesneeded"))
+				}
+				end, err = parseDate(ctx.FormValue("end_date"), loc)
+				if err != nil {
+					end = start
+				}
+				if start.After(end) {
+					return reject(ctx.T("form.endbeforestart"))
+				}
+				// The form asks for the last day; iCalendar 3.8.2.2
+				// wants the day after it, since DTEND is exclusive.
+				end = end.AddDate(0, 0, 1)
+			} else {
+				start, err = parseDateTime(ctx.FormValue("start"), loc)
+				if err != nil {
+					return reject(ctx.T("form.datesneeded"))
+				}
+				end, err = parseDateTime(ctx.FormValue("end"), loc)
+				if err != nil {
+					return reject(ctx.T("form.datesneeded"))
+				}
+				if start.After(end) {
+					return reject(ctx.T("form.endbeforestart"))
+				}
+				if start == end {
+					end = start.Add(24 * time.Hour)
+				}
 			}
 
 			event.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 			event.Props.SetText(ical.PropSummary, summary)
-			event.Props.SetDateTime(ical.PropDateTimeStart, start)
-			event.Props.SetDateTime(ical.PropDateTimeEnd, end)
+			if allDay {
+				event.Props.SetDate(ical.PropDateTimeStart, start)
+				event.Props.SetDate(ical.PropDateTimeEnd, end)
+			} else {
+				event.Props.SetDateTime(ical.PropDateTimeStart, start)
+				event.Props.SetDateTime(ical.PropDateTimeEnd, end)
+			}
 			event.Props.Del(ical.PropDuration)
 
 			if description != "" {
@@ -830,13 +966,15 @@ func registerRoutes(p *plugin) {
 
 		summary, _ := event.Props.Text("SUMMARY")
 
-		return ctx.Render(http.StatusOK, "update-event.html", &UpdateEventRenderData{
+		data := &UpdateEventRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
 			AccountCals:    groups,
 			Calendar:       currentCalendar,
 			CalendarObject: co,
 			Event:          event,
-		})
+		}
+		fillEventForm(data, loc)
+		return ctx.Render(http.StatusOK, "update-event.html", data)
 	}
 
 	// The object exactly as the server stores it. Nothing here parses

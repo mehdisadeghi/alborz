@@ -13,13 +13,28 @@
         {{ template "calendar-header.html" . }}
       </section>
 
+      {{/* The agenda starts at today in the month you are living in; the
+           whole of it is one click away. It leads the list rather than
+           the toolbar, which has no room for a fourth group. */}}
+      {{if .ThisMonth}}
+      <div class="agenda-span">
+        {{if eq .Span "month"}}
+        <strong>{{$.T "calendar.wholemonth"}}</strong>
+        <a href="?month={{.Page}}&view=list" class="button-link">{{$.T "calendar.fromtoday"}}</a>
+        {{else}}
+        <strong>{{$.T "calendar.fromtoday"}}</strong>
+        <a href="?month={{.Page}}&view=list&span=month" class="button-link">{{$.T "calendar.wholemonth"}}</a>
+        {{end}}
+      </div>
+      {{end}}
+
       <section class="events">
         {{$base := .}}
         {{$any := false}}
         <div class="event-grid" role="table">
           {{ template "event-grid-header" (dict "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
           {{range .Dates}}
-          {{if eq .Month $base.Time.Month}}
+          {{if and (eq .Month $base.Time.Month) (not (.Before $base.Since))}}
           {{$events := call $base.EventsForDate .}}
           {{if $events}}
           {{$any = true}}

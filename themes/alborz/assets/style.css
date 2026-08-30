@@ -604,6 +604,7 @@ main.create-update form.filter > label.script > textarea {
 }
 
 /* Simple create forms (event, task, contact) */
+main.create-update > form > .field,
 main.create-update > form > label {
   display: block;
   margin-bottom: var(--space-3);
@@ -612,11 +613,15 @@ main.create-update > form > label {
   font-weight: 600;
 }
 
+main.create-update > form > .field > label,
 main.create-update > form > label > span {
   display: block;
   margin-bottom: var(--space-1);
 }
 
+main.create-update > form > .field > input,
+main.create-update > form > .field > select,
+main.create-update > form > .field > textarea,
 main.create-update > form > label > input,
 main.create-update > form > label > select,
 main.create-update > form > label > textarea {
@@ -625,11 +630,13 @@ main.create-update > form > label > textarea {
   box-sizing: border-box;
 }
 
+main.create-update > form > .field > textarea,
 main.create-update > form > label > textarea {
   min-height: 8rem;
   resize: vertical;
 }
 
+main.create-update > form > .field > input[readonly],
 main.create-update > form > label > input[readonly] {
   color: var(--fg-muted);
   background: var(--surface-inset);
@@ -1078,6 +1085,71 @@ main.create-update .actions > *:not(:last-child) {
   unicode-bidi: isolate;
 }
 
+
+/* One pair of date fields at a time: the checkbox says whether the
+   event occupies whole days, and the pair that does not apply is not
+   shown. Both stay in the form - the handler reads the pair the
+   checkbox names - so no script is needed to swap them.
+
+   The checkbox is a sibling of the fields it governs rather than a
+   child of its own caption, so the plain sibling combinator reaches
+   them: :has() would read better and is one browser version away from
+   showing both pairs at once, which is exactly the failure this has to
+   not have. The drawer toggle is built the same way. */
+/* The box and its caption are one flex line, so their centres are level
+   by construction rather than by two inline-blocks agreeing about what
+   the middle of a line is - which they do not, and which left the
+   caption sitting a few pixels high whatever heights they were given.
+
+   The control stays a sibling of the fields it governs, since that is
+   what lets the sibling combinator reach them; it is the caption that
+   draws the box, from the control's own state. The real input keeps the
+   focus and the keyboard - it is placed under the box rather than
+   removed, so a reader who tabs to it still sees where they are. */
+main.create-update > form > .allday-toggle {
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  opacity: 0;
+}
+
+main.create-update > form > .allday-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+main.create-update > form > .allday-label::before {
+  content: "";
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.allday-toggle:checked + .allday-label::before {
+  border-color: var(--accent);
+  background: var(--accent) center / 0.7rem no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+
+.allday-toggle:focus-visible + .allday-label::before {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+.allday-toggle:checked ~ .field.timed-field,
+.allday-toggle:not(:checked) ~ .field.allday-field {
+  display: none;
+}
 
 /* Code is written left to right in every language: a sieve script, a
    header, a URL. The field says so itself rather than following the

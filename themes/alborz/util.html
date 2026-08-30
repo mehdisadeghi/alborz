@@ -177,15 +177,19 @@
 {{/* One stacked form field: a full-width caption over its control.
      dict: label name [type] [value] [dir] [placeholder] [required]
            [rows] [autofocus]. */}}
+{{/* The caption points at the control rather than wrapping it. A label
+     that wraps its control forwards a click to it, and a date input
+     answers that second activation by closing the picker the first one
+     opened - so the calendar could be opened and never used. */}}
 {{ define "field" }}
-<label>
-  <span>{{.label}}</span>
+<div class="field{{ with .class }} {{.}}{{ end }}">
+  <label for="{{.name}}">{{.label}}</label>
   {{ if .rows }}
   <textarea name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} rows="{{.rows}}"{{ if .autofocus }} autofocus{{ end }}>{{.value}}</textarea>
   {{ else }}
   <input type="{{with .type}}{{.}}{{else}}text{{end}}" name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} value="{{.value}}"{{ if .placeholder }} placeholder="{{.placeholder}}"{{ end }}{{ if .required }} required{{ end }}{{ if .autofocus }} autofocus{{ end }}>
   {{ end }}
-</label>
+</div>
 {{ end }}
 
 {{/* Save/cancel footer of a create or update form.

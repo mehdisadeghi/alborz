@@ -17,14 +17,17 @@
         <div class="headers no-js">
           <label>{{$.T "compose.from"}}</label>
           {{ $sel := $.GlobalData.Username }}{{ with $.GlobalData.URLAccount }}{{ $sel = . }}{{ end }}
+          {{/* A reply names the identity it was addressed to; the
+               account is the choice only when nothing named one. */}}
+          {{ $selid := .Message.From }}
           {{ $multi := gt (len .Identities) 1 }}
           <select name="from_account" id="from">
             {{ range .Identities }}
             {{ if $multi }}<optgroup label="{{.Account}}">{{ end }}
             {{ $acct := .Account }}
-            <option value="{{$acct}}"{{ if eq $acct $sel }} selected{{ end }}>{{$acct}}</option>
+            <option value="{{$acct}}"{{ if and (eq $acct $sel) (eq $selid "") }} selected{{ end }}>{{$acct}}</option>
             {{ range .Addresses }}
-            <option value="{{$acct}}|{{.}}">{{.}}</option>
+            <option value="{{$acct}}|{{.}}"{{ if eq . $selid }} selected{{ end }}>{{.}}</option>
             {{ end }}
             {{ if $multi }}</optgroup>{{ end }}
             {{ end }}
@@ -58,6 +61,18 @@
             type="text"
             name="bcc"
             id="bcc"
+            list="emails"
+          />
+
+          <div class="caption-row">
+            <label for="reply_to">{{$.T "compose.replyto"}}</label>
+            {{ template "help" (dict "text" ($.T "help.replyto")) }}
+          </div>
+          <input
+            type="text"
+            name="reply_to"
+            id="reply_to"
+            value="{{ join .Message.ReplyTo ", " }}"
             list="emails"
           />
 

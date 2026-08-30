@@ -1659,13 +1659,22 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 		// An identity replaces the address, and carries its own name when
 		// it names one. A stale choice falls back to the account itself.
+		//
+		// No Sender header. RFC 5322 3.6.2 asks for one when the author
+		// and the transmitter are different parties - a secretary
+		// sending for someone else - which an identity is not: it is
+		// the same person under another of their own addresses. Adding
+		// it prints the account address on every message and makes Mail
+		// and Outlook render "account on behalf of identity", which is
+		// the one thing the identity exists to avoid. DMARC aligns on
+		// From, so nothing is bought by it either.
 		if identity != "" && slices.Contains(settings.Identities, identity) {
 			msg.From = identity
 		}
 		for _, field := range []struct {
 			name string
 			into *[]string
-		}{{"to", &msg.To}, {"cc", &msg.Cc}, {"bcc", &msg.Bcc}} {
+		}{{"to", &msg.To}, {"cc", &msg.Cc}, {"bcc", &msg.Bcc}, {"reply_to", &msg.ReplyTo}} {
 			addresses, err := parseAddressList(ctx.FormValue(field.name))
 			if err != nil {
 				ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
@@ -1940,6 +1949,46 @@ func handleReply(ctx *alborz.Context) error {
 	return handleCompose(ctx, &msg, &composeOptions{InReplyTo: &inReplyToPath})
 }
 
+// quotablePart fetches the part a reply or a forward should quote. A
+// bare link names no part and a multipart message's root is not text,
+// so the text part a reader was shown is fetched instead - without it,
+// answering any message that carries an attachment was a 400.
+func quotablePart(ctx *alborz.Context, path messagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
+	var msg *IMAPMessage
+	var part *message.Entity
+	fetch := func(p []int) error {
+		return ctx.DoIMAP(func(c *imapclient.Client) error {
+			var err error
+			msg, part, err = getMessagePart(c, path.Mailbox, path.Uid, p)
+			return err
+		})
+	}
+	if err := fetch(partPath); err != nil {
+		return nil, nil, "", err
+	}
+	mimeType, _, err := part.Header.ContentType()
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to parse part Content-Type: %v", err)
+	}
+	if len(partPath) > 0 || !strings.HasPrefix(mimeType, "multipart/") {
+		return msg, part, mimeType, nil
+	}
+
+	text := msg.TextPart()
+	if text == nil {
+		return nil, nil, "", echo.NewHTTPError(http.StatusBadRequest,
+			fmt.Errorf("message has no text part to quote"))
+	}
+	if err := fetch(text.Path); err != nil {
+		return nil, nil, "", err
+	}
+	mimeType, _, err = part.Header.ContentType()
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to parse part Content-Type: %v", err)
+	}
+	return msg, part, mimeType, nil
+}
+
 func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
 	var ret OutgoingMessage
 
@@ -1948,21 +1997,9 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 		return ret, echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	var inReplyTo *IMAPMessage
-	var part *message.Entity
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		var err error
-		inReplyTo, part, err = getMessagePart(c, inReplyToPath.Mailbox,
-			inReplyToPath.Uid, partPath)
-		return err
-	})
+	inReplyTo, part, mimeType, err := quotablePart(ctx, inReplyToPath, partPath)
 	if err != nil {
 		return ret, err
-	}
-
-	mimeType, _, err := part.Header.ContentType()
-	if err != nil {
-		return ret, fmt.Errorf("failed to parse part Content-Type: %v", err)
 	}
 
 	var quoted string
@@ -2000,7 +2037,12 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	// RFC 5322 3.6.4: the chain is what was there plus what is being
 	// answered, and it is the header threading actually runs on.
 	ret.References = strings.TrimSpace(inReplyTo.References + " " + ret.InReplyTo)
-	// TODO: populate From from known user addresses and inReplyTo.Envelope.To
+	// Answer from the address it was sent to, when that address is one
+	// of ours: a mail to an identity is answered by that identity, not
+	// by the account behind it. Cc counts as well, since a list often
+	// puts the identity there.
+	ret.From = identityAddressed(settings, ctx.Session.Username(),
+		inReplyTo.Envelope.To, inReplyTo.Envelope.Cc)
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
 		replyTo = inReplyTo.Envelope.From
@@ -2101,6 +2143,31 @@ func parseIdentities(raw string) []string {
 func splitIdentityChoice(value string) (account, identity string) {
 	account, identity, _ = strings.Cut(value, "|")
 	return account, identity
+}
+
+// identityAddressed names the address a reply should be written from:
+// the identity the original was addressed to, if one of them was, and
+// otherwise the empty string, which leaves the compose form on its own
+// default. Comparison is case-insensitive - a mail addressed to
+// Mx@43.yt is addressed to the identity mx@43.yt.
+func identityAddressed(settings *Settings, username string, lists ...[]imap.Address) string {
+	for _, list := range lists {
+		for _, addr := range list {
+			if strings.EqualFold(addr.Addr(), username) {
+				return ""
+			}
+			for _, identity := range settings.Identities {
+				parsed, err := mail.ParseAddress(identity)
+				if err != nil {
+					continue
+				}
+				if strings.EqualFold(parsed.Address, addr.Addr()) {
+					return identity
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func filterOutUsername(username string, addresses []imap.Address) []imap.Address {
@@ -2255,20 +2322,9 @@ func handleForward(ctx *alborz.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		var source *IMAPMessage
-		var part *message.Entity
-		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			var err error
-			source, part, err = getMessagePart(c, sourcePath.Mailbox, sourcePath.Uid, partPath)
-			return err
-		})
+		source, part, mimeType, err := quotablePart(ctx, sourcePath, partPath)
 		if err != nil {
 			return err
-		}
-
-		mimeType, _, err := part.Header.ContentType()
-		if err != nil {
-			return fmt.Errorf("failed to parse part Content-Type: %v", err)
 		}
 
 		var body string
@@ -2337,20 +2393,9 @@ func handleEdit(ctx *alborz.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		var source *IMAPMessage
-		var part *message.Entity
-		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			var err error
-			source, part, err = getMessagePart(c, sourcePath.Mailbox, sourcePath.Uid, partPath)
-			return err
-		})
+		source, part, mimeType, err := quotablePart(ctx, sourcePath, partPath)
 		if err != nil {
 			return err
-		}
-
-		mimeType, _, err := part.Header.ContentType()
-		if err != nil {
-			return fmt.Errorf("failed to parse part Content-Type: %v", err)
 		}
 
 		if !strings.EqualFold(mimeType, "text/plain") {

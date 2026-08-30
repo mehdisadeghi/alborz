@@ -134,6 +134,16 @@ select {
   --bg-green: #f6fff6;
   --border-green: #afa;
   --flag: #bfa300;
+  /* The seven colours Apple Mail and Outlook address with three IMAP
+     keywords. Ours, not theirs: only the order is shared, so a mail
+     flagged elsewhere wears the same colour here. */
+  --flag-gold: var(--flag);
+  --flag-orange: #e8710a;
+  --flag-yellow: #f2ce00;
+  --flag-green: #1e8e3e;
+  --flag-blue: #1a73e8;
+  --flag-purple: #8430ce;
+  --flag-grey: #7a7a80;
 
   --notice-fg: #0c5460;
   --notice-bg: #d1ecf1;
@@ -1041,9 +1051,108 @@ main.create-update .actions > *:not(:last-child) {
   display: inline-block;
   padding: 0;
   border: none;
-  color: var(--flag);
+  color: var(--flag-set, var(--flag));
   font-size: 13pt;
   background: transparent;
+}
+
+/* The star on the message page rides the subject line and stands at
+   its trailing end, which is the end the subject does not start from:
+   beside the first character it would sit where a subject's own leading
+   emoji sits, and the two would read as one mark. */
+main.message .subject-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+main.message .subject-row > h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+main.message .subject-row > .flag-button,
+.icon-group .flag-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  min-width: var(--control-height);
+  height: var(--control-height);
+  padding: 0;
+  line-height: 1;
+  color: var(--flag-set, var(--flag));
+  font-size: 13pt;
+}
+
+/* A star wears the colour it was flagged in, here or in whichever
+   client set it. The colour arrives as a custom property rather than as
+   a `color` of its own: the star and the swatches sit inside rules that
+   set their colour at two classes deep, and a one-class rule loses to
+   those - by specificity in the row, and by nothing but source order in
+   the menu, which is the worse way to lose. An inherited variable is
+   read by whichever rule wins, so there is no argument to have. */
+.flag-gold { --flag-set: var(--flag-gold); }
+.flag-orange { --flag-set: var(--flag-orange); }
+.flag-yellow { --flag-set: var(--flag-yellow); }
+.flag-green { --flag-set: var(--flag-green); }
+.flag-blue { --flag-set: var(--flag-blue); }
+.flag-purple { --flag-set: var(--flag-purple); }
+.flag-grey { --flag-set: var(--flag-grey); }
+
+/* The colour picker: one swatch per colour and one that clears, each a
+   submit of its own, so it needs no script and no select. */
+.flag-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.3rem;
+}
+
+/* The colour menu: one line per colour, the star in it beside its name.
+   The star carries the colour on a span of its own rather than on the
+   button, so it needs to win no argument with the menu's own button
+   rules - which it would lose, since they are written later. */
+.flag-colors {
+  min-width: 10rem;
+}
+
+.overflow-menu.flag-colors button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: start;
+}
+
+.flag-star {
+  color: var(--flag-set, var(--fg-muted));
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* The toolbar's own entry: the star it is currently set to, and a
+   chevron saying there is more. Open, it lights up like the menu it
+   belongs to. */
+.flag-menu > summary {
+  width: auto;
+  gap: 0.1rem;
+  padding-inline: 0.2rem;
+}
+
+.flag-menu[open] > summary {
+  background: var(--surface-selected);
+}
+
+.flag-menu > summary .flag-star { font-size: 13pt; }
+
+/* Nested inside the overflow on a narrow screen, it is a submenu: it
+   opens in place and grows the menu around it. */
+.overflow-menu .flag-menu { display: block; }
+.overflow-menu .flag-menu > .overflow-menu {
+  position: static;
+  border: 0;
+  box-shadow: none;
+  padding-inline: var(--space-3);
 }
 
 .message-list-unread.message-list-flags .flag-button:hover {
@@ -2165,6 +2274,7 @@ details.overflow > summary::-webkit-details-marker {
 /* An arrow means "back towards the sender" or "on to someone else",
    which swap sides with the script; a box or a bin does not. */
 [dir="rtl"] .icon-reply,
+[dir="rtl"] .icon-reply-list,
 [dir="rtl"] .icon-reply-all,
 [dir="rtl"] .icon-forward,
 [dir="rtl"] .icon-prev,
@@ -3026,7 +3136,9 @@ aside ul.merged-roles {
   /* Narrow toolbars carry one row: the disposal marks step aside and
      the overflow spells them out instead, which is what the room is
      for. */
-  .actions .icon-group.wide-only { display: none; }
+  .actions .icon-group.wide-only,
+  .actions > .wide-only,
+  .actions-wrap .wide-only { display: none; }
   .overflow-menu .narrow-only { display: block; }
   .narrow-crumb { display: block; }
 

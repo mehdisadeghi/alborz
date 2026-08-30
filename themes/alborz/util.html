@@ -10,6 +10,33 @@
      ordered by it. */}}
 {{ define "ltr" }}<bdi class="ltr">{{.}}</bdi>{{ end }}
 
+{{/* The flag colours, as swatches. Each is its own submit, so the
+     picker needs no script and no select; the clearing one carries the
+     empty colour, which unflags. dict: action form colors clear. */}}
+{{/* The colours as a menu rather than a row of swatches: a star in
+     each colour beside the name of it, one line each, the way a mail
+     client has always offered them. dict: form action colors clear
+     current [class]. */}}
+{{ define "flag-menu" }}
+<details class="overflow flag-menu{{ with .class }} {{.}}{{ end }}">
+  <summary class="icon-button" title="{{.clear}}" aria-label="{{.title}}">
+    <span class="flag-star{{ with .current }} flag-{{.}}{{ end }}">{{ if .current }}&#9733;{{ else }}&#9734;{{ end }}</span>{{ template "icon" "down" }}
+  </summary>
+  <div class="overflow-menu flag-colors">
+    {{ $d := . }}
+    {{ range .colors }}
+    <button {{ with $d.form }}form="{{.}}"{{ end }} formaction="{{$d.action}}"
+            name="color" value="{{.Name}}">
+      <span class="flag-star flag-{{.Name}}">&#9733;</span>{{.Label}}
+    </button>
+    {{ end }}
+    <button {{ with .form }}form="{{.}}"{{ end }} formaction="{{.action}}" name="color" value="">
+      <span class="flag-star">&#9734;</span>{{.clear}}
+    </button>
+  </div>
+</details>
+{{ end }}
+
 {{/* Text somebody typed, shown as they typed it: the line breaks they
      put in are kept, and each paragraph reads in its own script rather
      than in the interface's. Every description, note and comment goes

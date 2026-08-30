@@ -186,8 +186,24 @@ type IMAPMessage struct {
 
 	// Mailing-list addresses from the whole message's header, empty
 	// unless it was fetched: a part's own header does not carry them.
-	ListPost        string
+	ListPost string
+	// ListUnsubscribe is where the page should send the reader: our own
+	// compose form when the list offers only a mailto, the list's own
+	// page otherwise.
 	ListUnsubscribe string
+	// OneClick is the https endpoint a list promises to honour on a bare
+	// POST (RFC 8058). It is posted by us, from the server: the browser
+	// cannot, and a GET is what link scanners fire by accident, which is
+	// the reason the POST exists.
+	OneClick string
+	// References is the thread chain the message carries. ENVELOPE does
+	// not include it, so it comes from the header like the list ones.
+	References string
+	// ListID names the list, without the angle brackets and without the
+	// description some senders put before them. It is what says a
+	// message is list mail at all: List-Post can be absent from a list
+	// that refuses posts, and present on nothing else.
+	ListID string
 }
 
 // Date is when the message is shown to have arrived. A Date header is
@@ -224,17 +240,63 @@ func firstListURI(value string, wanted ...string) string {
 	return ""
 }
 
+// composeFromMailto turns a mailto: URI into a link to our own compose
+// form. A webmail that hands the browser a mailto opens whatever mail
+// app the machine has - which is not the account the message arrived
+// in, and on a phone is not alborz at all. RFC 6068 puts the address
+// before the query and the rest in it; only the fields compose already
+// speaks are carried, and the person still reads the message before
+// sending it.
+func composeFromMailto(uri string) string {
+	if !strings.HasPrefix(strings.ToLower(uri), "mailto:") {
+		return uri
+	}
+	u, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+	q := url.Values{}
+	if to := u.Opaque; to != "" {
+		q.Set("to", to)
+	}
+	for _, field := range []string{"subject", "body"} {
+		if v := u.Query().Get(field); v != "" {
+			q.Set(field, v)
+		}
+	}
+	if q.Get("to") == "" {
+		return ""
+	}
+	return "/compose?" + q.Encode()
+}
+
 // setListHeaders records the mailing-list addresses a message carries.
 // List-Post: NO means the list refuses posts, which is not an address.
 func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
+	msg.References = strings.Join(strings.Fields(h.Get("References")), " ")
 	if post := firstListURI(h.Get("List-Post"), "mailto"); post != "" {
 		msg.ListPost = strings.TrimPrefix(post, "mailto:")
+	}
+	// RFC 2919: an optional phrase, then the identifier in angle
+	// brackets. The phrase is the sender's prose and not a name we can
+	// match on, so only the identifier is kept.
+	if id := h.Get("List-Id"); id != "" {
+		if i := strings.LastIndex(id, "<"); i >= 0 {
+			id = id[i+1:]
+			id = strings.TrimSuffix(id, ">")
+		}
+		msg.ListID = strings.TrimSpace(id)
 	}
 	// A one-click https endpoint is preferred; a mailto asks the user to
 	// send a message, which they can at least read before sending.
 	msg.ListUnsubscribe = firstListURI(h.Get("List-Unsubscribe"), "https", "http")
+	// RFC 8058: the promise is in a header of its own, and without it an
+	// https URI is a page to visit rather than an endpoint to post to.
+	if strings.Contains(strings.ToLower(h.Get("List-Unsubscribe-Post")), "one-click") {
+		msg.OneClick = msg.ListUnsubscribe
+	}
 	if msg.ListUnsubscribe == "" {
-		msg.ListUnsubscribe = firstListURI(h.Get("List-Unsubscribe"), "mailto")
+		msg.ListUnsubscribe = composeFromMailto(firstListURI(h.Get("List-Unsubscribe"), "mailto"))
 	}
 }
 
@@ -480,9 +542,79 @@ func (msg *IMAPMessage) PartTree() *IMAPPartNode {
 	return imapPartTree(msg, msg.BodyStructure, nil)
 }
 
+// flagColorBits are the three keywords Apple Mail and Outlook agree to
+// read as a bit field beside \Flagged, low bit first. A flag is only
+// coloured when \Flagged is set too; the bits alone mean nothing.
+var flagColorBits = [3]imap.Flag{"$MailFlagBit0", "$MailFlagBit1", "$MailFlagBit2"}
+
+// FlagColors names the seven colours those three bits address, in the
+// order the two clients number them. The index is the value of the bit
+// field, so FlagColors[0] is what a plain \Flagged shows as.
+// The bit field's zero is "flagged, no colour bits", which is the state
+// a plain click leaves and the state every other client sets. It wears
+// the star's own gold here; Apple draws that same state red.
+var FlagColors = [7]string{"gold", "orange", "yellow", "green", "blue", "purple", "grey"}
+
+// FlagColor is the colour this message is flagged in, empty when it
+// carries no flag at all. A bit field naming no colour we know (the one
+// unused value) reads as the plain flag rather than as nothing.
+func (msg *IMAPMessage) FlagColor() string {
+	if !msg.HasFlag(imap.FlagFlagged) {
+		return ""
+	}
+	n := 0
+	for i, bit := range flagColorBits {
+		if msg.HasFlag(bit) {
+			n |= 1 << i
+		}
+	}
+	if n >= len(FlagColors) {
+		n = 0
+	}
+	return FlagColors[n]
+}
+
+// FlagColorOption is one colour offered by a picker: what to post, and
+// what to call it in the page's language.
+type FlagColorOption struct {
+	Name  string
+	Label string
+}
+
+// FlagColorFlags turns a colour name into the flags a message must
+// carry to wear it, and the ones it must not. An empty name unflags.
+func FlagColorFlags(color string) (add, del []imap.Flag) {
+	if color == "" {
+		return nil, append([]imap.Flag{imap.FlagFlagged}, flagColorBits[:]...)
+	}
+	n := -1
+	for i, c := range FlagColors {
+		if c == color {
+			n = i
+		}
+	}
+	if n < 0 {
+		return nil, nil
+	}
+	add = []imap.Flag{imap.FlagFlagged}
+	for i, bit := range flagColorBits {
+		if n&(1<<i) != 0 {
+			add = append(add, bit)
+		} else {
+			del = append(del, bit)
+		}
+	}
+	return add, del
+}
+
+// HasFlag reports whether the message carries a flag. Flags are
+// case-insensitive (RFC 9051 2.3.2) and servers differ on what they
+// give back: Dovecot keeps the case a keyword was stored in, others
+// fold it, so an exact comparison finds $MailFlagBit0 on one server and
+// misses it on the next.
 func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 	for _, f := range msg.Flags {
-		if f == flag {
+		if strings.EqualFold(string(f), string(flag)) {
 			return true
 		}
 	}
@@ -820,6 +952,71 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 		out.setListHeaders(rh)
 	}
 	return out, part, nil
+}
+
+// fetchRawMessage returns a message exactly as the server holds it,
+// headers and all, beside the envelope that names it. BODY.PEEK[] with
+// no part is the whole thing, which is what attaching a message needs
+// and what quoting one can never reproduce.
+func fetchRawMessage(conn *imapclient.Client, mboxName string, uid imap.UID) ([]byte, *imap.Envelope, error) {
+	if err := ensureMailboxSelected(conn, mboxName); err != nil {
+		return nil, nil, err
+	}
+	section := &imap.FetchItemBodySection{Peek: true}
+	msgs, err := conn.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+		Envelope:    true,
+		UID:         true,
+		BodySection: []*imap.FetchItemBodySection{section},
+	}).Collect()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
+	}
+	if len(msgs) == 0 {
+		return nil, nil, alborz.NotFoundf("message %v does not exist in this folder", uid)
+	}
+	buf := msgs[0].FindBodySection(section)
+	if buf == nil {
+		return nil, nil, fmt.Errorf("server didn't return the message body")
+	}
+	return buf, msgs[0].Envelope, nil
+}
+
+// messageAttachment is a whole message carried inside another one, the
+// shape RFC 2046 5.2 gives a forward that must arrive intact: headers,
+// MIME structure, signatures and its own attachments, none of them
+// re-rendered by us.
+type messageAttachment struct {
+	Path messagePath
+	Name string
+	Body []byte
+}
+
+func (a *messageAttachment) Open() (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(a.Body)), nil
+}
+
+func (a *messageAttachment) MIMEType() string { return "message/rfc822" }
+
+func (a *messageAttachment) Filename() string { return a.Name }
+
+// attachmentName is a subject made into a file name: a forwarded
+// message arrives as a file and wants to be recognisable in a list of
+// them. Anything a file system or a header would argue about goes.
+func attachmentName(subject string) string {
+	name := strings.Map(func(r rune) rune {
+		switch r {
+		case '/', '\\', ':', '"', '<', '>', '|', '?', '*', '\n', '\r', '\t':
+			return '_'
+		}
+		return r
+	}, strings.TrimSpace(subject))
+	if len([]rune(name)) > 60 {
+		name = string([]rune(name)[:60])
+	}
+	if name == "" {
+		name = "message"
+	}
+	return name + ".eml"
 }
 
 func markMessageAnswered(conn *imapclient.Client, mboxName string, uid imap.UID) error {

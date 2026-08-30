@@ -318,6 +318,34 @@ func (g GlobalRenderData) AccountLabel(account string) string {
 	return ShortAccount(account, g.Accounts)
 }
 
+// AccountTrack is the width the account label's track holds: the widest
+// label of the accounts signed in. Sized to its own text the label
+// starts wherever a name happens to end, so a column of them is ragged
+// on the side that faces the sender.
+func (g GlobalRenderData) AccountTrack() template.CSS {
+	n := 0
+	for _, a := range g.Accounts {
+		if l := len([]rune(g.AccountLabel(a.Username))); l > n {
+			n = l
+		}
+	}
+	return template.CSS(fmt.Sprintf("%dch", n))
+}
+
+// MonthTrack is the width the longest month name takes in this
+// language, so a pager carrying one does not change width - and move
+// every control beside it - as the month changes.
+func (g *GlobalRenderData) MonthTrack() template.CSS {
+	n := 0
+	for m := 1; m <= 12; m++ {
+		t := time.Date(2000, time.Month(m), 1, 0, 0, 0, 0, time.UTC)
+		if l := len([]rune(g.MonthName(t))); l > n {
+			n = l
+		}
+	}
+	return template.CSS(fmt.Sprintf("%dch", n))
+}
+
 // AccountColor is the mark a merged row wears in the opt-in color mode.
 // The hues are spread over the accounts actually signed in, in name
 // order, so no two are a shade apart: hashing each name on its own gave

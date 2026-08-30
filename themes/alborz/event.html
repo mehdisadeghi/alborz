@@ -44,7 +44,7 @@
           </tr>
           <!-- TODO: List of attendees, room -->
         </table>
-        <pre>{{$event.Props.Text "DESCRIPTION"}}</pre>
+        {{ template "user-text" ($event.Props.Text "DESCRIPTION") }}
         {{ end }}
       </section>
     </main>

@@ -8,7 +8,9 @@
   </aside>
 
   <div class="container">
-    <form id="address-book-form" method="post"></form>
+    <form id="address-book-form" method="post">
+      <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+    </form>
     <main class="contact-list">
       <section class="actions">
         {{ template "contacts-header.html" . }}
@@ -48,7 +50,7 @@
           </div>
           <div class="contact-list-name">
             {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-            {{if $multi}}<span class="row-account">{{.Account}}</span>{{end}}
+            {{if $multi}}<span class="row-account">{{ template "ltr" .Account }}</span>{{end}}
             <a href="{{.URL}}{{account "?" .Account}}" dir="auto">
               {{.DisplayName}}
             </a>

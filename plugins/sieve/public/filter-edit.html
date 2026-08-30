@@ -44,7 +44,7 @@
 
         <label class="script">
           <span>{{$.T "filters.script"}}</span>
-          <textarea name="content" id="content" spellcheck="false">{{.Content}}</textarea>
+          <textarea name="content" id="content" class="code" dir="ltr" spellcheck="false">{{.Content}}</textarea>
         </label>
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/filters%s" $aq) "cancelLabel" ($.T "common.cancel")) }}

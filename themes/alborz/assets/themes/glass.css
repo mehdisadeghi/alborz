@@ -9,6 +9,9 @@
   --fg-faint: #8e8e96;
 
   --bg: rgba(255, 255, 255, 0.62);
+  /* The page surfaces are frosted on purpose; a menu is not. It floats
+     over the list it must not let through, so it stays opaque. */
+  --surface-raised: #fff;
   --bg-well: rgba(255, 255, 255, 0.28);
   --bg-inset: rgba(255, 255, 255, 0.45);
   --bg-button: rgba(255, 255, 255, 0.55);
@@ -53,7 +56,6 @@ header {
 
 aside,
 .actions,
-header nav .accounts-menu,
 main.login > section {
   backdrop-filter: blur(18px) saturate(1.6);
   -webkit-backdrop-filter: blur(18px) saturate(1.6);

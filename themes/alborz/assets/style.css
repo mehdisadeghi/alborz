@@ -144,6 +144,10 @@ select {
 
   /* Semantic aliases consumed by components. */
   --surface: var(--bg);
+  /* A menu floats over content it must not let through, which a page
+     surface is free to be translucent about. Every popover paints on
+     this one, so a theme states its opacity once. */
+  --surface-raised: var(--bg);
   --surface-subtle: var(--bg-well);
   --surface-inset: var(--bg-inset);
   --surface-selected: var(--bg-active);
@@ -351,7 +355,7 @@ header nav .accounts-menu {
   gap: var(--space-1);
   min-width: max-content;
   padding: var(--space-2);
-  background-color: var(--surface);
+  background-color: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-raised);
@@ -1057,11 +1061,16 @@ main.create-update .actions > *:not(:last-child) {
   text-align: start;
 }
 
-/* The version string, phone numbers and a size with its unit read left
-   to right whatever the UI direction: without the isolation an RTL page
-   orders "246 B" as two runs and prints "B 246". Dates and the message
-   header used to join them, back when both were untranslated Latin;
-   they are translated now and follow the page like the rest of it. */
+/* An identifier is one left-to-right island whatever the page runs:
+   an address, a domain, a host, a size with its unit, a phone number,
+   the version string. Isolated, it orders its own runs; left to the
+   paragraph, an RTL page prints "246 B" as "B 246" and "43.yt" as
+   "yt.43" - a number run and a Latin run with a neutral between them,
+   which the paragraph puts in its own order. Markup takes the "ltr"
+   define; the classes below are the sites that already had one.
+   Dates and the message header are not here: they are translated now
+   and follow the page like the rest of it. */
+.ltr,
 .colophon,
 .message-list-size,
 .contact-list-phone {
@@ -1069,6 +1078,27 @@ main.create-update .actions > *:not(:last-child) {
   unicode-bidi: isolate;
 }
 
+
+/* Code is written left to right in every language: a sieve script, a
+   header, a URL. The field says so itself rather than following the
+   interface, and it is monospaced because alignment is part of it. */
+.code,
+textarea.code {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Text somebody typed keeps the breaks they typed, wraps a long line
+   rather than widening the page, and reads each paragraph in that
+   paragraph's own script. dir=auto resolves the block's alignment,
+   plaintext resolves each line's direction inside it. */
+.user-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
 
 /* Text somebody else wrote is its own bidi paragraph: plaintext applies
    the Unicode algorithm's own base-direction rules per paragraph, so a
@@ -1476,18 +1506,33 @@ main.calendar .actions {
 /* Account names are secondary card metadata, hidden in dense desktop rows. */
 .contact-grid .row-account { display: none; }
 
-/* Ownership trails the sender, dim: the sender cell already answers
-   "who", and "which of mine" is the same question. It never shrinks -
-   a long name truncates first, or the answer disappears exactly on the
-   rows that need it. The subject would be the wrong host: it is the
-   widest, most-truncated cell in the row. */
+/* Ownership follows the sender's name and yields before it does: the
+   sender cell already answers "who", and "which of mine" is the same
+   question. The subject would be the wrong host - it is the widest,
+   most-truncated cell in the row.
+
+   It cannot vanish, since min-width keeps a few characters, and a
+   domain truncates better than a name does: its tail is the part that
+   repeats. */
 .message-list-sender .row-account {
-  flex: 0 0 auto;
-  margin-inline-start: auto;
-  padding-inline-start: 0.5rem;
-  max-width: 55%;
+  flex: 0 4 auto;
+  min-width: 3ch;
+  max-width: 45%;
+  margin-inline: 0.4rem 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Ownership is not part of what unread emphasises. */
+  font-weight: 400;
+}
+
+/* The name has the first claim on the room and yields last. */
+.message-list-sender > a {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* A cut word is a defect; a cut sentence ending in an ellipsis is a
@@ -2227,7 +2272,7 @@ main.message .actions-end {
   gap: 0.25rem;
   min-width: max-content;
   padding: 0.5rem;
-  background-color: var(--bg);
+  background-color: var(--surface-raised);
   border: 1px solid var(--border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
@@ -2485,6 +2530,11 @@ aside ul.merged-roles {
 
 /* Page context, breadcrumb-weight: which account and container the
    page acts on, between the toolbar and the content. */
+/* The narrow layout's own crumb: the header cannot hold the switcher
+   there, so the page names the account instead. Wide windows have the
+   switcher in view and do not need it repeated. */
+.narrow-crumb { display: none; }
+
 .context-crumb {
   color: var(--fg-muted);
   font-size: var(--text-sm);
@@ -2561,6 +2611,15 @@ aside ul.merged-roles {
   header nav > a { min-height: 3rem; }
 
   header nav > div { float: none; display: none; }
+
+  /* The account block docks to the drawer as a fixed element, and says
+     so with a z-index of its own - which counted for nothing, because
+     the header's z-index makes a stacking context its children cannot
+     leave, and the backdrop and the drawer painted over it. Settings
+     was unreachable on a phone. Dropping the header out of the
+     stacking order while the drawer is open lets the dock rise on its
+     own, and leaves the header itself where it was, under both. */
+  .sidebar-toggle:checked ~ header { z-index: auto; }
 
   .sidebar-toggle:checked ~ header nav > div {
     display: flex;
@@ -2897,6 +2956,7 @@ aside ul.merged-roles {
      for. */
   .actions .icon-group.wide-only { display: none; }
   .overflow-menu .narrow-only { display: block; }
+  .narrow-crumb { display: block; }
 
   .list-item,
   .contact-list .contacts .contact-grid > * {

@@ -234,7 +234,19 @@
           </tr>
           <tr>
             <th>{{$.T "compose.from"}}:</th>
-            <td>{{template "addr-list" .Message.Envelope.From}}</td>
+            <td>
+              {{template "addr-list" .Message.Envelope.From}}
+              {{/* The verdict rides with the sender, because it is a
+                   claim about the sender - and it is chrome, outside
+                   the frame the message body draws in: the sanitizer
+                   allows a style element, so a message can paint a
+                   convincing green band of its own inside it. */}}
+              {{ if eq .Signature.State "good" }}
+              <span class="sig sig-good" title="{{ printf ($.T "pgp.goodtitle") .Signature.Signer }}">{{$.T "pgp.good"}}</span>
+              {{ else if eq .Signature.State "bad" }}
+              <span class="sig sig-bad" title="{{$.T .Signature.Reason}}">{{$.T "pgp.bad"}}</span>
+              {{ end }}
+            </td>
           </tr>
           <tr>
             <th>{{$.T "message.date"}}:</th>

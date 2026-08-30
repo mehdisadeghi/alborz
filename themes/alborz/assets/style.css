@@ -173,6 +173,9 @@ select {
   --on-accent: var(--bg);
   --danger: var(--alert-fg);
   --danger-surface: var(--alert-bg);
+  /* A verified signature, in the one green the theme already owns; a
+     theme that redefines the accent redefines this with it. */
+  --sig-good: var(--green-dark);
   --focus-ring: color-mix(in srgb, var(--link) 68%, transparent);
 }
 
@@ -1430,59 +1433,7 @@ main table tfoot {
   margin-inline: 0.25rem 0.5rem;
 }
 
-/* What is attached, on a line of its own under the row: the three
-   trailing columns, so it starts where the subject starts in both the
-   anchored and the merged layouts and needs no number to say so. Never
-   in the subject's cell - there it took the room the subject needed and
-   a busy row showed one character of each. */
-.attach-line {
-  grid-column: -4 / -1;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0 var(--space-2) 0.35rem;
-  border-bottom: 1px solid var(--border-light);
-  min-width: 0;
-  overflow: hidden;
-}
 
-/* A name wide enough to read, or it says nothing: it takes what it
-   needs up to a cap and truncates there, and never shrinks below a
-   few characters. */
-.attach-chip {
-  flex: 0 1 auto;
-  min-width: 4rem;
-  max-width: 14rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0.05rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  line-height: 1.4;
-}
-
-/* What did not fit, counted rather than named. */
-.attach-more {
-  flex: none;
-  min-width: 1.4rem;
-  height: 1.4rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  color: var(--fg-faint);
-  font-size: var(--text-xs);
-}
-
-.attach-chip:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
-  color: var(--fg);
-  border-color: var(--border-strong);
-  text-decoration: none;
-}
 
 /* A control that acts on a selection and cannot carry the disabled
    attribute - a menu, a form - says so the way a disabled button does:
@@ -1586,6 +1537,30 @@ aside .filter-edit:focus-visible { opacity: 1; }
   border-top: 1px solid var(--border-light);
   color: var(--fg-muted);
   font-size: var(--text-sm);
+}
+
+/* What a signature says, beside the sender it is a claim about. Two
+   states only: verified, and present-but-not. An unsigned message says
+   nothing here, because a mark on every message teaches people to
+   ignore marks. */
+.sig {
+  margin-inline-start: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  cursor: help;
+}
+
+.sig-good {
+  color: var(--sig-good);
+  border-color: color-mix(in srgb, var(--sig-good) 40%, transparent);
+}
+
+.sig-bad {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 }
 
 /* A view chooser: every option the same box, the chosen one wearing a
@@ -3458,9 +3433,6 @@ aside ul.merged-roles {
 
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
 
-  /* Two lines is what a phone row has room for; the names are on the
-     message itself. */
-  .attach-line { display: none; }
 
   /* A contact is the same two-line card: name over phone, the photo
      beside the tick and spanning both lines. */

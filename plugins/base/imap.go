@@ -196,6 +196,10 @@ type IMAPMessage struct {
 	// cannot, and a GET is what link scanners fire by accident, which is
 	// the reason the POST exists.
 	OneClick string
+	// rootHeader is the whole message's header, kept because a part's
+	// own header does not carry Autocrypt any more than it carries
+	// List-Post. Empty unless the message was fetched with it.
+	rootHeader textproto.Header
 	// References is the thread chain the message carries. ENVELOPE does
 	// not include it, so it comes from the header like the list ones.
 	References string
@@ -273,6 +277,7 @@ func composeFromMailto(uri string) string {
 // setListHeaders records the mailing-list addresses a message carries.
 // List-Post: NO means the list refuses posts, which is not an address.
 func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
+	msg.rootHeader = h
 	msg.References = strings.Join(strings.Fields(h.Get("References")), " ")
 	if post := firstListURI(h.Get("List-Post"), "mailto"); post != "" {
 		msg.ListPost = strings.TrimPrefix(post, "mailto:")

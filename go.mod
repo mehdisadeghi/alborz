@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+	github.com/ProtonMail/go-crypto v1.1.6
 	github.com/aymerick/douceur v0.2.0
 	github.com/chris-ramon/douceur v0.2.0
 	github.com/dromara/carbon/v2 v2.6.17
@@ -24,6 +25,7 @@ require (
 	github.com/yuin/gopher-lua v1.1.2
 	gitlab.com/golang-commonmark/linkify v0.0.0-20200225224916-64bca66f6ad3
 	go.guido-berhoerster.org/managesieve v0.8.1
+	golang.org/x/image v0.45.0
 	golang.org/x/net v0.58.0
 	golang.org/x/text v0.41.0
 	jaytaylor.com/html2text v0.0.0-20230321000545-74c2419ad056
@@ -33,6 +35,7 @@ require (
 require (
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
+	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
@@ -43,7 +46,6 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
-	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )

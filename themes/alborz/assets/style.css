@@ -153,6 +153,10 @@ select {
   --alert-border: #f5c6cb;
 
   /* Semantic aliases consumed by components. */
+  /* The first column of the message and contact grids: the row's
+     checkbox and the toolbar's select-all stand in the same track. */
+  --check-track: 2.2rem;
+
   --surface: var(--bg);
   /* A menu floats over content it must not let through, which a page
      surface is free to be translucent about. Every popover paints on
@@ -397,7 +401,7 @@ header nav .account-menu-row .account-signout button {
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }
-header nav .account-menu-row .account-signout button:hover { color: var(--danger); }
+header nav .account-menu-row .account-signout button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover { color: var(--danger); }
 header a.active {
   font-weight: 650;
   color: var(--fg);
@@ -501,11 +505,11 @@ aside button {
   background: transparent;
 }
 
-aside .active button:hover {
+aside .active button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   background: var(--bg);
 }
 
-aside button:hover {
+aside button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   background: var(--bg-well);
 }
 
@@ -822,9 +826,7 @@ main.message pre {
    the input stays centred by the cell's own flex. Rows nest their
    cells in a display:contents wrapper, so this reaches past it - the
    toolbar's select-all is not in the grid and stays centred. */
-.message-grid .message-list-checkbox,
-.contact-grid .contact-list-checkbox,
-.contact-grid.multi .contact-list-photo {
+.list-grid .list-checkbox {
   padding-inline-start: 0.5rem;
   align-self: stretch;
 }
@@ -1023,7 +1025,7 @@ main.create-update .actions > *:not(:last-child) {
 
 /* The header's star is the same mark as the rows', drawn at the same
    size on the same centre; only its ink follows the header. */
-.message-list-header.message-list-flags .flag-sort {
+.list-header.message-list-flags .flag-sort {
   width: var(--control-height);
   justify-content: center;
   font-size: 13pt;
@@ -1032,12 +1034,12 @@ main.create-update .actions > *:not(:last-child) {
 
 /* Sorted, the arrow trails outside the star's track: centring the pair
    would slide the star out from under the ones in the rows. */
-.message-list-header.message-list-flags .flag-sort:has(.sort-arrow) {
+.list-header.message-list-flags .flag-sort:has(.sort-arrow) {
   width: auto;
   justify-content: flex-start;
 }
 
-.message-list-header.message-list-flags .flag-sort .sort-label {
+.list-header.message-list-flags .flag-sort .sort-label {
   display: inline-block;
   width: var(--control-height);
   text-align: center;
@@ -1060,10 +1062,14 @@ main.create-update .actions > *:not(:last-child) {
    its trailing end, which is the end the subject does not start from:
    beside the first character it would sit where a subject's own leading
    emoji sits, and the two would read as one mark. */
+/* The row lives inside the cell, not as the cell: a th told to be a
+   flex container stops being a table cell, and the subject collapsed to
+   the width of its longest word. */
 main.message .subject-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  width: 100%;
 }
 
 main.message .subject-row > h1 {
@@ -1155,11 +1161,12 @@ main.message .subject-row > .flag-button,
   padding-inline: var(--space-3);
 }
 
-.message-list-unread.message-list-flags .flag-button:hover {
+.message-list-unread.message-list-flags .flag-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   background: var(--bg-active);
 }
 
 .message-list-subject a { color: var(--link-read); }
+
 
 .message-list-unread.message-list-sender,
 .message-list-unread.message-list-subject,
@@ -1180,7 +1187,7 @@ main.message .subject-row > .flag-button,
 /* An identifier is one left-to-right island whatever the page runs:
    an address, a domain, a host, a size with its unit, a phone number,
    the version string. Isolated, it orders its own runs; left to the
-   paragraph, an RTL page prints "246 B" as "B 246" and "43.yt" as
+   paragraph, an RTL page prints "246 B" as "B 246" and "ex.org" as
    "yt.43" - a number run and a Latin run with a neutral between them,
    which the paragraph puts in its own order. Markup takes the "ltr"
    define; the classes below are the sites that already had one.
@@ -1344,7 +1351,10 @@ main.message h1 {
   opacity: 1;
 }
 
-.message-row {
+/* Every list row nests its cells in a display:contents wrapper: the
+   cells stay in the grid's tracks, while the row is one element to
+   style and, on a phone, a grid of its own. */
+.list-row {
   display: contents;
 }
 
@@ -1410,56 +1420,234 @@ main table tfoot {
   padding: var(--space-1) var(--space-2);
 }
 
-/* Spacing rides the checkbox itself: when scripts are off and the
-   select-all stays hidden, its empty cell must cost nothing. */
-.message-list .actions #action-checkbox-all,
-.contact-list .actions #action-checkbox-all {
-  margin-inline: 0 0.5rem;
+/* Spacing rides the checkbox itself rather than its cell: sizing the
+   cell to the grid's first track boxed the control into less room than
+   a checkbox takes in every engine, and it went missing. The leading
+   margin is the row checkbox's own default one, so the two line up. */
+/* The select-all commands the tick column and stands in it: one rule
+   for every list, because every list is the same grid. */
+.actions #action-checkbox-all {
+  margin-inline: 0.25rem 0.5rem;
 }
 
-/* A field explains itself where it stands: a small mark by the caption
-   that opens a line of prose and an example. Open, it pushes the form
-   down rather than covering it, so nothing is hidden behind it. */
-.help-note {
-  display: inline-block;
-  margin-inline-start: var(--space-1);
-  vertical-align: middle;
+/* What is attached, on a line of its own under the row: the three
+   trailing columns, so it starts where the subject starts in both the
+   anchored and the merged layouts and needs no number to say so. Never
+   in the subject's cell - there it took the room the subject needed and
+   a busy row showed one character of each. */
+.attach-line {
+  grid-column: -4 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 var(--space-2) 0.35rem;
+  border-bottom: 1px solid var(--border-light);
+  min-width: 0;
+  overflow: hidden;
 }
 
-.help-note > summary {
+/* A name wide enough to read, or it says nothing: it takes what it
+   needs up to a cap and truncates there, and never shrinks below a
+   few characters. */
+.attach-chip {
+  flex: 0 1 auto;
+  min-width: 4rem;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+/* What did not fit, counted rather than named. */
+.attach-more {
+  flex: none;
+  min-width: 1.4rem;
+  height: 1.4rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border);
   border-radius: 50%;
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  line-height: 1;
-  cursor: pointer;
-  list-style: none;
+  color: var(--fg-faint);
+  font-size: var(--text-xs);
 }
 
-.help-note > summary::-webkit-details-marker { display: none; }
+.attach-chip:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
 
-.help-note[open] > summary {
+/* A control that acts on a selection and cannot carry the disabled
+   attribute - a menu, a form - says so the way a disabled button does:
+   dim, and the pointer does not reach it, so no hover state of any kind
+   can fire on it. Every hover rule on a control is guarded against the
+   three ways a control is off (:disabled, aria-disabled, .is-disabled);
+   an unguarded hover rule written below its own counter-rule is how the
+   trash icon came to redden while it was dead. */
+.overflow.is-disabled > summary,
+.actions-search.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* A colour is a swatch, not a field: at full width it reads as a bar
+   the length of the form and says nothing more than the small one. */
+input[type="color"] {
+  width: 4rem;
+  min-width: 4rem;
+  padding: 2px;
+  cursor: pointer;
+}
+
+/* What a delete would take, stated under the form that edits the thing
+   and set apart from it: the button beside Save must not read as one
+   more way to save. */
+.danger-zone {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+}
+
+.danger-zone h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.danger-zone p {
+  margin: 0 0 var(--space-2);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+}
+
+/* A line added where the object is read, not behind an edit form. */
+.note-box {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.note-box label {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.note-box textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+/* One collection's row: the tick that remembers, and the link that
+   looks without remembering. The link keeps its place and shows on
+   hover or focus, so a rail of them is a list of names rather than a
+   list of names and verbs. */
+aside .filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+aside .filter-row > label { flex: 1 1 auto; min-width: 0; }
+
+aside .filter-only,
+aside .filter-edit {
+  flex: none;
+  padding-inline: var(--space-1);
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+  opacity: 0;
+}
+
+aside .filter-row:hover .filter-only,
+aside .filter-row:hover .filter-edit,
+aside .filter-only:focus-visible,
+aside .filter-edit:focus-visible { opacity: 1; }
+
+/* When a stored thing was written and last changed, said once, quietly,
+   under what it is about. */
+.object-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-light);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* A view chooser: every option the same box, the chosen one wearing a
+   border the others draw transparent, so choosing moves nothing. Bold
+   on the chosen one would change its width as it is chosen, which is
+   the same defect wearing a different hat. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.toggle-option {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--link);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.toggle-option.is-current {
+  border-color: var(--border-strong);
   background: var(--surface-selected);
   color: var(--fg);
 }
 
-.help-note > div {
-  margin-block: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-inline-start: 2px solid var(--border);
-  color: var(--fg-dim);
-  font-size: var(--text-sm);
-  font-weight: 400;
+.toggle-option:not(.is-current):hover {
+  background: var(--surface-selected);
+  text-decoration: none;
 }
 
-.help-note p { margin: 0 0 var(--space-1); }
-.help-note p:last-child { margin-bottom: 0; }
-.help-example code { direction: ltr; unicode-bidi: isolate; }
+/* What a field needs said, said under it in one voice: the page's
+   small type, the page's quiet ink, on its own line. No box, no rule,
+   no second type scale - a hint that looks like a quotation reads as
+   content rather than as guidance, and one that opens has to escape
+   whatever layout the form is, which in a two-column grid put it under
+   the next input. */
+.hint {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+/* The example is literal syntax: set as code, and isolated, or an RTL
+   paragraph reorders the address inside it. */
+.hint code {
+  font-size: inherit;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* In a label/control grid the hint takes a row of its own under the
+   control's column: inside the control's cell it would grow the row
+   and pull the caption off the line it names. */
+main.create-update .headers > .hint {
+  grid-column: 2 / 3;
+  margin-top: -0.25rem;
+}
 
 /* The picture the card has, beside the field that replaces it. */
 .photo-field .photo-current {
@@ -1471,15 +1659,21 @@ main table tfoot {
   margin-bottom: var(--space-2);
 }
 
-.photo-field .photo-remove {
+/* The picture and the button that takes it away, side by side: the
+   button acts at once and belongs beside what it acts on, not among
+   the fields that wait for Save. */
+.photo-field .photo-shown {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  font-weight: 400;
+  gap: var(--space-3);
 }
 
-.photo-field .photo-remove input { width: auto; }
+.photo-field .photo-remove {
+  flex: none;
+  width: auto;
+  white-space: nowrap;
+}
+
 
 /* Disabled means disabled to the eye too: a checkbox the browser has
    greyed is easy to miss beside a row of live marks, and this one is
@@ -1568,16 +1762,41 @@ main.calendar .actions {
   gap: 0.5rem;
 }
 
-.actions-pagination > strong {
+/* The chosen state of a toggle and the states beside it hold the same
+   box: same weight, same padding, one border drawn and the others
+   transparent. Bolding the chosen one instead changes its width as it
+   is chosen, which moves every control after it out from under the
+   pointer that just chose it. */
+.actions-pagination > strong,
+.actions-pagination > .button-link,
+.actions-pagination > span[aria-disabled],
+.agenda-span > strong,
+.agenda-span > .button-link {
   min-height: var(--control-height);
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--surface-selected);
   font-size: var(--text-sm);
-  font-weight: 650;
+  font-weight: 500;
+}
+
+.actions-pagination > strong,
+.agenda-span > strong {
+  border-color: var(--border);
+  background: var(--surface-selected);
+  color: var(--fg);
+}
+
+/* Which slice of the month the agenda lists, on the gutter the list
+   itself starts from. */
+.agenda-span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-4);
 }
 
 .actions-wrap > .actions-pagination:first-child {
@@ -1695,8 +1914,7 @@ main.calendar .actions {
   font-weight: 650;
 }
 
-.message-list-checkbox,
-.contact-list-checkbox {
+.list-checkbox {
   align-self: center;
 }
 
@@ -1711,22 +1929,81 @@ main.calendar .actions {
      share, so names are rarely truncated. */
   /* Fixed tracks: sorting or paging must not shift the headers under
      the pointer. */
-  grid-template-columns: 2.2rem 4.4rem 14rem 1fr 8rem 5.5rem;
+  /* Every column yields, not the subject alone. A track that cannot
+     shrink hands the whole loss to its neighbour, which is why the
+     subject was crushed to nothing between the widest desktop and the
+     phone layout while the sender kept fourteen rems it did not need.
+     The marks are the one exception: they are glyphs, not text. */
+  /* Every column yields, not the subject alone. A capped track hands
+     the whole loss to the flexible one beside it, which is how the
+     subject came to be crushed to nothing while the sender kept
+     fourteen rems it did not need. The marks are the one exception:
+     they are glyphs, not text. */
+  grid-template-columns:
+    var(--check-track) 4.4rem 14rem
+    minmax(0, 1fr) 8rem 5.5rem;
   grid-template-rows: auto;
 }
 
 /* Merged desktop rows stay dense; ownership becomes dim secondary text in
    the mobile card layout and remains explicit on detail pages. */
 .message-grid.unified {
-  grid-template-columns: 4.4rem 14rem 1fr 8rem 5.5rem;
+  grid-template-columns: 4.4rem 14rem minmax(0, 1fr) 8rem 5.5rem;
+}
+
+/* Between the widest desktop and the phone the sender takes a share of
+   what is left rather than a fixed slab, so the two text columns narrow
+   together; and the size steps aside first, being the column the design
+   already calls least important. */
+@media (width < 75rem) {
+  .message-grid {
+    grid-template-columns:
+      var(--check-track) 4.4rem minmax(6rem, 0.45fr)
+      minmax(0, 1fr) minmax(5rem, 8rem) minmax(4rem, 5.5rem);
+  }
+
+  .message-grid.unified {
+    grid-template-columns:
+      4.4rem minmax(6rem, 0.45fr) minmax(0, 1fr)
+      minmax(5rem, 8rem) minmax(4rem, 5.5rem);
+  }
+}
+
+/* The attachment pane is a third column only where there is room for
+   one; below that it goes under the fields, as it already did on a
+   phone. Kept at 10rem it pushed the form past the window. */
+@media (width < 60rem) {
+  main.create-update .headers { grid-template-columns: auto minmax(0, 1fr); }
+
+  main.create-update #attachment-list {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    width: auto;
+    height: 8rem;
+  }
+}
+
+@media (width < 60rem) {
+  .message-grid {
+    grid-template-columns:
+      var(--check-track) 4.4rem minmax(6rem, 0.45fr)
+      minmax(0, 1fr) minmax(5rem, 8rem);
+  }
+
+  .message-grid.unified {
+    grid-template-columns:
+      4.4rem minmax(6rem, 0.45fr) minmax(0, 1fr) minmax(5rem, 8rem);
+  }
+
+  /* Scoped by the grid that owns it: .list-cell sets display on every
+     cell and is written below this, so a bare .message-list-size loses
+     the tie and the column kept its space while the row shifted. */
+  .message-grid .message-list-size { display: none; }
 }
 
 /* One header style for every list table: muted bold labels on one
    border, links inheriting ink, cells padded like their columns. */
-.message-grid .message-list-header,
-.contact-grid .contact-list-header,
-.task-grid .task-list-header,
-.event-grid .event-list-header {
+.list-header {
   font-weight: bold;
   color: var(--fg-muted);
   border-bottom: 1px solid var(--border-strong);
@@ -1737,10 +2014,7 @@ main.calendar .actions {
   align-self: stretch;
 }
 
-.message-grid .message-list-header a,
-.contact-grid .contact-list-header a,
-.task-grid .task-list-header a,
-.event-grid .event-list-header a { color: inherit; }
+.list-header a { color: inherit; }
 
 /* A sort direction is part of its label. It may overflow a narrow
    column, but the arrow never detaches onto a second line. */
@@ -1756,9 +2030,6 @@ main.calendar .actions {
   gap: 0.25em;
   white-space: nowrap;
 }
-
-/* Account names are secondary card metadata, hidden in dense desktop rows. */
-.contact-grid .row-account { display: none; }
 
 /* Ownership follows the sender's name and yields before it does: the
    sender cell already answers "who", and "which of mine" is the same
@@ -1875,16 +2146,37 @@ aside details.folder-branch details.folder-branch > ul > li {
   padding-inline-start: 2.1rem;
 }
 
+/* The mail list's shape: the same checkbox track, then fixed tracks so
+   sorting cannot shift a header under the pointer. */
 .contact-grid {
   display: grid;
-  grid-template-columns: auto 2.5rem 1fr 2fr 1fr;
+  grid-template-columns:
+    var(--check-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
+    minmax(5rem, 0.6fr) minmax(6rem, 7rem);
   grid-template-rows: auto;
 }
 
-/* Pooled contacts keep the desktop table dense; ownership appears in the
-   mobile name card and on the detail page. */
-.contact-grid.multi {
-  grid-template-columns: 2.5rem 1fr 2fr 1fr;
+/* The contacts list drops the date first, then the address: a name and
+   a number are what the column is for. Written below the base rule it
+   overrides, since a media query adds no specificity and the later of
+   two equal rules wins. */
+@media (width < 60rem) {
+  .contact-grid {
+    grid-template-columns:
+      var(--check-track) 2.5rem minmax(8rem, 1fr)
+      minmax(6rem, 1fr) minmax(5rem, 0.6fr);
+  }
+
+  .contact-grid .contact-list-changed { display: none; }
+}
+
+@media (width < 48rem) {
+  .contact-grid {
+    grid-template-columns:
+      var(--check-track) 2.5rem minmax(8rem, 1fr) minmax(5rem, 0.6fr);
+  }
+
+  .contact-grid .contact-list-email { display: none; }
 }
 
 /* Event lists - a day, or a month's agenda - share the aligned grammar
@@ -1947,17 +2239,54 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .task-list .tasks { flex-grow: 1; }
 
+/* The summary is the column with something to read in it, so it holds a
+   floor and the metadata beside it takes shares of what is left. Capped
+   tracks take their maximum before a bare fr track gets anything, which
+   is how the summary came to be squeezed to nothing while the calendar
+   kept fourteen rems. */
 .task-grid {
   display: grid;
-  grid-template-columns: 2.75rem minmax(12rem, 1fr) minmax(8rem, 14rem) 10rem;
+  grid-template-columns:
+    2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
+    minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
 .task-grid.multi {
-  grid-template-columns: 2.75rem minmax(12rem, 1fr) minmax(8rem, 14rem) 10rem;
+  grid-template-columns:
+    2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(5rem, 0.5fr)
+    minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
-.task-header-row,
-.task-row { display: contents; }
+/* Metadata steps aside before the two columns a task list is for. */
+@media (width < 60rem) {
+  .task-grid {
+    grid-template-columns:
+      2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
+  }
+
+  .task-grid.multi {
+    grid-template-columns:
+      2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
+      minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
+  }
+
+  .task-grid .task-list-added { display: none; }
+}
+
+@media (width < 52rem) {
+  .task-grid {
+    grid-template-columns: 2.75rem minmax(8rem, 1fr) minmax(4.5rem, 7rem);
+  }
+
+  .task-grid.multi {
+    grid-template-columns:
+      2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
+  }
+
+  .task-grid .task-list-calendar { display: none; }
+}
+
+
 
 .task-row > * {
   min-height: 2.5rem;
@@ -1997,7 +2326,9 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .task-grid .task-list-status .status-sort:has(.sort-arrow) { width: auto; }
 .task-list-status .task-checkbox { margin: 0; }
-.task-list-account { display: none; }
+/* The account column is a column now, with a header over it: hiding
+   one half of a column and showing the other is how a grid comes to
+   disagree with its own headings. */
 .task-list-calendar,
 .task-list-account,
 .task-list-due {
@@ -2027,25 +2358,21 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 /* Rows are not hyperlink soup: links show their nature on hover, as
    the tables these grids replaced did. */
-.message-grid a,
-.contact-grid a {
+.list-grid a {
   text-decoration: none;
 }
 
-.message-grid a:hover,
-.contact-grid a:hover {
+.list-grid a:hover {
   text-decoration: underline;
 }
 
 /* Every list shares the same row rhythm: a hairline between rows, as
    the task and filter lists already do. */
-.message-list .messages .message-list-item,
-.contact-list .contacts .contact-grid > * {
+.list-cell {
   border-bottom: 1px solid var(--border-light);
 }
 
-.message-list .messages .message-list-item,
-.contact-list .contacts .contact-grid > * {
+.list-cell {
   white-space: nowrap;
   min-height: 2.35rem;
   padding: 0.4rem var(--space-2);
@@ -2076,7 +2403,10 @@ main.calendar .dates {
   flex-grow: 1;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* minmax(0, 1fr), not 1fr: a bare fr track is at least as wide as its
+     content, so one long event title pushed the month past the window
+     and the page scrolled sideways. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   grid-template-rows: min-content;
   grid-auto-rows: 1fr;
   gap: 1px;
@@ -2224,7 +2554,7 @@ main.settings button:not(.button-primary) {
   background-color: var(--bg);
 }
 
-main.settings button:not(.button-primary):hover {
+main.settings button:not(.button-primary):not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   background-color: var(--bg-active);
 }
 
@@ -2249,9 +2579,9 @@ button,
   background-color: var(--bg-button);
 }
 
-.button:hover,
-button:hover,
-.button-link:hover {
+.button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+.button-link:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   background-color: var(--surface-selected);
   border-color: var(--border-strong);
   text-decoration: none;
@@ -2270,7 +2600,7 @@ button:hover,
   font-weight: 650;
 }
 
-.button-primary:hover {
+.button-primary:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   color: var(--on-accent);
   background: var(--accent-strong);
   border-color: var(--accent-strong);
@@ -2282,13 +2612,13 @@ button:hover,
   background: transparent;
 }
 
-.button-danger:hover {
+.button-danger:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   color: var(--danger);
   border-color: var(--danger);
   background: var(--danger-surface);
 }
 
-button[disabled], button[disabled]:hover {
+button[disabled] {
   color: var(--fg-muted);
   background-color: var(--bg-button);
   border-color: var(--border-light);
@@ -2337,12 +2667,19 @@ details.overflow > summary::-webkit-details-marker {
 }
 
 /* A step of a pager that carries a word: the mark sits against the word
-   rather than in a target of its own. */
+   rather than in a target of its own. The word holds a track wide
+   enough for the longest it can be, so the chevron you are about to
+   click does not move because next month has a longer name. */
 .pager-link {
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
 }
+
+/* No fixed track under the word: it held each month name in the middle
+   of a box wide enough for the longest one, which put a gap between the
+   two names and made them read as unrelated. The chevron shifts a little
+   as the names change length, which is the trade. */
 
 /* An arrow means "back towards the sender" or "on to someone else",
    which swap sides with the script; a box or a bin does not. */
@@ -2376,21 +2713,25 @@ details.overflow > summary::-webkit-details-marker {
   cursor: pointer;
 }
 
-.actions .icon-button:hover,
-.icon-button:hover {
+.actions .icon-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+.icon-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   background: var(--surface-selected);
   color: var(--fg);
 }
 
+/* A control that is present but has nowhere to go: a button says so
+   with disabled, a link with aria-disabled, and both read the same. */
 .actions .icon-button:disabled,
-.icon-button:disabled {
+.icon-button:disabled,
+.actions [aria-disabled="true"],
+[aria-disabled="true"] {
   color: var(--fg-faint);
   cursor: default;
   background: transparent;
 }
 
-.actions .icon-button.icon-danger:hover,
-.icon-button.icon-danger:hover {
+.actions .icon-button.icon-danger:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+.icon-button.icon-danger:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   color: var(--danger);
   background: var(--danger-surface);
 }
@@ -2440,7 +2781,7 @@ details.overflow > summary::-webkit-details-marker {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4.4-4.4'/%3E%3C/svg%3E") center / 1.15rem no-repeat;
 }
 
-.actions-search input[type="text"]:hover { background-color: var(--surface-selected); }
+.actions-search input[type="text"]:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover { background-color: var(--surface-selected); }
 
 .actions-search input::placeholder { color: transparent; }
 .actions-search button { display: none; }
@@ -2489,14 +2830,39 @@ details.overflow > summary::-webkit-details-marker {
   .pagination-range { display: none; }
 }
 
-/* Below this the row genuinely cannot hold its controls - a folder whose
-   delete says "permanently" is the widest case - so it wraps to two rows
-   rather than letting them slide over one another. Overlap is a defect;
-   a second row is a layout. */
+/* The toolbar is one row at every width. Wrapping was the old answer to
+   a row that would not fit, but the break lands on the items' full
+   content width, so the title never gets to truncate and a control
+   appearing - the second pager chevron - moves the whole page down.
+   Nothing here needs a second row once the title yields and the marks
+   keep their fixed tracks. */
 @media (width <= 52rem) {
   .actions-wrap {
-    flex-wrap: wrap;
-    row-gap: 0.3rem;
+    flex-wrap: nowrap;
+  }
+
+  /* A narrow row buys its width from the title's floor and the rule's
+     gaps, in that order: both are spacing, and everything else is a
+     target that must not shrink. */
+  .actions-message h2:not(:last-child) {
+    min-width: 4rem;
+  }
+
+  .toolbar-rule {
+    margin-inline: var(--space-1);
+  }
+
+  /* The title already names the month, so a narrow pager keeps only its
+     chevrons - and with no word to hold, no track to hold it in. */
+  .pager-link > span { display: none; }
+  .pager-link { min-width: var(--control-height); justify-content: center; }
+
+  /* Chips buy the last of the row's width back from their own padding
+     before the title is asked to give up any more of its floor. */
+  .actions-pagination > strong,
+  .actions-pagination > .button-link,
+  .actions-pagination > span[aria-disabled] {
+    padding-inline: var(--space-1);
   }
 }
 
@@ -2697,19 +3063,30 @@ aside .source-account-toggle span {
    that namespace in every collection label. A collection is one row:
    the box, then the name, truncated - a name that wraps under its own
    checkbox reads as two entries. The title carries the full name. */
-aside form[data-source-group] > label:not(.source-account-toggle) {
+aside .filter-row > label {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+}
+
+aside form[data-source-group] > .filter-row {
+  padding-inline-start: var(--space-2);
+}
+
+/* The indent is the account heading's, so it exists only where one
+   does: a single account has no namespace to nest under, and the
+   collections stood indented beneath nothing. The template says which,
+   since :has() is not answered by every browser alborz serves. */
+aside form[data-source-group] > .filter-row.nested {
   padding-inline-start: calc(var(--space-2) + 1.25rem);
 }
 
-aside form[data-source-group] > label:not(.source-account-toggle) input {
+aside .filter-row > label input {
   flex: none;
   margin: 0;
 }
 
-aside form[data-source-group] > label:not(.source-account-toggle) span {
+aside .filter-row > label span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3022,6 +3399,10 @@ aside ul.merged-roles {
 
   .task-row .task-list-account { display: flex; }
 
+  /* A phone row has two lines for what matters; when a task was added
+     is on the task's own page. */
+  .task-row .task-list-added { display: none; }
+
   .task-grid.multi .task-row .task-list-due:empty { display: none; }
   .task-grid.multi .task-row .task-list-due:not(:empty) {
     grid-column: 2 / -1;
@@ -3047,7 +3428,8 @@ aside ul.merged-roles {
 
   /* The mailbox becomes two-line rows: sender and date on top, subject
      and flags below. */
-  .message-grid { display: block; }
+  .message-grid,
+  .contact-grid { display: block; }
 
   /* Date and star share the trailing column, the date above the star,
      both flush to the same edge. The star used to sit inside the second
@@ -3076,11 +3458,36 @@ aside ul.merged-roles {
 
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
 
+  /* Two lines is what a phone row has room for; the names are on the
+     message itself. */
+  .attach-line { display: none; }
+
+  /* A contact is the same two-line card: name over phone, the photo
+     beside the tick and spanning both lines. */
+  .contact-row {
+    display: grid;
+    grid-template-columns: auto 2.5rem minmax(0, 1fr);
+    grid-template-areas:
+      "check photo name"
+      "check photo phone";
+    column-gap: 0.5rem;
+    padding-inline: 0.5rem;
+    padding-block: 0.3rem;
+    border-bottom: 1px solid var(--border-light);
+    min-height: 2.75rem;
+  }
+
+  .contact-row > .contact-list-checkbox { grid-area: check; }
+  .contact-row > .contact-list-photo { grid-area: photo; }
+  .contact-row > .contact-list-name { grid-area: name; }
+  .contact-row > .contact-list-phone { grid-area: phone; }
+  .contact-row > .contact-list-email { display: none; }
+
   /* The two-line row draws one separator on its wrapper. The desktop
      min-height applies per cell, which on a two-line row bought two of
      them: a third of the row's height was empty. The text's own line
      box sets it here; the row, not the cell, is the tap target. */
-  .message-list .messages .message-list-item {
+  .list-cell {
     padding: 0.1rem 0;
     min-height: 0;
     border-inline: 0;
@@ -3126,7 +3533,7 @@ aside ul.merged-roles {
   .message-mark { order: 1; margin-inline-start: 0.25rem; }
   /* The two-line mobile rows keep the inline account label instead of
      the header row and account column. */
-  .message-grid .message-list-header { display: none; }
+  .list-header { display: none; }
   .message-list .messages .message-list-size { display: none; }
   .actions .sort-overflow { display: inline-block; }
   /* Outweighs the shared flex-item rule, which carries three classes. */
@@ -3171,16 +3578,12 @@ aside ul.merged-roles {
 
   .actions { position: relative; }
 
-  .message-list .actions #action-checkbox-all,
-  .contact-list .actions #action-checkbox-all {
+  /* The card rows inset their tick by the row's own padding; the
+     toolbar's box takes the same inset so the two stand in one
+     column. */
+  .actions #action-checkbox-all {
     margin-block: 0.4rem;
-    /* Sits in the column the row checkboxes below it sit in, now that
-       the toolbar carries its own start gutter. */
-    margin-inline: 0.25rem 0.5rem;
-  }
-
-  .contact-list .actions #action-checkbox-all {
-    margin-inline: 0.25rem 0.3rem;
+    margin-inline: 0.75rem 0.5rem;
   }
 
   .actions button,
@@ -3189,8 +3592,8 @@ aside ul.merged-roles {
     min-height: 2.25rem;
   }
 
-  .actions-wrap { flex-wrap: wrap; row-gap: 0.3rem; min-width: 0; }
-  .actions-message { flex-wrap: wrap; row-gap: 0.3rem; column-gap: 0.3rem; }
+  .actions-wrap { min-width: 0; }
+  .actions-message { column-gap: 0.3rem; }
   /* Too little width to reserve a track; the title takes what is left. */
   .actions-message h2 { flex: 1 1 auto; max-width: none; }
 
@@ -3215,10 +3618,7 @@ aside ul.merged-roles {
   .overflow-menu .narrow-only { display: block; }
   .narrow-crumb { display: block; }
 
-  .list-item,
-  .contact-list .contacts .contact-grid > * {
-    min-height: 2.75rem;
-  }
+  .list-item { min-height: 2.75rem; }
 
   /* A mail row is two lines and is itself the tap target, so the touch
      minimum belongs to the row. Applied per cell it was charged twice,
@@ -3248,27 +3648,18 @@ aside ul.merged-roles {
     height: 8rem;
   }
 
-  /* Contacts: name and phone only; the e-mail column waits for the
-     detail page. */
-  .contact-grid { grid-template-columns: auto 2.5rem minmax(0, 1fr) auto; }
-  .contact-grid.multi { grid-template-columns: 2.5rem minmax(0, 1fr) auto; }
-  /* Matches the shared cell rule's specificity, which sets display on
-     every child of the grid - headers included - and so kept the
-     column titles on screen and every row shifted by four cells. */
-  .contact-list .contacts .contact-grid > .contact-list-header { display: none; }
+  /* Contacts: name and phone only; the e-mail column and the date wait
+     for the detail page. */
+  .contact-row > .contact-list-changed { display: none; }
   .contact-list-name {
     flex-direction: column;
     align-items: flex-start !important;
     justify-content: center;
   }
-  .contact-grid .row-account {
-    display: block;
+  .contact-row .row-account {
     margin: 0;
     font-size: 0.7rem;
     line-height: 1.2;
-  }
-  .contact-list .contacts .contact-grid > .contact-list-email {
-    display: none;
   }
   .contact-list-phone { font-size: 0.8rem; }
 

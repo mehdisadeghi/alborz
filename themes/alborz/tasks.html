@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "newhref" "/tasks/create" "newlabel" ($.T "tasks.new") "collectionhref" "/calendars/create" "collectionfor" "tasks" "collectionlabel" ($.T "tasks.newlist") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "collectionhref" "/calendars/create" "collectionfor" "tasks" "collectionlabel" ($.T "tasks.newlist") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
     <form method="post" action="/tasks/show-completed" class="aside-filter">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
       <label class="show-completed-toggle">
@@ -23,11 +23,12 @@
       {{$explicit := ne ($.GlobalData.URL.Query.Get "sort") ""}}
       {{$dirExplicit := ne ($.GlobalData.URL.Query.Get "dir") ""}}
       <section class="actions">
-        <div class="actions-wrap">
-          <div class="actions-message"><h2>{{$.T "nav.tasks"}}</h2></div>
-          <div class="actions-end">
-            {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search"))}}
-            {{if .Tasks}}
+        {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.tasks") "newhref" "/tasks/create" "newlabel" ($.T "tasks.new")) }}
+        {{ template "toolbar-end" }}
+            {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
+            {{if not .Tasks}}
+            <span class="overflow sort-overflow"><span class="icon-button" aria-disabled="true" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "icon" "sort" }}</span></span>
+            {{else}}
             <details class="overflow sort-overflow">
               <summary class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "icon" "sort" }}</summary>
               <div class="overflow-menu">
@@ -38,25 +39,27 @@
               </div>
             </details>
             {{end}}
-          </div>
-        </div>
+        {{ template "toolbar-foot" }}
       </section>
 
       <section class="tasks">
-        <div class="task-grid{{if $multi}} multi{{end}}" role="table">
+        <div class="task-grid list-grid{{if $multi}} multi{{end}}" role="table">
           {{if .Tasks}}
-          <div class="task-header-row" role="row">
-            <div class="task-list-header task-list-status" role="columnheader">
+          <div class="task-header-row list-row" role="row">
+            <div class="list-header task-list-status" role="columnheader">
               {{template "sort-th" (dict "label" "✓" "key" "status" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "status-sort")}}
               <span class="visually-hidden">{{$.T "tasks.status"}}</span>
             </div>
-            <div class="task-list-header task-list-summary" role="columnheader">
+            <div class="list-header list-primary task-list-summary" role="columnheader">
               {{template "sort-th" (dict "label" ($.T "tasks.summary") "key" "summary" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
-            <div class="task-list-header task-list-calendar" role="columnheader">
+            <div class="list-header task-list-calendar" role="columnheader">
               {{template "sort-th" (dict "label" ($.T "common.calendar") "key" "calendar" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
-            <div class="task-list-header task-list-due" role="columnheader">
+            {{if $multi}}
+            <div class="list-header task-list-account" role="columnheader">{{$.T "mailbox.account"}}</div>
+            {{end}}
+            <div class="list-header task-list-due" role="columnheader">
               {{template "sort-th" (dict "label" ($.T "tasks.duedate") "key" "due" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
             <div class="list-header task-list-added" role="columnheader">
@@ -65,8 +68,8 @@
           </div>
 
           {{range .Tasks}}
-          <div class="task-row{{if .Completed}} completed{{end}}" role="row">
-            <div class="task-list-status" role="cell" data-label="{{$.T "tasks.status"}}">
+          <div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
+            <div class="task-list-status list-cell" role="cell" data-label="{{$.T "tasks.status"}}">
               <form method="post" action="{{.Task.URL}}/complete{{account "?" .Task.Account}}" class="task-checkbox">
                 <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
                 <button type="submit" class="checkbox-button{{if .Completed}} checked{{end}}" aria-label="{{if .Completed}}{{$.T "tasks.markincomplete"}}{{else}}{{$.T "tasks.markcomplete"}}{{end}}" title="{{if .Completed}}{{$.T "tasks.markincomplete"}}{{else}}{{$.T "tasks.markcomplete"}}{{end}}">
@@ -74,23 +77,23 @@
                 </button>
               </form>
             </div>
-            <div class="task-list-summary" role="cell" data-label="{{$.T "tasks.summary"}}">
+            <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$.T "tasks.summary"}}">
               <a href="{{.Task.URL}}{{account "?" .Task.Account}}" dir="auto">{{.Summary}}</a>
             </div>
-            <div class="task-list-calendar" role="cell" data-label="{{$.T "common.calendar"}}">
+            <div class="task-list-calendar list-cell" role="cell" data-label="{{$.T "common.calendar"}}">
               {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}{{.Calendar.Name}}
             </div>
             {{if $multi}}
-            <div class="task-list-account" role="cell" data-label="{{$.T "mailbox.account"}}">{{ template "ltr" .Task.Account }}</div>
+            <div class="task-list-account list-cell" role="cell" data-label="{{$.T "mailbox.account"}}">{{ template "ltr" .Task.Account }}</div>
             {{end}}
             {{/* Built before the tag: the escaper cannot follow an attribute that
                  only some branches write. */}}
             {{ $due := "" }}{{ $dueTitle := "" }}
             {{ if not .Due.IsZero }}{{ $due = $.GlobalData.ShortDate .Due }}{{ $dueTitle = $.GlobalData.LongDate .Due }}{{ with $.GlobalData.SecondaryDate .Due }}{{ $dueTitle = printf "%s (%s)" $dueTitle . }}{{ end }}{{ end }}
-            <div class="task-list-due" role="cell" data-label="{{$.T "tasks.duedate"}}" title="{{$dueTitle}}">{{$due}}</div>
+            <div class="task-list-due list-cell" role="cell" data-label="{{$.T "tasks.duedate"}}" title="{{$dueTitle}}">{{$due}}</div>
             {{ $added := "" }}{{ $addedTitle := "" }}
             {{ if not .Added.IsZero }}{{ $added = $.GlobalData.Since .Added }}{{ $addedTitle = $.GlobalData.FormatDate .Added }}{{ with $.GlobalData.SecondaryDate .Added }}{{ $addedTitle = printf "%s (%s)" $addedTitle . }}{{ end }}{{ end }}
-            <div class="task-list-added" role="cell" data-label="{{$.T "common.added"}}" title="{{$addedTitle}}">{{$added}}</div>
+            <div class="task-list-added list-cell" role="cell" data-label="{{$.T "common.added"}}" title="{{$addedTitle}}">{{$added}}</div>
           </div>
           {{end}}
           {{else}}

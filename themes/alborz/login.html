@@ -36,7 +36,7 @@
     </form>
 
     <p class="colophon">
-      <a href="https://git.mehdix.org/alborz">alborz</a> · {{.GlobalData.Year}}{{ with .GlobalData.Version }} · {{ . }}{{ end }}
+      {{ with .GlobalData.ProjectURL }}<a href="{{.}}">alborz</a>{{ else }}alborz{{ end }} · {{.GlobalData.Year}}{{ with .GlobalData.Version }} · {{ . }}{{ end }}
     </p>
   </section>
 </main>

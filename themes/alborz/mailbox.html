@@ -21,39 +21,39 @@
       {{ end }}
 
       <section class="messages">
-        <div class="message-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
+        <div class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
           {{/* Header row; the labels sort where the server can. */}}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hflip := "desc" }}{{ if eq .SortDir "desc" }}{{ $hflip = "asc" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hreset := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-          {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hbase = "?starred=1" }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | accountparam) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | accountparam) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
-          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | accountparam) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}
+          {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hbase = "?starred=1" }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | addr) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | addr) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
+          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ with $.GlobalData.URL.Query.Get "per-page" }}{{ $hparams = printf "%s&per-page=%s" $hparams . }}{{ end }}
           {{ $harrow := "↑" }}{{ if eq .SortDir "desc" }}{{ $harrow = "↓" }}{{ end }}
           {{ if not .GlobalData.Unified }}
-          <div class="message-list-header message-list-checkbox"></div>
+          <div class="list-header list-checkbox"></div>
           {{ end }}
-          <div class="message-list-header message-list-flags">
+          <div class="list-header message-list-flags">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" "★" "key" "starred" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset "idle" "☆" "class" "flag-sort") }}{{ end }}
           </div>
-          <div class="message-list-header message-list-sender">
+          <div class="list-header message-list-sender">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.sender") "key" "from" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.sender"}}{{ end }}
           </div>
-          <div class="message-list-header message-list-subject">
+          <div class="list-header list-primary message-list-subject">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.subject") "key" "subject" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.subject"}}{{ end }}
           </div>
-          <div class="message-list-header message-list-date">
+          <div class="list-header message-list-date">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.date") "key" "date" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.date"}}{{ end }}
           </div>
-          <div class="message-list-header message-list-size">
+          <div class="list-header message-list-size">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.size") "key" "size" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.size"}}{{ end }}
           </div>
           {{/* A link that starts a new query keeps the scope the page is
                read under: a sender clicked in the merged view searches
                every account, not whichever one the view is anchored to. */}}
-          {{ $scope := "" }}{{ if $.GlobalData.Unified }}{{ $scope = "&all=1" }}{{ else }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | accountparam) }}{{ end }}{{ end }}
+          {{ $scope := "" }}{{ if $.GlobalData.Unified }}{{ $scope = "&all=1" }}{{ else }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | addr) }}{{ end }}{{ end }}
           {{range .Messages}}
-          {{ $classes := "message-list-item" }}
+          {{ $classes := "list-cell" }}
           {{ if not (.HasFlag "\\Seen") }}
           {{ $classes = printf "%s %s" $classes "message-list-unread" }}
           {{ end }}
@@ -62,9 +62,9 @@
           {{ end }}
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
-          <div class="message-row"{{ if and $.GlobalData.Unified $.GlobalData.AccountColors }} style="--account: {{ $.GlobalData.AccountColor .Account }}"{{ end }}>
+          <div class="message-row list-row"{{ if and $.GlobalData.Unified $.GlobalData.AccountColors }} style="--account: {{ $.GlobalData.AccountColor .Account }}"{{ end }}>
           {{ if not $.GlobalData.Unified }}
-          <div class="message-list-checkbox {{$classes}}">
+          <div class="message-list-checkbox list-checkbox {{$classes}}">
             <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form">
           </div>
           {{ end }}
@@ -97,7 +97,7 @@
           <div class="message-list-sender {{$classes}}">
             {{ if not .Envelope.From }}{{$.T "mailbox.nosender"}}{{ end }}
             {{ range .Envelope.From }}
-            <a dir="auto" href="{{ localhref (printf "?query=from:%s%s" (.Addr | accountparam) $scope) }}">
+            <a dir="auto" href="{{ localhref (printf "?query=from:%s%s" (.Addr | addr) $scope) }}">
             {{ if .Name }}
               {{.Name}}
             {{ else }}
@@ -116,7 +116,7 @@
             {{$link := ""}}{{$sep := "?"}}
             {{if .TextPart}}{{$link = printf "%v" (.TextPart.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
             {{if $.Starred}}{{$link = printf "%s%sstarred=1" $link $sep}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | urlquery)}}{{$sep = "&"}}{{end}}
-            {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | accountparam)}}{{end}}
+            {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | addr)}}{{end}}
             <a dir="{{.Envelope.Subject | subjectdir}}" href="{{localhref $link}}">
             {{end}}
               {{/* No bdi here: it isolates, and an isolate reads to the
@@ -135,6 +135,7 @@
             {{ $.GlobalData.Since .Date }}
           </div>
           <div class="message-list-size {{$classes}}">{{ humansize .RFC822Size }}</div>
+
           </div>
           {{ end }}
 

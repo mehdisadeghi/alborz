@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +39,9 @@ func startIMAP(t *testing.T) string {
 		{"INBOX", ""}, {"Drafts", imap.MailboxAttrDrafts}, {"Sent", imap.MailboxAttrSent},
 		{"Junk", imap.MailboxAttrJunk}, {"Trash", imap.MailboxAttrTrash},
 		{"Archive", imap.MailboxAttrArchive},
+		// A folder under another: its name carries the separator, and
+		// every URL that names it has to escape it.
+		{"INBOX/Lists", ""},
 	} {
 		var opts *imap.CreateOptions
 		if mbox.attr != "" {
@@ -73,9 +77,11 @@ func startIMAP(t *testing.T) string {
 		raw := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\n"+
 			"Message-ID: <%d@test>\r\nMIME-Version: 1.0\r\n%s\r\n%s",
 			m.from, smokeUser, m.subj, time.Now().Format(time.RFC1123Z), time.Now().UnixNano(), m.extra, m.body)
-		if _, err := user.Append("INBOX", literal{strings.NewReader(raw), int64(len(raw))},
-			&imap.AppendOptions{}); err != nil {
-			t.Fatalf("seed: %v", err)
+		for _, mbox := range []string{"INBOX", "INBOX/Lists"} {
+			if _, err := user.Append(mbox, literal{strings.NewReader(raw), int64(len(raw))},
+				&imap.AppendOptions{}); err != nil {
+				t.Fatalf("seed: %v", err)
+			}
 		}
 	}
 	mem.AddUser(user)
@@ -162,8 +168,19 @@ func TestPagesAnswer(t *testing.T) {
 		t.Fatalf("the seeded attachment renders no chip; the row it belongs to is unchecked")
 	}
 
+	// The nested folder's own rows: a part downloaded from there is the
+	// one URL that has to escape the separator in the mailbox name.
+	nested := get(t, c, base+"/mailbox/INBOX%2FLists")
+	for _, href := range rawPartHrefs(nested) {
+		t.Run(href, func(t *testing.T) { get(t, c, base+href) })
+	}
+	if len(rawPartHrefs(nested)) == 0 {
+		t.Fatal("the nested folder shows no downloadable part; the escaping is unchecked")
+	}
+
 	paths := []string{
 		"/mailbox/INBOX", "/mailbox/INBOX?starred=1", "/mailbox/INBOX?query=redesign",
+		"/mailbox/INBOX%2FLists",
 		"/mailbox/Drafts", "/mailbox/Junk", "/mailbox/Trash",
 		"/compose", "/new-mailbox", "/settings", "/settings/browser",
 	}
@@ -178,6 +195,17 @@ func TestPagesAnswer(t *testing.T) {
 	for _, p := range paths {
 		t.Run(p, func(t *testing.T) { get(t, c, base+p) })
 	}
+}
+
+// rawPartHrefs finds the download links a list row offers, as written
+// in the page - the escaping under test is the page's, not the test's.
+func rawPartHrefs(body string) []string {
+	var out []string
+	for _, m := range regexp.MustCompile(
+		`href="(/message/[^"]*/raw\?[^"]*)"`).FindAllStringSubmatch(body, -1) {
+		out = append(out, strings.ReplaceAll(m[1], "&amp;", "&"))
+	}
+	return out
 }
 
 func get(t *testing.T, c *http.Client, u string) string {

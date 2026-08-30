@@ -64,10 +64,7 @@
             list="emails"
           />
 
-          <div class="caption-row">
-            <label for="reply_to">{{$.T "compose.replyto"}}</label>
-            {{ template "help" (dict "text" ($.T "help.replyto")) }}
-          </div>
+          <label for="reply_to">{{$.T "compose.replyto"}}</label>
           <input
             type="text"
             name="reply_to"
@@ -75,6 +72,7 @@
             value="{{ join .Message.ReplyTo ", " }}"
             list="emails"
           />
+          {{ template "hint" (dict "text" ($.T "help.replyto")) }}
 
           <label>{{$.T "compose.subject"}}</label>
           <input

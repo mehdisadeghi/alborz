@@ -539,7 +539,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	messagesPerPage := settings.MessagesPerPage
+	messagesPerPage := perPage(ctx, settings)
 	query := ctx.QueryParam("query")
 	starred := ctx.QueryParam("starred") == "1"
 
@@ -810,7 +810,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	messagesPerPage := settings.MessagesPerPage
+	messagesPerPage := perPage(ctx, settings)
 
 	query := ctx.QueryParam("query")
 	starred := ctx.QueryParam("starred") == "1"
@@ -1075,7 +1075,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 		listings.evictAll(selectedAccount)
 		destination := fmt.Sprintf("/mailbox/%s", url.PathEscape(fullName))
 		if len(ctx.Sessions()) > 1 {
-			destination += "?account=" + alborz.AccountParam(selectedAccount)
+			destination += "?account=" + alborz.AddressParam(selectedAccount)
 		}
 		return ctx.Redirect(http.StatusFound, destination)
 	}
@@ -1282,7 +1282,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	if err != nil {
 		return err
 	}
-	messagesPerPage := settings.MessagesPerPage
+	messagesPerPage := perPage(ctx, settings)
 
 	query := ctx.QueryParam("query")
 	starred := ctx.QueryParam("starred") == "1"
@@ -2083,6 +2083,9 @@ func forwardBody(ctx *alborz.Context, original *IMAPMessage, body string) string
 	g := alborz.NewBaseRenderData(ctx).GlobalData
 	var b strings.Builder
 	b.WriteString("\n\n")
+	// Not translated: nothing parses it, and the recipient may not read
+	// the sender's language. The header names below are RFC 5322's for
+	// the same reason.
 	b.WriteString(ctx.T("message.forwardedblock"))
 	b.WriteString("\n")
 	if from := original.Envelope.From; len(from) > 0 {
@@ -2269,7 +2272,7 @@ func handleForwardSelection(ctx *alborz.Context) error {
 	}
 	q := url.Values{"uids": {strings.Join(refs, ",")}}
 	if a := ctx.URLAccount(); a != "" {
-		q.Set("account", alborz.AccountParam(a))
+		q.Set("account", alborz.AddressParam(a))
 	}
 	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/message/%v/forward?%s",
 		url.PathEscape(mboxName), q.Encode()))
@@ -2765,6 +2768,24 @@ func handleSetFlags(ctx *alborz.Context) error {
 }
 
 const settingsKey = "base.settings"
+
+// perPage is how many rows a listing shows: the stored preference,
+// unless the URL asks for another count. A query parameter answers for
+// this look at the page only and is not written back - the same shape
+// the sort order and the search term already have - so a link that
+// carries one is a link to a longer page rather than a change to the
+// reader's settings. Out-of-range asks fall back to the preference
+// rather than failing: a number in a URL is not a form to validate.
+func perPage(ctx *alborz.Context, settings *Settings) int {
+	if raw := ctx.QueryParam("per-page"); raw != "" {
+		if n, err := strconv.Atoi(alborz.LatinDigits(raw)); err == nil &&
+			n > 0 && n <= maxMessagesPerPage {
+			return n
+		}
+	}
+	return settings.MessagesPerPage
+}
+
 const (
 	maxMessagesPerPage = 100
 	maxSignature       = 2048

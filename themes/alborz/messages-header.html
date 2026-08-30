@@ -2,24 +2,21 @@
 {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
 {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
 {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-{{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | accountparam) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}
-{{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hplain = printf "%s&starred=1" $hplain }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | accountparam) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}
+{{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}
+{{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hplain = printf "%s&starred=1" $hplain }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}
 {{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
-{{ if not .GlobalData.Unified }}{{ template "toolbar-select-all" . }}{{ end }}
-<div class="actions-wrap">
-  <div class="actions-message">
-    <h2>{{if .Starred}}{{$.T "mailbox.starred"}}{{else}}{{.Mailbox.Label}}{{end}}</h2>
+{{ $title := .Mailbox.Label }}{{ if .Starred }}{{ $title = $.T "mailbox.starred" }}{{ end }}
+{{/* A folder the server says holds nothing has nothing to select and
+     nothing to search. A question already asked keeps its field live,
+     or the reader could not take it back. */}}
+{{ $asked := or .Query .Starred }}
+{{ $empty := and .Mailbox.IsEmpty (not $asked) }}
+{{ template "toolbar-head" (dict "g" . "title" $title "selectall" (not .GlobalData.Unified) "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
     {{$common := .CategorizedMailboxes.Common}}
     {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
     {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
     {{$trash := ""}}{{with $common.Trash}}{{$trash = .Info.Name}}{{end}}
 
-    {{/* The bar reads left to right: what you are looking at, a rule,
-         then the actions. Icons rather than words, so a folder's or a
-         language's wording cannot move anything, and each group holds
-         one kind of action. */}}
-    <span class="toolbar-rule" aria-hidden="true"></span>
-    <a class="icon-button" href="/compose" title="{{$.T "aside.compose"}}" aria-label="{{$.T "aside.compose"}}">{{ template "icon" "compose" }}</a>
 
     {{/* Archive, spam and delete are one set of actions rendered twice:
          as marks in the toolbar, and as words in the overflow, where
@@ -58,7 +55,7 @@
        "class" "wide-only"
        "form" "messages-form"
        "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount))
-       "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
+       "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $) "disabled" $empty) }}
 
     <details class="overflow">
       <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
@@ -67,7 +64,7 @@
            "class" "narrow-only"
            "form" "messages-form"
            "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount))
-           "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
+           "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $) "disabled" $empty) }}
         {{ with $archiveAction }}<button class="narrow-only" form="messages-form" formaction="{{.}}">{{$.T "mailbox.archive"}}</button>{{ end }}
         {{ with $junkAction }}<button class="narrow-only" form="messages-form" formaction="{{.}}">{{$junkLabel}}</button>{{ end }}
         {{ with $trashAction }}<button class="narrow-only button-danger" form="messages-form" formaction="{{.}}">{{$trashLabel}}</button>{{ end }}
@@ -110,10 +107,8 @@
     {{ end }}
     {{ end }}
 
-  </div>
-
-  <div class="actions-end">
-  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "all" $.GlobalData.Unified "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search")) }}
+{{ template "toolbar-end" }}
+  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "all" $.GlobalData.Unified "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty) }}
 
   {{if gt .RangeFrom 0}}
   {{ $prev := "" }}{{if ge .PrevPage 0}}{{$prev = printf "?page=%d%s" .PrevPage $hparams}}{{end}}
@@ -132,5 +127,4 @@
   </details>
   {{ end }}
 
-  </div>
-</div>
+{{ template "toolbar-foot" }}

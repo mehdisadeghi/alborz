@@ -53,5 +53,12 @@ func init() {
 		return nil
 	})
 
-	alborz.RegisterPluginLoader(p.Loader())
+	// An account restored from remembered credentials is signed in
+	// without passing through the login handler, so the root package
+	// calls this to have it followed too.
+	loader := p.Loader()
+	alborz.RegisterPluginLoader(func(s *alborz.Server) ([]alborz.Plugin, error) {
+		s.OnAccountReady = Watch
+		return loader(s)
+	})
 }

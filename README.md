@@ -12,11 +12,35 @@ A simple and pragmatic webmail. Alborz is a fork of [alps].
 - account switcher and a unified mail view across accounts
 - full-text body search, server-side sorting, and a starred view
 - sieve filter editor
-- CalDAV tasks and calendar date and list views
+- CalDAV tasks, calendar month, date and list views, and collection CRUD
 - extended vCard contact fields with photos
-- UI in English, German, Persian, and Spanish
+- named signatures per account, chosen per message
+- mail exported as .eml and mbox
+- UI in English, German, Persian, and Spanish, with the Solar Hijri
+  calendar as a second reckoning beside the Gregorian one
 - responsive UI with dark scheme and theme variants
+- JavaScript optional: every page works without one
+- push, not polling: an IMAP IDLE watcher per account
 - CalDAV/CardDAV caching at the HTTP transport with ctag revalidation
+
+### Standards implemented
+
+Beyond IMAP, SMTP, ManageSieve, CalDAV and CardDAV:
+
+- **RFC 5546 / 6047** iTIP and iMIP - meeting requests are shown,
+  answered, filed and sent, with cancellations and replies
+- **RFC 3156** PGP/MIME signature verification, with **Autocrypt** and
+  attached keys as key sources
+- **RFC 8601** Authentication-Results, read only from a named trusted
+  server and shown only on failure
+- **RFC 8058** One-Click unsubscribe, with mailto and link fallbacks
+- **RFC 2177** IDLE, **RFC 2971** ID, **RFC 5464** METADATA for settings
+- **RFC 5545** iCalendar, including VTIMEZONE generated for what it
+  writes, recurrence expansion and alarms
+- **RFC 3676** format=flowed, **RFC 5322** References, Reply-To and
+  signature delimiters
+- **RFC 2369** list headers, **RFC 6350** vCard, **RFC 6186** SRV
+  discovery
 
 See [INSTALLATION.md](INSTALLATION.md) for building and a systemd unit.
 

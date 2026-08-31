@@ -24,9 +24,10 @@
           {{if ne $base.Time.Month .Month}}extra{{end}}
           {{if and (eq $base.Now.Month .Month) (eq $base.Now.Day .Day)}}active{{end}}
           ">
-          {{if eq $base.Time.Month .Month}}
-            <a href="/calendar/date?date={{.Format "2006-01-02"}}" class="date-link"></a>
-          {{end}}
+          {{/* Every cell opens its day. A day either side of the month is
+               dimmed to show where the month ends, which is not the same
+               as being unavailable. */}}
+          <a href="/calendar/date?date={{.Format "2006-01-02"}}{{ account "&" $base.GlobalData.URLAccount }}" class="date-link"></a>
           {{/* The week rides the first cell of its row rather than a
                column of its own: a column costs every row its width for
                a number read once. */}}

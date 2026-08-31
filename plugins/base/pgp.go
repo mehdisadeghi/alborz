@@ -28,11 +28,11 @@ const (
 	SignatureBad  SignatureState = "bad"  // a signature that is present and does not verify
 )
 
-// Signature is what the page says about a message's authenticity. It is
+// Verification is what the page says about a message's authenticity. It is
 // chrome, never body: the HTML sanitizer allows a style element, so a
 // message can draw a convincing green band inside its own frame, and
 // only a mark outside that frame means anything.
-type Signature struct {
+type Verification struct {
 	State SignatureState
 	// Signer is the address the verifying key claims, shown only when
 	// the signature is good. A key that verifies for an address other
@@ -128,19 +128,19 @@ func autocryptKey(h textproto.Header) (openpgp.EntityList, string, error) {
 // boundary, which is the one thing every server passes through
 // untouched.
 func verifySignature(conn *imapclient.Client, mboxName string, uid imap.UID,
-	bs imap.BodyStructure, rootHeader textproto.Header, from string) Signature {
+	bs imap.BodyStructure, rootHeader textproto.Header, from string) Verification {
 
 	if _, _, ok := signedParts(bs); !ok {
-		return Signature{}
+		return Verification{}
 	}
 
 	raw, _, err := fetchRawMessage(conn, mboxName, uid)
 	if err != nil {
-		return Signature{}
+		return Verification{}
 	}
 	signed, sig, ok := signedRegion(raw)
 	if !ok {
-		return Signature{}
+		return Verification{}
 	}
 
 	keys := senderKeys(rootHeader, raw, authorAddresses(rootHeader, signed))
@@ -148,15 +148,15 @@ func verifySignature(conn *imapclient.Client, mboxName string, uid imap.UID,
 		// Signed, and nothing in the message says by whom. That is not
 		// a failed signature and must not be shown as one: it is an
 		// absence of evidence, so the page says nothing at all.
-		return Signature{}
+		return Verification{}
 	}
 
 	signer, err := openpgp.CheckArmoredDetachedSignature(
 		keys, bytes.NewReader(signed), bytes.NewReader(sig), nil)
 	if err != nil {
-		return Signature{State: SignatureBad, Reason: reasonUnverified}
+		return Verification{State: SignatureBad, Reason: reasonUnverified}
 	}
-	return Signature{State: SignatureGood, Signer: identityOf(signer, from)}
+	return Verification{State: SignatureGood, Signer: identityOf(signer, from)}
 }
 
 // senderKeys gathers the keys the message itself offers for its own

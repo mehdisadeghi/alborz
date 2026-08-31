@@ -1287,6 +1287,57 @@ main.create-update > form > .allday-label::before {
   display: none;
 }
 
+/* A signature is a name and a body. The name is a label rather than a
+   sentence, so it takes a label's width and the body takes the rest. */
+.signature-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) 1fr;
+  gap: var(--space-2);
+  align-items: start;
+  margin-bottom: var(--space-3);
+}
+
+.signature-row > input,
+.signature-row > textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* The box that removes one spans both columns: it acts on the row, not
+   on either field in it. */
+.signature-drop {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+/* The chooser stands with the body it rewrites, above the row that
+   sends: it is not one of the actions that finish the message. */
+.signature-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+/* The way out to the page that owns them, at the end of the row: it is
+   a way out, not one of the choices. */
+.signature-edit {
+  margin-inline-start: auto;
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+}
+
+.signature-pick > label {
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
 /* Code is written left to right in every language: a sieve script, a
    header, a URL. The field says so itself rather than following the
    interface, and it is monospaced because alignment is part of it. */
@@ -3446,6 +3497,12 @@ aside ul.merged-roles {
 }
 
 @media (width <= 600px) {
+  /* A phone cell holds a day number and little else. */
+  main.calendar .date h4 .weeknum { display: none; }
+
+  /* The row's actions go under its name rather than beside it. */
+  .signature-list > li { flex-direction: column; align-items: stretch; gap: var(--space-1); }
+
   body { min-width: 0; font-size: var(--text-md); }
 
   input[type="text"],

@@ -149,6 +149,24 @@
           {{end}}
         </datalist>
 
+        {{/* Always here, even with nothing to choose: a control that
+             appears only once you own a signature cannot be how you
+             discover signatures exist. Choosing one is a submit, so no
+             script is needed - the body returns with the text under the
+             last "-- " replaced. */}}
+        <div class="signature-pick">
+          <label for="signature">{{$.T "compose.signature"}}</label>
+          <select name="signature" id="signature">
+            <option value="">{{$.T "settings.signaturenone"}}</option>
+            {{ range .Signatures }}
+            <option value="{{.Name}}"{{ if eq .Name $.Signature }} selected{{ end }}>{{.Name}}</option>
+            {{ end }}
+          </select>
+          <button type="submit" name="signature_apply" value="1" formnovalidate
+                  {{ if not .Signatures }}disabled title="{{$.T "settings.signaturesnone"}}"{{ end }}>{{$.T "compose.signatureapply"}}</button>
+          <a class="signature-edit" href="/signatures{{ account "?" $.GlobalData.URLAccount }}">{{$.T "settings.signaturesedit"}}</a>
+        </div>
+
         <div class="actions">
           <button id="send-button" class="button-primary" type="submit">{{$.T "compose.send"}}</button>
           <button id="save-button" type="submit" name="save_as_draft" formnovalidate>{{$.T "compose.savedraft"}}</button>

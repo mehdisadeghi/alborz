@@ -48,14 +48,11 @@
           {{ template "hint" (dict "text" ($.T "help.identities") "example" ($.T "help.identitiesexample")) }}
         </div>
 
+        {{/* Signatures are prose a person writes, not a switch, so they
+             have a page rather than a slot in this pane. */}}
         <div class="action-group">
-          <label for="signature">{{$.T "settings.signature"}}</label>
-          <textarea
-            name="signature"
-            id="signature"
-            rows="5"
-            dir="auto"
-          >{{.Settings.Signature}}</textarea>
+          <label>{{$.T "settings.signatures"}}</label>
+          <p><a href="/signatures{{ account "?" $.GlobalData.URLAccount }}">{{$.T "settings.signaturesedit"}}</a></p>
         </div>
 
         <div class="action-group">

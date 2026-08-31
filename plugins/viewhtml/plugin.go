@@ -84,7 +84,7 @@ func init() {
 
 		ctx.Response().Header().Set("Cache-Control", proxyCacheControl)
 
-		lr := io.LimitedReader{resp.Body, int64(proxyMaxSize)}
+		lr := io.LimitedReader{R: resp.Body, N: int64(proxyMaxSize)}
 		return ctx.Stream(http.StatusOK, mediaType, &lr)
 	})
 

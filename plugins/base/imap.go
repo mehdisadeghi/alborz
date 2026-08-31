@@ -952,7 +952,7 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 		bodyBuf = append(headerBuf, bodyBuf...)
 	}
 
-	part, err := message.New(message.Header{h}, bytes.NewReader(bodyBuf))
+	part, err := message.New(message.Header{Header: h}, bytes.NewReader(bodyBuf))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create message reader: %v", err)
 	}
@@ -1066,7 +1066,7 @@ func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*Ma
 	// IMAP needs to know in advance the final size of the message, so
 	// there's no way around storing it in a buffer here.
 	var buf bytes.Buffer
-	if err := msg.WriteTo(&buf); err != nil {
+	if err := msg.WriteMessage(&buf); err != nil {
 		return nil, err
 	}
 

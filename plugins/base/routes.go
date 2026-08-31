@@ -1796,7 +1796,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 					return fmt.Errorf("failed to copy attachment from original message: %v", err)
 				}
 
-				h := mail.AttachmentHeader{part.Header}
+				h := mail.AttachmentHeader{Header: part.Header}
 				mimeType, _, _ := h.ContentType()
 				filename, _ := h.Filename()
 				msg.Attachments = append(msg.Attachments, &imapAttachment{

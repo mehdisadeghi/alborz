@@ -19,7 +19,7 @@
         {{end}}
 
         {{$base := .}}
-        {{range .Dates}}
+        {{range $i, $day := .Dates}}
         <div class="date
           {{if ne $base.Time.Month .Month}}extra{{end}}
           {{if and (eq $base.Now.Month .Month) (eq $base.Now.Day .Day)}}active{{end}}
@@ -27,7 +27,19 @@
           {{if eq $base.Time.Month .Month}}
             <a href="/calendar/date?date={{.Format "2006-01-02"}}" class="date-link"></a>
           {{end}}
-          <h4><span class="day-label">{{$base.GlobalData.CalendarDayLabel .}}</span>{{ with $base.GlobalData.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}</h4>
+          {{/* The week rides the first cell of its row rather than a
+               column of its own: a column costs every row its width for
+               a number read once. */}}
+          {{/* Four cells of a two-by-two: week and day across, primary
+               and secondary down. Written flat rather than as two
+               stacks, so both calendars share one row apiece and line up
+               against it instead of against each other. */}}
+          <h4>
+            {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.GlobalData.WeekTitle $day}}">{{$base.GlobalData.WeekNumber $day}}</span>{{ end }}
+            <span class="day-label">{{$base.GlobalData.CalendarDayLabel .}}</span>
+            {{ if eq (mod $i 7) 0 }}{{ with $base.GlobalData.SecondaryWeek $day }}<span class="weeknum-secondary">{{.}}</span>{{ end }}{{ end }}
+            {{ with $base.GlobalData.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}
+          </h4>
           <div class="events">
             {{$events := (call $base.EventsForDate .)}}
             {{if $events}}
@@ -39,13 +51,12 @@
               {{end}}
 
               {{range $events}}
-              {{ if .Data.Events }}{{$event := index .Data.Events 0}}
               {{$color := call $base.ColorForPath .Account .Path}}
               <li>
                 {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-                {{$event.Props.Text "SUMMARY"}}
+                {{.Summary}}
               </li>
-              {{ end }}{{end}}
+              {{end}}
               {{if ne $overflow 0}}
               <li class="overflow">{{$base.GlobalData.Tf "calendar.more" $overflow}}</li>
               {{end}}

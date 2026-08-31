@@ -2744,21 +2744,57 @@ main.calendar .events .overflow {
   text-align: end;
 }
 
+/* The header of a cell is a two-by-two: the week and the day across, the
+   primary and the secondary calendar down. Both calendars therefore sit
+   on one row apiece and align against that row rather than against each
+   other, which is what stops a 16px week and a 13px day from drifting
+   apart - and gives both the same gap to the number underneath. */
 main.calendar .date h4 {
-  font-weight: 500;
-  text-align: start;
-  color: var(--fg-muted);
-  min-height: 1.65rem;
-  margin: 0 0 var(--space-1);
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  row-gap: 0.15rem;
+  column-gap: var(--space-1);
+}
+
+/* Each row is one line box whatever size the text in it is, so the two
+   calendars start at the same height and leave the same gap under
+   themselves. Sized by baseline instead, the larger number would sit
+   higher than the smaller and the gaps beneath them would differ. */
+main.calendar .date h4 .weeknum,
+main.calendar .date h4 .day-label {
+  line-height: 1.4rem;
+}
+
+main.calendar .date h4 .weeknum-secondary,
+main.calendar .date h4 .day-secondary {
+  line-height: 1rem;
+}
+
+/* The week is the coarsest thing here, so it is the largest and the
+   faintest: read once per row, never scanned. The Solar Hijri count
+   under it is a different reckoning - that year starts at Nowruz and its
+   weeks on Saturday - not the same number in other digits. */
+main.calendar .date h4 .weeknum {
+  grid-area: 1 / 1;
+  justify-self: start;
+  color: var(--fg-faint);
+  font-size: var(--text-base, 1rem);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+main.calendar .date h4 .weeknum-secondary {
+  grid-area: 2 / 1;
+  justify-self: start;
+  color: var(--fg-faint);
+  font-size: var(--text-xs);
+  opacity: 0.75;
 }
 
 main.calendar .date h4 .day-label {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.65rem;
+  grid-area: 1 / 2;
+  justify-self: end;
   padding-inline: 0.25rem;
   font-size: var(--text-sm);
   white-space: nowrap;
@@ -2767,7 +2803,9 @@ main.calendar .date h4 .day-label {
 /* The secondary calendar is a gloss on the Gregorian date, never a
    competitor: same line, quieter ink, smaller. */
 main.calendar .date h4 .day-secondary {
-  margin-inline-start: 0.3rem;
+  grid-area: 2 / 2;
+  justify-self: end;
+  padding-inline: 0.25rem;
   font-size: var(--text-xs);
   color: var(--fg-faint);
 }
@@ -3988,7 +4026,7 @@ aside ul.merged-roles {
   /* The cell is barely wider than its own number here; the secondary
      shrinks with it and is clipped rather than pushing the grid out. */
   main.calendar .date h4 { overflow: hidden; white-space: nowrap; }
-  main.calendar .date h4 .day-secondary { font-size: 0.6rem; margin-inline-start: 0.15rem; }
+  main.calendar .date h4 .day-secondary { font-size: 0.6rem; }
   main.calendar .date ul { padding-inline-start: 0; }
   main.calendar .events li { display: inline; font-size: 0; }
   main.calendar .events li .color-dot {

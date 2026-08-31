@@ -13,6 +13,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-ical"
@@ -552,6 +553,123 @@ type CalendarObject struct {
 
 	// Account owning the object, set only in the unified view
 	Account string
+}
+
+// Alarm is a reminder an object carries (RFC 5545 3.6.6). Nothing here
+// acts on one - Alborz is request-driven and has nothing that wakes up -
+// but an alarm set in another client is part of the event, and showing
+// it is the difference between "no reminder" and "a reminder this page
+// will not tell you about".
+type Alarm struct {
+	At time.Time
+	// Action is what the alarm asks for: DISPLAY, EMAIL, AUDIO. Apple
+	// writes NONE for an event it deliberately leaves silent.
+	Action string
+}
+
+// Alarms are the moments the object asks to be reminded at, resolved
+// against the component they hang on: a trigger is usually an offset
+// from the start, sometimes from the end, and occasionally an instant.
+func (ao CalendarObject) Alarms() []Alarm {
+	var comp *ical.Component
+	for _, child := range ao.Data.Children {
+		if child.Name == ical.CompEvent || child.Name == ical.CompToDo {
+			comp = child
+			break
+		}
+	}
+	if comp == nil {
+		return nil
+	}
+	start, _ := comp.Props.DateTime(ical.PropDateTimeStart, nil)
+	end, _ := comp.Props.DateTime(ical.PropDateTimeEnd, nil)
+
+	var out []Alarm
+	for _, child := range comp.Children {
+		if child.Name != ical.CompAlarm {
+			continue
+		}
+		prop := child.Props.Get(ical.PropTrigger)
+		if prop == nil {
+			continue
+		}
+		action, _ := child.Props.Text(ical.PropAction)
+		var at time.Time
+		if prop.ValueType() == ical.ValueDateTime {
+			at, _ = prop.DateTime(nil)
+		} else if offset, err := prop.Duration(); err == nil {
+			base := start
+			if prop.Params.Get(ical.ParamRelated) == "END" && !end.IsZero() {
+				base = end
+			}
+			if !base.IsZero() {
+				at = base.Add(offset)
+			}
+		}
+		if at.IsZero() {
+			continue
+		}
+		out = append(out, Alarm{At: at, Action: action})
+	}
+	return out
+}
+
+// Occurrence is one drawing of an event: a component of an object plus
+// the moment it falls on. A recurring event has many and the component
+// names only the first, so a day holds occurrences rather than objects.
+//
+// Two shapes arrive. A server honouring the expand request returns one
+// component per instance (RFC 4791 9.6.5); one that ignores it returns
+// the master carrying its rule. Both are drawn, which is what lets a
+// recurring event made in another client appear here.
+type Occurrence struct {
+	CalendarObject
+	Event *ical.Event
+	Start time.Time
+	End   time.Time
+}
+
+// AllDay reports whether this occurrence occupies whole days, read from
+// its own component rather than the object's first.
+func (o Occurrence) AllDay() bool {
+	prop := o.Event.Props.Get(ical.PropDateTimeStart)
+	return prop != nil && prop.ValueType() == ical.ValueDate
+}
+
+// Summary is what the row says.
+func (o Occurrence) Summary() string {
+	summary, _ := o.Event.Props.Text(ical.PropSummary)
+	return summary
+}
+
+// occurrences lists every instance of an object that begins before end
+// and ends after start, in the display timezone.
+func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {
+	var out []Occurrence
+	for i := range obj.Data.Events() {
+		event := &obj.Data.Events()[i]
+		first, _ := event.DateTimeStart(nil)
+		last, _ := event.DateTimeEnd(nil)
+		span := last.Sub(first)
+		if span < 0 {
+			span = 0
+		}
+
+		// A rule still on the component means the server did not expand
+		// it, so it is expanded here over the window being drawn.
+		set, err := event.RecurrenceSet(loc)
+		if err != nil || set == nil {
+			out = append(out, Occurrence{CalendarObject: obj, Event: event, Start: first, End: last})
+			continue
+		}
+		for _, at := range set.Between(start.Add(-span), end, true) {
+			out = append(out, Occurrence{
+				CalendarObject: obj, Event: event,
+				Start: at, End: at.Add(span),
+			})
+		}
+	}
+	return out
 }
 
 func newCalendarObjectList(cos []caldav.CalendarObject) []CalendarObject {

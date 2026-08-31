@@ -29,9 +29,33 @@ import (
 
 var themesPath = "./themes"
 
-// Version from the VCS metadata the go tool embeds into the binary;
-// empty for unstamped builds such as go run.
+// devVersion is what a build off master calls itself: it is not a
+// release, and saying so is more useful than a number nobody cut.
+const devVersion = "dev"
+
+// version is stamped at link time with the tag being built, or with
+// devVersion off master. It is empty for a local build, which has only
+// the VCS metadata below to go on.
+var version string
+
+// buildVersion is what the footer and the User-Agent report. A release
+// names itself and nothing else; anything else carries the revision,
+// since that is what identifies the build being run.
 func buildVersion() string {
+	stamp := vcsStamp()
+	switch {
+	case version == "":
+		return stamp
+	case version == devVersion:
+		return strings.TrimSpace(version + " " + stamp)
+	default:
+		return version
+	}
+}
+
+// vcsStamp is the revision and date the go tool embeds into the binary;
+// empty for unstamped builds such as go run.
+func vcsStamp() string {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		return ""

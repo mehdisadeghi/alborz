@@ -187,6 +187,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	}
 
 	registerRoutes(p)
+	p.registerScheduling()
 
 	return p.Plugin(), nil
 }

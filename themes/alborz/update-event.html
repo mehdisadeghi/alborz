@@ -38,6 +38,12 @@
         {{ template "field" (dict "class" "allday-field" "label" ($.T "calendar.startdate") "name" "start_date" "type" "date" "value" .StartDate) }}
         {{ template "field" (dict "class" "allday-field" "label" ($.T "calendar.lastday") "name" "end_date" "type" "date" "value" .EndDate) }}
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" (.Event.Props.Text "DESCRIPTION") "dir" "auto") }}
+        {{/* Naming anybody here makes this an invitation: on save the
+             account becomes the organizer and everyone listed is sent a
+             request. Emptying the list withdraws it. */}}
+        {{ template "field" (dict "label" ($.T "calendar.attendees") "name" "attendees" "value" .Attendees "rows" 3) }}
+        {{ template "hint" (dict "text" ($.T "help.attendees")) }}
+        <input type="hidden" name="attendees_was" value="{{ .Attendees }}">
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/calendar%s" $acct) "cancelLabel" ($.T "common.cancel")) }}
       </form>

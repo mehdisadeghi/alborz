@@ -51,6 +51,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 		return handleGetPart(ctx, true)
 	})
 	p.GET("/message/:mbox/:uid/eml", handleDownloadMessage)
+	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
 	p.POST("/message/:mbox/export", handleExportMbox)
 
 	p.GET("/login", handleLogin)
@@ -1277,6 +1278,10 @@ type MessageRenderData struct {
 	MailboxPage int
 	Flags       map[imap.Flag]bool
 
+	// Invitation is the scheduling request this message carries, nil when
+	// it carries none.
+	Invitation *Invitation
+
 	// Neighbors in the view the message was opened from; nil when absent.
 	NewerURL *url.URL
 	OlderURL *url.URL
@@ -1288,6 +1293,55 @@ type MessageRenderData struct {
 	// as chrome outside the body frame. Its zero value says nothing,
 	// which is what an unsigned message deserves.
 	Signature Verification
+}
+
+// handleInvitationReply answers a meeting request by mail, which is
+// what the organizer's client is waiting for (RFC 6047). The invitation
+// is re-read from the message rather than taken from the form: what is
+// answered has to be what was sent.
+func handleInvitationReply(ctx *alborz.Context) error {
+	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	if err != nil {
+		return err
+	}
+
+	status := strings.ToUpper(ctx.FormValue("status"))
+	switch status {
+	case partAccepted, partDeclined, partTentative:
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "unknown answer")
+	}
+
+	var msg *IMAPMessage
+	if err := ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		var err error
+		msg, _, err = getMessagePart(c, mboxName, uid, nil)
+		return err
+	}); err != nil {
+		return err
+	}
+	inv := messageInvitation(ctx, msg, mboxName, uid)
+	if inv == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "this message carries no invitation")
+	}
+
+	reply, err := invitationReply(ctx, inv, status)
+	if err != nil {
+		return err
+	}
+	reply.Mailer = alborz.BrandName
+	if v := ctx.Server.Options.Version; v != "" {
+		reply.Mailer += "/" + v
+	}
+	if err := ctx.DoSMTP(func(c *smtp.Client) error {
+		return sendMessage(c, reply)
+	}); err != nil {
+		return fmt.Errorf("failed to send the answer: %v", err)
+	}
+
+	ctx.Session.PutNotice(ctx.T("invite.answered"))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(
+		fmt.Sprintf("/message/%s/%v", url.PathEscape(mboxName), uid))))
 }
 
 // handleDownloadMessage hands over the bytes the server holds. It is
@@ -1619,7 +1673,57 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Total:              totalMsgs,
 		Query:              query,
 		Signature:          signature,
+		Invitation:         messageInvitation(ctx, msg, mboxName, uid),
 	})
+}
+
+// messageInvitation reads the message's scheduling part, if it has one.
+// A failure here is not a failure of the page: the part is also an
+// attachment, and a message that will not parse as an invitation is
+// simply not shown as one.
+func messageInvitation(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) *Invitation {
+	inv, _, err := invitationAt(ctx, msg, mboxName, uid)
+	if err != nil {
+		ctx.Logger().Printf("failed to read the calendar part: %v", err)
+		return nil
+	}
+	return inv
+}
+
+// InvitationAt reads the scheduling part of one message, and the bytes
+// it was written as. The calendar plugin needs both: the fields to show
+// and the object to file, which is the organizer's own and not one
+// rebuilt from what a page displayed.
+func InvitationAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*Invitation, []byte, error) {
+	var msg *IMAPMessage
+	if err := ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		var err error
+		msg, _, err = getMessagePart(c, mboxName, uid, nil)
+		return err
+	}); err != nil {
+		return nil, nil, err
+	}
+	return invitationAt(ctx, msg, mboxName, uid)
+}
+
+func invitationAt(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) (*Invitation, []byte, error) {
+	part := invitationPart(msg)
+	if part == nil {
+		return nil, nil, nil
+	}
+	var raw []byte
+	err := ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		_, entity, err := getMessagePart(c, mboxName, uid, part.Path)
+		if err != nil {
+			return err
+		}
+		raw, err = io.ReadAll(entity.Body)
+		return err
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return readInvitation(raw, part.PathString(), ctx.Session.Username()), raw, nil
 }
 
 // AttachedMessage names a whole message the form carries, for the

@@ -306,6 +306,9 @@ type UpdateEventRenderData struct {
 	EndTime   string
 	StartDate string // date, and the last day rather than the day after
 	EndDate   string
+	// Attendees are the addresses invited, one per line. Naming anybody
+	// makes this account the organizer and sends an invitation on save.
+	Attendees string
 
 	// Error is shown as an alert on the form just submitted: invalid
 	// input is answered by the page itself, never by a status page.
@@ -432,6 +435,7 @@ func fillEventForm(d *UpdateEventRenderData, loc *time.Location) {
 		}
 	}
 	d.EndDate = last.Format(datePageLayout)
+	d.Attendees = attendeeLines(d.Event)
 }
 
 // onlyCollections is the set a URL asks to see, which stands in for the
@@ -1120,6 +1124,13 @@ func registerRoutes(p *plugin) {
 				event.Props.Del(ical.PropDescription)
 			}
 
+			// Naming anybody makes this an invitation: the account
+			// becomes the organizer and everyone listed is asked
+			// (RFC 5546). Removing the last one withdraws it.
+			attendees := parseAttendees(ctx.FormValue("attendees"))
+			had := attendeeLines(event) != ""
+			setScheduling(event, ctx.Session.Username(), attendees)
+
 			newID := uuid.New()
 			if prop := event.Props.Get(ical.PropUID); prop == nil {
 				event.Props.SetText(ical.PropUID, newID.String())
@@ -1141,6 +1152,21 @@ func registerRoutes(p *plugin) {
 			co, err = saveClient.PutCalendarObject(ctx.Request().Context(), savePath, cal)
 			if err != nil {
 				return fmt.Errorf("failed to put calendar object: %v", err)
+			}
+
+			// The event is saved before anybody is told about it: a send
+			// that fails must not lose what was written, so the failure
+			// is reported and the meeting stays.
+			method := alborzbase.MethodRequest
+			told := attendees
+			if len(attendees) == 0 && had {
+				method, told = alborzbase.MethodCancel, parseAttendees(ctx.FormValue("attendees_was"))
+			}
+			if err := sendScheduling(ctx, event, told, method); err != nil {
+				ctx.Session.PutNotice(ctx.T("invite.sendfailed"))
+				ctx.Logger().Printf("failed to send the scheduling message: %v", err)
+			} else if len(told) > 0 {
+				ctx.Session.PutNotice(ctx.T("invite.sent"))
 			}
 
 			if createAcct != "" {

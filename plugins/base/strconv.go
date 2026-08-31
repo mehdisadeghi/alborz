@@ -21,6 +21,12 @@ func parseUid(s string) (imap.UID, error) {
 	return imap.UID(uid), nil
 }
 
+// ParseMessageRef reads the mailbox and uid a form names, for a plugin
+// that acts on a message it did not render.
+func ParseMessageRef(mboxString, uidString string) (string, imap.UID, error) {
+	return parseMboxAndUid(mboxString, uidString)
+}
+
 func parseMboxAndUid(mboxString, uidString string) (string, imap.UID, error) {
 	mboxName, err := url.PathUnescape(mboxString)
 	if err != nil {

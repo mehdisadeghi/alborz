@@ -64,15 +64,22 @@
             list="emails"
           />
 
-          <label for="reply_to">{{$.T "compose.replyto"}}</label>
-          <input
-            type="text"
-            name="reply_to"
-            id="reply_to"
-            value="{{ join .Message.ReplyTo ", " }}"
-            list="emails"
-          />
-          {{ template "hint" (dict "text" ($.T "help.replyto")) }}
+          {{/* Reply-To is rare and easy to get wrong - a mismatched one
+               confuses the recipient and trips spam heuristics - so it is
+               folded away, as Apple Mail and Thunderbird fold it. It
+               opens carrying a value, so a draft that has one never hides
+               it. */}}
+          <details class="compose-more"{{ if .Message.ReplyTo }} open{{ end }}>
+            <summary>{{$.T "compose.replyto"}}</summary>
+            <input
+              type="text"
+              name="reply_to"
+              id="reply_to"
+              value="{{ join .Message.ReplyTo ", " }}"
+              list="emails"
+            />
+            {{ template "hint" (dict "text" ($.T "help.replyto")) }}
+          </details>
 
           <label>{{$.T "compose.subject"}}</label>
           <input

@@ -24,8 +24,10 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
-// brandName suffixes every page title.
-const brandName = "Alborz"
+// BrandName is what a person reads: page titles, the User-Agent on a
+// message, the name given to an IMAP server. The code spells itself
+// "alborz" everywhere else.
+const BrandName = "Alborz"
 
 const (
 	cookieName              = "alborz_session"

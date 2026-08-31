@@ -1636,7 +1636,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 
 	// Both the sent copy and the saved draft carry it, so a message says
 	// what wrote it however it left here.
-	msg.Mailer = "alborz"
+	msg.Mailer = alborz.BrandName
 	if v := ctx.Server.Options.Version; v != "" {
 		msg.Mailer += "/" + v
 	}
@@ -2977,7 +2977,7 @@ func serverAgent(c *imapclient.Client) string {
 	if !c.Caps().Has(imap.CapID) {
 		return ""
 	}
-	data, err := c.ID(&imap.IDData{Name: "alborz"}).Wait()
+	data, err := c.ID(&imap.IDData{Name: alborz.BrandName}).Wait()
 	if err != nil || data == nil || data.Name == "" {
 		return ""
 	}

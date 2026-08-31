@@ -43,6 +43,22 @@
             <td>{{ template "date-full" (dict "g" .Global "time" ($event.DateTimeEnd nil)) }}</td>
           </tr>
           <!-- TODO: List of attendees, room -->
+          {{/* Reminders set in another client. Nothing here sends one -
+               Alborz has nothing that wakes up - so the row states when
+               the alarm asks to fire and says no more than that. */}}
+          {{ with .Event.Alarms }}
+          <tr>
+            <th>{{$.T "calendar.reminders"}}</th>
+            <td>
+              <ul class="alarm-list">
+                {{ range . }}
+                <li>{{ template "date-full" (dict "g" $.Global "time" .At) }}</li>
+                {{ end }}
+              </ul>
+              {{ template "hint" (dict "text" ($.T "calendar.remindersnote")) }}
+            </td>
+          </tr>
+          {{ end }}
         </table>
         {{ template "user-text" ($event.Props.Text "DESCRIPTION") }}
         {{ template "note-box" (dict

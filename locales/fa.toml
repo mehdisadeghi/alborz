@@ -375,6 +375,9 @@
 "calendar.attendees" = "شرکت‌کنندگان"
 "help.attendees" = "در هر خط یک نشانی. هرکس اینجا باشد هنگام ذخیره دعوت می‌شود."
 "mailbox.refresh" = "تازه‌سازی"
+"invite.removefromcalendar" = "برداشتن از تقویم"
+"invite.forgotten" = "نشست از تقویم شما برداشته شد."
+"invite.event" = "رویداد"
 
 
 ["calendar.more"]

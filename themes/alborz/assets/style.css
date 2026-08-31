@@ -1350,32 +1350,78 @@ main.create-update > form > .allday-label::before {
   .invitation dt { margin-top: var(--space-2); }
 }
 
-/* A signature is a name and a body. The name is a label rather than a
-   sentence, so it takes a label's width and the body takes the rest. */
-.signature-row {
-  display: grid;
-  grid-template-columns: minmax(8rem, 14rem) 1fr;
-  gap: var(--space-2);
-  align-items: start;
-  margin-bottom: var(--space-3);
-}
-
-.signature-row > input,
-.signature-row > textarea {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* The box that removes one spans both columns: it acts on the row, not
-   on either field in it. */
-.signature-drop {
+/* A field that most messages do not want. Closed it is one line in the
+   form's own type; open it is the field and its explanation, and it
+   opens itself whenever it already holds something. */
+/* The headers are a two-column grid of label and field. A disclosure is
+   neither, so it spans both: as a single item it took the label column
+   and pushed every field after it into the wrong one. */
+main.create-update .headers > .compose-more {
   grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
+}
+
+.compose-more > summary {
+  cursor: pointer;
   color: var(--fg-dim);
   font-size: var(--text-sm);
-  font-weight: 400;
+  font-weight: 600;
+}
+
+.compose-more > input { width: 100%; box-sizing: border-box; }
+
+/* What exists, one per row: the name, a taste of the text, and the two
+   things that can be done to it. */
+.signature-list {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.signature-list > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.signature-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* One line of it, which is enough to tell two apart; the form below is
+   where it is read in full. */
+.signature-preview {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.signature-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.signature-row-actions form { display: inline; }
+
+.signature-default {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.settings-heading {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base, 1rem);
 }
 
 /* The chooser stands with the body it rewrites, above the row that

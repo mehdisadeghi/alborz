@@ -677,6 +677,13 @@ main.create-update > form > label > input[readonly] {
 }
 
 /* Compose form headers grid */
+/* A textarea is made taller when its text needs the room, and never
+   wider: widening one drags it out of whatever column it sits in and
+   the layout around it stops meaning anything. */
+textarea {
+  resize: vertical;
+}
+
 main.create-update .headers {
   display: grid;
   grid-template-columns: auto 1fr auto;

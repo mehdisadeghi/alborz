@@ -1008,6 +1008,27 @@ func (ctx *Context) loginTokens() []loginToken {
 // RestoreRememberedAccounts signs every remembered account back in,
 // leaving the recorded active one active, and reports whether any
 // account came back.
+const (
+	// loginRetryAfter is how long a failed automatic sign-in is left
+	// alone. Without it every request retries every remembered account,
+	// so one unreachable server turns a browser reload - or a page's own
+	// assets - into a burst of logins, which is what a provider counting
+	// them refuses the account for.
+	loginRetryAfter = 2 * time.Minute
+)
+
+var loginFailures sync.Map // username -> time.Time of the last failure
+
+// recentlyFailed reports whether signing this account in was tried and
+// failed too recently to be worth trying again.
+func recentlyFailed(username string) bool {
+	when, ok := loginFailures.Load(username)
+	if !ok {
+		return false
+	}
+	return time.Since(when.(time.Time)) < loginRetryAfter
+}
+
 func (ctx *Context) RestoreRememberedAccounts() bool {
 	// The accounts sign in concurrently: one unreachable upstream must
 	// not add its timeout to the others' wait.
@@ -1015,14 +1036,19 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	sessions := make([]*Session, len(tokens))
 	var wg sync.WaitGroup
 	for i, token := range tokens {
+		if recentlyFailed(token.Username) {
+			continue
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			s, err := ctx.Server.Sessions.Put(token.Username, token.Password)
 			if err != nil {
+				loginFailures.Store(token.Username, time.Now())
 				ctx.Logger().Printf("Login failed for %q: %v", token.Username, err)
 				return
 			}
+			loginFailures.Delete(token.Username)
 			sessions[i] = s
 		}()
 	}
@@ -1243,13 +1269,8 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			ctx.Set("context", ctx)
 			ctx.installTiming()
 
-			values := ctx.cookieValues(cookieName)
-			if len(values) == 0 {
-				return handleUnauthenticated(next, ctx)
-			}
-
 			var session *Session
-			for _, value := range values {
+			for _, value := range ctx.cookieValues(cookieName) {
 				s, err := ctx.Server.Sessions.get(value)
 				if err == nil {
 					session = s
@@ -1257,6 +1278,19 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				}
 				if err != ErrSessionExpired {
 					return err
+				}
+			}
+
+			// A session lives 30 minutes past the last request; the
+			// remembered credentials live 30 days. Sending the reader to
+			// the login page while the browser holds a valid token reads
+			// as being logged out, and an intercepted POST - a message
+			// being sent - was lost outright, because only a GET can be
+			// resumed. Sign the accounts back in and carry on with the
+			// request that arrived.
+			if session == nil && !isPublic(ctx.Request().URL.Path) {
+				if ctx.RestoreRememberedAccounts() {
+					session = ctx.Session
 				}
 			}
 			if session == nil {

@@ -277,7 +277,7 @@
           <tr>
             <td colspan="2">
               <div class="invitation">
-                <h2>{{ if .Cancelled }}{{$.T "invite.cancelled"}}{{ else if .Answer }}{{$.T "invite.answer"}}{{ else }}{{$.T "invite.title"}}{{ end }}</h2>
+                <h2>{{ if .Cancelled }}{{$.T "invite.cancelled"}}{{ else if .Answer }}{{$.T "invite.answer"}}{{ else if .Published }}{{$.T "invite.event"}}{{ else }}{{$.T "invite.title"}}{{ end }}</h2>
                 {{ if .Answer }}{{ with .Answered }}
                 <p class="invitation-answer">{{ with .Name }}<span dir="auto">{{.}}</span> {{ end }}{{ template "ltr" .Addr }}<span class="answer-status">{{ $.T (printf "invite.part%s" (lower .Status)) }}</span></p>
                 {{ end }}{{ end }}
@@ -299,7 +299,10 @@
                   </dd>
                   {{ end }}
                 </dl>
-                {{ if and (not .Cancelled) (not .Answer) }}
+                {{/* Only a request asks for an answer. A published event
+                     is sent to be kept, a reply is somebody else's
+                     answer, and a cancellation has nothing to accept. */}}
+                {{ if and (not .Cancelled) (not .Answer) (not .Published) }}
                 <form method="post" action="/message/{{$.Mailbox.Name | pathescape}}/{{$.Message.UID}}/invite{{$aq}}" class="invitation-actions">
                   <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
                   <button name="status" value="ACCEPTED" class="button-primary">{{$.T "invite.accept"}}</button>
@@ -311,6 +314,13 @@
                 {{/* Answering is mail's half of the protocol; keeping the
                      meeting is the calendar's, and needs somewhere to put
                      it. */}}
+                {{ if $.Extra.InviteFiled }}
+                <form method="post" action="/calendar/forget-invitation{{$aq}}" class="invitation-actions">
+                  <input type="hidden" name="path" value="{{ $.Extra.InviteFiled }}">
+                  <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                  <button type="submit" class="button-danger">{{$.T "invite.removefromcalendar"}}</button>
+                </form>
+                {{ end }}
                 {{ if and (not .Answer) $.Extra.InviteCalendars }}
                 <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
                   <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">

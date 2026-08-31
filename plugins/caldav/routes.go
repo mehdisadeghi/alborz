@@ -18,6 +18,11 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// productID says what wrote a calendar object (RFC 5545 3.7.3). The FPI
+// names the project - the domain the code lives at and the brand - not
+// the deployment: the same string wherever Alborz runs.
+const productID = "-//mehdix.org//Alborz//EN"
+
 // NewCalendarRenderData drives the create-a-calendar form.
 // NewCollectionRenderData renders create-collection.html, shared with
 // address books. Only a calendar has a component set to choose, so only
@@ -1120,11 +1125,12 @@ func registerRoutes(p *plugin) {
 				savePath = co.Path
 			} else {
 				cal = ical.NewCalendar()
-				cal.Props.SetText(ical.PropProductID, "-//mehdix.org//alborz//EN")
+				cal.Props.SetText(ical.PropProductID, productID)
 				cal.Props.SetText(ical.PropVersion, "2.0")
 				cal.Children = append(cal.Children, event.Component)
 				savePath = path.Join(calendarPath, newID.String()+".ics")
 			}
+			ensureTimezones(cal, start)
 			co, err = saveClient.PutCalendarObject(ctx.Request().Context(), savePath, cal)
 			if err != nil {
 				return fmt.Errorf("failed to put calendar object: %v", err)
@@ -1531,12 +1537,16 @@ func registerRoutes(p *plugin) {
 				todo.Props.Del(ical.PropDescription)
 			}
 
+			// The zone definition has to cover the date it qualifies,
+			// so a dated task is bracketed by its own due date.
+			due := time.Now().In(loc)
 			if dueDate != "" {
-				due, err := time.ParseInLocation(inputDateLayout, dueDate, loc)
+				at, err := time.ParseInLocation(inputDateLayout, dueDate, loc)
 				if err != nil {
 					return reject(ctx.T("form.duedate"))
 				}
-				todo.Props.SetDateTime(ical.PropDue, due)
+				todo.Props.SetDateTime(ical.PropDue, at)
+				due = at
 			} else {
 				todo.Props.Del(ical.PropDue)
 			}
@@ -1554,11 +1564,12 @@ func registerRoutes(p *plugin) {
 				savePath = co.Path
 			} else {
 				cal = ical.NewCalendar()
-				cal.Props.SetText(ical.PropProductID, "-//mehdix.org//alborz//EN")
+				cal.Props.SetText(ical.PropProductID, productID)
 				cal.Props.SetText(ical.PropVersion, "2.0")
 				cal.Children = append(cal.Children, todo)
 				savePath = path.Join(calendarPath, newID.String()+".ics")
 			}
+			ensureTimezones(cal, due)
 			co, err = saveClient.PutCalendarObject(ctx.Request().Context(), savePath, cal)
 			if err != nil {
 				return fmt.Errorf("failed to save task: %v", err)

@@ -27,6 +27,11 @@ const (
 	methodRequest = "REQUEST"
 	methodCancel  = "CANCEL"
 	methodReply   = "REPLY"
+	// PUBLISH is what a client sends when it is not doing iTIP
+	// scheduling: Apple Mail attaches the event this way when the
+	// meeting is not being negotiated. It asks for no answer, but it is
+	// still an event the reader was sent and may want to keep.
+	methodPublish = "PUBLISH"
 )
 
 // Participation is what an attendee has answered, in the PARTSTAT
@@ -62,6 +67,10 @@ type Invitation struct {
 // Cancelled reports whether the organizer has withdrawn the meeting, in
 // which case there is nothing to answer.
 func (inv *Invitation) Cancelled() bool { return inv.Method == methodCancel }
+
+// Published reports an event sent to be kept rather than answered. No
+// reply is expected, so none is offered - but it can still be filed.
+func (inv *Invitation) Published() bool { return inv.Method == methodPublish }
 
 // Answer reports whether this is somebody's reply rather than a request.
 // An organizer receives these, and what they say is who answered and
@@ -119,9 +128,8 @@ func readInvitation(raw []byte, part string, mine string) *Invitation {
 	method, _ := cal.Props.Text(ical.PropMethod)
 	method = strings.ToUpper(method)
 	switch method {
-	case methodRequest, methodCancel, methodReply:
+	case methodRequest, methodCancel, methodReply, methodPublish:
 	default:
-		// PUBLISH is a calendar sent to be looked at and asks nothing;
 		// COUNTER and DECLINECOUNTER are a negotiation this does not do.
 		return nil
 	}

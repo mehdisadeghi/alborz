@@ -69,6 +69,10 @@
         {{ with $junkAction }}<button class="narrow-only" form="messages-form" formaction="{{.}}">{{$junkLabel}}</button>{{ end }}
         {{ with $trashAction }}<button class="narrow-only button-danger" form="messages-form" formaction="{{.}}">{{$trashLabel}}</button>{{ end }}
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/forward{{$aq}}">{{$.T "message.forward"}}</button>
+        {{/* One file holding the selection, which is what a person means
+             by "give me these messages". Rare, so it is spelled out here
+             rather than given a mark on the toolbar. */}}
+        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/export{{$aq}}">{{$.T "mailbox.export"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
         <select form="messages-form" name="to" aria-label="{{$.T "mailbox.movefolder"}}">

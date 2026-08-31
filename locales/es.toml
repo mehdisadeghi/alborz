@@ -351,6 +351,8 @@
 "calendar.week" = "Semana %s"
 "calendar.reminders" = "Recordatorios"
 "calendar.remindersnote" = "Definidos en otro cliente. Alborz los muestra pero no los envía."
+"mailbox.export" = "Exportar como mbox"
+"message.downloademl" = "Descargar como .eml"
 
 
 ["calendar.more"]

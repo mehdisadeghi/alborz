@@ -36,7 +36,7 @@
     </form>
 
     <p class="colophon">
-      {{ with .GlobalData.ProjectURL }}<a href="{{.}}">alborz</a>{{ else }}alborz{{ end }} · {{.GlobalData.Year}}{{ with .GlobalData.Version }} · {{ . }}{{ end }}
+      {{ with .GlobalData.ProjectURL }}<a href="{{.}}">{{$.GlobalData.Brand}}</a>{{ else }}{{.GlobalData.Brand}}{{ end }} · {{.GlobalData.Year}}{{ with .GlobalData.Version }} · {{ . }}{{ end }}
     </p>
   </section>
 </main>

@@ -2373,7 +2373,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   display: grid;
   grid-template-columns:
     var(--check-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
-    minmax(5rem, 0.6fr) minmax(6rem, 7rem);
+    minmax(6rem, 8rem) minmax(6rem, 7rem) minmax(6rem, 0.7fr);
   grid-template-rows: auto;
 }
 
@@ -2381,11 +2381,13 @@ aside details.folder-branch details.folder-branch > ul > li {
    a number are what the column is for. Written below the base rule it
    overrides, since a media query adds no specificity and the later of
    two equal rules wins. */
+/* The date goes first and the address second; the book stays, because
+   it is what says whose list a row is on. */
 @media (width < 60rem) {
   .contact-grid {
     grid-template-columns:
-      var(--check-track) 2.5rem minmax(8rem, 1fr)
-      minmax(6rem, 1fr) minmax(5rem, 0.6fr);
+      var(--check-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
+      minmax(6rem, 8rem) minmax(6rem, 0.7fr);
   }
 
   .contact-grid .contact-list-changed { display: none; }
@@ -2394,7 +2396,8 @@ aside details.folder-branch details.folder-branch > ul > li {
 @media (width < 48rem) {
   .contact-grid {
     grid-template-columns:
-      var(--check-track) 2.5rem minmax(8rem, 1fr) minmax(5rem, 0.6fr);
+      var(--check-track) 2.5rem minmax(8rem, 1fr)
+      minmax(6rem, 8rem) minmax(6rem, 0.7fr);
   }
 
   .contact-grid .contact-list-email { display: none; }
@@ -2472,11 +2475,7 @@ aside details.folder-branch details.folder-branch > ul > li {
     minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
-.task-grid.multi {
-  grid-template-columns:
-    2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(5rem, 0.5fr)
-    minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
-}
+
 
 /* Metadata steps aside before the two columns a task list is for. */
 @media (width < 60rem) {
@@ -2485,26 +2484,18 @@ aside details.folder-branch details.folder-branch > ul > li {
       2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
   }
 
-  .task-grid.multi {
-    grid-template-columns:
-      2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
-      minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
-  }
-
   .task-grid .task-list-added { display: none; }
 }
 
+/* The due date goes before the calendar: most tasks carry no due date,
+   so the column is mostly empty, while the calendar says whose list a
+   row is on and is never empty. */
 @media (width < 52rem) {
   .task-grid {
-    grid-template-columns: 2.75rem minmax(8rem, 1fr) minmax(4.5rem, 7rem);
+    grid-template-columns: 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr);
   }
 
-  .task-grid.multi {
-    grid-template-columns:
-      2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
-  }
-
-  .task-grid .task-list-calendar { display: none; }
+  .task-grid .task-list-due { display: none; }
 }
 
 
@@ -2547,11 +2538,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .task-grid .task-list-status .status-sort:has(.sort-arrow) { width: auto; }
 .task-list-status .task-checkbox { margin: 0; }
-/* The account column is a column now, with a header over it: hiding
-   one half of a column and showing the other is how a grid comes to
-   disagree with its own headings. */
 .task-list-calendar,
-.task-list-account,
 .task-list-due {
   color: var(--fg-muted);
   font-size: var(--text-sm);
@@ -3401,6 +3388,19 @@ aside ul.merged-roles {
   margin-inline-end: 0.35rem;
 }
 
+/* The separator is an element's own mark, not a glyph inside a string:
+   between two runs of different direction the bidi algorithm puts a
+   literal dash wherever it likes. Every column that carries a
+   collection and its owner reads the same. */
+.task-list-calendar .row-account::before,
+.contact-list-book .row-account::before {
+  /* A middle dot, not an em dash: a dash sets a clause apart, and these
+     are two facts of the same rank - the collection and whose it is. */
+  content: "\00B7";
+  margin-inline: 0.4rem;
+  color: var(--fg-faint);
+}
+
 /* Page context, breadcrumb-weight: which account and container the
    page acts on, between the toolbar and the content. */
 /* The narrow layout's own crumb: the header cannot hold the switcher
@@ -3590,8 +3590,7 @@ aside ul.merged-roles {
     justify-self: end;
   }
 
-  .task-grid,
-  .task-grid.multi { display: block; }
+  .task-grid { display: block; }
 
   .task-header-row { display: none; }
 
@@ -3626,30 +3625,26 @@ aside ul.merged-roles {
     font-weight: 600;
   }
 
+  /* The card has a second line for it, whatever the narrow-desktop
+     step decided. */
   .task-row .task-list-calendar {
+    display: flex;
     grid-column: 2;
     grid-row: 2;
   }
 
-  .task-row .task-list-account,
+  .task-row .task-list-due { display: block; }
+
   .task-row .task-list-due {
     grid-column: 3;
     grid-row: 2;
     justify-self: end;
   }
 
-  .task-row .task-list-account { display: flex; }
-
   /* A phone row has two lines for what matters; when a task was added
      is on the task's own page. */
   .task-row .task-list-added { display: none; }
 
-  .task-grid.multi .task-row .task-list-due:empty { display: none; }
-  .task-grid.multi .task-row .task-list-due:not(:empty) {
-    grid-column: 2 / -1;
-    grid-row: 3;
-    justify-self: start;
-  }
 
   main.create-update > form {
     padding: var(--space-3);
@@ -3710,7 +3705,8 @@ aside ul.merged-roles {
     grid-template-columns: auto 2.5rem minmax(0, 1fr);
     grid-template-areas:
       "check photo name"
-      "check photo phone";
+      "check photo phone"
+      "check photo email";
     column-gap: 0.5rem;
     padding-inline: 0.5rem;
     padding-block: 0.3rem;
@@ -3722,7 +3718,27 @@ aside ul.merged-roles {
   .contact-row > .contact-list-photo { grid-area: photo; }
   .contact-row > .contact-list-name { grid-area: name; }
   .contact-row > .contact-list-phone { grid-area: phone; }
-  .contact-row > .contact-list-email { display: none; }
+
+  /* A phone row has the room for it, and an address is what a contact
+     is usually looked up for. */
+  .contact-row > .contact-list-email {
+    grid-area: email;
+    display: flex;
+  }
+
+  /* The book column is a desktop column; on a card the account rides
+     the name, opposite it, where a mail row puts the date. */
+  .contact-row > .contact-list-changed,
+  .contact-row > .contact-list-book { display: none; }
+
+  .contact-row .card-only { display: inline; }
+
+  .contact-row > .contact-list-name {
+    flex-direction: row;
+    align-items: baseline !important;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
 
   /* The two-line row draws one separator on its wrapper. The desktop
      min-height applies per cell, which on a two-line row bought two of

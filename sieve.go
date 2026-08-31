@@ -27,6 +27,11 @@ type SieveClient interface {
 	// empty name deactivates all scripts.
 	ActivateScript(name string) error
 	DeleteScript(name string) error
+	// Implementation is what the server calls itself, and Extensions
+	// what it says it can do (RFC 5804 1.7). Both are the server's own
+	// claims, announced before anyone asks.
+	Implementation() string
+	Extensions() []string
 	Logout() error
 	Close() error
 }
@@ -71,6 +76,26 @@ func (s *Server) parseSieveUpstream(domain string) error {
 // SieveHost names the ManageSieve server a domain's filters live on,
 // empty when none is configured. A page that talks to somebody else's
 // machine should say which machine.
+// Upstreams names the servers an account is actually talking to, for the
+// page that reports where its mail lives: a deployment is not the one
+// the reader is used to, and "which server is this" is the first
+// question a bug report needs answered.
+type Upstreams struct {
+	IMAP  string
+	SMTP  string
+	Sieve string
+}
+
+// UpstreamsFor names the servers configured for a domain. Any of them
+// may be empty - a domain need not have a ManageSieve server at all.
+func (s *Server) UpstreamsFor(domain string) Upstreams {
+	d, ok := s.upstreamsFor(domain)
+	if !ok {
+		return Upstreams{}
+	}
+	return Upstreams{IMAP: d.imap.host, SMTP: d.smtp.host, Sieve: d.sieve.host}
+}
+
 func (s *Server) SieveHost(domain string) string {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {
@@ -145,6 +170,10 @@ func (sc *sieveClient) ListScripts() ([]SieveScript, error) {
 	}
 	return scripts, nil
 }
+
+func (sc *sieveClient) Implementation() string { return sc.c.Implementation() }
+
+func (sc *sieveClient) Extensions() []string { return sc.c.Extensions() }
 
 func (sc *sieveClient) GetScript(name string) (string, error) {
 	return sc.c.GetScript(name)

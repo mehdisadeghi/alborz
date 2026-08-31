@@ -494,20 +494,35 @@ func (u *user) refreshCollection(ctx context.Context, coll string, entries []*en
 		u.mu.Unlock()
 		return
 	}
+	// The ctag is the claim "the cache holds this version of the
+	// collection", so it is recorded only once every entry actually
+	// holds it. A replay can fail quietly - the network, a 500, a short
+	// read - and recording the new ctag over an entry that still holds
+	// the old body pins the collection there: every later revalidation
+	// compares the new ctag against itself, matches, and renews a body
+	// that is never fetched again. An event added elsewhere then never
+	// arrives, for the life of the process.
+	replayed := true
 	for _, e := range entries {
-		u.replayEntry(ctx, e)
+		if !u.replayEntry(ctx, e) {
+			replayed = false
+		}
 	}
-	if ctag != "" {
+	if ctag != "" && replayed {
 		u.mu.Lock()
 		u.ctags[coll] = ctag
 		u.mu.Unlock()
 	}
 }
 
-func (u *user) replayEntry(ctx context.Context, e *entry) {
+// replayEntry re-fetches one cached request. It reports whether the
+// entry now holds what the server answered: false leaves the collection
+// unrecorded, so the next read revalidates rather than trusting a body
+// that was not replaced.
+func (u *user) replayEntry(ctx context.Context, e *entry) bool {
 	req, err := http.NewRequestWithContext(ctx, e.method, e.url, bytes.NewReader(e.reqBody))
 	if err != nil {
-		return
+		return false
 	}
 	if e.depth != "" {
 		req.Header.Set("Depth", e.depth)
@@ -516,7 +531,7 @@ func (u *user) replayEntry(ctx context.Context, e *entry) {
 
 	resp, err := e.replay.Do(req)
 	if err != nil {
-		return
+		return false
 	}
 	defer resp.Body.Close()
 
@@ -525,14 +540,16 @@ func (u *user) replayEntry(ctx context.Context, e *entry) {
 		u.mu.Lock()
 		delete(u.entries, key)
 		u.mu.Unlock()
-		return
+		// Gone is an answer, and the entry is no longer holding a stale
+		// copy of anything.
+		return true
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusMultiStatus {
-		return
+		return false
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return
+		return false
 	}
 
 	u.mu.Lock()
@@ -541,6 +558,7 @@ func (u *user) replayEntry(ctx context.Context, e *entry) {
 	e.body = body
 	e.fetched = time.Now()
 	u.mu.Unlock()
+	return true
 }
 
 func mustPath(rawURL string) string {

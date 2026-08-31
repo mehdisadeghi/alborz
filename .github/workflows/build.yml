@@ -58,7 +58,13 @@ jobs:
           # -trimpath keeps build machine paths out of the binary; the
           # revision and date the footer shows are the VCS metadata the
           # go tool stamps from the checked-out commit alone.
-          go build -trimpath -ldflags '-s -w' -o "$name" ./cmd/alborz
+          # A tag names itself; anything else is a development build and
+          # says so rather than borrowing the last release's number.
+          version=dev
+          case "$GITHUB_REF" in refs/tags/v*) version="${GITHUB_REF_NAME}" ;; esac
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${version}" \
+            -o "$name" ./cmd/alborz
           sha256sum "$name" > "$name.sha256"
 
       - uses: actions/upload-artifact@v7
@@ -80,3 +86,6 @@ jobs:
         with:
           files: alborz-linux-*
           fail_on_unmatched_files: true
+          # The commits since the previous tag are the release notes;
+          # writing them by hand duplicates what the history already says.
+          generate_release_notes: true

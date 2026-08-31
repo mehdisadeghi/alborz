@@ -1287,6 +1287,21 @@ main.create-update > form > .allday-label::before {
   display: none;
 }
 
+/* The receiving server could not confirm the sender. Shown only when it
+   failed, so the mark means something when it appears. */
+.auth-failed {
+  margin: 0 0 var(--space-1);
+  color: var(--red, #b3261e);
+  font-weight: 600;
+}
+
+.auth-list {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
 /* An invitation is the message, not a note about it, so it is a card
    rather than another row of headers: what it says has to be readable
    before the decision it asks for. */

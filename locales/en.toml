@@ -378,6 +378,19 @@
 "invite.removefromcalendar" = "Remove from calendar"
 "invite.forgotten" = "The meeting was removed from your calendar."
 "invite.event" = "Event"
+"auth.title" = "Sender checks"
+"auth.warning" = "Your mail server could not confirm this message really came from the address it names."
+"auth.spf" = "SPF"
+"auth.dkim" = "DKIM"
+"auth.dmarc" = "DMARC"
+"settings.authserv" = "Trusted mail server"
+"help.authserv" = "The name your own server gives itself when it records whether a sender is genuine. Leave empty to show nothing."
+"upstream.title" = "Your mail server did not answer"
+"upstream.explain" = "Alborz waited %s seconds for the %s server and heard nothing back."
+"upstream.notyou" = "This is not a problem with your password, and nothing has been lost. The server is most likely busy or briefly unreachable."
+"upstream.retry" = "Try again"
+"upstream.unreachable" = "Alborz could not reach the %s server at all."
+"help.authservguess" = "Mail delivered here was checked by %s. Pick it above to trust that server, or leave this empty to show nothing."
 
 
 ["calendar.more"]

@@ -48,6 +48,26 @@
           {{ template "hint" (dict "text" ($.T "help.identities") "example" ($.T "help.identitiesexample")) }}
         </div>
 
+        {{/* Which server's verdict on a sender may be believed. It is
+             the name that server gives itself, and it cannot be guessed:
+             with none set no verdict is shown at all. */}}
+        <div class="action-group">
+          <label for="trusted_authserv">{{$.T "settings.authserv"}}</label>
+          <input type="text" name="trusted_authserv" id="trusted_authserv"
+                 value="{{.Settings.TrustedAuthServ}}" dir="ltr" spellcheck="false"
+                 {{ with .AuthServGuess }}list="authserv-guess" placeholder="{{.}}"{{ end }}>
+          {{/* Observed, never assumed: the name is the one this
+               account's own server wrote on mail already delivered
+               here, offered in the field's own list so that accepting
+               it is a choice the reader makes. */}}
+          {{ with .AuthServGuess }}
+          <datalist id="authserv-guess"><option value="{{.}}"></datalist>
+          {{ template "hint" (dict "text" ($.GlobalData.Tf "help.authservguess" .)) }}
+          {{ else }}
+          {{ template "hint" (dict "text" ($.T "help.authserv") "example" "mail.example.org") }}
+          {{ end }}
+        </div>
+
         {{/* Signatures are prose a person writes, not a switch, so they
              have a page rather than a slot in this pane. */}}
         <div class="action-group">

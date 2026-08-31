@@ -378,6 +378,19 @@
 "invite.removefromcalendar" = "Aus dem Kalender entfernen"
 "invite.forgotten" = "Der Termin wurde aus deinem Kalender entfernt."
 "invite.event" = "Termin"
+"auth.title" = "Absenderprüfung"
+"auth.warning" = "Dein Mailserver konnte nicht bestätigen, dass diese Nachricht wirklich von der angegebenen Adresse stammt."
+"auth.spf" = "SPF"
+"auth.dkim" = "DKIM"
+"auth.dmarc" = "DMARC"
+"settings.authserv" = "Vertrauenswürdiger Mailserver"
+"help.authserv" = "Der Name, den dein eigener Server sich gibt, wenn er festhält, ob ein Absender echt ist. Leer lassen, um nichts anzuzeigen."
+"upstream.title" = "Dein Mailserver hat nicht geantwortet"
+"upstream.explain" = "Alborz hat %s Sekunden auf den %s-Server gewartet und nichts gehört."
+"upstream.notyou" = "Das liegt nicht an deinem Passwort, und es ist nichts verloren gegangen. Der Server ist wahrscheinlich beschäftigt oder kurz nicht erreichbar."
+"upstream.retry" = "Erneut versuchen"
+"upstream.unreachable" = "Alborz konnte den %s-Server gar nicht erreichen."
+"help.authservguess" = "Hier zugestellte Nachrichten wurden von %s geprüft. Oben auswählen, um diesem Server zu vertrauen, oder leer lassen, um nichts anzuzeigen."
 
 
 ["calendar.more"]

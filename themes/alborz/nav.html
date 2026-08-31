@@ -79,6 +79,26 @@
           <a href="/login?add=1">{{$.T "nav.addaccount"}}</a>
         </div>
       </details>
+      {{/* The language takes effect on the click, so it is a menu of
+           choices rather than a field with a Save button: a language
+           you must read in the wrong one to change is no choice. */}}
+      <details class="accounts lang-menu">
+        <summary>{{ with $.GlobalData.LanguageName }}{{.}}{{ else }}{{$.T "settings.langauto"}}{{ end }}</summary>
+        <div class="accounts-menu">
+          {{/* Following the browser is a choice too, and the only way
+               back to it once one was made. */}}
+          <form method="post" action="/language">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+            <button type="submit" name="language" value=""{{ if eq $.GlobalData.Language "" }} class="active" disabled{{ end }}>{{$.T "settings.langauto"}}</button>
+          </form>
+          {{ range .GlobalData.LanguageChoices }}
+          <form method="post" action="/language">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+            <button type="submit" name="language" value="{{.Code}}"{{ if eq .Code $.GlobalData.Language }} class="active" disabled{{ end }}>{{.Name}}</button>
+          </form>
+          {{ end }}
+        </div>
+      </details>
       <a href="/settings{{$q}}">{{$.T "nav.settings"}}</a>
       {{if eq (len .GlobalData.Accounts) 1}}<a href="/logout">{{$.T "nav.signout"}}</a>{{end}}
     </div>

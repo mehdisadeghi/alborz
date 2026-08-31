@@ -249,7 +249,11 @@ func prepareAddressList(addresses []string) ([]*mail.Address, error) {
 	return l, nil
 }
 
-func (msg *OutgoingMessage) WriteTo(w io.Writer) error {
+// WriteMessage writes the message as RFC 5322 bytes. Not WriteTo: that
+// name belongs to io.WriterTo, which returns the count written, and a
+// method that takes the name without the signature is one a caller can
+// hand to something expecting the interface.
+func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	fromAddr, err := mail.ParseAddress(msg.From)
 	if err != nil {
 		return err
@@ -373,7 +377,7 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
 	}
 	defer w.Close()
 
-	if err := msg.WriteTo(w); err != nil {
+	if err := msg.WriteMessage(w); err != nil {
 		return fmt.Errorf("failed to write outgoing message: %v", err)
 	}
 

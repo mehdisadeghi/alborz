@@ -351,6 +351,8 @@
 "calendar.week" = "هفتهٔ %s"
 "calendar.reminders" = "یادآورها"
 "calendar.remindersnote" = "در برنامهٔ دیگری تنظیم شده‌اند. البرز آنها را نشان می‌دهد اما نمی‌فرستد."
+"mailbox.export" = "برون‌بری به mbox"
+"message.downloademl" = "دریافت به شکل eml."
 
 
 ["calendar.more"]

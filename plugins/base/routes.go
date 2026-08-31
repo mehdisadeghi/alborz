@@ -1,6 +1,7 @@
 package alborzbase
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -49,6 +50,8 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.GET("/message/:mbox/:uid/raw", func(ctx *alborz.Context) error {
 		return handleGetPart(ctx, true)
 	})
+	p.GET("/message/:mbox/:uid/eml", handleDownloadMessage)
+	p.POST("/message/:mbox/export", handleExportMbox)
 
 	p.GET("/login", handleLogin)
 	p.POST("/login", handleLogin)
@@ -1285,6 +1288,157 @@ type MessageRenderData struct {
 	// as chrome outside the body frame. Its zero value says nothing,
 	// which is what an unsigned message deserves.
 	Signature Verification
+}
+
+// handleDownloadMessage hands over the bytes the server holds. It is
+// what makes a message filable, forwardable to somebody else's tooling,
+// and checkable against what was actually stored, none of which a
+// rendered page can do.
+func handleDownloadMessage(ctx *alborz.Context) error {
+	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	if err != nil {
+		return err
+	}
+
+	var raw []byte
+	var env *imap.Envelope
+	if err := ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		var err error
+		raw, env, err = fetchRawMessage(c, mboxName, uid)
+		return err
+	}); err != nil {
+		return err
+	}
+
+	subject := ""
+	if env != nil {
+		subject = env.Subject
+	}
+	ctx.Response().Header().Set("Content-Disposition",
+		downloadName(subject, fmt.Sprintf("%v", uid), ".eml"))
+	return ctx.Blob(http.StatusOK, "message/rfc822", raw)
+}
+
+// handleExportMbox writes the selected messages as one mbox, which is
+// the container every mail client reads and the only one that holds
+// more than a single message without inventing a layout.
+//
+// It streams: a folder does not fit in memory, and the reader should
+// see the file start rather than a spinner.
+func handleExportMbox(ctx *alborz.Context) error {
+	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	params, err := ctx.FormParams()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	uids, err := parseUidList(params["uids"])
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	if len(uids) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "no messages selected")
+	}
+
+	res := ctx.Response()
+	res.Header().Set("Content-Disposition", downloadName(mboxName, "messages", ".mbox"))
+	res.Header().Set("Content-Type", "application/mbox")
+	res.WriteHeader(http.StatusOK)
+
+	return ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		for _, uid := range uids {
+			raw, env, err := fetchRawMessage(c, mboxName, uid)
+			if err != nil {
+				return err
+			}
+			if err := writeMbox(res, raw, env); err != nil {
+				return err
+			}
+			res.Flush()
+		}
+		return nil
+	})
+}
+
+// mboxSeparator opens each message in an mbox file. The address and the
+// date are the envelope sender and delivery time in the original
+// format's own shape; nothing reads them, but a file without them is
+// not an mbox.
+func mboxSeparator(env *imap.Envelope) string {
+	from := "alborz"
+	if env != nil && len(env.From) > 0 {
+		if addr := env.From[0].Addr(); addr != "" {
+			from = addr
+		}
+	}
+	when := time.Now()
+	if env != nil && !env.Date.IsZero() {
+		when = env.Date
+	}
+	return "From " + from + " " + when.UTC().Format(time.ANSIC) + "\r\n"
+}
+
+// writeMbox appends one message in mboxrd form. A line that would be
+// read as the next message's separator is quoted with a ">", and one
+// already quoted gains another, which is what makes the escaping
+// reversible.
+func writeMbox(w io.Writer, raw []byte, env *imap.Envelope) error {
+	if _, err := io.WriteString(w, mboxSeparator(env)); err != nil {
+		return err
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(raw))
+	scanner.Buffer(make([]byte, 0, 64*1024), maxMboxLine)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		trimmed := bytes.TrimLeft(line, ">")
+		if bytes.HasPrefix(trimmed, []byte("From ")) {
+			if _, err := w.Write([]byte(">")); err != nil {
+				return err
+			}
+		}
+		if _, err := w.Write(line); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(w, "\r\n"); err != nil {
+			return err
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	_, err := io.WriteString(w, "\r\n")
+	return err
+}
+
+// downloadName offers a filename a reader will recognise, in both the
+// plain and the encoded form RFC 6266 asks for: the plain one is
+// stripped to ASCII for clients that read only that.
+func downloadName(name, fallback, ext string) string {
+	cleaned := strings.Map(func(r rune) rune {
+		switch {
+		case r < 0x20, r == '"', r == '\\', r == '/', r == 0x7f:
+			return -1
+		}
+		return r
+	}, name)
+	cleaned = strings.TrimSpace(cleaned)
+	if len([]rune(cleaned)) > maxDownloadName {
+		cleaned = string([]rune(cleaned)[:maxDownloadName])
+	}
+	if cleaned == "" {
+		cleaned = fallback
+	}
+	cleaned += ext
+	ascii := strings.Map(func(r rune) rune {
+		if r > 0x7f {
+			return '_'
+		}
+		return r
+	}, cleaned)
+	return mime.FormatMediaType("attachment", map[string]string{"filename": ascii}) +
+		"; filename*=UTF-8''" + url.PathEscape(cleaned)
 }
 
 func handleGetPart(ctx *alborz.Context, raw bool) error {
@@ -2989,9 +3143,13 @@ func perPage(ctx *alborz.Context, settings *Settings) int {
 const (
 	maxMessagesPerPage = 100
 	maxSignature       = 2048
-	maxSignatures      = 20
-	maxSignatureName   = 60
-	maxFullName        = 512
+	// A header line may be 998 octets (RFC 5322 2.1.1); a body line in
+	// the wild is longer, and a scanner that stops is a truncated file.
+	maxMboxLine      = 1 << 20
+	maxDownloadName  = 80
+	maxSignatures    = 20
+	maxSignatureName = 60
+	maxFullName      = 512
 )
 
 // Signature is one of an account's sign-offs: a name to pick it by and

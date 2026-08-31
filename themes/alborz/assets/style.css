@@ -1287,6 +1287,69 @@ main.create-update > form > .allday-label::before {
   display: none;
 }
 
+/* An invitation is the message, not a note about it, so it is a card
+   rather than another row of headers: what it says has to be readable
+   before the decision it asks for. */
+.invitation {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 6px);
+  background: var(--surface-raised);
+}
+
+.invitation > h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base, 1rem);
+}
+
+.invitation dl {
+  display: grid;
+  grid-template-columns: minmax(5rem, max-content) 1fr;
+  gap: 0.2rem var(--space-3);
+  margin: 0;
+}
+
+.invitation dt { color: var(--fg-dim); font-size: var(--text-sm); }
+.invitation dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+.invitation .attendee-list { margin: 0; padding: 0; list-style: none; }
+
+.attendee-status {
+  margin-inline-start: 0.4rem;
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+}
+
+/* The three answers, and what this account has already said. */
+.invitation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.invitation-mine { color: var(--fg-dim); font-size: var(--text-sm); }
+
+/* Who answered, and what they said. The separator is the element's own
+   mark rather than a character in the string: a literal dash between an
+   LTR address and a translated word lands wherever the bidi algorithm
+   puts it. */
+.invitation-answer { margin: 0 0 var(--space-2); }
+
+.answer-status::before {
+  content: "\00B7";
+  margin-inline: 0.4rem;
+  color: var(--fg-faint);
+}
+
+@media (width <= 600px) {
+  /* The label above its value: two columns leave neither enough room. */
+  .invitation dl { grid-template-columns: 1fr; }
+  .invitation dt { margin-top: var(--space-2); }
+}
+
 /* A signature is a name and a body. The name is a label rather than a
    sentence, so it takes a label's width and the body takes the rest. */
 .signature-row {
@@ -2727,10 +2790,6 @@ main.calendar .date .events li {
   white-space: nowrap;
   font-size: var(--text-xs);
   line-height: 1.45;
-}
-
-main.calendar .date.extra .events {
-  visibility: hidden;
 }
 
 main.calendar .date .events .color-dot {

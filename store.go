@@ -106,7 +106,7 @@ func (s *imapStore) Get(key string, out interface{}) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("alborz: failed to fetch IMAP store entry %q: %v", key, err)
+		return fmt.Errorf("alborz: failed to fetch IMAP store entry %q: %w", key, err)
 	}
 	v, ok := entries[s.key(key)]
 	if !ok || v == nil {

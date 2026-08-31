@@ -47,6 +47,10 @@ type GlobalRenderData struct {
 	// ProjectURL is where the footer's name links, when a deployment
 	// names one. Empty prints the name as text.
 	ProjectURL string
+	// Language is the explicit choice, empty while following the
+	// browser; LanguageChoices are what the menu offers.
+	Language        string
+	LanguageChoices []LanguageChoice
 	// Year the page is served in, for the footer's line
 	Year int
 	// Secondary calendar system shown beside the Gregorian dates,
@@ -601,6 +605,8 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	if isactx {
 		global.Version = ctx.Server.Options.Version
 		global.ProjectURL = ctx.Server.Options.ProjectURL
+		global.Language = ctx.Language()
+		global.LanguageChoices = LanguageChoices()
 		global.Year = time.Now().Year()
 		global.Secondary = ctx.SecondaryCalendar()
 		global.ColorScheme = ctx.ColorScheme()
@@ -642,6 +648,17 @@ func (ctx *Context) T(key string) string {
 
 // requestLanguage resolves the request's UI language: the cookie
 // choice wins, else the Accept-Language negotiation.
+// LanguageName is the chosen language in its own name, empty while the
+// browser is being followed - the page says so in its own words.
+func (g GlobalRenderData) LanguageName() string {
+	for _, c := range g.LanguageChoices {
+		if c.Code == g.Language {
+			return c.Name
+		}
+	}
+	return ""
+}
+
 func requestLanguage(ectx echo.Context) string {
 	if c, err := ectx.Cookie(langCookieName); err == nil && IsLanguage(c.Value) {
 		return c.Value
@@ -773,4 +790,12 @@ func newRenderer(logger echo.Logger, themesPath string, defaultTheme string) *re
 		defaultTheme: defaultTheme,
 		themesPath:   themesPath,
 	}
+}
+
+// Explained is one term and what it means, for the disclosure a card
+// offers beside a row of names. A tooltip is a hover, and a phone has
+// none.
+type Explained struct {
+	Term string
+	Hint string
 }

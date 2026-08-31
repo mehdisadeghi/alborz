@@ -15,7 +15,7 @@
         {{ template "list-toolbar" (dict "title" ($.T "filters.title")) }}
       </section>
 
-      <div class="context-crumb">{{$current}}{{ with .Server }} › {{.}}{{ end }}</div>
+      <div class="context-crumb">{{$current}}</div>
 
       {{ with .Unreachable }}
       <div class="alert">
@@ -23,6 +23,19 @@
         <p class="code">{{.}}</p>
       </div>
       {{ end }}
+
+      {{/* Which server holds these filters, what it is, and which
+           extensions a filter here may use - the last being the one
+           thing that decides whether a script the reader writes will
+           be accepted. */}}
+      {{ template "info-card" (dict "title" ($.T "filters.serverinfo")
+         "rows" (tuple
+           (dict "label" ($.T "settings.serversieve") "value" .Server)
+           (dict "label" ($.T "filters.software") "value" .Software))
+         "tags" .Extensions "tagstitle" ($.T "filters.extensions")
+         "page" $
+         "explained" .Explained
+         "explainlabel" ($.T "settings.explain")) }}
 
       <section class="list-items">
         {{ range .Scripts }}
@@ -51,6 +64,7 @@
         <p class="empty-list">{{$.T "filters.empty"}}</p>
         {{ end }}
       </section>
+
     </main>
   </div>
 </div>

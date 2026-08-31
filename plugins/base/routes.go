@@ -85,6 +85,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.POST("/settings", handleSettings)
 	p.GET("/settings/browser", handleBrowserSettings)
 	p.POST("/settings/browser", handleBrowserSettings)
+	p.POST("/language", handleLanguage)
 }
 
 type IMAPBaseRenderData struct {
@@ -2897,7 +2898,53 @@ type SettingsRenderData struct {
 	Subscriptions Subscriptions
 	Secondary     string // calendar system shown beside the Gregorian one
 	MaxPerPage    int
-	Error         string
+	// Servers is where this account's mail actually lives, and what
+	// software is answering. A deployment is not the one the reader is
+	// used to, and it is the first thing a bug report has to say.
+	Servers ServerInfo
+	Error   string
+}
+
+// ServerInfo is what alborz can say about the account's upstreams
+// without asking for anything it does not already have a connection to.
+type ServerInfo struct {
+	IMAP  string
+	SMTP  string
+	Sieve string
+	// Agent is what the IMAP server calls itself (RFC 2971 ID). Empty
+	// where the server does not advertise the extension, which many do
+	// not; it is the server's own claim, not alborz's.
+	Agent string
+	// Abilities are the capabilities that change what alborz does, so
+	// the page explains its own behaviour rather than listing a
+	// protocol.
+	Abilities []Ability
+	// Explained is the same list as prose, for the disclosure that
+	// works where a tooltip does not.
+	Explained []alborz.Explained
+}
+
+// Ability is one capability named for what it means to the reader, with
+// a line saying what it changes: the name alone is protocol jargon.
+type Ability struct {
+	Label string // translation key
+	Hint  string // translation key
+	Have  bool
+}
+
+// abilities reports the capabilities that decide how alborz behaves.
+// The raw CAPABILITY line is not shown: a reader wants to know whether
+// sorting happens on the server, not that SORT=DISPLAY exists.
+func abilities(c *imapclient.Client) []Ability {
+	caps := c.Caps()
+	return []Ability{
+		{"settings.abilitysort", "settings.abilitysorthint", caps.Has(imap.CapSort)},
+		{"settings.abilitythread", "settings.abilitythreadhint", caps.Has(imap.Cap("THREAD=REFERENCES"))},
+		{"settings.abilitysettings", "settings.abilitysettingshint", caps.Has(imap.CapMetadata)},
+		{"settings.abilityquota", "settings.abilityquotahint", caps.Has(imap.CapQuota)},
+		{"settings.abilitypush", "settings.abilitypushhint", caps.Has(imap.CapIdle)},
+		{"settings.abilityid", "settings.abilityidhint", caps.Has(imap.CapID)},
+	}
 }
 
 // BrowserSettingsRenderData carries the choices stored in the browser
@@ -2922,6 +2969,38 @@ func (s Subscriptions) Has(sub string) bool {
 	return false
 }
 
+// serverAgent asks the IMAP server what it is (RFC 2971). A server
+// without the extension answers nothing, which is not an error: the
+// page simply has one fewer thing to say. The exchange is one round trip
+// on a connection already open.
+func serverAgent(c *imapclient.Client) string {
+	if !c.Caps().Has(imap.CapID) {
+		return ""
+	}
+	data, err := c.ID(&imap.IDData{Name: "alborz"}).Wait()
+	if err != nil || data == nil || data.Name == "" {
+		return ""
+	}
+	if data.Version == "" {
+		return data.Name
+	}
+	return data.Name + " " + data.Version
+}
+
+// serverInfo names where the account's mail lives. The hosts come from
+// the configuration or from SRV discovery; nothing is guessed.
+func serverInfo(ctx *alborz.Context, agent string, abilities []Ability) ServerInfo {
+	_, domain, _ := strings.Cut(ctx.Session.Username(), "@")
+	up := ctx.Server.UpstreamsFor(domain)
+	explained := make([]alborz.Explained, 0, len(abilities))
+	for _, a := range abilities {
+		explained = append(explained, alborz.Explained{
+			Term: ctx.T(a.Label), Hint: ctx.T(a.Hint)})
+	}
+	return ServerInfo{IMAP: up.IMAP, SMTP: up.SMTP, Sieve: up.Sieve,
+		Agent: agent, Abilities: abilities, Explained: explained}
+}
+
 func handleSettings(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
@@ -2929,13 +3008,21 @@ func handleSettings(ctx *alborz.Context) error {
 	}
 
 	var mailboxes []MailboxInfo
+	var agent string
+	var abilityList []Ability
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		mailboxes, err = listMailboxes(c)
-		return err
+		if err != nil {
+			return err
+		}
+		agent = serverAgent(c)
+		abilityList = abilities(c)
+		return nil
 	})
 	if err != nil {
 		return err
 	}
+	servers := serverInfo(ctx, agent, abilityList)
 
 	// The form answers its own invalid input, on the page it was typed
 	// on. Digits are read as they were typed: a page that counts in
@@ -2997,7 +3084,17 @@ func handleSettings(ctx *alborz.Context) error {
 		Subscriptions:  Subscriptions(settings.Subscriptions),
 		Secondary:      ctx.SecondaryCalendar(),
 		MaxPerPage:     maxMessagesPerPage,
+		Servers:        servers,
 	})
+}
+
+// handleLanguage sets the interface language and returns to the page it
+// was chosen from. It is its own route because the choice takes effect
+// at once: a language behind a Save button is a language you have to
+// read in the wrong one to change.
+func handleLanguage(ctx *alborz.Context) error {
+	ctx.SetLanguage(ctx.FormValue("language"))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr("/"))
 }
 
 // handleBrowserSettings serves the choices that live in the browser

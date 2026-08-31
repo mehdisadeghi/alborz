@@ -269,6 +269,60 @@
             <td>{{template "addr-list" .Message.Envelope.Bcc}}</td>
           </tr>
           {{ end }}
+          {{/* A meeting request, answered here rather than in whatever
+               client the reader would otherwise have to open. The answer
+               goes to the organizer as mail (RFC 6047); nothing is
+               written to a calendar yet. */}}
+          {{ with .Invitation }}
+          <tr>
+            <td colspan="2">
+              <div class="invitation">
+                <h2>{{ if .Cancelled }}{{$.T "invite.cancelled"}}{{ else if .Answer }}{{$.T "invite.answer"}}{{ else }}{{$.T "invite.title"}}{{ end }}</h2>
+                {{ if .Answer }}{{ with .Answered }}
+                <p class="invitation-answer">{{ with .Name }}<span dir="auto">{{.}}</span> {{ end }}{{ template "ltr" .Addr }}<span class="answer-status">{{ $.T (printf "invite.part%s" (lower .Status)) }}</span></p>
+                {{ end }}{{ end }}
+                <dl>
+                  <dt>{{$.T "calendar.event"}}</dt>
+                  <dd dir="auto">{{ .Summary }}</dd>
+                  <dt>{{$.T "calendar.time"}}</dt>
+                  <dd>{{ if .AllDay }}{{$.T "calendar.allday"}}, {{ end }}{{ template "date-full" (dict "g" $.Global "time" .Start) }}</dd>
+                  {{ with .Location }}<dt>{{$.T "calendar.location"}}</dt><dd dir="auto">{{ . }}</dd>{{ end }}
+                  {{ with .Organizer }}<dt>{{$.T "invite.organizer"}}</dt><dd>{{ template "ltr" . }}</dd>{{ end }}
+                  {{ with .Attendees }}
+                  <dt>{{$.T "invite.attendees"}}</dt>
+                  <dd>
+                    <ul class="attendee-list">
+                      {{ range . }}
+                      <li>{{ with .Name }}<span dir="auto">{{.}}</span> {{ end }}{{ template "ltr" .Addr }}{{ with .Status }}<span class="attendee-status">{{ $.T (printf "invite.part%s" (lower .)) }}</span>{{ end }}</li>
+                      {{ end }}
+                    </ul>
+                  </dd>
+                  {{ end }}
+                </dl>
+                {{ if and (not .Cancelled) (not .Answer) }}
+                <form method="post" action="/message/{{$.Mailbox.Name | pathescape}}/{{$.Message.UID}}/invite{{$aq}}" class="invitation-actions">
+                  <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                  <button name="status" value="ACCEPTED" class="button-primary">{{$.T "invite.accept"}}</button>
+                  <button name="status" value="TENTATIVE">{{$.T "invite.tentative"}}</button>
+                  <button name="status" value="DECLINED" class="button-danger">{{$.T "invite.decline"}}</button>
+                  {{ with .Mine }}<span class="invitation-mine">{{ $.T (printf "invite.part%s" (lower .)) }}</span>{{ end }}
+                </form>
+                {{ end }}
+                {{/* Answering is mail's half of the protocol; keeping the
+                     meeting is the calendar's, and needs somewhere to put
+                     it. */}}
+                {{ if and (not .Answer) $.Extra.InviteCalendars }}
+                <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
+                  <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
+                  <input type="hidden" name="uid" value="{{$.Message.UID}}">
+                  {{ template "collection-picker" (dict "groups" $.Extra.InviteCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
+                  <button type="submit">{{$.T "invite.addtocalendar"}}</button>
+                </form>
+                {{ end }}
+              </div>
+            </td>
+          </tr>
+          {{ end }}
           {{if and .Extra.HasRemoteResources (not .Extra.RemoteResourcesAllowed)}}
           <tr class="remote-content">
             <td colspan="2" dir="auto">
@@ -343,6 +397,10 @@
 
       {{if .View}}
         {{.View}}
+      {{else if .Invitation}}
+        {{/* The card above is the message: a scheduling mail often
+             carries no text part at all, and saying it cannot be
+             previewed would be saying so of the thing just shown. */}}
       {{else}}
         <p>{{$.T "message.cantpreview"}}</p>
         <a href="{{.Message.URL}}/raw?part={{.Part.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.download"}}</a>

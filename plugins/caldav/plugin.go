@@ -182,6 +182,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	}
 
 	registerRoutes(p)
+	p.registerScheduling()
 
 	// Asking whether a server answers may take seconds each; it runs
 	// after the port is open, and a request surfaces an unreachable one

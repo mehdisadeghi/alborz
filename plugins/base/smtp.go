@@ -184,6 +184,11 @@ type OutgoingMessage struct {
 	// (RFC 5322 3.6.4). Gmail and Thunderbird thread on it before
 	// In-Reply-To, which is why a long thread scattered without it.
 	References string
+	// CalendarMethod turns the body into a scheduling message: the text
+	// is an iCalendar object and the method rides the content type, which
+	// is what makes the receiving client act on it rather than file it
+	// as a document (RFC 6047 2.4). Empty for ordinary mail.
+	CalendarMethod string
 	// ReplyTo is where answers should go when that is not the From
 	// (RFC 5322 3.6.2): a personal address writing under a shared one,
 	// or a send from an identity whose mailbox is elsewhere.
@@ -322,6 +327,13 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	// column (RFC 3676). A client that does not know it sees text
 	// wrapped at 72, which is what 5322 asks for anyway.
 	th.Set("Content-Type", "text/plain; charset=utf-8; format=flowed")
+	body := wrapText(msg.Text)
+	if msg.CalendarMethod != "" {
+		// An iCalendar body is not flowed text: its line breaks are the
+		// format, and rewrapping it would break the object.
+		th.Set("Content-Type", "text/calendar; charset=utf-8; method="+msg.CalendarMethod)
+		body = msg.Text
+	}
 
 	tw, err := mw.CreateSingleInline(th)
 	if err != nil {
@@ -329,7 +341,7 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	}
 	defer tw.Close()
 
-	if _, err := io.WriteString(tw, wrapText(msg.Text)); err != nil {
+	if _, err := io.WriteString(tw, body); err != nil {
 		return fmt.Errorf("failed to write text part: %v", err)
 	}
 

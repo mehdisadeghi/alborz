@@ -375,6 +375,9 @@
 "calendar.attendees" = "Attendees"
 "help.attendees" = "One address per line. Naming anyone sends them an invitation when you save."
 "mailbox.refresh" = "Refresh"
+"invite.removefromcalendar" = "Remove from calendar"
+"invite.forgotten" = "The meeting was removed from your calendar."
+"invite.event" = "Event"
 
 
 ["calendar.more"]

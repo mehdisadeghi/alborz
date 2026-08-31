@@ -375,6 +375,9 @@
 "calendar.attendees" = "Asistentes"
 "help.attendees" = "Una dirección por línea. Quien figure aquí recibirá una invitación al guardar."
 "mailbox.refresh" = "Actualizar"
+"invite.removefromcalendar" = "Quitar del calendario"
+"invite.forgotten" = "La reunión se quitó de tu calendario."
+"invite.event" = "Evento"
 
 
 ["calendar.more"]

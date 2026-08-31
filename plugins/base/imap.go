@@ -504,8 +504,18 @@ func (node IMAPPartNode) URL(raw bool) *url.URL {
 	return u
 }
 
+// IsText reports a part the page itself can show. Not every text/* part
+// is one: a calendar, a card and a spreadsheet are text by MIME type and
+// data by intent, and sending them to the viewer means an attachment
+// that has no way to be saved - which is what an attachment is for.
+//
+// Only what the view plugins render belongs here.
 func (node IMAPPartNode) IsText() bool {
-	return strings.HasPrefix(strings.ToLower(node.MIMEType), "text/")
+	switch strings.ToLower(node.MIMEType) {
+	case "text/plain", "text/html":
+		return true
+	}
+	return false
 }
 
 func (node IMAPPartNode) String() string {

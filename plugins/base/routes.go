@@ -52,6 +52,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	})
 	p.GET("/message/:mbox/:uid/eml", handleDownloadMessage)
 	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
+	p.POST("/mailbox/:mbox/refresh", handleRefreshMailbox)
 	p.POST("/message/:mbox/export", handleExportMbox)
 
 	p.GET("/login", handleLogin)
@@ -1192,6 +1193,9 @@ func handleLogin(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to put connection in pool: %v", err)
 		}
 		ctx.AddAccount(s)
+		// Follow the account from here on, so mail that arrives while
+		// nobody is looking is noticed rather than waited for.
+		Watch(s, ctx.Logger())
 
 		if remember == "on" {
 			ctx.SetLoginToken(username, password)
@@ -1293,6 +1297,22 @@ type MessageRenderData struct {
 	// as chrome outside the body frame. Its zero value says nothing,
 	// which is what an unsigned message deserves.
 	Signature Verification
+}
+
+// handleRefreshMailbox drops what is cached for the account and returns
+// to the page that asked. Alborz learns of new mail only when a page is
+// loaded, and even then serves a listing up to listingFreshFor old
+// without asking - so a reader who knows something arrived has no way to
+// say so. This is that way. It is not a substitute for being told: see
+// the note on IDLE and the "there is new mail" notice.
+func handleRefreshMailbox(ctx *alborz.Context) error {
+	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	listings.evict(ctx.Session.Username(), mboxName)
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(
+		"/mailbox/"+url.PathEscape(mboxName))))
 }
 
 // handleInvitationReply answers a meeting request by mail, which is

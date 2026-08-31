@@ -14,6 +14,17 @@ import (
 // dialIMAP connects to the domain's upstream IMAP server. It is the
 // gatekeeper for the domain whitelist: unknown domains are rejected here.
 func (s *Server) dialIMAP(domain string) (*imapclient.Client, error) {
+	return s.dialIMAPWatch(domain, nil)
+}
+
+// dialIMAPWatch dials with a handler for the updates a server sends
+// unasked. It has to be given before the connection is made: the client
+// copies its options, so one installed afterwards is never read.
+//
+// Only a watcher passes one. A connection serving requests must not,
+// because the handler would run on whichever request happened to be
+// reading the socket.
+func (s *Server) dialIMAPWatch(domain string, unilateral *imapclient.UnilateralDataHandler) (*imapclient.Client, error) {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {
 		return nil, UnknownDomainError{domain}
@@ -30,7 +41,8 @@ func (s *Server) dialIMAP(domain string) (*imapclient.Client, error) {
 		WordDecoder: &mime.WordDecoder{
 			CharsetReader: charset.Reader,
 		},
-		Dialer: &net.Dialer{Timeout: dialTimeout},
+		Dialer:                &net.Dialer{Timeout: dialTimeout},
+		UnilateralDataHandler: unilateral,
 	}
 
 	var c *imapclient.Client

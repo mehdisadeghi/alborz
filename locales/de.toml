@@ -374,6 +374,7 @@
 "invite.cancelledsubject" = "Abgesagt"
 "calendar.attendees" = "Teilnehmende"
 "help.attendees" = "Eine Adresse pro Zeile. Wer hier steht, bekommt beim Speichern eine Einladung."
+"mailbox.refresh" = "Aktualisieren"
 
 
 ["calendar.more"]

@@ -374,6 +374,7 @@
 "invite.cancelledsubject" = "لغو شد"
 "calendar.attendees" = "شرکت‌کنندگان"
 "help.attendees" = "در هر خط یک نشانی. هرکس اینجا باشد هنگام ذخیره دعوت می‌شود."
+"mailbox.refresh" = "تازه‌سازی"
 
 
 ["calendar.more"]

@@ -56,9 +56,6 @@
             <div class="list-header task-list-calendar" role="columnheader">
               {{template "sort-th" (dict "label" ($.T "common.calendar") "key" "calendar" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
-            {{if $multi}}
-            <div class="list-header task-list-account" role="columnheader">{{$.T "mailbox.account"}}</div>
-            {{end}}
             <div class="list-header task-list-due" role="columnheader">
               {{template "sort-th" (dict "label" ($.T "tasks.duedate") "key" "due" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
@@ -80,12 +77,11 @@
             <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$.T "tasks.summary"}}">
               <a href="{{.Task.URL}}{{account "?" .Task.Account}}" dir="auto">{{.Summary}}</a>
             </div>
+            {{/* Ownership rides the collection it already names, as the
+                 event lists write it, rather than a column of its own. */}}
             <div class="task-list-calendar list-cell" role="cell" data-label="{{$.T "common.calendar"}}">
-              {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}{{.Calendar.Name}}
+              {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}{{.Calendar.Name}}{{if $multi}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
             </div>
-            {{if $multi}}
-            <div class="task-list-account list-cell" role="cell" data-label="{{$.T "mailbox.account"}}">{{ template "ltr" .Task.Account }}</div>
-            {{end}}
             {{/* Built before the tag: the escaper cannot follow an attribute that
                  only some branches write. */}}
             {{ $due := "" }}{{ $dueTitle := "" }}

@@ -34,6 +34,9 @@ type AddressBookRenderData struct {
 	Sort, SortDir  string
 	Query          string
 	ColorForPath   func(account, path string) string
+	// BookForPath names the address book a contact is in, so the list
+	// can carry ownership on the collection rather than beside the name.
+	BookForPath func(account, path string) string
 }
 
 type Settings struct {
@@ -385,7 +388,7 @@ func registerRoutes(p *plugin) {
 
 		sortKey := ctx.QueryParam("sort")
 		switch sortKey {
-		case "", "name", "email", "phone", "account", "changed":
+		case "", "name", "email", "phone", "account", "book", "changed":
 		default:
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
 		}
@@ -401,6 +404,13 @@ func registerRoutes(p *plugin) {
 				return strings.ToLower(ao.Card.PreferredValue("TEL"))
 			case "account":
 				return strings.ToLower(ao.Account)
+			case "book":
+				for _, ab := range addressBookInfos {
+					if ab.Account == ao.Account && strings.HasPrefix(ao.Path, ab.Path) {
+						return strings.ToLower(ab.Name + "\x00" + ao.Account)
+					}
+				}
+				return "\uffff"
 			case "changed":
 				// A card that says nothing about its age sorts after the
 				// ones that do, in ascending order.
@@ -434,6 +444,14 @@ func registerRoutes(p *plugin) {
 				for _, ab := range addressBookInfos {
 					if ab.Account == account && strings.HasPrefix(contactPath, ab.Path) {
 						return ab.Color
+					}
+				}
+				return ""
+			},
+			BookForPath: func(account, contactPath string) string {
+				for _, ab := range addressBookInfos {
+					if ab.Account == account && strings.HasPrefix(contactPath, ab.Path) {
+						return ab.Name
 					}
 				}
 				return ""

@@ -94,3 +94,28 @@ func translateCount(lang, key string, count int) string {
 	}
 	return key
 }
+
+// LanguageChoice is one interface language, named in itself: a reader
+// looking for their own language does not read the current one.
+type LanguageChoice struct {
+	Code string
+	Name string
+}
+
+// languageNames are the endonyms, which is what a language menu shows.
+var languageNames = map[string]string{
+	"en": "English",
+	"fa": "فارسی",
+	"de": "Deutsch",
+	"es": "Español",
+}
+
+// LanguageChoices is the menu: following the browser first, then every
+// language alborz carries.
+func LanguageChoices() []LanguageChoice {
+	out := make([]LanguageChoice, 0, len(languages)+1)
+	for _, code := range languages {
+		out = append(out, LanguageChoice{Code: code, Name: languageNames[code]})
+	}
+	return out
+}

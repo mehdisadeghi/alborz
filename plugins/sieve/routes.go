@@ -17,6 +17,13 @@ type FiltersRenderData struct {
 	// Server is what the account's filters are kept on, so the page says
 	// who it is talking to rather than leaving it to be guessed.
 	Server string
+	// Software and Extensions are what that server says it is and what
+	// it says it can do, which decides what a filter may use.
+	Software   string
+	Extensions []Extension
+	// Explained is what the named extensions let a filter do, for the
+	// disclosure that works where a tooltip does not.
+	Explained []alborz.Explained
 	// Unreachable is what the filter server said when it would not
 	// answer. A provider that is down is not an internal error, and the
 	// page says so itself instead of becoming a status page.
@@ -83,6 +90,14 @@ func handleListFilters(ctx *alborz.Context) error {
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		var err error
 		data.Scripts, err = c.ListScripts()
+		data.Software = c.Implementation()
+		data.Extensions = describe(c.Extensions())
+		for _, e := range data.Extensions {
+			if e.Hint != "" {
+				data.Explained = append(data.Explained,
+					alborz.Explained{Term: e.Name, Hint: ctx.T(e.Hint)})
+			}
+		}
 		return err
 	})
 	if err != nil {
@@ -231,4 +246,48 @@ func handleDeleteFilter(ctx *alborz.Context) error {
 
 	ctx.Session.PutNotice(ctx.T("notice.filterdeleted"))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
+}
+
+// extensionHints names the Sieve extensions worth explaining, by what
+// they let a filter do. An extension with no entry keeps its name and
+// no explanation: inventing one would be worse than saying nothing.
+var extensionHints = map[string]string{
+	"fileinto":    "sieve.fileinto",
+	"reject":      "sieve.reject",
+	"ereject":     "sieve.reject",
+	"vacation":    "sieve.vacation",
+	"imap4flags":  "sieve.imap4flags",
+	"envelope":    "sieve.envelope",
+	"body":        "sieve.body",
+	"regex":       "sieve.regex",
+	"relational":  "sieve.relational",
+	"subaddress":  "sieve.subaddress",
+	"copy":        "sieve.copy",
+	"mailbox":     "sieve.mailbox",
+	"date":        "sieve.date",
+	"variables":   "sieve.variables",
+	"include":     "sieve.include",
+	"duplicate":   "sieve.duplicate",
+	"editheader":  "sieve.editheader",
+	"enotify":     "sieve.notify",
+	"notify":      "sieve.notify",
+	"spamtest":    "sieve.spamtest",
+	"virustest":   "sieve.virustest",
+	"index":       "sieve.index",
+	"environment": "sieve.environment",
+}
+
+// Extension is one thing the filter server says a script may use.
+type Extension struct {
+	Name string
+	Hint string // translation key, empty where alborz has nothing to add
+}
+
+// describe pairs each advertised extension with what it means.
+func describe(names []string) []Extension {
+	out := make([]Extension, 0, len(names))
+	for _, n := range names {
+		out = append(out, Extension{Name: n, Hint: extensionHints[strings.ToLower(n)]})
+	}
+	return out
 }

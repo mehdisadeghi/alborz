@@ -1655,31 +1655,122 @@ aside .filter-row:hover .filter-edit,
 aside .filter-only:focus-visible,
 aside .filter-edit:focus-visible { opacity: 1; }
 
-/* Facts about the account that nobody can change: named quietly under
-   the form that saves the ones they can. */
-.server-info {
-  margin-top: var(--space-6);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-light);
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
+/* The same explanations a tooltip carries, on a tap. Quiet by default:
+   it is there when wanted and silent when not. */
+.info-explain {
+  margin-top: var(--space-2);
 }
 
-.server-info h3 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
+.info-explain > summary {
+  cursor: pointer;
+  color: var(--link);
+  list-style: none;
 }
 
-.server-info dl {
+.info-explain > summary::-webkit-details-marker { display: none; }
+
+.info-explain > summary::before {
+  content: "\203A";
+  display: inline-block;
+  width: 0.75rem;
+  transition: transform 0.1s ease-out;
+}
+
+.info-explain[open] > summary::before { transform: rotate(90deg); }
+
+.info-explain dl {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 0.15rem var(--space-3);
+  gap: 0.2rem var(--space-4);
+  margin: var(--space-2) 0 0;
+}
+
+.info-explain dt { color: var(--fg-faint); }
+.info-explain dd { margin: 0; min-width: 0; }
+
+/* Carried on the row only where there is no column to carry it. */
+.card-only { display: none; }
+
+/* Facts about a server that nobody can change: a card, so they read as
+   a panel of their own rather than as a tail on the page. */
+.info-card {
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.info-card h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--fg-muted);
+}
+
+.info-card dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.2rem var(--space-4);
   margin: 0;
 }
 
-.server-info dt { color: var(--fg-faint); }
-.server-info dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.info-card dt { color: var(--fg-faint); }
+.info-card dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+/* What the server can do, ticked or not: the reason a page behaves the
+   way it does, in the same two-state grammar everywhere. */
+.info-abilities {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem var(--space-4);
+}
+
+.info-abilities li::before {
+  margin-inline-end: 0.35rem;
+  font-weight: 650;
+}
+
+.info-abilities .has::before { content: "\2713"; color: var(--accent); }
+
+.info-abilities .has-not {
+  color: var(--fg-faint);
+}
+
+.info-abilities .has-not::before { content: "\2013"; }
+
+/* Each group inside the card is announced and set off, or the ticks
+   read as one more row of the list above them. */
+.info-group-title {
+  margin: var(--space-3) 0 var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-light);
+  color: var(--fg-faint);
+}
+
+/* What a filter may use, as a wrap of quiet chips rather than a
+   paragraph of comma-separated protocol. */
+.info-tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.info-tags li {
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
 
 /* When a stored thing was written and last changed, said once, quietly,
    under what it is about. */

@@ -12,6 +12,17 @@
       </section>
       <div class="context-crumb">{{printf ($.T "settings.foraccount") .GlobalData.Username}}</div>
       {{ if .Error }}<div class="alert">{{ .Error }}</div>{{ end }}
+      {{ template "info-card" (dict "title" ($.T "settings.servers") "page" $
+         "rows" (tuple
+           (dict "label" ($.T "settings.serversoftware") "value" .Servers.Agent)
+           (dict "label" ($.T "settings.serverimap") "value" .Servers.IMAP)
+           (dict "label" ($.T "settings.serversmtp") "value" .Servers.SMTP)
+           (dict "label" ($.T "settings.serversieve") "value" .Servers.Sieve))
+         "abilities" .Servers.Abilities
+         "abilitiestitle" ($.T "settings.abilities")
+         "explained" .Servers.Explained
+         "explainlabel" ($.T "settings.explain")) }}
+
       <form method="post">
         <div class="action-group">
           <label for="from">{{$.T "settings.fullname"}}</label>
@@ -128,6 +139,12 @@
 
         <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
       </form>
+
+      {{/* Where this account's mail actually lives. Not a setting - the
+           reader cannot change any of it - so it stands outside the form
+           that saves, under it, in the quiet type the object dates use.
+           It is the first thing a bug report has to say and the last
+           thing anyone can find out from a webmail. */}}
     </main>
   </div>
 </div>

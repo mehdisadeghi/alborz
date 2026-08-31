@@ -1,0 +1,84 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+{{ $aq := account "?" .GlobalData.URLAccount }}
+
+<div class="page-wrap">
+  {{ template "settings-aside" (dict "accounts" .GlobalData.Accounts "current" .GlobalData.Username "browserLabel" ($.T "settings.forbrowser")) }}
+
+  <div class="container">
+    <main class="settings">
+      <section class="actions">
+        {{ template "list-toolbar" (dict "title" ($.T "settings.signatures")) }}
+      </section>
+
+      {{/* Three things, three cards: what exists, which one starts a
+           message, and the one being written. They save separately
+           because they are separate decisions - choosing a default must
+           not depend on what the form below happens to hold. */}}
+      <section class="settings-form">
+        {{ with .Error }}<p class="alert alert-error">{{.}}</p>{{ end }}
+
+        {{ if .Settings.Signatures }}
+        <ul class="signature-list">
+          {{ range .Settings.Signatures }}
+          <li>
+            <div class="signature-entry">
+              <strong dir="auto">{{ .Name }}</strong>
+              <span class="signature-preview" dir="auto">{{ .Text }}</span>
+            </div>
+            <div class="signature-row-actions">
+              <a class="button-link" href="/signatures?edit={{ .Name | urlquery }}{{ with $.GlobalData.URLAccount }}&amp;account={{ . | addr }}{{ end }}">{{$.T "common.edit"}}</a>
+              {{/* A deletion is an action on this signature, so it is a
+                   button that does it - not a box that is ticked and
+                   then saved with everything else. */}}
+              <form method="post" action="/signatures/delete{{$aq}}">
+                <input type="hidden" name="name" value="{{ .Name }}">
+                <button class="button-link button-danger">{{$.T "common.delete"}}</button>
+              </form>
+            </div>
+          </li>
+          {{ end }}
+        </ul>
+
+        <form method="post" action="/signatures/default{{$aq}}" class="signature-default">
+          <label for="signature_default">{{$.T "settings.signaturedefault"}}</label>
+          <select name="signature_default" id="signature_default">
+            <option value="">{{$.T "settings.signaturenone"}}</option>
+            {{ range .Settings.Signatures }}
+            <option value="{{.Name}}"{{ if eq .Name $.Settings.DefaultSignature }} selected{{ end }}>{{.Name}}</option>
+            {{ end }}
+          </select>
+          <button type="submit">{{$.T "common.save"}}</button>
+        </form>
+        {{ else }}
+        <p class="empty-list">{{$.T "settings.signaturesnone"}}</p>
+        {{ end }}
+      </section>
+
+      <section class="settings-form">
+        <h2 class="settings-heading">{{ if .Was }}{{$.T "common.edit"}}{{ else }}{{$.T "settings.signatureadd"}}{{ end }}</h2>
+        <form method="post" action="/signatures{{$aq}}">
+          <input type="hidden" name="was" value="{{ .Was }}">
+          <div class="action-group">
+            <label for="signature_name">{{$.T "settings.signaturename"}}</label>
+            <input type="text" name="name" id="signature_name" maxlength="60"
+                   value="{{ .Editing.Name }}" dir="auto" required>
+          </div>
+          <div class="action-group">
+            <label for="signature_text">{{$.T "settings.signaturetext"}}</label>
+            <textarea name="text" id="signature_text" rows="6" dir="auto" required>{{ .Editing.Text }}</textarea>
+            {{ template "hint" (dict "text" ($.T "settings.signaturehint")) }}
+          </div>
+          <div class="action-group">
+            <button type="submit" class="button-primary">{{$.T "common.save"}}</button>
+            {{ if .Was }}<a class="button-link button-quiet" href="/signatures{{$aq}}">{{$.T "common.cancel"}}</a>{{ end }}
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html" .}}

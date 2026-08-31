@@ -378,6 +378,19 @@
 "invite.removefromcalendar" = "Quitar del calendario"
 "invite.forgotten" = "La reunión se quitó de tu calendario."
 "invite.event" = "Evento"
+"auth.title" = "Comprobación del remitente"
+"auth.warning" = "Tu servidor de correo no pudo confirmar que este mensaje venga de verdad de la dirección que indica."
+"auth.spf" = "SPF"
+"auth.dkim" = "DKIM"
+"auth.dmarc" = "DMARC"
+"settings.authserv" = "Servidor de correo de confianza"
+"help.authserv" = "El nombre que tu propio servidor se da al registrar si un remitente es auténtico. Déjalo vacío para no mostrar nada."
+"upstream.title" = "Tu servidor de correo no respondió"
+"upstream.explain" = "Alborz esperó %s segundos al servidor de %s y no recibió respuesta."
+"upstream.notyou" = "No es un problema de tu contraseña y no se ha perdido nada. Lo más probable es que el servidor esté ocupado o no disponible un momento."
+"upstream.retry" = "Reintentar"
+"upstream.unreachable" = "Alborz no pudo contactar con el servidor de %s."
+"help.authservguess" = "El correo entregado aquí fue comprobado por %s. Selecciónalo arriba para confiar en ese servidor, o déjalo vacío para no mostrar nada."
 
 
 ["calendar.more"]

@@ -64,6 +64,11 @@ type Server struct {
 
 	domains map[string]*domainUpstreams
 
+	// OnAccountReady is called when an account signs in. It is how the
+	// base plugin gets to start following the mailbox without the root
+	// package knowing what following is.
+	OnAccountReady AccountReadyFunc
+
 	assetsMu sync.Mutex
 	assets   map[string]assetStamp // theme asset content stamps by name
 }
@@ -153,7 +158,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		return nil, fmt.Errorf("no usable domains left")
 	}
 
-	s.Sessions = newSessionManager(s.dialIMAP, s.dialSMTP, s.dialSieve, e.Logger)
+	s.Sessions = newSessionManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger)
 	return s, nil
 }
 
@@ -1029,6 +1034,9 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 			continue
 		}
 		ctx.AddAccount(s)
+		if ctx.Server.OnAccountReady != nil {
+			ctx.Server.OnAccountReady(s, ctx.Logger())
+		}
 		restored = true
 	}
 	if !restored {
@@ -1115,6 +1123,12 @@ func handleUnauthenticated(next echo.HandlerFunc, ctx *Context) error {
 		return redirectToLogin(ctx)
 	}
 }
+
+// OnAccountReady runs when an account is signed in, including one
+// restored from remembered credentials. The base plugin uses it to start
+// following the mailbox; the root package does not know what following
+// means, so it only makes the call.
+type AccountReadyFunc func(*Session, echo.Logger)
 
 type Options struct {
 	Upstreams  []string

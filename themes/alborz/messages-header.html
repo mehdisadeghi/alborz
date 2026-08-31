@@ -73,6 +73,10 @@
              by "give me these messages". Rare, so it is spelled out here
              rather than given a mark on the toolbar. */}}
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/export{{$aq}}">{{$.T "mailbox.export"}}</button>
+        {{/* Alborz hears about new mail only when a page is loaded, and
+             serves a recent listing without asking; this says "ask now".
+             Not gated on the selection: it acts on the folder. */}}
+        <button form="refresh-form">{{$.T "mailbox.refresh"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
         <select form="messages-form" name="to" aria-label="{{$.T "mailbox.movefolder"}}">

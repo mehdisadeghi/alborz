@@ -106,6 +106,9 @@
                    "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $aq)
                    "current" .Message.FlagColor
                    "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
+                {{/* The bytes the server holds, which is what makes the
+                     message filable and checkable elsewhere. */}}
+                <a class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
                 {{/* On list mail the dangerous reply is the one that
                      answers the list and everyone on it at once, so it
                      is here, spelled out, rather than a mark beside the

@@ -1286,6 +1286,10 @@ type MessageRenderData struct {
 	// it carries none.
 	Invitation *Invitation
 
+	// AuthResults is what the receiving server said about the sender's
+	// domain, nil when no trusted server reported or none is named.
+	AuthResults *AuthResults
+
 	// Neighbors in the view the message was opened from; nil when absent.
 	NewerURL *url.URL
 	OlderURL *url.URL
@@ -1553,6 +1557,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		newerUID, olderUID  imap.UID
 		position, totalMsgs int
 		signature           Verification
+		authResults         *AuthResults
 	)
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		var load *sidebarLoad
@@ -1577,6 +1582,10 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 			if msg.BodyStructure != nil {
 				signature = verifySignature(c, mboxName, uid, msg.BodyStructure,
 					messageRootHeader(msg), envelopeSender(msg.Envelope))
+				// What our own server made of SPF, DKIM and DMARC when
+				// it took delivery. Read from the same header set, and
+				// only from the instance the trusted server wrote.
+				authResults = readAuthResults(messageRootHeader(msg), settings.TrustedAuthServ)
 			}
 			sb, err = load.finish()
 		}
@@ -1678,6 +1687,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Total:              totalMsgs,
 		Query:              query,
 		Signature:          signature,
+		AuthResults:        authResults,
 		Invitation:         messageInvitation(ctx, msg, mboxName, uid),
 	})
 }
@@ -3301,6 +3311,15 @@ type Settings struct {
 	Timezone       string
 	FirstDayOfWeek int // 0 = Sunday, 1 = Monday (default)
 
+	// TrustedAuthServ is the authserv-id of the server that takes
+	// delivery for this account - what it calls itself in the
+	// Authentication-Results header it writes (RFC 8601). Only that
+	// server's verdict is read, because every other instance of the
+	// header was written by somebody upstream, possibly the sender.
+	// Empty means no verdict is shown: a guess here would be worse than
+	// silence, since the whole point is knowing who wrote the line.
+	TrustedAuthServ string
+
 	// Stored negated so the zero value keeps body search on by default.
 	SearchHeadersOnly bool
 
@@ -3362,6 +3381,11 @@ func (s *Settings) signatureNamed(name string) (Signature, bool) {
 
 type SettingsRenderData struct {
 	alborz.BaseRenderData
+	// AuthServGuess is what this account's server appears to call itself
+	// in the verdicts it writes, offered for confirmation. Empty when
+	// the mail seen does not agree on one, because a close race is a
+	// guess and a guess here is worse than nothing.
+	AuthServGuess string
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
@@ -3650,6 +3674,7 @@ func handleSettings(ctx *alborz.Context) error {
 			return reject(fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage))
 		}
 		settings.From = ctx.FormValue("from")
+		settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
 		settings.Timezone = ctx.FormValue("timezone")
 		settings.SearchHeadersOnly = ctx.FormValue("search_body") != "on"
@@ -3681,8 +3706,15 @@ func handleSettings(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings"))
 	}
 
+	// Only when nothing is set: with a value in hand there is nothing to
+	// suggest, and the sample costs a fetch.
+	guess := ""
+	if settings.TrustedAuthServ == "" {
+		guess = SuggestAuthServ(ctx)
+	}
 	return ctx.Render(http.StatusOK, "settings.html", &SettingsRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
+		AuthServGuess:  guess,
 		Settings:       settings,
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),

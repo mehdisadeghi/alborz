@@ -269,6 +269,24 @@
             <td>{{template "addr-list" .Message.Envelope.Bcc}}</td>
           </tr>
           {{ end }}
+          {{/* What our own server made of the sender's domain when it
+               took delivery (RFC 8601). Only failures are shown: a mark
+               on every message teaches people to ignore marks, and
+               "none" means the domain published no policy rather than
+               that this message failed one. */}}
+          {{ with .AuthResults }}{{ if .Failed }}
+          <tr>
+            <th>{{$.T "auth.title"}}</th>
+            <td>
+              <p class="auth-failed">{{$.T "auth.warning"}}</p>
+              <ul class="auth-list">
+                {{ with .SPF }}<li>{{$.T "auth.spf"}}: {{ template "ltr" . }}</li>{{ end }}
+                {{ with .DKIM }}<li>{{$.T "auth.dkim"}}: {{ template "ltr" . }}</li>{{ end }}
+                {{ with .DMARC }}<li>{{$.T "auth.dmarc"}}: {{ template "ltr" . }}</li>{{ end }}
+              </ul>
+            </td>
+          </tr>
+          {{ end }}{{ end }}
           {{/* A meeting request, answered here rather than in whatever
                client the reader would otherwise have to open. The answer
                goes to the organizer as mail (RFC 6047); nothing is

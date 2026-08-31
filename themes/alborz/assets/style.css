@@ -2814,6 +2814,9 @@ main.calendar .date .date-link {
   inset: 0;
 }
 
+/* A day either side of the month is still a day, and what is on it is
+   what tells you whether the month you are looking at is the one you
+   want. Dimmed rather than emptied, which is what every calendar does. */
 main.calendar .date.extra {
   background: var(--surface-subtle);
   opacity: 0.58;

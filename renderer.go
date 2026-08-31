@@ -44,6 +44,9 @@ type GlobalRenderData struct {
 
 	// Build version, empty when the binary carries no VCS metadata
 	Version string
+	// Brand is the product's name as a person reads it, so no page has
+	// to spell it and none can spell it differently.
+	Brand string
 	// ProjectURL is where the footer's name links, when a deployment
 	// names one. Empty prints the name as text.
 	ProjectURL string
@@ -577,7 +580,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	global := GlobalRenderData{
 		Extra:          make(map[string]interface{}),
 		Path:           strings.Split(ectx.Request().URL.Path, "/")[1:],
-		Title:          brandName,
+		Title:          BrandName,
 		URL:            ectx.Request().URL,
 		FirstDayOfWeek: 1, // Monday default
 		Lang:           lang,
@@ -604,6 +607,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Version = ctx.Server.Options.Version
+		global.Brand = BrandName
 		global.ProjectURL = ctx.Server.Options.ProjectURL
 		global.Language = ctx.Language()
 		global.LanguageChoices = LanguageChoices()
@@ -694,10 +698,10 @@ func (ctx *Context) MonthYearIn(t time.Time) string {
 // PageTitle is the browser title: the page's subject and the brand,
 // or the brand alone on pages that name nothing.
 func (g *GlobalRenderData) PageTitle() string {
-	if g.Title == "" || g.Title == brandName {
-		return brandName
+	if g.Title == "" || g.Title == BrandName {
+		return BrandName
 	}
-	return g.Title + " - " + brandName
+	return g.Title + " - " + BrandName
 }
 
 type renderer struct {

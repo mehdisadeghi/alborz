@@ -348,6 +348,9 @@
 "form.signaturename" = "امضا به نام نیاز دارد."
 "form.signaturetext" = "امضا به متن نیاز دارد."
 "form.signaturetaken" = "امضایی با این نام هست."
+"calendar.week" = "هفتهٔ %s"
+"calendar.reminders" = "یادآورها"
+"calendar.remindersnote" = "در برنامهٔ دیگری تنظیم شده‌اند. البرز آنها را نشان می‌دهد اما نمی‌فرستد."
 
 
 ["calendar.more"]

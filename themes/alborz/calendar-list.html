@@ -40,17 +40,18 @@
           <h3 class="event-day-header" role="rowheader">{{$base.GlobalData.WeekdayName .}}, {{$base.GlobalData.MonthName .}} {{.Day}}</h3>
           {{range $events}}
           {{ $obj := . }}
-          {{ if .Data.Events }}{{$event := index .Data.Events 0}}
-          {{ $when := $.T "calendar.allday" }}{{ if not $obj.AllDay }}{{ $when = $base.GlobalData.FormatTime ($event.DateTimeStart nil) }}{{ end }}
+          {{/* The time is this occurrence's own: a recurring event is
+               drawn once per instance and the component names only the
+               first. */}}
+          {{ $when := $.T "calendar.allday" }}{{ if not .AllDay }}{{ $when = $base.GlobalData.FormatTime .Start }}{{ end }}
           {{ $href := $obj.URL }}{{ with $obj.Account }}{{ $href = printf "%s?account=%s" $obj.URL (. | addr) }}{{ end }}
           {{ template "event-row" (dict
              "href" $href
              "when" $when
-             "summary" ($event.Props.Text "SUMMARY")
+             "summary" .Summary
              "color" (call $base.ColorForPath .Account .Path)
              "owner" (call $base.OwnerLabel .Account .Path)
              "timeLabel" ($.T "calendar.time") "eventLabel" ($.T "calendar.event") "calendarLabel" ($.T "common.calendar")) }}
-          {{ end }}
           {{end}}
           {{end}}
           {{end}}

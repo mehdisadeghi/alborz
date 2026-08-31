@@ -348,6 +348,9 @@
 "form.signaturename" = "Eine Signatur braucht einen Namen."
 "form.signaturetext" = "Eine Signatur braucht einen Text."
 "form.signaturetaken" = "Eine Signatur trägt diesen Namen bereits."
+"calendar.week" = "Woche %s"
+"calendar.reminders" = "Erinnerungen"
+"calendar.remindersnote" = "In einem anderen Programm gesetzt. Alborz zeigt sie an, sendet sie aber nicht."
 
 
 ["calendar.more"]

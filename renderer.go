@@ -468,6 +468,55 @@ func (g *GlobalRenderData) SecondaryDay(t time.Time) string {
 	return g.Num(d.Day())
 }
 
+// weekAnchor is the Thursday of the seven days beginning at the given
+// day. A grid row is labelled by the week that day falls in, which is
+// ISO 8601's own rule (the week owning the Thursday) and is therefore
+// right however the row is aligned: a row starting on Sunday spans two
+// ISO weeks, and this names the one the row mostly is.
+func weekAnchor(rowStart time.Time) time.Time {
+	iso := (int(rowStart.Weekday())+6)%7 + 1 // Monday 1 ... Sunday 7
+	return rowStart.AddDate(0, 0, (4-iso+7)%7)
+}
+
+// WeekNumber is the ISO 8601 week a grid row belongs to.
+func (g *GlobalRenderData) WeekNumber(rowStart time.Time) string {
+	_, week := weekAnchor(g.InTimezone(rowStart)).ISOWeek()
+	return g.Num(week)
+}
+
+// WeekTitle names the week in words, since a bare number in a column of
+// its own says nothing about what it counts.
+func (g *GlobalRenderData) WeekTitle(rowStart time.Time) string {
+	return g.Tf("calendar.week", g.WeekNumber(rowStart))
+}
+
+// SecondaryWeek is the same physical week counted in the secondary
+// calendar, empty when none is chosen. It is a different number from a
+// different origin: the Solar Hijri year begins at Nowruz and its weeks
+// begin on Saturday, so glossing the ISO number would be a translation
+// of the wrong thing.
+func (g *GlobalRenderData) SecondaryWeek(rowStart time.Time) string {
+	if g.Secondary != shcalName {
+		return ""
+	}
+	day := weekAnchor(g.InTimezone(rowStart))
+	d := persian.FromStdTime(day)
+	nowruz := persian.NewPersian(d.Year(), 1, 1).ToGregorian().Time
+	// Saturday starts the week, so it is the zero of the offset.
+	offset := (int(nowruz.Weekday()) + 1) % 7
+	return g.Num((shYearDay(d)-1+offset)/7 + 1)
+}
+
+// shYearDay is the ordinal day within the Solar Hijri year: the first
+// six months hold 31 days and the next five hold 30, which is fixed and
+// needs no table.
+func shYearDay(d *persian.Persian) int {
+	if d.Month() <= 6 {
+		return (d.Month()-1)*31 + d.Day()
+	}
+	return 186 + (d.Month()-7)*30 + d.Day()
+}
+
 // SecondaryMonthYear names the secondary months a Gregorian month spans,
 // empty when no secondary calendar is chosen.
 func (g *GlobalRenderData) SecondaryMonthYear(t time.Time) string {

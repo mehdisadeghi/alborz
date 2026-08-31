@@ -200,7 +200,6 @@
 "settings.language" = "Language"
 "settings.langauto" = "Auto"
 "settings.fullname" = "Full name"
-"settings.signature" = "Message signature"
 "settings.identities" = "Send as"
 "help.identities" = "One address per line, each on its own. A name may stand in front of it, in angle brackets around the address (RFC 5322). Sending as one of these names the account as the sender, so the claim can be checked."
 "help.identitiesexample" = "Your Name <you@example.org>"
@@ -333,6 +332,23 @@
 "calendar.holdshint" = "Most servers fix this when the collection is created."
 "tasks.newlist" = "New task list"
 # Plural forms last: a TOML table claims every key that follows it.
+"settings.signatures" = "Signatures"
+"settings.signaturename" = "Name"
+"settings.signatureadd" = "Add a signature"
+"settings.signaturedefault" = "Start new messages with"
+"settings.signaturenone" = "None"
+"settings.signaturehint" = "A name to pick it by, and the text that goes under the \"-- \" line. Leave a name or a body empty to drop one."
+"compose.signature" = "Signature"
+"compose.signatureapply" = "Insert"
+"form.signaturecount" = "At most %d signatures."
+"form.signaturenamelong" = "A signature name must be %d characters or fewer."
+"settings.signaturesedit" = "Edit signatures"
+"settings.signaturesnone" = "No signatures yet"
+"settings.signaturetext" = "Signature"
+"form.signaturename" = "A signature needs a name."
+"form.signaturetext" = "A signature needs some text."
+"form.signaturetaken" = "A signature already has that name."
+
 
 ["calendar.more"]
 one = "%d more"

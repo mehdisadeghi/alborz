@@ -7,7 +7,10 @@ import (
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"net/http/cookiejar"
+	"net/mail"
 	"net/url"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -280,10 +283,14 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		data := _data.(*alborzbase.ComposeRenderData)
 
 		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
-		if err == errNoAddressBook {
+		if err != nil {
+			// Suggestions are a convenience of the compose page, not a
+			// condition of it: an address book that is missing or not
+			// answering must not keep a message from being written.
+			if err != errNoAddressBook {
+				ctx.Logger().Printf("carddav: no suggestions for compose: %v", err)
+			}
 			return nil
-		} else if err != nil {
-			return err
 		}
 
 		query := carddav.AddressBookQuery{
@@ -316,15 +323,48 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		}
 		wg.Wait()
 
+		// A suggestion is inserted verbatim into the field, so it is
+		// written the way a recipient is written (RFC 5322 3.4): the name
+		// in front of the address. A bare address makes the reader type
+		// the name back in, and a card with several addresses would
+		// otherwise offer them with nothing to tell them apart.
+		// The base plugin has already put the people this account
+		// exchanges mail with here; the address books add the ones it
+		// was told to keep. Replacing rather than adding would drop the
+		// larger half.
 		var emails []string
-		for _, result := range results {
-			if result.err != nil {
-				return fmt.Errorf("failed to query CardDAV addresses: %v", result.err)
-			}
-			for _, addr := range result.addrs {
-				emails = append(emails, addr.Card.Values(vcard.FieldEmail)...)
+		seen := make(map[string]bool)
+		if existing, ok := data.Extra["EmailSuggestions"].([]string); ok {
+			for _, entry := range existing {
+				if key := strings.ToLower(entry); !seen[key] {
+					seen[key] = true
+					emails = append(emails, entry)
+				}
 			}
 		}
+		for _, result := range results {
+			if result.err != nil {
+				ctx.Logger().Printf("carddav: no suggestions from one book: %v", result.err)
+				continue
+			}
+			for _, addr := range result.addrs {
+				name := addr.Card.Value(vcard.FieldFormattedName)
+				for _, email := range addr.Card.Values(vcard.FieldEmail) {
+					if email == "" {
+						continue
+					}
+					entry := email
+					if name != "" {
+						entry = (&mail.Address{Name: name, Address: email}).String()
+					}
+					if key := strings.ToLower(entry); !seen[key] {
+						seen[key] = true
+						emails = append(emails, entry)
+					}
+				}
+			}
+		}
+		slices.Sort(emails)
 
 		data.Extra["EmailSuggestions"] = emails
 		return nil

@@ -150,4 +150,37 @@ if (caret) {
 	caret.setSelectionRange(at, at);
 }
 
+// A recipient field holds a list, and a datalist matches the whole
+// value: once "a@b.example, " is typed nothing matches any more, so the
+// completion appears to stop working after the first address. Rewriting
+// each option to "what is already typed" + candidate puts the browser's
+// own matching back on the token being written.
+//
+// Purely additive: without this the first address still completes, and
+// nothing here is the only way to reach an address.
+const recipients = document.querySelectorAll('input[list="emails"]');
+const suggestions = document.getElementById("emails");
+if (suggestions && recipients.length) {
+	const all = [...suggestions.options].map(o => o.value);
+	for (const field of recipients) {
+		field.addEventListener("input", () => {
+			const cut = field.value.lastIndexOf(",");
+			if (cut < 0) {
+				if (suggestions.options.length && suggestions.options[0].value !== all[0]) {
+					suggestions.replaceChildren(...all.map(v => new Option(v, v)));
+				}
+				return;
+			}
+			const prefix = field.value.slice(0, cut + 1) + " ";
+			suggestions.replaceChildren(...all.map(v => {
+				const option = new Option(v, prefix + v);
+				// The label stays the address alone; only the value
+				// carries what is already in the field.
+				option.label = v;
+				return option;
+			}));
+		});
+	}
+}
+
 // @license-end

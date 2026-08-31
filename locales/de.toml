@@ -200,7 +200,6 @@
 "settings.language" = "Sprache"
 "settings.langauto" = "Automatisch"
 "settings.fullname" = "Vollständiger Name"
-"settings.signature" = "Signatur"
 "settings.identities" = "Senden als"
 "help.identities" = "Eine Adresse pro Zeile. Ein Name darf davorstehen, mit der Adresse in spitzen Klammern (RFC 5322). Wird eine davon benutzt, nennt die Nachricht das Konto als Absender, damit die Angabe prüfbar bleibt."
 "help.identitiesexample" = "Ihr Name <sie@example.org>"
@@ -333,6 +332,23 @@
 "calendar.holdshint" = "Die meisten Server legen das bei der Erstellung fest."
 "tasks.newlist" = "Neue Aufgabenliste"
 # Plural forms last: a TOML table claims every key that follows it.
+"settings.signatures" = "Signaturen"
+"settings.signaturename" = "Name"
+"settings.signatureadd" = "Signatur hinzufügen"
+"settings.signaturedefault" = "Neue Nachrichten beginnen mit"
+"settings.signaturenone" = "Keine"
+"settings.signaturehint" = "Ein Name zur Auswahl und der Text unter der Zeile \"-- \". Name oder Text leeren, um eine zu entfernen."
+"compose.signature" = "Signatur"
+"compose.signatureapply" = "Einfügen"
+"form.signaturecount" = "Höchstens %d Signaturen."
+"form.signaturenamelong" = "Ein Signaturname darf höchstens %d Zeichen lang sein."
+"settings.signaturesedit" = "Signaturen bearbeiten"
+"settings.signaturesnone" = "Noch keine Signaturen"
+"settings.signaturetext" = "Signatur"
+"form.signaturename" = "Eine Signatur braucht einen Namen."
+"form.signaturetext" = "Eine Signatur braucht einen Text."
+"form.signaturetaken" = "Eine Signatur trägt diesen Namen bereits."
+
 
 ["calendar.more"]
 one = "%d weiteres"

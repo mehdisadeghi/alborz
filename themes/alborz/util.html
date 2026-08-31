@@ -287,6 +287,56 @@
      transparent, one weight throughout - so neither the options nor
      anything beside them moves as the choice moves. dict: label items;
      each item a dict of label, href, current. */}}
+{{/* Facts about a server that nobody can change, in a card of their
+     own so they read as a panel rather than as a tail on the page.
+     dict: title rows [abilities page] [tags tagstitle]. A row is a dict
+     of label and value; abilities are the Ability values themselves,
+     with page for the translator. */}}
+{{/* The same explanations a tooltip carries, on a tap: a title is a
+     hover and a phone has none. One disclosure for the group rather
+     than one per item, so the compact row stays compact. */}}
+{{ define "info-explain" }}
+{{ if .items }}
+<details class="info-explain">
+  <summary>{{.label}}</summary>
+  <dl>
+    {{ range .items }}
+    <dt>{{.Term}}</dt>
+    <dd>{{.Hint}}</dd>
+    {{ end }}
+  </dl>
+</details>
+{{ end }}
+{{ end }}
+
+{{ define "info-card" }}
+<section class="info-card">
+  <h3>{{.title}}</h3>
+  <dl>
+    {{ range .rows }}{{ if .value }}
+    <dt>{{.label}}</dt>
+    <dd>{{ template "ltr" .value }}</dd>
+    {{ end }}{{ end }}
+  </dl>
+  {{ with .abilities }}
+  <p class="info-group-title">{{$.abilitiestitle}}</p>
+  <ul class="info-abilities">
+    {{ range . }}
+    <li class="{{ if .Have }}has{{ else }}has-not{{ end }}" title="{{$.page.T .Hint}}">{{$.page.T .Label}}</li>
+    {{ end }}
+  </ul>
+  {{ template "info-explain" (dict "label" $.explainlabel "items" $.explained) }}
+  {{ end }}
+  {{ with .tags }}
+  <p class="info-group-title">{{$.tagstitle}}</p>
+  <ul class="info-tags">
+    {{ range . }}<li title="{{ with .Hint }}{{$.page.T .}}{{ end }}">{{ template "ltr" .Name }}</li>{{ end }}
+  </ul>
+  {{ template "info-explain" (dict "label" $.explainlabel "items" $.explained) }}
+  {{ end }}
+</section>
+{{ end }}
+
 {{ define "toggle" }}
 <div class="toggle"{{ with .label }} role="group" aria-label="{{.}}"{{ end }}>
   {{ range .items }}

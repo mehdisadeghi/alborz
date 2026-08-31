@@ -41,6 +41,9 @@
           <div class="list-header contact-list-changed">
             {{ template "sort-th" (dict "label" ($.T "common.modified") "key" "changed" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
+          <div class="list-header contact-list-book">
+            {{ template "sort-th" (dict "label" ($.T "contacts.book") "key" "book" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
+          </div>
           {{end}}
           {{range .AddressObjects}}
           {{$color := call $.ColorForPath .Account .Path}}
@@ -53,11 +56,12 @@
               {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
             </div>
             <div class="contact-list-name list-primary list-cell">
-              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
               <a href="{{.URL}}{{account "?" .Account}}" dir="auto">
                 {{.DisplayName}}
               </a>
-              {{if $multi}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+              {{/* Desktop reads it in the Address book column; a card
+                   has no column, so it rides the name. */}}
+              {{if $multi}}<span class="row-account card-only" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
             </div>
             <div class="contact-list-email list-cell">
               {{$email := .Card.PreferredValue "EMAIL"}}
@@ -71,6 +75,9 @@
             {{ $changed := "" }}{{ $changedTitle := "" }}
             {{ $m := .Modified }}{{ if not $m.IsZero }}{{ $changed = $.GlobalData.Since $m }}{{ $changedTitle = $.GlobalData.FormatDate $m }}{{ end }}
             <div class="contact-list-changed list-cell" title="{{$changedTitle}}">{{$changed}}</div>
+            <div class="contact-list-book list-cell">
+              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}{{ call $.BookForPath .Account .Path }}{{if $multi}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+            </div>
           </div>
           {{end}}
           {{if not .AddressObjects}}

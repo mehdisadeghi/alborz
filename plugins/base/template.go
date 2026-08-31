@@ -46,6 +46,9 @@ var templateFuncs = template.FuncMap{
 		}
 	},
 	"sub": func(a, b int) int { return a - b },
+	// A flat list of days is drawn as a grid, so the template needs to
+	// know where a row begins.
+	"mod": func(a, b int) int { return a % b },
 	// A date a page has no value for, so a template can ask whether
 	// it is set without the caller having to pass a zero time in.
 	"zerotime": func() time.Time { return time.Time{} },

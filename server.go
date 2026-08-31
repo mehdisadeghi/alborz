@@ -1141,6 +1141,32 @@ func redirectToLogin(ctx *Context) error {
 	return ctx.Redirect(http.StatusFound, to)
 }
 
+// renderUpstreamDown answers for a server that did not reply. It says
+// which one and how long was waited, because a reader who is told
+// "internal error" checks their password, and the password is not the
+// problem. Trying again is offered because it is the thing that works:
+// a timeout is usually a moment rather than a state.
+func renderUpstreamDown(ctx *Context, cause UpstreamError) error {
+	type upstreamRenderData struct {
+		BaseRenderData
+		Service string
+		Seconds string
+		// Waited separates "asked and got no answer" from "could not
+		// get a connection at all"; only the first has a number.
+		Waited bool
+		Retry  string
+	}
+	data := upstreamRenderData{
+		BaseRenderData: *NewBaseRenderData(ctx),
+		Service:        cause.Service,
+		Seconds:        fmt.Sprintf("%d", int(cause.After.Seconds())),
+		Waited:         cause.After > 0,
+		Retry:          ctx.Request().URL.RequestURI(),
+	}
+	data.BaseRenderData.WithTitle(ctx.T("upstream.title"))
+	return ctx.Render(http.StatusBadGateway, "upstream.html", &data)
+}
+
 func handleUnauthenticated(next echo.HandlerFunc, ctx *Context) error {
 	// Require auth for all requests except /login and assets
 	if isPublic(ctx.Request().URL.Path) {
@@ -1200,6 +1226,18 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			}
 			if actx, ok := ctx.Get("context").(*Context); ok {
 				if err := RenderInfo(actx, code, message); err == nil {
+					return
+				}
+			}
+		}
+
+		// A server that did not answer is not this program failing, and a
+		// 500 says it is. It gets a page of its own that names what did
+		// not answer and offers the one thing that helps.
+		var upstream UpstreamError
+		if errors.As(err, &upstream) {
+			if actx, ok := ctx.Get("context").(*Context); ok {
+				if err := renderUpstreamDown(actx, upstream); err == nil {
 					return
 				}
 			}

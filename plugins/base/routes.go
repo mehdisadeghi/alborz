@@ -83,6 +83,10 @@ func registerRoutes(p *alborz.GoPlugin) {
 
 	p.GET("/settings", handleSettings)
 	p.POST("/settings", handleSettings)
+	p.GET("/signatures", handleSignatures)
+	p.POST("/signatures", handleSignatures)
+	p.POST("/signatures/delete", handleSignatureDelete)
+	p.POST("/signatures/default", handleSignatureDefault)
 	p.GET("/settings/browser", handleBrowserSettings)
 	p.POST("/settings/browser", handleBrowserSettings)
 	p.POST("/language", handleLanguage)
@@ -1280,7 +1284,7 @@ type MessageRenderData struct {
 	// Signature is what the page says about the message's authenticity,
 	// as chrome outside the body frame. Its zero value says nothing,
 	// which is what an unsigned message deserves.
-	Signature Signature
+	Signature Verification
 }
 
 func handleGetPart(ctx *alborz.Context, raw bool) error {
@@ -1320,7 +1324,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		selected            *imapclient.SelectedMailbox
 		newerUID, olderUID  imap.UID
 		position, totalMsgs int
-		signature           Signature
+		signature           Verification
 	)
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		var load *sidebarLoad
@@ -1465,6 +1469,9 @@ type ComposeRenderData struct {
 	Error    string
 	// Identities offered in the From dropdown, one entry per account.
 	Identities []AccountIdentities
+	// Signatures the account holds, and the one under the message now.
+	Signatures []Signature
+	Signature  string
 }
 
 // AccountIdentities lists the addresses an account may send as: the
@@ -1571,6 +1578,9 @@ type composeOptions struct {
 	// Attached are whole messages carried as message/rfc822 parts.
 	Attached  []messagePath
 	InReplyTo *messagePath
+	// Signature names the one already under the body, so the page opens
+	// with the right entry chosen rather than with none.
+	Signature string
 }
 
 // Send message, append it to the Sent mailbox, mark the original message as
@@ -1709,6 +1719,8 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 					Message:            msg,
 					Attached:           attachedList(msg),
 					Identities:         composeIdentities(ctx),
+					Signatures:         settings.Signatures,
+					Signature:          ctx.FormValue("signature"),
 					Error:              ctx.T("form.recipientinvalid"),
 				})
 			}
@@ -1716,6 +1728,24 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 		msg.Subject = ctx.FormValue("subject")
 		msg.Text = ctx.FormValue("text")
+
+		// Choosing a signature is a submit like any other, so it works
+		// with no script: the body comes back with the old one replaced
+		// and everything else as it was typed.
+		if _, ok := formParams["signature_apply"]; ok {
+			chosen := ctx.FormValue("signature")
+			sig, _ := settings.signatureNamed(chosen)
+			msg.Text = withSignature(msg.Text, sig.Text)
+			ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
+			return ctx.Render(http.StatusOK, "compose.html", &ComposeRenderData{
+				IMAPBaseRenderData: *ibase,
+				Message:            msg,
+				Attached:           attachedList(msg),
+				Identities:         composeIdentities(ctx),
+				Signatures:         settings.Signatures,
+				Signature:          sig.Name,
+			})
+		}
 		msg.InReplyTo = ctx.FormValue("in_reply_to")
 		msg.MessageID = ctx.FormValue("message_id")
 
@@ -1812,6 +1842,8 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				Message:            msg,
 				Attached:           attachedList(msg),
 				Identities:         composeIdentities(ctx),
+				Signatures:         settings.Signatures,
+				Signature:          ctx.FormValue("signature"),
 				Error:              ctx.T("form.recipientneeded"),
 			})
 		}
@@ -1865,12 +1897,129 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 	}
 
 	ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
-	return ctx.Render(http.StatusOK, "compose.html", &ComposeRenderData{
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
+	}
+	data := &ComposeRenderData{
 		Identities:         composeIdentities(ctx),
 		IMAPBaseRenderData: *ibase,
 		Message:            msg,
 		Attached:           attachedList(msg),
+		Signatures:         settings.Signatures,
+		Signature:          options.Signature,
+	}
+	if data.Extra == nil {
+		data.Extra = make(map[string]interface{})
+	}
+	data.Extra["EmailSuggestions"] = gatherCorrespondents(ctx)
+	return ctx.Render(http.StatusOK, "compose.html", data)
+}
+
+// correspondentTTL keeps the gathered addresses for a while: they change
+// only when mail is sent or arrives, and re-reading two folders on every
+// compose would put a fetch in front of a blank page.
+const correspondentTTL = 10 * time.Minute
+
+// correspondentDepth is how far back the two folders are read. Recent is
+// the point - an address nobody has written to in a thousand messages is
+// not what the writer is reaching for.
+const correspondentDepth = 200
+
+var correspondents = alborz.NewMemo[[]string](correspondentTTL)
+
+// gatherCorrespondents reads the addresses this account has written to
+// and heard from. A contact list holds the people you decided to keep;
+// this holds the people you actually exchange mail with, which is not
+// the same set and is the one a recipient field is usually reaching for.
+// Every client collects it - Apple Mail calls them Previous Recipients,
+// Thunderbird a Collected Addresses book, Gmail Other Contacts.
+func gatherCorrespondents(ctx *alborz.Context) []string {
+	found, err := correspondents.Get(ctx.Session.Username(), func() ([]string, error) {
+		seen := make(map[string]string)
+		keep := func(addrs []imap.Address) {
+			for _, a := range addrs {
+				addr := a.Addr()
+				if addr == "" || !strings.ContainsRune(addr, '@') {
+					continue
+				}
+				entry := addr
+				if a.Name != "" {
+					entry = (&mail.Address{Name: a.Name, Address: addr}).String()
+				}
+				// A named form wins over a bare one for the same address.
+				key := strings.ToLower(addr)
+				if old, ok := seen[key]; !ok || len(entry) > len(old) {
+					seen[key] = entry
+				}
+			}
+		}
+
+		err := ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+			mailboxes, err := listMailboxes(c)
+			if err != nil {
+				return err
+			}
+			var categorized CategorizedMailboxes
+			for i := range mailboxes {
+				categorized.Append(mailboxes[i], nil)
+			}
+			// Sent names who you write to, the inbox who writes to you.
+			read := func(name string, out bool) {
+				msgs, _, err := listMessages(c, name, 0, correspondentDepth)
+				if err != nil {
+					return
+				}
+				for _, msg := range msgs {
+					if msg.Envelope == nil {
+						continue
+					}
+					if out {
+						keep(msg.Envelope.To)
+						keep(msg.Envelope.Cc)
+					} else {
+						keep(msg.Envelope.From)
+					}
+				}
+			}
+			if sent := categorized.Common.Sent; sent != nil {
+				read(sent.Info.Name(), true)
+			}
+			read("INBOX", false)
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		out := make([]string, 0, len(seen))
+		for _, entry := range seen {
+			out = append(out, entry)
+		}
+		slices.Sort(out)
+		return out, nil
 	})
+	if err != nil {
+		// A suggestion list is a convenience; failing to build one is not
+		// a reason to refuse the page.
+		return nil
+	}
+	return found
+}
+
+// withSignature replaces whatever sits under the last "-- " line with
+// the given text, or removes it when the text is empty. The delimiter is
+// RFC 3676 4.3 and must start a line, so a quoted "> -- " from the
+// message being answered is not mistaken for the writer's own.
+func withSignature(body, text string) string {
+	if i := strings.LastIndex(body, "\n-- \n"); i >= 0 {
+		body = body[:i]
+	}
+	if text == "" {
+		return body
+	}
+	// Room to write above it, which is the point of starting with one.
+	return body + "\n\n\n-- \n" + text
 }
 
 func handleComposeNew(ctx *alborz.Context) error {
@@ -1879,8 +2028,11 @@ func handleComposeNew(ctx *alborz.Context) error {
 	if err != nil {
 		return nil
 	}
-	if text == "" && settings.Signature != "" {
-		text = "\n\n\n-- \n" + settings.Signature
+	chosen := settings.DefaultSignature
+	if sig, ok := settings.signatureNamed(chosen); ok && text == "" {
+		text = withSignature(text, sig.Text)
+	} else if !ok {
+		chosen = ""
 	}
 
 	// These are common mailto URL query parameters
@@ -1893,7 +2045,7 @@ func handleComposeNew(ctx *alborz.Context) error {
 		MessageID: "<" + mid + ">",
 		InReplyTo: ctx.QueryParam("in-reply-to"),
 		Text:      text,
-	}, &composeOptions{})
+	}, &composeOptions{Signature: chosen})
 }
 
 func handleComposeAttachment(ctx *alborz.Context) error {
@@ -2837,13 +2989,28 @@ func perPage(ctx *alborz.Context, settings *Settings) int {
 const (
 	maxMessagesPerPage = 100
 	maxSignature       = 2048
+	maxSignatures      = 20
+	maxSignatureName   = 60
 	maxFullName        = 512
 )
 
+// Signature is one of an account's sign-offs: a name to pick it by and
+// the text that goes under the "-- " delimiter (RFC 3676 4.3).
+type Signature struct {
+	Name string
+	Text string
+}
+
 type Settings struct {
 	MessagesPerPage int
-	Signature       string
-	From            string
+	// Signatures belong to the account rather than to an identity: which
+	// persona an address writes as is the writer's to decide per message,
+	// and a rule mapping the two would be wrong as often as it was right.
+	Signatures []Signature
+	// DefaultSignature names the one a new message starts with; empty
+	// means none.
+	DefaultSignature string
+	From             string
 	// Identities are the other addresses this mailbox may send as, one
 	// per line, each a bare address or a "Name <address>" pair. The
 	// account's own address is always offered and is not listed here.
@@ -2883,12 +3050,32 @@ func (s *Settings) check() (string, int) {
 	switch {
 	case s.MessagesPerPage <= 0 || s.MessagesPerPage > maxMessagesPerPage:
 		return "form.perpage", maxMessagesPerPage
-	case len(s.Signature) > maxSignature:
-		return "form.signaturelong", maxSignature
+	case len(s.Signatures) > maxSignatures:
+		return "form.signaturecount", maxSignatures
 	case len(s.From) > maxFullName:
 		return "form.namelong", maxFullName
 	}
+	for _, sig := range s.Signatures {
+		if len(sig.Text) > maxSignature {
+			return "form.signaturelong", maxSignature
+		}
+		if len(sig.Name) > maxSignatureName {
+			return "form.signaturenamelong", maxSignatureName
+		}
+	}
 	return "", 0
+}
+
+// signatureNamed finds a signature by name; the second result is false
+// when nothing carries that name, which is what a stale choice looks
+// like after the signature it named was deleted.
+func (s *Settings) signatureNamed(name string) (Signature, bool) {
+	for _, sig := range s.Signatures {
+		if sig.Name == name {
+			return sig, true
+		}
+	}
+	return Signature{}, false
 }
 
 type SettingsRenderData struct {
@@ -3001,6 +3188,142 @@ func serverInfo(ctx *alborz.Context, agent string, abilities []Ability) ServerIn
 		Agent: agent, Abilities: abilities, Explained: explained}
 }
 
+// SignaturesRenderData is the signature page: the list, which one a new
+// message starts with, and the one being written if any.
+type SignaturesRenderData struct {
+	IMAPBaseRenderData
+	Settings *Settings
+	// Editing is the signature the form holds. Empty Name means the form
+	// is adding rather than changing one.
+	Editing Signature
+	// Was is the name the form started with, so a rename replaces rather
+	// than duplicates.
+	Was   string
+	Error string
+}
+
+// handleSignatures keeps signatures out of the settings pane: they are
+// prose a person writes, not a preference to be set. The page lists what
+// exists and writes one at a time, because deleting is an action rather
+// than a box to tick and then save.
+func handleSignatures(ctx *alborz.Context) error {
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return fmt.Errorf("failed to load settings: %v", err)
+	}
+	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+	if err != nil {
+		return err
+	}
+
+	editing, was := Signature{}, ""
+	if name := ctx.QueryParam("edit"); name != "" {
+		if found, ok := settings.signatureNamed(name); ok {
+			editing, was = found, found.Name
+		}
+	}
+
+	render := func(status int, message string) error {
+		ibase.BaseRenderData.WithTitle(ctx.T("settings.signatures"))
+		return ctx.Render(status, "signatures.html", &SignaturesRenderData{
+			IMAPBaseRenderData: *ibase,
+			Settings:           settings,
+			Editing:            editing,
+			Was:                was,
+			Error:              message,
+		})
+	}
+
+	if ctx.Request().Method != http.MethodPost {
+		return render(http.StatusOK, "")
+	}
+
+	name := strings.TrimSpace(ctx.FormValue("name"))
+	text := strings.TrimRight(ctx.FormValue("text"), "\r\n")
+	was = ctx.FormValue("was")
+	editing = Signature{Name: name, Text: text}
+	switch {
+	case name == "":
+		return render(http.StatusUnprocessableEntity, ctx.T("form.signaturename"))
+	case text == "":
+		return render(http.StatusUnprocessableEntity, ctx.T("form.signaturetext"))
+	case len(settings.Signatures) >= maxSignatures && was == "":
+		return render(http.StatusUnprocessableEntity,
+			fmt.Sprintf(ctx.T("form.signaturecount"), maxSignatures))
+	}
+
+	// A rename keeps the entry's place in the list, and keeps being the
+	// default if it was one.
+	replaced := false
+	for i := range settings.Signatures {
+		if settings.Signatures[i].Name != was || was == "" {
+			continue
+		}
+		if settings.DefaultSignature == was {
+			settings.DefaultSignature = name
+		}
+		settings.Signatures[i] = editing
+		replaced = true
+	}
+	if !replaced {
+		if _, taken := settings.signatureNamed(name); taken {
+			return render(http.StatusUnprocessableEntity, ctx.T("form.signaturetaken"))
+		}
+		settings.Signatures = append(settings.Signatures, editing)
+	}
+	if key, limit := settings.check(); key != "" {
+		return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T(key), limit))
+	}
+	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+		return fmt.Errorf("failed to save settings: %v", err)
+	}
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
+}
+
+// handleSignatureDelete removes one. It is its own route because a
+// deletion is an action taken on a thing, not a field of a form that
+// saves everything at once.
+func handleSignatureDelete(ctx *alborz.Context) error {
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
+	}
+	name := ctx.FormValue("name")
+	kept := settings.Signatures[:0]
+	for _, sig := range settings.Signatures {
+		if sig.Name != name {
+			kept = append(kept, sig)
+		}
+	}
+	settings.Signatures = kept
+	if settings.DefaultSignature == name {
+		settings.DefaultSignature = ""
+	}
+	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+		return fmt.Errorf("failed to save settings: %v", err)
+	}
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
+}
+
+// handleSignatureDefault sets which signature a new message starts with.
+// It is a preference and saves on its own, so choosing one never depends
+// on what the form below happens to hold.
+func handleSignatureDefault(ctx *alborz.Context) error {
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
+	}
+	chosen := ctx.FormValue("signature_default")
+	if _, ok := settings.signatureNamed(chosen); !ok {
+		chosen = ""
+	}
+	settings.DefaultSignature = chosen
+	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+		return fmt.Errorf("failed to save settings: %v", err)
+	}
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
+}
+
 func handleSettings(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
@@ -3044,7 +3367,6 @@ func handleSettings(ctx *alborz.Context) error {
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage))
 		}
-		settings.Signature = ctx.FormValue("signature")
 		settings.From = ctx.FormValue("from")
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
 		settings.Timezone = ctx.FormValue("timezone")

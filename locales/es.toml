@@ -200,7 +200,6 @@
 "settings.language" = "Idioma"
 "settings.langauto" = "Automático"
 "settings.fullname" = "Nombre completo"
-"settings.signature" = "Firma"
 "settings.identities" = "Enviar como"
 "help.identities" = "Una dirección por línea. Puede llevar un nombre delante, con la dirección entre ángulos (RFC 5322). Al usar una, el mensaje nombra la cuenta como remitente para que pueda comprobarse."
 "help.identitiesexample" = "Tu nombre <tu@example.org>"
@@ -333,6 +332,23 @@
 "calendar.holdshint" = "La mayoría de servidores lo fijan al crear la colección."
 "tasks.newlist" = "Nueva lista de tareas"
 # Plural forms last: a TOML table claims every key that follows it.
+"settings.signatures" = "Firmas"
+"settings.signaturename" = "Nombre"
+"settings.signatureadd" = "Añadir una firma"
+"settings.signaturedefault" = "Empezar los mensajes nuevos con"
+"settings.signaturenone" = "Ninguna"
+"settings.signaturehint" = "Un nombre para elegirla y el texto que va bajo la línea \"-- \". Deja el nombre o el texto vacíos para quitarla."
+"compose.signature" = "Firma"
+"compose.signatureapply" = "Insertar"
+"form.signaturecount" = "Como máximo %d firmas."
+"form.signaturenamelong" = "El nombre de una firma debe tener %d caracteres o menos."
+"settings.signaturesedit" = "Editar firmas"
+"settings.signaturesnone" = "Aún no hay firmas"
+"settings.signaturetext" = "Firma"
+"form.signaturename" = "Una firma necesita un nombre."
+"form.signaturetext" = "Una firma necesita un texto."
+"form.signaturetaken" = "Ya hay una firma con ese nombre."
+
 
 ["calendar.more"]
 one = "%d más"

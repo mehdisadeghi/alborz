@@ -62,6 +62,30 @@ var (
 )
 
 // AuthError wraps an authentication error.
+// UpstreamError is a server that did not answer, as distinct from
+// Alborz failing. A timeout is not a wrong password and must not read as
+// one, and it is not an internal error either: nothing here is broken,
+// the other end simply did not reply.
+type UpstreamError struct {
+	// Service is what did not answer, in the reader's terms: mail,
+	// filters, calendar.
+	Service string
+	// After is how long was waited before giving up. Zero means the
+	// connection was refused or the host could not be found, which is
+	// not a wait at all and must not be described as one.
+	After time.Duration
+	cause error
+}
+
+func (err UpstreamError) Error() string {
+	if err.After == 0 {
+		return fmt.Sprintf("could not reach the %s server: %v", err.Service, err.cause)
+	}
+	return fmt.Sprintf("%s server did not answer within %v: %v", err.Service, err.After, err.cause)
+}
+
+func (err UpstreamError) Unwrap() error { return err.cause }
+
 type AuthError struct {
 	cause error
 }
@@ -135,7 +159,7 @@ func (s *Session) WatchIMAP(onChange func()) (*imapclient.Client, error) {
 	if err != nil || timedOut {
 		c.Close()
 		if timedOut {
-			return nil, fmt.Errorf("IMAP login timed out after %v", roundTripTimeout)
+			return nil, UpstreamError{Service: "mail", After: roundTripTimeout, cause: err}
 		}
 		return nil, AuthError{err}
 	}
@@ -178,7 +202,7 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 		s.imapConn, err = s.manager.connectIMAP(s.domain, s.username, s.password)
 		if err != nil {
 			s.Close()
-			return fmt.Errorf("failed to re-connect to IMAP server: %w", err)
+			return err
 		}
 	}
 
@@ -189,7 +213,7 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 	err := f(c)
 	if !watchdog.Stop() {
 		s.imapConn = nil
-		return fmt.Errorf("IMAP command timed out after %v", roundTripTimeout)
+		return UpstreamError{Service: "mail", After: roundTripTimeout, cause: err}
 	}
 	return err
 }
@@ -415,7 +439,15 @@ func (sm *SessionManager) Close() {
 func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapclient.Client, error) {
 	c, err := sm.dialIMAP(domain)
 	if err != nil {
-		return nil, err
+		// A refused connection, an unresolvable host, a dial that timed
+		// out: all of them are the server not answering, which is not
+		// this program failing. A misconfigured domain is ours and
+		// stays as it is.
+		var unknown UnknownDomainError
+		if errors.As(err, &unknown) {
+			return nil, err
+		}
+		return nil, UpstreamError{Service: "mail", cause: err}
 	}
 
 	watchdog := time.AfterFunc(roundTripTimeout, func() { c.Close() })

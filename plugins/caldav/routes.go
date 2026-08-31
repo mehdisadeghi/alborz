@@ -269,7 +269,7 @@ type CalendarRenderData struct {
 	PrevPage, NextPage string
 	PrevTime, NextTime time.Time
 
-	EventsForDate func(time.Time) []CalendarObject
+	EventsForDate func(time.Time) []Occurrence
 	ColorForPath  func(account, path string) string
 	OwnerLabel    func(account, path string) string
 	Sub           func(a, b int) int
@@ -279,7 +279,7 @@ type CalendarDateRenderData struct {
 	alborz.BaseRenderData
 	Time               time.Time
 	Calendars          []CalendarInfo
-	Events             []CalendarObject
+	Events             []Occurrence
 	PrevPage, NextPage string
 
 	ColorForPath func(account, path string) string
@@ -711,39 +711,36 @@ func registerRoutes(p *plugin) {
 			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
 		}
 		gridEnd := gridStart.AddDate(0, 0, rows*7)
-		eventMap := make(map[time.Time][]CalendarObject)
+		eventMap := make(map[time.Time][]Occurrence)
 		for _, ev := range events {
-			co := ev.Data.Events()[0]
-			startTime, _ := co.DateTimeStart(nil)
-			endTime, _ := co.DateTimeEnd(nil)
-			var first, last time.Time
-			if ev.AllDay() {
-				first = writtenDay(startTime)
-				last = first
-				if l := writtenDay(endTime).AddDate(0, 0, -1); l.After(last) {
-					last = l
-				}
-			} else {
-				first, last = day(startTime), day(startTime)
-				if endTime.After(startTime) {
-					if l := day(endTime.Add(-time.Nanosecond)); l.After(last) {
+			for _, oc := range occurrences(ev, loc, queryStart, queryEnd) {
+				var first, last time.Time
+				if oc.AllDay() {
+					first = writtenDay(oc.Start)
+					last = first
+					if l := writtenDay(oc.End).AddDate(0, 0, -1); l.After(last) {
 						last = l
 					}
+				} else {
+					first, last = day(oc.Start), day(oc.Start)
+					if oc.End.After(oc.Start) {
+						if l := day(oc.End.Add(-time.Nanosecond)); l.After(last) {
+							last = l
+						}
+					}
 				}
-			}
-			if first.Before(gridStart) {
-				first = gridStart
-			}
-			for d := first; !d.After(last) && d.Before(gridEnd); d = d.AddDate(0, 0, 1) {
-				eventMap[d] = append(eventMap[d], ev)
+				if first.Before(gridStart) {
+					first = gridStart
+				}
+				for d := first; !d.After(last) && d.Before(gridEnd); d = d.AddDate(0, 0, 1) {
+					eventMap[d] = append(eventMap[d], oc)
+				}
 			}
 		}
 
 		for _, evs := range eventMap {
 			sort.Slice(evs, func(i, j int) bool {
-				ti, _ := evs[i].Data.Events()[0].DateTimeStart(nil)
-				tj, _ := evs[j].Data.Events()[0].DateTimeStart(nil)
-				return ti.Before(tj)
+				return evs[i].Start.Before(evs[j].Start)
 			})
 		}
 
@@ -765,7 +762,7 @@ func registerRoutes(p *plugin) {
 			PrevTime:  start.AddDate(0, -1, 0),
 			NextTime:  start.AddDate(0, 1, 0),
 
-			EventsForDate: func(when time.Time) []CalendarObject {
+			EventsForDate: func(when time.Time) []Occurrence {
 				if events, ok := eventMap[day(when)]; ok {
 					return events
 				}
@@ -883,10 +880,20 @@ func registerRoutes(p *plugin) {
 			return err
 		}
 
-		sort.Slice(events, func(i, j int) bool {
-			ti, _ := events[i].Data.Events()[0].DateTimeStart(nil)
-			tj, _ := events[j].Data.Events()[0].DateTimeStart(nil)
-			return ti.Before(tj)
+		// The same two shapes as the month grid: expanded instances, or a
+		// master still carrying its rule. Only what falls in the day is
+		// kept, since a server that ignores the expand request filters
+		// on the object rather than on the instance.
+		var shown []Occurrence
+		for _, ev := range events {
+			for _, oc := range occurrences(ev, loc, start, end) {
+				if oc.Start.Before(end) && (oc.End.After(start) || !oc.End.After(oc.Start)) {
+					shown = append(shown, oc)
+				}
+			}
+		}
+		sort.Slice(shown, func(i, j int) bool {
+			return shown[i].Start.Before(shown[j].Start)
 		})
 
 		return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
@@ -894,7 +901,7 @@ func registerRoutes(p *plugin) {
 				WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(start) + start.Format(", 2")),
 			Time:      start,
 			Calendars: calendarInfos,
-			Events:    events,
+			Events:    shown,
 			PrevPage:  start.AddDate(0, 0, -1).Format(datePageLayout),
 			NextPage:  start.AddDate(0, 0, 1).Format(datePageLayout),
 			ColorForPath: func(account, eventPath string) string {

@@ -101,6 +101,47 @@ type Attachment struct {
 	Form *multipart.Form
 }
 
+// Done closes when the session ends, so work started for it can stop
+// with it.
+func (s *Session) Done() <-chan struct{} { return s.closed }
+
+// WatchIMAP opens a second connection to the account and hands it over.
+// It exists for one caller: the watcher that sits in IDLE waiting for
+// the server to say something arrived.
+//
+// A second connection rather than the session's own, because DoIMAP
+// serialises: an IDLE on the shared connection would hold the lock for
+// as long as it waited, which is to say forever, and every page of that
+// account would stop answering.
+func (s *Session) WatchIMAP(onChange func()) (*imapclient.Client, error) {
+	c, err := s.manager.dialIMAPWatch(s.domain, &imapclient.UnilateralDataHandler{
+		Expunge: func(uint32) { onChange() },
+		Mailbox: func(*imapclient.UnilateralDataMailbox) { onChange() },
+		// A flag set in another client arrives as an untagged FETCH, not
+		// as EXISTS: without this, reading a message on a phone changed
+		// nothing here. The message must be consumed or the connection's
+		// reader stalls behind it.
+		Fetch: func(msg *imapclient.FetchMessageData) {
+			msg.Collect()
+			onChange()
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	watchdog := time.AfterFunc(roundTripTimeout, func() { c.Close() })
+	err = c.Login(s.username, s.password).Wait()
+	timedOut := !watchdog.Stop()
+	if err != nil || timedOut {
+		c.Close()
+		if timedOut {
+			return nil, fmt.Errorf("IMAP login timed out after %v", roundTripTimeout)
+		}
+		return nil, AuthError{err}
+	}
+	return c, nil
+}
+
 func (s *Session) ping() {
 	// Non-blocking: once the expiry goroutine is gone, a send would
 	// block its caller forever; a dropped ping is harmless.
@@ -333,6 +374,10 @@ func (s *Session) Store() Store {
 type (
 	// DialIMAPFunc connects to the domain's upstream IMAP server.
 	DialIMAPFunc func(domain string) (*imapclient.Client, error)
+	// DialIMAPWatchFunc dials with a handler for the updates a server
+	// sends unasked, which has to be given before the connection is
+	// made.
+	DialIMAPWatchFunc func(domain string, h *imapclient.UnilateralDataHandler) (*imapclient.Client, error)
 	// DialSMTPFunc connects to the domain's upstream SMTP server.
 	DialSMTPFunc func(domain string) (*smtp.Client, error)
 )
@@ -340,22 +385,24 @@ type (
 // SessionManager keeps track of active sessions. It connects and re-connects
 // to the upstream IMAP server as necessary. It prunes expired sessions.
 type SessionManager struct {
-	dialIMAP  DialIMAPFunc
-	dialSMTP  DialSMTPFunc
-	dialSieve DialSieveFunc
-	logger    echo.Logger
+	dialIMAP      DialIMAPFunc
+	dialIMAPWatch DialIMAPWatchFunc
+	dialSMTP      DialSMTPFunc
+	dialSieve     DialSieveFunc
+	logger        echo.Logger
 
 	locker   sync.Mutex
 	sessions map[string]*Session // protected by locker
 }
 
-func newSessionManager(dialIMAP DialIMAPFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger) *SessionManager {
+func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger) *SessionManager {
 	return &SessionManager{
-		sessions:  make(map[string]*Session),
-		dialIMAP:  dialIMAP,
-		dialSMTP:  dialSMTP,
-		dialSieve: dialSieve,
-		logger:    logger,
+		sessions:      make(map[string]*Session),
+		dialIMAP:      dialIMAP,
+		dialIMAPWatch: dialWatch,
+		dialSMTP:      dialSMTP,
+		dialSieve:     dialSieve,
+		logger:        logger,
 	}
 }
 

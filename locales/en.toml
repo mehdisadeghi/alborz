@@ -374,6 +374,7 @@
 "invite.cancelledsubject" = "Cancelled"
 "calendar.attendees" = "Attendees"
 "help.attendees" = "One address per line. Naming anyone sends them an invitation when you save."
+"mailbox.refresh" = "Refresh"
 
 
 ["calendar.more"]

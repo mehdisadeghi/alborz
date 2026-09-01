@@ -11,8 +11,8 @@
     <form id="refresh-form" method="POST" action="/mailbox/{{.Mailbox.Name | pathescape}}/refresh{{ account "?" $.GlobalData.URLAccount }}">
       <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
     </form>
-    <main class="message-list">
-      <section class="actions">
+    <main id="main" tabindex="-1" class="message-list">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "messages-header.html" . }}
       </section>
       {{/* Which account you are reading. On a wide window the switcher
@@ -26,7 +26,7 @@
       {{ end }}
 
       <section class="messages">
-        <div class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
+        <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
           {{/* Header row; the labels sort where the server can. */}}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hflip := "desc" }}{{ if eq .SortDir "desc" }}{{ $hflip = "asc" }}{{ end }}
@@ -35,23 +35,25 @@
           {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hbase = "?starred=1" }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | addr) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | addr) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
           {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
           {{ $harrow := "↑" }}{{ if eq .SortDir "desc" }}{{ $harrow = "↓" }}{{ end }}
+          <div class="list-row" role="row">
           {{ if not .GlobalData.Unified }}
-          <div class="list-header list-checkbox"></div>
+          <div class="list-header list-checkbox" role="columnheader"></div>
           {{ end }}
-          <div class="list-header message-list-flags">
+          <div class="list-header message-list-flags" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "starred" .SortDir }}">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" "★" "key" "starred" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset "idle" "☆" "class" "flag-sort") }}{{ end }}
           </div>
-          <div class="list-header message-list-sender">
+          <div class="list-header message-list-sender" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "from" .SortDir }}">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.sender") "key" "from" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.sender"}}{{ end }}
           </div>
-          <div class="list-header list-primary message-list-subject">
+          <div class="list-header list-primary message-list-subject" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "subject" .SortDir }}">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.subject") "key" "subject" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.subject"}}{{ end }}
           </div>
-          <div class="list-header message-list-date">
+          <div class="list-header message-list-date" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "date" .SortDir }}">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.date") "key" "date" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.date"}}{{ end }}
           </div>
-          <div class="list-header message-list-size">
+          <div class="list-header message-list-size" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "size" .SortDir }}">
             {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.size") "key" "size" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.size"}}{{ end }}
+          </div>
           </div>
           {{/* A link that starts a new query keeps the scope the page is
                read under: a sender clicked in the merged view searches
@@ -67,13 +69,13 @@
           {{ end }}
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
-          <div class="message-row list-row"{{ if and $.GlobalData.Unified $.GlobalData.AccountColors }} style="--account: {{ $.GlobalData.AccountColor .Account }}"{{ end }}>
+          <div class="message-row list-row" role="row"{{ if and $.GlobalData.Unified $.GlobalData.AccountColors }} style="--account: {{ $.GlobalData.AccountColor .Account }}"{{ end }}>
           {{ if not $.GlobalData.Unified }}
-          <div class="message-list-checkbox list-checkbox {{$classes}}">
+          <div class="message-list-checkbox list-checkbox {{$classes}}" role="cell">
             <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form">
           </div>
           {{ end }}
-          <div class="message-list-flags {{$classes}}">
+          <div class="message-list-flags {{$classes}}" role="cell">
             <form method="POST" action="/message/{{.Mailbox}}/flag{{ if $.GlobalData.Unified }}{{account "?" .Account}}{{ else }}{{account "?" $.GlobalData.URLAccount}}{{ end }}">
               <input type="hidden" name="uids" value="{{.UID}}">
               {{/* Both directions go through the colour, which clears
@@ -87,7 +89,9 @@
               <input type="hidden" name="color" value="gold">
               {{ end }}
               <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-              <button class="flag-button button-link{{ with .FlagColor }} flag-{{.}}{{ end }}" type="submit">
+              <button class="flag-button button-link{{ with .FlagColor }} flag-{{.}}{{ end }}" type="submit"
+                      title="{{ if .HasFlag "\\Flagged" }}{{$.T "mailbox.flagnone"}}{{ else }}{{$.T "mailbox.flagcolor"}}{{ end }}"
+                      aria-label="{{ if .HasFlag "\\Flagged" }}{{$.T "mailbox.flagnone"}}{{ else }}{{$.T "mailbox.flagcolor"}}{{ end }}">
                 {{- if .HasFlag "\\Flagged" -}}
                 ★
                 {{- else -}}
@@ -95,11 +99,12 @@
                 {{- end -}}
               </button>
             </form>
-            {{if .Attachments}}<span class="message-mark" title="{{$.T "mailbox.attachment"}}">📎</span>{{end}}
-            {{if .HasFlag "\\Answered"}}<span class="message-mark" title="{{$.T "mailbox.answered"}}">↩︎</span>{{end}}
-            {{if .HasFlag "$Forwarded"}}<span class="message-mark" title="{{$.T "mailbox.forwarded"}}">↪︎</span>{{end}}
+            {{if .Attachments}}<span class="message-mark" title="{{$.T "mailbox.attachment"}}"><span aria-hidden="true">📎</span><span class="visually-hidden">{{$.T "mailbox.attachment"}}</span></span>{{end}}
+            {{if .HasFlag "\\Answered"}}<span class="message-mark" title="{{$.T "mailbox.answered"}}"><span aria-hidden="true">↩︎</span><span class="visually-hidden">{{$.T "mailbox.answered"}}</span></span>{{end}}
+            {{if .HasFlag "$Forwarded"}}<span class="message-mark" title="{{$.T "mailbox.forwarded"}}"><span aria-hidden="true">↪︎</span><span class="visually-hidden">{{$.T "mailbox.forwarded"}}</span></span>{{end}}
+            {{if not (.HasFlag "\\Seen")}}<span class="visually-hidden">{{$.T "a11y.unread"}}</span>{{end}}
           </div>
-          <div class="message-list-sender {{$classes}}">
+          <div class="message-list-sender {{$classes}}" role="cell">
             {{ if not .Envelope.From }}{{$.T "mailbox.nosender"}}{{ end }}
             {{ range .Envelope.From }}
             <a dir="auto" href="{{ localhref (printf "?query=from:%s%s" (.Addr | addr) $scope) }}">
@@ -112,7 +117,7 @@
             {{ end }}
             {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
           </div>
-          <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}">
+          <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
             {{if $.GlobalData.Unified}}
             <a dir="{{.Envelope.Subject | subjectdir}}" href="{{.URL}}{{account "?" .Account}}">
             {{else}}
@@ -156,10 +161,10 @@
             </span>
             {{ end }}
           </div>
-          <div class="message-list-date {{$classes}}" title="{{ $.GlobalData.FormatDate .Date }}{{ with $.GlobalData.SecondaryDate .Date }} ({{.}}){{ end }}">
+          <div class="message-list-date {{$classes}}" role="cell" title="{{ $.GlobalData.FormatDate .Date }}{{ with $.GlobalData.SecondaryDate .Date }} ({{.}}){{ end }}">
             {{ $.GlobalData.Since .Date }}
           </div>
-          <div class="message-list-size {{$classes}}">{{ humansize .RFC822Size }}</div>
+          <div class="message-list-size {{$classes}}" role="cell">{{ humansize .RFC822Size }}</div>
 
           </div>
           {{ end }}

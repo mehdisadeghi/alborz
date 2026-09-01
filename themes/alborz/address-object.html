@@ -7,8 +7,8 @@
   {{ template "detail-aside" (dict "newHref" (printf "/contacts/create%s" $acct) "newLabel" ($.T "contacts.new") "backHref" (printf "/contacts%s" $acct) "backLabel" .AddressBook.Name "backActive" true) }}
 
   <div class="container">
-    <main class="contact">
-      <section class="actions">
+    <main id="main" tabindex="-1" class="contact">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         <div class="actions-wrap">
           <div class="actions-message">
             <div class="action-group">

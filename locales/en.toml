@@ -391,6 +391,10 @@
 "upstream.retry" = "Try again"
 "upstream.unreachable" = "Alborz could not reach the %s server at all."
 "help.authservguess" = "Mail delivered here was checked by %s. Pick it above to trust that server, or leave this empty to show nothing."
+"a11y.skip" = "Skip to content"
+"a11y.unread" = "Unread"
+"a11y.body" = "Message body"
+"a11y.toolbar" = "Actions"
 
 
 ["calendar.more"]

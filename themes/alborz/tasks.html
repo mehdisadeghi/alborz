@@ -16,13 +16,13 @@
   </aside>
 
   <div class="container">
-    <main class="task-list">
+    <main id="main" tabindex="-1" class="task-list">
       {{$multi := gt (len .GlobalData.Accounts) 1}}
       {{$params := ""}}{{with .Query}}{{$params = printf "&query=%s" (. | urlquery)}}{{end}}
       {{$reset := "?"}}{{with .Query}}{{$reset = printf "?query=%s" (. | urlquery)}}{{end}}
       {{$explicit := ne ($.GlobalData.URL.Query.Get "sort") ""}}
       {{$dirExplicit := ne ($.GlobalData.URL.Query.Get "dir") ""}}
-      <section class="actions">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.tasks") "newhref" "/tasks/create" "newlabel" ($.T "tasks.new")) }}
         {{ template "toolbar-end" }}
             {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
@@ -46,17 +46,17 @@
         <div class="task-grid list-grid{{if $multi}} multi{{end}}" role="table">
           {{if .Tasks}}
           <div class="task-header-row list-row" role="row">
-            <div class="list-header task-list-status" role="columnheader">
+            <div class="list-header task-list-status" role="columnheader" aria-sort="{{ sortaria $explicit $.Sort "status" $.SortDir }}">
               {{template "sort-th" (dict "label" "✓" "key" "status" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "status-sort")}}
               <span class="visually-hidden">{{$.T "tasks.status"}}</span>
             </div>
-            <div class="list-header list-primary task-list-summary" role="columnheader">
+            <div class="list-header list-primary task-list-summary" role="columnheader" aria-sort="{{ sortaria $explicit $.Sort "summary" $.SortDir }}">
               {{template "sort-th" (dict "label" ($.T "tasks.summary") "key" "summary" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
-            <div class="list-header task-list-calendar" role="columnheader">
+            <div class="list-header task-list-calendar" role="columnheader" aria-sort="{{ sortaria $explicit $.Sort "calendar" $.SortDir }}">
               {{template "sort-th" (dict "label" ($.T "common.calendar") "key" "calendar" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
-            <div class="list-header task-list-due" role="columnheader">
+            <div class="list-header task-list-due" role="columnheader" aria-sort="{{ sortaria $explicit $.Sort "due" $.SortDir }}">
               {{template "sort-th" (dict "label" ($.T "tasks.duedate") "key" "due" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
             <div class="list-header task-list-added" role="columnheader">

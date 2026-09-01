@@ -105,7 +105,7 @@
     {{ end }}
   </nav>
   {{ if .GlobalData.Notice }}
-  <div class="notice">
+  <div class="notice" role="status">
     {{ .GlobalData.Notice }}
     <a href="{{.GlobalData.URL.String}}">{{$.T "nav.dismiss"}}</a>
   </div>

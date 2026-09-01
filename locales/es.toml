@@ -391,6 +391,10 @@
 "upstream.retry" = "Reintentar"
 "upstream.unreachable" = "Alborz no pudo contactar con el servidor de %s."
 "help.authservguess" = "El correo entregado aquí fue comprobado por %s. Selecciónalo arriba para confiar en ese servidor, o déjalo vacío para no mostrar nada."
+"a11y.skip" = "Saltar al contenido"
+"a11y.unread" = "Sin leer"
+"a11y.body" = "Cuerpo del mensaje"
+"a11y.toolbar" = "Acciones"
 
 
 ["calendar.more"]

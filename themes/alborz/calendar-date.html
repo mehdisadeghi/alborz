@@ -8,8 +8,8 @@
   </aside>
 
   <div class="container">
-    <main class="list">
-      <section class="actions">
+    <main id="main" tabindex="-1" class="list">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ $dayTitle := .GlobalData.LongDate .Time }}{{ with .GlobalData.SecondaryDate .Time }}{{ $dayTitle = printf "%s · %s" $dayTitle . }}{{ end }}
         {{ template "list-toolbar" (dict "title" $dayTitle "pagination" (dict "prev" (dict "href" (printf "/calendar/date?date=%s" .PrevPage) "label" ($.T "calendar.prev")) "next" (dict "href" (printf "/calendar/date?date=%s" .NextPage) "label" ($.T "calendar.next"))) ) }}
       </section>

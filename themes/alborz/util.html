@@ -353,7 +353,7 @@
 {{ if .selectall }}{{ template "toolbar-select-all" .g }}{{ end }}
 <div class="actions-wrap">
   <div class="actions-message">
-    <h2>{{.title}}{{ with .subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h2>
+    <h1>{{.title}}{{ with .subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>
     <span class="toolbar-rule" aria-hidden="true"></span>
     {{ with .newhref }}<a class="icon-button" href="{{.}}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}">{{ template "icon" (or $.newicon "plus") }}</a>{{ end }}
 {{ end }}
@@ -370,7 +370,7 @@
 
 {{ define "list-toolbar" }}
 <div class="actions-wrap">
-  {{ if .title }}<div class="actions-message"><h2>{{.title}}</h2></div>{{ end }}
+  {{ if .title }}<div class="actions-message"><h1>{{.title}}</h1></div>{{ end }}
   {{ if or .search .pagination }}
   <div class="actions-end">
     {{ with .search }}{{ template "toolbar-search" . }}{{ end }}

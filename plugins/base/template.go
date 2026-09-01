@@ -85,6 +85,18 @@ var templateFuncs = template.FuncMap{
 		}
 		return m, nil
 	},
+	// sortaria names a column's sort state for a reader who cannot see
+	// the arrow. The same three-state cycle sort-th draws, in one place
+	// rather than repeated at every header cell.
+	"sortaria": func(explicit bool, sort, key, dir string) string {
+		if !explicit || sort != key {
+			return "none"
+		}
+		if dir == "desc" {
+			return "descending"
+		}
+		return "ascending"
+	},
 	"pathescape": url.PathEscape,
 	// An address in a query value keeps its at sign; see AddressParam.
 	"addr":       alborz.AddressParam,

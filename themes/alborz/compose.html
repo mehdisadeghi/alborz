@@ -6,16 +6,17 @@
   {{ template "aside" . }}
 
   <div class="container">
-    <main class="create-update">
+    <main id="main" tabindex="-1" class="create-update">
 
       <form method="post" enctype="multipart/form-data" id="compose-form">
-        {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
+        <h1 class="visually-hidden">{{$.T "aside.compose"}}</h1>
+        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
         <input type="hidden" name="message_id" value="{{.Message.MessageID}}">
         <input type="hidden" name="in_reply_to" value="{{.Message.InReplyTo}}">
         <input type="hidden" name="references" value="{{.Message.References}}">
 
         <div class="headers no-js">
-          <label>{{$.T "compose.from"}}</label>
+          <label for="from">{{$.T "compose.from"}}</label>
           {{ $sel := $.GlobalData.Username }}{{ with $.GlobalData.URLAccount }}{{ $sel = . }}{{ end }}
           {{/* A reply names the identity it was addressed to; the
                account is the choice only when nothing named one. */}}
@@ -33,7 +34,7 @@
             {{ end }}
           </select>
 
-          <label>{{$.T "compose.to"}}</label>
+          <label for="to">{{$.T "compose.to"}}</label>
           {{ $to := .Message.ToString }}
           {{ if eq $to "MISSING_MAILBOX@MISSING_DOMAIN" }}
           {{ $to = "" }}
@@ -48,7 +49,7 @@
             {{ if not $to }} autofocus{{ end }}
           />
 
-          <label>{{$.T "compose.cc"}}</label>
+          <label for="cc">{{$.T "compose.cc"}}</label>
           <input
             type="text"
             name="cc"
@@ -56,7 +57,7 @@
             value="{{ join .Message.Cc ", " }}"
             list="emails"
           />
-          <label>{{$.T "compose.bcc"}}</label>
+          <label for="bcc">{{$.T "compose.bcc"}}</label>
           <input
             type="text"
             name="bcc"
@@ -81,7 +82,7 @@
             {{ template "hint" (dict "text" ($.T "help.replyto")) }}
           </details>
 
-          <label>{{$.T "compose.subject"}}</label>
+          <label for="subject">{{$.T "compose.subject"}}</label>
           <input
             type="text"
             name="subject"
@@ -91,7 +92,7 @@
             {{ if $to }} autofocus{{ end }}
           />
 
-          <label>{{$.T "message.attachments"}}</label>
+          <label for="attachments">{{$.T "message.attachments"}}</label>
           <input type="file" name="attachments" id="attachments" multiple>
 
           <div

@@ -7,14 +7,14 @@
   {{ template "detail-aside" (dict "newHref" (printf "/tasks/create%s" $acct) "newLabel" ($.T "tasks.new") "backHref" (printf "/tasks%s" $acct) "backLabel" .Calendar.Name "backActive" true) }}
 
   <div class="container">
-    <main class="task">
+    <main id="main" tabindex="-1" class="task">
       {{$todo := index .Task.Data.Children 0}}
       {{$summary := $todo.Props.Text "SUMMARY"}}
       {{$desc := $todo.Props.Text "DESCRIPTION"}}
       {{$status := $todo.Props.Text "STATUS"}}
       {{$due := $todo.Props.Get "DUE"}}
 
-      <section class="actions">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         <div class="actions-wrap">
           <div class="actions-message">
             <div class="action-group">

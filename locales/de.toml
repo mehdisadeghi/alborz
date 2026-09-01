@@ -391,6 +391,10 @@
 "upstream.retry" = "Erneut versuchen"
 "upstream.unreachable" = "Alborz konnte den %s-Server gar nicht erreichen."
 "help.authservguess" = "Hier zugestellte Nachrichten wurden von %s geprüft. Oben auswählen, um diesem Server zu vertrauen, oder leer lassen, um nichts anzuzeigen."
+"a11y.skip" = "Zum Inhalt springen"
+"a11y.unread" = "Ungelesen"
+"a11y.body" = "Nachrichtentext"
+"a11y.toolbar" = "Aktionen"
 
 
 ["calendar.more"]

@@ -7,8 +7,8 @@
   {{ template "detail-aside" (dict "newHref" (printf "/calendar/create%s" $acct) "newLabel" ($.T "calendar.new") "backHref" (printf "/calendar%s" $acct) "backLabel" .Calendar.Name "backActive" true) }}
 
   <div class="container">
-    <main class="event">
-      <section class="actions">
+    <main id="main" tabindex="-1" class="event">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         <div class="actions-wrap">
           <div class="actions-message">
             <div class="action-group">
@@ -35,11 +35,11 @@
         <h1>{{$event.Props.Text "SUMMARY"}}</h1>
         <table>
           <tr>
-            <th>{{$.T "calendar.startdate"}}</th>
+            <th scope="row">{{$.T "calendar.startdate"}}</th>
             <td>{{ template "date-full" (dict "g" .Global "time" ($event.DateTimeStart nil)) }}</td>
           </tr>
           <tr>
-            <th>{{$.T "calendar.enddate"}}</th>
+            <th scope="row">{{$.T "calendar.enddate"}}</th>
             <td>{{ template "date-full" (dict "g" .Global "time" ($event.DateTimeEnd nil)) }}</td>
           </tr>
           <!-- TODO: List of attendees, room -->
@@ -48,7 +48,7 @@
                the alarm asks to fire and says no more than that. */}}
           {{ with .Event.Alarms }}
           <tr>
-            <th>{{$.T "calendar.reminders"}}</th>
+            <th scope="row">{{$.T "calendar.reminders"}}</th>
             <td>
               <ul class="alarm-list">
                 {{ range . }}

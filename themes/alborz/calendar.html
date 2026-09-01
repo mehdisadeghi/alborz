@@ -8,14 +8,14 @@
   </aside>
 
   <div class="container">
-    <main class="calendar">
-      <section class="actions">
+    <main id="main" tabindex="-1" class="calendar">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "calendar-header.html" . }}
       </section>
 
       <section class="dates">
         {{range .GlobalData.Weekdays}}
-        <h4 class="weekday">{{.}}</h4>
+        <h2 class="weekday">{{.}}</h2>
         {{end}}
 
         {{$base := .}}
@@ -35,12 +35,12 @@
                and secondary down. Written flat rather than as two
                stacks, so both calendars share one row apiece and line up
                against it instead of against each other. */}}
-          <h4>
+          <h3>
             {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.GlobalData.WeekTitle $day}}">{{$base.GlobalData.WeekNumber $day}}</span>{{ end }}
             <span class="day-label">{{$base.GlobalData.CalendarDayLabel .}}</span>
             {{ if eq (mod $i 7) 0 }}{{ with $base.GlobalData.SecondaryWeek $day }}<span class="weeknum-secondary">{{.}}</span>{{ end }}{{ end }}
             {{ with $base.GlobalData.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}
-          </h4>
+          </h3>
           <div class="events">
             {{$events := (call $base.EventsForDate .)}}
             {{if $events}}

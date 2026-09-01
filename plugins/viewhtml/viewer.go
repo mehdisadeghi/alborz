@@ -16,13 +16,20 @@ const tplSrc = `
 <!-- allow-same-origin is required to resize the frame with its content -->
 <!-- allow-popups is required for target="_blank" links -->
 <div id="email-frame-wrap">
-<iframe id="email-frame" srcdoc="{{.}}" sandbox="allow-same-origin allow-popups"></iframe>
+<iframe id="email-frame" title="{{.Title}}" srcdoc="{{.Body}}" sandbox="allow-same-origin allow-popups"></iframe>
 </div>
 <script src="/plugins/viewhtml/assets/script.js?v=5"></script>
 <link rel="stylesheet" href="/plugins/viewhtml/assets/style.css?v=5">
 `
 
 var tpl = template.Must(template.New("view-html.html").Parse(tplSrc))
+
+// frameData names the frame as well as filling it: an untitled iframe is
+// announced as "frame", and this one holds the message itself.
+type frameData struct {
+	Title string
+	Body  string
+}
 
 type viewer struct{}
 
@@ -57,7 +64,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	ctx.Set("viewhtml.hasRemoteResources", san.hasRemoteResources)
 
 	var buf bytes.Buffer
-	err = tpl.Execute(&buf, string(body))
+	err = tpl.Execute(&buf, frameData{Title: ctx.T("a11y.body"), Body: string(body)})
 	if err != nil {
 		return nil, err
 	}

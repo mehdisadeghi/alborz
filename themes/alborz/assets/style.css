@@ -306,6 +306,29 @@ a { color: var(--link); }
 hr { border: 0; border-top: 1px solid var(--border); }
 button { font-size: inherit; }
 
+/* The skip link is the exception to visually-hidden: it exists to be
+   found by a keyboard, so focusing it has to undo every part of the
+   recipe that hid it. The main landmark takes tabindex="-1" so the jump
+   moves focus rather than only the viewport. */
+.skip-link:focus {
+  position: fixed !important;
+  inset-block-start: var(--space-2);
+  inset-inline-start: var(--space-2);
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: var(--space-2) var(--space-3) !important;
+  overflow: visible !important;
+  clip: auto !important;
+  z-index: 100;
+  background: var(--surface-raised);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+main:focus { outline: none; }
+
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;
@@ -598,7 +621,7 @@ main.create-update > form > .context-crumb:first-child {
   background: transparent;
 }
 
-main.create-update > form > h2 {
+main.create-update > form > h1 {
   margin: 0 0 var(--space-4);
   font-size: var(--text-xl);
   line-height: 1.25;
@@ -2251,6 +2274,7 @@ main.calendar .actions {
 }
 
 .action-group label,
+.action-group .group-label,
 .action-group input,
 .action-group textarea,
 .action-group select[multiple] {
@@ -2299,13 +2323,13 @@ main.calendar .actions {
    reserved track wastes it on short names and refuses to give it back
    on a narrow window, which is how controls came to overlap. It keeps
    a floor so it never collapses to nothing, and truncates past it. */
-.actions-message h2:not(:last-child) {
+.actions-message h1:not(:last-child) {
   flex: 0 1 auto;
   min-width: 5rem;
   max-width: 22rem;
 }
 
-.actions-message h2 {
+.actions-message h1 {
   margin: 0;
   flex-grow: 1;
   min-width: 0;
@@ -2879,7 +2903,7 @@ main.calendar .events .overflow {
    on one row apiece and align against that row rather than against each
    other, which is what stops a 16px week and a 13px day from drifting
    apart - and gives both the same gap to the number underneath. */
-main.calendar .date h4 {
+main.calendar .date h3 {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: start;
@@ -2891,13 +2915,13 @@ main.calendar .date h4 {
    calendars start at the same height and leave the same gap under
    themselves. Sized by baseline instead, the larger number would sit
    higher than the smaller and the gaps beneath them would differ. */
-main.calendar .date h4 .weeknum,
-main.calendar .date h4 .day-label {
+main.calendar .date h3 .weeknum,
+main.calendar .date h3 .day-label {
   line-height: 1.4rem;
 }
 
-main.calendar .date h4 .weeknum-secondary,
-main.calendar .date h4 .day-secondary {
+main.calendar .date h3 .weeknum-secondary,
+main.calendar .date h3 .day-secondary {
   line-height: 1rem;
 }
 
@@ -2905,7 +2929,7 @@ main.calendar .date h4 .day-secondary {
    faintest: read once per row, never scanned. The Solar Hijri count
    under it is a different reckoning - that year starts at Nowruz and its
    weeks on Saturday - not the same number in other digits. */
-main.calendar .date h4 .weeknum {
+main.calendar .date h3 .weeknum {
   grid-area: 1 / 1;
   justify-self: start;
   color: var(--fg-faint);
@@ -2914,7 +2938,7 @@ main.calendar .date h4 .weeknum {
   font-variant-numeric: tabular-nums;
 }
 
-main.calendar .date h4 .weeknum-secondary {
+main.calendar .date h3 .weeknum-secondary {
   grid-area: 2 / 1;
   justify-self: start;
   color: var(--fg-faint);
@@ -2922,7 +2946,7 @@ main.calendar .date h4 .weeknum-secondary {
   opacity: 0.75;
 }
 
-main.calendar .date h4 .day-label {
+main.calendar .date h3 .day-label {
   grid-area: 1 / 2;
   justify-self: end;
   padding-inline: 0.25rem;
@@ -2932,7 +2956,7 @@ main.calendar .date h4 .day-label {
 
 /* The secondary calendar is a gloss on the Gregorian date, never a
    competitor: same line, quieter ink, smaller. */
-main.calendar .date h4 .day-secondary {
+main.calendar .date h3 .day-secondary {
   grid-area: 2 / 2;
   justify-self: end;
   padding-inline: 0.25rem;
@@ -2947,7 +2971,7 @@ main.calendar .date h4 .day-secondary {
   color: var(--fg-muted);
 }
 
-main.calendar .date.active h4 .day-label {
+main.calendar .date.active h3 .day-label {
   border-radius: 999px;
   background: var(--green);
   color: white;
@@ -3271,7 +3295,7 @@ details.overflow > summary::-webkit-details-marker {
   /* A narrow row buys its width from the title's floor and the rule's
      gaps, in that order: both are spacing, and everything else is a
      target that must not shrink. */
-  .actions-message h2:not(:last-child) {
+  .actions-message h1:not(:last-child) {
     min-width: 4rem;
   }
 
@@ -3666,7 +3690,7 @@ aside ul.merged-roles {
 
 @media (width <= 600px) {
   /* A phone cell holds a day number and little else. */
-  main.calendar .date h4 .weeknum { display: none; }
+  main.calendar .date h3 .weeknum { display: none; }
 
   /* The row's actions go under its name rather than beside it. */
   .signature-list > li { flex-direction: column; align-items: stretch; gap: var(--space-1); }
@@ -4077,7 +4101,7 @@ aside ul.merged-roles {
   .actions-wrap { min-width: 0; }
   .actions-message { column-gap: 0.3rem; }
   /* Too little width to reserve a track; the title takes what is left. */
-  .actions-message h2 { flex: 1 1 auto; max-width: none; }
+  .actions-message h1 { flex: 1 1 auto; max-width: none; }
 
 
   .actions-wrap .action-group { margin-inline-start: 0; }
@@ -4151,12 +4175,12 @@ aside ul.merged-roles {
   main.calendar .dates .weekday { font-size: 0; }
   main.calendar .dates .weekday::first-letter { font-size: 0.8rem; }
   main.calendar .date { padding: 2px; min-height: 3rem; }
-  main.calendar .date h4 { font-size: 0.7rem; min-height: 1.35rem; }
-  main.calendar .date h4 .day-label { font-size: 0.75rem; min-height: 1.35rem; padding-inline: 2px; }
+  main.calendar .date h3 { font-size: 0.7rem; min-height: 1.35rem; }
+  main.calendar .date h3 .day-label { font-size: 0.75rem; min-height: 1.35rem; padding-inline: 2px; }
   /* The cell is barely wider than its own number here; the secondary
      shrinks with it and is clipped rather than pushing the grid out. */
-  main.calendar .date h4 { overflow: hidden; white-space: nowrap; }
-  main.calendar .date h4 .day-secondary { font-size: 0.6rem; }
+  main.calendar .date h3 { overflow: hidden; white-space: nowrap; }
+  main.calendar .date h3 .day-secondary { font-size: 0.6rem; }
   main.calendar .date ul { padding-inline-start: 0; }
   main.calendar .events li { display: inline; font-size: 0; }
   main.calendar .events li .color-dot {

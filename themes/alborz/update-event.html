@@ -8,16 +8,16 @@
   {{ template "detail-aside" (dict "newHref" (printf "/calendar/create%s" $acct) "newLabel" ($.T "calendar.new") "newActive" (not .CalendarObject) "backHref" $back "backLabel" .Calendar.Name) }}
 
   <div class="container">
-    <main class="create-update">
+    <main id="main" tabindex="-1" class="create-update">
       <form method="post">
         {{if .CalendarObject}}
         {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
         <div class="context-crumb">{{$crumbAcct}} › {{.Calendar.Name}}</div>
         {{end}}
-        <h2>
+        <h1>
           {{if .CalendarObject}}{{$.T "calendar.edittitle"}}{{else}}{{$.T "calendar.createtitle"}}{{end}}
-        </h2>
-        {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
+        </h1>
+        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
         {{if not .CalendarObject}}
         {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .Calendar.Account}}{{$cur = .}}{{end}}
         {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "calendar" "key" "event" "groups" .Groups "account" $cur "path" .Calendar.Path "multi" (gt (len .GlobalData.Accounts) 1)) }}

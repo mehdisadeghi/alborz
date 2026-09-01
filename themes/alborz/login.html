@@ -1,6 +1,6 @@
 {{template "head.html" .}}
 
-<main class="login">
+<main id="main" tabindex="-1" class="login">
   <section>
     <h1>{{ if .Add }}{{$.T "login.add"}}{{ else }}{{$.T "login.title"}}{{ end }}</h1>
 
@@ -25,7 +25,7 @@
       {{end}}
 
       {{ if .GlobalData.Notice }}
-      <div class="alert">
+      <div class="alert" role="alert">
 	{{ .GlobalData.Notice }}
       </div>
       {{ end }}

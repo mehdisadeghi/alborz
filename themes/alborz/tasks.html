@@ -16,14 +16,14 @@
   </aside>
 
   <div class="container">
-    <main class="task-list">
+    <main id="main" tabindex="-1" class="task-list">
       {{$multi := gt (len .GlobalData.Accounts) 1}}
       {{$params := ""}}{{with .Query}}{{$params = printf "&query=%s" (. | urlquery)}}{{end}}
       {{$reset := "?"}}{{with .Query}}{{$reset = printf "?query=%s" (. | urlquery)}}{{end}}
       {{$explicit := ne ($.GlobalData.URL.Query.Get "sort") ""}}
       {{$dirExplicit := ne ($.GlobalData.URL.Query.Get "dir") ""}}
       {{$s := dict "Key" $.Sort "Dir" $.SortDir "Explicit" $explicit "DirExplicit" $dirExplicit "Params" $params "Reset" $reset}}
-      <section class="actions">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.tasks") "newhref" "/tasks/create" "newlabel" ($.T "tasks.new")) }}
         {{ template "toolbar-end" }}
             {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
@@ -37,19 +37,10 @@
         <div class="task-grid list-grid{{if $multi}} multi{{end}}" role="table">
           {{if .Tasks}}
           <div class="task-header-row list-row" role="row">
-            <div class="list-header task-list-status" role="columnheader">
-              {{template "sort-th" (dict "label" "✓" "key" "status" "s" $s "class" "status-sort")}}
-              <span class="visually-hidden">{{$.T "tasks.status"}}</span>
-            </div>
-            <div class="list-header list-primary task-list-summary" role="columnheader">
-              {{template "sort-th" (dict "label" ($.T "tasks.summary") "key" "summary" "s" $s)}}
-            </div>
-            <div class="list-header task-list-calendar" role="columnheader">
-              {{template "sort-th" (dict "label" ($.T "common.calendar") "key" "calendar" "s" $s)}}
-            </div>
-            <div class="list-header task-list-due" role="columnheader">
-              {{template "sort-th" (dict "label" ($.T "tasks.duedate") "key" "due" "s" $s)}}
-            </div>
+            {{ template "sort-col" (dict "s" $s "key" "status" "label" "✓" "class" "status-sort" "cell" "task-list-status" "hidden" ($.T "tasks.status")) }}
+            {{ template "sort-col" (dict "s" $s "key" "summary" "label" ($.T "tasks.summary") "cell" "list-primary task-list-summary") }}
+            {{ template "sort-col" (dict "s" $s "key" "calendar" "label" ($.T "common.calendar") "cell" "task-list-calendar") }}
+            {{ template "sort-col" (dict "s" $s "key" "due" "label" ($.T "tasks.duedate") "cell" "task-list-due") }}
             <div class="list-header task-list-added" role="columnheader">
               {{template "sort-th" (dict "label" ($.T "common.added") "key" "added" "s" $s)}}
             </div>

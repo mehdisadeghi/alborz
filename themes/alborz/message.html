@@ -27,13 +27,13 @@
   {{ $navq := $aq }}{{ if .Starred }}{{ $navq = printf "?starred=1%s" $aamp }}{{ else if .Query }}{{ $navq = printf "?query=%s%s" (.Query | urlquery) $aamp }}{{ end }}
   {{ template "aside" . }}
   <div class="container">
-    <main class="message">
+    <main id="main" tabindex="-1" class="message">
       {{ $here := printf "%v%s" .Message.URL $partq }}
       <form id="message-flag-form" method="post">
         <input type="hidden" name="uids" value="{{.Message.UID}}">
         <input type="hidden" name="next" value="{{$here}}">
       </form>
-      <section class="actions">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         <div class="actions-wrap">
           <div class="actions-message">
             {{$back := printf "%v?page=%v%s" .Mailbox.URL .MailboxPage $aamp}}
@@ -236,7 +236,7 @@
             </th>
           </tr>
           <tr>
-            <th>{{$.T "compose.from"}}:</th>
+            <th scope="row">{{$.T "compose.from"}}:</th>
             <td>
               {{template "addr-list" .Message.Envelope.From}}
               {{/* The verdict rides with the sender, because it is a
@@ -252,20 +252,20 @@
             </td>
           </tr>
           <tr>
-            <th>{{$.T "message.date"}}:</th>
+            <th scope="row">{{$.T "message.date"}}:</th>
             <td>{{ template "date-full" (dict "g" .Global "time" .Message.Date) }}</td>
           </tr>
           <tr>
-            <th>{{$.T "compose.to"}}:</th><td>{{template "addr-list" .Message.Envelope.To}}</td>
+            <th scope="row">{{$.T "compose.to"}}:</th><td>{{template "addr-list" .Message.Envelope.To}}</td>
           </tr>
           {{if .Message.Envelope.Cc}}
           <tr>
-            <th>{{$.T "compose.cc"}}:</th><td>{{template "addr-list" .Message.Envelope.Cc}}</td>
+            <th scope="row">{{$.T "compose.cc"}}:</th><td>{{template "addr-list" .Message.Envelope.Cc}}</td>
           </tr>
           {{end}}
           {{if .Message.Envelope.Bcc}}
           <tr>
-            <th>{{$.T "compose.bcc"}}:</th>
+            <th scope="row">{{$.T "compose.bcc"}}:</th>
             <td>{{template "addr-list" .Message.Envelope.Bcc}}</td>
           </tr>
           {{ end }}
@@ -276,7 +276,7 @@
                that this message failed one. */}}
           {{ with .AuthResults }}{{ if .Failed }}
           <tr>
-            <th>{{$.T "auth.title"}}</th>
+            <th scope="row">{{$.T "auth.title"}}</th>
             <td>
               <p class="auth-failed">{{$.T "auth.warning"}}</p>
               <ul class="auth-list">

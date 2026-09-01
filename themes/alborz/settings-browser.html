@@ -6,8 +6,8 @@
   {{ template "settings-aside" (dict "accounts" .GlobalData.Accounts "current" "" "browser" true "browserLabel" ($.T "settings.forbrowser")) }}
 
   <div class="container">
-    <main class="settings">
-      <section class="actions">
+    <main id="main" tabindex="-1" class="settings">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "list-toolbar" (dict "title" ($.T "settings.forbrowser")) }}
       </section>
       <div class="context-crumb">{{$.T "settings.browserscope"}}</div>

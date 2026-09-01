@@ -396,6 +396,10 @@
 "a11y.body" = "Nachrichtentext"
 "a11y.toolbar" = "Aktionen"
 "a11y.selectrow" = "Nachricht auswählen"
+"settings.textsize" = "Schriftgröße"
+"settings.textdefault" = "Standard"
+"settings.textlarge" = "Groß"
+"settings.textlarger" = "Größer"
 
 
 ["calendar.more"]

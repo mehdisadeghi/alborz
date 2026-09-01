@@ -265,6 +265,69 @@ select {
     "Segoe UI", "Noto Naskh Arabic", system-ui, sans-serif;
 }
 
+/* Persian sits taller than Latin at the same size - the letters carry
+   dots above and below the line and run into the row under them at the
+   leading Latin is comfortable with. Prose only: on the chrome the same
+   change grows every row in the list and thins the page out, which is a
+   density decision rather than a reading one. */
+:root:lang(fa) .user-text,
+:root:lang(fa) main.message pre {
+  line-height: 1.8;
+}
+
+/* A reader who wants the interface larger says so once. Every font size
+   in this stylesheet is already relative, so the whole of it follows
+   from the root: nothing else has to know. The default is the size
+   everyone had before the choice existed. */
+:root[data-text="large"] {
+  font-size: 112.5%;
+}
+
+:root[data-text="larger"] {
+  font-size: 125%;
+}
+
+/* Someone who has asked their system for more contrast has asked this
+   page too. Only the quiet greys move: the text that was already at
+   full strength is already right. */
+@media (prefers-contrast: more) {
+  :root {
+    --fg-dim: #333;
+    --fg-muted: #3d3d3d;
+    --fg-faint: #565656;
+    --border: #a0a0a0;
+    --border-strong: #707070;
+  }
+
+  :root:not([data-theme="light"]) {
+    --fg-dim: #e0e0e0;
+    --fg-muted: #d0d0d0;
+    --fg-faint: #b0b0b0;
+    --border: #808080;
+    --border-strong: #a0a0a0;
+  }
+}
+
+/* Forced colours replace the palette wholesale, and what it cannot see
+   it drops: a focus ring mixed from a custom property becomes nothing,
+   and a colour flag becomes an unmarked shape. Both are named again in
+   the system's own colours, which is the only vocabulary left. */
+@media (forced-colors: active) {
+  :root {
+    --focus-ring: Highlight;
+  }
+
+  :where(a, button, input, textarea, select, summary):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .flag-button,
+  .color-dot {
+    forced-color-adjust: none;
+  }
+}
+
 /* The scrollbar's space is reserved whether or not it is there, so a
    page that grows past the fold does not shove every fluid column 15px
    sideways. It is a no-op where scrollbars overlay the content (macOS,

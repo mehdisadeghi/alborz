@@ -39,6 +39,7 @@ const (
 	themeCookieName         = "alborz_theme"
 	accountColorsCookieName = "alborz_account_colors"
 	alignCookieName         = "alborz_align"
+	textSizeCookieName      = "alborz_text"
 	// TimezoneCookieName is written by the page, not by us: the browser
 	// is the only party that knows its own zone.
 	TimezoneCookieName = "alborz_tz"
@@ -670,6 +671,23 @@ func (ctx *Context) SetAlignByScript(on bool) {
 // AlignByScript reports whether lines align by their own script.
 func (ctx *Context) AlignByScript() bool {
 	return ctx.pref(alignCookieName, func(v string) bool { return v == "1" }) == "1"
+}
+
+// textSizes are the reading sizes on offer beside the default. Every
+// font size in the stylesheet is already relative, so one declaration
+// on the root scales the whole interface.
+var textSizes = []string{"large", "larger"}
+
+// SetTextSize stores the reader's chosen text size. It is a property of
+// the eyes reading the page rather than of any account, so it lives in
+// the browser beside the theme and the language.
+func (ctx *Context) SetTextSize(size string) {
+	ctx.setPref(textSizeCookieName, size, slices.Contains(textSizes, size))
+}
+
+// TextSize returns the chosen size, empty for the default.
+func (ctx *Context) TextSize() string {
+	return ctx.pref(textSizeCookieName, func(v string) bool { return slices.Contains(textSizes, v) })
 }
 
 // secondaryCalendars are the calendar systems that can be shown beside

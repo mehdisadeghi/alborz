@@ -307,6 +307,13 @@ func SubjectDir(subject string) string {
 	return "rtl"
 }
 
+// ContentLang names the language a piece of mail should be read in,
+// relative to the page it is read on: empty where the two agree, so the
+// attribute appears only where it changes the voice.
+func (g *GlobalRenderData) ContentLang(s string) string {
+	return ContentLang(s, g.Lang)
+}
+
 // ShortAccount names an account as briefly as it can still be told
 // apart: the domain alone while it is the only account signed in there,
 // the whole address once two accounts share one domain.
@@ -697,6 +704,13 @@ func (ctx *Context) Tf(key string, args ...interface{}) string {
 
 func (ctx *Context) T(key string) string {
 	return translate(requestLanguage(ctx), key)
+}
+
+// PageLanguage is the UI language this request resolves to. A viewer
+// rendering part of a message needs it to say whether that part is
+// written in another one.
+func (ctx *Context) PageLanguage() string {
+	return requestLanguage(ctx)
 }
 
 // requestLanguage resolves the request's UI language: the cookie

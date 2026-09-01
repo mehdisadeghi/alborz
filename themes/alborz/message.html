@@ -217,7 +217,7 @@
                  two read as one mark. */}}
             <th colspan="2">
               <div class="subject-row">
-              <h1 dir="{{.Message.Envelope.Subject | subjectdir}}">
+              <h1 dir="{{.Message.Envelope.Subject | subjectdir}}"{{with $.GlobalData.ContentLang .Message.Envelope.Subject}} lang="{{.}}"{{end}}>
                {{if .Message.Envelope.Subject}}
                   {{.Message.Envelope.Subject}}
                 {{else}}

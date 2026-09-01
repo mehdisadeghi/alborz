@@ -64,10 +64,39 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		return nil, alborzbase.ErrViewUnsupported
 	}
 
-	var tokens []interface{}
+	// Paragraphs, not lines: a voice that changes per line stutters, and
+	// a blank line is where mail already says one thought ended. Each
+	// paragraph is asked what language it is in and wrapped only when the
+	// answer differs from the page's. The span is inline inside a pre, so
+	// it occupies nothing and does not interrupt unicode-bidi: plaintext.
+	page := ctx.PageLanguage()
+	var tokens, para []interface{}
+	var text strings.Builder
+	flush := func() {
+		if len(para) == 0 {
+			return
+		}
+		if lang := alborz.ContentLang(text.String(), page); lang != "" {
+			tokens = append(tokens, template.HTML(`<span lang="`+template.HTMLEscapeString(lang)+`">`))
+			tokens = append(tokens, para...)
+			tokens = append(tokens, template.HTML(`</span>`))
+		} else {
+			tokens = append(tokens, para...)
+		}
+		para = para[:0]
+		text.Reset()
+	}
+
 	scanner := bufio.NewScanner(part.Body)
 	for scanner.Scan() {
 		l := scanner.Text()
+		if strings.TrimSpace(l) == "" {
+			flush()
+			tokens = append(tokens, "\n")
+			continue
+		}
+		text.WriteString(l)
+		text.WriteByte(' ')
 
 		i := 0
 		for _, link := range linkify.Links(l) {
@@ -90,7 +119,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 			// TODO: redirect mailto links to the composer
 
 			if i < link.Start {
-				tokens = append(tokens, l[i:link.Start])
+				para = append(para, l[i:link.Start])
 			}
 			tok, err := executeTemplate("view-text-link.html", linkRenderData{
 				Href: href,
@@ -99,15 +128,16 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 			if err != nil {
 				return nil, err
 			}
-			tokens = append(tokens, tok)
+			para = append(para, tok)
 			i = link.End
 		}
 		if i < len(l) {
-			tokens = append(tokens, l[i:])
+			para = append(para, l[i:])
 		}
 
-		tokens = append(tokens, "\n")
+		para = append(para, "\n")
 	}
+	flush()
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("failed to read part body: %v", err)
 	}

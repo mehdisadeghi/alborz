@@ -61,6 +61,14 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	// E-mails size images for their own layout; cap them to the frame.
 	body = append([]byte(`<style>img { max-width: 100%; height: auto; }</style>`), body...)
 
+	// srcdoc is a document of its own, so lang on the iframe element does
+	// not reach the text inside it. A wrapper inside the document carries
+	// it, and only when the mail is not in the page's own language.
+	if lang := alborz.ContentLang(san.text.String(), ctx.PageLanguage()); lang != "" {
+		body = append([]byte(`<div lang="`+template.HTMLEscapeString(lang)+`">`), body...)
+		body = append(body, []byte(`</div>`)...)
+	}
+
 	ctx.Set("viewhtml.hasRemoteResources", san.hasRemoteResources)
 
 	var buf bytes.Buffer

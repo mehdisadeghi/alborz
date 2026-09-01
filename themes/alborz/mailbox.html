@@ -107,7 +107,7 @@
           <div class="message-list-sender {{$classes}}" role="cell">
             {{ if not .Envelope.From }}{{$.T "mailbox.nosender"}}{{ end }}
             {{ range .Envelope.From }}
-            <a dir="auto" href="{{ localhref (printf "?query=from:%s%s" (.Addr | addr) $scope) }}">
+            <a dir="auto"{{with $.GlobalData.ContentLang .Name}} lang="{{.}}"{{end}} href="{{ localhref (printf "?query=from:%s%s" (.Addr | addr) $scope) }}">
             {{ if .Name }}
               {{.Name}}
             {{ else }}
@@ -119,7 +119,7 @@
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
             {{if $.GlobalData.Unified}}
-            <a dir="{{.Envelope.Subject | subjectdir}}" href="{{.URL}}{{account "?" .Account}}">
+            <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.ContentLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{.URL}}{{account "?" .Account}}">
             {{else}}
             {{/* Built in one piece: the escaper cannot follow a URL whose
                  query grows across branches. */}}
@@ -127,7 +127,7 @@
             {{if .TextPart}}{{$link = printf "%v" (.TextPart.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
             {{if $.Starred}}{{$link = printf "%s%sstarred=1" $link $sep}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | urlquery)}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | addr)}}{{end}}
-            <a dir="{{.Envelope.Subject | subjectdir}}" href="{{localhref $link}}">
+            <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.ContentLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $link}}">
             {{end}}
               {{/* No bdi here: it isolates, and an isolate reads to the
                    link around it as one neutral object, so dir=auto

@@ -34,6 +34,15 @@
         </div>
 
         <div class="action-group">
+          <label for="text_size">{{$.T "settings.textsize"}}</label>
+          <select name="text_size" id="text_size">
+            <option value="" {{if eq .TextSize ""}}selected{{end}}>{{$.T "settings.textdefault"}}</option>
+            <option value="large" {{if eq .TextSize "large"}}selected{{end}}>{{$.T "settings.textlarge"}}</option>
+            <option value="larger" {{if eq .TextSize "larger"}}selected{{end}}>{{$.T "settings.textlarger"}}</option>
+          </select>
+        </div>
+
+        <div class="action-group">
           <label for="align_script" class="checkbox">
             <input type="checkbox" name="align_script" id="align_script" value="1"{{if .AlignByScript}} checked{{end}}>
             {{$.T "settings.alignscript"}}

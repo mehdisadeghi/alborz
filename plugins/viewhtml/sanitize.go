@@ -98,6 +98,28 @@ type sanitizer struct {
 	msg                  *alborzbase.IMAPMessage
 	allowRemoteResources bool
 	hasRemoteResources   bool
+	// text is what the mail says, gathered while the tree is already
+	// being walked, so the language it is written in can be named
+	// without parsing it a second time.
+	text strings.Builder
+}
+
+// textCap bounds what is kept for the language decision. A few hundred
+// runes settle it, and a newsletter is not worth copying whole.
+const textCap = 2000
+
+// hiddenText reports whether a text node holds something other than
+// what the mail says: a stylesheet, a script, the document title. None
+// of it belongs in the sample the language is decided from.
+func hiddenText(parent *html.Node) bool {
+	if parent == nil || parent.Type != html.ElementNode {
+		return false
+	}
+	switch strings.ToLower(parent.Data) {
+	case "style", "script", "title", "head":
+		return true
+	}
+	return false
 }
 
 func (san *sanitizer) sanitizeImageURL(src string) string {
@@ -168,6 +190,10 @@ func (san *sanitizer) sanitizeCSSRule(rule *css.Rule) {
 }
 
 func (san *sanitizer) sanitizeNode(n *html.Node) {
+	if n.Type == html.TextNode && san.text.Len() < textCap && !hiddenText(n.Parent) {
+		san.text.WriteString(n.Data)
+		san.text.WriteByte(' ')
+	}
 	if n.Type == html.ElementNode {
 		if strings.EqualFold(n.Data, "img") {
 			for i := range n.Attr {

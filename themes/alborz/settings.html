@@ -6,12 +6,12 @@
   {{ template "settings-aside" (dict "accounts" .GlobalData.Accounts "current" .GlobalData.Username "browserLabel" ($.T "settings.forbrowser")) }}
 
   <div class="container">
-    <main class="settings">
-      <section class="actions">
+    <main id="main" tabindex="-1" class="settings">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "list-toolbar" (dict "title" ($.T "nav.settings")) }}
       </section>
       <div class="context-crumb">{{printf ($.T "settings.foraccount") .GlobalData.Username}}</div>
-      {{ if .Error }}<div class="alert">{{ .Error }}</div>{{ end }}
+      {{ if .Error }}<div class="alert" role="alert">{{ .Error }}</div>{{ end }}
       {{ template "info-card" (dict "title" ($.T "settings.servers") "page" $
          "rows" (tuple
            (dict "label" ($.T "settings.serversoftware") "value" .Servers.Agent)
@@ -71,7 +71,7 @@
         {{/* Signatures are prose a person writes, not a switch, so they
              have a page rather than a slot in this pane. */}}
         <div class="action-group">
-          <label>{{$.T "settings.signatures"}}</label>
+          <span class="group-label">{{$.T "settings.signatures"}}</span>
           <p><a href="/signatures{{ account "?" $.GlobalData.URLAccount }}">{{$.T "settings.signaturesedit"}}</a></p>
         </div>
 

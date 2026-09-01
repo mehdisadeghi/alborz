@@ -11,51 +11,53 @@
     <form id="address-book-form" method="post">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
-    <main class="contact-list">
-      <section class="actions">
+    <main id="main" tabindex="-1" class="contact-list">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "contacts-header.html" . }}
       </section>
 
       <section class="contacts">
         {{ $multi := gt (len .GlobalData.Accounts) 1 }}
-        <div class="contact-grid list-grid">
+        <div class="contact-grid list-grid" role="table">
           {{if .AddressObjects}}
           {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | addr) }}{{ end }}
           {{ $creset := "?" }}{{ if ne $cq "" }}{{ $creset = printf "?%s" (slice $cq 1) }}{{ end }}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "name" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-          <div class="list-header list-checkbox"></div>
-          <div class="list-header contact-list-photo"></div>
-          <div class="list-header list-primary contact-list-name">
+          <div class="list-row" role="row">
+          <div class="list-header list-checkbox" role="columnheader"></div>
+          <div class="list-header contact-list-photo" role="columnheader"></div>
+          <div class="list-header list-primary contact-list-name" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "name" .SortDir }}">
             {{ template "sort-th" (dict "label" ($.T "common.name") "key" "name" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
-          <div class="list-header contact-list-email">
+          <div class="list-header contact-list-email" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "email" .SortDir }}">
             {{ template "sort-th" (dict "label" ($.T "contacts.email") "key" "email" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
-          <div class="list-header contact-list-phone">
+          <div class="list-header contact-list-phone" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "phone" .SortDir }}">
             {{ template "sort-th" (dict "label" ($.T "contacts.phone") "key" "phone" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
           {{/* Changed, not added: a vCard has no property for when it
                was made, and REV is the last revision. */}}
-          <div class="list-header contact-list-changed">
+          <div class="list-header contact-list-changed" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "changed" .SortDir }}">
             {{ template "sort-th" (dict "label" ($.T "common.modified") "key" "changed" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
           </div>
-          <div class="list-header contact-list-book">
+          <div class="list-header contact-list-book" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "book" .SortDir }}">
             {{ template "sort-th" (dict "label" ($.T "contacts.book") "key" "book" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
+          </div>
           </div>
           {{end}}
           {{range .AddressObjects}}
           {{$color := call $.ColorForPath .Account .Path}}
           {{$photo := .PhotoURL}}
-          <div class="contact-row list-row">
-            <div class="contact-list-checkbox list-checkbox list-cell">
+          <div class="contact-row list-row" role="row">
+            <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
               <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form">
             </div>
-            <div class="contact-list-photo list-cell">
+            <div class="contact-list-photo list-cell" role="cell">
               {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
             </div>
-            <div class="contact-list-name list-primary list-cell">
+            <div class="contact-list-name list-primary list-cell" role="cell">
               <a href="{{.URL}}{{account "?" .Account}}" dir="auto">
                 {{.DisplayName}}
               </a>
@@ -63,19 +65,19 @@
                    has no column, so it rides the name. */}}
               {{if $multi}}<span class="row-account card-only" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
             </div>
-            <div class="contact-list-email list-cell">
+            <div class="contact-list-email list-cell" role="cell">
               {{$email := .Card.PreferredValue "EMAIL"}}
               {{if $email}}
                 <a href="{{ localhref (printf "/compose?to=%s" ($email | addr)) }}">{{ template "ltr" $email }}</a>
               {{end}}
             </div>
-            <div class="contact-list-phone list-cell">
+            <div class="contact-list-phone list-cell" role="cell">
               {{ template "ltr" (.Card.PreferredValue "TEL") }}
             </div>
             {{ $changed := "" }}{{ $changedTitle := "" }}
             {{ $m := .Modified }}{{ if not $m.IsZero }}{{ $changed = $.GlobalData.Since $m }}{{ $changedTitle = $.GlobalData.FormatDate $m }}{{ end }}
-            <div class="contact-list-changed list-cell" title="{{$changedTitle}}">{{$changed}}</div>
-            <div class="contact-list-book list-cell">
+            <div class="contact-list-changed list-cell" role="cell" title="{{$changedTitle}}">{{$changed}}</div>
+            <div class="contact-list-book list-cell" role="cell">
               {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}{{ call $.BookForPath .Account .Path }}{{if $multi}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
             </div>
           </div>

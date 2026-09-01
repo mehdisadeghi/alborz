@@ -11,14 +11,14 @@
 
   <div class="container">
     <main class="list">
-      <section class="actions">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "list-toolbar" (dict "title" ($.T "filters.title")) }}
       </section>
 
       <div class="context-crumb">{{$current}}</div>
 
       {{ with .Unreachable }}
-      <div class="alert">
+      <div class="alert" role="alert">
         <strong>{{$.T "filters.unreachable"}}</strong>
         <p class="code">{{.}}</p>
       </div>

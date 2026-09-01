@@ -14,16 +14,16 @@
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
     {{ end }}
-    <main class="create-update">
+    <main id="main" tabindex="-1" class="create-update">
       <form method="post" enctype="multipart/form-data">
         {{if .AddressObject}}
         {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
         <div class="context-crumb">{{$crumbAcct}} › {{.AddressBook.Name}}</div>
         {{end}}
-        <h2>
+        <h1>
           {{if .AddressObject}}{{$.T "contacts.edittitle"}}{{else}}{{$.T "contacts.createtitle"}}{{end}}
-        </h2>
-        {{ if .Error }}<div class="alert">{{.Error}}</div>{{ end }}
+        </h1>
+        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
 
         {{if not .AddressObject}}
         {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .AddressBook.Account}}{{$cur = .}}{{end}}

@@ -3464,6 +3464,7 @@ type BrowserSettingsRenderData struct {
 	ColorScheme   string
 	AccountColors bool
 	AlignByScript bool
+	TextSize      string
 }
 
 type Subscriptions []string
@@ -3758,6 +3759,7 @@ func handleBrowserSettings(ctx *alborz.Context) error {
 		ctx.SetLanguage(ctx.FormValue("language"))
 		ctx.SetAccountColors(ctx.FormValue("account_colors") != "")
 		ctx.SetAlignByScript(ctx.FormValue("align_script") != "")
+		ctx.SetTextSize(ctx.FormValue("text_size"))
 		return ctx.Redirect(http.StatusFound, "/settings/browser")
 	}
 
@@ -3768,5 +3770,6 @@ func handleBrowserSettings(ctx *alborz.Context) error {
 		ColorScheme:    ctx.ColorScheme(),
 		AccountColors:  ctx.AccountColors(),
 		AlignByScript:  ctx.AlignByScript(),
+		TextSize:       ctx.TextSize(),
 	})
 }

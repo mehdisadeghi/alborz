@@ -395,6 +395,10 @@
 "a11y.unread" = "خوانده‌نشده"
 "a11y.body" = "متن نامه"
 "a11y.toolbar" = "کنش‌ها"
+"settings.textsize" = "اندازهٔ متن"
+"settings.textdefault" = "پیش‌فرض"
+"settings.textlarge" = "بزرگ"
+"settings.textlarger" = "بزرگ‌تر"
 
 
 ["calendar.more"]

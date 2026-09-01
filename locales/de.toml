@@ -395,6 +395,10 @@
 "a11y.unread" = "Ungelesen"
 "a11y.body" = "Nachrichtentext"
 "a11y.toolbar" = "Aktionen"
+"settings.textsize" = "Schriftgröße"
+"settings.textdefault" = "Standard"
+"settings.textlarge" = "Groß"
+"settings.textlarger" = "Größer"
 
 
 ["calendar.more"]

@@ -87,6 +87,10 @@ type GlobalRenderData struct {
 	// Theme variant stylesheet under assets/themes, empty for the default
 	Theme string
 
+	// TextSize scales the whole interface for a reader who wants it
+	// larger, empty for the size everyone else gets
+	TextSize string
+
 	// UI language code: the user's cookie choice, else negotiated
 	// from Accept-Language
 	Lang string
@@ -671,6 +675,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.Secondary = ctx.SecondaryCalendar()
 		global.ColorScheme = ctx.ColorScheme()
 		global.Theme = ctx.Theme()
+		global.TextSize = ctx.TextSize()
 	}
 
 	if isactx {

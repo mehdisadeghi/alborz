@@ -21,14 +21,30 @@ import (
 // wrong language is worse than leaving the page's own.
 const contentMinRunes = 10
 
-// Persian and Arabic share a script and are told apart by the letters
-// each keyboard actually produces: Persian writes ی and ک where Arabic
-// writes ي and ك, and has four letters Arabic does not.
-var persianLetters = []rune{'ی', 'ک', 'گ', 'چ', 'پ', 'ژ'}
+// Persian is often typed, or normalised on the way through some other
+// system, with the Arabic yeh and kaf rather than the Persian ones. The
+// same sentence then looks Arabic to anything counting codepoints, so
+// the two forms are folded together before any of it is read.
+var arabicFolding = strings.NewReplacer("ي", "ی", "ك", "ک")
 
-// Arabic's own marks: teh marbuta and the hamza carriers, none of which
-// belong to ordinary Persian orthography.
-var arabicLetters = []rune{'ة', 'أ', 'إ', 'ؤ', 'ئ', 'ي', 'ك'}
+// Four letters Arabic does not have at all, which no folding affects.
+var persianLetters = []rune{'گ', 'چ', 'پ', 'ژ'}
+
+// Teh marbuta ends an Arabic word and never a Persian one.
+var arabicLetters = []rune{'ة'}
+
+// What each language says constantly and the other does not, written in
+// the folded form. Words the two share - man, ma, bad - are left out
+// rather than guessed at, and so is ali, which is Arabic's "on" and one
+// of the commonest Persian names.
+var arabicScriptWords = map[string][]string{
+	"fa": {"است", "این", "که", "را", "برای", "به", "از", "در",
+		"باید", "دارد", "شد", "می", "شما", "خود", "هست", "اینکه",
+		"آن", "هم", "اگر", "نیز", "بود", "کرد", "شود", "ایم"},
+	"ar": {"فی", "هذا", "هذه", "ذلک", "التی", "الذی", "إلی", "أن",
+		"إن", "کان", "عن", "لیس", "قد", "لم", "لن", "وقد",
+		"اللذین", "حتی", "أیضا", "ذلک"},
+}
 
 // The words each language repeats often enough to be counted, and the
 // letters only one of them spells with. Latin is the ambiguous script
@@ -45,11 +61,27 @@ var latinWords = map[string][]string{
 	"en": {"the", "and", "of", "to", "is", "for", "with", "you", "this", "that", "your", "from", "are"},
 }
 
-// ContentLang names the language a run of text should be read in, or
-// returns "" when the answer is the language the page is already in and
-// the attribute would say nothing. page is the UI language.
+// ContentLang names the language of text the interface shows - a name, a
+// label, a folder, a filename - or returns "" where that is the page's
+// own language and the attribute would say nothing.
+//
+// Arabic is never one of the answers here. Persian is full of Arabic
+// words and they are Persian words now; alborz ships no Arabic
+// interface, so on a Persian page there is nothing for an Arabic tag to
+// be right about, and calling a Persian label Arabic hands it to the
+// wrong voice for no gain.
 func ContentLang(s, page string) string {
-	lang := classify(s)
+	return answer(classify(s, false), page)
+}
+
+// MessageLang is ContentLang for what a message itself says, where
+// Arabic is a real possibility rather than Persian wearing loanwords.
+// Mail is the one place the distinction can pay for itself.
+func MessageLang(s, page string) string {
+	return answer(classify(s, true), page)
+}
+
+func answer(lang, page string) string {
 	if lang == "" || lang == page {
 		return ""
 	}
@@ -57,7 +89,7 @@ func ContentLang(s, page string) string {
 }
 
 // classify answers with a language tag or "" when the text does not say.
-func classify(s string) string {
+func classify(s string, mail bool) string {
 	stripped := stripReplyPrefix(s)
 	arab, latn := 0, 0
 	for _, r := range stripped {
@@ -72,17 +104,43 @@ func classify(s string) string {
 		return ""
 	}
 	if arab > latn {
+		if !mail {
+			return "fa"
+		}
 		return arabicLang(stripped)
 	}
 	return latinLang(stripped)
 }
 
-// arabicLang separates Persian from Arabic. Persian is the default and
-// Arabic needs saying so: this is a Persian mailbox, where mail in the
-// script is Persian unless it marks itself otherwise, and a Persian
-// voice reading Arabic is a far smaller error than the reverse.
+// arabicLang separates Persian from Arabic, words first and letters only
+// to settle it. Counting codepoints alone called Persian typed with the
+// Arabic yeh and kaf Arabic, which is how a great deal of Persian mail
+// arrives. Persian stays the default: this is a Persian mailbox, and a
+// Persian voice reading Arabic is a far smaller error than the reverse.
 func arabicLang(s string) string {
-	if containsAny(s, persianLetters) {
+	folded := arabicFolding.Replace(s)
+
+	words := map[string]int{}
+	for _, word := range strings.FieldsFunc(folded, func(r rune) bool {
+		return !unicode.IsLetter(r)
+	}) {
+		for lang, list := range arabicScriptWords {
+			for _, w := range list {
+				if word == w {
+					words[lang]++
+					break
+				}
+			}
+		}
+	}
+	switch {
+	case words["fa"] > words["ar"]:
+		return "fa"
+	case words["ar"] > words["fa"]:
+		return "ar"
+	}
+
+	if containsAny(folded, persianLetters) {
 		return "fa"
 	}
 	if containsAny(s, arabicLetters) {

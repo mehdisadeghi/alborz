@@ -62,7 +62,7 @@
      paragraph that may run the other way. It reads left to right on
      its own, so it is isolated from the text around it rather than
      ordered by it. */}}
-{{ define "ltr" }}<bdi class="ltr" lang="en">{{.}}</bdi>{{ end }}
+{{ define "ltr" }}<bdi class="ltr">{{.}}</bdi>{{ end }}
 
 {{/* The flag colours, as swatches. Each is its own submit, so the
      picker needs no script and no select; the clearing one carries the

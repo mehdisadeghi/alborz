@@ -311,11 +311,16 @@ func SubjectDir(subject string) string {
 	return "rtl"
 }
 
-// ContentLang names the language a piece of mail should be read in,
-// relative to the page it is read on: empty where the two agree, so the
+// ContentLang names the language of text the interface shows, relative
+// to the page it is shown on: empty where the two agree, so the
 // attribute appears only where it changes the voice.
 func (g *GlobalRenderData) ContentLang(s string) string {
 	return ContentLang(s, g.Lang)
+}
+
+// MessageLang is ContentLang for what a message itself says.
+func (g *GlobalRenderData) MessageLang(s string) string {
+	return MessageLang(s, g.Lang)
 }
 
 // ShortAccount names an account as briefly as it can still be told

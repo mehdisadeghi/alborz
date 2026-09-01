@@ -64,7 +64,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	// srcdoc is a document of its own, so lang on the iframe element does
 	// not reach the text inside it. A wrapper inside the document carries
 	// it, and only when the mail is not in the page's own language.
-	if lang := alborz.ContentLang(san.text.String(), ctx.PageLanguage()); lang != "" {
+	if lang := alborz.MessageLang(san.text.String(), ctx.PageLanguage()); lang != "" {
 		body = append([]byte(`<div lang="`+template.HTMLEscapeString(lang)+`">`), body...)
 		body = append(body, []byte(`</div>`)...)
 	}

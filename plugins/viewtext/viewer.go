@@ -76,7 +76,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		if len(para) == 0 {
 			return
 		}
-		if lang := alborz.ContentLang(text.String(), page); lang != "" {
+		if lang := alborz.MessageLang(text.String(), page); lang != "" {
 			tokens = append(tokens, template.HTML(`<span lang="`+template.HTMLEscapeString(lang)+`">`))
 			tokens = append(tokens, para...)
 			tokens = append(tokens, template.HTML(`</span>`))

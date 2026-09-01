@@ -76,6 +76,7 @@
               type="text"
               name="reply_to"
               id="reply_to"
+              aria-label="{{$.T "compose.replyto"}}"
               value="{{ join .Message.ReplyTo ", " }}"
               list="emails"
             />
@@ -139,7 +140,7 @@
                cursor belongs where the writing goes. Without scripts the
                browser puts it wherever it likes, which is why the body
                already opens with the blank lines the writer needs. */}}
-          <textarea name="text" class="body" dir="auto" autofocus
+          <textarea name="text" class="body" dir="auto" autofocus aria-label="{{$.T "a11y.body"}}"
                     data-caret="{{ if .Message.QuoteBelow }}start{{ else }}end{{ end }}">{{.Message.Text}}</textarea>
           <div id="send-progress" style="display: none">
             <!--

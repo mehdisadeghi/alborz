@@ -14,9 +14,9 @@
         {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
         <div class="context-crumb">{{$crumbAcct}}</div>
         {{ end }}
-        <h2>
+        <h1>
           {{if .Name}}{{$.T "filters.edittitle"}}{{else}}{{$.T "filters.createtitle"}}{{end}}
-        </h2>
+        </h1>
 
         {{ if .Error }}
         <div class="alert" role="alert">{{.Error}}</div>

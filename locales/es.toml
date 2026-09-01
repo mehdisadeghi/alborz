@@ -395,6 +395,7 @@
 "a11y.unread" = "Sin leer"
 "a11y.body" = "Cuerpo del mensaje"
 "a11y.toolbar" = "Acciones"
+"a11y.selectrow" = "Seleccionar mensaje"
 "settings.textsize" = "Tamaño del texto"
 "settings.textdefault" = "Predeterminado"
 "settings.textlarge" = "Grande"

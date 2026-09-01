@@ -395,6 +395,7 @@
 "a11y.unread" = "Unread"
 "a11y.body" = "Message body"
 "a11y.toolbar" = "Actions"
+"a11y.selectrow" = "Select message"
 "settings.textsize" = "Text size"
 "settings.textdefault" = "Default"
 "settings.textlarge" = "Large"

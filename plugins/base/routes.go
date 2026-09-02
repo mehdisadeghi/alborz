@@ -918,6 +918,13 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		}
 	}
 
+	// A row shows the address it reached only where that is worth
+	// believing; the headers saying so are part of the message.
+	trust := newDeliveryTrust(ctx, settings, ctx.Session.Username())
+	for i := range msgs {
+		msgs[i].Alias = trust.alias(&msgs[i])
+	}
+
 	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, starred)
 	ibase.SidebarAccounts = sidebarAccounts(ctx)
 	title := ctx.T("mailbox.starred")
@@ -1696,6 +1703,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		flags[f] = msg.HasFlag(f)
 	}
 
+	trust := newDeliveryTrust(ctx, settings, ctx.Session.Username())
 	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, starred)
 	ibase.SidebarAccounts = sidebarAccounts(ctx)
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject)
@@ -1716,15 +1724,15 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Signature:          signature,
 		AuthResults:        authResults,
 		Invitation:         messageInvitation(ctx, msg, mboxName, uid),
-		Unsubscribe:        unsubscribeHref(settings, ctx.Session.Username(), msg),
-		DeliveredTo:        msg.DeliveredAlias(ctx.Session.Username()),
+		Unsubscribe:        unsubscribeHref(settings, trust, msg),
+		DeliveredTo:        trust.alias(msg),
 	})
 }
 
 // ownIdentity returns want when it names an address this account may
 // write as, and "" otherwise. A link may choose between the addresses
 // the reader already owns; it may not choose an address for them.
-func ownIdentity(settings *Settings, username, want string) string {
+func ownIdentity(settings *Settings, trust deliveryTrust, want string) string {
 	if want == "" {
 		return ""
 	}
@@ -1732,7 +1740,12 @@ func ownIdentity(settings *Settings, username, want string) string {
 	if err != nil {
 		return ""
 	}
-	if strings.EqualFold(parsed.Address, username) {
+	if strings.EqualFold(parsed.Address, trust.account) {
+		return want
+	}
+	// An address at a domain this server serves may be the reader's even
+	// when they have not written it down; one anywhere else cannot be.
+	if trust.ours(parsed.Address) {
 		return want
 	}
 	for _, identity := range settings.Identities {
@@ -1758,12 +1771,12 @@ func (d *MessageRenderData) UnsubscribeExternal() bool {
 // that gave an https page keeps it. A list that asks for a message gets
 // one written from the identity it was addressed or delivered to, since
 // a list keyed on an alias will not recognise the account behind it.
-func unsubscribeHref(settings *Settings, username string, msg *IMAPMessage) string {
+func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) string {
 	href := msg.ListUnsubscribe
 	if href == "" || !strings.HasPrefix(href, "/compose?") {
 		return href
 	}
-	from := writeAs(settings, username, msg, msg.Envelope.To, msg.Envelope.Cc)
+	from := writeAs(settings, trust, msg, msg.Envelope.To, msg.Envelope.Cc)
 	if from == "" {
 		return href
 	}
@@ -2413,7 +2426,7 @@ func handleComposeNew(ctx *alborz.Context) error {
 	hdr.GenerateMessageID()
 	mid, _ := hdr.MessageID()
 	return handleCompose(ctx, &OutgoingMessage{
-		From:      ownIdentity(settings, ctx.Session.Username(), ctx.QueryParam("from")),
+		From:      ownIdentity(settings, newDeliveryTrust(ctx, settings, ctx.Session.Username()), ctx.QueryParam("from")),
 		To:        strings.Split(ctx.QueryParam("to"), ","),
 		Subject:   ctx.QueryParam("subject"),
 		MessageID: "<" + mid + ">",
@@ -2593,8 +2606,8 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	// of ours: a mail to an identity is answered by that identity, not
 	// by the account behind it. Cc counts as well, since a list often
 	// puts the identity there.
-	ret.From = writeAs(settings, ctx.Session.Username(), inReplyTo,
-		inReplyTo.Envelope.To, inReplyTo.Envelope.Cc)
+	ret.From = writeAs(settings, newDeliveryTrust(ctx, settings, ctx.Session.Username()),
+		inReplyTo, inReplyTo.Envelope.To, inReplyTo.Envelope.Cc)
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
 		replyTo = inReplyTo.Envelope.From
@@ -2725,6 +2738,81 @@ func identityAddressed(settings *Settings, username string, lists ...[]imap.Addr
 	return ""
 }
 
+// deliveryTrust decides which of the addresses a message's delivery path
+// named may be shown or written from. Nothing else may: the headers are
+// part of the message, so a sender can write any of them, and an address
+// that cannot be checked is not displayed at all rather than displayed
+// with a caveat nobody reads.
+type deliveryTrust struct {
+	// account is the address the message landed in.
+	account string
+	// domains are the mail domains this server serves. An address at
+	// one of them can be the reader's; an address anywhere else cannot,
+	// whatever the header claims.
+	domains []string
+	// authserv is what the reader's own server calls itself, from the
+	// same setting Authentication-Results is read under. Empty until
+	// they name it, and the check below is skipped until they do.
+	authserv string
+}
+
+func newDeliveryTrust(ctx *alborz.Context, settings *Settings, account string) deliveryTrust {
+	return deliveryTrust{
+		account:  account,
+		domains:  ctx.Server.Domains(),
+		authserv: settings.TrustedAuthServ,
+	}
+}
+
+// ours reports whether an address could be one the reader receives at.
+func (t deliveryTrust) ours(addr string) bool {
+	at := strings.LastIndex(addr, "@")
+	if at < 0 {
+		return false
+	}
+	domain := strings.ToLower(addr[at+1:])
+	if account := strings.LastIndex(t.account, "@"); account >= 0 &&
+		strings.EqualFold(domain, t.account[account+1:]) {
+		return true
+	}
+	for _, served := range t.domains {
+		if strings.EqualFold(domain, served) {
+			return true
+		}
+	}
+	return false
+}
+
+// addresses returns the delivery addresses worth believing for a
+// message: at one of our domains, and - once the reader has named their
+// own server - written above the Received that server added, since
+// everything below it was in the message before we ever saw it.
+func (t deliveryTrust) addresses(msg *IMAPMessage) []string {
+	account := t.account
+	if msg.Account != "" {
+		// Every row of the merged view belongs to a different account.
+		account = msg.Account
+	}
+	addrs, cut := deliveryAddresses(msg.rootHeader, t.authserv)
+	var out []string
+	for i, addr := range addrs {
+		if i >= cut || !t.ours(addr) || strings.EqualFold(addr, account) {
+			continue
+		}
+		out = append(out, addr)
+	}
+	return out
+}
+
+// alias is the one address a message reached that is not the account it
+// landed in, or "" when there is nothing worth showing.
+func (t deliveryTrust) alias(msg *IMAPMessage) string {
+	if got := t.addresses(msg); len(got) > 0 {
+		return got[0]
+	}
+	return ""
+}
+
 // identityDelivered names the identity a message was delivered to, from
 // what the delivery path wrote down rather than from To and Cc. Mail to
 // an alias often names the alias nowhere else: To holds the list or the
@@ -2756,11 +2844,24 @@ func identityDelivered(settings *Settings, username string, delivered []string) 
 // writeAs names the address a message should be answered or unsubscribed
 // from: the identity it was addressed to, else the one it was delivered
 // to. Empty leaves the compose form on its own default.
-func writeAs(settings *Settings, username string, msg *IMAPMessage, lists ...[]imap.Address) string {
-	if from := identityAddressed(settings, username, lists...); from != "" {
+func writeAs(settings *Settings, trust deliveryTrust, msg *IMAPMessage, lists ...[]imap.Address) string {
+	if from := identityAddressed(settings, trust.account, lists...); from != "" {
 		return from
 	}
-	return identityDelivered(settings, username, msg.DeliveredTo)
+	// Only what the delivery path is trusted for: an address a sender
+	// wrote into a header is not one of the reader's identities.
+	trusted := trust.addresses(msg)
+	if from := identityDelivered(settings, trust.account, trusted); from != "" {
+		return from
+	}
+	// An alias at one of our own domains that nobody has written down as
+	// an identity is still where the message went, and a list keyed on
+	// it will not answer to anything else. Offered bare, since there is
+	// no name to go with it.
+	if len(trusted) > 0 {
+		return trusted[0]
+	}
+	return ""
 }
 
 func filterOutUsername(username string, addresses []imap.Address) []imap.Address {

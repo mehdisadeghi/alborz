@@ -1030,6 +1030,7 @@ func registerRoutes(p *plugin) {
 				return fmt.Errorf("no writable calendars")
 			}
 			event = ical.NewEvent()
+			event.Props.SetDateTime(ical.PropCreated, time.Now().UTC())
 			currentCalendar = &groups[0].Collections[0]
 		}
 
@@ -1527,6 +1528,7 @@ func registerRoutes(p *plugin) {
 				return fmt.Errorf("no writable calendars")
 			}
 			todo = ical.NewComponent(ical.CompToDo)
+			todo.Props.SetDateTime(ical.PropCreated, time.Now().UTC())
 			currentCalendar = &groups[0].Collections[0]
 		}
 

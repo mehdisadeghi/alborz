@@ -29,10 +29,14 @@ var errNoAddressBook = alborz.NotFoundf("carddav: no address book found")
 var errCollectionExists = errors.New("a collection of that name is already there")
 
 type AddressBookInfo struct {
-	Path     string
-	Name     string
-	Color    string
-	Visible  bool
+	Path    string
+	Name    string
+	Color   string
+	Visible bool
+	// Only marks the collection a URL is currently narrowed to, and only
+	// when it is the sole one: pressing the same link again is how a
+	// reader gets back out of a view they pressed their way into.
+	Only     bool
 	Writable bool
 
 	// Account owning the book, set only in the unified view

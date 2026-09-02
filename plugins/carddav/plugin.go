@@ -272,8 +272,12 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	}
 	p.cache = davcache.New()
 	p.cache.Start()
+	// Signing out is the only thing that ends the cache's authority to
+	// hold this account's collections; idleness no longer does.
+	cache := p.cache
+	srv.OnAccountGone = append(srv.OnAccountGone, cache.Forget)
 	p.CloseFunc = func() error {
-		p.cache.Stop()
+		cache.Stop()
 		return nil
 	}
 

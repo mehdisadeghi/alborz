@@ -29,6 +29,10 @@ const (
 	// does the same ahead of time while the user is active.
 	SoftTTL = 2 * time.Minute
 
+	// refreshBudget is what one account's background pass may spend,
+	// ctag checks and replays together.
+	refreshBudget = 30 * time.Second
+
 	// ctagTimeout bounds the revalidation a stale read waits on. It is
 	// one PROPFIND for one property; a server that cannot answer it in
 	// this long is answered by going to the source instead.
@@ -39,9 +43,24 @@ const (
 	// always says the whole collection is still good.
 	PruneAfter = 7 * 24 * time.Hour
 
-	ActiveRefreshRate  = 2 * time.Minute
-	IdleRefreshRate    = 10 * time.Minute
-	SessionIdleTimeout = 5 * time.Minute
+	// RefreshRate is how often each account's stale collections are
+	// checked in the background, idle or not. Alborz runs around the
+	// clock, and a cache that slows down for a quiet account is cold on
+	// the first page of the morning; the check is one PROPFIND per
+	// collection, which a stale read would pay anyway.
+	RefreshRate = SoftTTL
+
+	// ForgetAfter drops a user nobody has been seen as. It matches the
+	// life of the remembered-login cookie, which is the longest a
+	// browser can come back and still be signed in without typing a
+	// password: past it there is nothing left to keep warm for.
+	//
+	// Until then an idle user keeps being refreshed. An instance that
+	// runs all year is idle most of the time, and a cache that stops
+	// warming after a few quiet minutes is cold every morning, which is
+	// the opposite of what it is for. Signing out drops the user at
+	// once - see Forget.
+	ForgetAfter = 30 * 24 * time.Hour
 )
 
 // entry is one cached read response plus what is needed to replay it.
@@ -121,6 +140,15 @@ func (c *Cache) user(username string) *user {
 		c.users[username] = u
 	}
 	return u
+}
+
+// Forget drops everything held for a user. Signing out ends the only
+// authority the cache had to hold it, and the entries carry the client
+// that fetched them.
+func (c *Cache) Forget(username string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.users, username)
 }
 
 // Transport wraps next with the cache for one user. The jar authenticates
@@ -340,32 +368,30 @@ func (c *Cache) refreshLoop() {
 
 func (c *Cache) refresh() {
 	c.mu.Lock()
-	users := make([]*user, 0, len(c.users))
-	for _, u := range c.users {
-		users = append(users, u)
+	users := make(map[string]*user, len(c.users))
+	for name, u := range c.users {
+		users[name] = u
 	}
 	c.mu.Unlock()
 
 	now := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	for _, u := range users {
+	for name, u := range users {
 		u.mu.Lock()
 		idle := now.Sub(u.lastActive)
 		u.mu.Unlock()
-		if idle > SessionIdleTimeout {
+		if idle > ForgetAfter {
+			c.Forget(name)
 			continue
 		}
-		rate := IdleRefreshRate
-		if idle < time.Minute {
-			rate = ActiveRefreshRate
-		}
-		if now.Sub(u.lastRefresh) < rate {
+		if now.Sub(u.lastRefresh) < RefreshRate {
 			continue
 		}
 		u.lastRefresh = now
+		// A budget per account: one slow server must not spend the time
+		// every other account's refresh needed.
+		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
 		u.refresh(ctx)
+		cancel()
 	}
 }
 

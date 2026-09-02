@@ -70,6 +70,11 @@ type Server struct {
 	// package knowing what following is.
 	OnAccountReady AccountReadyFunc
 
+	// OnAccountGone is called when an account signs out. Plugins holding
+	// anything on its behalf register here; the root package knows only
+	// that the account is gone.
+	OnAccountGone []func(username string)
+
 	assetsMu sync.Mutex
 	assets   map[string]assetStamp // theme asset content stamps by name
 }
@@ -160,6 +165,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	}
 
 	s.Sessions = newSessionManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger)
+	s.Sessions.onGone = s.ForgetAccount
 	return s, nil
 }
 
@@ -350,6 +356,10 @@ func (s *Server) parseSMTPUpstream(domain string) error {
 }
 
 func (s *Server) load() error {
+	// Reload runs the loaders again, and a plugin that registered a
+	// callback last time is about to register it again. Start empty so
+	// the list does not grow a stale entry per reload.
+	s.OnAccountGone = nil
 	var plugins []Plugin
 	for _, load := range pluginLoaders {
 		l, err := load(s)
@@ -1197,6 +1207,15 @@ func handleUnauthenticated(next echo.HandlerFunc, ctx *Context) error {
 		return next(ctx)
 	} else {
 		return redirectToLogin(ctx)
+	}
+}
+
+// ForgetAccount tells every plugin that asked that an account has
+// signed out. It is called after the session is closed, so a plugin can
+// drop what it was holding rather than keep it warm for nobody.
+func (s *Server) ForgetAccount(username string) {
+	for _, forget := range s.OnAccountGone {
+		forget(username)
 	}
 }
 

@@ -414,6 +414,9 @@ type SessionManager struct {
 	dialSMTP      DialSMTPFunc
 	dialSieve     DialSieveFunc
 	logger        echo.Logger
+	// onGone is told when a session has expired, so what plugins hold
+	// for the account is dropped the same way as on sign-out.
+	onGone func(username string)
 
 	locker   sync.Mutex
 	sessions map[string]*Session // protected by locker
@@ -520,42 +523,50 @@ func (sm *SessionManager) Put(username, password string) (*Session, error) {
 
 	sm.sessions[token] = s
 
-	go func() {
-		timer := time.NewTimer(sessionDuration)
-
-		alive := true
-		for alive {
-			select {
-			case <-s.pings:
-				if !timer.Stop() {
-					<-timer.C
-				}
-				timer.Reset(sessionDuration)
-			case <-timer.C:
-				alive = false
-			case <-s.closed:
-				alive = false
-			}
-		}
-
-		timer.Stop()
-
-		s.imapLocker.Lock()
-		if s.imapConn != nil {
-			s.imapConn.Close()
-		}
-		s.imapLocker.Unlock()
-
-		s.sieveLocker.Lock()
-		if s.sieveConn != nil {
-			s.sieveConn.Close()
-		}
-		s.sieveLocker.Unlock()
-
-		sm.locker.Lock()
-		delete(sm.sessions, token)
-		sm.locker.Unlock()
-	}()
+	go sm.reap(s)
 
 	return s, nil
+}
+
+// reap waits out the session's life, keeping it alive on every ping,
+// then closes its connections and forgets it.
+func (sm *SessionManager) reap(s *Session) {
+	timer := time.NewTimer(sessionDuration)
+
+	alive := true
+	for alive {
+		select {
+		case <-s.pings:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			timer.Reset(sessionDuration)
+		case <-timer.C:
+			alive = false
+		case <-s.closed:
+			alive = false
+		}
+	}
+
+	timer.Stop()
+
+	s.imapLocker.Lock()
+	if s.imapConn != nil {
+		s.imapConn.Close()
+	}
+	s.imapLocker.Unlock()
+
+	s.sieveLocker.Lock()
+	if s.sieveConn != nil {
+		s.sieveConn.Close()
+	}
+	s.sieveLocker.Unlock()
+
+	sm.locker.Lock()
+	delete(sm.sessions, s.token)
+	sm.locker.Unlock()
+
+	if sm.onGone != nil {
+		sm.onGone(s.username)
+	}
 }

@@ -500,8 +500,8 @@
 {{ define "dav-filter-item" }}
 {{ $i := .item }}
 {{ $base := printf "%s?%s=%s" .action .field ($i.Path | urlquery) }}{{ with .keep }}{{ $base = printf "%s%s" $base . }}{{ end }}
-<div class="filter-row{{ if .nested }} nested{{ end }}">
-  <a class="filter-name {{.itemclass}}" href="{{ localhref (printf "%s%s" $base (account "&" $i.Account)) }}" title="{{$i.Name}}">
+<div class="filter-row{{ if .nested }} nested{{ end }}{{ if $i.Only }} active{{ end }}">
+  <a class="filter-name {{.itemclass}}" href="{{ localhref (printf "%s%s" $base (account "&" $i.Account)) }}" title="{{$i.Name}}"{{ if $i.Only }} aria-current="true"{{ end }}>
     <span>{{$i.Name}}</span>
   </a>
   {{/* The collection's own page, where it is renamed and deleted, and
@@ -534,7 +534,7 @@
 <input type="hidden" name="next" value="{{$.next}}">
 {{ if $.multi }}<div class="aside-account">{{ template "ltr" .Account }}</div>{{ end }}
 {{ end }}
-{{ template "dav-filter-item" (dict "item" . "field" $.field "itemclass" $.itemclass "action" $.action "onlylabel" $.onlylabel "shown" $.shown "keep" $.keep "nested" $.multi "edithref" $.edithref "editlabel" $.editlabel) }}
+{{ template "dav-filter-item" (dict "item" . "field" $.field "itemclass" $.itemclass "action" $.action "onlylabel" $.onlylabel "alllabel" $.alllabel "shown" $.shown "keep" $.keep "nested" $.multi "edithref" $.edithref "editlabel" $.editlabel) }}
 {{ end }}
 {{ if ne $prev "" }}<button>{{$.apply}}</button></form>{{ end }}
 {{ with .collectionhref }}<a href="{{.}}?{{ with $.collectionfor }}for={{.}}&amp;{{ end }}next={{$.next | urlquery}}" class="aside-create">{{$.collectionlabel}}</a>{{ end }}

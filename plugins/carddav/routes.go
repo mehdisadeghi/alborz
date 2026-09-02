@@ -309,6 +309,7 @@ func registerRoutes(p *plugin) {
 				ab.Visible = !settings.AddressBookFilter || visibleSet[ab.Path]
 				if only != nil {
 					ab.Visible = only[ab.Path]
+					ab.Only = len(only) == 1 && ab.Visible
 				}
 				addressBookInfos = append(addressBookInfos, ab)
 				if ab.Visible {

@@ -654,6 +654,7 @@ func registerRoutes(p *plugin) {
 				cal.Visible = !settings.CalendarFilter || visibleSet[cal.Path]
 				if only != nil {
 					cal.Visible = only[cal.Path]
+					cal.Only = len(only) == 1 && cal.Visible
 				}
 				calendarInfos = append(calendarInfos, cal)
 				if cal.Visible {
@@ -857,6 +858,7 @@ func registerRoutes(p *plugin) {
 				cal.Visible = !settings.CalendarFilter || visibleSet[cal.Path]
 				if only != nil {
 					cal.Visible = only[cal.Path]
+					cal.Only = len(only) == 1 && cal.Visible
 				}
 				calendarInfos = append(calendarInfos, cal)
 				if cal.Visible {
@@ -1292,6 +1294,7 @@ func registerRoutes(p *plugin) {
 				cal.Visible = !settings.TaskFilter || visibleSet[cal.Path]
 				if only != nil {
 					cal.Visible = only[cal.Path]
+					cal.Only = len(only) == 1 && cal.Visible
 				}
 				calendarInfos = append(calendarInfos, cal)
 				if cal.Visible {

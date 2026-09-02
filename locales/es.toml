@@ -13,6 +13,7 @@
 "common.addnote" = "Añadir una nota"
 "common.add" = "Añadir"
 "common.only" = "Solo"
+"common.showall" = "Mostrar todas"
 "common.name" = "Nombre"
 "common.description" = "Descripción"
 "common.calendar" = "Calendario"

@@ -25,10 +25,14 @@ import (
 var errNoCalendar = alborz.NotFoundf("caldav: no calendar found")
 
 type CalendarInfo struct {
-	Path                  string
-	Name                  string
-	Color                 string
-	Visible               bool
+	Path    string
+	Name    string
+	Color   string
+	Visible bool
+	// Only marks the collection a URL is currently narrowed to, and only
+	// when it is the sole one: pressing the same link again is how a
+	// reader gets back out of a view they pressed their way into.
+	Only                  bool
 	Writable              bool
 	SupportedComponentSet []string
 

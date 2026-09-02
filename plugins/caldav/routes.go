@@ -412,14 +412,29 @@ func parseDateTime(s string, loc *time.Location) (time.Time, error) {
 // it has, and the days it covers. Ticking the box then costs nothing
 // that was already entered. The last day is shown, not the day after -
 // DTEND is exclusive in iCalendar and inclusive in every head.
-func fillEventForm(d *UpdateEventRenderData, loc *time.Location) {
+// newEventStart reads the ?date= a create link carries and keeps the
+// current time of day on it, so a form opened from a day lands on that
+// day rather than on today.
+func newEventStart(ctx *alborz.Context, loc *time.Location) time.Time {
+	now := time.Now().In(loc)
+	d, err := time.ParseInLocation(datePageLayout, ctx.QueryParam("date"), loc)
+	if err != nil {
+		return now
+	}
+	return time.Date(d.Year(), d.Month(), d.Day(), now.Hour(), now.Minute(), 0, 0, loc)
+}
+
+// when is the day a new event starts on: the page that opened the form
+// knows which day the reader is looking at, and typing it again is the
+// only alternative. It is ignored once the event has a start of its own.
+func fillEventForm(d *UpdateEventRenderData, loc *time.Location, when time.Time) {
 	start, _ := d.Event.DateTimeStart(loc)
 	end, _ := d.Event.DateTimeEnd(loc)
 	if prop := d.Event.Props.Get(ical.PropDateTimeStart); prop != nil {
 		d.AllDay = prop.ValueType() == ical.ValueDate
 	}
 	if start.IsZero() {
-		start = time.Now().In(loc)
+		start = when
 	}
 	if !end.After(start) {
 		end = start.Add(time.Hour)
@@ -1185,7 +1200,7 @@ func registerRoutes(p *plugin) {
 			CalendarObject: co,
 			Event:          event,
 		}
-		fillEventForm(data, loc)
+		fillEventForm(data, loc, newEventStart(ctx, loc))
 		return ctx.Render(http.StatusOK, "update-event.html", data)
 	}
 

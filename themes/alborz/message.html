@@ -147,8 +147,8 @@
                   <input type="hidden" name="next" value="{{$here}}">
                   <button>{{$.T "message.unsubscribe"}}</button>
                 </form>
-                {{ else }}{{ with .Message.ListUnsubscribe }}
-                <a class="button-link" href="{{.}}" rel="nofollow noopener noreferrer" target="_blank">{{$.T "message.unsubscribe"}}</a>
+                {{ else }}{{ with .Unsubscribe }}
+                <a class="button-link" href="{{.}}"{{ if $.UnsubscribeExternal }} rel="nofollow noopener noreferrer" target="_blank"{{ end }}>{{$.T "message.unsubscribe"}}</a>
                 {{ end }}{{ end }}
                 {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $junk) }}
                 {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "to" "INBOX" "label" ($.T "message.movetoinbox")) }}
@@ -238,7 +238,7 @@
           <tr>
             <th scope="row">{{$.T "compose.from"}}:</th>
             <td>
-              {{template "addr-list" .Message.Envelope.From}}
+              {{template "addr-list" (dict "addrs" .Message.Envelope.From "account" $.GlobalData.URLAccount)}}
               {{/* The verdict rides with the sender, because it is a
                    claim about the sender - and it is chrome, outside
                    the frame the message body draws in: the sanitizer
@@ -256,17 +256,68 @@
             <td>{{ template "date-full" (dict "g" .Global "time" .Message.Date) }}</td>
           </tr>
           <tr>
-            <th scope="row">{{$.T "compose.to"}}:</th><td>{{template "addr-list" .Message.Envelope.To}}</td>
+            <th scope="row">{{$.T "compose.to"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.To "account" $.GlobalData.URLAccount)}}</td>
           </tr>
           {{if .Message.Envelope.Cc}}
           <tr>
-            <th scope="row">{{$.T "compose.cc"}}:</th><td>{{template "addr-list" .Message.Envelope.Cc}}</td>
+            <th scope="row">{{$.T "compose.cc"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.Cc "account" $.GlobalData.URLAccount)}}</td>
           </tr>
           {{end}}
           {{if .Message.Envelope.Bcc}}
           <tr>
             <th scope="row">{{$.T "compose.bcc"}}:</th>
-            <td>{{template "addr-list" .Message.Envelope.Bcc}}</td>
+            <td>{{template "addr-list" (dict "addrs" .Message.Envelope.Bcc "account" $.GlobalData.URLAccount)}}</td>
+          </tr>
+          {{ end }}
+          {{/* Mail to an alias arrives looking like mail to the account.
+               Only the delivery path recorded where it was really sent,
+               and it decides which identity answers or unsubscribes. */}}
+          {{ with .DeliveredTo }}
+          <tr>
+            <th scope="row">{{$.T "message.deliveredto"}}:</th>
+            <td>{{ template "ltr" . }}</td>
+          </tr>
+          {{ end }}
+          {{/* What a list says about itself (RFC 2369). A reader who
+               wants out, or wants the archive, or wants to ask a person
+               rather than the list, should not have to open the source
+               to find the address. Only the entries the list actually
+               offered are shown. */}}
+          {{ if and .Message.ListID (or .Message.ListPost .Message.ListHelp .Message.ListSubscribe .Message.ListOwner .Message.ListArchive) }}
+          <tr>
+            <td colspan="2">
+              {{/* Closed: where to unsubscribe, join or complain is
+                   reference, wanted twice a year, and the two things
+                   wanted often - reply to list, unsubscribe - are
+                   already in the toolbar and the overflow. The summary
+                   carries the identifier, which is the one line worth
+                   seeing without asking. */}}
+              <details class="detail-card list-card">
+                <summary>{{$.T "list.title"}} — {{ template "ltr" .Message.ListID }}</summary>
+                <dl>
+                  {{ with .Message.ListPost }}
+                  <dt>{{$.T "list.post"}}</dt>
+                  <dd><a href="{{ localhref (printf "/compose?to=%s" (. | addr)) }}">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                  {{ with .Message.ListHelp }}
+                  <dt>{{$.T "list.help"}}</dt>
+                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                  {{ with .Message.ListSubscribe }}
+                  <dt>{{$.T "list.subscribe"}}</dt>
+                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                  {{ with .Message.ListOwner }}
+                  <dt>{{$.T "list.owner"}}</dt>
+                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                  {{ with .Message.ListArchive }}
+                  <dt>{{$.T "list.archive"}}</dt>
+                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                </dl>
+              </details>
+            </td>
           </tr>
           {{ end }}
           {{/* What our own server made of the sender's domain when it
@@ -294,7 +345,7 @@
           {{ with .Invitation }}
           <tr>
             <td colspan="2">
-              <div class="invitation">
+              <div class="detail-card invitation">
                 <h2>{{ if .Cancelled }}{{$.T "invite.cancelled"}}{{ else if .Answer }}{{$.T "invite.answer"}}{{ else if .Published }}{{$.T "invite.event"}}{{ else }}{{$.T "invite.title"}}{{ end }}</h2>
                 {{ if .Answer }}{{ with .Answered }}
                 <p class="invitation-answer">{{ with .Name }}<span dir="auto">{{.}}</span> {{ end }}{{ template "ltr" .Addr }}<span class="answer-status">{{ $.T (printf "invite.part%s" (lower .Status)) }}</span></p>
@@ -390,11 +441,15 @@
         {{ end }}
       </div>
 
+      {{/* dict: addrs account. Writing to an address opens compose on
+           the account whose message it came from, never on whichever
+           account the browser holds as active. */}}
       {{define "addr-list"}}
-        {{range $i, $addr := .}}
+        {{ $aamp := account "&" .account }}
+        {{range $i, $addr := .addrs}}
           {{if $i}},{{end}}
           <bdi dir="auto"><strong>{{.Name}}</strong>
-          &lt;<a href="{{ localhref (printf "/compose?to=%s" (.Addr | addr)) }}">{{.Addr}}</a>&gt;</bdi>
+          &lt;<a href="{{ localhref (printf "/compose?to=%s%s" (.Addr | addr) $aamp) }}">{{.Addr}}</a>&gt;</bdi>
         {{end}}
       {{end}}
 

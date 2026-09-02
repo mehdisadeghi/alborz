@@ -106,7 +106,7 @@
             {{/* Mail to an alias lands in the account's inbox looking
                  like any other. The mark is the only thing that says
                  which address it was actually sent to. */}}
-            {{ with .DeliveredAlias $.GlobalData.Username }}<span class="message-mark alias-mark" title="{{ printf ($.T "message.aliasmark") . }}"><span aria-hidden="true">@</span><span class="visually-hidden">{{ printf ($.T "message.aliasmark") . }}</span></span>{{ end }}
+            {{ with .Alias }}<span class="message-mark alias-mark" title="{{ printf ($.T "message.aliasmark") . }}"><span aria-hidden="true">@</span><span class="visually-hidden">{{ printf ($.T "message.aliasmark") . }}</span></span>{{ end }}
           </div>
           <div class="message-list-sender {{$classes}}" role="cell">
             {{ if not .Envelope.From }}{{$.T "mailbox.nosender"}}{{ end }}

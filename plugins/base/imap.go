@@ -217,8 +217,13 @@ type IMAPMessage struct {
 	ListSubscribe string
 	ListOwner     string
 	ListArchive   string
-	// DeliveredTo is every address the delivery path recorded, in no
-	// particular order. Mail to an alias often names the alias nowhere
+	// Alias is the address this message was delivered to when that is
+	// not the account it landed in and the delivery path is worth
+	// believing. Set by the route, which knows the served domains and
+	// what the reader trusts; empty means show nothing.
+	Alias string
+	// DeliveredTo is every address the delivery path recorded, topmost
+	// header first. Mail to an alias often names the alias nowhere
 	// else: the envelope carried it, To and Cc hold the list or the
 	// original recipient, and only the delivering server writes it down.
 	DeliveredTo []string
@@ -296,13 +301,13 @@ func composeFromMailto(uri string) string {
 // which one holds the alias depends on the server rather than on the
 // mail, and the caller is matching against a known set of identities.
 var deliveryHeaders = []string{
-	"X-Original-To",
-	"X-Envelope-To",
-	"Envelope-To",
-	"Delivered-To",
-	"X-Delivered-To",
-	"X-Forwarded-To",
-	"X-RcptTo",
+	"x-original-to",
+	"x-envelope-to",
+	"envelope-to",
+	"delivered-to",
+	"x-delivered-to",
+	"x-forwarded-to",
+	"x-rcptto",
 }
 
 // receivedFor matches the "for <addr>" clause of a Received header,
@@ -311,15 +316,20 @@ var deliveryHeaders = []string{
 // header of its own.
 var receivedFor = regexp.MustCompile(`(?i)\bfor\s+<([^>]+)>`)
 
-// deliveryAddresses gathers every address the delivery path recorded.
-// Duplicates are dropped; anything that is not an address is skipped
-// rather than guessed at.
-func deliveryAddresses(h textproto.Header) []string {
-	var out []string
+// deliveryAddresses gathers the addresses the delivery path named, in
+// the order the header carries them: a hop prepends what it writes, so
+// the topmost entries are the most recent and the bottom ones were in
+// the message before anyone but the sender had touched it.
+//
+// cut is how many of them our own server is answerable for - those
+// above the Received naming authserv. It is len(addrs) when authserv is
+// empty, because without a name there is nothing to measure against,
+// and 0 when a name is given and no Received carries it: a message that
+// cannot be judged is not believed.
+func deliveryAddresses(h textproto.Header, authserv string) (addrs []string, cut int) {
 	seen := map[string]bool{}
 	add := func(v string) {
-		v = strings.TrimSpace(v)
-		v = strings.Trim(v, "<>")
+		v = strings.Trim(strings.TrimSpace(v), "<>")
 		if v == "" || !strings.Contains(v, "@") {
 			return
 		}
@@ -331,19 +341,34 @@ func deliveryAddresses(h textproto.Header) []string {
 			return
 		}
 		seen[key] = true
-		out = append(out, v)
+		addrs = append(addrs, v)
 	}
-	for _, name := range deliveryHeaders {
-		for fields := h.FieldsByKey(name); fields.Next(); {
+
+	want := strings.ToLower(authserv)
+	ended := false
+	for fields := h.Fields(); fields.Next(); {
+		key := strings.ToLower(fields.Key())
+		if key == "received" {
+			// Our own server writes its delivery headers around its
+			// Received, not only above it, so the boundary is the first
+			// Received belonging to somebody else: from there down the
+			// message is as an earlier hop handed it over.
+			if want != "" && !ended && !strings.Contains(strings.ToLower(fields.Value()), want) {
+				cut, ended = len(addrs), true
+			}
+			if m := receivedFor.FindStringSubmatch(fields.Value()); m != nil {
+				add(m[1])
+			}
+			continue
+		}
+		if slices.Contains(deliveryHeaders, key) {
 			add(fields.Value())
 		}
 	}
-	for fields := h.FieldsByKey("Received"); fields.Next(); {
-		if m := receivedFor.FindStringSubmatch(fields.Value()); m != nil {
-			add(m[1])
-		}
+	if want == "" || !ended {
+		cut = len(addrs)
 	}
-	return out
+	return addrs, cut
 }
 
 // listAction turns one of RFC 2369's action headers into somewhere the
@@ -362,7 +387,7 @@ func listAction(value string) string {
 func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 	msg.rootHeader = h
 	msg.References = strings.Join(strings.Fields(h.Get("References")), " ")
-	msg.DeliveredTo = deliveryAddresses(h)
+	msg.DeliveredTo, _ = deliveryAddresses(h, "")
 	msg.ListHelp = listAction(h.Get("List-Help"))
 	msg.ListSubscribe = listAction(h.Get("List-Subscribe"))
 	msg.ListOwner = listAction(h.Get("List-Owner"))
@@ -735,16 +760,17 @@ func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 // than the whole header, and it rides the round trip the row already
 // costs.
 //
-// Received is deliberately not asked for here. Its "for <addr>" clause
-// carries the same answer when no MTA wrote a header of its own, but a
-// message has several Received lines and they are long; a mailbox of
-// fifty would pay for them on every load. The message page reads the
-// whole header anyway, so it sees that case for free.
+// Received is asked for as well, and it is the expensive part - a
+// message carries several and they are long. It is here because a
+// delivery header is only worth believing when our own server wrote it,
+// and the Received lines are what says where in the message's life a
+// header appeared. A row that cannot judge that would have to show an
+// address the sender could have written.
 func listHeaderItem() *imap.FetchItemBodySection {
 	return &imap.FetchItemBodySection{
 		Peek:         true,
 		Specifier:    imap.PartSpecifierHeader,
-		HeaderFields: append(slices.Clone(deliveryHeaders), "List-Id"),
+		HeaderFields: append(slices.Clone(deliveryHeaders), "List-Id", "Received"),
 	}
 }
 
@@ -773,27 +799,11 @@ func (msg *IMAPMessage) setRowHeaders(buf []byte) {
 	if err != nil {
 		return
 	}
-	msg.DeliveredTo = deliveryAddresses(h)
+	// The header is kept, not just read: deciding which delivery
+	// addresses to believe needs to know where each one sat.
+	msg.rootHeader = h
+	msg.DeliveredTo, _ = deliveryAddresses(h, "")
 	msg.ListID = listID(h)
-}
-
-// DeliveredAlias names the address a message was delivered to when that
-// is not the account it landed in. Mail reaching an alias arrives in the
-// account's inbox looking like any other, and this is the only thing
-// that says otherwise; empty when the message went straight to the
-// account, which is almost all of them.
-func (msg *IMAPMessage) DeliveredAlias(account string) string {
-	// In the merged view every row is a different account's, and the
-	// page's own username is not the one that took delivery.
-	if msg.Account != "" {
-		account = msg.Account
-	}
-	for _, addr := range msg.DeliveredTo {
-		if !strings.EqualFold(addr, account) {
-			return addr
-		}
-	}
-	return ""
 }
 
 // listID is the identifier out of RFC 2919's optional phrase.

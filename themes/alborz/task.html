@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   {{$acct := ""}}{{with .GlobalData.URLAccount}}{{$acct = printf "?account=%s" .}}{{end}}
-  {{ template "detail-aside" (dict "newHref" (printf "/tasks/create%s" $acct) "newLabel" ($.T "tasks.new") "backHref" (printf "/tasks%s" $acct) "backLabel" .Calendar.Name "backActive" true) }}
+  {{ template "detail-aside" (dict "backHref" (printf "/tasks%s" $acct) "backLabel" .Calendar.Name "backActive" true) }}
 
   <div class="container">
     <main id="main" tabindex="-1" class="task">
@@ -15,23 +15,24 @@
       {{$due := $todo.Props.Get "DUE"}}
 
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        <div class="actions-wrap">
-          <div class="actions-message">
-            <div class="action-group">
-              <a href="{{.Task.URL}}/edit{{$acct}}" class="button-link">{{$.T "common.edit"}}</a>
-              <a href="{{.Task.URL}}/raw{{$acct}}" class="button-link">{{$.T "common.source"}}</a>
-            </div>
-            <form class="action-group" action="{{.Task.URL}}/complete{{$acct}}" method="post">
-              <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-              <button type="submit">
-                {{if eq $status "COMPLETED"}}{{$.T "tasks.markincomplete"}}{{else}}{{$.T "tasks.markcomplete"}}{{end}}
-              </button>
-            </form>
-            <form class="action-group" action="{{.Task.URL}}/delete{{$acct}}" method="post">
-              <button type="submit" class="button-danger">{{$.T "common.delete"}}</button>
-            </form>
-          </div>
-        </div>
+        {{ template "toolbar-head" (dict "newhref" (printf "/tasks/create%s" $acct) "newlabel" ($.T "tasks.new")) }}
+        {{/* The same grammar the mail toolbar has: a pinned action,
+             then marks, in icons of one size. A word beside an icon
+             reads as two toolbars sharing a row. */}}
+        <span class="icon-group">
+          {{ $done := eq $status "COMPLETED" }}
+          {{ $mark := $.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = $.T "tasks.markincomplete" }}{{ end }}
+          <form action="{{.Task.URL}}/complete{{$acct}}" method="post">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+            <button type="submit" class="icon-button" aria-pressed="{{$done}}" title="{{$mark}}" aria-label="{{$mark}}">{{ template "icon" "check" }}</button>
+          </form>
+          <a class="icon-button" href="{{.Task.URL}}/edit{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
+          <a class="icon-button" href="{{.Task.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
+          <form action="{{.Task.URL}}/delete{{$acct}}" method="post">
+            <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
+          </form>
+        </span>
+        {{ template "toolbar-foot" }}
       </section>
 
       {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}

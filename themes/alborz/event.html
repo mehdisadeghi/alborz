@@ -4,27 +4,21 @@
 
 <div class="page-wrap">
   {{$acct := ""}}{{with .GlobalData.URLAccount}}{{$acct = printf "?account=%s" .}}{{end}}
-  {{ template "detail-aside" (dict "newHref" (printf "/calendar/create%s" $acct) "newLabel" ($.T "calendar.new") "backHref" (printf "/calendar%s" $acct) "backLabel" .Calendar.Name "backActive" true) }}
+  {{ template "detail-aside" (dict "backHref" (printf "/calendar%s" $acct) "backLabel" .Calendar.Name "backActive" true) }}
 
   <div class="container">
     <main id="main" tabindex="-1" class="event">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        <div class="actions-wrap">
-          <div class="actions-message">
-            <div class="action-group">
-              <a href="{{.Event.URL}}/update{{$acct}}" class="button-link">{{$.T "common.edit"}}</a>
-              <a href="{{.Event.URL}}/raw{{$acct}}" class="button-link">{{$.T "common.source"}}</a>
-            </div>
-            <form
-              class="action-group"
-              action="{{.Event.URL}}/delete{{$acct}}"
-              method="post"
-            >
-              <input type="submit" class="button-danger" value="{{$.T "common.delete"}}">
-            </form>
+        {{ template "toolbar-head" (dict "newhref" (printf "/calendar/create%s" $acct) "newlabel" ($.T "calendar.new")) }}
+        <span class="icon-group">
+          <a class="icon-button" href="{{.Event.URL}}/update{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
+          <a class="icon-button" href="{{.Event.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
+          <form action="{{.Event.URL}}/delete{{$acct}}" method="post">
+            <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
+          </form>
+        </span>
             <!-- TODO: Invite attendees -->
-          </div>
-        </div>
+        {{ template "toolbar-foot" }}
       </section>
 
       {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}

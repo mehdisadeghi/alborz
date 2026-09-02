@@ -11,7 +11,7 @@
     <main id="main" tabindex="-1" class="list">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ $dayTitle := .GlobalData.LongDate .Time }}{{ with .GlobalData.SecondaryDate .Time }}{{ $dayTitle = printf "%s · %s" $dayTitle . }}{{ end }}
-        {{ template "list-toolbar" (dict "title" $dayTitle "pagination" (dict "prev" (dict "href" (printf "/calendar/date?date=%s" .PrevPage) "label" ($.T "calendar.prev")) "next" (dict "href" (printf "/calendar/date?date=%s" .NextPage) "label" ($.T "calendar.next"))) ) }}
+        {{ template "list-toolbar" (dict "title" $dayTitle "newhref" (printf "/calendar/create?date=%s%s" (.Time.Format "2006-01-02") (account "&" .GlobalData.URLAccount)) "newlabel" ($.T "calendar.new") "pagination" (dict "prev" (dict "href" (printf "/calendar/date?date=%s" .PrevPage) "label" ($.T "calendar.prev")) "next" (dict "href" (printf "/calendar/date?date=%s" .NextPage) "label" ($.T "calendar.next"))) ) }}
       </section>
 
       <section class="events">

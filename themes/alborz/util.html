@@ -353,8 +353,8 @@
 {{ if .selectall }}{{ template "toolbar-select-all" .g }}{{ end }}
 <div class="actions-wrap">
   <div class="actions-message">
-    <h1>{{.title}}{{ with .subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>
-    <span class="toolbar-rule" aria-hidden="true"></span>
+    {{ with .title }}<h1>{{.}}{{ with $.subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>{{ end }}
+    {{ if and .title .newhref }}<span class="toolbar-rule" aria-hidden="true"></span>{{ end }}
     {{ with .newhref }}<a class="icon-button" href="{{.}}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}">{{ template "icon" (or $.newicon "plus") }}</a>{{ end }}
 {{ end }}
 
@@ -369,15 +369,13 @@
 {{ end }}
 
 {{ define "list-toolbar" }}
-<div class="actions-wrap">
-  {{ if .title }}<div class="actions-message"><h1>{{.title}}</h1></div>{{ end }}
-  {{ if or .search .pagination }}
-  <div class="actions-end">
+{{ template "toolbar-head" . }}
+{{ if or .search .pagination }}
+{{ template "toolbar-end" }}
     {{ with .search }}{{ template "toolbar-search" . }}{{ end }}
     {{ with .pagination }}{{ template "pagination" . }}{{ end }}
-  </div>
-  {{ end }}
-</div>
+{{ end }}
+{{ template "toolbar-foot" }}
 {{ end }}
 
 {{/* The bulk-select-all checkbox cell; scripts reveal it and gate the

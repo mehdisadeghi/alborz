@@ -2,18 +2,18 @@
 print("Hi, this is an example Lua plugin")
 
 -- Setup a function called when the mailbox view is rendered
-alps.on_render("mailbox.html", function(data)
+alborz.on_render("mailbox.html", function(data)
 	print("The mailbox view for " .. data.Mailbox.Name .. " is being rendered")
 	-- Set extra data that can be accessed from the mailbox.html template
 	data.Extra.Example = "Hi from Lua"
 end)
 
 -- Wire up a new route
-alps.set_route("GET", "/example", function(ctx)
+alborz.set_route("GET", "/example", function(ctx)
 	ctx:String(200, "This is an example page.")
 end)
 
 -- Set a filter function that can be used from templates
-alps.set_filter("example_and", function(a, b)
+alborz.set_filter("example_and", function(a, b)
     return a .. " and " .. b
 end)

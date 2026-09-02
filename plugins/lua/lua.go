@@ -144,8 +144,8 @@ func loadLuaPlugin(filename string) (*luaPlugin, error) {
 		filters:         make(template.FuncMap),
 	}
 
-	mt := l.NewTypeMetatable("alps")
-	l.SetGlobal("alps", mt)
+	mt := l.NewTypeMetatable("alborz")
+	l.SetGlobal("alborz", mt)
 	l.SetField(mt, "on_render", l.NewFunction(p.onRender))
 	l.SetField(mt, "set_filter", l.NewFunction(p.setFilter))
 	l.SetField(mt, "set_route", l.NewFunction(p.setRoute))

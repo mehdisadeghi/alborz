@@ -106,7 +106,7 @@ each argument serves one mail domain and logins are only accepted for the
 listed domains: a bare domain uses SRV auto-discovery, and explicit
 upstreams are given as repeated domain=url arguments, e.g.:
 
-  alps example.org example.com=imaps://mail.example.com
+  alborz example.org example.com=imaps://mail.example.com
 
 `)
 		flag.PrintDefaults()

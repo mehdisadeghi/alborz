@@ -1290,6 +1290,17 @@ type MessageRenderData struct {
 	// domain, nil when no trusted server reported or none is named.
 	AuthResults *AuthResults
 
+	// Unsubscribe is where the unsubscribe control sends the reader. It
+	// is the list's own page when the list gave one, and otherwise our
+	// compose form with the identity the message was delivered to
+	// already chosen: a list keyed on an alias does not recognise a
+	// request from the account behind it.
+	Unsubscribe string
+
+	// DeliveredTo names the address the message was delivered to when
+	// that is not the account it landed in - the alias, in other words.
+	DeliveredTo string
+
 	// Neighbors in the view the message was opened from; nil when absent.
 	NewerURL *url.URL
 	OlderURL *url.URL
@@ -1704,7 +1715,65 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Signature:          signature,
 		AuthResults:        authResults,
 		Invitation:         messageInvitation(ctx, msg, mboxName, uid),
+		Unsubscribe:        unsubscribeHref(settings, ctx.Session.Username(), msg),
+		DeliveredTo:        msg.DeliveredAlias(ctx.Session.Username()),
 	})
+}
+
+// ownIdentity returns want when it names an address this account may
+// write as, and "" otherwise. A link may choose between the addresses
+// the reader already owns; it may not choose an address for them.
+func ownIdentity(settings *Settings, username, want string) string {
+	if want == "" {
+		return ""
+	}
+	parsed, err := mail.ParseAddress(want)
+	if err != nil {
+		return ""
+	}
+	if strings.EqualFold(parsed.Address, username) {
+		return want
+	}
+	for _, identity := range settings.Identities {
+		mine, err := mail.ParseAddress(identity)
+		if err != nil {
+			continue
+		}
+		if strings.EqualFold(mine.Address, parsed.Address) {
+			return want
+		}
+	}
+	return ""
+}
+
+// UnsubscribeExternal reports whether the unsubscribe link leaves
+// alborz. A list's own page opens in a tab of its own; our compose form
+// is this page going somewhere and should not.
+func (d *MessageRenderData) UnsubscribeExternal() bool {
+	return d.Unsubscribe != "" && !strings.HasPrefix(d.Unsubscribe, "/")
+}
+
+// unsubscribeHref is where the unsubscribe control should point. A list
+// that gave an https page keeps it. A list that asks for a message gets
+// one written from the identity it was addressed or delivered to, since
+// a list keyed on an alias will not recognise the account behind it.
+func unsubscribeHref(settings *Settings, username string, msg *IMAPMessage) string {
+	href := msg.ListUnsubscribe
+	if href == "" || !strings.HasPrefix(href, "/compose?") {
+		return href
+	}
+	from := writeAs(settings, username, msg, msg.Envelope.To, msg.Envelope.Cc)
+	if from == "" {
+		return href
+	}
+	u, err := url.Parse(href)
+	if err != nil {
+		return href
+	}
+	q := u.Query()
+	q.Set("from", from)
+	u.RawQuery = alborz.AddressQuery(q)
+	return u.String()
 }
 
 // messageInvitation reads the message's scheduling part, if it has one.
@@ -2343,6 +2412,7 @@ func handleComposeNew(ctx *alborz.Context) error {
 	hdr.GenerateMessageID()
 	mid, _ := hdr.MessageID()
 	return handleCompose(ctx, &OutgoingMessage{
+		From:      ownIdentity(settings, ctx.Session.Username(), ctx.QueryParam("from")),
 		To:        strings.Split(ctx.QueryParam("to"), ","),
 		Subject:   ctx.QueryParam("subject"),
 		MessageID: "<" + mid + ">",
@@ -2522,7 +2592,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	// of ours: a mail to an identity is answered by that identity, not
 	// by the account behind it. Cc counts as well, since a list often
 	// puts the identity there.
-	ret.From = identityAddressed(settings, ctx.Session.Username(),
+	ret.From = writeAs(settings, ctx.Session.Username(), inReplyTo,
 		inReplyTo.Envelope.To, inReplyTo.Envelope.Cc)
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
@@ -2652,6 +2722,44 @@ func identityAddressed(settings *Settings, username string, lists ...[]imap.Addr
 		}
 	}
 	return ""
+}
+
+// identityDelivered names the identity a message was delivered to, from
+// what the delivery path wrote down rather than from To and Cc. Mail to
+// an alias often names the alias nowhere else: To holds the list or the
+// original recipient, and only the delivering server records where it
+// actually went.
+//
+// Unlike identityAddressed this does not stop at the account's own
+// address. A delivery chain records both - the alias it was sent to and
+// the mailbox it ended in - so meeting the account is a reason to keep
+// looking rather than to give up.
+func identityDelivered(settings *Settings, username string, delivered []string) string {
+	for _, addr := range delivered {
+		if strings.EqualFold(addr, username) {
+			continue
+		}
+		for _, identity := range settings.Identities {
+			parsed, err := mail.ParseAddress(identity)
+			if err != nil {
+				continue
+			}
+			if strings.EqualFold(parsed.Address, addr) {
+				return identity
+			}
+		}
+	}
+	return ""
+}
+
+// writeAs names the address a message should be answered or unsubscribed
+// from: the identity it was addressed to, else the one it was delivered
+// to. Empty leaves the compose form on its own default.
+func writeAs(settings *Settings, username string, msg *IMAPMessage, lists ...[]imap.Address) string {
+	if from := identityAddressed(settings, username, lists...); from != "" {
+		return from
+	}
+	return identityDelivered(settings, username, msg.DeliveredTo)
 }
 
 func filterOutUsername(username string, addresses []imap.Address) []imap.Address {

@@ -147,8 +147,8 @@
                   <input type="hidden" name="next" value="{{$here}}">
                   <button>{{$.T "message.unsubscribe"}}</button>
                 </form>
-                {{ else }}{{ with .Message.ListUnsubscribe }}
-                <a class="button-link" href="{{.}}" rel="nofollow noopener noreferrer" target="_blank">{{$.T "message.unsubscribe"}}</a>
+                {{ else }}{{ with .Unsubscribe }}
+                <a class="button-link" href="{{.}}"{{ if $.UnsubscribeExternal }} rel="nofollow noopener noreferrer" target="_blank"{{ end }}>{{$.T "message.unsubscribe"}}</a>
                 {{ end }}{{ end }}
                 {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $junk) }}
                 {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "to" "INBOX" "label" ($.T "message.movetoinbox")) }}
@@ -269,6 +269,53 @@
             <td>{{template "addr-list" .Message.Envelope.Bcc}}</td>
           </tr>
           {{ end }}
+          {{/* Mail to an alias arrives looking like mail to the account.
+               Only the delivery path recorded where it was really sent,
+               and it decides which identity answers or unsubscribes. */}}
+          {{ with .DeliveredTo }}
+          <tr>
+            <th scope="row">{{$.T "message.deliveredto"}}:</th>
+            <td>{{ template "ltr" . }}</td>
+          </tr>
+          {{ end }}
+          {{/* What a list says about itself (RFC 2369). A reader who
+               wants out, or wants the archive, or wants to ask a person
+               rather than the list, should not have to open the source
+               to find the address. Only the entries the list actually
+               offered are shown. */}}
+          {{ if and .Message.ListID (or .Message.ListPost .Message.ListHelp .Message.ListSubscribe .Message.ListOwner .Message.ListArchive) }}
+          <tr>
+            <td colspan="2">
+              <div class="detail-card">
+                <h2>{{$.T "list.title"}}</h2>
+                <dl>
+                  <dt>{{$.T "list.id"}}</dt>
+                  <dd>{{ template "ltr" .Message.ListID }}</dd>
+                  {{ with .Message.ListPost }}
+                  <dt>{{$.T "list.post"}}</dt>
+                  <dd><a href="{{ localhref (printf "/compose?to=%s" (. | addr)) }}">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                  {{ with .Message.ListHelp }}
+                  <dt>{{$.T "list.help"}}</dt>
+                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                  {{ with .Message.ListSubscribe }}
+                  <dt>{{$.T "list.subscribe"}}</dt>
+                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                  {{ with .Message.ListOwner }}
+                  <dt>{{$.T "list.owner"}}</dt>
+                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                  {{ with .Message.ListArchive }}
+                  <dt>{{$.T "list.archive"}}</dt>
+                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
+                  {{ end }}
+                </dl>
+              </div>
+            </td>
+          </tr>
+          {{ end }}
           {{/* What our own server made of the sender's domain when it
                took delivery (RFC 8601). Only failures are shown: a mark
                on every message teaches people to ignore marks, and
@@ -294,7 +341,7 @@
           {{ with .Invitation }}
           <tr>
             <td colspan="2">
-              <div class="invitation">
+              <div class="detail-card invitation">
                 <h2>{{ if .Cancelled }}{{$.T "invite.cancelled"}}{{ else if .Answer }}{{$.T "invite.answer"}}{{ else if .Published }}{{$.T "invite.event"}}{{ else }}{{$.T "invite.title"}}{{ end }}</h2>
                 {{ if .Answer }}{{ with .Answered }}
                 <p class="invitation-answer">{{ with .Name }}<span dir="auto">{{.}}</span> {{ end }}{{ template "ltr" .Addr }}<span class="answer-status">{{ $.T (printf "invite.part%s" (lower .Status)) }}</span></p>

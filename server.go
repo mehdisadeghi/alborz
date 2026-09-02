@@ -833,6 +833,12 @@ func AddressParam(address string) string {
 	return strings.ReplaceAll(url.QueryEscape(address), "%40", "@")
 }
 
+// AddressQuery encodes a whole query the way AddressParam encodes one
+// value: an address in it keeps its at sign, for the same reason.
+func AddressQuery(q url.Values) string {
+	return strings.ReplaceAll(q.Encode(), "%40", "@")
+}
+
 // AccountPath appends the request's account parameter to path, so a flow
 // started under one account redirects back into it.
 func (ctx *Context) AccountPath(path string) string {

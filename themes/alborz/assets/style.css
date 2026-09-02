@@ -1398,7 +1398,7 @@ main.create-update > form > .allday-label::before {
 /* An invitation is the message, not a note about it, so it is a card
    rather than another row of headers: what it says has to be readable
    before the decision it asks for. */
-.invitation {
+.detail-card {
   margin: var(--space-3) 0;
   padding: var(--space-3);
   border: 1px solid var(--border);
@@ -1406,20 +1406,20 @@ main.create-update > form > .allday-label::before {
   background: var(--surface-raised);
 }
 
-.invitation > h2 {
+.detail-card > h2 {
   margin: 0 0 var(--space-2);
   font-size: var(--text-base, 1rem);
 }
 
-.invitation dl {
+.detail-card dl {
   display: grid;
   grid-template-columns: minmax(5rem, max-content) 1fr;
   gap: 0.2rem var(--space-3);
   margin: 0;
 }
 
-.invitation dt { color: var(--fg-dim); font-size: var(--text-sm); }
-.invitation dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.detail-card dt { color: var(--fg-dim); font-size: var(--text-sm); }
+.detail-card dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
 .invitation .attendee-list { margin: 0; padding: 0; list-style: none; }
 
@@ -1454,8 +1454,8 @@ main.create-update > form > .allday-label::before {
 
 @media (width <= 600px) {
   /* The label above its value: two columns leave neither enough room. */
-  .invitation dl { grid-template-columns: 1fr; }
-  .invitation dt { margin-top: var(--space-2); }
+  .detail-card dl { grid-template-columns: 1fr; }
+  .detail-card dt { margin-top: var(--space-2); }
 }
 
 /* A field that most messages do not want. Closed it is one line in the

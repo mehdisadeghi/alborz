@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/mail"
 	"net/url"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -208,6 +210,18 @@ type IMAPMessage struct {
 	// message is list mail at all: List-Post can be absent from a list
 	// that refuses posts, and present on nothing else.
 	ListID string
+	// ListHelp, ListSubscribe, ListOwner and ListArchive are the rest of
+	// RFC 2369. A list that offers them is saying where to ask, how to
+	// join, who runs it and where the past is kept.
+	ListHelp      string
+	ListSubscribe string
+	ListOwner     string
+	ListArchive   string
+	// DeliveredTo is every address the delivery path recorded, in no
+	// particular order. Mail to an alias often names the alias nowhere
+	// else: the envelope carried it, To and Cc hold the list or the
+	// original recipient, and only the delivering server writes it down.
+	DeliveredTo []string
 }
 
 // Date is when the message is shown to have arrived. A Date header is
@@ -271,7 +285,76 @@ func composeFromMailto(uri string) string {
 	if q.Get("to") == "" {
 		return ""
 	}
-	return "/compose?" + q.Encode()
+	return "/compose?" + alborz.AddressQuery(q)
+}
+
+// deliveryHeaders are the ways an MTA writes down which address a
+// message was delivered to. There is no standard one: Postfix writes
+// X-Original-To for the address that was aliased and Delivered-To for
+// the mailbox it landed in, Exim writes Envelope-To, and others write
+// X-Envelope-To. All of them are collected rather than ranked, because
+// which one holds the alias depends on the server rather than on the
+// mail, and the caller is matching against a known set of identities.
+var deliveryHeaders = []string{
+	"X-Original-To",
+	"X-Envelope-To",
+	"Envelope-To",
+	"Delivered-To",
+	"X-Delivered-To",
+	"X-Forwarded-To",
+	"X-RcptTo",
+}
+
+// receivedFor matches the "for <addr>" clause of a Received header,
+// which is the envelope recipient written by the receiving server. It
+// is the one place the address appears when no MTA on the path added a
+// header of its own.
+var receivedFor = regexp.MustCompile(`(?i)\bfor\s+<([^>]+)>`)
+
+// deliveryAddresses gathers every address the delivery path recorded.
+// Duplicates are dropped; anything that is not an address is skipped
+// rather than guessed at.
+func deliveryAddresses(h textproto.Header) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(v string) {
+		v = strings.TrimSpace(v)
+		v = strings.Trim(v, "<>")
+		if v == "" || !strings.Contains(v, "@") {
+			return
+		}
+		if parsed, err := mail.ParseAddress(v); err == nil {
+			v = parsed.Address
+		}
+		key := strings.ToLower(v)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		out = append(out, v)
+	}
+	for _, name := range deliveryHeaders {
+		for fields := h.FieldsByKey(name); fields.Next(); {
+			add(fields.Value())
+		}
+	}
+	for fields := h.FieldsByKey("Received"); fields.Next(); {
+		if m := receivedFor.FindStringSubmatch(fields.Value()); m != nil {
+			add(m[1])
+		}
+	}
+	return out
+}
+
+// listAction turns one of RFC 2369's action headers into somewhere the
+// page can send the reader: the list's own page when it offers one, and
+// our compose form when it offers only a mailto, for the same reason
+// unsubscribe does.
+func listAction(value string) string {
+	if uri := firstListURI(value, "https", "http"); uri != "" {
+		return uri
+	}
+	return composeFromMailto(firstListURI(value, "mailto"))
 }
 
 // setListHeaders records the mailing-list addresses a message carries.
@@ -279,6 +362,11 @@ func composeFromMailto(uri string) string {
 func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 	msg.rootHeader = h
 	msg.References = strings.Join(strings.Fields(h.Get("References")), " ")
+	msg.DeliveredTo = deliveryAddresses(h)
+	msg.ListHelp = listAction(h.Get("List-Help"))
+	msg.ListSubscribe = listAction(h.Get("List-Subscribe"))
+	msg.ListOwner = listAction(h.Get("List-Owner"))
+	msg.ListArchive = firstListURI(h.Get("List-Archive"), "https", "http")
 	if post := firstListURI(h.Get("List-Post"), "mailto"); post != "" {
 		msg.ListPost = strings.TrimPrefix(post, "mailto:")
 	}
@@ -641,6 +729,85 @@ func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 	return false
 }
 
+// listHeaderItem is the small header fetch a row needs on top of its
+// envelope: which address the message was delivered to, and whether it
+// came from a list. HEADER.FIELDS is a handful of short lines rather
+// than the whole header, and it rides the round trip the row already
+// costs.
+//
+// Received is deliberately not asked for here. Its "for <addr>" clause
+// carries the same answer when no MTA wrote a header of its own, but a
+// message has several Received lines and they are long; a mailbox of
+// fifty would pay for them on every load. The message page reads the
+// whole header anyway, so it sees that case for free.
+func listHeaderItem() *imap.FetchItemBodySection {
+	return &imap.FetchItemBodySection{
+		Peek:         true,
+		Specifier:    imap.PartSpecifierHeader,
+		HeaderFields: append(slices.Clone(deliveryHeaders), "List-Id"),
+	}
+}
+
+// listFetchOptions is what every row in every list needs, in one place
+// so a column added to one list is not missing from the other.
+func listFetchOptions(header *imap.FetchItemBodySection) *imap.FetchOptions {
+	return &imap.FetchOptions{
+		Envelope:      true,
+		Flags:         true,
+		UID:           true,
+		RFC822Size:    true,
+		InternalDate:  true,
+		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+		BodySection:   []*imap.FetchItemBodySection{header},
+	}
+}
+
+// setRowHeaders fills in what the small header fetch answered. A server
+// that returned nothing leaves the row without its marks rather than
+// failing the listing.
+func (msg *IMAPMessage) setRowHeaders(buf []byte) {
+	if len(buf) == 0 {
+		return
+	}
+	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(buf)))
+	if err != nil {
+		return
+	}
+	msg.DeliveredTo = deliveryAddresses(h)
+	msg.ListID = listID(h)
+}
+
+// DeliveredAlias names the address a message was delivered to when that
+// is not the account it landed in. Mail reaching an alias arrives in the
+// account's inbox looking like any other, and this is the only thing
+// that says otherwise; empty when the message went straight to the
+// account, which is almost all of them.
+func (msg *IMAPMessage) DeliveredAlias(account string) string {
+	// In the merged view every row is a different account's, and the
+	// page's own username is not the one that took delivery.
+	if msg.Account != "" {
+		account = msg.Account
+	}
+	for _, addr := range msg.DeliveredTo {
+		if !strings.EqualFold(addr, account) {
+			return addr
+		}
+	}
+	return ""
+}
+
+// listID is the identifier out of RFC 2919's optional phrase.
+func listID(h textproto.Header) string {
+	id := h.Get("List-Id")
+	if id == "" {
+		return ""
+	}
+	if i := strings.LastIndex(id, "<"); i >= 0 {
+		id = strings.TrimSuffix(id[i+1:], ">")
+	}
+	return strings.TrimSpace(id)
+}
+
 func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {
 	// A fresh SELECT already reports the message count; only an already
 	// selected mailbox needs a NOOP to notice new mail.
@@ -672,21 +839,16 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 
 	var seqSet imap.SeqSet
 	seqSet.AddRange(uint32(from), uint32(to))
-	options := imap.FetchOptions{
-		Flags:         true,
-		Envelope:      true,
-		UID:           true,
-		RFC822Size:    true,
-		InternalDate:  true,
-		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
-	}
-	imapMsgs, err := conn.Fetch(seqSet, &options).Collect()
+	header := listHeaderItem()
+	imapMsgs, err := conn.Fetch(seqSet, listFetchOptions(header)).Collect()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
 	}
 
 	for _, msg := range imapMsgs {
-		msgs = append(msgs, IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName})
+		row := IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
+		row.setRowHeaders(msg.FindBodySection(header))
+		msgs = append(msgs, row)
 	}
 
 	// Reverse list of messages
@@ -791,15 +953,8 @@ func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *im
 	}
 
 	seqSet := imap.SeqSetNum(nums...)
-	options := imap.FetchOptions{
-		Envelope:      true,
-		Flags:         true,
-		UID:           true,
-		RFC822Size:    true,
-		InternalDate:  true,
-		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
-	}
-	results, err := conn.Fetch(seqSet, &options).Collect()
+	header := listHeaderItem()
+	results, err := conn.Fetch(seqSet, listFetchOptions(header)).Collect()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
 	}
@@ -811,6 +966,7 @@ func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *im
 			continue
 		}
 		msgs[i] = IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
+		msgs[i].setRowHeaders(msg.FindBodySection(header))
 	}
 
 	return msgs, total, nil

@@ -286,11 +286,15 @@
           {{ if and .Message.ListID (or .Message.ListPost .Message.ListHelp .Message.ListSubscribe .Message.ListOwner .Message.ListArchive) }}
           <tr>
             <td colspan="2">
-              <div class="detail-card">
-                <h2>{{$.T "list.title"}}</h2>
+              {{/* Closed: where to unsubscribe, join or complain is
+                   reference, wanted twice a year, and the two things
+                   wanted often - reply to list, unsubscribe - are
+                   already in the toolbar and the overflow. The summary
+                   carries the identifier, which is the one line worth
+                   seeing without asking. */}}
+              <details class="detail-card list-card">
+                <summary>{{$.T "list.title"}} — {{ template "ltr" .Message.ListID }}</summary>
                 <dl>
-                  <dt>{{$.T "list.id"}}</dt>
-                  <dd>{{ template "ltr" .Message.ListID }}</dd>
                   {{ with .Message.ListPost }}
                   <dt>{{$.T "list.post"}}</dt>
                   <dd><a href="{{ localhref (printf "/compose?to=%s" (. | addr)) }}">{{ template "ltr" . }}</a></dd>
@@ -312,7 +316,7 @@
                   <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
                   {{ end }}
                 </dl>
-              </div>
+              </details>
             </td>
           </tr>
           {{ end }}

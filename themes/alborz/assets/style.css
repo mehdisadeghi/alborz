@@ -1406,6 +1406,13 @@ main.create-update > form > .allday-label::before {
   background: var(--surface-raised);
 }
 
+/* The list card is the same box with its contents behind a summary,
+   so the heading rules apply to whichever of the two opens it. */
+.detail-card > summary {
+  cursor: pointer;
+}
+
+.detail-card > summary,
 .detail-card > h2 {
   margin: 0 0 var(--space-2);
   font-size: var(--text-base, 1rem);

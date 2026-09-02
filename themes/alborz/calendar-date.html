@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "dav-aside-group-filters" (dict "keep" (printf "&date=%s" (.Time.Format "2006-01-02")) "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar/date" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "dav-aside-group-filters" (dict "keep" (printf "&date=%s" (.Time.Format "2006-01-02")) "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar/date" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
   </aside>
 
   <div class="container">

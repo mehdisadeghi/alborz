@@ -5,7 +5,7 @@
 <div class="page-wrap">
   <aside>
     {{ $keep := printf "&month=%s&view=list" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
-    {{ template "dav-aside-group-filters" (dict "keep" $keep "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "dav-aside-group-filters" (dict "keep" $keep "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
   </aside>
 
   <div class="container">

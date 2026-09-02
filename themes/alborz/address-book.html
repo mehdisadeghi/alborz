@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "dav-aside-group-filters" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "edithref" "/address-books/" "editlabel" ($.T "common.edit") "collectionhref" "/address-books/create" "collectionlabel" ($.T "contacts.newbook") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "dav-aside-group-filters" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/address-books/" "editlabel" ($.T "common.edit") "collectionhref" "/address-books/create" "collectionlabel" ($.T "contacts.newbook") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
   </aside>
 
   <div class="container">

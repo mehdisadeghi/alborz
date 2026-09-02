@@ -477,7 +477,16 @@
        the question, the ticks carry the standing preference, and
        neither has to be put back afterwards. */}}
   <span class="filter-actions">
-    <a class="filter-only" href="{{ localhref (printf "%s?%s=%s%s" .action .field ($i.Path | urlquery) (or .keep "")) }}" title="{{.onlylabel}}">{{.onlylabel}}</a>
+    {{/* Pressing it again is the way out: while the URL is narrowed to
+         this one collection the same link drops the narrowing and says
+         so, rather than pointing at the view the reader is already in. */}}
+    {{ $only := printf "%s?%s=%s%s" .action .field ($i.Path | urlquery) (or .keep "") }}
+    {{ $label := .onlylabel }}
+    {{ if $i.Only }}
+      {{ $label = .alllabel }}
+      {{ $only = .action }}{{ with .keep }}{{ $only = printf "%s?%s" $.action (slice . 1) }}{{ end }}
+    {{ end }}
+    <a class="filter-only" href="{{ localhref $only }}"{{ if $i.Only }} aria-current="true"{{ end }} title="{{$label}}">{{$label}}</a>
     {{ with .edithref }}<a class="filter-edit" href="{{.}}{{$i.Path | pathescape}}{{account "?" $i.Account}}" title="{{$.editlabel}}">{{$.editlabel}}</a>{{ end }}
   </span>
 </div>
@@ -508,7 +517,7 @@
 </label>
 {{ end }}
 {{ end }}
-{{ template "dav-filter-item" (dict "item" . "field" $.field "itemclass" $.itemclass "action" $.action "onlylabel" $.onlylabel "keep" $.keep "nested" $.multi "edithref" $.edithref "editlabel" $.editlabel) }}
+{{ template "dav-filter-item" (dict "item" . "field" $.field "itemclass" $.itemclass "action" $.action "onlylabel" $.onlylabel "alllabel" $.alllabel "keep" $.keep "nested" $.multi "edithref" $.edithref "editlabel" $.editlabel) }}
 {{ end }}
 {{ if ne $prev "" }}<button>{{$.apply}}</button></form>{{ end }}
 {{ with .collectionhref }}<a href="{{.}}?{{ with $.collectionfor }}for={{.}}&amp;{{ end }}next={{$.next | urlquery}}" class="aside-create">{{$.collectionlabel}}</a>{{ end }}

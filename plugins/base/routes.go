@@ -1234,6 +1234,7 @@ func handleLogout(ctx *alborz.Context) error {
 	}
 	wasCurrent := target == ctx.DefaultSession
 	listings.evictAll(username)
+	ctx.Server.ForgetAccount(username)
 	if next := ctx.LogoutAccount(username); next != nil {
 		if wasCurrent {
 			next.PutNotice(fmt.Sprintf(ctx.T("notice.signedinas"), next.Username()))

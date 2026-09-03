@@ -331,7 +331,6 @@
 "form.recipientinvalid" = "Das ist keine gültige Adressliste."
 "mailbox.range" = "%d–%d von %d"
 "mailbox.position" = "%d von %d"
-"settings.foraccount" = "Konto: %s"
 
 "settings.alignscript" = "Jede Zeile nach ihrer eigenen Schrift ausrichten"
 "settings.mailtohandler" = "E-Mail-Links hier öffnen"

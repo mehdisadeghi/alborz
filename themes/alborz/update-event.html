@@ -10,10 +10,13 @@
   <div class="container">
     <main id="main" tabindex="-1" class="create-update">
       <form method="post">
-        {{if .CalendarObject}}
+        {{/* The path is shown whether the object exists yet or not: a
+             create form is somewhere too, and stopping at the section
+             is more use than showing nothing. */}}
         {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
-        <div class="context-crumb">{{$crumbAcct}} › {{.Calendar.Name}}</div>
-        {{end}}
+        {{ $crumbColl := "" }}{{ $crumbPath := "" }}
+        {{ if .CalendarObject }}{{ $crumbColl = .Calendar.Name }}{{ $crumbPath = .Calendar.Path }}{{ end }}
+        {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal" "collection" $crumbColl "path" $crumbPath) }}
         <h1>
           {{if .CalendarObject}}{{$.T "calendar.edittitle"}}{{else}}{{$.T "calendar.createtitle"}}{{end}}
         </h1>

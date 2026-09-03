@@ -344,6 +344,7 @@ func (s *Session) PutAttachment(in *multipart.FileHeader,
 	form *multipart.Form) (string, error) {
 	id := uuid.New()
 	s.attachmentsLocker.Lock()
+	defer s.attachmentsLocker.Unlock()
 
 	var size int64
 	for _, a := range s.attachments {
@@ -357,7 +358,6 @@ func (s *Session) PutAttachment(in *multipart.FileHeader,
 		File: in,
 		Form: form,
 	}
-	s.attachmentsLocker.Unlock()
 	return id.String(), nil
 }
 

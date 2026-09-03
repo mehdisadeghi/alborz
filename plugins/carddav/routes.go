@@ -187,8 +187,6 @@ func onlyBooks(ctx *alborz.Context) map[string]bool {
 	return only
 }
 
-// birthdayValue renders BDAY in the HTML date-input format, accepting both
-// the vCard 4.0 basic format (19850412) and the dashed 3.0 form.
 // birthdayDate parses BDAY into a day, so the page can spell it out in
 // the reader's language and calendar instead of printing the stored
 // digits. A vCard may carry a birthday with no year (--0412); that one
@@ -202,6 +200,8 @@ func birthdayDate(card vcard.Card) time.Time {
 	return day
 }
 
+// birthdayValue renders BDAY in the HTML date-input format, accepting both
+// the vCard 4.0 basic format (19850412) and the dashed 3.0 form.
 func birthdayValue(card vcard.Card) string {
 	v := card.PreferredValue(vcard.FieldBirthday)
 	if len(v) == 8 {
@@ -749,7 +749,6 @@ func registerRoutes(p *plugin) {
 	GET("/contacts/:path/edit", updateContact)
 	POST("/contacts/:path/edit", updateContact)
 
-	// A line added where the contact is read, not behind the edit form.
 	// A line added where the contact is read, not behind the edit form.
 	POST("/contacts/:path/note", func(ctx *alborz.Context) error {
 		note := strings.TrimSpace(ctx.FormValue("note"))

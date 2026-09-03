@@ -41,7 +41,7 @@ The following URL schemes are supported:
 
 # SIGNALS
 
-**SIGUSR1**: reloads templates and Lua plugins
+**SIGUSR1**: reloads templates
 
 # LOGIN-KEY
 

@@ -9,7 +9,7 @@ import (
 
 	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"github.com/aymerick/douceur/css"
-	cssparser "github.com/chris-ramon/douceur/parser"
+	cssparser "github.com/aymerick/douceur/parser"
 	"github.com/microcosm-cc/bluemonday"
 	"golang.org/x/net/html"
 )
@@ -144,7 +144,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 	case "https":
 		san.hasRemoteResources = true
 
-		if !proxyEnabled || !san.allowRemoteResources {
+		if !san.allowRemoteResources {
 			return "about:blank"
 		}
 

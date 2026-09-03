@@ -73,9 +73,6 @@ func (s *Server) parseSieveUpstream(domain string) error {
 	return nil
 }
 
-// SieveHost names the ManageSieve server a domain's filters live on,
-// empty when none is configured. A page that talks to somebody else's
-// machine should say which machine.
 // Upstreams names the servers an account is actually talking to, for the
 // page that reports where its mail lives: a deployment is not the one
 // the reader is used to, and "which server is this" is the first
@@ -96,6 +93,9 @@ func (s *Server) UpstreamsFor(domain string) Upstreams {
 	return Upstreams{IMAP: d.imap.host, SMTP: d.smtp.host, Sieve: d.sieve.host}
 }
 
+// SieveHost names the ManageSieve server a domain's filters live on,
+// empty when none is configured. A page that talks to somebody else's
+// machine should say which machine.
 func (s *Server) SieveHost(domain string) string {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {

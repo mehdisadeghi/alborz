@@ -21,7 +21,6 @@ import (
 	_ "git.mehdix.org/alborz/plugins/base"
 	_ "git.mehdix.org/alborz/plugins/caldav"
 	_ "git.mehdix.org/alborz/plugins/carddav"
-	_ "git.mehdix.org/alborz/plugins/lua"
 	_ "git.mehdix.org/alborz/plugins/sieve"
 	_ "git.mehdix.org/alborz/plugins/viewhtml"
 	_ "git.mehdix.org/alborz/plugins/viewtext"

@@ -331,12 +331,6 @@ func signedRegion(raw []byte) (signed, sig []byte, ok bool) {
 	return crlf(body), raw[sigStart:sigEnd], true
 }
 
-// indexFold finds needle in haystack without regard to case, which is
-// what a media type comparison is.
-func indexFold(haystack, needle []byte) int {
-	return bytes.Index(bytes.ToLower(haystack), bytes.ToLower(needle))
-}
-
 // crlf gives every line the ending the signature was made over, without
 // doubling one that is already there.
 func crlf(b []byte) []byte {

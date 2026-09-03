@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -44,7 +44,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		return nil, alborzbase.ErrViewUnsupported
 	}
 
-	body, err := ioutil.ReadAll(part.Body)
+	body, err := io.ReadAll(part.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read part body: %v", err)
 	}

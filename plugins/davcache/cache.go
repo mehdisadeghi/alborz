@@ -488,31 +488,6 @@ func (u *user) release(coll string) {
 	u.mu.Unlock()
 }
 
-// triggerRefresh revalidates the read path's collection in the background;
-// further stale reads while it runs pile nothing on.
-func (u *user) triggerRefresh(reqPath string) {
-	coll := collectionOf(reqPath)
-	if !u.claim(coll) {
-		return
-	}
-	now := time.Now()
-	var entries []*entry
-	u.mu.Lock()
-	for _, e := range u.entries {
-		if collectionOf(e.url.Path) == coll && now.Sub(e.fetched) > SoftTTL {
-			entries = append(entries, e)
-		}
-	}
-	u.mu.Unlock()
-
-	go func() {
-		defer u.release(coll)
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-		u.refreshCollection(ctx, coll, entries)
-	}()
-}
-
 // refreshCollection revalidates the collection's stale entries: an
 // unchanged ctag renews them all at the cost of one tiny PROPFIND,
 // otherwise each request is replayed.

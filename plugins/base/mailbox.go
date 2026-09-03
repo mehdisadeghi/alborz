@@ -653,6 +653,11 @@ type DeleteMailboxRenderData struct {
 	Error string
 }
 
+type EmptyMailboxRenderData struct {
+	IMAPBaseRenderData
+	Count int
+}
+
 func handleDeleteMailbox(ctx *alborz.Context) error {
 	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
@@ -722,26 +727,26 @@ func handleMove(ctx *alborz.Context) error {
 	}
 
 	if len(uids) == 0 {
-		ctx.Session.PutNotice(ctx.T("notice.nomessages"))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nomessages")})
 		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 
 	to := formOrQueryParam(ctx, "to")
 	if to == "" {
-		ctx.Session.PutNotice(ctx.T("notice.nodestination"))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nodestination")})
 		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 
+	var moved *imapclient.MoveData
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
-
-		if _, err := c.Move(imap.UIDSetNum(uids...), to).Wait(); err != nil {
+		data, err := c.Move(imap.UIDSetNum(uids...), to).Wait()
+		if err != nil {
 			return fmt.Errorf("failed to move message: %v", err)
 		}
-
-		// TODO: get the UID of the message in the destination mailbox with UIDPLUS
+		moved = data
 		return nil
 	})
 	if err != nil {
@@ -750,8 +755,50 @@ func handleMove(ctx *alborz.Context) error {
 
 	listings.evict(ctx.Session.Username(), mboxName)
 	listings.evict(ctx.Session.Username(), to)
-	ctx.Session.PutNotice(ctx.Tf("notice.moved", len(uids)))
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
+	target := ctx.NextOr(mailboxURL(ctx, mboxName))
+	ctx.Session.Notify(movedNotice(ctx, len(uids), mboxName, to, moved, target))
+	return ctx.Redirect(http.StatusFound, target)
+}
+
+// movedNotice says what moved and, where the server named the new
+// UIDs (COPYUID, RFC 4315), offers to move it back. An undo names those
+// UIDs; a message moved again since is not under them any more, so the
+// server moves nothing and the undo says so rather than claiming
+// success. An undo offers nothing further.
+func movedNotice(ctx *alborz.Context, n int, from, to string, moved *imapclient.MoveData, target string) alborz.Notice {
+	if ctx.FormValue("undo") != "" {
+		if len(uidNums(moved, false)) == 0 {
+			return alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.undofailed")}
+		}
+		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
+	}
+	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.moved", n)}
+	if back := uidNums(moved, true); len(back) > 0 {
+		fields := url.Values{"to": {from}, "next": {target}}
+		for _, uid := range back {
+			fields.Add("uids", fmt.Sprint(uid))
+		}
+		notice.Action = ctx.Undo(ctx.AccountPath("/message/"+url.PathEscape(to)+"/move"), fields)
+	}
+	return notice
+}
+
+// uidNums lists the UIDs a MOVE reported, on the destination or the
+// source side; none when the server reported nothing.
+func uidNums(moved *imapclient.MoveData, dest bool) []imap.UID {
+	if moved == nil {
+		return nil
+	}
+	set := moved.SourceUIDs
+	if dest {
+		set = moved.DestUIDs
+	}
+	uids, ok := set.(imap.UIDSet)
+	if !ok {
+		return nil
+	}
+	nums, _ := uids.Nums()
+	return nums
 }
 
 // handleEmptyMailbox expunges everything in a folder, the standard
@@ -760,6 +807,22 @@ func handleEmptyMailbox(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
+	}
+
+	if ctx.Request().Method == http.MethodGet {
+		ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+		if err != nil {
+			return err
+		}
+		ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.emptytitle"), mboxName))
+		count := 0
+		if ibase.Mailbox.NumMessages != nil {
+			count = int(*ibase.Mailbox.NumMessages)
+		}
+		return ctx.Render(http.StatusOK, "empty-mailbox.html", &EmptyMailboxRenderData{
+			IMAPBaseRenderData: *ibase,
+			Count:              count,
+		})
 	}
 
 	var removed int
@@ -773,7 +836,7 @@ func handleEmptyMailbox(ctx *alborz.Context) error {
 	}
 
 	listings.evict(ctx.Session.Username(), mboxName)
-	ctx.Session.PutNotice(emptiedNotice(ctx, removed))
+	ctx.Session.Notify(emptiedNotice(ctx, removed))
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
 
@@ -797,11 +860,11 @@ func emptyMailbox(c *imapclient.Client, mboxName string) (int, error) {
 }
 
 // emptiedNotice reports what emptying actually removed.
-func emptiedNotice(ctx *alborz.Context, removed int) string {
+func emptiedNotice(ctx *alborz.Context, removed int) alborz.Notice {
 	if removed == 0 {
-		return ctx.T("notice.alreadyempty")
+		return alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.alreadyempty")}
 	}
-	return ctx.Tf("notice.emptied", removed)
+	return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.emptied", removed)}
 }
 
 // handleEmptyAllMailbox empties the same role folder on every signed-in
@@ -838,7 +901,7 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 		return fmt.Errorf("failed to empty %s: %s", role, strings.Join(failed, "; "))
 	}
 
-	ctx.Session.PutNotice(emptiedNotice(ctx, removed))
+	ctx.Session.Notify(emptiedNotice(ctx, removed))
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s?all=1", role)))
 }
 
@@ -858,19 +921,38 @@ func handleDelete(ctx *alborz.Context) error {
 	}
 
 	if len(uids) == 0 {
-		ctx.Session.PutNotice(ctx.T("notice.nomessages"))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nomessages")})
 		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 
+	var left int
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		return deleteMessages(c, mboxName, imap.UIDSetNum(uids...))
+		if err := deleteMessages(c, mboxName, imap.UIDSetNum(uids...)); err != nil {
+			return err
+		}
+		left = int(c.Mailbox().NumMessages)
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return err
 	}
 
 	listings.evict(ctx.Session.Username(), mboxName)
-	ctx.Session.PutNotice(ctx.Tf("notice.deleted", len(uids)))
+	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.deleted", len(uids))}
+	// A whole page ticked and more behind it is a reader clearing the
+	// folder one page at a time. The rest is offered, behind a page
+	// that says how many, and never taken on its own.
+	if len(uids) >= perPage(ctx, settings) && left > 0 {
+		notice.Action = &alborz.NoticeAction{
+			Label: ctx.Tf("notice.deleteall", left),
+			Path:  ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName) + "/empty"),
+		}
+	}
+	ctx.Session.Notify(notice)
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
 
@@ -957,14 +1039,33 @@ func handleSetFlags(ctx *alborz.Context) error {
 	}
 	listings.evict(ctx.Session.Username(), mboxName)
 
-	if next := ctx.NextOr(""); next != "" {
-		return ctx.Redirect(http.StatusFound, next)
+	target := ctx.NextOr("")
+	if target == "" {
+		if len(uids) != 1 || (op == imap.StoreFlagsDel && len(l) == 1 && l[0] == imap.FlagSeen) {
+			// Redirecting to the message view would mark the message as read again
+			target = mailboxURL(ctx, mboxName)
+		} else {
+			target = ctx.AccountPath(fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uids[0]))
+		}
 	}
-	if len(uids) != 1 || (op == imap.StoreFlagsDel && len(l) == 1 && l[0] == imap.FlagSeen) {
-		// Redirecting to the message view would mark the message as read again
-		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
+	ctx.Session.Notify(flaggedNotice(ctx, formParams["uids"], flags, op, mboxName, target))
+	return ctx.Redirect(http.StatusFound, target)
+}
+
+// flaggedNotice says what changed and offers the opposite store for
+// an add or a remove, whose inverse is exact. A set replaced flags it
+// did not record, so it has no undo; nor has an undo.
+func flaggedNotice(ctx *alborz.Context, uids, flags []string, op imap.StoreFlagsOp, mboxName, target string) alborz.Notice {
+	if ctx.FormValue("undo") != "" {
+		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
 	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uids[0])))
+	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.flagged", len(uids))}
+	inverse := map[imap.StoreFlagsOp]string{imap.StoreFlagsAdd: "remove", imap.StoreFlagsDel: "add"}[op]
+	if inverse != "" {
+		fields := url.Values{"uids": uids, "flags": flags, "action": {inverse}, "next": {target}}
+		notice.Action = ctx.Undo(ctx.AccountPath("/message/"+url.PathEscape(mboxName)+"/flag"), fields)
+	}
+	return notice
 }
 
 // perPage is how many rows a listing shows: the stored preference,

@@ -44,17 +44,17 @@ func handleLogin(ctx *alborz.Context) error {
 		if err != nil {
 			ctx.Logger().Printf("Login failed for %q: %v", username, err)
 			if _, ok := err.(alborz.AuthError); ok {
-				renderData.BaseRenderData.GlobalData.Notice = ctx.T("notice.loginfailed")
+				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.loginfailed")}
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
 			}
 			var domainErr alborz.UnknownDomainError
 			if errors.As(err, &domainErr) {
-				renderData.BaseRenderData.GlobalData.Notice = fmt.Sprintf(ctx.T("notice.loginerror"), domainErr.Error())
+				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("notice.loginerror"), domainErr.Error())}
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
 			}
 			var netErr *net.OpError
 			if errors.As(err, &netErr) {
-				renderData.BaseRenderData.GlobalData.Notice = fmt.Sprintf(ctx.T("notice.loginerror"), netErr.Err)
+				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("notice.loginerror"), netErr.Err)}
 				return ctx.Render(http.StatusServiceUnavailable, "login.html", &renderData)
 			}
 			return fmt.Errorf("failed to put connection in pool: %v", err)
@@ -135,7 +135,7 @@ func handleSwitch(ctx *alborz.Context) error {
 	}
 	ctx.SetUnified(false)
 	if !ctx.SwitchAccount(ctx.FormValue("account")) {
-		ctx.Session.PutNotice(ctx.T("notice.expired"))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.expired")})
 		return ctx.Redirect(http.StatusFound, "/login?add=1")
 	}
 	return ctx.Redirect(http.StatusFound, destination)

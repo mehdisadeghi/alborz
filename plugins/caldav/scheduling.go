@@ -382,7 +382,7 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 		return err
 	}
 	if n == 0 {
-		ctx.Session.PutNotice(ctx.T("import.nothing"))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
 	} else {
 		ctx.Session.PutNotice(ctx.Tf("import.ics", n))
 	}

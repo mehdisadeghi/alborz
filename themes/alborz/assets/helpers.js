@@ -189,9 +189,18 @@ if (suggestions && recipients.length) {
 const mailto_button = document.getElementById("register-mailto");
 if (mailto_button && navigator.registerProtocolHandler) {
 	document.getElementById("handler-group").hidden = false;
+	// No API says whether the browser agreed; the most the page can
+	// remember is that it asked, so a second visit does not invite a
+	// second press as if nothing had happened.
+	const mailto_key = "mailto-asked";
+	if (localStorage.getItem(mailto_key)) {
+		document.getElementById("register-mailto-before").hidden = false;
+	}
 	mailto_button.addEventListener("click", () => {
 		try {
 			navigator.registerProtocolHandler("mailto", "/compose?mailto=%s");
+			localStorage.setItem(mailto_key, "1");
+			document.getElementById("register-mailto-before").hidden = true;
 			document.getElementById("register-mailto-asked").hidden = false;
 		} catch (e) {
 			// Refused for want of a secure context, which is worth

@@ -344,7 +344,8 @@
 
 "settings.alignscript" = "Alinear cada línea según su propia escritura"
 "settings.mailtohandler" = "Abrir los enlaces de correo aquí"
-"settings.mailtoasked" = "Tu navegador preguntará si lo permite."
+"settings.mailtoasked" = "Tu navegador preguntará si lo permite. En un escritorio la pregunta es un icono al final de la barra de direcciones, no un diálogo."
+"settings.mailtobefore" = "Ya se preguntó en este navegador. Pulsa de nuevo si el navegador lo ha olvidado."
 "settings.mailtorefused" = "Tu navegador lo rechazó: hace falta una conexión segura."
 "common.source" = "Código fuente"
 "common.created" = "Creado"

@@ -135,6 +135,8 @@ type MailboxRenderData struct {
 	ThreadSupported bool
 	// Crumb is the path to this folder, account first.
 	Crumb []CrumbLink
+	// PreferHTML is the account's choice of which part a row opens.
+	PreferHTML bool
 	// Threaded says this listing is one, so the rows carry a depth and
 	// the pager counts conversations rather than messages.
 	Threaded bool
@@ -1008,6 +1010,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		SortSupported:      sortSupported,
 		ThreadSupported:    threadAlgorithm != "",
 		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
+		PreferHTML:         settings.PreferHTML,
 		Threaded:           sortKey == threadSort && threadAlgorithm != "",
 	})
 }
@@ -1368,6 +1371,8 @@ type MessageRenderData struct {
 
 	// Crumb is the path to the folder this message is in, account first.
 	Crumb []CrumbLink
+	// PreferHTML is the account's choice of which part the tabs open.
+	PreferHTML bool
 
 	// DeliveredTo names the address the message was delivered to when
 	// that is not the account it landed in - the alias, in other words.
@@ -1729,10 +1734,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	// A link naming no part, like Newer and Older, opens the part the
 	// mailbox rows would link to; the bare envelope has no viewer.
 	if !raw && ctx.QueryParam("part") == "" {
-		preferred := msg.TextPart()
-		if preferred == nil {
-			preferred = msg.HTMLPart()
-		}
+		preferred := msg.PreferredPart(settings.PreferHTML)
 		if preferred != nil && len(preferred.Path) > 0 {
 			q := ctx.Request().URL.Query()
 			q.Set("part", preferred.PathString())
@@ -1822,6 +1824,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Answers:            answers,
 		ThreadSupported:    threadAlgorithm != "",
 		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
+		PreferHTML:         settings.PreferHTML,
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        trust.alias(msg),
 		ForwardedBy:        ForwardedBy(msg.rootHeader, settings.TrustedAuthServ, msg.ListID),
@@ -2231,6 +2234,31 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				Signature:          sig.Name,
 			})
 		}
+		// Both halves of this are the server's to know: the account's
+		// setting, and whether the message being answered came from a
+		// list. Neither is asked of the page - a form field carrying a
+		// decision is one the reader's browser can lose or change, and
+		// it made the feature depend on when a tab happened to load.
+		sendSettings, err := LoadSettings(ctx.Session.Store())
+		if err != nil {
+			return err
+		}
+		msg.SendHTML = sendSettings.SendHTML
+		if msg.SendHTML && options.InReplyTo != nil {
+			toList := false
+			if err := ctx.DoIMAP(func(c *imapclient.Client) error {
+				id, err := messageListID(c, options.InReplyTo.Mailbox, options.InReplyTo.Uid)
+				toList = id != ""
+				return err
+			}); err != nil {
+				// Unknown is treated as a list: sending plain text to a
+				// person is a smaller harm than sending an alternative
+				// part to a list that refuses it.
+				ctx.Logger().Printf("list check for reply: %v", err)
+				toList = true
+			}
+			msg.SendHTML = !toList
+		}
 		msg.InReplyTo = ctx.FormValue("in_reply_to")
 		msg.MessageID = ctx.FormValue("message_id")
 
@@ -2334,6 +2362,11 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 
 		if saveAsDraft {
+			// A draft is what was typed, and only that. The HTML part is
+			// a rendering made when the message is sent, so storing it
+			// here would put a multipart/alternative in front of the
+			// editor - which cannot open one - for no gain.
+			msg.SendHTML = false
 			var (
 				drafts *MailboxInfo
 				uid    imap.UID
@@ -2386,6 +2419,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 	if err != nil {
 		return err
 	}
+
 	data := &ComposeRenderData{
 		Identities:         composeIdentities(ctx),
 		IMAPBaseRenderData: *ibase,
@@ -3662,6 +3696,20 @@ type Settings struct {
 	// the zero value keeps the reply on top, which is what a mail client
 	// has always done here and what most correspondents expect.
 	ReplyBelowQuote bool
+
+	// SendHTML adds an HTML part to outgoing mail that says nothing but
+	// which way each paragraph runs. Off by default: mailing lists ask
+	// for plain text and some refuse multipart/alternative outright, so
+	// an account that talks to lists wants it off and one that writes
+	// Persian to Gmail wants it on.
+	SendHTML bool
+
+	// PreferHTML opens a message at its HTML part where it has one.
+	// Plain text is the default because it is the part a sender wrote
+	// for reading rather than for looking at, and it carries no remote
+	// content; an account whose correspondents send HTML that says
+	// something the plain part does not wants the other order.
+	PreferHTML bool
 }
 
 func LoadSettings(s alborz.Store) (*Settings, error) {
@@ -4014,6 +4062,8 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.Timezone = ctx.FormValue("timezone")
 		settings.SearchHeadersOnly = ctx.FormValue("search_body") != "on"
 		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
+		settings.PreferHTML = ctx.FormValue("prefer_html") != ""
+		settings.SendHTML = ctx.FormValue("send_html") != ""
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
 			settings.FirstDayOfWeek, err = strconv.Atoi(alborz.LatinDigits(fdow))
 			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {

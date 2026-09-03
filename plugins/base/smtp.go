@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-smtp"
@@ -202,7 +203,11 @@ type OutgoingMessage struct {
 	Text     string
 	// QuoteBelow says the quoted message sits under the space the reply
 	// is written in, so the compose form can put the cursor there.
-	QuoteBelow  bool
+	QuoteBelow bool
+	// SendHTML adds an alternative part carrying the direction each
+	// paragraph runs in. The plain part stays exactly what was typed,
+	// so a client preferring plain text sees no change at all.
+	SendHTML    bool
 	Attachments []Attachment
 }
 
@@ -335,18 +340,25 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 		body = msg.Text
 	}
 
-	tw, err := mw.CreateSingleInline(th)
-	if err != nil {
-		return fmt.Errorf("failed to create text part: %v", err)
-	}
-	defer tw.Close()
-
-	if _, err := io.WriteString(tw, body); err != nil {
-		return fmt.Errorf("failed to write text part: %v", err)
-	}
-
-	if err := tw.Close(); err != nil {
-		return fmt.Errorf("failed to close text part: %v", err)
+	// An iCalendar body is its own format and takes no alternative; and
+	// with nothing to say about direction there is no reason to send
+	// two parts where one will do.
+	if msg.SendHTML && msg.CalendarMethod == "" {
+		if err := writeAlternative(mw, th, body, msg.Text); err != nil {
+			return err
+		}
+	} else {
+		tw, err := mw.CreateSingleInline(th)
+		if err != nil {
+			return fmt.Errorf("failed to create text part: %v", err)
+		}
+		if _, err := io.WriteString(tw, body); err != nil {
+			tw.Close()
+			return fmt.Errorf("failed to write text part: %v", err)
+		}
+		if err := tw.Close(); err != nil {
+			return fmt.Errorf("failed to close text part: %v", err)
+		}
 	}
 
 	for _, att := range msg.Attachments {
@@ -398,4 +410,48 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
 	}
 
 	return nil
+}
+
+// writeAlternative sends the text as typed alongside an HTML part that
+// adds nothing but which way each paragraph runs. The plain part comes
+// first, which is what multipart/alternative means by least-preferred
+// first (RFC 2046 5.1.4): a client that wants plain text takes it and
+// sees exactly what was written.
+func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, source string) error {
+	iw, err := mw.CreateInline()
+	if err != nil {
+		return fmt.Errorf("failed to create alternative part: %v", err)
+	}
+	tw, err := iw.CreatePart(th)
+	if err != nil {
+		iw.Close()
+		return fmt.Errorf("failed to create text part: %v", err)
+	}
+	if _, err := io.WriteString(tw, body); err != nil {
+		tw.Close()
+		iw.Close()
+		return fmt.Errorf("failed to write text part: %v", err)
+	}
+	if err := tw.Close(); err != nil {
+		iw.Close()
+		return fmt.Errorf("failed to close text part: %v", err)
+	}
+
+	var hh mail.InlineHeader
+	hh.Set("Content-Type", "text/html; charset=utf-8")
+	hw, err := iw.CreatePart(hh)
+	if err != nil {
+		iw.Close()
+		return fmt.Errorf("failed to create html part: %v", err)
+	}
+	if _, err := io.WriteString(hw, alborz.HTMLAlternative(source)); err != nil {
+		hw.Close()
+		iw.Close()
+		return fmt.Errorf("failed to write html part: %v", err)
+	}
+	if err := hw.Close(); err != nil {
+		iw.Close()
+		return fmt.Errorf("failed to close html part: %v", err)
+	}
+	return iw.Close()
 }

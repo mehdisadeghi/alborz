@@ -3,14 +3,18 @@ package alborz_test
 import (
 	"bytes"
 	"fmt"
+	"github.com/emersion/go-sasl"
+	"github.com/emersion/go-smtp"
 	"html"
 	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,6 +31,72 @@ import (
 
 const smokeUser = "a@test.local"
 const smokePass = "x"
+
+// sentMail collects what the server actually put on the wire. The
+// message a reader receives is the only place some decisions are
+// visible - whether an HTML part was added, for one - and asserting on
+// the compose form instead is how that went unnoticed.
+type sentMail struct {
+	mu   sync.Mutex
+	last string
+}
+
+func (s *sentMail) Last() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.last
+}
+
+type smtpBackend struct{ got *sentMail }
+
+func (b *smtpBackend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
+	return &smtpSession{got: b.got}, nil
+}
+
+type smtpSession struct{ got *sentMail }
+
+// The client authenticates before it will send, so the sink has to
+// offer a mechanism. Any credentials pass: this stands in for a server,
+// it does not test one.
+func (s *smtpSession) AuthMechanisms() []string { return []string{sasl.Plain} }
+
+func (s *smtpSession) Auth(mech string) (sasl.Server, error) {
+	return sasl.NewPlainServer(func(identity, username, password string) error {
+		return nil
+	}), nil
+}
+
+func (s *smtpSession) Mail(string, *smtp.MailOptions) error { return nil }
+func (s *smtpSession) Rcpt(string, *smtp.RcptOptions) error { return nil }
+func (s *smtpSession) Reset()                               {}
+func (s *smtpSession) Logout() error                        { return nil }
+
+func (s *smtpSession) Data(r io.Reader) error {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	s.got.mu.Lock()
+	s.got.last = string(b)
+	s.got.mu.Unlock()
+	return nil
+}
+
+// startSMTP accepts everything and remembers the last message.
+func startSMTP(t *testing.T) (string, *sentMail) {
+	t.Helper()
+	got := &sentMail{}
+	srv := smtp.NewServer(&smtpBackend{got: got})
+	srv.AllowInsecureAuth = true
+	srv.Domain = "localhost"
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+	return ln.Addr().String(), got
+}
 
 // startIMAP serves one seeded account in memory, on a port the OS picks.
 func startIMAP(t *testing.T) string {
@@ -124,13 +194,14 @@ type literal struct {
 func (l literal) Size() int64 { return l.n }
 
 // startAlborz brings the app up against that IMAP server.
-func startAlborz(t *testing.T, imapAddr string) string {
+func startAlborz(t *testing.T, imapAddr string, smtpAddr ...string) string {
 	t.Helper()
 	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
 	_, err := alborz.New(e, &alborz.Options{
-		Upstreams:  []string{"test.local=imap+insecure://" + imapAddr},
+		Upstreams: append([]string{"test.local=imap+insecure://" + imapAddr},
+			smtpUpstreams(smtpAddr)...),
 		Theme:      "alborz",
 		ThemesPath: "./themes",
 		LoginKey:   key,
@@ -412,4 +483,171 @@ func TestExportFailsAsAnError(t *testing.T) {
 	if strings.Contains(buf.String(), "<!DOCTYPE") {
 		t.Error("the export carries an HTML page inside it")
 	}
+}
+
+// TestSendHTMLIsDecidedByTheAccount is about where a decision lives.
+// The HTML part used to be chosen when the compose page was rendered and
+// carried back in a hidden field, so a page opened before the setting
+// was turned on sent no direction at all - and the form looked right
+// the whole time. The account's setting decides at send now, and a
+// reply to a list is refused by asking that message, not the page.
+//
+// It asserts the bytes that went to the SMTP server, because that is
+// the only place the answer is visible.
+func TestSendHTMLIsDecidedByTheAccount(t *testing.T) {
+	smtpAddr, sent := startSMTP(t)
+	base := startAlborz(t, startIMAP(t), smtpAddr)
+	c := login(t, base)
+
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) == 0 {
+		t.Fatal("no seeded messages")
+	}
+	var listUID string
+	for _, uid := range uids {
+		if strings.Contains(get(t, c, base+"/message/INBOX/"+uid+"?part=1"), "Mailing list") {
+			listUID = uid
+			break
+		}
+	}
+	if listUID == "" {
+		t.Fatal("the seeded list message is missing; the list case would go unchecked")
+	}
+
+	set := func(on bool) {
+		form := url.Values{"messages_per_page": {"50"}}
+		if on {
+			form.Set("send_html", "1")
+		}
+		resp, err := c.PostForm(base+"/settings", form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+	}
+
+	// The page is fetched once, before the setting is touched. Under the
+	// old design everything sent from it was plain whatever came later.
+	stale := get(t, c, base+"/compose")
+
+	set(true)
+	sendFrom(t, c, base, "/compose", stale)
+	if !strings.Contains(sent.Last(), "multipart/alternative") {
+		t.Errorf("a page rendered before the setting sent no HTML part:\n%s", headOf(sent.Last()))
+	}
+
+	set(false)
+	sendFrom(t, c, base, "/compose", get(t, c, base+"/compose"))
+	if strings.Contains(sent.Last(), "multipart/alternative") {
+		t.Errorf("an HTML part was sent though the account did not ask:\n%s", headOf(sent.Last()))
+	}
+
+	// A reply to a list refuses it however the account is set, and that
+	// is read from the message rather than from the form.
+	set(true)
+	path := "/message/INBOX/" + listUID + "/reply?part=1"
+	sendFrom(t, c, base, path, get(t, c, base+path))
+	if strings.Contains(sent.Last(), "multipart/alternative") {
+		t.Errorf("a reply to list mail carried an HTML part:\n%s", headOf(sent.Last()))
+	}
+}
+
+// sendFrom submits the compose form exactly as the page presented it.
+func sendFrom(t *testing.T, c *http.Client, base, path, page string) {
+	t.Helper()
+	mid := strings.NewReplacer("&lt;", "<", "&gt;", ">").Replace(
+		between(page, `name="message_id" value="`, `"`))
+	if mid == "" {
+		t.Fatalf("%s carries no message id", path)
+	}
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	for _, f := range [][2]string{
+		{"message_id", mid},
+		{"in_reply_to", between(page, `name="in_reply_to" value="`, `"`)},
+		{"from", smokeUser}, {"to", "friend@example.org"},
+		{"subject", "direction"}, {"text", "سلام\n\nEnglish."},
+	} {
+		if err := w.WriteField(f[0], f[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Close()
+	resp, err := c.Post(base+path, w.FormDataContentType(), &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		t.Fatalf("POST %s: %s", path, resp.Status)
+	}
+}
+
+func headOf(s string) string {
+	if i := strings.Index(s, "\r\n\r\n"); i > 0 {
+		return s[:i]
+	}
+	if len(s) > 500 {
+		return s[:500]
+	}
+	return s
+}
+
+// sendAndReadSent saves a draft and hands back its raw bytes. The rig
+// has no SMTP, but a draft is written by the same WriteMessage a send
+// uses, so it answers the only question here: what the message is
+// actually made of.
+func sendAndReadSent(t *testing.T, c *http.Client, base string) string {
+	t.Helper()
+	page := get(t, c, base+"/compose")
+	mid := between(page, `name="message_id" value="`, `"`)
+	if mid == "" {
+		t.Fatal("compose page carries no message id")
+	}
+	mid = strings.ReplaceAll(strings.ReplaceAll(mid, "&lt;", "<"), "&gt;", ">")
+
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	for _, f := range [][2]string{
+		{"message_id", mid}, {"from", smokeUser}, {"to", "friend@example.org"},
+		{"subject", "direction"}, {"text", "سلام\n\nEnglish."}, {"save_as_draft", "1"},
+	} {
+		if err := w.WriteField(f[0], f[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Close()
+	resp, err := c.Post(base+"/compose", w.FormDataContentType(), &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	drafts := get(t, c, base+"/mailbox/Drafts")
+	uids := messageUIDs(drafts)
+	if len(uids) == 0 {
+		t.Fatal("the draft was not saved; nothing to inspect")
+	}
+	return get(t, c, base+"/message/Drafts/"+uids[0]+"/raw")
+}
+
+func between(s, start, end string) string {
+	i := strings.Index(s, start)
+	if i < 0 {
+		return ""
+	}
+	rest := s[i+len(start):]
+	j := strings.Index(rest, end)
+	if j < 0 {
+		return ""
+	}
+	return rest[:j]
+}
+
+func smtpUpstreams(addrs []string) []string {
+	var out []string
+	for _, a := range addrs {
+		out = append(out, "test.local=smtp+insecure://"+a)
+	}
+	return out
 }

@@ -174,6 +174,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	}
 
 	s.Sessions = newSessionManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger)
+	s.Sessions.onGone = s.ForgetAccount
 	return s, nil
 }
 

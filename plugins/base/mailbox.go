@@ -683,6 +683,14 @@ func handleRefreshMailbox(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	// The merged view is every account's folder of that role, so it is
+	// every account that is asked again.
+	if ctx.Unified {
+		for _, s := range ctx.Sessions() {
+			listings.evict(s.Username(), "#"+mboxName)
+		}
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s?all=1", url.PathEscape(mboxName))))
+	}
 	listings.evict(ctx.Session.Username(), mboxName)
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }

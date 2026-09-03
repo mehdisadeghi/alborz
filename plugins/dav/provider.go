@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/plugins/davcache"
@@ -19,6 +21,9 @@ type Kind struct {
 	Name, Label string
 	// Schemes are the explicit upstream schemes, secure and plain.
 	Schemes [2]string
+	// Poll is how often a collection is asked whether it changed; see
+	// davcache.DefaultPoll.
+	Poll time.Duration
 	// Discover finds the service's URL for a domain by its SRV record.
 	Discover func(ctx context.Context, domain string) (string, error)
 }
@@ -51,7 +56,18 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	if len(urls) == 0 {
 		return nil, nil
 	}
-	p := &Provider{kind: kind, urls: urls, cache: davcache.New()}
+	var store *davcache.Store
+	if srv.Options.CacheDir != "" && srv.Options.LoginKey != nil {
+		store = davcache.NewStore(filepath.Join(srv.Options.CacheDir, kind.Name), srv.Options.LoginKey)
+	}
+	cache, warm, err := davcache.New(store, kind.Poll)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the %s cache: %w", kind.Name, err)
+	}
+	if warm > 0 {
+		srv.Logger().Printf("%s: cache warm for %d accounts", kind.Name, warm)
+	}
+	p := &Provider{kind: kind, urls: urls, cache: cache}
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
@@ -105,6 +121,11 @@ func (p *Provider) Enabled(ctx *alborz.Context) bool {
 		}
 	}
 	return false
+}
+
+// Refresh asks the account's server about every collection held, now.
+func (p *Provider) Refresh(ctx context.Context, username string) {
+	p.cache.Refresh(ctx, username)
 }
 
 // Close stops the cache's refresh loop.

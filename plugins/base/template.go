@@ -34,17 +34,8 @@ var templateFuncs = template.FuncMap{
 		}
 		return template.URL("data:image/jpeg;base64," + data)
 	},
-	"humansize": func(n int64) string {
-		switch {
-		case n >= 1<<20:
-			return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
-		case n >= 1<<10:
-			return fmt.Sprintf("%.0f KB", float64(n)/(1<<10))
-		default:
-			return fmt.Sprintf("%d B", n)
-		}
-	},
-	"sub": func(a, b int) int { return a - b },
+	"humansize": formatSize,
+	"sub":       func(a, b int) int { return a - b },
 	// qsep is what joins another parameter to a URL: a crumb step may
 	// already carry one, and "?" twice makes a link nothing answers.
 	"qsep": func(raw string) string {

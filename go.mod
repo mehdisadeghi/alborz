@@ -7,7 +7,6 @@ require (
 	github.com/ProtonMail/go-crypto v1.1.6
 	github.com/aymerick/douceur v0.2.0
 	github.com/dromara/carbon/v2 v2.6.17
-	github.com/dustin/go-humanize v1.0.1
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-message v0.18.2

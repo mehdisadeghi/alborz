@@ -479,6 +479,14 @@ func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 	}
 }
 
+// ListDetails reports whether the message names anything about its list
+// beyond leaving it: a bulk sender writes List-ID and List-Unsubscribe
+// and nothing else, and a card with no rows says nothing.
+func (msg *IMAPMessage) ListDetails() bool {
+	return msg.ListPost != "" || msg.ListHelp != "" || msg.ListSubscribe != "" ||
+		msg.ListOwner != "" || msg.ListArchive != ""
+}
+
 func (msg *IMAPMessage) URL() *url.URL {
 	return messageURL(msg.Mailbox, msg.UID)
 }

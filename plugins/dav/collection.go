@@ -122,6 +122,20 @@ func CountObjects(ctx context.Context, client *http.Client, base *url.URL, coll 
 	return n, nil
 }
 
+// SafeObjectName makes a UID fit to be a path segment: what is not a
+// letter, a digit or one of the few marks servers accept becomes a dash.
+func SafeObjectName(uid string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			return r
+		case r == '-', r == '_', r == '.', r == '@':
+			return r
+		}
+		return '-'
+	}, uid)
+}
+
 // ErrCollectionExists reports the address as taken: MKCALENDAR or MKCOL
 // on a resource that is already there is 405, which is what RFC 4918
 // asks and what SabreDAV answers. The form says so rather than

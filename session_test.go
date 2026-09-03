@@ -31,7 +31,7 @@ func TestExpiryForgetsTheAccount(t *testing.T) {
 
 func TestFullAttachmentCacheStaysUsable(t *testing.T) {
 	s := &Session{attachments: make(map[string]*Attachment)}
-	big := &multipart.FileHeader{Size: maxAttachmentSize}
+	big := &multipart.FileHeader{Size: MaxAttachmentSize}
 	if _, err := s.PutAttachment(big, nil); err != nil {
 		t.Fatal(err)
 	}

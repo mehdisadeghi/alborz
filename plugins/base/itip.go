@@ -218,7 +218,8 @@ func replyCalendar(inv *Invitation, me, name, status string) *ical.Calendar {
 	return cal
 }
 
-// ItipProductID names what produced a scheduling message, as PRODID
+// ItipProductID names what produced a calendar object or a scheduling
+// message, as PRODID
 // asks (RFC 5545 3.7.3).
 const ItipProductID = "-//mehdix.org//Alborz//EN"
 

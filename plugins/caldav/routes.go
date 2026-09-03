@@ -19,11 +19,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// productID says what wrote a calendar object (RFC 5545 3.7.3). The FPI
-// names the project - the domain the code lives at and the brand - not
-// the deployment: the same string wherever Alborz runs.
-const productID = "-//mehdix.org//Alborz//EN"
-
 // collectionPage is a calendar's own page: the list it belongs to is
 // the tasks rail when it holds no events.
 func (p *plugin) collectionPage() dav.Page {
@@ -1317,7 +1312,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 // newCalendar is the object a new event or task is written as.
 func newCalendar(comp *ical.Component) *ical.Calendar {
 	cal := ical.NewCalendar()
-	cal.Props.SetText(ical.PropProductID, productID)
+	cal.Props.SetText(ical.PropProductID, alborzbase.ItipProductID)
 	cal.Props.SetText(ical.PropVersion, "2.0")
 	cal.Children = append(cal.Children, comp)
 	return cal

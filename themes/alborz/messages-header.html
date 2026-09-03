@@ -129,7 +129,8 @@
   {{ end }}
 
   {{ if .SortSupported }}
-  {{ template "sort-menu" (dict "g" $
+  {{ $thread := "" }}{{ if .ThreadSupported }}{{ $thread = dict "label" ($.T "sort.thread") "href" (printf "?sort=%s%s" "thread" $hplain) "current" .Threaded }}{{ end }}
+  {{ template "sort-menu" (dict "g" $ "thread" $thread
      "s" (dict "Key" $hsort "Dir" $.SortDir "Explicit" $hexp "DirExplicit" $hdirx "Params" $hplain "Reset" $hreset)
      "rows" (tuple (tuple ($.T "sort.date") "date") (tuple ($.T "sort.starred") "starred") (tuple ($.T "sort.sender") "from") (tuple ($.T "sort.subject") "subject") (tuple ($.T "sort.size") "size"))) }}
   {{ end }}

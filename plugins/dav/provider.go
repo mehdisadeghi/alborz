@@ -28,6 +28,10 @@ type Kind struct {
 	Discover func(ctx context.Context, domain string) (string, error)
 }
 
+// WarmBudget bounds what a sign-in may spend fetching an account's
+// first pages behind the scenes; a slow server leaves them cold.
+const WarmBudget = 30 * time.Second
+
 // Provider is one DAV service across the served domains: where each
 // domain's server is, the cache in front of it, and the client that
 // talks to it on a session's behalf.

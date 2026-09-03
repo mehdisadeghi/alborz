@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="{{call $.GlobalData.Asset (printf "themes/%s.css" .)}}">
     {{- end}}
     <link rel="stylesheet" href="{{call .GlobalData.Asset "print.css"}}" media="print">
+    <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-196x196.png"}}" sizes="196x196" />
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-96x96.png"}}" sizes="96x96" />
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-32x32.png"}}" sizes="32x32" />

@@ -1,3 +1,10 @@
+/* An author rule setting display beats the browser's own [hidden], so a
+   class like .hint stays visible however the attribute is set. Say it
+   once here rather than remembering it at every site that toggles. */
+[hidden] {
+  display: none !important;
+}
+
 /* Box sizing rules */
 *,
 *::before,

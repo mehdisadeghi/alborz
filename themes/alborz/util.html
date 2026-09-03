@@ -388,7 +388,10 @@
 {{ if .selectall }}{{ template "toolbar-select-all" .g }}{{ end }}
 <div class="actions-wrap">
   <div class="actions-message">
-    {{ with .title }}<h1>{{.}}{{ with $.subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>{{ end }}
+    {{/* A short title is offered where one exists, and only a phone
+         sees it: the full month name is what a wide toolbar should
+         say, and an abbreviation there would be a loss for nothing. */}}
+    {{ with .title }}<h1>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>{{ end }}
     {{ if and .title .newhref }}<span class="toolbar-rule" aria-hidden="true"></span>{{ end }}
     {{ with .newhref }}<a class="icon-button" href="{{.}}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}">{{ template "icon" (or $.newicon "plus") }}</a>{{ end }}
 {{ end }}

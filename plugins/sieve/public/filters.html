@@ -12,7 +12,10 @@
   <div class="container">
     <main class="list">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "list-toolbar" (dict "title" ($.T "filters.title")) }}
+        {{/* The plus sits where every other list has it: tasks,
+             contacts and calendars all offer their create from the
+             toolbar, and filters offered it only from the sidebar. */}}
+        {{ template "list-toolbar" (dict "title" ($.T "filters.title") "newhref" (printf "/filters/create%s" $aq) "newlabel" ($.T "filters.new")) }}
       </section>
 
       {{ template "dav-crumb" (dict "account" $current "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" "" "path" "") }}

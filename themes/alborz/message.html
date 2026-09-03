@@ -67,10 +67,17 @@
               {{end}}
             </span>
 
+            {{/* Archive is the one that steps aside on a phone. Junk and
+                 delete are what a reader reaches for most and there is
+                 room for both, so they keep their marks at every width
+                 rather than hiding in a menu. */}}
             <span class="icon-group wide-only">
               {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
               {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $archive "label" ($.T "mailbox.archive") "icon" "archive") }}
               {{ end }}
+            </span>
+
+            <span class="icon-group">
               {{ if and $junk (ne .Mailbox.Name $junk) (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
               {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $junk "label" ($.T "mailbox.spam") "icon" "junk") }}
               {{ else if and $junk (eq .Mailbox.Name $junk) }}
@@ -116,24 +123,12 @@
                 {{ if .Message.ListID }}
                 <a class="button-link" href="{{localhref (printf "%v/reply%s" $.Message.URL $partallq)}}">{{$.T "message.replyall"}}</a>
                 {{ end }}
-                {{/* The same three the toolbar shows on a wide screen,
-                     in words, for the width that cannot hold them. */}}
+                {{/* Only archive is spelled out here: junk and delete
+                     keep their marks on the toolbar at every width, and
+                     offering them twice would be two ways to the same
+                     thing on one screen. */}}
                 {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
                 {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $archive "label" ($.T "mailbox.archive") "formclass" "narrow-only") }}
-                {{ end }}
-                {{ if and $junk (ne .Mailbox.Name $junk) (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
-                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $junk "label" ($.T "mailbox.spam") "formclass" "narrow-only") }}
-                {{ else if and $junk (eq .Mailbox.Name $junk) }}
-                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" "INBOX" "label" ($.T "mailbox.notspam") "formclass" "narrow-only") }}
-                {{ end }}
-                {{ if or (eq .Mailbox.Name $trash) (eq .Mailbox.Name $junk) (not $trash) }}
-                <form class="action-group narrow-only" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete{{$aq}}">
-                  <input type="hidden" name="uids" value="{{.Message.UID}}">
-                  <input type="hidden" name="next" value="{{$back}}">
-                  <button class="button-danger">{{$.T "mailbox.deleteperm"}}</button>
-                </form>
-                {{ else }}
-                {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $trash "label" ($.T "mailbox.delete") "formclass" "narrow-only") }}
                 {{ end }}
 
                 <a class="button-link" href="{{localhref (printf "/message/%s/forward?uids=%v%s" (.Mailbox.Name | pathescape) .Message.UID $aamp)}}">{{$.T "message.forwardattached"}}</a>

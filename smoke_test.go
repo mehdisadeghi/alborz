@@ -161,6 +161,13 @@ func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server
 				"List-Post: <mailto:discuss@lists.example.org>\r\n" +
 				"List-Unsubscribe: <https://lists.example.org/u>\r\n" +
 				"Content-Type: text/plain; charset=UTF-8\r\n", "Body.\r\n"},
+		// A bulk sender names a list and a way to leave it and nothing
+		// else; the list card has no row to show for it.
+		{"Shop <news@shop.example>", "Our terms changed",
+			"List-Id: campaign <c.list-id.shop.example>\r\n" +
+				"List-Unsubscribe: <https://shop.example/u>, <mailto:leave@shop.example>\r\n" +
+				"List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n" +
+				"Content-Type: text/plain; charset=UTF-8\r\n", "Body.\r\n"},
 		// HTML with an inline image: the sanitizer rewrites cid: to the
 		// part's own raw URL, which is the one place that URL is built
 		// - and in a folder whose name holds a separator it has to
@@ -861,6 +868,34 @@ func TestAccountsSwitchAndSignOut(t *testing.T) {
 	resp := postForm(t, c, base+"/mailbox/INBOX", nil)
 	if resp.StatusCode != http.StatusFound || !strings.HasPrefix(resp.Header.Get("Location"), "/login") {
 		t.Errorf("after signing out of every account a page still answered %s to %s", resp.Status, resp.Header.Get("Location"))
+	}
+}
+
+// TestListCardOnlyWhenItHasRows: a bulk sender's List-ID opens no card,
+// a list with a posting address does.
+func TestListCardOnlyWhenItHasRows(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	seen := map[string]bool{}
+	for _, uid := range uids {
+		page := get(t, c, base+"/message/INBOX/"+uid+"?part=1")
+		card := strings.Contains(page, `class="list-card"`)
+		switch {
+		case strings.Contains(page, "[discuss] Threading"):
+			seen["list"] = true
+			if !card {
+				t.Errorf("a list with a posting address has no card")
+			}
+		case strings.Contains(page, "Our terms changed"):
+			seen["bulk"] = true
+			if card {
+				t.Errorf("a bulk sender with nothing but an unsubscribe got an empty card")
+			}
+		}
+	}
+	if !seen["list"] || !seen["bulk"] {
+		t.Fatalf("the seeded list and bulk messages were not both found: %v", seen)
 	}
 }
 

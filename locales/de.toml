@@ -380,6 +380,7 @@
 "calendar.holdstasks" = "Nur Aufgaben"
 "calendar.holdshint" = "Die meisten Server legen das bei der Erstellung fest."
 "tasks.newlist" = "Neue Aufgabenliste"
+"tasks.movelist" = "In Liste verschieben"
 # Plural forms last: a TOML table claims every key that follows it.
 "settings.signatures" = "Signaturen"
 "settings.signaturename" = "Name"
@@ -445,6 +446,8 @@
 "a11y.body" = "Nachrichtentext"
 "a11y.toolbar" = "Aktionen"
 "a11y.selectrow" = "Nachricht auswählen"
+"a11y.selecttask" = "Aufgabe auswählen"
+"a11y.selectcontact" = "Kontakt auswählen"
 "settings.textsize" = "Schriftgröße"
 "settings.textdefault" = "Standard"
 "settings.textlarge" = "Groß"

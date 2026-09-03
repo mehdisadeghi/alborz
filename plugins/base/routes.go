@@ -130,6 +130,12 @@ type MailboxRenderData struct {
 	Sort                      string
 	SortDir                   string
 	SortSupported             bool
+	// ThreadSupported says the server can group a folder into
+	// conversations, which is what offers the view at all.
+	ThreadSupported bool
+	// Threaded says this listing is one, so the rows carry a depth and
+	// the pager counts conversations rather than messages.
+	Threaded bool
 	// PerPage is the count in force, and PerPageOptions the ladder the
 	// toolbar offers. The reader's own preference is always among them,
 	// so choosing it is how they get back to it.
@@ -839,7 +845,9 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	starred := ctx.QueryParam("starred") == "1"
 
 	sortKey := ctx.QueryParam("sort")
-	if _, ok := sortKeys[sortKey]; !ok {
+	// thread is not a column to order by, so it is not in sortKeys, but
+	// it answers the same question and travels in the same parameter.
+	if _, ok := sortKeys[sortKey]; !ok && sortKey != threadSort {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
 	}
 	sortDir := ctx.QueryParam("dir")
@@ -857,19 +865,34 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	// else pays one round trip for LIST plus SELECT and one for the query,
 	// with the sidebar's STATUS responses riding along.
 	cacheable := ctx.Request().Method == http.MethodGet && page == 0
+	// thread names one conversation by any message in it. The server
+	// groups by message id, so this asks nothing of its header search.
+	var threadUID imap.UID
+	if raw := ctx.QueryParam("thread"); raw != "" {
+		n, perr := strconv.ParseUint(raw, 10, 32)
+		if perr != nil || n == 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid thread")
+		}
+		threadUID = imap.UID(n)
+	}
+
 	view := listingView(mboxName, query, starred, sortKey, sortDir)
+	if threadUID != 0 {
+		view = fmt.Sprintf("%s%sthread=%d", view, listingSep, threadUID)
+	}
 	user := ctx.Session.Username()
 
 	var (
-		sb            sidebar
-		msgs          []IMAPMessage
-		total         int
-		sortSupported bool
-		served        bool
+		sb              sidebar
+		msgs            []IMAPMessage
+		total           int
+		sortSupported   bool
+		threadAlgorithm imap.ThreadAlgorithm
+		served          bool
 	)
 	if cacheable {
 		if e, state := listings.lookup(user, view, messagesPerPage); state == listingFresh {
-			sb, msgs, total, sortSupported, served = e.sb, e.msgs, e.total, e.sortSupported, true
+			sb, msgs, total, sortSupported, threadAlgorithm, served = e.sb, e.msgs, e.total, e.sortSupported, e.threadAlgorithm, true
 		} else if state == listingStale {
 			var st *imap.StatusData
 			err := ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -879,7 +902,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 			})
 			if err == nil && statusUnchanged(e.snap, st) {
 				listings.refresh(user, view)
-				sb, msgs, total, sortSupported, served = e.sb, e.msgs, e.total, e.sortSupported, true
+				sb, msgs, total, sortSupported, threadAlgorithm, served = e.sb, e.msgs, e.total, e.sortSupported, e.threadAlgorithm, true
 			}
 		}
 	}
@@ -891,7 +914,21 @@ func handleGetMailbox(ctx *alborz.Context) error {
 				return err
 			}
 			sortSupported = c.Caps().Has(imap.CapSort)
+			threadAlgorithm = ThreadAlgorithm(c)
 			switch {
+			case threadUID != 0 && threadAlgorithm != "":
+				msgs, err = oneThread(c, mboxName, threadAlgorithm, threadUID)
+				total = len(msgs)
+			case sortKey == threadSort && threadAlgorithm != "":
+				// A conversation is the unit here, so the page holds a
+				// number of threads rather than a number of messages.
+				criteria := &imap.SearchCriteria{}
+				if query != "" {
+					criteria = PrepareSearch(query, settings.SearchHeadersOnly)
+				} else if starred {
+					criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+				}
+				msgs, total, err = threadMessages(c, mboxName, threadAlgorithm, criteria, page, messagesPerPage)
 			case query != "":
 				msgs, total, err = searchMessages(c, mboxName, PrepareSearch(query, settings.SearchHeadersOnly), page, messagesPerPage, sortKey, reverse)
 			case starred:
@@ -913,12 +950,13 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		}
 		if cacheable {
 			listings.store(user, view, &listingEntry{
-				sb:            sb,
-				msgs:          msgs,
-				total:         total,
-				perPage:       messagesPerPage,
-				sortSupported: sortSupported,
-				snap:          sb.active.StatusData,
+				sb:              sb,
+				msgs:            msgs,
+				total:           total,
+				perPage:         messagesPerPage,
+				sortSupported:   sortSupported,
+				threadAlgorithm: threadAlgorithm,
+				snap:            sb.active.StatusData,
 			})
 		}
 	}
@@ -966,6 +1004,8 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		Sort:               sortKey,
 		SortDir:            map[bool]string{true: "desc", false: "asc"}[reverse],
 		SortSupported:      sortSupported,
+		ThreadSupported:    threadAlgorithm != "",
+		Threaded:           sortKey == threadSort && threadAlgorithm != "",
 	})
 }
 
@@ -1310,6 +1350,19 @@ type MessageRenderData struct {
 	// request from the account behind it.
 	Unsubscribe string
 
+	// InReplyTo is the message this one answers, when it is in the same
+	// folder. It is nil when the server would not search headers.
+	InReplyTo *ThreadNeighbour
+
+	// Answers are the messages answering this one, found only for mail
+	// being read in Sent: elsewhere the answer is already in the folder.
+	Answers []ThreadNeighbour
+
+	// ThreadSupported says the server can group the folder into
+	// conversations, which is the only thing that makes the link to
+	// them worth offering.
+	ThreadSupported bool
+
 	// DeliveredTo names the address the message was delivered to when
 	// that is not the account it landed in - the alias, in other words.
 	DeliveredTo string
@@ -1597,6 +1650,9 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		position, totalMsgs int
 		signature           Verification
 		authResults         *AuthResults
+		inReplyTo           *ThreadNeighbour
+		answers             []ThreadNeighbour
+		threadAlgorithm     imap.ThreadAlgorithm
 	)
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		var load *sidebarLoad
@@ -1613,6 +1669,29 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		if !raw {
 			if newerUID, olderUID, position, totalMsgs, err = messageNeighbors(c, msg.SeqNum, criteria); err != nil {
 				return err
+			}
+			threadAlgorithm = ThreadAlgorithm(c)
+			sent := ""
+			for i := range load.sb.mailboxes {
+				if load.sb.mailboxes[i].role() == "sent" {
+					sent = load.sb.mailboxes[i].Name()
+					break
+				}
+			}
+			// What this message answers. A server that will not search
+			// headers simply shows the message alone.
+			if parent, terr := threadParent(c, mboxName, sent, msg); terr == nil {
+				inReplyTo = parent
+			} else {
+				ctx.Logger().Printf("thread lookup failed: %v", terr)
+			}
+			// Reading your own message, the useful direction is forward.
+			if sent != "" && mboxName == sent {
+				if found, aerr := threadAnswers(c, mboxName, msg); aerr == nil {
+					answers = found
+				} else {
+					ctx.Logger().Printf("answer lookup failed: %v", aerr)
+				}
 			}
 			// Whether the message is from who it says, on the same
 			// connection that has the mailbox open. A message nobody
@@ -1729,6 +1808,9 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Signature:          signature,
 		AuthResults:        authResults,
 		Invitation:         messageInvitation(ctx, msg, mboxName, uid),
+		InReplyTo:          inReplyTo,
+		Answers:            answers,
+		ThreadSupported:    threadAlgorithm != "",
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        trust.alias(msg),
 	})

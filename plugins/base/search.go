@@ -165,6 +165,9 @@ func PrepareSearch(terms string, headersOnly bool) *imap.SearchCriteria {
 			case "subject":
 				criteria = searchCriteriaAnd(
 					criteria, searchCriteriaHeader("Subject", value))
+			case "list":
+				criteria = searchCriteriaAnd(
+					criteria, searchCriteriaHeader("List-Id", value))
 			case "body":
 				criteria = searchCriteriaAnd(
 					criteria, &imap.SearchCriteria{Body: []string{value}})

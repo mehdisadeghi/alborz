@@ -61,9 +61,13 @@ type listingEntry struct {
 	total         int
 	perPage       int
 	sortSupported bool
-	snap          *imap.StatusData
-	fetched       time.Time
-	created       time.Time
+	// threadAlgorithm is what the server offered when the listing was
+	// taken; without it a cached page forgets the folder can be read as
+	// conversations and stops offering the view.
+	threadAlgorithm imap.ThreadAlgorithm
+	snap            *imap.StatusData
+	fetched         time.Time
+	created         time.Time
 }
 
 type listingKey struct{ user, view string }
@@ -79,12 +83,13 @@ type listingCache struct {
 // without racing other requests on the shared entry.
 func (e *listingEntry) snapshot() *listingEntry {
 	return &listingEntry{
-		sb:            e.sb.clone(),
-		msgs:          append([]IMAPMessage(nil), e.msgs...),
-		total:         e.total,
-		perPage:       e.perPage,
-		sortSupported: e.sortSupported,
-		snap:          e.snap,
+		sb:              e.sb.clone(),
+		msgs:            append([]IMAPMessage(nil), e.msgs...),
+		total:           e.total,
+		perPage:         e.perPage,
+		sortSupported:   e.sortSupported,
+		threadAlgorithm: e.threadAlgorithm,
+		snap:            e.snap,
 	}
 }
 

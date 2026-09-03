@@ -217,6 +217,9 @@ type IMAPMessage struct {
 	ListSubscribe string
 	ListOwner     string
 	ListArchive   string
+	// Depth is how deep in its thread a row sits, 0 for the message that
+	// started one. Only the threaded view sets it.
+	Depth int
 	// Alias is the address this message was delivered to when that is
 	// not the account it landed in and the delivery path is worth
 	// believing. Set by the route, which knows the served domains and
@@ -892,6 +895,360 @@ func recentEnvelopes(conn *imapclient.Client, mboxName string, n int) ([]*imapcl
 	seqSet.AddRange(uint32(from), uint32(total))
 	return conn.Fetch(seqSet, &imap.FetchOptions{Envelope: true}).Collect()
 }
+
+// ThreadAlgorithm is the algorithm the server offers, or "" when it
+// offers none. REFERENCES follows the reply chain and is what a mailing
+// list needs; ORDEREDSUBJECT only groups by subject and is taken when
+// it is all there is.
+func ThreadAlgorithm(conn *imapclient.Client) imap.ThreadAlgorithm {
+	have := conn.Caps().ThreadAlgorithms()
+	if slices.Contains(have, imap.ThreadReferences) {
+		return imap.ThreadReferences
+	}
+	if slices.Contains(have, imap.ThreadOrderedSubject) {
+		return imap.ThreadOrderedSubject
+	}
+	return ""
+}
+
+// threadRow is one message's place in a thread: which message, and how
+// far in from the one that started it.
+type threadRow struct {
+	uid   imap.UID
+	depth int
+}
+
+// flattenThread walks one thread depth first, which is the order it
+// reads in: a reply sits under what it answers.
+func flattenThread(data imapclient.ThreadData, depth int, out []threadRow) []threadRow {
+	for _, num := range data.Chain {
+		out = append(out, threadRow{uid: imap.UID(num), depth: depth})
+		depth++
+	}
+	for _, sub := range data.SubThreads {
+		out = flattenThread(sub, depth, out)
+	}
+	return out
+}
+
+// threadMessages returns one page of threads rather than one page of
+// messages: a conversation split across a page boundary is worse than a
+// page of uneven length, and the thread is the thing being read.
+//
+// The server is asked for the whole set because THREAD has no window of
+// its own; only the page's own messages are then fetched.
+func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAlgorithm, criteria *imap.SearchCriteria, page, threadsPerPage int) (msgs []IMAPMessage, totalThreads int, err error) {
+	if err := ensureMailboxSelected(conn, mboxName); err != nil {
+		return nil, 0, err
+	}
+	if criteria == nil {
+		criteria = &imap.SearchCriteria{}
+	}
+	threads, err := conn.UIDThread(&imapclient.ThreadOptions{
+		Algorithm:      algorithm,
+		SearchCriteria: criteria,
+	}).Wait()
+	if err != nil {
+		return nil, 0, fmt.Errorf("THREAD failed: %v", err)
+	}
+
+	// Newest conversation first, to match every other view. A thread's
+	// age is its newest message, so a long-running one stays at the top
+	// rather than sinking to where it started.
+	rows := make([][]threadRow, 0, len(threads))
+	for _, t := range threads {
+		if flat := flattenThread(t, 0, nil); len(flat) > 0 {
+			rows = append(rows, flat)
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		return newestUID(rows[i]) > newestUID(rows[j])
+	})
+
+	totalThreads = len(rows)
+	from := page * threadsPerPage
+	if from >= len(rows) {
+		return nil, totalThreads, nil
+	}
+	to := min(from+threadsPerPage, len(rows))
+
+	var want []threadRow
+	for _, thread := range rows[from:to] {
+		want = append(want, thread...)
+	}
+	if len(want) == 0 {
+		return nil, totalThreads, nil
+	}
+
+	uids := make([]imap.UID, len(want))
+	for i, r := range want {
+		uids[i] = r.uid
+	}
+	header := listHeaderItem()
+	fetched, err := conn.Fetch(imap.UIDSetNum(uids...), listFetchOptions(header)).Collect()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to fetch thread page: %v", err)
+	}
+	byUID := make(map[imap.UID]*imapclient.FetchMessageBuffer, len(fetched))
+	for _, m := range fetched {
+		byUID[m.UID] = m
+	}
+	for _, r := range want {
+		buf, ok := byUID[r.uid]
+		if !ok {
+			// A message expunged between the THREAD and the FETCH is
+			// simply not shown; the rest of the page still is.
+			continue
+		}
+		row := IMAPMessage{FetchMessageBuffer: buf, Mailbox: mboxName, Depth: r.depth}
+		row.setRowHeaders(buf.FindBodySection(header))
+		msgs = append(msgs, row)
+	}
+	return msgs, totalThreads, nil
+}
+
+// answerLimit caps what one message's row will count. A message with
+// forty answers is a thread view's problem.
+const answerLimit = 12
+
+// threadAnswers finds what answered this message, for a message being
+// read in Sent. In-Reply-To names exactly one id, so this matches a
+// whole header value rather than searching inside a list, which is the
+// one direction of threading that does not depend on how well a server
+// searches headers. Only direct answers: a reply to a reply names its
+// own parent, not this message.
+//
+// INBOX is where ordinary correspondence lands, and it is the folder
+// RFC 3501 guarantees exists. A reply that was filed elsewhere - a
+// mailing list folder - is not found.
+func threadAnswers(conn *imapclient.Client, mboxName string, msg *IMAPMessage) ([]ThreadNeighbour, error) {
+	if msg.Envelope == nil || msg.Envelope.MessageID == "" {
+		return nil, nil
+	}
+	if err := ensureMailboxSelected(conn, "INBOX"); err != nil {
+		return nil, err
+	}
+	found, err := findByHeader(conn, "INBOX", "In-Reply-To", msg.Envelope.MessageID, answerLimit)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureMailboxSelected(conn, mboxName); err != nil {
+		return nil, err
+	}
+	return found, nil
+}
+
+// oneThread returns just the conversation holding uid, in reading
+// order. THREAD groups by message id rather than by matching header
+// text, so this is the one way of naming a conversation that does not
+// depend on how well a server searches headers.
+func oneThread(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAlgorithm, uid imap.UID) (msgs []IMAPMessage, err error) {
+	if err := ensureMailboxSelected(conn, mboxName); err != nil {
+		return nil, err
+	}
+	threads, err := conn.UIDThread(&imapclient.ThreadOptions{
+		Algorithm:      algorithm,
+		SearchCriteria: &imap.SearchCriteria{},
+	}).Wait()
+	if err != nil {
+		return nil, fmt.Errorf("THREAD failed: %v", err)
+	}
+
+	var want []threadRow
+	for _, t := range threads {
+		flat := flattenThread(t, 0, nil)
+		if slices.ContainsFunc(flat, func(r threadRow) bool { return r.uid == uid }) {
+			want = flat
+			break
+		}
+	}
+	if len(want) == 0 {
+		return nil, nil
+	}
+
+	uids := make([]imap.UID, len(want))
+	for i, r := range want {
+		uids[i] = r.uid
+	}
+	header := listHeaderItem()
+	fetched, err := conn.Fetch(imap.UIDSetNum(uids...), listFetchOptions(header)).Collect()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch thread: %v", err)
+	}
+	byUID := make(map[imap.UID]*imapclient.FetchMessageBuffer, len(fetched))
+	for _, m := range fetched {
+		byUID[m.UID] = m
+	}
+	for _, r := range want {
+		buf, ok := byUID[r.uid]
+		if !ok {
+			continue
+		}
+		row := IMAPMessage{FetchMessageBuffer: buf, Mailbox: mboxName, Depth: r.depth}
+		row.setRowHeaders(buf.FindBodySection(header))
+		msgs = append(msgs, row)
+	}
+	return msgs, nil
+}
+
+// newestUID stands in for a thread's age: UIDs rise with arrival, so the
+// highest one in a thread is its most recent message.
+func newestUID(rows []threadRow) imap.UID {
+	var newest imap.UID
+	for _, r := range rows {
+		if r.uid > newest {
+			newest = r.uid
+		}
+	}
+	return newest
+}
+
+// ThreadNeighbour is another message in the same conversation, named
+// well enough to link to.
+type ThreadNeighbour struct {
+	UID     imap.UID
+	Subject string
+	// From is who wrote it. On a list every message in a thread carries
+	// the same subject, so the name is what tells them apart.
+	From string
+	URL  *url.URL
+}
+
+// threadParent finds what a message answers. It is one exact search:
+// In-Reply-To names a single Message-Id. Nothing indexes the other
+// direction, so counting the answers would mean scanning References
+// across the whole folder, which is a search the row links to rather
+// than one the page waits for.
+//
+// A failure here is not a failure of the page: a server that will not
+// search headers shows the message without its parent.
+func threadParent(conn *imapclient.Client, mboxName, sent string, msg *IMAPMessage) (*ThreadNeighbour, error) {
+	if err := ensureMailboxSelected(conn, mboxName); err != nil {
+		return nil, err
+	}
+	if msg.Envelope == nil {
+		return nil, nil
+	}
+
+	// In-Reply-To names the parent when the sender wrote one. Some do
+	// not, and then the last entry of References is the same answer:
+	// that chain ends at what this message answers.
+	parentID := ""
+	if len(msg.Envelope.InReplyTo) > 0 {
+		parentID = msg.Envelope.InReplyTo[0]
+	} else if refs := strings.Fields(msg.References); len(refs) > 0 {
+		parentID = strings.Trim(refs[len(refs)-1], "<>")
+	}
+	if parentID == "" {
+		return nil, nil
+	}
+	found, err := findByHeader(conn, mboxName, "Message-Id", parentID, 1)
+	if err != nil {
+		return nil, err
+	}
+	// A message answering one of yours has its parent in Sent, which is
+	// the case worth resolving most: it is your own half of the
+	// conversation. Only looked for when the folder being read does not
+	// hold it, so the ordinary reply still costs one search.
+	if len(found) == 0 && sent != "" && sent != mboxName {
+		// findByHeader searches whatever is selected; the name it takes
+		// only labels the results.
+		if err := ensureMailboxSelected(conn, sent); err != nil {
+			return nil, err
+		}
+		found, err = findByHeader(conn, sent, "Message-Id", parentID, 1)
+		if err != nil {
+			return nil, err
+		}
+		if err := ensureMailboxSelected(conn, mboxName); err != nil {
+			return nil, err
+		}
+	}
+	if len(found) == 0 {
+		return nil, nil
+	}
+	parent := found[0]
+	parent.From = trimListVia(parent.From, msg.ListID)
+	return &parent, nil
+}
+
+// trimListVia drops the "via List" a list appends to the sender's
+// display name to survive DMARC. The row already names the list beside
+// the name, so the suffix would say it twice - but only that list's own
+// name is dropped, never a "via" the sender wrote.
+func trimListVia(name, listID string) string {
+	label, _, _ := strings.Cut(listID, ".")
+	cut := strings.LastIndex(name, " via ")
+	if label == "" || cut < 0 {
+		return name
+	}
+	if !strings.EqualFold(name[cut+len(" via "):], label) {
+		return name
+	}
+	return name[:cut]
+}
+
+// envelopeName is the display name of the first sender, falling back to
+// the address when a sender gave none.
+func envelopeName(from []imap.Address) string {
+	if len(from) == 0 {
+		return ""
+	}
+	if name := strings.TrimSpace(from[0].Name); name != "" {
+		return name
+	}
+	return from[0].Addr()
+}
+
+// findByHeader returns up to limit messages whose header field contains
+// value, newest first.
+func findByHeader(conn *imapclient.Client, mboxName, key, value string, limit int) ([]ThreadNeighbour, error) {
+	criteria := imap.SearchCriteria{
+		Header: []imap.SearchCriteriaHeaderField{{Key: key, Value: value}},
+	}
+	data, err := conn.UIDSearch(&criteria, nil).Wait()
+	if err != nil {
+		return nil, err
+	}
+	uids := data.AllUIDs()
+	if len(uids) == 0 {
+		return nil, nil
+	}
+	slices.Reverse(uids)
+	if len(uids) > limit {
+		uids = uids[:limit]
+	}
+	msgs, err := conn.Fetch(imap.UIDSetNum(uids...), &imap.FetchOptions{
+		Envelope: true, UID: true,
+	}).Collect()
+	if err != nil {
+		return nil, err
+	}
+	byUID := make(map[imap.UID]*imapclient.FetchMessageBuffer, len(msgs))
+	for _, m := range msgs {
+		byUID[m.UID] = m
+	}
+	out := make([]ThreadNeighbour, 0, len(uids))
+	for _, uid := range uids {
+		m, ok := byUID[uid]
+		if !ok || m.Envelope == nil {
+			continue
+		}
+		out = append(out, ThreadNeighbour{
+			UID:     uid,
+			Subject: m.Envelope.Subject,
+			From:    envelopeName(m.Envelope.From),
+			URL:     messageURL(mboxName, uid),
+		})
+	}
+	return out, nil
+}
+
+// threadSort is the sort key that means "group this into conversations"
+// rather than "order it by a column". It travels in the same parameter
+// because it answers the same question - what order are these in - and
+// a reader picks one or the other, never both.
+const threadSort = "thread"
 
 // sortKeys maps a sort key from the query string to the SORT key sent
 // to the server, along with the direction each defaults to; picking the

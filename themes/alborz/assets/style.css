@@ -1406,13 +1406,48 @@ main.create-update > form > .allday-label::before {
   background: var(--surface-raised);
 }
 
-/* The list card is the same box with its contents behind a summary,
-   so the heading rules apply to whichever of the two opens it. */
-.detail-card > summary {
-  cursor: pointer;
+/* A list says what it is in one line and keeps the rest folded. No box:
+   it is a note about the message, not a card competing with it. It
+   keeps the card's vertical rhythm so the row above and below sit where
+   they would either way, and starts on the same gutter as every header
+   label rather than on the table's edge. */
+.list-card {
+  margin: var(--space-1) 0;
+  padding-inline-start: var(--space-2);
 }
 
-.detail-card > summary,
+.list-card > summary {
+  cursor: pointer;
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+}
+
+.list-card dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-2) 0 0;
+}
+
+/* A reply sits in from what it answers. Only the subject moves: the
+   sender, date and size stay in their columns so the eye can still run
+   down them. */
+.message-grid .message-row .message-list-subject {
+  padding-inline-start: calc(var(--depth, 0) * var(--space-4));
+}
+
+/* One line whatever the thread's size: who it answers, and how many
+   answered it. The subjects are all the same on a list, and the one
+   that matters is already the heading. */
+.conversation > a + a::before {
+  content: "·";
+  color: var(--fg-faint);
+  margin-inline: var(--space-2);
+}
+
+.list-card dt { color: var(--fg-dim); font-size: var(--text-sm); }
+.list-card dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
 .detail-card > h2 {
   margin: 0 0 var(--space-2);
   font-size: var(--text-base, 1rem);
@@ -1471,8 +1506,11 @@ main.create-update > form > .allday-label::before {
 /* The headers are a two-column grid of label and field. A disclosure is
    neither, so it spans both: as a single item it took the label column
    and pushed every field after it into the wrong one. */
+/* Reply to sits in the column its field belongs to, not across the
+   whole row: opened, its input lines up with To, Cc and Subject rather
+   than running the width of the form. */
 main.create-update .headers > .compose-more {
-  grid-column: 1 / -1;
+  grid-column: 2;
 }
 
 .compose-more > summary {
@@ -3455,6 +3493,28 @@ main.message .actions-end {
 .overflow-menu .button-link {
   width: 100%;
   text-align: start;
+}
+
+/* One menu, one treatment. The links in here are quiet already, so a
+   bare button keeping its box reads as a different kind of thing and
+   makes the links beside it look indented. The select keeps its own,
+   because it is a control to open rather than an action to press. */
+.overflow-menu button:not(.icon-button) {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* The menu lives inside the toolbar, so the gap that separates groups
+   along that row was indenting every action wrapped in a form. In a
+   column they are rows, not groups. */
+.overflow-menu .action-group {
+  margin-inline-start: 0;
+  margin-bottom: 0;
+}
+
+.overflow-menu button:not(.icon-button):not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: var(--surface-selected);
+  border-color: var(--border-strong);
 }
 
 .button:active,

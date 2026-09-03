@@ -101,6 +101,7 @@
 "settings.replybottom" = "Debajo de la cita"
 "message.unsubscribe" = "Cancelar suscripción"
 "message.deliveredto" = "Entregado a"
+"message.forwardedby" = "Reenviado por"
 "message.aliasmark" = "Enviado a otra de tus direcciones: %s"
 "list.title" = "Lista de correo"
 "list.id" = "Identificador"

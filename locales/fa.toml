@@ -199,6 +199,7 @@
 "filters.new" = "فیلتر جدید"
 "filters.title" = "فیلترها"
 "filters.unreachable" = "سرور فیلترها پاسخ نداد."
+"filters.changed" = "این پالایه از وقتی بازش کردید روی کارساز تغییر کرده. دوباره بارگذاری کنید و تغییرتان را از نو انجام دهید."
 "filters.script" = "اسکریپت Sieve"
 "filters.active" = "فعال"
 "filters.activate" = "فعال‌سازی"

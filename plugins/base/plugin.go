@@ -65,7 +65,7 @@ func init() {
 	// calls this to have it followed too.
 	loader := p.Loader()
 	alborz.RegisterPluginLoader(func(s *alborz.Server) ([]alborz.Plugin, error) {
-		s.OnAccountReady = Watch
+		s.OnAccountReady = append(s.OnAccountReady, watchAccount, warmAccount)
 		s.OnAccountGone = append(s.OnAccountGone, forgetAccount)
 		return loader(s)
 	})

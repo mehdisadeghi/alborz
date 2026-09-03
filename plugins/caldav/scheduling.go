@@ -11,6 +11,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
 	"github.com/google/uuid"
@@ -166,7 +167,7 @@ func (p *plugin) registerScheduling() {
 	})
 
 	p.POST("/calendar/forget-invitation", func(ctx *alborz.Context) error {
-		objPath, err := parseObjectPath(ctx.FormValue("path"))
+		objPath, err := dav.ParseObjectPath(ctx.FormValue("path"))
 		if err != nil {
 			return err
 		}
@@ -233,7 +234,7 @@ func (p *plugin) registerScheduling() {
 // findByUID looks for a stored copy of one event across the calendars
 // that can be written to. A UID is unique within a collection (RFC 4791
 // 4.1), which is what makes this a lookup rather than a guess.
-func (p *plugin) findByUID(ctx *alborz.Context, groups []CalendarGroup, uid string) string {
+func (p *plugin) findByUID(ctx *alborz.Context, groups []dav.Group[CalendarInfo], uid string) string {
 	if uid == "" {
 		return ""
 	}

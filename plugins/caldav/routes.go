@@ -1031,11 +1031,18 @@ func registerRoutes(p *plugin) {
 			if err != nil {
 				return fmt.Errorf("failed to get CalDAV event: %v", err)
 			}
+			// A recurring event with rewritten instances holds several
+			// VEVENTs; the one without RECURRENCE-ID is the series, and
+			// the form edits that.
 			events := co.Data.Events()
-			if len(events) != 1 {
-				return fmt.Errorf("expected exactly one event, got %d", len(events))
+			for i := range events {
+				if events[i].Props.Get(ical.PropRecurrenceID) == nil {
+					event = &events[i]
+				}
 			}
-			event = &events[0]
+			if event == nil {
+				return fmt.Errorf("calendar object %q holds no event to edit", calendarObjectPath)
+			}
 			for i := range calendars {
 				if strings.HasPrefix(co.Path, calendars[i].Path) {
 					currentCalendar = &calendars[i]

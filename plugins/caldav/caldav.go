@@ -647,9 +647,24 @@ func (o Occurrence) Summary() string {
 // occurrences lists every instance of an object that begins before end
 // and ends after start, in the display timezone.
 func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {
+	events := obj.Data.Events()
+
+	// An instance rewritten on its own - moved, renamed - names in
+	// RECURRENCE-ID the start it stands in for. The rule still produces
+	// that start, so the slot is left to the override, which is listed
+	// as the plain event it is.
+	overridden := make(map[int64]bool)
+	for i := range events {
+		if prop := events[i].Props.Get(ical.PropRecurrenceID); prop != nil {
+			if at, err := prop.DateTime(loc); err == nil {
+				overridden[at.Unix()] = true
+			}
+		}
+	}
+
 	var out []Occurrence
-	for i := range obj.Data.Events() {
-		event := &obj.Data.Events()[i]
+	for i := range events {
+		event := &events[i]
 		first, _ := event.DateTimeStart(nil)
 		last, _ := event.DateTimeEnd(nil)
 		span := last.Sub(first)
@@ -665,6 +680,9 @@ func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) [
 			continue
 		}
 		for _, at := range set.Between(start.Add(-span), end, true) {
+			if overridden[at.Unix()] {
+				continue
+			}
 			out = append(out, Occurrence{
 				CalendarObject: obj, Event: event,
 				Start: at, End: at.Add(span),

@@ -22,9 +22,8 @@ const (
 	inputDateTimeLayout = "2006-01-02T15:04"
 
 	// Age at which a discovered calendar list is reloaded in the
-	// background while still being served; alborz cannot create or delete
-	// calendars, so a change made on the server shows up one visit late
-	// at worst.
+	// background while still being served; a calendar made or removed by
+	// another client shows up one visit late at worst.
 	discoveryTTL = 5 * time.Minute
 
 	// The discovery load is detached from its requester's context, so a

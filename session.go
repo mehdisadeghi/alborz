@@ -61,7 +61,6 @@ var (
 	ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum file size")
 )
 
-// AuthError wraps an authentication error.
 // UpstreamError is a server that did not answer, as distinct from
 // Alborz failing. A timeout is not a wrong password and must not read as
 // one, and it is not an internal error either: nothing here is broken,
@@ -86,6 +85,7 @@ func (err UpstreamError) Error() string {
 
 func (err UpstreamError) Unwrap() error { return err.cause }
 
+// AuthError wraps an authentication error.
 type AuthError struct {
 	cause error
 }

@@ -23,7 +23,6 @@ import (
 // the deployment: the same string wherever Alborz runs.
 const productID = "-//mehdix.org//Alborz//EN"
 
-// NewCalendarRenderData drives the create-a-calendar form.
 // NewCollectionRenderData renders create-collection.html, shared with
 // address books. Only a calendar has a component set to choose, so only
 // it offers Holds.
@@ -42,12 +41,11 @@ type NewCollectionRenderData struct {
 	Error       string
 }
 
-// CollectionRenderData drives the page a collection has of its own: its
-// name, its colour, when it was made, and what it holds - which is what
-// a delete has to say out loud before it happens.
-// CollectionRenderData renders collection.html, which serves calendars,
-// task lists and address books alike: the fields are what any of them
-// has, so one page answers for all three.
+// CollectionRenderData renders collection.html, the page a collection
+// has of its own: its name, its colour, when it was made, and what it
+// holds - which is what a delete has to say out loud before it happens.
+// Calendars, task lists and address books share it: the fields are what
+// any of them has, so one page answers for all three.
 type CollectionRenderData struct {
 	alborz.BaseRenderData
 	Name      string
@@ -407,10 +405,6 @@ func parseDateTime(s string, loc *time.Location) (time.Time, error) {
 	return t, nil
 }
 
-// fillEventForm gives the form both shapes of the same event: the times
-// it has, and the days it covers. Ticking the box then costs nothing
-// that was already entered. The last day is shown, not the day after -
-// DTEND is exclusive in iCalendar and inclusive in every head.
 // newEventStart reads the ?date= a create link carries and keeps the
 // current time of day on it, so a form opened from a day lands on that
 // day rather than on today.
@@ -423,6 +417,11 @@ func newEventStart(ctx *alborz.Context, loc *time.Location) time.Time {
 	return time.Date(d.Year(), d.Month(), d.Day(), now.Hour(), now.Minute(), 0, 0, loc)
 }
 
+// fillEventForm gives the form both shapes of the same event: the times
+// it has, and the days it covers. Ticking the box then costs nothing
+// that was already entered. The last day is shown, not the day after -
+// DTEND is exclusive in iCalendar and inclusive in every head.
+//
 // when is the day a new event starts on: the page that opened the form
 // knows which day the reader is looking at, and typing it again is the
 // only alternative. It is ignored once the event has a start of its own.

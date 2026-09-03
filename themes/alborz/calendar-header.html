@@ -1,14 +1,18 @@
 {{$suffix := ""}}
 {{if eq .View "list"}}{{$suffix = "&view=list"}}{{end}}
 {{if and (eq .View "list") (eq .Span "month")}}{{$suffix = "&view=list&span=month"}}{{end}}
-{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
+{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
 {{ template "toolbar-end" }}
     {{ template "pagination" (dict "prev" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "label" ($.GlobalData.MonthName .PrevTime)) "next" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "label" ($.GlobalData.MonthName .NextTime))) }}
     {{/* Today keeps its place on the month it would take you to, or
          every control after it moves the moment you arrive there. */}}
     <div class="actions-pagination">
       {{if ne .Time.Month .Now.Month}}
-      <a href="/calendar{{if $suffix}}?{{slice $suffix 1}}{{end}}" class="button-link">{{$.T "calendar.today"}}</a>
+      {{/* localhref, or html/template escapes the whole query as one
+           value and "view=list" arrives as "view%3dlist" - which is how
+           Today dropped the reader back into the month grid. */}}
+      {{ $today := "/calendar" }}{{ if $suffix }}{{ $today = printf "/calendar?%s" (slice $suffix 1) }}{{ end }}
+      <a href="{{ localhref $today }}" class="button-link">{{$.T "calendar.today"}}</a>
       {{else}}
       <span class="button-link" aria-disabled="true">{{$.T "calendar.today"}}</span>
       {{end}}

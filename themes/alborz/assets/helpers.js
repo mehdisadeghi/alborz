@@ -24,9 +24,14 @@ if (tz_input && !tz_input.value) {
 // Bulk actions operate on the checked rows: the select-all box appears
 // where there are rows, and every control bound to the bulk form is
 // disabled while nothing is selected - the move destination as much as
-// the buttons, and an empty list as much as an unselected one.
+// the buttons, and an empty list as much as an unselected one. A list
+// is any form its rows' checkboxes name, so a new list joins the rule
+// by binding its rows and its actions to one form, and nothing here
+// has to learn its name.
 const check_all = document.getElementById("action-checkbox-all");
-for (const formId of ["messages-form", "address-book-form"]) {
+const bulk_forms = new Set(Array.prototype.map.call(
+	document.querySelectorAll('input[type="checkbox"][form]'), box => box.getAttribute("form")));
+for (const formId of bulk_forms) {
 	const controls = document.querySelectorAll(
 		`button[form="${formId}"], select[form="${formId}"]`,
 	);
@@ -183,23 +188,29 @@ if (suggestions && recipients.length) {
 	}
 }
 
-// A browser can be told this application opens mail links. It asks only
-// on a user gesture, so this hangs off a button, and the button appears
-// only where the browser offers the ability at all.
-const mailto_button = document.getElementById("register-mailto");
-if (mailto_button && navigator.registerProtocolHandler) {
-	document.getElementById("handler-group").hidden = false;
+// A browser can be told this application opens mail links, and calendar
+// links. It asks only on a user gesture, so each hangs off a button,
+// and the buttons appear only where the browser offers the ability at
+// all.
+const handler_group = document.getElementById("handler-group");
+if (handler_group && navigator.registerProtocolHandler) {
+	handler_group.hidden = false;
 	// No API says whether the browser agreed; the most the page can
 	// remember is that it asked, so a second visit does not invite a
 	// second press as if nothing had happened.
-	const mailto_key = "mailto-asked";
-	if (localStorage.getItem(mailto_key)) {
+	const asked = [...handler_group.querySelectorAll("button[data-protocol]")]
+		.some((b) => localStorage.getItem(b.dataset.protocol + "-asked"));
+	if (asked) {
 		document.getElementById("register-mailto-before").hidden = false;
 	}
-	mailto_button.addEventListener("click", () => {
+	handler_group.addEventListener("click", (event) => {
+		const button = event.target.closest("button[data-protocol]");
+		if (!button) {
+			return;
+		}
 		try {
-			navigator.registerProtocolHandler("mailto", "/compose?mailto=%s");
-			localStorage.setItem(mailto_key, "1");
+			navigator.registerProtocolHandler(button.dataset.protocol, button.dataset.handler);
+			localStorage.setItem(button.dataset.protocol + "-asked", "1");
 			document.getElementById("register-mailto-before").hidden = true;
 			document.getElementById("register-mailto-asked").hidden = false;
 		} catch (e) {

@@ -87,7 +87,10 @@
      than showing nothing at all.
      dict: account urlaccount section home field collection path. */}}
 {{ define "dav-crumb" }}
-{{ if .collection }}
+{{/* A collection named like its section - the one book called
+     "Contacts" - would read "Contacts › Contacts"; its step says
+     nothing the section's does not, so it is left out. */}}
+{{ if and .collection (ne .collection .section) }}
 {{ template "crumb" (dict "account" .urlaccount "steps" (tuple
    (dict "Label" .account "URL" .home)
    (dict "Label" .section "URL" .home)

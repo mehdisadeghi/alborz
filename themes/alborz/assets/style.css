@@ -1880,10 +1880,31 @@ input[type="color"] {
 /* What a delete would take, stated under the form that edits the thing
    and set apart from it: the button beside Save must not read as one
    more way to save. */
+/* The file forms and the delete share one rhythm below the edit form:
+   a rule, a small heading, one row of controls. */
+.collection-file,
 .danger-zone {
   margin-top: var(--space-6);
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-light);
+}
+
+.collection-file h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.collection-file label {
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.collection-file label > span {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
 }
 
 .danger-zone h3 {

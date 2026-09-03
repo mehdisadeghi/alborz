@@ -1,6 +1,7 @@
 {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.contacts") "selectall" true "newhref" "/contacts/create" "newlabel" ($.T "contacts.new")) }}
     <span class="icon-group">
       {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "address-book-form" "formaction" "/contacts/delete") }}
+      {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "address-book-form" "formaction" "/contacts/export") }}
     </span>
 {{ template "toolbar-end" }}
   {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query))) }}

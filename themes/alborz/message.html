@@ -462,6 +462,29 @@
                 (no filename)
               {{- end -}}
               </a> ({{.MIMEType}}, {{.SizeString}})
+              {{/* A calendar or a card attached to a mail is filed from its
+                   own row; the picker appears only where a writable collection
+                   of that kind exists. */}}
+              {{ if and (or (eq .MIMEType "text/calendar") (eq .MIMEType "application/ics")) $.Extra.ImportCalendars }}
+              <form method="post" action="/calendar/import{{$aq}}" class="invitation-actions">
+                <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
+                <input type="hidden" name="uid" value="{{$.Message.UID}}">
+                <input type="hidden" name="part" value="{{.PathString}}">
+                <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                {{ template "collection-picker" (dict "groups" $.Extra.ImportCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
+                <button type="submit">{{$.T "import.tocalendar"}}</button>
+              </form>
+              {{ end }}
+              {{ if and (or (eq .MIMEType "text/vcard") (eq .MIMEType "text/x-vcard") (eq .MIMEType "text/directory")) $.Extra.ImportBooks }}
+              <form method="post" action="/contacts/import{{$aq}}" class="invitation-actions">
+                <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
+                <input type="hidden" name="uid" value="{{$.Message.UID}}">
+                <input type="hidden" name="part" value="{{.PathString}}">
+                <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                {{ template "collection-picker" (dict "groups" $.Extra.ImportBooks "name" "addressbook" "label" ($.T "contacts.book") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
+                <button type="submit">{{$.T "import.tocontacts"}}</button>
+              </form>
+              {{ end }}
             </li>
             {{ end }}
           </ul>

@@ -1,0 +1,29 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ template "detail-aside" (dict "backHref" "/calendar" "backLabel" ($.T "nav.calendar")) }}
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="post" action="/calendar/import">
+        {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+        {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.calendar") "home" "/calendar" "field" "" "collection" "" "path" "") }}
+        <h1>{{$.T "import.title"}}</h1>
+
+        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
+
+        {{/* A webcal: link the browser handed over, or one typed in: the
+             address is fetched here and its objects filed, once. What
+             the file says afterwards is not followed. */}}
+        {{ template "field" (dict "label" ($.T "import.url") "name" "url" "type" "url" "value" .URL "required" true "autofocus" (eq .URL "")) }}
+        {{ template "collection-picker" (dict "groups" .Groups "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len .GlobalData.Accounts) 1)) }}
+
+        {{ template "form-actions" (dict "save" ($.T "import.urldo") "cancel" "/calendar" "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

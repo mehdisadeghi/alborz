@@ -410,6 +410,28 @@ func messageInvitation(ctx *alborz.Context, msg *IMAPMessage, mboxName string, u
 	return inv
 }
 
+// PartAt reads one part of a message as the bytes it was sent as, with
+// its media type. A calendar or a contact attached to a mail is filed
+// from what the sender wrote, not from what a page displayed.
+func PartAt(ctx *alborz.Context, mboxName string, uid imap.UID, part string) ([]byte, string, error) {
+	partPath, err := parsePartPath(part)
+	if err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	var raw []byte
+	var mediaType string
+	err = ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		_, entity, err := getMessagePart(c, mboxName, uid, partPath)
+		if err != nil {
+			return err
+		}
+		mediaType, _, _ = entity.Header.ContentType()
+		raw, err = io.ReadAll(entity.Body)
+		return err
+	})
+	return raw, mediaType, err
+}
+
 // InvitationAt reads the scheduling part of one message, and the bytes
 // it was written as. The calendar plugin needs both: the fields to show
 // and the object to file, which is the organizer's own and not one

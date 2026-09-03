@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"path"
 	"sort"
@@ -25,7 +26,22 @@ func (p *plugin) collectionPage() dav.Page {
 	return dav.Page{
 		Base:   "/calendars/",
 		Color:  calendarColor,
+		Ext:    ".ics",
 		Forget: p.calendars.Forget,
+		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
+			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+			if err != nil {
+				return 0, err
+			}
+			return importObjects(ctx.Request().Context(), c, path, raw)
+		},
+		Export: func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error) {
+			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+			if err != nil {
+				return nil, err
+			}
+			return exportCalendar(ctx.Request().Context(), c, path, from, to)
+		},
 		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
 			_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 			if err != nil {
@@ -495,6 +511,7 @@ func registerRoutes(p *plugin) {
 	POST("/tasks", p.chooseTaskLists)
 	POST("/tasks/show-completed", p.toggleCompleted)
 	GET("/calendar", p.month)
+	GET("/calendar/export", p.exportMonth)
 	GET("/calendar/date", p.day)
 	GET("/calendar/:path", p.event)
 
@@ -506,6 +523,8 @@ func registerRoutes(p *plugin) {
 	GET("/calendars/:path", page.Handle(p.dav))
 	POST("/calendars/:path", page.Handle(p.dav))
 	POST("/calendars/:path/delete", page.HandleDelete(p.dav))
+	POST("/calendars/:path/import", page.HandleImport(p.dav))
+	GET("/calendars/:path/export", page.HandleExport(p.dav))
 	GET("/calendar/create", p.updateEvent)
 	POST("/calendar/create", p.updateEvent)
 	GET("/calendar/:path/update", p.updateEvent)
@@ -1117,6 +1136,51 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 
 // The object exactly as the server stores it. Nothing here parses
 // it: a raw view is only useful while it is verbatim.
+// exportMonth hands the visible calendars' events of the month shown
+// back as one file, named for the month.
+func (p *plugin) exportMonth(ctx *alborz.Context) error {
+	loc := alborzbase.UserLocation(ctx)
+	start := time.Now().In(loc)
+	if s := ctx.QueryParam("month"); s != "" {
+		var err error
+		if start, err = time.Parse(monthPageLayout, s); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err)
+		}
+	}
+	from := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc)
+	return p.exportVisible(ctx, CalendarInfo.SupportsEvent, eventVisibility, []string{"VEVENT"},
+		from, from.AddDate(0, 1, 0), ctx.T("nav.calendar")+" "+from.Format(monthPageLayout))
+}
+
+// exportVisible is the download a list page offers: what the rail shows
+// as visible, across accounts, as one file.
+func (p *plugin) exportVisible(ctx *alborz.Context, kind func(CalendarInfo) bool, chosen func(*Settings) (bool, []string), comps []string, from, to time.Time, name string) error {
+	accounts, err := p.pooledCalendars(ctx)
+	if err != nil {
+		return err
+	}
+	_, sites, err := visibleCalendars(accounts, onlyCollections(ctx, "cal"), kind, chosen)
+	if err != nil {
+		return err
+	}
+	var children []*ical.Component
+	for _, r := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site querySite) ([]*ical.Component, error) {
+		return calendarComponents(ctx, site.client, site.cal.Path, comps, from, to)
+	}) {
+		if r.Err != nil {
+			return r.Err
+		}
+		children = append(children, r.Value...)
+	}
+	body, err := encodeCalendar(children)
+	if err != nil {
+		return err
+	}
+	ctx.Response().Header().Set("Content-Disposition",
+		mime.FormatMediaType("attachment", map[string]string{"filename": name + ".ics"}))
+	return ctx.Blob(http.StatusOK, "text/calendar; charset=utf-8", body)
+}
+
 func (p *plugin) rawObject(ctx *alborz.Context) error {
 	path, err := dav.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
@@ -1131,6 +1195,12 @@ func (p *plugin) rawObject(ctx *alborz.Context) error {
 		return err
 	}
 	defer body.Close()
+	// Saved, it is the file other clients open; read, it is text.
+	if ctx.QueryParam("save") == "1" {
+		ctx.Response().Header().Set("Content-Disposition",
+			mime.FormatMediaType("attachment", map[string]string{"filename": path[strings.LastIndex(path, "/")+1:]}))
+		return ctx.Stream(http.StatusOK, "text/calendar; charset=utf-8", body)
+	}
 	return ctx.Stream(http.StatusOK, "text/plain; charset=utf-8", body)
 }
 func (p *plugin) deleteEvent(ctx *alborz.Context) error {

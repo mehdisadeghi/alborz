@@ -181,7 +181,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		return nil, fmt.Errorf("no usable domains left")
 	}
 
-	s.Sessions = newSessionManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger)
+	s.Sessions = newSessionManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, s.Options.LoginKey)
 	s.Sessions.onGone = s.ForgetAccount
 	return s, nil
 }

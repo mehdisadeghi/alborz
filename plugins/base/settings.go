@@ -148,7 +148,10 @@ type SettingsRenderData struct {
 	// software is answering. A deployment is not the one the reader is
 	// used to, and it is the first thing a bug report has to say.
 	Servers ServerInfo
-	Error   string
+	// HasHTTPPassword says a calendar and contacts password is kept,
+	// which the form shows without ever showing the password.
+	HasHTTPPassword bool
+	Error           string
 }
 
 // ServerInfo is what alborz can say about the account's upstreams
@@ -406,19 +409,24 @@ func handleSettings(ctx *alborz.Context) error {
 		return err
 	}
 	servers := serverInfo(ctx, agent, abilityList)
+	hasHTTPPassword, err := ctx.Session.HasHTTPPassword()
+	if err != nil {
+		return err
+	}
 
 	// The form answers its own invalid input, on the page it was typed
 	// on. Digits are read as they were typed: a page that counts in
 	// Persian digits invites them back in its number fields.
 	reject := func(message string) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "settings.html", &SettingsRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
-			Settings:       settings,
-			Mailboxes:      mailboxes,
-			Subscriptions:  Subscriptions(settings.Subscriptions),
-			Secondary:      ctx.SecondaryCalendar(),
-			MaxPerPage:     maxMessagesPerPage,
-			Error:          message,
+			BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
+			Settings:        settings,
+			Mailboxes:       mailboxes,
+			Subscriptions:   Subscriptions(settings.Subscriptions),
+			Secondary:       ctx.SecondaryCalendar(),
+			MaxPerPage:      maxMessagesPerPage,
+			HasHTTPPassword: hasHTTPPassword,
+			Error:           message,
 		})
 	}
 
@@ -431,6 +439,16 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
 		settings.Timezone = ctx.FormValue("timezone")
+		// An empty field leaves the kept password alone; the box is
+		// how it is let go of, so nobody loses it by saving the page.
+		if ctx.FormValue("http_password_reset") != "" {
+			err = ctx.Session.SetHTTPPassword("")
+		} else if p := ctx.FormValue("http_password"); p != "" {
+			err = ctx.Session.SetHTTPPassword(p)
+		}
+		if err != nil {
+			return err
+		}
 		settings.SearchHeadersOnly = ctx.FormValue("search_body") != "on"
 		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
 		settings.PreferHTML = ctx.FormValue("prefer_html") != ""
@@ -469,14 +487,15 @@ func handleSettings(ctx *alborz.Context) error {
 		guess = SuggestAuthServ(ctx)
 	}
 	return ctx.Render(http.StatusOK, "settings.html", &SettingsRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
-		AuthServGuess:  guess,
-		Settings:       settings,
-		Mailboxes:      mailboxes,
-		Subscriptions:  Subscriptions(settings.Subscriptions),
-		Secondary:      ctx.SecondaryCalendar(),
-		MaxPerPage:     maxMessagesPerPage,
-		Servers:        servers,
+		BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
+		AuthServGuess:   guess,
+		Settings:        settings,
+		Mailboxes:       mailboxes,
+		Subscriptions:   Subscriptions(settings.Subscriptions),
+		Secondary:       ctx.SecondaryCalendar(),
+		MaxPerPage:      maxMessagesPerPage,
+		Servers:         servers,
+		HasHTTPPassword: hasHTTPPassword,
 	})
 }
 

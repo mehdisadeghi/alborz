@@ -337,6 +337,9 @@
 "mailbox.position" = "%d of %d"
 
 "settings.alignscript" = "Align each line by its own script"
+"settings.mailtohandler" = "Open mail links here"
+"settings.mailtoasked" = "Your browser will ask whether to allow it."
+"settings.mailtorefused" = "Your browser refused: this needs a secure connection."
 "common.source" = "Source"
 "common.created" = "Created"
 "common.added" = "Added"

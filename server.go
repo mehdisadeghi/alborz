@@ -29,6 +29,15 @@ import (
 // "alborz" everywhere else.
 const BrandName = "Alborz"
 
+// What a launcher paints before any stylesheet has loaded. The window
+// colour is the one head.html already declares for a light scheme, so
+// an installed window and a tab do not disagree; the splash behind the
+// icon is the same paper.
+const (
+	brandColor      = "#ffffff"
+	brandBackground = "#ffffff"
+)
+
 const (
 	cookieName              = "alborz_session"
 	accountsCookieName      = "alborz_accounts"
@@ -1160,7 +1169,10 @@ func isPublic(path string) bool {
 		parts := strings.Split(path, "/")
 		return len(parts) >= 4 && parts[3] == "assets"
 	}
-	return path == "/login" || strings.HasPrefix(path, "/assets/")
+	// The manifest names the application, not anything in it, and a
+	// browser fetches it before anyone has signed in.
+	return path == "/login" || path == "/manifest.webmanifest" ||
+		strings.HasPrefix(path, "/assets/")
 }
 
 func redirectToLogin(ctx *Context) error {
@@ -1406,6 +1418,39 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 
 			return next(ctx)
 		}
+	})
+
+	// The manifest is generated rather than a file, so the name a phone
+	// puts under the icon is BrandName and not a second copy of it that
+	// can drift. minimal-ui rather than standalone: sessions live in
+	// memory, and standalone takes the address bar away, so a restart
+	// would land on /login in a window with no way out.
+	e.GET("/manifest.webmanifest", func(ectx echo.Context) error {
+		icon := func(name, purpose string) map[string]string {
+			out := map[string]string{"src": s.assetURL(name), "sizes": "512x512", "type": "image/png"}
+			if strings.HasSuffix(name, "192.png") {
+				out["sizes"] = "192x192"
+			}
+			if purpose != "" {
+				out["purpose"] = purpose
+			}
+			return out
+		}
+		ectx.Response().Header().Set("Content-Type", "application/manifest+json")
+		return ectx.JSON(http.StatusOK, map[string]any{
+			"name":             BrandName,
+			"short_name":       BrandName,
+			"start_url":        "/",
+			"scope":            "/",
+			"display":          "minimal-ui",
+			"background_color": brandBackground,
+			"theme_color":      brandColor,
+			"icons": []map[string]string{
+				icon("icon-192.png", ""),
+				icon("icon-512.png", ""),
+				icon("icon-maskable-512.png", "maskable"),
+			},
+		})
 	})
 
 	// Assets are served from the embedded theme, with the theme directory

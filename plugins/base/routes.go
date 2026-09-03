@@ -2495,6 +2495,17 @@ func withSignature(body, text string) string {
 }
 
 func handleComposeNew(ctx *alborz.Context) error {
+	// Where a mailto: link arrives when the browser has been told this
+	// application opens them. Only a mailto URI is followed:
+	// composeFromMailto hands anything else straight back, and
+	// redirecting to that would be an open redirect.
+	if uri := ctx.QueryParam("mailto"); uri != "" {
+		if to := composeFromMailto(uri); strings.HasPrefix(to, "/compose?") {
+			return ctx.Redirect(http.StatusFound, to)
+		}
+		return echo.NewHTTPError(http.StatusBadRequest, "not a mailto URI")
+	}
+
 	text := ctx.QueryParam("body")
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"github.com/dustin/go-humanize"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
@@ -113,11 +112,16 @@ func (mbox *MailboxInfo) Name() string {
 }
 
 func (mbox *MailboxInfo) URL() *url.URL {
-	// Path holds the decoded form; RawPath carries the escaping, so a
-	// folder with a slash in its name is not encoded twice by String.
+	return mailboxPageURL(mbox.Name())
+}
+
+// mailboxPageURL holds the decoded name in Path and the escaping in
+// RawPath, so a folder with a slash in its name is not encoded twice
+// by String.
+func mailboxPageURL(name string) *url.URL {
 	return &url.URL{
-		Path:    "/mailbox/" + mbox.Name(),
-		RawPath: "/mailbox/" + url.PathEscape(mbox.Name()),
+		Path:    "/mailbox/" + name,
+		RawPath: "/mailbox/" + url.PathEscape(name),
 	}
 }
 
@@ -201,10 +205,7 @@ func (mbox *MailboxStatus) IsEmpty() bool {
 }
 
 func (mbox *MailboxStatus) URL() *url.URL {
-	return &url.URL{
-		Path:    "/mailbox/" + mbox.Name(),
-		RawPath: "/mailbox/" + url.PathEscape(mbox.Name()),
-	}
+	return mailboxPageURL(mbox.Name())
 }
 
 // getMailboxByRole finds the account's folder for a special-use role
@@ -451,16 +452,7 @@ func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 	if post := firstListURI(h.Get("List-Post"), "mailto"); post != "" {
 		msg.ListPost = strings.TrimPrefix(post, "mailto:")
 	}
-	// RFC 2919: an optional phrase, then the identifier in angle
-	// brackets. The phrase is the sender's prose and not a name we can
-	// match on, so only the identifier is kept.
-	if id := h.Get("List-Id"); id != "" {
-		if i := strings.LastIndex(id, "<"); i >= 0 {
-			id = id[i+1:]
-			id = strings.TrimSuffix(id, ">")
-		}
-		msg.ListID = strings.TrimSpace(id)
-	}
+	msg.ListID = listID(h)
 	// A one-click https endpoint is preferred; a mailto asks the user to
 	// send a message, which they can at least read before sending. Plain
 	// http is not offered: the POST is made from here, and only over a
@@ -671,7 +663,20 @@ func (node IMAPPartNode) PathString() string {
 }
 
 func (node IMAPPartNode) SizeString() string {
-	return humanize.IBytes(uint64(node.Size))
+	return formatSize(int64(node.Size))
+}
+
+// formatSize writes a byte count the way every size on a page reads:
+// the list column and the attachment rows the same.
+func formatSize(n int64) string {
+	switch {
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.0f KB", float64(n)/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }
 
 func (node IMAPPartNode) URL(raw bool) *url.URL {
@@ -908,7 +913,10 @@ func messageListID(conn *imapclient.Client, mboxName string, uid imap.UID) (stri
 	return listID(h), nil
 }
 
-// listID is the identifier out of RFC 2919's optional phrase.
+// listID is the identifier out of RFC 2919's List-Id: an optional
+// phrase, then the identifier in angle brackets. The phrase is the
+// sender's prose and not a name we can match on, so only the identifier
+// is kept.
 func listID(h textproto.Header) string {
 	id := h.Get("List-Id")
 	if id == "" {
@@ -1088,22 +1096,35 @@ func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.Thr
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch thread page: %v", err)
 	}
-	byUID := make(map[imap.UID]*imapclient.FetchMessageBuffer, len(fetched))
-	for _, m := range fetched {
+	return threadRows(fetched, want, mboxName, header), totalThreads, nil
+}
+
+// indexByUID lets fetched messages be put back in the order they were
+// asked for, which a FETCH does not promise.
+func indexByUID(msgs []*imapclient.FetchMessageBuffer) map[imap.UID]*imapclient.FetchMessageBuffer {
+	byUID := make(map[imap.UID]*imapclient.FetchMessageBuffer, len(msgs))
+	for _, m := range msgs {
 		byUID[m.UID] = m
 	}
+	return byUID
+}
+
+// threadRows turns the fetched messages into rows in the order want
+// lists them. A message expunged between the THREAD and the FETCH is
+// simply not shown; the rest of the page still is.
+func threadRows(fetched []*imapclient.FetchMessageBuffer, want []threadRow, mboxName string, header *imap.FetchItemBodySection) []IMAPMessage {
+	byUID := indexByUID(fetched)
+	var msgs []IMAPMessage
 	for _, r := range want {
 		buf, ok := byUID[r.uid]
 		if !ok {
-			// A message expunged between the THREAD and the FETCH is
-			// simply not shown; the rest of the page still is.
 			continue
 		}
 		row := IMAPMessage{FetchMessageBuffer: buf, Mailbox: mboxName, Depth: r.depth}
 		row.setRowHeaders(buf.FindBodySection(header))
 		msgs = append(msgs, row)
 	}
-	return msgs, totalThreads, nil
+	return msgs
 }
 
 // answerLimit caps what one message's row will count. A message with
@@ -1174,20 +1195,7 @@ func oneThread(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAl
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch thread: %v", err)
 	}
-	byUID := make(map[imap.UID]*imapclient.FetchMessageBuffer, len(fetched))
-	for _, m := range fetched {
-		byUID[m.UID] = m
-	}
-	for _, r := range want {
-		buf, ok := byUID[r.uid]
-		if !ok {
-			continue
-		}
-		row := IMAPMessage{FetchMessageBuffer: buf, Mailbox: mboxName, Depth: r.depth}
-		row.setRowHeaders(buf.FindBodySection(header))
-		msgs = append(msgs, row)
-	}
-	return msgs, nil
+	return threadRows(fetched, want, mboxName, header), nil
 }
 
 // newestUID stands in for a thread's age: UIDs rise with arrival, so the
@@ -1323,10 +1331,7 @@ func findByHeader(conn *imapclient.Client, mboxName, key, value string, limit in
 	if err != nil {
 		return nil, err
 	}
-	byUID := make(map[imap.UID]*imapclient.FetchMessageBuffer, len(msgs))
-	for _, m := range msgs {
-		byUID[m.UID] = m
-	}
+	byUID := indexByUID(msgs)
 	out := make([]ThreadNeighbour, 0, len(uids))
 	for _, uid := range uids {
 		m, ok := byUID[uid]
@@ -1705,15 +1710,15 @@ func markMessageForwarded(conn *imapclient.Client, mboxName string, uid imap.UID
 }
 
 func addFlag(conn *imapclient.Client, mboxName string, uid imap.UID, flag imap.Flag) error {
+	return storeFlags(conn, mboxName, imap.UIDSetNum(uid), imap.StoreFlagsAdd, []imap.Flag{flag})
+}
+
+// storeFlags is the one STORE every flag change goes through.
+func storeFlags(conn *imapclient.Client, mboxName string, set imap.NumSet, op imap.StoreFlagsOp, flags []imap.Flag) error {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return err
 	}
-
-	return conn.Store(imap.UIDSetNum(uid), &imap.StoreFlags{
-		Op:     imap.StoreFlagsAdd,
-		Silent: true,
-		Flags:  []imap.Flag{flag},
-	}, nil).Close()
+	return conn.Store(set, &imap.StoreFlags{Op: op, Silent: true, Flags: flags}, nil).Close()
 }
 
 func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*MailboxInfo, error) {
@@ -1749,20 +1754,18 @@ func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*Ma
 }
 
 func deleteMessage(conn *imapclient.Client, mboxName string, uid imap.UID) error {
-	if err := ensureMailboxSelected(conn, mboxName); err != nil {
-		return err
-	}
+	return deleteMessages(conn, mboxName, imap.UIDSetNum(uid))
+}
 
-	err := conn.Store(imap.UIDSetNum(uid), &imap.StoreFlags{
-		Op:     imap.StoreFlagsAdd,
-		Silent: true,
-		Flags:  []imap.Flag{imap.FlagDeleted},
-	}, nil).Close()
-	if err != nil {
-		return err
+// deleteMessages flags the set deleted and expunges the folder.
+func deleteMessages(conn *imapclient.Client, mboxName string, set imap.NumSet) error {
+	if err := storeFlags(conn, mboxName, set, imap.StoreFlagsAdd, []imap.Flag{imap.FlagDeleted}); err != nil {
+		return fmt.Errorf("failed to add deleted flag: %w", err)
 	}
-
-	return conn.Expunge().Close()
+	if err := conn.Expunge().Close(); err != nil {
+		return fmt.Errorf("failed to expunge mailbox: %w", err)
+	}
+	return nil
 }
 
 // unifiedFolders memoizes each account's role-to-folder resolution for the

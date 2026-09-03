@@ -169,6 +169,32 @@ func (att *imapAttachment) Filename() string {
 	return att.Node.Filename
 }
 
+// newMessageID mints the Message-ID a message leaves with, in the
+// angle-bracket form the header carries.
+func newMessageID() string {
+	var hdr mail.Header
+	hdr.GenerateMessageID()
+	id, _ := hdr.MessageID()
+	return "<" + id + ">"
+}
+
+// mailerName is what the User-Agent header says wrote the message.
+func mailerName(ctx *alborz.Context) string {
+	if v := ctx.Server.Options.Version; v != "" {
+		return alborz.BrandName + "/" + v
+	}
+	return alborz.BrandName
+}
+
+// fromAddress writes the account's address under the name its settings
+// give it, bare when they give none.
+func fromAddress(settings *Settings, address string) string {
+	if settings.From == "" {
+		return address
+	}
+	return (&mail.Address{Name: settings.From, Address: address}).String()
+}
+
 type OutgoingMessage struct {
 	From      string
 	To        []string

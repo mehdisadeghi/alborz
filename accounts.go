@@ -15,40 +15,19 @@ import (
 // SetSession sets a cookie for the provided session. Passing a nil session
 // unsets the cookie.
 func (ctx *Context) SetSession(s *Session) {
-	cookie := http.Cookie{
-		Name:     cookieName,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.secureCookies(),
+	if s == nil {
+		ctx.SetCookie(ctx.cookie(cookieName, "", 0))
+		return
 	}
-	if s != nil {
-		cookie.Value = s.token
-		ctx.setActiveUser(s.username)
-	} else {
-		cookie.Expires = aLongTimeAgo // unset the cookie
-	}
-	ctx.SetCookie(&cookie)
+	ctx.setActiveUser(s.username)
+	ctx.SetCookie(ctx.cookie(cookieName, s.token, 0))
 }
 
 // setActiveUser records the active account's username so the login page can
 // re-authenticate the same identity after its session expired. It
 // deliberately survives session expiry; only the final logout clears it.
 func (ctx *Context) setActiveUser(username string) {
-	cookie := http.Cookie{
-		Name:     activeUserCookieName,
-		Path:     "/",
-		Expires:  time.Now().Add(credentialCookieLife),
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.secureCookies(),
-	}
-	if username == "" {
-		cookie.Expires = aLongTimeAgo // unset the cookie
-	} else {
-		cookie.Value = url.QueryEscape(username)
-	}
-	ctx.SetCookie(&cookie)
+	ctx.SetCookie(ctx.cookie(activeUserCookieName, url.QueryEscape(username), credentialCookieLife))
 }
 
 // Account describes one signed-in account for the account switcher.
@@ -102,23 +81,11 @@ func (ctx *Context) setAccountSessions(sessions []*Session) {
 	ctx.accounts = sessions
 	ctx.accountsLoaded = true
 
-	cookie := http.Cookie{
-		Name:     accountsCookieName,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.secureCookies(),
+	tokens := make([]string, len(sessions))
+	for i, s := range sessions {
+		tokens[i] = s.token
 	}
-	if len(sessions) == 0 {
-		cookie.Expires = aLongTimeAgo // unset the cookie
-	} else {
-		tokens := make([]string, len(sessions))
-		for i, s := range sessions {
-			tokens[i] = s.token
-		}
-		cookie.Value = strings.Join(tokens, "|")
-	}
-	ctx.SetCookie(&cookie)
+	ctx.SetCookie(ctx.cookie(accountsCookieName, strings.Join(tokens, "|"), 0))
 }
 
 // Accounts lists the signed-in accounts in switcher order.
@@ -313,17 +280,8 @@ func (ctx *Context) forgetLoginToken(username string) {
 }
 
 func (ctx *Context) storeLoginTokens(tokens []loginToken) {
-	cookie := http.Cookie{
-		Expires:  time.Now().Add(credentialCookieLife),
-		Name:     loginTokenCookieName,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.secureCookies(),
-		Path:     "/",
-	}
 	if len(tokens) == 0 {
-		cookie.Expires = aLongTimeAgo // unset the cookie
-		ctx.SetCookie(&cookie)
+		ctx.SetCookie(ctx.cookie(loginTokenCookieName, "", 0))
 		return
 	}
 
@@ -342,8 +300,7 @@ func (ctx *Context) storeLoginTokens(tokens []loginToken) {
 		return
 	}
 
-	cookie.Value = string(bytes)
-	ctx.SetCookie(&cookie)
+	ctx.SetCookie(ctx.cookie(loginTokenCookieName, string(bytes), credentialCookieLife))
 }
 
 func (ctx *Context) loginTokens() []loginToken {

@@ -47,3 +47,18 @@ func TestUnsubscribeComposesFromTheReceivingAccount(t *testing.T) {
 		}
 	}
 }
+
+func TestDeliveryHeadersAreBelievedOnlyBehindOurOwnReceived(t *testing.T) {
+	h := headerOf(t, listHeader)
+	if addrs, cut := deliveryAddresses(h, "mail.mehdix.org"); cut != len(addrs) || len(addrs) == 0 {
+		t.Errorf("our own server's headers were not believed: %d of %v", cut, addrs)
+	}
+	if _, cut := deliveryAddresses(h, ""); cut == 0 {
+		t.Errorf("with no server named there is nothing to measure against, so everything counts")
+	}
+	// A server the reader named as theirs that wrote no Received here
+	// did not deliver this message; whatever sits on top is a stranger's.
+	if _, cut := deliveryAddresses(h, "mail.example.org"); cut != 0 {
+		t.Errorf("headers above a stranger's Received were believed: cut %d", cut)
+	}
+}

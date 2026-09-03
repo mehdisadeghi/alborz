@@ -10,10 +10,10 @@
   <div class="container">
     <main class="create-update">
       <form method="post" action="/filters{{$aq}}" class="filter">
-        {{ if .Name }}
+        {{/* Shown whether the filter exists yet or not: a new one is
+             somewhere too. */}}
         {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
-        <div class="context-crumb">{{$crumbAcct}}</div>
-        {{ end }}
+        {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" "" "path" "") }}
         <h1>
           {{if .Name}}{{$.T "filters.edittitle"}}{{else}}{{$.T "filters.createtitle"}}{{end}}
         </h1>

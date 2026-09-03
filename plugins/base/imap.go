@@ -34,6 +34,59 @@ type MailboxInfo struct {
 	Label string
 }
 
+// CrumbLink is one step of the path a page shows above itself: what it
+// is called and where it goes. A step with no URL is named but not
+// linked, which is what a folder that cannot be selected deserves.
+type CrumbLink struct {
+	Label string
+	URL   string
+}
+
+// mailboxCrumb names the path to a folder, each step leading to it. The
+// account is the first step and leads to its inbox, because that is
+// where "back" means for mail.
+//
+// A step is named by its own path segment, not by the folder's Label:
+// a custom folder's label is its whole wire name, which would repeat
+// the path at every step. A special-use folder is the exception worth
+// making, so the first step reads Inbox rather than INBOX. A segment
+// the folder list does not hold, or holds as a parent that cannot be
+// selected, is named but not linked.
+func mailboxCrumb(mailboxes []MailboxInfo, name, account string) []CrumbLink {
+	crumb := []CrumbLink{{Label: account, URL: "/mailbox/INBOX"}}
+	if name == "" {
+		return crumb
+	}
+
+	byName := make(map[string]*MailboxInfo, len(mailboxes))
+	delim := rune(0)
+	for i := range mailboxes {
+		byName[mailboxes[i].Name()] = &mailboxes[i]
+		if delim == 0 {
+			delim = mailboxes[i].Delim
+		}
+	}
+
+	parts := []string{name}
+	if delim != 0 {
+		parts = strings.Split(name, string(delim))
+	}
+	for i := range parts {
+		step := CrumbLink{Label: parts[i]}
+		path := strings.Join(parts[:i+1], string(delim))
+		if mbox, ok := byName[path]; ok {
+			if mbox.role() != "" {
+				step.Label = mbox.Label
+			}
+			if !slices.Contains(mbox.Attrs, imap.MailboxAttrNoSelect) {
+				step.URL = mbox.URL().String()
+			}
+		}
+		crumb = append(crumb, step)
+	}
+	return crumb
+}
+
 // role names the special-use category, empty for custom folders. It
 // checks the RFC 6154 attributes first, then the conventional names.
 func (mbox *MailboxInfo) role() string {

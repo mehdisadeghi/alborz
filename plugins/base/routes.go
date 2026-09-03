@@ -133,6 +133,8 @@ type MailboxRenderData struct {
 	// ThreadSupported says the server can group a folder into
 	// conversations, which is what offers the view at all.
 	ThreadSupported bool
+	// Crumb is the path to this folder, account first.
+	Crumb []CrumbLink
 	// Threaded says this listing is one, so the rows carry a depth and
 	// the pager counts conversations rather than messages.
 	Threaded bool
@@ -1005,6 +1007,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		SortDir:            map[bool]string{true: "desc", false: "asc"}[reverse],
 		SortSupported:      sortSupported,
 		ThreadSupported:    threadAlgorithm != "",
+		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
 		Threaded:           sortKey == threadSort && threadAlgorithm != "",
 	})
 }
@@ -1362,6 +1365,9 @@ type MessageRenderData struct {
 	// conversations, which is the only thing that makes the link to
 	// them worth offering.
 	ThreadSupported bool
+
+	// Crumb is the path to the folder this message is in, account first.
+	Crumb []CrumbLink
 
 	// DeliveredTo names the address the message was delivered to when
 	// that is not the account it landed in - the alias, in other words.
@@ -1811,6 +1817,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		InReplyTo:          inReplyTo,
 		Answers:            answers,
 		ThreadSupported:    threadAlgorithm != "",
+		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        trust.alias(msg),
 	})

@@ -10,7 +10,7 @@
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "list-toolbar" (dict "title" ($.T "nav.settings")) }}
       </section>
-      <div class="context-crumb">{{printf ($.T "settings.foraccount") .GlobalData.Username}}</div>
+      {{ template "dav-crumb" (dict "account" .GlobalData.Username "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.settings") "home" "/settings" "field" "" "collection" "" "path" "") }}
       {{ if .Error }}<div class="alert" role="alert">{{ .Error }}</div>{{ end }}
       {{ template "info-card" (dict "title" ($.T "settings.servers") "page" $
          "rows" (tuple

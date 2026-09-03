@@ -36,7 +36,7 @@
       </section>
 
       {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
-      <div class="context-crumb">{{$crumbAcct}} › {{.Calendar.Name}}</div>
+      {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
 
       <section class="details">
         <h1 class="{{if eq $status "COMPLETED"}}completed{{end}}">{{$summary}}</h1>

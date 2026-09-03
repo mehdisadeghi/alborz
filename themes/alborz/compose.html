@@ -9,6 +9,8 @@
     <main id="main" tabindex="-1" class="create-update">
 
       <form method="post" enctype="multipart/form-data" id="compose-form">
+        {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+        {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
         <h1 class="visually-hidden">{{$.T "aside.compose"}}</h1>
         {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
         <input type="hidden" name="message_id" value="{{.Message.MessageID}}">

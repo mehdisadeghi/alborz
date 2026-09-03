@@ -30,6 +30,7 @@ import (
 )
 
 const smokeUser = "a@test.local"
+const smokeUser2 = "b@test.local"
 const smokePass = "x"
 
 // sentMail collects what the server actually put on the wire. The
@@ -98,30 +99,36 @@ func startSMTP(t *testing.T) (string, *sentMail) {
 	return ln.Addr().String(), got
 }
 
-// startIMAP serves one seeded account in memory, on a port the OS picks.
+// startIMAP serves two accounts in memory, on a port the OS picks: one
+// seeded with mail, and a second whose Drafts holds one message so a
+// draft deleted on the wrong account is a draft that goes missing.
 func startIMAP(t *testing.T) string {
 	t.Helper()
 	mem := imapmemserver.New()
-	user := imapmemserver.NewUser(smokeUser, smokePass)
-	for _, mbox := range []struct {
-		name string
-		attr imap.MailboxAttr
-	}{
-		{"INBOX", ""}, {"Drafts", imap.MailboxAttrDrafts}, {"Sent", imap.MailboxAttrSent},
-		{"Junk", imap.MailboxAttrJunk}, {"Trash", imap.MailboxAttrTrash},
-		{"Archive", imap.MailboxAttrArchive},
-		// A folder under another: its name carries the separator, and
-		// every URL that names it has to escape it.
-		{"INBOX/Lists", ""},
-	} {
-		var opts *imap.CreateOptions
-		if mbox.attr != "" {
-			opts = &imap.CreateOptions{SpecialUse: []imap.MailboxAttr{mbox.attr}}
+	newUser := func(name string) *imapmemserver.User {
+		user := imapmemserver.NewUser(name, smokePass)
+		for _, mbox := range []struct {
+			name string
+			attr imap.MailboxAttr
+		}{
+			{"INBOX", ""}, {"Drafts", imap.MailboxAttrDrafts}, {"Sent", imap.MailboxAttrSent},
+			{"Junk", imap.MailboxAttrJunk}, {"Trash", imap.MailboxAttrTrash},
+			{"Archive", imap.MailboxAttrArchive},
+			// A folder under another: its name carries the separator, and
+			// every URL that names it has to escape it.
+			{"INBOX/Lists", ""},
+		} {
+			var opts *imap.CreateOptions
+			if mbox.attr != "" {
+				opts = &imap.CreateOptions{SpecialUse: []imap.MailboxAttr{mbox.attr}}
+			}
+			if err := user.Create(mbox.name, opts); err != nil {
+				t.Fatalf("create %s: %v", mbox.name, err)
+			}
 		}
-		if err := user.Create(mbox.name, opts); err != nil {
-			t.Fatalf("create %s: %v", mbox.name, err)
-		}
+		return user
 	}
+	user := newUser(smokeUser)
 	// A plain message, one from a list and one carrying an attachment:
 	// the three render different toolbars and different rows, and a
 	// branch nothing opens is a branch nothing checks.
@@ -166,6 +173,15 @@ func startIMAP(t *testing.T) string {
 		}
 	}
 	mem.AddUser(user)
+
+	other := newUser(smokeUser2)
+	draft := fmt.Sprintf("From: %s\r\nTo: friend@example.org\r\nSubject: unsent\r\n"+
+		"Message-ID: <draft@test>\r\nContent-Type: text/plain\r\n\r\nLater.\r\n", smokeUser2)
+	if _, err := other.Append("Drafts", literal{strings.NewReader(draft), int64(len(draft))},
+		&imap.AppendOptions{Flags: []imap.Flag{imap.FlagDraft}}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	mem.AddUser(other)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -552,8 +568,54 @@ func TestSendHTMLIsDecidedByTheAccount(t *testing.T) {
 	}
 }
 
-// sendFrom submits the compose form exactly as the page presented it.
-func sendFrom(t *testing.T, c *http.Client, base, path, page string) {
+// TestSendingAsAnotherAccountKeepsItsDraft opens a draft on one
+// account and sends it as the other. The draft is named by the URL, so
+// it is the first account's; the From choice only says who sends. The
+// mailbox and UID meant one account's message and were once applied to
+// the other's connection, which deleted whatever it held at that UID.
+func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
+	smtpAddr, sent := startSMTP(t)
+	base := startAlborz(t, startIMAP(t), smtpAddr)
+	c := login(t, base)
+	resp, err := c.PostForm(base+"/login",
+		url.Values{"username": {smokeUser2}, "password": {smokePass}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	first := "?account=" + smokeUser
+	second := "?account=" + smokeUser2
+	sendFrom(t, c, base, "/compose"+first, get(t, c, base+"/compose"+first),
+		"save_as_draft", "1")
+	drafts := messageUIDs(get(t, c, base+"/mailbox/Drafts"+first))
+	if len(drafts) != 1 {
+		t.Fatalf("the draft was not saved on the first account; found %d", len(drafts))
+	}
+	if n := len(messageUIDs(get(t, c, base+"/mailbox/Drafts"+second))); n != 1 {
+		t.Fatalf("the second account should start with one draft, found %d", n)
+	}
+
+	path := "/message/Drafts/" + drafts[0] + "/edit?part=1&account=" + smokeUser
+	sendFrom(t, c, base, path, get(t, c, base+path), "from_account", smokeUser2)
+
+	if !strings.Contains(sent.Last(), "From: <"+smokeUser2+">") {
+		t.Errorf("the message did not leave as the chosen account:\n%s", headOf(sent.Last()))
+	}
+	if n := len(messageUIDs(get(t, c, base+"/mailbox/Drafts"+first))); n != 0 {
+		t.Errorf("the sent draft is still on the first account")
+	}
+	if n := len(messageUIDs(get(t, c, base+"/mailbox/Drafts"+second))); n != 1 {
+		t.Errorf("the second account's own draft is gone")
+	}
+	if n := len(messageUIDs(get(t, c, base+"/mailbox/Sent"+second))); n != 1 {
+		t.Errorf("the sent copy is not on the sending account; found %d", n)
+	}
+}
+
+// sendFrom submits the compose form exactly as the page presented it,
+// plus any fields given as name, value pairs.
+func sendFrom(t *testing.T, c *http.Client, base, path, page string, fields ...string) {
 	t.Helper()
 	mid := strings.NewReplacer("&lt;", "<", "&gt;", ">").Replace(
 		between(page, `name="message_id" value="`, `"`))
@@ -569,6 +631,11 @@ func sendFrom(t *testing.T, c *http.Client, base, path, page string) {
 		{"subject", "direction"}, {"text", "سلام\n\nEnglish."},
 	} {
 		if err := w.WriteField(f[0], f[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i+1 < len(fields); i += 2 {
+		if err := w.WriteField(fields[i], fields[i+1]); err != nil {
 			t.Fatal(err)
 		}
 	}

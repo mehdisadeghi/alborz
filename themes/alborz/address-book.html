@@ -23,26 +23,20 @@
         {{ $multi := gt (len .GlobalData.Accounts) 1 }}
         <div class="contact-grid list-grid" role="table">
           {{if .AddressObjects}}
-          {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | addr) }}{{ end }}
-          {{ $creset := "?" }}{{ if ne $cq "" }}{{ $creset = printf "?%s" (slice $cq 1) }}{{ end }}
-          {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "name" }}{{ end }}
-          {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
-          {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-          {{ $s := dict "Key" $hsort "Dir" .SortDir "Explicit" $hexp "DirExplicit" $hdirx "Params" $cq "Reset" $creset }}
           <div class="list-row" role="row">
           <div class="list-header list-checkbox" role="columnheader"></div>
           <div class="list-header contact-list-photo" role="columnheader"></div>
-          {{ template "sort-col" (dict "s" $s "key" "name" "label" ($.T "common.name") "cell" "list-primary contact-list-name") }}
-          {{ template "sort-col" (dict "s" $s "key" "email" "label" ($.T "contacts.email") "cell" "contact-list-email") }}
-          {{ template "sort-col" (dict "s" $s "key" "phone" "label" ($.T "contacts.phone") "cell" "contact-list-phone") }}
+          {{ template "sort-col" (dict "s" .Sorting "key" "name" "label" ($.T "common.name") "cell" "list-primary contact-list-name") }}
+          {{ template "sort-col" (dict "s" .Sorting "key" "email" "label" ($.T "contacts.email") "cell" "contact-list-email") }}
+          {{ template "sort-col" (dict "s" .Sorting "key" "phone" "label" ($.T "contacts.phone") "cell" "contact-list-phone") }}
           {{/* Changed, not added: a vCard has no property for when it
                was made, and REV is the last revision. */}}
-          {{ template "sort-col" (dict "s" $s "key" "changed" "label" ($.T "common.modified") "cell" "contact-list-changed") }}
-          {{ template "sort-col" (dict "s" $s "key" "book" "label" ($.T "contacts.book") "cell" "contact-list-book") }}
+          {{ template "sort-col" (dict "s" .Sorting "key" "changed" "label" ($.T "common.modified") "cell" "contact-list-changed") }}
+          {{ template "sort-col" (dict "s" .Sorting "key" "book" "label" ($.T "contacts.book") "cell" "contact-list-book") }}
           </div>
           {{end}}
           {{range .AddressObjects}}
-          {{$color := call $.ColorForPath .Account .Path}}
+          {{$book := call $.CollectionFor .Account .Path}}{{$color := $book.Color}}
           {{$photo := .PhotoURL}}
           <div class="contact-row list-row" role="row">
             <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
@@ -72,7 +66,7 @@
             {{ $m := .Modified }}{{ if not $m.IsZero }}{{ $changed = $.GlobalData.Since $m }}{{ $changedTitle = $.GlobalData.FormatDate $m }}{{ end }}
             <div class="contact-list-changed list-cell" role="cell" title="{{$changedTitle}}">{{$changed}}</div>
             <div class="contact-list-book list-cell" role="cell">
-              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}{{ call $.BookForPath .Account .Path }}{{if $multi}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}{{$book.Name}}{{if $multi}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
             </div>
           </div>
           {{end}}

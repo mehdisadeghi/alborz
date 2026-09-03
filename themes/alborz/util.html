@@ -153,8 +153,8 @@
 {{ end }}
 
 {{/* One sortable column header with the shared three-state cycle, read
-     from the list's one sort value: Key Dir Explicit DirExplicit Params
-     Reset. dict: label key s [idle class]. */}}
+     from the list's one Sorting value. dict: label key s [idle
+     class]. */}}
 {{ define "sort-th" }}
 {{ $arrow := "↑" }}{{ if eq .s.Dir "desc" }}{{ $arrow = "↓" }}{{ end }}
 {{ $flip := "desc" }}{{ if eq .s.Dir "desc" }}{{ $flip = "asc" }}{{ end }}

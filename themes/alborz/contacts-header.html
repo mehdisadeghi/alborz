@@ -4,12 +4,6 @@
     </span>
 {{ template "toolbar-end" }}
   {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query))) }}
-  {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | addr) }}{{ end }}
-  {{ $creset := "?" }}{{ if ne $cq "" }}{{ $creset = printf "?%s" (slice $cq 1) }}{{ end }}
-  {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "name" }}{{ end }}
-  {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
-  {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-  {{ $s := dict "Key" $hsort "Dir" .SortDir "Explicit" $hexp "DirExplicit" $hdirx "Params" $cq "Reset" $creset }}
-  {{ template "sort-menu" (dict "g" $ "s" $s "disabled" (not .AddressObjects) "rows" (tuple
+  {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .AddressObjects) "rows" (tuple
      (tuple ($.T "common.name") "name") (tuple ($.T "contacts.email") "email") (tuple ($.T "contacts.phone") "phone"))) }}
 {{ template "toolbar-foot" }}

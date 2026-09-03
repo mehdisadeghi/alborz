@@ -104,13 +104,23 @@ func startSMTP(t *testing.T) (string, *sentMail) {
 // draft deleted on the wrong account is a draft that goes missing.
 func startIMAP(t *testing.T) string {
 	t.Helper()
-	addr, _ := startIMAPServer(t)
+	addr, _ := startIMAPServer(t, rigCaps())
 	return addr
+}
+
+// rigCaps is what the in-memory server advertises by default. A test
+// that takes a capability away runs the branch that a server without
+// it takes.
+func rigCaps() imap.CapSet {
+	return imap.CapSet{
+		imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {},
+		imap.CapCondStore: {}, imap.CapSort: {}, imap.CapMetadata: {},
+	}
 }
 
 // startIMAPServer also hands back the server, for a test that takes it
 // away again.
-func startIMAPServer(t *testing.T) (string, *imapserver.Server) {
+func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server) {
 	t.Helper()
 	mem := imapmemserver.New()
 	newUser := func(name string) *imapmemserver.User {
@@ -199,10 +209,7 @@ func startIMAPServer(t *testing.T) (string, *imapserver.Server) {
 		NewSession: func(c *imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
 			return mem.NewSession(), nil, nil
 		},
-		Caps: imap.CapSet{
-			imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {},
-			imap.CapCondStore: {}, imap.CapSort: {}, imap.CapMetadata: {},
-		},
+		Caps:         caps,
 		InsecureAuth: true,
 	})
 	go srv.Serve(ln)
@@ -673,7 +680,7 @@ func TestSendWithoutMessageIDStillSends(t *testing.T) {
 // sends the reader to check their password. The page depends on the
 // error keeping its type through every wrap on the way up.
 func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
-	addr, srv := startIMAPServer(t)
+	addr, srv := startIMAPServer(t, rigCaps())
 	base := startAlborz(t, addr)
 	c := login(t, base)
 	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
@@ -706,6 +713,29 @@ func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
 			t.Fatalf("an unreachable server was answered with %s:\n%s", resp.Status, firstLines(buf.String()))
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// TestNewestFirstWithoutSort: a server without the SORT extension
+// answers SEARCH oldest first, and the list once showed it that way,
+// with the oldest message on top and the neighbours swapped.
+func TestNewestFirstWithoutSort(t *testing.T) {
+	caps := rigCaps()
+	delete(caps, imap.CapSort)
+	addr, _ := startIMAPServer(t, caps)
+	base := startAlborz(t, addr)
+	c := login(t, base)
+
+	// A search is what goes through SEARCH; the plain list is fetched
+	// by sequence range and was never wrong.
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX?query=example"))
+	if len(uids) < 2 {
+		t.Fatalf("need two seeded messages to match, found %d", len(uids))
+	}
+	for i := 1; i < len(uids); i++ {
+		if len(uids[i-1]) < len(uids[i]) || uids[i-1] < uids[i] {
+			t.Fatalf("older message listed first: %v", uids)
+		}
 	}
 }
 

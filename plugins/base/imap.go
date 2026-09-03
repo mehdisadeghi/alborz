@@ -1386,7 +1386,14 @@ func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, sort 
 		if err != nil {
 			return nil, fmt.Errorf("SEARCH failed: %v", err)
 		}
-		return data.AllSeqNums(), nil
+		// SEARCH answers oldest first, and sequence order is the one
+		// date order available without SORT; reverse still means
+		// newest first, as it does with it.
+		nums := data.AllSeqNums()
+		if reverse {
+			slices.Reverse(nums)
+		}
+		return nums, nil
 	}
 
 	if sort == "starred" {

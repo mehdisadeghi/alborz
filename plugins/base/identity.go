@@ -72,6 +72,18 @@ func splitIdentityChoice(value string) (account, identity string) {
 	return account, identity
 }
 
+// addressed reports whether the lists a message names carry the address.
+func addressed(address string, lists ...[]imap.Address) bool {
+	for _, list := range lists {
+		for _, a := range list {
+			if strings.EqualFold(a.Addr(), address) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // identityAddressed names the address a reply should be written from:
 // the identity the original was addressed to, if one of them was, and
 // otherwise the empty string, which leaves the compose form on its own

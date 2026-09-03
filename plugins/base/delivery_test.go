@@ -62,3 +62,35 @@ func TestDeliveryHeadersAreBelievedOnlyBehindOurOwnReceived(t *testing.T) {
 		t.Errorf("headers above a stranger's Received were believed: cut %d", cut)
 	}
 }
+
+// Alias mail the sender addressed to the alias itself: the delivery
+// path and the To header say the same thing.
+const aliasHeader = `Return-Path: <bounce@example.net>
+Delivered-To: mx@43.yt
+Received: from relay.example.net ([192.0.2.1])
+	by ms4.migadu.com with LMTPS id abc
+	for <mx@43.yt>; Thu, 03 Sep 2026 10:02:12 +0200
+X-Envelope-To: immo43@43.yt
+From: "Sender" <news@example.net>
+To: <immo43@43.yt>
+Subject: An offer
+
+`
+
+func TestAliasIsNotRepeatedWhenToNamesIt(t *testing.T) {
+	msg := &IMAPMessage{FetchMessageBuffer: &imapclient.FetchMessageBuffer{Envelope: &imap.Envelope{
+		To: []imap.Address{{Mailbox: "immo43", Host: "43.yt"}},
+	}}}
+	msg.setListHeaders(headerOf(t, aliasHeader))
+	trust := deliveryTrust{account: "mx@43.yt", domains: []string{"43.yt"}}
+	alias := trust.alias(msg)
+	if alias != "immo43@43.yt" {
+		t.Fatalf("the alias the mail reached is %q", alias)
+	}
+	if !addressed(alias, msg.Envelope.To, msg.Envelope.Cc) {
+		t.Errorf("the alias is in To and the page would say it twice")
+	}
+	if addressed(alias, []imap.Address{{Mailbox: "list", Host: "example.org"}}) {
+		t.Errorf("an alias To does not name is worth a row")
+	}
+}

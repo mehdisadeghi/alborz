@@ -43,8 +43,8 @@ func sanityCheckURL(u *url.URL) error {
 }
 
 // Age at which a discovered address book list is reloaded in the background
-// while still being served; alborz cannot create or delete books, so a
-// change made on the server shows up one visit late at worst.
+// while still being served; a book made or removed by another client shows
+// up one visit late at worst.
 const discoveryTTL = 5 * time.Minute
 
 // The discovery load is detached from its requester's context, so a
@@ -165,14 +165,6 @@ func (p *plugin) pooledBooks(ctx *alborz.Context) ([]accountBooks, error) {
 		return nil, errNoAddressBook
 	}
 	return accounts, nil
-}
-
-func (p *plugin) clientWithAddressBook(ctx context.Context, session *alborz.Session) (*carddav.Client, *AddressBookInfo, error) {
-	c, addressBooks, err := p.clientWithAddressBooks(ctx, session)
-	if err != nil {
-		return nil, nil, err
-	}
-	return c, &addressBooks[0], nil
 }
 
 // domainURL resolves the domain's CardDAV endpoint; nil without error means

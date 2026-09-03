@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"net"
 	"net/http"
@@ -1392,11 +1391,9 @@ type MessageRenderData struct {
 }
 
 // handleRefreshMailbox drops what is cached for the account and returns
-// to the page that asked. Alborz learns of new mail only when a page is
-// loaded, and even then serves a listing up to listingFreshFor old
-// without asking - so a reader who knows something arrived has no way to
-// say so. This is that way. It is not a substitute for being told: see
-// the note on IDLE and the "there is new mail" notice.
+// to the page that asked. The IDLE watcher already evicts on what the
+// server announces; this is for a server without IDLE, where a reader
+// who knows something arrived has no other way to say so.
 func handleRefreshMailbox(ctx *alborz.Context) error {
 	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
 	if err != nil {
@@ -3260,7 +3257,7 @@ func handleEdit(ctx *alborz.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		b, err := ioutil.ReadAll(part.Body)
+		b, err := io.ReadAll(part.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read part body: %v", err)
 		}

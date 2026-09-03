@@ -12,8 +12,9 @@ import (
 // The listing cache holds each account's default folder view so a click
 // renders from memory instead of refetching fifty envelopes. Entries are
 // served as-is while fresh; after that a single STATUS decides between
-// reuse and refetch. Every write through alborz evicts, so only changes
-// made by other clients can go unnoticed, bounded by listingFreshFor.
+// reuse and refetch. Every write through alborz evicts, and the IDLE
+// watcher evicts on what the server announces, so a change goes
+// unnoticed only on a server without IDLE, bounded by listingFreshFor.
 const (
 	// Served without asking the server at all.
 	listingFreshFor = 30 * time.Second

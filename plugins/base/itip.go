@@ -45,16 +45,15 @@ const (
 // Invitation is a scheduling request as a page can show it.
 type Invitation struct {
 	// Method is REQUEST for an invitation and CANCEL for its withdrawal.
-	Method     string
-	UID        string
-	Summary    string
-	Location   string
-	Descriptio string
-	Start      time.Time
-	End        time.Time
-	AllDay     bool
-	Organizer  string
-	Attendees  []Attendee
+	Method    string
+	UID       string
+	Summary   string
+	Location  string
+	Start     time.Time
+	End       time.Time
+	AllDay    bool
+	Organizer string
+	Attendees []Attendee
 	// Part is where the calendar lives in the message, so an answer can
 	// re-read the original rather than trust what a page posted back.
 	Part string
@@ -143,7 +142,6 @@ func readInvitation(raw []byte, part string, mine string) *Invitation {
 	inv.UID, _ = event.Props.Text(ical.PropUID)
 	inv.Summary, _ = event.Props.Text(ical.PropSummary)
 	inv.Location, _ = event.Props.Text(ical.PropLocation)
-	inv.Descriptio, _ = event.Props.Text(ical.PropDescription)
 	inv.Start, _ = event.DateTimeStart(nil)
 	inv.End, _ = event.DateTimeEnd(nil)
 	if prop := event.Props.Get(ical.PropDateTimeStart); prop != nil {

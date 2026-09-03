@@ -144,15 +144,15 @@ func doPropfind(ctx context.Context, client *http.Client, path string, body stri
 	return &ms, nil
 }
 
-// doMkcalendar creates a calendar collection. go-webdav's client speaks
-// only to existing collections, so the request is built here: a name, the
-// components the collection accepts, and Apple's colour property, which
-// every server that shows colours reads.
 // errCollectionExists reports the address as taken: MKCALENDAR on a
 // resource that is already there is 405, which is what RFC 4918 asks
 // of MKCOL and what SabreDAV answers.
 var errCollectionExists = errors.New("collection already exists")
 
+// doMkcalendar creates a calendar collection. go-webdav's client speaks
+// only to existing collections, so the request is built here: a name, the
+// components the collection accepts, and Apple's colour property, which
+// every server that shows colours reads.
 func doMkcalendar(ctx context.Context, client *http.Client, path, name string, components []string, color string) error {
 	var props bytes.Buffer
 	fmt.Fprintf(&props, "<D:displayname>%s</D:displayname>", xmlEscape(name))
@@ -542,14 +542,6 @@ func (p *plugin) clientWithCalendars(ctx context.Context, session *alborz.Sessio
 	return c, infos, nil
 }
 
-func (p *plugin) clientWithCalendar(ctx context.Context, session *alborz.Session) (*caldav.Client, *CalendarInfo, error) {
-	c, calendars, err := p.clientWithCalendars(ctx, session)
-	if err != nil {
-		return nil, nil, err
-	}
-	return c, &calendars[0], nil
-}
-
 type CalendarObject struct {
 	*caldav.CalendarObject
 
@@ -692,14 +684,6 @@ func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) [
 	return out
 }
 
-func newCalendarObjectList(cos []caldav.CalendarObject) []CalendarObject {
-	l := make([]CalendarObject, len(cos))
-	for i := range cos {
-		l[i] = CalendarObject{CalendarObject: &cos[i]}
-	}
-	return l
-}
-
 func (ao CalendarObject) URL() string {
 	return "/calendar/" + url.PathEscape(ao.Path)
 }
@@ -722,14 +706,6 @@ type TaskObject struct {
 
 	// Account owning the object, set only in the unified view
 	Account string
-}
-
-func newTaskObjectList(cos []caldav.CalendarObject) []TaskObject {
-	l := make([]TaskObject, len(cos))
-	for i := range cos {
-		l[i] = TaskObject{CalendarObject: &cos[i]}
-	}
-	return l
 }
 
 func (t TaskObject) URL() string {

@@ -879,7 +879,6 @@ func (msg *IMAPMessage) setRowHeaders(buf []byte) {
 	msg.ListID = listID(h)
 }
 
-// listID is the identifier out of RFC 2919's optional phrase.
 // messageListID reads one message's List-Id and nothing else. It exists
 // so a decision that belongs to the server - whether a reply is going to
 // a list - is answered by asking the message, rather than by trusting a
@@ -909,6 +908,7 @@ func messageListID(conn *imapclient.Client, mboxName string, uid imap.UID) (stri
 	return listID(h), nil
 }
 
+// listID is the identifier out of RFC 2919's optional phrase.
 func listID(h textproto.Header) string {
 	id := h.Get("List-Id")
 	if id == "" {

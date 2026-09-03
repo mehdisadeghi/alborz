@@ -821,44 +821,6 @@ func headOf(s string) string {
 	return s
 }
 
-// sendAndReadSent saves a draft and hands back its raw bytes. The rig
-// has no SMTP, but a draft is written by the same WriteMessage a send
-// uses, so it answers the only question here: what the message is
-// actually made of.
-func sendAndReadSent(t *testing.T, c *http.Client, base string) string {
-	t.Helper()
-	page := get(t, c, base+"/compose")
-	mid := between(page, `name="message_id" value="`, `"`)
-	if mid == "" {
-		t.Fatal("compose page carries no message id")
-	}
-	mid = strings.ReplaceAll(strings.ReplaceAll(mid, "&lt;", "<"), "&gt;", ">")
-
-	var body bytes.Buffer
-	w := multipart.NewWriter(&body)
-	for _, f := range [][2]string{
-		{"message_id", mid}, {"from", smokeUser}, {"to", "friend@example.org"},
-		{"subject", "direction"}, {"text", "سلام\n\nEnglish."}, {"save_as_draft", "1"},
-	} {
-		if err := w.WriteField(f[0], f[1]); err != nil {
-			t.Fatal(err)
-		}
-	}
-	w.Close()
-	resp, err := c.Post(base+"/compose", w.FormDataContentType(), &body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-
-	drafts := get(t, c, base+"/mailbox/Drafts")
-	uids := messageUIDs(drafts)
-	if len(uids) == 0 {
-		t.Fatal("the draft was not saved; nothing to inspect")
-	}
-	return get(t, c, base+"/message/Drafts/"+uids[0]+"/raw")
-}
-
 func between(s, start, end string) string {
 	i := strings.Index(s, start)
 	if i < 0 {

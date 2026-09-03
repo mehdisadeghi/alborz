@@ -10,7 +10,6 @@
 !/plugins/base
 !/plugins/caldav
 !/plugins/carddav
-!/plugins/lua
 !/plugins/viewhtml
 !/plugins/viewtext
 !/plugins/sieve

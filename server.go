@@ -408,7 +408,7 @@ func (s *Server) load() error {
 	return nil
 }
 
-// Reload loads Lua plugins and templates from disk.
+// Reload loads plugins and templates from disk.
 func (s *Server) Reload() error {
 	s.e.Logger.Printf("Reloading server")
 	return s.load()
@@ -587,8 +587,6 @@ func (ctx *Context) Sessions() []*Session {
 // validated here since it lands in a stylesheet URL.
 var themeVariants = []string{"sublime", "glass", "ink"}
 
-// setPref stores a per-user display preference in the browser; empty
-// clears it back to the default.
 // cookieValues returns every value the request carries for a name.
 // A browser may hold more than one cookie of the same name - an older
 // deploy's, set on a narrower path, outranks ours and is sent first -
@@ -618,6 +616,8 @@ func (ctx *Context) cookieValue(name string, valid func(string) bool) (string, b
 	return "", false
 }
 
+// setPref stores a per-user display preference in the browser; empty
+// clears it back to the default.
 func (ctx *Context) setPref(name, value string, valid bool) {
 	cookie := http.Cookie{
 		Name:     name,
@@ -1051,9 +1051,6 @@ func (ctx *Context) loginTokens() []loginToken {
 	return tokens
 }
 
-// RestoreRememberedAccounts signs every remembered account back in,
-// leaving the recorded active one active, and reports whether any
-// account came back.
 const (
 	// loginRetryAfter is how long a failed automatic sign-in is left
 	// alone. Without it every request retries every remembered account,
@@ -1075,6 +1072,9 @@ func recentlyFailed(username string) bool {
 	return time.Since(when.(time.Time)) < loginRetryAfter
 }
 
+// RestoreRememberedAccounts signs every remembered account back in,
+// leaving the recorded active one active, and reports whether any
+// account came back.
 func (ctx *Context) RestoreRememberedAccounts() bool {
 	// The accounts sign in concurrently: one unreachable upstream must
 	// not add its timeout to the others' wait.

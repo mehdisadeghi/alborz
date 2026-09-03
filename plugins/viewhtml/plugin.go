@@ -20,7 +20,6 @@ import (
 var public embed.FS
 
 var (
-	proxyEnabled = true
 	proxyMaxSize = 5 * 1024 * 1024 // 5 MiB
 	// A sender's server is not ours and owes us nothing: a slow one
 	// must not hold a request of ours open.
@@ -46,10 +45,6 @@ func init() {
 	})
 
 	p.GET("/proxy", func(ctx *alborz.Context) error {
-		if !proxyEnabled {
-			return echo.NewHTTPError(http.StatusForbidden, "proxy disabled")
-		}
-
 		u, err := url.Parse(ctx.QueryParam("src"))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid URL")

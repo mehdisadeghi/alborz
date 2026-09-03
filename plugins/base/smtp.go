@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"strings"
@@ -159,7 +158,7 @@ func (att *imapAttachment) Open() (io.ReadCloser, error) {
 	if att.Body == nil {
 		return nil, fmt.Errorf("IMAP attachment has not been pre-fetched")
 	}
-	return ioutil.NopCloser(bytes.NewReader(att.Body)), nil
+	return io.NopCloser(bytes.NewReader(att.Body)), nil
 }
 
 func (att *imapAttachment) MIMEType() string {

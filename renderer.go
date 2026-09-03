@@ -709,8 +709,6 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	}
 }
 
-// T translates a namespaced string key into the request's UI
-// language, for strings built on the Go side.
 // Tf is T with a count and arguments: the plural form the count calls
 // for, filled in with numbers written the way that language writes them.
 func (ctx *Context) Tf(key string, args ...interface{}) string {
@@ -718,6 +716,8 @@ func (ctx *Context) Tf(key string, args ...interface{}) string {
 	return g.Tf(key, args...)
 }
 
+// T translates a namespaced string key into the request's UI
+// language, for strings built on the Go side.
 func (ctx *Context) T(key string) string {
 	return translate(requestLanguage(ctx), key)
 }
@@ -729,8 +729,6 @@ func (ctx *Context) PageLanguage() string {
 	return requestLanguage(ctx)
 }
 
-// requestLanguage resolves the request's UI language: the cookie
-// choice wins, else the Accept-Language negotiation.
 // LanguageName is the chosen language in its own name, empty while the
 // browser is being followed - the page says so in its own words.
 func (g GlobalRenderData) LanguageName() string {
@@ -742,6 +740,8 @@ func (g GlobalRenderData) LanguageName() string {
 	return ""
 }
 
+// requestLanguage resolves the request's UI language: the cookie
+// choice wins, else the Accept-Language negotiation.
 func requestLanguage(ectx echo.Context) string {
 	if c, err := ectx.Cookie(langCookieName); err == nil && IsLanguage(c.Value) {
 		return c.Value
@@ -815,7 +815,6 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 		}
 	}
 
-	// TODO: per-user theme selection
 	start := time.Now()
 	err := r.theme.ExecuteTemplate(w, name, data)
 	ctx.timing.add("render", start, time.Now())

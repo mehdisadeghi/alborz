@@ -24,9 +24,9 @@
       </div>
       {{end}}
 
-      {{ if .GlobalData.Notice }}
+      {{ with .GlobalData.Notice }}
       <div class="alert" role="alert">
-	{{ .GlobalData.Notice }}
+	{{ .Text }}
       </div>
       {{ end }}
 

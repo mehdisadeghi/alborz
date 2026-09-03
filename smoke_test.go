@@ -409,6 +409,11 @@ func login(t *testing.T, base string) *http.Client {
 		t.Fatalf("login: %v", err)
 	}
 	resp.Body.Close()
+	// The listing cache is one per process and keyed by user, so a
+	// fresh rig would still be read through what the last test left
+	// in it. Asking for a refresh is what a reader does; here it is
+	// what isolates the tests.
+	postForm(t, c, base+"/mailbox/INBOX/refresh", nil)
 	return c
 }
 
@@ -1000,4 +1005,93 @@ func smtpUpstreams(addrs []string) []string {
 		out = append(out, "test.local=smtp+insecure://"+a)
 	}
 	return out
+}
+
+// noticeAction reads what the header bar offers after a redirect: the
+// path and hidden fields of a form that posts, or the href of a link,
+// and nothing when the bar carries no action.
+func noticeAction(body string) (string, url.Values) {
+	m := regexp.MustCompile(`(?s)<div class="notice[^"]*"[^>]*>(.*?)</div>`).FindStringSubmatch(body)
+	if m == nil {
+		return "", nil
+	}
+	bar := m[1]
+	if f := regexp.MustCompile(`<form method="post" action="([^"]+)" class="notice-action">`).FindStringSubmatch(bar); f != nil {
+		fields := url.Values{}
+		for _, in := range regexp.MustCompile(`name="([^"]+)" value="([^"]*)"`).FindAllStringSubmatch(bar, -1) {
+			fields.Add(html.UnescapeString(in[1]), html.UnescapeString(in[2]))
+		}
+		return html.UnescapeString(f[1]), fields
+	}
+	if a := regexp.MustCompile(`<a class="notice-action" href="([^"]+)">`).FindStringSubmatch(bar); a != nil {
+		return html.UnescapeString(a[1]), nil
+	}
+	return "", nil
+}
+
+// TestMoveNoticeUndoes follows the undo a move's notice offers, reads
+// the folders back, and checks that the undo's own notice offers
+// nothing: an undo with an undo would loop.
+func TestMoveNoticeUndoes(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) == 0 {
+		t.Fatal("the rig seeded no messages")
+	}
+	postForm(t, c, base+"/message/INBOX/move", url.Values{"uids": {uids[0]}, "to": {"Archive"}})
+	action, fields := noticeAction(get(t, c, base+"/mailbox/INBOX"))
+	if fields.Get("undo") == "" {
+		t.Fatalf("a move's notice offers no undo: %q %v", action, fields)
+	}
+	if resp := postForm(t, c, base+action, fields); resp.StatusCode != http.StatusFound {
+		t.Fatalf("undo: %s", resp.Status)
+	}
+	body := get(t, c, base+"/mailbox/INBOX")
+	if n := len(messageUIDs(body)); n != len(uids) {
+		t.Errorf("INBOX holds %d after the undo, want %d", n, len(uids))
+	}
+	if n := len(messageUIDs(get(t, c, base+"/mailbox/Archive"))); n != 0 {
+		t.Errorf("Archive still holds %d after the undo", n)
+	}
+	if action, _ := noticeAction(body); action != "" {
+		t.Errorf("the undo's notice offers %q", action)
+	}
+}
+
+// TestDeleteNoticeCountsTheRest deletes a whole page and expects the
+// notice to offer the rest of the folder by its count, through a page
+// that says the count again; a partial page must offer nothing.
+func TestDeleteNoticeCountsTheRest(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) < 3 {
+		t.Fatalf("need three seeded messages, found %d", len(uids))
+	}
+	postForm(t, c, base+"/message/INBOX/delete?ipp=2", url.Values{"uids": uids[:2]})
+	body := get(t, c, base+"/mailbox/INBOX")
+	action, fields := noticeAction(body)
+	if fields != nil || action != "/mailbox/INBOX/empty" {
+		t.Fatalf("a full page's notice offers %q %v", action, fields)
+	}
+	rest := fmt.Sprintf("%d", len(uids)-2)
+	if !strings.Contains(body, "Delete all "+rest+" in this folder") {
+		t.Errorf("the notice does not count the rest: %s", noticeBar(body))
+	}
+	if page := get(t, c, base+action); !strings.Contains(page, "It holds "+rest+" messages") {
+		t.Errorf("the empty page does not say what it holds: %s", alertText(page))
+	}
+	postForm(t, c, base+"/message/INBOX/delete?ipp=2", url.Values{"uids": uids[2:3]})
+	if action, _ := noticeAction(get(t, c, base+"/mailbox/INBOX")); action != "" {
+		t.Errorf("a partial page's notice offers %q", action)
+	}
+}
+
+func noticeBar(body string) string {
+	return regexp.MustCompile(`(?s)<div class="notice[^"]*"[^>]*>(.*?)</div>`).FindString(body)
+}
+
+func alertText(body string) string {
+	return regexp.MustCompile(`(?s)<div class="alert"[^>]*>(.*?)</div>`).FindString(body)
 }

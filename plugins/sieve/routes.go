@@ -195,7 +195,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	}
 
 	if warnings != "" {
-		ctx.Session.PutNotice(fmt.Sprintf(ctx.T("notice.filterwarn"), warnings))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
 	} else {
 		ctx.Session.PutNotice(ctx.T("notice.filtersaved"))
 	}

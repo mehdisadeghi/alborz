@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"sort"
 	"strings"
@@ -973,7 +974,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			method, told = alborzbase.MethodCancel, parseAttendees(ctx.FormValue("attendees_was"))
 		}
 		if err := sendScheduling(ctx, event, told, method); err != nil {
-			ctx.Session.PutNotice(ctx.T("invite.sendfailed"))
+			ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.sendfailed")})
 			ctx.Logger().Printf("failed to send the scheduling message: %v", err)
 		} else if len(told) > 0 {
 			ctx.Session.PutNotice(ctx.T("invite.sent"))
@@ -1420,6 +1421,16 @@ func putObject(ctx *alborz.Context, to dav.Ref[*caldav.Client], name string, was
 // names, or the rows the list had checked.
 func (p *plugin) complete(ctx *alborz.Context) error {
 	done := wantsDone(ctx)
+	words := func(ctx *alborz.Context, marked []dav.Ref[*caldav.Client], next string) alborz.Notice {
+		if ctx.FormValue("undo") != "" {
+			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
+		}
+		paths := make([]string, len(marked))
+		for i, ref := range marked {
+			paths[i] = ref.Account + "|" + ref.Path
+		}
+		return completedNotice(ctx, done, len(marked), "/tasks/complete", url.Values{"paths": paths, "next": {next}})
+	}
 	return dav.Run(ctx, dav.Action[*caldav.Client]{
 		Client: p.client,
 		List:   "/tasks",
@@ -1427,13 +1438,25 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			_, err := changeComponent(ctx, ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
 			return err
 		},
+		Done: words,
 	})
 }
 
 // wantsDone is the state a completion asks for: done, unless the form
-// says reopen.
+// says reopen. An undo asks for the other one.
 func wantsDone(ctx *alborz.Context) bool {
-	return ctx.FormValue("reopen") == ""
+	return (ctx.FormValue("reopen") == "") != (ctx.FormValue("undo") != "")
+}
+
+// completedNotice counts the tasks marked, with the way back: the same
+// form again, as an undo.
+func completedNotice(ctx *alborz.Context, done bool, n int, action string, form url.Values) alborz.Notice {
+	key := "notice.tasksdone"
+	if !done {
+		key = "notice.tasksopen"
+		form.Set("reopen", "1")
+	}
+	return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf(key, n), Action: ctx.Undo(action, form)}
 }
 
 func markTodo(todo *ical.Component, done bool) {

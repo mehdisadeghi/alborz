@@ -36,6 +36,8 @@ type Action[C any] struct {
 	Do func(ctx *alborz.Context, ref Ref[C]) error
 	// List is where the action lands when the form names no page.
 	List string
+	// Done words what became of the objects acted on; nil says nothing.
+	Done func(ctx *alborz.Context, done []Ref[C], next string) alborz.Notice
 }
 
 // Run does the action to the request's selection and lands.
@@ -45,10 +47,15 @@ func Run[C any](ctx *alborz.Context, a Action[C]) error {
 		return err
 	}
 	next := ctx.NextOr(ctx.AccountPath(a.List))
+	done := 0
 	for _, ref := range refs {
 		if err := a.Do(ctx, ref); err != nil {
 			return err
 		}
+		done++
+	}
+	if a.Done != nil && done > 0 {
+		ctx.Session.Notify(a.Done(ctx, refs[:done], next))
 	}
 	return ctx.Redirect(http.StatusFound, next)
 }

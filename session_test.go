@@ -1,6 +1,7 @@
 package alborz
 
 import (
+	"mime/multipart"
 	"testing"
 	"time"
 )
@@ -25,5 +26,26 @@ func TestExpiryForgetsTheAccount(t *testing.T) {
 	}
 	if _, err := sm.get(s.token); err != ErrSessionExpired {
 		t.Errorf("the session is still listed: %v", err)
+	}
+}
+
+func TestFullAttachmentCacheStaysUsable(t *testing.T) {
+	s := &Session{attachments: make(map[string]*Attachment)}
+	big := &multipart.FileHeader{Size: maxAttachmentSize}
+	if _, err := s.PutAttachment(big, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PutAttachment(big, nil); err != ErrAttachmentCacheSize {
+		t.Fatalf("a second full-size attachment was taken: %v", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		s.PopAttachment("none")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("the cache stayed locked after refusing an attachment")
 	}
 }

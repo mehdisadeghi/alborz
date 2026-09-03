@@ -440,11 +440,7 @@ func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []stri
 	l.names = countedMailboxes(l.sb.mailboxes, mboxName, subs)
 	l.cmds = make([]*imapclient.StatusCommand, len(l.names))
 	for i, name := range l.names {
-		l.cmds[i] = c.Status(name, &imap.StatusOptions{
-			NumMessages: true,
-			UIDValidity: true,
-			NumUnseen:   true,
-		})
+		l.cmds[i] = c.Status(name, listingStatusOptions(c))
 	}
 	return l, nil
 }

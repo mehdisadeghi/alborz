@@ -1,7 +1,6 @@
 package alborz
 
 import (
-	"net/http"
 	"slices"
 	"time"
 )
@@ -42,19 +41,10 @@ func (ctx *Context) cookieValue(name string, valid func(string) bool) (string, b
 // setPref stores a per-user display preference in the browser; empty
 // clears it back to the default.
 func (ctx *Context) setPref(name, value string, valid bool) {
-	cookie := http.Cookie{
-		Name:     name,
-		Value:    value,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.secureCookies(),
-		Expires:  time.Now().Add(preferenceCookieLife),
+	if !valid {
+		value = ""
 	}
-	if value == "" || !valid {
-		cookie.Expires = aLongTimeAgo // unset the cookie
-	}
-	ctx.SetCookie(&cookie)
+	ctx.SetCookie(ctx.cookie(name, value, preferenceCookieLife))
 }
 
 func (ctx *Context) pref(name string, valid func(string) bool) string {
@@ -196,19 +186,10 @@ func (ctx *Context) SecondaryCalendar() string {
 // per user rather than per account; empty follows Accept-Language
 // again.
 func (ctx *Context) SetLanguage(code string) {
-	cookie := http.Cookie{
-		Name:     langCookieName,
-		Value:    code,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.secureCookies(),
-		Expires:  time.Now().Add(preferenceCookieLife),
+	if !IsLanguage(code) {
+		code = ""
 	}
-	if code == "" || !IsLanguage(code) {
-		cookie.Expires = aLongTimeAgo // unset the cookie
-	}
-	ctx.SetCookie(&cookie)
+	ctx.SetCookie(ctx.cookie(langCookieName, code, preferenceCookieLife))
 }
 
 // Language returns the user's explicit UI language choice, empty when
@@ -223,19 +204,10 @@ func (ctx *Context) Language() string {
 // SetUnified turns the merged all-accounts view on or off; it needs at
 // least two signed-in accounts to turn on.
 func (ctx *Context) SetUnified(on bool) {
-	cookie := http.Cookie{
-		Name:     unifiedCookieName,
-		Value:    "1",
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   ctx.secureCookies(),
-	}
+	value := "1"
 	if !on || len(ctx.accountSessions()) < 2 {
-		cookie.Expires = aLongTimeAgo
-		ctx.Unified = false
-	} else {
-		ctx.Unified = true
+		value = ""
 	}
-	ctx.SetCookie(&cookie)
+	ctx.Unified = value != ""
+	ctx.SetCookie(ctx.cookie(unifiedCookieName, value, 0))
 }

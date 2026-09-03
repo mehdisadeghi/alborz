@@ -170,14 +170,14 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}()
 
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGUSR1, syscall.SIGINT)
+	signal.Notify(sigs, syscall.SIGUSR1, syscall.SIGINT, syscall.SIGTERM)
 
 	for sig := range sigs {
 		if sig == syscall.SIGUSR1 {
 			if err := s.Reload(); err != nil {
 				e.Logger.Errorf("Failed to reload server: %v", err)
 			}
-		} else if sig == syscall.SIGINT {
+		} else {
 			break
 		}
 	}

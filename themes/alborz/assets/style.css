@@ -2444,6 +2444,15 @@ main.calendar .actions {
   max-width: 22rem;
 }
 
+/* A control never yields its size to the title: squeezing an icon
+   button is how the calendar's new-event mark came to sit on top of the
+   pager. */
+.actions-message > .icon-button,
+.actions-message > .toolbar-rule {
+  flex-shrink: 0;
+}
+
+
 .actions-message h1 {
   margin: 0;
   flex-grow: 1;
@@ -3086,8 +3095,21 @@ main.calendar .date h3 .day-secondary {
   color: var(--fg-muted);
 }
 
+/* Today is a circle, not a pill: a rounded box sized by its own text is
+   taller than it is wide on a single digit and wider than tall on two.
+   The box is squared off the larger dimension instead, so one digit and
+   two both sit in the same circle and neither is clipped. */
 main.calendar .date.active h3 .day-label {
-  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-inline-size: 1.6em;
+  padding: 0;
+  /* The cell's line-height makes the line box taller than the digits,
+     which centres the box but sits the number low inside it. At 1 the
+     line box is the text, so centring the box centres what is read. */
+  line-height: 1;
+  border-radius: 50%;
   background: var(--green);
   color: white;
 }
@@ -3798,6 +3820,38 @@ aside ul.merged-roles {
   border-bottom: 1px solid var(--border-light);
 }
 
+/* An overflow menu is right-aligned to the control that opens it, and
+   grows leftwards from there - so on a phone a wide menu hanging off a
+   control near the left edge runs off the canvas, which is where the
+   message actions ended up. Narrow screens anchor it to the viewport
+   instead of the control: the toolbar is not sticky, so the static
+   vertical position still puts it directly under what opened it. */
+@media (width <= 600px) {
+  details.overflow > .overflow-menu {
+    position: fixed;
+    inset-inline: var(--space-2) var(--space-2);
+    top: auto;
+    min-width: 0;
+  }
+}
+
+/* A toolbar title that offers a short form shows one or the other,
+   never both. The phone gets the abbreviation because the full month
+   name and its year do not fit beside the controls at that width. */
+.title-short {
+  display: none;
+}
+
+@media (width <= 600px) {
+  .title-long {
+    display: none;
+  }
+
+  .title-short {
+    display: inline;
+  }
+}
+
 /* Calendar groups indent under their account heading. */
 /* Folding is the native details element; the marker is hidden so the
    headers look exactly as before, the pointer being the only hint. */
@@ -4240,6 +4294,21 @@ aside ul.merged-roles {
   /* Too little width to reserve a track; the title takes what is left. */
   .actions-message h1 { flex: 1 1 auto; max-width: none; }
 
+  /* The floor set at 52rem is more than a phone can lend: at 360 it
+     held width the title did not need and the pager overflowed its own
+     box leftwards, putting the chevrons on top of the new-event mark.
+     The month is written across the grid below, so the title is what
+     can afford to be short here. */
+  .actions-message h1:not(:last-child) { min-width: 2.5rem; }
+
+  /* The controls at the end are targets and must not be squeezed below
+     what they need: with min-width 0 they shrank past their own content
+     and, being packed to the end, spilled leftwards over the new-event
+     mark. The title yields instead - it is the only thing here that can. */
+  .actions-end { flex-shrink: 0; min-width: auto; }
+
+
+
 
   .actions-wrap .action-group { margin-inline-start: 0; }
   .actions-pagination { margin-inline-start: auto; }
@@ -4314,6 +4383,9 @@ aside ul.merged-roles {
   main.calendar .date { padding: 2px; min-height: 3rem; }
   main.calendar .date h3 { font-size: 0.7rem; min-height: 1.35rem; }
   main.calendar .date h3 .day-label { font-size: 0.75rem; min-height: 1.35rem; padding-inline: 2px; }
+  /* The circle keeps its shape at this size too: min-height would make
+     it an oval again by setting a height the width does not follow. */
+  main.calendar .date.active h3 .day-label { min-height: 0; padding: 0; line-height: 1; }
   /* The cell is barely wider than its own number here; the secondary
      shrinks with it and is clipped rather than pushing the grid out. */
   main.calendar .date h3 { overflow: hidden; white-space: nowrap; }
@@ -4326,4 +4398,16 @@ aside ul.merged-roles {
     margin-inline-end: 2px;
   }
   main.calendar .events .overflow { font-size: 0.7rem; }
+}
+
+/* Last, because a narrower rule has to outrank the nowrap set at 52rem.
+   Below 360 the pager, today and the month/list toggle need more than
+   the viewport on their own, so no title width saves the row and a
+   second one is the only alternative to drawing controls on top of each
+   other. 360 itself fits and keeps its single row. */
+@media (width < 360px) {
+  .actions-wrap {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
 }

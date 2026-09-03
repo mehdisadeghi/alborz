@@ -263,6 +263,12 @@ func (g *GlobalRenderData) WeekdayName(t time.Time) string {
 	return g.at(t).ToWeekString()
 }
 
+// MonthYearShort is MonthYear abbreviated, for a toolbar too narrow to
+// carry the month's full name beside its controls.
+func (g *GlobalRenderData) MonthYearShort(t time.Time) string {
+	return fmt.Sprintf("%s %s", g.at(t).ToShortMonthString(), g.year(t.Year()))
+}
+
 // MonthName translates the month of t.
 func (g *GlobalRenderData) MonthName(t time.Time) string {
 	return g.at(t).ToMonthString()

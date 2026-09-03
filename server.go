@@ -74,7 +74,7 @@ type Server struct {
 	// OnAccountReady is called when an account signs in. It is how the
 	// base plugin gets to start following the mailbox without the root
 	// package knowing what following is.
-	OnAccountReady AccountReadyFunc
+	OnAccountReady []AccountReadyFunc
 
 	// OnAccountGone is called when an account signs out. Plugins holding
 	// anything on its behalf register here; the root package knows only
@@ -381,6 +381,7 @@ func (s *Server) load() error {
 	// callback last time is about to register it again. Start empty so
 	// the list does not grow a stale entry per reload.
 	s.OnAccountGone = nil
+	s.OnAccountReady = nil
 	var plugins []Plugin
 	for _, load := range pluginLoaders {
 		l, err := load(s)
@@ -608,7 +609,7 @@ func (s *Server) ForgetAccount(username string) {
 // restored from remembered credentials. The base plugin uses it to start
 // following the mailbox; the root package does not know what following
 // means, so it only makes the call.
-type AccountReadyFunc func(*Session, echo.Logger)
+type AccountReadyFunc func(*Context, *Session)
 
 type Options struct {
 	Upstreams  []string

@@ -123,6 +123,9 @@ func (ctx *Context) AddAccount(s *Session) {
 	ctx.DefaultSession = s
 	ctx.SetSession(s)
 	ctx.setAccountSessions(sessions)
+	for _, ready := range ctx.Server.OnAccountReady {
+		ready(ctx, s)
+	}
 }
 
 // URLAccount returns the account selected by the request's account
@@ -381,9 +384,6 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 			continue
 		}
 		ctx.AddAccount(s)
-		if ctx.Server.OnAccountReady != nil {
-			ctx.Server.OnAccountReady(s, ctx.Logger())
-		}
 		restored = true
 	}
 	if !restored {

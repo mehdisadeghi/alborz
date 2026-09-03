@@ -1097,44 +1097,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 
 	search := ctx.QueryParam("query")
 
-	query := caldav.CalendarQuery{
-		CompRequest: caldav.CalendarCompRequest{
-			Name:  "VCALENDAR",
-			Props: []string{"VERSION"},
-			Comps: []caldav.CalendarCompRequest{{
-				Name: "VTODO",
-				Props: []string{
-					"SUMMARY",
-					"UID",
-					"DUE",
-					"STATUS",
-					"DESCRIPTION",
-				},
-			}},
-		},
-		CompFilter: caldav.CompFilter{
-			Name:  "VCALENDAR",
-			Comps: []caldav.CompFilter{{Name: "VTODO"}},
-		},
-	}
-
-	// Where the account hides completed tasks the server is asked for
-	// the open ones only, so a list that has finished a thousand tasks
-	// does not send them all on every visit. An open task may carry no
-	// STATUS at all, and CalDAV filters have no OR, so it takes two
-	// queries: tasks without a STATUS, and tasks whose STATUS is not
-	// COMPLETED.
-	open := func(filter caldav.PropFilter) caldav.CalendarQuery {
-		q := query
-		q.CompFilter = caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{{
-			Name: "VTODO", Props: []caldav.PropFilter{filter},
-		}}}
-		return q
-	}
-	openQueries := []caldav.CalendarQuery{
-		open(caldav.PropFilter{Name: "STATUS", IsNotDefined: true}),
-		open(caldav.PropFilter{Name: "STATUS", TextMatch: &caldav.TextMatch{Text: "COMPLETED", NegateCondition: true}}),
-	}
+	query, openQueries := taskQueries()
 
 	var taskRows []TaskRow
 	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site dav.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
@@ -1516,4 +1479,100 @@ func joinCalendars(objects [][]byte) ([]byte, error) {
 		children = append(children, cal.Children...)
 	}
 	return encodeCalendar(children)
+}
+
+// taskQueries are what the task list asks a list for: every task, and
+// the two that together are the open ones.
+func taskQueries() (caldav.CalendarQuery, []caldav.CalendarQuery) {
+	query := caldav.CalendarQuery{
+		CompRequest: caldav.CalendarCompRequest{
+			Name:  "VCALENDAR",
+			Props: []string{"VERSION"},
+			Comps: []caldav.CalendarCompRequest{{
+				Name: "VTODO",
+				Props: []string{
+					"SUMMARY",
+					"UID",
+					"DUE",
+					"STATUS",
+					"DESCRIPTION",
+				},
+			}},
+		},
+		CompFilter: caldav.CompFilter{
+			Name:  "VCALENDAR",
+			Comps: []caldav.CompFilter{{Name: "VTODO"}},
+		},
+	}
+
+	// Where the account hides completed tasks the server is asked for
+	// the open ones only, so a list that has finished a thousand tasks
+	// does not send them all on every visit. An open task may carry no
+	// STATUS at all, and CalDAV filters have no OR, so it takes two
+	// queries: tasks without a STATUS, and tasks whose STATUS is not
+	// COMPLETED.
+	open := func(filter caldav.PropFilter) caldav.CalendarQuery {
+		q := query
+		q.CompFilter = caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{{
+			Name: "VTODO", Props: []caldav.PropFilter{filter},
+		}}}
+		return q
+	}
+	openQueries := []caldav.CalendarQuery{
+		open(caldav.PropFilter{Name: "STATUS", IsNotDefined: true}),
+		open(caldav.PropFilter{Name: "STATUS", TextMatch: &caldav.TextMatch{Text: "COMPLETED", NegateCondition: true}}),
+	}
+	return query, openQueries
+}
+
+// warm fetches what the calendar and task pages ask for first, as the
+// account is signed in, so the first click on either finds it cached:
+// the calendars, this month's events and the open tasks.
+func (p *plugin) warm(ctx *alborz.Context, s *alborz.Session) {
+	loc := alborzbase.UserLocation(ctx)
+	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s, loc) })
+}
+
+func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session, loc *time.Location) error {
+	c, calendars, err := p.clientWithCalendars(ctx, s)
+	if err != nil {
+		return err
+	}
+	settings, err := loadSettings(s.Store())
+	if err != nil {
+		return err
+	}
+	// The month page's range for the month the reader is in.
+	now := time.Now().In(loc)
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+	events := eventQuery(start.AddDate(0, 0, -7), start.AddDate(0, 1, 0).AddDate(0, 0, 7))
+	all, open := taskQueries()
+	type ask struct {
+		path  string
+		query caldav.CalendarQuery
+	}
+	var asks []ask
+	for _, cal := range calendars {
+		if supportsEvent(cal.Components) {
+			asks = append(asks, ask{cal.Path, events})
+		}
+		if supportsTodo(cal.Components) {
+			if settings.ShowCompleted {
+				asks = append(asks, ask{cal.Path, all})
+			} else {
+				for _, q := range open {
+					asks = append(asks, ask{cal.Path, q})
+				}
+			}
+		}
+	}
+	for _, r := range dav.Each(ctx, asks, func(ctx context.Context, a ask) (int, error) {
+		_, err := c.QueryCalendar(ctx, a.path, &a.query)
+		return 0, err
+	}) {
+		if r.Err != nil {
+			return r.Err
+		}
+	}
+	return nil
 }

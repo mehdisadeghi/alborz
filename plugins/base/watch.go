@@ -46,6 +46,24 @@ type watcherSet struct {
 	running map[string]bool
 }
 
+// watchAccount follows the account from the moment it is signed in, so
+// mail that arrives while nobody is looking is noticed rather than
+// waited for.
+func watchAccount(ctx *alborz.Context, s *alborz.Session) {
+	Watch(s, ctx.Logger())
+}
+
+// warmAccount fetches the account's INBOX views and rail as it is
+// signed in, so the first click on mail finds them cached.
+func warmAccount(ctx *alborz.Context, s *alborz.Session) {
+	log := ctx.Logger()
+	go func() {
+		if err := warmInbox(s); err != nil {
+			log.Printf("warm %s: %v", s.Username(), err)
+		}
+	}()
+}
+
 // Watch starts following an account's INBOX if nothing is following it
 // already. One watcher per account, however many browsers are signed in
 // to it: they all read the same cache.

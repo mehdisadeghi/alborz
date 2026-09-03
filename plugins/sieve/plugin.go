@@ -40,6 +40,26 @@ func init() {
 			},
 		}
 		registerRoutes(&p)
+		srv.OnAccountReady = append(srv.OnAccountReady, warm)
 		return []alborz.Plugin{p.Plugin()}, nil
 	})
+}
+
+// warm opens the account's ManageSieve connection as it is signed in,
+// so the first visit to the filters does not pay the dial and the
+// authentication on the click.
+func warm(ctx *alborz.Context, s *alborz.Session) {
+	if !ctx.Server.SieveEnabled(s.Domain()) {
+		return
+	}
+	log := ctx.Logger()
+	go func() {
+		err := s.DoSieve(func(c alborz.SieveClient) error {
+			_, err := c.ListScripts()
+			return err
+		})
+		if err != nil {
+			log.Printf("warm %s filters: %v", s.Username(), err)
+		}
+	}()
 }

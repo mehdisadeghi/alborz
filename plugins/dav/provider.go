@@ -50,6 +50,10 @@ const discoveryTTL = 5 * time.Minute
 // every waiter behind the memo.
 const discoveryTimeout = 30 * time.Second
 
+// WarmBudget bounds what a sign-in may spend fetching an account's
+// first pages behind the scenes; a slow server leaves them cold.
+const WarmBudget = 30 * time.Second
+
 // Provider is one DAV service across the served domains: where each
 // domain's server is, the cache in front of it, and the client that
 // talks to it on a session's behalf.
@@ -237,6 +241,19 @@ func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(list)))
 	}
+}
+
+// Warm fetches an account's first pages behind a sign-in, so that they
+// open from the cache. It outlives the request, within WarmBudget.
+func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Session, fetch func(context.Context) error) {
+	log := ctx.Logger()
+	go func() {
+		bg, cancel := context.WithTimeout(context.Background(), WarmBudget)
+		defer cancel()
+		if err := fetch(bg); err != nil {
+			log.Printf("%s: warm %s: %v", p.kind.Name, s.Username(), err)
+		}
+	}()
 }
 
 // Guarded is a section's route for an account that may have none of

@@ -739,6 +739,31 @@ func TestNewestFirstWithoutSort(t *testing.T) {
 	}
 }
 
+// TestComposeOpensFromTheAccountNamed: with two accounts signed in, a
+// compose page opened for one of them must offer that account in From.
+// The dropdown once selected nothing unless the message named an
+// identity verbatim, and a browser then showed the first account.
+func TestComposeOpensFromTheAccountNamed(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	resp, err := c.PostForm(base+"/login",
+		url.Values{"username": {smokeUser2}, "password": {smokePass}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	for _, account := range []string{smokeUser, smokeUser2} {
+		page := get(t, c, base+"/compose?account="+account)
+		if !strings.Contains(page, `value="`+account+`" selected`) {
+			t.Errorf("compose for %s does not select it in From", account)
+		}
+	}
+	if page := get(t, c, base+"/compose"); !strings.Contains(page, `value="`+smokeUser2+`" selected`) {
+		t.Errorf("compose without an account does not select the active one")
+	}
+}
+
 // TestNextStaysOnTheSite covers the return address a form carries. It
 // is the page the action was taken from, and the handler comes back to
 // it; a value naming another host, or a path a browser reads as one,

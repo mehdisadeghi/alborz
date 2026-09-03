@@ -56,7 +56,7 @@
               {{end}}
 
               {{range $events}}
-              {{$color := call $base.ColorForPath .Account .Path}}
+              {{$color := (call $base.CollectionFor .Account .Path).Color}}
               <li>
                 {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
                 {{.Summary}}

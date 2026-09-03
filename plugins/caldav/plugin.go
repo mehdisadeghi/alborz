@@ -1,16 +1,10 @@
 package alborzcaldav
 
 import (
-	"context"
 	"embed"
-	"fmt"
-	"github.com/labstack/echo/v4"
-	"net/http"
-	"net/url"
-	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/plugins/davcache"
+	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-webdav/caldav"
 )
 
@@ -20,164 +14,45 @@ var public embed.FS
 const (
 	inputDateLayout     = "2006-01-02"
 	inputDateTimeLayout = "2006-01-02T15:04"
-
-	// Age at which a discovered calendar list is reloaded in the
-	// background while still being served; a calendar made or removed by
-	// another client shows up one visit late at worst.
-	discoveryTTL = 5 * time.Minute
-
-	// The discovery load is detached from its requester's context, so a
-	// deadline of its own is all that keeps a hung server from wedging
-	// every waiter behind the memo.
-	discoveryTimeout = 30 * time.Second
-	requestTimeout   = 10 * time.Second
 )
 
 type plugin struct {
 	alborz.GoPlugin
-	urls  map[string]*url.URL // CalDAV endpoint per served mail domain
-	cache *davcache.Cache
-
-	// Discovered calendar list per username; see clientWithCalendars.
-	calendars *alborz.Memo[[]CalendarInfo]
-
-	// Set in debug mode; logs upstream DAV traffic.
-	debug echo.Logger
+	dav *dav.Provider
 }
 
 func (p *plugin) client(session *alborz.Session) (*caldav.Client, error) {
-	u, ok := p.davURL(session)
+	u, ok := p.dav.URL(session)
 	if !ok {
 		return nil, errNoCalendar
 	}
-	return newClient(u, p.httpClient(session))
-}
-
-// davURL resolves the session's CalDAV endpoint, falling back to the
-// unnamed provider's.
-func (p *plugin) davURL(session *alborz.Session) (*url.URL, bool) {
-	u, ok := p.urls[session.Domain()]
-	if !ok {
-		u, ok = p.urls[""]
-	}
-	return u, ok
-}
-
-func sanityCheckURL(u *url.URL) error {
-	req, err := http.NewRequest(http.MethodOptions, u.String(), nil)
-	if err != nil {
-		return err
-	}
-
-	client := &http.Client{Timeout: alborz.RoundTripTimeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close()
-
-	if resp.StatusCode/100 != 2 && resp.StatusCode != http.StatusUnauthorized {
-		return fmt.Errorf("HTTP request failed: %v %v", resp.StatusCode, resp.Status)
-	}
-	return nil
-}
-
-// domainURL resolves the domain's CalDAV endpoint; nil without error means
-// the domain has none. It reads DNS and config only, so startup never
-// waits on the server itself.
-func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
-	u, err := srv.Upstream(domain, "caldavs", "caldav+insecure", "https", "http+insecure")
-	if _, ok := err.(*alborz.NoUpstreamError); ok {
-		return nil, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("caldav: domain %q: failed to parse upstream caldav server: %v", domain, err)
-	}
-	v := *u // don't mutate the server's upstream config
-	u = &v
-	switch u.Scheme {
-	case "caldavs":
-		u.Scheme = "https"
-	case "caldav+insecure", "http+insecure":
-		u.Scheme = "http"
-	}
-	if u.Scheme == "" {
-		// The timeout bounds a resolver that would otherwise hang startup.
-		ctx, cancel := context.WithTimeout(context.Background(), alborz.RoundTripTimeout)
-		defer cancel()
-		s, err := caldav.DiscoverContextURL(ctx, u.Host)
-		if err != nil {
-			srv.Logger().Printf("caldav: domain %q: failed to discover CalDAV server: %v", domain, err)
-			return nil, nil
-		}
-		u, err = url.Parse(s)
-		if err != nil {
-			return nil, fmt.Errorf("caldav: Discover returned an invalid URL: %v", err)
-		}
-	}
-
-	srv.Logger().Printf("Domain %q: configured upstream CalDAV server: %v", domain, u)
-	return u, nil
+	return newClient(u, p.dav.HTTPClient(session))
 }
 
 func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
-	urls := make(map[string]*url.URL)
-	for _, domain := range srv.Domains() {
-		u, err := domainURL(srv, domain)
-		if err != nil {
-			return nil, err
-		}
-		if u != nil {
-			urls[domain] = u
-		}
-	}
-	if len(urls) == 0 {
-		return nil, nil
+	provider, err := dav.NewProvider(srv, dav.Kind{
+		Name: "caldav", Label: "CalDAV",
+		Schemes:  [2]string{"caldavs", "caldav+insecure"},
+		Discover: caldav.DiscoverContextURL,
+		FindHome: findHome,
+		List:     listCalendars,
+		Make:     doMkcalendar,
+		Unnamed:  "calendar",
+	})
+	if err != nil || provider == nil {
+		return nil, err
 	}
 
 	p := &plugin{
-		GoPlugin:  alborz.GoPlugin{Name: "caldav", Files: public},
-		urls:      urls,
-		calendars: alborz.NewBackgroundMemo[[]CalendarInfo](discoveryTTL),
+		GoPlugin: alborz.GoPlugin{Name: "caldav", Files: public},
+		dav:      provider,
 	}
-	p.EnabledFunc = func(ctx *alborz.Context) bool {
-		if ctx.Session == nil {
-			return false
-		}
-		// Pooled pages exist when any account has the service.
-		for _, s := range ctx.Sessions() {
-			if _, ok := p.davURL(s); ok {
-				return true
-			}
-		}
-		return false
-	}
-	if srv.Options.Debug {
-		p.debug = srv.Logger()
-	}
-	p.cache = davcache.New()
-	p.cache.Start()
-	// Signing out is the only thing that ends the cache's authority to
-	// hold this account's collections; idleness no longer does.
-	cache := p.cache
-	srv.OnAccountGone = append(srv.OnAccountGone, cache.Forget)
-	p.CloseFunc = func() error {
-		cache.Stop()
-		return nil
-	}
+	p.EnabledFunc = provider.Enabled
+	p.CloseFunc = provider.Close
 
 	registerRoutes(p)
 	p.registerScheduling()
 
-	// Asking whether a server answers may take seconds each; it runs
-	// after the port is open, and a request surfaces an unreachable one
-	// until it recovers.
-	for domain, u := range urls {
-		go func() {
-			if err := sanityCheckURL(u); err != nil {
-				srv.Logger().Printf("Warning: caldav: domain %q: CalDAV server %q not reachable at startup: %v", domain, u, err)
-			}
-		}()
-	}
 	return p.Plugin(), nil
 }
 

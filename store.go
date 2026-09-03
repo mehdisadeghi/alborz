@@ -128,7 +128,7 @@ func (s *imapStore) Put(key string, v interface{}) error {
 		return c.SetMetadata("", entries).Wait()
 	})
 	if err != nil {
-		return fmt.Errorf("alborz: failed to put IMAP store entry %q: %v", key, err)
+		return fmt.Errorf("alborz: failed to put IMAP store entry %q: %w", key, err)
 	}
 
 	return s.cache.Put(key, v)

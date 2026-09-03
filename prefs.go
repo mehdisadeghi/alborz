@@ -2,7 +2,6 @@ package alborz
 
 import (
 	"slices"
-	"time"
 )
 
 // themeVariants are the selectable stylesheet overlays; the value is
@@ -135,17 +134,11 @@ type displayPrefs struct {
 	Secondary string
 }
 
-// displayMemo keeps the store off the render path. The store does not
-// remember a missing entry, so an unmade choice would otherwise cost a
-// METADATA round trip on every page, behind the lock every IMAP command
-// of the session queues on.
-var displayMemo = NewMemo[displayPrefs](time.Hour)
-
 func (ctx *Context) displayPrefs() displayPrefs {
 	if ctx.Session == nil {
 		return displayPrefs{}
 	}
-	prefs, err := displayMemo.Get(ctx.Session.Username(), func() (displayPrefs, error) {
+	prefs, err := ctx.Server.displayMemo.Get(ctx.Session.Username(), func() (displayPrefs, error) {
 		var p displayPrefs
 		err := ctx.Session.Store().Get(displayKey, &p)
 		if err == ErrNoStoreEntry {
@@ -173,7 +166,7 @@ func (ctx *Context) SetSecondaryCalendar(name string) error {
 	if err := ctx.Session.Store().Put(displayKey, &prefs); err != nil {
 		return err
 	}
-	displayMemo.Forget(ctx.Session.Username())
+	ctx.Server.displayMemo.Forget(ctx.Session.Username())
 	return nil
 }
 

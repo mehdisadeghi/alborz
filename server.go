@@ -83,6 +83,16 @@ type Server struct {
 
 	assetsMu sync.Mutex
 	assets   map[string]assetStamp // theme asset content stamps by name
+
+	// displayMemo keeps the store off the render path. The store does
+	// not remember a missing entry, so an unmade choice would otherwise
+	// cost a METADATA round trip on every page, behind the lock every
+	// IMAP command of the session queues on.
+	displayMemo *Memo[displayPrefs]
+
+	// loginFailures records, per username, when an automatic sign-in
+	// last failed, so the next request does not try again at once.
+	loginFailures sync.Map
 }
 
 // assetStamp is one cached content digest; key identifies the content the
@@ -114,7 +124,8 @@ type domainUpstreams struct {
 }
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
-	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp)}
+	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
+		displayMemo: NewMemo[displayPrefs](time.Hour)}
 
 	s.domains = make(map[string]*domainUpstreams)
 	for _, arg := range options.Upstreams {

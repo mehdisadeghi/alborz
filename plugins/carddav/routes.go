@@ -259,7 +259,8 @@ func registerRoutes(p *plugin) {
 	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }
 	POST("/contacts", dav.HandleChoose("/contacts", "book", choose))
 	GET("/contacts", p.contacts)
-	POST("/contacts/export", p.exportContacts)
+	POST("/contacts/export", dav.HandleExport(p.client, "/contacts",
+		func(ctx *alborz.Context) string { return ctx.T("nav.contacts") + ".vcf" }, joinCards))
 	GET("/contacts/:path", p.contact)
 
 	GET("/contacts/:path/raw", func(ctx *alborz.Context) error { return dav.Raw(ctx, p.client) })
@@ -279,7 +280,7 @@ func registerRoutes(p *plugin) {
 	POST("/contacts/:path/photo/delete", p.deletePhoto)
 	remove := dav.Handler(dav.Action[*carddav.Client]{Client: p.client, Do: dav.Delete[*carddav.Client], List: "/contacts"})
 	POST("/contacts/:path/delete", remove)
-	POST("/contacts/delete", p.deleteContacts)
+	POST("/contacts/delete", remove)
 	POST("/contacts/import", p.importFromMessage)
 }
 
@@ -625,46 +626,6 @@ func (p *plugin) deletePhoto(ctx *alborz.Context) error {
 		}})
 }
 
-func (p *plugin) deleteContacts(ctx *alborz.Context) error {
-	params, err := ctx.FormParams()
-	if err != nil {
-		return err
-	}
-	paths := params["paths"]
-	if len(paths) == 0 {
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
-	}
-
-	// A pooled list draws rows from several accounts, so a selection
-	// can span them: each row names its own, and the deletions are
-	// grouped so each account's own client makes them.
-	byAccount := map[string][]string{}
-	for _, ref := range paths {
-		account, objPath, ok := strings.Cut(ref, "|")
-		if !ok {
-			return echo.NewHTTPError(http.StatusBadRequest, "unqualified contact")
-		}
-		byAccount[account] = append(byAccount[account], objPath)
-	}
-	for account, objPaths := range byAccount {
-		session := ctx.SessionFor(account)
-		if session == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
-		}
-		c, err := p.client(session)
-		if err != nil {
-			return err
-		}
-		for _, objPath := range objPaths {
-			if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
-				return fmt.Errorf("failed to delete address object: %v", err)
-			}
-		}
-	}
-
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
-}
-
 // createForm is the form for a new address book.
 func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 	return dav.CreateForm{Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: "/contacts",
@@ -735,60 +696,17 @@ func visibleBooks(accounts []dav.Account[*carddav.Client], only map[string]bool)
 	})
 }
 
-// exportContacts hands the selected cards back as one file, each as
-// its server stores it. The rows name their own account, so the
-// selection can span accounts.
-func (p *plugin) exportContacts(ctx *alborz.Context) error {
-	params, err := ctx.FormParams()
-	if err != nil {
-		return err
-	}
-	paths := params["paths"]
-	if len(paths) == 0 {
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
-	}
-	type card struct {
-		client  *carddav.Client
-		objPath string
-	}
-	var cards []card
-	clients := map[string]*carddav.Client{}
-	for _, ref := range paths {
-		account, objPath, ok := strings.Cut(ref, "|")
-		if !ok {
-			return echo.NewHTTPError(http.StatusBadRequest, "unqualified contact")
-		}
-		c, ok := clients[account]
-		if !ok {
-			session := ctx.SessionFor(account)
-			if session == nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
-			}
-			if c, err = p.client(session); err != nil {
-				return err
-			}
-			clients[account] = c
-		}
-		cards = append(cards, card{c, objPath})
-	}
+// joinCards writes the cards one after another, which is all a file of
+// vCards is.
+func joinCards(cards [][]byte) ([]byte, error) {
 	var buf bytes.Buffer
-	for _, r := range dav.Each(ctx.Request().Context(), cards, func(ctx context.Context, c card) ([]byte, error) {
-		body, err := c.client.Open(ctx, c.objPath)
-		if err != nil {
-			return nil, err
-		}
-		defer body.Close()
-		return io.ReadAll(body)
-	}) {
-		if r.Err != nil {
-			return r.Err
-		}
-		buf.Write(r.Value)
-		if !bytes.HasSuffix(r.Value, []byte("\n")) {
+	for _, card := range cards {
+		buf.Write(card)
+		if !bytes.HasSuffix(card, []byte("\n")) {
 			buf.WriteString("\r\n")
 		}
 	}
-	return dav.Download(ctx, ctx.T("nav.contacts")+".vcf", buf.Bytes())
+	return buf.Bytes(), nil
 }
 
 // hasAttachment reports whether the message carries a part of one of

@@ -2,9 +2,12 @@ package dav
 
 import (
 	"context"
+	"net/http"
 	"slices"
+	"strings"
 
 	"git.mehdix.org/alborz"
+	"github.com/labstack/echo/v4"
 )
 
 // Account is one signed-in account's client and collections, for the
@@ -135,4 +138,32 @@ type Ref[C any] struct {
 	Client  C
 	Account string
 	Path    string
+}
+
+// Selected resolves a pooled list's checked rows, "account|path" each,
+// to the client that owns them, opened once per account: a selection
+// can span accounts, and each row names its own.
+func Selected[C any](ctx *alborz.Context, refs []string, client func(*alborz.Session) (C, error)) ([]Ref[C], error) {
+	clients := map[string]C{}
+	out := make([]Ref[C], 0, len(refs))
+	for _, ref := range refs {
+		account, objPath, ok := strings.Cut(ref, "|")
+		if !ok {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "unqualified selection")
+		}
+		c, ok := clients[account]
+		if !ok {
+			session := ctx.SessionFor(account)
+			if session == nil {
+				return nil, echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+			}
+			var err error
+			if c, err = client(session); err != nil {
+				return nil, err
+			}
+			clients[account] = c
+		}
+		out = append(out, Ref[C]{c, account, objPath})
+	}
+	return out, nil
 }

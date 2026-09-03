@@ -24,6 +24,7 @@
           {{ $mark := $.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = $.T "tasks.markincomplete" }}{{ end }}
           <form action="{{.Task.URL}}/complete{{$acct}}" method="post">
             <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+            {{ if $done }}<input type="hidden" name="reopen" value="1">{{ end }}
             <button type="submit" class="icon-button" aria-pressed="{{$done}}" title="{{$mark}}" aria-label="{{$mark}}">{{ template "icon" "check" }}</button>
           </form>
           <a class="icon-button" href="{{.Task.URL}}/edit{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>

@@ -1,6 +1,7 @@
 package alborzcaldav
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -431,6 +432,11 @@ func registerRoutes(p *plugin) {
 	GET("/tasks/:path/edit", p.updateTask)
 	POST("/tasks/:path/edit", p.updateTask)
 	POST("/tasks/:path/delete", remove("/tasks"))
+	POST("/tasks/delete", remove("/tasks"))
+	POST("/tasks/complete", p.complete)
+	POST("/tasks/move", p.move)
+	POST("/tasks/export", dav.HandleExport(p.client, "/tasks",
+		func(ctx *alborz.Context) string { return ctx.T("nav.tasks") + ".ics" }, joinCalendars))
 
 	POST("/tasks/:path/note", p.note(getFirstTodo, "/tasks"))
 	POST("/calendar/:path/note", p.note(firstEvent, "/calendar"))
@@ -1410,21 +1416,78 @@ func putObject(ctx *alborz.Context, to dav.Ref[*caldav.Client], name string, was
 	return to.Client.PutCalendarObject(ctx.Request().Context(), at, cal)
 }
 
-// complete turns the task the route names done, or open again if it
-// was done.
+// complete marks tasks done or open again: the one a row or a page
+// names, or the rows the list had checked.
 func (p *plugin) complete(ctx *alborz.Context) error {
+	done := wantsDone(ctx)
+	return dav.Run(ctx, dav.Action[*caldav.Client]{
+		Client: p.client,
+		List:   "/tasks",
+		Do: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client]) error {
+			_, err := changeComponent(ctx, ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
+			return err
+		},
+	})
+}
+
+// wantsDone is the state a completion asks for: done, unless the form
+// says reopen.
+func wantsDone(ctx *alborz.Context) bool {
+	return ctx.FormValue("reopen") == ""
+}
+
+func markTodo(todo *ical.Component, done bool) {
+	if done {
+		todo.Props.SetText(ical.PropStatus, "COMPLETED")
+		todo.Props.SetDateTime(ical.PropCompleted, time.Now().UTC())
+	} else {
+		todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
+		todo.Props.Del(ical.PropCompleted)
+	}
+}
+
+// move copies each task into the chosen list and removes the original:
+// the lists may belong to different accounts, and CalDAV MOVE does not
+// cross servers.
+func (p *plugin) move(ctx *alborz.Context) error {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return err
+	}
+	to := params.Get("to")
+	if to == "" {
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/tasks")))
+	}
+	targets, err := dav.Selected(ctx, []string{to}, p.client)
+	if err != nil {
+		return err
+	}
+	target := targets[0]
 	return dav.Run(ctx, dav.Action[*caldav.Client]{Client: p.client, List: "/tasks",
 		Do: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client]) error {
-			_, err := changeComponent(ctx, ref, getFirstTodo, func(todo *ical.Component) {
-				status, _ := todo.Props.Text("STATUS")
-				if status == "COMPLETED" {
-					todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
-					todo.Props.Del(ical.PropCompleted)
-				} else {
-					todo.Props.SetText(ical.PropStatus, "COMPLETED")
-					todo.Props.SetDateTime(ical.PropCompleted, time.Now().UTC())
-				}
-			})
-			return err
+			if path.Dir(ref.Path)+"/" == target.Path {
+				return nil
+			}
+			co, err := getCalendarObject(ctx, ref.Client, ref.Path)
+			if err != nil {
+				return fmt.Errorf("failed to get task: %v", err)
+			}
+			if _, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data); err != nil {
+				return err
+			}
+			return dav.Delete(ctx, ref)
 		}})
+}
+
+// joinCalendars makes one calendar of the objects' components.
+func joinCalendars(objects [][]byte) ([]byte, error) {
+	var children []*ical.Component
+	for _, object := range objects {
+		cal, err := ical.NewDecoder(bytes.NewReader(object)).Decode()
+		if err != nil {
+			return nil, err
+		}
+		children = append(children, cal.Children...)
+	}
+	return encodeCalendar(children)
 }

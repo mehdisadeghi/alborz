@@ -30,6 +30,10 @@ const (
 	// does the same ahead of time while the user is active.
 	SoftTTL = 2 * time.Minute
 
+	// refreshBudget is what one account's background pass may spend,
+	// ctag checks and replays together.
+	refreshBudget = 30 * time.Second
+
 	// ctagTimeout bounds the revalidation a stale read waits on. It is
 	// one PROPFIND for one property; a server that cannot answer it in
 	// this long is answered by going to the source instead.
@@ -40,8 +44,12 @@ const (
 	// always says the whole collection is still good.
 	PruneAfter = 7 * 24 * time.Hour
 
-	ActiveRefreshRate = 2 * time.Minute
-	IdleRefreshRate   = 10 * time.Minute
+	// RefreshRate is how often each account's stale collections are
+	// checked in the background, idle or not. Alborz runs around the
+	// clock, and a cache that slows down for a quiet account is cold on
+	// the first page of the morning; the check is one PROPFIND per
+	// collection, which a stale read would pay anyway.
+	RefreshRate = SoftTTL
 
 	// ForgetAfter drops a user nobody has been seen as. It matches the
 	// life of the remembered-login cookie, which is the longest a
@@ -409,9 +417,6 @@ func (c *Cache) refresh() {
 	c.mu.Unlock()
 
 	now := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
 	for name, u := range users {
 		u.mu.Lock()
 		idle := now.Sub(u.lastActive)
@@ -420,15 +425,15 @@ func (c *Cache) refresh() {
 			c.Forget(name)
 			continue
 		}
-		rate := IdleRefreshRate
-		if idle < time.Minute {
-			rate = ActiveRefreshRate
-		}
-		if now.Sub(u.lastRefresh) < rate {
+		if now.Sub(u.lastRefresh) < RefreshRate {
 			continue
 		}
 		u.lastRefresh = now
+		// A budget per account: one slow server must not spend the time
+		// every other account's refresh needed.
+		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
 		u.refresh(ctx)
+		cancel()
 	}
 }
 

@@ -55,7 +55,7 @@
           {{$photo := .PhotoURL}}
           <div class="contact-row list-row" role="row">
             <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
-              <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form">
+              <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form" aria-label="{{$.T "a11y.selectcontact"}}{{with .DisplayName}}: {{.}}{{end}}">
             </div>
             <div class="contact-list-photo list-cell" role="cell">
               {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}

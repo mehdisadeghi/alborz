@@ -15,11 +15,14 @@ import (
 const tplSrc = `
 <!-- allow-same-origin is required to resize the frame with its content -->
 <!-- allow-popups is required for target="_blank" links -->
+<!-- The frame arrives hidden and the script shows it once sized, so the
+     unsized box is never painted; without a script it is shown as it is. -->
 <div id="email-frame-wrap">
-<iframe id="email-frame" title="{{.Title}}" srcdoc="{{.Body}}" sandbox="allow-same-origin allow-popups"></iframe>
+<iframe id="email-frame" title="{{.Title}}" srcdoc="{{.Body}}" sandbox="allow-same-origin allow-popups" style="visibility: hidden"></iframe>
 </div>
-<script src="/plugins/viewhtml/assets/script.js?v=5"></script>
-<link rel="stylesheet" href="/plugins/viewhtml/assets/style.css?v=5">
+<noscript><style>#email-frame { visibility: visible; }</style></noscript>
+<script src="/plugins/viewhtml/assets/script.js?v=6"></script>
+<link rel="stylesheet" href="/plugins/viewhtml/assets/style.css?v=6">
 `
 
 var tpl = template.Must(template.New("view-html.html").Parse(tplSrc))
@@ -59,7 +62,10 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	}
 
 	// E-mails size images for their own layout; cap them to the frame.
-	body = append([]byte(`<style>img { max-width: 100%; height: auto; }</style>`), body...)
+	// Preformatted text is text, not layout: a long line wraps, the way
+	// a terminal wraps it, instead of widening the mail past the frame
+	// and having the whole of it scaled down to fit.
+	body = append([]byte(`<style>img { max-width: 100%; height: auto; } pre { white-space: pre-wrap; overflow-wrap: anywhere; }</style>`), body...)
 
 	// srcdoc is a document of its own, so lang on the iframe element does
 	// not reach the text inside it. A wrapper inside the document carries

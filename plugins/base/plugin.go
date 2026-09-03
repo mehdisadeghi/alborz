@@ -13,10 +13,17 @@ var public embed.FS
 // UserLocation resolves the user's timezone the same way display does:
 // explicit setting first, then the browser-set cookie, else UTC.
 func UserLocation(ctx *alborz.Context) *time.Location {
-	tz := ""
-	if settings, err := LoadSettings(ctx.Session.Store()); err == nil {
-		tz = settings.Timezone
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		settings = &Settings{}
 	}
+	return locationOf(ctx, settings)
+}
+
+// locationOf is UserLocation for a caller that already holds the
+// settings.
+func locationOf(ctx *alborz.Context, settings *Settings) *time.Location {
+	tz := settings.Timezone
 	if tz == "" {
 		if c, err := ctx.Cookie(alborz.TimezoneCookieName); err == nil {
 			tz = c.Value
@@ -46,7 +53,7 @@ func init() {
 			return nil // Don't fail render on settings error
 		}
 		// Unset means times keep their stored zones.
-		if loc := UserLocation(ctx); loc != time.UTC {
+		if loc := locationOf(ctx, settings); loc != time.UTC {
 			data.Global().Timezone = loc
 		}
 		data.Global().FirstDayOfWeek = settings.FirstDayOfWeek

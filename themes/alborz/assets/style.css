@@ -2822,7 +2822,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 .task-grid {
   display: grid;
   grid-template-columns:
-    2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
+    var(--check-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
     minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
@@ -2832,7 +2832,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 @media (width < 60rem) {
   .task-grid {
     grid-template-columns:
-      2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
+      var(--check-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
   }
 
   .task-grid .task-list-added { display: none; }
@@ -2843,7 +2843,7 @@ aside details.folder-branch details.folder-branch > ul > li {
    row is on and is never empty. */
 @media (width < 52rem) {
   .task-grid {
-    grid-template-columns: 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr);
+    grid-template-columns: var(--check-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr);
   }
 
   .task-grid .task-list-due { display: none; }
@@ -3615,16 +3615,16 @@ button:active,
   margin-inline-end: 0.5rem;
 }
 
-/* A task's completion toggle is a checkbox in every way but the
-   element: it must not inherit the button box, which is twice the
-   size of the checkboxes the rest of the app draws. */
+/* A task's completion toggle sits beside the row's selection box and
+   must read as something else: round, where a selection is square,
+   and no larger than the checkboxes the rest of the app draws. */
 .checkbox-button {
   width: 1rem;
   height: 1rem;
   min-width: 0;
   min-height: 0;
   border: 1px solid var(--border-strong);
-  border-radius: 3px;
+  border-radius: 50%;
   background: var(--bg);
   cursor: pointer;
   display: flex;
@@ -4057,7 +4057,7 @@ aside ul.merged-roles {
 
   .task-row {
     display: grid;
-    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    grid-template-columns: auto 2rem minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
     column-gap: var(--space-2);
     padding: var(--space-2);
@@ -4073,15 +4073,23 @@ aside ul.merged-roles {
 
   .task-row:hover > * { background: transparent; }
 
-  .task-row .task-list-status {
+  /* Both marks centre on the summary line, not on the card: a box
+     that starts at the card's top edge sits above the text it is for. */
+  .task-row .task-list-checkbox {
     grid-column: 1;
-    grid-row: 1 / span 2;
-    align-self: start;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .task-row .task-list-status {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
   }
 
 
   .task-row .task-list-summary {
-    grid-column: 2 / -1;
+    grid-column: 3 / -1;
     grid-row: 1;
     font-weight: 600;
   }
@@ -4090,14 +4098,14 @@ aside ul.merged-roles {
      step decided. */
   .task-row .task-list-calendar {
     display: flex;
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 2;
   }
 
   .task-row .task-list-due { display: block; }
 
   .task-row .task-list-due {
-    grid-column: 3;
+    grid-column: 4;
     grid-row: 2;
     justify-self: end;
   }

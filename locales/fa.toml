@@ -380,6 +380,7 @@
 "calendar.holdstasks" = "تنها کار"
 "calendar.holdshint" = "بیشتر سرورها این را هنگام ساخت ثابت می‌کنند."
 "tasks.newlist" = "فهرست کار تازه"
+"tasks.movelist" = "انتقال به فهرست"
 # Plural forms last: a TOML table claims every key that follows it.
 "settings.signatures" = "امضاها"
 "settings.signaturename" = "نام"
@@ -445,6 +446,8 @@
 "a11y.body" = "متن نامه"
 "a11y.toolbar" = "کنش‌ها"
 "a11y.selectrow" = "انتخاب نامه"
+"a11y.selecttask" = "انتخاب کار"
+"a11y.selectcontact" = "انتخاب مخاطب"
 "settings.textsize" = "اندازهٔ متن"
 "settings.textdefault" = "پیش‌فرض"
 "settings.textlarge" = "بزرگ"

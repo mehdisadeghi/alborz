@@ -380,6 +380,7 @@
 "calendar.holdstasks" = "Tasks only"
 "calendar.holdshint" = "Most servers fix this when the collection is created."
 "tasks.newlist" = "New task list"
+"tasks.movelist" = "Move to list"
 # Plural forms last: a TOML table claims every key that follows it.
 "settings.signatures" = "Signatures"
 "settings.signaturename" = "Name"
@@ -445,6 +446,8 @@
 "a11y.body" = "Message body"
 "a11y.toolbar" = "Actions"
 "a11y.selectrow" = "Select message"
+"a11y.selecttask" = "Select task"
+"a11y.selectcontact" = "Select contact"
 "settings.textsize" = "Text size"
 "settings.textdefault" = "Default"
 "settings.textlarge" = "Large"

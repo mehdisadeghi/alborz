@@ -777,35 +777,13 @@ func (p *plugin) deleteContacts(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	paths := params["paths"]
-	if len(paths) == 0 {
-		return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
+	refs, err := dav.Selected(ctx, params["paths"], p.client)
+	if err != nil {
+		return err
 	}
-
-	// A pooled list draws rows from several accounts, so a selection
-	// can span them: each row names its own, and the deletions are
-	// grouped so each account's own client makes them.
-	byAccount := map[string][]string{}
-	for _, ref := range paths {
-		account, objPath, ok := strings.Cut(ref, "|")
-		if !ok {
-			return echo.NewHTTPError(http.StatusBadRequest, "unqualified contact")
-		}
-		byAccount[account] = append(byAccount[account], objPath)
-	}
-	for account, objPaths := range byAccount {
-		session := ctx.SessionFor(account)
-		if session == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
-		}
-		c, err := p.client(session)
-		if err != nil {
-			return err
-		}
-		for _, objPath := range objPaths {
-			if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
-				return fmt.Errorf("failed to delete address object: %v", err)
-			}
+	for _, ref := range refs {
+		if err := ref.Client.RemoveAll(ctx.Request().Context(), ref.Path); err != nil {
+			return fmt.Errorf("failed to delete address object: %v", err)
 		}
 	}
 
@@ -955,37 +933,16 @@ func (p *plugin) exportContacts(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	paths := params["paths"]
-	if len(paths) == 0 {
+	refs, err := dav.Selected(ctx, params["paths"], p.client)
+	if err != nil {
+		return err
+	}
+	if len(refs) == 0 {
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
 	}
-	type card struct {
-		client  *carddav.Client
-		objPath string
-	}
-	var cards []card
-	clients := map[string]*carddav.Client{}
-	for _, ref := range paths {
-		account, objPath, ok := strings.Cut(ref, "|")
-		if !ok {
-			return echo.NewHTTPError(http.StatusBadRequest, "unqualified contact")
-		}
-		c, ok := clients[account]
-		if !ok {
-			session := ctx.SessionFor(account)
-			if session == nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
-			}
-			if c, err = p.client(session); err != nil {
-				return err
-			}
-			clients[account] = c
-		}
-		cards = append(cards, card{c, objPath})
-	}
 	var buf bytes.Buffer
-	for _, r := range dav.Each(ctx.Request().Context(), cards, func(ctx context.Context, c card) ([]byte, error) {
-		body, err := c.client.Open(ctx, c.objPath)
+	for _, r := range dav.Each(ctx.Request().Context(), refs, func(ctx context.Context, ref dav.Ref[*carddav.Client]) ([]byte, error) {
+		body, err := ref.Client.Open(ctx, ref.Path)
 		if err != nil {
 			return nil, err
 		}

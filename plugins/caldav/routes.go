@@ -538,6 +538,10 @@ func registerRoutes(p *plugin) {
 	GET("/tasks/:path/edit", p.updateTask)
 	POST("/tasks/:path/edit", p.updateTask)
 	POST("/tasks/:path/delete", p.deleteTask)
+	POST("/tasks/delete", p.deleteTasks)
+	POST("/tasks/complete", p.completeTasks)
+	POST("/tasks/move", p.moveTasks)
+	POST("/tasks/export", p.exportTasks)
 
 	POST("/tasks/:path/note", p.noteTask)
 	POST("/calendar/:path/note", p.noteEvent)
@@ -1651,14 +1655,7 @@ func (p *plugin) completeTask(ctx *alborz.Context) error {
 	}
 
 	status, _ := todo.Props.Text("STATUS")
-	if status == "COMPLETED" {
-		todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
-		todo.Props.Del(ical.PropCompleted)
-	} else {
-		todo.Props.SetText(ical.PropStatus, "COMPLETED")
-		todo.Props.SetDateTime(ical.PropCompleted, time.Now().UTC())
-	}
-	todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
+	markTodo(todo, status != "COMPLETED")
 
 	_, err = c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data)
 	if err != nil {
@@ -1671,4 +1668,136 @@ func (p *plugin) completeTask(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, next)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/tasks"))
+}
+
+func markTodo(todo *ical.Component, done bool) {
+	if done {
+		todo.Props.SetText(ical.PropStatus, "COMPLETED")
+		todo.Props.SetDateTime(ical.PropCompleted, time.Now().UTC())
+	} else {
+		todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
+		todo.Props.Del(ical.PropCompleted)
+	}
+	todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
+}
+
+// selected resolves the task list's checked rows to their owning clients.
+func (p *plugin) selected(ctx *alborz.Context, refs []string) ([]dav.Ref[*caldav.Client], error) {
+	return dav.Selected(ctx, refs, p.client)
+}
+
+func (p *plugin) deleteTasks(ctx *alborz.Context) error {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return err
+	}
+	refs, err := p.selected(ctx, params["paths"])
+	if err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		if err := ref.Client.RemoveAll(ctx.Request().Context(), ref.Path); err != nil {
+			return fmt.Errorf("failed to delete task: %v", err)
+		}
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
+}
+
+func (p *plugin) completeTasks(ctx *alborz.Context) error {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return err
+	}
+	refs, err := p.selected(ctx, params["paths"])
+	if err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		co, err := getCalendarObject(ctx, ref.Client, ref.Path)
+		if err != nil {
+			return fmt.Errorf("failed to get task: %v", err)
+		}
+		todo := getFirstTodo(co.Data)
+		if todo == nil {
+			return fmt.Errorf("no VTODO component found")
+		}
+		markTodo(todo, true)
+		if _, err := ref.Client.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {
+			return fmt.Errorf("failed to update task: %v", err)
+		}
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
+}
+
+// moveTasks copies each task into the chosen list and removes the
+// original: the lists may belong to different accounts, and CalDAV
+// MOVE does not cross servers.
+func (p *plugin) moveTasks(ctx *alborz.Context) error {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return err
+	}
+	to := params.Get("to")
+	if to == "" {
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
+	}
+	targets, err := p.selected(ctx, []string{to})
+	if err != nil {
+		return err
+	}
+	target := targets[0]
+	refs, err := p.selected(ctx, params["paths"])
+	if err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		if path.Dir(ref.Path)+"/" == target.Path {
+			continue
+		}
+		co, err := getCalendarObject(ctx, ref.Client, ref.Path)
+		if err != nil {
+			return fmt.Errorf("failed to get task: %v", err)
+		}
+		if _, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data); err != nil {
+			return fmt.Errorf("failed to move task: %v", err)
+		}
+		if err := ref.Client.RemoveAll(ctx.Request().Context(), ref.Path); err != nil {
+			return fmt.Errorf("failed to delete task: %v", err)
+		}
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
+}
+
+func (p *plugin) exportTasks(ctx *alborz.Context) error {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return err
+	}
+	refs, err := p.selected(ctx, params["paths"])
+	if err != nil {
+		return err
+	}
+	if len(refs) == 0 {
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
+	}
+	var children []*ical.Component
+	for _, r := range dav.Each(ctx.Request().Context(), refs, func(_ context.Context, ref dav.Ref[*caldav.Client]) ([]*ical.Component, error) {
+		co, err := getCalendarObject(ctx, ref.Client, ref.Path)
+		if err != nil {
+			return nil, err
+		}
+		return co.Data.Children, nil
+	}) {
+		if r.Err != nil {
+			return r.Err
+		}
+		children = append(children, r.Value...)
+	}
+	body, err := encodeCalendar(children)
+	if err != nil {
+		return err
+	}
+	ctx.Response().Header().Set("Content-Disposition",
+		mime.FormatMediaType("attachment", map[string]string{"filename": ctx.T("nav.tasks") + ".ics"}))
+	return ctx.Blob(http.StatusOK, "text/calendar; charset=utf-8", body)
 }

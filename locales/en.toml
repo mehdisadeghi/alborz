@@ -105,6 +105,7 @@
 "settings.replybottom" = "Below the quote"
 "message.unsubscribe" = "Unsubscribe"
 "message.deliveredto" = "Delivered to"
+"message.forwardedby" = "Forwarded by"
 "message.aliasmark" = "Sent to another of your addresses: %s"
 "list.title" = "Mailing list"
 "list.id" = "Identifier"

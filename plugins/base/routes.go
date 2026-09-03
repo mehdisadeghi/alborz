@@ -1373,6 +1373,10 @@ type MessageRenderData struct {
 	// that is not the account it landed in - the alias, in other words.
 	DeliveredTo string
 
+	// ForwardedBy names the mailbox that passed the message on, proved
+	// by the SPF check our own server made. Empty unless it is certain.
+	ForwardedBy string
+
 	// Neighbors in the view the message was opened from; nil when absent.
 	NewerURL *url.URL
 	OlderURL *url.URL
@@ -1820,6 +1824,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        trust.alias(msg),
+		ForwardedBy:        ForwardedBy(msg.rootHeader, settings.TrustedAuthServ, msg.ListID),
 	})
 }
 

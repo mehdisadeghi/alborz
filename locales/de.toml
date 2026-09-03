@@ -101,6 +101,7 @@
 "settings.replybottom" = "Unter dem Zitat"
 "message.unsubscribe" = "Abbestellen"
 "message.deliveredto" = "Zugestellt an"
+"message.forwardedby" = "Weitergeleitet von"
 "message.aliasmark" = "An eine andere Ihrer Adressen gesendet: %s"
 "list.title" = "Mailingliste"
 "list.id" = "Kennung"

@@ -101,6 +101,7 @@
 "settings.replybottom" = "زیر نقل‌قول"
 "message.unsubscribe" = "لغو اشتراک"
 "message.deliveredto" = "تحویل به"
+"message.forwardedby" = "بازفرستاده از"
 "message.aliasmark" = "به نشانی دیگری از شما فرستاده شده: %s"
 "list.title" = "فهرست پستی"
 "list.id" = "شناسه"

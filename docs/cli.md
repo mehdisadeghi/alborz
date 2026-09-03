@@ -29,19 +29,26 @@ The following URL schemes are supported:
 
 # OPTIONS
 
-**-theme**: default theme (default: no theme)
+**-theme**: theme directory name under `./themes` (default: "alborz")
 
 **-addr**: listening address (default: ":1323")
 
 **-debug**: enable debug logs and print IMAP network activity
 
 **-login-key**: supply a secret key to preserve logins over application restart.
+Can also be given as the `LBRZ_LOGIN_KEY` environment variable, which keeps
+it out of the process list.
+
+**-project-url**: where the footer's project name links (default: unset, the
+name is printed as text)
 
 **-h**, **--help**: show help message and exit
 
 # SIGNALS
 
 **SIGUSR1**: reloads templates
+
+**SIGINT**, **SIGTERM**: stop, giving requests in flight up to five seconds
 
 # LOGIN-KEY
 

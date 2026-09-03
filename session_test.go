@@ -7,23 +7,22 @@ import (
 	"time"
 )
 
-func TestExpiryForgetsTheAccount(t *testing.T) {
+func TestExpiryUnlistsTheSession(t *testing.T) {
 	sm := newSessionManager(nil, nil, nil, nil, nil, nil)
-	gone := make(chan string, 1)
-	sm.onGone = func(username string) { gone <- username }
 	s := &Session{manager: sm, closed: make(chan struct{}), pings: make(chan struct{}, 5),
 		username: "a@test.local", token: "t"}
 	sm.sessions[s.token] = s
-	go sm.reap(s)
+	done := make(chan struct{})
+	go func() {
+		sm.reap(s)
+		close(done)
+	}()
 
 	s.Close()
 	select {
-	case username := <-gone:
-		if username != s.username {
-			t.Errorf("forgot %q, not %q", username, s.username)
-		}
+	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("the account was not forgotten")
+		t.Fatal("the reaper did not finish")
 	}
 	if _, err := sm.get(s.token); err != ErrSessionExpired {
 		t.Errorf("the session is still listed: %v", err)

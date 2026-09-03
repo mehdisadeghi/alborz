@@ -23,6 +23,7 @@ unit for `/etc/systemd/system/alborz.service`:
     User=alborz
     Group=alborz
     WorkingDirectory=/var/lib/alborz
+    CacheDirectory=alborz
     EnvironmentFile=/etc/default/alborz
     ExecStart=/usr/local/bin/alborz example.org
     Restart=on-failure
@@ -39,6 +40,12 @@ Generate the login key with
 `/etc/default/alborz` (mode 600) as `LBRZ_LOGIN_KEY=...`. It is read
 from the environment, so it never appears in the unit or the process
 list.
+
+`CacheDirectory=alborz` gives the service `/var/cache/alborz`, where the
+calendar and contacts cache is kept between runs, sealed under the login
+key, so a restart starts warm. Without it, or without a login key, the
+cache lives in memory and every restart starts cold. `-cache-dir`
+overrides the location.
 
 ## DNS
 

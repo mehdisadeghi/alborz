@@ -261,6 +261,7 @@ func registerRoutes(p *plugin) {
 	GET("/contacts", p.contacts)
 	POST("/contacts/export", dav.HandleExport(p.client, "/contacts",
 		func(ctx *alborz.Context) string { return ctx.T("nav.contacts") + ".vcf" }, joinCards))
+	POST("/contacts/refresh", p.dav.HandleRefresh("/contacts"))
 	GET("/contacts/:path", p.contact)
 
 	GET("/contacts/:path/raw", func(ctx *alborz.Context) error { return dav.Raw(ctx, p.client) })
@@ -826,3 +827,6 @@ func exportBook(ctx context.Context, client *carddav.Client, bookPath string) ([
 	}
 	return buf.Bytes(), nil
 }
+
+// refresh asks every signed-in account's server again, for a change
+// made elsewhere that the poll has not caught up with.

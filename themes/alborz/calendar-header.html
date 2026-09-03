@@ -5,6 +5,12 @@
 <span class="icon-group">
   <a class="icon-button" href="/calendar/export{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}">{{ template "icon" "download" }}</a>
 </span>
+<details class="overflow">
+  <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
+  <div class="overflow-menu">
+    <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
+  </div>
+</details>
 {{ template "toolbar-end" }}
     {{ template "pagination" (dict "prev" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "label" ($.GlobalData.MonthName .PrevTime)) "next" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "label" ($.GlobalData.MonthName .NextTime))) }}
     {{/* Today keeps its place on the month it would take you to, or

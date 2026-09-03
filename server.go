@@ -182,7 +182,6 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	}
 
 	s.Sessions = newSessionManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, s.Options.LoginKey)
-	s.Sessions.onGone = s.ForgetAccount
 	return s, nil
 }
 
@@ -226,6 +225,11 @@ func (err UnknownDomainError) Error() string {
 
 func (s *Server) Close() {
 	s.Sessions.Close()
+	for _, p := range s.plugins {
+		if err := p.Close(); err != nil {
+			s.e.Logger.Printf("Failed to close plugin %q: %v", p.Name(), err)
+		}
+	}
 }
 
 func parseUpstream(s string) (*url.URL, error) {
@@ -612,7 +616,10 @@ type Options struct {
 	ThemesPath string
 	Debug      bool
 	LoginKey   *fernet.Key
-	Version    string
+	// CacheDir keeps the calendar and contacts cache between runs,
+	// sealed under LoginKey; empty, or no key, keeps it in memory.
+	CacheDir string
+	Version  string
 	// ProjectURL is where the footer's name links, for a deployment that
 	// wants to point somewhere. Empty by default: a deployment is not the
 	// author's, and no address of anyone's belongs in a shipped binary.

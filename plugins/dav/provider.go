@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -21,6 +22,9 @@ type Kind struct {
 	Name, Label string
 	// Schemes are the explicit upstream schemes, secure and plain.
 	Schemes [2]string
+	// Poll is how often a collection is asked whether it changed; see
+	// davcache.DefaultPoll.
+	Poll time.Duration
 	// Discover finds the service's URL for a domain by its SRV record.
 	Discover func(ctx context.Context, domain string) (string, error)
 	// FindHome is the home set behind the account's server. Principal
@@ -80,7 +84,18 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	if len(urls) == 0 {
 		return nil, nil
 	}
-	p := &Provider{kind: kind, urls: urls, cache: davcache.New(),
+	var store *davcache.Store
+	if srv.Options.CacheDir != "" && srv.Options.LoginKey != nil {
+		store = davcache.NewStore(filepath.Join(srv.Options.CacheDir, kind.Name), srv.Options.LoginKey)
+	}
+	cache, warm, err := davcache.New(store, kind.Poll)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the %s cache: %w", kind.Name, err)
+	}
+	if warm > 0 {
+		srv.Logger().Printf("%s: cache warm for %d accounts", kind.Name, warm)
+	}
+	p := &Provider{kind: kind, urls: urls, cache: cache,
 		collections: alborz.NewBackgroundMemo[[]Collection](discoveryTTL)}
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
@@ -210,6 +225,18 @@ func (p *Provider) Enabled(ctx *alborz.Context) bool {
 		}
 	}
 	return false
+}
+
+// HandleRefresh asks every signed-in account's server again, for a
+// change made elsewhere that the poll has not caught up with, and lands
+// on list.
+func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		for _, s := range ctx.Sessions() {
+			p.cache.Refresh(ctx.Request().Context(), s.Username())
+		}
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(list)))
+	}
 }
 
 // Guarded is a section's route for an account that may have none of

@@ -269,10 +269,14 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		data := _data.(*alborzbase.ComposeRenderData)
 
 		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
-		if err == errNoAddressBook {
+		if err != nil {
+			// Suggestions are a convenience of the compose page, not a
+			// condition of it: an address book that is missing or not
+			// answering must not keep a message from being written.
+			if err != errNoAddressBook {
+				ctx.Logger().Printf("carddav: no suggestions for compose: %v", err)
+			}
 			return nil
-		} else if err != nil {
-			return err
 		}
 
 		query := carddav.AddressBookQuery{
@@ -326,7 +330,8 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		}
 		for _, result := range results {
 			if result.err != nil {
-				return fmt.Errorf("failed to query CardDAV addresses: %v", result.err)
+				ctx.Logger().Printf("carddav: no suggestions from one book: %v", result.err)
+				continue
 			}
 			for _, addr := range result.addrs {
 				name := addr.Card.Value(vcard.FieldFormattedName)

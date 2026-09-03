@@ -3056,7 +3056,7 @@ func handleUnsubscribe(ctx *alborz.Context) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	client := &http.Client{Timeout: unsubscribeTimeout}
+	client := alborz.NewRemoteClient(unsubscribeTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		ctx.Session.PutNotice(ctx.T("notice.unsubfailed"))
@@ -3337,10 +3337,7 @@ func handleMove(ctx *alborz.Context) error {
 	listings.evict(ctx.Session.Username(), mboxName)
 	listings.evict(ctx.Session.Username(), to)
 	ctx.Session.PutNotice(ctx.Tf("notice.moved", len(uids)))
-	if path := formOrQueryParam(ctx, "next"); path != "" {
-		return ctx.Redirect(http.StatusFound, path)
-	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))))
 }
 
 // handleEmptyMailbox expunges everything in a folder, the standard
@@ -3363,10 +3360,7 @@ func handleEmptyMailbox(ctx *alborz.Context) error {
 
 	listings.evict(ctx.Session.Username(), mboxName)
 	ctx.Session.PutNotice(emptiedNotice(ctx, removed))
-	if path := formOrQueryParam(ctx, "next"); path != "" {
-		return ctx.Redirect(http.StatusFound, path)
-	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))))
 }
 
 // emptyMailbox flags and expunges every message in the folder and reports
@@ -3438,10 +3432,7 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 	}
 
 	ctx.Session.PutNotice(emptiedNotice(ctx, removed))
-	if path := formOrQueryParam(ctx, "next"); path != "" {
-		return ctx.Redirect(http.StatusFound, path)
-	}
-	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/mailbox/%s?all=1", role))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s?all=1", role)))
 }
 
 func handleDelete(ctx *alborz.Context) error {
@@ -3490,10 +3481,7 @@ func handleDelete(ctx *alborz.Context) error {
 
 	listings.evict(ctx.Session.Username(), mboxName)
 	ctx.Session.PutNotice(ctx.Tf("notice.deleted", len(uids)))
-	if path := formOrQueryParam(ctx, "next"); path != "" {
-		return ctx.Redirect(http.StatusFound, path)
-	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))))
 }
 
 func handleSetFlags(ctx *alborz.Context) error {
@@ -3598,8 +3586,8 @@ func handleSetFlags(ctx *alborz.Context) error {
 	}
 	listings.evict(ctx.Session.Username(), mboxName)
 
-	if path := formOrQueryParam(ctx, "next"); path != "" {
-		return ctx.Redirect(http.StatusFound, path)
+	if next := ctx.NextOr(""); next != "" {
+		return ctx.Redirect(http.StatusFound, next)
 	}
 	if len(uids) != 1 || (op == imap.StoreFlagsDel && len(l) == 1 && l[0] == imap.FlagSeen) {
 		// Redirecting to the message view would mark the message as read again

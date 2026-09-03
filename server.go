@@ -876,8 +876,11 @@ func (ctx *Context) NextOr(fallback string) string {
 	if next == "" {
 		return fallback
 	}
+	// A backslash is read as a slash by browsers, so "/\\host" would
+	// leave the site the way "//host" does.
 	u, err := url.Parse(next)
-	if err != nil || u.Host != "" || !strings.HasPrefix(u.Path, "/") {
+	if err != nil || u.Host != "" || !strings.HasPrefix(u.Path, "/") ||
+		strings.ContainsRune(next, '\\') {
 		return fallback
 	}
 	return u.String()

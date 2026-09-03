@@ -2072,9 +2072,11 @@ type composeOptions struct {
 }
 
 // Send message, append it to the Sent mailbox, mark the original message as
-// answered
-func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOptions) error {
-	err := ctx.DoSMTP(func(c *smtp.Client) error {
+// answered. The sender is the account chosen in the From dropdown; the
+// draft and the message being answered belong to the request's own
+// account, whose mailbox and UID the URL named.
+func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMessage, options *composeOptions) error {
+	err := sender.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, msg)
 	})
 	if err != nil {
@@ -2106,22 +2108,25 @@ func submitCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 	}
 
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		if _, err := appendMessage(c, msg, "sent"); err != nil {
-			return err
-		}
-		if draft := options.Draft; draft != nil {
-			if err := deleteMessage(c, draft.Mailbox, draft.Uid); err != nil {
-				return err
-			}
-		}
-		return nil
+	err = sender.DoIMAP(func(c *imapclient.Client) error {
+		_, err := appendMessage(c, msg, "sent")
+		return err
 	})
 	if err != nil {
 		return fmt.Errorf("failed to save message to Sent mailbox: %v", err)
 	}
 
+	if draft := options.Draft; draft != nil {
+		err = ctx.DoIMAP(func(c *imapclient.Client) error {
+			return deleteMessage(c, draft.Mailbox, draft.Uid)
+		})
+		if err != nil {
+			return fmt.Errorf("failed to delete draft: %v", err)
+		}
+	}
+
 	listings.evictAll(ctx.Session.Username())
+	listings.evictAll(sender.Username())
 	ctx.Session.PutNotice(ctx.T("notice.sent"))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 }
@@ -2163,23 +2168,25 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		_, saveAsDraft := formParams["save_as_draft"]
 
 		// The From dropdown picks the sending account and, within it, the
-		// address to send as; everything after this line, SMTP and Sent
-		// folder included, follows the account.
+		// address to send as. SMTP, the Sent folder and the settings the
+		// message is written under follow that account. Everything the
+		// URL and the form name - the draft, the message answered, the
+		// attachments - stays on the request's own account.
+		sender := ctx.Session
 		account, identity := splitIdentityChoice(ctx.FormValue("from_account"))
-		if account != "" && account != ctx.Session.Username() {
-			session := ctx.SessionFor(account)
-			if session == nil {
+		if account != "" && account != sender.Username() {
+			sender = ctx.SessionFor(account)
+			if sender == nil {
 				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 			}
-			ctx.Session = session
 		}
-		settings, err := LoadSettings(ctx.Session.Store())
+		settings, err := LoadSettings(sender.Store())
 		if err != nil {
 			return err
 		}
-		msg.From = ctx.Session.Username()
+		msg.From = sender.Username()
 		if settings.From != "" {
-			msg.From = (&mail.Address{Name: settings.From, Address: ctx.Session.Username()}).String()
+			msg.From = (&mail.Address{Name: settings.From, Address: sender.Username()}).String()
 		}
 		// An identity replaces the address, and carries its own name when
 		// it names one. A stale choice falls back to the account itself.
@@ -2239,7 +2246,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		// list. Neither is asked of the page - a form field carrying a
 		// decision is one the reader's browser can lose or change, and
 		// it made the feature depend on when a tab happened to load.
-		sendSettings, err := LoadSettings(ctx.Session.Store())
+		sendSettings, err := LoadSettings(sender.Store())
 		if err != nil {
 			return err
 		}
@@ -2410,7 +2417,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			return ctx.Redirect(http.StatusFound, fmt.Sprintf(
 				"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
 		} else {
-			return submitCompose(ctx, msg, options)
+			return submitCompose(ctx, sender, msg, options)
 		}
 	}
 

@@ -126,7 +126,7 @@
             {{/* Built in one piece: the escaper cannot follow a URL whose
                  query grows across branches. */}}
             {{$link := ""}}{{$sep := "?"}}
-            {{if .TextPart}}{{$link = printf "%v" (.TextPart.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
+            {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%v" ($open.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
             {{if $.Starred}}{{$link = printf "%s%sstarred=1" $link $sep}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | urlquery)}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | addr)}}{{end}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $link}}">

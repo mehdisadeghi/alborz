@@ -537,6 +537,21 @@ func (msg *IMAPMessage) TextPart() *IMAPPartNode {
 	return best
 }
 
+// PreferredPart is the part a message opens at. Plain text unless the
+// account asked for the other order, and either way whatever the message
+// actually has.
+func (msg *IMAPMessage) PreferredPart(preferHTML bool) *IMAPPartNode {
+	if preferHTML {
+		if html := msg.HTMLPart(); html != nil {
+			return html
+		}
+	}
+	if text := msg.TextPart(); text != nil {
+		return text
+	}
+	return msg.HTMLPart()
+}
+
 func (msg *IMAPMessage) HTMLPart() *IMAPPartNode {
 	if msg.BodyStructure == nil {
 		return nil
@@ -863,6 +878,35 @@ func (msg *IMAPMessage) setRowHeaders(buf []byte) {
 }
 
 // listID is the identifier out of RFC 2919's optional phrase.
+// messageListID reads one message's List-Id and nothing else. It exists
+// so a decision that belongs to the server - whether a reply is going to
+// a list - is answered by asking the message, rather than by trusting a
+// field the page put in the form when it was rendered.
+func messageListID(conn *imapclient.Client, mboxName string, uid imap.UID) (string, error) {
+	if err := ensureMailboxSelected(conn, mboxName); err != nil {
+		return "", err
+	}
+	section := &imap.FetchItemBodySection{
+		Peek:         true,
+		Specifier:    imap.PartSpecifierHeader,
+		HeaderFields: []string{"List-Id"},
+	}
+	msgs, err := conn.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+		BodySection: []*imap.FetchItemBodySection{section},
+	}).Collect()
+	if err != nil {
+		return "", err
+	}
+	if len(msgs) == 0 {
+		return "", nil
+	}
+	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(msgs[0].FindBodySection(section))))
+	if err != nil {
+		return "", err
+	}
+	return listID(h), nil
+}
+
 func listID(h textproto.Header) string {
 	id := h.Get("List-Id")
 	if id == "" {

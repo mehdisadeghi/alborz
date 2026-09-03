@@ -130,6 +130,21 @@
 
 
         <div class="action-group">
+          <label for="send_html" class="checkbox">
+            <input type="checkbox" name="send_html" id="send_html" value="1"{{if .Settings.SendHTML}} checked{{end}}>
+            {{$.T "settings.sendhtml"}}
+          </label>
+          <p class="hint">{{$.T "settings.sendhtmlhint"}}</p>
+        </div>
+
+        <div class="action-group">
+          <label for="prefer_html" class="checkbox">
+            <input type="checkbox" name="prefer_html" id="prefer_html" value="1"{{if .Settings.PreferHTML}} checked{{end}}>
+            {{$.T "settings.preferhtml"}}
+          </label>
+        </div>
+
+        <div class="action-group">
           <label for="reply_position">{{$.T "settings.replyposition"}}</label>
           <select name="reply_position" id="reply_position">
             <option value="above" {{if not .Settings.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replytop"}}</option>

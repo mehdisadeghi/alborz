@@ -1514,33 +1514,40 @@ func handleExportMbox(ctx *alborz.Context) error {
 	// mbox, and the reader was handed an .mbox file full of HTML.
 	res := ctx.Response()
 	started := false
-	return ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-		for _, uid := range uids {
-			raw, env, err := fetchRawMessage(c, mboxName, uid)
-			if err != nil {
-				if started {
-					// Too late to say so in the response: stop, leave
-					// the file short, and put the reason in the log
-					// rather than in the download.
-					ctx.Logger().Printf("export %q uid %v: %v", mboxName, uid, err)
-					return nil
-				}
-				return fmt.Errorf("export %q uid %v: %w", mboxName, uid, err)
-			}
-			if !started {
-				res.Header().Set("Content-Disposition", downloadName(mboxName, "messages", ".mbox"))
-				res.Header().Set("Content-Type", "application/mbox")
-				res.WriteHeader(http.StatusOK)
-				started = true
-			}
-			if err := writeMbox(res, raw, env); err != nil {
+	for _, uid := range uids {
+		// One round trip per message, each with the session's own
+		// budget. The whole export inside one call was cut off by the
+		// watchdog after ten seconds, with the file left short.
+		var raw []byte
+		var env *imap.Envelope
+		err := ctx.DoIMAP(func(c *imapclient.Client) error {
+			var err error
+			raw, env, err = fetchRawMessage(c, mboxName, uid)
+			return err
+		})
+		if err != nil {
+			if started {
+				// Too late to say so in the response: stop, leave
+				// the file short, and put the reason in the log
+				// rather than in the download.
 				ctx.Logger().Printf("export %q uid %v: %v", mboxName, uid, err)
 				return nil
 			}
-			res.Flush()
+			return fmt.Errorf("export %q uid %v: %w", mboxName, uid, err)
 		}
-		return nil
-	})
+		if !started {
+			res.Header().Set("Content-Disposition", downloadName(mboxName, "messages", ".mbox"))
+			res.Header().Set("Content-Type", "application/mbox")
+			res.WriteHeader(http.StatusOK)
+			started = true
+		}
+		if err := writeMbox(res, raw, env); err != nil {
+			ctx.Logger().Printf("export %q uid %v: %v", mboxName, uid, err)
+			return nil
+		}
+		res.Flush()
+	}
+	return nil
 }
 
 // mboxSeparator opens each message in an mbox file. The address and the

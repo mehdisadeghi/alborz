@@ -9,6 +9,9 @@
   </aside>
 
   <div class="container">
+    <form id="refresh-form" method="post" action="/calendar/refresh">
+      <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+    </form>
     <main id="main" tabindex="-1" class="calendar">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "calendar-header.html" . }}

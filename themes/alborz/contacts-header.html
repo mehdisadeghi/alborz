@@ -3,6 +3,12 @@
       {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "address-book-form" "formaction" "/contacts/delete") }}
       {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "address-book-form" "formaction" "/contacts/export") }}
     </span>
+    <details class="overflow">
+      <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
+      <div class="overflow-menu">
+        <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
+      </div>
+    </details>
 {{ template "toolbar-end" }}
   {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query))) }}
   {{if not .AddressObjects}}

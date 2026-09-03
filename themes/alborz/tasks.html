@@ -19,6 +19,9 @@
     <form id="tasks-form" method="post">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
+    <form id="refresh-form" method="post" action="/tasks/refresh">
+      <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+    </form>
     <main id="main" tabindex="-1" class="task-list">
       {{$multi := gt (len .GlobalData.Accounts) 1}}
       {{$params := ""}}{{with .Query}}{{$params = printf "&query=%s" (. | urlquery)}}{{end}}
@@ -34,7 +37,9 @@
             {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" "/tasks/delete") }}
             {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" "/tasks/export") }}
           </span>
-          <details class="overflow" data-gated="tasks-form">
+          {{/* Not gated on the selection: the check acts on the lists,
+               and the controls that need rows are disabled one by one. */}}
+          <details class="overflow">
             <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
             <div class="overflow-menu">
               <button class="narrow-only" form="tasks-form" formaction="/tasks/complete">{{$.T "tasks.markcomplete"}}</button>
@@ -45,6 +50,7 @@
                 {{end}}
               </select>
               <button form="tasks-form" formaction="/tasks/move">{{$.T "mailbox.move"}}</button>
+              <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
             </div>
           </details>
         {{ template "toolbar-end" }}

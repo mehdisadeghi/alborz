@@ -11,6 +11,9 @@
     <form id="address-book-form" method="post">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
+    <form id="refresh-form" method="post" action="/contacts/refresh">
+      <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+    </form>
     <main id="main" tabindex="-1" class="contact-list">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "contacts-header.html" . }}

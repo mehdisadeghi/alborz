@@ -509,6 +509,8 @@ func registerRoutes(p *plugin) {
 	GET := func(path string, h func(*alborz.Context) error) { p.GoPlugin.GET(path, guard(h)) }
 	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }
 	POST("/calendar", p.chooseCalendars)
+	POST("/calendar/refresh", p.refresh)
+	POST("/tasks/refresh", p.refresh)
 	POST("/tasks", p.chooseTaskLists)
 	POST("/tasks/show-completed", p.toggleCompleted)
 	GET("/calendar", p.month)
@@ -1310,12 +1312,13 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		// everything; an object is taken once whichever answered it.
 		var tasks []caldav.CalendarObject
 		seen := map[string]bool{}
-		for i := range openQueries {
-			part, err := site.client.QueryCalendar(ctx, site.cal.Path, &openQueries[i])
-			if err != nil {
-				return nil, err
+		for _, r := range dav.Each(ctx, openQueries, func(ctx context.Context, q caldav.CalendarQuery) ([]caldav.CalendarObject, error) {
+			return site.client.QueryCalendar(ctx, site.cal.Path, &q)
+		}) {
+			if r.Err != nil {
+				return nil, r.Err
 			}
-			for _, obj := range part {
+			for _, obj := range r.Value {
 				if !seen[obj.Path] {
 					seen[obj.Path] = true
 					tasks = append(tasks, obj)
@@ -1818,4 +1821,13 @@ func (p *plugin) exportTasks(ctx *alborz.Context) error {
 	ctx.Response().Header().Set("Content-Disposition",
 		mime.FormatMediaType("attachment", map[string]string{"filename": ctx.T("nav.tasks") + ".ics"}))
 	return ctx.Blob(http.StatusOK, "text/calendar; charset=utf-8", body)
+}
+
+// refresh asks every signed-in account's server again, for a change
+// made elsewhere that the poll has not caught up with.
+func (p *plugin) refresh(ctx *alborz.Context) error {
+	for _, s := range ctx.Sessions() {
+		p.dav.Refresh(ctx.Request().Context(), s.Username())
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 }

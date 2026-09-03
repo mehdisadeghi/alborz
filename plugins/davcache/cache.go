@@ -24,11 +24,20 @@ import (
 )
 
 const (
-	// SoftTTL is the age past which an entry is checked before it is
-	// used: the reader waits on one ctag PROPFIND for the collection,
-	// which renews every stale entry of it at once. The refresh loop
-	// does the same ahead of time while the user is active.
-	SoftTTL = 2 * time.Minute
+	// DefaultPoll is how often a collection is asked for its ctag when
+	// the service names no interval of its own. There is no push in
+	// CalDAV or CardDAV, so this is how soon a change made elsewhere
+	// shows up; the reader never waits on it, the loop asks ahead.
+	DefaultPoll = 2 * time.Minute
+
+	// claimRetry is how long a forced refresh waits before asking again
+	// for a collection the loop is busy with.
+	claimRetry = 50 * time.Millisecond
+
+	// refreshTick is the loop's pace. An entry that would go stale
+	// before the next tick is renewed now, so a reader meets a stale
+	// entry only when the server was slow to answer the loop.
+	refreshTick = 10 * time.Second
 
 	// refreshBudget is what one account's background pass may spend,
 	// ctag checks and replays together.
@@ -38,18 +47,10 @@ const (
 	// one PROPFIND for one property; a server that cannot answer it in
 	// this long is answered by going to the source instead.
 	ctagTimeout = 5 * time.Second
-	// Entries unused this long are dropped. Until then an entry within
-	// SoftTTL is served instantly and an older one costs the ctag check
-	// above; calendars and contacts change rarely, so that check almost
-	// always says the whole collection is still good.
+	// Entries unused this long are dropped. Until then an entry is
+	// served as it is; calendars and contacts change rarely, so the
+	// check behind it almost always says the collection is still good.
 	PruneAfter = 7 * 24 * time.Hour
-
-	// RefreshRate is how often each account's stale collections are
-	// checked in the background, idle or not. Alborz runs around the
-	// clock, and a cache that slows down for a quiet account is cold on
-	// the first page of the morning; the check is one PROPFIND per
-	// collection, which a stale read would pay anyway.
-	RefreshRate = SoftTTL
 
 	// ForgetAfter drops a user nobody has been seen as. It matches the
 	// life of the remembered-login cookie, which is the longest a
@@ -94,26 +95,86 @@ func (e *entry) response(req *http.Request) *http.Response {
 }
 
 type user struct {
-	mu          sync.Mutex
-	entries     map[string]*entry
-	ctags       map[string]string // collection path -> last seen ctag
-	flights     map[string]*flight
-	refreshing  map[string]bool // collections being revalidated
-	lastActive  time.Time
-	lastRefresh time.Time // only touched by the refresh loop
+	mu         sync.Mutex
+	entries    map[string]*entry
+	ctags      map[string]string // collection path -> last seen ctag
+	flights    map[string]*flight
+	refreshing map[string]bool // collections being revalidated
+	lastActive time.Time
+	// poll is the account's service interval, see DefaultPoll.
+	poll time.Duration
+	// dirty says the store's copy is behind what is held.
+	dirty bool
+}
+
+func newUser(poll time.Duration) *user {
+	return &user{
+		entries:    make(map[string]*entry),
+		ctags:      make(map[string]string),
+		flights:    make(map[string]*flight),
+		refreshing: make(map[string]bool),
+		poll:       poll,
+	}
 }
 
 type Cache struct {
 	mu    sync.Mutex
 	users map[string]*user
+	store *Store // nil keeps the cache in memory only
+	poll  time.Duration
 	stop  chan struct{}
 	wg    sync.WaitGroup
 }
 
-func New() *Cache {
-	return &Cache{
+// New makes a cache polling collections every poll, warm from store
+// when there is one. It reports how many accounts it starts with.
+func New(store *Store, poll time.Duration) (*Cache, int, error) {
+	c := &Cache{
 		users: make(map[string]*user),
+		store: store,
+		poll:  poll,
 		stop:  make(chan struct{}),
+	}
+	if store != nil {
+		users, err := store.load(poll)
+		if err != nil {
+			return nil, 0, err
+		}
+		c.users = users
+	}
+	return c, len(c.users), nil
+}
+
+// Refresh checks every collection the account holds now, on the
+// caller's time: the reader's way to force what the loop does behind.
+// A collection the loop is checking at that moment is waited for, or
+// the page after the click would still show what the reader asked to
+// get past.
+func (c *Cache) Refresh(ctx context.Context, username string) {
+	u := c.user(username)
+	ctx, cancel := context.WithTimeout(ctx, refreshBudget)
+	defer cancel()
+	colls := make(map[string][]*entry)
+	u.mu.Lock()
+	for _, e := range u.entries {
+		if e.replay == nil {
+			continue
+		}
+		e.fetched = time.Time{}
+		coll := collectionOf(e.url.Path)
+		colls[coll] = append(colls[coll], e)
+	}
+	u.mu.Unlock()
+	for coll, entries := range colls {
+		for !u.claim(coll) {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(claimRetry):
+			}
+		}
+		u.refreshCollection(ctx, coll, entries)
+		u.release(coll)
 	}
 }
 
@@ -125,6 +186,34 @@ func (c *Cache) Start() {
 func (c *Cache) Stop() {
 	close(c.stop)
 	c.wg.Wait()
+	c.flush()
+}
+
+// flush writes every account the store is behind on.
+func (c *Cache) flush() {
+	if c.store == nil {
+		return
+	}
+	c.mu.Lock()
+	users := make(map[string]*user, len(c.users))
+	for name, u := range c.users {
+		users[name] = u
+	}
+	c.mu.Unlock()
+	for name, u := range users {
+		u.mu.Lock()
+		dirty := u.dirty
+		u.dirty = false
+		u.mu.Unlock()
+		if !dirty {
+			continue
+		}
+		if err := c.store.save(name, u); err != nil {
+			u.mu.Lock()
+			u.dirty = true
+			u.mu.Unlock()
+		}
+	}
 }
 
 func (c *Cache) user(username string) *user {
@@ -132,24 +221,21 @@ func (c *Cache) user(username string) *user {
 	defer c.mu.Unlock()
 	u, ok := c.users[username]
 	if !ok {
-		u = &user{
-			entries:    make(map[string]*entry),
-			ctags:      make(map[string]string),
-			flights:    make(map[string]*flight),
-			refreshing: make(map[string]bool),
-		}
+		u = newUser(c.poll)
 		c.users[username] = u
 	}
 	return u
 }
 
-// Forget drops everything held for a user. Signing out ends the only
-// authority the cache had to hold it, and the entries carry the client
-// that fetched them.
+// Forget drops everything held for a user, on disk too. Signing out
+// ends the only authority the cache had to hold it.
 func (c *Cache) Forget(username string) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	delete(c.users, username)
+	c.mu.Unlock()
+	if c.store != nil {
+		c.store.remove(username)
+	}
 }
 
 // Transport wraps next with the cache for one user. The jar authenticates
@@ -259,27 +345,26 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	fl.Lock()
 	defer u.land(key, fl)
 
+	// The entry is checked behind the pages through the client of
+	// whoever read it last: one loaded from disk has none until then,
+	// and one read by a session since expired has one that cannot
+	// sign the request any more.
+	u.mu.Lock()
+	if e, ok := u.entries[key]; ok {
+		e.replay = t.replay
+	}
+	u.mu.Unlock()
+
 	if e := u.get(key); e != nil {
-		// A fresh entry is served as it is. A stale one is checked
-		// before it is served: another instance of alborz, on another
-		// machine, may have written to this collection, and this one
-		// hears about it only by asking. The ask is one small PROPFIND
-		// for the collection's ctag, and an unchanged ctag renews every
-		// stale entry it has - so the cost is one round trip per
-		// collection per SoftTTL, not one per read.
-		//
-		// It used to serve the stale copy and revalidate behind, which
-		// spent the click but left every reader one visit behind the
-		// server, for ever, whenever a second instance was writing.
-		if time.Since(e.fetched) > SoftTTL {
-			if u.revalidate(req.Context(), collectionOf(req.URL.Path), e) {
-				return e.response(req), nil
-			}
-			// The collection moved on: this entry and its neighbours are
-			// gone, and the read below fetches what is there now.
-		} else {
-			return e.response(req), nil
+		// Served as it is, fresh or stale: the click never waits on the
+		// server. A stale collection is checked behind the page, one
+		// small PROPFIND for its ctag, and replayed only when it moved,
+		// so a change from elsewhere shows one visit late at most. The
+		// loop asks ahead of staleness, so this is the exception.
+		if time.Since(e.fetched) > u.poll {
+			u.refreshBehind(collectionOf(req.URL.Path))
 		}
+		return e.response(req), nil
 	}
 
 	// A collection with a ctag on record is renewed by one PROPFIND when
@@ -325,6 +410,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if ctag != "" && u.ctags[coll] == "" {
 		u.ctags[coll] = ctag
 	}
+	u.dirty = true
 	u.mu.Unlock()
 	return e.response(req), nil
 }
@@ -383,6 +469,7 @@ func (u *user) get(key string) *entry {
 // evict drops the collection's entries and ctag after a write to it.
 func (u *user) evict(collection string) {
 	u.mu.Lock()
+	u.dirty = true
 	defer u.mu.Unlock()
 	for key := range u.entries {
 		if strings.HasPrefix(keyPath(key), collection) {
@@ -395,7 +482,7 @@ func (u *user) evict(collection string) {
 func (c *Cache) refreshLoop() {
 	defer c.wg.Done()
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(refreshTick)
 	defer ticker.Stop()
 
 	for {
@@ -404,6 +491,7 @@ func (c *Cache) refreshLoop() {
 			return
 		case <-ticker.C:
 			c.refresh()
+			c.flush()
 		}
 	}
 }
@@ -425,10 +513,6 @@ func (c *Cache) refresh() {
 			c.Forget(name)
 			continue
 		}
-		if now.Sub(u.lastRefresh) < RefreshRate {
-			continue
-		}
-		u.lastRefresh = now
 		// A budget per account: one slow server must not spend the time
 		// every other account's refresh needed.
 		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
@@ -437,25 +521,27 @@ func (c *Cache) refresh() {
 	}
 }
 
-// refresh revalidates the user's stale entries per collection and prunes
-// what nobody has read for a long time.
+// refresh renews the user's entries that are stale or about to be, per
+// collection, and prunes what nobody has read for a long time. An
+// entry with no client yet was loaded from disk and nobody has read
+// it since; it waits for its reader.
 func (u *user) refresh(ctx context.Context) {
 	now := time.Now()
-	stale := make(map[string][]*entry)
+	due := make(map[string][]*entry)
 	u.mu.Lock()
 	for key, e := range u.entries {
 		if now.Sub(e.lastUse) > PruneAfter {
 			delete(u.entries, key)
 			continue
 		}
-		if now.Sub(e.fetched) > SoftTTL {
+		if now.Sub(e.fetched) > u.poll-refreshTick && e.replay != nil {
 			coll := collectionOf(e.url.Path)
-			stale[coll] = append(stale[coll], e)
+			due[coll] = append(due[coll], e)
 		}
 	}
 	u.mu.Unlock()
 
-	for coll, entries := range stale {
+	for coll, entries := range due {
 		if u.claim(coll) {
 			u.refreshCollection(ctx, coll, entries)
 			u.release(coll)
@@ -463,37 +549,27 @@ func (u *user) refresh(ctx context.Context) {
 	}
 }
 
-// revalidate asks the server whether the collection has changed since
-// the entries were taken. It reports true when nothing has: the caller
-// may serve what it holds, and every stale entry of that collection is
-// renewed at once. When the ctag has moved - or cannot be had, which is
-// the same answer for our purposes - the collection is dropped and the
-// caller fetches afresh.
-func (u *user) revalidate(ctx context.Context, coll string, sample *entry) bool {
-	known := u.ctagOf(coll)
-
-	// A server that does not report a ctag leaves nothing to compare, so
-	// the entry is not renewable and the read goes through.
-	if known == "" {
-		u.evict(coll)
-		return false
+// refreshBehind renews one collection's stale entries off the request
+// that found them stale, unless a renewal is already under way.
+func (u *user) refreshBehind(coll string) {
+	if !u.claim(coll) {
+		return
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, ctagTimeout)
-	defer cancel()
-	if ctag := fetchCtag(ctx, sample.replay, sample.url, coll); ctag != "" && ctag == known {
-		now := time.Now()
-		u.mu.Lock()
-		for _, e := range u.entries {
-			if collectionOf(e.url.Path) == coll {
-				e.fetched = now
-			}
+	now := time.Now()
+	var stale []*entry
+	u.mu.Lock()
+	for _, e := range u.entries {
+		if collectionOf(e.url.Path) == coll && now.Sub(e.fetched) > u.poll && e.replay != nil {
+			stale = append(stale, e)
 		}
-		u.mu.Unlock()
-		return true
 	}
-	u.evict(coll)
-	return false
+	u.mu.Unlock()
+	go func() {
+		defer u.release(coll)
+		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
+		defer cancel()
+		u.refreshCollection(ctx, coll, stale)
+	}()
 }
 
 // claim marks the collection as being revalidated; false means someone
@@ -550,6 +626,7 @@ func (u *user) refreshCollection(ctx context.Context, coll string, entries []*en
 	if ctag != "" && replayed {
 		u.mu.Lock()
 		u.ctags[coll] = ctag
+		u.dirty = true
 		u.mu.Unlock()
 	}
 }
@@ -578,6 +655,7 @@ func (u *user) replayEntry(ctx context.Context, e *entry) bool {
 	if resp.StatusCode == http.StatusNotFound {
 		u.mu.Lock()
 		delete(u.entries, key)
+		u.dirty = true
 		u.mu.Unlock()
 		// Gone is an answer, and the entry is no longer holding a stale
 		// copy of anything.
@@ -596,6 +674,7 @@ func (u *user) replayEntry(ctx context.Context, e *entry) bool {
 	e.header = resp.Header
 	e.body = body
 	e.fetched = time.Now()
+	u.dirty = true
 	u.mu.Unlock()
 	return true
 }

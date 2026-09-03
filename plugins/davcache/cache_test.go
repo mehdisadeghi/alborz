@@ -2,6 +2,7 @@ package davcache
 
 import (
 	"context"
+	"github.com/fernet/fernet-go"
 	"io"
 	"net/http"
 	"strings"
@@ -46,13 +47,13 @@ func (u *user) age() {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	for _, e := range u.entries {
-		e.fetched = time.Now().Add(-2 * SoftTTL)
+		e.fetched = time.Now().Add(-2 * DefaultPoll)
 	}
 }
 
 func TestCacheKeysOnTheDecodedPath(t *testing.T) {
 	srv := &server{calls: map[string]int{}, ctag: "1"}
-	c := New()
+	c, _, _ := New(nil, DefaultPoll)
 	rt := c.Transport("u", srv)
 	report := func() {
 		t.Helper()
@@ -79,25 +80,34 @@ func TestCacheKeysOnTheDecodedPath(t *testing.T) {
 	u := c.user("u")
 	u.age()
 	u.refresh(context.Background())
-	u.age()
-	report()
 	if n := srv.count("REPORT"); n != 1 {
 		t.Errorf("an unchanged collection was fetched again: %d fetches", n)
 	}
-	if n := srv.count("PROPFIND"); n != 3 {
+	if n := srv.count("PROPFIND"); n != 2 {
 		t.Errorf("expected one ctag check per stale pass, got %d", n)
 	}
 
-	// A changed ctag drops the collection; the read that follows fetches
-	// it afresh and records the new ctag with it.
+	// A changed ctag has the pass replay the entry and record the new
+	// ctag with it.
 	srv.ctag = "2"
 	u.age()
-	report()
+	u.refresh(context.Background())
 	if n := srv.count("REPORT"); n != 2 {
 		t.Errorf("a changed collection was not fetched again: %d fetches", n)
 	}
 	if got := u.ctagOf("/c/Work Cal/"); got != "2" {
 		t.Errorf("the ctag on record is %q after the refetch", got)
+	}
+
+	// A stale read is served as it is and checked behind the page.
+	u.age()
+	before := srv.count("PROPFIND")
+	report()
+	for deadline := time.Now().Add(time.Second); srv.count("PROPFIND") == before; {
+		if time.Now().After(deadline) {
+			t.Fatalf("a stale read was not checked behind the page")
+		}
+		time.Sleep(time.Millisecond)
 	}
 
 	srv.ctag, srv.missing = "3", true
@@ -110,7 +120,7 @@ func TestCacheKeysOnTheDecodedPath(t *testing.T) {
 
 func TestFlightsLandAfterTheFetch(t *testing.T) {
 	srv := &server{calls: map[string]int{}}
-	c := New()
+	c, _, _ := New(nil, DefaultPoll)
 	rt := c.Transport("u", srv)
 	for _, p := range []string{"/c/a/", "/c/b/", "/c/c/1.ics"} {
 		req, _ := http.NewRequest("PROPFIND", "https://dav.example"+p, strings.NewReader("<q/>"))
@@ -127,5 +137,45 @@ func TestFlightsLandAfterTheFetch(t *testing.T) {
 	}
 	if n := len(u.flights); n != 0 {
 		t.Errorf("%d flights kept after their requests landed", n)
+	}
+}
+
+// TestStoreStartsWarm writes one account's entries out and reads them
+// back into a new cache, which must answer the same query without
+// asking the server, and learn its client from the first reader.
+func TestStoreStartsWarm(t *testing.T) {
+	var key fernet.Key
+	if err := key.Generate(); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(t.TempDir(), &key)
+	srv := &server{calls: map[string]int{}, ctag: "1"}
+	c, warm, err := New(store, DefaultPoll)
+	if err != nil || warm != 0 {
+		t.Fatalf("a new store: %d accounts, %v", warm, err)
+	}
+	report := func(rt http.RoundTripper) {
+		t.Helper()
+		req, _ := http.NewRequest("REPORT", "https://dav.example/c/cal/", strings.NewReader("<q/>"))
+		req.Header.Set("Depth", "1")
+		resp, err := rt.RoundTrip(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+	}
+	report(c.Transport("u", srv))
+	c.Stop()
+
+	again, warm, err := New(store, DefaultPoll)
+	if err != nil || warm != 1 {
+		t.Fatalf("after a restart: %d accounts, %v", warm, err)
+	}
+	report(again.Transport("u", srv))
+	if n := srv.count("REPORT"); n != 1 {
+		t.Errorf("the restarted cache asked the server again: %d REPORTs", n)
+	}
+	if e := again.user("u").get(cacheKey("REPORT", "/c/cal/", "1", []byte("<q/>"))); e == nil || e.replay == nil {
+		t.Errorf("the loaded entry did not learn its client")
 	}
 }

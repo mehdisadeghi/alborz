@@ -375,16 +375,18 @@ func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) 
 	if href == "" || !strings.HasPrefix(href, "/compose?") {
 		return href
 	}
-	from := writeAs(settings, trust, msg, msg.Envelope.To, msg.Envelope.Cc)
-	if from == "" {
-		return href
-	}
 	u, err := url.Parse(href)
 	if err != nil {
 		return href
 	}
 	q := u.Query()
-	q.Set("from", from)
+	// The request has to leave from the account the list wrote to. The
+	// link names it, or compose would open on whichever account the
+	// browser happens to hold as active, with that account's address.
+	q.Set("account", trust.owner(msg))
+	if from := writeAs(settings, trust, msg, msg.Envelope.To, msg.Envelope.Cc); from != "" {
+		q.Set("from", from)
+	}
 	u.RawQuery = alborz.AddressQuery(q)
 	return u.String()
 }

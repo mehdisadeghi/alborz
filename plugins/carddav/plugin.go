@@ -4,43 +4,20 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"github.com/labstack/echo/v4"
-	"net/http"
 	"net/mail"
-	"net/url"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
-	"git.mehdix.org/alborz/plugins/davcache"
+	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
 
 //go:embed all:public
 var public embed.FS
-
-func sanityCheckURL(u *url.URL) error {
-	req, err := http.NewRequest(http.MethodOptions, u.String(), nil)
-	if err != nil {
-		return err
-	}
-
-	client := &http.Client{Timeout: alborz.RoundTripTimeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close()
-
-	if resp.StatusCode/100 != 2 && resp.StatusCode != http.StatusUnauthorized {
-		return fmt.Errorf("HTTP request failed: %v %v", resp.StatusCode, resp.Status)
-	}
-	return nil
-}
 
 // Age at which a discovered address book list is reloaded in the background
 // while still being served; a book made or removed by another client shows
@@ -52,36 +29,20 @@ const discoveryTTL = 5 * time.Minute
 // waiter behind the memo.
 const discoveryTimeout = 30 * time.Second
 
-const requestTimeout = 10 * time.Second
-
 type plugin struct {
 	alborz.GoPlugin
-	urls  map[string]*url.URL // CardDAV endpoint per served mail domain
-	cache *davcache.Cache
+	dav *dav.Provider
 
 	// Discovered address book list per username; see clientWithAddressBooks.
 	books *alborz.Memo[[]AddressBookInfo]
-
-	// Set in debug mode; logs upstream DAV traffic.
-	debug echo.Logger
 }
 
 func (p *plugin) client(session *alborz.Session) (*carddav.Client, error) {
-	u, ok := p.davURL(session)
+	u, ok := p.dav.URL(session)
 	if !ok {
 		return nil, errNoAddressBook
 	}
-	return newClient(u, p.httpClient(session))
-}
-
-// davURL resolves the session's CardDAV endpoint, falling back to the
-// unnamed provider's.
-func (p *plugin) davURL(session *alborz.Session) (*url.URL, bool) {
-	u, ok := p.urls[session.Domain()]
-	if !ok {
-		u, ok = p.urls[""]
-	}
-	return u, ok
+	return newClient(u, p.dav.HTTPClient(session))
 }
 
 func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alborz.Session) (*carddav.Client, []AddressBookInfo, error) {
@@ -89,7 +50,7 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alborz.Ses
 	if err != nil {
 		return nil, nil, err
 	}
-	davBase, _ := p.davURL(session)
+	davBase, _ := p.dav.URL(session)
 
 	// Principal, home set, and book list are three sequential round trips
 	// answering which address books the account has, so they are found once
@@ -110,7 +71,7 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alborz.Ses
 			return nil, fmt.Errorf("failed to query CardDAV address book home set: %v", err)
 		}
 
-		infos, err := listAddressBooks(ctx, p.httpClient(session), davBase, homeSet)
+		infos, err := listAddressBooks(ctx, p.dav.HTTPClient(session), davBase, homeSet)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query CardDAV address books: %v", err)
 		}
@@ -126,134 +87,30 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alborz.Ses
 	return c, infos, nil
 }
 
-// accountBooks is one signed-in account's address book set.
-type accountBooks struct {
-	account string
-	session *alborz.Session
-	client  *carddav.Client
-	books   []AddressBookInfo
-}
-
 // pooledBooks resolves every signed-in account that has CardDAV: the
-// contacts page is always pooled across accounts. An account that fails
-// is logged and skipped; the error surfaces only when no account
-// answered.
-func (p *plugin) pooledBooks(ctx *alborz.Context) ([]accountBooks, error) {
-	var accounts []accountBooks
-	var lastErr error
-	for _, s := range ctx.Sessions() {
-		if _, ok := p.davURL(s); !ok {
-			continue
-		}
-		c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), s)
-		if err != nil {
-			lastErr = err
-			ctx.Logger().Printf("carddav: skipping %q in the pooled view: %v", s.Username(), err)
-			continue
-		}
-		infos := make([]AddressBookInfo, len(books))
-		for i, ab := range books {
-			infos[i] = ab
-			infos[i].Account = s.Username()
-		}
-		accounts = append(accounts, accountBooks{account: s.Username(), session: s, client: c, books: infos})
-	}
-	if len(accounts) == 0 {
-		if lastErr != nil {
-			return nil, lastErr
-		}
-		return nil, errNoAddressBook
-	}
-	return accounts, nil
-}
-
-// domainURL resolves the domain's CardDAV endpoint; nil without error means
-// the domain has none.
-func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
-	u, err := srv.Upstream(domain, "carddavs", "carddav+insecure", "https", "http+insecure")
-	if _, ok := err.(*alborz.NoUpstreamError); ok {
-		return nil, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("carddav: domain %q: failed to parse upstream CardDAV server: %v", domain, err)
-	}
-	v := *u // don't mutate the server's upstream config
-	u = &v
-	switch u.Scheme {
-	case "carddavs":
-		u.Scheme = "https"
-	case "carddav+insecure", "http+insecure":
-		u.Scheme = "http"
-	}
-	if u.Scheme == "" {
-		// Startup must not hang on a DAV host that swallows packets.
-		ctx, cancel := context.WithTimeout(context.Background(), alborz.RoundTripTimeout)
-		defer cancel()
-		s, err := carddav.DiscoverContextURL(ctx, u.Host)
-		if err != nil {
-			srv.Logger().Printf("carddav: domain %q: failed to discover CardDAV server: %v", domain, err)
-			return nil, nil
-		}
-		u, err = url.Parse(s)
-		if err != nil {
-			return nil, fmt.Errorf("carddav: Discover returned an invalid URL: %v", err)
-		}
-	}
-
-	// An unreachable DAV server must not keep the whole webmail from
-	// starting; requests surface the failure until it recovers.
-	if err := sanityCheckURL(u); err != nil {
-		srv.Logger().Printf("Warning: carddav: domain %q: CardDAV server %q not reachable at startup: %v", domain, u, err)
-	}
-
-	srv.Logger().Printf("Domain %q: configured upstream CardDAV server: %v", domain, u)
-	return u, nil
+// contacts page is always pooled across accounts.
+func (p *plugin) pooledBooks(ctx *alborz.Context) ([]dav.Account[*carddav.Client, AddressBookInfo], error) {
+	return dav.Pooled(ctx, p.dav, p.clientWithAddressBooks,
+		func(ab *AddressBookInfo, account string) { ab.Account = account }, errNoAddressBook)
 }
 
 func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
-	urls := make(map[string]*url.URL)
-	for _, domain := range srv.Domains() {
-		u, err := domainURL(srv, domain)
-		if err != nil {
-			return nil, err
-		}
-		if u != nil {
-			urls[domain] = u
-		}
-	}
-	if len(urls) == 0 {
-		return nil, nil
+	provider, err := dav.NewProvider(srv, dav.Kind{
+		Name: "carddav", Label: "CardDAV",
+		Schemes:  [2]string{"carddavs", "carddav+insecure"},
+		Discover: carddav.DiscoverContextURL,
+	})
+	if err != nil || provider == nil {
+		return nil, err
 	}
 
 	p := &plugin{
 		GoPlugin: alborz.GoPlugin{Name: "carddav", Files: public},
-		urls:     urls,
+		dav:      provider,
 		books:    alborz.NewBackgroundMemo[[]AddressBookInfo](discoveryTTL),
 	}
-	p.EnabledFunc = func(ctx *alborz.Context) bool {
-		if ctx.Session == nil {
-			return false
-		}
-		// Pooled pages exist when any account has the service.
-		for _, s := range ctx.Sessions() {
-			if _, ok := p.davURL(s); ok {
-				return true
-			}
-		}
-		return false
-	}
-	if srv.Options.Debug {
-		p.debug = srv.Logger()
-	}
-	p.cache = davcache.New()
-	p.cache.Start()
-	// Signing out is the only thing that ends the cache's authority to
-	// hold this account's collections; idleness no longer does.
-	cache := p.cache
-	srv.OnAccountGone = append(srv.OnAccountGone, cache.Forget)
-	p.CloseFunc = func() error {
-		cache.Stop()
-		return nil
-	}
+	p.EnabledFunc = provider.Enabled
+	p.CloseFunc = provider.Close
 
 	registerRoutes(p)
 
@@ -282,24 +139,9 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		// One query per book, run together like the contacts page does;
 		// sequentially they would delay the compose form by a round trip
 		// each.
-		type bookResult struct {
-			addrs []carddav.AddressObject
-			err   error
-		}
-		reqCtx := ctx.Request().Context()
-		results := make([]bookResult, len(addressBooks))
-		var wg sync.WaitGroup
-		sem := make(chan struct{}, maxAddressBookQueryConcurrency)
-		for i, ab := range addressBooks {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-				results[i].addrs, results[i].err = c.QueryAddressBook(reqCtx, ab.Path, &query)
-			}()
-		}
-		wg.Wait()
+		results := dav.Each(ctx.Request().Context(), addressBooks, func(ctx context.Context, ab AddressBookInfo) ([]carddav.AddressObject, error) {
+			return c.QueryAddressBook(ctx, ab.Path, &query)
+		})
 
 		// A suggestion is inserted verbatim into the field, so it is
 		// written the way a recipient is written (RFC 5322 3.4): the name
@@ -321,11 +163,11 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 			}
 		}
 		for _, result := range results {
-			if result.err != nil {
-				ctx.Logger().Printf("carddav: no suggestions from one book: %v", result.err)
+			if result.Err != nil {
+				ctx.Logger().Printf("carddav: no suggestions from one book: %v", result.Err)
 				continue
 			}
-			for _, addr := range result.addrs {
+			for _, addr := range result.Value {
 				name := addr.Card.Value(vcard.FieldFormattedName)
 				for _, email := range addr.Card.Values(vcard.FieldEmail) {
 					if email == "" {
@@ -364,30 +206,10 @@ func init() {
 	})
 }
 
-// BookGroup is one account's writable address books, for create forms.
-type BookGroup struct {
-	Account     string
-	Collections []AddressBookInfo
-}
-
-// writableBookGroups lists every account's writable books, so a create
-// form can offer any account as the destination.
-func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]BookGroup, error) {
+func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]dav.Group[AddressBookInfo], error) {
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var groups []BookGroup
-	for _, acc := range accounts {
-		var books []AddressBookInfo
-		for _, ab := range acc.books {
-			if ab.Writable {
-				books = append(books, ab)
-			}
-		}
-		if len(books) > 0 {
-			groups = append(groups, BookGroup{Account: acc.account, Collections: books})
-		}
-	}
-	return groups, nil
+	return dav.WritableGroups(accounts, func(ab AddressBookInfo) bool { return ab.Writable }), nil
 }

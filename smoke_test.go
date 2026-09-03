@@ -13,6 +13,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -110,11 +111,13 @@ func startIMAP(t *testing.T) string {
 
 // rigCaps is what the in-memory server advertises by default. A test
 // that takes a capability away runs the branch that a server without
-// it takes.
+// it takes. METADATA is not listed: go-imap's server does not implement
+// it, and advertising it made every test run under the transient store
+// while the log claimed otherwise.
 func rigCaps() imap.CapSet {
 	return imap.CapSet{
 		imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {},
-		imap.CapCondStore: {}, imap.CapSort: {}, imap.CapMetadata: {},
+		imap.CapCondStore: {}, imap.CapSort: {},
 	}
 }
 
@@ -761,6 +764,103 @@ func TestComposeOpensFromTheAccountNamed(t *testing.T) {
 	}
 	if page := get(t, c, base+"/compose"); !strings.Contains(page, `value="`+smokeUser2+`" selected`) {
 		t.Errorf("compose without an account does not select the active one")
+	}
+}
+
+// postForm submits a form and hands back the answer without following
+// its redirect, which is where a handler says what it did.
+func postForm(t *testing.T, c *http.Client, u string, form url.Values) *http.Response {
+	t.Helper()
+	stay := *c
+	stay.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := stay.PostForm(u, form)
+	if err != nil {
+		t.Fatalf("POST %s: %v", u, err)
+	}
+	resp.Body.Close()
+	return resp
+}
+
+// TestMessagesMoveDeleteAndFlag drives the three actions the list
+// toolbar offers and reads the result back from the folders.
+func TestMessagesMoveDeleteAndFlag(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) < 3 {
+		t.Fatalf("need three seeded messages, found %d", len(uids))
+	}
+
+	if resp := postForm(t, c, base+"/message/INBOX/move", url.Values{"uids": {uids[0]}, "to": {"Archive"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("move: %s", resp.Status)
+	}
+	if n := len(messageUIDs(get(t, c, base+"/mailbox/Archive"))); n != 1 {
+		t.Errorf("Archive holds %d messages after a move, want 1", n)
+	}
+
+	if resp := postForm(t, c, base+"/message/INBOX/delete", url.Values{"uids": {uids[1]}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("delete: %s", resp.Status)
+	}
+	left := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(left) != len(uids)-2 || slices.Contains(left, uids[1]) {
+		t.Errorf("INBOX after a move and a delete: %v", left)
+	}
+
+	if resp := postForm(t, c, base+"/message/INBOX/flag", url.Values{"uids": {uids[2]}, "flags": {"\\Flagged"}, "action": {"add"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("flag: %s", resp.Status)
+	}
+	if starred := messageUIDs(get(t, c, base+"/mailbox/INBOX?starred=1")); len(starred) != 1 || starred[0] != uids[2] {
+		t.Errorf("starred view after flagging %s: %v", uids[2], starred)
+	}
+}
+
+// TestFoldersAreMadeAndRemoved creates a top-level folder and deletes
+// it again, checking the sidebar between the two.
+func TestFoldersAreMadeAndRemoved(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+
+	if resp := postForm(t, c, base+"/new-mailbox", url.Values{"name": {"Projects"}, "location": {"0"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("new folder: %s", resp.Status)
+	}
+	if page := get(t, c, base+"/mailbox/Projects"); !strings.Contains(page, "Projects") {
+		t.Fatalf("the new folder is not listed")
+	}
+	if resp := postForm(t, c, base+"/delete-mailbox/Projects", nil); resp.StatusCode != http.StatusFound {
+		t.Fatalf("delete folder: %s", resp.Status)
+	}
+	resp, err := c.Get(base + "/mailbox/Projects")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("a deleted folder still answers %s", resp.Status)
+	}
+}
+
+// TestAccountsSwitchAndSignOut: switching makes the named account the
+// one pages belong to; signing out of the last account ends the session.
+func TestAccountsSwitchAndSignOut(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	postForm(t, c, base+"/login", url.Values{"username": {smokeUser2}, "password": {smokePass}})
+
+	if resp := postForm(t, c, base+"/switch", url.Values{"account": {smokeUser}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("switch: %s", resp.Status)
+	}
+	if page := get(t, c, base+"/compose"); !strings.Contains(page, `value="`+smokeUser+`" selected`) {
+		t.Errorf("after switching, compose does not belong to %s", smokeUser)
+	}
+
+	for _, account := range []string{smokeUser, smokeUser2} {
+		if resp := postForm(t, c, base+"/logout", url.Values{"account": {account}}); resp.StatusCode != http.StatusFound {
+			t.Fatalf("logout %s: %s", account, resp.Status)
+		}
+	}
+	resp := postForm(t, c, base+"/mailbox/INBOX", nil)
+	if resp.StatusCode != http.StatusFound || !strings.HasPrefix(resp.Header.Get("Location"), "/login") {
+		t.Errorf("after signing out of every account a page still answered %s to %s", resp.Status, resp.Header.Get("Location"))
 	}
 }
 

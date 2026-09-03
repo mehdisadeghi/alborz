@@ -62,40 +62,29 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 			fmt.Sprintf("%q is not a unified folder", role))
 	}
 
-	page, err := readPage(ctx)
-	if err != nil {
-		return err
-	}
+	// "account" exists only on a merge: it is a property of the merge,
+	// not of any single server's order.
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return err
 	}
-	messagesPerPage := perPage(ctx, settings)
-	query := ctx.QueryParam("query")
-	starred := ctx.QueryParam("starred") == "1"
-
-	// "account" exists only on a merge: it is a property of the merge,
-	// not of any single server's order.
-	sortKey, sortDir, reverse, err := readSort(ctx, "account")
+	ask, err := readListAsk(ctx, settings, "account")
 	if err != nil {
 		return err
 	}
+	spec := ask.spec
 
-	// Each account contributes its own newest window; after the merge the
-	// requested page is cut from the combined order. The first page comes
-	// from the listing cache when it can, the slowest account no longer
-	// gating every click.
-	window := (page + 1) * messagesPerPage
+	// The first page comes from the listing cache when it can, the
+	// slowest account no longer gating every click.
+	window := ask.window()
 	// A search costs one live IMAP round trip per account, so it is the
 	// view that most wants the cache; only its key is longer.
-	cacheable := ctx.Request().Method == http.MethodGet && page == 0
-	view := listingView("#"+role, query, starred, sortKey, sortDir)
+	cacheable := ctx.Request().Method == http.MethodGet && ask.page == 0
+	key := listingView("#"+role, spec.query, spec.starred, spec.sortKey, spec.sortDir)
 	var (
-		mu       sync.Mutex
-		wg       sync.WaitGroup
-		msgs     []IMAPMessage
-		total    int
-		sortable = true
+		mu     sync.Mutex
+		wg     sync.WaitGroup
+		merged = &listingEntry{sortSupported: true}
 	)
 	// One span across the whole fan-out: the accounts are queried
 	// concurrently, so its wall-clock is the page's IMAP time.
@@ -107,88 +96,47 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		go func() {
 			defer wg.Done()
 			user := s.Username()
-			merge := func(accountMsgs []IMAPMessage, accountTotal int) {
+			merge := func(e *listingEntry) {
 				mu.Lock()
-				answered[i] = accountMsgs
-				total += accountTotal
+				answered[i] = e.msgs
+				merged.total += e.total
 				mu.Unlock()
 			}
-			var cached *listingEntry
-			if cacheable {
-				e, state := listings.lookup(user, view, messagesPerPage)
-				if state == listingFresh {
-					merge(e.msgs, e.total)
-					return
+			folder := func(c *imapclient.Client) (string, error) { return resolveRole(c, user, role) }
+			fetch := func(c *imapclient.Client) (*listingEntry, error) {
+				name, err := folder(c)
+				if err != nil || name == "" {
+					return nil, err
 				}
-				if state == listingStale {
-					cached = e
+				return fetchUnifiedAccount(c, user, name, spec, settings, window, cacheable)
+			}
+			if cacheable {
+				if e, state := listings.lookup(user, key, ask.perPage); e != nil {
+					merge(e)
+					if state == listingStale {
+						revalidate(s, key, e, folder, fetch)
+					}
+					return
 				}
 			}
 			errs[i] = s.DoIMAP(func(c *imapclient.Client) error {
-				folder, err := resolveRole(c, user, role)
-				if err != nil || folder == "" {
+				name, err := folder(c)
+				if err != nil || name == "" {
 					return err
 				}
-
-				// A stale entry earns reuse when a STATUS shows nothing
-				// changed; on change the answer doubles as the fresh
-				// entry's snapshot.
-				var snap *imap.StatusData
-				var snapCmd *imapclient.StatusCommand
-				if cached != nil {
-					st, err := c.Status(folder, listingStatusOptions(c)).Wait()
-					if err == nil {
-						if statusUnchanged(cached.snap, st) {
-							listings.refresh(user, view)
-							merge(cached.msgs, cached.total)
-							return nil
-						}
-						snap = st
-					}
-				} else if cacheable {
-					snapCmd = c.Status(folder, listingStatusOptions(c))
-				}
-
 				if !c.Caps().Has(imap.CapSort) {
 					mu.Lock()
-					sortable = false
+					merged.sortSupported = false
 					mu.Unlock()
 				}
-				var accountMsgs []IMAPMessage
-				var accountTotal int
-				switch {
-				case query != "":
-					accountMsgs, accountTotal, err = searchMessages(c, folder, PrepareSearch(query, settings.SearchHeadersOnly), 0, window, "", true)
-				case starred:
-					criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-					accountMsgs, accountTotal, err = searchMessages(c, folder, criteria, 0, window, "", true)
-				case sortKey != "account" && (sortKey != "" || sortDir != "") && c.Caps().Has(imap.CapSort):
-					// Each account's window is cut under the requested
-					// order, so the merge sees the right candidates.
-					accountMsgs, accountTotal, err = searchMessages(c, folder, &imap.SearchCriteria{}, 0, window, sortKey, reverse)
-				default:
-					accountMsgs, accountTotal, err = listMessages(c, folder, 0, window)
-				}
+				e, err := fetchUnifiedAccount(c, user, name, spec, settings, window, cacheable)
 				if err != nil {
 					return err
 				}
-				for j := range accountMsgs {
-					accountMsgs[j].Account = user
+				if cacheable && e.snap != nil {
+					listings.store(user, key, e)
 				}
-				if snapCmd != nil {
-					if st, err := snapCmd.Wait(); err == nil {
-						snap = st
-					}
-				}
-				if cacheable && snap != nil {
-					listings.store(user, view, &listingEntry{
-						msgs:    accountMsgs,
-						total:   accountTotal,
-						perPage: messagesPerPage,
-						snap:    snap,
-					})
-				}
-				merge(accountMsgs, accountTotal)
+				merge(e)
 				return nil
 			})
 		}()
@@ -199,7 +147,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	// change places from one request to the next, and a page cut out of
 	// them would repeat a row or lose one.
 	for _, rows := range answered {
-		msgs = append(msgs, rows...)
+		merged.msgs = append(merged.msgs, rows...)
 	}
 	alborz.AddTiming(ctx.Request().Context(), "imap", imapStart)
 	for _, err := range errs {
@@ -208,43 +156,62 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		}
 	}
 
-	slices.SortStableFunc(msgs, unifiedLess(sortKey, reverse))
-	from := page * messagesPerPage
-	to := from + messagesPerPage
-	if from > len(msgs) {
-		from = len(msgs)
-	}
-	if to > len(msgs) {
-		to = len(msgs)
-	}
-	msgs = msgs[from:to]
-
-	prevPage, nextPage := pager(page, messagesPerPage, total)
+	slices.SortStableFunc(merged.msgs, unifiedLess(spec.sortKey, spec.reverse()))
 	title := ctx.T("aside." + strings.ToLower(role))
-	if starred {
+	if spec.starred {
 		title = ctx.T("mailbox.starred")
 	}
 
-	return ctx.Render(http.StatusOK, "mailbox.html", &MailboxRenderData{
-		IMAPBaseRenderData: IMAPBaseRenderData{
-			BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
-			Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: title}, Label: title},
-			Starred:         starred,
-			SidebarAccounts: sidebarAccounts(ctx),
-		},
-		Messages:       msgs,
-		PrevPage:       prevPage,
-		NextPage:       nextPage,
-		RangeFrom:      from + 1,
-		RangeTo:        to,
-		Total:          total,
-		Query:          query,
-		PerPage:        messagesPerPage,
-		PerPageOptions: perPageOptions(settings),
-		Sort:           sortKey,
-		SortDir:        map[bool]string{true: "desc", false: "asc"}[reverse],
-		SortSupported:  sortable,
-	})
+	data := listPage(ctx, ask, merged, cutPage(merged.msgs, ask))
+	data.IMAPBaseRenderData = IMAPBaseRenderData{
+		BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
+		Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: title}, Label: title},
+		Starred:         spec.starred,
+		SidebarAccounts: sidebarAccounts(ctx),
+	}
+	data.PerPageOptions = perPageOptions(settings)
+	return ctx.Render(http.StatusOK, "mailbox.html", data)
+}
+
+// window is how many rows each source of a merge gives: its own
+// newest, as many as the pages up to the one asked for hold, since
+// any of them may be the merge's.
+func (ask listAsk) window() int {
+	return (ask.page + 1) * ask.perPage
+}
+
+// cutPage is the page asked for, out of the merged windows.
+func cutPage(msgs []IMAPMessage, ask listAsk) []IMAPMessage {
+	from := min(ask.page*ask.perPage, len(msgs))
+	return msgs[from:min(from+ask.perPage, len(msgs))]
+}
+
+// listPage is what a list says of the page it shows: the rows, where
+// they stand in the whole, the pager, and the ask as the toolbar echoes
+// it. e is what was read: the page itself, or the merge it was cut from.
+func listPage(ctx *alborz.Context, ask listAsk, e *listingEntry, rows []IMAPMessage) *MailboxRenderData {
+	data := &MailboxRenderData{
+		Messages:      rows,
+		PrevPage:      -1,
+		NextPage:      -1,
+		Total:         e.total,
+		Query:         ask.spec.query,
+		PerPage:       ask.perPage,
+		Sort:          ask.spec.sortKey,
+		SortDir:       map[bool]string{true: "desc", false: "asc"}[ask.spec.reverse()],
+		SortSupported: e.sortSupported,
+	}
+	if len(rows) > 0 {
+		data.RangeFrom = ask.page*ask.perPage + 1
+		data.RangeTo = ask.page*ask.perPage + len(rows)
+	}
+	if ask.page > 0 {
+		data.PrevPage = ask.page - 1
+	}
+	if ask.window() < e.total {
+		data.NextPage = ask.page + 1
+	}
+	return data
 }
 
 // unifiedLess merges the accounts' windows under the same order each
@@ -306,6 +273,29 @@ func unifiedLess(sortKey string, reverse bool) func(a, b IMAPMessage) int {
 	}
 }
 
+// fetchUnifiedAccount reads one account's newest window of a merged
+// view. withSnap takes the folder's STATUS along, for an entry meant to
+// be cached; the answer doubles as what a later check compares against.
+func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listingSpec, settings *Settings, window int, withSnap bool) (*listingEntry, error) {
+	var snapCmd *imapclient.StatusCommand
+	if withSnap {
+		snapCmd = c.Status(folder, listingStatusOptions(c))
+	}
+	e, err := fetchRows(c, folder, spec, settings, 0, window)
+	if err != nil {
+		return nil, err
+	}
+	for j := range e.msgs {
+		e.msgs[j].Account = user
+	}
+	if snapCmd != nil {
+		if st, err := snapCmd.Wait(); err == nil {
+			e.snap = st
+		}
+	}
+	return e, nil
+}
+
 func handleGetMailbox(ctx *alborz.Context) error {
 	// Reading mail is what precedes writing it, so this is where the
 	// recipient suggestions are put on to warm. Nothing here waits for
@@ -321,127 +311,72 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		return err
 	}
 
-	page, err := readPage(ctx)
-	if err != nil {
-		return err
-	}
-
+	// thread is not a column to order by, so it is not in sortKeys, but
+	// it answers the same question and travels in the same parameter.
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return err
 	}
-	messagesPerPage := perPage(ctx, settings)
-
-	query := ctx.QueryParam("query")
-	starred := ctx.QueryParam("starred") == "1"
-
-	// thread is not a column to order by, so it is not in sortKeys, but
-	// it answers the same question and travels in the same parameter.
-	sortKey, sortDir, reverse, err := readSort(ctx, threadSort)
+	ask, err := readListAsk(ctx, settings, threadSort)
 	if err != nil {
 		return err
 	}
+	ask.spec.mbox = mboxName
 
 	// The default view of a folder is served from the listing cache when
 	// possible: a fresh entry renders without touching the server, a stale
 	// one after a single STATUS confirming nothing changed. Everything
 	// else pays one round trip for LIST plus SELECT and one for the query,
 	// with the sidebar's STATUS responses riding along.
-	cacheable := ctx.Request().Method == http.MethodGet && page == 0
+	cacheable := ctx.Request().Method == http.MethodGet && ask.page == 0
 	// thread names one conversation by any message in it. The server
 	// groups by message id, so this asks nothing of its header search.
-	var threadUID imap.UID
 	if raw := ctx.QueryParam("thread"); raw != "" {
 		n, perr := strconv.ParseUint(raw, 10, 32)
 		if perr != nil || n == 0 {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid thread")
 		}
-		threadUID = imap.UID(n)
+		ask.spec.thread = imap.UID(n)
 	}
+	page, messagesPerPage, spec := ask.page, ask.perPage, ask.spec
 
-	view := listingView(mboxName, query, starred, sortKey, sortDir)
-	if threadUID != 0 {
-		view = fmt.Sprintf("%s%sthread=%d", view, listingSep, threadUID)
+	key := listingView(mboxName, spec.query, spec.starred, spec.sortKey, spec.sortDir)
+	if spec.thread != 0 {
+		key = fmt.Sprintf("%s%sthread=%d", key, listingSep, spec.thread)
 	}
 	user := ctx.Session.Username()
-
-	var (
-		sb              sidebar
-		msgs            []IMAPMessage
-		total           int
-		sortSupported   bool
-		threadAlgorithm imap.ThreadAlgorithm
-		served          bool
-	)
+	fetch := func(c *imapclient.Client) (*listingEntry, error) {
+		return fetchListing(c, spec, settings, page, messagesPerPage)
+	}
+	var e *listingEntry
 	if cacheable {
-		if e, state := listings.lookup(user, view, messagesPerPage); state == listingFresh {
-			sb, msgs, total, sortSupported, threadAlgorithm, served = e.sb, e.msgs, e.total, e.sortSupported, e.threadAlgorithm, true
-		} else if state == listingStale {
-			var st *imap.StatusData
-			err := ctx.DoIMAP(func(c *imapclient.Client) error {
-				var err error
-				st, err = c.Status(mboxName, listingStatusOptions(c)).Wait()
-				return err
-			})
-			if err == nil && statusUnchanged(e.snap, st) {
-				listings.refresh(user, view)
-				sb, msgs, total, sortSupported, threadAlgorithm, served = e.sb, e.msgs, e.total, e.sortSupported, e.threadAlgorithm, true
-			}
+		var state listingState
+		if e, state = listings.lookup(user, key, messagesPerPage); e != nil &&
+			state == listingStale && !(mboxName == "INBOX" && watchers.watching(user)) {
+			// The page is served as it is and the server asked behind it;
+			// a watched INBOX needs no asking, the watcher already heard.
+			revalidate(ctx.Session, key, e, func(*imapclient.Client) (string, error) { return mboxName, nil }, fetch)
 		}
 	}
-
-	if !served {
+	if e == nil {
 		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			load, err := startSidebar(c, mboxName, mboxName, settings.Subscriptions)
-			if err != nil {
-				return err
-			}
-			sortSupported = c.Caps().Has(imap.CapSort)
-			threadAlgorithm = ThreadAlgorithm(c)
-			switch {
-			case threadUID != 0 && threadAlgorithm != "":
-				msgs, err = oneThread(c, mboxName, threadAlgorithm, threadUID)
-				total = len(msgs)
-			case sortKey == threadSort && threadAlgorithm != "":
-				// A conversation is the unit here, so the page holds a
-				// number of threads rather than a number of messages.
-				criteria := &imap.SearchCriteria{}
-				if query != "" {
-					criteria = PrepareSearch(query, settings.SearchHeadersOnly)
-				} else if starred {
-					criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-				}
-				msgs, total, err = threadMessages(c, mboxName, threadAlgorithm, criteria, page, messagesPerPage)
-			case query != "":
-				msgs, total, err = searchMessages(c, mboxName, PrepareSearch(query, settings.SearchHeadersOnly), page, messagesPerPage, sortKey, reverse)
-			case starred:
-				criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-				msgs, total, err = searchMessages(c, mboxName, criteria, page, messagesPerPage, sortKey, reverse)
-			case (sortKey != "" || sortDir != "") && sortSupported:
-				msgs, total, err = searchMessages(c, mboxName, &imap.SearchCriteria{}, page, messagesPerPage, sortKey, reverse)
-			default:
-				msgs, total, err = listMessages(c, mboxName, page, messagesPerPage)
-			}
-			if err != nil {
-				return err
-			}
-			sb, err = load.finish()
+			var err error
+			e, err = fetch(c)
 			return err
 		})
 		if err != nil {
 			return err
 		}
 		if cacheable {
-			listings.store(user, view, &listingEntry{
-				sb:              sb,
-				msgs:            msgs,
-				total:           total,
-				perPage:         messagesPerPage,
-				sortSupported:   sortSupported,
-				threadAlgorithm: threadAlgorithm,
-				snap:            sb.active.StatusData,
-			})
+			listings.store(user, key, e)
 		}
+	}
+	sb, msgs := e.sb, e.msgs
+	// The page's bodies are fetched behind it, so the next click, on
+	// any of its rows, asks the server nothing.
+	if cacheable {
+		session := ctx.Session
+		go prefetchBodies(session, settings.PreferHTML, mboxName, e.msgs)
 	}
 
 	// A row shows the address it reached only where that is worth
@@ -451,65 +386,122 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		msgs[i].Alias = trust.alias(&msgs[i])
 	}
 
-	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, starred)
+	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, spec.starred)
 	ibase.SidebarAccounts = sidebarAccounts(ctx)
 	title := ctx.T("mailbox.starred")
-	if !starred && ibase.Mailbox != nil {
+	if !spec.starred && ibase.Mailbox != nil {
 		title = ibase.Mailbox.Label
 	}
 	ibase.BaseRenderData.WithTitle(title)
 
-	prevPage, nextPage := pager(page, messagesPerPage, total)
-
-	rangeFrom, rangeTo := 0, 0
-	if len(msgs) > 0 {
-		rangeFrom = page*messagesPerPage + 1
-		rangeTo = page*messagesPerPage + len(msgs)
-	}
-
-	return ctx.Render(http.StatusOK, "mailbox.html", &MailboxRenderData{
-		IMAPBaseRenderData: *ibase,
-		Messages:           msgs,
-		PrevPage:           prevPage,
-		NextPage:           nextPage,
-		RangeFrom:          rangeFrom,
-		RangeTo:            rangeTo,
-		Total:              total,
-		Query:              query,
-		PerPage:            messagesPerPage,
-		PerPageOptions:     perPageOptions(settings),
-		Sort:               sortKey,
-		SortDir:            map[bool]string{true: "desc", false: "asc"}[reverse],
-		SortSupported:      sortSupported,
-		ThreadSupported:    threadAlgorithm != "",
-		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
-		PreferHTML:         settings.PreferHTML,
-		Threaded:           sortKey == threadSort && threadAlgorithm != "",
-	})
+	data := listPage(ctx, ask, e, msgs)
+	data.IMAPBaseRenderData = *ibase
+	data.Crumb = mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username())
+	data.ThreadSupported = e.threadAlgorithm != ""
+	data.Threaded = spec.sortKey == threadSort && e.threadAlgorithm != ""
+	data.PreferHTML = settings.PreferHTML
+	data.PerPageOptions = perPageOptions(settings)
+	return ctx.Render(http.StatusOK, "mailbox.html", data)
 }
 
-// readPage is the page of a list the URL asks for.
-func readPage(ctx *alborz.Context) (int, error) {
-	page := 0
+// listAsk is what a list page is asked for: which page of how many
+// rows, of what, in which order.
+type listAsk struct {
+	page, perPage int
+	spec          listingSpec
+}
+
+// readListAsk reads it from the URL. also is the one order the page has
+// beyond the columns.
+func readListAsk(ctx *alborz.Context, settings *Settings, also string) (listAsk, error) {
+	ask := listAsk{perPage: perPage(ctx, settings)}
 	if raw := ctx.QueryParam("page"); raw != "" {
 		var err error
-		if page, err = strconv.Atoi(raw); err != nil || page < 0 {
-			return 0, echo.NewHTTPError(http.StatusBadRequest, "invalid page index")
+		if ask.page, err = strconv.Atoi(raw); err != nil || ask.page < 0 {
+			return ask, echo.NewHTTPError(http.StatusBadRequest, "invalid page index")
 		}
 	}
-	return page, nil
+	sortKey, sortDir, err := readSort(ctx, also)
+	if err != nil {
+		return ask, err
+	}
+	ask.spec = listingSpec{query: ctx.QueryParam("query"), starred: ctx.QueryParam("starred") == "1", sortKey: sortKey, sortDir: sortDir}
+	return ask, nil
 }
 
-// pager is the pages either side of page, -1 where there is none.
-func pager(page, perPage, total int) (prev, next int) {
-	prev, next = -1, -1
-	if page > 0 {
-		prev = page - 1
+// readSort is the order a list is asked for: the column, and the
+// direction as written. also is the one order the page has beyond the
+// columns.
+func readSort(ctx *alborz.Context, also string) (sortKey, sortDir string, err error) {
+	sortKey = ctx.QueryParam("sort")
+	if _, ok := sortKeys[sortKey]; !ok && sortKey != also {
+		return "", "", echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
 	}
-	if (page+1)*perPage < total {
-		next = page + 1
+	sortDir = ctx.QueryParam("dir")
+	if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
+		return "", "", echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
 	}
-	return prev, next
+	return sortKey, sortDir, nil
+}
+
+// fetchListing reads one view of a folder, the sidebar's counts riding
+// along on the same round trips.
+func fetchListing(c *imapclient.Client, spec listingSpec, settings *Settings, page, perPage int) (*listingEntry, error) {
+	load, err := startSidebar(c, spec.mbox, spec.mbox, settings.Subscriptions)
+	if err != nil {
+		return nil, err
+	}
+	e, err := fetchRows(c, spec.mbox, spec, settings, page, perPage)
+	if err != nil {
+		return nil, err
+	}
+	if e.sb, err = load.finish(); err != nil {
+		return nil, err
+	}
+	e.snap = e.sb.active.StatusData
+	return e, nil
+}
+
+// fetchRows reads one page of one folder under the spec: a
+// conversation, a search, a sort, or the plain list.
+func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *Settings, page, perPage int) (*listingEntry, error) {
+	e := &listingEntry{perPage: perPage, sortSupported: c.Caps().Has(imap.CapSort), threadAlgorithm: ThreadAlgorithm(c)}
+	// Each account's window is cut under the requested order, so the
+	// merge sees the right candidates: the largest matches, and not the
+	// largest of the newest. "account" is the merge's own order.
+	sortKey, reverse := spec.sortKey, spec.reverse()
+	if sortKey == "account" {
+		sortKey, reverse = "", true
+	}
+	var err error
+	switch {
+	case spec.thread != 0 && e.threadAlgorithm != "":
+		e.msgs, err = oneThread(c, folder, e.threadAlgorithm, spec.thread)
+		e.total = len(e.msgs)
+	case spec.sortKey == threadSort && e.threadAlgorithm != "":
+		// A conversation is the unit here, so the page holds a
+		// number of threads rather than a number of messages.
+		criteria := &imap.SearchCriteria{}
+		if spec.query != "" {
+			criteria = PrepareSearch(spec.query, settings.SearchHeadersOnly)
+		} else if spec.starred {
+			criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+		}
+		e.msgs, e.total, err = threadMessages(c, folder, e.threadAlgorithm, criteria, page, perPage)
+	case spec.query != "":
+		e.msgs, e.total, err = searchMessages(c, folder, PrepareSearch(spec.query, settings.SearchHeadersOnly), page, perPage, sortKey, reverse)
+	case spec.starred:
+		criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+		e.msgs, e.total, err = searchMessages(c, folder, criteria, page, perPage, sortKey, reverse)
+	case spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != "") && e.sortSupported:
+		e.msgs, e.total, err = searchMessages(c, folder, &imap.SearchCriteria{}, page, perPage, sortKey, reverse)
+	default:
+		e.msgs, e.total, err = listMessages(c, folder, page, perPage)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return e, nil
 }
 
 type NewMailboxRenderData struct {
@@ -997,6 +989,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 			return err
 		}
 		listings.evict(ctx.Session.Username(), mboxName)
+		bodies.evict(ctx.Session.Username(), mboxName, uids)
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 	}
 
@@ -1038,6 +1031,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 		return err
 	}
 	listings.evict(ctx.Session.Username(), mboxName)
+	bodies.evict(ctx.Session.Username(), mboxName, uids)
 
 	target := ctx.NextOr("")
 	if target == "" {
@@ -1105,23 +1099,4 @@ func perPage(ctx *alborz.Context, settings *Settings) int {
 		}
 	}
 	return settings.MessagesPerPage
-}
-
-// readSort is the order a list is asked for: the column, the direction
-// as written, and which way that runs. also is the one order the page
-// has beyond the columns.
-func readSort(ctx *alborz.Context, also string) (sortKey, sortDir string, reverse bool, err error) {
-	sortKey = ctx.QueryParam("sort")
-	if _, ok := sortKeys[sortKey]; !ok && sortKey != also {
-		return "", "", false, echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
-	}
-	sortDir = ctx.QueryParam("dir")
-	if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
-		return "", "", false, echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
-	}
-	reverse = sortKeys[sortKey].descends
-	if sortDir != "" {
-		reverse = sortDir == "desc"
-	}
-	return sortKey, sortDir, reverse, nil
 }

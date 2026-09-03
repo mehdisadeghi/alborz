@@ -145,7 +145,11 @@ func (s *Session) Done() <-chan struct{} { return s.closed }
 // serialises: an IDLE on the shared connection would hold the lock for
 // as long as it waited, which is to say forever, and every page of that
 // account would stop answering.
-func (s *Session) WatchIMAP(onChange func()) (*imapclient.Client, error) {
+//
+// onChange is for what reshapes a listing, arrivals and expunges;
+// onFlags for a flag set on one message, which a listing takes in
+// place rather than being fetched again for it.
+func (s *Session) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []imap.Flag)) (*imapclient.Client, error) {
 	c, err := s.manager.dialIMAPWatch(s.domain, &imapclient.UnilateralDataHandler{
 		Expunge: func(uint32) { onChange() },
 		Mailbox: func(*imapclient.UnilateralDataMailbox) { onChange() },
@@ -154,8 +158,12 @@ func (s *Session) WatchIMAP(onChange func()) (*imapclient.Client, error) {
 		// nothing here. The message must be consumed or the connection's
 		// reader stalls behind it.
 		Fetch: func(msg *imapclient.FetchMessageData) {
-			msg.Collect()
-			onChange()
+			buf, err := msg.Collect()
+			if err != nil || buf.Flags == nil {
+				onChange()
+				return
+			}
+			onFlags(buf.SeqNum, buf.Flags)
 		},
 	})
 	if err != nil {

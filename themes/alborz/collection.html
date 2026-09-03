@@ -22,6 +22,27 @@
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" .ListHref "cancelLabel" ($.T "common.cancel")) }}
       </form>
 
+      {{/* In and out as one file: the shape every other client reads
+           and writes, and the only one a reader can keep. */}}
+      <form method="post" enctype="multipart/form-data" action="{{.Base}}{{.Path | pathescape}}/import{{account "?" .Account}}" class="collection-file">
+        <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+        <h3>{{$.T "collection.importtitle"}}</h3>
+        <label>
+          <span>{{ printf ($.T "collection.importfile") .Ext }}</span>
+          <input type="file" name="file" accept="{{.Ext}}" required>
+        </label>
+        <button>{{$.T "collection.importdo"}}</button>
+      </form>
+      <form method="get" action="{{.Base}}{{.Path | pathescape}}/export" class="collection-file">
+        {{ with .GlobalData.URLAccount }}<input type="hidden" name="account" value="{{.}}">{{ end }}
+        <h3>{{$.T "collection.exporttitle"}}</h3>
+        {{ if .OffersRange }}
+        {{ template "field" (dict "label" ($.T "collection.exportfrom") "name" "from" "type" "date") }}
+        {{ template "field" (dict "label" ($.T "collection.exportto") "name" "to" "type" "date") }}
+        {{ end }}
+        <button>{{ printf ($.T "collection.exportdo") .Ext }}</button>
+      </form>
+
       {{/* What a delete would take, said before it can be asked for:
            WebDAV knows only the recursive kind, and nothing else on this
            page says how much is in there. */}}

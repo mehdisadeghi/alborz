@@ -2,6 +2,9 @@
 {{if eq .View "list"}}{{$suffix = "&view=list"}}{{end}}
 {{if and (eq .View "list") (eq .Span "month")}}{{$suffix = "&view=list&span=month"}}{{end}}
 {{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
+<span class="icon-group">
+  <a class="icon-button" href="/calendar/export{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}">{{ template "icon" "download" }}</a>
+</span>
 {{ template "toolbar-end" }}
     {{ template "pagination" (dict "prev" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "label" ($.GlobalData.MonthName .PrevTime)) "next" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "label" ($.GlobalData.MonthName .NextTime))) }}
     {{/* Today keeps its place on the month it would take you to, or

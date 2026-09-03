@@ -6,8 +6,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"image"
 	"image/jpeg"
+	"io"
 	"net/http"
 	"path"
 	"strings"
@@ -257,6 +259,7 @@ func registerRoutes(p *plugin) {
 	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }
 	POST("/contacts", dav.HandleChoose("/contacts", "book", choose))
 	GET("/contacts", p.contacts)
+	POST("/contacts/export", p.exportContacts)
 	GET("/contacts/:path", p.contact)
 
 	GET("/contacts/:path/raw", func(ctx *alborz.Context) error { return dav.Raw(ctx, p.client) })
@@ -266,6 +269,8 @@ func registerRoutes(p *plugin) {
 	GET("/address-books/:path", page.Handle(p.dav))
 	POST("/address-books/:path", page.Handle(p.dav))
 	POST("/address-books/:path/delete", page.HandleDelete(p.dav))
+	POST("/address-books/:path/import", page.HandleImport(p.dav))
+	GET("/address-books/:path/export", page.HandleExport(p.dav))
 	GET("/contacts/create", p.updateContact)
 	POST("/contacts/create", p.updateContact)
 	GET("/contacts/:path/edit", p.updateContact)
@@ -275,6 +280,7 @@ func registerRoutes(p *plugin) {
 	remove := dav.Handler(dav.Action[*carddav.Client]{Client: p.client, Do: dav.Delete[*carddav.Client], List: "/contacts"})
 	POST("/contacts/:path/delete", remove)
 	POST("/contacts/delete", p.deleteContacts)
+	POST("/contacts/import", p.importFromMessage)
 }
 
 // contactColumns are the orders the contact list can be put in, by name
@@ -304,13 +310,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		return err
 	}
 
-	addressBookInfos, sites, err := dav.Visible(accounts, only, func(acc dav.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
-		settings := &Settings{}
-		if err := acc.Session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
-			return nil, false, nil, fmt.Errorf("failed to load CardDAV settings: %w", err)
-		}
-		return acc.Collections, settings.AddressBookFilter, settings.VisibleAddressBooks, nil
-	})
+	addressBookInfos, sites, err := visibleBooks(accounts, only)
 	if err != nil {
 		return err
 	}
@@ -694,7 +694,22 @@ func (p *plugin) collectionPage() dav.Page {
 	return dav.Page{
 		Base:   "/address-books/",
 		Color:  addressBookColor,
+		Ext:    ".vcf",
 		Forget: p.dav.Forget,
+		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
+			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+			if err != nil {
+				return 0, err
+			}
+			return importBook(ctx.Request().Context(), c, path, raw)
+		},
+		Export: func(ctx *alborz.Context, path string, _, _ time.Time) ([]byte, error) {
+			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+			if err != nil {
+				return nil, err
+			}
+			return exportBook(ctx.Request().Context(), c, path)
+		},
 		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
 			_, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
 			if err != nil {
@@ -707,4 +722,189 @@ func (p *plugin) collectionPage() dav.Page {
 			return *info, p.dav.CountObjects(ctx, info.Path), "/contacts", ctx.T("nav.contacts"), nil
 		},
 	}
+}
+
+// visibleBooks are dav.Visible's address books.
+func visibleBooks(accounts []dav.Account[*carddav.Client], only map[string]bool) ([]dav.Collection, []dav.Site[*carddav.Client], error) {
+	return dav.Visible(accounts, only, func(acc dav.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
+		settings := &Settings{}
+		if err := acc.Session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
+			return nil, false, nil, fmt.Errorf("failed to load CardDAV settings: %w", err)
+		}
+		return acc.Collections, settings.AddressBookFilter, settings.VisibleAddressBooks, nil
+	})
+}
+
+// exportContacts hands the selected cards back as one file, each as
+// its server stores it. The rows name their own account, so the
+// selection can span accounts.
+func (p *plugin) exportContacts(ctx *alborz.Context) error {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return err
+	}
+	paths := params["paths"]
+	if len(paths) == 0 {
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
+	}
+	type card struct {
+		client  *carddav.Client
+		objPath string
+	}
+	var cards []card
+	clients := map[string]*carddav.Client{}
+	for _, ref := range paths {
+		account, objPath, ok := strings.Cut(ref, "|")
+		if !ok {
+			return echo.NewHTTPError(http.StatusBadRequest, "unqualified contact")
+		}
+		c, ok := clients[account]
+		if !ok {
+			session := ctx.SessionFor(account)
+			if session == nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+			}
+			if c, err = p.client(session); err != nil {
+				return err
+			}
+			clients[account] = c
+		}
+		cards = append(cards, card{c, objPath})
+	}
+	var buf bytes.Buffer
+	for _, r := range dav.Each(ctx.Request().Context(), cards, func(ctx context.Context, c card) ([]byte, error) {
+		body, err := c.client.Open(ctx, c.objPath)
+		if err != nil {
+			return nil, err
+		}
+		defer body.Close()
+		return io.ReadAll(body)
+	}) {
+		if r.Err != nil {
+			return r.Err
+		}
+		buf.Write(r.Value)
+		if !bytes.HasSuffix(r.Value, []byte("\n")) {
+			buf.WriteString("\r\n")
+		}
+	}
+	return dav.Download(ctx, ctx.T("nav.contacts")+".vcf", buf.Bytes())
+}
+
+// hasAttachment reports whether the message carries a part of one of
+// the media types.
+func hasAttachment(msg *alborzbase.IMAPMessage, types ...string) bool {
+	for _, att := range msg.Attachments() {
+		for _, t := range types {
+			if strings.EqualFold(att.MIMEType, t) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// importFromMessage files the cards attached to a mail into the chosen
+// address book.
+func (p *plugin) importFromMessage(ctx *alborz.Context) error {
+	mboxName, uid, err := alborzbase.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
+	if err != nil {
+		return err
+	}
+	raw, _, err := alborzbase.PartAt(ctx, mboxName, uid, ctx.FormValue("part"))
+	if err != nil {
+		return err
+	}
+	acct, bookPath, ok := strings.Cut(ctx.FormValue("addressbook"), "|")
+	session := ctx.SessionFor(acct)
+	if !ok || session == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "no address book to file it in")
+	}
+	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), session)
+	if err != nil {
+		return err
+	}
+	if book := dav.At(books, bookPath); book == nil || !book.Writable {
+		return echo.NewHTTPError(http.StatusBadRequest, "no address book to file it in")
+	}
+	n, err := importBook(ctx.Request().Context(), c, bookPath, raw)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		ctx.Session.PutNotice(ctx.T("import.nothing"))
+	} else {
+		ctx.Session.PutNotice(ctx.Tf("import.vcf", n))
+	}
+	to := "/contacts"
+	if acct != ctx.Session.Username() {
+		to += "?account=" + alborz.AddressParam(acct)
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
+}
+
+// importBook writes every card of a vCard stream into the book and
+// reports how many. A UID the book already holds is written over.
+func importBook(ctx context.Context, client *carddav.Client, bookPath string, raw []byte) (int, error) {
+	dec := vcard.NewDecoder(bytes.NewReader(raw))
+	n := 0
+	for {
+		card, err := dec.Decode()
+		if err == io.EOF {
+			return n, nil
+		}
+		if err != nil {
+			return n, fmt.Errorf("failed to read the card: %v", err)
+		}
+		if _, ok := card[vcard.FieldVersion]; !ok {
+			card.SetValue(vcard.FieldVersion, "4.0")
+		}
+		uid := card.Value(vcard.FieldUID)
+		if uid == "" {
+			uid = uuid.New().URN()
+			card.SetValue(vcard.FieldUID, uid)
+		}
+		target := path.Join(bookPath, dav.SafeObjectName(uid)+".vcf")
+		if _, err := client.PutAddressObject(ctx, target, card); err != nil {
+			existing := cardPathByUID(ctx, client, bookPath, uid)
+			if existing == "" {
+				return n, fmt.Errorf("failed to write %s: %v", uid, err)
+			}
+			if _, err := client.PutAddressObject(ctx, existing, card); err != nil {
+				return n, fmt.Errorf("failed to write %s: %v", uid, err)
+			}
+		}
+		n++
+	}
+}
+
+// cardPathByUID is where the book keeps the card with that UID, "" when
+// it has none.
+func cardPathByUID(ctx context.Context, client *carddav.Client, bookPath, uid string) string {
+	objects, err := client.QueryAddressBook(ctx, bookPath, &carddav.AddressBookQuery{
+		DataRequest: carddav.AddressDataRequest{Props: []string{vcard.FieldUID}},
+		PropFilters: []carddav.PropFilter{{Name: vcard.FieldUID, TextMatches: []carddav.TextMatch{{Text: uid, MatchType: carddav.MatchEquals}}}},
+	})
+	if err != nil || len(objects) == 0 {
+		return ""
+	}
+	return objects[0].Path
+}
+
+// exportBook renders every card of the book as one vCard file.
+func exportBook(ctx context.Context, client *carddav.Client, bookPath string) ([]byte, error) {
+	objects, err := client.QueryAddressBook(ctx, bookPath, &carddav.AddressBookQuery{
+		DataRequest: carddav.AddressDataRequest{AllProp: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the address book: %v", err)
+	}
+	var buf bytes.Buffer
+	enc := vcard.NewEncoder(&buf)
+	for _, obj := range objects {
+		if err := enc.Encode(obj.Card); err != nil {
+			return nil, fmt.Errorf("failed to write a card: %v", err)
+		}
+	}
+	return buf.Bytes(), nil
 }

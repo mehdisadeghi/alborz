@@ -75,7 +75,8 @@
              it sits in the card so it shares the one left edge every
              other control on this page is aligned to. */}}
         <div class="action-group" id="handler-group" hidden>
-          <button type="button" id="register-mailto">{{$.T "settings.mailtohandler"}}</button>
+          <button type="button" data-protocol="mailto" data-handler="/compose?mailto=%s">{{$.T "settings.mailtohandler"}}</button>
+          <button type="button" data-protocol="webcal" data-handler="/calendar/import?url=%s">{{$.T "settings.webcalhandler"}}</button>
           <p class="hint" id="register-mailto-asked" hidden>{{$.T "settings.mailtoasked"}}</p>
           <p class="hint" id="register-mailto-before" hidden>{{$.T "settings.mailtobefore"}}</p>
           <p class="hint" id="register-mailto-refused" hidden>{{$.T "settings.mailtorefused"}}</p>

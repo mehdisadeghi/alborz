@@ -613,6 +613,41 @@ func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 	}
 }
 
+// TestNextStaysOnTheSite covers the return address a form carries. It
+// is the page the action was taken from, and the handler comes back to
+// it; a value naming another host, or a path a browser reads as one,
+// must fall back to the handler's own landing page.
+func TestNextStaysOnTheSite(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) == 0 {
+		t.Fatal("no seeded messages")
+	}
+	stay := *c
+	stay.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	flag := func(next string) string {
+		resp, err := stay.PostForm(base+"/message/INBOX/flag",
+			url.Values{"uids": {uids[0]}, "flags": {"\\Seen"}, "next": {next}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusFound {
+			t.Fatalf("flag with next=%q: %s", next, resp.Status)
+		}
+		return resp.Header.Get("Location")
+	}
+	if to := flag("/mailbox/INBOX?all=1"); to != "/mailbox/INBOX?all=1" {
+		t.Errorf("a page of ours was not returned to: %q", to)
+	}
+	for _, next := range []string{"https://evil.example/", "//evil.example/", "/\\evil.example/"} {
+		if to := flag(next); to != "/message/INBOX/"+uids[0] {
+			t.Errorf("next=%q redirected to %q", next, to)
+		}
+	}
+}
+
 // sendFrom submits the compose form exactly as the page presented it,
 // plus any fields given as name, value pairs.
 func sendFrom(t *testing.T, c *http.Client, base, path, page string, fields ...string) {

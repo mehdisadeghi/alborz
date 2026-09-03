@@ -28,7 +28,7 @@ var (
 	// The browser may keep what it has already been shown, so scrolling
 	// back through a message does not fetch it again.
 	proxyCacheControl = "private, max-age=86400"
-	proxyClient       = &http.Client{Timeout: proxyTimeout}
+	proxyClient       = alborz.NewRemoteClient(proxyTimeout)
 )
 
 func init() {
@@ -83,6 +83,10 @@ func init() {
 		}
 
 		ctx.Response().Header().Set("Cache-Control", proxyCacheControl)
+		// The body is whatever the sender's server sent under an image
+		// type; the browser is told to take it as one and only as one.
+		ctx.Response().Header().Set("X-Content-Type-Options", "nosniff")
+		ctx.Response().Header().Set("Content-Disposition", "inline")
 
 		lr := io.LimitedReader{R: resp.Body, N: int64(proxyMaxSize)}
 		return ctx.Stream(http.StatusOK, mediaType, &lr)

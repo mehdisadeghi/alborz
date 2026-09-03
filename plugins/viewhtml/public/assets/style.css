@@ -4,8 +4,11 @@
   overflow: hidden;
 }
 
+/* Without a script the frame cannot follow its content; it is a
+   window of most of the viewport that the mail scrolls inside. The
+   script replaces the height with the content's. */
 iframe {
   width: 100%;
-  height: 400px;
+  height: 70vh;
   border: 0;
 }

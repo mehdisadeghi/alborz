@@ -513,7 +513,7 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
-		return nil, fmt.Errorf("failed to load settings: %v", err)
+		return nil, fmt.Errorf("failed to load settings: %w", err)
 	}
 
 	var sb sidebar
@@ -1184,7 +1184,7 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 		if err := ctx.DoIMAP(func(c *imapclient.Client) error {
 			return c.Delete(mbox.Name()).Wait()
 		}); err != nil {
-			return ctx.Render(http.StatusOK, "delete-mailbox.html", &DeleteMailboxRenderData{
+			return ctx.Render(http.StatusUnprocessableEntity, "delete-mailbox.html", &DeleteMailboxRenderData{
 				IMAPBaseRenderData: *ibase,
 				Error:              err.Error(),
 			})
@@ -1414,7 +1414,7 @@ func handleRefreshMailbox(ctx *alborz.Context) error {
 func handleInvitationReply(ctx *alborz.Context) error {
 	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
 	status := strings.ToUpper(ctx.FormValue("status"))
@@ -1448,7 +1448,7 @@ func handleInvitationReply(ctx *alborz.Context) error {
 	if err := ctx.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, reply)
 	}); err != nil {
-		return fmt.Errorf("failed to send the answer: %v", err)
+		return fmt.Errorf("failed to send the answer: %w", err)
 	}
 
 	ctx.Session.PutNotice(ctx.T("invite.answered"))
@@ -1463,7 +1463,7 @@ func handleInvitationReply(ctx *alborz.Context) error {
 func handleDownloadMessage(ctx *alborz.Context) error {
 	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
 	var raw []byte
@@ -1625,7 +1625,7 @@ func downloadName(name, fallback, ext string) string {
 func handleGetPart(ctx *alborz.Context, raw bool) error {
 	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
 	partPath, err := parsePartPath(ctx.QueryParam("part"))
@@ -2079,7 +2079,7 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 		if _, ok := err.(alborz.AuthError); ok {
 			return echo.NewHTTPError(http.StatusForbidden, err)
 		}
-		return fmt.Errorf("failed to send message: %v", err)
+		return fmt.Errorf("failed to send message: %w", err)
 	}
 
 	if inReplyTo := options.InReplyTo; inReplyTo != nil {
@@ -2087,7 +2087,7 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 			return markMessageAnswered(c, inReplyTo.Mailbox, inReplyTo.Uid)
 		})
 		if err != nil {
-			return fmt.Errorf("failed to mark original message as answered: %v", err)
+			return fmt.Errorf("failed to mark original message as answered: %w", err)
 		}
 	}
 
@@ -2109,7 +2109,7 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("failed to save message to Sent mailbox: %v", err)
+		return fmt.Errorf("failed to save message to Sent mailbox: %w", err)
 	}
 
 	if draft := options.Draft; draft != nil {
@@ -2117,7 +2117,7 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 			return deleteMessage(c, draft.Mailbox, draft.Uid)
 		})
 		if err != nil {
-			return fmt.Errorf("failed to delete draft: %v", err)
+			return fmt.Errorf("failed to delete draft: %w", err)
 		}
 	}
 
@@ -2264,6 +2264,14 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 		msg.InReplyTo = ctx.FormValue("in_reply_to")
 		msg.MessageID = ctx.FormValue("message_id")
+		if msg.MessageID == "" {
+			// The page carries the id so a draft saved twice stays one
+			// message; a form that lost it is still a message to send.
+			var hdr mail.Header
+			hdr.GenerateMessageID()
+			mid, _ := hdr.MessageID()
+			msg.MessageID = "<" + mid + ">"
+		}
 
 		form, err := ctx.MultipartForm()
 		if err != nil {
@@ -2304,7 +2312,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 					return err
 				})
 				if err != nil {
-					return fmt.Errorf("failed to fetch attachment from original message: %v", err)
+					return fmt.Errorf("failed to fetch attachment from original message: %w", err)
 				}
 
 				var buf bytes.Buffer
@@ -2398,15 +2406,17 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				}
 				if data, err := c.UIDSearch(&criteria, nil).Wait(); err != nil {
 					return err
-				} else if uids := data.AllUIDs(); len(uids) != 1 {
-					panic(fmt.Errorf("Duplicate message ID"))
+				} else if uids := data.AllUIDs(); len(uids) == 0 {
+					return fmt.Errorf("the saved draft was not found by its Message-ID")
+				} else if len(uids) > 1 {
+					return fmt.Errorf("%d drafts carry the Message-ID %s", len(uids), msg.MessageID)
 				} else {
 					uid = uids[0]
 				}
 				return nil
 			})
 			if err != nil {
-				return fmt.Errorf("failed to save message to Draft mailbox: %v", err)
+				return fmt.Errorf("failed to save message to Draft mailbox: %w", err)
 			}
 			listings.evictAll(ctx.Session.Username())
 			ctx.Session.PutNotice(ctx.T("notice.draftsaved"))
@@ -2558,7 +2568,7 @@ func handleComposeNew(ctx *alborz.Context) error {
 	text := ctx.QueryParam("body")
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
-		return nil
+		return err
 	}
 	chosen := settings.DefaultSignature
 	if sig, ok := settings.signatureNamed(chosen); ok && text == "" {
@@ -3572,7 +3582,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 			Flags:  l,
 		}, nil).Close()
 		if err != nil {
-			return fmt.Errorf("failed to set flags: %v", err)
+			return fmt.Errorf("failed to set flags: %w", err)
 		}
 
 		return nil
@@ -3889,7 +3899,7 @@ type SignaturesRenderData struct {
 func handleSignatures(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
-		return fmt.Errorf("failed to load settings: %v", err)
+		return fmt.Errorf("failed to load settings: %w", err)
 	}
 	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
@@ -3955,7 +3965,7 @@ func handleSignatures(ctx *alborz.Context) error {
 		return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T(key), limit))
 	}
 	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
-		return fmt.Errorf("failed to save settings: %v", err)
+		return fmt.Errorf("failed to save settings: %w", err)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
@@ -3980,7 +3990,7 @@ func handleSignatureDelete(ctx *alborz.Context) error {
 		settings.DefaultSignature = ""
 	}
 	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
-		return fmt.Errorf("failed to save settings: %v", err)
+		return fmt.Errorf("failed to save settings: %w", err)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
@@ -3999,7 +4009,7 @@ func handleSignatureDefault(ctx *alborz.Context) error {
 	}
 	settings.DefaultSignature = chosen
 	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
-		return fmt.Errorf("failed to save settings: %v", err)
+		return fmt.Errorf("failed to save settings: %w", err)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
@@ -4007,7 +4017,7 @@ func handleSignatureDefault(ctx *alborz.Context) error {
 func handleSettings(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
-		return fmt.Errorf("failed to load settings: %v", err)
+		return fmt.Errorf("failed to load settings: %w", err)
 	}
 
 	var mailboxes []MailboxInfo
@@ -4072,10 +4082,10 @@ func handleSettings(ctx *alborz.Context) error {
 			return reject(fmt.Sprintf(ctx.T(key), limit))
 		}
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
-			return fmt.Errorf("failed to save settings: %v", err)
+			return fmt.Errorf("failed to save settings: %w", err)
 		}
 		if err := ctx.SetSecondaryCalendar(ctx.FormValue("secondary")); err != nil {
-			return fmt.Errorf("failed to save calendar choice: %v", err)
+			return fmt.Errorf("failed to save calendar choice: %w", err)
 		}
 
 		listings.evictAll(ctx.Session.Username())

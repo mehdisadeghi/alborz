@@ -402,8 +402,7 @@ func parseObjectPath(s string) (string, error) {
 func parseDateTime(s string, loc *time.Location) (time.Time, error) {
 	t, err := time.ParseInLocation(inputDateTimeLayout, s, loc)
 	if err != nil {
-		err = fmt.Errorf("malformed datetime: %v", err)
-		return time.Time{}, echo.NewHTTPError(http.StatusBadRequest, err)
+		return time.Time{}, fmt.Errorf("malformed datetime: %v", err)
 	}
 	return t, nil
 }
@@ -523,7 +522,7 @@ func registerRoutes(p *plugin) {
 	POST("/calendar", func(ctx *alborz.Context) error {
 		settings, err := loadSettings(ctx.Session.Store())
 		if err != nil {
-			return fmt.Errorf("failed to load CalDAV settings: %v", err)
+			return fmt.Errorf("failed to load CalDAV settings: %w", err)
 		}
 		params, err := ctx.FormParams()
 		if err != nil {
@@ -532,7 +531,7 @@ func registerRoutes(p *plugin) {
 		settings.CalendarFilter = true
 		settings.VisibleCalendars = params["cal"]
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
-			return fmt.Errorf("failed to save CalDAV settings: %v", err)
+			return fmt.Errorf("failed to save CalDAV settings: %w", err)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))
 	})
@@ -540,7 +539,7 @@ func registerRoutes(p *plugin) {
 	POST("/tasks", func(ctx *alborz.Context) error {
 		settings, err := loadSettings(ctx.Session.Store())
 		if err != nil {
-			return fmt.Errorf("failed to load CalDAV settings: %v", err)
+			return fmt.Errorf("failed to load CalDAV settings: %w", err)
 		}
 		params, err := ctx.FormParams()
 		if err != nil {
@@ -549,7 +548,7 @@ func registerRoutes(p *plugin) {
 		settings.TaskFilter = true
 		settings.VisibleTasks = params["cal"]
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
-			return fmt.Errorf("failed to save CalDAV settings: %v", err)
+			return fmt.Errorf("failed to save CalDAV settings: %w", err)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 	})
@@ -561,11 +560,11 @@ func registerRoutes(p *plugin) {
 		for _, session := range ctx.Sessions() {
 			settings, err := loadSettings(session.Store())
 			if err != nil {
-				return fmt.Errorf("failed to load CalDAV settings: %v", err)
+				return fmt.Errorf("failed to load CalDAV settings: %w", err)
 			}
 			settings.ShowCompleted = on
 			if err := session.Store().Put(settingsKey, settings); err != nil {
-				return fmt.Errorf("failed to save CalDAV settings: %v", err)
+				return fmt.Errorf("failed to save CalDAV settings: %w", err)
 			}
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
@@ -574,7 +573,7 @@ func registerRoutes(p *plugin) {
 	GET("/calendar", func(ctx *alborz.Context) error {
 		baseSettings, err := alborzbase.LoadSettings(ctx.Session.Store())
 		if err != nil {
-			return fmt.Errorf("failed to load settings: %v", err)
+			return fmt.Errorf("failed to load settings: %w", err)
 		}
 		loc := alborzbase.UserLocation(ctx)
 
@@ -583,7 +582,7 @@ func registerRoutes(p *plugin) {
 			var err error
 			start, err = time.Parse(monthPageLayout, s)
 			if err != nil {
-				return fmt.Errorf("failed to parse month: %v", err)
+				return echo.NewHTTPError(http.StatusBadRequest, err)
 			}
 			start = time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc)
 		} else {
@@ -641,7 +640,7 @@ func registerRoutes(p *plugin) {
 		for _, acc := range accounts {
 			settings, err := loadSettings(acc.session.Store())
 			if err != nil {
-				return fmt.Errorf("failed to load CalDAV settings: %v", err)
+				return fmt.Errorf("failed to load CalDAV settings: %w", err)
 			}
 			visibleSet := make(map[string]bool)
 			for _, path := range settings.VisibleCalendars {
@@ -824,7 +823,7 @@ func registerRoutes(p *plugin) {
 			var err error
 			start, err = time.ParseInLocation(datePageLayout, s, loc)
 			if err != nil {
-				return fmt.Errorf("failed to parse date: %v", err)
+				return echo.NewHTTPError(http.StatusBadRequest, err)
 			}
 		} else {
 			now := time.Now().In(loc)
@@ -843,7 +842,7 @@ func registerRoutes(p *plugin) {
 		for _, acc := range accounts {
 			settings, err := loadSettings(acc.session.Store())
 			if err != nil {
-				return fmt.Errorf("failed to load CalDAV settings: %v", err)
+				return fmt.Errorf("failed to load CalDAV settings: %w", err)
 			}
 			visibleSet := make(map[string]bool)
 			for _, path := range settings.VisibleCalendars {
@@ -989,11 +988,18 @@ func registerRoutes(p *plugin) {
 		if err != nil {
 			return fmt.Errorf("failed to multi-get calendar: %v", err)
 		}
+		if len(events) == 0 {
+			return alborz.NotFoundf("no such event")
+		}
 		if len(events) != 1 {
 			return fmt.Errorf("expected exactly one calendar object with path %q, got %v", path, len(events))
 		}
 		event := &events[0]
-		summary, _ := event.Data.Events()[0].Props.Text("SUMMARY")
+		vevents := event.Data.Events()
+		if len(vevents) == 0 {
+			return alborz.NotFoundf("no such event")
+		}
+		summary, _ := vevents[0].Props.Text("SUMMARY")
 
 		return ctx.Render(http.StatusOK, "event.html", &EventRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
@@ -1044,7 +1050,7 @@ func registerRoutes(p *plugin) {
 				return err
 			}
 			if len(groups) == 0 || len(groups[0].Collections) == 0 {
-				return fmt.Errorf("no writable calendars")
+				return alborz.RenderInfo(ctx, http.StatusOK, ctx.T("calendar.nowritable"))
 			}
 			event = ical.NewEvent()
 			event.Props.SetDateTime(ical.PropCreated, time.Now().UTC())
@@ -1278,7 +1284,7 @@ func registerRoutes(p *plugin) {
 		for _, acc := range accounts {
 			settings, err := loadSettings(acc.session.Store())
 			if err != nil {
-				return fmt.Errorf("failed to load CalDAV settings: %v", err)
+				return fmt.Errorf("failed to load CalDAV settings: %w", err)
 			}
 			if !settings.ShowCompleted {
 				showCompleted = false
@@ -1487,6 +1493,9 @@ func registerRoutes(p *plugin) {
 		if err != nil {
 			return fmt.Errorf("failed to get task: %v", err)
 		}
+		if len(tasks) == 0 {
+			return alborz.NotFoundf("no such task")
+		}
 		if len(tasks) != 1 {
 			return fmt.Errorf("expected exactly one task with path %q, got %v", path, len(tasks))
 		}
@@ -1543,7 +1552,7 @@ func registerRoutes(p *plugin) {
 				return err
 			}
 			if len(groups) == 0 || len(groups[0].Collections) == 0 {
-				return fmt.Errorf("no writable calendars")
+				return alborz.RenderInfo(ctx, http.StatusOK, ctx.T("calendar.nowritable"))
 			}
 			todo = ical.NewComponent(ical.CompToDo)
 			todo.Props.SetDateTime(ical.PropCreated, time.Now().UTC())

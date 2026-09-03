@@ -316,10 +316,10 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 		h.Set("User-Agent", msg.Mailer)
 	}
 
-	h.Set("Message-Id", msg.MessageID)
 	if msg.MessageID == "" {
-		panic(fmt.Errorf("Attempting to send message without message ID"))
+		return fmt.Errorf("message has no Message-ID")
 	}
+	h.Set("Message-Id", msg.MessageID)
 
 	mw, err := mail.CreateWriter(w, h)
 	if err != nil {

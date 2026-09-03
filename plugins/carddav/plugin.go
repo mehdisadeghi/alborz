@@ -29,7 +29,8 @@ func sanityCheckURL(u *url.URL) error {
 		return err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: alborz.RoundTripTimeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -192,7 +193,10 @@ func domainURL(srv *alborz.Server, domain string) (*url.URL, error) {
 		u.Scheme = "http"
 	}
 	if u.Scheme == "" {
-		s, err := carddav.DiscoverContextURL(context.Background(), u.Host)
+		// Startup must not hang on a DAV host that swallows packets.
+		ctx, cancel := context.WithTimeout(context.Background(), alborz.RoundTripTimeout)
+		defer cancel()
+		s, err := carddav.DiscoverContextURL(ctx, u.Host)
 		if err != nil {
 			srv.Logger().Printf("carddav: domain %q: failed to discover CardDAV server: %v", domain, err)
 			return nil, nil

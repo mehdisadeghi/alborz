@@ -285,3 +285,38 @@ func firstLines(s string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+func login(t *testing.T, base string) *http.Client {
+	t.Helper()
+	jar, _ := cookiejar.New(nil)
+	c := &http.Client{Jar: jar, Timeout: 20 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return nil }}
+	resp, err := c.PostForm(base+"/login",
+		url.Values{"username": {smokeUser}, "password": {smokePass}})
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	resp.Body.Close()
+	return c
+}
+
+// TestUnknownSearchKeySurvives covers a crash that cost more than the
+// page it was on. PrepareSearch skips a term it does not recognise, so a
+// query made only of those produced nil criteria and sortSeqNums
+// dereferenced it. Worse than the 500: the panic skipped the watchdog
+// that guards the session's IMAP connection, which was then closed but
+// still held, so every later request on that session waited out the
+// round-trip timeout. Hence the second half of this test - answering the
+// bad query is not enough, the session has to still work afterwards.
+func TestUnknownSearchKeySurvives(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+
+	if body := get(t, c, base+"/mailbox/INBOX?query=foo:bar"); body == "" {
+		t.Fatal("the unrecognised key produced no page")
+	}
+	if body := get(t, c, base+"/mailbox/INBOX"); !strings.Contains(body, "message-row") {
+		t.Fatal("the session stopped serving mail after an unrecognised search key")
+	}
+}
+

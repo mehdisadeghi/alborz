@@ -357,3 +357,59 @@ func TestMailtoHandlerRefusesForeignURI(t *testing.T) {
 		t.Fatalf("a real mailto URI redirected to %q", loc)
 	}
 }
+
+// TestExportFailsAsAnError is about what a failure looks like from the
+// outside. The handler used to write the mbox headers and a 200 before
+// fetching anything, so a fetch that failed had the HTML error page
+// rendered into a body already claiming to be an mbox - the reader
+// saved a .mbox file containing "500: Internal Server Error".
+func TestExportFailsAsAnError(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+
+	body := get(t, c, base+"/mailbox/INBOX")
+	uids := messageUIDs(body)
+	if len(uids) < 2 {
+		t.Fatalf("need two seeded messages to export, found %d", len(uids))
+	}
+
+	// A message that is not there is the failure this reproduces.
+	resp, err := c.PostForm(base+"/message/INBOX/export",
+		url.Values{"uids": {"999999"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	buf.ReadFrom(resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode < 400 {
+		t.Errorf("a missing message exported with status %s", resp.Status)
+	}
+	if ct := resp.Header.Get("Content-Type"); strings.HasPrefix(ct, "application/mbox") {
+		t.Errorf("an error was served as %s", ct)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
+		t.Errorf("an error was offered as a download: %q", cd)
+	}
+
+	// And the working case still produces an mbox, or the checks above
+	// pass by refusing everything.
+	resp, err = c.PostForm(base+"/message/INBOX/export", url.Values{"uids": uids[:2]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+	buf.ReadFrom(resp.Body)
+	resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/mbox") {
+		t.Fatalf("a good export was served as %q", ct)
+	}
+	if n := strings.Count(buf.String(), "\r\nFrom ") + strings.Count(
+		buf.String()[:min(6, buf.Len())], "From "); n < 2 {
+		t.Errorf("expected two messages, found %d separators", n)
+	}
+	if strings.Contains(buf.String(), "<!DOCTYPE") {
+		t.Error("the export carries an HTML page inside it")
+	}
+}

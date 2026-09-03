@@ -479,9 +479,6 @@ type SessionManager struct {
 	// loginKey seals what the store keeps for an account; nil leaves
 	// only the password wrap.
 	loginKey *fernet.Key
-	// onGone is told when a session has expired, so what plugins hold
-	// for the account is dropped the same way as on sign-out.
-	onGone func(username string)
 
 	locker   sync.Mutex
 	sessions map[string]*Session // protected by locker
@@ -631,11 +628,10 @@ func (sm *SessionManager) reap(s *Session) {
 	}
 	s.sieveLocker.Unlock()
 
+	// An expired session is not an account gone: what the caches hold
+	// for it is what the next sign-in, or the cookie restoring it, is
+	// served from. Only signing out forgets, see Server.ForgetAccount.
 	sm.locker.Lock()
 	delete(sm.sessions, s.token)
 	sm.locker.Unlock()
-
-	if sm.onGone != nil {
-		sm.onGone(s.username)
-	}
 }

@@ -2,6 +2,7 @@ package alborzcaldav
 
 import (
 	"embed"
+	"git.mehdix.org/alborz/plugins/davcache"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -46,7 +47,10 @@ func (p *plugin) client(session *alborz.Session) (*caldav.Client, error) {
 func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	provider, err := dav.NewProvider(srv, dav.Kind{
 		Name: "caldav", Label: "CalDAV",
-		Schemes:  [2]string{"caldavs", "caldav+insecure"},
+		Schemes: [2]string{"caldavs", "caldav+insecure"},
+		// Invitations and tasks ticked on a phone should show within
+		// minutes.
+		Poll:     davcache.DefaultPoll,
 		Discover: caldav.DiscoverContextURL,
 	})
 	if err != nil || provider == nil {

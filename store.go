@@ -8,7 +8,6 @@ import (
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/labstack/echo/v4"
 )
 
 // ErrNoStoreEntry is returned by Store.Get when the entry doesn't exist.
@@ -22,18 +21,19 @@ type Store interface {
 	Put(key string, v interface{}) error
 }
 
-var warnedTransientStore = false
-
-func newStore(session *Session, logger echo.Logger) (Store, error) {
+// newStore picks the account's store: the server's METADATA when it has
+// it, memory otherwise. The warning is printed once, under the manager's
+// lock like every other call here.
+func (sm *SessionManager) newStore(session *Session) (Store, error) {
 	s, err := newIMAPStore(session)
 	if err == nil {
 		return s, nil
 	} else if err != errIMAPMetadataUnsupported {
 		return nil, err
 	}
-	if !warnedTransientStore {
-		logger.Print("Upstream IMAP server doesn't support the METADATA extension, using transient store instead")
-		warnedTransientStore = true
+	if !sm.warnedTransientStore {
+		sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, using transient store instead")
+		sm.warnedTransientStore = true
 	}
 	return newMemoryStore(), nil
 }

@@ -247,6 +247,28 @@ func addressBookByPath(addressBooks []AddressBookInfo, path string) *AddressBook
 	return nil
 }
 
+// withValues rewrites a property's fields from the form, in order, on
+// top of the fields the card already has, so a TYPE=work or a PREF a
+// phone synced onto an address survives an edit here that did not
+// touch it. The form lists the fields in the card's order, which is
+// what makes the match by position right.
+func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
+	var out []*vcard.Field
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value == "" {
+			continue
+		}
+		if len(out) < len(fields) {
+			field := fields[len(out)]
+			field.Value = value
+			out = append(out, field)
+		} else {
+			out = append(out, &vcard.Field{Value: value})
+		}
+	}
+	return out
+}
+
 func registerRoutes(p *plugin) {
 	// A missing address book is a state to explain, not an error: every
 	// route in the section answers with the account named.
@@ -609,27 +631,13 @@ func registerRoutes(p *plugin) {
 
 			// TODO: Google wants a "N" field, fails with a 400 otherwise
 
-			// TODO: params are lost here
-			var emailFields []*vcard.Field
-			for _, email := range emails {
-				if email = strings.TrimSpace(email); email != "" {
-					emailFields = append(emailFields, &vcard.Field{Value: email})
-				}
-			}
-			if len(emailFields) > 0 {
-				card[vcard.FieldEmail] = emailFields
+			if fields := withValues(card[vcard.FieldEmail], emails); len(fields) > 0 {
+				card[vcard.FieldEmail] = fields
 			} else {
 				delete(card, vcard.FieldEmail)
 			}
-
-			var telFields []*vcard.Field
-			for _, tel := range strings.Split(ctx.FormValue("tels"), ",") {
-				if tel = strings.TrimSpace(tel); tel != "" {
-					telFields = append(telFields, &vcard.Field{Value: tel})
-				}
-			}
-			if len(telFields) > 0 {
-				card[vcard.FieldTelephone] = telFields
+			if fields := withValues(card[vcard.FieldTelephone], strings.Split(ctx.FormValue("tels"), ",")); len(fields) > 0 {
+				card[vcard.FieldTelephone] = fields
 			} else {
 				delete(card, vcard.FieldTelephone)
 			}

@@ -663,15 +663,11 @@ func handleComposeNew(ctx *alborz.Context) error {
 func handleComposeAttachment(ctx *alborz.Context) error {
 	reader, err := ctx.Request().MultipartReader()
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid request",
-		})
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
 	}
-	form, err := reader.ReadForm(32 << 20) // 32 MB
+	form, err := reader.ReadForm(alborz.MaxAttachmentSize)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid request",
-		})
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
 	}
 
 	var uuids []string
@@ -679,15 +675,11 @@ func handleComposeAttachment(ctx *alborz.Context) error {
 		uuid, err := ctx.Session.PutAttachment(fh, form)
 		if err == alborz.ErrAttachmentCacheSize {
 			form.RemoveAll()
-			return ctx.JSON(http.StatusBadRequest, map[string]string{
-				"error": "Your attachments exceed the maximum file size. Remove some and try again.",
-			})
+			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.toolarge")})
 		} else if err != nil {
 			form.RemoveAll()
 			ctx.Logger().Printf("PutAttachment: %v\n", err)
-			return ctx.JSON(http.StatusBadRequest, map[string]string{
-				"error": "failed to store attachment",
-			})
+			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.failed")})
 		}
 		uuids = append(uuids, uuid)
 	}

@@ -17,6 +17,10 @@ import (
 
 const requestTimeout = 10 * time.Second
 
+// maxRedirects is how far a DAV server may send a request on; a chain
+// longer than this is a loop, not a move.
+const maxRedirects = 10
+
 func httpClient(cache *davcache.Cache, session *alborz.Session, debug echo.Logger) *http.Client {
 	return &http.Client{
 		// A wedged DAV server fails the request instead of hanging it.
@@ -88,7 +92,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		loc := resp.Header.Get("Location")
 		if loc != "" {
 			resp.Body.Close()
-			return rt.followRedirect(req, loc, 10)
+			return rt.followRedirect(req, loc, maxRedirects)
 		}
 	}
 

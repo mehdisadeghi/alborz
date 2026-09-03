@@ -204,7 +204,7 @@ func (p *plugin) registerScheduling() {
 			return fmt.Errorf("failed to read the invitation: %v", err)
 		}
 		cal.Props.Del(ical.PropMethod)
-		cal.Props.SetText(ical.PropProductID, productID)
+		cal.Props.SetText(ical.PropProductID, alborzbase.ItipProductID)
 
 		client, calendarPath, account, err := p.resolveCreateCalendar(ctx,
 			ctx.FormValue("calendar"), CalendarInfo.SupportsEvent)

@@ -128,18 +128,21 @@ var templateFuncs = template.FuncMap{
 	"formatdate": func(t time.Time) string {
 		return t.Format("Mon Jan 02 15:04")
 	},
-	"formatflag": func(flag imap.Flag) string {
+	// flagkey names the locale entry for a system flag, so the page can
+	// translate it; a keyword the server made up has no entry and is
+	// shown as it is.
+	"flagkey": func(flag imap.Flag) string {
 		switch flag {
 		case imap.FlagSeen:
-			return "Seen"
+			return "flag.seen"
 		case imap.FlagAnswered:
-			return "Answered"
+			return "flag.answered"
 		case imap.FlagFlagged:
-			return "Starred"
+			return "flag.starred"
 		case imap.FlagDraft:
-			return "Draft"
+			return "flag.draft"
 		default:
-			return string(flag)
+			return ""
 		}
 	},
 	"ismutableflag": func(flag imap.Flag) bool {

@@ -95,6 +95,10 @@ var (
 	errPhotoUnreadable = errors.New("carddav: photo is not an image")
 )
 
+// photoQuality is the JPEG setting a card's picture is stored at: past
+// it the bytes grow faster than a thumbnail-sized picture improves.
+const photoQuality = 82
+
 func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
 	file, err := ctx.FormFile("photo")
 	if err != nil || file == nil || file.Size == 0 {
@@ -128,7 +132,7 @@ func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
 	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Over, nil)
 
 	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 82}); err != nil {
+	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: photoQuality}); err != nil {
 		return errPhotoUnreadable
 	}
 	// vCard 4.0 carries the picture as a data URI; 3.0 as an encoded
@@ -826,7 +830,7 @@ func handleCreateBook(p *plugin) func(*alborz.Context) error {
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("contacts.newbook")),
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Session.Username(),
-			Color:          "#3366cc",
+			Color:          dav.DefaultColor,
 			Title:          ctx.T("contacts.newbook"),
 			ListHref:       "/contacts",
 			BackLabel:      ctx.T("nav.contacts"),

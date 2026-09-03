@@ -95,6 +95,14 @@ func ListCollections[P CollectionProps](ctx context.Context, client *http.Client
 	return out, nil
 }
 
+// DefaultColor is what a new collection's colour field opens on, a
+// blue every client shows and none reserves for something else.
+const DefaultColor = "#3366cc"
+
+// maxCreateAttempts bounds the walk to a free address: past this many
+// taken names something other than a clash is going on.
+const maxCreateAttempts = 20
+
 // ErrCollectionExists reports the address as taken: MKCALENDAR or MKCOL
 // on a resource that is already there is 405, which is what RFC 4918
 // asks and what SabreDAV answers. The form says so rather than
@@ -147,7 +155,7 @@ func CreateCollection(ctx context.Context, base *url.URL, homeSet, name, fallbac
 		if err == nil {
 			return nil
 		}
-		if !errors.Is(err, ErrCollectionExists) || attempt == 20 {
+		if !errors.Is(err, ErrCollectionExists) || attempt == maxCreateAttempts {
 			return err
 		}
 	}

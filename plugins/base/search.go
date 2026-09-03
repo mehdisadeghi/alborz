@@ -177,5 +177,11 @@ func PrepareSearch(terms string, headersOnly bool) *imap.SearchCriteria {
 		}
 	}
 
+	// A term nobody recognises is skipped above, so a query made only of
+	// those narrows by nothing. That is empty criteria, not no criteria:
+	// the search path takes a pointer and a nil one is a crash.
+	if criteria == nil {
+		criteria = &imap.SearchCriteria{}
+	}
 	return criteria
 }

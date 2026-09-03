@@ -3,9 +3,7 @@ package alborzbase
 import (
 	"bytes"
 	"fmt"
-	"net/mail"
 
-	gomail "github.com/emersion/go-message/mail"
 	"strings"
 	"time"
 
@@ -237,26 +235,14 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, cale
 	if err != nil {
 		return err
 	}
-	me := ctx.Session.Username()
-	from := me
-	if settings.From != "" {
-		from = (&mail.Address{Name: settings.From, Address: me}).String()
-	}
-	var header gomail.Header
-	header.GenerateMessageID()
-	id, _ := header.MessageID()
-
 	msg := &OutgoingMessage{
-		From:           from,
+		From:           fromAddress(settings, ctx.Session.Username()),
 		To:             to,
 		Subject:        subject,
-		MessageID:      "<" + id + ">",
+		MessageID:      newMessageID(),
 		Text:           calendar,
 		CalendarMethod: method,
-		Mailer:         alborz.BrandName,
-	}
-	if v := ctx.Server.Options.Version; v != "" {
-		msg.Mailer += "/" + v
+		Mailer:         mailerName(ctx),
 	}
 	return ctx.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, msg)
@@ -303,19 +289,11 @@ func invitationReply(ctx *alborz.Context, inv *Invitation, status string) (*Outg
 		return nil, fmt.Errorf("failed to write the reply calendar: %v", err)
 	}
 
-	from := me
-	if settings.From != "" {
-		from = (&mail.Address{Name: settings.From, Address: me}).String()
-	}
-	var header gomail.Header
-	header.GenerateMessageID()
-	id, _ := header.MessageID()
-
 	return &OutgoingMessage{
-		From:      from,
+		From:      fromAddress(settings, me),
 		To:        []string{inv.Organizer},
 		Subject:   replySubject(status, inv.Summary),
-		MessageID: "<" + id + ">",
+		MessageID: newMessageID(),
 		Text:      buf.String(),
 		// The part is the calendar itself; nothing else is said, because
 		// the organizer's client reads the calendar and not the prose.

@@ -505,9 +505,9 @@ func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName
 func newIMAPBaseRenderData(ctx *alborz.Context,
 	base *alborz.BaseRenderData) (*IMAPBaseRenderData, error) {
 
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, err)
+		return nil, err
 	}
 
 	settings, err := LoadSettings(ctx.Session.Store())
@@ -541,9 +541,9 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 var unifiedRoles = []string{"INBOX", "Drafts", "Sent", "Junk", "Trash", "Archive"}
 
 func handleUnifiedMailbox(ctx *alborz.Context) error {
-	role, err := url.PathUnescape(ctx.Param("mbox"))
+	role, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 	if !slices.Contains(unifiedRoles, role) {
 		return echo.NewHTTPError(http.StatusNotFound,
@@ -753,7 +753,7 @@ func unifiedLess(sortKey string, reverse bool) func(a, b IMAPMessage) int {
 	switch sortKey {
 	case "from":
 		cmp = func(a, b IMAPMessage) int {
-			return strings.Compare(strings.ToLower(senderLabel(a)), strings.ToLower(senderLabel(b)))
+			return strings.Compare(strings.ToLower(envelopeName(a.Envelope.From)), strings.ToLower(envelopeName(b.Envelope.From)))
 		}
 	case "subject":
 		cmp = func(a, b IMAPMessage) int {
@@ -802,16 +802,6 @@ func unifiedLess(sortKey string, reverse bool) func(a, b IMAPMessage) int {
 	}
 }
 
-func senderLabel(m IMAPMessage) string {
-	for _, a := range m.Envelope.From {
-		if a.Name != "" {
-			return a.Name
-		}
-		return a.Addr()
-	}
-	return ""
-}
-
 func handleGetMailbox(ctx *alborz.Context) error {
 	// Reading mail is what precedes writing it, so this is where the
 	// recipient suggestions are put on to warm. Nothing here waits for
@@ -822,9 +812,9 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		return handleUnifiedMailbox(ctx)
 	}
 
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	page := 0
@@ -1088,9 +1078,20 @@ func handleNewMailbox(ctx *alborz.Context) error {
 			break
 		}
 	}
+	name := ""
+	render := func(status int, errText string) error {
+		return ctx.Render(status, "new-mailbox.html", &NewMailboxRenderData{
+			IMAPBaseRenderData: *ibase,
+			Error:              errText,
+			Name:               name,
+			SelectedAccount:    selectedAccount,
+			SelectedLocation:   selectedLocation,
+			LocationGroups:     locationGroups,
+		})
+	}
 
 	if ctx.Request().Method == http.MethodPost {
-		name := ctx.FormValue("name")
+		name = ctx.FormValue("name")
 		selectedLocation = ctx.FormValue("location")
 		var location *NewMailboxLocation
 		for i := range locationGroups {
@@ -1102,24 +1103,10 @@ func handleNewMailbox(ctx *alborz.Context) error {
 			}
 		}
 		if location == nil {
-			return ctx.Render(http.StatusUnprocessableEntity, "new-mailbox.html", &NewMailboxRenderData{
-				IMAPBaseRenderData: *ibase,
-				Error:              ctx.T("form.destinationneeded"),
-				Name:               name,
-				SelectedAccount:    selectedAccount,
-				SelectedLocation:   selectedLocation,
-				LocationGroups:     locationGroups,
-			})
+			return render(http.StatusUnprocessableEntity, ctx.T("form.destinationneeded"))
 		}
 		if name == "" {
-			return ctx.Render(http.StatusUnprocessableEntity, "new-mailbox.html", &NewMailboxRenderData{
-				IMAPBaseRenderData: *ibase,
-				Error:              ctx.T("form.nameneeded"),
-				Name:               name,
-				SelectedAccount:    selectedAccount,
-				SelectedLocation:   selectedLocation,
-				LocationGroups:     locationGroups,
-			})
+			return render(http.StatusUnprocessableEntity, ctx.T("form.nameneeded"))
 		}
 
 		selectedSession := ctx.SessionFor(selectedAccount)
@@ -1135,14 +1122,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 		})
 
 		if err != nil {
-			return ctx.Render(http.StatusUnprocessableEntity, "new-mailbox.html", &NewMailboxRenderData{
-				IMAPBaseRenderData: *ibase,
-				Error:              err.Error(),
-				Name:               name,
-				SelectedAccount:    selectedAccount,
-				SelectedLocation:   selectedLocation,
-				LocationGroups:     locationGroups,
-			})
+			return render(http.StatusUnprocessableEntity, err.Error())
 		}
 
 		listings.evictAll(selectedAccount)
@@ -1153,13 +1133,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, destination)
 	}
 
-	return ctx.Render(http.StatusOK, "new-mailbox.html", &NewMailboxRenderData{
-		IMAPBaseRenderData: *ibase,
-		Error:              "",
-		SelectedAccount:    selectedAccount,
-		SelectedLocation:   selectedLocation,
-		LocationGroups:     locationGroups,
-	})
+	return render(http.StatusOK, "")
 }
 
 type DeleteMailboxRenderData struct {
@@ -1395,13 +1369,12 @@ type MessageRenderData struct {
 // server announces; this is for a server without IDLE, where a reader
 // who knows something arrived has no other way to say so.
 func handleRefreshMailbox(ctx *alborz.Context) error {
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 	listings.evict(ctx.Session.Username(), mboxName)
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(
-		"/mailbox/"+url.PathEscape(mboxName))))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
 
 // handleInvitationReply answers a meeting request by mail, which is
@@ -1409,9 +1382,9 @@ func handleRefreshMailbox(ctx *alborz.Context) error {
 // is re-read from the message rather than taken from the form: what is
 // answered has to be what was sent.
 func handleInvitationReply(ctx *alborz.Context) error {
-	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	status := strings.ToUpper(ctx.FormValue("status"))
@@ -1438,10 +1411,7 @@ func handleInvitationReply(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	reply.Mailer = alborz.BrandName
-	if v := ctx.Server.Options.Version; v != "" {
-		reply.Mailer += "/" + v
-	}
+	reply.Mailer = mailerName(ctx)
 	if err := ctx.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, reply)
 	}); err != nil {
@@ -1458,9 +1428,9 @@ func handleInvitationReply(ctx *alborz.Context) error {
 // and checkable against what was actually stored, none of which a
 // rendered page can do.
 func handleDownloadMessage(ctx *alborz.Context) error {
-	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	var raw []byte
@@ -1489,9 +1459,9 @@ func handleDownloadMessage(ctx *alborz.Context) error {
 // It streams: a folder does not fit in memory, and the reader should
 // see the file start rather than a spinner.
 func handleExportMbox(ctx *alborz.Context) error {
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 	params, err := ctx.FormParams()
 	if err != nil {
@@ -1627,9 +1597,9 @@ func downloadName(name, fallback, ext string) string {
 }
 
 func handleGetPart(ctx *alborz.Context, raw bool) error {
-	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	partPath, err := parsePartPath(ctx.QueryParam("part"))
@@ -1850,13 +1820,22 @@ func ownIdentity(settings *Settings, trust deliveryTrust, want string) string {
 	if trust.ours(parsed.Address) {
 		return want
 	}
+	if matchIdentity(settings, parsed.Address) != "" {
+		return want
+	}
+	return ""
+}
+
+// matchIdentity names the identity written as the address, or "" when
+// none of the account's identities is.
+func matchIdentity(settings *Settings, address string) string {
 	for _, identity := range settings.Identities {
-		mine, err := mail.ParseAddress(identity)
+		parsed, err := mail.ParseAddress(identity)
 		if err != nil {
 			continue
 		}
-		if strings.EqualFold(mine.Address, parsed.Address) {
-			return want
+		if strings.EqualFold(parsed.Address, address) {
+			return identity
 		}
 	}
 	return ""
@@ -1987,6 +1966,32 @@ func composeIdentities(ctx *alborz.Context) []AccountIdentities {
 type messagePath struct {
 	Mailbox string
 	Uid     imap.UID
+}
+
+// mailboxURL is the page of a folder, under the account the request
+// named.
+func mailboxURL(ctx *alborz.Context, mboxName string) string {
+	return ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName))
+}
+
+// mailboxRef reads the folder a route names. A name that does not
+// unescape is a malformed link, which is the caller's fault.
+func mailboxRef(ctx *alborz.Context) (string, error) {
+	name, err := url.PathUnescape(ctx.Param("mbox"))
+	if err != nil {
+		return "", echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	return name, nil
+}
+
+// messageRef reads the folder and UID a route names, with the same
+// answer for a malformed one.
+func messageRef(ctx *alborz.Context) (string, imap.UID, error) {
+	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	if err != nil {
+		return "", 0, echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	return mboxName, uid, nil
 }
 
 // attachedMessages is the compose form's record of whole messages
@@ -2139,25 +2144,14 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 
 	// Both the sent copy and the saved draft carry it, so a message says
 	// what wrote it however it left here.
-	msg.Mailer = alborz.BrandName
-	if v := ctx.Server.Options.Version; v != "" {
-		msg.Mailer += "/" + v
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
 	}
+	msg.Mailer = mailerName(ctx)
 
 	if msg.From == "" && strings.ContainsRune(ctx.Session.Username(), '@') {
-		settings, err := LoadSettings(ctx.Session.Store())
-		if err != nil {
-			return err
-		}
-		if settings.From != "" {
-			addr := mail.Address{
-				Name:    settings.From,
-				Address: ctx.Session.Username(),
-			}
-			msg.From = addr.String()
-		} else {
-			msg.From = ctx.Session.Username()
-		}
+		msg.From = fromAddress(settings, ctx.Session.Username())
 	}
 
 	if ctx.Request().Method == http.MethodPost {
@@ -2184,10 +2178,19 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		if err != nil {
 			return err
 		}
-		msg.From = sender.Username()
-		if settings.From != "" {
-			msg.From = (&mail.Address{Name: settings.From, Address: sender.Username()}).String()
+		render := func(status int, signature, errText string) error {
+			ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
+			return ctx.Render(status, "compose.html", &ComposeRenderData{
+				IMAPBaseRenderData: *ibase,
+				Message:            msg,
+				Attached:           attachedList(msg),
+				Identities:         composeIdentities(ctx),
+				Signatures:         settings.Signatures,
+				Signature:          signature,
+				Error:              errText,
+			})
 		}
+		msg.From = fromAddress(settings, sender.Username())
 		// An identity replaces the address, and carries its own name when
 		// it names one. A stale choice falls back to the account itself.
 		//
@@ -2208,16 +2211,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}{{"to", &msg.To}, {"cc", &msg.Cc}, {"bcc", &msg.Bcc}, {"reply_to", &msg.ReplyTo}} {
 			addresses, err := parseAddressList(ctx.FormValue(field.name))
 			if err != nil {
-				ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
-				return ctx.Render(http.StatusUnprocessableEntity, "compose.html", &ComposeRenderData{
-					IMAPBaseRenderData: *ibase,
-					Message:            msg,
-					Attached:           attachedList(msg),
-					Identities:         composeIdentities(ctx),
-					Signatures:         settings.Signatures,
-					Signature:          ctx.FormValue("signature"),
-					Error:              ctx.T("form.recipientinvalid"),
-				})
+				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), ctx.T("form.recipientinvalid"))
 			}
 			*field.into = addresses
 		}
@@ -2231,26 +2225,14 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			chosen := ctx.FormValue("signature")
 			sig, _ := settings.signatureNamed(chosen)
 			msg.Text = withSignature(msg.Text, sig.Text)
-			ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
-			return ctx.Render(http.StatusOK, "compose.html", &ComposeRenderData{
-				IMAPBaseRenderData: *ibase,
-				Message:            msg,
-				Attached:           attachedList(msg),
-				Identities:         composeIdentities(ctx),
-				Signatures:         settings.Signatures,
-				Signature:          sig.Name,
-			})
+			return render(http.StatusOK, sig.Name, "")
 		}
 		// Both halves of this are the server's to know: the account's
 		// setting, and whether the message being answered came from a
 		// list. Neither is asked of the page - a form field carrying a
 		// decision is one the reader's browser can lose or change, and
 		// it made the feature depend on when a tab happened to load.
-		sendSettings, err := LoadSettings(sender.Store())
-		if err != nil {
-			return err
-		}
-		msg.SendHTML = sendSettings.SendHTML
+		msg.SendHTML = settings.SendHTML
 		if msg.SendHTML && options.InReplyTo != nil {
 			toList := false
 			if err := ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -2271,10 +2253,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		if msg.MessageID == "" {
 			// The page carries the id so a draft saved twice stays one
 			// message; a form that lost it is still a message to send.
-			var hdr mail.Header
-			hdr.GenerateMessageID()
-			mid, _ := hdr.MessageID()
-			msg.MessageID = "<" + mid + ">"
+			msg.MessageID = newMessageID()
 		}
 
 		form, err := ctx.MultipartForm()
@@ -2364,16 +2343,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		// A message with nowhere to go is not sent, and is not reported
 		// as sent; a draft may of course be addressed later.
 		if !saveAsDraft && len(msg.To) == 0 && len(msg.Cc) == 0 && len(msg.Bcc) == 0 {
-			ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
-			return ctx.Render(http.StatusUnprocessableEntity, "compose.html", &ComposeRenderData{
-				IMAPBaseRenderData: *ibase,
-				Message:            msg,
-				Attached:           attachedList(msg),
-				Identities:         composeIdentities(ctx),
-				Signatures:         settings.Signatures,
-				Signature:          ctx.FormValue("signature"),
-				Error:              ctx.T("form.recipientneeded"),
-			})
+			return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), ctx.T("form.recipientneeded"))
 		}
 
 		if saveAsDraft {
@@ -2432,11 +2402,6 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 	}
 
 	ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
-	settings, err := LoadSettings(ctx.Session.Store())
-	if err != nil {
-		return err
-	}
-
 	data := &ComposeRenderData{
 		Identities:         composeIdentities(ctx),
 		IMAPBaseRenderData: *ibase,
@@ -2582,14 +2547,11 @@ func handleComposeNew(ctx *alborz.Context) error {
 	}
 
 	// These are common mailto URL query parameters
-	var hdr mail.Header
-	hdr.GenerateMessageID()
-	mid, _ := hdr.MessageID()
 	return handleCompose(ctx, &OutgoingMessage{
 		From:      ownIdentity(settings, newDeliveryTrust(ctx, settings, ctx.Session.Username()), ctx.QueryParam("from")),
 		To:        strings.Split(ctx.QueryParam("to"), ","),
 		Subject:   ctx.QueryParam("subject"),
-		MessageID: "<" + mid + ">",
+		MessageID: newMessageID(),
 		InReplyTo: ctx.QueryParam("in-reply-to"),
 		Text:      text,
 	}, &composeOptions{Signature: chosen})
@@ -2658,9 +2620,9 @@ func unwrapIMAPAddress(addr imap.Address) string {
 func handleReply(ctx *alborz.Context) error {
 	var inReplyToPath messagePath
 	var err error
-	inReplyToPath.Mailbox, inReplyToPath.Uid, err = parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	inReplyToPath.Mailbox, inReplyToPath.Uid, err = messageRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	var msg OutgoingMessage
@@ -2754,10 +2716,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	ret.Text = replyBody(ctx, inReplyTo, quoted, settings.ReplyBelowQuote)
 	ret.QuoteBelow = !settings.ReplyBelowQuote
 
-	var hdr mail.Header
-	hdr.GenerateMessageID()
-	mid, _ := hdr.MessageID()
-	ret.MessageID = "<" + mid + ">"
+	ret.MessageID = newMessageID()
 	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
 	// RFC 5322 3.6.4: the chain is what was there plus what is being
 	// answered, and it is the header threading actually runs on.
@@ -2884,14 +2843,8 @@ func identityAddressed(settings *Settings, username string, lists ...[]imap.Addr
 			if strings.EqualFold(addr.Addr(), username) {
 				return ""
 			}
-			for _, identity := range settings.Identities {
-				parsed, err := mail.ParseAddress(identity)
-				if err != nil {
-					continue
-				}
-				if strings.EqualFold(parsed.Address, addr.Addr()) {
-					return identity
-				}
+			if identity := matchIdentity(settings, addr.Addr()); identity != "" {
+				return identity
 			}
 		}
 	}
@@ -2988,14 +2941,8 @@ func identityDelivered(settings *Settings, username string, delivered []string) 
 		if strings.EqualFold(addr, username) {
 			continue
 		}
-		for _, identity := range settings.Identities {
-			parsed, err := mail.ParseAddress(identity)
-			if err != nil {
-				continue
-			}
-			if strings.EqualFold(parsed.Address, addr) {
-				return identity
-			}
+		if identity := matchIdentity(settings, addr); identity != "" {
+			return identity
 		}
 	}
 	return ""
@@ -3040,9 +2987,9 @@ func filterOutUsername(username string, addresses []imap.Address) []imap.Address
 // not ours. The URI is read from the message again rather than taken
 // from the form, so a page cannot ask us to post anywhere it likes.
 func handleUnsubscribe(ctx *alborz.Context) error {
-	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 	var msg *IMAPMessage
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -3092,9 +3039,9 @@ const unsubscribeTimeout = 15 * time.Second
 // which is not built yet, so it says so rather than silently forwarding
 // one of them.
 func handleForwardSelection(ctx *alborz.Context) error {
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 	params, err := ctx.FormParams()
 	if err != nil {
@@ -3104,7 +3051,7 @@ func handleForwardSelection(ctx *alborz.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
-	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+	back := ctx.NextOr(mailboxURL(ctx, mboxName))
 	if len(uids) == 0 {
 		return ctx.Redirect(http.StatusFound, back)
 	}
@@ -3133,9 +3080,9 @@ func handleForwardSelection(ctx *alborz.Context) error {
 // ones. It is a GET so the page can be reloaded and so compose sees the
 // request it expects; the selection arrives in the query.
 func handleForwardAttached(ctx *alborz.Context) error {
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 	uids, err := parseUidList(strings.Split(ctx.QueryParam("uids"), ","))
 	if err != nil || len(uids) == 0 {
@@ -3150,10 +3097,7 @@ func handleForwardAttached(ctx *alborz.Context) error {
 		if err := attachMessages(ctx, &msg, paths); err != nil {
 			return err
 		}
-		var hdr mail.Header
-		hdr.GenerateMessageID()
-		mid, _ := hdr.MessageID()
-		msg.MessageID = "<" + mid + ">"
+		msg.MessageID = newMessageID()
 		msg.Subject = ctx.Tf("message.forwardcount", len(uids))
 		msg.QuoteBelow = true
 	}
@@ -3163,9 +3107,9 @@ func handleForwardAttached(ctx *alborz.Context) error {
 func handleForward(ctx *alborz.Context) error {
 	var sourcePath messagePath
 	var err error
-	sourcePath.Mailbox, sourcePath.Uid, err = parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	sourcePath.Mailbox, sourcePath.Uid, err = messageRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	var msg OutgoingMessage
@@ -3199,10 +3143,7 @@ func handleForward(ctx *alborz.Context) error {
 		msg.Text = forwardBody(ctx, source, body)
 		msg.QuoteBelow = true
 
-		var hdr mail.Header
-		hdr.GenerateMessageID()
-		mid, _ := hdr.MessageID()
-		msg.MessageID = "<" + mid + ">"
+		msg.MessageID = newMessageID()
 		msg.Subject = source.Envelope.Subject
 		if !strings.HasPrefix(strings.ToLower(msg.Subject), "fwd:") &&
 			!strings.HasPrefix(strings.ToLower(msg.Subject), "fw:") {
@@ -3232,9 +3173,9 @@ func handleForward(ctx *alborz.Context) error {
 func handleEdit(ctx *alborz.Context) error {
 	var sourcePath messagePath
 	var err error
-	sourcePath.Mailbox, sourcePath.Uid, err = parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+	sourcePath.Mailbox, sourcePath.Uid, err = messageRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	// TODO: somehow get the path to the In-Reply-To message (with a search?)
@@ -3303,9 +3244,9 @@ func formOrQueryParam(ctx *alborz.Context, k string) string {
 }
 
 func handleMove(ctx *alborz.Context) error {
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	formParams, err := ctx.FormParams()
@@ -3319,13 +3260,13 @@ func handleMove(ctx *alborz.Context) error {
 
 	if len(uids) == 0 {
 		ctx.Session.PutNotice(ctx.T("notice.nomessages"))
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 
 	to := formOrQueryParam(ctx, "to")
 	if to == "" {
 		ctx.Session.PutNotice(ctx.T("notice.nodestination"))
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -3347,15 +3288,15 @@ func handleMove(ctx *alborz.Context) error {
 	listings.evict(ctx.Session.Username(), mboxName)
 	listings.evict(ctx.Session.Username(), to)
 	ctx.Session.PutNotice(ctx.Tf("notice.moved", len(uids)))
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
 
 // handleEmptyMailbox expunges everything in a folder, the standard
 // one-click cleanup for Junk and Trash.
 func handleEmptyMailbox(ctx *alborz.Context) error {
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	var removed int
@@ -3370,7 +3311,7 @@ func handleEmptyMailbox(ctx *alborz.Context) error {
 
 	listings.evict(ctx.Session.Username(), mboxName)
 	ctx.Session.PutNotice(emptiedNotice(ctx, removed))
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
 
 // emptyMailbox flags and expunges every message in the folder and reports
@@ -3386,15 +3327,8 @@ func emptyMailbox(c *imapclient.Client, mboxName string) (int, error) {
 	}
 	var seq imap.SeqSet
 	seq.AddRange(1, 0)
-	if err := c.Store(seq, &imap.StoreFlags{
-		Op:     imap.StoreFlagsAdd,
-		Silent: true,
-		Flags:  []imap.Flag{imap.FlagDeleted},
-	}, nil).Close(); err != nil {
-		return 0, fmt.Errorf("failed to add deleted flag: %v", err)
-	}
-	if err := c.Expunge().Close(); err != nil {
-		return 0, fmt.Errorf("failed to expunge mailbox: %v", err)
+	if err := deleteMessages(c, mboxName, seq); err != nil {
+		return 0, err
 	}
 	return n, nil
 }
@@ -3446,9 +3380,9 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 }
 
 func handleDelete(ctx *alborz.Context) error {
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	formParams, err := ctx.FormParams()
@@ -3462,28 +3396,11 @@ func handleDelete(ctx *alborz.Context) error {
 
 	if len(uids) == 0 {
 		ctx.Session.PutNotice(ctx.T("notice.nomessages"))
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		if err := ensureMailboxSelected(c, mboxName); err != nil {
-			return err
-		}
-
-		err := c.Store(imap.UIDSetNum(uids...), &imap.StoreFlags{
-			Op:     imap.StoreFlagsAdd,
-			Silent: true,
-			Flags:  []imap.Flag{imap.FlagDeleted},
-		}, nil).Close()
-		if err != nil {
-			return fmt.Errorf("failed to add deleted flag: %v", err)
-		}
-
-		if err := c.Expunge().Close(); err != nil {
-			return fmt.Errorf("failed to expunge mailbox: %v", err)
-		}
-
-		return nil
+		return deleteMessages(c, mboxName, imap.UIDSetNum(uids...))
 	})
 	if err != nil {
 		return err
@@ -3491,13 +3408,13 @@ func handleDelete(ctx *alborz.Context) error {
 
 	listings.evict(ctx.Session.Username(), mboxName)
 	ctx.Session.PutNotice(ctx.Tf("notice.deleted", len(uids)))
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
 
 func handleSetFlags(ctx *alborz.Context) error {
-	mboxName, err := url.PathUnescape(ctx.Param("mbox"))
+	mboxName, err := mailboxRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	formParams, err := ctx.FormParams()
@@ -3518,9 +3435,6 @@ func handleSetFlags(ctx *alborz.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, "unknown flag colour")
 		}
 		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			if err := ensureMailboxSelected(c, mboxName); err != nil {
-				return err
-			}
 			for _, step := range []struct {
 				op    imap.StoreFlagsOp
 				flags []imap.Flag
@@ -3528,10 +3442,8 @@ func handleSetFlags(ctx *alborz.Context) error {
 				if len(step.flags) == 0 {
 					continue
 				}
-				if err := c.Store(imap.UIDSetNum(uids...), &imap.StoreFlags{
-					Op: step.op, Silent: true, Flags: step.flags,
-				}, nil).Close(); err != nil {
-					return fmt.Errorf("failed to set flag colour: %v", err)
+				if err := storeFlags(c, mboxName, imap.UIDSetNum(uids...), step.op, step.flags); err != nil {
+					return fmt.Errorf("failed to set flag colour: %w", err)
 				}
 			}
 			return nil
@@ -3540,8 +3452,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 			return err
 		}
 		listings.evict(ctx.Session.Username(), mboxName)
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(
-			fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName)))))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 	}
 
 	flags, ok := formParams["flags"]
@@ -3576,20 +3487,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 	}
 
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		if err := ensureMailboxSelected(c, mboxName); err != nil {
-			return err
-		}
-
-		err := c.Store(imap.UIDSetNum(uids...), &imap.StoreFlags{
-			Op:     op,
-			Silent: true,
-			Flags:  l,
-		}, nil).Close()
-		if err != nil {
-			return fmt.Errorf("failed to set flags: %w", err)
-		}
-
-		return nil
+		return storeFlags(c, mboxName, imap.UIDSetNum(uids...), op, l)
 	})
 	if err != nil {
 		return err
@@ -3601,7 +3499,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 	}
 	if len(uids) != 1 || (op == imap.StoreFlagsDel && len(l) == 1 && l[0] == imap.FlagSeen) {
 		// Redirecting to the message view would mark the message as read again
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/mailbox/%v", url.PathEscape(mboxName))))
+		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath(fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uids[0])))
 }

@@ -87,6 +87,35 @@ func parseAttachedRef(s string) (messagePath, error) {
 // PartAttachments are the attachments that came from a part of another
 // message, which is the only kind the form can carry back by path. A
 // whole message has no part path and rides in Attached instead.
+// SelectedFrom is the value of the From option the form opens on: the
+// identity the message is written as, matched by address, or the
+// account the page belongs to when the message names none. The options
+// are worth "account" or "account|identity", and only an exact value
+// selects one; comparing the message's From string against them left
+// nothing selected, and a browser then shows the first option, which
+// on a page for any account but the first was somebody else's.
+func (d *ComposeRenderData) SelectedFrom() string {
+	fallback := d.GlobalData.Username
+	if d.GlobalData.URLAccount != "" {
+		fallback = d.GlobalData.URLAccount
+	}
+	want := bareAddress(d.Message.From)
+	if want == "" {
+		return fallback
+	}
+	for _, group := range d.Identities {
+		if strings.EqualFold(want, group.Account) {
+			return group.Account
+		}
+		for _, identity := range group.Addresses {
+			if strings.EqualFold(want, bareAddress(identity)) {
+				return group.Account + "|" + identity
+			}
+		}
+	}
+	return fallback
+}
+
 func (d *ComposeRenderData) PartAttachments() []*imapAttachment {
 	var out []*imapAttachment
 	for _, att := range d.Message.Attachments {

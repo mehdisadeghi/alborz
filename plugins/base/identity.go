@@ -37,15 +37,20 @@ func ownIdentity(settings *Settings, trust deliveryTrust, want string) string {
 // none of the account's identities is.
 func matchIdentity(settings *Settings, address string) string {
 	for _, identity := range settings.Identities {
-		parsed, err := mail.ParseAddress(identity)
-		if err != nil {
-			continue
-		}
-		if strings.EqualFold(parsed.Address, address) {
+		if strings.EqualFold(bareAddress(identity), address) {
 			return identity
 		}
 	}
 	return ""
+}
+
+// bareAddress is the address without the display name an identity or a
+// From may carry; an unparsable string is returned as it is.
+func bareAddress(s string) string {
+	if parsed, err := mail.ParseAddress(s); err == nil {
+		return parsed.Address
+	}
+	return s
 }
 
 // parseIdentities reads the settings textarea: one address per line,
@@ -136,11 +141,7 @@ func (t deliveryTrust) ours(addr string) bool {
 // own server - written above the Received that server added, since
 // everything below it was in the message before we ever saw it.
 func (t deliveryTrust) addresses(msg *IMAPMessage) []string {
-	account := t.account
-	if msg.Account != "" {
-		// Every row of the merged view belongs to a different account.
-		account = msg.Account
-	}
+	account := t.owner(msg)
 	addrs, cut := deliveryAddresses(msg.rootHeader, t.authserv)
 	var out []string
 	for i, addr := range addrs {
@@ -150,6 +151,15 @@ func (t deliveryTrust) addresses(msg *IMAPMessage) []string {
 		out = append(out, addr)
 	}
 	return out
+}
+
+// owner is the account a message landed in: the request's, unless the
+// row came from another account of the merged view.
+func (t deliveryTrust) owner(msg *IMAPMessage) string {
+	if msg.Account != "" {
+		return msg.Account
+	}
+	return t.account
 }
 
 // alias is the one address a message reached that is not the account it

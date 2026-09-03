@@ -135,6 +135,13 @@
       {{ range tuple (tuple "sort.date" "date") (tuple "sort.starred" "starred") (tuple "sort.sender" "from") (tuple "sort.subject" "subject") (tuple "sort.size" "size") }}
       {{ template "sort-th" (dict "label" ($.T (index . 0)) "key" (index . 1) "sort" $hsort "dir" $.SortDir "exp" $hexp "params" $hplain "reset" $hreset "dirx" $hdirx "class" "button-link") }}
       {{ end }}
+      {{/* Not a column to order by but a shape to read in, so it sits
+           at the end of the same menu rather than among the columns. */}}
+      {{ if .ThreadSupported }}
+      <a class="button-link{{ if .Threaded }} is-current{{ end }}"
+         href="{{ localhref (printf "?sort=%s%s" "thread" $hplain) }}"
+         {{ if .Threaded }}aria-current="true"{{ end }}>{{$.T "sort.thread"}}</a>
+      {{ end }}
     </div>
   </details>
   {{ end }}

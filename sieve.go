@@ -127,7 +127,7 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ManageSieve server: %v", err)
 	}
-	step := func() { conn.SetDeadline(time.Now().Add(roundTripTimeout)) }
+	step := func() { conn.SetDeadline(time.Now().Add(RoundTripTimeout)) }
 
 	step()
 	c, err := managesieve.NewClient(conn, host)

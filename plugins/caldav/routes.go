@@ -27,7 +27,7 @@ func (p *plugin) collectionPage() dav.Page {
 		Color:  calendarColor,
 		Forget: p.dav.Forget,
 		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
-			c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+			_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 			if err != nil {
 				return dav.Collection{}, nil, "", "", err
 			}
@@ -40,7 +40,7 @@ func (p *plugin) collectionPage() dav.Page {
 			if list == "/tasks" {
 				label = ctx.T("nav.tasks")
 			}
-			return *info, func() int { return collectionCount(ctx, c, *info) }, list, label, nil
+			return *info, p.dav.CountObjects(ctx, info.Path), list, label, nil
 		},
 	}
 }
@@ -51,26 +51,6 @@ func collectionList(info dav.Collection) string {
 		return "/tasks"
 	}
 	return "/calendar"
-}
-
-// collectionCount is how many objects the collection holds, which is
-// what a delete has to state. It is one query the rail already makes
-// for every collection it lists.
-func collectionCount(ctx *alborz.Context, c *caldav.Client, info dav.Collection) int {
-	comp := "VEVENT"
-	if !supportsEvent(info.Components) {
-		comp = "VTODO"
-	}
-	query := &caldav.CalendarQuery{
-		CompRequest: caldav.CalendarCompRequest{Name: "VCALENDAR", Props: []string{"VERSION"}},
-		CompFilter:  caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{{Name: comp}}},
-	}
-	objs, err := c.QueryCalendar(ctx.Request().Context(), info.Path, query)
-	if err != nil {
-		ctx.Logger().Printf("failed to count %s: %v", info.Path, err)
-		return -1
-	}
-	return len(objs)
 }
 
 // createForm is the form for a new calendar. A task list is a calendar

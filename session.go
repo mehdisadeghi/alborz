@@ -420,6 +420,9 @@ type SessionManager struct {
 
 	locker   sync.Mutex
 	sessions map[string]*Session // protected by locker
+	// warnedTransientStore says the METADATA warning has been printed;
+	// protected by locker, like the sessions it is set beside.
+	warnedTransientStore bool
 }
 
 func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger) *SessionManager {
@@ -516,7 +519,7 @@ func (sm *SessionManager) Put(username, password string) (*Session, error) {
 		attachments: make(map[string]*Attachment),
 	}
 
-	s.store, err = newStore(s, sm.logger)
+	s.store, err = sm.newStore(s)
 	if err != nil {
 		return nil, err
 	}

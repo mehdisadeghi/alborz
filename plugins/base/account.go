@@ -95,7 +95,6 @@ func handleLogout(ctx *alborz.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 	}
 	wasCurrent := target == ctx.DefaultSession
-	listings.evictAll(username)
 	ctx.Server.ForgetAccount(username)
 	if next := ctx.LogoutAccount(username); next != nil {
 		if wasCurrent {

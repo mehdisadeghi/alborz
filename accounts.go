@@ -337,12 +337,10 @@ const (
 	loginRetryAfter = 2 * time.Minute
 )
 
-var loginFailures sync.Map // username -> time.Time of the last failure
-
 // recentlyFailed reports whether signing this account in was tried and
 // failed too recently to be worth trying again.
-func recentlyFailed(username string) bool {
-	when, ok := loginFailures.Load(username)
+func (s *Server) recentlyFailed(username string) bool {
+	when, ok := s.loginFailures.Load(username)
 	if !ok {
 		return false
 	}
@@ -359,7 +357,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	sessions := make([]*Session, len(tokens))
 	var wg sync.WaitGroup
 	for i, token := range tokens {
-		if recentlyFailed(token.Username) {
+		if ctx.Server.recentlyFailed(token.Username) {
 			continue
 		}
 		wg.Add(1)
@@ -367,11 +365,11 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 			defer wg.Done()
 			s, err := ctx.Server.Sessions.Put(token.Username, token.Password)
 			if err != nil {
-				loginFailures.Store(token.Username, time.Now())
+				ctx.Server.loginFailures.Store(token.Username, time.Now())
 				ctx.Logger().Printf("Login failed for %q: %v", token.Username, err)
 				return
 			}
-			loginFailures.Delete(token.Username)
+			ctx.Server.loginFailures.Delete(token.Username)
 			sessions[i] = s
 		}()
 	}

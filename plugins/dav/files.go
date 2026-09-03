@@ -59,3 +59,38 @@ func Raw[C files](ctx *alborz.Context, client func(*alborz.Session) (C, error)) 
 	defer body.Close()
 	return ServeRaw(ctx, path.Base(refs[0].Path), body)
 }
+
+// HandleExport hands the selection back as one file, each object as its
+// server stores it and join making the file of them: the rows name
+// their own account, so the selection can span accounts. An empty
+// selection lands on list.
+func HandleExport[C files](client func(*alborz.Session) (C, error), list string, name func(*alborz.Context) string, join func([][]byte) ([]byte, error)) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		refs, err := Selection(ctx, client)
+		if err != nil {
+			return err
+		}
+		if len(refs) == 0 {
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(list)))
+		}
+		var objects [][]byte
+		for _, r := range Each(ctx.Request().Context(), refs, func(ctx context.Context, ref Ref[C]) ([]byte, error) {
+			body, err := ref.Client.Open(ctx, ref.Path)
+			if err != nil {
+				return nil, err
+			}
+			defer body.Close()
+			return io.ReadAll(body)
+		}) {
+			if r.Err != nil {
+				return r.Err
+			}
+			objects = append(objects, r.Value)
+		}
+		file, err := join(objects)
+		if err != nil {
+			return err
+		}
+		return Download(ctx, name(ctx), file)
+	}
+}

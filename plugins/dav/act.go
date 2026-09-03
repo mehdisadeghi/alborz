@@ -7,8 +7,16 @@ import (
 )
 
 // Selection is what a route acts on: the one object its own path names,
-// in the URL's account.
+// in the URL's account, or the rows a list had checked. Acting on one
+// object is acting on a selection of one.
 func Selection[C any](ctx *alborz.Context, client func(*alborz.Session) (C, error)) ([]Ref[C], error) {
+	if ctx.Param("path") == "" {
+		params, err := ctx.FormParams()
+		if err != nil {
+			return nil, err
+		}
+		return Selected(ctx, params["paths"], client)
+	}
 	path, err := ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return nil, err

@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"syscall"
@@ -110,7 +111,7 @@ type Session struct {
 	store              Store
 
 	noticeLocker sync.Mutex
-	notice       string // protected by noticeLocker
+	notice       *Notice // protected by noticeLocker
 
 	imapLocker sync.Mutex
 	imapConn   *imapclient.Client // protected by locker, can be nil
@@ -382,17 +383,55 @@ func (s *Session) PopAttachment(uuid string) *Attachment {
 	return a
 }
 
-func (s *Session) PutNotice(n string) {
+// Notice is what the next page tells the reader about the request
+// that redirected to it: what happened, how it went, and what follows
+// from it, when something does.
+type Notice struct {
+	Kind string
+	Text string
+	// Action is the one thing a reader may want next - to undo, to
+	// delete the rest, to see what was sent. Nil when nothing follows.
+	Action *NoticeAction
+}
+
+const (
+	NoticeDone    = "done"
+	NoticeWarning = "warning"
+	NoticeFailed  = "failed"
+)
+
+// NoticeAction is a link, or a POST when it changes state: an undo is
+// a request the page must not make by following a link.
+type NoticeAction struct {
+	Label  string
+	Path   string
+	Fields url.Values
+}
+
+// PutNotice records that a request did what it was asked.
+func (s *Session) PutNotice(text string) {
+	s.Notify(Notice{Kind: NoticeDone, Text: text})
+}
+
+// Undo is the action a notice carries when the handler knows the exact
+// inverse of what it just did: a POST back to itself with what that
+// needs, marked so the answer offers nothing further.
+func (ctx *Context) Undo(path string, fields url.Values) *NoticeAction {
+	fields.Set("undo", "1")
+	return &NoticeAction{Label: ctx.T("notice.undo"), Path: path, Fields: fields}
+}
+
+func (s *Session) Notify(n Notice) {
 	s.noticeLocker.Lock()
-	s.notice = n
+	s.notice = &n
 	s.noticeLocker.Unlock()
 }
 
-func (s *Session) PopNotice() string {
+func (s *Session) PopNotice() *Notice {
 	s.noticeLocker.Lock()
 	defer s.noticeLocker.Unlock()
 	n := s.notice
-	s.notice = ""
+	s.notice = nil
 	return n
 }
 

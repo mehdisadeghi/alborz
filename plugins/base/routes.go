@@ -15,6 +15,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	})
 
 	p.GET("/mailbox/:mbox", handleGetMailbox)
+	p.GET("/mailbox/:mbox/empty", handleEmptyMailbox)
 	p.POST("/mailbox/:mbox/empty", handleEmptyMailbox)
 	p.POST("/mailbox/:role/empty-all", handleEmptyAllMailbox)
 	p.POST("/mailbox/:mbox", handleGetMailbox)

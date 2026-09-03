@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"net/url"
 	"path"
 	"sort"
 	"strings"
@@ -1113,7 +1114,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			method, told = alborzbase.MethodCancel, parseAttendees(ctx.FormValue("attendees_was"))
 		}
 		if err := sendScheduling(ctx, event, told, method); err != nil {
-			ctx.Session.PutNotice(ctx.T("invite.sendfailed"))
+			ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.sendfailed")})
 			ctx.Logger().Printf("failed to send the scheduling message: %v", err)
 		} else if len(told) > 0 {
 			ctx.Session.PutNotice(ctx.T("invite.sent"))
@@ -1655,19 +1656,28 @@ func (p *plugin) completeTask(ctx *alborz.Context) error {
 	}
 
 	status, _ := todo.Props.Text("STATUS")
-	markTodo(todo, status != "COMPLETED")
+	done := status != "COMPLETED"
+	markTodo(todo, done)
 
 	_, err = c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data)
 	if err != nil {
 		return fmt.Errorf("failed to update task: %v", err)
 	}
 
-	// A completion from the merged list returns to it; next comes
-	// from the page's own form, so it must stay a local path.
-	if next := ctx.FormValue("next"); strings.HasPrefix(next, "/") && !strings.HasPrefix(next, "//") {
-		return ctx.Redirect(http.StatusFound, next)
+	// A completion from the merged list returns to it.
+	target := ctx.NextOr(ctx.AccountPath("/tasks"))
+	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
+	if ctx.FormValue("undo") == "" {
+		key := "notice.taskopen"
+		if done {
+			key = "notice.taskdone"
+		}
+		// The toggle is its own inverse.
+		notice = alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T(key),
+			Action: ctx.Undo(ctx.AccountPath("/tasks/"+url.PathEscape(taskPath)+"/complete"), url.Values{"next": {target}})}
 	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/tasks"))
+	ctx.Session.Notify(notice)
+	return ctx.Redirect(http.StatusFound, target)
 }
 
 func markTodo(todo *ical.Component, done bool) {
@@ -1712,6 +1722,7 @@ func (p *plugin) completeTasks(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	undo := ctx.FormValue("undo") != ""
 	for _, ref := range refs {
 		co, err := getCalendarObject(ctx, ref.Client, ref.Path)
 		if err != nil {
@@ -1721,12 +1732,19 @@ func (p *plugin) completeTasks(ctx *alborz.Context) error {
 		if todo == nil {
 			return fmt.Errorf("no VTODO component found")
 		}
-		markTodo(todo, true)
+		markTodo(todo, !undo)
 		if _, err := ref.Client.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {
 			return fmt.Errorf("failed to update task: %v", err)
 		}
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
+	target := ctx.NextOr("/tasks")
+	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
+	if !undo && len(refs) > 0 {
+		notice = alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.tasksdone", len(refs)),
+			Action: ctx.Undo("/tasks/complete", url.Values{"paths": params["paths"], "next": {target}})}
+	}
+	ctx.Session.Notify(notice)
+	return ctx.Redirect(http.StatusFound, target)
 }
 
 // moveTasks copies each task into the chosen list and removes the

@@ -103,6 +103,25 @@ const DefaultColor = "#3366cc"
 // taken names something other than a clash is going on.
 const maxCreateAttempts = 20
 
+// CountObjects says how many objects a collection holds, which is what
+// a delete has to state. A Depth 1 PROPFIND asking for nothing but the
+// resource type lists one response per child and is cached like any
+// other read, where a REPORT for every object's data was not cheap.
+func CountObjects(ctx context.Context, client *http.Client, base *url.URL, coll string) (int, error) {
+	target := base.ResolveReference(&url.URL{Path: coll}).String()
+	ms, err := Propfind[struct{}](ctx, client, target, `<D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>`)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, resp := range ms.Responses {
+		if CanonicalCollectionPath(resp.Href) != CanonicalCollectionPath(coll) {
+			n++
+		}
+	}
+	return n, nil
+}
+
 // ErrCollectionExists reports the address as taken: MKCALENDAR or MKCOL
 // on a resource that is already there is 405, which is what RFC 4918
 // asks and what SabreDAV answers. The form says so rather than

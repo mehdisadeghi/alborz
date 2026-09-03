@@ -78,6 +78,21 @@ func (p *Provider) HTTPClient(session *alborz.Session) *http.Client {
 	return httpClient(p.cache, session, p.debug)
 }
 
+// CountObjects counts a collection's objects for the session, lazily:
+// -1 means the server did not answer, which the page states rather
+// than guessing at.
+func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
+	return func() int {
+		base, _ := p.URL(ctx.Session)
+		n, err := CountObjects(ctx.Request().Context(), p.HTTPClient(ctx.Session), base, coll)
+		if err != nil {
+			ctx.Logger().Printf("%s: failed to count %s: %v", p.kind.Name, coll, err)
+			return -1
+		}
+		return n
+	}
+}
+
 // Enabled reports whether any signed-in account has the service: the
 // pooled pages exist when one does.
 func (p *Provider) Enabled(ctx *alborz.Context) bool {

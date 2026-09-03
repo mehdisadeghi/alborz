@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"net/http"
-	"net/http/cookiejar"
 	"net/mail"
 	"net/url"
 	"slices"
@@ -62,9 +61,6 @@ type plugin struct {
 	// Discovered address book list per username; see clientWithAddressBooks.
 	books *alborz.Memo[[]AddressBookInfo]
 
-	jarsMu sync.Mutex
-	jars   map[string]http.CookieJar // per username
-
 	// Set in debug mode; logs upstream DAV traffic.
 	debug echo.Logger
 }
@@ -75,23 +71,6 @@ func (p *plugin) client(session *alborz.Session) (*carddav.Client, error) {
 		return nil, errNoAddressBook
 	}
 	return newClient(u, p.httpClient(session))
-}
-
-// jar returns the user's persistent cookie jar. Reusing the DAV server's
-// session cookie lets it skip re-authenticating every single request.
-func (p *plugin) jar(session *alborz.Session) http.CookieJar {
-	p.jarsMu.Lock()
-	defer p.jarsMu.Unlock()
-	j, ok := p.jars[session.Username()]
-	if !ok {
-		var err error
-		j, err = cookiejar.New(nil)
-		if err != nil {
-			panic(err) // cannot happen with nil options
-		}
-		p.jars[session.Username()] = j
-	}
-	return j
 }
 
 // davURL resolves the session's CardDAV endpoint, falling back to the
@@ -253,7 +232,6 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		GoPlugin: alborz.GoPlugin{Name: "carddav", Files: public},
 		urls:     urls,
 		books:    alborz.NewBackgroundMemo[[]AddressBookInfo](discoveryTTL),
-		jars:     make(map[string]http.CookieJar),
 	}
 	p.EnabledFunc = func(ctx *alborz.Context) bool {
 		if ctx.Session == nil {

@@ -455,6 +455,28 @@ func (ctx *Context) secureCookies() bool {
 	return ctx.Scheme() == "https"
 }
 
+// cookie is every cookie alborz sets: site-wide, kept from scripts,
+// sent to nobody else, and secure where the request was. A zero life
+// makes a session cookie; an empty value clears the cookie, by dating
+// its expiry long ago.
+func (ctx *Context) cookie(name, value string, life time.Duration) *http.Cookie {
+	c := &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   ctx.secureCookies(),
+	}
+	switch {
+	case value == "":
+		c.Expires = aLongTimeAgo
+	case life > 0:
+		c.Expires = time.Now().Add(life)
+	}
+	return c
+}
+
 // assetURL stamps a theme asset's URL with a digest of its content so the
 // browser can keep it instead of revalidating it on every page; a changed
 // file changes its URL. Disk overrides win over the embedded copy, exactly

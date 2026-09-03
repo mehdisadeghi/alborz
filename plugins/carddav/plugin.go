@@ -114,6 +114,24 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 
 	registerRoutes(p)
 
+	// A card attached to a mail is filed from its own row, into a book
+	// the reader chooses.
+	p.Inject("message.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
+		data := _data.(*alborzbase.MessageRenderData)
+		if !hasAttachment(data.Message, "text/vcard", "text/x-vcard", "text/directory") {
+			return nil
+		}
+		groups, err := p.writableBookGroups(ctx)
+		if err != nil || len(groups) == 0 {
+			return nil
+		}
+		if data.Extra == nil {
+			data.Extra = make(map[string]interface{})
+		}
+		data.Extra["ImportBooks"] = groups
+		return nil
+	})
+
 	p.Inject("compose.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
 		data := _data.(*alborzbase.ComposeRenderData)
 

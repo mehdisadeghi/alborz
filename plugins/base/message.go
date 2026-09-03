@@ -328,6 +328,12 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 
 	trust := newDeliveryTrust(ctx, settings, ctx.Session.Username())
+	// The row says where the mail went only where To and Cc do not
+	// already: an alias the sender wrote out is on the page once.
+	deliveredTo := trust.alias(msg)
+	if addressed(deliveredTo, msg.Envelope.To, msg.Envelope.Cc) {
+		deliveredTo = ""
+	}
 	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, starred)
 	ibase.SidebarAccounts = sidebarAccounts(ctx)
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject)
@@ -354,7 +360,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
 		PreferHTML:         settings.PreferHTML,
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
-		DeliveredTo:        trust.alias(msg),
+		DeliveredTo:        deliveredTo,
 		ForwardedBy:        ForwardedBy(msg.rootHeader, settings.TrustedAuthServ, msg.ListID),
 	})
 }

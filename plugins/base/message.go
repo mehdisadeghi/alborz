@@ -180,15 +180,44 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 	}
 
-	// The rendered view needs the sidebar; its mailbox LIST is issued with
-	// the message's SELECT pipelined behind it, and its STATUS responses
-	// ride along with the message fetch. A raw download skips the sidebar
-	// entirely and only selects to fetch.
+	// The rendered view needs the sidebar, and takes it from the cached
+	// listing the reader came from, with the message's place in the
+	// page. Without one its mailbox LIST is issued with the message's
+	// SELECT pipelined behind it, and its STATUS responses ride along
+	// with the message fetch. A raw download only selects to fetch.
+	var cached *listingEntry
+	if !raw {
+		cached, _ = listings.lookup(ctx.Session.Username(), mboxName, messagesPerPage)
+	}
+	// A link naming no part, like Newer and Older, opens the part the
+	// mailbox rows would link to. The cached row knows the structure,
+	// so the answer costs no fetch.
+	if !raw && ctx.QueryParam("part") == "" && cached != nil {
+		if row := cached.row(uid); row != nil {
+			if preferred := row.PreferredPart(settings.PreferHTML); preferred != nil && len(preferred.Path) > 0 {
+				q := ctx.Request().URL.Query()
+				q.Set("part", preferred.PathString())
+				return ctx.Redirect(http.StatusFound, row.URL().String()+"?"+q.Encode())
+			}
+		}
+	}
+	// A body fetched ahead of the click serves the page without the
+	// server, unless the message is signed: the check reads the signed
+	// parts on the connection that holds the folder.
+	var held *cachedBody
+	if !raw && len(partPath) > 0 {
+		held = bodies.get(ctx.Session.Username(), mboxName, uid, partPath)
+		if held != nil && held.buf.BodyStructure != nil {
+			if _, _, signed := signedParts(held.buf.BodyStructure); signed {
+				held = nil
+			}
+		}
+	}
 	var (
 		sb                  sidebar
 		msg                 *IMAPMessage
 		part                *message.Entity
-		selected            *imapclient.SelectedMailbox
+		permanentFlags      []imap.Flag
 		newerUID, olderUID  imap.UID
 		position, totalMsgs int
 		signature           Verification
@@ -197,29 +226,62 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		answers             []ThreadNeighbour
 		threadAlgorithm     imap.ThreadAlgorithm
 	)
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		var load *sidebarLoad
-		var err error
-		if !raw {
-			if load, err = startSidebar(c, mboxName, mboxName, settings.Subscriptions); err != nil {
-				return err
-			}
-		}
-		if msg, part, err = getMessagePart(c, mboxName, uid, partPath); err != nil {
+	placed := false
+	if !raw && cached != nil && criteria == nil {
+		newerUID, olderUID, position, totalMsgs, placed = cached.neighbours(uid)
+	}
+	if held != nil {
+		if msg, part, err = messagePart(held.buf, mboxName, uid, partPath); err != nil {
 			return err
 		}
-		selected = c.Mailbox()
-		if !raw {
-			if newerUID, olderUID, position, totalMsgs, err = messageNeighbors(c, msg.SeqNum, criteria); err != nil {
-				return err
+		permanentFlags = held.permanent
+		sb = cached.sb
+		// What our own server made of SPF, DKIM and DMARC when it took
+		// delivery, read from the header the fetch brought.
+		authResults = readAuthResults(messageRootHeader(msg), settings.TrustedAuthServ)
+		// The peek left the message unread on the server; the page is
+		// what reads it, and nothing waits on the server saying so.
+		if !msg.HasFlag(imap.FlagSeen) {
+			session := ctx.Session
+			go session.DoIMAP(func(c *imapclient.Client) error {
+				return storeFlags(c, mboxName, imap.UIDSetNum(uid), imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen})
+			})
+		}
+	}
+	sent := ""
+	if cached != nil {
+		sent = sentFolder(cached.sb.mailboxes)
+	}
+	// The server is asked for what the cache cannot say: the message
+	// itself when it was not fetched ahead, its place at a page's edge,
+	// what it answers, and what answered it in Sent.
+	needsThread := !raw && msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && mboxName == sent))
+	if held == nil || !placed || needsThread {
+		err = ctx.DoIMAP(func(c *imapclient.Client) error {
+			var load *sidebarLoad
+			var err error
+			if held == nil {
+				if !raw && cached == nil {
+					if load, err = startSidebar(c, mboxName, mboxName, settings.Subscriptions); err != nil {
+						return err
+					}
+				}
+				if msg, part, err = getMessagePart(c, mboxName, uid, partPath); err != nil {
+					return err
+				}
+				permanentFlags = c.Mailbox().PermanentFlags
+			}
+			if raw {
+				return nil
+			}
+			if !placed {
+				if newerUID, olderUID, position, totalMsgs, err = messageNeighbors(c, msg.SeqNum, criteria); err != nil {
+					return err
+				}
 			}
 			threadAlgorithm = ThreadAlgorithm(c)
-			sent := ""
-			for i := range load.sb.mailboxes {
-				if load.sb.mailboxes[i].role() == "sent" {
-					sent = load.sb.mailboxes[i].Name()
-					break
-				}
+			if load != nil {
+				sent = sentFolder(load.sb.mailboxes)
 			}
 			// What this message answers. A server that will not search
 			// headers simply shows the message alone.
@@ -236,11 +298,11 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 					ctx.Logger().Printf("answer lookup failed: %v", aerr)
 				}
 			}
-			// Whether the message is from who it says, on the same
-			// connection that has the mailbox open. A message nobody
-			// signed costs nothing here: signedParts walks a structure
-			// already in hand and finds nothing.
-			if msg.BodyStructure != nil {
+			if held == nil && msg.BodyStructure != nil {
+				// Whether the message is from who it says, on the same
+				// connection that has the mailbox open. A message nobody
+				// signed costs nothing here: signedParts walks a structure
+				// already in hand and finds nothing.
 				signature = verifySignature(c, mboxName, uid, msg.BodyStructure,
 					messageRootHeader(msg), envelopeSender(msg.Envelope))
 				// What our own server made of SPF, DKIM and DMARC when
@@ -248,16 +310,22 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 				// only from the instance the trusted server wrote.
 				authResults = readAuthResults(messageRootHeader(msg), settings.TrustedAuthServ)
 			}
-			sb, err = load.finish()
+			if held == nil {
+				if cached != nil {
+					sb = cached.sb
+				} else {
+					sb, err = load.finish()
+				}
+			}
+			return err
+		})
+		if err != nil {
+			return err
 		}
-		return err
-	})
-	if err != nil {
-		return err
 	}
-	// The body fetch marked the message read, so the cached listing for
-	// this folder no longer tells the truth.
-	listings.evict(ctx.Session.Username(), mboxName)
+	// The body fetch marked the message read; the cached listings say
+	// so too rather than being fetched again for one flag.
+	listings.markSeen(ctx.Session.Username(), mboxName, uid)
 
 	// A link naming no part, like Newer and Older, opens the part the
 	// mailbox rows would link to; the bare envelope has no viewer.
@@ -320,7 +388,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 
 	flags := make(map[imap.Flag]bool)
-	for _, f := range selected.PermanentFlags {
+	for _, f := range permanentFlags {
 		if f == imap.FlagWildcard {
 			continue
 		}
@@ -520,3 +588,13 @@ func handleUnsubscribe(ctx *alborz.Context) error {
 // unsubscribeTimeout bounds the one request we make to somebody else's
 // server on the reader's behalf.
 const unsubscribeTimeout = 15 * time.Second
+
+// sentFolder names the folder with the sent role, "" without one.
+func sentFolder(mailboxes []MailboxInfo) string {
+	for i := range mailboxes {
+		if mailboxes[i].role() == "sent" {
+			return mailboxes[i].Name()
+		}
+	}
+	return ""
+}

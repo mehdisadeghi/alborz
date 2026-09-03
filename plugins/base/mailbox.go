@@ -100,6 +100,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	// view that most wants the cache; only its key is longer.
 	cacheable := ctx.Request().Method == http.MethodGet && page == 0
 	view := listingView("#"+role, query, starred, sortKey, sortDir)
+	spec := listingSpec{query: query, starred: starred, sortKey: sortKey, sortDir: sortDir}
 	var (
 		mu       sync.Mutex
 		wg       sync.WaitGroup
@@ -122,15 +123,13 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 				total += accountTotal
 				mu.Unlock()
 			}
-			var cached *listingEntry
 			if cacheable {
-				e, state := listings.lookup(user, view, messagesPerPage)
-				if state == listingFresh {
+				if e, state := listings.lookup(user, view, messagesPerPage); e != nil {
 					merge(e.msgs, e.total)
+					if state == listingStale {
+						revalidateUnified(s, settings, view, role, spec, e)
+					}
 					return
-				}
-				if state == listingStale {
-					cached = e
 				}
 			}
 			errs[i] = s.DoIMAP(func(c *imapclient.Client) error {
@@ -138,66 +137,19 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 				if err != nil || folder == "" {
 					return err
 				}
-
-				// A stale entry earns reuse when a STATUS shows nothing
-				// changed; on change the answer doubles as the fresh
-				// entry's snapshot.
-				var snap *imap.StatusData
-				var snapCmd *imapclient.StatusCommand
-				if cached != nil {
-					st, err := c.Status(folder, listingStatusOptions(c)).Wait()
-					if err == nil {
-						if statusUnchanged(cached.snap, st) {
-							listings.refresh(user, view)
-							merge(cached.msgs, cached.total)
-							return nil
-						}
-						snap = st
-					}
-				} else if cacheable {
-					snapCmd = c.Status(folder, listingStatusOptions(c))
-				}
-
 				if !c.Caps().Has(imap.CapSort) {
 					mu.Lock()
 					sortable = false
 					mu.Unlock()
 				}
-				var accountMsgs []IMAPMessage
-				var accountTotal int
-				switch {
-				case query != "":
-					accountMsgs, accountTotal, err = searchMessages(c, folder, PrepareSearch(query, settings.SearchHeadersOnly), 0, window, "", true)
-				case starred:
-					criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-					accountMsgs, accountTotal, err = searchMessages(c, folder, criteria, 0, window, "", true)
-				case sortKey != "account" && (sortKey != "" || sortDir != "") && c.Caps().Has(imap.CapSort):
-					// Each account's window is cut under the requested
-					// order, so the merge sees the right candidates.
-					accountMsgs, accountTotal, err = searchMessages(c, folder, &imap.SearchCriteria{}, 0, window, sortKey, reverse)
-				default:
-					accountMsgs, accountTotal, err = listMessages(c, folder, 0, window)
-				}
+				e, err := fetchUnifiedAccount(c, user, folder, spec, settings, window, cacheable)
 				if err != nil {
 					return err
 				}
-				for j := range accountMsgs {
-					accountMsgs[j].Account = user
+				if cacheable && e.snap != nil {
+					listings.store(user, view, e)
 				}
-				if snapCmd != nil {
-					if st, err := snapCmd.Wait(); err == nil {
-						snap = st
-					}
-				}
-				if cacheable && snap != nil {
-					listings.store(user, view, &listingEntry{
-						msgs:    accountMsgs,
-						total:   accountTotal,
-						perPage: messagesPerPage,
-						snap:    snap,
-					})
-				}
-				merge(accountMsgs, accountTotal)
+				merge(e.msgs, e.total)
 				return nil
 			})
 		}()
@@ -314,6 +266,43 @@ func unifiedLess(sortKey string, reverse bool) func(a, b IMAPMessage) int {
 	}
 }
 
+// fetchUnifiedAccount reads one account's newest window of a merged
+// view. withSnap takes the folder's STATUS along, for an entry meant to
+// be cached; the answer doubles as what a later check compares against.
+func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listingSpec, settings *Settings, window int, withSnap bool) (*listingEntry, error) {
+	var snapCmd *imapclient.StatusCommand
+	if withSnap {
+		snapCmd = c.Status(folder, listingStatusOptions(c))
+	}
+	e := &listingEntry{perPage: window}
+	var err error
+	switch {
+	case spec.query != "":
+		e.msgs, e.total, err = searchMessages(c, folder, PrepareSearch(spec.query, settings.SearchHeadersOnly), 0, window, "", true)
+	case spec.starred:
+		criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+		e.msgs, e.total, err = searchMessages(c, folder, criteria, 0, window, "", true)
+	case spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != "") && c.Caps().Has(imap.CapSort):
+		// Each account's window is cut under the requested order, so
+		// the merge sees the right candidates.
+		e.msgs, e.total, err = searchMessages(c, folder, &imap.SearchCriteria{}, 0, window, spec.sortKey, spec.reverse())
+	default:
+		e.msgs, e.total, err = listMessages(c, folder, 0, window)
+	}
+	if err != nil {
+		return nil, err
+	}
+	for j := range e.msgs {
+		e.msgs[j].Account = user
+	}
+	if snapCmd != nil {
+		if st, err := snapCmd.Wait(); err == nil {
+			e.snap = st
+		}
+	}
+	return e, nil
+}
+
 func handleGetMailbox(ctx *alborz.Context) error {
 	// Reading mail is what precedes writing it, so this is where the
 	// recipient suggestions are put on to warm. Nothing here waits for
@@ -383,83 +372,36 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	}
 	user := ctx.Session.Username()
 
-	var (
-		sb              sidebar
-		msgs            []IMAPMessage
-		total           int
-		sortSupported   bool
-		threadAlgorithm imap.ThreadAlgorithm
-		served          bool
-	)
+	spec := listingSpec{mbox: mboxName, query: query, starred: starred, sortKey: sortKey, sortDir: sortDir, thread: threadUID}
+	var e *listingEntry
 	if cacheable {
-		if e, state := listings.lookup(user, view, messagesPerPage); state == listingFresh {
-			sb, msgs, total, sortSupported, threadAlgorithm, served = e.sb, e.msgs, e.total, e.sortSupported, e.threadAlgorithm, true
-		} else if state == listingStale {
-			var st *imap.StatusData
-			err := ctx.DoIMAP(func(c *imapclient.Client) error {
-				var err error
-				st, err = c.Status(mboxName, listingStatusOptions(c)).Wait()
-				return err
-			})
-			if err == nil && statusUnchanged(e.snap, st) {
-				listings.refresh(user, view)
-				sb, msgs, total, sortSupported, threadAlgorithm, served = e.sb, e.msgs, e.total, e.sortSupported, e.threadAlgorithm, true
-			}
+		var state listingState
+		if e, state = listings.lookup(user, view, messagesPerPage); e != nil &&
+			state == listingStale && !(mboxName == "INBOX" && watchers.watching(user)) {
+			// The page is served as it is and the server asked behind it;
+			// a watched INBOX needs no asking, the watcher already heard.
+			revalidateListing(ctx.Session, settings, view, spec, e)
 		}
 	}
-
-	if !served {
+	if e == nil {
 		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			load, err := startSidebar(c, mboxName, mboxName, settings.Subscriptions)
-			if err != nil {
-				return err
-			}
-			sortSupported = c.Caps().Has(imap.CapSort)
-			threadAlgorithm = ThreadAlgorithm(c)
-			switch {
-			case threadUID != 0 && threadAlgorithm != "":
-				msgs, err = oneThread(c, mboxName, threadAlgorithm, threadUID)
-				total = len(msgs)
-			case sortKey == threadSort && threadAlgorithm != "":
-				// A conversation is the unit here, so the page holds a
-				// number of threads rather than a number of messages.
-				criteria := &imap.SearchCriteria{}
-				if query != "" {
-					criteria = PrepareSearch(query, settings.SearchHeadersOnly)
-				} else if starred {
-					criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-				}
-				msgs, total, err = threadMessages(c, mboxName, threadAlgorithm, criteria, page, messagesPerPage)
-			case query != "":
-				msgs, total, err = searchMessages(c, mboxName, PrepareSearch(query, settings.SearchHeadersOnly), page, messagesPerPage, sortKey, reverse)
-			case starred:
-				criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-				msgs, total, err = searchMessages(c, mboxName, criteria, page, messagesPerPage, sortKey, reverse)
-			case (sortKey != "" || sortDir != "") && sortSupported:
-				msgs, total, err = searchMessages(c, mboxName, &imap.SearchCriteria{}, page, messagesPerPage, sortKey, reverse)
-			default:
-				msgs, total, err = listMessages(c, mboxName, page, messagesPerPage)
-			}
-			if err != nil {
-				return err
-			}
-			sb, err = load.finish()
+			var err error
+			e, err = fetchListing(c, spec, settings, page, messagesPerPage)
 			return err
 		})
 		if err != nil {
 			return err
 		}
 		if cacheable {
-			listings.store(user, view, &listingEntry{
-				sb:              sb,
-				msgs:            msgs,
-				total:           total,
-				perPage:         messagesPerPage,
-				sortSupported:   sortSupported,
-				threadAlgorithm: threadAlgorithm,
-				snap:            sb.active.StatusData,
-			})
+			listings.store(user, view, e)
 		}
+	}
+	sb, msgs, total, sortSupported, threadAlgorithm := e.sb, e.msgs, e.total, e.sortSupported, e.threadAlgorithm
+	// The page's bodies are fetched behind it, so the next click, on
+	// any of its rows, asks the server nothing.
+	if cacheable {
+		session := ctx.Session
+		go prefetchBodies(session, settings.PreferHTML, mboxName, e.msgs)
 	}
 
 	// A row shows the address it reached only where that is worth
@@ -510,6 +452,49 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		PreferHTML:         settings.PreferHTML,
 		Threaded:           sortKey == threadSort && threadAlgorithm != "",
 	})
+}
+
+// fetchListing reads one view of a folder, the sidebar's counts riding
+// along on the same round trips.
+func fetchListing(c *imapclient.Client, spec listingSpec, settings *Settings, page, perPage int) (*listingEntry, error) {
+	load, err := startSidebar(c, spec.mbox, spec.mbox, settings.Subscriptions)
+	if err != nil {
+		return nil, err
+	}
+	e := &listingEntry{perPage: perPage, sortSupported: c.Caps().Has(imap.CapSort), threadAlgorithm: ThreadAlgorithm(c)}
+	reverse := spec.reverse()
+	switch {
+	case spec.thread != 0 && e.threadAlgorithm != "":
+		e.msgs, err = oneThread(c, spec.mbox, e.threadAlgorithm, spec.thread)
+		e.total = len(e.msgs)
+	case spec.sortKey == threadSort && e.threadAlgorithm != "":
+		// A conversation is the unit here, so the page holds a
+		// number of threads rather than a number of messages.
+		criteria := &imap.SearchCriteria{}
+		if spec.query != "" {
+			criteria = PrepareSearch(spec.query, settings.SearchHeadersOnly)
+		} else if spec.starred {
+			criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+		}
+		e.msgs, e.total, err = threadMessages(c, spec.mbox, e.threadAlgorithm, criteria, page, perPage)
+	case spec.query != "":
+		e.msgs, e.total, err = searchMessages(c, spec.mbox, PrepareSearch(spec.query, settings.SearchHeadersOnly), page, perPage, spec.sortKey, reverse)
+	case spec.starred:
+		criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+		e.msgs, e.total, err = searchMessages(c, spec.mbox, criteria, page, perPage, spec.sortKey, reverse)
+	case (spec.sortKey != "" || spec.sortDir != "") && e.sortSupported:
+		e.msgs, e.total, err = searchMessages(c, spec.mbox, &imap.SearchCriteria{}, page, perPage, spec.sortKey, reverse)
+	default:
+		e.msgs, e.total, err = listMessages(c, spec.mbox, page, perPage)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if e.sb, err = load.finish(); err != nil {
+		return nil, err
+	}
+	e.snap = e.sb.active.StatusData
+	return e, nil
 }
 
 type NewMailboxRenderData struct {

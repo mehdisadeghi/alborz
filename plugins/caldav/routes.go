@@ -1208,9 +1208,46 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		},
 	}
 
+	// Where the account hides completed tasks the server is asked for
+	// the open ones only, so a list that has finished a thousand tasks
+	// does not send them all on every visit. An open task may carry no
+	// STATUS at all, and CalDAV filters have no OR, so it takes two
+	// queries: tasks without a STATUS, and tasks whose STATUS is not
+	// COMPLETED.
+	open := func(filter caldav.PropFilter) caldav.CalendarQuery {
+		q := query
+		q.CompFilter = caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{{
+			Name: "VTODO", Props: []caldav.PropFilter{filter},
+		}}}
+		return q
+	}
+	openQueries := []caldav.CalendarQuery{
+		open(caldav.PropFilter{Name: "STATUS", IsNotDefined: true}),
+		open(caldav.PropFilter{Name: "STATUS", TextMatch: &caldav.TextMatch{Text: "COMPLETED", NegateCondition: true}}),
+	}
+
 	var taskRows []TaskRow
 	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site querySite) ([]caldav.CalendarObject, error) {
-		return site.client.QueryCalendar(ctx, site.cal.Path, &query)
+		if site.settings.ShowCompleted {
+			return site.client.QueryCalendar(ctx, site.cal.Path, &query)
+		}
+		// A server that ignores the filter answers both queries with
+		// everything; an object is taken once whichever answered it.
+		var tasks []caldav.CalendarObject
+		seen := map[string]bool{}
+		for i := range openQueries {
+			part, err := site.client.QueryCalendar(ctx, site.cal.Path, &openQueries[i])
+			if err != nil {
+				return nil, err
+			}
+			for _, obj := range part {
+				if !seen[obj.Path] {
+					seen[obj.Path] = true
+					tasks = append(tasks, obj)
+				}
+			}
+		}
+		return tasks, nil
 	}) {
 		if result.Err != nil {
 			return fmt.Errorf("failed to query tasks from %s: %v", result.Site.cal.Name, result.Err)
@@ -1222,6 +1259,8 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 				continue
 			}
 			status, _ := todo.Props.Text("STATUS")
+			// A server that ignores the STATUS filter sends every task;
+			// the page hides what it was asked to hide either way.
 			if status == "COMPLETED" && !result.Site.settings.ShowCompleted {
 				continue
 			}

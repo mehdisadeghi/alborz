@@ -116,6 +116,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	p.CloseFunc = provider.Close
 
 	registerRoutes(p)
+	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 
 	// A card attached to a mail is filed from its own row, into a book
 	// the reader chooses.

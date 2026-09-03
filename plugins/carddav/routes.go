@@ -340,45 +340,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		return err
 	}
 
-	query := carddav.AddressBookQuery{
-		DataRequest: carddav.AddressDataRequest{
-			Props: []string{
-				vcard.FieldFormattedName,
-				vcard.FieldName,
-				vcard.FieldEmail,
-				vcard.FieldTelephone,
-				vcard.FieldNickname,
-				vcard.FieldOrganization,
-				vcard.FieldPhoto,
-				vcard.FieldUID,
-			},
-		},
-	}
-
-	if queryText != "" {
-		query.PropFilters = []carddav.PropFilter{
-			{
-				Name:        vcard.FieldFormattedName,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldName,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldNickname,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldOrganization,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldEmail,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-		}
-	}
+	query := contactsQuery(queryText)
 
 	var aos []AddressObject
 	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site bookSite) ([]carddav.AddressObject, error) {
@@ -1088,4 +1050,80 @@ func (p *plugin) refresh(ctx *alborz.Context) error {
 		p.dav.Refresh(ctx.Request().Context(), s.Username())
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
+}
+
+// contactsQuery asks a book for what the list shows, narrowed to
+// queryText when there is one.
+func contactsQuery(queryText string) carddav.AddressBookQuery {
+	query := carddav.AddressBookQuery{
+		DataRequest: carddav.AddressDataRequest{
+			Props: []string{
+				vcard.FieldFormattedName,
+				vcard.FieldName,
+				vcard.FieldEmail,
+				vcard.FieldTelephone,
+				vcard.FieldNickname,
+				vcard.FieldOrganization,
+				vcard.FieldPhoto,
+				vcard.FieldUID,
+			},
+		},
+	}
+
+	if queryText != "" {
+		query.PropFilters = []carddav.PropFilter{
+			{
+				Name:        vcard.FieldFormattedName,
+				TextMatches: []carddav.TextMatch{{Text: queryText}},
+			},
+			{
+				Name:        vcard.FieldName,
+				TextMatches: []carddav.TextMatch{{Text: queryText}},
+			},
+			{
+				Name:        vcard.FieldNickname,
+				TextMatches: []carddav.TextMatch{{Text: queryText}},
+			},
+			{
+				Name:        vcard.FieldOrganization,
+				TextMatches: []carddav.TextMatch{{Text: queryText}},
+			},
+			{
+				Name:        vcard.FieldEmail,
+				TextMatches: []carddav.TextMatch{{Text: queryText}},
+			},
+		}
+	}
+	return query
+}
+
+// warm fetches what the contacts page asks for first, as the account
+// is signed in, so the first click finds it cached: the books and
+// every card the list shows.
+func (p *plugin) warm(ctx *alborz.Context, s *alborz.Session) {
+	log := ctx.Logger()
+	go func() {
+		bg, cancel := context.WithTimeout(context.Background(), dav.WarmBudget)
+		defer cancel()
+		if err := p.warmAccount(bg, s); err != nil {
+			log.Printf("warm %s contacts: %v", s.Username(), err)
+		}
+	}()
+}
+
+func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session) error {
+	c, books, err := p.clientWithAddressBooks(ctx, s)
+	if err != nil {
+		return err
+	}
+	query := contactsQuery("")
+	for _, r := range dav.Each(ctx, books, func(ctx context.Context, book AddressBookInfo) (int, error) {
+		_, err := c.QueryAddressBook(ctx, book.Path, &query)
+		return 0, err
+	}) {
+		if r.Err != nil {
+			return r.Err
+		}
+	}
+	return nil
 }

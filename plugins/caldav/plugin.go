@@ -67,6 +67,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 
 	registerRoutes(p)
 	p.registerScheduling()
+	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 
 	return p.Plugin(), nil
 }

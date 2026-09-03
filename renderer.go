@@ -40,7 +40,7 @@ type GlobalRenderData struct {
 	// cache it; see Server.assetURL.
 	Asset func(name string) string
 
-	Notice string
+	Notice *Notice
 
 	// Build version, empty when the binary carries no VCS metadata
 	Version string

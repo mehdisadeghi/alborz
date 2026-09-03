@@ -104,10 +104,24 @@
     </div>
     {{ end }}
   </nav>
-  {{ if .GlobalData.Notice }}
-  <div class="notice" role="status">
-    {{ .GlobalData.Notice }}
-    <a href="{{.GlobalData.URL.String}}">{{$.T "nav.dismiss"}}</a>
+  {{ with .GlobalData.Notice }}
+  <div class="notice notice-{{.Kind}}" role="{{if eq .Kind "failed"}}alert{{else}}status{{end}}">
+    <span class="notice-text">{{ .Text }}</span>
+    {{ with .Action }}
+      {{/* Anything that changes state posts; a link is for going
+           somewhere. */}}
+      {{ if .Fields }}
+      <form method="post" action="{{.Path}}" class="notice-action">
+        {{ range $name, $values := .Fields }}{{ range $values }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
+        <button class="button-link">{{.Label}}</button>
+      </form>
+      {{ else }}
+      <a class="notice-action" href="{{.Path}}">{{.Label}}</a>
+      {{ end }}
+    {{ end }}
+    {{/* Without a script the only way to clear the bar is the page
+         again; helpers.js turns the link into removing the bar. */}}
+    <a class="notice-dismiss" href="{{$.GlobalData.URL.String}}" title="{{$.T "nav.dismiss"}}" aria-label="{{$.T "nav.dismiss"}}">{{ template "icon" "x" }}</a>
   </div>
   {{ end }}
 </header>

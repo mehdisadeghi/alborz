@@ -155,6 +155,9 @@ select {
   --notice-fg: #0c5460;
   --notice-bg: #d1ecf1;
   --notice-border: #bee5eb;
+  --warning-fg: #664d03;
+  --warning-bg: #fff3cd;
+  --warning-border: #ffe69c;
   --alert-fg: #721c24;
   --alert-bg: #f8d7da;
   --alert-border: #f5c6cb;
@@ -218,6 +221,9 @@ select {
     --notice-fg: #9ed6e0;
     --notice-bg: #12343b;
     --notice-border: #1c4a54;
+    --warning-fg: #ffda6a;
+    --warning-bg: #332701;
+    --warning-border: #664d03;
     --alert-fg: #f1aeb5;
     --alert-bg: #35181c;
     --alert-border: #58232b;
@@ -259,6 +265,9 @@ select {
   --notice-fg: #9ed6e0;
   --notice-bg: #12343b;
   --notice-border: #1c4a54;
+  --warning-fg: #ffda6a;
+  --warning-bg: #332701;
+  --warning-border: #664d03;
   --alert-fg: #f1aeb5;
   --alert-bg: #35181c;
   --alert-border: #58232b;
@@ -505,12 +514,49 @@ header a.active {
   text-decoration: none;
 }
 
+/* One bar for every outcome, coloured by how it went: the text, then
+   what follows from it, then the way to clear it at the far edge. */
 header .notice {
-    color: var(--notice-fg);
-    background-color: var(--notice-bg);
-    border: 1px solid var(--notice-border);
-    padding: var(--space-2);
-    text-align: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-2) calc(var(--space-2) + 1.5rem);
+  color: var(--notice-fg);
+  background-color: var(--notice-bg);
+  border: 1px solid var(--notice-border);
+}
+
+header .notice-warning {
+  color: var(--warning-fg);
+  background-color: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+
+header .notice-failed {
+  color: var(--alert-fg);
+  background-color: var(--alert-bg);
+  border-color: var(--alert-border);
+}
+
+header .notice-action { margin: 0; }
+header .notice-action,
+header .notice-action .button-link,
+header .notice-dismiss { color: inherit; }
+header .notice-action .button-link {
+  padding: 0;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* The cross holds the edge without taking part in the centring, so
+   the text sits where it always did. */
+header .notice-dismiss {
+  position: absolute;
+  inset-inline-end: var(--space-2);
+  display: inline-flex;
+  line-height: 0;
 }
 
 footer { text-align: end; }

@@ -309,6 +309,14 @@
 "notice.nomessages" = "Keine E-Mails ausgewählt."
 "notice.nodestination" = "Kein Zielordner ausgewählt."
 "notice.alreadyempty" = "Dieser Ordner war bereits leer."
+"notice.undo" = "Rückgängig"
+"notice.undone" = "Rückgängig gemacht."
+"notice.undofailed" = "Ließ sich nicht rückgängig machen: seither verschoben."
+"notice.taskdone" = "Aufgabe erledigt."
+"notice.taskopen" = "Aufgabe wieder geöffnet."
+"folder.emptytitle" = "%s leeren"
+"folder.emptyask" = "Alles in %s löschen?"
+"folder.emptydo" = "Alles löschen"
 "notice.loginfailed" = "Anmeldung fehlgeschlagen!"
 "notice.loginerror" = "Anmeldung fehlgeschlagen: %s"
 "notice.filtersaved" = "Filter gespeichert."
@@ -489,3 +497,19 @@ other = "%d Einträge in den Kalender übernommen."
 ["import.vcf"]
 one = "%d Kontakt übernommen."
 other = "%d Kontakte übernommen."
+
+["notice.flagged"]
+one = "%d Nachricht geändert."
+other = "%d Nachrichten geändert."
+
+["notice.tasksdone"]
+one = "%d Aufgabe erledigt."
+other = "%d Aufgaben erledigt."
+
+["notice.deleteall"]
+one = "Alle %d im Ordner löschen"
+other = "Alle %d im Ordner löschen"
+
+["folder.emptycount"]
+one = "Er enthält %d Nachricht; gelöscht ist sie endgültig weg."
+other = "Er enthält %d Nachrichten; gelöscht sind sie endgültig weg."

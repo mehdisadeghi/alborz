@@ -462,8 +462,10 @@ func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 		msg.ListID = strings.TrimSpace(id)
 	}
 	// A one-click https endpoint is preferred; a mailto asks the user to
-	// send a message, which they can at least read before sending.
-	msg.ListUnsubscribe = firstListURI(h.Get("List-Unsubscribe"), "https", "http")
+	// send a message, which they can at least read before sending. Plain
+	// http is not offered: the POST is made from here, and only over a
+	// connection the list cannot be impersonated on.
+	msg.ListUnsubscribe = firstListURI(h.Get("List-Unsubscribe"), "https")
 	// RFC 8058: the promise is in a header of its own, and without it an
 	// https URI is a page to visit rather than an endpoint to post to.
 	if strings.Contains(strings.ToLower(h.Get("List-Unsubscribe-Post")), "one-click") {

@@ -77,6 +77,7 @@ func init() {
 // leak, and until now only the listings were let go.
 func forgetAccount(username string) {
 	listings.evictAll(username)
+	bodies.forget(username)
 	correspondents.Forget(username)
 	unifiedFolders.Forget(username)
 	authServGuesses.Forget(username)

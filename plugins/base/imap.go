@@ -1561,39 +1561,38 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, nil, err
 	}
-
-	headerItem := &imap.FetchItemBodySection{
-		Peek: true,
-		Part: partPath,
+	// TODO: stream attachments
+	msgs, err := conn.Fetch(imap.UIDSetNum(uid), partFetchOptions(partPath, false)).Collect()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
+	} else if len(msgs) == 0 {
+		return nil, nil, alborz.NotFoundf("message %v does not exist in this folder", uid)
 	}
+	return messagePart(msgs[0], mboxName, uid, partPath)
+}
+
+// partFetchOptions asks for a message with one part's content: the
+// structure and envelope, the part's own header and body, and the
+// message's header for what a part's does not carry, like List-Post.
+// peek leaves the message unread, for a fetch made ahead of a reader.
+func partFetchOptions(partPath []int, peek bool) *imap.FetchOptions {
+	headerItem := &imap.FetchItemBodySection{Peek: true, Part: partPath}
 	if len(partPath) > 0 {
 		headerItem.Specifier = imap.PartSpecifierMIME
 	} else {
 		headerItem.Specifier = imap.PartSpecifierHeader
 	}
-
-	bodyItem := &imap.FetchItemBodySection{
-		Part: partPath,
-	}
+	bodyItem := &imap.FetchItemBodySection{Peek: peek, Part: partPath}
 	if len(partPath) > 0 {
 		bodyItem.Specifier = imap.PartSpecifierNone
 	} else {
 		bodyItem.Specifier = imap.PartSpecifierText
 	}
-
 	sections := []*imap.FetchItemBodySection{headerItem, bodyItem}
-	// A part's own header carries no List-Post; ask for the message's in
-	// the same round trip.
-	var rootHeaderItem *imap.FetchItemBodySection
 	if len(partPath) > 0 {
-		rootHeaderItem = &imap.FetchItemBodySection{
-			Peek:      true,
-			Specifier: imap.PartSpecifierHeader,
-		}
-		sections = append(sections, rootHeaderItem)
+		sections = append(sections, &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader})
 	}
-
-	options := imap.FetchOptions{
+	return &imap.FetchOptions{
 		Envelope:      true,
 		UID:           true,
 		RFC822Size:    true,
@@ -1601,15 +1600,17 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 		Flags:         true,
 		BodySection:   sections,
 	}
+}
 
-	// TODO: stream attachments
-	msgs, err := conn.Fetch(imap.UIDSetNum(uid), &options).Collect()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
-	} else if len(msgs) == 0 {
-		return nil, nil, alborz.NotFoundf("message %v does not exist in this folder", uid)
+// messagePart assembles the page's message and part from a fetch made
+// with partFetchOptions, now or ahead of time.
+func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
+	options := partFetchOptions(partPath, true)
+	headerItem, bodyItem := options.BodySection[0], options.BodySection[1]
+	var rootHeaderItem *imap.FetchItemBodySection
+	if len(partPath) > 0 {
+		rootHeaderItem = options.BodySection[2]
 	}
-	msg := msgs[0]
 
 	headerBuf := msg.FindBodySection(headerItem)
 	bodyBuf := msg.FindBodySection(bodyItem)

@@ -808,6 +808,11 @@ func senderLabel(m IMAPMessage) string {
 }
 
 func handleGetMailbox(ctx *alborz.Context) error {
+	// Reading mail is what precedes writing it, so this is where the
+	// recipient suggestions are put on to warm. Nothing here waits for
+	// them and nothing on this page shows them.
+	gatherCorrespondents(ctx.Session)
+
 	if ctx.Unified {
 		return handleUnifiedMailbox(ctx)
 	}
@@ -2298,11 +2303,12 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 	if data.Extra == nil {
 		data.Extra = make(map[string]interface{})
 	}
-	data.Extra["EmailSuggestions"] = gatherCorrespondents(ctx)
+	data.Extra["EmailSuggestions"] = gatherCorrespondents(ctx.Session)
 	return ctx.Render(http.StatusOK, "compose.html", data)
 }
 
-// correspondentTTL keeps the gathered addresses for a while: they change
+// correspondentTTL decides when the gathered addresses count as stale
+// and a background pass goes to fetch them again. They change
 // only when mail is sent or arrives, and re-reading two folders on every
 // compose would put a fetch in front of a blank page.
 const correspondentTTL = 10 * time.Minute
@@ -2314,14 +2320,18 @@ const correspondentDepth = 200
 
 var correspondents = alborz.NewMemo[[]string](correspondentTTL)
 
-// gatherCorrespondents reads the addresses this account has written to
+// gatherCorrespondents returns the addresses this account has written to
 // and heard from. A contact list holds the people you decided to keep;
 // this holds the people you actually exchange mail with, which is not
 // the same set and is the one a recipient field is usually reaching for.
 // Every client collects it - Apple Mail calls them Previous Recipients,
 // Thunderbird a Collected Addresses book, Gmail Other Contacts.
-func gatherCorrespondents(ctx *alborz.Context) []string {
-	found, err := correspondents.Get(ctx.Session.Username(), func() ([]string, error) {
+//
+// It never waits. Reading two folders is far too much to put in front of
+// a blank compose form, so the list is built in the background and the
+// form gets whatever is ready - on a cold session, nothing.
+func gatherCorrespondents(s *alborz.Session) []string {
+	return correspondents.Warm(s.Username(), func() ([]string, error) {
 		seen := make(map[string]string)
 		keep := func(addrs []imap.Address) {
 			for _, a := range addrs {
@@ -2341,7 +2351,7 @@ func gatherCorrespondents(ctx *alborz.Context) []string {
 			}
 		}
 
-		err := ctx.Session.DoIMAP(func(c *imapclient.Client) error {
+		err := s.DoIMAP(func(c *imapclient.Client) error {
 			mailboxes, err := listMailboxes(c)
 			if err != nil {
 				return err
@@ -2352,7 +2362,7 @@ func gatherCorrespondents(ctx *alborz.Context) []string {
 			}
 			// Sent names who you write to, the inbox who writes to you.
 			read := func(name string, out bool) {
-				msgs, _, err := listMessages(c, name, 0, correspondentDepth)
+				msgs, err := recentEnvelopes(c, name, correspondentDepth)
 				if err != nil {
 					return
 				}
@@ -2385,12 +2395,6 @@ func gatherCorrespondents(ctx *alborz.Context) []string {
 		slices.Sort(out)
 		return out, nil
 	})
-	if err != nil {
-		// A suggestion list is a convenience; failing to build one is not
-		// a reason to refuse the page.
-		return nil
-	}
-	return found
 }
 
 // withSignature replaces whatever sits under the last "-- " line with

@@ -870,6 +870,29 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 	return msgs, total, nil
 }
 
+// recentEnvelopes fetches the envelopes of the last n messages in a
+// mailbox and nothing besides. The listing fetch carries flags, a body
+// structure and a header section as well, which is a great many bytes
+// over a couple of hundred messages for a caller that only reads
+// addresses off the envelope.
+func recentEnvelopes(conn *imapclient.Client, mboxName string, n int) ([]*imapclient.FetchMessageBuffer, error) {
+	data, err := conn.Select(mboxName, nil).Wait()
+	if err != nil {
+		return nil, err
+	}
+	total := int(data.NumMessages)
+	if total == 0 {
+		return nil, nil
+	}
+	from := total - n + 1
+	if from < 1 {
+		from = 1
+	}
+	var seqSet imap.SeqSet
+	seqSet.AddRange(uint32(from), uint32(total))
+	return conn.Fetch(seqSet, &imap.FetchOptions{Envelope: true}).Collect()
+}
+
 // sortKeys maps a sort key from the query string to the SORT key sent
 // to the server, along with the direction each defaults to; picking the
 // active key again reverses it. "" is the default newest-first view.

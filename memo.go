@@ -83,6 +83,38 @@ func (m *Memo[T]) Get(user string, load func() (T, error)) (T, error) {
 	return e.val, nil
 }
 
+// Warm returns whatever is cached for the user and starts a background
+// load when nothing is or the value has gone stale. It never waits: a
+// page that only wants the value as a convenience gets what is ready,
+// which on a first visit is the zero value. load must not depend on its
+// caller's lifetime.
+func (m *Memo[T]) Warm(user string, load func() (T, error)) T {
+	m.mu.Lock()
+	e, ok := m.entries[user]
+	if !ok {
+		e = &memoEntry[T]{}
+		m.entries[user] = e
+	}
+	m.mu.Unlock()
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if !e.reloading && (e.fetched.IsZero() || time.Since(e.fetched) > m.ttl) {
+		e.reloading = true
+		go func() {
+			val, err := load()
+			e.mu.Lock()
+			e.reloading = false
+			if err == nil {
+				e.val, e.fetched = val, time.Now()
+			}
+			e.mu.Unlock()
+		}()
+	}
+	return e.val
+}
+
 // Forget drops the user's value, for writes that invalidate it.
 func (m *Memo[T]) Forget(user string) {
 	m.mu.Lock()

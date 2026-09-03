@@ -78,7 +78,9 @@ type roundTripper struct {
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	rt.session.SetHTTPBasicAuth(req)
+	if err := rt.session.SetHTTPBasicAuth(req); err != nil {
+		return nil, err
+	}
 
 	resp, err := rt.upstream.RoundTrip(req)
 	if rt.debug != nil {
@@ -128,7 +130,9 @@ func (rt *roundTripper) followRedirect(orig *http.Request, location string, maxR
 		}
 	}
 
-	rt.session.SetHTTPBasicAuth(req)
+	if err := rt.session.SetHTTPBasicAuth(req); err != nil {
+		return nil, err
+	}
 
 	resp, err := rt.upstream.RoundTrip(req)
 	if err != nil {

@@ -104,6 +104,14 @@ func startSMTP(t *testing.T) (string, *sentMail) {
 // draft deleted on the wrong account is a draft that goes missing.
 func startIMAP(t *testing.T) string {
 	t.Helper()
+	addr, _ := startIMAPServer(t)
+	return addr
+}
+
+// startIMAPServer also hands back the server, for a test that takes it
+// away again.
+func startIMAPServer(t *testing.T) (string, *imapserver.Server) {
+	t.Helper()
 	mem := imapmemserver.New()
 	newUser := func(name string) *imapmemserver.User {
 		user := imapmemserver.NewUser(name, smokePass)
@@ -199,7 +207,7 @@ func startIMAP(t *testing.T) string {
 	})
 	go srv.Serve(ln)
 	t.Cleanup(func() { srv.Close() })
-	return ln.Addr().String()
+	return ln.Addr().String(), srv
 }
 
 type literal struct {
@@ -610,6 +618,94 @@ func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 	}
 	if n := len(messageUIDs(get(t, c, base+"/mailbox/Sent"+second))); n != 1 {
 		t.Errorf("the sent copy is not on the sending account; found %d", n)
+	}
+}
+
+// TestBadMessageReferenceIsTheCallersFault: a UID that is not a number
+// is a malformed link, which is a 400 and not a failure of ours.
+func TestBadMessageReferenceIsTheCallersFault(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	for _, path := range []string{"/message/INBOX/notanumber", "/message/INBOX/notanumber/raw",
+		"/message/INBOX/notanumber/eml"} {
+		resp, err := c.Get(base + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("GET %s: %s", path, resp.Status)
+		}
+	}
+}
+
+// TestSendWithoutMessageIDStillSends: the id is a hidden field of the
+// page, and a form that lost it used to crash the handler instead of
+// getting an id of its own.
+func TestSendWithoutMessageIDStillSends(t *testing.T) {
+	smtpAddr, sent := startSMTP(t)
+	base := startAlborz(t, startIMAP(t), smtpAddr)
+	c := login(t, base)
+
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	for _, f := range [][2]string{{"to", "friend@example.org"}, {"subject", "no id"}, {"text", "Body."}} {
+		if err := w.WriteField(f[0], f[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Close()
+	resp, err := c.Post(base+"/compose", w.FormDataContentType(), &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		t.Fatalf("POST /compose without message_id: %s", resp.Status)
+	}
+	if !strings.Contains(sent.Last(), "Message-Id: <") {
+		t.Errorf("the message left without an id:\n%s", headOf(sent.Last()))
+	}
+}
+
+// TestUpstreamOutageIsNotOurFailure: a mail server that cannot be
+// reached is answered with the page that says so, not with a 500 that
+// sends the reader to check their password. The page depends on the
+// error keeping its type through every wrap on the way up.
+func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
+	addr, srv := startIMAPServer(t)
+	base := startAlborz(t, addr)
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) == 0 {
+		t.Fatal("no seeded messages")
+	}
+
+	// The session's connection dies with the server; the next command
+	// finds it logged out, dials again, and is refused. The reader's
+	// goroutine notices the loss a moment after Close returns.
+	srv.Close()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		resp, err := c.PostForm(base+"/message/INBOX/flag",
+			url.Values{"uids": {uids[0]}, "flags": {"\\Seen"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var buf bytes.Buffer
+		buf.ReadFrom(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusBadGateway {
+			if !strings.Contains(buf.String(), "did not answer") &&
+				!strings.Contains(buf.String(), "could not reach") {
+				t.Errorf("502 without the upstream page:\n%s", firstLines(buf.String()))
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("an unreachable server was answered with %s:\n%s", resp.Status, firstLines(buf.String()))
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 

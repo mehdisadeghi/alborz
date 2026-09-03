@@ -402,16 +402,24 @@ func deliveryAddresses(h textproto.Header, authserv string) (addrs []string, cut
 	}
 
 	want := strings.ToLower(authserv)
-	ended := false
+	ended, ours := false, false
 	for fields := h.Fields(); fields.Next(); {
 		key := strings.ToLower(fields.Key())
 		if key == "received" {
 			// Our own server writes its delivery headers around its
 			// Received, not only above it, so the boundary is the first
 			// Received belonging to somebody else: from there down the
-			// message is as an earlier hop handed it over.
-			if want != "" && !ended && !strings.Contains(strings.ToLower(fields.Value()), want) {
-				cut, ended = len(addrs), true
+			// message is as an earlier hop handed it over. That holds
+			// only if our server wrote a Received above the boundary at
+			// all; where it did not, the top of the message is somebody
+			// else's and nothing in it is ours to believe.
+			hop := strings.ToLower(fields.Value())
+			if want != "" && !ended {
+				if strings.Contains(hop, want) {
+					ours = true
+				} else {
+					cut, ended = len(addrs), true
+				}
 			}
 			if m := receivedFor.FindStringSubmatch(fields.Value()); m != nil {
 				add(m[1])
@@ -424,6 +432,9 @@ func deliveryAddresses(h textproto.Header, authserv string) (addrs []string, cut
 	}
 	if want == "" || !ended {
 		cut = len(addrs)
+	}
+	if want != "" && !ours {
+		cut = 0
 	}
 	return addrs, cut
 }

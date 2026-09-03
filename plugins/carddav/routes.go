@@ -265,7 +265,7 @@ func registerRoutes(p *plugin) {
 	POST("/contacts", func(ctx *alborz.Context) error {
 		settings := &Settings{}
 		if err := ctx.Session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
-			return fmt.Errorf("failed to load CardDAV settings: %v", err)
+			return fmt.Errorf("failed to load CardDAV settings: %w", err)
 		}
 		params, err := ctx.FormParams()
 		if err != nil {
@@ -274,7 +274,7 @@ func registerRoutes(p *plugin) {
 		settings.AddressBookFilter = true
 		settings.VisibleAddressBooks = params["book"]
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
-			return fmt.Errorf("failed to save CardDAV settings: %v", err)
+			return fmt.Errorf("failed to save CardDAV settings: %w", err)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
 	})
@@ -299,7 +299,7 @@ func registerRoutes(p *plugin) {
 		for _, acc := range accounts {
 			settings := &Settings{}
 			if err := acc.session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
-				return fmt.Errorf("failed to load CardDAV settings: %v", err)
+				return fmt.Errorf("failed to load CardDAV settings: %w", err)
 			}
 			visibleSet := make(map[string]bool)
 			for _, path := range settings.VisibleAddressBooks {
@@ -488,6 +488,9 @@ func registerRoutes(p *plugin) {
 		if err != nil {
 			return fmt.Errorf("failed to query CardDAV address: %v", err)
 		}
+		if len(aos) == 0 {
+			return alborz.NotFoundf("no such contact")
+		}
 		if len(aos) != 1 {
 			return fmt.Errorf("expected exactly one address object with path %q, got %v", path, len(aos))
 		}
@@ -540,7 +543,7 @@ func registerRoutes(p *plugin) {
 				return err
 			}
 			if len(groups) == 0 || len(groups[0].Collections) == 0 {
-				return fmt.Errorf("no writable address books")
+				return alborz.RenderInfo(ctx, http.StatusOK, ctx.T("contacts.nowritable"))
 			}
 			card = make(vcard.Card)
 			currentAddressBook = &groups[0].Collections[0]

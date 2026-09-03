@@ -1771,7 +1771,11 @@ func deleteMessages(conn *imapclient.Client, mboxName string, set imap.NumSet) e
 // unifiedFolders memoizes each account's role-to-folder resolution for the
 // unified view: folder names change rarely, so one LIST per account per
 // interval replaces one per click.
-var unifiedFolders = alborz.NewMemo[map[string]string](5 * time.Minute)
+var unifiedFolders = alborz.NewMemo[map[string]string](unifiedFoldersTTL)
+
+// unifiedFoldersTTL is how long a role-to-folder answer stands; folders
+// are renamed rarely and the next merged page after that is soon enough.
+const unifiedFoldersTTL = 5 * time.Minute
 
 // resolveRole maps a unified role name to the account's folder carrying
 // that special use, or "" when the account has none.

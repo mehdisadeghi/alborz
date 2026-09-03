@@ -202,7 +202,6 @@
 "filters.activate" = "Activate"
 "filters.deactivate" = "Deactivate"
 "filters.empty" = "No filters yet."
-"settings.foraccount" = "Account: %s"
 "settings.forbrowser" = "This browser"
 "settings.browserscope" = "Stored in this browser, for every account"
 "calendar.today" = "Today"

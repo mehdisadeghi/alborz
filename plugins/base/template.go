@@ -46,6 +46,14 @@ var templateFuncs = template.FuncMap{
 		}
 	},
 	"sub": func(a, b int) int { return a - b },
+	// qsep is what joins another parameter to a URL: a crumb step may
+	// already carry one, and "?" twice makes a link nothing answers.
+	"qsep": func(raw string) string {
+		if strings.Contains(raw, "?") {
+			return "&"
+		}
+		return "?"
+	},
 	// A flat list of days is drawn as a grid, so the template needs to
 	// know where a row begins.
 	"mod": func(a, b int) int { return a % b },

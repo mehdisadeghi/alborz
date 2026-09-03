@@ -331,7 +331,6 @@
 "form.recipientinvalid" = "Esa no es una lista de direcciones válida."
 "mailbox.range" = "%d–%d de %d"
 "mailbox.position" = "%d de %d"
-"settings.foraccount" = "Cuenta: %s"
 
 "settings.alignscript" = "Alinear cada línea según su propia escritura"
 "settings.mailtohandler" = "Abrir los enlaces de correo aquí"

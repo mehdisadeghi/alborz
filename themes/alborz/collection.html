@@ -11,7 +11,7 @@
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
         <h1 dir="auto">{{.Name}}</h1>
         {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
-        <div class="context-crumb">{{ template "ltr" .Account }}</div>
+        {{ template "dav-crumb" (dict "account" .Account "urlaccount" $.GlobalData.URLAccount "section" .BackLabel "home" .ListHref "field" "" "collection" "" "path" "") }}
 
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true) }}
         {{ template "field" (dict "label" ($.T "common.color") "name" "color" "type" "color" "value" .Color) }}

@@ -205,9 +205,7 @@
         </div>
       </section>
 
-      {{ with $.GlobalData.URLAccount }}
-      <div class="context-crumb">{{.}} › {{$.Mailbox.Label}}</div>
-      {{ end }}
+      {{ template "crumb" (dict "steps" .Crumb "account" $.GlobalData.URLAccount) }}
       <div class="message-header">
         <table>
           <tr>

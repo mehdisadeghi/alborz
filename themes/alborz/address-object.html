@@ -21,7 +21,7 @@
       </section>
 
       {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
-      <div class="context-crumb">{{$crumbAcct}} › {{.AddressBook.Name}}</div>
+      {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.contacts") "home" "/contacts" "field" "book" "collection" .AddressBook.Name "path" .AddressBook.Path) }}
 
       <section class="details">
         {{$photo := .AddressObject.PhotoURL}}

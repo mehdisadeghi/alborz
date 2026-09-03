@@ -34,13 +34,13 @@ const (
 	// login page is the visible casualty of waiting on it.
 	dialTimeout = 3 * time.Second
 
-	// roundTripTimeout bounds one exchange that legitimately does work -
+	// RoundTripTimeout bounds one exchange that legitimately does work -
 	// a step of a login handshake against a proxy that asks its own
 	// backend before answering, a sieve command, an attachment fetch, a
 	// body search with no server-side index. Spending one of these on
 	// four handshake steps at once is what made a distant server look
 	// like a broken one.
-	roundTripTimeout = 10 * time.Second
+	RoundTripTimeout = 10 * time.Second
 
 	// sessionDuration is how long a session outlives its last request.
 	sessionDuration = 30 * time.Minute
@@ -153,13 +153,13 @@ func (s *Session) WatchIMAP(onChange func()) (*imapclient.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	watchdog := time.AfterFunc(roundTripTimeout, func() { c.Close() })
+	watchdog := time.AfterFunc(RoundTripTimeout, func() { c.Close() })
 	err = c.Login(s.username, s.password).Wait()
 	timedOut := !watchdog.Stop()
 	if err != nil || timedOut {
 		c.Close()
 		if timedOut {
-			return nil, UpstreamError{Service: "mail", After: roundTripTimeout, cause: err}
+			return nil, UpstreamError{Service: "mail", After: RoundTripTimeout, cause: err}
 		}
 		return nil, AuthError{err}
 	}
@@ -209,11 +209,11 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 	// TODO: to avoid races wrt. disconnection, re-run f if it returns
 	// io.UnexpectedEOF
 	c := s.imapConn
-	watchdog := time.AfterFunc(roundTripTimeout, func() { c.Close() })
+	watchdog := time.AfterFunc(RoundTripTimeout, func() { c.Close() })
 	err := f(c)
 	if !watchdog.Stop() {
 		s.imapConn = nil
-		return UpstreamError{Service: "mail", After: roundTripTimeout, cause: err}
+		return UpstreamError{Service: "mail", After: RoundTripTimeout, cause: err}
 	}
 	return err
 }
@@ -252,11 +252,11 @@ func (s *Session) DoSieve(f func(SieveClient) error) error {
 
 	timedOut := false
 	run := func(c SieveClient) error {
-		watchdog := time.AfterFunc(roundTripTimeout, func() { c.Close() })
+		watchdog := time.AfterFunc(RoundTripTimeout, func() { c.Close() })
 		err := f(c)
 		if !watchdog.Stop() {
 			timedOut = true
-			return fmt.Errorf("sieve command timed out after %v", roundTripTimeout)
+			return fmt.Errorf("sieve command timed out after %v", RoundTripTimeout)
 		}
 		return err
 	}
@@ -453,13 +453,13 @@ func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapc
 		return nil, UpstreamError{Service: "mail", cause: err}
 	}
 
-	watchdog := time.AfterFunc(roundTripTimeout, func() { c.Close() })
+	watchdog := time.AfterFunc(RoundTripTimeout, func() { c.Close() })
 	err = c.Login(username, password).Wait()
 	timedOut := !watchdog.Stop()
 	if err != nil {
 		c.Logout()
 		if timedOut {
-			return nil, fmt.Errorf("IMAP login timed out after %v", roundTripTimeout)
+			return nil, fmt.Errorf("IMAP login timed out after %v", RoundTripTimeout)
 		}
 		return nil, AuthError{err}
 	}

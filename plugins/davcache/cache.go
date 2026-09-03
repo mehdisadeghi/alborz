@@ -145,14 +145,13 @@ func (c *Cache) Forget(username string) {
 
 // Transport wraps next with the cache for one user. The jar authenticates
 // background replays the same way foreground requests are.
-func (c *Cache) Transport(username string, next http.RoundTripper, jar http.CookieJar) http.RoundTripper {
+func (c *Cache) Transport(username string, next http.RoundTripper) http.RoundTripper {
 	return &transport{
 		cache:    c,
 		username: username,
 		next:     next,
 		replay: &http.Client{
 			Transport: next,
-			Jar:       jar,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},

@@ -66,6 +66,18 @@ func init() {
 	loader := p.Loader()
 	alborz.RegisterPluginLoader(func(s *alborz.Server) ([]alborz.Plugin, error) {
 		s.OnAccountReady = Watch
+		s.OnAccountGone = append(s.OnAccountGone, forgetAccount)
 		return loader(s)
 	})
+}
+
+// forgetAccount drops everything held for an account once it is gone:
+// its listings and sidebar, the people it writes to, its folder roles
+// and what its server calls itself. A cache with nobody behind it is a
+// leak, and until now only the listings were let go.
+func forgetAccount(username string) {
+	listings.evictAll(username)
+	correspondents.Forget(username)
+	unifiedFolders.Forget(username)
+	authServGuesses.Forget(username)
 }

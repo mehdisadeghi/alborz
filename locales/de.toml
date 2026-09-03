@@ -337,6 +337,9 @@
 "settings.foraccount" = "Konto: %s"
 
 "settings.alignscript" = "Jede Zeile nach ihrer eigenen Schrift ausrichten"
+"settings.mailtohandler" = "E-Mail-Links hier öffnen"
+"settings.mailtoasked" = "Ihr Browser fragt, ob er das darf."
+"settings.mailtorefused" = "Ihr Browser hat abgelehnt: dafür ist eine sichere Verbindung nötig."
 "common.source" = "Quelltext"
 "common.created" = "Erstellt"
 "common.added" = "Hinzugefügt"

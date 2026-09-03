@@ -65,7 +65,20 @@
           </select>
         </div>
 
-        <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
+        <div class="action-group">
+          <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
+        </div>
+
+        {{/* The browser decides, and it only asks on a gesture - so this
+             is a button rather than something the page does on load. It
+             stays hidden where the browser cannot offer it at all, and
+             it sits in the card so it shares the one left edge every
+             other control on this page is aligned to. */}}
+        <div class="action-group" id="handler-group" hidden>
+          <button type="button" id="register-mailto">{{$.T "settings.mailtohandler"}}</button>
+          <p class="hint" id="register-mailto-asked" hidden>{{$.T "settings.mailtoasked"}}</p>
+          <p class="hint" id="register-mailto-refused" hidden>{{$.T "settings.mailtorefused"}}</p>
+        </div>
       </form>
     </main>
   </div>

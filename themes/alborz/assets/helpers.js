@@ -183,4 +183,22 @@ if (suggestions && recipients.length) {
 	}
 }
 
+// A browser can be told this application opens mail links. It asks only
+// on a user gesture, so this hangs off a button, and the button appears
+// only where the browser offers the ability at all.
+const mailto_button = document.getElementById("register-mailto");
+if (mailto_button && navigator.registerProtocolHandler) {
+	document.getElementById("handler-group").hidden = false;
+	mailto_button.addEventListener("click", () => {
+		try {
+			navigator.registerProtocolHandler("mailto", "/compose?mailto=%s");
+			document.getElementById("register-mailto-asked").hidden = false;
+		} catch (e) {
+			// Refused for want of a secure context, which is worth
+			// saying rather than leaving the button looking broken.
+			document.getElementById("register-mailto-refused").hidden = false;
+		}
+	});
+}
+
 // @license-end

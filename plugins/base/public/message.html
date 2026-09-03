@@ -40,7 +40,7 @@
       {{if ismutableflag $name}}
         <input type="checkbox" name="flags" id="flag-{{$name}}"
           value="{{$name}}" {{if $has}}checked{{end}}>
-        <label for="flag-{{$name}}">{{$name | formatflag}}</label>
+        <label for="flag-{{$name}}">{{ with flagkey $name }}{{ $.T . }}{{ else }}{{ $name }}{{ end }}</label>
         <br>
       {{else}}
         {{if $has}}

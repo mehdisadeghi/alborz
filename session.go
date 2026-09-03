@@ -46,7 +46,9 @@ const (
 	sessionDuration = 30 * time.Minute
 )
 
-const maxAttachmentSize = 32 << 20 // 32 MiB
+// MaxAttachmentSize bounds what one session holds in attachments not yet
+// sent, and what one upload may carry.
+const MaxAttachmentSize = 32 << 20
 
 func generateToken() (string, error) {
 	b := make([]byte, 32)
@@ -350,7 +352,7 @@ func (s *Session) PutAttachment(in *multipart.FileHeader,
 	for _, a := range s.attachments {
 		size += a.File.Size
 	}
-	if size+in.Size > maxAttachmentSize {
+	if size+in.Size > MaxAttachmentSize {
 		return "", ErrAttachmentCacheSize
 	}
 

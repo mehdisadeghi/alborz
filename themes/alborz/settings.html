@@ -127,6 +127,21 @@
           <small>{{$.T "settings.tzhint"}}</small>
         </div>
 
+        {{ if or (call .GlobalData.HavePlugin "caldav") (call .GlobalData.HavePlugin "carddav") }}
+        <div class="action-group">
+          <label for="http_password">{{$.T "settings.davpassword"}}</label>
+          <input type="password" name="http_password" id="http_password" autocomplete="off"
+                 placeholder="{{if .HasHTTPPassword}}{{$.T "settings.davstored"}}{{else}}{{$.T "settings.davsame"}}{{end}}">
+          <small>{{$.T "settings.davhint"}}</small>
+          {{ if .HasHTTPPassword }}
+          <label for="http_password_reset" class="checkbox">
+            <input type="checkbox" name="http_password_reset" id="http_password_reset" value="1">
+            {{$.T "settings.davreset"}}
+          </label>
+          {{ end }}
+        </div>
+        {{ end }}
+
 
 
         <div class="action-group">

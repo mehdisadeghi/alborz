@@ -19,18 +19,17 @@
 
         <div class="headers no-js">
           <label for="from">{{$.T "compose.from"}}</label>
-          {{ $sel := $.GlobalData.Username }}{{ with $.GlobalData.URLAccount }}{{ $sel = . }}{{ end }}
           {{/* A reply names the identity it was addressed to; the
                account is the choice only when nothing named one. */}}
-          {{ $selid := .Message.From }}
+          {{ $selected := .SelectedFrom }}
           {{ $multi := gt (len .Identities) 1 }}
           <select name="from_account" id="from">
             {{ range .Identities }}
             {{ if $multi }}<optgroup label="{{.Account}}">{{ end }}
             {{ $acct := .Account }}
-            <option value="{{$acct}}"{{ if and (eq $acct $sel) (eq $selid "") }} selected{{ end }}>{{$acct}}</option>
+            <option value="{{$acct}}"{{ if eq $acct $selected }} selected{{ end }}>{{$acct}}</option>
             {{ range .Addresses }}
-            <option value="{{$acct}}|{{.}}"{{ if eq . $selid }} selected{{ end }}>{{.}}</option>
+            <option value="{{$acct}}|{{.}}"{{ if eq (printf "%s|%s" $acct .) $selected }} selected{{ end }}>{{.}}</option>
             {{ end }}
             {{ if $multi }}</optgroup>{{ end }}
             {{ end }}

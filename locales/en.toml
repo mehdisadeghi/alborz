@@ -203,6 +203,7 @@
 "filters.new" = "New filter"
 "filters.title" = "Filters"
 "filters.unreachable" = "The filter server did not answer."
+"filters.changed" = "This filter changed on the server since you opened it. Reload it and make your change again."
 "filters.script" = "Sieve script"
 "filters.active" = "Active"
 "filters.activate" = "Activate"

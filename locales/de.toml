@@ -208,6 +208,7 @@
 "filters.new" = "Neuer Filter"
 "filters.title" = "Filter"
 "filters.unreachable" = "Der Filterserver hat nicht geantwortet."
+"filters.changed" = "Dieser Filter hat sich auf dem Server geändert, seit er geöffnet wurde. Neu laden und die Änderung erneut machen."
 "filters.script" = "Sieve-Skript"
 "filters.active" = "Aktiv"
 "filters.activate" = "Aktivieren"

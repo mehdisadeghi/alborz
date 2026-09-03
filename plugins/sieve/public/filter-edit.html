@@ -26,6 +26,7 @@
         <label>
           <span>{{$.T "common.name"}}</span>
           <input type="text" name="name" id="name" value="{{.Name}}" readonly />
+          <input type="hidden" name="loaded" value="{{.Loaded}}">
         </label>
         {{ else }}
         {{ if gt (len .Accounts) 1 }}

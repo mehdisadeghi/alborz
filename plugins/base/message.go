@@ -504,13 +504,13 @@ func handleUnsubscribe(ctx *alborz.Context) error {
 	client := alborz.NewRemoteClient(unsubscribeTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
-		ctx.Session.PutNotice(ctx.T("notice.unsubfailed"))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		ctx.Logger().Printf("unsubscribe %s answered %s", msg.OneClick, resp.Status)
-		ctx.Session.PutNotice(ctx.T("notice.unsubfailed"))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 	ctx.Session.PutNotice(ctx.T("notice.unsubscribed"))

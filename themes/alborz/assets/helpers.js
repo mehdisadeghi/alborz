@@ -21,6 +21,16 @@ if (tz_input && !tz_input.value) {
 	} catch (e) {}
 }
 
+// Clearing a notice needs no round trip where a script runs; the
+// markup's link is the fallback for where none does.
+const notice_dismiss = document.querySelector(".notice-dismiss");
+if (notice_dismiss) {
+	notice_dismiss.addEventListener("click", ev => {
+		ev.preventDefault();
+		notice_dismiss.closest(".notice").remove();
+	});
+}
+
 // Bulk actions operate on the checked rows: the select-all box appears
 // where there are rows, and every control bound to the bulk form is
 // disabled while nothing is selected - the move destination as much as

@@ -1,0 +1,23 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ template "aside" . }}
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="POST">
+        <h1>{{printf ($.T "folder.emptyask") .Mailbox.Name}}</h1>
+        <div class="alert" role="alert">
+          {{$.GlobalData.Tf "folder.emptycount" .Count}}
+        </div>
+        <div class="actions">
+          <button type="submit" class="button-danger">{{$.T "folder.emptydo"}}</button>
+          <a class="button-link button-quiet" href="{{.Mailbox.URL}}">{{$.T "common.cancel"}}</a>
+        </div>
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

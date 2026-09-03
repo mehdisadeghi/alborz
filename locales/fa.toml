@@ -304,6 +304,14 @@
 "notice.nomessages" = "نامه‌ای انتخاب نشده است."
 "notice.nodestination" = "پوشهٔ مقصدی انتخاب نشده است."
 "notice.alreadyempty" = "آن پوشه از پیش خالی بود."
+"notice.undo" = "واگرد"
+"notice.undone" = "واگرد شد."
+"notice.undofailed" = "واگرد نشد: از آن زمان جابه‌جا شده‌اند."
+"notice.taskdone" = "کار انجام‌شده علامت خورد."
+"notice.taskopen" = "کار دوباره باز شد."
+"folder.emptytitle" = "خالی کردن %s"
+"folder.emptyask" = "همه‌چیز در %s حذف شود؟"
+"folder.emptydo" = "حذف همه"
 "notice.loginfailed" = "ورود ناموفق بود!"
 "notice.loginerror" = "ورود ناموفق بود: %s"
 "tasks.edittitle" = "ویرایش کار"
@@ -489,3 +497,19 @@ other = "%d مورد به تقویم افزوده شد."
 ["import.vcf"]
 one = "%d مخاطب افزوده شد."
 other = "%d مخاطب افزوده شد."
+
+["notice.flagged"]
+one = "%d نامه تغییر کرد."
+other = "%d نامه تغییر کرد."
+
+["notice.tasksdone"]
+one = "%d کار انجام‌شده علامت خورد."
+other = "%d کار انجام‌شده علامت خورد."
+
+["notice.deleteall"]
+one = "حذف همهٔ %d نامهٔ این پوشه"
+other = "حذف همهٔ %d نامهٔ این پوشه"
+
+["folder.emptycount"]
+one = "%d نامه دارد که با حذف برای همیشه از بین می‌رود."
+other = "%d نامه دارد که با حذف برای همیشه از بین می‌رود."

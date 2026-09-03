@@ -312,6 +312,14 @@
 "notice.nomessages" = "No messages selected."
 "notice.nodestination" = "No destination folder selected."
 "notice.alreadyempty" = "That folder was already empty."
+"notice.undo" = "Undo"
+"notice.undone" = "Undone."
+"notice.undofailed" = "Could not undo: they have moved since."
+"notice.taskdone" = "Task marked done."
+"notice.taskopen" = "Task reopened."
+"folder.emptytitle" = "Empty %s"
+"folder.emptyask" = "Delete everything in %s?"
+"folder.emptydo" = "Delete all"
 "notice.loginfailed" = "Failed to login!"
 "notice.loginerror" = "Failed to login: %s"
 "tasks.edittitle" = "Edit task"
@@ -489,3 +497,19 @@ other = "%d entries added to the calendar."
 ["import.vcf"]
 one = "%d contact added."
 other = "%d contacts added."
+
+["notice.flagged"]
+one = "%d message updated."
+other = "%d messages updated."
+
+["notice.tasksdone"]
+one = "%d task marked done."
+other = "%d tasks marked done."
+
+["notice.deleteall"]
+one = "Delete all %d in this folder"
+other = "Delete all %d in this folder"
+
+["folder.emptycount"]
+one = "It holds %d message, gone for good once deleted."
+other = "It holds %d messages, gone for good once deleted."

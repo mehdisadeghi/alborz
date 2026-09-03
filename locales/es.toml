@@ -309,6 +309,14 @@
 "notice.nomessages" = "Ningún mensaje seleccionado."
 "notice.nodestination" = "Ninguna carpeta de destino seleccionada."
 "notice.alreadyempty" = "Esa carpeta ya estaba vacía."
+"notice.undo" = "Deshacer"
+"notice.undone" = "Deshecho."
+"notice.undofailed" = "No se pudo deshacer: se han movido desde entonces."
+"notice.taskdone" = "Tarea marcada como hecha."
+"notice.taskopen" = "Tarea reabierta."
+"folder.emptytitle" = "Vaciar %s"
+"folder.emptyask" = "¿Eliminar todo en %s?"
+"folder.emptydo" = "Eliminar todo"
 "notice.loginfailed" = "¡No se pudo iniciar sesión!"
 "notice.loginerror" = "No se pudo iniciar sesión: %s"
 "notice.filtersaved" = "Filtro guardado."
@@ -489,3 +497,19 @@ other = "%d entradas añadidas al calendario."
 ["import.vcf"]
 one = "%d contacto añadido."
 other = "%d contactos añadidos."
+
+["notice.flagged"]
+one = "%d mensaje actualizado."
+other = "%d mensajes actualizados."
+
+["notice.tasksdone"]
+one = "%d tarea marcada como hecha."
+other = "%d tareas marcadas como hechas."
+
+["notice.deleteall"]
+one = "Eliminar los %d de esta carpeta"
+other = "Eliminar los %d de esta carpeta"
+
+["folder.emptycount"]
+one = "Contiene %d mensaje; una vez eliminado no vuelve."
+other = "Contiene %d mensajes; una vez eliminados no vuelven."

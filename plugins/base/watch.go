@@ -104,7 +104,9 @@ func watch(s *alborz.Session, log echo.Logger) {
 // answers by refusing the account.
 func follow(s *alborz.Session) error {
 	changed := make(chan struct{}, 1)
-	c, err := s.WatchIMAP(func() { notify(changed) })
+	c, err := s.WatchIMAP(func() { notify(changed) }, func(seqNum uint32, flags []imap.Flag) {
+		listings.setFlags(s.Username(), "INBOX", seqNum, flags)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
@@ -136,9 +138,9 @@ func follow(s *alborz.Session) error {
 	}
 }
 
-// idleOnce waits on one IDLE. A change is not read here: the listing is
-// dropped and the next request fetches it, which keeps one place
-// deciding what a listing looks like.
+// idleOnce waits on one IDLE. On a change the listing is dropped and
+// fetched again at once, on the session's own connection, so the visit
+// that follows new mail finds the page ready.
 func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}) error {
 	cmd, err := c.Idle()
 	if err != nil {
@@ -150,6 +152,9 @@ func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}) er
 	select {
 	case <-changed:
 		listings.evict(s.Username(), "INBOX")
+		if err := warmInbox(s); err != nil {
+			return fmt.Errorf("failed to refetch INBOX: %w", err)
+		}
 	case <-window.C:
 	case <-s.Done():
 	}
@@ -158,6 +163,46 @@ func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}) er
 		return fmt.Errorf("failed to leave idle: %w", err)
 	}
 	return nil
+}
+
+// warmInbox fetches back what the eviction dropped: the account's INBOX
+// listing, its share of the merged one, and the rail's counts. All
+// three went with the folder, and any of them missing makes the next
+// click pay on the reader's time.
+func warmInbox(s *alborz.Session) error {
+	settings, err := LoadSettings(s.Store())
+	if err != nil {
+		return err
+	}
+	user := s.Username()
+	var own, merged *listingEntry
+	err = s.DoIMAP(func(c *imapclient.Client) error {
+		var err error
+		if own, err = fetchListing(c, listingSpec{mbox: "INBOX"}, settings, 0, settings.MessagesPerPage); err != nil {
+			return err
+		}
+		merged, err = fetchUnifiedAccount(c, user, "INBOX", listingSpec{}, settings, settings.MessagesPerPage, true)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	listings.store(user, "INBOX", own)
+	if merged.snap != nil {
+		listings.store(user, listingView("#INBOX", "", false, "", ""), merged)
+	}
+	if _, err := sidebarFor(s); err != nil {
+		return err
+	}
+	return prefetchBodies(s, settings.PreferHTML, "INBOX", own.msgs)
+}
+
+// watching reports whether the account's INBOX is under IDLE, in which
+// case its listing is current until the watcher says otherwise.
+func (w *watcherSet) watching(user string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.running[user]
 }
 
 func notify(ch chan struct{}) {

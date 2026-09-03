@@ -164,6 +164,19 @@ type sidebar struct {
 // clone copies the mutable layers, so an assembled or cached sidebar never
 // shares them with another request; the per-message wire data underneath is
 // read-only and stays shared.
+// adjustUnseen moves the folder's unseen count by delta. The status is
+// shared with copies of the sidebar, so the folder gets its own.
+func (sb *sidebar) adjustUnseen(folder string, delta int) {
+	st := sb.statuses[folder]
+	if st == nil || st.StatusData == nil || st.NumUnseen == nil || int(*st.NumUnseen)+delta < 0 {
+		return
+	}
+	data := *st.StatusData
+	n := uint32(int(*data.NumUnseen) + delta)
+	data.NumUnseen = &n
+	st.StatusData = &data
+}
+
 func (sb sidebar) clone() sidebar {
 	out := sidebar{
 		mailboxes: append([]MailboxInfo(nil), sb.mailboxes...),

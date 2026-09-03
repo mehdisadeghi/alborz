@@ -209,6 +209,14 @@ func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server
 		&imap.AppendOptions{Flags: []imap.Flag{imap.FlagDraft}}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+	// An INBOX message for the second account, to star while a page is
+	// scoped to it: the flag must reach the account the URL names, not
+	// the first-listed one.
+	inbox := fmt.Sprintf("From: pat@example.org\r\nTo: %s\r\nSubject: for the second account\r\n"+
+		"Message-ID: <second-inbox@test>\r\nContent-Type: text/plain\r\n\r\nHello.\r\n", smokeUser2)
+	if _, err := other.Append("INBOX", literal{strings.NewReader(inbox), int64(len(inbox))}, &imap.AppendOptions{}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
 	mem.AddUser(other)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -435,6 +443,89 @@ func TestUnknownSearchKeySurvives(t *testing.T) {
 	if body := get(t, c, base+"/mailbox/INBOX"); !strings.Contains(body, "message-row") {
 		t.Fatal("the session stopped serving mail after an unrecognised search key")
 	}
+}
+
+// TestOpeningAHeldMessageAfterAFlagChange covers a crash that followed
+// every star. A flag change evicts the mailbox's listing so the next
+// list is fetched fresh, but the body fetched ahead for the message
+// stays held, and the page served from a held body read its sidebar
+// off the listing entry that was no longer there. The prefetch runs
+// behind the listing, so the sequence is tried more than once to be
+// sure of meeting a held body; and the session has to still serve
+// mail afterwards, since a panic in a handler has cost the connection
+// before.
+func TestOpeningAHeldMessageAfterAFlagChange(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+
+	for round := 0; round < 3; round++ {
+		uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+		if len(uids) == 0 {
+			t.Fatal("no messages listed")
+		}
+		time.Sleep(150 * time.Millisecond)
+		next := "/message/INBOX/" + uids[0] + "?part=1"
+		resp := postForm(t, c, base+"/message/INBOX/flag", url.Values{
+			"uids": {uids[0]}, "flags": {`\Flagged`}, "action": {"add"}, "next": {next}})
+		resp.Body.Close()
+		if !strings.Contains(get(t, c, base+next), "message-flag-form") {
+			t.Fatal("the message page did not render after the flag change")
+		}
+	}
+	if body := get(t, c, base+"/mailbox/INBOX"); !strings.Contains(body, "message-row") {
+		t.Fatal("the session stopped serving mail after the flag change")
+	}
+}
+
+// TestStarStickToTheScopedAccount stars a message on a page scoped to
+// the second account and reads it back: the flag must land on the
+// account the URL names, and the reloaded page must show it, not the
+// colour it had before. This is the star that "returned the same
+// colour" when the page belonged to a non-first account.
+func TestStarStickToTheScopedAccount(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	postForm(t, c, base+"/login", url.Values{"username": {smokeUser2}, "password": {smokePass}})
+
+	scoped := "?account=" + smokeUser2
+	page := get(t, c, base+"/mailbox/INBOX"+scoped)
+	uids := messageUIDs(page)
+	if len(uids) == 0 {
+		t.Fatal("the second account's inbox listed no message")
+	}
+	uid := uids[0]
+	here := "/message/INBOX/" + uid + "?part=1&account=" + smokeUser2
+
+	before := get(t, c, base+here)
+	if flagButtonColor(t, before) != "" {
+		t.Fatal("the message was already flagged before the test starred it")
+	}
+	postForm(t, c, base+"/message/INBOX/flag"+scoped,
+		url.Values{"uids": {uid}, "color": {"gold"}, "next": {here}})
+
+	after := get(t, c, base+here)
+	if got := flagButtonColor(t, after); got != "gold" {
+		t.Fatalf("after starring on the scoped page the star is %q, not gold", got)
+	}
+}
+
+// flagButtonColor reads the colour the message page's star shows: the
+// flag-<colour> class on the flag button, or "" when it is unflagged.
+func flagButtonColor(t *testing.T, page string) string {
+	t.Helper()
+	i := strings.Index(page, `class="flag-button`)
+	if i < 0 {
+		t.Fatal("the message page has no star button")
+	}
+	start := i + len(`class="`)
+	end := strings.IndexByte(page[start:], '"')
+	classes := strings.Fields(page[start : start+end])
+	for _, cls := range classes {
+		if strings.HasPrefix(cls, "flag-") && cls != "flag-button" {
+			return strings.TrimPrefix(cls, "flag-")
+		}
+	}
+	return ""
 }
 
 // TestMailtoHandlerRefusesForeignURI guards a redirect. The browser is

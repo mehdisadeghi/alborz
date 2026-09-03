@@ -70,24 +70,37 @@ func TestCacheKeysOnTheDecodedPath(t *testing.T) {
 	if n := srv.count("REPORT"); n != 1 {
 		t.Fatalf("a fresh entry was fetched %d times", n)
 	}
+	// The miss asked for the ctag once, so the collection is renewable
+	// from its first read, not only after the loop has replayed it.
+	if n := srv.count("PROPFIND"); n != 1 {
+		t.Fatalf("expected the ctag to be asked for on the miss, got %d PROPFINDs", n)
+	}
 
 	u := c.user("u")
 	u.age()
 	u.refresh(context.Background())
-	if n := srv.count("REPORT"); n != 2 {
-		t.Fatalf("the refresh loop did not replay the stale entry: %d fetches", n)
-	}
-
 	u.age()
 	report()
-	if n := srv.count("REPORT"); n != 2 {
+	if n := srv.count("REPORT"); n != 1 {
 		t.Errorf("an unchanged collection was fetched again: %d fetches", n)
 	}
-	if n := srv.count("PROPFIND"); n != 2 {
+	if n := srv.count("PROPFIND"); n != 3 {
 		t.Errorf("expected one ctag check per stale pass, got %d", n)
 	}
 
-	srv.ctag, srv.missing = "2", true
+	// A changed ctag drops the collection; the read that follows fetches
+	// it afresh and records the new ctag with it.
+	srv.ctag = "2"
+	u.age()
+	report()
+	if n := srv.count("REPORT"); n != 2 {
+		t.Errorf("a changed collection was not fetched again: %d fetches", n)
+	}
+	if got := u.ctagOf("/c/Work Cal/"); got != "2" {
+		t.Errorf("the ctag on record is %q after the refetch", got)
+	}
+
+	srv.ctag, srv.missing = "3", true
 	u.age()
 	u.refresh(context.Background())
 	if n := len(u.entries); n != 0 {

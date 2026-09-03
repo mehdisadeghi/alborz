@@ -107,3 +107,20 @@ func TestCreateCollectionWalksToAFreeAddress(t *testing.T) {
 		t.Errorf("a failure that is not a taken address was retried: %v", err)
 	}
 }
+
+func TestCountObjectsSkipsTheCollectionItself(t *testing.T) {
+	client := &http.Client{Transport: answer{http.StatusMultiStatus, `<?xml version="1.0"?>
+<D:multistatus xmlns:D="DAV:">
+ <D:response><D:href>/cal/u/work/</D:href><D:propstat><D:prop/><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+ <D:response><D:href>/cal/u/work/a.ics</D:href><D:propstat><D:prop/><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+ <D:response><D:href>/cal/u/work/b.ics</D:href><D:propstat><D:prop/><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+</D:multistatus>`}}
+	base, _ := url.Parse("https://dav.example/")
+	n, err := CountObjects(context.Background(), client, base, "/cal/u/work/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("counted %d, want 2", n)
+	}
+}

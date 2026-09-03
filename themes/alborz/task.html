@@ -28,6 +28,7 @@
           </form>
           <a class="icon-button" href="{{.Task.URL}}/edit{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
           <a class="icon-button" href="{{.Task.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
+          <a class="icon-button" href="{{.Task.URL}}/raw?save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".ics" }}" aria-label="{{ printf ($.T "common.saveas") ".ics" }}">{{ template "icon" "download" }}</a>
           <form action="{{.Task.URL}}/delete{{$acct}}" method="post">
             <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
           </form>

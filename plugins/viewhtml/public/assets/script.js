@@ -3,22 +3,38 @@ if (emailFrame) {
 	// Size the frame to its content. A mail laid out wider than the
 	// screen is scaled down whole, the way mobile clients render it,
 	// instead of panning inside the frame.
+	//
+	// The frame arrives hidden and is shown once it has been sized: the
+	// browser paints the unsized box first, and a reader saw the mail
+	// scroll inside that box and then jump to its real size.
+	var shown = false;
+	var show = function() {
+		if (!shown) {
+			shown = true;
+			emailFrame.style.visibility = "";
+		}
+	};
 	// Mails often lack a doctype, and in quirks mode the content size
 	// lives on body instead of documentElement, differently per browser;
-	// the maximum over both is right everywhere.
+	// the maximum over both is right everywhere. Only the scroll sizes
+	// are read: the offset sizes follow the frame, not the content.
 	var contentSize = function() {
 		var doc = emailFrame.contentWindow.document;
 		var root = doc.documentElement, body = doc.body;
 		return {
-			width: Math.max(root.scrollWidth, root.offsetWidth,
-				body ? body.scrollWidth : 0, body ? body.offsetWidth : 0),
-			height: Math.max(root.scrollHeight, root.offsetHeight,
-				body ? body.scrollHeight : 0, body ? body.offsetHeight : 0)
+			width: Math.max(root.scrollWidth, body ? body.scrollWidth : 0),
+			height: Math.max(root.scrollHeight, body ? body.scrollHeight : 0)
 		};
 	};
 	var applied = { width: -1, height: -1, avail: -1 };
+	// The height this script last wrote. One written by anyone else -
+	// a reader in the developer tools - is theirs, and is left alone.
+	var ours = "";
 	var resizeFrame = function(force) {
 		try {
+			if (!force && emailFrame.style.height !== ours) {
+				return;
+			}
 			var avail = emailFrame.parentNode.clientWidth;
 			var size = contentSize();
 			// Re-laying out on every observer tick collapses the frame
@@ -33,7 +49,9 @@ if (emailFrame) {
 			emailFrame.style.width = "";
 			emailFrame.style.maxWidth = "";
 			emailFrame.style.transform = "";
-			emailFrame.style.height = "";
+			// A scroll size is at least the viewport, so the frame is
+			// collapsed for the measure: what is read is the content's.
+			emailFrame.style.height = "0px";
 			avail = emailFrame.clientWidth;
 			var width = contentSize().width;
 			if (width > avail) {
@@ -51,11 +69,14 @@ if (emailFrame) {
 				emailFrame.style.height = contentSize().height + "px";
 				emailFrame.parentNode.style.height = "";
 			}
+			ours = emailFrame.style.height;
 			var settled = contentSize();
 			applied = { width: settled.width, height: settled.height,
 				avail: emailFrame.parentNode.clientWidth };
+			show();
 		} catch (e) {
 			window.alborzFrameError = String(e);
+			show();
 		}
 	};
 	// The frame must never scroll on its own: its scrollbar competes
@@ -102,7 +123,8 @@ if (emailFrame) {
 	});
 	// The srcdoc document appears at a different moment per engine, and
 	// the load event can fire before this script attaches; poll briefly
-	// until the real content is sized.
+	// until the real content is sized, and show the frame as it is
+	// rather than never if that moment does not come.
 	var bootTicks = 0;
 	var boot = setInterval(function() {
 		bootTicks++;
@@ -113,6 +135,7 @@ if (emailFrame) {
 		}
 		if (applied.height > 50 || bootTicks > 30) {
 			clearInterval(boot);
+			show();
 		}
 	}, 150);
 

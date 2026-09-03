@@ -138,7 +138,7 @@
 {{/* A list's sort menu in its toolbar: one row per order, a tuple of
      label and key each. A list with nothing in it keeps the control,
      dim, so the toolbar does not change with the count. dict: g s rows
-     [disabled]. */}}
+     [disabled thread]. */}}
 {{ define "sort-menu" }}
 {{ if .disabled }}
 <span class="overflow sort-overflow"><span class="icon-button" aria-disabled="true" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}">{{ template "icon" "sort" }}</span></span>
@@ -148,6 +148,13 @@
   <div class="overflow-menu">
     {{ range .rows }}
     {{ template "sort-th" (dict "label" (index . 0) "key" (index . 1) "s" $.s "class" "button-link") }}
+    {{ end }}
+    {{ with .thread }}
+    {{/* Not a column to order by but a shape to read in, so it sits at
+         the end of the same menu rather than among the columns. */}}
+    <a class="button-link{{ if .current }} is-current{{ end }}"
+       href="{{ localhref .href }}"
+       {{ if .current }}aria-current="true"{{ end }}>{{.label}}</a>
     {{ end }}
   </div>
 </details>

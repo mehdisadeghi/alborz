@@ -283,17 +283,41 @@
                rather than the list, should not have to open the source
                to find the address. Only the entries the list actually
                offered are shown. */}}
-          {{ if and .Message.ListID (or .Message.ListPost .Message.ListHelp .Message.ListSubscribe .Message.ListOwner .Message.ListArchive) }}
+          {{/* Where this message sits in its conversation. A fact
+               about the message like From and Date, so it belongs among
+               them rather than behind the list's summary: navigation is
+               the one thing nobody should open a disclosure to reach. */}}
+          {{/* One line for where this message sits: what it answers, the
+               list it came through, and how many answered it. Any mail
+               that is a reply gets it, not only list mail: the shape of
+               the fact is the same either way. */}}
+          {{ if or .InReplyTo .Answers .Message.ListID }}
+          <tr>
+            {{/* The label is the link to the folder read as
+                 conversations: it is already the words "this thread"
+                 and costs no width. It appears only where the server
+                 threads, because that is the one way of finding a
+                 conversation that does not depend on the quality of the
+                 server's header search. */}}
+            <th scope="row">{{ if .ThreadSupported }}<a href="{{ localhref (printf "%v?thread=%d%s" $.Mailbox.URL .Message.UID (account "&" $.GlobalData.URLAccount)) }}">{{$.T "list.conversation"}}</a>{{ else }}{{$.T "list.conversation"}}{{ end }}:</th>
+            <td class="conversation">
+              {{ with .InReplyTo }}<a href="{{.URL}}{{account "?" $.GlobalData.URLAccount}}">{{ printf ($.T "list.answering") (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}
+              {{ with .Answers }}<a href="{{ (index . 0).URL }}{{account "?" $.GlobalData.URLAccount}}">{{ if eq (len .) 1 }}{{ printf ($.T "list.answeredby") (or (index . 0).From ($.T "mailbox.nosender")) }}{{ else }}{{ printf ($.T "list.answeredbymore") (or (index . 0).From ($.T "mailbox.nosender")) (sub (len .) 1) }}{{ end }}</a>{{ end }}
+              {{ with .Message.ListID }}<a href="{{ localhref (printf "%v?query=list:%s%s" $.Mailbox.URL (. | urlquery) (account "&" $.GlobalData.URLAccount)) }}">{{ printf ($.T "list.via") . }}</a>{{ end }}
+            </td>
+          </tr>
+          {{ end }}
+          {{ if .Message.ListID }}
           <tr>
             <td colspan="2">
               {{/* Closed: where to unsubscribe, join or complain is
                    reference, wanted twice a year, and the two things
                    wanted often - reply to list, unsubscribe - are
                    already in the toolbar and the overflow. The summary
-                   carries the identifier, which is the one line worth
-                   seeing without asking. */}}
-              <details class="detail-card list-card">
-                <summary>{{$.T "list.title"}} — {{ template "ltr" .Message.ListID }}</summary>
+                   names the list only: the thread row above carries the
+                   identifier and links to the rest of its mail. */}}
+              <details class="list-card">
+                <summary>{{$.T "list.title"}}</summary>
                 <dl>
                   {{ with .Message.ListPost }}
                   <dt>{{$.T "list.post"}}</dt>

@@ -320,3 +320,40 @@ func TestUnknownSearchKeySurvives(t *testing.T) {
 	}
 }
 
+// TestMailtoHandlerRefusesForeignURI guards a redirect. The browser is
+// invited to send mailto: links to /compose?mailto=%s, and
+// composeFromMailto hands back anything that is not a mailto URI
+// unchanged - so redirecting to whatever it returns would forward the
+// reader to any address an attacker put in the link.
+func TestMailtoHandlerRefusesForeignURI(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+	for _, uri := range []string{"https://evil.example/x", "//evil.example/x", "javascript:alert(1)"} {
+		resp, err := c.Get(base + "/compose?mailto=" + url.QueryEscape(uri))
+		if err != nil {
+			t.Fatalf("GET mailto=%s: %v", uri, err)
+		}
+		resp.Body.Close()
+		if loc := resp.Header.Get("Location"); loc != "" {
+			t.Fatalf("mailto=%s redirected to %q", uri, loc)
+		}
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("mailto=%s answered %s, want 400", uri, resp.Status)
+		}
+	}
+
+	// The handler still has to do its job, or the check above passes by
+	// refusing everything.
+	resp, err := c.Get(base + "/compose?mailto=" + url.QueryEscape("mailto:a@b.example?subject=Hi"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/compose?") || !strings.Contains(loc, "to=a@b.example") ||
+		!strings.Contains(loc, "subject=Hi") {
+		t.Fatalf("a real mailto URI redirected to %q", loc)
+	}
+}

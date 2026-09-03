@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -64,7 +65,7 @@ type entry struct {
 	lastUse time.Time
 
 	method  string
-	url     string
+	url     *url.URL
 	depth   string
 	reqBody []byte
 	replay  *http.Client
@@ -88,7 +89,7 @@ type user struct {
 	mu          sync.Mutex
 	entries     map[string]*entry
 	ctags       map[string]string // collection path -> last seen ctag
-	flights     map[string]*sync.Mutex
+	flights     map[string]*flight
 	refreshing  map[string]bool // collections being revalidated
 	lastActive  time.Time
 	lastRefresh time.Time // only touched by the refresh loop
@@ -126,7 +127,7 @@ func (c *Cache) user(username string) *user {
 		u = &user{
 			entries:    make(map[string]*entry),
 			ctags:      make(map[string]string),
-			flights:    make(map[string]*sync.Mutex),
+			flights:    make(map[string]*flight),
 			refreshing: make(map[string]bool),
 		}
 		c.users[username] = u
@@ -246,9 +247,9 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	key := cacheKey(req.Method, req.URL.Path, req.Header.Get("Depth"), body)
 
 	// Singleflight: concurrent misses on one key fetch once.
-	fl := u.flight(key)
+	fl := u.board(key)
 	fl.Lock()
-	defer fl.Unlock()
+	defer u.land(key, fl)
 
 	if e := u.get(key); e != nil {
 		// A fresh entry is served as it is. A stale one is checked
@@ -293,7 +294,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		fetched: time.Now(),
 		lastUse: time.Now(),
 		method:  req.Method,
-		url:     req.URL.String(),
+		url:     req.URL,
 		depth:   req.Header.Get("Depth"),
 		reqBody: body,
 		replay:  t.replay,
@@ -304,15 +305,34 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return e.response(req), nil
 }
 
-func (u *user) flight(key string) *sync.Mutex {
+// flight serialises the requests for one key; waiting counts how many
+// hold a reference, so the flight is dropped once the last one lands
+// rather than kept for every key ever asked for.
+type flight struct {
+	sync.Mutex
+	waiting int
+}
+
+func (u *user) board(key string) *flight {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	fl, ok := u.flights[key]
 	if !ok {
-		fl = &sync.Mutex{}
+		fl = &flight{}
 		u.flights[key] = fl
 	}
+	fl.waiting++
 	return fl
+}
+
+func (u *user) land(key string, fl *flight) {
+	fl.Unlock()
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	fl.waiting--
+	if fl.waiting == 0 {
+		delete(u.flights, key)
+	}
 }
 
 // get returns a snapshot so a concurrent replay cannot rewrite the entry
@@ -401,7 +421,7 @@ func (u *user) refresh(ctx context.Context) {
 			continue
 		}
 		if now.Sub(e.fetched) > SoftTTL {
-			coll := collectionOf(mustPath(e.url))
+			coll := collectionOf(e.url.Path)
 			stale[coll] = append(stale[coll], e)
 		}
 	}
@@ -439,7 +459,7 @@ func (u *user) revalidate(ctx context.Context, coll string, sample *entry) bool 
 		now := time.Now()
 		u.mu.Lock()
 		for _, e := range u.entries {
-			if collectionOf(mustPath(e.url)) == coll {
+			if collectionOf(e.url.Path) == coll {
 				e.fetched = now
 			}
 		}
@@ -479,7 +499,7 @@ func (u *user) triggerRefresh(reqPath string) {
 	var entries []*entry
 	u.mu.Lock()
 	for _, e := range u.entries {
-		if collectionOf(mustPath(e.url)) == coll && now.Sub(e.fetched) > SoftTTL {
+		if collectionOf(e.url.Path) == coll && now.Sub(e.fetched) > SoftTTL {
 			entries = append(entries, e)
 		}
 	}
@@ -540,7 +560,7 @@ func (u *user) refreshCollection(ctx context.Context, coll string, entries []*en
 // unrecorded, so the next read revalidates rather than trusting a body
 // that was not replaced.
 func (u *user) replayEntry(ctx context.Context, e *entry) bool {
-	req, err := http.NewRequestWithContext(ctx, e.method, e.url, bytes.NewReader(e.reqBody))
+	req, err := http.NewRequestWithContext(ctx, e.method, e.url.String(), bytes.NewReader(e.reqBody))
 	if err != nil {
 		return false
 	}
@@ -555,7 +575,7 @@ func (u *user) replayEntry(ctx context.Context, e *entry) bool {
 	}
 	defer resp.Body.Close()
 
-	key := cacheKey(e.method, mustPath(e.url), e.depth, e.reqBody)
+	key := cacheKey(e.method, e.url.Path, e.depth, e.reqBody)
 	if resp.StatusCode == http.StatusNotFound {
 		u.mu.Lock()
 		delete(u.entries, key)
@@ -581,17 +601,6 @@ func (u *user) replayEntry(ctx context.Context, e *entry) bool {
 	return true
 }
 
-func mustPath(rawURL string) string {
-	if i := strings.Index(rawURL, "://"); i >= 0 {
-		rest := rawURL[i+3:]
-		if j := strings.Index(rest, "/"); j >= 0 {
-			return rest[j:]
-		}
-		return "/"
-	}
-	return rawURL
-}
-
 type ctagMultiStatus struct {
 	Responses []struct {
 		PropStat []struct {
@@ -604,11 +613,13 @@ type ctagMultiStatus struct {
 }
 
 // fetchCtag asks the collection for its ctag; "" means the server does not
-// provide one and the caller falls back to replaying.
-func fetchCtag(ctx context.Context, client *http.Client, sampleURL, coll string) string {
-	base := sampleURL[:len(sampleURL)-len(mustPath(sampleURL))]
+// provide one and the caller falls back to replaying. The collection is
+// addressed on the same server as the sample entry.
+func fetchCtag(ctx context.Context, client *http.Client, sample *url.URL, coll string) string {
+	target := *sample
+	target.Path, target.RawPath, target.RawQuery = coll, "", ""
 	body := `<D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop><CS:getctag/></D:prop></D:propfind>`
-	req, err := http.NewRequestWithContext(ctx, "PROPFIND", base+coll, strings.NewReader(xml.Header+body))
+	req, err := http.NewRequestWithContext(ctx, "PROPFIND", target.String(), strings.NewReader(xml.Header+body))
 	if err != nil {
 		return ""
 	}

@@ -1,0 +1,118 @@
+package davcache
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+)
+
+// server stands in for a DAV server holding one collection whose path
+// needs escaping, which is where a cache keyed two ways came apart.
+type server struct {
+	mu      sync.Mutex
+	calls   map[string]int
+	ctag    string
+	missing bool
+}
+
+func (s *server) RoundTrip(req *http.Request) (*http.Response, error) {
+	s.mu.Lock()
+	s.calls[req.Method]++
+	s.mu.Unlock()
+	status, body := http.StatusMultiStatus, "<report/>"
+	switch {
+	case req.Method == "PROPFIND" && req.Header.Get("Depth") == "0":
+		body = `<?xml version="1.0"?><D:multistatus xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/">` +
+			`<D:response><D:propstat><D:prop><CS:getctag>` + s.ctag + `</CS:getctag></D:prop>` +
+			`<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus>`
+	case s.missing:
+		status, body = http.StatusNotFound, ""
+	}
+	return &http.Response{StatusCode: status, Header: http.Header{},
+		Body: io.NopCloser(strings.NewReader(body)), Request: req}, nil
+}
+
+func (s *server) count(method string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls[method]
+}
+
+func (u *user) age() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	for _, e := range u.entries {
+		e.fetched = time.Now().Add(-2 * SoftTTL)
+	}
+}
+
+func TestCacheKeysOnTheDecodedPath(t *testing.T) {
+	srv := &server{calls: map[string]int{}, ctag: "1"}
+	c := New()
+	rt := c.Transport("u", srv)
+	report := func() {
+		t.Helper()
+		req, _ := http.NewRequest("REPORT", "https://dav.example/c/Work%20Cal/", strings.NewReader("<q/>"))
+		req.Header.Set("Depth", "1")
+		resp, err := rt.RoundTrip(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+	}
+
+	report()
+	report()
+	if n := srv.count("REPORT"); n != 1 {
+		t.Fatalf("a fresh entry was fetched %d times", n)
+	}
+
+	u := c.user("u")
+	u.age()
+	u.refresh(context.Background())
+	if n := srv.count("REPORT"); n != 2 {
+		t.Fatalf("the refresh loop did not replay the stale entry: %d fetches", n)
+	}
+
+	u.age()
+	report()
+	if n := srv.count("REPORT"); n != 2 {
+		t.Errorf("an unchanged collection was fetched again: %d fetches", n)
+	}
+	if n := srv.count("PROPFIND"); n != 2 {
+		t.Errorf("expected one ctag check per stale pass, got %d", n)
+	}
+
+	srv.ctag, srv.missing = "2", true
+	u.age()
+	u.refresh(context.Background())
+	if n := len(u.entries); n != 0 {
+		t.Errorf("a collection the server no longer has is still cached: %d entries", n)
+	}
+}
+
+func TestFlightsLandAfterTheFetch(t *testing.T) {
+	srv := &server{calls: map[string]int{}}
+	c := New()
+	rt := c.Transport("u", srv)
+	for _, p := range []string{"/c/a/", "/c/b/", "/c/c/1.ics"} {
+		req, _ := http.NewRequest("PROPFIND", "https://dav.example"+p, strings.NewReader("<q/>"))
+		req.Header.Set("Depth", "1")
+		resp, err := rt.RoundTrip(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+	}
+	u := c.user("u")
+	if n := len(u.entries); n != 3 {
+		t.Fatalf("expected 3 entries, got %d", n)
+	}
+	if n := len(u.flights); n != 0 {
+		t.Errorf("%d flights kept after their requests landed", n)
+	}
+}

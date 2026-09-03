@@ -274,6 +274,19 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 
+	// A collection with a ctag on record is renewed by one PROPFIND when
+	// it goes stale; one without is fetched all over again. The ctag is
+	// asked for before the read rather than after, so a write landing
+	// between the two leaves a ctag the server no longer answers with,
+	// and the next stale read fetches over it instead of trusting it.
+	coll := collectionOf(req.URL.Path)
+	ctag := ""
+	if u.ctagOf(coll) == "" {
+		ctx, cancel := context.WithTimeout(req.Context(), ctagTimeout)
+		ctag = fetchCtag(ctx, t.replay, req.URL, coll)
+		cancel()
+	}
+
 	resp, err := t.next.RoundTrip(req)
 	if err != nil {
 		return nil, err
@@ -301,8 +314,18 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	u.mu.Lock()
 	u.entries[key] = e
+	if ctag != "" && u.ctags[coll] == "" {
+		u.ctags[coll] = ctag
+	}
 	u.mu.Unlock()
 	return e.response(req), nil
+}
+
+// ctagOf is the collection's last recorded ctag, "" when none is.
+func (u *user) ctagOf(coll string) string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.ctags[coll]
 }
 
 // flight serialises the requests for one key; waiting counts how many
@@ -442,9 +465,7 @@ func (u *user) refresh(ctx context.Context) {
 // the same answer for our purposes - the collection is dropped and the
 // caller fetches afresh.
 func (u *user) revalidate(ctx context.Context, coll string, sample *entry) bool {
-	u.mu.Lock()
-	known := u.ctags[coll]
-	u.mu.Unlock()
+	known := u.ctagOf(coll)
 
 	// A server that does not report a ctag leaves nothing to compare, so
 	// the entry is not renewable and the read goes through.
@@ -495,9 +516,7 @@ func (u *user) refreshCollection(ctx context.Context, coll string, entries []*en
 	if len(entries) == 0 {
 		return
 	}
-	u.mu.Lock()
-	known := u.ctags[coll]
-	u.mu.Unlock()
+	known := u.ctagOf(coll)
 
 	ctag := fetchCtag(ctx, entries[0].replay, entries[0].url, coll)
 	if ctag != "" && ctag == known {

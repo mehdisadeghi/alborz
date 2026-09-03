@@ -1,6 +1,8 @@
 package alborzsieve
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -34,7 +36,10 @@ type FilterRenderData struct {
 	alborz.BaseRenderData
 	Name    string
 	Content string
-	Error   string
+	// Loaded fingerprints the script as the editor received it, so a
+	// save can tell whether the server still holds that version.
+	Loaded string
+	Error  string
 
 	// Accounts that can hold a script, for the create form's
 	// destination; empty when editing, where the script's own account
@@ -150,7 +155,16 @@ func handleEditFilter(ctx *alborz.Context) error {
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Name:           name,
 		Content:        content,
+		Loaded:         fingerprint(content),
 	})
+}
+
+// fingerprint names a script's content. ManageSieve keeps no version
+// or date for a script, so the content itself is what a save compares
+// against to notice an edit made elsewhere in the meantime.
+func fingerprint(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])
 }
 
 func handleSaveFilter(ctx *alborz.Context) error {
@@ -177,11 +191,37 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	}
 
 	var warnings string
+	changed := false
+	loaded := ctx.FormValue("loaded")
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
+		// An edit is checked against what the server holds now: a
+		// change made elsewhere since the editor opened is not
+		// overwritten but reported, and the reader starts over from
+		// the current script.
+		if loaded != "" {
+			current, err := c.GetScript(name)
+			if err != nil {
+				return err
+			}
+			if fingerprint(current) != loaded {
+				changed = true
+				return nil
+			}
+		}
 		var err error
 		warnings, err = c.PutScript(name, content)
 		return err
 	})
+	if err == nil && changed {
+		return ctx.Render(http.StatusConflict, "filter-edit.html", &FilterRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			Name:           name,
+			Content:        content,
+			Loaded:         loaded,
+			Error:          ctx.T("filters.changed"),
+			Accounts:       sieveAccounts(ctx),
+		})
+	}
 	if err != nil {
 		// The server rejects invalid scripts; show the reason next to
 		// the script instead of an error page.
@@ -189,6 +229,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 			BaseRenderData: *alborz.NewBaseRenderData(ctx),
 			Name:           name,
 			Content:        content,
+			Loaded:         loaded,
 			Error:          err.Error(),
 			Accounts:       sieveAccounts(ctx),
 		})

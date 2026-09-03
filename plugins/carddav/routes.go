@@ -892,7 +892,7 @@ func (p *plugin) collectionPage() dav.Page {
 		Color:  addressBookColor,
 		Forget: p.books.Forget,
 		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
-			c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+			_, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
 			if err != nil {
 				return dav.Collection{}, nil, "", "", err
 			}
@@ -900,20 +900,7 @@ func (p *plugin) collectionPage() dav.Page {
 			if info == nil {
 				return dav.Collection{}, nil, "", "", alborz.NotFoundf("no such collection")
 			}
-			return info.Collection, func() int { return bookCount(ctx, c, *info) }, "/contacts", ctx.T("nav.contacts"), nil
+			return info.Collection, p.dav.CountObjects(ctx, info.Path), "/contacts", ctx.T("nav.contacts"), nil
 		},
 	}
-}
-
-// bookCount says how much a delete would take. -1 means the server did
-// not answer, which the page states rather than guessing at.
-func bookCount(ctx *alborz.Context, c *carddav.Client, info AddressBookInfo) int {
-	objs, err := c.QueryAddressBook(ctx.Request().Context(), info.Path, &carddav.AddressBookQuery{
-		DataRequest: carddav.AddressDataRequest{Props: []string{vcard.FieldUID}},
-	})
-	if err != nil {
-		ctx.Logger().Printf("failed to count %s: %v", info.Path, err)
-		return -1
-	}
-	return len(objs)
 }

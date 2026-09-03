@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,7 +15,6 @@ import (
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
-	"github.com/labstack/echo/v4"
 )
 
 // The account's domain has no CalDAV server, or it holds no calendar;
@@ -415,13 +415,18 @@ func (p *plugin) writableGroups(ctx *alborz.Context, supports func(CalendarInfo)
 	return dav.WritableGroups(accounts, func(cal CalendarInfo) bool { return cal.Writable && supports(cal) }), nil
 }
 
+// errUnknownCalendar is a create form naming a calendar the account
+// does not have, cannot write to, or that does not hold the kind of
+// object being made. The handler decides what to tell the form.
+var errUnknownCalendar = errors.New("caldav: no such writable calendar")
+
 // resolveCreateCalendar turns a create form's "account|path" choice into
 // that account's client and the bare path, refusing unknown targets.
 func (p *plugin) resolveCreateCalendar(ctx *alborz.Context, value string, supports func(CalendarInfo) bool) (*caldav.Client, string, string, error) {
 	acct, calPath, ok := strings.Cut(value, "|")
 	session := ctx.SessionFor(acct)
 	if !ok || session == nil {
-		return nil, "", "", echo.NewHTTPError(http.StatusBadRequest, "unknown calendar")
+		return nil, "", "", errUnknownCalendar
 	}
 	c, cals, err := p.clientWithCalendars(ctx.Request().Context(), session)
 	if err != nil {
@@ -432,5 +437,5 @@ func (p *plugin) resolveCreateCalendar(ctx *alborz.Context, value string, suppor
 			return c, calPath, acct, nil
 		}
 	}
-	return nil, "", "", echo.NewHTTPError(http.StatusBadRequest, "unknown calendar")
+	return nil, "", "", errUnknownCalendar
 }

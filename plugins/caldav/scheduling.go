@@ -2,6 +2,7 @@ package alborzcaldav
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/mail"
@@ -207,8 +208,10 @@ func (p *plugin) registerScheduling() {
 
 		client, calendarPath, account, err := p.resolveCreateCalendar(ctx,
 			ctx.FormValue("calendar"), CalendarInfo.SupportsEvent)
-		if err != nil {
+		if errors.Is(err, errUnknownCalendar) {
 			return echo.NewHTTPError(http.StatusBadRequest, "no calendar to file it in")
+		} else if err != nil {
+			return err
 		}
 
 		name := inv.UID

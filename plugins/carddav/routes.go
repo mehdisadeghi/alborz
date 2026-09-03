@@ -89,23 +89,29 @@ const photoMaxUpload = 12 << 20 // 12 MiB
 // uploaded is never what is stored: it is decoded, reduced to a size a
 // contact list can use, and re-encoded as JPEG, so a card stays small
 // enough to fetch on every visit.
+// What applyPhoto can refuse; the form says it in the reader's language.
+var (
+	errPhotoTooLarge   = errors.New("carddav: photo over the upload limit")
+	errPhotoUnreadable = errors.New("carddav: photo is not an image")
+)
+
 func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
 	file, err := ctx.FormFile("photo")
 	if err != nil || file == nil || file.Size == 0 {
 		return nil // nothing offered; whatever the card has, it keeps
 	}
 	if file.Size > photoMaxUpload {
-		return errors.New(ctx.T("form.phototoolarge"))
+		return errPhotoTooLarge
 	}
 	f, err := file.Open()
 	if err != nil {
-		return errors.New(ctx.T("form.photounreadable"))
+		return errPhotoUnreadable
 	}
 	defer f.Close()
 
 	src, _, err := image.Decode(f)
 	if err != nil {
-		return errors.New(ctx.T("form.photounreadable"))
+		return errPhotoUnreadable
 	}
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
@@ -123,7 +129,7 @@ func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
 
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 82}); err != nil {
-		return errors.New(ctx.T("form.photounreadable"))
+		return errPhotoUnreadable
 	}
 	// vCard 4.0 carries the picture as a data URI; 3.0 as an encoded
 	// property. The version is set to 4.0 above for anything we create,
@@ -601,7 +607,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 				}
 			}
 			if addressBookByPath(w2, bookPath) == nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "unknown address book")
+				return reject(ctx.T("form.destinationneeded"))
 			}
 			saveClient, addressBookPath, createAcct = c2, bookPath, acct
 		}
@@ -647,7 +653,13 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		setValue(vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
 
 		if err := applyPhoto(ctx, card); err != nil {
-			return reject(err.Error())
+			switch {
+			case errors.Is(err, errPhotoTooLarge):
+				return reject(ctx.T("form.phototoolarge"))
+			case errors.Is(err, errPhotoUnreadable):
+				return reject(ctx.T("form.photounreadable"))
+			}
+			return err
 		}
 
 		// Free-form address lives in the street component; other

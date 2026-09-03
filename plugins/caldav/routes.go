@@ -1014,8 +1014,10 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		if co == nil {
 			// The form's choice names its owner as "account|path".
 			saveClient, calendarPath, createAcct, err = p.resolveCreateCalendar(ctx, calendarPath, CalendarInfo.SupportsEvent)
-			if err != nil {
+			if errors.Is(err, errUnknownCalendar) {
 				return reject(ctx.T("form.destinationneeded"))
+			} else if err != nil {
+				return err
 			}
 		}
 
@@ -1444,8 +1446,10 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		if co == nil {
 			// The form's choice names its owner as "account|path".
 			saveClient, calendarPath, createAcct, err = p.resolveCreateCalendar(ctx, calendarPath, CalendarInfo.SupportsTodo)
-			if err != nil {
+			if errors.Is(err, errUnknownCalendar) {
 				return reject(ctx.T("form.destinationneeded"))
+			} else if err != nil {
+				return err
 			}
 		}
 

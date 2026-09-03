@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/fernet/fernet-go"
 	"io"
 	"mime/multipart"
 	"net"
@@ -112,6 +113,10 @@ type Session struct {
 
 	noticeLocker sync.Mutex
 	notice       *Notice // protected by noticeLocker
+
+	httpLocker   sync.Mutex
+	httpPassword string // protected by httpLocker
+	httpLoaded   bool   // protected by httpLocker
 
 	imapLocker sync.Mutex
 	imapConn   *imapclient.Client // protected by locker, can be nil
@@ -322,11 +327,15 @@ func isSieveConnClosed(err error) bool {
 		errors.Is(err, syscall.ECONNRESET)
 }
 
-// SetHTTPBasicAuth adds an Authorization header field to the request with
-// this session's credentials.
-func (s *Session) SetHTTPBasicAuth(req *http.Request) {
-	// TODO: find a way to make it harder for plugins to steal credentials
-	req.SetBasicAuth(s.username, s.password)
+// SetHTTPBasicAuth adds an Authorization header field to the request
+// with this session's credentials for HTTP services.
+func (s *Session) SetHTTPBasicAuth(req *http.Request) error {
+	password, err := s.HTTPPassword()
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(s.username, password)
+	return nil
 }
 
 // Close destroys the session. This can be used to log the user out.
@@ -459,6 +468,9 @@ type SessionManager struct {
 	dialSMTP      DialSMTPFunc
 	dialSieve     DialSieveFunc
 	logger        echo.Logger
+	// loginKey seals what the store keeps for an account; nil leaves
+	// only the password wrap.
+	loginKey *fernet.Key
 	// onGone is told when a session has expired, so what plugins hold
 	// for the account is dropped the same way as on sign-out.
 	onGone func(username string)
@@ -470,7 +482,7 @@ type SessionManager struct {
 	warnedTransientStore bool
 }
 
-func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger) *SessionManager {
+func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger, loginKey *fernet.Key) *SessionManager {
 	return &SessionManager{
 		sessions:      make(map[string]*Session),
 		dialIMAP:      dialIMAP,
@@ -478,6 +490,7 @@ func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialS
 		dialSMTP:      dialSMTP,
 		dialSieve:     dialSieve,
 		logger:        logger,
+		loginKey:      loginKey,
 	}
 }
 

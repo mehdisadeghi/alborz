@@ -77,12 +77,21 @@ any login accepted; the two forms cannot be mixed.
 
 ## Passwords
 
-There is one credential: the login username and password authenticate
-IMAP, SMTP, and sieve, and are also forwarded as HTTP Basic auth to the
-CalDAV/CardDAV server. A DAV server with its own user database (e.g.
-Nextcloud) must accept the same username and password, and it is on you
-to keep them aligned; when they drift, mail keeps working while
-contacts and calendars fail.
+By default there is one credential: the login username and password
+authenticate IMAP, SMTP, and sieve, and are also forwarded as HTTP Basic
+auth to the CalDAV/CardDAV server. A DAV server with its own user
+database (e.g. Nextcloud) may want another password, such as an app
+password; a reader enters it once under Settings and alborz uses it
+from then on.
+
+That password is kept in the account's IMAP METADATA, encrypted under
+a random key that is itself wrapped twice: under the server's login key
+and under a key derived from the mail password. Either wrap opening
+renews the other, so rotating the login key or changing the mail
+password costs nothing; only both changing before the next sign-in
+loses it, and the reader enters it again. Without `-login-key` only the
+password wrap exists, so a mail password change then means entering the
+DAV password again. Without METADATA it lives in memory for the session.
 
 ## Reverse proxy
 

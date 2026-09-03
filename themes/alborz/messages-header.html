@@ -76,7 +76,7 @@
         {{/* Alborz hears about new mail only when a page is loaded, and
              serves a recent listing without asking; this says "ask now".
              Not gated on the selection: it acts on the folder. */}}
-        <button form="refresh-form">{{$.T "mailbox.refresh"}}</button>
+        <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
         <select form="messages-form" name="to" aria-label="{{$.T "mailbox.movefolder"}}">
@@ -102,17 +102,18 @@
 
     {{ if .GlobalData.Unified }}
     {{ $path := $.GlobalData.URL.Path }}
-    {{ if or (eq $path "/mailbox/Junk") (eq $path "/mailbox/Trash") }}
     <details class="overflow">
       <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
       <div class="overflow-menu">
+        <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
+        {{ if or (eq $path "/mailbox/Junk") (eq $path "/mailbox/Trash") }}
         <form method="post" action="{{$path}}/empty-all">
           <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
           <button class="button-danger"{{ if eq .Total 0 }} disabled{{ end }}>{{$.T "mailbox.emptyfolder"}}</button>
         </form>
+        {{ end }}
       </div>
     </details>
-    {{ end }}
     {{ end }}
 
 {{ template "toolbar-end" }}

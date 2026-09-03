@@ -8,6 +8,7 @@ import (
 	"net/mail"
 	"slices"
 	"strings"
+	"time"
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
@@ -71,7 +72,10 @@ func (p *plugin) pooledBooks(ctx *alborz.Context) ([]dav.Account[*carddav.Client
 func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	provider, err := dav.NewProvider(srv, dav.Kind{
 		Name: "carddav", Label: "CardDAV",
-		Schemes:  [2]string{"carddavs", "carddav+insecure"},
+		Schemes: [2]string{"carddavs", "carddav+insecure"},
+		// Address books change rarely; asking every few minutes is
+		// asking for nothing.
+		Poll:     10 * time.Minute,
 		Discover: carddav.DiscoverContextURL,
 		FindHome: findHome,
 		List:     listAddressBooks,

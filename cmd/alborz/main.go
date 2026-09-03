@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"syscall"
@@ -83,6 +84,23 @@ func vcsStamp() string {
 	return strings.TrimSpace(revision + " " + date)
 }
 
+// defaultCacheDir is systemd's CacheDirectory when the unit grants one,
+// which is how a service gets /var/cache/<name>, and the XDG cache
+// directory otherwise: $XDG_CACHE_HOME, or ~/.cache.
+func defaultCacheDir() string {
+	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
+		return dir
+	}
+	if dir := os.Getenv("XDG_CACHE_HOME"); dir != "" {
+		return filepath.Join(dir, "alborz")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".cache", "alborz")
+}
+
 func main() {
 	var (
 		addr     string
@@ -93,6 +111,8 @@ func main() {
 	flag.StringVar(&addr, "addr", ":1323", "listening address")
 	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
+	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
+		"directory keeping the calendar and contacts cache between runs, sealed under the login key; empty keeps it in memory")
 	flag.StringVar(&options.ProjectURL, "project-url", "",
 		"where the footer's project name links; unset prints the name alone")
 

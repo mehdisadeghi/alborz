@@ -398,6 +398,8 @@ func registerRoutes(p *plugin) {
 	POST("/calendar", dav.HandleChoose("/calendar", "cal", choose(func(s *Settings, paths []string) {
 		s.CalendarFilter, s.VisibleCalendars = true, paths
 	})))
+	POST("/calendar/refresh", p.dav.HandleRefresh("/calendar"))
+	POST("/tasks/refresh", p.dav.HandleRefresh("/tasks"))
 	POST("/tasks", dav.HandleChoose("/tasks", "cal", choose(func(s *Settings, paths []string) {
 		s.TaskFilter, s.VisibleTasks = true, paths
 	})))
@@ -1143,12 +1145,13 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		// everything; an object is taken once whichever answered it.
 		var tasks []caldav.CalendarObject
 		seen := map[string]bool{}
-		for i := range openQueries {
-			part, err := site.Client.QueryCalendar(ctx, site.Collection.Path, &openQueries[i])
-			if err != nil {
-				return nil, err
+		for _, r := range dav.Each(ctx, openQueries, func(ctx context.Context, q caldav.CalendarQuery) ([]caldav.CalendarObject, error) {
+			return site.Client.QueryCalendar(ctx, site.Collection.Path, &q)
+		}) {
+			if r.Err != nil {
+				return nil, r.Err
 			}
-			for _, obj := range part {
+			for _, obj := range r.Value {
 				if !seen[obj.Path] {
 					seen[obj.Path] = true
 					tasks = append(tasks, obj)

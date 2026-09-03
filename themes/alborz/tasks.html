@@ -42,6 +42,9 @@
         {{ template "toolbar-foot" }}
       </section>
 
+      {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+      {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.tasks") "home" "/tasks" "field" "" "collection" "" "path" "") }}
+
       <section class="tasks">
         <div class="task-grid list-grid{{if $multi}} multi{{end}}" role="table">
           {{if .Tasks}}

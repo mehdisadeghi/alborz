@@ -64,6 +64,41 @@
      ordered by it. */}}
 {{ define "ltr" }}<bdi class="ltr">{{.}}</bdi>{{ end }}
 
+{{/* The path to what is on screen, each step leading to it. The first
+     step is the account and reads left to right whatever the page
+     does, being an address; a step with no URL is a folder that cannot
+     be opened, and is named without pretending to lead anywhere.
+     dict: steps account class. */}}
+{{ define "crumb" }}
+{{ $account := .account }}
+<div class="context-crumb{{ with .class }} {{.}}{{ end }}">
+  {{- range $i, $step := .steps }}
+    {{- if $i }} › {{ end }}
+    {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}">{{ if $i }}{{ $step.Label }}{{ else }}{{ template "ltr" $step.Label }}{{ end }}</a>
+    {{- else }}{{ if $i }}{{ $step.Label }}{{ else }}{{ template "ltr" $step.Label }}{{ end }}{{ end }}
+  {{- end }}
+</div>
+{{ end }}
+
+{{/* The path above a calendar, task or contact page. It reads the same
+     way the mail one does - account, then section, then the collection
+     - so the two do not drift apart. A page with no collection chosen
+     yet, which is every create form, stops after the section rather
+     than showing nothing at all.
+     dict: account urlaccount section home field collection path. */}}
+{{ define "dav-crumb" }}
+{{ if .collection }}
+{{ template "crumb" (dict "account" .urlaccount "steps" (tuple
+   (dict "Label" .account "URL" .home)
+   (dict "Label" .section "URL" .home)
+   (dict "Label" .collection "URL" (printf "%s?%s=%s" .home .field (.path | urlquery))))) }}
+{{ else }}
+{{ template "crumb" (dict "account" .urlaccount "steps" (tuple
+   (dict "Label" .account "URL" .home)
+   (dict "Label" .section "URL" .home))) }}
+{{ end }}
+{{ end }}
+
 {{/* The flag colours, as swatches. Each is its own submit, so the
      picker needs no script and no select; the clearing one carries the
      empty colour, which unflags. dict: action form colors clear. */}}

@@ -15,7 +15,7 @@
         {{ template "list-toolbar" (dict "title" ($.T "filters.title")) }}
       </section>
 
-      <div class="context-crumb">{{$current}}</div>
+      {{ template "dav-crumb" (dict "account" $current "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" "" "path" "") }}
 
       {{ with .Unreachable }}
       <div class="alert" role="alert">

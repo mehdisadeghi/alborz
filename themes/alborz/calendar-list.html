@@ -14,6 +14,9 @@
         {{ template "calendar-header.html" . }}
       </section>
 
+      {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+      {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.calendar") "home" "/calendar" "field" "" "collection" "" "path" "") }}
+
       {{/* The agenda starts at today in the month you are living in; the
            whole of it is one click away. It leads the list rather than
            the toolbar, which has no room for a fourth group. */}}

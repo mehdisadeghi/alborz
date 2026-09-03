@@ -14,6 +14,9 @@
         {{ template "list-toolbar" (dict "title" $dayTitle "newhref" (printf "/calendar/create?date=%s%s" (.Time.Format "2006-01-02") (account "&" .GlobalData.URLAccount)) "newlabel" ($.T "calendar.new") "pagination" (dict "prev" (dict "href" (printf "/calendar/date?date=%s" .PrevPage) "label" ($.T "calendar.prev")) "next" (dict "href" (printf "/calendar/date?date=%s" .NextPage) "label" ($.T "calendar.next"))) ) }}
       </section>
 
+      {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+      {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.calendar") "home" "/calendar" "field" "" "collection" "" "path" "") }}
+
       <section class="events">
         {{$base := .}}
         <div class="event-grid" role="table">

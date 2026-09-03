@@ -15,14 +15,12 @@
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "messages-header.html" . }}
       </section>
-      {{/* Which account you are reading. On a wide window the switcher
-           in the header says it; on a phone the header has room for the
-           section tabs alone and the switcher is behind the drawer, so
-           the page says it itself. Only where it is a question: one
-           account signed in has no ambiguity to resolve, and the merged
-           view answers it per row. */}}
-      {{ if and (gt (len .GlobalData.Accounts) 1) (not .GlobalData.Unified) }}
-      <div class="context-crumb narrow-crumb">{{ template "ltr" .GlobalData.Username }}</div>
+      {{/* Where you are, on every page that has a where. It named the
+           account only when more than one was signed in, which made
+           mail the one section without a path; the merged view is the
+           exception that remains, since it answers per row. */}}
+      {{ if not .GlobalData.Unified }}
+      {{ template "crumb" (dict "steps" .Crumb "account" .GlobalData.URLAccount "class" "narrow-crumb") }}
       {{ end }}
 
       <section class="messages">

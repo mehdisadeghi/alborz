@@ -16,6 +16,9 @@
         {{ template "contacts-header.html" . }}
       </section>
 
+      {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
+      {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.contacts") "home" "/contacts" "field" "" "collection" "" "path" "") }}
+
       <section class="contacts">
         {{ $multi := gt (len .GlobalData.Accounts) 1 }}
         <div class="contact-grid list-grid" role="table">

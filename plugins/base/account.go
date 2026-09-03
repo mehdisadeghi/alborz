@@ -60,9 +60,6 @@ func handleLogin(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to put connection in pool: %v", err)
 		}
 		ctx.AddAccount(s)
-		// Follow the account from here on, so mail that arrives while
-		// nobody is looking is noticed rather than waited for.
-		Watch(s, ctx.Logger())
 
 		if remember == "on" {
 			ctx.SetLoginToken(username, password)

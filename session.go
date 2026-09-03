@@ -190,7 +190,7 @@ func (s *Session) Domain() string {
 
 // DoIMAP executes an IMAP operation on this session. The IMAP client can only
 // be used from inside f.
-func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
+func (s *Session) DoIMAP(f func(*imapclient.Client) error) (err error) {
 	s.imapLocker.Lock()
 	defer s.imapLocker.Unlock()
 
@@ -212,12 +212,16 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 	// io.UnexpectedEOF
 	c := s.imapConn
 	watchdog := time.AfterFunc(RoundTripTimeout, func() { c.Close() })
-	err := f(c)
-	if !watchdog.Stop() {
-		s.imapConn = nil
-		return UpstreamError{Service: "mail", After: RoundTripTimeout, cause: err}
-	}
-	return err
+	// Stopped in a defer: a panic in f used to skip the stop, the
+	// watchdog then closed a connection the session still held, and
+	// every later request on the session waited its own timeout out.
+	defer func() {
+		if !watchdog.Stop() {
+			s.imapConn = nil
+			err = UpstreamError{Service: "mail", After: RoundTripTimeout, cause: err}
+		}
+	}()
+	return f(c)
 }
 
 // DoSMTP executes an SMTP operation on this session. The SMTP client can only

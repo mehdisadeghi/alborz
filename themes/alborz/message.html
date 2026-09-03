@@ -271,6 +271,17 @@
             <td>{{ template "ltr" . }}</td>
           </tr>
           {{ end }}
+          {{/* Mail that reached here through somebody else's mailbox.
+               Said only where our own server's SPF check proves it: the
+               headers a forwarder writes about itself are a stranger's
+               to write, and would put any address an attacker liked in
+               this row. */}}
+          {{ with .ForwardedBy }}
+          <tr>
+            <th scope="row">{{$.T "message.forwardedby"}}:</th>
+            <td>{{ template "ltr" . }}</td>
+          </tr>
+          {{ end }}
           {{/* What a list says about itself (RFC 2369). A reader who
                wants out, or wants the archive, or wants to ask a person
                rather than the list, should not have to open the source

@@ -1,5 +1,6 @@
 "common.save" = "Guardar"
 "form.nameneeded" = "Se requiere un nombre."
+"form.nametaken" = "Ya existe una colección llamada %s."
 "form.summaryneeded" = "Se requiere un asunto."
 "form.recipientneeded" = "Añada al menos un destinatario."
 "form.destinationneeded" = "Elija dónde guardarlo."

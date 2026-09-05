@@ -1,5 +1,6 @@
 "common.save" = "Save"
 "form.nameneeded" = "A name is required."
+"form.nametaken" = "A collection named %s is already there."
 "form.summaryneeded" = "A summary is required."
 "form.recipientneeded" = "Add at least one recipient."
 "form.destinationneeded" = "Choose where to save it."

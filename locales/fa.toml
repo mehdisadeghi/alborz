@@ -1,5 +1,6 @@
 "common.save" = "ذخیره"
 "form.nameneeded" = "نام لازم است."
+"form.nametaken" = "مجموعه‌ای به نام %s از قبل وجود دارد."
 "form.summaryneeded" = "عنوان لازم است."
 "form.recipientneeded" = "دست‌کم یک گیرنده بیفزایید."
 "form.destinationneeded" = "جای ذخیره را انتخاب کنید."

@@ -1,5 +1,6 @@
 "common.save" = "Speichern"
 "form.nameneeded" = "Ein Name ist erforderlich."
+"form.nametaken" = "Eine Sammlung namens %s gibt es bereits."
 "form.summaryneeded" = "Ein Betreff ist erforderlich."
 "form.recipientneeded" = "Mindestens einen Empfänger angeben."
 "form.destinationneeded" = "Wählen Sie, wo es gespeichert wird."

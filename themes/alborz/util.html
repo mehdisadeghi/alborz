@@ -152,7 +152,7 @@
 {{/* One toolbar button that acts on the checked rows. dict: icon label
      form formaction [class]. */}}
 {{ define "action-icon" }}
-<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}">{{ template "icon" .icon }}</button>
+<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ if .download }} data-download{{ end }}>{{ template "icon" .icon }}</button>
 {{ end }}
 
 {{/* One sortable column header with the shared three-state cycle.

@@ -3288,6 +3288,12 @@ button[disabled] {
   cursor: default;
 }
 
+/* A form on its way to the server says so under the pointer. */
+form[aria-busy="true"],
+form[aria-busy="true"] button[disabled] {
+  cursor: progress;
+}
+
 /* Overflow menus keep secondary actions behind a ⋮, in the same
    dropdown shape as the account menu. */
 details.overflow {

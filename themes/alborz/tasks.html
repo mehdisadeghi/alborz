@@ -35,7 +35,7 @@
                  where it does not, like the mail toolbar's archive. */}}
             {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "class" "wide-only" "form" "tasks-form" "formaction" "/tasks/complete") }}
             {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" "/tasks/delete") }}
-            {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" "/tasks/export") }}
+            {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" "/tasks/export" "download" true) }}
           </span>
           {{/* Not gated on the selection: the check acts on the lists,
                and the controls that need rows are disabled one by one. */}}

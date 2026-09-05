@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/mail"
 	"strings"
@@ -28,6 +29,18 @@ const (
 	SignatureBad  SignatureState = "bad"  // a signature that is present and does not verify
 )
 
+// KeySource says where the verifying key came from, which is the whole
+// of what a good signature proves: a key the message carried proves
+// that whoever composed it holds that key, and no more, since anyone
+// can make a key naming any address; a key the sender's domain
+// publishes is the domain vouching for the address.
+type KeySource string
+
+const (
+	KeyFromMessage KeySource = "message" // Autocrypt, or attached
+	KeyFromDomain  KeySource = "domain"  // the Web Key Directory
+)
+
 // Verification is what the page says about a message's authenticity. It is
 // chrome, never body: the HTML sanitizer allows a style element, so a
 // message can draw a convincing green band inside its own frame, and
@@ -41,11 +54,15 @@ type Verification struct {
 	// Reason names what went wrong, for a bad signature. It is a fixed
 	// key, translated by the page, never the library's own English.
 	Reason string
+	// Source is where the key that verified came from.
+	Source KeySource
 	// Claim names exactly what was checked, for a good signature, as a
-	// locale key the page renders with the signer's address: a key the
-	// message carried proves that whoever composed it holds that key,
-	// and no more, since anyone can make a key naming any address.
+	// locale key the page renders with the signer's address.
 	Claim string
+	// Confirmed says the domain published the key and our own server
+	// saw the domain sign the delivery: two witnesses that agree. Only
+	// then is the mark green.
+	Confirmed bool
 }
 
 // reasonUnverified is the one reason a signature is reported bad: the
@@ -148,20 +165,61 @@ func verifySignature(conn *imapclient.Client, mboxName string, uid imap.UID,
 		return Verification{}
 	}
 
-	keys := senderKeys(rootHeader, raw, authorAddresses(rootHeader, signed))
-	if len(keys) == 0 {
-		// Signed, and nothing in the message says by whom. That is not
-		// a failed signature and must not be shown as one: it is an
-		// absence of evidence, so the page says nothing at all.
+	authors := authorAddresses(rootHeader, signed)
+	domainKeys := domainKeys(authors)
+	messageKeys := senderKeys(rootHeader, raw, authors)
+	if len(domainKeys)+len(messageKeys) == 0 {
+		// Signed, and nothing says by whom. That is not a failed
+		// signature and must not be shown as one: it is an absence of
+		// evidence, so the page says nothing at all.
 		return Verification{}
 	}
 
-	signer, err := openpgp.CheckArmoredDetachedSignature(
-		keys, bytes.NewReader(signed), bytes.NewReader(sig), nil)
-	if err != nil {
-		return Verification{State: SignatureBad, Reason: reasonUnverified}
+	check := func(keys openpgp.EntityList) (*openpgp.Entity, error) {
+		if len(keys) == 0 {
+			return nil, errors.New("no key")
+		}
+		return openpgp.CheckArmoredDetachedSignature(
+			keys, bytes.NewReader(signed), bytes.NewReader(sig), nil)
 	}
-	return Verification{State: SignatureGood, Signer: identityOf(signer, from), Claim: "pgp.claimmessage"}
+	if signer, err := check(domainKeys); err == nil {
+		return Verification{State: SignatureGood, Signer: identityOf(signer, from),
+			Source: KeyFromDomain, Claim: "pgp.claimdomain"}
+	}
+	if signer, err := check(messageKeys); err == nil {
+		claim := "pgp.claimmessage"
+		if len(domainKeys) > 0 {
+			claim = "pgp.claimmessageother"
+		}
+		return Verification{State: SignatureGood, Signer: identityOf(signer, from),
+			Source: KeyFromMessage, Claim: claim}
+	}
+	return Verification{State: SignatureBad, Reason: reasonUnverified}
+}
+
+// withDelivery upgrades a signature by the domain's key to confirmed
+// once our own server's word on the delivery agrees with it.
+func withDelivery(v Verification, a *AuthResults) Verification {
+	_, domain, _ := strings.Cut(v.Signer, "@")
+	if v.State == SignatureGood && v.Source == KeyFromDomain && a != nil && a.Vouches(domain) {
+		v.Confirmed = true
+		v.Claim = "pgp.claimverified"
+	}
+	return v
+}
+
+// domainKeys asks each author's domain for the keys it publishes for
+// them, keeping those that name the author.
+func domainKeys(authors []string) openpgp.EntityList {
+	var found openpgp.EntityList
+	for _, author := range authors {
+		for _, key := range wkd.keys(author) {
+			if claimsAddress(key, "", authors) {
+				found = append(found, key)
+			}
+		}
+	}
+	return found
 }
 
 // senderKeys gathers the keys the message itself offers for its own
@@ -171,8 +229,8 @@ func verifySignature(conn *imapclient.Client, mboxName string, uid imap.UID,
 // Both sources are the sender's own doing - the Autocrypt header they
 // set, and the public key they attached, which is what aerc and mutt
 // send. Neither proves who they are; both prove that whoever composed
-// the message holds the key, which is the whole of what the verdict
-// claims. A keyring, WKD or a key server would each be a further
+// the message holds the key, and the verdict says so. The domain's own
+// word is domainKeys; a keyring or a key server would each be a further
 // decision about what to trust and is not made here.
 func senderKeys(h textproto.Header, raw []byte, authors []string) openpgp.EntityList {
 	var found openpgp.EntityList

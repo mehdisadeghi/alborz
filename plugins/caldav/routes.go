@@ -340,8 +340,8 @@ func getFirstTodo(cal *ical.Calendar) *ical.Component {
 func eventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
 
 // visibleCalendars are dav.Visible's calendars of one kind.
-func visibleCalendars(accounts []dav.Account[*caldav.Client], only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []dav.Site[*caldav.Client], error) {
-	return dav.Visible(accounts, only, func(acc dav.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
+func visibleCalendars(accounts []dav.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []dav.Site[*caldav.Client], error) {
+	return dav.Visible(accounts, scope, only, func(acc dav.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings, err := loadSettings(acc.Session.Store())
 		if err != nil {
 			return nil, false, nil, fmt.Errorf("failed to load CalDAV settings: %w", err)
@@ -565,7 +565,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		return err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, only, supportsEvent, eventVisibility)
+	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
 	if err != nil {
 		return err
 	}
@@ -702,7 +702,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		return err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, only, supportsEvent, eventVisibility)
+	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
 	if err != nil {
 		return err
 	}
@@ -1023,7 +1023,7 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 	if err != nil {
 		return err
 	}
-	_, sites, err := visibleCalendars(accounts, dav.Only(ctx, "cal"), kind, chosen)
+	_, sites, err := visibleCalendars(accounts, ctx.URLAccount(), dav.Only(ctx, "cal"), kind, chosen)
 	if err != nil {
 		return err
 	}
@@ -1073,7 +1073,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		return err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, only, supportsTodo,
+	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsTodo,
 		func(s *Settings) (bool, []string) { return s.TaskFilter, s.VisibleTasks })
 	if err != nil {
 		return err

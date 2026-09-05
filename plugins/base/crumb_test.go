@@ -21,7 +21,7 @@ func TestMailboxCrumbNamesEachStep(t *testing.T) {
 
 	crumb := mailboxCrumb(boxes, "INBOX/Lists/Unix", "someone@example.org")
 	want := []CrumbLink{
-		{Label: "someone@example.org", URL: "/mailbox/INBOX"},
+		{Label: "someone@example.org", URL: "/mailbox/INBOX", Address: true},
 		{Label: "Inbox", URL: "/mailbox/INBOX"},
 		{Label: "Lists"},
 		{Label: "Unix", URL: "/mailbox/INBOX%2FLists%2FUnix"},

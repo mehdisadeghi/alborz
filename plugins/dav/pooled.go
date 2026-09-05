@@ -101,11 +101,12 @@ func Only(ctx *alborz.Context, field string) map[string]bool {
 
 // Visible marks each account's collections with the account's own
 // visibility setting, or with the URL's narrowing when it names one.
-// Every collection comes back for the rail with its checkbox state;
-// only the visible ones come back as sites to query.
+// Every collection comes back for the rail with its checkbox state,
+// whatever the scope: the rail is the reader's map of every account.
+// Only the visible ones in scope come back as sites to query.
 // chosen is the kind's answer for one account: the collections the list
 // is about, whether the account chose among them, and which.
-func Visible[C any](accounts []Account[C], only map[string]bool, chosen func(Account[C]) (colls []Collection, filter bool, paths []string, err error)) ([]Collection, []Site[C], error) {
+func Visible[C any](accounts []Account[C], scope string, only map[string]bool, chosen func(Account[C]) (colls []Collection, filter bool, paths []string, err error)) ([]Collection, []Site[C], error) {
 	var infos []Collection
 	var sites []Site[C]
 	for _, acc := range accounts {
@@ -124,7 +125,7 @@ func Visible[C any](accounts []Account[C], only map[string]bool, chosen func(Acc
 				coll.Only = len(only) == 1 && coll.Visible
 			}
 			infos = append(infos, coll)
-			if coll.Visible {
+			if coll.Visible && (scope == "" || acc.Name == scope) {
 				sites = append(sites, Site[C]{Client: acc.Client, Collection: coll})
 			}
 		}

@@ -19,26 +19,17 @@ func (ctx *Context) SetSession(s *Session) {
 		ctx.SetCookie(ctx.cookie(cookieName, "", 0))
 		return
 	}
-	ctx.setActiveUser(s.username)
 	ctx.SetCookie(ctx.cookie(cookieName, s.token, 0))
 }
 
-// setActiveUser records the active account's username so the login page can
-// re-authenticate the same identity after its session expired. It
-// deliberately survives session expiry; only the final logout clears it.
-func (ctx *Context) setActiveUser(username string) {
-	ctx.SetCookie(ctx.cookie(activeUserCookieName, url.QueryEscape(username), credentialCookieLife))
-}
-
-// Account describes one signed-in account for the account switcher.
+// Account describes one signed-in account for the rail.
 type Account struct {
 	Username string
-	Active   bool
 }
 
 // accountSessions returns the live sessions listed in the accounts cookie in
-// order. The active session is always a member; expired entries are pruned
-// and the cookie rewritten.
+// order. The session cookie's own is always a member; expired entries are
+// pruned and the cookie rewritten.
 func (ctx *Context) accountSessions() []*Session {
 	if ctx.accountsLoaded {
 		return ctx.accounts
@@ -88,24 +79,24 @@ func (ctx *Context) setAccountSessions(sessions []*Session) {
 	ctx.SetCookie(ctx.cookie(accountsCookieName, strings.Join(tokens, "|"), 0))
 }
 
-// Accounts lists the signed-in accounts in switcher order.
+// Accounts lists the signed-in accounts in rail order.
 func (ctx *Context) Accounts() []Account {
 	sessions := ctx.accountSessions()
 	accounts := make([]Account, len(sessions))
 	for i, s := range sessions {
-		accounts[i] = Account{Username: s.username, Active: s == ctx.Session}
+		accounts[i] = Account{Username: s.username}
 	}
 	return accounts
 }
 
-// Sessions lists the live sessions of every signed-in account, the
-// active one included.
+// Sessions lists the live sessions of every signed-in account.
 func (ctx *Context) Sessions() []*Session {
 	return ctx.accountSessions()
 }
 
-// AddAccount makes s the active session and appends it to the account list.
-// A previous session for the same username is closed and replaced in place.
+// AddAccount appends s to the account list and makes it the request's
+// session. A previous session for the same username is closed and
+// replaced in place.
 func (ctx *Context) AddAccount(s *Session) {
 	sessions := ctx.accountSessions()
 	replaced := false
@@ -177,8 +168,8 @@ func (ctx *Context) NextOr(fallback string) string {
 	return u.String()
 }
 
-// SessionFor returns the listed account's live session without making it
-// active, nil when the account is not signed in.
+// SessionFor returns the listed account's live session, nil when the
+// account is not signed in.
 func (ctx *Context) SessionFor(username string) *Session {
 	for _, s := range ctx.accountSessions() {
 		if s.username == username {
@@ -188,29 +179,15 @@ func (ctx *Context) SessionFor(username string) *Session {
 	return nil
 }
 
-// SwitchAccount makes the listed account with the given username active. It
-// reports false when no live session for that username remains.
-func (ctx *Context) SwitchAccount(username string) bool {
-	s := ctx.SessionFor(username)
-	if s == nil {
-		return false
-	}
-	ctx.Session = s
-	ctx.DefaultSession = s
-	ctx.SetSession(s)
-	return true
-}
-
-// Logout closes the active session, removes it from the account list, and
-// promotes the next remaining account, whose session is returned. A nil
-// return means no account is left and the cookies were cleared.
+// Logout closes the request's session, removes it from the account
+// list, and returns the first remaining account's session. A nil return
+// means no account is left and the cookies were cleared.
 func (ctx *Context) Logout() *Session {
 	return ctx.LogoutAccount(ctx.Session.username)
 }
 
-// LogoutAccount closes exactly the named account. Logging out a background
-// account preserves the current session; logging out the current account
-// promotes the first remaining one.
+// LogoutAccount closes exactly the named account; the first remaining
+// one is what the session cookie then names.
 func (ctx *Context) LogoutAccount(username string) *Session {
 	var remaining []*Session
 	var target *Session
@@ -231,12 +208,9 @@ func (ctx *Context) LogoutAccount(username string) *Session {
 		ctx.Session = nil
 		ctx.DefaultSession = nil
 		ctx.SetSession(nil)
-		ctx.setActiveUser("")
 		return nil
 	}
-	if ctx.DefaultSession == target || ctx.DefaultSession == nil {
-		ctx.DefaultSession = remaining[0]
-	}
+	ctx.DefaultSession = remaining[0]
 	ctx.Session = ctx.DefaultSession
 	ctx.SetSession(ctx.DefaultSession)
 	return ctx.DefaultSession
@@ -386,13 +360,5 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		ctx.AddAccount(s)
 		restored = true
 	}
-	if !restored {
-		return false
-	}
-	if cookie, err := ctx.Cookie(activeUserCookieName); err == nil && cookie != nil {
-		if active, err := url.QueryUnescape(cookie.Value); err == nil {
-			ctx.SwitchAccount(active)
-		}
-	}
-	return true
+	return restored
 }

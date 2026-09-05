@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -91,49 +90,9 @@ func handleLogout(ctx *alborz.Context) error {
 	if target == nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 	}
-	wasCurrent := target == ctx.DefaultSession
 	ctx.Server.ForgetAccount(username)
-	if next := ctx.LogoutAccount(username); next != nil {
-		if wasCurrent {
-			next.PutNotice(fmt.Sprintf(ctx.T("notice.signedinas"), next.Username()))
-		}
+	if ctx.LogoutAccount(username) != nil {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	}
 	return ctx.Redirect(http.StatusFound, "/login")
-}
-
-// switchDestination keeps a scope change on the page it was made from.
-// Pooled sections exist under every scope; the account-scoped ones only
-// outside the merged view. Deeper paths name an object of the account
-// being left, so they return to the inbox, as does a missing or foreign
-// next. The query goes with the old scope and is dropped.
-func switchDestination(next string, unified bool) string {
-	u, err := url.Parse(next)
-	if err != nil || !strings.HasPrefix(u.Path, "/") || u.Host != "" {
-		return "/mailbox/INBOX"
-	}
-	switch u.Path {
-	case "/calendar", "/contacts", "/tasks":
-		return u.Path
-	case "/filters", "/settings":
-		if !unified {
-			return u.Path
-		}
-	}
-	return "/mailbox/INBOX"
-}
-
-func handleSwitch(ctx *alborz.Context) error {
-	unified := ctx.FormValue("account") == "unified"
-	destination := switchDestination(ctx.FormValue("next"), unified)
-	if unified {
-		ctx.SetUnified(true)
-		return ctx.Redirect(http.StatusFound, destination)
-	}
-	ctx.SetUnified(false)
-	if !ctx.SwitchAccount(ctx.FormValue("account")) {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.expired")})
-		return ctx.Redirect(http.StatusFound, "/login?add=1")
-	}
-	return ctx.Redirect(http.StatusFound, destination)
 }

@@ -8,6 +8,7 @@
     <main id="main" tabindex="-1" class="create-update">
       <form method="POST">
         {{ $acct := "" }}{{ with .GlobalData.URLAccount }}{{ $acct = printf "?account=%s" . }}{{ end }}
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
         <h1>{{$.T "folder.create"}}</h1>
         <label>
           <span>{{$.T "folder.location"}}</span>

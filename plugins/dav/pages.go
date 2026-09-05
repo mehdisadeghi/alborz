@@ -1,6 +1,7 @@
 package dav
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -115,6 +116,9 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 		}
 		if err := p.Create(ctx.Request().Context(), session, data.Name, data.Color, held[data.Holds]); err != nil {
 			data.Error = err.Error()
+			if errors.Is(err, ErrNameTaken) {
+				data.Error = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
+			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(f.Made(data.Holds)))

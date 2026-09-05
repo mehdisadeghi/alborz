@@ -170,6 +170,13 @@ func Opened[C any](ctx context.Context, p *Provider, session *alborz.Session, cl
 // free address, and forgets the found list, so the new one appears at
 // once.
 func (p *Provider) Create(ctx context.Context, session *alborz.Session, name, color string, components []string) error {
+	infos, err := p.Collections(ctx, session)
+	if err != nil {
+		return err
+	}
+	if NameTaken(name, infos) {
+		return ErrNameTaken
+	}
 	base, _ := p.URL(session)
 	home, err := p.home(ctx, session)
 	if err != nil {

@@ -317,6 +317,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 				// it took delivery. Read from the same header set, and
 				// only from the instance the trusted server wrote.
 				authResults = readAuthResults(messageRootHeader(msg), settings.TrustedAuthServ)
+				signature = withDelivery(signature, authResults)
 			}
 			if load != nil {
 				sb, err = load.finish()

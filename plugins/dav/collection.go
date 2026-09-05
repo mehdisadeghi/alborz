@@ -136,6 +136,28 @@ func SafeObjectName(uid string) string {
 	}, uid)
 }
 
+// ErrNameTaken refuses a second collection with a display name the
+// account already has. The protocol allows it, since only the address
+// must be unique, but two calendars called "Work" cannot be told apart
+// in any client, and the reader who asked twice, a double click on a
+// slow form, did not mean it.
+var ErrNameTaken = errors.New("a collection with that name is already there")
+
+// DisplayName is the name as the reader gave it, which every kind's
+// info carries by embedding Collection.
+func (c Collection) DisplayName() string { return c.Name }
+
+// NameTaken says whether name is, but for case and edges, the display
+// name of a collection the account has.
+func NameTaken[T interface{ DisplayName() string }](name string, existing []T) bool {
+	for _, c := range existing {
+		if strings.EqualFold(strings.TrimSpace(c.DisplayName()), strings.TrimSpace(name)) {
+			return true
+		}
+	}
+	return false
+}
+
 // ErrCollectionExists reports the address as taken: MKCALENDAR or MKCOL
 // on a resource that is already there is 405, which is what RFC 4918
 // asks and what SabreDAV answers. The form says so rather than

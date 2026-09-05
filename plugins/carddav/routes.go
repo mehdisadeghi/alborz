@@ -784,6 +784,9 @@ func handleCreateBook(p *plugin) func(*alborz.Context) error {
 		}
 		if err := p.createAddressBook(ctx.Request().Context(), session, data.Name, data.Color); err != nil {
 			data.Error = err.Error()
+			if errors.Is(err, dav.ErrNameTaken) {
+				data.Error = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
+			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))

@@ -138,9 +138,12 @@ func newClient(u *url.URL, httpClient *http.Client) (*caldav.Client, error) {
 // createCalendar adds a collection to the account's calendar home and
 // forgets the cached list, so the new one appears at once.
 func (p *plugin) createCalendar(ctx context.Context, session *alborz.Session, name string, components []string, color string) error {
-	c, err := p.client(session)
+	c, infos, err := p.clientWithCalendars(ctx, session)
 	if err != nil {
 		return err
+	}
+	if dav.NameTaken(name, infos) {
+		return dav.ErrNameTaken
 	}
 	davBase, _ := p.dav.URL(session)
 

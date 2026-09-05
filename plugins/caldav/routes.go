@@ -134,6 +134,9 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 		}
 		if err := p.createCalendar(ctx.Request().Context(), session, data.Name, components, data.Color); err != nil {
 			data.Error = err.Error()
+			if errors.Is(err, dav.ErrNameTaken) {
+				data.Error = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
+			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
 		// Back to the rail it was asked for, when the new collection

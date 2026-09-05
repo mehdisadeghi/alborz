@@ -129,9 +129,12 @@ func (ao AddressObject) PhotoURL() string {
 // to the first free address: two collections may share a display name
 // but not a path, and a server answers a taken one with 405.
 func (p *plugin) createAddressBook(ctx context.Context, session *alborz.Session, name, color string) error {
-	c, err := p.client(session)
+	c, infos, err := p.clientWithAddressBooks(ctx, session)
 	if err != nil {
 		return err
+	}
+	if dav.NameTaken(name, infos) {
+		return dav.ErrNameTaken
 	}
 	davBase, _ := p.dav.URL(session)
 

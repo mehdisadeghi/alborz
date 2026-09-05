@@ -3814,6 +3814,29 @@ aside details.acct-folders > summary.aside-account {
   gap: var(--space-1);
 }
 
+/* The heading is the way into the account's scope: a link that reads
+   like the heading it is, and the chevron beside it still folds. */
+aside details.acct-folders > summary.aside-account a,
+aside a.aside-account {
+  color: inherit;
+  text-decoration: none;
+  flex-grow: 1;
+}
+
+aside details.acct-folders > summary.aside-account a:hover,
+aside a.aside-account:hover {
+  text-decoration: underline;
+}
+
+/* A merged list names each account's group the way the rail does. */
+.list-group-heading {
+  margin: var(--space-3) 0 var(--space-1);
+  padding-inline: var(--space-2);
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 aside details.acct-folders > summary::-webkit-details-marker {
   display: none;
 }

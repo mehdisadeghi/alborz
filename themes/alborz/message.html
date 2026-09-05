@@ -200,7 +200,7 @@
         </div>
       </section>
 
-      {{ template "crumb" (dict "steps" .Crumb "account" $.GlobalData.URLAccount) }}
+      {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb) }}
       <div class="message-header">
         <table>
           <tr>

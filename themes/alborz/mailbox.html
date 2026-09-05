@@ -8,20 +8,15 @@
     <form id="messages-form" method="POST"></form>
     {{/* Its own form: refreshing acts on the folder, so it must not
          carry the selection or be gated on one. */}}
-    <form id="refresh-form" method="POST" action="/mailbox/{{.Mailbox.Name | pathescape}}/refresh{{ if $.GlobalData.Unified }}?all=1{{ else }}{{ account "?" $.GlobalData.URLAccount }}{{ end }}">
+    <form id="refresh-form" method="POST" action="/mailbox/{{.Mailbox.Name | pathescape}}/refresh{{ account "?" $.GlobalData.URLAccount }}">
       <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
     </form>
     <main id="main" tabindex="-1" class="message-list">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "messages-header.html" . }}
       </section>
-      {{/* Where you are, on every page that has a where. It named the
-           account only when more than one was signed in, which made
-           mail the one section without a path; the merged view is the
-           exception that remains, since it answers per row. */}}
-      {{ if not .GlobalData.Unified }}
-      {{ template "crumb" (dict "steps" .Crumb "account" .GlobalData.URLAccount "class" "narrow-crumb") }}
-      {{ end }}
+      {{/* Where you are, on every page that has a where. */}}
+      {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb "class" "narrow-crumb") }}
 
       <section class="messages">
         <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
@@ -56,7 +51,7 @@
           {{/* A link that starts a new query keeps the scope the page is
                read under: a sender clicked in the merged view searches
                every account, not whichever one the view is anchored to. */}}
-          {{ $scope := "" }}{{ if $.GlobalData.Unified }}{{ $scope = "&all=1" }}{{ else }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | addr) }}{{ end }}{{ end }}
+          {{ $scope := "" }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | addr) }}{{ end }}
           {{range .Messages}}
           {{ $classes := "list-cell" }}
           {{ if not (.HasFlag "\\Seen") }}

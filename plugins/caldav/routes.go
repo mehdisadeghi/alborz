@@ -403,9 +403,10 @@ func eventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.
 
 // visibleCalendars marks each account's calendars of one kind with the
 // account's own visibility setting, or with the URL's narrowing when it
-// names one. Every calendar comes back for the aside with its checkbox
-// state; only the visible ones come back as sites to query.
-func visibleCalendars(accounts []dav.Account[*caldav.Client, CalendarInfo], only map[string]bool, kind func(CalendarInfo) bool, chosen func(*Settings) (filter bool, paths []string)) ([]CalendarInfo, []querySite, error) {
+// names one. Every calendar comes back for the rail with its checkbox
+// state, whatever the scope: the rail is the reader's map of every
+// account. Only the visible ones in scope come back as sites to query.
+func visibleCalendars(accounts []dav.Account[*caldav.Client, CalendarInfo], scope string, only map[string]bool, kind func(CalendarInfo) bool, chosen func(*Settings) (filter bool, paths []string)) ([]CalendarInfo, []querySite, error) {
 	var infos []CalendarInfo
 	var sites []querySite
 	for _, acc := range accounts {
@@ -428,7 +429,7 @@ func visibleCalendars(accounts []dav.Account[*caldav.Client, CalendarInfo], only
 				cal.Only = len(only) == 1 && cal.Visible
 			}
 			infos = append(infos, cal)
-			if cal.Visible {
+			if cal.Visible && (scope == "" || acc.Name == scope) {
 				sites = append(sites, querySite{cal: cal, client: acc.Client, settings: settings})
 			}
 		}
@@ -703,7 +704,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		return err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, only, CalendarInfo.SupportsEvent, eventVisibility)
+	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, CalendarInfo.SupportsEvent, eventVisibility)
 	if err != nil {
 		return err
 	}
@@ -839,7 +840,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		return err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, only, CalendarInfo.SupportsEvent, eventVisibility)
+	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, CalendarInfo.SupportsEvent, eventVisibility)
 	if err != nil {
 		return err
 	}
@@ -1172,7 +1173,7 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func(CalendarInfo) bool
 	if err != nil {
 		return err
 	}
-	_, sites, err := visibleCalendars(accounts, onlyCollections(ctx, "cal"), kind, chosen)
+	_, sites, err := visibleCalendars(accounts, ctx.URLAccount(), onlyCollections(ctx, "cal"), kind, chosen)
 	if err != nil {
 		return err
 	}
@@ -1243,7 +1244,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		return err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, only, CalendarInfo.SupportsTodo,
+	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, CalendarInfo.SupportsTodo,
 		func(s *Settings) (bool, []string) { return s.TaskFilter, s.VisibleTasks })
 	if err != nil {
 		return err

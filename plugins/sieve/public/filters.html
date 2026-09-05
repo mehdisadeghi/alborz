@@ -3,10 +3,9 @@
 {{template "util.html" .}}
 
 <div class="page-wrap">
-  {{ $aq := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ end }}
-  {{ $current := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $current = . }}{{ end }}
+  {{ $aq := account "?" .GlobalData.URLAccount }}
   <aside>
-    {{ template "account-scope-aside" (dict "accounts" .Accounts "current" $current "path" "/filters" "newhref" (printf "/filters/create%s" $aq) "newlabel" ($.T "filters.new")) }}
+  {{ template "scope-rail" (dict "kind" "filters" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
   </aside>
 
   <div class="container">
@@ -18,8 +17,14 @@
         {{ template "list-toolbar" (dict "title" ($.T "filters.title") "newhref" (printf "/filters/create%s" $aq) "newlabel" ($.T "filters.new")) }}
       </section>
 
-      {{ template "dav-crumb" (dict "account" $current "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" "" "path" "") }}
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" "" "path" "") }}
 
+      {{/* One group per account shown, under its name when the view
+           is merged; every link and form names the account its script
+           lives on, since a bare one would act on the wrong server. */}}
+      {{ range .Groups }}
+      {{ $gq := account "?" .Account }}
+      {{ if $.GlobalData.Unified }}<h2 class="list-group-heading">{{ template "ltr" .Account }}</h2>{{ end }}
       {{ with .Unreachable }}
       <div class="alert" role="alert">
         <strong>{{$.T "filters.unreachable"}}</strong>
@@ -44,21 +49,21 @@
         {{ range .Scripts }}
         <div class="list-item">
           <div class="list-content">
-            <a href="/filters/{{.Name | pathescape}}{{$aq}}" class="list-summary">{{.Name}}</a>
+            <a href="/filters/{{.Name | pathescape}}{{$gq}}" class="list-summary">{{.Name}}</a>
             {{ if .Active }}
             <span class="list-meta">{{$.T "filters.active"}}</span>
             {{ end }}
           </div>
           {{ if .Active }}
-          <form method="post" action="/filters/deactivate{{$aq}}">
+          <form method="post" action="/filters/deactivate{{$gq}}">
             <button>{{$.T "filters.deactivate"}}</button>
           </form>
           {{ else }}
-          <form method="post" action="/filters/{{.Name | pathescape}}/activate{{$aq}}">
+          <form method="post" action="/filters/{{.Name | pathescape}}/activate{{$gq}}">
             <button>{{$.T "filters.activate"}}</button>
           </form>
           {{ end }}
-          <form method="post" action="/filters/{{.Name | pathescape}}/delete{{$aq}}">
+          <form method="post" action="/filters/{{.Name | pathescape}}/delete{{$gq}}">
             <button class="button-danger">{{$.T "common.delete"}}</button>
           </form>
         </div>
@@ -67,6 +72,7 @@
         <p class="empty-list">{{$.T "filters.empty"}}</p>
         {{ end }}
       </section>
+      {{ end }}
 
     </main>
   </div>

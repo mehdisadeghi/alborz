@@ -7,12 +7,9 @@
     <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>
     {{ end }}
     {{$page := (index .GlobalData.Path 0)}}
-    {{/* Mail and Filters keep an explicit account scope. DAV tabs are
-         pooled source views, so they deliberately drop account/all. */}}
-    {{$q := ""}}{{with .GlobalData.URLAccount}}{{$q = printf "?account=%s" .}}{{else}}{{if .GlobalData.Unified}}{{$q = "?all=1"}}{{end}}{{end}}
-    {{$filterq := ""}}{{with .GlobalData.URLAccount}}{{$filterq = printf "?account=%s" .}}{{end}}
-    {{$pooled := and (gt (len .GlobalData.Accounts) 1) (or (eq $page "calendar") (eq $page "contacts") (eq $page "tasks"))}}
-    {{$showactive := and (not $pooled) (not .GlobalData.Unified)}}
+    {{/* Every section keeps the scope the URL carries: the account
+         it names, or the merged view when it names none. */}}
+    {{$q := account "?" .GlobalData.URLAccount}}
     <a href="/mailbox/INBOX{{$q}}"
       {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}
       class="active" aria-current="page"
@@ -20,7 +17,7 @@
     >{{$.T "nav.email"}}</a>
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/calendar"
+      href="/calendar{{$q}}"
       {{ if eq $page "calendar" }}
       class="active" aria-current="page"
       {{ end }}
@@ -28,7 +25,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "carddav" }}
     <a
-      href="/contacts"
+      href="/contacts{{$q}}"
       {{ if eq $page "contacts" }}
       class="active" aria-current="page"
       {{ end }}
@@ -36,7 +33,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/tasks"
+      href="/tasks{{$q}}"
       {{ if eq $page "tasks" }}
       class="active" aria-current="page"
       {{ end }}
@@ -44,7 +41,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "sieve" }}
     <a
-      href="/filters{{$filterq}}"
+      href="/filters{{$q}}"
       {{ if eq $page "filters" }}
       class="active" aria-current="page"
       {{ end }}
@@ -53,16 +50,16 @@
     {{ if .GlobalData.LoggedIn }}
     <div>
       <details class="accounts">
-        <summary>{{if $pooled}}{{$.T "nav.accounts"}}{{else if .GlobalData.Unified}}{{$.T "nav.allaccounts"}}{{else}}{{ template "ltr" .GlobalData.Username }}{{end}}</summary>
+        {{/* The menu says which scope the page is in and offers the
+             others: each account's entry opens this section on that
+             account, and the merged entry opens it over all. There is
+             no active account to switch; the URL is the scope. */}}
+        <summary>{{ if .GlobalData.URLAccount }}{{ template "ltr" .GlobalData.URLAccount }}{{ else if .GlobalData.Unified }}{{$.T "nav.allaccounts"}}{{ else }}{{ template "ltr" .GlobalData.Username }}{{ end }}</summary>
         <div class="accounts-menu">
-          {{/* Every account keeps its row across switches; only the
-               mark moves with the choice. */}}
+          {{ $section := printf "/%s" $page }}{{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = "/mailbox/INBOX" }}{{ end }}
           {{ range .GlobalData.Accounts }}
           <div class="account-menu-row">
-          <form method="post" action="/switch">
-            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-            <button type="submit" name="account" value="{{ .Username }}"{{ if and .Active $showactive }} class="active" disabled{{ end }}>{{ template "ltr" .Username }}</button>
-          </form>
+          <a href="{{$section}}{{ account "?" .Username }}"{{ if eq .Username $.GlobalData.URLAccount }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
           {{if gt (len $.GlobalData.Accounts) 1}}
           <form method="post" action="/logout" class="account-signout">
             <button type="submit" name="account" value="{{.Username}}" title="{{$.T "nav.signout"}} {{.Username}}">{{$.T "nav.signout"}}</button>
@@ -71,10 +68,7 @@
           </div>
           {{ end }}
           {{ if gt (len .GlobalData.Accounts) 1 }}
-          <form method="post" action="/switch">
-            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-            <button type="submit" name="account" value="unified"{{ if .GlobalData.Unified }} class="active" disabled{{ end }}>{{$.T "nav.allaccounts"}}</button>
-          </form>
+          <a href="{{$section}}"{{ if .GlobalData.Unified }} class="active" aria-current="true"{{ end }}>{{$.T "nav.allaccounts"}}</a>
           {{ end }}
           <a href="/login?add=1">{{$.T "nav.addaccount"}}</a>
         </div>

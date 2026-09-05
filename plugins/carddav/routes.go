@@ -312,7 +312,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		return err
 	}
 
-	addressBookInfos, sites, err := visibleBooks(accounts, only)
+	addressBookInfos, sites, err := visibleBooks(accounts, ctx.URLAccount(), only)
 	if err != nil {
 		return err
 	}
@@ -649,8 +649,8 @@ func (p *plugin) collectionPage() dav.Page {
 }
 
 // visibleBooks are dav.Visible's address books.
-func visibleBooks(accounts []dav.Account[*carddav.Client], only map[string]bool) ([]dav.Collection, []dav.Site[*carddav.Client], error) {
-	return dav.Visible(accounts, only, func(acc dav.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
+func visibleBooks(accounts []dav.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []dav.Site[*carddav.Client], error) {
+	return dav.Visible(accounts, scope, only, func(acc dav.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings := &Settings{}
 		if err := acc.Session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 			return nil, false, nil, fmt.Errorf("failed to load CardDAV settings: %w", err)

@@ -39,7 +39,6 @@ func registerRoutes(p *alborz.GoPlugin) {
 
 	p.GET("/login", handleLogin)
 	p.POST("/login", handleLogin)
-	p.POST("/switch", handleSwitch)
 
 	p.GET("/logout", handleLogout)
 	p.POST("/logout", handleLogout)

@@ -38,9 +38,7 @@ const (
 const (
 	cookieName              = "alborz_session"
 	accountsCookieName      = "alborz_accounts"
-	activeUserCookieName    = "alborz_user"
 	loginTokenCookieName    = "alborz_login_tokens"
-	unifiedCookieName       = "alborz_unified"
 	schemeCookieName        = "alborz_scheme"
 	themeCookieName         = "alborz_theme"
 	accountColorsCookieName = "alborz_account_colors"
@@ -441,7 +439,7 @@ type Context struct {
 	echo.Context
 	Server         *Server
 	Session        *Session // request-scoped account; nil if not logged in
-	DefaultSession *Session // account stored in the session cookie
+	DefaultSession *Session // the first listed account, for a page that needs one and was given none
 
 	// Unified marks the merged all-accounts view; Session then anchors
 	// to one of the accounts while handlers aware of the view iterate
@@ -768,16 +766,21 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				return handleUnauthenticated(next, ctx)
 			}
 			ctx.Session = session
-			ctx.DefaultSession = ctx.Session
-			// Every signed-in account is in use, not only the active
-			// one: the switcher lists them all, so they all stay alive.
-			for _, session := range ctx.accountSessions() {
+			// Every signed-in account is in use: the rail lists them
+			// all, so they all stay alive. The first listed is the one
+			// a page falls back on when the URL names none and the page
+			// cannot be merged.
+			sessions := ctx.accountSessions()
+			for _, session := range sessions {
 				session.ping()
 			}
+			ctx.Session = sessions[0]
+			ctx.DefaultSession = sessions[0]
 
-			// A link may carry the account it belongs to; it selects the
-			// session for this request only, so following it changes no
-			// state and the unified view survives the round trip.
+			// The URL carries the account (ADR 0001): a link naming one
+			// scopes this request to it, and a bare URL over several
+			// accounts is the merged view, a place rather than a mode,
+			// so nothing sticks between requests.
 			if acct := ctx.QueryParam("account"); acct != "" {
 				session := ctx.SessionFor(acct)
 				if session == nil {
@@ -785,12 +788,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				}
 				ctx.Session = session
 				ctx.urlAccount = acct
-			} else if strings.HasPrefix(ctx.Request().URL.Path, "/mailbox/") &&
-				ctx.QueryParam("all") == "1" && len(ctx.accountSessions()) > 1 {
-				// The merged view as a place, not a mode: nothing sticks.
-				ctx.Unified = true
-			} else if _, err := ctx.Cookie(unifiedCookieName); strings.HasPrefix(ctx.Request().URL.Path, "/mailbox/") &&
-				err == nil && len(ctx.accountSessions()) > 1 {
+			} else if len(sessions) > 1 {
 				ctx.Unified = true
 			}
 

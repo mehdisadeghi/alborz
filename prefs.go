@@ -193,14 +193,3 @@ func (ctx *Context) Language() string {
 	}
 	return ""
 }
-
-// SetUnified turns the merged all-accounts view on or off; it needs at
-// least two signed-in accounts to turn on.
-func (ctx *Context) SetUnified(on bool) {
-	value := "1"
-	if !on || len(ctx.accountSessions()) < 2 {
-		value = ""
-	}
-	ctx.Unified = value != ""
-	ctx.SetCookie(ctx.cookie(unifiedCookieName, value, 0))
-}

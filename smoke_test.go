@@ -865,8 +865,9 @@ func TestComposeOpensFromTheAccountNamed(t *testing.T) {
 			t.Errorf("compose for %s does not select it in From", account)
 		}
 	}
-	if page := get(t, c, base+"/compose"); !strings.Contains(page, `value="`+smokeUser2+`" selected`) {
-		t.Errorf("compose without an account does not select the active one")
+	// No account is "active": a bare compose opens on the first listed.
+	if page := get(t, c, base+"/compose"); !strings.Contains(page, `value="`+smokeUser+`" selected`) {
+		t.Errorf("compose without an account does not select the first listed one")
 	}
 }
 
@@ -942,18 +943,30 @@ func TestFoldersAreMadeAndRemoved(t *testing.T) {
 	}
 }
 
-// TestAccountsSwitchAndSignOut: switching makes the named account the
-// one pages belong to; signing out of the last account ends the session.
-func TestAccountsSwitchAndSignOut(t *testing.T) {
+// TestAccountsScopeAndSignOut: the URL is the scope (ADR 0001). A bare
+// mail URL over two accounts is the merged view, with both in the rail;
+// one naming an account is that account's, and says so in the nav.
+// Signing out of the last account ends the session.
+func TestAccountsScopeAndSignOut(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
 	postForm(t, c, base+"/login", url.Values{"username": {smokeUser2}, "password": {smokePass}})
 
-	if resp := postForm(t, c, base+"/switch", url.Values{"account": {smokeUser}}); resp.StatusCode != http.StatusFound {
-		t.Fatalf("switch: %s", resp.Status)
+	merged := get(t, c, base+"/mailbox/INBOX")
+	for _, account := range []string{smokeUser, smokeUser2} {
+		if !strings.Contains(merged, `href="/mailbox/INBOX?account=`+account+`"`) {
+			t.Errorf("the merged view's rail does not offer %s", account)
+		}
 	}
-	if page := get(t, c, base+"/compose"); !strings.Contains(page, `value="`+smokeUser+`" selected`) {
-		t.Errorf("after switching, compose does not belong to %s", smokeUser)
+	if !strings.Contains(merged, `class="acct-folders aggregate-folders"`) {
+		t.Errorf("the merged view has no merged entry in the rail")
+	}
+	scoped := get(t, c, base+"/mailbox/INBOX?account="+smokeUser2)
+	if !strings.Contains(scoped, `<summary><bdi class="ltr">`+smokeUser2) {
+		t.Errorf("a page scoped to %s does not say so in the nav", smokeUser2)
+	}
+	if !strings.Contains(scoped, `class="acct-folders aggregate-folders"`) {
+		t.Errorf("the scoped view lost the merged entry from the rail")
 	}
 
 	for _, account := range []string{smokeUser, smokeUser2} {

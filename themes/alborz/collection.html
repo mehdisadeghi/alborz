@@ -33,7 +33,7 @@
         </label>
         <button>{{$.T "collection.importdo"}}</button>
       </form>
-      <form method="get" action="{{.Base}}{{.Path | pathescape}}/export" class="collection-file">
+      <form method="get" action="{{.Base}}{{.Path | pathescape}}/export" class="collection-file" data-download>
         {{ with .GlobalData.URLAccount }}<input type="hidden" name="account" value="{{.}}">{{ end }}
         <h3>{{$.T "collection.exporttitle"}}</h3>
         {{ if .OffersRange }}

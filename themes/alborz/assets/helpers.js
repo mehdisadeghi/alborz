@@ -231,4 +231,56 @@ if (handler_group && navigator.registerProtocolHandler) {
 	});
 }
 
+// A form is sent once. Nothing answers a click for the round trip's
+// length, so a reader clicks again and the server does the thing
+// twice. The form is marked busy on submit and a second submit is
+// refused; its buttons dim a tick later, after the browser has read
+// the clicked one's name and value into the form data. Coming back
+// through the history cache restores the form as it was.
+const submitButtons = form => {
+	const inside = form.querySelectorAll('button:not([type="button"]), input[type="submit"]');
+	if (!form.id) {
+		return inside;
+	}
+	return [...inside, ...document.querySelectorAll(`button[form="${form.id}"]`)];
+};
+document.addEventListener("submit", ev => {
+	const form = ev.target;
+	if (ev.defaultPrevented) {
+		return;
+	}
+	// A download answers without leaving the page, so it never ends the
+	// busy state and must not begin one.
+	if ("download" in form.dataset || (ev.submitter && "download" in ev.submitter.dataset)) {
+		return;
+	}
+	if (form.dataset.busy) {
+		ev.preventDefault();
+		return;
+	}
+	form.dataset.busy = "1";
+	form.setAttribute("aria-busy", "true");
+	setTimeout(() => {
+		for (const button of submitButtons(form)) {
+			if (!button.disabled) {
+				button.disabled = true;
+				button.dataset.busy = "1";
+			}
+		}
+	}, 0);
+});
+window.addEventListener("pageshow", ev => {
+	if (!ev.persisted) {
+		return;
+	}
+	for (const form of document.querySelectorAll("form[data-busy]")) {
+		delete form.dataset.busy;
+		form.removeAttribute("aria-busy");
+	}
+	for (const button of document.querySelectorAll("[data-busy]")) {
+		button.disabled = false;
+		delete button.dataset.busy;
+	}
+});
+
 // @license-end

@@ -1,7 +1,7 @@
 {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.contacts") "selectall" true "newhref" "/contacts/create" "newlabel" ($.T "contacts.new")) }}
     <span class="icon-group">
       {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "address-book-form" "formaction" "/contacts/delete") }}
-      {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "address-book-form" "formaction" "/contacts/export") }}
+      {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "address-book-form" "formaction" "/contacts/export" "download" true) }}
     </span>
     <details class="overflow">
       <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>

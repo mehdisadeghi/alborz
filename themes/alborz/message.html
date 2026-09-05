@@ -237,7 +237,9 @@
                    the frame the message body draws in: the sanitizer
                    allows a style element, so a message can paint a
                    convincing green band of its own inside it. */}}
-              {{ if eq .Signature.State "good" }}
+              {{ if .Signature.Confirmed }}
+              <span class="sig sig-verified" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.verified"}}</span>
+              {{ else if eq .Signature.State "good" }}
               <span class="sig sig-good" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.good"}}</span>
               {{ else if eq .Signature.State "bad" }}
               <span class="sig sig-bad" title="{{$.T .Signature.Reason}}">{{$.T "pgp.bad"}}</span>

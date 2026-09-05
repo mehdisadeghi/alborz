@@ -2173,7 +2173,7 @@ aside .filter-edit:focus-visible { opacity: 1; }
 }
 
 /* What a signature says, beside the sender it is a claim about. Two
-   states only: verified, and present-but-not. An unsigned message says
+   states only: good, and present-but-not. An unsigned message says
    nothing here, because a mark on every message teaches people to
    ignore marks. */
 .sig {
@@ -2186,8 +2186,14 @@ aside .filter-edit:focus-visible { opacity: 1; }
   cursor: help;
 }
 
-/* A key the message brought along proves who holds it and no more,
-   so the mark wears no colour. */
+/* Green is for two witnesses that agree, the domain's published key
+   and its signed delivery; a key the message brought along proves
+   less and wears no colour. */
+.sig-verified {
+  color: var(--sig-good);
+  border-color: color-mix(in srgb, var(--sig-good) 40%, transparent);
+}
+
 .sig-good {
   color: var(--fg-muted);
   border-color: color-mix(in srgb, var(--fg-muted) 40%, transparent);

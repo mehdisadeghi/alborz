@@ -17,6 +17,9 @@ type AuthResults struct {
 	// freely: SPF passing means the sending host is authorised for that
 	// domain, and our own server is what wrote the verdict down.
 	MailFrom string
+	// DKIMDomain is the domain whose signature the DKIM verdict is
+	// about (header.d), which need not be the author's.
+	DKIMDomain string
 }
 
 var authMethods = map[string]bool{"spf": true, "dkim": true, "dmarc": true}
@@ -25,6 +28,21 @@ var authMethods = map[string]bool{"spf": true, "dkim": true, "dmarc": true}
 // message teaches people to ignore marks.
 func (a AuthResults) Failed() bool {
 	return isFailure(a.SPF) || isFailure(a.DKIM) || isFailure(a.DMARC)
+}
+
+// Vouches says the author's domain stood behind this delivery: DMARC
+// passed, which is alignment by definition, or DKIM passed for the
+// domain itself or a parent of it (RFC 7489 3.1, relaxed).
+func (a AuthResults) Vouches(domain string) bool {
+	if a.DMARC == "pass" {
+		return true
+	}
+	if a.DKIM != "pass" || domain == "" {
+		return false
+	}
+	d := strings.ToLower(a.DKIMDomain)
+	domain = strings.ToLower(domain)
+	return d == domain || strings.HasSuffix(domain, "."+d) || strings.HasSuffix(d, "."+domain)
 }
 
 // isFailure excludes "none", which means the domain published no policy
@@ -93,6 +111,9 @@ func parseAuthResults(value string) (string, *AuthResults, bool) {
 		// before the clause is cut down to its verdict.
 		if from := propertyValue(part, "smtp.mailfrom"); from != "" {
 			out.MailFrom = from
+		}
+		if d := propertyValue(part, "header.d"); d != "" {
+			out.DKIMDomain = d
 		}
 		// The verdict is the first token; the rest names what was checked.
 		if i := strings.IndexAny(part, " \t"); i >= 0 {

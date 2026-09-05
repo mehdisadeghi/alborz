@@ -7,6 +7,7 @@
   <div class="container">
     <main id="main" tabindex="-1" class="create-update">
       <form method="POST">
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
         <h1>{{printf ($.T "folder.emptyask") .Mailbox.Name}}</h1>
         <div class="alert" role="alert">
           {{$.GlobalData.Tf "folder.emptycount" .Count}}

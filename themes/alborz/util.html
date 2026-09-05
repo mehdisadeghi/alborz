@@ -64,42 +64,47 @@
      ordered by it. */}}
 {{ define "ltr" }}<bdi class="ltr">{{.}}</bdi>{{ end }}
 
-{{/* The path to what is on screen, each step leading to it. The first
-     step is the account and reads left to right whatever the page
-     does, being an address; a step with no URL is a folder that cannot
-     be opened, and is named without pretending to lead anywhere.
-     dict: steps account class. */}}
+{{/* The path to what is on screen, each step leading to it. With more
+     than one account signed in the path starts at all of them, the
+     section's merged view, which the steps then narrow; every step
+     keeps the scope the URL carries. An address reads left to right
+     whatever the page does; a step with no URL is a folder that cannot
+     be opened, and is named without pretending to lead anywhere; a
+     step with no name is not on the path at all.
+     dict: g home steps class. */}}
 {{ define "crumb" }}
-{{ $account := .account }}
+{{ $account := .g.GlobalData.URLAccount }}
 <div class="context-crumb{{ with .class }} {{.}}{{ end }}">
-  {{- range $i, $step := .steps }}
-    {{- if $i }} › {{ end }}
-    {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}">{{ if $i }}{{ $step.Label }}{{ else }}{{ template "ltr" $step.Label }}{{ end }}</a>
-    {{- else }}{{ if $i }}{{ $step.Label }}{{ else }}{{ template "ltr" $step.Label }}{{ end }}{{ end }}
-  {{- end }}
+  {{- $sep := false }}
+  {{- if gt (len .g.GlobalData.Accounts) 1 }}<a href="{{ .home }}">{{ .g.T "nav.allaccounts" }}</a>{{ $sep = true }}{{ end }}
+  {{- range $step := .steps }}{{ if $step.Label }}
+    {{- if $sep }} › {{ end }}{{ $sep = true }}
+    {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}">{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
+    {{- else }}{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}{{ end }}
+  {{- end }}{{ end }}
 </div>
 {{ end }}
 
 {{/* The path above a calendar, task or contact page. It reads the same
      way the mail one does - account, then section, then the collection
-     - so the two do not drift apart. A page with no collection chosen
-     yet, which is every create form, stops after the section rather
-     than showing nothing at all.
-     dict: account urlaccount section home field collection path. */}}
+     - so the two do not drift apart. The account is the one the URL
+     names, or the only one; the merged view has none. A page with no
+     collection to name stops after the section, a create form among
+     them: it lands where the path says. A form that offers a choice
+     of account names none: chooses.
+     dict: g section home field collection path [chooses]. */}}
 {{ define "dav-crumb" }}
+{{ $account := .g.GlobalData.URLAccount }}
+{{ if and (not $account) (not .g.GlobalData.Unified) }}{{ $account = .g.GlobalData.Username }}{{ end }}
+{{ if .chooses }}{{ $account = "" }}{{ end }}
 {{/* A collection named like its section - the one book called
      "Contacts" - would read "Contacts › Contacts"; its step says
      nothing the section's does not, so it is left out. */}}
-{{ if and .collection (ne .collection .section) }}
-{{ template "crumb" (dict "account" .urlaccount "steps" (tuple
-   (dict "Label" .account "URL" .home)
+{{ $collection := .collection }}{{ if eq $collection .section }}{{ $collection = "" }}{{ end }}
+{{ template "crumb" (dict "g" .g "home" .home "steps" (tuple
+   (dict "Label" $account "URL" .home "Address" true)
    (dict "Label" .section "URL" .home)
-   (dict "Label" .collection "URL" (printf "%s?%s=%s" .home .field (.path | urlquery))))) }}
-{{ else }}
-{{ template "crumb" (dict "account" .urlaccount "steps" (tuple
-   (dict "Label" .account "URL" .home)
-   (dict "Label" .section "URL" .home))) }}
-{{ end }}
+   (dict "Label" $collection "URL" (printf "%s?%s=%s" .home .field (.path | urlquery))))) }}
 {{ end }}
 
 {{/* The flag colours, as swatches. Each is its own submit, so the
@@ -253,7 +258,6 @@
 {{ define "toolbar-search" }}
 <form method="get" class="actions-search{{ if .disabled }} is-disabled{{ end }}">
   {{ with .account }}<input type="hidden" name="account" value="{{.}}">{{ end }}
-  {{ if .all }}<input type="hidden" name="all" value="1">{{ end }}
   <input type="text" name="query" dir="auto" value="{{.query}}" placeholder="{{.placeholder}}" aria-label="{{.placeholder}}"{{ if .disabled }} disabled{{ end }}>
   <button{{ if .disabled }} disabled{{ end }}>{{.button}}</button>
 </form>
@@ -533,42 +537,32 @@
 </div>
 {{ end }}
 
-{{/* The DAV aside: one create entry (the form picks the destination
-     account), then per account its visibility form, under a heading
-     when several accounts pool. One account renders zero chrome.
-     dict: items field itemclass action apply onlylabel keep edithref
-     editlabel collectionhref collectionfor collectionlabel multi
-     next. "keep" is what the "only" link carries so that looking at one
-     collection does not also change which view you are in. */}}
-{{/* Making an object is a toolbar action, beside the list it lands in;
-     the rail holds the collections and closes with the entry that adds
-     one, where the mail rail's Create folder also sits. */}}
-{{ define "dav-aside-group-filters" }}
-{{ $prev := "" }}
-{{ range .items }}
-{{ if ne .Account $prev }}
-{{ if ne $prev "" }}<button>{{$.apply}}</button></form>{{ end }}
-{{ $prev = .Account }}
-<form method="post" action="{{$.action}}{{account "?" .Account}}" class="aside-filter" data-source-group>
-<input type="hidden" name="next" value="{{$.next}}">
-{{ if $.multi }}
-<label class="aside-account source-account-toggle">
-  <input type="checkbox" data-source-account-toggle aria-label="{{.Account}}">
-  <span>{{ template "ltr" .Account }}</span>
+{{/* One account's collections in the rail: its visibility form, a
+     toggle for all of them when several accounts pool, the rows, and
+     Apply. dict: account data single. data is the page's rail dict:
+     items field itemclass action apply onlylabel alllabel keep edithref
+     editlabel next. "keep" is what the "only" link carries so that
+     looking at one collection does not also change which view you are
+     in. */}}
+{{ define "rail-dav-account" }}
+{{ $d := .data }}
+<form method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter" data-source-group>
+<input type="hidden" name="next" value="{{$d.next}}">
+{{ if not .single }}
+<label class="source-account-toggle">
+  <input type="checkbox" data-source-account-toggle aria-label="{{.account}}">
+  <span>{{$d.alllabel}}</span>
 </label>
 {{ end }}
-{{ end }}
-{{ template "dav-filter-item" (dict "item" . "field" $.field "itemclass" $.itemclass "action" $.action "onlylabel" $.onlylabel "alllabel" $.alllabel "keep" $.keep "nested" $.multi "edithref" $.edithref "editlabel" $.editlabel) }}
-{{ end }}
-{{ if ne $prev "" }}<button>{{$.apply}}</button></form>{{ end }}
-{{ with .collectionhref }}<a href="{{.}}?{{ with $.collectionfor }}for={{.}}&amp;{{ end }}next={{$.next | urlquery}}" class="aside-create">{{$.collectionlabel}}</a>{{ end }}
+{{ range $d.items }}{{ if eq .Account $.account }}
+{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "onlylabel" $d.onlylabel "alllabel" $d.alllabel "keep" $d.keep "nested" (not $.single) "edithref" $d.edithref "editlabel" $d.editlabel) }}
+{{ end }}{{ end }}
+<button>{{$d.apply}}</button>
+</form>
 {{ end }}
 
-{{/* Account-scoped sections choose scope in the navigation rail, in the
-     same place as mail folders and DAV collection filters. The content
-     pane only reports the chosen scope, and the rail closes with the
-     entry that adds one. dict: accounts current path newhref
-     newlabel. */}}
+{{/* The settings rail's account list: one entry per account, the
+     current one marked. dict: accounts current path. */}}
 {{ define "account-scope-aside" }}
 {{ if gt (len .accounts) 1 }}
 <ul class="account-scope-list">
@@ -579,7 +573,6 @@
   {{ end }}
 </ul>
 {{ end }}
-{{ with .newhref }}<a href="{{.}}" class="aside-create">{{$.newlabel}}</a>{{ end }}
 {{ end }}
 
 {{/* The settings rail: one entry per account for the pane that writes
@@ -600,56 +593,113 @@
 </aside>
 {{ end }}
 
-{{ define "aside" }}
-<aside>
-  {{ $starred := .Starred }}
-  {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
-  {{ if .SidebarAccounts }}
-  {{/* Every mailbox is a place: the merged roles on top, then each
-       account's own folders; links select scope per request only. The
-       heading carries the scope, so the rows name the bare role. */}}
-  {{ $acct := $.GlobalData.URLAccount }}
-  {{ $all := $.GlobalData.Unified }}
-  <details class="acct-folders aggregate-folders" open>
-  <summary class="aside-account">{{$.T "nav.allaccounts"}}</summary>
-  <ul class="merged-roles">
-    {{ range tuple (tuple "aside.inbox" "INBOX" false) (tuple "aside.starred" "INBOX" true) (tuple "aside.drafts" "Drafts" false) (tuple "aside.sent" "Sent" false) (tuple "aside.junk" "Junk" false) (tuple "aside.trash" "Trash" false) (tuple "aside.archive" "Archive" false) }}
-    {{ $role := index . 1 }}{{ $star := index . 2 }}
-    <li {{ if and $all (eq $active $role) (eq $starred $star) }}class="active"{{ end }}>
-      <a href="/mailbox/{{$role}}?all=1{{ if $star }}&starred=1{{ end }}">{{$.T (index . 0)}}</a>
-      {{ if and (eq $role "INBOX") (not $star) (gt $.AllInboxUnseen 0) }}<span class="unseen">{{$.GlobalData.Num $.AllInboxUnseen}}</span>{{ end }}
-    </li>
+{{/* The rail every section shares (ADR 0001). With several accounts
+     signed in: the merged entry on top, then one group per account,
+     open when the URL names it, its heading a link into that account's
+     scope and the section's own rows under it. With one account the
+     rows stand alone. The rows differ by kind; the frame does not.
+     dict: kind ("mail" "dav" "filters") path urlaccount accounts
+     (usernames) all (the merged entry's label) new (dict href label
+     active) data (the kind's own). Filters has no rows: an account's
+     scripts are the page, so its heading is the whole entry. */}}
+{{ define "scope-rail" }}
+  {{ if gt (len .accounts) 1 }}
+  {{ if eq .kind "mail" }}
+  {{ template "rail-mail-merged" .data }}
+  {{ else }}
+  <a class="aside-account aside-all{{ if not .urlaccount }} active{{ end }}" href="{{.path}}">{{.all}}</a>
+  {{ end }}
+  {{ range .accounts }}
+  {{ $acct := .Username }}
+  {{ if eq $.kind "filters" }}
+  <a class="aside-account{{ if eq $acct $.urlaccount }} active{{ end }}" href="{{$.path}}{{ account "?" $acct }}">{{ template "ltr" $acct }}</a>
+  {{ else }}
+  {{/* An account with nothing of this kind has no entry: the rail
+       lists places, and the account has none here. */}}
+  {{ $has := eq $.kind "mail" }}
+  {{ if not $has }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ end }}{{ end }}{{ end }}
+  {{ if $has }}
+  <details class="acct-folders"{{ if eq $acct $.urlaccount }} open{{ end }}>
+    <summary class="aside-account"><a href="{{$.path}}{{ account "?" $acct }}">{{ template "ltr" $acct }}</a></summary>
+    {{ if eq $.kind "mail" }}
+    {{ template "rail-mail-account" (dict "account" $acct "data" $.data) }}
+    {{ else }}
+    {{ template "rail-dav-account" (dict "account" $acct "data" $.data) }}
     {{ end }}
-  </ul>
   </details>
-  {{ range .SidebarAccounts }}
-  {{ $cur := .Account }}
-  {{ $q := printf "?account=%s" .Account }}
-  <details class="acct-folders"{{ if or (eq $acct $cur) (and (not $acct) (not $all) (eq $.GlobalData.Username $cur)) }} open{{ end }}>
-    <summary class="aside-account">{{ template "ltr" .Account }}</summary>
-    <ul>
-      {{ template "mbox-list" (tuple .Categorized $q (eq $acct $cur) $starred $active $.GlobalData) }}
-    </ul>
-  </details>
+  {{ end }}
+  {{ end }}
   {{ end }}
   {{ else }}
-  <ul>
-    {{ with .CategorizedMailboxes }}
-    {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
-    <li {{ if $starred }}class="active"{{ end }}>
-      <a href="/mailbox/INBOX?starred=1">{{$.T "aside.starred"}}</a>
-    </li>
-    {{ range .CommonNodes }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
-    {{ if .Additional }}
-    <hr />
-    {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
-    {{ end }}
-    {{ end }}
-  </ul>
+  {{ if eq .kind "mail" }}
+  {{ template "rail-mail-single" .data }}
+  {{ else if and (eq .kind "dav") .data.items }}
+  {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true) }}
+  {{ end }}
   {{ end }}
   {{/* A rail lists places and closes with the entry that adds one;
-       making a message is a toolbar action, beside the list it lands
+       making an object is a toolbar action, beside the list it lands
        in. */}}
-  <a href="/new-mailbox" class="aside-create{{ if eq $.GlobalData.URL.Path "/new-mailbox" }} active{{ end }}">{{$.T "aside.newfolder"}}</a>
+  {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
+{{ end }}
+
+{{/* The merged roles, in the mail rail: every mailbox is a place, the
+     merged roles on top under the "All accounts" heading; links select
+     scope per request only, and the rows name the bare role. The page
+     data is passed whole. */}}
+{{ define "rail-mail-merged" }}
+{{ $starred := .Starred }}
+{{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
+{{ $all := $.GlobalData.Unified }}
+<details class="acct-folders aggregate-folders" open>
+<summary class="aside-account">{{$.T "nav.allaccounts"}}</summary>
+<ul class="merged-roles">
+  {{ range tuple (tuple "aside.inbox" "INBOX" false) (tuple "aside.starred" "INBOX" true) (tuple "aside.drafts" "Drafts" false) (tuple "aside.sent" "Sent" false) (tuple "aside.junk" "Junk" false) (tuple "aside.trash" "Trash" false) (tuple "aside.archive" "Archive" false) }}
+  {{ $role := index . 1 }}{{ $star := index . 2 }}
+  <li {{ if and $all (eq $active $role) (eq $starred $star) }}class="active"{{ end }}>
+    <a href="/mailbox/{{$role}}{{ if $star }}?starred=1{{ end }}">{{$.T (index . 0)}}</a>
+    {{ if and (eq $role "INBOX") (not $star) (gt $.AllInboxUnseen 0) }}<span class="unseen">{{$.GlobalData.Num $.AllInboxUnseen}}</span>{{ end }}
+  </li>
+  {{ end }}
+</ul>
+</details>
+{{ end }}
+
+{{/* One account's folder tree in the mail rail. dict: account data. */}}
+{{ define "rail-mail-account" }}
+{{ $d := .data }}
+{{ $starred := $d.Starred }}
+{{ $active := "" }}{{ with $d.Mailbox }}{{ $active = .Name }}{{ end }}
+{{ $q := printf "?account=%s" .account }}
+{{ range $d.SidebarAccounts }}{{ if eq .Account $.account }}
+<ul>
+  {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.URLAccount $.account) $starred $active $d.GlobalData) }}
+</ul>
+{{ end }}{{ end }}
+{{ end }}
+
+{{/* The one account's folder tree, with no heading over it. */}}
+{{ define "rail-mail-single" }}
+{{ $starred := .Starred }}
+{{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
+<ul>
+  {{ with .CategorizedMailboxes }}
+  {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
+  <li {{ if $starred }}class="active"{{ end }}>
+    <a href="/mailbox/INBOX?starred=1">{{$.T "aside.starred"}}</a>
+  </li>
+  {{ range .CommonNodes }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
+  {{ if .Additional }}
+  <hr />
+  {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
+  {{ end }}
+  {{ end }}
+</ul>
+{{ end }}
+
+{{/* The mail pages' rail: the shared frame over the page's own data. */}}
+{{ define "aside" }}
+<aside>
+{{ template "scope-rail" (dict "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox"))) }}
 </aside>
 {{ end }}

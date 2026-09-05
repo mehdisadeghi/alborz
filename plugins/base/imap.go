@@ -37,8 +37,9 @@ type MailboxInfo struct {
 // is called and where it goes. A step with no URL is named but not
 // linked, which is what a folder that cannot be selected deserves.
 type CrumbLink struct {
-	Label string
-	URL   string
+	Label   string
+	URL     string
+	Address bool // reads left to right whatever the page does
 }
 
 // mailboxCrumb names the path to a folder, each step leading to it. The
@@ -52,7 +53,7 @@ type CrumbLink struct {
 // the folder list does not hold, or holds as a parent that cannot be
 // selected, is named but not linked.
 func mailboxCrumb(mailboxes []MailboxInfo, name, account string) []CrumbLink {
-	crumb := []CrumbLink{{Label: account, URL: "/mailbox/INBOX"}}
+	crumb := []CrumbLink{{Label: account, URL: "/mailbox/INBOX", Address: true}}
 	if name == "" {
 		return crumb
 	}

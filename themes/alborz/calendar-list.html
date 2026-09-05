@@ -5,7 +5,7 @@
 <div class="page-wrap">
   <aside>
     {{ $keep := printf "&month=%s&view=list" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
-    {{ template "dav-aside-group-filters" (dict "keep" $keep "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "collectionhref" "/calendars/create" "collectionlabel" ($.T "calendar.newcalendar") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "scope-rail" (dict "kind" "dav" "path" "/calendar" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.newcalendar")) "data" (dict "keep" $keep "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
   </aside>
 
   <div class="container">
@@ -14,8 +14,7 @@
         {{ template "calendar-header.html" . }}
       </section>
 
-      {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
-      {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.calendar") "home" "/calendar" "field" "" "collection" "" "path" "") }}
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" "/calendar" "field" "" "collection" "" "path" "") }}
 
       {{/* The agenda starts at today in the month you are living in; the
            whole of it is one click away. It leads the list rather than

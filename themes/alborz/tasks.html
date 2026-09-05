@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "dav-aside-group-filters" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "collectionhref" "/calendars/create" "collectionfor" "tasks" "collectionlabel" ($.T "tasks.newlist") "multi" (gt (len .GlobalData.Accounts) 1) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "scope-rail" (dict "kind" "dav" "path" "/tasks" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?for=tasks&next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "tasks.newlist")) "data" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
     <form method="post" action="/tasks/show-completed" class="aside-filter">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
       <label class="show-completed-toggle">
@@ -71,11 +71,10 @@
         {{ template "toolbar-foot" }}
       </section>
 
-      {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
-      {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.tasks") "home" "/tasks" "field" "" "collection" "" "path" "") }}
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" "/tasks" "field" "" "collection" "" "path" "") }}
 
       <section class="tasks">
-        <div class="task-grid list-grid{{if $multi}} multi{{end}}" role="table">
+        <div class="task-grid list-grid{{if $.GlobalData.Unified}} multi{{end}}" role="table">
           {{if .Tasks}}
           <div class="task-header-row list-row" role="row">
             <div class="list-header list-checkbox" role="columnheader"></div>
@@ -116,7 +115,7 @@
             {{/* Ownership rides the collection it already names, as the
                  event lists write it, rather than a column of its own. */}}
             <div class="task-list-calendar list-cell" role="cell" data-label="{{$.T "common.calendar"}}">
-              {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}{{.Calendar.Name}}{{if $multi}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
+              {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}{{.Calendar.Name}}{{if $.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
             </div>
             {{/* Built before the tag: the escaper cannot follow an attribute that
                  only some branches write. */}}

@@ -193,6 +193,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 			SidebarAccounts: sidebarAccounts(ctx),
 		},
 		Messages:       msgs,
+		Crumb:          []CrumbLink{{Label: title, URL: "/mailbox/" + role}},
 		PrevPage:       prevPage,
 		NextPage:       nextPage,
 		RangeFrom:      from + 1,
@@ -689,7 +690,7 @@ func handleRefreshMailbox(ctx *alborz.Context) error {
 		for _, s := range ctx.Sessions() {
 			listings.evict(s.Username(), "#"+mboxName)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s?all=1", url.PathEscape(mboxName))))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s", url.PathEscape(mboxName))))
 	}
 	listings.evict(ctx.Session.Username(), mboxName)
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
@@ -895,7 +896,7 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 	}
 
 	ctx.Session.Notify(emptiedNotice(ctx, removed))
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s?all=1", role)))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s", role)))
 }
 
 func handleDelete(ctx *alborz.Context) error {

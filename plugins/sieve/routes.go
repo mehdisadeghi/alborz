@@ -14,8 +14,16 @@ import (
 
 type FiltersRenderData struct {
 	alborz.BaseRenderData
-	Scripts  []alborz.SieveScript
+	// Groups is one entry per account shown: every account that holds
+	// scripts on a bare URL, the one the URL names otherwise.
+	Groups   []AccountFilters
 	Accounts []alborz.Account
+}
+
+// AccountFilters is one account's scripts and the server they live on.
+type AccountFilters struct {
+	Account string
+	Scripts []alborz.SieveScript
 	// Server is what the account's filters are kept on, so the page says
 	// who it is talking to rather than leaving it to be guessed.
 	Server string
@@ -42,9 +50,11 @@ type FilterRenderData struct {
 	Error  string
 
 	// Accounts that can hold a script, for the create form's
-	// destination; empty when editing, where the script's own account
-	// is already settled.
+	// destination, and Account the one it opens on: the URL's, or the
+	// first that holds scripts. Empty when editing, where the script's
+	// own account is already settled.
 	Accounts []alborz.Account
+	Account  string
 }
 
 func registerRoutes(p *alborz.GoPlugin) {
@@ -69,8 +79,8 @@ func registerRoutes(p *alborz.GoPlugin) {
 			return echo.ErrNotFound
 		}
 	}
-	p.GET("/filters", requireAccount(handleListFilters))
-	p.GET("/filters/create", requireAccount(handleCreateFilter))
+	p.GET("/filters", handleListFilters)
+	p.GET("/filters/create", handleCreateFilter)
 	p.GET("/filters/:name", requireAccount(handleEditFilter))
 	p.POST("/filters", requireAccount(handleSaveFilter))
 	p.POST("/filters/:name/activate", requireAccount(handleActivateFilter))
@@ -90,30 +100,42 @@ func handleListFilters(ctx *alborz.Context) error {
 	data := &FiltersRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.title")),
 		Accounts:       sieveAccounts(ctx),
-		Server:         ctx.Server.SieveHost(ctx.Session.Domain()),
 	}
-	err := ctx.DoSieve(func(c alborz.SieveClient) error {
-		var err error
-		data.Scripts, err = c.ListScripts()
-		data.Software = c.Implementation()
-		data.Extensions = describe(c.Extensions())
-		for _, e := range data.Extensions {
-			if e.Hint != "" {
-				data.Explained = append(data.Explained,
-					alborz.Explained{Term: e.Name, Hint: ctx.T(e.Hint)})
-			}
+	unreachable := 0
+	for _, account := range data.Accounts {
+		if ctx.URLAccount() != "" && account.Username != ctx.URLAccount() {
+			continue
 		}
-		return err
-	})
-	if err != nil {
-		// The filters live on somebody else's machine, and it being
-		// unreachable is news about that machine rather than a fault
-		// here. The page says which machine and what it said.
-		ctx.Logger().Printf("failed to list sieve scripts on %s: %v", data.Server, err)
-		data.Unreachable = err.Error()
-		return ctx.Render(http.StatusServiceUnavailable, "filters.html", data)
+		session := ctx.SessionFor(account.Username)
+		group := AccountFilters{Account: account.Username, Server: ctx.Server.SieveHost(session.Domain())}
+		err := session.DoSieve(func(c alborz.SieveClient) error {
+			var err error
+			group.Scripts, err = c.ListScripts()
+			group.Software = c.Implementation()
+			group.Extensions = describe(c.Extensions())
+			for _, e := range group.Extensions {
+				if e.Hint != "" {
+					group.Explained = append(group.Explained,
+						alborz.Explained{Term: e.Name, Hint: ctx.T(e.Hint)})
+				}
+			}
+			return err
+		})
+		if err != nil {
+			// The filters live on somebody else's machine, and it being
+			// unreachable is news about that machine rather than a fault
+			// here. The page says which machine and what it said.
+			ctx.Logger().Printf("failed to list sieve scripts on %s: %v", group.Server, err)
+			group.Unreachable = err.Error()
+			unreachable++
+		}
+		data.Groups = append(data.Groups, group)
 	}
-	return ctx.Render(http.StatusOK, "filters.html", data)
+	status := http.StatusOK
+	if len(data.Groups) > 0 && unreachable == len(data.Groups) {
+		status = http.StatusServiceUnavailable
+	}
+	return ctx.Render(status, "filters.html", data)
 }
 
 // sieveAccounts lists the signed-in accounts whose server holds scripts.
@@ -129,9 +151,18 @@ func sieveAccounts(ctx *alborz.Context) []alborz.Account {
 }
 
 func handleCreateFilter(ctx *alborz.Context) error {
+	accounts := sieveAccounts(ctx)
+	if len(accounts) == 0 {
+		return echo.ErrNotFound
+	}
+	account := ctx.URLAccount()
+	if account == "" {
+		account = accounts[0].Username
+	}
 	return ctx.Render(http.StatusOK, "filter-edit.html", &FilterRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
-		Accounts:       sieveAccounts(ctx),
+		Accounts:       accounts,
+		Account:        account,
 	})
 }
 
@@ -176,6 +207,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 			Content:        content,
 			Error:          ctx.T("form.nameneeded"),
 			Accounts:       sieveAccounts(ctx),
+			Account:        ctx.FormValue("account"),
 		})
 	}
 
@@ -220,6 +252,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 			Loaded:         loaded,
 			Error:          ctx.T("filters.changed"),
 			Accounts:       sieveAccounts(ctx),
+			Account:        ctx.FormValue("account"),
 		})
 	}
 	if err != nil {
@@ -232,6 +265,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 			Loaded:         loaded,
 			Error:          err.Error(),
 			Accounts:       sieveAccounts(ctx),
+			Account:        ctx.FormValue("account"),
 		})
 	}
 

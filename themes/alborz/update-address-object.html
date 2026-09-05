@@ -19,10 +19,9 @@
         {{/* The path is shown whether the object exists yet or not: a
              create form is somewhere too, and stopping at the section
              is more use than showing nothing. */}}
-        {{ $crumbAcct := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $crumbAcct = . }}{{ end }}
         {{ $crumbColl := "" }}{{ $crumbPath := "" }}
         {{ if .AddressObject }}{{ $crumbColl = .AddressBook.Name }}{{ $crumbPath = .AddressBook.Path }}{{ end }}
-        {{ template "dav-crumb" (dict "account" $crumbAcct "urlaccount" $.GlobalData.URLAccount "section" ($.T "nav.contacts") "home" "/contacts" "field" "book" "collection" $crumbColl "path" $crumbPath) }}
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" "/contacts" "field" "book" "collection" $crumbColl "path" $crumbPath "chooses" (and (not .AddressObject) (gt (len .GlobalData.Accounts) 1))) }}
         <h1>
           {{if .AddressObject}}{{$.T "contacts.edittitle"}}{{else}}{{$.T "contacts.createtitle"}}{{end}}
         </h1>

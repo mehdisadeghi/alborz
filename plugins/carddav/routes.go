@@ -335,7 +335,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		return err
 	}
 
-	addressBookInfos, sites, err := visibleBooks(accounts, only)
+	addressBookInfos, sites, err := visibleBooks(accounts, ctx.URLAccount(), only)
 	if err != nil {
 		return err
 	}
@@ -864,7 +864,11 @@ type bookSite struct {
 // visibility setting, or with the URL's narrowing when it names one.
 // Every book comes back for the aside with its checkbox state; only
 // the visible ones come back as sites to query.
-func visibleBooks(accounts []dav.Account[*carddav.Client, AddressBookInfo], only map[string]bool) ([]AddressBookInfo, []bookSite, error) {
+// visibleBooks marks each account's address books with the account's
+// own visibility setting, or with the URL's narrowing when it names
+// one. Every book comes back for the rail, whatever the scope; only the
+// visible ones in scope come back as sites to query.
+func visibleBooks(accounts []dav.Account[*carddav.Client, AddressBookInfo], scope string, only map[string]bool) ([]AddressBookInfo, []bookSite, error) {
 	var infos []AddressBookInfo
 	var sites []bookSite
 	for _, acc := range accounts {
@@ -883,7 +887,7 @@ func visibleBooks(accounts []dav.Account[*carddav.Client, AddressBookInfo], only
 				ab.Only = len(only) == 1 && ab.Visible
 			}
 			infos = append(infos, ab)
-			if ab.Visible {
+			if ab.Visible && (scope == "" || acc.Name == scope) {
 				sites = append(sites, bookSite{account: ab.Account, client: acc.Client, path: ab.Path, name: ab.Name})
 			}
 		}

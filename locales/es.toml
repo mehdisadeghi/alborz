@@ -46,7 +46,7 @@
 "login.add" = "Añadir cuenta"
 "login.username" = "Usuario"
 "login.password" = "Contraseña"
-"login.remember" = "Recuérdame"
+"login.remember" = "Recordarme %d días"
 "login.signin" = "Entrar"
 "mailbox.starred" = "Destacados"
 "color.gold" = "Dorado"

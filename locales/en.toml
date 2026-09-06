@@ -50,7 +50,7 @@
 "login.add" = "Add account"
 "login.username" = "Username"
 "login.password" = "Password"
-"login.remember" = "Remember me"
+"login.remember" = "Remember me for %d days"
 "login.signin" = "Sign in"
 "mailbox.starred" = "Starred"
 "color.gold" = "Gold"

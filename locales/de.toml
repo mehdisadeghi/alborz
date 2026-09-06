@@ -481,6 +481,10 @@ other = "%d weitere"
 one = "%d E-Mail gelöscht."
 other = "%d E-Mails gelöscht."
 
+["notice.accountexpired"]
+one = "%[2]s wurde nach 30 Minuten Inaktivität abgemeldet."
+other = "%[2]s wurden nach 30 Minuten Inaktivität abgemeldet."
+
 ["notice.moved"]
 one = "%d E-Mail verschoben."
 other = "%d E-Mails verschoben."

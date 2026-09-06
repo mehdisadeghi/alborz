@@ -35,18 +35,24 @@ func (ctx *Context) accountSessions() []*Session {
 		return ctx.accounts
 	}
 
-	var tokens []string
+	var entries []string
 	if value, ok := ctx.cookieValue(accountsCookieName, func(string) bool { return true }); ok {
 		cookie := &http.Cookie{Value: value}
-		tokens = strings.Split(cookie.Value, "|")
+		entries = strings.Split(cookie.Value, "|")
 	}
 
 	var sessions []*Session
 	changed := false
 	activeListed := false
-	for _, token := range tokens {
+	for _, entry := range entries {
+		token, username, _ := strings.Cut(entry, ":")
 		s, err := ctx.Server.Sessions.get(token)
 		if err != nil {
+			// The session is gone; name it for the page when the cookie
+			// carried who it was, and drop it from the list.
+			if username != "" {
+				ctx.lostAccounts = append(ctx.lostAccounts, username)
+			}
 			changed = true
 			continue
 		}
@@ -72,11 +78,11 @@ func (ctx *Context) setAccountSessions(sessions []*Session) {
 	ctx.accounts = sessions
 	ctx.accountsLoaded = true
 
-	tokens := make([]string, len(sessions))
+	entries := make([]string, len(sessions))
 	for i, s := range sessions {
-		tokens[i] = s.token
+		entries[i] = s.token + ":" + s.username
 	}
-	ctx.SetCookie(ctx.cookie(accountsCookieName, strings.Join(tokens, "|"), 0))
+	ctx.SetCookie(ctx.cookie(accountsCookieName, strings.Join(entries, "|"), 0))
 }
 
 // Accounts lists the signed-in accounts in rail order.

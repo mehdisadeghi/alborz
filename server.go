@@ -458,6 +458,9 @@ type Context struct {
 	// read their own writes here.
 	accounts       []*Session
 	accountsLoaded bool
+	// lostAccounts names the signed-in accounts whose session had
+	// expired by this request, for the notice the app page shows.
+	lostAccounts []string
 
 	// Per-request upstream and render durations, reported in Server-Timing.
 	timing *Timing
@@ -770,9 +773,20 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			// being sent - was lost outright, because only a GET can be
 			// resumed. Sign the accounts back in and carry on with the
 			// request that arrived.
+			// The session-cookie account may have expired while
+			// others are still live; carry on with one of those rather
+			// than treating the whole visit as signed out.
+			if session == nil && !isPublic(ctx.Request().URL.Path) {
+				if live := ctx.accountSessions(); len(live) > 0 {
+					session = live[0]
+				}
+			}
 			if session == nil && !isPublic(ctx.Request().URL.Path) {
 				if ctx.RestoreRememberedAccounts() {
 					session = ctx.Session
+					// A restore brings every account back at once, as after
+					// a restart; that is not one timing out, so none is named.
+					ctx.lostAccounts = nil
 				}
 			}
 			if session == nil {
@@ -790,6 +804,12 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			}
 			ctx.Session = sessions[0]
 			ctx.DefaultSession = sessions[0]
+			// An account that timed out while others stayed is said
+			// once, on the page, not by a bounce to the login form.
+			if len(ctx.lostAccounts) > 0 {
+				ctx.Session.Notify(Notice{Kind: NoticeWarning,
+					Text: ctx.Tf("notice.accountexpired", len(ctx.lostAccounts), strings.Join(ctx.lostAccounts, ", "))})
+			}
 
 			// The URL carries the account (ADR 0001): a link naming one
 			// scopes this request to it, and a bare URL over several

@@ -481,6 +481,10 @@ other = "%d more"
 one = "%d message deleted."
 other = "%d messages deleted."
 
+["notice.accountexpired"]
+one = "%[2]s was signed out after 30 minutes of inactivity."
+other = "%[2]s were signed out after 30 minutes of inactivity."
+
 ["notice.moved"]
 one = "%d message moved."
 other = "%d messages moved."

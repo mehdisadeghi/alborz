@@ -28,9 +28,9 @@
     </div>
     <div class="actions-pagination" data-priority="22">
       {{ template "toggle" (dict "items" (tuple
-         (dict "label" ($.T "calendar.month") "current" (ne .View "list")
+         (dict "label" ($.T "calendar.month") "icon" "month" "current" (ne .View "list")
                "href" (printf "?month=%s" .Page))
-         (dict "label" ($.T "calendar.list") "current" (eq .View "list")
+         (dict "label" ($.T "calendar.list") "icon" "list" "current" (eq .View "list")
                "href" (printf "?month=%s&view=list" .Page)))) }}
     </div>
 {{ template "toolbar-foot" }}

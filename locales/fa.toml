@@ -46,7 +46,7 @@
 "login.add" = "افزودن حساب"
 "login.username" = "نام کاربری"
 "login.password" = "گذرواژه"
-"login.remember" = "مرا به خاطر بسپار"
+"login.remember" = "تا %d روز مرا به خاطر بسپار"
 "login.signin" = "ورود"
 "mailbox.starred" = "ستاره‌دار"
 "color.gold" = "طلایی"

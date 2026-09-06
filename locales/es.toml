@@ -481,6 +481,10 @@ other = "%d más"
 one = "%d mensaje eliminado."
 other = "%d mensajes eliminados."
 
+["notice.accountexpired"]
+one = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
+other = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
+
 ["notice.moved"]
 one = "%d mensaje movido."
 other = "%d mensajes movidos."

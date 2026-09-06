@@ -109,6 +109,9 @@ select {
   --radius-lg: 9px;
   --control-height: 2rem;
   --toolbar-height: 2.75rem;
+  /* The least a toolbar title keeps before it truncates: a phone's
+     row holds its marks, its chevrons and this much of a name. */
+  --title-floor: 3rem;
   --sidebar-width: clamp(10rem, 15vw, 13rem);
   --drawer-width: 15rem;
   --content-list: 90rem;
@@ -1317,10 +1320,10 @@ main.message .subject-row > .flag-button,
 
 .flag-menu > summary .flag-star { font-size: 13pt; }
 
-/* Nested inside the overflow on a narrow screen, it is a submenu: it
-   opens in place and grows the menu around it. */
-.overflow-menu .flag-menu { display: block; }
-.overflow-menu .flag-menu > .overflow-menu {
+/* A menu folded into the overflow - the colours, the sort - is a
+   submenu: it opens in place and grows the menu around it. */
+.overflow-menu details.overflow { display: block; }
+.overflow-menu details.overflow > .overflow-menu {
   position: static;
   border: 0;
   box-shadow: none;
@@ -2259,6 +2262,10 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   color: var(--fg);
 }
 
+/* A chip group that has moved into the menu is a row of it, not the
+   far end of one. */
+.overflow-menu .actions-pagination { margin-inline-start: 0; }
+
 .toggle-option:not(.is-current):hover {
   background: var(--surface-selected);
   text-decoration: none;
@@ -2528,12 +2535,14 @@ main.calendar .actions {
   height: 10rem;
 }
 
+/* The start half shrinks to its content and no further: what does not
+   fit overflows the row, where the script can see it, rather than
+   sliding under the end half. See ADR 8. */
 .actions-message {
   display: flex;
   flex: 1 1 auto;
   flex-direction: row;
   align-items: center;
-  min-width: 0;
 }
 
 
@@ -2541,10 +2550,11 @@ main.calendar .actions {
 /* The title takes the room it needs and yields it under pressure: a
    reserved track wastes it on short names and refuses to give it back
    on a narrow window, which is how controls came to overlap. It keeps
-   a floor so it never collapses to nothing, and truncates past it. */
+   one floor at every width, and truncates past it; the script has
+   taken every other step before that happens. */
 .actions-message h1:not(:last-child) {
   flex: 0 1 auto;
-  min-width: 5rem;
+  min-width: var(--title-floor);
   max-width: 22rem;
 }
 
@@ -3344,8 +3354,6 @@ details.overflow > summary::-webkit-details-marker {
 }
 
 /* The sprite is markup, not a picture: it draws nothing itself. */
-.overflow-menu .narrow-only { display: none; }
-
 .icon-sprite {
   position: absolute;
   width: 0;
@@ -3377,7 +3385,10 @@ details.overflow > summary::-webkit-details-marker {
 /* No fixed track under the word: it held each month name in the middle
    of a box wide enough for the longest one, which put a gap between the
    two names and made them read as unrelated. The chevron shifts a little
-   as the names change length, which is the trade. */
+   as the names change length, which is the trade. Asked for the width
+   back, the pager keeps only its chevron, in a track of its own. */
+.pager-link.no-word > span { display: none; }
+.pager-link.no-word { min-width: var(--control-height); justify-content: center; }
 
 /* An arrow means "back towards the sender" or "on to someone else",
    which swap sides with the script; a box or a bin does not. */
@@ -3441,6 +3452,30 @@ details.overflow > summary::-webkit-details-marker {
   align-items: center;
   gap: 0.1rem;
   margin-inline-end: var(--space-2);
+}
+
+/* A group whose marks have all moved to the overflow costs nothing. */
+.icon-group:not(:has(> *)),
+.actions-pagination:not(:has(> *)) {
+  display: none;
+}
+
+/* A toolbar control is a mark in the row and a spelled-out row once it
+   has moved into the overflow menu: the same element, read by where it
+   is. The label is there for the menu and for assistive tech. */
+.icon-button > .label {
+  display: none;
+}
+
+.overflow-menu .icon-button {
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  color: inherit;
+}
+
+.overflow-menu .icon-button > .label {
+  display: inline;
 }
 
 /* The rule after the title is the toolbar's fixed point: what follows it
@@ -3511,21 +3546,16 @@ details.overflow > summary::-webkit-details-marker {
 .actions-search:focus-within input::placeholder { color: var(--fg-faint); }
 .actions-search:focus-within button { display: inline-block; }
 
-/* The trailing group shrinks with its contents rather than holding a
-   width the row does not have; nothing here may overlap its neighbour. */
+/* The trailing group holds its content at every width: its members
+   are targets, and a group squeezed below them spills them leftwards
+   over the title's half. The title is what yields. */
 .actions-end {
   display: flex;
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: flex-end;
   gap: 0.3rem;
   margin-inline-start: auto;
-}
-
-/* The page range is the first thing to go: the arrows still page. */
-@media (width <= 45rem) {
-  .pagination-range { display: none; }
 }
 
 /* The toolbar is one row at every width. Wrapping was the old answer to
@@ -3535,25 +3565,11 @@ details.overflow > summary::-webkit-details-marker {
    Nothing here needs a second row once the title yields and the marks
    keep their fixed tracks. */
 @media (width <= 52rem) {
-  .actions-wrap {
-    flex-wrap: nowrap;
-  }
-
-  /* A narrow row buys its width from the title's floor and the rule's
-     gaps, in that order: both are spacing, and everything else is a
-     target that must not shrink. */
-  .actions-message h1:not(:last-child) {
-    min-width: 4rem;
-  }
-
+  /* A narrow row buys its width from the rule's gaps: they are
+     spacing, and everything else is a target that must not shrink. */
   .toolbar-rule {
     margin-inline: var(--space-1);
   }
-
-  /* The title already names the month, so a narrow pager keeps only its
-     chevrons - and with no word to hold, no track to hold it in. */
-  .pager-link > span { display: none; }
-  .pager-link { min-width: var(--control-height); justify-content: center; }
 
   /* Chips buy the last of the row's width back from their own padding
      before the title is asked to give up any more of its floor. */
@@ -3580,15 +3596,8 @@ main.message .actions-end {
   display: none;
 }
 
-/* The count of rows belongs beside the paging it changes. It is the
-   least of the trailing group, so it is the first of them to go when
-   the row runs out of room. */
+/* The count of rows belongs beside the paging it changes. */
 .actions .ipp-overflow { display: inline-block; }
-
-@media (width < 48rem) {
-  .actions .ipp-overflow { display: none; }
-
-}
 
 /* The count in force is named rather than linked, and holds the same
    box as the ones beside it: the same weight, one border drawn and the
@@ -3970,20 +3979,17 @@ aside ul.merged-roles {
 }
 
 /* A toolbar title that offers a short form shows one or the other,
-   never both. The phone gets the abbreviation because the full month
-   name and its year do not fit beside the controls at that width. */
+   never both: the abbreviation once the row has asked for the width. */
 .title-short {
   display: none;
 }
 
-@media (width <= 600px) {
-  .title-long {
-    display: none;
-  }
+h1.no-word .title-long {
+  display: none;
+}
 
-  .title-short {
-    display: inline;
-  }
+h1.no-word .title-short {
+  display: inline;
 }
 
 /* Calendar groups indent under their account heading. */
@@ -4390,7 +4396,10 @@ aside ul.merged-roles {
   /* The select-all checkbox shares the first toolbar row, in the same
      column as the row checkboxes below it. */
   .message-list .actions,
-  .contact-list .actions {
+  .contact-list .actions,
+  .task-list .actions,
+  main.calendar .actions,
+  main.list .actions {
     flex-wrap: nowrap;
     align-items: flex-start;
     /* Both edges keep a gutter. The start used to be given over to the
@@ -4436,22 +4445,6 @@ aside ul.merged-roles {
   /* Too little width to reserve a track; the title takes what is left. */
   .actions-message h1 { flex: 1 1 auto; max-width: none; }
 
-  /* The floor set at 52rem is more than a phone can lend: at 360 it
-     held width the title did not need and the pager overflowed its own
-     box leftwards, putting the chevrons on top of the new-event mark.
-     The month is written across the grid below, so the title is what
-     can afford to be short here. */
-  .actions-message h1:not(:last-child) { min-width: 2.5rem; }
-
-  /* The controls at the end are targets and must not be squeezed below
-     what they need: with min-width 0 they shrank past their own content
-     and, being packed to the end, spilled leftwards over the new-event
-     mark. The title yields instead - it is the only thing here that can. */
-  .actions-end { flex-shrink: 0; min-width: auto; }
-
-
-
-
   .actions-wrap .action-group { margin-inline-start: 0; }
   .actions-pagination { margin-inline-start: auto; }
   .actions-pagination h3 { font-size: 0.8rem; }
@@ -4463,13 +4456,6 @@ aside ul.merged-roles {
     align-items: center;
   }
 
-  /* Narrow toolbars carry one row: the disposal marks step aside and
-     the overflow spells them out instead, which is what the room is
-     for. */
-  .actions .icon-group.wide-only,
-  .actions > .wide-only,
-  .actions-wrap .wide-only { display: none; }
-  .overflow-menu .narrow-only { display: block; }
   .narrow-crumb { display: block; }
 
   .list-item { min-height: 2.75rem; }
@@ -4540,16 +4526,4 @@ aside ul.merged-roles {
     margin-inline-end: 2px;
   }
   main.calendar .events .overflow { font-size: 0.7rem; }
-}
-
-/* Last, because a narrower rule has to outrank the nowrap set at 52rem.
-   Below 360 the pager, today and the month/list toggle need more than
-   the viewport on their own, so no title width saves the row and a
-   second one is the only alternative to drawing controls on top of each
-   other. 360 itself fits and keeps its single row. */
-@media (width < 360px) {
-  .actions-wrap {
-    flex-wrap: wrap;
-    row-gap: var(--space-1);
-  }
 }

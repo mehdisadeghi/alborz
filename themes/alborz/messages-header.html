@@ -41,18 +41,20 @@
         {{ $trashLabel = $.T "mailbox.deleteperm" }}
         {{ $trashAction = printf "/message/%s/delete%s" (.Mailbox.Name | pathescape) $aq }}
       {{ end }}
-    <span class="icon-group wide-only">
-      {{ with $archiveAction }}{{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" .) }}{{ end }}
-      {{ with $junkAction }}{{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" .) }}{{ end }}
-      {{ with $trashAction }}{{ template "action-icon" (dict "icon" "trash" "label" $trashLabel "class" "icon-danger" "form" "messages-form" "formaction" .) }}{{ end }}
+    {{/* Delete leaves first of the marks, then the colours, junk, and
+         archive last: archive is the disposal reached for most. The
+         numbers are the toolbar-wide order of ADR 8. */}}
+    <span class="icon-group">
+      {{ with $archiveAction }}{{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" . "priority" 14) }}{{ end }}
+      {{ with $junkAction }}{{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" . "priority" 13) }}{{ end }}
+      {{ with $trashAction }}{{ template "action-icon" (dict "icon" "trash" "label" $trashLabel "class" "icon-danger" "form" "messages-form" "formaction" . "priority" 11) }}{{ end }}
     </span>
     </span>
 
-    {{/* The colours are a menu of their own beside the marks, and a
-         submenu inside the overflow where the row is too narrow for
-         one more control. */}}
+    {{/* The colours are a menu of their own beside the marks, and the
+         same menu folds into the overflow when the row has no room. */}}
     {{ template "flag-menu" (dict
-       "class" "wide-only"
+       "priority" 12
        "form" "messages-form"
        "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount))
        "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $) "disabled" $empty) }}
@@ -60,14 +62,6 @@
     <details class="overflow">
       <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
       <div class="overflow-menu">
-        {{ template "flag-menu" (dict
-           "class" "narrow-only"
-           "form" "messages-form"
-           "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount))
-           "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $) "disabled" $empty) }}
-        {{ with $archiveAction }}<button class="narrow-only" form="messages-form" formaction="{{.}}">{{$.T "mailbox.archive"}}</button>{{ end }}
-        {{ with $junkAction }}<button class="narrow-only" form="messages-form" formaction="{{.}}">{{$junkLabel}}</button>{{ end }}
-        {{ with $trashAction }}<button class="narrow-only button-danger" form="messages-form" formaction="{{.}}">{{$trashLabel}}</button>{{ end }}
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/forward{{$aq}}">{{$.T "message.forward"}}</button>
         {{/* One file holding the selection, which is what a person means
              by "give me these messages". Rare, so it is spelled out here
@@ -130,8 +124,8 @@
   {{ end }}
 
   {{ if .SortSupported }}
-  <details class="overflow sort-overflow">
-    <summary class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "icon" "sort" }}</summary>
+  <details class="overflow sort-overflow" data-priority="30">
+    <summary class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "sort-mark" $ }}</summary>
     <div class="overflow-menu">
       {{ range tuple (tuple "sort.date" "date") (tuple "sort.starred" "starred") (tuple "sort.sender" "from") (tuple "sort.subject" "subject") (tuple "sort.size" "size") }}
       {{ template "sort-th" (dict "label" ($.T (index . 0)) "key" (index . 1) "sort" $hsort "dir" $.SortDir "exp" $hexp "params" $hplain "reset" $hreset "dirx" $hdirx "class" "button-link") }}

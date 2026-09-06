@@ -1,7 +1,7 @@
 {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.contacts") "selectall" true "newhref" "/contacts/create" "newlabel" ($.T "contacts.new")) }}
     <span class="icon-group">
-      {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "address-book-form" "formaction" "/contacts/delete") }}
-      {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "address-book-form" "formaction" "/contacts/export" "download" true) }}
+      {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "address-book-form" "formaction" "/contacts/delete" "priority" 11) }}
+      {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "address-book-form" "formaction" "/contacts/export" "priority" 10 "download" true) }}
     </span>
     <details class="overflow">
       <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
@@ -12,15 +12,15 @@
 {{ template "toolbar-end" }}
   {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query))) }}
   {{if not .AddressObjects}}
-  <span class="overflow sort-overflow"><span class="icon-button" aria-disabled="true" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "icon" "sort" }}</span></span>
+  <span class="overflow sort-overflow" data-priority="30"><span class="icon-button" aria-disabled="true" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "sort-mark" $ }}</span></span>
   {{else}}
   {{ $cq := "" }}{{ with $.Query }}{{ $cq = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $cq = printf "%s&account=%s" $cq (. | addr) }}{{ end }}
   {{ $creset := "?" }}{{ if ne $cq "" }}{{ $creset = printf "?%s" (slice $cq 1) }}{{ end }}
   {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "name" }}{{ end }}
   {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
   {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-  <details class="overflow sort-overflow">
-    <summary class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "icon" "sort" }}</summary>
+  <details class="overflow sort-overflow" data-priority="30">
+    <summary class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "sort-mark" $ }}</summary>
     <div class="overflow-menu">
       {{ template "sort-th" (dict "label" ($.T "common.name") "key" "name" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}
       {{ template "sort-th" (dict "label" ($.T "contacts.email") "key" "email" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}

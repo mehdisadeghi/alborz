@@ -121,15 +121,15 @@
      the start, since there is nothing there to check. */}}
 {{ define "flag-menu" }}
 {{ if .disabled }}
-<span class="overflow flag-menu{{ with .class }} {{.}}{{ end }}">
+<span class="overflow flag-menu{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}">
-    <span class="flag-star">&#9734;</span>{{ template "icon" "down" }}
+    <span class="flag-star">&#9734;</span>{{ template "icon" "down" }}<span class="label">{{.title}}</span>
   </span>
 </span>
 {{ else }}
-<details class="overflow flag-menu{{ with .class }} {{.}}{{ end }}" data-gated="{{.form}}">
+<details class="overflow flag-menu{{ with .class }} {{.}}{{ end }}" data-gated="{{.form}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <summary class="icon-button" title="{{.clear}}" aria-label="{{.title}}">
-    <span class="flag-star{{ with .current }} flag-{{.}}{{ end }}">{{ if .current }}&#9733;{{ else }}&#9734;{{ end }}</span>{{ template "icon" "down" }}
+    <span class="flag-star{{ with .current }} flag-{{.}}{{ end }}">{{ if .current }}&#9733;{{ else }}&#9734;{{ end }}</span>{{ template "icon" "down" }}<span class="label">{{.title}}</span>
   </summary>
   <div class="overflow-menu flag-colors">
     {{ $d := . }}
@@ -154,10 +154,15 @@
      and reads their Persian left to right. */}}
 {{ define "user-text" }}<div class="user-text" dir="auto">{{.}}</div>{{ end }}
 
+{{/* The sort control's mark, a word in the overflow menu. Takes the
+     page context for its string. */}}
+{{ define "sort-mark" }}{{ template "icon" "sort" }}<span class="label">{{.T "mailbox.sortby"}}</span>{{ end }}
+
 {{/* One toolbar button that acts on the checked rows. dict: icon label
-     form formaction [class]. */}}
+     form formaction [class priority]. A priority lets the row move it
+     into the overflow menu when it has no room, lowest first. */}}
 {{ define "action-icon" }}
-<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ if .download }} data-download{{ end }}>{{ template "icon" .icon }}</button>
+<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ with .priority }} data-priority="{{.}}"{{ end }}{{ if .download }} data-download{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>
 {{ end }}
 
 {{/* One sortable column header with the shared three-state cycle.
@@ -267,7 +272,7 @@
      dict: [range] [prev href label] [next href label]. */}}
 {{ define "pagination" }}
 <div class="actions-pagination">
-  {{ with .range }}<span class="pagination-range">{{.}}</span>{{ end }}
+  {{ with .range }}<span class="pagination-range" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}
   {{ template "pager-link" (dict "step" .prev "icon" "prev") }}
   {{ template "pager-link" (dict "step" .next "icon" "next") }}
 </div>
@@ -282,7 +287,7 @@
 {{ define "pager-link" }}
 {{ with .step }}
 {{ if .label }}
-{{ if .href }}<a href="{{localhref .href}}" class="button-link pager-link">{{ else }}<span class="button-link pager-link" aria-disabled="true">{{ end }}{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}{{ if .href }}</a>{{ else }}</span>{{ end }}
+{{ if .href }}<a href="{{localhref .href}}" class="button-link pager-link" data-priority="2" data-yield="word">{{ else }}<span class="button-link pager-link" aria-disabled="true" data-priority="2" data-yield="word">{{ end }}{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}{{ if .href }}</a>{{ else }}</span>{{ end }}
 {{ else }}
 {{ if .href }}
 <a href="{{localhref .href}}" class="icon-button" title="{{.title}}" aria-label="{{.title}}">{{ template "icon" $.icon }}</a>
@@ -309,7 +314,7 @@
      the old size means nothing in the new one.
      dict: options current base label. */}}
 {{ define "ipp-menu" }}
-<details class="overflow ipp-overflow">
+<details class="overflow ipp-overflow" data-priority="4" data-yield="hide">
   <summary class="icon-button" title="{{.label}}" aria-label="{{.label}}">{{ template "icon" "rows" }}</summary>
   <div class="overflow-menu">
     {{ $d := . }}
@@ -413,9 +418,12 @@
     {{/* A short title is offered where one exists, and only a phone
          sees it: the full month name is what a wide toolbar should
          say, and an abbreviation there would be a loss for nothing. */}}
-    {{ with .title }}<h1>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>{{ end }}
+    {{/* The steps a narrowing row takes are numbered across every
+         toolbar; see ADR 8. The secondary month is the first thing to
+         go, the short title comes late, and New never leaves. */}}
+    {{ with .title }}<h1{{ if $.shorttitle }} data-priority="20" data-yield="word"{{ end }}>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}</h1>{{ end }}
     {{ if and .title .newhref }}<span class="toolbar-rule" aria-hidden="true"></span>{{ end }}
-    {{ with .newhref }}<a class="icon-button" href="{{.}}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}">{{ template "icon" (or $.newicon "plus") }}</a>{{ end }}
+    {{ with .newhref }}<a class="icon-button" href="{{.}}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
 {{ end }}
 
 {{ define "toolbar-end" }}

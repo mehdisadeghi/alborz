@@ -31,18 +31,16 @@
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.tasks") "selectall" true "newhref" "/tasks/create" "newlabel" ($.T "tasks.new")) }}
           <span class="icon-group">
-            {{/* A mark where the row has room and a word in the overflow
-                 where it does not, like the mail toolbar's archive. */}}
-            {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "class" "wide-only" "form" "tasks-form" "formaction" "/tasks/complete") }}
-            {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" "/tasks/delete") }}
-            {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" "/tasks/export" "download" true) }}
+            {{/* Download leaves a narrowing row first, then delete. */}}
+            {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "priority" 12 "form" "tasks-form" "formaction" "/tasks/complete") }}
+            {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" "/tasks/delete" "priority" 11) }}
+            {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" "/tasks/export" "priority" 10 "download" true) }}
           </span>
           {{/* Not gated on the selection: the check acts on the lists,
                and the controls that need rows are disabled one by one. */}}
           <details class="overflow">
             <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
             <div class="overflow-menu">
-              <button class="narrow-only" form="tasks-form" formaction="/tasks/complete">{{$.T "tasks.markcomplete"}}</button>
               <select form="tasks-form" name="to" aria-label="{{$.T "tasks.movelist"}}">
                 <option value="" disabled selected>{{$.T "mailbox.moveto"}}</option>
                 {{range .Calendars}}
@@ -56,10 +54,10 @@
         {{ template "toolbar-end" }}
             {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
             {{if not .Tasks}}
-            <span class="overflow sort-overflow"><span class="icon-button" aria-disabled="true" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "icon" "sort" }}</span></span>
+            <span class="overflow sort-overflow" data-priority="30"><span class="icon-button" aria-disabled="true" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "sort-mark" $ }}</span></span>
             {{else}}
-            <details class="overflow sort-overflow">
-              <summary class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "icon" "sort" }}</summary>
+            <details class="overflow sort-overflow" data-priority="30">
+              <summary class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "sort-mark" $ }}</summary>
               <div class="overflow-menu">
                 {{template "sort-th" (dict "label" ($.T "tasks.status") "key" "status" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}
                 {{template "sort-th" (dict "label" ($.T "tasks.summary") "key" "summary" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}

@@ -486,7 +486,14 @@ func (ctx *Context) cookie(name, value string, life time.Duration) *http.Cookie 
 		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+		// Lax, not Strict: an installed PWA launched from the home
+		// screen makes a top-level navigation that Strict treats as
+		// having no same-site initiator, so it withholds the cookie and
+		// the app opens signed out with nothing to restore from. Lax
+		// sends it on that navigation while still withholding it from
+		// cross-site POST, and every mutation here is a POST, so the
+		// CSRF cover Strict gave is kept.
+		SameSite: http.SameSiteLaxMode,
 		Secure:   ctx.secureCookies(),
 	}
 	switch {

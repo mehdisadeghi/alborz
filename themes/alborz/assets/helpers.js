@@ -335,6 +335,22 @@ for (const d of document.querySelectorAll("details[data-rail-key]")) {
 	}
 })();
 
+// The section links are words while the five fit the row and icons
+// once they do not. Measured, not set at a width: the words are longer
+// in German and Persian than in English, and a row that scrolls hides
+// the last section.
+const primeNav = document.querySelector("header nav");
+if (primeNav) {
+	const fitNav = () => {
+		primeNav.classList.remove("is-icons");
+		if (primeNav.scrollWidth > primeNav.clientWidth) {
+			primeNav.classList.add("is-icons");
+		}
+	};
+	new ResizeObserver(fitNav).observe(primeNav);
+	fitNav();
+}
+
 // Priority-plus toolbar. Every control sits in the row once; the ones
 // that can give width back carry data-priority, and data-yield says
 // how: "hide" drops it, "word" drops its word and keeps the mark, and

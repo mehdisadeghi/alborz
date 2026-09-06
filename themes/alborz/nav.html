@@ -21,14 +21,14 @@
       {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}
       class="active" aria-current="page"
       {{ end }}
-    >{{$.T "nav.email"}}</a>
+    title="{{$.T "nav.email"}}" aria-label="{{$.T "nav.email"}}">{{ template "icon" "mail" }}<span class="label">{{$.T "nav.email"}}</span></a>
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
       href="/calendar{{$q}}" data-section="calendar"
       {{ if eq $page "calendar" }}
       class="active" aria-current="page"
       {{ end }}
-    >{{$.T "nav.calendar"}}</a>
+    title="{{$.T "nav.calendar"}}" aria-label="{{$.T "nav.calendar"}}">{{ template "icon" "month" }}<span class="label">{{$.T "nav.calendar"}}</span></a>
     {{ end }}
     {{ if call .GlobalData.HavePlugin "carddav" }}
     <a
@@ -36,7 +36,7 @@
       {{ if eq $page "contacts" }}
       class="active" aria-current="page"
       {{ end }}
-    >{{$.T "nav.contacts"}}</a>
+    title="{{$.T "nav.contacts"}}" aria-label="{{$.T "nav.contacts"}}">{{ template "icon" "users" }}<span class="label">{{$.T "nav.contacts"}}</span></a>
     {{ end }}
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
@@ -44,7 +44,7 @@
       {{ if eq $page "tasks" }}
       class="active" aria-current="page"
       {{ end }}
-    >{{$.T "nav.tasks"}}</a>
+    title="{{$.T "nav.tasks"}}" aria-label="{{$.T "nav.tasks"}}">{{ template "icon" "tasks" }}<span class="label">{{$.T "nav.tasks"}}</span></a>
     {{ end }}
     {{ if call .GlobalData.HavePlugin "sieve" }}
     <a
@@ -52,7 +52,7 @@
       {{ if eq $page "filters" }}
       class="active" aria-current="page"
       {{ end }}
-    >{{$.T "nav.filters"}}</a>
+    title="{{$.T "nav.filters"}}" aria-label="{{$.T "nav.filters"}}">{{ template "icon" "filter" }}<span class="label">{{$.T "nav.filters"}}</span></a>
     {{ end }}
     {{ if .GlobalData.LoggedIn }}
     <div>

@@ -453,6 +453,18 @@ header nav > a {
   text-decoration: none;
 }
 header nav > a:hover { border-bottom-color: var(--border-strong); }
+/* A section link is its word for as long as the five words fit the
+   row, and its icon once they do not; the script measures and marks
+   the nav, so the switch lands where the words run out, in any
+   language, rather than at a width chosen for one. Without a script
+   the row scrolls, as it always did. */
+header nav > a > .icon { display: none; }
+header nav.is-icons > a > .icon { display: inline-block; }
+header nav.is-icons > a > .label { display: none; }
+header nav.is-icons > a {
+  flex: 1 1 0;
+  justify-content: center;
+}
 header nav span { color: var(--fg-muted); }
 header nav > div {
   margin-inline-start: auto;
@@ -2256,6 +2268,24 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   color: var(--fg);
 }
 
+/* The word is the wide form; the icon waits until the row asks for
+   the width back, and the word returns once the toggle is in a menu. */
+.toggle-option > .icon {
+  display: none;
+}
+
+.toggle.no-word .toggle-option > .label { display: none; }
+.toggle.no-word .toggle-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--control-height);
+  padding-inline: 0.3rem;
+}
+.toggle.no-word .toggle-option > .icon { display: inline-block; }
+.overflow-menu .toggle.no-word .toggle-option > .label { display: inline; }
+.overflow-menu .toggle.no-word .toggle-option > .icon { display: none; }
+
 /* A chip group that has moved into the menu is a row of it, not the
    far end of one. */
 .overflow-menu .actions-pagination { margin-inline-start: 0; }
@@ -4056,6 +4086,7 @@ h1.no-word .title-short {
   }
 
   header nav > a { min-height: 3rem; }
+  header nav.is-icons { gap: var(--space-1); }
 
   header nav > div { float: none; display: none; }
 

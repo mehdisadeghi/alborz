@@ -396,13 +396,17 @@
   {{ template "info-explain" (dict "label" $.explainlabel "items" $.explained) }}
 {{ end }}
 
+{{/* A choice between views. An item with an icon shows it instead of
+     its word once the row asks for the width back. dict: items [label];
+     item: label href current [icon]. */}}
 {{ define "toggle" }}
-<div class="toggle"{{ with .label }} role="group" aria-label="{{.}}"{{ end }}>
+{{ $icons := false }}{{ range .items }}{{ if .icon }}{{ $icons = true }}{{ end }}{{ end }}
+<div class="toggle"{{ with .label }} role="group" aria-label="{{.}}"{{ end }}{{ if $icons }} data-priority="3" data-yield="word"{{ end }}>
   {{ range .items }}
   {{ if .current }}
-  <span class="toggle-option is-current" aria-current="true">{{.label}}</span>
+  <span class="toggle-option is-current" aria-current="true"{{ with .icon }} title="{{$.label}}"{{ end }}>{{ with .icon }}{{ template "icon" . }}{{ end }}<span class="label">{{.label}}</span></span>
   {{ else }}
-  <a class="toggle-option" href="{{.href}}">{{.label}}</a>
+  <a class="toggle-option" href="{{.href}}"{{ with .icon }} title="{{$.label}}"{{ end }}>{{ with .icon }}{{ template "icon" . }}{{ end }}<span class="label">{{.label}}</span></a>
   {{ end }}
   {{ end }}
 </div>

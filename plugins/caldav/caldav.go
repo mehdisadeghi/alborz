@@ -213,6 +213,12 @@ type CalendarObject struct {
 
 	// Account owning the object, set only in the unified view
 	Account string
+	// Color is set for a subscribed feed, which has no calendar in the
+	// account to take a colour from; the views prefer it over the
+	// per-calendar colour map.
+	Color string
+	// ReadOnly marks a subscribed feed's events: no edit, no delete.
+	ReadOnly bool
 }
 
 // Alarm is a reminder an object carries (RFC 5545 3.6.6). Nothing here

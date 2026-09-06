@@ -34,6 +34,10 @@ type CollectionRenderData struct {
 	// date range, which only a calendar has.
 	Ext         string
 	OffersRange bool
+	// Address is the feed a subscribed calendar follows; it marks the
+	// page as one with nothing on the server to import into, export
+	// from, or delete - only a subscription to end.
+	Address string
 }
 
 // NewCollectionRenderData renders create-collection.html. Only a
@@ -109,6 +113,7 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 			BackLabel:      label,
 			Ext:            pg.Ext,
 			OffersRange:    pg.Ext == ".ics",
+			Address:        info.Address,
 		}
 
 		if ctx.Request().Method == http.MethodPost {

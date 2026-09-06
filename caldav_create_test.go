@@ -39,3 +39,23 @@ func TestCreateCalendarWithNoneYet(t *testing.T) {
 	}
 	t.Errorf("the created calendar never appeared in the rail")
 }
+
+// The feed is fetched before it is kept, so one that cannot be read is
+// refused on the form; here the guarded client refuses the loopback
+// test server, which is the refusal being shown.
+func TestSubscribingToAnUnreadableFeedIsRefused(t *testing.T) {
+	stub := &davStub{cals: map[string]davCal{}, refuse: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}}
+	srv := httptest.NewServer(stub)
+	defer srv.Close()
+	base := startAlborzDav(t, startIMAP(t), srv.URL)
+	c := login(t, base)
+
+	form := url.Values{"address": {srv.URL + "/feed.ics"}}
+	resp := postForm(t, c, base+"/calendars/subscribe", form)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("an unreadable feed answered %s, want the form back", resp.Status)
+	}
+	if len(stub.cals) != 0 {
+		t.Errorf("an address made a collection on the server")
+	}
+}

@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "scope-rail" (dict "kind" "dav" "path" "/calendar" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.newcalendar")) "data" (dict "keep" (printf "&date=%s" (.Time.Format "2006-01-02")) "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar/date" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
+    {{ template "scope-rail" (dict "kind" "dav" "path" "/calendar" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.newcalendar")) "follow" (dict "href" (printf "/calendars/subscribe?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.subscribe")) "data" (dict "keep" (printf "&date=%s" (.Time.Format "2006-01-02")) "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar/date" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
   </aside>
 
   <div class="container">

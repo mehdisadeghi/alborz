@@ -1,0 +1,29 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ template "detail-aside" (dict "backHref" "/calendar" "backLabel" ($.T "nav.calendar")) }}
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="post">
+        <input type="hidden" name="next" value="{{.Next}}">
+        <h1>{{$.T "calendar.subscribe"}}</h1>
+
+        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
+
+        {{ if gt (len .Accounts) 1 }}
+        {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}
+        {{ end }}
+
+        {{ template "field" (dict "label" ($.T "calendar.address") "name" "address" "type" "url" "value" .Address "placeholder" "https://" "required" true "autofocus" true) }}
+        <small>{{$.T "calendar.addresshint"}}</small>
+
+        {{ template "form-actions" (dict "save" ($.T "calendar.subscribedo") "cancel" "/calendar" "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

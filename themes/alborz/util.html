@@ -239,7 +239,7 @@
   <div class="event-time" role="cell" data-label="{{.timeLabel}}">{{.when}}</div>
   <div class="event-summary" role="cell" data-label="{{.eventLabel}}">
     {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
-    <a href="{{.href}}" dir="auto">{{.summary}}</a>
+    {{ if .href }}<a href="{{.href}}" dir="auto">{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
   </div>
   <div class="event-owner" role="cell" data-label="{{.calendarLabel}}">{{.owner}}</div>
 </div>
@@ -653,6 +653,7 @@
        making an object is a toolbar action, beside the list it lands
        in. */}}
   {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
+  {{ with .follow }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
 {{ end }}
 
 {{/* The merged roles, in the mail rail: every mailbox is a place, the

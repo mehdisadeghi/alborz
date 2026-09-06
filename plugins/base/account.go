@@ -20,11 +20,15 @@ func handleLogin(ctx *alborz.Context) error {
 	renderData := struct {
 		alborz.BaseRenderData
 		CanRememberMe bool
+		RememberDays  int
 		Add           bool
 	}{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		CanRememberMe:  ctx.Server.Options.LoginKey != nil,
-		Add:            add,
+		// The label says how long the box keeps you signed in, read
+		// from the lifetime the credential cookie is actually given.
+		RememberDays: int(alborz.CredentialCookieLife().Hours() / 24),
+		Add:          add,
 	}
 	if add {
 		renderData.BaseRenderData.WithTitle(ctx.T("login.add"))

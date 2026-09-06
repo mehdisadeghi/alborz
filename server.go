@@ -55,6 +55,13 @@ const (
 // the second is only an annoyance to lose.
 const (
 	credentialCookieLife = 30 * 24 * time.Hour
+)
+
+// CredentialCookieLife is how long a remembered account is kept: the
+// login label states it so the choice is not a mystery.
+func CredentialCookieLife() time.Duration { return credentialCookieLife }
+
+const (
 	preferenceCookieLife = 365 * 24 * time.Hour
 )
 

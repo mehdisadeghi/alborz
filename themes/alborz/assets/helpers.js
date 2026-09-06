@@ -335,4 +335,72 @@ for (const d of document.querySelectorAll("details[data-rail-key]")) {
 	}
 })();
 
+// Priority-plus toolbar. Every control sits in the row once; the ones
+// that can give width back carry data-priority, and data-yield says
+// how: "hide" drops it, "word" drops its word and keeps the mark, and
+// by default it moves into the overflow menu. Steps are taken lowest
+// priority first until the row holds everything at natural size, and
+// given back as the row widens. The menu keeps its own items below
+// whatever moved in, in row order. No control is duplicated for a
+// width, and the toggle costs nothing while the menu is empty.
+for (const wrap of document.querySelectorAll(".actions-wrap")) {
+	const details = wrap.querySelector("details.overflow:not(.flag-menu)");
+	const menu = details && details.querySelector(":scope > .overflow-menu");
+	if (!menu) {
+		continue;
+	}
+	const items = Array.prototype.filter.call(wrap.querySelectorAll("[data-priority]"), el => !menu.contains(el))
+		.map(el => ({ el, priority: Number(el.dataset.priority), how: el.dataset.yield, parent: el.parentNode, next: el.nextSibling }));
+	if (items.length === 0) {
+		continue;
+	}
+	const leaving = items.slice().sort((a, b) => a.priority - b.priority);
+	const ownItems = menu.children.length;
+	// The title is what flex shrinks, and a shrunk half lets it spill
+	// under the other while scrollWidth says nothing. Both halves and the
+	// title are held at full size while the row is measured, so what does
+	// not fit overflows for real, and the title truncates only once every
+	// step has been taken.
+	const pinned = wrap.querySelectorAll(":scope > .actions-message, :scope > .actions-end, .actions-message h1");
+	const pin = on => { for (const el of pinned) { el.style.flexShrink = on ? "0" : ""; } };
+	let fitting = false;
+	const fit = () => {
+		if (fitting) {
+			return;
+		}
+		fitting = true;
+		for (let i = items.length - 1; i >= 0; i--) {
+			items[i].el.hidden = false;
+			items[i].el.classList.remove("no-word");
+			items[i].parent.insertBefore(items[i].el, items[i].next);
+		}
+		details.hidden = ownItems === 0;
+		pin(true);
+		const moved = new Set();
+		for (const it of leaving) {
+			if (wrap.scrollWidth <= wrap.clientWidth) {
+				break;
+			}
+			if (it.how === "hide") {
+				it.el.hidden = true;
+			} else if (it.how === "word") {
+				it.el.classList.add("no-word");
+			} else {
+				details.hidden = false;
+				moved.add(it.el);
+				it.el.remove();
+			}
+		}
+		pin(false);
+		for (let i = items.length - 1; i >= 0; i--) {
+			if (moved.has(items[i].el)) {
+				menu.prepend(items[i].el);
+			}
+		}
+		fitting = false;
+	};
+	new ResizeObserver(fit).observe(wrap);
+	fit();
+}
+
 // @license-end

@@ -3,7 +3,7 @@
 {{if and (eq .View "list") (eq .Span "month")}}{{$suffix = "&view=list&span=month"}}{{end}}
 {{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
-  <a class="icon-button" href="/calendar/export{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}">{{ template "icon" "download" }}</a>
+  <a class="icon-button" href="/calendar/export{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}" data-priority="10">{{ template "icon" "download" }}<span class="label">{{$.T "common.download"}}</span></a>
 </span>
 <details class="overflow">
   <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
@@ -21,12 +21,12 @@
            value and "view=list" arrives as "view%3dlist" - which is how
            Today dropped the reader back into the month grid. */}}
       {{ $today := "/calendar" }}{{ if $suffix }}{{ $today = printf "/calendar?%s" (slice $suffix 1) }}{{ end }}
-      <a href="{{ localhref $today }}" class="button-link">{{$.T "calendar.today"}}</a>
+      <a href="{{ localhref $today }}" class="button-link" data-priority="21">{{$.T "calendar.today"}}</a>
       {{else}}
-      <span class="button-link" aria-disabled="true">{{$.T "calendar.today"}}</span>
+      <span class="button-link" aria-disabled="true" data-priority="21">{{$.T "calendar.today"}}</span>
       {{end}}
     </div>
-    <div class="actions-pagination">
+    <div class="actions-pagination" data-priority="22">
       {{ template "toggle" (dict "items" (tuple
          (dict "label" ($.T "calendar.month") "current" (ne .View "list")
                "href" (printf "?month=%s" .Page))

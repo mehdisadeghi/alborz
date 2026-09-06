@@ -238,16 +238,26 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 			return err
 		}
 		collPath = CanonicalCollectionPath(collPath)
-		_, _, list, _, err := pg.Lookup(ctx, collPath)
+		info, _, list, _, err := pg.Lookup(ctx, collPath)
 		if err != nil {
 			return err
 		}
 		base, _ := p.URL(ctx.Session)
 		target := base.ResolveReference(&url.URL{Path: collPath}).String()
 		if err := DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Session), target); err != nil {
-			return err
+			ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
+				Text: fmt.Sprintf(ctx.T("notice.collectiondeletefailed"), info.Name)})
+			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
 		}
 		pg.Forget(ctx.Session.Username())
+		// A 2xx is not proof: some servers accept the DELETE and keep the
+		// collection. Listing again shows what the reader will see.
+		if _, _, _, _, err := pg.Lookup(ctx, collPath); err == nil {
+			ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
+				Text: fmt.Sprintf(ctx.T("notice.collectionkept"), info.Name)})
+			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
+		}
+		ctx.Session.PutNotice(fmt.Sprintf(ctx.T("notice.collectiondeleted"), info.Name))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 	}
 }

@@ -18,6 +18,9 @@ type FiltersRenderData struct {
 	// scripts on a bare URL, the one the URL names otherwise.
 	Groups   []AccountFilters
 	Accounts []alborz.Account
+	// Explained is the union of the groups' extension glossaries,
+	// shown once for the page rather than in every server card.
+	Explained []alborz.Explained
 }
 
 // AccountFilters is one account's scripts and the server they live on.
@@ -130,6 +133,15 @@ func handleListFilters(ctx *alborz.Context) error {
 			unreachable++
 		}
 		data.Groups = append(data.Groups, group)
+	}
+	seen := map[string]bool{}
+	for _, group := range data.Groups {
+		for _, e := range group.Explained {
+			if !seen[e.Term] {
+				seen[e.Term] = true
+				data.Explained = append(data.Explained, e)
+			}
+		}
 	}
 	status := http.StatusOK
 	if len(data.Groups) > 0 && unreachable == len(data.Groups) {

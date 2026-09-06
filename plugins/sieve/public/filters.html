@@ -37,13 +37,12 @@
            thing that decides whether a script the reader writes will
            be accepted. */}}
       {{ template "info-card" (dict "title" ($.T "filters.serverinfo")
+         "collapsed" true
          "rows" (tuple
            (dict "label" ($.T "settings.serversieve") "value" .Server)
            (dict "label" ($.T "filters.software") "value" .Software))
          "tags" .Extensions "tagstitle" ($.T "filters.extensions")
-         "page" $
-         "explained" .Explained
-         "explainlabel" ($.T "settings.explain")) }}
+         "page" $) }}
 
       <section class="list-items">
         {{ range .Scripts }}
@@ -73,6 +72,11 @@
         {{ end }}
       </section>
       {{ end }}
+
+      {{/* What the extensions mean, once for the page: the same
+           servers offer the same names, so a card each would only
+           repeat it. */}}
+      {{ template "info-explain" (dict "label" ($.T "filters.extensionsexplain") "items" .Explained) }}
 
     </main>
   </div>

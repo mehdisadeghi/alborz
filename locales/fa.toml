@@ -290,6 +290,7 @@
 "settings.abilityidhint" = "سرور می‌گوید چه نرم‌افزاری است؛ همان که سطر بالا را پر می‌کند."
 "filters.software" = "نرم‌افزار"
 "filters.extensions" = "افزونه‌های Sieve"
+"filters.extensionsexplain" = "هر افزونه چه می‌کند"
 "filters.serverinfo" = "سرور فیلتر"
 "settings.serversoftware" = "نرم‌افزار"
 "settings.serverimap" = "نامه (IMAP)"

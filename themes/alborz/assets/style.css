@@ -2048,6 +2048,12 @@ aside .filter-edit:focus-visible { opacity: 1; }
   margin-top: var(--space-2);
 }
 
+/* Standing on the page rather than in a card, it keeps to the ink
+   line the rows above it start from. */
+main > .info-explain {
+  padding-inline: var(--space-2);
+}
+
 .info-explain > summary {
   cursor: pointer;
   color: var(--link);
@@ -2090,12 +2096,35 @@ aside .filter-edit:focus-visible { opacity: 1; }
   font-size: var(--text-sm);
 }
 
-.info-card h2 {
+.info-card h2,
+details.info-card > summary {
   margin: 0 0 var(--space-2);
   font-size: var(--text-sm);
   font-weight: 650;
   color: var(--fg-muted);
 }
+
+details.info-card > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+details.info-card > summary::-webkit-details-marker { display: none; }
+
+details.info-card > summary::before {
+  content: "\203A";
+  display: inline-block;
+  width: 0.75rem;
+  text-align: center;
+  transition: transform 0.1s ease-out;
+}
+
+details.info-card[open] > summary::before { transform: rotate(90deg); }
+
+details.info-card[open] > summary { margin-bottom: var(--space-2); }
 
 .info-card dl {
   display: grid;

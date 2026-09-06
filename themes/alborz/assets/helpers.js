@@ -283,4 +283,22 @@ window.addEventListener("pageshow", ev => {
 	}
 });
 
+// The rail remembers which account groups the reader left open. Each
+// keyed <details> restores its state on load and saves it on toggle;
+// storage that is unavailable simply means the server default stands.
+for (const d of document.querySelectorAll("details[data-rail-key]")) {
+	const key = "rail:" + d.dataset.railKey;
+	try {
+		const v = localStorage.getItem(key);
+		if (v !== null) {
+			d.open = v === "1";
+		}
+	} catch (e) {}
+	d.addEventListener("toggle", () => {
+		try {
+			localStorage.setItem(key, d.open ? "1" : "0");
+		} catch (e) {}
+	});
+}
+
 // @license-end

@@ -186,7 +186,7 @@
 {{ $on := and $n.Details $onacct (eq $active $n.Details.Info.Name) }}
 {{ if $n.Children }}
 <li class="folder-li">
-  <details class="folder-branch" open>
+  <details class="folder-branch" data-rail-key="folder:{{$q}}:{{ with $n.Details }}{{ .Info.Name }}{{ end }}" open>
     <summary{{ if $on }} class="active"{{ end }}>{{ template "mbox-node-label" (tuple $n $q $g) }}</summary>
     <ul>{{ range $n.Children }}{{ template "mbox-node" (tuple . $q $onacct $active $g) }}{{ end }}</ul>
   </details>
@@ -351,9 +351,26 @@
 {{ end }}
 {{ end }}
 
+{{/* A card of server facts. "collapsed" folds it behind its title,
+     for a page that repeats it per account and does not want it
+     shouting; the glossary of what the tags mean is left to the
+     caller when "explained" is not passed, so a merged page shows it
+     once rather than in every card. */}}
 {{ define "info-card" }}
+{{ if .collapsed }}
+<details class="info-card info-card-fold">
+  <summary>{{.title}}</summary>
+  {{ template "info-card-body" . }}
+</details>
+{{ else }}
 <section class="info-card">
   <h2>{{.title}}</h2>
+  {{ template "info-card-body" . }}
+</section>
+{{ end }}
+{{ end }}
+
+{{ define "info-card-body" }}
   <dl>
     {{ range .rows }}{{ if .value }}
     <dt>{{.label}}</dt>
@@ -367,16 +384,14 @@
     <li class="{{ if .Have }}has{{ else }}has-not{{ end }}" title="{{$.page.T .Hint}}">{{$.page.T .Label}}</li>
     {{ end }}
   </ul>
-  {{ template "info-explain" (dict "label" $.explainlabel "items" $.explained) }}
   {{ end }}
   {{ with .tags }}
   <p class="info-group-title">{{$.tagstitle}}</p>
   <ul class="info-tags">
     {{ range . }}<li title="{{ with .Hint }}{{$.page.T .}}{{ end }}">{{ template "ltr" .Name }}</li>{{ end }}
   </ul>
-  {{ template "info-explain" (dict "label" $.explainlabel "items" $.explained) }}
   {{ end }}
-</section>
+  {{ template "info-explain" (dict "label" $.explainlabel "items" $.explained) }}
 {{ end }}
 
 {{ define "toggle" }}
@@ -619,7 +634,7 @@
   {{ $has := eq $.kind "mail" }}
   {{ if not $has }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ end }}{{ end }}{{ end }}
   {{ if $has }}
-  <details class="acct-folders"{{ if eq $acct $.urlaccount }} open{{ end }}>
+  <details class="acct-folders" data-rail-key="{{$acct}}"{{ if eq $acct $.urlaccount }} open{{ end }}>
     <summary class="aside-account"><a href="{{$.path}}{{ account "?" $acct }}">{{ template "ltr" $acct }}</a></summary>
     {{ if eq $.kind "mail" }}
     {{ template "rail-mail-account" (dict "account" $acct "data" $.data) }}
@@ -651,8 +666,8 @@
 {{ $starred := .Starred }}
 {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
 {{ $all := $.GlobalData.Unified }}
-<details class="acct-folders aggregate-folders" open>
-<summary class="aside-account">{{$.T "nav.allaccounts"}}</summary>
+<details class="acct-folders aggregate-folders" data-rail-key="__merged" open>
+<summary class="aside-account"><a href="/mailbox/INBOX">{{$.T "nav.allaccounts"}}</a></summary>
 <ul class="merged-roles">
   {{ range tuple (tuple "aside.inbox" "INBOX" false) (tuple "aside.starred" "INBOX" true) (tuple "aside.drafts" "Drafts" false) (tuple "aside.sent" "Sent" false) (tuple "aside.junk" "Junk" false) (tuple "aside.trash" "Trash" false) (tuple "aside.archive" "Archive" false) }}
   {{ $role := index . 1 }}{{ $star := index . 2 }}

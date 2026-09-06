@@ -45,6 +45,9 @@ type Collection struct {
 	Name     string
 	Color    string
 	Writable bool
+	// Address is the feed a subscribed calendar is read from; empty for
+	// a collection held on the account's own server.
+	Address string
 }
 
 // Listed is one collection with the properties it was read from, for

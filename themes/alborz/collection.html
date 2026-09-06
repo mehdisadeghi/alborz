@@ -15,6 +15,12 @@
 
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true) }}
         {{ template "field" (dict "label" ($.T "common.color") "name" "color" "type" "color" "value" .Color) }}
+        {{ with .Address }}
+        <div class="field">
+          <label>{{$.T "calendar.address"}}</label>
+          <a href="{{.}}" rel="noopener noreferrer" target="_blank" dir="ltr">{{.}}</a>
+        </div>
+        {{ end }}
 
         {{/* What it holds is not offered: the component set is protected
              on every server in use, and changing it would mean copying
@@ -22,6 +28,7 @@
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" .ListHref "cancelLabel" ($.T "common.cancel")) }}
       </form>
 
+      {{ if not .Address }}
       {{/* In and out as one file: the shape every other client reads
            and writes, and the only one a reader can keep. */}}
       <form method="post" enctype="multipart/form-data" action="{{.Base}}{{.Path | pathescape}}/import{{account "?" .Account}}" class="collection-file">
@@ -42,12 +49,18 @@
         {{ end }}
         <button>{{ printf ($.T "collection.exportdo") .Ext }}</button>
       </form>
+      {{ end }}
 
       {{/* What a delete would take, said before it can be asked for:
            WebDAV knows only the recursive kind. An empty collection has
            nothing to lose, so it is not warned over; an unknown count
-           is, since it might. */}}
+           is, since it might. Ending a subscription deletes nothing
+           anywhere, so it is not a delete at all. */}}
       <form class="danger-zone" method="post" action="{{.Base}}{{.Path | pathescape}}/delete{{account "?" .Account}}">
+        {{ if .Address }}
+        <h3>{{$.T "collection.unsubscribetitle"}}</h3>
+        <button class="button-danger">{{ printf ($.T "collection.unsubscribedo") .Name }}</button>
+        {{ else }}
         <h3>{{$.T "collection.deletetitle"}}</h3>
         {{ if gt .Count 0 }}
         <p>{{ $.GlobalData.Tf "collection.deletecount" .Count }}</p>
@@ -55,6 +68,7 @@
         <p>{{$.T "collection.deleteunknown"}}</p>
         {{ end }}
         <button class="button-danger">{{ if eq .Count 0 }}{{ printf ($.T "collection.deletedoempty") .Name }}{{ else }}{{ printf ($.T "collection.deletedo") .Name }}{{ end }}</button>
+        {{ end }}
       </form>
     </main>
   </div>

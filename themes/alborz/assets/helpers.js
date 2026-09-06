@@ -301,4 +301,38 @@ for (const d of document.querySelectorAll("details[data-rail-key]")) {
 	});
 }
 
+// Each prime nav remembers the place you last were in its section, a
+// folder or a month with its scope (ADR 0001: the URL is the scope,
+// this only fills what a bare nav click defaults to). Only a list page
+// is a place; see nav.html.
+(() => {
+	const nav = document.querySelector("header nav[data-here]");
+	if (!nav) {
+		return;
+	}
+	const key = section => "nav-place:" + section;
+	const read = k => {
+		try {
+			return localStorage.getItem(k);
+		} catch (e) {
+			return null;
+		}
+	};
+	const here = nav.dataset.here;
+	if (here && "place" in nav.dataset) {
+		try {
+			localStorage.setItem(key(here), location.pathname + location.search);
+		} catch (e) {}
+	}
+	for (const a of nav.querySelectorAll("a[data-section]")) {
+		if (a.dataset.section === here) {
+			continue;
+		}
+		const place = read(key(a.dataset.section));
+		if (place !== null) {
+			a.setAttribute("href", place);
+		}
+	}
+})();
+
 // @license-end

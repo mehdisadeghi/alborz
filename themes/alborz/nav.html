@@ -2,22 +2,31 @@
 <input type="checkbox" id="sidebar" class="sidebar-toggle" aria-label="{{$.T "nav.drawer"}}">
 {{ end }}
 <header>
-  <nav>
+  {{$page := (index .GlobalData.Path 0)}}
+  {{ $section := $page }}{{ if or (eq $page "message") (eq $page "compose") }}{{ $section = "mailbox" }}{{ end }}
+  {{/* Every page is a place the section returns to - a list, a
+       message, an event, a card - except a form, which would come back
+       empty. A form is a mail page named for what it makes, or a page
+       whose last step is one. */}}
+  {{ $last := $page }}{{ range .GlobalData.Path }}{{ $last = . }}{{ end }}
+  {{ $place := true }}
+  {{ range tuple "compose" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $place = false }}{{ end }}{{ end }}
+  {{ range tuple "create" "update" "edit" "reply" "forward" "subscribe" "empty" "export" "import" }}{{ if eq $last . }}{{ $place = false }}{{ end }}{{ end }}
+  <nav data-here="{{$section}}"{{ if $place }} data-place{{ end }}>
     {{ if .GlobalData.LoggedIn }}
     <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>
     {{ end }}
-    {{$page := (index .GlobalData.Path 0)}}
     {{/* Every section keeps the scope the URL carries: the account
          it names, or the merged view when it names none. */}}
     {{$q := account "?" .GlobalData.URLAccount}}
-    <a href="/mailbox/INBOX{{$q}}"
+    <a href="/mailbox/INBOX{{$q}}" data-section="mailbox"
       {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}
       class="active" aria-current="page"
       {{ end }}
     >{{$.T "nav.email"}}</a>
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/calendar{{$q}}"
+      href="/calendar{{$q}}" data-section="calendar"
       {{ if eq $page "calendar" }}
       class="active" aria-current="page"
       {{ end }}
@@ -25,7 +34,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "carddav" }}
     <a
-      href="/contacts{{$q}}"
+      href="/contacts{{$q}}" data-section="contacts"
       {{ if eq $page "contacts" }}
       class="active" aria-current="page"
       {{ end }}
@@ -33,7 +42,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/tasks{{$q}}"
+      href="/tasks{{$q}}" data-section="tasks"
       {{ if eq $page "tasks" }}
       class="active" aria-current="page"
       {{ end }}
@@ -41,7 +50,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "sieve" }}
     <a
-      href="/filters{{$q}}"
+      href="/filters{{$q}}" data-section="filters"
       {{ if eq $page "filters" }}
       class="active" aria-current="page"
       {{ end }}

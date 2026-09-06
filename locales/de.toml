@@ -294,6 +294,7 @@
 "settings.abilityidhint" = "Der Server nennt seine Software, was die Zeile oben füllt."
 "filters.software" = "Software"
 "filters.extensions" = "Sieve-Erweiterungen"
+"filters.extensionsexplain" = "Was jede Erweiterung kann"
 "filters.serverinfo" = "Filterserver"
 "settings.serversoftware" = "Software"
 "settings.serverimap" = "Mail (IMAP)"

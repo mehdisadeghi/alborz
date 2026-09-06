@@ -44,6 +44,19 @@ func (p *plugin) collectionPage() dav.Page {
 			return exportCalendar(ctx.Request().Context(), c, path, from, to)
 		},
 		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
+			if isSubscription(path) {
+				settings, err := loadSettings(ctx.Session.Store())
+				if err != nil {
+					return dav.Collection{}, nil, "", "", err
+				}
+				i := subscriptionAt(settings.Subscriptions, path)
+				if i < 0 {
+					return dav.Collection{}, nil, "", "", alborz.NotFoundf("no such collection")
+				}
+				sub := settings.Subscriptions[i]
+				return sub.info(ctx.Session.Username()),
+					func() int { return subs.count(sub.URL) }, "/calendar", ctx.T("nav.calendar"), nil
+			}
 			_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 			if err != nil {
 				return dav.Collection{}, nil, "", "", err
@@ -60,6 +73,63 @@ func (p *plugin) collectionPage() dav.Page {
 			return *info, p.dav.CountObjects(ctx, info.Path), list, label, nil
 		},
 	}
+}
+
+// forSubscription routes a collection page's POST to the subscription
+// handler when the path names one; everything else goes to the server.
+func (p *plugin) forSubscription(sub func(*alborz.Context, string) error, next func(*alborz.Context) error) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		path, err := dav.ParseObjectPath(ctx.Param("path"))
+		if err != nil {
+			return err
+		}
+		path = dav.CanonicalCollectionPath(path)
+		if ctx.Request().Method != http.MethodPost || !isSubscription(path) {
+			return next(ctx)
+		}
+		return sub(ctx, path)
+	}
+}
+
+// updateSubscription saves the name and colour the page was given.
+func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
+	settings, err := loadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
+	}
+	i := subscriptionAt(settings.Subscriptions, path)
+	if i < 0 {
+		return alborz.NotFoundf("no such collection")
+	}
+	name := strings.TrimSpace(ctx.FormValue("name"))
+	if name == "" {
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, ctx.T("form.nameneeded"))
+	}
+	settings.Subscriptions[i].Name = name
+	settings.Subscriptions[i].Color = ctx.FormValue("color")
+	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+		return err
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
+}
+
+// unsubscribe drops the feed; nothing is deleted anywhere.
+func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
+	settings, err := loadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
+	}
+	i := subscriptionAt(settings.Subscriptions, path)
+	if i < 0 {
+		return alborz.NotFoundf("no such collection")
+	}
+	name := settings.Subscriptions[i].Name
+	settings.Subscriptions = append(settings.Subscriptions[:i], settings.Subscriptions[i+1:]...)
+	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+		return err
+	}
+	ctx.Session.PutNotice(fmt.Sprintf(ctx.T("notice.unsubscribedcalendar"), name))
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/calendar"))
 }
 
 // collectionList is the page a collection belongs to.
@@ -90,6 +160,71 @@ func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 	}
 	return dav.CreateForm{Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: "/calendar",
 		Holds: "both", OffersHolds: true, Made: made}, nil
+}
+
+// SubscribeRenderData renders subscribe-calendar.html.
+type SubscribeRenderData struct {
+	alborz.BaseRenderData
+	Accounts []alborz.Account
+	Account  string
+	Address  string
+	Next     string
+	Error    string
+}
+
+// handleSubscribe follows a calendar by its address. The feed is fetched
+// once now, so a bad address is refused here and a good one shows on
+// the next view without waiting for the poll; the feed names itself,
+// and the colour is changed on the calendar's own page.
+func handleSubscribe(p *plugin) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		data := &SubscribeRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.subscribe")),
+			Accounts:       ctx.Accounts(),
+			Account:        ctx.Session.Username(),
+			Next:           ctx.FormValue("next"),
+		}
+		if ctx.Request().Method != http.MethodPost {
+			return ctx.Render(http.StatusOK, "subscribe-calendar.html", data)
+		}
+		data.Address = strings.TrimSpace(ctx.FormValue("address"))
+		if account := ctx.FormValue("account"); account != "" {
+			data.Account = account
+		}
+		if data.Address == "" {
+			data.Error = ctx.T("calendar.subscribeurlneeded")
+			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
+		}
+		session := ctx.SessionFor(data.Account)
+		if session == nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+		}
+		sub := Subscription{URL: normalizeFeedURL(data.Address), Color: dav.DefaultColor}
+		settings, err := loadSettings(session.Store())
+		if err != nil {
+			return err
+		}
+		if subscriptionAt(settings.Subscriptions, sub.path()) >= 0 {
+			data.Error = fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL)
+			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
+		}
+		if err := subs.refresh(sub.URL); err != nil {
+			data.Error = fmt.Sprintf(ctx.T("calendar.feedfailed"), sub.URL, err)
+			if errors.Is(err, errNotFeed) {
+				data.Error = fmt.Sprintf(ctx.T("calendar.notfeed"), sub.URL)
+			}
+			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
+		}
+		sub.Name = subs.name(sub.URL)
+		if sub.Name == "" {
+			sub.Name = feedHost(sub.URL)
+		}
+		settings.Subscriptions = append(settings.Subscriptions, sub)
+		if err := session.Store().Put(settingsKey, settings); err != nil {
+			return err
+		}
+		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))
+	}
 }
 
 type CalendarRenderData struct {
@@ -168,6 +303,7 @@ type Settings struct {
 	TaskFilter       bool
 	VisibleTasks     []string
 	ShowCompleted    bool
+	Subscriptions    []Subscription
 }
 
 type TasksRenderData struct {
@@ -339,7 +475,8 @@ func getFirstTodo(cal *ical.Calendar) *ical.Component {
 // which calendars the account chose to see.
 func eventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
 
-// visibleCalendars are dav.Visible's calendars of one kind.
+// visibleCalendars are dav.Visible's calendars of one kind, with the
+// feeds the account follows beside the server's.
 func visibleCalendars(accounts []dav.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []dav.Site[*caldav.Client], error) {
 	return dav.Visible(accounts, scope, only, func(acc dav.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings, err := loadSettings(acc.Session.Store())
@@ -349,6 +486,11 @@ func visibleCalendars(accounts []dav.Account[*caldav.Client], scope string, only
 		var cals []dav.Collection
 		for _, cal := range acc.Collections {
 			if kind(cal.Components) {
+				cals = append(cals, cal)
+			}
+		}
+		for _, sub := range settings.Subscriptions {
+			if cal := sub.info(acc.Name); kind(cal.Components) {
 				cals = append(cals, cal)
 			}
 		}
@@ -411,12 +553,14 @@ func registerRoutes(p *plugin) {
 
 	GET("/calendar/:path/raw", p.rawObject)
 	GET("/tasks/:path/raw", p.rawObject)
+	GET("/calendars/subscribe", handleSubscribe(p))
+	POST("/calendars/subscribe", handleSubscribe(p))
 	page := p.collectionPage()
 	GET("/calendars/create", page.HandleCreate(p.dav, p.createForm))
 	POST("/calendars/create", page.HandleCreate(p.dav, p.createForm))
 	GET("/calendars/:path", page.Handle(p.dav))
-	POST("/calendars/:path", page.Handle(p.dav))
-	POST("/calendars/:path/delete", page.HandleDelete(p.dav))
+	POST("/calendars/:path", p.forSubscription(p.updateSubscription, page.Handle(p.dav)))
+	POST("/calendars/:path/delete", p.forSubscription(p.unsubscribe, page.HandleDelete(p.dav)))
 	POST("/calendars/:path/import", page.HandleImport(p.dav))
 	GET("/calendars/:path/export", page.HandleExport(p.dav))
 	GET("/calendar/create", p.updateEvent)
@@ -575,6 +719,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	events = append(events, subscriptionObjects(calendarInfos, ctx.URLAccount())...)
 
 	dates := make([]time.Time, rows*7)
 	d := gridStart
@@ -712,6 +857,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	events = append(events, subscriptionObjects(calendarInfos, ctx.URLAccount())...)
 
 	// The same two shapes as the month grid: expanded instances, or a
 	// master still carrying its rule. Only what falls in the day is

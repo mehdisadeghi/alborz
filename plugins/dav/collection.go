@@ -57,6 +57,9 @@ type Collection struct {
 	// when it is the sole one: pressing the same link again is how a
 	// reader gets back out of a view they pressed their way into.
 	Only bool
+	// Address is the feed a subscribed calendar is read from; empty for
+	// a collection held on the account's own server.
+	Address string
 }
 
 // Listed is one collection with the properties it was read from, for
@@ -166,14 +169,16 @@ func At(colls []Collection, path string) *Collection {
 }
 
 // Holding is the account's collection an object lies in, or nil: an
-// object's path starts with its collection's. A list that pools no
-// accounts names none on its collections, and is asked with none.
+// object's path starts with its collection's. A feed's object is named
+// by the feed's address rather than by a path under a collection, so a
+// subscription matches on that. A list that pools no accounts names
+// none on its collections, and is asked with none.
 func Holding(colls []Collection, account, path string) *Collection {
 	for i := range colls {
 		if colls[i].Account != account {
 			continue
 		}
-		if strings.HasPrefix(path, colls[i].Path) {
+		if strings.HasPrefix(path, colls[i].Path) || (colls[i].Address != "" && path == colls[i].Address) {
 			return &colls[i]
 		}
 	}

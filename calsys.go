@@ -21,6 +21,8 @@ import (
 // calendarSystems; nothing else needs to change.
 type CalendarSystem interface {
 	Name() string
+	// RSCALE is the calendar's name in a recurrence rule (RFC 7529 4.1).
+	RSCALE() string
 	// Date reads t in this calendar, and Time is midnight on a date of it.
 	Date(t time.Time) (year, month, day int)
 	Time(year, month, day int, loc *time.Location) time.Time
@@ -60,9 +62,21 @@ func Calendar(name string) CalendarSystem {
 	return gregorian{}
 }
 
+// CalendarOfRSCALE is the system a rule counts in; a scale nobody here
+// knows is reported, since its rule cannot be expanded.
+func CalendarOfRSCALE(scale string) (CalendarSystem, bool) {
+	for _, name := range calendarSystems {
+		if cal := Calendar(name); strings.EqualFold(cal.RSCALE(), scale) {
+			return cal, true
+		}
+	}
+	return gregorian{}, false
+}
+
 type gregorian struct{}
 
-func (gregorian) Name() string { return gregorianName }
+func (gregorian) Name() string   { return gregorianName }
+func (gregorian) RSCALE() string { return "GREGORIAN" }
 func (gregorian) Date(t time.Time) (int, int, int) {
 	y, m, d := t.Date()
 	return y, int(m), d
@@ -97,7 +111,8 @@ func (gregorian) WeekStarts() time.Weekday { return time.Monday }
 
 type solarHijri struct{}
 
-func (solarHijri) Name() string { return shcalName }
+func (solarHijri) Name() string   { return shcalName }
+func (solarHijri) RSCALE() string { return "PERSIAN" }
 func (solarHijri) Date(t time.Time) (int, int, int) {
 	gy := t.Year()
 	jy := gy - 621

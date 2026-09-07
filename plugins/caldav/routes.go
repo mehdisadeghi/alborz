@@ -346,6 +346,9 @@ type EventRenderData struct {
 	Rail     dav.Rail
 	Calendar *CalendarInfo
 	Event    CalendarObject
+	// Repeats says the event's rule in words, or nothing, and
+	// RepeatsUntil its last day, kept apart to be read left to right.
+	Repeats, RepeatsUntil string
 }
 
 type UpdateEventRenderData struct {
@@ -366,6 +369,9 @@ type UpdateEventRenderData struct {
 	// Attendees are the addresses invited, one per line. Naming anybody
 	// makes this account the organizer and sends an invitation on save.
 	Attendees string
+	Repeat    Repeat
+	// RepeatFreqs are the rules the form offers, in its order.
+	RepeatFreqs []string
 
 	// Error is shown as an alert on the form just submitted: invalid
 	// input is answered by the page itself, never by a status page.
@@ -471,7 +477,9 @@ func newEventStart(ctx *alborz.Context, loc *time.Location) time.Time {
 // when is the day a new event starts on: the page that opened the form
 // knows which day the reader is looking at, and typing it again is the
 // only alternative. It is ignored once the event has a start of its own.
-func fillEventForm(d *UpdateEventRenderData, loc *time.Location, when time.Time) {
+func fillEventForm(ctx *alborz.Context, d *UpdateEventRenderData, loc *time.Location, when time.Time) {
+	d.RepeatFreqs = repeatFreqs
+	d.Repeat = formRepeat(ctx, d.Event, loc)
 	start, _ := d.Event.DateTimeStart(loc)
 	end, _ := d.Event.DateTimeEnd(loc)
 	if prop := d.Event.Props.Get(ical.PropDateTimeStart); prop != nil {
@@ -1131,12 +1139,14 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "event.html", &EventRenderData{
+	data := &EventRenderData{
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Event:          CalendarObject{CalendarObject: event},
-	})
+	}
+	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborzbase.UserLocation(ctx))
+	return ctx.Render(http.StatusOK, "event.html", data)
 }
 
 // feedEvent shows one event of a subscribed feed. The feed is one
@@ -1148,17 +1158,20 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 	if err != nil {
 		return err
 	}
-	summary, _ := cal.Events()[0].Props.Text(ical.PropSummary)
+	event := cal.Events()[0]
+	summary, _ := event.Props.Text(ical.PropSummary)
 	rail, err := p.eventRail(ctx)
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "event.html", &EventRenderData{
+	data := &EventRenderData{
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       info,
 		Event:          CalendarObject{CalendarObject: &caldav.CalendarObject{Path: address, Data: cal}, Color: info.Color, ReadOnly: true},
-	})
+	}
+	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &event, alborzbase.UserLocation(ctx))
+	return ctx.Render(http.StatusOK, "event.html", data)
 }
 
 // feedObject is one event of a subscribed feed as a calendar of its
@@ -1273,6 +1286,8 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 				EndTime:        ctx.FormValue("end"),
 				StartDate:      ctx.FormValue("start_date"),
 				EndDate:        ctx.FormValue("end_date"),
+				Repeat:         Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.FormValue("until")},
+				RepeatFreqs:    repeatFreqs,
 				Error:          message,
 			})
 		}
@@ -1339,6 +1354,9 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			event.Props.SetDateTime(ical.PropDateTimeEnd, end)
 		}
 		event.Props.Del(ical.PropDuration)
+		if err := setRepeat(ctx, event, Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.FormValue("until")}, start, allDay, loc); err != nil {
+			return reject(ctx.T("form.repeatuntil"))
+		}
 
 		if description != "" {
 			description = strings.ReplaceAll(description, "\r", "")
@@ -1412,7 +1430,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		CalendarObject: co,
 		Event:          event,
 	}
-	fillEventForm(data, loc, newEventStart(ctx, loc))
+	fillEventForm(ctx, data, loc, newEventStart(ctx, loc))
 	return ctx.Render(http.StatusOK, "update-event.html", data)
 }
 

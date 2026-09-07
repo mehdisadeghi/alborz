@@ -44,6 +44,12 @@
             <th scope="row">{{$.T "calendar.enddate"}}</th>
             <td>{{ template "date-full" (dict "g" .Global "time" ($event.DateTimeEnd nil)) }}</td>
           </tr>
+          {{ with .Repeats }}
+          <tr>
+            <th scope="row">{{$.T "calendar.repeat"}}</th>
+            <td>{{.}}{{ with $.RepeatsUntil }} {{ template "ltr" . }}{{ end }}</td>
+          </tr>
+          {{ end }}
           <!-- TODO: List of attendees, room -->
           {{/* Reminders set in another client. Nothing here sends one -
                Alborz has nothing that wakes up - so the row states when

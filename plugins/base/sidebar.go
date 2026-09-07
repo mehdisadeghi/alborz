@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
@@ -330,9 +331,19 @@ func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []stri
 		}
 	}
 
+	listed := make(map[string]*imap.StatusData, len(l.sb.mailboxes))
+	for _, m := range l.sb.mailboxes {
+		if m.Status != nil {
+			listed[m.Mailbox] = m.Status
+		}
+	}
 	l.names = countedMailboxes(l.sb.mailboxes, mboxName, subs)
 	l.cmds = make([]*imapclient.StatusCommand, len(l.names))
 	for i, name := range l.names {
+		if st, ok := listed[name]; ok {
+			l.sb.statuses[name] = &MailboxStatus{StatusData: st}
+			continue
+		}
 		l.cmds[i] = c.Status(name, listingStatusOptions(c))
 	}
 	return l, nil
@@ -341,6 +352,9 @@ func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []stri
 // finish drains the STATUS commands and completes the sidebar.
 func (l *sidebarLoad) finish() (sidebar, error) {
 	for i, cmd := range l.cmds {
+		if cmd == nil {
+			continue
+		}
 		data, err := cmd.Wait()
 		if err != nil {
 			// A subscription naming a folder that no longer exists must

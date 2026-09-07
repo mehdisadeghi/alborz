@@ -238,7 +238,7 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 	}
 
 	err = sender.DoIMAP(func(c *imapclient.Client) error {
-		_, err := appendMessage(c, msg, "sent")
+		_, _, err := appendMessage(c, msg, "sent")
 		return err
 	})
 	if err != nil {
@@ -489,7 +489,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				uid    imap.UID
 			)
 			err = ctx.DoIMAP(func(c *imapclient.Client) error {
-				drafts, err = appendMessage(c, msg, "drafts")
+				drafts, uid, err = appendMessage(c, msg, "drafts")
 				if err != nil {
 					return err
 				}
@@ -504,7 +504,11 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 					return err
 				}
 
-				// TODO: use APPENDUID instead when available
+				// Without UIDPLUS the server names no UID, and the
+				// draft is found again by the Message-ID it was given.
+				if uid != 0 {
+					return nil
+				}
 				criteria := imap.SearchCriteria{
 					Header: []imap.SearchCriteriaHeaderField{
 						{Key: "Message-Id", Value: msg.MessageID},

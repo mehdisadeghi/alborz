@@ -55,6 +55,11 @@ func handleLogin(ctx *alborz.Context) error {
 				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("notice.loginerror"), domainErr.Error())}
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
 			}
+			var baseline alborz.BaselineError
+			if errors.As(err, &baseline) {
+				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("notice.loginerror"), baseline.Error())}
+				return ctx.Render(http.StatusBadGateway, "login.html", &renderData)
+			}
 			var netErr *net.OpError
 			if errors.As(err, &netErr) {
 				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("notice.loginerror"), netErr.Err)}

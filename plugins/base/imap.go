@@ -146,8 +146,15 @@ func (mbox *MailboxInfo) IsInternal() bool {
 // caller can pipeline further commands behind it on the same connection and
 // pay one round trip for all of them. Counts come from a scoped STATUS pass
 // instead of LIST-STATUS, so the server is not asked to count every folder.
+// startListMailboxes issues the LIST, with each folder's counts riding
+// on it where the server offers that (LIST-STATUS, RFC 5819), so the
+// sidebar needs no STATUS of its own for those.
 func startListMailboxes(conn *imapclient.Client) *imapclient.ListCommand {
-	return conn.List("", "*", nil)
+	var options *imap.ListOptions
+	if conn.Caps().Has(imap.CapListStatus) {
+		options = &imap.ListOptions{ReturnStatus: listingStatusOptions(conn)}
+	}
+	return conn.List("", "*", options)
 }
 
 // finishListMailboxes drains a command from startListMailboxes into the
@@ -1758,20 +1765,23 @@ func storeFlags(conn *imapclient.Client, mboxName string, set imap.NumSet, op im
 	return conn.Store(set, &imap.StoreFlags{Op: op, Silent: true, Flags: flags}, nil).Close()
 }
 
-func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*MailboxInfo, error) {
+// appendMessage files a message into the folder of a role and returns
+// the folder and the UID the server gave the message, which it names
+// only with UIDPLUS (RFC 4315, APPENDUID); zero says it did not.
+func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*MailboxInfo, imap.UID, error) {
 	mbox, err := getMailboxByRole(c, role)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if mbox == nil {
-		return nil, fmt.Errorf("Unable to resolve mailbox")
+		return nil, 0, fmt.Errorf("Unable to resolve mailbox")
 	}
 
 	// IMAP needs to know in advance the final size of the message, so
 	// there's no way around storing it in a buffer here.
 	var buf bytes.Buffer
 	if err := msg.WriteMessage(&buf); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	flags := []imap.Flag{imap.FlagSeen}
@@ -1782,12 +1792,16 @@ func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*Ma
 	appendCmd := c.Append(mbox.Name(), int64(buf.Len()), &options)
 	defer appendCmd.Close()
 	if _, err := io.Copy(appendCmd, &buf); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := appendCmd.Close(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return mbox, nil
+	data, err := appendCmd.Wait()
+	if err != nil {
+		return nil, 0, err
+	}
+	return mbox, data.UID, nil
 }
 
 func deleteMessage(conn *imapclient.Client, mboxName string, uid imap.UID) error {

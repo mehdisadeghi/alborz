@@ -18,6 +18,12 @@
       {{/* Where you are, on every page that has a where. */}}
       {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb "class" "narrow-crumb") }}
 
+      {{/* Bare terms reached the headers only, since this server holds
+           no index; the whole message is a slower search the reader
+           asks for by name. */}}
+      {{ with .TextQuery }}
+      <p class="hint search-widen"><a href="?query={{ . | urlquery }}{{ with $.GlobalData.URLAccount }}&account={{ . | addr }}{{ end }}{{ if $.GlobalData.Unified }}&all=1{{ end }}">{{ $.T "mailbox.searchtext" }}</a></p>
+      {{ end }}
       <section class="messages">
         <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
           {{/* Header row; the labels sort where the server can. */}}

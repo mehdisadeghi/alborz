@@ -91,17 +91,6 @@
 
 
         <div class="action-group">
-          <label for="search_body" class="checkbox">
-            <input
-              type="checkbox"
-              name="search_body"
-              id="search_body"
-              {{ if not .Settings.SearchHeadersOnly }}checked{{ end }} />
-            {{$.T "settings.searchbody"}}
-          </label>
-        </div>
-
-        <div class="action-group">
           <label for="timezone">{{$.T "settings.timezone"}}</label>
           <input
             type="text"

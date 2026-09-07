@@ -58,9 +58,6 @@ type Settings struct {
 	// silence, since the whole point is knowing who wrote the line.
 	TrustedAuthServ string
 
-	// Stored negated so the zero value keeps body search on by default.
-	SearchHeadersOnly bool
-
 	// ReplyBelowQuote puts the reply after the quoted message, the way a
 	// mailing list expects it, instead of before. Stored positively:
 	// the zero value keeps the reply on top, which is what a mail client
@@ -492,7 +489,6 @@ func handleSettings(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		settings.SearchHeadersOnly = ctx.FormValue("search_body") != "on"
 		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
 		settings.PreferHTML = ctx.FormValue("prefer_html") != ""
 		settings.SendHTML = ctx.FormValue("send_html") != ""

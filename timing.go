@@ -98,8 +98,12 @@ func AddTiming(reqCtx context.Context, kind string, start time.Time) {
 
 // DoIMAP runs the IMAP operation and attributes its duration to the request.
 func (ctx *Context) DoIMAP(f func(*imapclient.Client) error) error {
+	return ctx.DoIMAPWithin(RoundTripTimeout, f)
+}
+
+func (ctx *Context) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
 	start := time.Now()
-	err := ctx.Session.DoIMAP(f)
+	err := ctx.Session.DoIMAPWithin(bound, f)
 	ctx.timing.add("imap", start, time.Now())
 	return err
 }

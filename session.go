@@ -44,6 +44,11 @@ const (
 	// like a broken one.
 	RoundTripTimeout = 10 * time.Second
 
+	// ScanTimeout bounds the one exchange the reader asked for knowing
+	// it is slow: a whole-message search on a server without an index,
+	// which reads every message of the folder.
+	ScanTimeout = 2 * time.Minute
+
 	// sessionDuration is how long a session outlives its last request.
 	sessionDuration = 30 * time.Minute
 )
@@ -204,7 +209,12 @@ func (s *Session) Domain() string {
 
 // DoIMAP executes an IMAP operation on this session. The IMAP client can only
 // be used from inside f.
-func (s *Session) DoIMAP(f func(*imapclient.Client) error) (err error) {
+func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
+	return s.DoIMAPWithin(RoundTripTimeout, f)
+}
+
+// DoIMAPWithin is DoIMAP with the bound named by the caller.
+func (s *Session) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) (err error) {
 	s.imapLocker.Lock()
 	defer s.imapLocker.Unlock()
 
@@ -225,14 +235,14 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) (err error) {
 	// TODO: to avoid races wrt. disconnection, re-run f if it returns
 	// io.UnexpectedEOF
 	c := s.imapConn
-	watchdog := time.AfterFunc(RoundTripTimeout, func() { c.Close() })
+	watchdog := time.AfterFunc(bound, func() { c.Close() })
 	// Stopped in a defer: a panic in f used to skip the stop, the
 	// watchdog then closed a connection the session still held, and
 	// every later request on the session waited its own timeout out.
 	defer func() {
 		if !watchdog.Stop() {
 			s.imapConn = nil
-			err = UpstreamError{Service: "mail", After: RoundTripTimeout, cause: err}
+			err = UpstreamError{Service: "mail", After: bound, cause: err}
 		}
 	}()
 	return f(c)

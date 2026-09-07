@@ -4116,7 +4116,7 @@ h1.no-word .title-short {
     width: var(--drawer-width);
     z-index: 21;
     padding: 0.75rem;
-    background-color: var(--bg);
+    background-color: var(--surface-raised);
     border-top: 1px solid var(--border);
     border-inline-end: 1px solid var(--border);
   }
@@ -4131,6 +4131,8 @@ h1.no-word .title-short {
     box-shadow: none;
   }
 
+  /* The drawer and the dock float over the page, so they paint on the
+     raised surface a theme keeps opaque. */
   aside {
     position: fixed;
     inset-block: 0;
@@ -4139,7 +4141,7 @@ h1.no-word .title-short {
     z-index: 20;
     overflow-y: auto;
     padding-bottom: 10rem; /* room for the docked account block */
-    background-color: var(--bg);
+    background-color: var(--surface-raised);
     border-inline-end: 1px solid var(--border);
     transition: inset-inline-start 0.15s ease-out;
   }

@@ -1,0 +1,58 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ $aq := account "?" .GlobalData.URLAccount }}
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="list">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
+        {{ template "list-toolbar" (dict "title" ($.T "filters.autoreply") "newhref" (printf "/filters/autoreply/create%s" $aq) "newlabel" ($.T "filters.replynew")) }}
+      </section>
+
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" ($.T "filters.autoreply") "path" "/filters/autoreply") }}
+
+      {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
+      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="/filters/{{.Script | pathescape}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
+
+      {{/* One reply is sent at a time, so the rows work like the
+           scripts: one is active, and activating another takes its
+           place. */}}
+      <section class="list-items">
+        {{ range $i, $r := .Replies }}
+        <div class="list-item">
+          <div class="list-content">
+            <a href="/filters/autoreply/{{$i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
+            <span class="list-detail" dir="auto">{{ with .From }}{{.}}{{ end }}{{ if or .From .Until }} – {{ end }}{{ with .Until }}{{.}}{{ end }}{{ if or .From .Until }} · {{ end }}{{ with .Subject }}{{.}}{{ else }}{{.Text}}{{ end }}</span>
+            {{ if eq $i $.Active }}<span class="list-meta">{{$.T "filters.active"}}</span>{{ end }}
+          </div>
+          <form method="post" action="/filters/autoreply/activate{{$aq}}">
+            <input type="hidden" name="loaded" value="{{$.Loaded}}">
+            {{ if eq $i $.Active }}
+            <input type="hidden" name="index" value="">
+            <button>{{$.T "filters.deactivate"}}</button>
+            {{ else }}
+            <input type="hidden" name="index" value="{{$i}}">
+            <button>{{$.T "filters.activate"}}</button>
+            {{ end }}
+          </form>
+          <form method="post" action="/filters/autoreply/delete{{$aq}}">
+            <input type="hidden" name="loaded" value="{{$.Loaded}}">
+            <input type="hidden" name="index" value="{{$i}}">
+            <button class="button-danger">{{$.T "common.delete"}}</button>
+          </form>
+        </div>
+        {{ end }}
+        {{ if not .Replies }}
+        <p class="empty-list">{{$.T "filters.repliesnone"}}</p>
+        {{ end }}
+      </section>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

@@ -947,6 +947,9 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	if strings.Contains(path, "://") {
+		return p.feedEvent(ctx, path)
+	}
 
 	calendar := dav.Holding(calendars, "", path)
 	if calendar == nil {
@@ -1001,6 +1004,65 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		Calendar:       calendar,
 		Event:          CalendarObject{CalendarObject: event},
 	})
+}
+
+// feedEvent shows one event of a subscribed feed. The feed is one
+// object holding every event, so the URL names the event by UID and
+// the page is given a calendar holding that event alone, with the
+// zones it may refer to. Nothing on it can be edited.
+func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
+	info, cal, err := feedObject(ctx, address, ctx.QueryParam("uid"))
+	if err != nil {
+		return err
+	}
+	summary, _ := cal.Events()[0].Props.Text(ical.PropSummary)
+	rail, err := p.eventRail(ctx)
+	if err != nil {
+		return err
+	}
+	return ctx.Render(http.StatusOK, "event.html", &EventRenderData{
+		Rail:           rail,
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
+		Calendar:       info,
+		Event:          CalendarObject{CalendarObject: &caldav.CalendarObject{Path: address, Data: cal}, Color: info.Color, ReadOnly: true},
+	})
+}
+
+// feedObject is one event of a subscribed feed as a calendar of its
+// own, with the zones it may refer to. A subscription is the account's
+// own, kept in its settings beside the server's calendars rather than
+// among them.
+func feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ical.Calendar, error) {
+	settings, err := loadSettings(ctx.Session.Store())
+	if err != nil {
+		return nil, nil, err
+	}
+	var info *dav.Collection
+	for _, s := range settings.Subscriptions {
+		if s.URL == address {
+			i := s.info(ctx.Session.Username())
+			info = &i
+		}
+	}
+	if info == nil {
+		return nil, nil, alborz.NotFoundf("no subscription at %q", address)
+	}
+	feed, ok := subs.events(address, info.Color)
+	if !ok {
+		return nil, nil, alborz.NotFoundf("feed %q not fetched yet", address)
+	}
+	cal := ical.NewCalendar()
+	cal.Props = feed.Data.Props
+	for _, ch := range feed.Data.Children {
+		id, _ := ch.Props.Text(ical.PropUID)
+		if ch.Name == ical.CompTimezone || (ch.Name == ical.CompEvent && id == uid) {
+			cal.Children = append(cal.Children, ch)
+		}
+	}
+	if len(cal.Events()) == 0 {
+		return nil, nil, alborz.NotFoundf("no such event")
+	}
+	return info, cal, nil
 }
 
 func (p *plugin) updateEvent(ctx *alborz.Context) error {
@@ -1254,7 +1316,25 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 }
 
 func (p *plugin) rawObject(ctx *alborz.Context) error {
-	return dav.Raw(ctx, p.client)
+	path, err := dav.ParseObjectPath(ctx.Param("path"))
+	if err != nil {
+		return err
+	}
+	if !strings.Contains(path, "://") {
+		return dav.Raw(ctx, p.client)
+	}
+	// An event of a feed has no object of its own on any server; it is
+	// handed over as the calendar the page shows.
+	uid := ctx.QueryParam("uid")
+	_, cal, err := feedObject(ctx, path, uid)
+	if err != nil {
+		return err
+	}
+	var buf bytes.Buffer
+	if err := ical.NewEncoder(&buf).Encode(cal); err != nil {
+		return err
+	}
+	return dav.ServeRaw(ctx, uid+".ics", &buf)
 }
 
 // Tasks routes

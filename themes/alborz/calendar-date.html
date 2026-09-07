@@ -21,18 +21,7 @@
         <div class="event-grid" role="table">
           {{if .Events}}
           {{ template "event-grid-header" (dict "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
-          {{range .Events}}
-          {{ $obj := . }}
-          {{ $when := $.T "calendar.allday" }}{{ if not .AllDay }}{{ $when = $base.GlobalData.FormatTime .Start }}{{ end }}
-          {{ $href := $obj.URL }}{{ with $obj.Account }}{{ $href = printf "%s?account=%s" $obj.URL (. | addr) }}{{ end }}
-          {{ template "event-row" (dict
-             "href" $href
-             "when" $when
-             "summary" .Summary
-             "color" (call $base.ColorForPath .Account .Path)
-             "owner" (call $base.OwnerLabel .Account .Path)
-             "timeLabel" ($.T "calendar.time") "eventLabel" ($.T "calendar.event") "calendarLabel" ($.T "common.calendar")) }}
-          {{end}}
+          {{ template "event-rows" (dict "events" .Events "base" $base) }}
           {{else}}
           <p class="empty-list">{{$.T "calendar.noeventsday"}}</p>
           {{end}}

@@ -3,7 +3,6 @@ package alborzbase
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -475,7 +474,7 @@ func handleSettings(ctx *alborz.Context) error {
 	}
 
 	if ctx.Request().Method == http.MethodPost {
-		settings.MessagesPerPage, err = strconv.Atoi(alborz.LatinDigits(ctx.FormValue("messages_per_page")))
+		settings.MessagesPerPage, err = alborz.ReadInt(ctx.FormValue("messages_per_page"))
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage))
 		}
@@ -498,7 +497,7 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.PreferHTML = ctx.FormValue("prefer_html") != ""
 		settings.SendHTML = ctx.FormValue("send_html") != ""
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
-			settings.FirstDayOfWeek, err = strconv.Atoi(alborz.LatinDigits(fdow))
+			settings.FirstDayOfWeek, err = alborz.ReadInt(fdow)
 			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {
 				return reject(ctx.T("form.firstday"))
 			}

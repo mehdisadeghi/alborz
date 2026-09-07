@@ -540,7 +540,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 				AddressObject:  ao,
 				Card:           card,
 				Name:           fn,
-				Birthday:       birthdayValue(card),
+				Birthday:       ctx.FormValue("bday"),
 				Photo:          card.PreferredValue(vcard.FieldPhoto),
 				Error:          message,
 			})
@@ -610,7 +610,15 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		}
 		setValue(vcard.FieldOrganization, strings.TrimSpace(ctx.FormValue("org")))
 		setValue(vcard.FieldTitle, strings.TrimSpace(ctx.FormValue("title")))
-		setValue(vcard.FieldBirthday, strings.ReplaceAll(ctx.FormValue("bday"), "-", ""))
+		birthday := strings.TrimSpace(ctx.FormValue("bday"))
+		if birthday != "" {
+			day, err := ctx.ReadDate(birthday, time.UTC)
+			if err != nil {
+				return reject(ctx.T("form.birthday"))
+			}
+			birthday = day.Format("20060102")
+		}
+		setValue(vcard.FieldBirthday, birthday)
 		setValue(vcard.FieldURL, strings.TrimSpace(ctx.FormValue("url")))
 		setValue(vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
 

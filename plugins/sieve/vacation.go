@@ -282,7 +282,7 @@ func replyFromForm(ctx *alborz.Context) (Reply, error) {
 		From:      strings.TrimSpace(ctx.FormValue("from")),
 		Until:     strings.TrimSpace(ctx.FormValue("until")),
 	}
-	v.Days, err = strconv.Atoi(alborz.LatinDigits(ctx.FormValue("days")))
+	v.Days, err = alborz.ReadInt(ctx.FormValue("days"))
 	switch {
 	case v.Name == "":
 		return v, errors.New(ctx.T("form.nameneeded"))
@@ -291,10 +291,15 @@ func replyFromForm(ctx *alborz.Context) (Reply, error) {
 	case err != nil || v.Days < 1 || v.Days > vacationDaysMax:
 		return v, fmt.Errorf(ctx.T("filters.baddays"), vacationDaysMax)
 	}
-	for _, d := range []string{v.From, v.Until} {
-		if _, err := time.Parse(dateLayout, d); d != "" && err != nil {
+	for _, bound := range []*string{&v.From, &v.Until} {
+		if *bound == "" {
+			continue
+		}
+		day, err := ctx.ReadDate(*bound, time.UTC)
+		if err != nil {
 			return v, errors.New(ctx.T("filters.baddate"))
 		}
+		*bound = day.Format(dateLayout)
 	}
 	if v.From != "" && v.Until != "" && v.Until < v.From {
 		return v, errors.New(ctx.T("filters.baddate"))

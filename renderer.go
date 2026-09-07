@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -486,6 +487,12 @@ func LatinDigits(s string) string {
 		}
 		return r
 	}, s)
+}
+
+// ReadInt reads a whole number as typed: in either digit shape, and
+// with the thousands separator of the language left in.
+func ReadInt(s string) (int, error) {
+	return strconv.Atoi(strings.NewReplacer("٬", "", ",", "").Replace(LatinDigits(strings.TrimSpace(s))))
 }
 
 // shapeDigits rewrites the digits of a string that came back from a

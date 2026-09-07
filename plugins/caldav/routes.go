@@ -424,7 +424,10 @@ type UpdateTaskRenderData struct {
 	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject
 	Todo           *ical.Component
-	Error          string
+	// Due is the due date as the field holds it: what was typed, or
+	// what the task has.
+	Due   string
+	Error string
 }
 
 const (
@@ -446,14 +449,6 @@ func getCalendarObject(ctx *alborz.Context, c *caldav.Client, path string) (*cal
 		return nil, err
 	}
 	return &caldav.CalendarObject{Path: path, Data: cal}, nil
-}
-
-func parseDateTime(s string, loc *time.Location) (time.Time, error) {
-	t, err := time.ParseInLocation(inputDateTimeLayout, s, loc)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("malformed datetime: %v", err)
-	}
-	return t, nil
 }
 
 // newEventStart reads the ?date= a create link carries and keeps the
@@ -488,9 +483,9 @@ func fillEventForm(d *UpdateEventRenderData, loc *time.Location, when time.Time)
 	if !end.After(start) {
 		end = start.Add(time.Hour)
 	}
-	d.StartTime = start.Format(inputDateTimeLayout)
-	d.EndTime = end.Format(inputDateTimeLayout)
-	d.StartDate = start.Format(datePageLayout)
+	d.StartTime = d.GlobalData.InputDateTime(start)
+	d.EndTime = d.GlobalData.InputDateTime(end)
+	d.StartDate = d.GlobalData.InputDate(start)
 	last := end
 	if d.AllDay {
 		last = end.AddDate(0, 0, -1)
@@ -498,7 +493,7 @@ func fillEventForm(d *UpdateEventRenderData, loc *time.Location, when time.Time)
 			last = start
 		}
 	}
-	d.EndDate = last.Format(datePageLayout)
+	d.EndDate = d.GlobalData.InputDate(last)
 	d.Attendees = attendeeLines(d.Event)
 }
 
@@ -516,16 +511,6 @@ func onlyCollections(ctx *alborz.Context, field string) map[string]bool {
 		only[dav.CanonicalCollectionPath(v)] = true
 	}
 	return only
-}
-
-// parseDate reads a bare day from a date input, which is what an
-// all-day event is given in.
-func parseDate(s string, loc *time.Location) (time.Time, error) {
-	t, err := time.ParseInLocation(datePageLayout, s, loc)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("malformed date: %v", err)
-	}
-	return t, nil
 }
 
 func loadSettings(store alborz.Store) (*Settings, error) {
@@ -1313,11 +1298,11 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		allDay := ctx.FormValue("allday") != ""
 		var start, end time.Time
 		if allDay {
-			start, err = parseDate(ctx.FormValue("start_date"), loc)
+			start, err = ctx.ReadDate(ctx.FormValue("start_date"), loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
-			end, err = parseDate(ctx.FormValue("end_date"), loc)
+			end, err = ctx.ReadDate(ctx.FormValue("end_date"), loc)
 			if err != nil {
 				end = start
 			}
@@ -1328,11 +1313,11 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			// wants the day after it, since DTEND is exclusive.
 			end = end.AddDate(0, 0, 1)
 		} else {
-			start, err = parseDateTime(ctx.FormValue("start"), loc)
+			start, err = ctx.ReadDateTime(ctx.FormValue("start"), loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
-			end, err = parseDateTime(ctx.FormValue("end"), loc)
+			end, err = ctx.ReadDateTime(ctx.FormValue("end"), loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
@@ -1807,6 +1792,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 				Calendar:       currentCalendar,
 				CalendarObject: co,
 				Todo:           todo,
+				Due:            dueDate,
 				Error:          message,
 			})
 		}
@@ -1840,7 +1826,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		// so a dated task is bracketed by its own due date.
 		due := time.Now().In(loc)
 		if dueDate != "" {
-			at, err := time.ParseInLocation(inputDateLayout, dueDate, loc)
+			at, err := ctx.ReadDate(dueDate, loc)
 			if err != nil {
 				return reject(ctx.T("form.duedate"))
 			}
@@ -1881,6 +1867,14 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 	}
 
 	summary, _ := todo.Props.Text("SUMMARY")
+	var due string
+	if prop := todo.Props.Get(ical.PropDue); prop != nil {
+		at, err := prop.DateTime(loc)
+		if err != nil {
+			return err
+		}
+		due = ctx.InputDate(at)
+	}
 
 	rail, err := p.taskRail(ctx)
 	if err != nil {
@@ -1893,6 +1887,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		Calendar:       currentCalendar,
 		CalendarObject: co,
 		Todo:           todo,
+		Due:            due,
 	})
 }
 func (p *plugin) deleteTask(ctx *alborz.Context) error {

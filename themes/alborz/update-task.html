@@ -23,12 +23,9 @@
 
         {{$summary := ""}}
         {{$desc := ""}}
-        {{$due := ""}}
         {{if .Todo}}
           {{$summary = .Todo.Props.Text "SUMMARY"}}
           {{$desc = .Todo.Props.Text "DESCRIPTION"}}
-          {{$dueProp := .Todo.Props.Get "DUE"}}
-          {{if $dueProp}}{{$due = $dueProp.Value}}{{end}}
         {{end}}
 
         {{if not .CalendarObject}}
@@ -37,7 +34,7 @@
         {{end}}
 
         {{ template "field" (dict "label" ($.T "tasks.summary") "name" "summary" "value" $summary "dir" "auto" "required" true) }}
-        {{ template "field" (dict "label" ($.T "tasks.duedate") "name" "due-date" "type" "date" "value" $due) }}
+        {{ template "date-field" (dict "g" $ "label" ($.T "tasks.duedate") "name" "due-date" "value" .Due "hint" true) }}
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" $desc "dir" "auto" "rows" "4") }}
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/tasks%s" $acct) "cancelLabel" ($.T "common.cancel")) }}

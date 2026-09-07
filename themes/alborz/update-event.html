@@ -39,6 +39,19 @@
         {{ template "date-field" (dict "g" $ "class" "timed-field" "label" ($.T "calendar.endsat") "name" "end" "time" true "value" .EndTime) }}
         {{ template "date-field" (dict "g" $ "class" "allday-field" "label" ($.T "calendar.startdate") "name" "start_date" "value" .StartDate "hint" true) }}
         {{ template "date-field" (dict "g" $ "class" "allday-field" "label" ($.T "calendar.lastday") "name" "end_date" "value" .EndDate) }}
+        <div class="field">
+          <label for="repeat">{{$.T "calendar.repeat"}}</label>
+          <select name="repeat" id="repeat">
+            <option value="" {{if eq .Repeat.Freq ""}}selected{{end}}>{{$.T "calendar.repeat.never"}}</option>
+            {{ range .RepeatFreqs }}
+            <option value="{{.}}" {{if eq . $.Repeat.Freq}}selected{{end}}>{{$.T (printf "calendar.repeat.%s" .)}}</option>
+            {{ end }}
+            {{/* A rule written elsewhere that the form cannot say is
+                 kept as it is rather than flattened into one it can. */}}
+            {{ if eq .Repeat.Freq "custom" }}<option value="custom" selected>{{$.T "calendar.repeat.custom"}}</option>{{ end }}
+          </select>
+        </div>
+        {{ template "date-field" (dict "g" $ "label" ($.T "calendar.repeatuntil") "name" "until" "value" .Repeat.Until) }}
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" (.Event.Props.Text "DESCRIPTION") "dir" "auto") }}
         {{/* Naming anybody here makes this an invitation: on save the
              account becomes the organizer and everyone listed is sent a

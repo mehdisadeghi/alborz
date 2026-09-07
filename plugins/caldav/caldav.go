@@ -344,13 +344,20 @@ func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) [
 		}
 
 		// A rule still on the component means the server did not expand
-		// it, so it is expanded here over the window being drawn.
-		set, err := event.RecurrenceSet(loc)
-		if err != nil || set == nil {
+		// it, so it is expanded here over the window being drawn. One
+		// that counts in another calendar (RFC 7529) is beyond the rule
+		// library and expanded by hand.
+		var instances []time.Time
+		if prop := event.Props.Get(ical.PropRecurrenceRule); prop != nil && strings.Contains(strings.ToUpper(prop.Value), "RSCALE=") {
+			dtstart, _ := event.Props.DateTime(ical.PropDateTimeStart, loc)
+			instances = expandRule(prop.Value, dtstart, start.Add(-span), end)
+		} else if set, err := event.RecurrenceSet(loc); err == nil && set != nil {
+			instances = set.Between(start.Add(-span), end, true)
+		} else {
 			out = append(out, Occurrence{CalendarObject: obj, Event: event, Start: first, End: last})
 			continue
 		}
-		for _, at := range set.Between(start.Add(-span), end, true) {
+		for _, at := range instances {
 			if overridden[at.Unix()] {
 				continue
 			}

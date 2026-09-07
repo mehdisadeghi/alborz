@@ -116,8 +116,6 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 				continue
 			}
 
-			// TODO: redirect mailto links to the composer
-
 			if i < link.Start {
 				para = append(para, l[i:link.Start])
 			}

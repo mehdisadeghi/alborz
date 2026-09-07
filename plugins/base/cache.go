@@ -70,9 +70,12 @@ type listingEntry struct {
 	// taken; without it a cached page forgets the folder can be read as
 	// conversations and stops offering the view.
 	threadAlgorithm imap.ThreadAlgorithm
-	snap            *imap.StatusData
-	fetched         time.Time
-	lastUse         time.Time
+	// headersOnly says a search's bare terms reached the headers and
+	// not the message, which is what the page offers to widen.
+	headersOnly bool
+	snap        *imap.StatusData
+	fetched     time.Time
+	lastUse     time.Time
 }
 
 type listingKey struct{ user, view string }

@@ -3,9 +3,11 @@ package alborzbase
 import (
 	"bufio"
 	"bytes"
+	"slices"
 	"strings"
 
 	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 func searchCriteriaHeader(k, v string) *imap.SearchCriteria {
@@ -118,15 +120,15 @@ func unquoted(key, value []byte) []byte {
 	return append(token, value...)
 }
 
-// TODO: Document search functionality somewhere
-//
-// Bare terms search TEXT: all headers and the body, matched by the
-// server. No capability reliably tells whether the server holds a
-// full-text index, so the server is trusted either way; headersOnly
-// is the per-account escape to the four-header search when an
-// unindexed scan is too slow. from:, subject:, and friends still
-// narrow the field, and body: always searches the body.
-func PrepareSearch(terms string, headersOnly bool) *imap.SearchCriteria {
+// Matching is the server's; what is alborz's is the question. A bare
+// term searches From, To, Cc and Subject, and everything - TEXT, the
+// whole message - only on a server that says it holds an index: Dovecot
+// advertises SEARCH=FUZZY (RFC 6203) exactly when its full-text plugin
+// is loaded, and without an index TEXT over a large folder is a scan of
+// minutes. text: asks for the whole message regardless, which is what
+// the results page offers when it searched headers only; from:,
+// subject: and friends narrow the field, and body: is the body alone.
+func PrepareSearch(terms string, indexed bool) *imap.SearchCriteria {
 	var criteria *imap.SearchCriteria
 
 	scanner := bufio.NewScanner(strings.NewReader(terms))
@@ -135,7 +137,10 @@ func PrepareSearch(terms string, headersOnly bool) *imap.SearchCriteria {
 	for scanner.Scan() {
 		term := scanner.Text()
 		if !strings.ContainsRune(term, ':') {
-			if headersOnly {
+			if indexed {
+				criteria = searchCriteriaAnd(
+					criteria, &imap.SearchCriteria{Text: []string{term}})
+			} else {
 				criteria = searchCriteriaAnd(
 					criteria,
 					searchCriteriaOr(
@@ -145,9 +150,6 @@ func PrepareSearch(terms string, headersOnly bool) *imap.SearchCriteria {
 						searchCriteriaHeader("Subject", term),
 					),
 				)
-			} else {
-				criteria = searchCriteriaAnd(
-					criteria, &imap.SearchCriteria{Text: []string{term}})
 			}
 		} else {
 			parts := strings.SplitN(term, ":", 2)
@@ -171,6 +173,9 @@ func PrepareSearch(terms string, headersOnly bool) *imap.SearchCriteria {
 			case "body":
 				criteria = searchCriteriaAnd(
 					criteria, &imap.SearchCriteria{Body: []string{value}})
+			case "text":
+				criteria = searchCriteriaAnd(
+					criteria, &imap.SearchCriteria{Text: []string{value}})
 			default:
 				continue
 			}
@@ -184,4 +189,46 @@ func PrepareSearch(terms string, headersOnly bool) *imap.SearchCriteria {
 		criteria = &imap.SearchCriteria{}
 	}
 	return criteria
+}
+
+// SearchesIndex says whether bare terms reach the whole message on this
+// connection, and SearchesText whether the query asks for it anyway.
+func SearchesIndex(c *imapclient.Client) bool { return c.Caps().Has(imap.CapSearchFuzzy) }
+
+func SearchesText(terms string) bool {
+	return slices.ContainsFunc(searchTokens(terms), func(t string) bool {
+		return strings.HasPrefix(strings.ToLower(t), "text:")
+	})
+}
+
+// TextQuery is the query with every bare term asked of the whole
+// message: the link a results page offers when it searched headers.
+// Empty when there is no bare term to widen.
+func TextQuery(terms string) string {
+	var out []string
+	widened := false
+	for _, t := range searchTokens(terms) {
+		if !strings.ContainsRune(t, ':') {
+			// A bare run of words is one phrase; quoted, it stays one.
+			if strings.ContainsRune(t, ' ') {
+				t = `"` + t + `"`
+			}
+			t, widened = "text:"+t, true
+		}
+		out = append(out, t)
+	}
+	if !widened {
+		return ""
+	}
+	return strings.Join(out, " ")
+}
+
+func searchTokens(terms string) []string {
+	scanner := bufio.NewScanner(strings.NewReader(terms))
+	scanner.Split(splitSearchTokens)
+	var out []string
+	for scanner.Scan() {
+		out = append(out, scanner.Text())
+	}
+	return out
 }

@@ -173,9 +173,12 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 
 	query := ctx.QueryParam("query")
 	starred := ctx.QueryParam("starred") == "1"
+	// A search's criteria are settled on the connection, which knows
+	// whether bare terms reach the whole message; until then the
+	// placeholder says only that there is a search.
 	var criteria *imap.SearchCriteria
 	if query != "" {
-		criteria = PrepareSearch(query, settings.SearchHeadersOnly)
+		criteria = &imap.SearchCriteria{}
 	} else if starred {
 		criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 	}
@@ -282,6 +285,9 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 			if !placed {
 				if err := ensureMailboxSelected(c, mboxName); err != nil {
 					return err
+				}
+				if query != "" {
+					criteria = PrepareSearch(query, SearchesIndex(c))
 				}
 				if newerUID, olderUID, position, totalMsgs, err = messageNeighbors(c, msg.SeqNum, criteria); err != nil {
 					return err

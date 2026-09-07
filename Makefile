@@ -4,7 +4,7 @@ ADDR ?= localhost:1323
 # ARGS = example.org example.com=imaps://mail.example.com example.com=smtps://mail.example.com
 ARGS ?=
 
-.PHONY: build run watch fmt test login-key
+.PHONY: build run watch fmt lint test login-key
 
 build:
 	$(GO) build -o alborz ./cmd/alborz
@@ -20,6 +20,14 @@ watch:
 
 fmt:
 	gofmt -w .
+
+# The same diagnostics the editor shows: gofmt, vet, and gopls with its
+# analyzers, which is where the modernize hints come from.
+GOPLS ?= gopls
+lint:
+	@test -z "$$(gofmt -l .)" || { gofmt -l .; exit 1; }
+	$(GO) vet ./...
+	$(GOPLS) check $$(git ls-files '*.go')
 
 # Templates, locales, and every page a signed-in reader can open, served
 # by an in-process IMAP server. No network, no rig, no credentials.

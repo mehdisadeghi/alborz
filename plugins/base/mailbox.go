@@ -187,8 +187,10 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 
 	return ctx.Render(http.StatusOK, "mailbox.html", &MailboxRenderData{
 		IMAPBaseRenderData: IMAPBaseRenderData{
-			BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
-			Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: title}, Label: title},
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
+			// The role is the name: the rail marks the row by it and the
+			// refresh form posts to it. The label is what is read.
+			Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: role}, Label: title},
 			Starred:         starred,
 			SidebarAccounts: sidebarAccounts(ctx),
 		},

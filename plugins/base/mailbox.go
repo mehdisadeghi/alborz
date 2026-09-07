@@ -23,9 +23,12 @@ type MailboxRenderData struct {
 	PrevPage, NextPage        int
 	RangeFrom, RangeTo, Total int
 	Query                     string
-	Sort                      string
-	SortDir                   string
-	SortSupported             bool
+	// TextQuery is the query widened to the whole message, offered
+	// when the search reached headers only; empty otherwise.
+	TextQuery     string
+	Sort          string
+	SortDir       string
+	SortSupported bool
 	// ThreadSupported says the server can group a folder into
 	// conversations, which is what offers the view at all.
 	ThreadSupported bool
@@ -101,12 +104,17 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	cacheable := ctx.Request().Method == http.MethodGet && page == 0
 	view := listingView("#"+role, query, starred, sortKey, sortDir)
 	spec := listingSpec{query: query, starred: starred, sortKey: sortKey, sortDir: sortDir}
+	bound := alborz.RoundTripTimeout
+	if SearchesText(query) {
+		bound = alborz.ScanTimeout
+	}
 	var (
-		mu       sync.Mutex
-		wg       sync.WaitGroup
-		msgs     []IMAPMessage
-		total    int
-		sortable = true
+		mu          sync.Mutex
+		wg          sync.WaitGroup
+		msgs        []IMAPMessage
+		total       int
+		sortable    = true
+		headersOnly bool
 	)
 	// One span across the whole fan-out: the accounts are queried
 	// concurrently, so its wall-clock is the page's IMAP time.
@@ -117,22 +125,23 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		go func() {
 			defer wg.Done()
 			user := s.Username()
-			merge := func(accountMsgs []IMAPMessage, accountTotal int) {
+			merge := func(e *listingEntry) {
 				mu.Lock()
-				msgs = append(msgs, accountMsgs...)
-				total += accountTotal
+				msgs = append(msgs, e.msgs...)
+				total += e.total
+				headersOnly = headersOnly || e.headersOnly
 				mu.Unlock()
 			}
 			if cacheable {
 				if e, state := listings.lookup(user, view, messagesPerPage); e != nil {
-					merge(e.msgs, e.total)
+					merge(e)
 					if state == listingStale {
 						revalidateUnified(s, settings, view, role, spec, e)
 					}
 					return
 				}
 			}
-			errs[i] = s.DoIMAP(func(c *imapclient.Client) error {
+			errs[i] = s.DoIMAPWithin(bound, func(c *imapclient.Client) error {
 				folder, err := resolveRole(c, user, role)
 				if err != nil || folder == "" {
 					return err
@@ -149,7 +158,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 				if cacheable && e.snap != nil {
 					listings.store(user, view, e)
 				}
-				merge(e.msgs, e.total)
+				merge(e)
 				return nil
 			})
 		}()
@@ -202,6 +211,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		RangeTo:        to,
 		Total:          total,
 		Query:          query,
+		TextQuery:      textQueryOffered(query, headersOnly),
 		PerPage:        messagesPerPage,
 		PerPageOptions: perPageOptions(settings),
 		Sort:           sortKey,
@@ -281,7 +291,8 @@ func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listing
 	var err error
 	switch {
 	case spec.query != "":
-		e.msgs, e.total, err = searchMessages(c, folder, PrepareSearch(spec.query, settings.SearchHeadersOnly), 0, window, "", true)
+		e.headersOnly = !SearchesIndex(c)
+		e.msgs, e.total, err = searchMessages(c, folder, PrepareSearch(spec.query, !e.headersOnly), 0, window, "", true)
 	case spec.starred:
 		criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 		e.msgs, e.total, err = searchMessages(c, folder, criteria, 0, window, "", true)
@@ -387,7 +398,11 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		}
 	}
 	if e == nil {
-		err = ctx.DoIMAP(func(c *imapclient.Client) error {
+		bound := alborz.RoundTripTimeout
+		if SearchesText(query) {
+			bound = alborz.ScanTimeout
+		}
+		err = ctx.DoIMAPWithin(bound, func(c *imapclient.Client) error {
 			var err error
 			e, err = fetchListing(c, spec, settings, page, messagesPerPage)
 			return err
@@ -445,6 +460,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		RangeTo:            rangeTo,
 		Total:              total,
 		Query:              query,
+		TextQuery:          textQueryOffered(query, e.headersOnly),
 		PerPage:            messagesPerPage,
 		PerPageOptions:     perPageOptions(settings),
 		Sort:               sortKey,
@@ -475,13 +491,15 @@ func fetchListing(c *imapclient.Client, spec listingSpec, settings *Settings, pa
 		// number of threads rather than a number of messages.
 		criteria := &imap.SearchCriteria{}
 		if spec.query != "" {
-			criteria = PrepareSearch(spec.query, settings.SearchHeadersOnly)
+			e.headersOnly = !SearchesIndex(c)
+			criteria = PrepareSearch(spec.query, !e.headersOnly)
 		} else if spec.starred {
 			criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 		}
 		e.msgs, e.total, err = threadMessages(c, spec.mbox, e.threadAlgorithm, criteria, page, perPage)
 	case spec.query != "":
-		e.msgs, e.total, err = searchMessages(c, spec.mbox, PrepareSearch(spec.query, settings.SearchHeadersOnly), page, perPage, spec.sortKey, reverse)
+		e.headersOnly = !SearchesIndex(c)
+		e.msgs, e.total, err = searchMessages(c, spec.mbox, PrepareSearch(spec.query, !e.headersOnly), page, perPage, spec.sortKey, reverse)
 	case spec.starred:
 		criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 		e.msgs, e.total, err = searchMessages(c, spec.mbox, criteria, page, perPage, spec.sortKey, reverse)
@@ -1103,4 +1121,13 @@ func perPage(ctx *alborz.Context, settings *Settings) int {
 		}
 	}
 	return settings.MessagesPerPage
+}
+
+// textQueryOffered is the widened query a results page offers, when the
+// search reached headers only and there is a bare term to widen.
+func textQueryOffered(query string, headersOnly bool) string {
+	if !headersOnly {
+		return ""
+	}
+	return TextQuery(query)
 }

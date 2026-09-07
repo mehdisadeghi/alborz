@@ -625,41 +625,42 @@
      open when the URL names it, its heading a link into that account's
      scope and the section's own rows under it. With one account the
      rows stand alone. The rows differ by kind; the frame does not.
-     dict: kind ("mail" "dav" "filters") path urlaccount accounts
-     (usernames) all (the merged entry's label) new (dict href label
-     active) data (the kind's own). Filters has no rows: an account's
-     scripts are the page, so its heading is the whole entry. */}}
+     dict: kind ("mail" "dav" "rows") path urlaccount accounts
+     (usernames) all (the merged entry's label, none where the section
+     has no merged view) new (dict href label active) data (the kind's
+     own: for "rows", a map from account to its RailRow list). */}}
 {{ define "scope-rail" }}
   {{ if gt (len .accounts) 1 }}
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-merged" .data }}
   {{ else }}
-  <a class="aside-account aside-all{{ if not .urlaccount }} active{{ end }}" href="{{.path}}">{{.all}}</a>
+  {{ with .all }}<a class="aside-account aside-all{{ if not $.urlaccount }} active{{ end }}" href="{{$.path}}">{{.}}</a>{{ end }}
   {{ end }}
   {{ range .accounts }}
   {{ $acct := .Username }}
-  {{ if eq $.kind "filters" }}
-  <a class="aside-account{{ if eq $acct $.urlaccount }} active{{ end }}" href="{{$.path}}{{ account "?" $acct }}">{{ template "ltr" $acct }}</a>
-  {{ else }}
   {{/* An account with nothing of this kind has no entry: the rail
        lists places, and the account has none here. */}}
   {{ $has := eq $.kind "mail" }}
-  {{ if not $has }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ end }}{{ end }}{{ end }}
+  {{ if eq $.kind "rows" }}{{ $has = index $.data.rows $acct }}{{ end }}
+  {{ if eq $.kind "dav" }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ end }}{{ end }}{{ end }}
   {{ if $has }}
   <details class="acct-folders" data-rail-key="{{$acct}}"{{ if eq $acct $.urlaccount }} open{{ end }}>
     <summary class="aside-account"><a href="{{$.path}}{{ account "?" $acct }}">{{ template "ltr" $acct }}</a></summary>
     {{ if eq $.kind "mail" }}
     {{ template "rail-mail-account" (dict "account" $acct "data" $.data) }}
+    {{ else if eq $.kind "rows" }}
+    {{ template "rail-rows" (index $.data.rows $acct) }}
     {{ else }}
     {{ template "rail-dav-account" (dict "account" $acct "data" $.data) }}
     {{ end }}
   </details>
   {{ end }}
   {{ end }}
-  {{ end }}
   {{ else }}
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-single" .data }}
+  {{ else if eq .kind "rows" }}
+  {{ template "rail-rows" (index .data.rows (index .accounts 0).Username) }}
   {{ else if and (eq .kind "dav") .data.items }}
   {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true) }}
   {{ end }}
@@ -668,7 +669,16 @@
        making an object is a toolbar action, beside the list it lands
        in. */}}
   {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
-  {{ with .follow }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
+  {{ with .follow }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
+{{ end }}
+
+{{/* The places a section offers per account, one row each. */}}
+{{ define "rail-rows" }}
+<ul>
+  {{ range . }}
+  <li{{ if .Active }} class="active"{{ end }}><a href="{{.Href}}">{{.Label}}</a></li>
+  {{ end }}
+</ul>
 {{ end }}
 
 {{/* The merged roles, in the mail rail: every mailbox is a place, the

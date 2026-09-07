@@ -792,7 +792,7 @@ main.create-update form.filter > label.script > textarea {
 }
 
 /* Simple create forms (event, task, contact) */
-main.create-update > form > .field,
+main.create-update form .field,
 main.create-update > form > label {
   display: block;
   margin-bottom: var(--space-3);
@@ -801,15 +801,15 @@ main.create-update > form > label {
   font-weight: 600;
 }
 
-main.create-update > form > .field > label,
+main.create-update form .field > label,
 main.create-update > form > label > span {
   display: block;
   margin-bottom: var(--space-1);
 }
 
-main.create-update > form > .field > input,
-main.create-update > form > .field > select,
-main.create-update > form > .field > textarea,
+main.create-update form .field > input,
+main.create-update form .field > select,
+main.create-update form .field > textarea,
 main.create-update > form > label > input,
 main.create-update > form > label > select,
 main.create-update > form > label > textarea {
@@ -818,13 +818,13 @@ main.create-update > form > label > textarea {
   box-sizing: border-box;
 }
 
-main.create-update > form > .field > textarea,
+main.create-update form .field > textarea,
 main.create-update > form > label > textarea {
   min-height: 8rem;
   resize: vertical;
 }
 
-main.create-update > form > .field > input[readonly],
+main.create-update form .field > input[readonly],
 main.create-update > form > label > input[readonly] {
   color: var(--fg-muted);
   background: var(--surface-inset);
@@ -2559,6 +2559,43 @@ main.calendar .actions {
 
 .action-group.choices .checkbox {
   font-weight: normal;
+}
+
+/* A field inside a group of choices keeps its own label above it. */
+.action-group.choices .field {
+  margin-block: var(--space-2);
+}
+
+/* One condition is one line: what to look at, how, and for what. The
+   value takes the width the two choices leave; a phone puts it under
+   them. */
+.condition-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.condition-row select { flex: 0 0 auto; }
+.condition-row input { flex: 1 1 12rem; min-width: 0; }
+
+/* A choice or a note that belongs to a list stands on the list's ink
+   line, above or below its rows. */
+.list-option {
+  margin: var(--space-2) 0;
+  padding-inline: var(--space-2);
+}
+
+/* The second column of a list row, one line of it: the preview of a
+   signature, a rule in words. It yields to the name beside it. */
+.list-detail {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 50%;
+  min-width: 0;
 }
 
 .action-group select[multiple] {

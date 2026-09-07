@@ -881,3 +881,11 @@ type Explained struct {
 	Term string
 	Hint string
 }
+
+// RailRow is one place under an account in a section's rail: a page
+// the section offers per account, such as an account's signatures.
+type RailRow struct {
+	Label  string
+	Href   string
+	Active bool
+}

@@ -1,0 +1,59 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ $aq := account "?" .GlobalData.URLAccount }}
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="list">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
+        {{ template "list-toolbar" (dict "title" ($.T "filters.forwarding") "newhref" (printf "/filters/forwarding/create%s" $aq) "newlabel" ($.T "filters.forwardnew")) }}
+      </section>
+
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" ($.T "filters.forwarding") "path" "/filters/forwarding") }}
+
+      {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
+      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="/filters/{{.Script | pathescape}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
+
+      {{/* Keeping is one choice for every rule, since one redirect
+           without a copy cancels the copy for the message; it saves on
+           its own, the way a filter is activated. */}}
+      {{ if .CanKeep }}
+      <form method="post" action="/filters/forwarding/keep{{$aq}}" class="aside-filter list-option">
+        <input type="hidden" name="loaded" value="{{.Loaded}}">
+        <label class="checkbox">
+          <input type="checkbox" name="keep" value="1"{{ if .Keep }} checked{{ end }} onchange="this.form.requestSubmit()">
+          {{$.T "filters.keepcopy"}}
+        </label>
+        <noscript><button>{{$.T "common.save"}}</button></noscript>
+      </form>
+      {{ else }}
+      <p class="hint list-option">{{$.T "filters.keepcopyunsupported"}}</p>
+      {{ end }}
+
+      <section class="list-items">
+        {{ range .Addresses }}
+        <div class="list-item">
+          <div class="list-content">
+            <span class="list-summary">{{ template "ltr" . }}</span>
+          </div>
+          <form method="post" action="/filters/forwarding/delete{{$aq}}">
+            <input type="hidden" name="loaded" value="{{$.Loaded}}">
+            <input type="hidden" name="address" value="{{.}}">
+            <button class="button-danger">{{$.T "common.delete"}}</button>
+          </form>
+        </div>
+        {{ end }}
+        {{ if and (not .Addresses) (not .ByHand) }}
+        <p class="empty-list">{{$.T "filters.forwardnone"}}</p>
+        {{ end }}
+      </section>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

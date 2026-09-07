@@ -5,7 +5,7 @@
 <div class="page-wrap">
   {{ $aq := account "?" .GlobalData.URLAccount }}
   <aside>
-  {{ template "scope-rail" (dict "kind" "filters" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
   </aside>
 
   <div class="container">

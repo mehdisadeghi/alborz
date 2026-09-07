@@ -1,8 +1,6 @@
 package alborzsieve
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -21,6 +19,7 @@ type FiltersRenderData struct {
 	// Explained is the union of the groups' extension glossaries,
 	// shown once for the page rather than in every server card.
 	Explained []alborz.Explained
+	Rail      map[string][]alborz.RailRow
 }
 
 // AccountFilters is one account's scripts and the server they live on.
@@ -58,6 +57,7 @@ type FilterRenderData struct {
 	// own account is already settled.
 	Accounts []alborz.Account
 	Account  string
+	Rail     map[string][]alborz.RailRow
 }
 
 func registerRoutes(p *alborz.GoPlugin) {
@@ -84,6 +84,11 @@ func registerRoutes(p *alborz.GoPlugin) {
 	}
 	p.GET("/filters", handleListFilters)
 	p.GET("/filters/create", handleCreateFilter)
+	p.GET("/filters/forwarding", requireAccount(handleForwarding))
+	p.GET("/filters/forwarding/create", requireAccount(handleForwardingCreate))
+	p.POST("/filters/forwarding", requireAccount(handleForwardingAdd))
+	p.POST("/filters/forwarding/delete", requireAccount(handleForwardingDelete))
+	p.POST("/filters/forwarding/keep", requireAccount(handleForwardingKeep))
 	p.GET("/filters/:name", requireAccount(handleEditFilter))
 	p.POST("/filters", requireAccount(handleSaveFilter))
 	p.POST("/filters/:name/activate", requireAccount(handleActivateFilter))
@@ -103,6 +108,7 @@ func handleListFilters(ctx *alborz.Context) error {
 	data := &FiltersRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.title")),
 		Accounts:       sieveAccounts(ctx),
+		Rail:           rail(ctx),
 	}
 	unreachable := 0
 	for _, account := range data.Accounts {
@@ -173,6 +179,7 @@ func handleCreateFilter(ctx *alborz.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "filter-edit.html", &FilterRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		Rail:           rail(ctx),
 		Accounts:       accounts,
 		Account:        account,
 	})
@@ -196,18 +203,11 @@ func handleEditFilter(ctx *alborz.Context) error {
 
 	return ctx.Render(http.StatusOK, "filter-edit.html", &FilterRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		Rail:           rail(ctx),
 		Name:           name,
 		Content:        content,
 		Loaded:         fingerprint(content),
 	})
-}
-
-// fingerprint names a script's content. ManageSieve keeps no version
-// or date for a script, so the content itself is what a save compares
-// against to notice an edit made elsewhere in the meantime.
-func fingerprint(content string) string {
-	sum := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(sum[:])
 }
 
 func handleSaveFilter(ctx *alborz.Context) error {
@@ -216,6 +216,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	if strings.TrimSpace(name) == "" {
 		return ctx.Render(http.StatusUnprocessableEntity, "filter-edit.html", &FilterRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			Rail:           rail(ctx),
 			Content:        content,
 			Error:          ctx.T("form.nameneeded"),
 			Accounts:       sieveAccounts(ctx),
@@ -259,6 +260,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	if err == nil && changed {
 		return ctx.Render(http.StatusConflict, "filter-edit.html", &FilterRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			Rail:           rail(ctx),
 			Name:           name,
 			Content:        content,
 			Loaded:         loaded,
@@ -272,6 +274,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 		// the script instead of an error page.
 		return ctx.Render(http.StatusUnprocessableEntity, "filter-edit.html", &FilterRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			Rail:           rail(ctx),
 			Name:           name,
 			Content:        content,
 			Loaded:         loaded,

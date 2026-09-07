@@ -121,16 +121,15 @@ func (ctx *Context) TextSize() string {
 	return ctx.pref(textSizeCookieName, func(v string) bool { return slices.Contains(textSizes, v) })
 }
 
-// secondaryCalendars are the calendar systems that can be shown beside
-// the Gregorian one; empty shows none.
-var secondaryCalendars = []string{"shcal"}
-
 // displayKey holds the choices that follow the person rather than the
 // browser, in the account's own store: which calendar someone counts in
 // is not a property of the machine they read mail on.
 const displayKey = "alborz.display"
 
 type displayPrefs struct {
+	// Primary is the calendar the pages count in, Secondary the one
+	// glossed beside it; empty means Gregorian and none.
+	Primary   string
 	Secondary string
 }
 
@@ -152,17 +151,21 @@ func (ctx *Context) displayPrefs() displayPrefs {
 	return prefs
 }
 
-// SetSecondaryCalendar stores which calendar system is shown alongside
-// the Gregorian dates.
-func (ctx *Context) SetSecondaryCalendar(name string) error {
-	if !slices.Contains(secondaryCalendars, name) {
-		name = ""
+// SetCalendars stores which calendar system the pages count in and
+// which one is glossed beside it. A name that is not known counts as
+// Gregorian; a gloss in the primary's own system is no gloss.
+func (ctx *Context) SetCalendars(primary, secondary string) error {
+	if !slices.Contains(calendarSystems, primary) {
+		primary = ""
+	}
+	if !slices.Contains(calendarSystems, secondary) || secondary == Calendar(primary).Name() {
+		secondary = ""
 	}
 	prefs := ctx.displayPrefs()
-	if prefs.Secondary == name {
+	if prefs.Primary == primary && prefs.Secondary == secondary {
 		return nil
 	}
-	prefs.Secondary = name
+	prefs.Primary, prefs.Secondary = primary, secondary
 	if err := ctx.Session.Store().Put(displayKey, &prefs); err != nil {
 		return err
 	}
@@ -170,9 +173,16 @@ func (ctx *Context) SetSecondaryCalendar(name string) error {
 	return nil
 }
 
-// SecondaryCalendar returns the chosen system, empty for none.
-func (ctx *Context) SecondaryCalendar() string {
-	return ctx.displayPrefs().Secondary
+// Calendars returns the chosen systems: the one counted in, empty for
+// Gregorian, and the one glossed, empty for none.
+func (ctx *Context) Calendars() (primary, secondary string) {
+	p := ctx.displayPrefs()
+	return p.Primary, p.Secondary
+}
+
+// CalendarSystem is the system the reader counts in.
+func (ctx *Context) CalendarSystem() CalendarSystem {
+	return Calendar(ctx.displayPrefs().Primary)
 }
 
 // SetLanguage stores the user's UI language choice in the browser,

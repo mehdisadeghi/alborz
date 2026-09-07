@@ -27,8 +27,8 @@
         {{$base := .}}
         {{range $i, $day := .Dates}}
         <div class="date
-          {{if ne $base.Time.Month .Month}}extra{{end}}
-          {{if and (eq $base.Now.Month .Month) (eq $base.Now.Day .Day)}}active{{end}}
+          {{if not ($base.GlobalData.SameMonth $base.Time .)}}extra{{end}}
+          {{if eq (.Format "2006-01-02") ($base.Now.Format "2006-01-02")}}active{{end}}
           ">
           {{/* Every cell opens its day. A day either side of the month is
                dimmed to show where the month ends, which is not the same
@@ -43,7 +43,10 @@
                against it instead of against each other. */}}
           <h3>
             {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.GlobalData.WeekTitle $day}}">{{$base.GlobalData.WeekNumber $day}}</span>{{ end }}
-            <span class="day-label">{{$base.GlobalData.CalendarDayLabel .}}</span>
+            {{/* A month's name is longer than a phone cell; there the
+                 first day is a number like the rest, and the title and
+                 the dimmed cells say which month began. */}}
+            <span class="day-label">{{ $label := $base.GlobalData.CalendarDayLabel . }}{{ $num := $base.GlobalData.Day . }}{{ if eq $label $num }}{{ $num }}{{ else }}<span class="label-long">{{ $label }}</span><span class="label-short">{{ $num }}</span>{{ end }}</span>
             {{ if eq (mod $i 7) 0 }}{{ with $base.GlobalData.SecondaryWeek $day }}<span class="weeknum-secondary">{{.}}</span>{{ end }}{{ end }}
             {{ with $base.GlobalData.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}
           </h3>

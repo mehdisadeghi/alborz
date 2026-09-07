@@ -35,11 +35,11 @@
         <div class="event-grid" role="table">
           {{ template "event-grid-header" (dict "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
           {{range .Dates}}
-          {{if and (eq .Month $base.Time.Month) (not (.Before $base.Since))}}
+          {{if and ($base.GlobalData.SameMonth . $base.Time) (not (.Before $base.Since))}}
           {{$events := call $base.EventsForDate .}}
           {{if $events}}
           {{$any = true}}
-          <h2 class="event-day-header" role="rowheader">{{$base.GlobalData.WeekdayName .}}, {{$base.GlobalData.MonthName .}} {{.Day}}</h3>
+          <h2 class="event-day-header" role="rowheader">{{$base.GlobalData.WeekdayName .}}, {{$base.GlobalData.MonthName .}} {{$base.GlobalData.Day .}}</h2>
           {{ template "event-rows" (dict "events" $events "base" $base) }}
           {{end}}
           {{end}}

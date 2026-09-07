@@ -27,7 +27,7 @@
         <div class="list-item">
           <div class="list-content">
             <a href="/filters/autoreply/{{$i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
-            <span class="list-detail" dir="auto">{{ with .From }}{{.}}{{ end }}{{ if or .From .Until }} – {{ end }}{{ with .Until }}{{.}}{{ end }}{{ if or .From .Until }} · {{ end }}{{ with .Subject }}{{.}}{{ else }}{{.Text}}{{ end }}</span>
+            <span class="list-detail" dir="auto">{{ with .From }}{{ template "ltr" ($.GlobalData.InputDay .) }}{{ end }}{{ if or .From .Until }} – {{ end }}{{ with .Until }}{{ template "ltr" ($.GlobalData.InputDay .) }}{{ end }}{{ if or .From .Until }} · {{ end }}{{ with .Subject }}{{.}}{{ else }}{{.Text}}{{ end }}</span>
             {{ if eq $i $.Active }}<span class="list-meta">{{$.T "filters.active"}}</span>{{ end }}
           </div>
           <form method="post" action="/filters/autoreply/activate{{$aq}}">

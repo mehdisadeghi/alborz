@@ -35,10 +35,10 @@
         <input type="checkbox" name="allday" value="1" id="allday" class="allday-toggle" {{if .AllDay}}checked{{end}}>
         <label for="allday" class="allday-label">{{$.T "calendar.allday"}}</label>
 
-        {{ template "field" (dict "class" "timed-field" "label" ($.T "calendar.startsat") "name" "start" "type" "datetime-local" "value" .StartTime) }}
-        {{ template "field" (dict "class" "timed-field" "label" ($.T "calendar.endsat") "name" "end" "type" "datetime-local" "value" .EndTime) }}
-        {{ template "field" (dict "class" "allday-field" "label" ($.T "calendar.startdate") "name" "start_date" "type" "date" "value" .StartDate) }}
-        {{ template "field" (dict "class" "allday-field" "label" ($.T "calendar.lastday") "name" "end_date" "type" "date" "value" .EndDate) }}
+        {{ template "date-field" (dict "g" $ "class" "timed-field" "label" ($.T "calendar.startsat") "name" "start" "time" true "value" .StartTime "hint" true) }}
+        {{ template "date-field" (dict "g" $ "class" "timed-field" "label" ($.T "calendar.endsat") "name" "end" "time" true "value" .EndTime) }}
+        {{ template "date-field" (dict "g" $ "class" "allday-field" "label" ($.T "calendar.startdate") "name" "start_date" "value" .StartDate "hint" true) }}
+        {{ template "date-field" (dict "g" $ "class" "allday-field" "label" ($.T "calendar.lastday") "name" "end_date" "value" .EndDate) }}
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" (.Event.Props.Text "DESCRIPTION") "dir" "auto") }}
         {{/* Naming anybody here makes this an invitation: on save the
              account becomes the organizer and everyone listed is sent a

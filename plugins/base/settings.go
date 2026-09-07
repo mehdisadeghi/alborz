@@ -3,7 +3,6 @@ package alborzbase
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -142,9 +141,12 @@ type SettingsRenderData struct {
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
-	Secondary     string // calendar system shown beside the Gregorian one
-	MaxPerPage    int
-	Rail          map[string][]alborz.RailRow
+	// Primary is the calendar system the pages count in, Secondary the
+	// one glossed beside it.
+	Primary    string
+	Secondary  string
+	MaxPerPage int
+	Rail       map[string][]alborz.RailRow
 	// HasHTTPPassword says a calendar and contacts password is kept,
 	// which the form shows without ever showing the password.
 	HasHTTPPassword bool
@@ -451,6 +453,7 @@ func handleSettings(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	primary, secondary := ctx.Calendars()
 
 	// The form answers its own invalid input, on the page it was typed
 	// on. Digits are read as they were typed: a page that counts in
@@ -461,7 +464,8 @@ func handleSettings(ctx *alborz.Context) error {
 			Settings:        settings,
 			Mailboxes:       mailboxes,
 			Subscriptions:   Subscriptions(settings.Subscriptions),
-			Secondary:       ctx.SecondaryCalendar(),
+			Primary:         primary,
+			Secondary:       secondary,
 			MaxPerPage:      maxMessagesPerPage,
 			HasHTTPPassword: hasHTTPPassword,
 			Error:           message,
@@ -470,7 +474,7 @@ func handleSettings(ctx *alborz.Context) error {
 	}
 
 	if ctx.Request().Method == http.MethodPost {
-		settings.MessagesPerPage, err = strconv.Atoi(alborz.LatinDigits(ctx.FormValue("messages_per_page")))
+		settings.MessagesPerPage, err = alborz.ReadInt(ctx.FormValue("messages_per_page"))
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage))
 		}
@@ -493,7 +497,7 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.PreferHTML = ctx.FormValue("prefer_html") != ""
 		settings.SendHTML = ctx.FormValue("send_html") != ""
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
-			settings.FirstDayOfWeek, err = strconv.Atoi(alborz.LatinDigits(fdow))
+			settings.FirstDayOfWeek, err = alborz.ReadInt(fdow)
 			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {
 				return reject(ctx.T("form.firstday"))
 			}
@@ -511,7 +515,7 @@ func handleSettings(ctx *alborz.Context) error {
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save settings: %w", err)
 		}
-		if err := ctx.SetSecondaryCalendar(ctx.FormValue("secondary")); err != nil {
+		if err := ctx.SetCalendars(ctx.FormValue("calendar"), ctx.FormValue("secondary")); err != nil {
 			return fmt.Errorf("failed to save calendar choice: %w", err)
 		}
 
@@ -531,7 +535,8 @@ func handleSettings(ctx *alborz.Context) error {
 		Settings:        settings,
 		Mailboxes:       mailboxes,
 		Subscriptions:   Subscriptions(settings.Subscriptions),
-		Secondary:       ctx.SecondaryCalendar(),
+		Primary:         primary,
+		Secondary:       secondary,
 		MaxPerPage:      maxMessagesPerPage,
 		HasHTTPPassword: hasHTTPPassword,
 		Rail:            settingsRail(ctx),

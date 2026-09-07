@@ -1592,58 +1592,7 @@ main.create-update .headers > .compose-more {
 
 /* What exists, one per row: the name, a taste of the text, and the two
    things that can be done to it. */
-.signature-list {
-  margin: 0 0 var(--space-3);
-  padding: 0;
-  list-style: none;
-}
 
-.signature-list > li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.signature-entry {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-/* One line of it, which is enough to tell two apart; the form below is
-   where it is read in full. */
-.signature-preview {
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  white-space: pre;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.signature-row-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: none;
-}
-
-.signature-row-actions form { display: inline; }
-
-.signature-default {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.settings-heading {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-base, 1rem);
-}
 
 /* The chooser stands with the body it rewrites, above the row that
    sends: it is not one of the actions that finish the message. */
@@ -4089,9 +4038,6 @@ h1.no-word .title-short {
 @media (width <= 600px) {
   /* A phone cell holds a day number and little else. */
   main.calendar .date h3 .weeknum { display: none; }
-
-  /* The row's actions go under its name rather than beside it. */
-  .signature-list > li { flex-direction: column; align-items: stretch; gap: var(--space-1); }
 
   body { min-width: 0; font-size: var(--text-md); }
 

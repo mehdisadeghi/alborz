@@ -70,13 +70,14 @@
      keeps the scope the URL carries. An address reads left to right
      whatever the page does; a step with no URL is a folder that cannot
      be opened, and is named without pretending to lead anywhere; a
-     step with no name is not on the path at all.
-     dict: g home steps class. */}}
+     step with no name is not on the path at all. A section with no
+     merged view, settings, starts at the account: noroot.
+     dict: g home steps class [noroot]. */}}
 {{ define "crumb" }}
 {{ $account := .g.GlobalData.URLAccount }}
 <div class="context-crumb{{ with .class }} {{.}}{{ end }}">
   {{- $sep := false }}
-  {{- if gt (len .g.GlobalData.Accounts) 1 }}<a href="{{ .home }}">{{ .g.T "nav.allaccounts" }}</a>{{ $sep = true }}{{ end }}
+  {{- if and (gt (len .g.GlobalData.Accounts) 1) (not .noroot) }}<a href="{{ .home }}">{{ .g.T "nav.allaccounts" }}</a>{{ $sep = true }}{{ end }}
   {{- range $step := .steps }}{{ if $step.Label }}
     {{- if $sep }} › {{ end }}{{ $sep = true }}
     {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}">{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
@@ -90,9 +91,11 @@
      - so the two do not drift apart. The account is the one the URL
      names, or the only one; the merged view has none. A page with no
      collection to name stops after the section, a create form among
-     them: it lands where the path says. A form that offers a choice
-     of account names none: chooses.
-     dict: g section home field collection path [chooses]. */}}
+     them: it lands where the path says. A page of its own under the
+     section, such as an account's signatures, names no field: its
+     path is the step's URL. A form that offers a choice of account
+     names none: chooses.
+     dict: g section home field collection path [noroot chooses]. */}}
 {{ define "dav-crumb" }}
 {{ $account := .g.GlobalData.URLAccount }}
 {{ if and (not $account) (not .g.GlobalData.Unified) }}{{ $account = .g.GlobalData.Username }}{{ end }}
@@ -101,10 +104,11 @@
      "Contacts" - would read "Contacts › Contacts"; its step says
      nothing the section's does not, so it is left out. */}}
 {{ $collection := .collection }}{{ if eq $collection .section }}{{ $collection = "" }}{{ end }}
-{{ template "crumb" (dict "g" .g "home" .home "steps" (tuple
+{{ $url := .path }}{{ if .field }}{{ $url = printf "%s?%s=%s" .home .field (.path | urlquery) }}{{ end }}
+{{ template "crumb" (dict "g" .g "home" .home "noroot" .noroot "steps" (tuple
    (dict "Label" $account "URL" .home "Address" true)
    (dict "Label" .section "URL" .home)
-   (dict "Label" $collection "URL" (printf "%s?%s=%s" .home .field (.path | urlquery))))) }}
+   (dict "Label" $collection "URL" $url))) }}
 {{ end }}
 
 {{/* The flag colours, as swatches. Each is its own submit, so the
@@ -586,38 +590,6 @@
 {{ end }}{{ end }}
 <button>{{$d.apply}}</button>
 </form>
-{{ end }}
-
-{{/* The settings rail's account list: one entry per account, the
-     current one marked. dict: accounts current path. */}}
-{{ define "account-scope-aside" }}
-{{ if gt (len .accounts) 1 }}
-<ul class="account-scope-list">
-  {{ range .accounts }}
-  <li{{if eq .Username $.current}} class="active"{{end}}>
-    <a href="{{$.path}}{{account "?" .Username}}">{{.Username}}</a>
-  </li>
-  {{ end }}
-</ul>
-{{ end }}
-{{ end }}
-
-{{/* The settings rail: one entry per account for the pane that writes
-     to that account's server, then the pane that writes to this browser
-     and belongs to no account. dict: accounts current browser. */}}
-{{ define "settings-aside" }}
-<aside>
-  {{ if not .browser }}
-  {{ template "account-scope-aside" (dict "accounts" .accounts "current" .current "path" "/settings") }}
-  {{ else }}
-  <ul class="account-scope-list">
-    {{ range .accounts }}
-    <li><a href="/settings{{account "?" .Username}}">{{.Username}}</a></li>
-    {{ end }}
-  </ul>
-  {{ end }}
-  <a href="/settings/browser" class="aside-create{{ if .browser }} active{{ end }}">{{.browserLabel}}</a>
-</aside>
 {{ end }}
 
 {{/* The rail every section shares (ADR 0001). With several accounts

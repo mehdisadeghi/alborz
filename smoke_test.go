@@ -328,6 +328,7 @@ func TestPagesAnswer(t *testing.T) {
 		"/mailbox/INBOX%2FLists",
 		"/mailbox/Drafts", "/mailbox/Junk", "/mailbox/Trash",
 		"/compose", "/new-mailbox", "/settings", "/settings/browser",
+		"/settings/servers", "/signatures", "/signatures/create",
 	}
 	for _, uid := range uids {
 		paths = append(paths,

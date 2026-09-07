@@ -67,12 +67,25 @@ func registerRoutes(p *alborz.GoPlugin) {
 
 	p.POST("/message/:mbox/flag", handleSetFlags)
 
-	p.GET("/settings", handleSettings)
+	// Settings are one account's, so a bare URL with several signed in
+	// names the account it opened on, and the page is where it says.
+	scoped := func(h func(*alborz.Context) error) func(*alborz.Context) error {
+		return func(ctx *alborz.Context) error {
+			if ctx.Unified && ctx.Request().Method == http.MethodGet {
+				return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+"?account="+alborz.AddressParam(ctx.Session.Username()))
+			}
+			return h(ctx)
+		}
+	}
+	p.GET("/settings", scoped(handleSettings))
 	p.POST("/settings", handleSettings)
-	p.GET("/signatures", handleSignatures)
-	p.POST("/signatures", handleSignatures)
+	p.GET("/signatures", scoped(handleSignatures))
+	p.GET("/signatures/create", scoped(handleSignatureForm))
+	p.GET("/signatures/:name", scoped(handleSignatureForm))
+	p.POST("/signatures", handleSignatureSave)
 	p.POST("/signatures/delete", handleSignatureDelete)
 	p.POST("/signatures/default", handleSignatureDefault)
+	p.GET("/settings/servers", scoped(handleServers))
 	p.GET("/settings/browser", handleBrowserSettings)
 	p.POST("/settings/browser", handleBrowserSettings)
 	p.POST("/language", handleLanguage)

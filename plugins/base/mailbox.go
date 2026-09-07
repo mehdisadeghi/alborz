@@ -1097,7 +1097,7 @@ func perPageOptions(settings *Settings) []int {
 
 func perPage(ctx *alborz.Context, settings *Settings) int {
 	if raw := ctx.QueryParam("ipp"); raw != "" {
-		if n, err := strconv.Atoi(alborz.LatinDigits(raw)); err == nil &&
+		if n, err := alborz.ReadInt(raw); err == nil &&
 			n > 0 && n <= maxMessagesPerPage {
 			return n
 		}

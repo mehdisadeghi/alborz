@@ -517,7 +517,26 @@
   {{ else }}
   <input type="{{with .type}}{{.}}{{else}}text{{end}}" name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} value="{{.value}}"{{ if .placeholder }} placeholder="{{.placeholder}}"{{ end }}{{ if .required }} required{{ end }}{{ if .autofocus }} autofocus{{ end }}>
   {{ end }}
+  {{/* An example after the hint is a date or a code, read left to
+       right whatever the page does. */}}
+  {{ with .hint }}<p class="hint">{{.}}{{ with $.example }} {{ template "ltr" . }}{{ end }}</p>{{ end }}
 </div>
+{{ end }}
+
+{{/* A date field, or one with a time: the browser's picker under the
+     Gregorian calendar, and under any other a text field that says what
+     it expects, since no picker speaks that calendar. dict: g label name
+     value [class time hint]; hint puts the expected form under the
+     field. */}}
+{{ define "date-field" }}
+{{ $type := "date" }}{{ if .time }}{{ $type = "datetime-local" }}{{ end }}
+{{ $example := "" }}{{ $hint := "" }}
+{{ if .g.GlobalData.TypedDates }}
+  {{ $type = "text" }}
+  {{ if .time }}{{ $example = .g.GlobalData.DateTimeExample }}{{ else }}{{ $example = .g.GlobalData.DateExample }}{{ end }}
+  {{ if .hint }}{{ if .time }}{{ $hint = .g.T "form.datetimehint" }}{{ else }}{{ $hint = .g.T "form.datehint" }}{{ end }}{{ end }}
+{{ end }}
+{{ template "field" (dict "class" .class "label" .label "name" .name "type" $type "value" .value "placeholder" $example "hint" $hint "example" $example "dir" "ltr") }}
 {{ end }}
 
 {{/* Save/cancel footer of a create or update form.

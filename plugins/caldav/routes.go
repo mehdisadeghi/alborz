@@ -424,13 +424,15 @@ type UpdateTaskRenderData struct {
 	Calendar       *CalendarInfo
 	CalendarObject *caldav.CalendarObject
 	Todo           *ical.Component
-	Error          string
+	// Due is the due date as the field holds it: what was typed, or
+	// what the task has.
+	Due   string
+	Error string
 }
 
 const (
-	monthPageLayout = "2006-01"
-	datePageLayout  = "2006-01-02"
-	settingsKey     = "caldav.settings"
+	datePageLayout = "2006-01-02"
+	settingsKey    = "caldav.settings"
 )
 
 // getCalendarObject fetches one event or task without go-webdav's
@@ -447,14 +449,6 @@ func getCalendarObject(ctx *alborz.Context, c *caldav.Client, path string) (*cal
 		return nil, err
 	}
 	return &caldav.CalendarObject{Path: path, Data: cal}, nil
-}
-
-func parseDateTime(s string, loc *time.Location) (time.Time, error) {
-	t, err := time.ParseInLocation(inputDateTimeLayout, s, loc)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("malformed datetime: %v", err)
-	}
-	return t, nil
 }
 
 // newEventStart reads the ?date= a create link carries and keeps the
@@ -489,9 +483,9 @@ func fillEventForm(d *UpdateEventRenderData, loc *time.Location, when time.Time)
 	if !end.After(start) {
 		end = start.Add(time.Hour)
 	}
-	d.StartTime = start.Format(inputDateTimeLayout)
-	d.EndTime = end.Format(inputDateTimeLayout)
-	d.StartDate = start.Format(datePageLayout)
+	d.StartTime = d.GlobalData.InputDateTime(start)
+	d.EndTime = d.GlobalData.InputDateTime(end)
+	d.StartDate = d.GlobalData.InputDate(start)
 	last := end
 	if d.AllDay {
 		last = end.AddDate(0, 0, -1)
@@ -499,7 +493,7 @@ func fillEventForm(d *UpdateEventRenderData, loc *time.Location, when time.Time)
 			last = start
 		}
 	}
-	d.EndDate = last.Format(datePageLayout)
+	d.EndDate = d.GlobalData.InputDate(last)
 	d.Attendees = attendeeLines(d.Event)
 }
 
@@ -517,16 +511,6 @@ func onlyCollections(ctx *alborz.Context, field string) map[string]bool {
 		only[dav.CanonicalCollectionPath(v)] = true
 	}
 	return only
-}
-
-// parseDate reads a bare day from a date input, which is what an
-// all-day event is given in.
-func parseDate(s string, loc *time.Location) (time.Time, error) {
-	t, err := time.ParseInLocation(datePageLayout, s, loc)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("malformed date: %v", err)
-	}
-	return t, nil
 }
 
 func loadSettings(store alborz.Store) (*Settings, error) {
@@ -850,17 +834,18 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	}
 	loc := alborzbase.UserLocation(ctx)
 
+	// The month is the reader's calendar's month: its bounds, its page
+	// name and its length come from the system they count in.
+	cal := ctx.CalendarSystem()
 	var start time.Time
 	if s := ctx.QueryParam("month"); s != "" {
 		var err error
-		start, err = time.Parse(monthPageLayout, s)
+		start, err = cal.ParsePage(s, loc)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
-		start = time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc)
 	} else {
-		now := time.Now().In(loc)
-		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+		start = cal.MonthStart(time.Now().In(loc))
 	}
 	firstDayOfWeek := baseSettings.FirstDayOfWeek
 
@@ -875,7 +860,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 
 	// Pad a week each way: the grid shows adjacent-month days, and a
 	// fixed window keeps the cache key stable.
-	monthEnd := start.AddDate(0, 1, 0)
+	monthEnd := cal.AddMonths(start, 1)
 	queryStart := start.AddDate(0, 0, -7)
 	queryEnd := monthEnd.AddDate(0, 0, 7)
 
@@ -888,7 +873,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	}
 	since := start
 	thisMonth := false
-	if now := time.Now().In(loc); now.Year() == start.Year() && now.Month() == start.Month() {
+	if now := time.Now().In(loc); !now.Before(start) && now.Before(monthEnd) {
 		thisMonth = true
 		if span != "month" {
 			since = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
@@ -897,7 +882,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 
 	offset := (int(start.Weekday()) - firstDayOfWeek + 7) % 7
 	gridStart := start.AddDate(0, 0, -offset)
-	daysInMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	daysInMonth := cal.DaysInMonth(start)
 	totalCells := offset + daysInMonth
 	rows := (totalCells + 6) / 7
 
@@ -999,12 +984,12 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		Calendars: calendarInfos,
 		Dates:     dates,
 		Events:    events,
-		Page:      start.Format(monthPageLayout),
+		Page:      cal.Page(start),
 		View:      view,
-		PrevPage:  start.AddDate(0, -1, 0).Format(monthPageLayout),
-		NextPage:  start.AddDate(0, 1, 0).Format(monthPageLayout),
-		PrevTime:  start.AddDate(0, -1, 0),
-		NextTime:  start.AddDate(0, 1, 0),
+		PrevPage:  cal.Page(cal.AddMonths(start, -1)),
+		NextPage:  cal.Page(cal.AddMonths(start, 1)),
+		PrevTime:  cal.AddMonths(start, -1),
+		NextTime:  cal.AddMonths(start, 1),
 
 		EventsForDate: func(when time.Time) []Occurrence {
 			if events, ok := eventMap[day(when)]; ok {
@@ -1075,7 +1060,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	color, owner := calendarLabels(ctx, calendarInfos, len(accounts) > 1)
 	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
-			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(start) + start.Format(", 2")),
+			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(start)),
 		Time:         start,
 		Calendars:    calendarInfos,
 		Events:       shown,
@@ -1313,11 +1298,11 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		allDay := ctx.FormValue("allday") != ""
 		var start, end time.Time
 		if allDay {
-			start, err = parseDate(ctx.FormValue("start_date"), loc)
+			start, err = ctx.ReadDate(ctx.FormValue("start_date"), loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
-			end, err = parseDate(ctx.FormValue("end_date"), loc)
+			end, err = ctx.ReadDate(ctx.FormValue("end_date"), loc)
 			if err != nil {
 				end = start
 			}
@@ -1328,11 +1313,11 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			// wants the day after it, since DTEND is exclusive.
 			end = end.AddDate(0, 0, 1)
 		} else {
-			start, err = parseDateTime(ctx.FormValue("start"), loc)
+			start, err = ctx.ReadDateTime(ctx.FormValue("start"), loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
-			end, err = parseDateTime(ctx.FormValue("end"), loc)
+			end, err = ctx.ReadDateTime(ctx.FormValue("end"), loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
@@ -1437,16 +1422,16 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 // back as one file, named for the month.
 func (p *plugin) exportMonth(ctx *alborz.Context) error {
 	loc := alborzbase.UserLocation(ctx)
-	start := time.Now().In(loc)
+	cal := ctx.CalendarSystem()
+	from := cal.MonthStart(time.Now().In(loc))
 	if s := ctx.QueryParam("month"); s != "" {
 		var err error
-		if start, err = time.Parse(monthPageLayout, s); err != nil {
+		if from, err = cal.ParsePage(s, loc); err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 	}
-	from := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc)
 	return p.exportVisible(ctx, CalendarInfo.SupportsEvent, eventVisibility, []string{"VEVENT"},
-		from, from.AddDate(0, 1, 0), ctx.T("nav.calendar")+" "+from.Format(monthPageLayout))
+		from, cal.AddMonths(from, 1), ctx.T("nav.calendar")+" "+cal.Page(from))
 }
 
 // exportVisible is the download a list page offers: what the rail shows
@@ -1807,6 +1792,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 				Calendar:       currentCalendar,
 				CalendarObject: co,
 				Todo:           todo,
+				Due:            dueDate,
 				Error:          message,
 			})
 		}
@@ -1840,7 +1826,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		// so a dated task is bracketed by its own due date.
 		due := time.Now().In(loc)
 		if dueDate != "" {
-			at, err := time.ParseInLocation(inputDateLayout, dueDate, loc)
+			at, err := ctx.ReadDate(dueDate, loc)
 			if err != nil {
 				return reject(ctx.T("form.duedate"))
 			}
@@ -1881,6 +1867,14 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 	}
 
 	summary, _ := todo.Props.Text("SUMMARY")
+	var due string
+	if prop := todo.Props.Get(ical.PropDue); prop != nil {
+		at, err := prop.DateTime(loc)
+		if err != nil {
+			return err
+		}
+		due = ctx.InputDate(at)
+	}
 
 	rail, err := p.taskRail(ctx)
 	if err != nil {
@@ -1893,6 +1887,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		Calendar:       currentCalendar,
 		CalendarObject: co,
 		Todo:           todo,
+		Due:            due,
 	})
 }
 func (p *plugin) deleteTask(ctx *alborz.Context) error {

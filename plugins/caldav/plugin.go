@@ -14,9 +14,6 @@ import (
 var public embed.FS
 
 const (
-	inputDateLayout     = "2006-01-02"
-	inputDateTimeLayout = "2006-01-02T15:04"
-
 	// Age at which a discovered calendar list is reloaded in the
 	// background while still being served; a calendar made or removed by
 	// another client shows up one visit late at worst.

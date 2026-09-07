@@ -30,8 +30,8 @@
         {{ if .CanDate }}
         <div class="action-group">
           <div class="condition-row">
-            <div class="field"><label for="from">{{$.T "filters.replyfrom"}}</label><input type="date" name="from" id="from" value="{{.Editing.From}}"></div>
-            <div class="field"><label for="until">{{$.T "filters.replyuntil"}}</label><input type="date" name="until" id="until" value="{{.Editing.Until}}"></div>
+            {{ template "date-field" (dict "g" $ "label" ($.T "filters.replyfrom") "name" "from" "value" ($.GlobalData.InputDay .Editing.From) "hint" true) }}
+            {{ template "date-field" (dict "g" $ "label" ($.T "filters.replyuntil") "name" "until" "value" ($.GlobalData.InputDay .Editing.Until)) }}
           </div>
           <p class="hint">{{$.T "filters.replydateshint"}}</p>
         </div>

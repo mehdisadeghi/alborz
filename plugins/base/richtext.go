@@ -82,5 +82,9 @@ func composedText(htmlBody string) string {
 	if err != nil {
 		return ""
 	}
-	return text
+	// The converter pads every block inside a quote with empty quoted
+	// lines; one is enough between paragraphs.
+	return emptyQuoted.ReplaceAllString(text, "\n>\n")
 }
+
+var emptyQuoted = regexp.MustCompile(`(?:\n> ?){2,}\n`)

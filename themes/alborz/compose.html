@@ -148,6 +148,9 @@
           </div>
           <div class="editor body" hidden></div>
           <input type="hidden" name="html" value="{{.Message.HTML}}">
+          {{/* What the editor quotes when it opens on an untouched reply:
+               the original's HTML with every image gone. */}}
+          {{ with .Message.QuoteHTML }}<template id="quote-html">{{.}}</template>{{ end }}
           {{/* The reply is written above the quote or below it, and the
                cursor belongs where the writing goes. Without scripts the
                browser puts it wherever it likes, which is why the body

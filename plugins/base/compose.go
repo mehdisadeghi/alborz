@@ -3,6 +3,8 @@ package alborzbase
 import (
 	"bytes"
 	"fmt"
+	"html"
+	"html/template"
 	"io"
 	"net/http"
 	"net/url"
@@ -837,6 +839,21 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	}
 	ret.Text = replyBody(ctx, inReplyTo, quoted, settings.ReplyBelowQuote)
 	ret.QuoteBelow = !settings.ReplyBelowQuote
+	if node := inReplyTo.HTMLPart(); node != nil {
+		var raw []byte
+		err := ctx.DoIMAP(func(c *imapclient.Client) error {
+			_, part, err := getMessagePart(c, inReplyToPath.Mailbox, inReplyToPath.Uid, node.Path)
+			if err != nil {
+				return err
+			}
+			raw, err = io.ReadAll(part.Body)
+			return err
+		})
+		if err != nil {
+			return ret, err
+		}
+		ret.QuoteHTML = replyHTML(ctx, inReplyTo, composedHTML(string(raw)), settings.ReplyBelowQuote)
+	}
 
 	ret.MessageID = newMessageID()
 	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
@@ -933,6 +950,27 @@ func replyBody(ctx *alborz.Context, original *IMAPMessage, quoted string, below 
 		return attribution + "\n" + quoted + "\n"
 	}
 	return "\n\n" + attribution + "\n" + quoted
+}
+
+// replyHTML is replyBody for the editor: the same attribution, the
+// original as a quote block, and an empty paragraph where the writing
+// goes. The quote has already been through the policy, which keeps no
+// image, so nothing in it phones home when the answer is read.
+func replyHTML(ctx *alborz.Context, original *IMAPMessage, quoted string, below bool) template.HTML {
+	who := ""
+	if from := original.Envelope.From; len(from) > 0 {
+		who = from[0].Name
+		if who == "" {
+			who = from[0].Addr()
+		}
+	}
+	when := alborz.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
+	attribution := ctx.Tf("message.wrote", when, who)
+	head := `<p dir="` + alborz.ParagraphDir(attribution) + `">` + html.EscapeString(attribution) + "</p>\n<blockquote>" + quoted + "</blockquote>\n"
+	if below {
+		return template.HTML(head + `<p dir="auto"><br></p>`)
+	}
+	return template.HTML(`<p dir="auto"><br></p>` + "\n" + head)
 }
 
 // handleForwardSelection is the list toolbar's Forward: the selection

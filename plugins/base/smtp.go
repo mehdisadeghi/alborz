@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"html/template"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -231,8 +232,12 @@ type OutgoingMessage struct {
 	QuoteBelow bool
 	// HTML is the message as written in the editor, sent as the writer
 	// left it beside the text a client that wants none reads. Empty for
-	// a message written as text.
-	HTML string
+	// a message written as text. QuoteHTML is the message being
+	// answered as the editor may quote it, for the page alone: the
+	// original's HTML with every image and script gone, so a tracker in
+	// it is not passed on to the next reader.
+	HTML      string
+	QuoteHTML template.HTML
 	// SendHTML adds an alternative part carrying the direction each
 	// paragraph runs in. The plain part stays exactly what was typed,
 	// so a client preferring plain text sees no change at all.

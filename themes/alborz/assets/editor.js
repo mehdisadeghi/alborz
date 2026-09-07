@@ -223,11 +223,16 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		reflect();
 	});
 
+	// An untouched reply opens on the original's HTML, quoted; one the
+	// writer has already typed into keeps what was typed.
+	const quoteHTML = document.getElementById("quote-html");
 	toolbar.hidden = false;
 	toggle.addEventListener("click", ev => {
 		ev.preventDefault();
 		if (editor) {
 			close();
+		} else if (quoteHTML && textarea.value === textarea.defaultValue) {
+			open(quoteHTML.innerHTML);
 		} else {
 			open(fromText(textarea.value));
 		}

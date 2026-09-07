@@ -3,6 +3,8 @@ package alborzbase
 import (
 	"bytes"
 	"fmt"
+	"html"
+	"html/template"
 	"io"
 	"net/http"
 	"net/url"
@@ -339,6 +341,11 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 		msg.Subject = ctx.FormValue("subject")
 		msg.Text = ctx.FormValue("text")
+		// A message written in the editor arrives as HTML; its text is
+		// derived here, so the plain part and the draft say the same.
+		if msg.HTML = composedHTML(ctx.FormValue("html")); msg.HTML != "" {
+			msg.Text = composedText(msg.HTML)
+		}
 
 		// Choosing a signature is a submit like any other, so it works
 		// with no script: the body comes back with the old one replaced
@@ -347,6 +354,9 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			chosen := ctx.FormValue("signature")
 			sig, _ := settings.signatureNamed(chosen)
 			msg.Text = withSignature(msg.Text, sig.Text)
+			if msg.HTML != "" {
+				msg.HTML = withSignatureHTML(msg.HTML, sig.Text)
+			}
 			return render(http.StatusOK, sig.Name, "")
 		}
 		// Both halves of this are the server's to know: the account's
@@ -829,6 +839,21 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	}
 	ret.Text = replyBody(ctx, inReplyTo, quoted, settings.ReplyBelowQuote)
 	ret.QuoteBelow = !settings.ReplyBelowQuote
+	if node := inReplyTo.HTMLPart(); node != nil {
+		var raw []byte
+		err := ctx.DoIMAP(func(c *imapclient.Client) error {
+			_, part, err := getMessagePart(c, inReplyToPath.Mailbox, inReplyToPath.Uid, node.Path)
+			if err != nil {
+				return err
+			}
+			raw, err = io.ReadAll(part.Body)
+			return err
+		})
+		if err != nil {
+			return ret, err
+		}
+		ret.QuoteHTML = replyHTML(ctx, inReplyTo, composedHTML(string(raw)), settings.ReplyBelowQuote)
+	}
 
 	ret.MessageID = newMessageID()
 	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
@@ -925,6 +950,27 @@ func replyBody(ctx *alborz.Context, original *IMAPMessage, quoted string, below 
 		return attribution + "\n" + quoted + "\n"
 	}
 	return "\n\n" + attribution + "\n" + quoted
+}
+
+// replyHTML is replyBody for the editor: the same attribution, the
+// original as a quote block, and an empty paragraph where the writing
+// goes. The quote has already been through the policy, which keeps no
+// image, so nothing in it phones home when the answer is read.
+func replyHTML(ctx *alborz.Context, original *IMAPMessage, quoted string, below bool) template.HTML {
+	who := ""
+	if from := original.Envelope.From; len(from) > 0 {
+		who = from[0].Name
+		if who == "" {
+			who = from[0].Addr()
+		}
+	}
+	when := alborz.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
+	attribution := ctx.Tf("message.wrote", when, who)
+	head := `<p dir="` + alborz.ParagraphDir(attribution) + `">` + html.EscapeString(attribution) + "</p>\n<blockquote>" + quoted + "</blockquote>\n"
+	if below {
+		return template.HTML(head + `<p dir="auto"><br></p>`)
+	}
+	return template.HTML(`<p dir="auto"><br></p>` + "\n" + head)
 }
 
 // handleForwardSelection is the list toolbar's Forward: the selection
@@ -1086,6 +1132,14 @@ func handleEdit(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
+		// A draft with an HTML twin names the alternative as its part;
+		// the text inside it is what is edited.
+		if strings.HasPrefix(mimeType, "multipart/") && source.TextPart() != nil {
+			source, part, mimeType, err = quotablePart(ctx, sourcePath, source.TextPart().Path)
+			if err != nil {
+				return err
+			}
+		}
 
 		if !strings.EqualFold(mimeType, "text/plain") {
 			err := fmt.Errorf("cannot edit %q part", mimeType)
@@ -1097,6 +1151,20 @@ func handleEdit(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to read part body: %v", err)
 		}
 		msg.Text = string(b)
+		// A draft written in the editor opens in it again.
+		if node := source.HTMLPart(); node != nil {
+			if err := ctx.DoIMAP(func(c *imapclient.Client) error {
+				_, part, err := getMessagePart(c, sourcePath.Mailbox, sourcePath.Uid, node.Path)
+				if err != nil {
+					return err
+				}
+				b, err := io.ReadAll(part.Body)
+				msg.HTML = composedHTML(string(b))
+				return err
+			}); err != nil {
+				return fmt.Errorf("failed to read the draft's HTML: %v", err)
+			}
+		}
 
 		if len(source.Envelope.From) > 0 {
 			msg.From = source.Envelope.From[0].Addr()

@@ -299,11 +299,14 @@ func SubjectDir(subject string) string {
 	if strings.TrimSpace(stripped) == "" {
 		stripped = subject
 	}
-	if strings.TrimSpace(stripped) == "" {
+	stripped = strings.TrimSpace(stripped)
+	if stripped == "" {
 		return "auto"
 	}
 	// Order must run before the direction is asked for: x/text panics
-	// on a paragraph it has not ordered yet.
+	// on a paragraph it has not ordered yet, and on one whose first
+	// character is a paragraph separator, since it reads no further
+	// and orders nothing; the trim above keeps a leading newline out.
 	var p bidi.Paragraph
 	if _, err := p.SetString(stripped); err != nil {
 		return "auto"

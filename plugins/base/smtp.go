@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"html/template"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -229,6 +230,14 @@ type OutgoingMessage struct {
 	// QuoteBelow says the quoted message sits under the space the reply
 	// is written in, so the compose form can put the cursor there.
 	QuoteBelow bool
+	// HTML is the message as written in the editor, sent as the writer
+	// left it beside the text a client that wants none reads. Empty for
+	// a message written as text. QuoteHTML is the message being
+	// answered as the editor may quote it, for the page alone: the
+	// original's HTML with every image and script gone, so a tracker in
+	// it is not passed on to the next reader.
+	HTML      string
+	QuoteHTML template.HTML
 	// SendHTML adds an alternative part carrying the direction each
 	// paragraph runs in. The plain part stays exactly what was typed,
 	// so a client preferring plain text sees no change at all.
@@ -368,11 +377,16 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	// An iCalendar body is its own format and takes no alternative; and
 	// with nothing to say about direction there is no reason to send
 	// two parts where one will do.
-	if msg.SendHTML && msg.CalendarMethod == "" {
-		if err := writeAlternative(mw, th, body, msg.Text); err != nil {
+	switch {
+	case msg.HTML != "" && msg.CalendarMethod == "":
+		if err := writeAlternative(mw, th, body, msg.HTML); err != nil {
 			return err
 		}
-	} else {
+	case msg.SendHTML && msg.CalendarMethod == "":
+		if err := writeAlternative(mw, th, body, alborz.HTMLAlternative(msg.Text)); err != nil {
+			return err
+		}
+	default:
 		tw, err := mw.CreateSingleInline(th)
 		if err != nil {
 			return fmt.Errorf("failed to create text part: %v", err)
@@ -437,12 +451,12 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
 	return nil
 }
 
-// writeAlternative sends the text as typed alongside an HTML part that
-// adds nothing but which way each paragraph runs. The plain part comes
-// first, which is what multipart/alternative means by least-preferred
-// first (RFC 2046 5.1.4): a client that wants plain text takes it and
-// sees exactly what was written.
-func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, source string) error {
+// writeAlternative sends the text alongside an HTML part: the message
+// as the editor left it, or one that adds nothing but which way each
+// paragraph runs. The plain part comes first, which is what
+// multipart/alternative means by least-preferred first (RFC 2046
+// 5.1.4): a client that wants plain text takes it.
+func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody string) error {
 	iw, err := mw.CreateInline()
 	if err != nil {
 		return fmt.Errorf("failed to create alternative part: %v", err)
@@ -469,7 +483,7 @@ func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, source string
 		iw.Close()
 		return fmt.Errorf("failed to create html part: %v", err)
 	}
-	if _, err := io.WriteString(hw, alborz.HTMLAlternative(source)); err != nil {
+	if _, err := io.WriteString(hw, htmlBody); err != nil {
 		hw.Close()
 		iw.Close()
 		return fmt.Errorf("failed to write html part: %v", err)

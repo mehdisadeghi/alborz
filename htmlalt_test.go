@@ -60,3 +60,19 @@ func TestHTMLAlternativeEscapesAndKeepsBreaks(t *testing.T) {
 		}
 	}
 }
+
+// A paragraph that opens with a line break is a normal thing for an
+// editor to hand over. x/text reads a paragraph up to its first
+// separator, so a leading one gives it nothing to order and it used
+// to panic when asked the direction.
+func TestParagraphDirSurvivesLeadingBreak(t *testing.T) {
+	for in, want := range map[string]string{
+		"\nfoobar":   "ltr",
+		"\r\nسلام":   "rtl",
+		"\u2029text": "ltr",
+	} {
+		if got := ParagraphDir(in); got != want {
+			t.Errorf("ParagraphDir(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -122,7 +122,8 @@ select {
   --fg: #000;
   --fg-dim: #555;
   --fg-muted: #666;
-  --fg-faint: #999;
+  /* The faintest grey that still reads at 4.5:1 on the well. */
+  --fg-faint: #707070;
 
   --bg: #fff;          /* chrome and raised surfaces */
   --bg-well: #f6f6f6;  /* content area behind surfaces */
@@ -139,17 +140,20 @@ select {
   --link-read: #66b;
   --link-unread: #00c;
 
-  --green: #4a4;
-  --green-dark: #008d47;
+  /* Both greens carry white text, so neither may be lighter than 4.5:1
+     under it. */
+  --green: #288528;
+  --green-dark: #008040;
   --bg-green: #f6fff6;
   --border-green: #afa;
-  --flag: #bfa300;
+  /* A flag is an icon, and 3:1 on the well is its floor. */
+  --flag: #8f7300;
   /* The seven colours Apple Mail and Outlook address with three IMAP
      keywords. Ours, not theirs: only the order is shared, so a mail
      flagged elsewhere wears the same colour here. */
   --flag-gold: var(--flag);
-  --flag-orange: #e8710a;
-  --flag-yellow: #f2ce00;
+  --flag-orange: #d4650a;
+  --flag-yellow: #a48c00;
   --flag-green: #1e8e3e;
   --flag-blue: #1a73e8;
   --flag-purple: #8430ce;
@@ -198,8 +202,8 @@ select {
   :root:not([data-theme="light"]) {
     --fg: #ddd;
     --fg-dim: #a8a8a8;
-    --fg-muted: #909090;
-    --fg-faint: #6e6e6e;
+    --fg-muted: #a0a0a0;
+    --fg-faint: #8a8a8a;
 
     --bg: #1f1f1f;
     --bg-well: #141414;
@@ -216,10 +220,12 @@ select {
     --link-read: #8d9cd8;
     --link-unread: #a8c7fa;
 
+    --green: #5cc26e;
     --green-dark: #3fb968;
     --bg-green: #17211a;
     --border-green: #2c4a33;
     --flag: #d9b62a;
+    --flag-purple: #a86ee0;
 
     --notice-fg: #9ed6e0;
     --notice-bg: #12343b;
@@ -242,8 +248,8 @@ select {
 
   --fg: #ddd;
   --fg-dim: #a8a8a8;
-  --fg-muted: #909090;
-  --fg-faint: #6e6e6e;
+  --fg-muted: #a0a0a0;
+  --fg-faint: #8a8a8a;
 
   --bg: #1f1f1f;
   --bg-well: #141414;
@@ -260,10 +266,12 @@ select {
   --link-read: #8d9cd8;
   --link-unread: #a8c7fa;
 
+  --green: #5cc26e;
   --green-dark: #3fb968;
   --bg-green: #17211a;
   --border-green: #2c4a33;
   --flag: #d9b62a;
+  --flag-purple: #a86ee0;
 
   --notice-fg: #9ed6e0;
   --notice-bg: #12343b;
@@ -3291,7 +3299,7 @@ main.calendar .date.active h3 .day-label {
   line-height: 1;
   border-radius: 50%;
   background: var(--green);
-  color: white;
+  color: var(--on-accent);
 }
 
 aside .aside-filter { display: flex; flex-direction: column; }

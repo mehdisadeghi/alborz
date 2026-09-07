@@ -6,7 +6,7 @@
   --fg: #1b1b1f;
   --fg-dim: #48484f;
   --fg-muted: #63636b;
-  --fg-faint: #8e8e96;
+  --fg-faint: #6e6e76;
 
   --bg: rgba(255, 255, 255, 0.62);
   /* The page surfaces are frosted on purpose; a menu is not. It floats
@@ -29,11 +29,12 @@
   /* The frosted background is translucent; accent labels need ink. */
   --on-accent: #fff;
 
-  --green: #34c759;
-  --green-dark: #1e8f43;
+  /* iOS green, deepened until white reads on it at 4.5:1. */
+  --green: #1d823b;
+  --green-dark: #1a7c38;
   --bg-green: rgba(52, 199, 89, 0.12);
   --border-green: rgba(52, 199, 89, 0.35);
-  --flag: #cc9a06;
+  --flag: #9a7400;
 
   --notice-fg: #0c5460;
   --notice-bg: rgba(209, 236, 241, 0.7);

@@ -1,0 +1,33 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+{{ $aq := account "?" .GlobalData.URLAccount }}
+
+<div class="page-wrap">
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/settings" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "new" (dict "href" "/settings/browser" "label" ($.T "settings.forbrowser"))) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="post" action="/signatures{{$aq}}">
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.signatures") "path" "/signatures") }}
+        <h1>{{ if .Was }}{{$.T "settings.signatureedit"}}{{ else }}{{$.T "settings.signaturenew"}}{{ end }}</h1>
+
+        {{ with .Error }}<div class="alert" role="alert">{{.}}</div>{{ end }}
+
+        <input type="hidden" name="was" value="{{.Was}}">
+        {{ template "field" (dict "label" ($.T "settings.signaturename") "name" "name" "value" .Editing.Name "dir" "auto" "required" true "autofocus" true) }}
+        <div class="action-group">
+          {{ template "field" (dict "label" ($.T "settings.signaturetext") "name" "text" "rows" 6 "dir" "auto" "value" .Editing.Text) }}
+          <p class="hint">{{$.T "settings.signaturehint"}}</p>
+        </div>
+
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/signatures%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html" .}}

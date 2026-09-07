@@ -144,10 +144,7 @@ type SettingsRenderData struct {
 	Subscriptions Subscriptions
 	Secondary     string // calendar system shown beside the Gregorian one
 	MaxPerPage    int
-	// Servers is where this account's mail actually lives, and what
-	// software is answering. A deployment is not the one the reader is
-	// used to, and it is the first thing a bug report has to say.
-	Servers ServerInfo
+	Rail          map[string][]alborz.RailRow
 	// HasHTTPPassword says a calendar and contacts password is kept,
 	// which the form shows without ever showing the password.
 	HasHTTPPassword bool
@@ -200,6 +197,7 @@ func abilities(c *imapclient.Client) []Ability {
 // rather than in any account.
 type BrowserSettingsRenderData struct {
 	alborz.BaseRenderData
+	Rail          map[string][]alborz.RailRow
 	Language      string // explicit per-user choice, "" follows the browser
 	Theme         string
 	ColorScheme   string
@@ -251,18 +249,51 @@ func serverInfo(ctx *alborz.Context, agent string, abilities []Ability) ServerIn
 		Agent: agent, Abilities: abilities, Explained: explained}
 }
 
-// SignaturesRenderData is the signature page: the list, which one a new
-// message starts with, and the one being written if any.
+// SignaturesRenderData is the signature list, marking the one a new
+// message starts with.
 type SignaturesRenderData struct {
-	IMAPBaseRenderData
+	alborz.BaseRenderData
 	Settings *Settings
-	// Editing is the signature the form holds. Empty Name means the form
-	// is adding rather than changing one.
+	Rail     map[string][]alborz.RailRow
+}
+
+// SignatureRenderData is one signature's form, new or existing.
+type SignatureRenderData struct {
+	alborz.BaseRenderData
 	Editing Signature
 	// Was is the name the form started with, so a rename replaces rather
-	// than duplicates.
+	// than duplicates; empty when adding.
 	Was   string
 	Error string
+	Rail  map[string][]alborz.RailRow
+}
+
+// ServersRenderData is what answers for the account: where its mail
+// lives and what the software there can do. A deployment is not the
+// one the reader is used to, and it is the first thing a bug report
+// has to say.
+type ServersRenderData struct {
+	alborz.BaseRenderData
+	Servers ServerInfo
+	Rail    map[string][]alborz.RailRow
+}
+
+// settingsRail lists each account's places in this section. Settings
+// are per account by nature, so there is no merged entry; the browser's
+// own pane belongs to no account and closes the rail.
+func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
+	path := ctx.Request().URL.Path
+	rows := map[string][]alborz.RailRow{}
+	for _, account := range ctx.Accounts() {
+		scoped := account.Username == ctx.Session.Username()
+		q := "?account=" + alborz.AddressParam(account.Username)
+		rows[account.Username] = []alborz.RailRow{
+			{Label: ctx.T("nav.settings"), Href: "/settings" + q, Active: scoped && path == "/settings"},
+			{Label: ctx.T("settings.signatures"), Href: "/signatures" + q, Active: scoped && strings.HasPrefix(path, "/signatures")},
+			{Label: ctx.T("settings.servers"), Href: "/settings/servers" + q, Active: scoped && path == "/settings/servers"},
+		}
+	}
+	return rows
 }
 
 // handleSignatures keeps signatures out of the settings pane: they are
@@ -274,45 +305,59 @@ func handleSignatures(ctx *alborz.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+	return ctx.Render(http.StatusOK, "signatures.html", &SignaturesRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
+		Settings:       settings,
+		Rail:           settingsRail(ctx),
+	})
+}
+
+// handleSignatureForm opens a signature to write: a new one, or the one
+// the URL names.
+func handleSignatureForm(ctx *alborz.Context) error {
+	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load settings: %w", err)
 	}
-
-	editing, was := Signature{}, ""
-	if name := ctx.QueryParam("edit"); name != "" {
-		if found, ok := settings.signatureNamed(name); ok {
-			editing, was = found, found.Name
+	data := &SignatureRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
+		Rail:           settingsRail(ctx),
+	}
+	if name := ctx.Param("name"); name != "" {
+		found, ok := settings.signatureNamed(name)
+		if !ok {
+			return alborz.NotFoundf("no signature named %q", name)
 		}
+		data.Editing, data.Was = found, found.Name
 	}
+	return ctx.Render(http.StatusOK, "signature-edit.html", data)
+}
 
-	render := func(status int, message string) error {
-		ibase.BaseRenderData.WithTitle(ctx.T("settings.signatures"))
-		return ctx.Render(status, "signatures.html", &SignaturesRenderData{
-			IMAPBaseRenderData: *ibase,
-			Settings:           settings,
-			Editing:            editing,
-			Was:                was,
-			Error:              message,
-		})
+func handleSignatureSave(ctx *alborz.Context) error {
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return fmt.Errorf("failed to load settings: %w", err)
 	}
-
-	if ctx.Request().Method != http.MethodPost {
-		return render(http.StatusOK, "")
-	}
-
 	name := strings.TrimSpace(ctx.FormValue("name"))
 	text := strings.TrimRight(ctx.FormValue("text"), "\r\n")
-	was = ctx.FormValue("was")
-	editing = Signature{Name: name, Text: text}
+	was := ctx.FormValue("was")
+	editing := Signature{Name: name, Text: text}
+	render := func(message string) error {
+		return ctx.Render(http.StatusUnprocessableEntity, "signature-edit.html", &SignatureRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
+			Editing:        editing,
+			Was:            was,
+			Error:          message,
+			Rail:           settingsRail(ctx),
+		})
+	}
 	switch {
 	case name == "":
-		return render(http.StatusUnprocessableEntity, ctx.T("form.signaturename"))
+		return render(ctx.T("form.signaturename"))
 	case text == "":
-		return render(http.StatusUnprocessableEntity, ctx.T("form.signaturetext"))
+		return render(ctx.T("form.signaturetext"))
 	case len(settings.Signatures) >= maxSignatures && was == "":
-		return render(http.StatusUnprocessableEntity,
-			fmt.Sprintf(ctx.T("form.signaturecount"), maxSignatures))
+		return render(fmt.Sprintf(ctx.T("form.signaturecount"), maxSignatures))
 	}
 
 	// A rename keeps the entry's place in the list, and keeps being the
@@ -330,12 +375,12 @@ func handleSignatures(ctx *alborz.Context) error {
 	}
 	if !replaced {
 		if _, taken := settings.signatureNamed(name); taken {
-			return render(http.StatusUnprocessableEntity, ctx.T("form.signaturetaken"))
+			return render(ctx.T("form.signaturetaken"))
 		}
 		settings.Signatures = append(settings.Signatures, editing)
 	}
 	if key, limit := settings.check(); key != "" {
-		return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T(key), limit))
+		return render(fmt.Sprintf(ctx.T(key), limit))
 	}
 	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 		return fmt.Errorf("failed to save settings: %w", err)
@@ -376,7 +421,8 @@ func handleSignatureDefault(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	chosen := ctx.FormValue("signature_default")
+	// An empty name clears the default: a message then starts bare.
+	chosen := ctx.FormValue("name")
 	if _, ok := settings.signatureNamed(chosen); !ok {
 		chosen = ""
 	}
@@ -394,21 +440,13 @@ func handleSettings(ctx *alborz.Context) error {
 	}
 
 	var mailboxes []MailboxInfo
-	var agent string
-	var abilityList []Ability
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		mailboxes, err = listMailboxes(c)
-		if err != nil {
-			return err
-		}
-		agent = serverAgent(c)
-		abilityList = abilities(c)
-		return nil
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	servers := serverInfo(ctx, agent, abilityList)
 	hasHTTPPassword, err := ctx.Session.HasHTTPPassword()
 	if err != nil {
 		return err
@@ -427,6 +465,7 @@ func handleSettings(ctx *alborz.Context) error {
 			MaxPerPage:      maxMessagesPerPage,
 			HasHTTPPassword: hasHTTPPassword,
 			Error:           message,
+			Rail:            settingsRail(ctx),
 		})
 	}
 
@@ -494,8 +533,26 @@ func handleSettings(ctx *alborz.Context) error {
 		Subscriptions:   Subscriptions(settings.Subscriptions),
 		Secondary:       ctx.SecondaryCalendar(),
 		MaxPerPage:      maxMessagesPerPage,
-		Servers:         servers,
 		HasHTTPPassword: hasHTTPPassword,
+		Rail:            settingsRail(ctx),
+	})
+}
+
+func handleServers(ctx *alborz.Context) error {
+	var agent string
+	var abilityList []Ability
+	err := ctx.DoIMAP(func(c *imapclient.Client) error {
+		agent = serverAgent(c)
+		abilityList = abilities(c)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return ctx.Render(http.StatusOK, "servers.html", &ServersRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.servers")),
+		Servers:        serverInfo(ctx, agent, abilityList),
+		Rail:           settingsRail(ctx),
 	})
 }
 
@@ -524,6 +581,7 @@ func handleBrowserSettings(ctx *alborz.Context) error {
 
 	return ctx.Render(http.StatusOK, "settings-browser.html", &BrowserSettingsRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.forbrowser")),
+		Rail:           settingsRail(ctx),
 		Language:       ctx.Language(),
 		Theme:          ctx.Theme(),
 		ColorScheme:    ctx.ColorScheme(),

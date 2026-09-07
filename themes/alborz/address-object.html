@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   {{$acct := ""}}{{with .GlobalData.URLAccount}}{{$acct = printf "?account=%s" .}}{{end}}
-  {{ template "detail-aside" (dict "backHref" (printf "/contacts%s" $acct) "backLabel" .AddressBook.Name "backActive" true) }}
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
 
   <div class="container">
     <main id="main" tabindex="-1" class="contact">

@@ -12,6 +12,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"path"
 	"sort"
 	"strings"
@@ -47,6 +48,7 @@ const settingsKey = "carddav.settings"
 
 type AddressObjectRenderData struct {
 	alborz.BaseRenderData
+	Rail dav.Rail
 	// Modified is when the card last changed: REV if the card carries
 	// one (vCard 6.7.4), and the server's own last-modified otherwise.
 	//
@@ -64,6 +66,7 @@ type AddressObjectRenderData struct {
 
 type UpdateAddressObjectRenderData struct {
 	alborz.BaseRenderData
+	Rail          dav.Rail
 	Groups        []dav.Group[AddressBookInfo]
 	AddressBook   *AddressBookInfo
 	AddressObject *carddav.AddressObject // nil if creating a new contact
@@ -462,7 +465,12 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 	}
 	ao := &aos[0]
 
+	rail, err := p.bookRail(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
+		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()),
 		AddressBook:    addressBook,
 		AddressObject:  AddressObject{AddressObject: ao},
@@ -520,7 +528,12 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		addressBookPath := ctx.FormValue("addressbook")
 
 		reject := func(message string) error {
+			rail, err := p.bookRail(ctx)
+			if err != nil {
+				return err
+			}
 			return ctx.Render(http.StatusUnprocessableEntity, "update-address-object.html", &UpdateAddressObjectRenderData{
+				Rail:           rail,
 				BaseRenderData: *alborz.NewBaseRenderData(ctx),
 				Groups:         groups,
 				AddressBook:    currentAddressBook,
@@ -655,7 +668,12 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 	if ao != nil {
 		name = AddressObject{AddressObject: ao}.DisplayName()
 	}
+	rail, err := p.bookRail(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "update-address-object.html", &UpdateAddressObjectRenderData{
+		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Groups:         groups,
 		AddressBook:    currentAddressBook,
@@ -755,7 +773,12 @@ func (p *plugin) deleteContacts(ctx *alborz.Context) error {
 
 func handleCreateBook(p *plugin) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
+		rail, err := p.bookRail(ctx)
+		if err != nil {
+			return err
+		}
 		data := &dav.NewCollectionRenderData{
+			Rail:           rail,
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("contacts.newbook")),
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Session.Username(),
@@ -824,6 +847,7 @@ func (p *plugin) collectionPage() dav.Page {
 		Color:  addressBookColor,
 		Ext:    ".vcf",
 		Forget: p.books.Forget,
+		Rail:   func(ctx *alborz.Context, _ string) (dav.Rail, error) { return p.bookRail(ctx) },
 		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
 			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
 			if err != nil {
@@ -868,6 +892,22 @@ type bookSite struct {
 // own visibility setting, or with the URL's narrowing when it names
 // one. Every book comes back for the rail, whatever the scope; only the
 // visible ones in scope come back as sites to query.
+// bookRail is the section's rail for a page that is not its list,
+// listing every account's address books.
+func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
+	rail := dav.Rail{Path: "/contacts", Field: "book", ItemClass: "addressbook-item", Action: "/contacts", EditHref: "/address-books/",
+		NewHref: "/address-books/create?next=" + url.QueryEscape(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook")}
+	accounts, err := p.pooledBooks(ctx)
+	if err != nil {
+		return rail, err
+	}
+	infos, _, err := visibleBooks(accounts, ctx.URLAccount(), nil)
+	for _, info := range infos {
+		rail.Items = append(rail.Items, info)
+	}
+	return rail, err
+}
+
 func visibleBooks(accounts []dav.Account[*carddav.Client, AddressBookInfo], scope string, only map[string]bool) ([]AddressBookInfo, []bookSite, error) {
 	var infos []AddressBookInfo
 	var sites []bookSite

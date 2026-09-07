@@ -304,6 +304,7 @@ func hasAttachment(msg *alborzbase.IMAPMessage, types ...string) bool {
 // handed over by the browser or typed, and the calendars to file into.
 type ImportRenderData struct {
 	alborz.BaseRenderData
+	Rail   dav.Rail
 	Groups []dav.Group[CalendarInfo]
 	URL    string
 	Error  string
@@ -316,7 +317,12 @@ func (p *plugin) importPage(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	rail, err := p.eventRail(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "calendar-import.html", &ImportRenderData{
+		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("import.title")),
 		Groups:         groups,
 		URL:            ctx.QueryParam("url"),

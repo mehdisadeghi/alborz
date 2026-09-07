@@ -469,16 +469,6 @@
 </div>
 {{ end }}
 
-{{/* The rail of a detail or edit page: where it came from, then the
-     entry that makes another - the same order every other rail has, so
-     the create entry sits in one place across the app. */}}
-{{ define "detail-aside" }}
-<aside>
-  {{ if .backHref }}<a href="{{.backHref}}"{{ if .backActive }} class="active"{{ end }}>{{.backLabel}}</a>{{ end }}
-  {{ if .newHref }}<a href="{{.newHref}}" class="aside-create{{ if .newActive }} active{{ end }}">{{.newLabel}}</a>{{ end }}
-</aside>
-{{ end }}
-
 {{/* One stacked form field: a full-width caption over its control.
      dict: label name [type] [value] [dir] [placeholder] [required]
            [rows] [autofocus]. */}}
@@ -642,6 +632,16 @@
        in. */}}
   {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
   {{ with .follow }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
+{{ end }}
+
+{{/* The section's rail on a page that is not its list, drawn from the
+     Rail the handler prepared, so a form or an object stands where its
+     list does. dict: g rail. */}}
+{{ define "dav-rail" }}
+{{ $g := .g }}{{ $r := .rail }}
+<aside>
+  {{ template "scope-rail" (dict "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "all" ($g.T "nav.allaccounts") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI)) }}
+</aside>
 {{ end }}
 
 {{/* The places a section offers per account, one row each. */}}

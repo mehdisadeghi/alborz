@@ -29,6 +29,12 @@ func (p *plugin) collectionPage() dav.Page {
 		Color:  calendarColor,
 		Ext:    ".ics",
 		Forget: p.dav.Forget,
+		Rail: func(ctx *alborz.Context, list string) (dav.Rail, error) {
+			if list == "/tasks" {
+				return p.taskRail(ctx)
+			}
+			return p.eventRail(ctx)
+		},
 		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
 			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 			if err != nil {
@@ -155,16 +161,19 @@ func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 		return "/calendar"
 	}
 	if forTasks {
-		return dav.CreateForm{Title: ctx.T("tasks.newlist"), Section: ctx.T("nav.tasks"), List: "/tasks",
-			Holds: "tasks", Made: made}, nil
+		rail, err := p.taskRail(ctx)
+		return dav.CreateForm{Rail: rail, Title: ctx.T("tasks.newlist"), Section: ctx.T("nav.tasks"), List: "/tasks",
+			Holds: "tasks", Made: made}, err
 	}
-	return dav.CreateForm{Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: "/calendar",
-		Holds: "both", OffersHolds: true, Made: made}, nil
+	rail, err := p.eventRail(ctx)
+	return dav.CreateForm{Rail: rail, Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: "/calendar",
+		Holds: "both", OffersHolds: true, Made: made}, err
 }
 
 // SubscribeRenderData renders subscribe-calendar.html.
 type SubscribeRenderData struct {
 	alborz.BaseRenderData
+	Rail     dav.Rail
 	Accounts []alborz.Account
 	Account  string
 	Address  string
@@ -178,7 +187,12 @@ type SubscribeRenderData struct {
 // and the colour is changed on the calendar's own page.
 func handleSubscribe(p *plugin) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
+		rail, err := p.eventRail(ctx)
+		if err != nil {
+			return err
+		}
 		data := &SubscribeRenderData{
+			Rail:           rail,
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.subscribe")),
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Session.Username(),
@@ -270,12 +284,14 @@ type CalendarDateRenderData struct {
 
 type EventRenderData struct {
 	alborz.BaseRenderData
+	Rail     dav.Rail
 	Calendar *dav.Collection
 	Event    CalendarObject
 }
 
 type UpdateEventRenderData struct {
 	alborz.BaseRenderData
+	Rail           dav.Rail
 	Groups         []dav.Group
 	Calendar       *dav.Collection
 	CalendarObject *caldav.CalendarObject // nil if creating a new event
@@ -336,12 +352,14 @@ type TaskRow struct {
 
 type TaskRenderData struct {
 	alborz.BaseRenderData
+	Rail     dav.Rail
 	Calendar *dav.Collection
 	Task     TaskObject
 }
 
 type UpdateTaskRenderData struct {
 	alborz.BaseRenderData
+	Rail           dav.Rail
 	Groups         []dav.Group
 	Calendar       *dav.Collection
 	CalendarObject *caldav.CalendarObject
@@ -474,6 +492,36 @@ func getFirstTodo(cal *ical.Calendar) *ical.Component {
 // eventVisibility is the calendar pages' answer to visibleCalendars:
 // which calendars the account chose to see.
 func eventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
+func taskVisibility(s *Settings) (bool, []string)  { return s.TaskFilter, s.VisibleTasks }
+
+// eventRail and taskRail are the section's rail for a page that is not
+// its list, listing every account's calendars of the kind.
+func (p *plugin) eventRail(ctx *alborz.Context) (dav.Rail, error) {
+	rail, err := p.calendarRail(ctx, supportsEvent, eventVisibility)
+	next := url.QueryEscape(ctx.Request().URL.RequestURI())
+	rail.Path, rail.Action = "/calendar", "/calendar"
+	rail.NewHref, rail.NewLabel = "/calendars/create?next="+next, ctx.T("calendar.newcalendar")
+	rail.FollowHref, rail.FollowLabel = "/calendars/subscribe?next="+next, ctx.T("calendar.subscribe")
+	return rail, err
+}
+
+func (p *plugin) taskRail(ctx *alborz.Context) (dav.Rail, error) {
+	rail, err := p.calendarRail(ctx, supportsTodo, taskVisibility)
+	rail.Path, rail.Action = "/tasks", "/tasks"
+	rail.NewHref, rail.NewLabel = "/calendars/create?for=tasks&next="+url.QueryEscape(ctx.Request().URL.RequestURI()), ctx.T("tasks.newlist")
+	return rail, err
+}
+
+func (p *plugin) calendarRail(ctx *alborz.Context, kind func([]string) bool, chosen func(*Settings) (bool, []string)) (dav.Rail, error) {
+	rail := dav.Rail{Field: "cal", ItemClass: "calendar-item", EditHref: "/calendars/"}
+	accounts, err := p.pooledCalendars(ctx)
+	if err != nil {
+		return rail, err
+	}
+	infos, _, err := visibleCalendars(accounts, ctx.URLAccount(), nil, kind, chosen)
+	rail.Items = infos
+	return rail, err
+}
 
 // visibleCalendars are dav.Visible's calendars of one kind, with the
 // feeds the account follows beside the server's.
@@ -943,12 +991,18 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	}
 	summary, _ := vevents[0].Props.Text("SUMMARY")
 
+	rail, err := p.eventRail(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "event.html", &EventRenderData{
+		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Event:          CalendarObject{CalendarObject: event},
 	})
 }
+
 func (p *plugin) updateEvent(ctx *alborz.Context) error {
 	calendarObjectPath, err := dav.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
@@ -1007,7 +1061,12 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		// The form answers its own invalid input: the same page with
 		// an alert, never a status page the browser writes.
 		reject := func(message string) error {
+			rail, err := p.eventRail(ctx)
+			if err != nil {
+				return err
+			}
 			return ctx.Render(http.StatusUnprocessableEntity, "update-event.html", &UpdateEventRenderData{
+				Rail:           rail,
 				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.createtitle")),
 				Groups:         groups,
 				Calendar:       currentCalendar,
@@ -1133,7 +1192,12 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 
 	summary, _ := event.Props.Text("SUMMARY")
 
+	rail, err := p.eventRail(ctx)
+	if err != nil {
+		return err
+	}
 	data := &UpdateEventRenderData{
+		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
 		Groups:         groups,
 		Calendar:       currentCalendar,
@@ -1219,8 +1283,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		return err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsTodo,
-		func(s *Settings) (bool, []string) { return s.TaskFilter, s.VisibleTasks })
+	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsTodo, taskVisibility)
 	if err != nil {
 		return err
 	}
@@ -1379,7 +1442,12 @@ func (p *plugin) task(ctx *alborz.Context) error {
 	}
 	summary, _ := todo.Props.Text("SUMMARY")
 
+	rail, err := p.taskRail(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "task.html", &TaskRenderData{
+		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
@@ -1432,7 +1500,12 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		dueDate := ctx.FormValue("due-date")
 
 		reject := func(message string) error {
+			rail, err := p.taskRail(ctx)
+			if err != nil {
+				return err
+			}
 			return ctx.Render(http.StatusUnprocessableEntity, "update-task.html", &UpdateTaskRenderData{
+				Rail:           rail,
 				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("tasks.createtitle")),
 				Groups:         groups,
 				Calendar:       currentCalendar,
@@ -1501,7 +1574,12 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 
 	summary, _ := todo.Props.Text("SUMMARY")
 
+	rail, err := p.taskRail(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "update-task.html", &UpdateTaskRenderData{
+		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
 		Groups:         groups,
 		Calendar:       currentCalendar,

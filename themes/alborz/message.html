@@ -109,6 +109,13 @@
                 {{/* The bytes the server holds, which is what makes the
                      message filable and checkable elsewhere. */}}
                 <a class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
+                {{/* A rule starts from the message in hand: its sender,
+                     its list and its subject are offered as conditions on
+                     the account that received it. */}}
+                {{ if call $.GlobalData.HavePlugin "sieve" }}
+                {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
+                <a class="button-link" href="{{ localhref (printf "/filters/rules/create?from=%s&list=%s&subject=%s%v" ($from | urlquery) (.Message.ListID | urlquery) (.Message.Envelope.Subject | urlquery) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
+                {{ end }}
                 {{/* On list mail the dangerous reply is the one that
                      answers the list and everyone on it at once, so it
                      is here, spelled out, rather than a mark beside the

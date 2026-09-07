@@ -3254,6 +3254,10 @@ main.calendar .date h3 .day-label {
   white-space: nowrap;
 }
 
+main.calendar .date h3 .label-short {
+  display: none;
+}
+
 /* The secondary calendar is a gloss on the Gregorian date, never a
    competitor: same line, quieter ink, smaller. */
 main.calendar .date h3 .day-secondary {
@@ -4573,6 +4577,8 @@ h1.no-word .title-short {
   main.calendar .date { padding: 2px; min-height: 3rem; }
   main.calendar .date h3 { font-size: 0.7rem; min-height: 1.35rem; }
   main.calendar .date h3 .day-label { font-size: 0.75rem; min-height: 1.35rem; padding-inline: 2px; }
+  main.calendar .date h3 .label-long { display: none; }
+  main.calendar .date h3 .label-short { display: inline; }
   /* The circle keeps its shape at this size too: min-height would make
      it an oval again by setting a height the width does not follow. */
   main.calendar .date.active h3 .day-label { min-height: 0; padding: 0; line-height: 1; }

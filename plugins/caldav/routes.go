@@ -428,9 +428,8 @@ type UpdateTaskRenderData struct {
 }
 
 const (
-	monthPageLayout = "2006-01"
-	datePageLayout  = "2006-01-02"
-	settingsKey     = "caldav.settings"
+	datePageLayout = "2006-01-02"
+	settingsKey    = "caldav.settings"
 )
 
 // getCalendarObject fetches one event or task without go-webdav's
@@ -850,17 +849,18 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	}
 	loc := alborzbase.UserLocation(ctx)
 
+	// The month is the reader's calendar's month: its bounds, its page
+	// name and its length come from the system they count in.
+	cal := ctx.CalendarSystem()
 	var start time.Time
 	if s := ctx.QueryParam("month"); s != "" {
 		var err error
-		start, err = time.Parse(monthPageLayout, s)
+		start, err = cal.ParsePage(s, loc)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
-		start = time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc)
 	} else {
-		now := time.Now().In(loc)
-		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+		start = cal.MonthStart(time.Now().In(loc))
 	}
 	firstDayOfWeek := baseSettings.FirstDayOfWeek
 
@@ -875,7 +875,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 
 	// Pad a week each way: the grid shows adjacent-month days, and a
 	// fixed window keeps the cache key stable.
-	monthEnd := start.AddDate(0, 1, 0)
+	monthEnd := cal.AddMonths(start, 1)
 	queryStart := start.AddDate(0, 0, -7)
 	queryEnd := monthEnd.AddDate(0, 0, 7)
 
@@ -888,7 +888,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	}
 	since := start
 	thisMonth := false
-	if now := time.Now().In(loc); now.Year() == start.Year() && now.Month() == start.Month() {
+	if now := time.Now().In(loc); !now.Before(start) && now.Before(monthEnd) {
 		thisMonth = true
 		if span != "month" {
 			since = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
@@ -897,7 +897,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 
 	offset := (int(start.Weekday()) - firstDayOfWeek + 7) % 7
 	gridStart := start.AddDate(0, 0, -offset)
-	daysInMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	daysInMonth := cal.DaysInMonth(start)
 	totalCells := offset + daysInMonth
 	rows := (totalCells + 6) / 7
 
@@ -999,12 +999,12 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		Calendars: calendarInfos,
 		Dates:     dates,
 		Events:    events,
-		Page:      start.Format(monthPageLayout),
+		Page:      cal.Page(start),
 		View:      view,
-		PrevPage:  start.AddDate(0, -1, 0).Format(monthPageLayout),
-		NextPage:  start.AddDate(0, 1, 0).Format(monthPageLayout),
-		PrevTime:  start.AddDate(0, -1, 0),
-		NextTime:  start.AddDate(0, 1, 0),
+		PrevPage:  cal.Page(cal.AddMonths(start, -1)),
+		NextPage:  cal.Page(cal.AddMonths(start, 1)),
+		PrevTime:  cal.AddMonths(start, -1),
+		NextTime:  cal.AddMonths(start, 1),
 
 		EventsForDate: func(when time.Time) []Occurrence {
 			if events, ok := eventMap[day(when)]; ok {
@@ -1075,7 +1075,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	color, owner := calendarLabels(ctx, calendarInfos, len(accounts) > 1)
 	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
-			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(start) + start.Format(", 2")),
+			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(start)),
 		Time:         start,
 		Calendars:    calendarInfos,
 		Events:       shown,
@@ -1437,16 +1437,16 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 // back as one file, named for the month.
 func (p *plugin) exportMonth(ctx *alborz.Context) error {
 	loc := alborzbase.UserLocation(ctx)
-	start := time.Now().In(loc)
+	cal := ctx.CalendarSystem()
+	from := cal.MonthStart(time.Now().In(loc))
 	if s := ctx.QueryParam("month"); s != "" {
 		var err error
-		if start, err = time.Parse(monthPageLayout, s); err != nil {
+		if from, err = cal.ParsePage(s, loc); err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 	}
-	from := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, loc)
 	return p.exportVisible(ctx, CalendarInfo.SupportsEvent, eventVisibility, []string{"VEVENT"},
-		from, from.AddDate(0, 1, 0), ctx.T("nav.calendar")+" "+from.Format(monthPageLayout))
+		from, cal.AddMonths(from, 1), ctx.T("nav.calendar")+" "+cal.Page(from))
 }
 
 // exportVisible is the download a list page offers: what the rail shows

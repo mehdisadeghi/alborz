@@ -16,7 +16,7 @@
     {{/* Today keeps its place on the month it would take you to, or
          every control after it moves the moment you arrive there. */}}
     <div class="actions-pagination">
-      {{if ne .Time.Month .Now.Month}}
+      {{if not .ThisMonth}}
       {{/* localhref, or html/template escapes the whole query as one
            value and "view=list" arrives as "view%3dlist" - which is how
            Today dropped the reader back into the month grid. */}}

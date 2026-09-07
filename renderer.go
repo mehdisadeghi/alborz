@@ -14,7 +14,6 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/dromara/carbon/v2"
-	"github.com/dromara/carbon/v2/calendar/persian"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 	"golang.org/x/text/number"
@@ -56,8 +55,9 @@ type GlobalRenderData struct {
 	LanguageChoices []LanguageChoice
 	// Year the page is served in, for the footer's line
 	Year int
-	// Secondary calendar system shown beside the Gregorian dates,
-	// empty for none
+	// Primary is the calendar system the page counts in, Secondary the
+	// one glossed beside it, empty for none.
+	Primary   string
 	Secondary string
 
 	// User's timezone location for date formatting
@@ -205,14 +205,10 @@ func (g *GlobalRenderData) comma() string {
 // is chosen: a reader who asked to count in Solar Hijri counts there
 // wherever a single date fits. The year is left off within this one.
 func (g *GlobalRenderData) ShortDate(t time.Time) string {
-	c := g.at(t)
-	day, year, month := c.Day(), c.Year(), c.ToShortMonthString()
-	thisYear := g.at(time.Now()).Year()
-	if g.Secondary == shcalName {
-		d, now := g.persian(t), g.persian(time.Now())
-		day, year, thisYear = d.Day(), d.Year(), now.Year()
-		month = g.shMonthName(d)
-	}
+	cal := g.primary()
+	year, m, day := cal.Date(g.InTimezone(t))
+	thisYear, _, _ := cal.Date(g.InTimezone(time.Now()))
+	month := g.shortMonth(cal, m)
 	p := g.printer()
 	var s, yearSep string
 	switch g.Lang {
@@ -266,12 +262,56 @@ func (g *GlobalRenderData) WeekdayName(t time.Time) string {
 // MonthYearShort is MonthYear abbreviated, for a toolbar too narrow to
 // carry the month's full name beside its controls.
 func (g *GlobalRenderData) MonthYearShort(t time.Time) string {
-	return fmt.Sprintf("%s %s", g.at(t).ToShortMonthString(), g.year(t.Year()))
+	cal := g.primary()
+	y, m, _ := cal.Date(g.InTimezone(t))
+	return fmt.Sprintf("%s %s", g.shortMonth(cal, m), g.year(y))
 }
 
-// MonthName translates the month of t.
+// MonthName translates the month of t, in the primary calendar.
 func (g *GlobalRenderData) MonthName(t time.Time) string {
-	return g.at(t).ToMonthString()
+	cal := g.primary()
+	_, m, _ := cal.Date(g.InTimezone(t))
+	return cal.MonthName(m, g.Lang)
+}
+
+// shortMonth abbreviates a Gregorian month the way the language does;
+// Solar Hijri months have no short form anyone would recognise.
+func (g *GlobalRenderData) shortMonth(cal CalendarSystem, month int) string {
+	if cal.Name() != gregorianName {
+		return cal.MonthName(month, g.Lang)
+	}
+	short := g.at(time.Date(2000, time.Month(month), 1, 12, 0, 0, 0, time.UTC)).ToShortMonthString()
+	if g.Lang == "de" {
+		// German marks an abbreviation with a period.
+		short += "."
+	}
+	return short
+}
+
+// primary is the calendar system the page counts in, and secondary the
+// one glossed beside it.
+func (g *GlobalRenderData) primary() CalendarSystem { return Calendar(g.Primary) }
+
+func (g *GlobalRenderData) secondary() (CalendarSystem, bool) {
+	if g.Secondary == "" || g.Secondary == g.primary().Name() {
+		return nil, false
+	}
+	return Calendar(g.Secondary), true
+}
+
+// Day is the day number of t in the primary calendar.
+func (g *GlobalRenderData) Day(t time.Time) string {
+	_, _, d := g.primary().Date(g.InTimezone(t))
+	return g.Num(d)
+}
+
+// SameMonth says whether two instants fall in one month of the primary
+// calendar, which is what the grid dims by and the agenda filters on.
+func (g *GlobalRenderData) SameMonth(a, b time.Time) bool {
+	cal := g.primary()
+	ay, am, _ := cal.Date(g.InTimezone(a))
+	by, bm, _ := cal.Date(g.InTimezone(b))
+	return ay == by && am == bm
 }
 
 // replyPrefix matches the marks a mail client puts in front of a
@@ -467,27 +507,19 @@ func isLatinLetter(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }
 
-// shcalName is the one secondary calendar offered, the Solar Hijri
-// (Jalali) one that Iran and Afghanistan count in.
-const shcalName = "shcal"
-
-// persian reads t in the secondary calendar.
-func (g *GlobalRenderData) persian(t time.Time) *persian.Persian {
-	return persian.FromStdTime(g.InTimezone(t))
-}
-
 // SecondaryDay is the day number of the same date in the secondary
 // calendar, empty when none is chosen. The first day of a month carries
-// its month name, the way the Gregorian labels do.
+// its month name, the way the primary labels do.
 func (g *GlobalRenderData) SecondaryDay(t time.Time) string {
-	if g.Secondary != shcalName {
+	cal, ok := g.secondary()
+	if !ok {
 		return ""
 	}
-	d := g.persian(t)
-	if d.Day() == 1 {
-		return g.printer().Sprintf("%d %s", d.Day(), g.shMonthName(d))
+	_, m, d := cal.Date(g.InTimezone(t))
+	if d == 1 {
+		return g.printer().Sprintf("%d %s", d, g.shortMonth(cal, m))
 	}
-	return g.Num(d.Day())
+	return g.Num(d)
 }
 
 // weekAnchor is the Thursday of the seven days beginning at the given
@@ -500,10 +532,25 @@ func weekAnchor(rowStart time.Time) time.Time {
 	return rowStart.AddDate(0, 0, (4-iso+7)%7)
 }
 
-// WeekNumber is the ISO 8601 week a grid row belongs to.
+// weekOf counts the week a day falls in, in the given calendar: ISO
+// 8601's for the Gregorian one, and for the Solar Hijri one the weeks
+// from Nowruz, beginning on Saturday, which is a different number from
+// a different origin, so glossing the ISO number would be a translation
+// of the wrong thing.
+func weekOf(cal CalendarSystem, day time.Time) int {
+	if cal.Name() == gregorianName {
+		_, week := day.ISOWeek()
+		return week
+	}
+	y, _, _ := cal.Date(day)
+	newYear := shDay(y, 1, 1, day.Location())
+	offset := (int(newYear.Weekday()) - int(cal.WeekStarts()) + 7) % 7
+	return (cal.YearDay(day)-1+offset)/7 + 1
+}
+
+// WeekNumber is the week a grid row belongs to, in the primary calendar.
 func (g *GlobalRenderData) WeekNumber(rowStart time.Time) string {
-	_, week := weekAnchor(g.InTimezone(rowStart)).ISOWeek()
-	return g.Num(week)
+	return g.Num(weekOf(g.primary(), weekAnchor(g.InTimezone(rowStart))))
 }
 
 // WeekTitle names the week in words, since a bare number in a column of
@@ -513,90 +560,69 @@ func (g *GlobalRenderData) WeekTitle(rowStart time.Time) string {
 }
 
 // SecondaryWeek is the same physical week counted in the secondary
-// calendar, empty when none is chosen. It is a different number from a
-// different origin: the Solar Hijri year begins at Nowruz and its weeks
-// begin on Saturday, so glossing the ISO number would be a translation
-// of the wrong thing.
+// calendar, empty when none is chosen.
 func (g *GlobalRenderData) SecondaryWeek(rowStart time.Time) string {
-	if g.Secondary != shcalName {
+	cal, ok := g.secondary()
+	if !ok {
 		return ""
 	}
-	day := weekAnchor(g.InTimezone(rowStart))
-	d := persian.FromStdTime(day)
-	nowruz := persian.NewPersian(d.Year(), 1, 1).ToGregorian().Time
-	// Saturday starts the week, so it is the zero of the offset.
-	offset := (int(nowruz.Weekday()) + 1) % 7
-	return g.Num((shYearDay(d)-1+offset)/7 + 1)
+	return g.Num(weekOf(cal, weekAnchor(g.InTimezone(rowStart))))
 }
 
-// shYearDay is the ordinal day within the Solar Hijri year: the first
-// six months hold 31 days and the next five hold 30, which is fixed and
-// needs no table.
-func shYearDay(d *persian.Persian) int {
-	if d.Month() <= 6 {
-		return (d.Month()-1)*31 + d.Day()
-	}
-	return 186 + (d.Month()-7)*30 + d.Day()
-}
-
-// SecondaryMonthYear names the secondary months a Gregorian month spans,
+// SecondaryMonthYear names the secondary months a primary month spans,
 // empty when no secondary calendar is chosen.
 func (g *GlobalRenderData) SecondaryMonthYear(t time.Time) string {
-	if g.Secondary != shcalName {
+	cal, ok := g.secondary()
+	if !ok {
 		return ""
 	}
-	t = g.InTimezone(t)
-	first := g.persian(time.Date(t.Year(), t.Month(), 1, 12, 0, 0, 0, t.Location()))
-	last := g.persian(time.Date(t.Year(), t.Month()+1, 0, 12, 0, 0, 0, t.Location()))
-	if first.Month() == last.Month() && first.Year() == last.Year() {
-		return fmt.Sprintf("%s %s", g.shMonthName(first), g.year(first.Year()))
+	start := g.primary().MonthStart(g.InTimezone(t))
+	end := g.primary().AddMonths(start, 1).AddDate(0, 0, -1)
+	fy, fm, _ := cal.Date(start.Add(12 * time.Hour))
+	ly, lm, _ := cal.Date(end.Add(12 * time.Hour))
+	first, last := cal.MonthName(fm, g.Lang), cal.MonthName(lm, g.Lang)
+	if fm == lm && fy == ly {
+		return fmt.Sprintf("%s %s", first, g.year(fy))
 	}
-	if first.Year() == last.Year() {
-		return fmt.Sprintf("%s – %s %s", g.shMonthName(first), g.shMonthName(last), g.year(last.Year()))
+	if fy == ly {
+		return fmt.Sprintf("%s – %s %s", first, last, g.year(ly))
 	}
-	return fmt.Sprintf("%s %s – %s %s", g.shMonthName(first), g.year(first.Year()),
-		g.shMonthName(last), g.year(last.Year()))
+	return fmt.Sprintf("%s %s – %s %s", first, g.year(fy), last, g.year(ly))
 }
 
 // SecondaryDate is the full secondary date of one day.
 func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
-	if g.Secondary != shcalName || t.IsZero() {
+	cal, ok := g.secondary()
+	if !ok || t.IsZero() {
 		return ""
 	}
-	d := g.persian(t)
-	return g.printer().Sprintf("%d %s %s", d.Day(), g.shMonthName(d), g.year(d.Year()))
-}
-
-// shMonthName spells a Solar Hijri month in Persian for a Persian page
-// and transliterates it everywhere else, which is all carbon offers and
-// all the other three languages have a convention for.
-func (g *GlobalRenderData) shMonthName(d *persian.Persian) string {
-	if g.Lang == "fa" {
-		return d.ToMonthString(persian.FaLocale)
-	}
-	return d.ToMonthString(persian.EnLocale)
+	y, m, d := cal.Date(g.InTimezone(t))
+	return g.printer().Sprintf("%d %s %s", d, cal.MonthName(m, g.Lang), g.year(y))
 }
 
 // CalendarDayLabel keeps ordinary cells to a bare day number and repeats a
 // compact month name only on the first day of each month.
 func (g *GlobalRenderData) CalendarDayLabel(t time.Time) string {
-	if t.Day() != 1 {
-		return g.Num(t.Day())
+	cal := g.primary()
+	_, m, d := cal.Date(g.InTimezone(t))
+	if d != 1 {
+		return g.Num(d)
 	}
-	month := g.at(t).ToShortMonthString()
+	month := g.shortMonth(cal, m)
 	switch g.Lang {
 	case "de":
-		return g.printer().Sprintf("%d. %s.", t.Day(), month)
+		return g.printer().Sprintf("%d. %s", d, month)
 	case "es", "fa":
-		return g.printer().Sprintf("%d %s", t.Day(), month)
+		return g.printer().Sprintf("%d %s", d, month)
 	default:
-		return g.printer().Sprintf("%s %d", month, t.Day())
+		return g.printer().Sprintf("%s %d", month, d)
 	}
 }
 
 // MonthYear renders the calendar heading for t's month.
 func (g *GlobalRenderData) MonthYear(t time.Time) string {
-	return fmt.Sprintf("%s %s", g.MonthName(t), g.year(t.Year()))
+	y, _, _ := g.primary().Date(g.InTimezone(t))
+	return fmt.Sprintf("%s %s", g.MonthName(t), g.year(y))
 }
 
 // LongDate renders a translated day heading without relying on the
@@ -604,15 +630,16 @@ func (g *GlobalRenderData) MonthYear(t time.Time) string {
 func (g *GlobalRenderData) LongDate(t time.Time) string {
 	weekday := g.WeekdayName(t)
 	month := g.MonthName(t)
+	y, _, d := g.primary().Date(g.InTimezone(t))
 	switch g.Lang {
 	case "fa":
-		return g.printer().Sprintf("%s، %d %s %s", weekday, t.Day(), month, g.year(t.Year()))
+		return g.printer().Sprintf("%s، %d %s %s", weekday, d, month, g.year(y))
 	case "de":
-		return g.printer().Sprintf("%s, %d. %s %s", weekday, t.Day(), month, g.year(t.Year()))
+		return g.printer().Sprintf("%s, %d. %s %s", weekday, d, month, g.year(y))
 	case "es":
-		return g.printer().Sprintf("%s, %d de %s de %s", weekday, t.Day(), month, g.year(t.Year()))
+		return g.printer().Sprintf("%s, %d de %s de %s", weekday, d, month, g.year(y))
 	default:
-		return g.printer().Sprintf("%s, %s %d, %s", weekday, month, t.Day(), g.year(t.Year()))
+		return g.printer().Sprintf("%s, %s %d, %s", weekday, month, d, g.year(y))
 	}
 }
 
@@ -683,7 +710,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.Language = ctx.Language()
 		global.LanguageChoices = LanguageChoices()
 		global.Year = time.Now().Year()
-		global.Secondary = ctx.SecondaryCalendar()
+		global.Primary, global.Secondary = ctx.Calendars()
 		global.ColorScheme = ctx.ColorScheme()
 		global.Theme = ctx.Theme()
 		global.TextSize = ctx.TextSize()
@@ -767,11 +794,20 @@ func (brd *BaseRenderData) WithTitle(title string) *BaseRenderData {
 	return brd
 }
 
-// MonthYearIn translates a month heading for the request's language,
-// for titles built before the render data exists.
+// MonthYearIn and LongDateIn translate a heading for the request's
+// language and calendar, for titles built before the render data exists.
 func (ctx *Context) MonthYearIn(t time.Time) string {
-	g := GlobalRenderData{Lang: requestLanguage(ctx)}
-	return g.MonthYear(t)
+	return ctx.dates().MonthYear(t)
+}
+
+func (ctx *Context) LongDateIn(t time.Time) string {
+	return ctx.dates().LongDate(t)
+}
+
+func (ctx *Context) dates() *GlobalRenderData {
+	g := &GlobalRenderData{Lang: requestLanguage(ctx)}
+	g.Primary, g.Secondary = ctx.Calendars()
+	return g
 }
 
 // PageTitle is the browser title: the page's subject and the brand,

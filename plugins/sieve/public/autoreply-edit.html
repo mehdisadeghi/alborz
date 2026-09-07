@@ -1,0 +1,58 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ $aq := account "?" .GlobalData.URLAccount }}
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="post" action="/filters/autoreply{{$aq}}">
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" ($.T "filters.autoreply") "path" "/filters/autoreply") }}
+        <h1>{{ if ge .Index 0 }}{{$.T "filters.replyedit"}}{{ else }}{{$.T "filters.replynew"}}{{ end }}</h1>
+        {{ with .Error }}<div class="alert" role="alert">{{.}}</div>{{ end }}
+        <input type="hidden" name="loaded" value="{{.Loaded}}">
+        {{ if ge .Index 0 }}<input type="hidden" name="index" value="{{.Index}}">{{ end }}
+
+        {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Editing.Name "dir" "auto" "required" true "autofocus" true) }}
+        {{ template "field" (dict "label" ($.T "filters.replysubject") "name" "subject" "value" .Editing.Subject "dir" "auto") }}
+        {{ template "field" (dict "label" ($.T "filters.replytext") "name" "text" "rows" 6 "dir" "auto" "value" .Editing.Text) }}
+        <div class="action-group">
+          {{ template "field" (dict "label" ($.T "filters.replydays") "name" "days" "type" "number" "value" .Editing.Days) }}
+          <p class="hint">{{$.T "filters.replydayshint"}}</p>
+        </div>
+
+        {{/* The days it speaks on, through the date extension; a server
+             without it sends the reply whenever it is active. */}}
+        {{ if .CanDate }}
+        <div class="action-group">
+          <div class="condition-row">
+            <div class="field"><label for="from">{{$.T "filters.replyfrom"}}</label><input type="date" name="from" id="from" value="{{.Editing.From}}"></div>
+            <div class="field"><label for="until">{{$.T "filters.replyuntil"}}</label><input type="date" name="until" id="until" value="{{.Editing.Until}}"></div>
+          </div>
+          <p class="hint">{{$.T "filters.replydateshint"}}</p>
+        </div>
+        {{ else }}
+        <p class="hint">{{$.T "filters.replydatesunsupported"}}</p>
+        {{ end }}
+
+        {{/* The server answers only mail sent to one of these (RFC 5230
+             4.5): the reply says whom it speaks for. */}}
+        <fieldset class="action-group choices">
+          <legend>{{$.T "filters.replyfor"}}</legend>
+          {{ range $id := .Identities }}
+          {{ $on := false }}{{ range $.Editing.Addresses }}{{ if eq . $id }}{{ $on = true }}{{ end }}{{ end }}
+          <label class="checkbox"><input type="checkbox" name="addresses" value="{{$id}}"{{ if $on }} checked{{ end }}> {{ template "ltr" $id }}</label>
+          {{ end }}
+        </fieldset>
+
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/filters/autoreply%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

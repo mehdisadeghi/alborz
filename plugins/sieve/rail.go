@@ -16,9 +16,10 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 		session := ctx.SessionFor(account.Username)
 		scoped := account.Username == ctx.URLAccount()
 		q := "?account=" + alborz.AddressParam(account.Username)
-		var include bool
+		var include, vacation bool
 		err := session.DoSieve(func(c alborz.SieveClient) error {
 			include = hasExtension(c, "include")
+			vacation = hasExtension(c, "vacation")
 			return nil
 		})
 		if err != nil {
@@ -30,6 +31,9 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 		var pages []alborz.RailRow
 		if include {
 			pages = append(pages, row("filters.rules", "/filters/rules"), row("filters.forwarding", "/filters/forwarding"))
+			if vacation {
+				pages = append(pages, row("filters.autoreply", "/filters/autoreply"))
+			}
 		}
 		// The scripts are the section's own page: whatever the others
 		// do not claim is theirs.

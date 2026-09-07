@@ -1,0 +1,67 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ $aq := account "?" .GlobalData.URLAccount }}
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="list">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
+        {{ template "list-toolbar" (dict "title" ($.T "filters.rules") "newhref" (printf "/filters/rules/create%s" $aq) "newlabel" ($.T "filters.rulenew")) }}
+      </section>
+
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" ($.T "filters.rules") "path" "/filters/rules") }}
+
+      {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
+      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="/filters/{{.Script | pathescape}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
+
+      {{/* Order is meaning: rules run top to bottom, and the first that
+           stops ends delivery there, before the reader's own script. */}}
+      <section class="list-items">
+        {{ $n := len .Rules }}
+        {{ range $i, $r := .Rules }}
+        <div class="list-item">
+          <div class="list-content">
+            <a href="/filters/rules/{{$i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
+            <span class="list-detail">{{ template "rule-words" (dict "r" . "g" $) }}</span>
+          </div>
+          <form method="post" action="/filters/rules/move{{$aq}}">
+            <input type="hidden" name="loaded" value="{{$.Loaded}}">
+            <input type="hidden" name="index" value="{{$i}}">
+            <button name="dir" value="up" class="icon-button" title="{{$.T "filters.moveup"}}" aria-label="{{$.T "filters.moveup"}}"{{ if eq $i 0 }} disabled{{ end }}>{{ template "icon" "up" }}</button>
+            <button name="dir" value="down" class="icon-button" title="{{$.T "filters.movedown"}}" aria-label="{{$.T "filters.movedown"}}"{{ if eq (sub $n 1) $i }} disabled{{ end }}>{{ template "icon" "down" }}</button>
+          </form>
+          <form method="post" action="/filters/rules/delete{{$aq}}">
+            <input type="hidden" name="loaded" value="{{$.Loaded}}">
+            <input type="hidden" name="index" value="{{$i}}">
+            <button class="button-danger">{{$.T "common.delete"}}</button>
+          </form>
+        </div>
+        {{ end }}
+        {{ if and (not .Rules) (not .ByHand) }}
+        <p class="empty-list">{{$.T "filters.rulesnone"}}</p>
+        {{ end }}
+      </section>
+      <p class="hint list-option">{{$.T "filters.ruleshint"}}</p>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}
+
+{{/* One rule in words, for the row: what it looks for and what it
+     does. dict: r g. */}}
+{{ define "rule-words" }}
+{{- $g := .g -}}
+{{- range $i, $c := .r.Conditions }}{{ if $i }}{{ if $.r.Any }} {{ $g.T "filters.or" }} {{ else }} {{ $g.T "filters.and" }} {{ end }}{{ end }}{{ $g.T (printf "filters.field.%s" .Field) }} {{ $g.T (printf "filters.match.%s" .Match) }} “{{ .Value }}”{{ end }} →
+{{- with .r.Folder }} {{ $g.T "filters.act.file" }} “{{ . }}”;{{ end }}
+{{- if .r.MarkRead }} {{ $g.T "filters.act.read" }};{{ end }}
+{{- if .r.Star }} {{ $g.T "filters.act.star" }};{{ end }}
+{{- with .r.Forward }} {{ $g.T "filters.act.forward" }} {{ template "ltr" . }};{{ end }}
+{{- if .r.Discard }} {{ $g.T "filters.act.discard" }};{{ end }}
+{{- if .r.Stop }} {{ $g.T "filters.act.stop" }}{{ end }}
+{{- end }}

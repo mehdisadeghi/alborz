@@ -186,6 +186,22 @@ func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
 	return finishListMailboxes(startListMailboxes(conn))
 }
 
+// MailboxNames lists the account's folders that can hold a message, for
+// another plugin that files into them.
+func MailboxNames(ctx *alborz.Context) ([]string, error) {
+	var names []string
+	err := ctx.DoIMAP(func(c *imapclient.Client) error {
+		mailboxes, err := listMailboxes(c)
+		for _, m := range mailboxes {
+			if !slices.Contains(m.Attrs, imap.MailboxAttrNoSelect) {
+				names = append(names, m.Name())
+			}
+		}
+		return err
+	})
+	return names, err
+}
+
 type MailboxStatus struct {
 	*imap.StatusData
 

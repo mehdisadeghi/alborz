@@ -3,7 +3,9 @@
 {{template "util.html" .}}
 
 <div class="page-wrap">
-  {{ template "settings-aside" (dict "accounts" .GlobalData.Accounts "current" "" "browser" true "browserLabel" ($.T "settings.forbrowser")) }}
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/settings" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "new" (dict "href" "/settings/browser" "label" ($.T "settings.forbrowser") "active" true)) }}
+  </aside>
 
   <div class="container">
     <main id="main" tabindex="-1" class="settings">

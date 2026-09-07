@@ -1,0 +1,35 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/settings" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "new" (dict "href" "/settings/browser" "label" ($.T "settings.forbrowser"))) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="settings">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
+        {{ template "list-toolbar" (dict "title" ($.T "settings.servers")) }}
+      </section>
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.servers") "path" "/settings/servers") }}
+
+      {{/* Where this account's mail lives and what answers there. The
+           abilities are the ones that change what alborz does; each
+           is explained on hover and, since a phone has none, once
+           more at the end of the page. */}}
+      {{ template "info-card" (dict "title" ($.T "settings.servers") "page" $
+         "rows" (tuple
+           (dict "label" ($.T "settings.serversoftware") "value" .Servers.Agent)
+           (dict "label" ($.T "settings.serverimap") "value" .Servers.IMAP)
+           (dict "label" ($.T "settings.serversmtp") "value" .Servers.SMTP)
+           (dict "label" ($.T "settings.serversieve") "value" .Servers.Sieve))
+         "abilities" .Servers.Abilities
+         "abilitiestitle" ($.T "settings.abilities")) }}
+
+      {{ template "info-explain" (dict "label" ($.T "settings.explain") "items" .Servers.Explained) }}
+    </main>
+  </div>
+</div>
+
+{{template "foot.html" .}}

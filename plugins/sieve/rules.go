@@ -115,7 +115,8 @@ func rulesScriptFor(rules []Rule) string {
 	b.WriteString("# Rules, composed on the Rules page. They run in this order; a rule that stops ends delivery here.\n")
 	b.WriteString(requireLine(need))
 	for _, r := range rules {
-		b.WriteString("\n" + r.block())
+		b.WriteString("\n")
+		b.WriteString(r.block())
 	}
 	return b.String()
 }

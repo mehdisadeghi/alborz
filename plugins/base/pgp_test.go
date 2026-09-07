@@ -36,7 +36,7 @@ func signedFixture(t *testing.T) (raw []byte, header textproto.Header) {
 
 	autocrypt := "Autocrypt: addr=gil@example.org; keydata=" +
 		base64.StdEncoding.EncodeToString(key.Bytes()) + "\r\n"
-	raw = []byte(fmt.Sprintf(
+	raw = fmt.Appendf(nil,
 		"From: Gil <gil@example.org>\r\nTo: a@test.local\r\nSubject: Signed\r\n"+
 			"MIME-Version: 1.0\r\n%s"+
 			"Content-Type: multipart/signed; micalg=pgp-sha512; "+
@@ -44,7 +44,7 @@ func signedFixture(t *testing.T) (raw []byte, header textproto.Header) {
 			"--sig\r\n%s\r\n"+
 			"--sig\r\nContent-Type: application/pgp-signature\r\n\r\n%s\r\n"+
 			"--sig--\r\n",
-		autocrypt, part, sig.String()))
+		autocrypt, part, sig.String())
 
 	header, err = textproto.ReadHeader(bufio.NewReader(bytes.NewReader(raw)))
 	if err != nil {

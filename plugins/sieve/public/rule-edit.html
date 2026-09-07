@@ -1,0 +1,72 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ $aq := account "?" .GlobalData.URLAccount }}
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="post" action="/filters/rules{{$aq}}" class="rule">
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" ($.T "filters.rules") "path" "/filters/rules") }}
+        <h1>{{ if ge .Index 0 }}{{$.T "filters.ruleedit"}}{{ else }}{{$.T "filters.rulenew"}}{{ end }}</h1>
+        {{ with .Error }}<div class="alert" role="alert">{{.}}</div>{{ end }}
+        <input type="hidden" name="loaded" value="{{.Loaded}}">
+        {{ if ge .Index 0 }}<input type="hidden" name="index" value="{{.Index}}">{{ end }}
+
+        {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Editing.Name "dir" "auto" "required" true "autofocus" true) }}
+
+        {{/* Three rows of conditions; a row left empty is not one. The
+             join is a choice between two words, so it is two radios. */}}
+        <fieldset class="action-group choices">
+          <legend>{{$.T "filters.when"}}</legend>
+          <label class="checkbox"><input type="radio" name="join" value="all"{{ if not .Editing.Any }} checked{{ end }}> {{$.T "filters.all"}}</label>
+          <label class="checkbox"><input type="radio" name="join" value="any"{{ if .Editing.Any }} checked{{ end }}> {{$.T "filters.any"}}</label>
+          {{ $rows := tuple 0 1 2 }}
+          {{ range $i := $rows }}
+          {{ $c := "" }}{{ if lt $i (len $.Editing.Conditions) }}{{ $c = index $.Editing.Conditions $i }}{{ end }}
+          <div class="condition-row">
+            <select name="field" aria-label="{{$.T "filters.fieldlabel"}}">
+              {{ range $.Fields }}<option value="{{.}}"{{ if and $c (eq $c.Field .) }} selected{{ end }}>{{ $.T (printf "filters.field.%s" .) }}</option>{{ end }}
+            </select>
+            <select name="match" aria-label="{{$.T "filters.matchlabel"}}">
+              {{ range $.Matches }}<option value="{{.}}"{{ if and $c (eq $c.Match .) }} selected{{ end }}>{{ $.T (printf "filters.match.%s" .) }}</option>{{ end }}
+            </select>
+            <input type="text" name="value" dir="auto" aria-label="{{$.T "filters.valuelabel"}}" value="{{ if $c }}{{ $c.Value }}{{ end }}">
+          </div>
+          {{ end }}
+        </fieldset>
+
+        <fieldset class="action-group choices">
+          <legend>{{$.T "filters.then"}}</legend>
+          {{ if .CanFile }}
+          <div class="field">
+            <label for="folder">{{$.T "filters.act.file"}}</label>
+            <select name="folder" id="folder">
+              <option value="">{{$.T "filters.nofolder"}}</option>
+              {{ range .Folders }}<option value="{{.}}"{{ if eq . $.Editing.Folder }} selected{{ end }}>{{.}}</option>{{ end }}
+            </select>
+          </div>
+          {{ end }}
+          {{ if .CanFlag }}
+          <label class="checkbox"><input type="checkbox" name="read" value="1"{{ if .Editing.MarkRead }} checked{{ end }}> {{$.T "filters.act.read"}}</label>
+          <label class="checkbox"><input type="checkbox" name="star" value="1"{{ if .Editing.Star }} checked{{ end }}> {{$.T "filters.act.star"}}</label>
+          {{ end }}
+          {{ if .CanCopy }}
+          {{ template "field" (dict "label" ($.T "filters.act.forward") "name" "forward" "type" "email" "dir" "ltr" "value" .Editing.Forward) }}
+          {{ end }}
+          <label class="checkbox"><input type="checkbox" name="discard" value="1"{{ if .Editing.Discard }} checked{{ end }}> {{$.T "filters.act.discard"}}</label>
+          <label class="checkbox"><input type="checkbox" name="stop" value="1"{{ if .Editing.Stop }} checked{{ end }}> {{$.T "filters.act.stop"}}</label>
+          <p class="hint">{{$.T "filters.stophint"}}</p>
+        </fieldset>
+
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/filters/rules%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

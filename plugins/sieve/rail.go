@@ -29,7 +29,7 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 		}
 		var pages []alborz.RailRow
 		if include {
-			pages = append(pages, row("filters.forwarding", "/filters/forwarding"))
+			pages = append(pages, row("filters.rules", "/filters/rules"), row("filters.forwarding", "/filters/forwarding"))
 		}
 		// The scripts are the section's own page: whatever the others
 		// do not claim is theirs.

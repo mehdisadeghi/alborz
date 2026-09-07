@@ -339,6 +339,11 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 		msg.Subject = ctx.FormValue("subject")
 		msg.Text = ctx.FormValue("text")
+		// A message written in the editor arrives as HTML; its text is
+		// derived here, so the plain part and the draft say the same.
+		if msg.HTML = composedHTML(ctx.FormValue("html")); msg.HTML != "" {
+			msg.Text = composedText(msg.HTML)
+		}
 
 		// Choosing a signature is a submit like any other, so it works
 		// with no script: the body comes back with the old one replaced
@@ -347,6 +352,9 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			chosen := ctx.FormValue("signature")
 			sig, _ := settings.signatureNamed(chosen)
 			msg.Text = withSignature(msg.Text, sig.Text)
+			if msg.HTML != "" {
+				msg.HTML = withSignatureHTML(msg.HTML, sig.Text)
+			}
 			return render(http.StatusOK, sig.Name, "")
 		}
 		// Both halves of this are the server's to know: the account's
@@ -1086,6 +1094,14 @@ func handleEdit(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
+		// A draft with an HTML twin names the alternative as its part;
+		// the text inside it is what is edited.
+		if strings.HasPrefix(mimeType, "multipart/") && source.TextPart() != nil {
+			source, part, mimeType, err = quotablePart(ctx, sourcePath, source.TextPart().Path)
+			if err != nil {
+				return err
+			}
+		}
 
 		if !strings.EqualFold(mimeType, "text/plain") {
 			err := fmt.Errorf("cannot edit %q part", mimeType)
@@ -1097,6 +1113,20 @@ func handleEdit(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to read part body: %v", err)
 		}
 		msg.Text = string(b)
+		// A draft written in the editor opens in it again.
+		if node := source.HTMLPart(); node != nil {
+			if err := ctx.DoIMAP(func(c *imapclient.Client) error {
+				_, part, err := getMessagePart(c, sourcePath.Mailbox, sourcePath.Uid, node.Path)
+				if err != nil {
+					return err
+				}
+				b, err := io.ReadAll(part.Body)
+				msg.HTML = composedHTML(string(b))
+				return err
+			}); err != nil {
+				return fmt.Errorf("failed to read the draft's HTML: %v", err)
+			}
+		}
 
 		if len(source.Envelope.From) > 0 {
 			msg.From = source.Envelope.From[0].Addr()

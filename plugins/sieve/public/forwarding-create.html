@@ -1,0 +1,25 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ $aq := account "?" .GlobalData.URLAccount }}
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="post" action="/filters/forwarding{{$aq}}">
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" ($.T "filters.forwarding") "path" "/filters/forwarding") }}
+        <h1>{{$.T "filters.forwardnew"}}</h1>
+        {{ with .Error }}<div class="alert" role="alert">{{.}}</div>{{ end }}
+        <input type="hidden" name="loaded" value="{{.Loaded}}">
+        {{ template "field" (dict "label" ($.T "filters.forwardto") "name" "address" "type" "email" "dir" "ltr" "value" .Address "required" true "autofocus" true) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/filters/forwarding%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

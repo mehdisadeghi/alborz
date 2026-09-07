@@ -5,8 +5,10 @@
 
   --fg: #f8f8f2;
   --fg-dim: #c8c8bb;
-  --fg-muted: #90918b;
-  --fg-faint: #75715e;
+  /* Monokai's comment grey is below 3:1; the greys are lifted to the
+     4.5:1 floor and keep their step. */
+  --fg-muted: #b8b9b1;
+  --fg-faint: #9a9784;
 
   --bg: #272822;
   --bg-well: #1e1f1c;
@@ -28,11 +30,12 @@
   --bg-green: #2c2d24;
   --border-green: #49483e;
   --flag: #e6db74;
+  --flag-purple: #ae81ff;
 
   --notice-fg: #66d9ef;
   --notice-bg: #23282b;
   --notice-border: #34424a;
-  --alert-fg: #f92672;
+  --alert-fg: #fb4b88;
   --alert-bg: #2d2026;
   --alert-border: #4d2436;
 }

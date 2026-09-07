@@ -5,9 +5,9 @@
   color-scheme: light;
 
   --fg: #000;
-  --fg-dim: #222;
-  --fg-muted: #444;
-  --fg-faint: #777;
+  --fg-dim: #1a1a1a;
+  --fg-muted: #4a4a4a;
+  --fg-faint: #6e6e6e;
 
   --bg: #fff;
   --bg-well: #fff;
@@ -21,7 +21,9 @@
   --border-strong: #000;
 
   --link: #000;
-  --link-read: #333;
+  /* Read and unread are the whole of what a list says at a glance, and
+     a monochrome theme has only the grey between them: widen it. */
+  --link-read: #5c5c5c;
   --link-unread: #000;
 
   --green: #000;
@@ -59,7 +61,7 @@
     --border-strong: #fff;
 
     --link: #fff;
-    --link-read: #ccc;
+    --link-read: #9a9a9a;
     --link-unread: #fff;
 
     --green: #fff;
@@ -97,7 +99,7 @@
   --border-strong: #fff;
 
   --link: #fff;
-  --link-read: #ccc;
+  --link-read: #9a9a9a;
   --link-unread: #fff;
 
   --green: #fff;

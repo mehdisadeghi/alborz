@@ -12,11 +12,6 @@ import (
 //go:embed all:public
 var public embed.FS
 
-const (
-	inputDateLayout     = "2006-01-02"
-	inputDateTimeLayout = "2006-01-02T15:04"
-)
-
 type plugin struct {
 	alborz.GoPlugin
 	dav *dav.Provider

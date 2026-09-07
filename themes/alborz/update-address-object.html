@@ -51,7 +51,7 @@
         {{ template "field" (dict "label" ($.T "contacts.phones") "name" "tels" "type" "tel" "value" (join (.Card.Values "TEL") ", ") "dir" "ltr" "placeholder" "+49 151 2345678, 030 123456") }}
         {{ template "field" (dict "label" ($.T "contacts.organization") "name" "org" "value" (.Card.PreferredValue "ORG") "dir" "auto") }}
         {{ template "field" (dict "label" ($.T "contacts.jobtitle") "name" "title" "value" (.Card.PreferredValue "TITLE") "dir" "auto") }}
-        {{ template "field" (dict "label" ($.T "contacts.birthday") "name" "bday" "type" "date" "value" .Birthday) }}
+        {{ template "date-field" (dict "g" $ "label" ($.T "contacts.birthday") "name" "bday" "value" ($.GlobalData.InputDay .Birthday) "hint" true) }}
         {{ template "field" (dict "label" ($.T "contacts.website") "name" "url" "type" "url" "value" (.Card.PreferredValue "URL") "placeholder" "https://example.org") }}
         {{$adr := ""}}{{with .Card.Address}}{{$adr = .StreetAddress}}{{end}}
         {{ template "field" (dict "label" ($.T "contacts.address") "name" "adr" "value" $adr "dir" "auto" "rows" "3" "placeholder" "1 Example Street\nCity 12345\nCountry") }}

@@ -37,12 +37,13 @@ Beyond the five protocols above:
 | RFC | What for |
 |---|---|
 | 5546, 6047 | iTIP and iMIP: meeting requests shown, answered, filed and sent |
-| 3156, Autocrypt | PGP/MIME signature verification, keys from headers and attachments |
+| 3156, Autocrypt, WKD | PGP/MIME signature verification; keys from the sender's domain, headers and attachments |
 | 8601 | Authentication-Results, read from a named trusted server only |
-| 8058, 2369 | One-Click unsubscribe, list headers |
-| 2177, 2971, 5464 | IDLE, ID, METADATA for settings |
-| 5545 | iCalendar with generated VTIMEZONE, recurrence expansion, alarms |
-| 3676, 5322 | format=flowed, References, Reply-To, signature delimiters |
+| 8058, 2369, 2919 | One-Click unsubscribe, list headers |
+| 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA for settings, SORT and THREAD, special-use folders, CONDSTORE |
+| 5228, 5804, 5230, 6609, 5260 | Sieve scripts over ManageSieve; rules, forwarding and auto-replies composed as scripts |
+| 5545 | iCalendar with generated VTIMEZONE, recurrence expansion, alarms; calendar colours through Apple's property |
+| 3676, 5322 | format=flowed on send, References, Reply-To, signature delimiters |
 | 6350, 6186 | vCard, SRV discovery |
 
 ## Install

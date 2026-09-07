@@ -3,7 +3,7 @@
 {{template "util.html" .}}
 
 <div class="page-wrap">
-  {{ template "detail-aside" (dict "backHref" "/calendar" "backLabel" ($.T "nav.calendar")) }}
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
 
   <div class="container">
     <main id="main" tabindex="-1" class="create-update">

@@ -11,6 +11,7 @@ import (
 	"image/jpeg"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -54,6 +55,7 @@ func choose(store alborz.Store, paths []string) error {
 
 type AddressObjectRenderData struct {
 	alborz.BaseRenderData
+	Rail dav.Rail
 	// Modified is when the card last changed: REV if the card carries
 	// one (vCard 6.7.4), and the server's own last-modified otherwise.
 	//
@@ -71,6 +73,7 @@ type AddressObjectRenderData struct {
 
 type UpdateAddressObjectRenderData struct {
 	alborz.BaseRenderData
+	Rail          dav.Rail
 	Groups        []dav.Group
 	AddressBook   *dav.Collection
 	AddressObject *carddav.AddressObject // nil if creating a new contact
@@ -381,7 +384,12 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 	}
 	ao := &aos[0]
 
+	rail, err := p.bookRail(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
+		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()),
 		AddressBook:    addressBook,
 		AddressObject:  AddressObject{AddressObject: ao},
@@ -433,7 +441,12 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		emails := strings.Split(ctx.FormValue("emails"), ",")
 
 		reject := func(message string) error {
+			rail, err := p.bookRail(ctx)
+			if err != nil {
+				return err
+			}
 			return ctx.Render(http.StatusUnprocessableEntity, "update-address-object.html", &UpdateAddressObjectRenderData{
+				Rail:           rail,
 				BaseRenderData: *alborz.NewBaseRenderData(ctx),
 				Groups:         groups,
 				AddressBook:    currentAddressBook,
@@ -546,7 +559,12 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 	if ao != nil {
 		name = AddressObject{AddressObject: ao}.DisplayName()
 	}
+	rail, err := p.bookRail(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "update-address-object.html", &UpdateAddressObjectRenderData{
+		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Groups:         groups,
 		AddressBook:    currentAddressBook,
@@ -591,7 +609,11 @@ func (p *plugin) deletePhoto(ctx *alborz.Context) error {
 
 // createForm is the form for a new address book.
 func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
-	return dav.CreateForm{Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: "/contacts",
+	rail, err := p.bookRail(ctx)
+	if err != nil {
+		return dav.CreateForm{}, err
+	}
+	return dav.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: "/contacts",
 		Made: func(string) string { return "/contacts" }}, nil
 }
 
@@ -620,6 +642,7 @@ func (p *plugin) collectionPage() dav.Page {
 		Color:  addressBookColor,
 		Ext:    ".vcf",
 		Forget: p.dav.Forget,
+		Rail:   func(ctx *alborz.Context, _ string) (dav.Rail, error) { return p.bookRail(ctx) },
 		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
 			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
 			if err != nil {
@@ -646,6 +669,20 @@ func (p *plugin) collectionPage() dav.Page {
 			return *info, p.dav.CountObjects(ctx, info.Path), "/contacts", ctx.T("nav.contacts"), nil
 		},
 	}
+}
+
+// bookRail is the section's rail for a page that is not its list,
+// listing every account's address books.
+func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
+	rail := dav.Rail{Path: "/contacts", Field: "book", ItemClass: "addressbook-item", Action: "/contacts", EditHref: "/address-books/",
+		NewHref: "/address-books/create?next=" + url.QueryEscape(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook")}
+	accounts, err := p.pooledBooks(ctx)
+	if err != nil {
+		return rail, err
+	}
+	infos, _, err := visibleBooks(accounts, ctx.URLAccount(), nil)
+	rail.Items = infos
+	return rail, err
 }
 
 // visibleBooks are dav.Visible's address books.

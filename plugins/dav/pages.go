@@ -28,6 +28,7 @@ type CollectionRenderData struct {
 	Base      string
 	ListHref  string
 	BackLabel string
+	Rail      Rail
 	Error     string
 	// Ext is the file type the collection is exported as and imported
 	// from, ".ics" or ".vcf"; OffersRange says the export form takes a
@@ -51,6 +52,7 @@ type NewCollectionRenderData struct {
 	Title       string
 	ListHref    string
 	BackLabel   string
+	Rail        Rail
 	OffersHolds bool
 	Holds       string // "events", "tasks" or "both"
 	Next        string // the list it was opened from
@@ -58,9 +60,10 @@ type NewCollectionRenderData struct {
 }
 
 // CreateForm is what a kind says about its form for a new collection:
-// its title, the section and list it goes back to, and for a calendar
-// the components it may hold.
+// the rail it stands beside, its title, the section and list it goes
+// back to, and for a calendar the components it may hold.
 type CreateForm struct {
+	Rail           Rail
 	Title, Section string
 	List           string
 	// Holds is "events", "tasks" or "both" as the form opens, empty for
@@ -86,6 +89,7 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			return err
 		}
 		data := &NewCollectionRenderData{
+			Rail:           f.Rail,
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(f.Title),
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Session.Username(),
@@ -155,6 +159,8 @@ type Page struct {
 	// asked for, as one file. Range is nil where the kind has no dates.
 	Import func(ctx *alborz.Context, path string, raw []byte) (int, error)
 	Export func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error)
+	// Rail is the section's rail for the list the page returns to.
+	Rail func(ctx *alborz.Context, list string) (Rail, error)
 }
 
 // Handle is the collection's own page. Renaming and recolouring are a
@@ -173,7 +179,12 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 		if err != nil {
 			return err
 		}
+		rail, err := pg.Rail(ctx, list)
+		if err != nil {
+			return err
+		}
 		data := &CollectionRenderData{
+			Rail:           rail,
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(info.Name),
 			Name:           info.Name,
 			Color:          info.Color,

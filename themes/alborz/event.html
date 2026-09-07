@@ -10,13 +10,21 @@
     <main id="main" tabindex="-1" class="event">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "newhref" (printf "/calendar/create%s" $acct) "newlabel" ($.T "calendar.new")) }}
+        {{/* An event of a subscribed feed is read where it is: it can be
+             looked at and saved, not changed. Its source is named by
+             the UID within the feed. */}}
+        {{ $rawq := "" }}{{ if .Event.ReadOnly }}{{ $rawq = printf "?uid=%s" (((index .Event.Data.Events 0).Props.Text "UID") | urlquery) }}{{ end }}
         <span class="icon-group">
+          {{ if not .Event.ReadOnly }}
           <a class="icon-button" href="{{.Event.URL}}/update{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
-          <a class="icon-button" href="{{.Event.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
-          <a class="icon-button" href="{{.Event.URL}}/raw?save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".ics" }}" aria-label="{{ printf ($.T "common.saveas") ".ics" }}">{{ template "icon" "download" }}</a>
+          {{ end }}
+          <a class="icon-button" href="{{.Event.URL}}/raw{{$rawq}}{{ account (qsep $rawq) $.GlobalData.URLAccount }}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
+          <a class="icon-button" href="{{.Event.URL}}/raw{{$rawq}}{{ qsep $rawq }}save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".ics" }}" aria-label="{{ printf ($.T "common.saveas") ".ics" }}">{{ template "icon" "download" }}</a>
+          {{ if not .Event.ReadOnly }}
           <form action="{{.Event.URL}}/delete{{$acct}}" method="post">
             <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
           </form>
+          {{ end }}
         </span>
             <!-- TODO: Invite attendees -->
         {{ template "toolbar-foot" }}
@@ -55,10 +63,14 @@
           {{ end }}
         </table>
         {{ template "user-text" ($event.Props.Text "DESCRIPTION") }}
+        {{/* A note is written into the object, and a feed's objects are
+             the feed's to write. */}}
+        {{ if not .Event.ReadOnly }}
         {{ template "note-box" (dict
            "action" (printf "%s/note%s" .Event.URL $acct)
            "next" .GlobalData.URL.RequestURI
            "label" ($.T "common.addnote") "add" ($.T "common.add")) }}
+        {{ end }}
         {{ template "object-dates" (dict "g" .Global
            "created" ($event.Props.DateTime "CREATED" nil)
            "modified" ($event.Props.DateTime "LAST-MODIFIED" nil)

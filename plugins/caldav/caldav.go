@@ -302,6 +302,13 @@ func (o Occurrence) AllDay() bool {
 	return prop != nil && prop.ValueType() == ical.ValueDate
 }
 
+// UID names the event within its object, which is what a feed's page
+// needs: a subscribed feed is one object holding every event.
+func (o Occurrence) UID() string {
+	uid, _ := o.Event.Props.Text(ical.PropUID)
+	return uid
+}
+
 // Summary is what the row says.
 func (o Occurrence) Summary() string {
 	summary, _ := o.Event.Props.Text(ical.PropSummary)

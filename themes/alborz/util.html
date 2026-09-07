@@ -644,6 +644,29 @@
 </aside>
 {{ end }}
 
+{{/* The rows of an event list, one per occurrence, on the agenda and
+     the day page alike. An event of a subscribed feed links to its UID
+     within the feed, which is the one object holding every event.
+     dict: events base. */}}
+{{ define "event-rows" }}
+{{ $base := .base }}
+{{ range .events }}
+{{ $obj := . }}
+{{/* The time is this occurrence's own: a recurring event is drawn once
+     per instance and the component names only the first. */}}
+{{ $when := $base.T "calendar.allday" }}{{ if not .AllDay }}{{ $when = $base.GlobalData.FormatTime .Start }}{{ end }}
+{{ $href := $obj.URL }}{{ if $obj.ReadOnly }}{{ $href = printf "%s?uid=%s" $obj.URL (.UID | urlquery) }}{{ end }}
+{{ with $obj.Account }}{{ $href = printf "%s%s" $href (account (qsep $href) .) }}{{ end }}
+{{ template "event-row" (dict
+   "href" $href
+   "when" $when
+   "summary" .Summary
+   "color" (or .Color (call $base.ColorForPath .Account .Path))
+   "owner" (call $base.OwnerLabel .Account .Path)
+   "timeLabel" ($base.T "calendar.time") "eventLabel" ($base.T "calendar.event") "calendarLabel" ($base.T "common.calendar")) }}
+{{ end }}
+{{ end }}
+
 {{/* The places a section offers per account, one row each. */}}
 {{ define "rail-rows" }}
 <ul>

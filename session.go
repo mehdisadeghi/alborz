@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -93,6 +94,19 @@ func (err UpstreamError) Error() string {
 }
 
 func (err UpstreamError) Unwrap() error { return err.cause }
+
+// BaselineError says the mail server lacks what everything here rests
+// on. Every extension is used only where advertised and missed without
+// harm; IMAP4rev1 or IMAP4rev2 is not an extension, and a server that
+// offers neither is refused at the door rather than failing on the
+// first page.
+type BaselineError struct {
+	Caps []string
+}
+
+func (err BaselineError) Error() string {
+	return fmt.Sprintf("the mail server speaks neither IMAP4rev1 nor IMAP4rev2, only: %s", strings.Join(err.Caps, " "))
+}
 
 // AuthError wraps an authentication error.
 type AuthError struct {
@@ -538,6 +552,15 @@ func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapc
 			return nil, fmt.Errorf("IMAP login timed out after %v", RoundTripTimeout)
 		}
 		return nil, AuthError{err}
+	}
+	if caps := c.Caps(); !caps.Has(imap.CapIMAP4rev1) && !caps.Has(imap.CapIMAP4rev2) {
+		c.Logout()
+		names := make([]string, 0, len(caps))
+		for cap := range caps {
+			names = append(names, string(cap))
+		}
+		slices.Sort(names)
+		return nil, BaselineError{Caps: names}
 	}
 
 	return c, nil

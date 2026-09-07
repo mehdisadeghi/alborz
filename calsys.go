@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/dromara/carbon/v2"
-	"github.com/dromara/carbon/v2/calendar/persian"
 )
 
 // A CalendarSystem counts the same instants in its own months and
@@ -100,13 +99,34 @@ type solarHijri struct{}
 
 func (solarHijri) Name() string { return shcalName }
 func (solarHijri) Date(t time.Time) (int, int, int) {
-	d := persian.FromStdTime(t)
-	return d.Year(), d.Month(), d.Day()
+	gy := t.Year()
+	jy := gy - 621
+	since, nowruz := shYear(jy)
+	k := daysBetween(nowruz, time.Date(gy, t.Month(), t.Day(), 0, 0, 0, 0, time.UTC))
+	if k >= 0 {
+		if k <= 185 {
+			return jy, 1 + k/31, k%31 + 1
+		}
+		k -= 186
+	} else {
+		// Before Nowruz the day belongs to the year before, whose
+		// Esfand is a day longer when that year was the leap one.
+		jy--
+		k += 179
+		if since == 1 {
+			k++
+		}
+	}
+	return jy, 7 + k/30, k%30 + 1
 }
-func (solarHijri) Time(y, m, d int, loc *time.Location) time.Time { return shDay(y, m, d, loc) }
+func (solarHijri) Time(y, m, d int, loc *time.Location) time.Time {
+	_, nowruz := shYear(y)
+	// The first six months hold 31 days and the next five hold 30.
+	return time.Date(nowruz.Year(), nowruz.Month(), nowruz.Day()+(m-1)*31-(m/7)*(m-7)+d-1, 0, 0, 0, 0, loc)
+}
 func (solarHijri) MonthStart(t time.Time) time.Time {
 	y, m, _ := solarHijri{}.Date(t)
-	return shDay(y, m, 1, t.Location())
+	return solarHijri{}.Time(y, m, 1, t.Location())
 }
 func (solarHijri) AddMonths(start time.Time, n int) time.Time {
 	y, m, _ := solarHijri{}.Date(start)
@@ -117,11 +137,20 @@ func (solarHijri) AddMonths(start time.Time, n int) time.Time {
 		m += 12
 		y--
 	}
-	return shDay(y, m, 1, start.Location())
+	return solarHijri{}.Time(y, m, 1, start.Location())
 }
 func (solarHijri) DaysInMonth(start time.Time) int {
-	next := solarHijri{}.AddMonths(start, 1)
-	return int(next.Sub(start).Hours()+12) / 24
+	y, m, _ := solarHijri{}.Date(start)
+	switch {
+	case m <= 6:
+		return 31
+	case m <= 11:
+		return 30
+	}
+	if since, _ := shYear(y); since == 0 {
+		return 30
+	}
+	return 29
 }
 func (solarHijri) Page(t time.Time) string {
 	y, m, _ := solarHijri{}.Date(t)
@@ -132,18 +161,11 @@ func (solarHijri) ParsePage(s string, loc *time.Location) (time.Time, error) {
 	if _, err := fmt.Sscanf(s, "%d-%d", &y, &m); err != nil || m < 1 || m > 12 {
 		return time.Time{}, fmt.Errorf("not a month: %q", s)
 	}
-	return shDay(y, m, 1, loc), nil
+	return solarHijri{}.Time(y, m, 1, loc), nil
 }
 func (solarHijri) MonthName(month int, lang string) string {
-	d := persian.NewPersian(1400, month, 1)
-	if lang == "fa" {
-		return d.ToMonthString(persian.FaLocale)
-	}
-	return d.ToMonthString(persian.EnLocale)
+	return translate(lang, fmt.Sprintf("calendar.shmonth.%d", month))
 }
-
-// YearDay needs no table: the first six months hold 31 days and the
-// next five hold 30.
 func (solarHijri) YearDay(t time.Time) int {
 	_, m, d := solarHijri{}.Date(t)
 	if m <= 6 {
@@ -153,12 +175,49 @@ func (solarHijri) YearDay(t time.Time) int {
 }
 func (solarHijri) WeekStarts() time.Weekday { return time.Saturday }
 
-// shDay is midnight on a Solar Hijri date, in loc. The converter
-// answers in UTC for a date, which is only the day, so the wall clock is
-// rebuilt in the reader's zone.
-func shDay(y, m, d int, loc *time.Location) time.Time {
-	g := persian.NewPersian(y, m, d).ToGregorian().Time
-	return time.Date(g.Year(), g.Month(), g.Day(), 0, 0, 0, 0, loc)
+// shYear says how many years a Solar Hijri year is past the last leap
+// year - none makes it one - and on which Gregorian day it begins. The
+// reckoning is Borkowski's (The Persian calendar for 3000 years, Earth,
+// Moon and Planets 74, 1996), which follows the astronomical rule Iran
+// keeps - Nowruz on the day of the March equinox, or the next when it
+// falls after noon in Tehran - from 1178 to 3177; the 33-year arithmetic
+// that most libraries use puts the 1403 leap day a year late and has
+// every day of 1404 wrong by one.
+func shYear(jy int) (sinceLeap int, nowruz time.Time) {
+	breaks := [...]int{-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178}
+	if jy < breaks[0] || jy >= breaks[len(breaks)-1] {
+		panic(fmt.Sprintf("solar hijri year %d is outside the reckoning", jy))
+	}
+	gy := jy + 621
+	leapJ, jp, jump := -14, breaks[0], 0
+	for _, jm := range breaks[1:] {
+		jump = jm - jp
+		if jy < jm {
+			break
+		}
+		leapJ += jump/33*8 + jump%33/4
+		jp = jm
+	}
+	n := jy - jp
+	leapJ += n/33*8 + (n%33+3)/4
+	if jump%33 == 4 && jump-n == 4 {
+		leapJ++
+	}
+	leapG := gy/4 - (gy/100+1)*3/4 - 150
+	march := 20 + leapJ - leapG
+	if jump-n < 6 {
+		n = n - jump + (jump+4)/33*33
+	}
+	since := ((n+1)%33 - 1) % 4
+	if since == -1 {
+		since = 4
+	}
+	return since, time.Date(gy, time.March, march, 0, 0, 0, 0, time.UTC)
+}
+
+// daysBetween counts the midnights from a to b, both at midnight UTC.
+func daysBetween(a, b time.Time) int {
+	return int(b.Sub(a).Hours() / 24)
 }
 
 // A native date picker speaks only Gregorian, so under any other

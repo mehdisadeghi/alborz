@@ -550,7 +550,7 @@ func weekOf(cal CalendarSystem, day time.Time) int {
 		return week
 	}
 	y, _, _ := cal.Date(day)
-	newYear := shDay(y, 1, 1, day.Location())
+	newYear := cal.Time(y, 1, 1, day.Location())
 	offset := (int(newYear.Weekday()) - int(cal.WeekStarts()) + 7) % 7
 	return (cal.YearDay(day)-1+offset)/7 + 1
 }

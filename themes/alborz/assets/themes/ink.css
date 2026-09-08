@@ -37,6 +37,8 @@
   --notice-border: #000;
   --alert-fg: #000;
   --alert-bg: #fff;
+  --warn-fg: #000;
+  --warn-bg: #fff;
   --alert-border: #000;
 }
 
@@ -75,6 +77,8 @@
     --notice-border: #fff;
     --alert-fg: #fff;
     --alert-bg: #000;
+    --warn-fg: #fff;
+    --warn-bg: #000;
     --alert-border: #fff;
   }
 }
@@ -113,6 +117,8 @@
   --notice-border: #fff;
   --alert-fg: #fff;
   --alert-bg: #000;
+  --warn-fg: #fff;
+  --warn-bg: #000;
   --alert-border: #fff;
 }
 

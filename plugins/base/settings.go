@@ -54,8 +54,10 @@ type Settings struct {
 	// Authentication-Results header it writes (RFC 8601). Only that
 	// server's verdict is read, because every other instance of the
 	// header was written by somebody upstream, possibly the sender.
-	// Empty means no verdict is shown: a guess here would be worse than
-	// silence, since the whole point is knowing who wrote the line.
+	// Empty means the id observed on the account's own recent
+	// deliveries is used (SuggestAuthServ), which is not a guess: it
+	// is what the delivering hop wrote on mail the sender had no hand
+	// in. Naming one here pins it.
 	TrustedAuthServ string
 
 	// ReplyBelowQuote puts the reply after the quoted message, the way a

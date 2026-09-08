@@ -125,7 +125,7 @@ func newDeliveryTrust(ctx *alborz.Context, settings *Settings, account string) d
 	return deliveryTrust{
 		account:  account,
 		domains:  ctx.Server.Domains(),
-		authserv: settings.TrustedAuthServ,
+		authserv: TrustedAuthServ(ctx, settings),
 	}
 }
 

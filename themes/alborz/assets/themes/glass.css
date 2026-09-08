@@ -41,6 +41,8 @@
   --notice-border: rgba(190, 229, 235, 0.8);
   --alert-fg: #a11224;
   --alert-bg: rgba(248, 215, 218, 0.72);
+  --warn-fg: #6b4e00;
+  --warn-bg: rgba(255, 243, 205, 0.85);
   --alert-border: rgba(245, 198, 203, 0.8);
 }
 

@@ -25,7 +25,10 @@ type MailboxRenderData struct {
 	Query                     string
 	// TextQuery is the query widened to the whole message, offered
 	// when the search reached headers only; empty otherwise.
-	TextQuery     string
+	TextQuery string
+	// Outgoing says the folder holds what the reader wrote, so the
+	// rows name whom it went to rather than who wrote it.
+	Outgoing      bool
 	Sort          string
 	SortDir       string
 	SortSupported bool
@@ -165,6 +168,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	}
 
 	slices.SortStableFunc(merged.msgs, unifiedLess(spec.sortKey, spec.reverse()))
+	RowMarks(ctx, TrustedAuthServ(ctx, settings), merged.msgs)
 	title := ctx.T("aside." + strings.ToLower(role))
 	if spec.starred {
 		title = ctx.T("mailbox.starred")
@@ -180,6 +184,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		SidebarAccounts: sidebarAccounts(ctx),
 	}
 	data.Crumb = []CrumbLink{{Label: title, URL: "/mailbox/" + role}}
+	data.Outgoing = role == "Sent" || role == "Drafts"
 	data.PerPageOptions = perPageOptions(settings)
 	return ctx.Render(http.StatusOK, "mailbox.html", data)
 }
@@ -300,6 +305,7 @@ func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listing
 	for j := range e.msgs {
 		e.msgs[j].Account = user
 	}
+	Relate(c, user, e.msgs)
 	if snapCmd != nil {
 		if st, err := snapCmd.Wait(); err == nil {
 			e.snap = st
@@ -358,7 +364,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	}
 	user := ctx.Session.Username()
 	fetch := func(c *imapclient.Client) (*listingEntry, error) {
-		return fetchListing(c, spec, settings, page, messagesPerPage)
+		return fetchListing(c, user, spec, settings, page, messagesPerPage)
 	}
 	var e *listingEntry
 	if cacheable {
@@ -388,6 +394,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		}
 	}
 	sb, msgs := railFor(ctx.Session, mboxName, e.sb), e.msgs
+	RowMarks(ctx, TrustedAuthServ(ctx, settings), msgs)
 	// The page's bodies are fetched behind it, so the next click, on
 	// any of its rows, asks the server nothing.
 	if cacheable {
@@ -413,6 +420,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	data := listPage(ctx, ask, e, msgs)
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username())
+	data.Outgoing = outgoingFolder(sb.mailboxes, mboxName)
 	data.ThreadSupported = e.threadAlgorithm != ""
 	data.Threaded = spec.sortKey == threadSort && e.threadAlgorithm != ""
 	data.PreferHTML = settings.PreferHTML
@@ -462,7 +470,7 @@ func readSort(ctx *alborz.Context, also string) (sortKey, sortDir string, err er
 
 // fetchListing reads one view of a folder, the sidebar's counts riding
 // along on the same round trips.
-func fetchListing(c *imapclient.Client, spec listingSpec, settings *Settings, page, perPage int) (*listingEntry, error) {
+func fetchListing(c *imapclient.Client, user string, spec listingSpec, settings *Settings, page, perPage int) (*listingEntry, error) {
 	load, err := startSidebar(c, spec.mbox, spec.mbox, settings.Subscriptions)
 	if err != nil {
 		return nil, err
@@ -475,6 +483,7 @@ func fetchListing(c *imapclient.Client, spec listingSpec, settings *Settings, pa
 		return nil, err
 	}
 	e.snap = e.sb.active.StatusData
+	Relate(c, user, e.msgs)
 	return e, nil
 }
 
@@ -1148,4 +1157,15 @@ func textQueryOffered(query string, headersOnly bool) string {
 		return ""
 	}
 	return TextQuery(query)
+}
+
+// outgoingFolder says whether the folder holds the reader's own mail.
+func outgoingFolder(mailboxes []MailboxInfo, name string) bool {
+	for i := range mailboxes {
+		if mailboxes[i].Name() == name {
+			role := mailboxes[i].role()
+			return role == "sent" || role == "drafts"
+		}
+	}
+	return false
 }

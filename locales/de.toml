@@ -654,3 +654,19 @@ other = "Alle %d im Ordner löschen"
 ["folder.emptycount"]
 one = "Er enthält %d Nachricht; gelöscht ist sie endgültig weg."
 other = "Er enthält %d Nachrichten; gelöscht sind sie endgültig weg."
+
+["notice.imported"]
+one = "Eine Nachricht nach %[2]s importiert."
+other = "%d Nachrichten nach %s importiert."
+
+["notice.importstopped"]
+one = "Der Import brach nach einer Nachricht ab; der Ordner %[2]s enthält sie."
+other = "Der Import brach nach %d Nachrichten ab; der Ordner %s enthält sie."
+
+["folder.exportcount"]
+one = "Er enthält eine Nachricht."
+other = "Er enthält %d Nachrichten."
+
+["aside.folderholds"]
+one = "Eine Nachricht, %[2]d ungelesen"
+other = "%d Nachrichten, %d ungelesen"

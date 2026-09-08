@@ -141,6 +141,10 @@ func (lc *listingCache) store(user, view string, e *listingEntry) {
 	kept := e.snapshot()
 	now := time.Now()
 	kept.fetched, kept.lastUse = now, now
+	// The rail draws from the memo, and this listing just counted.
+	if kept.sb.mailboxes != nil {
+		accountSidebars.Put(user, kept.sb.clone())
+	}
 
 	lc.mu.Lock()
 	lc.entries[listingKey{user, view}] = kept
@@ -172,6 +176,8 @@ func (lc *listingCache) store(user, view string, e *listingEntry) {
 func (lc *listingCache) markSeen(user, folder string, uid imap.UID) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
+	// The rail moves once, however many views hold the row.
+	moved := false
 	for k, e := range lc.entries {
 		if k.user != user {
 			continue
@@ -185,8 +191,22 @@ func (lc *listingCache) markSeen(user, folder string, uid imap.UID) {
 			buf.Flags = append(append([]imap.Flag(nil), buf.Flags...), imap.FlagSeen)
 			m.FetchMessageBuffer = &buf
 			e.sb.adjustUnseen(folder, -1)
+			moved = true
 		}
 	}
+	if moved {
+		railUnseen(user, folder, -1)
+	}
+}
+
+// railUnseen moves a folder's count on the rail the way a listing's
+// own copy is moved, so the two never disagree between reloads.
+func railUnseen(user, folder string, delta int) {
+	accountSidebars.Update(user, func(sb sidebar) sidebar {
+		sb = sb.clone()
+		sb.adjustUnseen(folder, delta)
+		return sb
+	})
 }
 
 // setFlags takes a flag change the server announced into the cached
@@ -196,6 +216,7 @@ func (lc *listingCache) markSeen(user, folder string, uid imap.UID) {
 func (lc *listingCache) setFlags(user, folder string, seqNum uint32, flags []imap.Flag) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
+	moved := 0
 	for k, e := range lc.entries {
 		if k.user != user {
 			continue
@@ -215,8 +236,12 @@ func (lc *listingCache) setFlags(user, folder string, seqNum uint32, flags []ima
 					delta = -1
 				}
 				e.sb.adjustUnseen(folder, delta)
+				moved = delta
 			}
 		}
+	}
+	if moved != 0 {
+		railUnseen(user, folder, moved)
 	}
 }
 

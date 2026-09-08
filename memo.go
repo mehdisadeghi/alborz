@@ -115,6 +115,37 @@ func (m *Memo[T]) Warm(user string, load func() (T, error)) T {
 	return e.val
 }
 
+// Put sets the user's value from a load the caller already made, so a
+// fact fetched for another reason is not fetched again.
+func (m *Memo[T]) Put(user string, val T) {
+	m.mu.Lock()
+	e, ok := m.entries[user]
+	if !ok {
+		e = &memoEntry[T]{}
+		m.entries[user] = e
+	}
+	m.mu.Unlock()
+	e.mu.Lock()
+	e.val, e.fetched = val, time.Now()
+	e.mu.Unlock()
+}
+
+// Update rewrites the user's value in place, for a change the caller
+// already knows the effect of; nothing to do when none is held.
+func (m *Memo[T]) Update(user string, f func(T) T) {
+	m.mu.Lock()
+	e, ok := m.entries[user]
+	m.mu.Unlock()
+	if !ok {
+		return
+	}
+	e.mu.Lock()
+	if !e.fetched.IsZero() {
+		e.val = f(e.val)
+	}
+	e.mu.Unlock()
+}
+
 // Forget drops the user's value, for writes that invalidate it.
 func (m *Memo[T]) Forget(user string) {
 	m.mu.Lock()

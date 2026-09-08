@@ -68,21 +68,45 @@ func handleExportMbox(ctx *alborz.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "no messages selected")
 	}
 
+	name := mboxName
+	if strip {
+		name += " " + ctx.T("mailbox.textonly")
+	}
+	return streamMbox(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), name, strip)
+}
+
+// folderRefs names a folder's selection as a merged list names its
+// rows, for what acts on either.
+func folderRefs(account, mailbox string, uids []imap.UID) []rowRef {
+	refs := make([]rowRef, len(uids))
+	for i, uid := range uids {
+		refs[i] = rowRef{account: account, mailbox: mailbox, uid: uid}
+	}
+	return refs
+}
+
+// streamMbox writes a selection, of one folder or across accounts, as
+// one mbox named name.
+func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) error {
 	// The header is written only once a message is actually in hand.
 	// Committing the response first meant that a fetch which failed had
 	// the error page rendered into a body already claiming to be an
 	// mbox, and the reader was handed an .mbox file full of HTML.
 	res := ctx.Response()
 	started := false
-	for _, uid := range uids {
+	for _, r := range refs {
+		s := ctx.SessionFor(r.account)
+		if s == nil {
+			continue
+		}
 		// One round trip per message, each with the session's own
 		// budget. The whole export inside one call was cut off by the
 		// watchdog after ten seconds, with the file left short.
 		var raw []byte
 		var env *imap.Envelope
-		err := ctx.DoIMAP(func(c *imapclient.Client) error {
+		err := s.DoIMAP(func(c *imapclient.Client) error {
 			var err error
-			raw, env, err = fetchRawMessage(c, mboxName, uid)
+			raw, env, err = fetchRawMessage(c, r.mailbox, r.uid)
 			return err
 		})
 		if err != nil {
@@ -90,32 +114,28 @@ func handleExportMbox(ctx *alborz.Context) error {
 				// Too late to say so in the response: stop, leave
 				// the file short, and put the reason in the log
 				// rather than in the download.
-				ctx.Logger().Printf("export %q uid %v: %v", mboxName, uid, err)
+				ctx.Logger().Printf("export %s %q uid %v: %v", r.account, r.mailbox, r.uid, err)
 				return nil
 			}
-			return fmt.Errorf("export %q uid %v: %w", mboxName, uid, err)
+			return fmt.Errorf("export %q uid %v: %w", r.mailbox, r.uid, err)
 		}
 		if strip {
 			if stripped, err := withoutAttachments(raw, ctx.T("mailbox.attachmentremoved")); err != nil {
 				// A message that cannot be taken apart goes out whole:
 				// the archive is then larger than asked, not wrong.
-				ctx.Logger().Printf("export %q uid %v: kept attachments: %v", mboxName, uid, err)
+				ctx.Logger().Printf("export %q uid %v: kept attachments: %v", r.mailbox, r.uid, err)
 			} else {
 				raw = stripped
 			}
 		}
 		if !started {
-			name := mboxName
-			if strip {
-				name += " " + ctx.T("mailbox.textonly")
-			}
 			res.Header().Set("Content-Disposition", downloadName(name, "messages", ".mbox"))
 			res.Header().Set("Content-Type", "application/mbox")
 			res.WriteHeader(http.StatusOK)
 			started = true
 		}
 		if err := writeMbox(res, raw, env); err != nil {
-			ctx.Logger().Printf("export %q uid %v: %v", mboxName, uid, err)
+			ctx.Logger().Printf("export %s %q uid %v: %v", r.account, r.mailbox, r.uid, err)
 			return nil
 		}
 		res.Flush()

@@ -11,7 +11,7 @@
      or the reader could not take it back. */}}
 {{ $asked := or .Query .Starred }}
 {{ $empty := and .Mailbox.IsEmpty (not $asked) }}
-{{ template "toolbar-head" (dict "g" . "title" $title "selectall" (not .GlobalData.Unified) "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
+{{ template "toolbar-head" (dict "g" . "title" $title "selectall" true "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
     {{$common := .CategorizedMailboxes.Common}}
     {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
     {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
@@ -23,7 +23,20 @@
          the narrow layout keeps them so the toolbar stays one row. The
          action strings are built once and shared between the two. */}}
     {{ $archiveAction := "" }}{{ $junkAction := "" }}{{ $junkIcon := "junk" }}{{ $junkLabel := "" }}{{ $trashAction := "" }}{{ $trashLabel := "" }}
-    {{ if not .GlobalData.Unified }}
+    {{/* The merged view acts by role, each account resolving its own
+         folder; a merged Junk offers the way back, a merged Trash only
+         the end. */}}
+    {{ $role := "" }}{{ if .GlobalData.Unified }}{{ $role = .Mailbox.Name }}{{ end }}
+    {{ $act := printf "/mailbox/%s/all/act" ($role | pathescape) }}
+    {{ if .GlobalData.Unified }}
+      {{ if ne $role "Archive" }}{{ $archiveAction = printf "%s?action=move&to=Archive" $act }}{{ end }}
+      {{ if eq $role "Junk" }}
+        {{ $junkIcon = "notjunk" }}{{ $junkLabel = $.T "mailbox.notspam" }}{{ $junkAction = printf "%s?action=move&to=INBOX" $act }}
+      {{ else if and (ne $role "Sent") (ne $role "Drafts") }}
+        {{ $junkLabel = $.T "mailbox.spam" }}{{ $junkAction = printf "%s?action=move&to=Junk" $act }}
+      {{ end }}
+      {{ if ne $role "Trash" }}{{ $trashLabel = $.T "mailbox.delete" }}{{ $trashAction = printf "%s?action=move&to=Trash" $act }}{{ end }}
+    {{ else }}
       {{ if and $archive (ne .Mailbox.Name $archive) }}
         {{ $archiveAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($archive | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ end }}
@@ -41,6 +54,7 @@
         {{ $trashLabel = $.T "mailbox.deleteperm" }}
         {{ $trashAction = printf "/message/%s/delete%s" (.Mailbox.Name | pathescape) $aq }}
       {{ end }}
+    {{ end }}
     {{/* Delete leaves first of the marks, then the colours, junk, and
          archive last: archive is the disposal reached for most. The
          numbers are the toolbar-wide order of ADR 8. */}}
@@ -53,12 +67,14 @@
 
     {{/* The colours are a menu of their own beside the marks, and the
          same menu folds into the overflow when the row has no room. */}}
+    {{ $flagAction := printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount) }}{{ if .GlobalData.Unified }}{{ $flagAction = printf "%s?action=flag" $act }}{{ end }}
     {{ template "flag-menu" (dict
        "priority" 12
        "form" "messages-form"
-       "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount))
+       "action" $flagAction
        "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $) "disabled" $empty) }}
 
+    {{ if not .GlobalData.Unified }}
     <details class="overflow">
       <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
       <div class="overflow-menu">
@@ -108,7 +124,10 @@
     <details class="overflow">
       <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
       <div class="overflow-menu">
+        <button form="messages-form" formaction="{{$act}}?action=export" data-download>{{$.T "mailbox.export"}}</button>
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
+        <button form="messages-form" formaction="{{$act}}?action=read">{{$.T "mailbox.markread"}}</button>
+        <button form="messages-form" formaction="{{$act}}?action=unread">{{$.T "mailbox.markunread"}}</button>
         {{ if or (eq $path "/mailbox/Junk") (eq $path "/mailbox/Trash") }}
         <form method="post" action="{{$path}}/empty-all">
           <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">

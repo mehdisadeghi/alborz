@@ -2695,12 +2695,6 @@ main.calendar .actions {
   grid-template-rows: auto;
 }
 
-/* Merged desktop rows stay dense; ownership becomes dim secondary text in
-   the mobile card layout and remains explicit on detail pages. */
-.message-grid.unified {
-  grid-template-columns: 4.4rem 14rem minmax(0, 1fr) 8rem 5.5rem;
-}
-
 /* Between the widest desktop and the phone the sender takes a share of
    what is left rather than a fixed slab, so the two text columns narrow
    together; and the size steps aside first, being the column the design
@@ -2712,11 +2706,6 @@ main.calendar .actions {
       minmax(0, 1fr) minmax(5rem, 8rem) minmax(4rem, 5.5rem);
   }
 
-  .message-grid.unified {
-    grid-template-columns:
-      4.4rem minmax(6rem, 0.45fr) minmax(0, 1fr)
-      minmax(5rem, 8rem) minmax(4rem, 5.5rem);
-  }
 }
 
 /* The attachment pane is a third column only where there is room for
@@ -2738,11 +2727,6 @@ main.calendar .actions {
     grid-template-columns:
       var(--check-track) 4.4rem minmax(6rem, 0.45fr)
       minmax(0, 1fr) minmax(5rem, 8rem);
-  }
-
-  .message-grid.unified {
-    grid-template-columns:
-      4.4rem minmax(6rem, 0.45fr) minmax(0, 1fr) minmax(5rem, 8rem);
   }
 
   /* Scoped by the grid that owns it: .list-cell sets display on every
@@ -4331,14 +4315,6 @@ h1.no-word .title-short {
     border-bottom: 1px solid var(--border-light);
   }
 
-  /* Merged rows have no checkbox; their grid drops the empty slot. */
-  .message-grid.unified .message-row {
-    grid-template-columns: minmax(0, 1fr) 6rem;
-    grid-template-areas:
-      "sender  date"
-      "subject flags";
-  }
-
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
 
   /* Two lines is what a phone row has room for; the names are on the
@@ -4654,6 +4630,16 @@ main.message td.warning-cell {
   color: var(--fg-muted);
   text-decoration: none;
   white-space: nowrap;
+}
+
+/* The sender cell is the tag's container: where the name has no
+   room, the tag goes before the name does. */
+.message-list-sender {
+  container-type: inline-size;
+}
+
+@container (width < 16rem) {
+  .sender-tag { display: none; }
 }
 
 .sender-tag.sender-junked {

@@ -724,3 +724,7 @@ other = "%d نامه دارد."
 ["aside.folderholds"]
 one = "یک نامه، %[2]d نخوانده"
 other = "%d نامه، %d نخوانده"
+
+["notice.changed"]
+one = "%d نامه تغییر کرد."
+other = "%d نامه تغییر کردند."

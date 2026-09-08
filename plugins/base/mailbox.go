@@ -767,9 +767,9 @@ func handleMove(ctx *alborz.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
+	target := ctx.NextOr(mailboxURL(ctx, mboxName))
 	if len(uids) == 0 {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nomessages")})
-		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
+		return nothingSelected(ctx, target)
 	}
 
 	to := formOrQueryParam(ctx, "to")
@@ -778,63 +778,154 @@ func handleMove(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 
-	var moved *imapclient.MoveData
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		if err := ensureMailboxSelected(c, mboxName); err != nil {
-			return err
+	var landed []rowRef
+	act := moveAct(func(*imapclient.Client, rowRef) (string, error) { return to, nil }, &landed)
+	return runAct(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), act, func(done int) alborz.Notice {
+		fields := url.Values{"to": {mboxName}, "next": {target}}
+		for _, r := range landed {
+			fields.Add("uids", fmt.Sprint(r.uid))
 		}
-		data, err := c.Move(imap.UIDSetNum(uids...), to).Wait()
+		return movedNotice(ctx, done, len(landed), ctx.AccountPath("/message/"+url.PathEscape(to)+"/move"), fields)
+	}, landOn(ctx, target))
+}
+
+// mailAct is what an action does to one folder's share of a selection,
+// on that account's connection.
+type mailAct struct {
+	do func(c *imapclient.Client, key rowRef, uids []imap.UID) error
+}
+
+// actFailure is a share an action did not reach; err is nil where the
+// account is not signed in.
+type actFailure struct {
+	account string
+	err     error
+}
+
+// actOn carries an action out over a selection, each account's folder
+// a turn on that account's connection, and says how many messages it
+// reached and whose it did not. A folder's selection is a merged one of
+// one account and one folder.
+func actOn(ctx *alborz.Context, refs []rowRef, act mailAct) (done int, failed []actFailure) {
+	for key, uids := range grouped(refs) {
+		s := ctx.SessionFor(key.account)
+		if s == nil {
+			failed = append(failed, actFailure{account: key.account})
+			continue
+		}
+		err := s.DoIMAP(func(c *imapclient.Client) error { return act.do(c, key, uids) })
 		if err != nil {
-			return fmt.Errorf("failed to move message: %v", err)
+			failed = append(failed, actFailure{key.account, err})
+			continue
 		}
-		moved = data
-		return nil
-	})
+		done += len(uids)
+	}
+	return done, failed
+}
+
+// moveAct moves each share to the folder to names on its connection.
+// landed takes what the server says it put where (COPYUID, RFC 4315),
+// which is what an undo is made of.
+func moveAct(to func(*imapclient.Client, rowRef) (string, error), landed *[]rowRef) mailAct {
+	return mailAct{
+		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
+			dest, err := to(c, key)
+			if err != nil {
+				return err
+			}
+			moved, err := moveMessages(c, key.account, key.mailbox, dest, uids)
+			for _, uid := range uidNums(moved) {
+				*landed = append(*landed, rowRef{account: key.account, mailbox: dest, uid: uid})
+			}
+			return err
+		},
+	}
+}
+
+func flagAct(op imap.StoreFlagsOp, flags []imap.Flag) mailAct {
+	return mailAct{
+		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
+			return writeFlags(c, key.account, key.mailbox, uids, op, flags)
+		},
+	}
+}
+
+func colourAct(add, del []imap.Flag) mailAct {
+	return mailAct{do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
+		return writeColour(c, key.account, key.mailbox, uids, add, del)
+	}}
+}
+
+// moveMessages moves a selection of one folder and tells the caches on
+// the connection turn that moved it.
+func moveMessages(c *imapclient.Client, account, from, to string, uids []imap.UID) (*imapclient.MoveData, error) {
+	if err := ensureMailboxSelected(c, from); err != nil {
+		return nil, err
+	}
+	moved, err := c.Move(imap.UIDSetNum(uids...), to).Wait()
 	if err != nil {
+		return nil, fmt.Errorf("failed to move message: %w", err)
+	}
+	listings.evict(account, from)
+	listings.evict(account, to)
+	return moved, nil
+}
+
+// writeFlags stores flags on a selection of one folder and tells the
+// caches on the connection turn that stored them.
+func writeFlags(c *imapclient.Client, account, mailbox string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) error {
+	if err := storeFlags(c, mailbox, imap.UIDSetNum(uids...), op, flags); err != nil {
 		return err
 	}
+	listings.evict(account, mailbox)
+	bodies.evict(account, mailbox, uids)
+	return nil
+}
 
-	listings.evict(ctx.Session.Username(), mboxName)
-	listings.evict(ctx.Session.Username(), to)
-	target := ctx.NextOr(mailboxURL(ctx, mboxName))
-	ctx.Session.Notify(movedNotice(ctx, len(uids), mboxName, to, moved, target))
-	return ctx.Redirect(http.StatusFound, target)
+// writeColour sets a star's colour. A colour is a flag plus a bit
+// field, so it is set and cleared in one exchange rather than by asking
+// the page to spell out both.
+func writeColour(c *imapclient.Client, account, mailbox string, uids []imap.UID, add, del []imap.Flag) error {
+	for _, step := range []struct {
+		op    imap.StoreFlagsOp
+		flags []imap.Flag
+	}{{imap.StoreFlagsAdd, add}, {imap.StoreFlagsDel, del}} {
+		if len(step.flags) == 0 {
+			continue
+		}
+		if err := writeFlags(c, account, mailbox, uids, step.op, step.flags); err != nil {
+			return fmt.Errorf("failed to set flag colour: %w", err)
+		}
+	}
+	return nil
 }
 
 // movedNotice says what moved and, where the server named the new
-// UIDs (COPYUID, RFC 4315), offers to move it back. An undo names those
-// UIDs; a message moved again since is not under them any more, so the
-// server moves nothing and the undo says so rather than claiming
-// success. An undo offers nothing further.
-func movedNotice(ctx *alborz.Context, n int, from, to string, moved *imapclient.MoveData, target string) alborz.Notice {
+// UIDs (COPYUID, RFC 4315), offers to move it back: landed is how many.
+// An undo names those UIDs; a message moved again since is not under
+// them any more, so the server moves nothing and the undo says so
+// rather than claiming success. An undo offers nothing further.
+func movedNotice(ctx *alborz.Context, n int, landed int, undoPath string, undoFields url.Values) alborz.Notice {
 	if ctx.FormValue("undo") != "" {
-		if len(uidNums(moved, false)) == 0 {
+		if landed == 0 {
 			return alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.undofailed")}
 		}
 		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
 	}
 	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.moved", n)}
-	if back := uidNums(moved, true); len(back) > 0 {
-		fields := url.Values{"to": {from}, "next": {target}}
-		for _, uid := range back {
-			fields.Add("uids", fmt.Sprint(uid))
-		}
-		notice.Action = ctx.Undo(ctx.AccountPath("/message/"+url.PathEscape(to)+"/move"), fields)
+	if landed > 0 {
+		notice.Action = ctx.Undo(undoPath, undoFields)
 	}
 	return notice
 }
 
-// uidNums lists the UIDs a MOVE reported, on the destination or the
-// source side; none when the server reported nothing.
-func uidNums(moved *imapclient.MoveData, dest bool) []imap.UID {
+// uidNums lists the UIDs a MOVE reported on the destination side; none
+// when the server reported nothing.
+func uidNums(moved *imapclient.MoveData) []imap.UID {
 	if moved == nil {
 		return nil
 	}
-	set := moved.SourceUIDs
-	if dest {
-		set = moved.DestUIDs
-	}
-	uids, ok := set.(imap.UIDSet)
+	uids, ok := moved.DestUIDs.(imap.UIDSet)
 	if !ok {
 		return nil
 	}
@@ -961,40 +1052,38 @@ func handleDelete(ctx *alborz.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
+	back := ctx.NextOr(mailboxURL(ctx, mboxName))
 	if len(uids) == 0 {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nomessages")})
-		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
+		return nothingSelected(ctx, back)
 	}
 
-	var left int
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		if err := deleteMessages(c, mboxName, imap.UIDSetNum(uids...)); err != nil {
-			return err
-		}
-		left = int(c.Mailbox().NumMessages)
-		return nil
-	})
-	if err != nil {
-		return err
-	}
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return err
 	}
-
-	listings.evict(ctx.Session.Username(), mboxName)
-	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.deleted", len(uids))}
-	// A whole page ticked and more behind it is a reader clearing the
-	// folder one page at a time. The rest is offered, behind a page
-	// that says how many, and never taken on its own.
-	if len(uids) >= perPage(ctx, settings) && left > 0 {
-		notice.Action = &alborz.NoticeAction{
-			Label: ctx.Tf("notice.deleteall", left),
-			Path:  ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName) + "/empty"),
+	var left int
+	return runAct(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), mailAct{
+		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
+			if err := deleteMessages(c, key.mailbox, imap.UIDSetNum(uids...)); err != nil {
+				return err
+			}
+			left = int(c.Mailbox().NumMessages)
+			listings.evict(key.account, key.mailbox)
+			return nil
+		},
+	}, func(done int) alborz.Notice {
+		notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.deleted", done)}
+		// A whole page ticked and more behind it is a reader clearing
+		// the folder one page at a time. The rest is offered, behind a
+		// page that says how many, and never taken on its own.
+		if done >= perPage(ctx, settings) && left > 0 {
+			notice.Action = &alborz.NoticeAction{
+				Label: ctx.Tf("notice.deleteall", left),
+				Path:  ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName) + "/empty"),
+			}
 		}
-	}
-	ctx.Session.Notify(notice)
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
+		return notice
+	}, landOn(ctx, back))
 }
 
 func handleSetFlags(ctx *alborz.Context) error {
@@ -1012,6 +1101,9 @@ func handleSetFlags(ctx *alborz.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
+	if len(uids) == 0 {
+		return nothingSelected(ctx, ctx.NextOr(mailboxURL(ctx, mboxName)))
+	}
 
 	// A colour is a flag plus a bit field, so it is set and cleared in
 	// one exchange rather than by asking the page to spell out both.
@@ -1020,26 +1112,9 @@ func handleSetFlags(ctx *alborz.Context) error {
 		if add == nil && del == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "unknown flag colour")
 		}
-		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			for _, step := range []struct {
-				op    imap.StoreFlagsOp
-				flags []imap.Flag
-			}{{imap.StoreFlagsAdd, add}, {imap.StoreFlagsDel, del}} {
-				if len(step.flags) == 0 {
-					continue
-				}
-				if err := storeFlags(c, mboxName, imap.UIDSetNum(uids...), step.op, step.flags); err != nil {
-					return fmt.Errorf("failed to set flag colour: %w", err)
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-		listings.evict(ctx.Session.Username(), mboxName)
-		bodies.evict(ctx.Session.Username(), mboxName, uids)
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
+		return runAct(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), colourAct(add, del), func(int) alborz.Notice {
+			return alborz.Notice{}
+		}, landOn(ctx, ctx.NextOr(mailboxURL(ctx, mboxName))))
 	}
 
 	flags, ok := formParams["flags"]
@@ -1073,15 +1148,6 @@ func handleSetFlags(ctx *alborz.Context) error {
 		l[i] = imap.Flag(s)
 	}
 
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		return storeFlags(c, mboxName, imap.UIDSetNum(uids...), op, l)
-	})
-	if err != nil {
-		return err
-	}
-	listings.evict(ctx.Session.Username(), mboxName)
-	bodies.evict(ctx.Session.Username(), mboxName, uids)
-
 	target := ctx.NextOr("")
 	if target == "" {
 		if len(uids) != 1 || (op == imap.StoreFlagsDel && len(l) == 1 && l[0] == imap.FlagSeen) {
@@ -1091,8 +1157,9 @@ func handleSetFlags(ctx *alborz.Context) error {
 			target = ctx.AccountPath(fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uids[0]))
 		}
 	}
-	ctx.Session.Notify(flaggedNotice(ctx, formParams["uids"], flags, op, mboxName, target))
-	return ctx.Redirect(http.StatusFound, target)
+	return runAct(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), flagAct(op, l), func(int) alborz.Notice {
+		return flaggedNotice(ctx, formParams["uids"], flags, op, mboxName, target)
+	}, landOn(ctx, target))
 }
 
 // flaggedNotice says what changed and offers the opposite store for
@@ -1168,4 +1235,135 @@ func outgoingFolder(mailboxes []MailboxInfo, name string) bool {
 		}
 	}
 	return false
+}
+
+// A merged view holds rows of several accounts, so a selection names
+// each row by account, folder and UID. The actions are the ones a
+// folder offers that make sense across accounts: archive, junk, trash
+// and the inbox by role, flags, read and unread, and an export. A named
+// folder does not, since one account's folders are not another's.
+type rowRef struct {
+	account, mailbox string
+	uid              imap.UID
+}
+
+func parseRefs(values []string) ([]rowRef, error) {
+	var refs []rowRef
+	for _, v := range values {
+		parts := strings.SplitN(v, "|", 3)
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("not a message reference: %q", v)
+		}
+		uid, err := parseUid(parts[2])
+		if err != nil {
+			return nil, err
+		}
+		refs = append(refs, rowRef{account: parts[0], mailbox: parts[1], uid: uid})
+	}
+	return refs, nil
+}
+
+// grouped is the selection by the connection it is acted on: one
+// account, one folder.
+func grouped(refs []rowRef) map[rowRef][]imap.UID {
+	out := map[rowRef][]imap.UID{}
+	for _, r := range refs {
+		key := rowRef{account: r.account, mailbox: r.mailbox}
+		out[key] = append(out[key], r.uid)
+	}
+	return out
+}
+
+func handleUnifiedAct(ctx *alborz.Context) error {
+	role, err := url.PathUnescape(ctx.Param("role"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	if !slices.Contains(unifiedRoles, role) {
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("%q is not a unified folder", role))
+	}
+	params, err := ctx.FormParams()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	refs, err := parseRefs(params["refs"])
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	back := ctx.NextOr("/mailbox/" + url.PathEscape(role))
+	if len(refs) == 0 {
+		return nothingSelected(ctx, back)
+	}
+	action := formOrQueryParam(ctx, "action")
+	if action == "export" {
+		return streamMbox(ctx, refs, "messages", false)
+	}
+
+	var landed []rowRef
+	to := formOrQueryParam(ctx, "to")
+	var act mailAct
+	switch action {
+	case "move":
+		act = moveAct(func(c *imapclient.Client, key rowRef) (string, error) {
+			return resolveRole(c, key.account, to)
+		}, &landed)
+	case "flag":
+		add, del := FlagColorFlags(ctx.FormValue("color"))
+		if add == nil && del == nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "unknown flag colour")
+		}
+		act = colourAct(add, del)
+	case "read":
+		act = flagAct(imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen})
+	case "unread":
+		act = flagAct(imap.StoreFlagsDel, []imap.Flag{imap.FlagSeen})
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "unknown action")
+	}
+	each := act.do
+	act.do = func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
+		defer listings.evictAll(key.account)
+		return each(c, key, uids)
+	}
+	return runAct(ctx, refs, act, func(done int) alborz.Notice {
+		switch action {
+		case "move":
+			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.moved", done)}
+		}
+		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.changed", done)}
+	}, landOn(ctx, back))
+}
+
+// nothingSelected says so on the page the action came from.
+func nothingSelected(ctx *alborz.Context, back string) error {
+	ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nomessages")})
+	return ctx.Redirect(http.StatusFound, back)
+}
+
+// runAct is an action route around its action: what was done is the
+// notice done makes of the count, and land is where the reader goes,
+// told whether it was done. What was refused is the answer instead.
+func runAct(ctx *alborz.Context, refs []rowRef, act mailAct, done func(n int) alborz.Notice, land func(done bool) error) error {
+	n, failed := actOn(ctx, refs, act)
+	if len(failed) == 1 && failed[0].err != nil {
+		return failed[0].err
+	}
+	if len(failed) > 0 {
+		var refused []string
+		for _, f := range failed {
+			if f.err == nil {
+				refused = append(refused, f.account)
+			} else {
+				refused = append(refused, f.account+": "+f.err.Error())
+			}
+		}
+		return fmt.Errorf("failed on %s", strings.Join(refused, "; "))
+	}
+	ctx.Session.Notify(done(n))
+	return land(true)
+}
+
+// landOn is the landing of a route that answers with a page.
+func landOn(ctx *alborz.Context, back string) func(bool) error {
+	return func(bool) error { return ctx.Redirect(http.StatusFound, back) }
 }

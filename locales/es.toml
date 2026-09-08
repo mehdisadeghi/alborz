@@ -724,3 +724,7 @@ other = "Contiene %d mensajes."
 ["aside.folderholds"]
 one = "Un mensaje, %[2]d sin leer"
 other = "%d mensajes, %d sin leer"
+
+["notice.changed"]
+one = "%d mensaje cambiado."
+other = "%d mensajes cambiados."

@@ -182,11 +182,16 @@ func unfold(header string) []string {
 // it is most of what was seen. A mailbox whose messages disagree has no
 // single answer, and offering the winner of a close race would be the
 // guess this is here to avoid.
+// A pool's hosts count as one: Migadu writes aspmx1, mx12 and mx13,
+// and split three ways none would dominate. The most frequent host of
+// the dominant family is named, and its siblings are believed too.
 func dominant(counts map[string]int) string {
 	total := 0
+	families := map[string]int{}
 	ids := make([]string, 0, len(counts))
 	for id, n := range counts {
 		total += n
+		families[serverFamily(id)] += n
 		ids = append(ids, id)
 	}
 	if total == 0 {
@@ -194,8 +199,28 @@ func dominant(counts map[string]int) string {
 	}
 	sort.Slice(ids, func(i, j int) bool { return counts[ids[i]] > counts[ids[j]] })
 	best := ids[0]
-	if counts[best]*2 <= total {
+	if families[serverFamily(best)]*2 <= total {
 		return ""
 	}
 	return best
+}
+
+// serverFamily is what two hosts of one pool share: the name past the
+// first label, or the whole name when there is nothing to drop.
+func serverFamily(id string) string {
+	_, rest, ok := strings.Cut(id, ".")
+	if !ok || !strings.Contains(rest, ".") {
+		return id
+	}
+	return rest
+}
+
+// TrustedAuthServ is the id whose verdicts are believed for this
+// account: the one the reader confirmed, or else the one observed on
+// the account's own deliveries.
+func TrustedAuthServ(ctx *alborz.Context, settings *Settings) string {
+	if settings.TrustedAuthServ != "" {
+		return settings.TrustedAuthServ
+	}
+	return SuggestAuthServ(ctx)
 }

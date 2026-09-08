@@ -58,6 +58,11 @@ func isFailure(verdict string) bool {
 // readAuthResults returns the verdict written by the trusted server.
 // Headers list newest first, so the first match is the one our own
 // server added at delivery; anything below it may be the sender's.
+//
+// A provider's MX pool writes one id per host - Migadu signs as
+// aspmx1, mx12 and mx13 under migadu.com - so a sibling host of the
+// trusted one counts as it. The topmost-line rule keeps that safe: a
+// sender's forged sibling would sit below the server's own line.
 func readAuthResults(h textproto.Header, trusted string) *AuthResults {
 	trusted = strings.TrimSpace(strings.ToLower(trusted))
 	if trusted == "" {
@@ -67,13 +72,20 @@ func readAuthResults(h textproto.Header, trusted string) *AuthResults {
 		fields := h.FieldsByKey(key)
 		for fields.Next() {
 			id, results, ok := parseAuthResults(fields.Value())
-			if !ok || id != trusted {
+			if !ok || !sameServerFamily(id, trusted) {
 				continue
 			}
 			return results
 		}
 	}
 	return nil
+}
+
+// sameServerFamily says whether two authserv-ids are one host or two
+// hosts of one pool: the same name, or the same name past the first
+// label when both have one to drop.
+func sameServerFamily(id, trusted string) bool {
+	return id == trusted || serverFamily(id) == serverFamily(trusted)
 }
 
 // parseAuthResults reads an authserv-id and its method=result pairs

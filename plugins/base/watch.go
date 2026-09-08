@@ -196,7 +196,7 @@ func warmInbox(s *alborz.Session) error {
 	var own, merged *listingEntry
 	err = s.DoIMAP(func(c *imapclient.Client) error {
 		var err error
-		if own, err = fetchListing(c, listingSpec{mbox: "INBOX"}, settings, 0, settings.MessagesPerPage); err != nil {
+		if own, err = fetchListing(c, user, listingSpec{mbox: "INBOX"}, settings, 0, settings.MessagesPerPage); err != nil {
 			return err
 		}
 		merged, err = fetchUnifiedAccount(c, user, "INBOX", listingSpec{}, settings, settings.MessagesPerPage, true)

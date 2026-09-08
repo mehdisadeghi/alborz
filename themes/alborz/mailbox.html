@@ -39,7 +39,11 @@
           {{ $s := dict "Key" $hsort "Dir" .SortDir "Explicit" $hexp "DirExplicit" $hreset "Params" $hparams "Reset" $hbase }}
           {{ $plain := not .SortSupported }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "message-list-flags" "hidden" ($.T "sort.starred")) }}
-          {{ template "sort-col" (dict "s" $s "plain" $plain "key" "from" "label" ($.T "sort.sender") "cell" "message-list-sender") }}
+          {{/* Sent and Drafts name whom the mail went to; the sort key
+               stays the server's, which orders these folders by the
+               recipient once told to sort by "to". */}}
+          {{ $who := $.T "sort.sender" }}{{ $whokey := "from" }}{{ if .Outgoing }}{{ $who = $.T "sort.recipient" }}{{ $whokey = "to" }}{{ end }}
+          {{ template "sort-col" (dict "s" $s "plain" $plain "key" $whokey "label" $who "cell" "message-list-sender") }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "key" "subject" "label" ($.T "sort.subject") "cell" "list-primary message-list-subject") }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "key" "date" "label" ($.T "sort.date") "cell" "message-list-date") }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "key" "size" "label" ($.T "sort.size") "cell" "message-list-size") }}
@@ -58,7 +62,9 @@
           {{ end }}
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
-          <div class="message-row list-row" role="row"{{ if $.Threaded }} style="--depth: {{.Depth}}"{{ end }}{{ if and $.GlobalData.Unified $.GlobalData.AccountColors }} style="--account: {{ $.GlobalData.AccountColor .Account }}"{{ end }}>
+          {{/* A row earns a tint only for a fact that needs no argument;
+               the rest of the facts wait on the message page. */}}
+          <div class="message-row list-row{{ if eq .Mark 2 }} row-alarm{{ else if eq .Mark 1 }} row-caution{{ end }}" role="row"{{ if $.Threaded }} style="--depth: {{.Depth}}"{{ end }}{{ if and $.GlobalData.Unified $.GlobalData.AccountColors }} style="--account: {{ $.GlobalData.AccountColor .Account }}"{{ end }}>
           {{ if not $.GlobalData.Unified }}
           <div class="message-list-checkbox list-checkbox {{$classes}}" role="cell">
             <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form" aria-label="{{$.T "a11y.selectrow"}}{{with .Envelope.Subject}}: {{.}}{{end}}">
@@ -98,9 +104,10 @@
             {{ with .Alias }}<span class="message-mark alias-mark" title="{{ printf ($.T "message.aliasmark") . }}"><span aria-hidden="true">@</span><span class="visually-hidden">{{ printf ($.T "message.aliasmark") . }}</span></span>{{ end }}
           </div>
           <div class="message-list-sender {{$classes}}" role="cell">
-            {{ if not .Envelope.From }}{{$.T "mailbox.nosender"}}{{ end }}
-            {{ range .Envelope.From }}
-            <a dir="auto"{{with $.GlobalData.ContentLang .Name}} lang="{{.}}"{{end}} href="{{ localhref (printf "?query=from:%s%s" (.Addr | addr) $scope) }}">
+            {{ $people := .Envelope.From }}{{ $field := "from" }}{{ if $.Outgoing }}{{ $people = .Envelope.To }}{{ $field = "to" }}{{ end }}
+            {{ if not $people }}{{$.T "mailbox.nosender"}}{{ end }}
+            {{ range $people }}
+            <a dir="auto"{{with $.GlobalData.ContentLang .Name}} lang="{{.}}"{{end}} href="{{ localhref (printf "?query=%s:%s%s" $field (.Addr | addr) $scope) }}">
             {{ if .Name }}
               {{.Name}}
             {{ else }}
@@ -108,6 +115,11 @@
             {{ end }}
             </a>
             {{ end }}
+            {{/* What the reader's own folders know about the author, as a
+                 small tag: a first message, or a sender already junked.
+                 Known correspondents get nothing, which is most rows. It
+                 opens the message's facts, so a thumb can ask. */}}
+            {{ if and (not $.Outgoing) .Relation }}{{ if .Relation.Junked }}<a class="sender-tag sender-junked" href="{{.URL}}{{ if $.GlobalData.Unified }}{{account "?" .Account}}{{ else }}{{account "?" $.GlobalData.URLAccount}}{{ end }}#facts">{{$.T "indicator.tagjunked"}}</a>{{ else if not .Relation.WrittenTo }}<a class="sender-tag" href="{{.URL}}{{ if $.GlobalData.Unified }}{{account "?" .Account}}{{ else }}{{account "?" $.GlobalData.URLAccount}}{{ end }}#facts">{{$.T "indicator.tagfirst"}}</a>{{ end }}{{ end }}
             {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">

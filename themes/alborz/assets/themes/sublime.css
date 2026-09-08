@@ -37,5 +37,7 @@
   --notice-border: #34424a;
   --alert-fg: #fb4b88;
   --alert-bg: #2d2026;
+  --warn-fg: #e6db74;
+  --warn-bg: #33301f;
   --alert-border: #4d2436;
 }

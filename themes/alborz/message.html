@@ -115,6 +115,24 @@
                 {{ if call $.GlobalData.HavePlugin "sieve" }}
                 {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
                 <a class="button-link" href="{{ localhref (printf "/filters/rules/create?from=%s&list=%s&subject=%s%v" ($from | urlquery) (.Message.ListID | urlquery) (.Message.Envelope.Subject | urlquery) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
+                {{/* Blocking is a rule that junks the sender, which is
+                     all a user agent can do about one, and what trains
+                     the server's filter where it learns from that
+                     folder. The address and its domain are two rules. */}}
+                {{ if $from }}
+                <form method="POST" action="/filters/rules/block{{$aq}}">
+                  <input type="hidden" name="value" value="{{$from}}">
+                  <input type="hidden" name="next" value="{{$.Message.URL}}">
+                  <button>{{ printf ($.T "message.blocksender") $from }}</button>
+                </form>
+                {{ $domain := .Message.FromDomain }}
+                <form method="POST" action="/filters/rules/block{{$aq}}">
+                  <input type="hidden" name="value" value="{{$domain}}">
+                  <input type="hidden" name="domain" value="1">
+                  <input type="hidden" name="next" value="{{$.Message.URL}}">
+                  <button>{{ printf ($.T "message.blockdomain") $domain }}</button>
+                </form>
+                {{ end }}
                 {{ end }}
                 {{/* On list mail the dangerous reply is the one that
                      answers the list and everyone on it at once, so it
@@ -347,6 +365,21 @@
                on every message teaches people to ignore marks, and
                "none" means the domain published no policy rather than
                that this message failed one. */}}
+          {{/* Warning signs, only when there are any: the signs that need
+               no argument, in the words that say why. A clean message
+               gets no card; a message in Junk gets none either. */}}
+          {{ with .Warnings }}
+          <tr>
+            <td colspan="2" class="warning-cell">
+              <details class="list-card warning-card warning-{{ if eq $.Mark 2 }}alarm{{ else }}caution{{ end }}" id="facts" open>
+                <summary>{{$.T "indicator.title"}}</summary>
+                <ul>
+                  {{ range . }}<li>{{ .Text $.GlobalData }}</li>{{ end }}
+                </ul>
+              </details>
+            </td>
+          </tr>
+          {{ end }}
           {{ with .AuthResults }}{{ if .Failed }}
           <tr>
             <th scope="row">{{$.T "auth.title"}}</th>

@@ -435,3 +435,9 @@ func envelopeSender(env *imap.Envelope) string {
 	}
 	return env.From[0].Addr()
 }
+
+// FromDomain is the author's domain, for a rule about everyone there.
+func (msg *IMAPMessage) FromDomain() string {
+	from := envelopeSender(msg.Envelope)
+	return from[strings.LastIndex(from, "@")+1:]
+}

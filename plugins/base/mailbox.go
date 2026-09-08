@@ -387,7 +387,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 			listings.store(user, key, e)
 		}
 	}
-	sb, msgs := e.sb, e.msgs
+	sb, msgs := railFor(ctx.Session, mboxName, e.sb), e.msgs
 	// The page's bodies are fetched behind it, so the next click, on
 	// any of its rows, asks the server nothing.
 	if cacheable {

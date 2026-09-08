@@ -23,12 +23,30 @@ type IMAPBaseRenderData struct {
 	SidebarAccounts []AccountSidebar
 }
 
-// AllInboxUnseen sums the accounts' inbox unseen counts for the
-// All-inboxes row.
-func (d *IMAPBaseRenderData) AllInboxUnseen() int {
+// AllUnseen sums the accounts' unseen counts for one role of the
+// merged rail, from the trees the rail already holds.
+func (d *IMAPBaseRenderData) AllUnseen(role string) int {
 	sum := 0
 	for _, acc := range d.SidebarAccounts {
-		sum += acc.InboxUnseen
+		c := acc.Categorized.Common
+		var details *MailboxDetails
+		switch role {
+		case "INBOX":
+			details = c.Inbox
+		case "Drafts":
+			details = c.Drafts
+		case "Sent":
+			details = c.Sent
+		case "Junk":
+			details = c.Junk
+		case "Trash":
+			details = c.Trash
+		case "Archive":
+			details = c.Archive
+		}
+		if details != nil && details.Info != nil && details.Info.Unseen > 0 {
+			sum += details.Info.Unseen
+		}
 	}
 	return sum
 }
@@ -204,13 +222,31 @@ func (sb sidebar) clone() sidebar {
 type AccountSidebar struct {
 	Account     string
 	Categorized CategorizedMailboxes
-	InboxUnseen int
 }
 
-// accountSidebars holds each account's raw sidebar so the aside renders
-// without waiting on every account's server; reloads run in the
-// background once an entry goes stale.
-var accountSidebars = alborz.NewBackgroundMemo[sidebar](listingFreshFor)
+// accountSidebars holds each account's folder tree with its counts, the
+// one source every rail draws from. A stale one is reloaded on the
+// page rather than behind it: a count is a fact that changes, and one a
+// page old is wrong in the way a stale listing is not. Every listing
+// fetch feeds it, so the reload is rarely the page's own.
+var accountSidebars = alborz.NewMemo[sidebar](listingFreshFor)
+
+// railFor is the account's sidebar for a page on one folder: the tree
+// and counts as the memo holds them, with that folder marked active.
+// A folder the memo did not count keeps the status the page fetched.
+func railFor(s *alborz.Session, mboxName string, fetched sidebar) sidebar {
+	sb, err := sidebarFor(s)
+	if err != nil {
+		return fetched
+	}
+	sb = sb.clone()
+	if active := sb.statuses[mboxName]; active != nil {
+		sb.active = active
+	} else {
+		sb.active = fetched.active
+	}
+	return sb
+}
 
 func sidebarFor(s *alborz.Session) (sidebar, error) {
 	return accountSidebars.Get(s.Username(), func() (sidebar, error) {
@@ -250,14 +286,9 @@ func sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
 			continue
 		}
 		ib := assembleIMAPBase(ctx, &alborz.BaseRenderData{}, "", sb.clone(), false)
-		unseen := 0
-		if ib.Inbox != nil && ib.Inbox.NumUnseen != nil {
-			unseen = int(*ib.Inbox.NumUnseen)
-		}
 		accounts = append(accounts, AccountSidebar{
 			Account:     s.Username(),
 			Categorized: ib.CategorizedMailboxes,
-			InboxUnseen: unseen,
 		})
 	}
 	return accounts

@@ -654,3 +654,19 @@ other = "Eliminar los %d de esta carpeta"
 ["folder.emptycount"]
 one = "Contiene %d mensaje; una vez eliminado no vuelve."
 other = "Contiene %d mensajes; una vez eliminados no vuelven."
+
+["notice.imported"]
+one = "Un mensaje importado en %[2]s."
+other = "%d mensajes importados en %s."
+
+["notice.importstopped"]
+one = "La importación se detuvo tras un mensaje; la carpeta %[2]s lo contiene."
+other = "La importación se detuvo tras %d mensajes; la carpeta %s los contiene."
+
+["folder.exportcount"]
+one = "Contiene un mensaje."
+other = "Contiene %d mensajes."
+
+["aside.folderholds"]
+one = "Un mensaje, %[2]d sin leer"
+other = "%d mensajes, %d sin leer"

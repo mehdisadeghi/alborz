@@ -997,7 +997,7 @@ func handleForwardSelection(ctx *alborz.Context) error {
 	}
 	back := ctx.NextOr(mailboxURL(ctx, mboxName))
 	if len(uids) == 0 {
-		return ctx.Redirect(http.StatusFound, back)
+		return nothingSelected(ctx, back)
 	}
 	// One message is passed on inline, where the writer can trim it.
 	// Several cannot be: concatenating them means nothing, so each

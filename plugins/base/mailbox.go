@@ -615,18 +615,11 @@ func handleNewMailbox(ctx *alborz.Context) error {
 	if ctx.Request().Method == http.MethodPost {
 		name = ctx.FormValue("name")
 		selectedLocation = ctx.FormValue("location")
-		var location *NewMailboxLocation
-		for i := range locationGroups {
-			for j := range locationGroups[i].Locations {
-				if locationGroups[i].Locations[j].Key == selectedLocation {
-					selectedAccount = locationGroups[i].Account
-					location = &locationGroups[i].Locations[j]
-				}
-			}
-		}
+		location, account := locationByKey(locationGroups, selectedLocation)
 		if location == nil {
 			return render(http.StatusUnprocessableEntity, ctx.T("form.destinationneeded"))
 		}
+		selectedAccount = account
 		if name == "" {
 			return render(http.StatusUnprocessableEntity, ctx.T("form.nameneeded"))
 		}
@@ -635,10 +628,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 		if selectedSession == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
-		fullName := name
-		if location.Parent != "" {
-			fullName = location.Parent + string(location.Delimiter) + name
-		}
+		fullName := location.folder(name)
 		err := selectedSession.DoIMAP(func(c *imapclient.Client) error {
 			return c.Create(fullName, nil).Wait()
 		})
@@ -648,14 +638,38 @@ func handleNewMailbox(ctx *alborz.Context) error {
 		}
 
 		listings.evictAll(selectedAccount)
-		destination := fmt.Sprintf("/mailbox/%s", url.PathEscape(fullName))
-		if len(ctx.Sessions()) > 1 {
-			destination += "?account=" + alborz.AddressParam(selectedAccount)
-		}
-		return ctx.Redirect(http.StatusFound, destination)
+		return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
 	}
 
 	return render(http.StatusOK, "")
+}
+
+// locationByKey is the location a form named, and the account it is in.
+func locationByKey(groups []NewMailboxLocationGroup, key string) (*NewMailboxLocation, string) {
+	for i := range groups {
+		for j := range groups[i].Locations {
+			if groups[i].Locations[j].Key == key {
+				return &groups[i].Locations[j], groups[i].Account
+			}
+		}
+	}
+	return nil, ""
+}
+
+// folder is the full name of a folder called name under this location.
+func (l *NewMailboxLocation) folder(name string) string {
+	if l.Parent == "" {
+		return name
+	}
+	return l.Parent + string(l.Delimiter) + name
+}
+
+func folderURL(ctx *alborz.Context, account, name string) string {
+	destination := fmt.Sprintf("/mailbox/%s", url.PathEscape(name))
+	if len(ctx.Sessions()) > 1 {
+		destination += "?account=" + alborz.AddressParam(account)
+	}
+	return destination
 }
 
 type DeleteMailboxRenderData struct {

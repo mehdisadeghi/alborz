@@ -460,7 +460,7 @@
                    own row; the picker appears only where a writable collection
                    of that kind exists. */}}
               {{ if and (or (eq .MIMEType "text/calendar") (eq .MIMEType "application/ics")) $.Extra.ImportCalendars }}
-              <form method="post" action="/calendar/import{{$aq}}" class="invitation-actions">
+              <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
                 <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                 <input type="hidden" name="uid" value="{{$.Message.UID}}">
                 <input type="hidden" name="part" value="{{.PathString}}">
@@ -470,7 +470,7 @@
               </form>
               {{ end }}
               {{ if and (or (eq .MIMEType "text/vcard") (eq .MIMEType "text/x-vcard") (eq .MIMEType "text/directory")) $.Extra.ImportBooks }}
-              <form method="post" action="/contacts/import{{$aq}}" class="invitation-actions">
+              <form method="post" action="/contacts/from-message{{$aq}}" class="invitation-actions">
                 <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                 <input type="hidden" name="uid" value="{{$.Message.UID}}">
                 <input type="hidden" name="part" value="{{.PathString}}">

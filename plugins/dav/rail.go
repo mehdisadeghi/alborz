@@ -16,4 +16,7 @@ type Rail struct {
 	// Follow is the calendar's second way of adding one; empty elsewhere.
 	FollowHref  string
 	FollowLabel string
+	// Import is the section's page for bringing a file in.
+	ImportHref  string
+	ImportLabel string
 }

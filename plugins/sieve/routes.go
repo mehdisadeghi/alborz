@@ -2,8 +2,10 @@ package alborzsieve
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"path"
 
 	"git.mehdix.org/alborz"
 	"github.com/labstack/echo/v4"
@@ -50,6 +52,9 @@ type FilterRenderData struct {
 	// save can tell whether the server still holds that version.
 	Loaded string
 	Error  string
+	// Suggested is the name an imported script arrives with, for the
+	// reader to keep or change before the first save.
+	Suggested string
 
 	// Accounts that can hold a script, for the create form's
 	// destination, and Account the one it opens on: the URL's, or the
@@ -84,6 +89,8 @@ func registerRoutes(p *alborz.GoPlugin) {
 	}
 	p.GET("/filters", handleListFilters)
 	p.GET("/filters/create", handleCreateFilter)
+	p.GET("/filters/import", handleImportFilter)
+	p.POST("/filters/import", handleImportFilter)
 	p.GET("/filters/forwarding", requireAccount(handleForwarding))
 	p.GET("/filters/forwarding/create", requireAccount(handleForwardingCreate))
 	p.POST("/filters/forwarding", requireAccount(handleForwardingAdd))
@@ -195,6 +202,52 @@ func handleCreateFilter(ctx *alborz.Context) error {
 		Accounts:       accounts,
 		Account:        account,
 	})
+}
+
+// handleImportFilter takes a script file and opens it in the editor,
+// named after the file: the reader reads it and saves it through the
+// same door every script goes through, with the server's own check.
+func handleImportFilter(ctx *alborz.Context) error {
+	accounts := sieveAccounts(ctx)
+	if len(accounts) == 0 {
+		return echo.ErrNotFound
+	}
+	account := ctx.URLAccount()
+	if account == "" {
+		account = accounts[0].Username
+	}
+	data := &FilterRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.import")),
+		Rail:           rail(ctx),
+		Accounts:       accounts,
+		Account:        account,
+	}
+	if ctx.Request().Method != http.MethodPost {
+		return ctx.Render(http.StatusOK, "filters-import.html", data)
+	}
+	if picked := ctx.FormValue("account"); picked != "" {
+		data.Account = picked
+	}
+	file, err := ctx.FormFile("file")
+	if err != nil {
+		data.Error = ctx.T("form.fileneeded")
+		return ctx.Render(http.StatusUnprocessableEntity, "filters-import.html", data)
+	}
+	if file.Size > maxScriptSize {
+		return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the script is too large")
+	}
+	f, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(f)
+	if err != nil {
+		return err
+	}
+	data.Content = strings.ReplaceAll(string(raw), "\r\n", "\n")
+	data.Suggested = strings.TrimSuffix(file.Filename, path.Ext(file.Filename))
+	return ctx.Render(http.StatusOK, "filter-edit.html", data)
 }
 
 func handleEditFilter(ctx *alborz.Context) error {
@@ -393,3 +446,7 @@ func describe(names []string) []Extension {
 	}
 	return out
 }
+
+// maxScriptSize bounds an uploaded script; ManageSieve servers refuse
+// far smaller ones.
+const maxScriptSize = 1 << 20

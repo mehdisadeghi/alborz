@@ -494,6 +494,7 @@ func (p *plugin) eventRail(ctx *alborz.Context) (dav.Rail, error) {
 	rail.Path, rail.Action = "/calendar", "/calendar"
 	rail.NewHref, rail.NewLabel = "/calendars/create?next="+next, ctx.T("calendar.newcalendar")
 	rail.FollowHref, rail.FollowLabel = "/calendars/subscribe?next="+next, ctx.T("calendar.subscribe")
+	rail.ImportHref, rail.ImportLabel = "/calendar/import", ctx.T("calendar.import")
 	return rail, err
 }
 
@@ -501,6 +502,7 @@ func (p *plugin) taskRail(ctx *alborz.Context) (dav.Rail, error) {
 	rail, err := p.calendarRail(ctx, supportsTodo, taskVisibility)
 	rail.Path, rail.Action = "/tasks", "/tasks"
 	rail.NewHref, rail.NewLabel = "/calendars/create?for=tasks&next="+url.QueryEscape(ctx.Request().URL.RequestURI()), ctx.T("tasks.newlist")
+	rail.ImportHref, rail.ImportLabel = "/tasks/import", ctx.T("tasks.import")
 	return rail, err
 }
 
@@ -598,6 +600,10 @@ func registerRoutes(p *plugin) {
 	page := p.collectionPage()
 	GET("/calendars/create", page.HandleCreate(p.dav, p.createForm))
 	POST("/calendars/create", page.HandleCreate(p.dav, p.createForm))
+	for _, method := range []func(string, func(*alborz.Context) error){GET, POST} {
+		method("/calendar/import", page.HandleImportPage(p.dav, "/calendar", "nav.calendar", "calendar.import", "calendar.importhint", "event", true))
+		method("/tasks/import", page.HandleImportPage(p.dav, "/tasks", "nav.tasks", "tasks.import", "tasks.importhint", "task", false))
+	}
 	GET("/calendars/:path", page.Handle(p.dav))
 	POST("/calendars/:path", p.forSubscription(p.updateSubscription, page.Handle(p.dav)))
 	POST("/calendars/:path/delete", p.forSubscription(p.unsubscribe, page.HandleDelete(p.dav)))

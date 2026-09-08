@@ -2,6 +2,7 @@ package alborzbase
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
 	"slices"
@@ -781,11 +782,18 @@ func handleMove(ctx *alborz.Context) error {
 	var landed []rowRef
 	act := moveAct(func(*imapclient.Client, rowRef) (string, error) { return to, nil }, &landed)
 	return runAct(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), act, func(done int) alborz.Notice {
+		// Named the way a person would: the folder by its label, linked,
+		// so the moved thing is one click away.
+		label := to
+		if role := (&MailboxInfo{ListData: &imap.ListData{Mailbox: to}}).role(); role != "" {
+			label = ctx.T("aside." + role)
+		}
 		fields := url.Values{"to": {mboxName}, "next": {target}}
 		for _, r := range landed {
 			fields.Add("uids", fmt.Sprint(r.uid))
 		}
-		return movedNotice(ctx, done, len(landed), ctx.AccountPath("/message/"+url.PathEscape(to)+"/move"), fields)
+		return movedNotice(ctx, done, label, mailboxURL(ctx, to), len(landed),
+			ctx.AccountPath("/message/"+url.PathEscape(to)+"/move"), fields)
 	}, landOn(ctx, target))
 }
 
@@ -900,19 +908,25 @@ func writeColour(c *imapclient.Client, account, mailbox string, uids []imap.UID,
 	return nil
 }
 
-// movedNotice says what moved and, where the server named the new
-// UIDs (COPYUID, RFC 4315), offers to move it back: landed is how many.
-// An undo names those UIDs; a message moved again since is not under
-// them any more, so the server moves nothing and the undo says so
-// rather than claiming success. An undo offers nothing further.
-func movedNotice(ctx *alborz.Context, n int, landed int, undoPath string, undoFields url.Values) alborz.Notice {
+// movedNotice says what moved where, the folder named by its label and
+// linked, and offers to move it back where the server named the new
+// UIDs (COPYUID, RFC 4315): landed is how many. An undo names those
+// UIDs; a message moved again since is not under them any more, so the
+// server moves nothing and the undo says so rather than claiming
+// success. An undo offers nothing further.
+func movedNotice(ctx *alborz.Context, n int, label, href string, landed int, undoPath string, undoFields url.Values) alborz.Notice {
 	if ctx.FormValue("undo") != "" {
 		if landed == 0 {
 			return alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.undofailed")}
 		}
 		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
 	}
-	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.moved", n)}
+	link := "<a href=\"" + template.HTMLEscapeString(href) + "\">" + template.HTMLEscapeString(label) + "</a>"
+	notice := alborz.Notice{
+		Kind:   alborz.NoticeDone,
+		Text:   ctx.Tf("notice.movedto", n, label),
+		Markup: template.HTML(ctx.Tf("notice.movedto", n, link)),
+	}
 	if landed > 0 {
 		notice.Action = ctx.Undo(undoPath, undoFields)
 	}
@@ -1328,7 +1342,7 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 	return runAct(ctx, refs, act, func(done int) alborz.Notice {
 		switch action {
 		case "move":
-			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.moved", done)}
+			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.movedto", done, ctx.T("aside."+strings.ToLower(to)))}
 		}
 		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.changed", done)}
 	}, landOn(ctx, back))

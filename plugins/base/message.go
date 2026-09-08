@@ -32,6 +32,11 @@ type MessageRenderData struct {
 	// AuthResults is what the receiving server said about the sender's
 	// domain, nil when no trusted server reported or none is named.
 	AuthResults *AuthResults
+	// Warnings are the indicators that earned a colour, and Mark the
+	// colour: none, caution or alarm. Nothing is said about a message
+	// with nothing against it.
+	Warnings []Indicator
+	Mark     Grade
 
 	// Unsubscribe is where the unsubscribe control sends the reader. It
 	// is the list's own page when the list gave one, and otherwise our
@@ -169,6 +174,9 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	if err != nil {
 		return err
 	}
+	// Read before the message's own IMAP work: the observed id may cost
+	// a sample of the inbox, and the session lock is not reentrant.
+	trusted := TrustedAuthServ(ctx, settings)
 	messagesPerPage := perPage(ctx, settings)
 
 	query := ctx.QueryParam("query")
@@ -246,7 +254,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		permanentFlags = held.permanent
 		// What our own server made of SPF, DKIM and DMARC when it took
 		// delivery, read from the header the fetch brought.
-		authResults = readAuthResults(messageRootHeader(msg), settings.TrustedAuthServ)
+		authResults = readAuthResults(messageRootHeader(msg), trusted)
 		// The peek left the message unread on the server; the page is
 		// what reads it, and nothing waits on the server saying so.
 		if !msg.HasFlag(imap.FlagSeen) {
@@ -322,7 +330,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 				// What our own server made of SPF, DKIM and DMARC when
 				// it took delivery. Read from the same header set, and
 				// only from the instance the trusted server wrote.
-				authResults = readAuthResults(messageRootHeader(msg), settings.TrustedAuthServ)
+				authResults = readAuthResults(messageRootHeader(msg), trusted)
 				signature = withDelivery(signature, authResults)
 			}
 			if load != nil {
@@ -337,6 +345,36 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	// The body fetch marked the message read; the cached listings say
 	// so too rather than being fetched again for one flag.
 	listings.markSeen(ctx.Session.Username(), mboxName, uid)
+
+	// The facts beside the message. The folders are asked about the
+	// sender once an hour per address, so the page rarely pays for it.
+	var indicators []Indicator
+	if !raw {
+		evidence := &Evidence{
+			Header:     messageRootHeader(msg),
+			Trusted:    trusted,
+			Auth:       authResults,
+			Subject:    msg.Envelope.Subject,
+			From:       envelopeSender(msg.Envelope),
+			MoneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
+		}
+		if evidence.From != "" {
+			var rel Relation
+			user := ctx.Session.Username()
+			if err := ctx.DoIMAP(func(c *imapclient.Client) error {
+				rel = bookFor(c, user).relationTo(evidence.From)
+				return nil
+			}); err == nil {
+				evidence.Relation = &rel
+			}
+		}
+		indicators = Indicators(evidence)
+	}
+	var warnings []Indicator
+	mark := Mark(indicators, msg.NotJunk())
+	if mark != Fact {
+		warnings = Warnings(indicators)
+	}
 
 	// A link naming no part, like Newer and Older, opens the part the
 	// mailbox rows would link to; the bare envelope has no viewer.
@@ -432,6 +470,8 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Query:              query,
 		Signature:          signature,
 		AuthResults:        authResults,
+		Warnings:           warnings,
+		Mark:               mark,
 		Invitation:         messageInvitation(ctx, msg, mboxName, uid),
 		InReplyTo:          inReplyTo,
 		Answers:            answers,
@@ -440,7 +480,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		PreferHTML:         settings.PreferHTML,
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        deliveredTo,
-		ForwardedBy:        ForwardedBy(msg.rootHeader, settings.TrustedAuthServ, msg.ListID),
+		ForwardedBy:        ForwardedBy(msg.rootHeader, trusted, msg.ListID),
 	})
 }
 

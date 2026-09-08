@@ -193,6 +193,21 @@ func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
 	return finishListMailboxes(startListMailboxes(conn))
 }
 
+// RoleFolder names the account's folder for a role, empty when it has
+// none; for another plugin that files by role.
+func RoleFolder(ctx *alborz.Context, role string) (string, error) {
+	var name string
+	err := ctx.DoIMAP(func(c *imapclient.Client) error {
+		mbox, err := getMailboxByRole(c, role)
+		if err != nil || mbox == nil {
+			return err
+		}
+		name = mbox.Name()
+		return nil
+	})
+	return name, err
+}
+
 // MailboxNames lists the account's folders that can hold a message, for
 // another plugin that files into them.
 func MailboxNames(ctx *alborz.Context) ([]string, error) {
@@ -288,6 +303,12 @@ type IMAPMessage struct {
 	// message is list mail at all: List-Post can be absent from a list
 	// that refuses posts, and present on nothing else.
 	ListID string
+	// Mark is the colour the row earns from its indicators, set once
+	// the row is related to the reader's folders.
+	Mark Grade
+	// Relation is what the reader's folders know about the author, nil
+	// until the row was related.
+	Relation *Relation
 	// ListHelp, ListSubscribe, ListOwner and ListArchive are the rest of
 	// RFC 2369. A list that offers them is saying where to ask, how to
 	// join, who runs it and where the past is kept.
@@ -891,7 +912,7 @@ func listHeaderItem() *imap.FetchItemBodySection {
 	return &imap.FetchItemBodySection{
 		Peek:         true,
 		Specifier:    imap.PartSpecifierHeader,
-		HeaderFields: append(slices.Clone(deliveryHeaders), "List-Id", "Received"),
+		HeaderFields: append(slices.Clone(deliveryHeaders), "List-Id", "Received", "X-Spam-Status", "X-Spam-Score", "X-Spam-Flag", "X-Spam-Level", "X-Spam-Report", "X-Spam-Checker-Version", "X-Spamd-Result", "X-Spamd-Bar", "X-Rspamd-Score", "X-Migadu-Spam-Score", "Authentication-Results", "DKIM-Signature"),
 	}
 }
 
@@ -1259,7 +1280,7 @@ type ThreadNeighbour struct {
 	UID     imap.UID
 	Subject string
 	// From is who wrote it. On a list every message in a thread carries
-	// the same subject, so the name is what tells them apart.
+	// the same subject, so the name is what indicators them apart.
 	From string
 	URL  *url.URL
 }
@@ -1408,6 +1429,7 @@ var sortKeys = map[string]struct {
 	"date":    {imapclient.SortKeyDate, true},
 	"starred": {imapclient.SortKeyDate, true},
 	"from":    {imapclient.SortKeyFrom, false},
+	"to":      {imapclient.SortKeyTo, false},
 	"subject": {imapclient.SortKeySubject, false},
 	"size":    {imapclient.SortKeySize, true},
 }

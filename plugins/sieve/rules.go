@@ -10,6 +10,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"github.com/labstack/echo/v4"
 )
 
 // A Rule is what a mail client calls one: tests on a message and what
@@ -40,7 +41,7 @@ type Condition struct {
 // order; a value outside them is not the page's own.
 var (
 	conditionFields  = []string{"from", "to", "cc", "subject", "list"}
-	conditionMatches = []string{"is", "contains"}
+	conditionMatches = []string{"is", "contains", "domain"}
 	headerOf         = map[string]string{"from": "from", "to": "to", "cc": "cc", "subject": "subject", "list": "list-id"}
 )
 
@@ -49,7 +50,23 @@ func (c Condition) test() string {
 	if c.Field == "subject" || c.Field == "list" {
 		kind = "header"
 	}
+	// "domain" is the address's domain part, matched whole (RFC 5228
+	// 2.7.4): what blocking a sender's domain is.
+	if c.Match == "domain" {
+		return fmt.Sprintf("address :domain :is %s %s", quote(headerOf[c.Field]), quote(c.Value))
+	}
 	return fmt.Sprintf("%s :%s %s %s", kind, c.Match, quote(headerOf[c.Field]), quote(c.Value))
+}
+
+// blockRule files everything from an address, or a whole domain, into
+// the junk folder: what a user agent can do about a sender, and what
+// trains the server's own filter where it learns from that folder.
+func blockRule(value string, domain bool, junk string) Rule {
+	match := "is"
+	if domain {
+		match = "domain"
+	}
+	return Rule{Name: value, Conditions: []Condition{{Field: "from", Match: match, Value: value}}, Folder: junk, MarkRead: true, Stop: true}
 }
 
 func (r Rule) block() string {
@@ -124,7 +141,7 @@ func rulesScriptFor(rules []Rule) string {
 var (
 	ruleName = regexp.MustCompile(`^# rule: (.*)$`)
 	ruleIf   = regexp.MustCompile(`^if (allof|anyof)\((.*)\) \{$`)
-	ruleTest = regexp.MustCompile(`(address|header) :(is|contains) ` + quoted + ` ` + quoted)
+	ruleTest = regexp.MustCompile(`(address|header) :(is|contains|domain :is) ` + quoted + ` ` + quoted)
 	ruleAct  = regexp.MustCompile(`^    (fileinto ` + quoted + `|addflag "\\\\(Seen|Flagged)"|redirect :copy ` + quoted + `|discard|stop);$`)
 )
 
@@ -155,7 +172,11 @@ func readRules(content string) (rules []Rule, ok bool) {
 					field = f
 				}
 			}
-			r.Conditions = append(r.Conditions, Condition{Field: field, Match: t[2], Value: unquote(t[4])})
+			match := t[2]
+			if match == "domain :is" {
+				match = "domain"
+			}
+			r.Conditions = append(r.Conditions, Condition{Field: field, Match: match, Value: unquote(t[4])})
 		}
 		for i++; i < len(lines) && lines[i] != "}"; i++ {
 			a := ruleAct.FindStringSubmatch(lines[i])
@@ -336,6 +357,53 @@ func handleRuleSave(ctx *alborz.Context) error {
 		return append(rules, r)
 	})
 	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
+}
+
+// handleBlock appends a rule that junks a sender, or its domain, from
+// the message page. The junk folder is the account's own, by role.
+func handleBlock(ctx *alborz.Context) error {
+	value := strings.ToLower(strings.TrimSpace(ctx.FormValue("value")))
+	domain := ctx.FormValue("domain") != ""
+	if value == "" || (domain && strings.ContainsRune(value, '@')) || (!domain && !strings.ContainsRune(value, '@')) {
+		return echo.NewHTTPError(http.StatusBadRequest, "nothing to block")
+	}
+	junk, err := alborzbase.RoleFolder(ctx, "junk")
+	if err != nil {
+		return err
+	}
+	if junk == "" {
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("filters.nojunk")})
+		return ctx.Redirect(http.StatusFound, ctx.FormValue("next"))
+	}
+	// No editing session preceded this, so the script as it stands is
+	// what is changed; appending a rule cannot undo anyone's edit.
+	err = ctx.DoSieve(func(c alborz.SieveClient) error {
+		current, exists, err := scriptIfAny(c, rulesScript)
+		if err != nil {
+			return err
+		}
+		loaded := ""
+		if exists {
+			loaded = fingerprint(current)
+		}
+		return rewrite(c, rulesScript, loaded, func(current string, exists bool) (string, error) {
+			var rules []Rule
+			if exists {
+				var ok bool
+				if rules, ok = readRules(current); !ok {
+					return "", errors.New(ctx.T("filters.byhand"))
+				}
+			}
+			block := blockRule(value, domain, junk)
+			for _, r := range rules {
+				if len(r.Conditions) == 1 && r.Conditions[0] == block.Conditions[0] {
+					return rulesScriptFor(rules), nil
+				}
+			}
+			return rulesScriptFor(append(rules, block)), nil
+		})
+	})
+	return answer(ctx, err, ctx.FormValue("next"), fmt.Sprintf(ctx.T("notice.blocked"), value))
 }
 
 func handleRuleDelete(ctx *alborz.Context) error {

@@ -314,7 +314,7 @@ func revalidateListing(s *alborz.Session, settings *Settings, view string, spec 
 				listings.refresh(user, view)
 				return nil
 			}
-			fresh, err = fetchListing(c, spec, settings, 0, e.perPage)
+			fresh, err = fetchListing(c, user, spec, settings, 0, e.perPage)
 			return err
 		})
 		if err == nil && fresh != nil {

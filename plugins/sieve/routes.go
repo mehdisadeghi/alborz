@@ -98,6 +98,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.POST("/filters/forwarding/keep", requireAccount(handleForwardingKeep))
 	p.GET("/filters/rules", requireAccount(handleRules))
 	p.GET("/filters/rules/create", requireAccount(handleRuleForm))
+	p.POST("/filters/rules/block", requireAccount(handleBlock))
 	p.GET("/filters/rules/:index", requireAccount(handleRuleForm))
 	p.POST("/filters/rules", requireAccount(handleRuleSave))
 	p.POST("/filters/rules/delete", requireAccount(handleRuleDelete))

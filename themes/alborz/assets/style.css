@@ -167,6 +167,8 @@ select {
   --warning-border: #ffe69c;
   --alert-fg: #721c24;
   --alert-bg: #f8d7da;
+  --warn-fg: #6b4e00;
+  --warn-bg: #fff3cd;
   --alert-border: #f5c6cb;
 
   /* Semantic aliases consumed by components. */
@@ -235,6 +237,8 @@ select {
     --warning-border: #664d03;
     --alert-fg: #f1aeb5;
     --alert-bg: #35181c;
+    --warn-fg: #e6c25a;
+    --warn-bg: #3a2f10;
     --alert-border: #58232b;
   }
 }
@@ -281,6 +285,8 @@ select {
   --warning-border: #664d03;
   --alert-fg: #f1aeb5;
   --alert-bg: #35181c;
+  --warn-fg: #e6c25a;
+  --warn-bg: #3a2f10;
   --alert-border: #58232b;
 }
 
@@ -1710,14 +1716,14 @@ main.message pre {
    which edge a row clusters to is a property of the page, not the row. */
 :root:dir(rtl) .list .list-summary,
 :root:dir(rtl) .message-list-subject a,
-:root:dir(rtl) .message-list-sender a,
+:root:dir(rtl) .message-list-sender a:not(.sender-tag),
 :root:dir(rtl) .contact-list-name a {
   text-align: right;
 }
 
 :root:dir(ltr) .list .list-summary,
 :root:dir(ltr) .message-list-subject a,
-:root:dir(ltr) .message-list-sender a,
+:root:dir(ltr) .message-list-sender a:not(.sender-tag),
 :root:dir(ltr) .contact-list-name a {
   text-align: left;
 }
@@ -2798,7 +2804,7 @@ main.calendar .actions {
 /* A cut word is a defect; a cut sentence ending in an ellipsis is a
    layout. The cells are flex containers, where text-overflow never
    reaches the text, so the ellipsis rides the item that holds it. */
-.message-list-sender a,
+.message-list-sender a:not(.sender-tag),
 .message-list-subject a,
 .contact-list-name a,
 .contact-list-email,
@@ -3173,7 +3179,7 @@ main.calendar .date .date-link {
 }
 
 /* A day either side of the month is still a day, and what is on it is
-   what tells you whether the month you are looking at is the one you
+   what indicators you whether the month you are looking at is the one you
    want. Dimmed rather than emptied, which is what every calendar does. */
 main.calendar .date.extra {
   background: var(--surface-subtle);
@@ -4607,3 +4613,90 @@ h1.no-word .title-short {
   }
   main.calendar .events .overflow { font-size: 0.7rem; }
 }
+
+/* A row earns a tint only for a warning sign; a warning card on the
+   message page is the list card's shape in the warning's colour. */
+.list-row.row-alarm .list-cell {
+  background: var(--alert-bg);
+}
+
+.list-row.row-caution .list-cell {
+  background: var(--warn-bg);
+}
+
+.list-row.row-alarm .list-cell a,
+.list-row.row-caution .list-cell a {
+  color: var(--fg);
+}
+
+/* The cell pads the card the way the header cells pad their words,
+   so the box sits inside the same edges as the lines above it. */
+main.message td.warning-cell {
+  padding: var(--space-1) var(--space-2);
+}
+
+.warning-card {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 0.4rem;
+}
+
+.warning-card > summary {
+  font-weight: 600;
+}
+
+.warning-card ul {
+  margin: var(--space-2) 0 0;
+  padding-inline-start: 1.25rem;
+}
+
+.warning-caution {
+  background: var(--warn-bg);
+}
+
+.warning-caution > summary {
+  color: var(--warn-fg);
+}
+
+.warning-alarm {
+  background: var(--alert-bg);
+}
+
+.warning-alarm > summary {
+  color: var(--alert-fg);
+}
+
+/* The sender's tag: a chip after the name, in the attachment chips'
+   box, quiet unless it says the sender was junked before. */
+.sender-tag {
+  display: inline-block;
+  flex: 0 0 auto;
+  align-self: center;
+  margin-inline-start: 0.35rem;
+  font-weight: 400;
+  padding: 0 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sender-tag.sender-junked {
+  color: var(--alert-fg);
+  border-color: var(--alert-fg);
+}
+
+/* A tinted row keeps its links legible on the tint. */
+.list-row.row-alarm .list-cell a,
+.list-row.row-caution .list-cell a {
+  color: var(--fg);
+}
+
+
+
+
+
+
+

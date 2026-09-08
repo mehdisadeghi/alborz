@@ -1165,3 +1165,168 @@ func outgoingFolder(mailboxes []MailboxInfo, name string) bool {
 	}
 	return false
 }
+
+// A merged view holds rows of several accounts, so a selection names
+// each row by account, folder and UID. The actions are the ones a
+// folder offers that make sense across accounts: archive, junk, trash
+// and the inbox by role, flags, read and unread, and an export. A named
+// folder does not, since one account's folders are not another's.
+type rowRef struct {
+	account, mailbox string
+	uid              imap.UID
+}
+
+func parseRefs(values []string) ([]rowRef, error) {
+	var refs []rowRef
+	for _, v := range values {
+		parts := strings.SplitN(v, "|", 3)
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("not a message reference: %q", v)
+		}
+		uid, err := parseUid(parts[2])
+		if err != nil {
+			return nil, err
+		}
+		refs = append(refs, rowRef{account: parts[0], mailbox: parts[1], uid: uid})
+	}
+	return refs, nil
+}
+
+// grouped is the selection by the connection it is acted on: one
+// account, one folder.
+func grouped(refs []rowRef) map[rowRef][]imap.UID {
+	out := map[rowRef][]imap.UID{}
+	for _, r := range refs {
+		key := rowRef{account: r.account, mailbox: r.mailbox}
+		out[key] = append(out[key], r.uid)
+	}
+	return out
+}
+
+func handleUnifiedAct(ctx *alborz.Context) error {
+	role, err := url.PathUnescape(ctx.Param("role"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	if !slices.Contains(unifiedRoles, role) {
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("%q is not a unified folder", role))
+	}
+	params, err := ctx.FormParams()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	refs, err := parseRefs(params["refs"])
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	back := ctx.NextOr("/mailbox/" + url.PathEscape(role))
+	if len(refs) == 0 {
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nomessages")})
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	action := formOrQueryParam(ctx, "action")
+	if action == "export" {
+		return exportRefs(ctx, refs)
+	}
+
+	var failed []string
+	done := 0
+	for key, uids := range grouped(refs) {
+		s := ctx.SessionFor(key.account)
+		if s == nil {
+			failed = append(failed, key.account)
+			continue
+		}
+		err := s.DoIMAP(func(c *imapclient.Client) error {
+			if err := ensureMailboxSelected(c, key.mailbox); err != nil {
+				return err
+			}
+			set := imap.UIDSetNum(uids...)
+			switch action {
+			case "move":
+				to, err := resolveRole(c, key.account, formOrQueryParam(ctx, "to"))
+				if err != nil {
+					return err
+				}
+				_, err = c.Move(set, to).Wait()
+				return err
+			case "flag":
+				add, del := FlagColorFlags(ctx.FormValue("color"))
+				if add == nil && del == nil {
+					return echo.NewHTTPError(http.StatusBadRequest, "unknown flag colour")
+				}
+				for _, step := range []struct {
+					op    imap.StoreFlagsOp
+					flags []imap.Flag
+				}{{imap.StoreFlagsAdd, add}, {imap.StoreFlagsDel, del}} {
+					if len(step.flags) == 0 {
+						continue
+					}
+					if err := storeFlags(c, key.mailbox, set, step.op, step.flags); err != nil {
+						return err
+					}
+				}
+				return nil
+			case "read":
+				return storeFlags(c, key.mailbox, set, imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen})
+			case "unread":
+				return storeFlags(c, key.mailbox, set, imap.StoreFlagsDel, []imap.Flag{imap.FlagSeen})
+			}
+			return echo.NewHTTPError(http.StatusBadRequest, "unknown action")
+		})
+		listings.evictAll(key.account)
+		if err != nil {
+			failed = append(failed, key.account+": "+err.Error())
+			continue
+		}
+		done += len(uids)
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("failed on %s: %s", role, strings.Join(failed, "; "))
+	}
+	switch action {
+	case "move":
+		ctx.Session.PutNotice(ctx.Tf("notice.moved", done))
+	default:
+		ctx.Session.PutNotice(ctx.Tf("notice.changed", done))
+	}
+	return ctx.Redirect(http.StatusFound, back)
+}
+
+// exportRefs streams a selection across accounts as one mbox, the way
+// a folder's selection goes out.
+func exportRefs(ctx *alborz.Context, refs []rowRef) error {
+	res := ctx.Response()
+	started := false
+	for _, r := range refs {
+		s := ctx.SessionFor(r.account)
+		if s == nil {
+			continue
+		}
+		var raw []byte
+		var env *imap.Envelope
+		err := s.DoIMAP(func(c *imapclient.Client) error {
+			var err error
+			raw, env, err = fetchRawMessage(c, r.mailbox, r.uid)
+			return err
+		})
+		if err != nil {
+			if started {
+				ctx.Logger().Printf("export %s %q uid %v: %v", r.account, r.mailbox, r.uid, err)
+				return nil
+			}
+			return err
+		}
+		if !started {
+			res.Header().Set("Content-Disposition", downloadName("messages", "messages", ".mbox"))
+			res.Header().Set("Content-Type", "application/mbox")
+			res.WriteHeader(http.StatusOK)
+			started = true
+		}
+		if err := writeMbox(res, raw, env); err != nil {
+			return nil
+		}
+		res.Flush()
+	}
+	return nil
+}

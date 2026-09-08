@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -244,26 +245,179 @@ func (pg Page) HandleImport(p *Provider) func(*alborz.Context) error {
 		if file.Size > maxImportSize {
 			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the file is too large to import")
 		}
-		f, err := file.Open()
-		if err != nil {
+		if err := pg.importFile(ctx, collPath, file); err != nil {
 			return err
 		}
-		defer f.Close()
-		raw, err := io.ReadAll(f)
-		if err != nil {
-			return err
-		}
-		n, err := pg.Import(ctx, collPath, raw)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
-		} else {
-			ctx.Session.PutNotice(ctx.Tf("import."+strings.TrimPrefix(pg.Ext, "."), n))
-		}
-		pg.Forget(ctx.Session.Username())
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.Base+url.PathEscape(collPath))))
+	}
+}
+
+// importFile reads the upload into the collection on ctx's account and
+// leaves the notice saying what happened.
+func (pg Page) importFile(ctx *alborz.Context, collPath string, file *multipart.FileHeader) error {
+	f, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(f)
+	if err != nil {
+		return err
+	}
+	return pg.importRaw(ctx, collPath, raw)
+}
+
+// fetchAddress reads a calendar from an address once and forgets it: a
+// subscription that follows the address is a different thing. webcal:
+// is https: by another name.
+func fetchAddress(address string) ([]byte, error) {
+	u, err := url.Parse(address)
+	if err != nil {
+		return nil, fmt.Errorf("not an address: %w", err)
+	}
+	if u.Scheme == "webcal" {
+		u.Scheme = "https"
+	}
+	resp, err := alborz.NewRemoteClient(alborz.RoundTripTimeout).Get(u.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch the calendar: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch the calendar: %s", resp.Status)
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxImportSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > maxImportSize {
+		return nil, echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the calendar is too large to import")
+	}
+	return raw, nil
+}
+
+func (pg Page) importRaw(ctx *alborz.Context, collPath string, raw []byte) error {
+	n, err := pg.Import(ctx, collPath, raw)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
+	} else {
+		ctx.Session.PutNotice(ctx.Tf("import."+strings.TrimPrefix(pg.Ext, "."), n))
+	}
+	pg.Forget(ctx.Session.Username())
+	return nil
+}
+
+// ImportData is the section's import page: a collection to choose and
+// a file to bring into it.
+type ImportData struct {
+	alborz.BaseRenderData
+	Rail          Rail
+	Section       string
+	Title         string
+	Key           string
+	Ext           string
+	Hint          string
+	Groups        []Group
+	Account, Path string
+	// Address is the second source a calendar has - a webcal: link the
+	// browser handed over, or one typed - and URL what it holds.
+	Address bool
+	URL     string
+	Error   string
+}
+
+// HandleImportPage is the section's import page, reached from its
+// rail: the file lands in the collection chosen on the page, which may
+// be any writable one of any account. section and list name the crumb
+// and the rail; title, hint and key are the section's words and its
+// picker memory.
+func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key string, address bool) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		rail, err := pg.Rail(ctx, list)
+		if err != nil {
+			return err
+		}
+		rail.ImportHref = list + "/import"
+		var groups []Group
+		for _, coll := range rail.Items {
+			account := coll.Account
+			if !coll.Writable || coll.Address != "" {
+				continue
+			}
+			if account == "" {
+				account = ctx.Session.Username()
+			}
+			i := len(groups) - 1
+			if i < 0 || groups[i].Account != account {
+				groups = append(groups, Group{Account: account})
+				i++
+			}
+			groups[i].Collections = append(groups[i].Collections, coll)
+		}
+		data := &ImportData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T(title)),
+			Rail:           rail,
+			Section:        ctx.T(section),
+			Title:          ctx.T(title),
+			Key:            key,
+			Ext:            pg.Ext,
+			Hint:           ctx.T(hint),
+			Groups:         groups,
+			Account:        ctx.Session.Username(),
+			Address:        address,
+			URL:            ctx.QueryParam("url"),
+		}
+		if ctx.URLAccount() != "" {
+			data.Account = ctx.URLAccount()
+		}
+		if ctx.Request().Method != http.MethodPost {
+			return ctx.Render(http.StatusOK, "dav-import.html", data)
+		}
+		acct, collPath, ok := strings.Cut(ctx.FormValue("collection"), "|")
+		session := ctx.SessionFor(acct)
+		if !ok || session == nil {
+			data.Error = ctx.T("form.destinationneeded")
+			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+		}
+		data.Account, data.Path = acct, collPath
+		var raw []byte
+		if data.URL = strings.TrimSpace(ctx.FormValue("url")); address && data.URL != "" {
+			raw, err = fetchAddress(data.URL)
+			if err != nil {
+				data.Error = err.Error()
+				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+			}
+		} else {
+			file, err := ctx.FormFile("file")
+			if err != nil {
+				data.Error = ctx.T("form.fileneeded")
+				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+			}
+			if file.Size > maxImportSize {
+				return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the file is too large to import")
+			}
+			f, err := file.Open()
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			if raw, err = io.ReadAll(f); err != nil {
+				return err
+			}
+		}
+		// The page's own hooks read the account off the context, so the
+		// chosen account is the context's for the write.
+		ctx.Session = session
+		if err := pg.importRaw(ctx, collPath, raw); err != nil {
+			// A file that is not what it claims answers on the form,
+			// which is where the reader can pick another.
+			data.Error = err.Error()
+			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+		}
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 	}
 }
 

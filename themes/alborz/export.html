@@ -1,0 +1,29 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ template "aside" . }}
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/export?all=1{{ with .Query }}&query={{ . | urlquery }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}" data-download>
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
+        <h1>{{ if .Query }}{{ printf ($.T "folder.exportresultsask") .Query }}{{ else }}{{ printf ($.T "folder.exportask") .Mailbox.Name }}{{ end }}</h1>
+        <p>{{ $.GlobalData.Tf "folder.exportcount" .Count }}{{ if .Size }} {{ printf ($.T "folder.exportsize") (humansize .Size) }}{{ end }}</p>
+        <div class="action-group">
+          <label for="strip" class="checkbox">
+            <input type="checkbox" name="strip" id="strip" value="1">
+            {{$.T "folder.exportstrip"}}
+          </label>
+          <p class="hint">{{$.T "folder.exportstriphint"}}</p>
+        </div>
+        <div class="actions">
+          <button type="submit" class="button-primary"{{ if eq .Count 0 }} disabled{{ end }}>{{$.T "folder.exportdo"}}</button>
+          <a class="button-link button-quiet" href="{{.Mailbox.URL}}{{ with .Query }}?query={{ . | urlquery }}{{ end }}">{{$.T "common.cancel"}}</a>
+        </div>
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

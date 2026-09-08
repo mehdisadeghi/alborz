@@ -188,6 +188,10 @@ func abilities(c *imapclient.Client) []Ability {
 		{"settings.abilitysettings", "settings.abilitysettingshint", caps.Has(imap.CapMetadata)},
 		{"settings.abilityquota", "settings.abilityquotahint", caps.Has(imap.CapQuota)},
 		{"settings.abilitypush", "settings.abilitypushhint", caps.Has(imap.CapIdle)},
+		{"settings.abilitycounts", "settings.abilitycountshint", caps.Has(imap.CapListStatus)},
+		{"settings.abilityindex", "settings.abilityindexhint", caps.Has(imap.CapSearchFuzzy)},
+		{"settings.abilityuidplus", "settings.abilityuidplushint", caps.Has(imap.CapUIDPlus)},
+		{"settings.abilitysize", "settings.abilitysizehint", caps.Has(imap.CapStatusSize)},
 		{"settings.abilityid", "settings.abilityidhint", caps.Has(imap.CapID)},
 	}
 }

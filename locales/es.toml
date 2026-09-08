@@ -668,9 +668,6 @@ other = "%d mensajes eliminados."
 one = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
 other = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
 
-["notice.moved"]
-one = "%d mensaje movido."
-other = "%d mensajes movidos."
 
 ["notice.deleted"]
 one = "%d mensaje eliminado."
@@ -731,3 +728,7 @@ other = "%d mensajes, %d sin leer"
 ["notice.changed"]
 one = "%d mensaje cambiado."
 other = "%d mensajes cambiados."
+
+["notice.movedto"]
+one = "El mensaje se movió a %[2]s."
+other = "%d mensajes se movieron a %s."

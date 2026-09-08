@@ -668,9 +668,6 @@ other = "%d E-Mails gelöscht."
 one = "%[2]s wurde nach 30 Minuten Inaktivität abgemeldet."
 other = "%[2]s wurden nach 30 Minuten Inaktivität abgemeldet."
 
-["notice.moved"]
-one = "%d E-Mail verschoben."
-other = "%d E-Mails verschoben."
 
 ["notice.deleted"]
 one = "%d E-Mail gelöscht."
@@ -731,3 +728,7 @@ other = "%d Nachrichten, %d ungelesen"
 ["notice.changed"]
 one = "%d Nachricht geändert."
 other = "%d Nachrichten geändert."
+
+["notice.movedto"]
+one = "Die Nachricht ist jetzt in %[2]s."
+other = "%d Nachrichten sind jetzt in %s."

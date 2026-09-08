@@ -107,7 +107,7 @@
   </nav>
   {{ with .GlobalData.Notice }}
   <div class="notice notice-{{.Kind}}" role="{{if eq .Kind "failed"}}alert{{else}}status{{end}}">
-    <span class="notice-text">{{ .Text }}</span>
+    <span class="notice-text">{{ if .Markup }}{{ .Markup }}{{ else }}{{ .Text }}{{ end }}</span>
     {{ with .Action }}
       {{/* Anything that changes state posts; a link is for going
            somewhere. */}}

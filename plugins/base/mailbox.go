@@ -2,6 +2,7 @@ package alborzbase
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
 	"slices"
@@ -809,7 +810,18 @@ func movedNotice(ctx *alborz.Context, n int, from, to string, moved *imapclient.
 		}
 		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
 	}
-	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.moved", n)}
+	// Named the way a person would: the folder by its label, linked, so
+	// the moved thing is one click away.
+	label := to
+	if role := (&MailboxInfo{ListData: &imap.ListData{Mailbox: to}}).role(); role != "" {
+		label = ctx.T("aside." + role)
+	}
+	link := "<a href=\"" + template.HTMLEscapeString(mailboxURL(ctx, to)) + "\">" + template.HTMLEscapeString(label) + "</a>"
+	notice := alborz.Notice{
+		Kind:   alborz.NoticeDone,
+		Text:   ctx.Tf("notice.movedto", n, label),
+		Markup: template.HTML(ctx.Tf("notice.movedto", n, link)),
+	}
 	if back := uidNums(moved, true); len(back) > 0 {
 		fields := url.Values{"to": {from}, "next": {target}}
 		for _, uid := range back {
@@ -1286,7 +1298,8 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 	}
 	switch action {
 	case "move":
-		ctx.Session.PutNotice(ctx.Tf("notice.moved", done))
+		to := formOrQueryParam(ctx, "to")
+		ctx.Session.PutNotice(ctx.Tf("notice.movedto", done, ctx.T("aside."+strings.ToLower(to))))
 	default:
 		ctx.Session.PutNotice(ctx.Tf("notice.changed", done))
 	}

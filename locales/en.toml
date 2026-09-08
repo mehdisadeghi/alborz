@@ -661,9 +661,6 @@ other = "%d messages deleted."
 one = "%[2]s was signed out after 30 minutes of inactivity."
 other = "%[2]s were signed out after 30 minutes of inactivity."
 
-["notice.moved"]
-one = "%d message moved."
-other = "%d messages moved."
 
 ["notice.deleted"]
 one = "%d message deleted."
@@ -728,3 +725,7 @@ other = "%d messages, %d unread"
 ["notice.changed"]
 one = "%d message changed."
 other = "%d messages changed."
+
+["notice.movedto"]
+one = "The message moved to %[2]s."
+other = "%d messages moved to %s."

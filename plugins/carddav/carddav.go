@@ -32,6 +32,9 @@ type AddressBookInfo struct {
 	Account string
 }
 
+// Held is the collection and its account, for the rail's import page.
+func (b AddressBookInfo) Held() (dav.Collection, string) { return b.Collection, b.Account }
+
 type davCollectionProps struct {
 	ResourceType struct {
 		AddressBook *struct{} `xml:"urn:ietf:params:xml:ns:carddav addressbook,omitempty"`

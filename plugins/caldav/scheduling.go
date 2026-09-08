@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/mail"
-	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -192,8 +191,7 @@ func (p *plugin) registerScheduling() {
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 	})
 
-	p.GET("/calendar/import", p.importPage)
-	p.POST("/calendar/import", p.importCalendar)
+	p.POST("/calendar/from-message", p.importCalendar)
 
 	p.POST("/calendar/from-message", func(ctx *alborz.Context) error {
 		mboxName, uid, err := alborzbase.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
@@ -302,79 +300,17 @@ func hasAttachment(msg *alborzbase.IMAPMessage, types ...string) bool {
 
 // ImportRenderData drives calendar-import.html: an address to fetch,
 // handed over by the browser or typed, and the calendars to file into.
-type ImportRenderData struct {
-	alborz.BaseRenderData
-	Rail   dav.Rail
-	Groups []dav.Group[CalendarInfo]
-	URL    string
-	Error  string
-}
-
-// importPage asks which calendar an address should be filed into. A
-// browser registered for webcal: links lands here with the address.
-func (p *plugin) importPage(ctx *alborz.Context) error {
-	groups, err := p.writableGroups(ctx, CalendarInfo.SupportsEvent)
-	if err != nil {
-		return err
-	}
-	rail, err := p.eventRail(ctx)
-	if err != nil {
-		return err
-	}
-	return ctx.Render(http.StatusOK, "calendar-import.html", &ImportRenderData{
-		Rail:           rail,
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("import.title")),
-		Groups:         groups,
-		URL:            ctx.QueryParam("url"),
-	})
-}
-
-// maxImportSize bounds what is fetched from an address: a calendar of
-// a few thousand entries is a few megabytes, and a file past this is
-// not one to file blindly.
-const maxImportSize = 16 << 20
-
-// importCalendar files a calendar into the chosen one, every object it
-// holds. It comes from a mail's attachment, or from an address, which
-// is fetched once and forgotten: a subscription that follows the
-// address is a different thing, and this is not it.
+// importCalendar files a mail's attached calendar into the chosen one,
+// every object it holds; a file or an address goes through the
+// section's import page.
 func (p *plugin) importCalendar(ctx *alborz.Context) error {
-	var raw []byte
-	if address := ctx.FormValue("url"); address != "" {
-		u, err := url.Parse(address)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "not an address")
-		}
-		// webcal: is https: by another name, which is how a calendar
-		// link says it is one.
-		if u.Scheme == "webcal" {
-			u.Scheme = "https"
-		}
-		client := alborz.NewRemoteClient(alborz.RoundTripTimeout)
-		resp, err := client.Get(u.String())
-		if err != nil {
-			return fmt.Errorf("failed to fetch the calendar: %w", err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("failed to fetch the calendar: %s", resp.Status)
-		}
-		raw, err = io.ReadAll(io.LimitReader(resp.Body, maxImportSize+1))
-		if err != nil {
-			return err
-		}
-		if len(raw) > maxImportSize {
-			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the calendar is too large to import")
-		}
-	} else {
-		mboxName, uid, err := alborzbase.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
-		if err != nil {
-			return err
-		}
-		raw, _, err = alborzbase.PartAt(ctx, mboxName, uid, ctx.FormValue("part"))
-		if err != nil {
-			return err
-		}
+	mboxName, uid, err := alborzbase.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
+	if err != nil {
+		return err
+	}
+	raw, _, err := alborzbase.PartAt(ctx, mboxName, uid, ctx.FormValue("part"))
+	if err != nil {
+		return err
 	}
 	client, calendarPath, account, err := p.resolveCreateCalendar(ctx,
 		ctx.FormValue("calendar"), CalendarInfo.SupportsEvent)

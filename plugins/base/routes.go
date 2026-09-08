@@ -22,6 +22,8 @@ func registerRoutes(p *alborz.GoPlugin) {
 
 	p.GET("/new-mailbox", handleNewMailbox)
 	p.POST("/new-mailbox", handleNewMailbox)
+	p.GET("/import", handleImport)
+	p.POST("/import", handleImport)
 
 	p.GET("/delete-mailbox/:mbox", handleDeleteMailbox)
 	p.POST("/delete-mailbox/:mbox", handleDeleteMailbox)
@@ -35,6 +37,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.GET("/message/:mbox/:uid/eml", handleDownloadMessage)
 	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
 	p.POST("/mailbox/:mbox/refresh", handleRefreshMailbox)
+	p.GET("/message/:mbox/export", handleExportPage)
 	p.POST("/message/:mbox/export", handleExportMbox)
 
 	p.GET("/login", handleLogin)

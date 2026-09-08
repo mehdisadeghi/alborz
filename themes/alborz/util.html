@@ -654,6 +654,7 @@
        in. */}}
   {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
   {{ with .follow }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
+  {{ with .import }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
 {{ end }}
 
 {{/* The section's rail on a page that is not its list, drawn from the
@@ -662,7 +663,7 @@
 {{ define "dav-rail" }}
 {{ $g := .g }}{{ $r := .rail }}
 <aside>
-  {{ template "scope-rail" (dict "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "all" ($g.T "nav.allaccounts") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI)) }}
+  {{ template "scope-rail" (dict "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "all" ($g.T "nav.allaccounts") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI)) }}
 </aside>
 {{ end }}
 
@@ -755,6 +756,39 @@
 {{/* The mail pages' rail: the shared frame over the page's own data. */}}
 {{ define "aside" }}
 <aside>
-{{ template "scope-rail" (dict "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox"))) }}
+{{ template "scope-rail" (dict "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
 </aside>
+{{ end }}
+
+{{/* The import form's own fields, shared by every section that takes a
+     file: an optional name, the file, and what to expect. The choice of
+     where it lands - a folder location or a collection - is the
+     section's, given before. dict: g file accept hint go cancel error
+     [name namehint namevalue namerequired]. */}}
+{{ define "import-fields" }}
+{{ if .name }}{{ template "field" (dict "label" .name "name" "name" "value" .namevalue "dir" "auto" "hint" .namehint "required" .namerequired) }}{{ end }}
+<div class="field">
+  <label for="file">{{ .file }}</label>
+  <input type="file" name="file" id="file" accept="{{ .accept }}"{{ if not .optional }} required{{ end }}>
+  <p class="hint">{{ .hint }}</p>
+</div>
+{{ if .error }}<div class="alert" role="alert">{{ .error }}</div>{{ end }}
+{{ template "form-actions" (dict "save" .go "cancel" .cancel "cancelLabel" (.g.T "common.cancel")) }}
+{{ end }}
+
+{{/* Where a new folder goes: the account and the parent, from the
+     form's location groups. */}}
+{{ define "folder-location" }}
+<label>
+  <span>{{$.T "folder.location"}}</span>
+  <select name="location" required>
+    {{range .LocationGroups}}
+    {{if gt (len $.GlobalData.Accounts) 1}}<optgroup label="{{.Account}}">{{end}}
+    {{range .Locations}}
+    <option value="{{.Key}}"{{if eq .Key $.SelectedLocation}} selected{{end}}>{{.Label}}</option>
+    {{end}}
+    {{if gt (len $.GlobalData.Accounts) 1}}</optgroup>{{end}}
+    {{end}}
+  </select>
+</label>
 {{ end }}

@@ -297,6 +297,8 @@ func registerRoutes(p *plugin) {
 	GET("/address-books/create", handleCreateBook(p))
 	POST("/address-books/create", handleCreateBook(p))
 	page := p.collectionPage()
+	GET("/contacts/import", page.HandleImportPage(p.dav, "/contacts", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false))
+	POST("/contacts/import", page.HandleImportPage(p.dav, "/contacts", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false))
 	GET("/address-books/:path", page.Handle(p.dav))
 	POST("/address-books/:path", page.Handle(p.dav))
 	POST("/address-books/:path/delete", page.HandleDelete(p.dav))
@@ -310,7 +312,7 @@ func registerRoutes(p *plugin) {
 	POST("/contacts/:path/photo/delete", p.deletePhoto)
 	POST("/contacts/:path/delete", p.deleteContact)
 	POST("/contacts/delete", p.deleteContacts)
-	POST("/contacts/import", p.importFromMessage)
+	POST("/contacts/from-message", p.importFromMessage)
 }
 
 func (p *plugin) chooseBooks(ctx *alborz.Context) error {
@@ -904,7 +906,8 @@ type bookSite struct {
 // listing every account's address books.
 func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 	rail := dav.Rail{Path: "/contacts", Field: "book", ItemClass: "addressbook-item", Action: "/contacts", EditHref: "/address-books/",
-		NewHref: "/address-books/create?next=" + url.QueryEscape(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook")}
+		NewHref: "/address-books/create?next=" + url.QueryEscape(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
+		ImportHref: "/contacts/import", ImportLabel: ctx.T("contacts.import")}
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
 		return rail, err

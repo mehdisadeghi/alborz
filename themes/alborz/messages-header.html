@@ -67,6 +67,15 @@
              by "give me these messages". Rare, so it is spelled out here
              rather than given a mark on the toolbar. */}}
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/export{{$aq}}" data-download>{{$.T "mailbox.export"}}</button>
+        {{/* The whole view - the folder, or what the search found -
+             goes through a page of its own, since it is not a casual
+             click; the merged view has no one folder to name. Not bound
+             to the selection form, so it stays live with nothing
+             selected. */}}
+        {{ if not .GlobalData.Unified }}
+        {{ $exportall := printf "/message/%s/export%s" (.Mailbox.Name | pathescape) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | urlquery) }}{{ end }}
+        <a class="button-link" href="{{ localhref $exportall }}"{{ if $empty }} aria-disabled="true"{{ end }}>{{ if .Query }}{{$.T "mailbox.exportresults"}}{{ else }}{{$.T "mailbox.exportfolder"}}{{ end }}</a>
+        {{ end }}
         {{/* Alborz hears about new mail only when a page is loaded, and
              serves a recent listing without asking; this says "ask now".
              Not gated on the selection: it acts on the folder. */}}

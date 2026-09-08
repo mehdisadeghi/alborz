@@ -34,6 +34,9 @@ type CalendarInfo struct {
 	Account string
 }
 
+// Held is the collection and its account, for the rail's import page.
+func (c CalendarInfo) Held() (dav.Collection, string) { return c.Collection, c.Account }
+
 func (c CalendarInfo) SupportsTodo() bool {
 	// VTODO is optional in CalDAV. When a server omits the component-set
 	// property, do not promote an ordinary calendar into the Tasks UI.

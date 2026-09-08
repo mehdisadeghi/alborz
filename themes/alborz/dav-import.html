@@ -1,0 +1,25 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="POST" enctype="multipart/form-data">
+        {{ template "dav-crumb" (dict "g" $ "section" .Section "home" .Rail.Path "field" "" "collection" "" "path" "" "chooses" true) }}
+        <h1>{{ .Title }}</h1>
+        {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "collection" "key" .Key "groups" .Groups "account" .Account "path" .Path "multi" (gt (len .GlobalData.Accounts) 1)) }}
+        {{ if .Address }}
+        {{/* A webcal: link the browser handed over, or one typed in: the
+             address is fetched once and its objects filed. What the file
+             says afterwards is not followed; that is a subscription. */}}
+        {{ template "field" (dict "label" ($.T "import.url") "name" "url" "type" "url" "value" .URL "hint" ($.T "import.urlhint") "autofocus" (ne .URL "")) }}
+        {{ end }}
+        {{ template "import-fields" (dict "g" $ "file" (printf ($.T "collection.importfile") .Ext) "accept" .Ext "hint" .Hint "go" ($.T "collection.importdo") "cancel" .Rail.Path "error" .Error "optional" .Address) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

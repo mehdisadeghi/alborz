@@ -210,7 +210,10 @@
 {{ define "mbox-node-label" }}
 {{ $n := index . 0 }}{{ $q := index . 1 }}{{ $g := index . 2 }}
 {{ if and $n.Details (not ($n.Details.Info.HasAttr "\\Noselect")) }}
-<a href="{{$n.Details.Info.URL}}{{$q}}">{{$n.Name}}</a>
+{{/* The badge is the unread count and shows only when there is one;
+     what the folder holds in all is a hover away, since a bare name
+     otherwise reads as an empty folder. */}}
+<a href="{{$n.Details.Info.URL}}{{$q}}"{{ if ge $n.Details.Info.Total 0 }} title="{{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ end }}>{{$n.Name}}</a>
 {{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$g.Num $n.Details.Info.Unseen}}</span>{{ end }}
 {{ else }}
 <span class="noselect">{{$n.Name}}</span>
@@ -710,7 +713,7 @@
   {{ $role := index . 1 }}{{ $star := index . 2 }}
   <li {{ if and $all (eq $active $role) (eq $starred $star) }}class="active"{{ end }}>
     <a href="/mailbox/{{$role}}{{ if $star }}?starred=1{{ end }}">{{$.T (index . 0)}}</a>
-    {{ if and (eq $role "INBOX") (not $star) (gt $.AllInboxUnseen 0) }}<span class="unseen">{{$.GlobalData.Num $.AllInboxUnseen}}</span>{{ end }}
+    {{ if not $star }}{{ with $.AllUnseen $role }}<span class="unseen">{{$.GlobalData.Num .}}</span>{{ end }}{{ end }}
   </li>
   {{ end }}
 </ul>

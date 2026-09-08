@@ -657,3 +657,19 @@ other = "Delete all %d in this folder"
 ["folder.emptycount"]
 one = "It holds %d message, gone for good once deleted."
 other = "It holds %d messages, gone for good once deleted."
+
+["notice.imported"]
+one = "One message imported into %[2]s."
+other = "%d messages imported into %s."
+
+["notice.importstopped"]
+one = "The import stopped after one message; the folder %[2]s holds it."
+other = "The import stopped after %d messages; the folder %s holds them."
+
+["folder.exportcount"]
+one = "It holds one message."
+other = "It holds %d messages."
+
+["aside.folderholds"]
+one = "One message, %[2]d unread"
+other = "%d messages, %d unread"

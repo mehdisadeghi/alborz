@@ -1057,12 +1057,14 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 			failed = append(failed, s.Username()+": "+err.Error())
 		}
 	}
+	back := ctx.NextOr("/mailbox/" + url.PathEscape(role) + "?all=1")
 	if len(failed) > 0 {
-		return fmt.Errorf("failed to empty %s: %s", role, strings.Join(failed, "; "))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), strings.Join(failed, "; "))})
+		return ctx.Redirect(http.StatusFound, back)
 	}
 
 	ctx.Session.Notify(emptiedNotice(ctx, removed))
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s", role)))
+	return ctx.Redirect(http.StatusFound, back)
 }
 
 func handleDelete(ctx *alborz.Context) error {
@@ -1368,12 +1370,23 @@ func nothingSelected(ctx *alborz.Context, back string) error {
 	return ctx.Redirect(http.StatusFound, back)
 }
 
-// runAct is an action route around its action: what was done is the
-// notice done makes of the count, and land is where the reader goes,
-// told whether it was done. What was refused is the answer instead.
+// runAct is an action route around its action: what was refused is a
+// notice naming who refused and why, never an error page, since a
+// server's no is an answer; what was done is the notice done makes of
+// the count; and land is where the reader goes, told whether it was
+// done.
 func runAct(ctx *alborz.Context, refs []rowRef, act mailAct, done func(n int) alborz.Notice, land func(done bool) error) error {
 	n, failed := actOn(ctx, refs, act)
-	if len(failed) == 1 && failed[0].err != nil {
+	// As for a list: only when no server answered is it the upstream
+	// page, and the first failure stands for them all.
+	down := 0
+	for _, f := range failed {
+		var upstream alborz.UpstreamError
+		if errors.As(f.err, &upstream) {
+			down++
+		}
+	}
+	if down > 0 && down == len(grouped(refs)) {
 		return failed[0].err
 	}
 	if len(failed) > 0 {
@@ -1385,7 +1398,8 @@ func runAct(ctx *alborz.Context, refs []rowRef, act mailAct, done func(n int) al
 				refused = append(refused, f.account+": "+f.err.Error())
 			}
 		}
-		return fmt.Errorf("failed on %s", strings.Join(refused, "; "))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), strings.Join(refused, "; "))})
+		return land(false)
 	}
 	ctx.Session.Notify(done(n))
 	return land(true)

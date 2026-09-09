@@ -2,6 +2,7 @@ package alborzbase
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html"
 	"html/template"
@@ -200,6 +201,15 @@ type composeOptions struct {
 	Signature string
 }
 
+// refused is a server's no to a message or a draft: key names the
+// sentence the form shows, cause is what the server said.
+type refused struct {
+	key   string
+	cause error
+}
+
+func (err refused) Error() string { return err.cause.Error() }
+
 // Send message, append it to the Sent mailbox, mark the original message as
 // answered. The sender is the account chosen in the From dropdown; the
 // draft and the message being answered belong to the request's own
@@ -212,7 +222,7 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 		if _, ok := err.(alborz.AuthError); ok {
 			return echo.NewHTTPError(http.StatusForbidden, err)
 		}
-		return fmt.Errorf("failed to send message: %w", err)
+		return refused{"form.sendrefused", err}
 	}
 
 	if inReplyTo := options.InReplyTo; inReplyTo != nil {
@@ -313,6 +323,18 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				Signature:          signature,
 				Error:              errText,
 			})
+		}
+		// A server's no to the message is an answer, not a breakage:
+		// it comes back on the form, the text kept, in the server's
+		// own words. Only a server that did not answer at all, or
+		// alborz itself failing, leaves the page.
+		submit := func(f func() error) error {
+			err := f()
+			var no refused
+			if errors.As(err, &no) {
+				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), fmt.Sprintf(ctx.T(no.key), no.cause))
+			}
+			return err
 		}
 		msg.From = fromAddress(settings, sender.Username())
 		// An identity replaces the address, and carries its own name when
@@ -478,63 +500,64 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), ctx.T("form.recipientneeded"))
 		}
 
-		if saveAsDraft {
-			// A draft is what was typed, and only that. The HTML part is
-			// a rendering made when the message is sent, so storing it
-			// here would put a multipart/alternative in front of the
-			// editor - which cannot open one - for no gain.
-			msg.SendHTML = false
-			var (
-				drafts *MailboxInfo
-				uid    imap.UID
-			)
-			err = ctx.DoIMAP(func(c *imapclient.Client) error {
-				drafts, uid, err = appendMessage(c, msg, "drafts")
-				if err != nil {
-					return err
-				}
-
-				if draft := options.Draft; draft != nil {
-					if err := deleteMessage(c, draft.Mailbox, draft.Uid); err != nil {
+		return submit(func() error {
+			if saveAsDraft {
+				// A draft is what was typed, and only that. The HTML part is
+				// a rendering made when the message is sent, so storing it
+				// here would put a multipart/alternative in front of the
+				// editor - which cannot open one - for no gain.
+				msg.SendHTML = false
+				var (
+					drafts *MailboxInfo
+					uid    imap.UID
+				)
+				err = ctx.DoIMAP(func(c *imapclient.Client) error {
+					drafts, uid, err = appendMessage(c, msg, "drafts")
+					if err != nil {
 						return err
 					}
-				}
 
-				if err := ensureMailboxSelected(c, drafts.Name()); err != nil {
-					return err
-				}
+					if draft := options.Draft; draft != nil {
+						if err := deleteMessage(c, draft.Mailbox, draft.Uid); err != nil {
+							return err
+						}
+					}
 
-				// Without UIDPLUS the server names no UID, and the
-				// draft is found again by the Message-ID it was given.
-				if uid != 0 {
+					if err := ensureMailboxSelected(c, drafts.Name()); err != nil {
+						return err
+					}
+
+					// Without UIDPLUS the server names no UID, and the
+					// draft is found again by the Message-ID it was given.
+					if uid != 0 {
+						return nil
+					}
+					criteria := imap.SearchCriteria{
+						Header: []imap.SearchCriteriaHeaderField{
+							{Key: "Message-Id", Value: msg.MessageID},
+						},
+					}
+					if data, err := c.UIDSearch(&criteria, nil).Wait(); err != nil {
+						return err
+					} else if uids := data.AllUIDs(); len(uids) == 0 {
+						return fmt.Errorf("the saved draft was not found by its Message-ID")
+					} else if len(uids) > 1 {
+						return fmt.Errorf("%d drafts carry the Message-ID %s", len(uids), msg.MessageID)
+					} else {
+						uid = uids[0]
+					}
 					return nil
+				})
+				if err != nil {
+					return refused{"form.draftrefused", err}
 				}
-				criteria := imap.SearchCriteria{
-					Header: []imap.SearchCriteriaHeaderField{
-						{Key: "Message-Id", Value: msg.MessageID},
-					},
-				}
-				if data, err := c.UIDSearch(&criteria, nil).Wait(); err != nil {
-					return err
-				} else if uids := data.AllUIDs(); len(uids) == 0 {
-					return fmt.Errorf("the saved draft was not found by its Message-ID")
-				} else if len(uids) > 1 {
-					return fmt.Errorf("%d drafts carry the Message-ID %s", len(uids), msg.MessageID)
-				} else {
-					uid = uids[0]
-				}
-				return nil
-			})
-			if err != nil {
-				return fmt.Errorf("failed to save message to Draft mailbox: %w", err)
+				listings.evictAll(ctx.Session.Username())
+				ctx.Session.PutNotice(ctx.T("notice.draftsaved"))
+				return ctx.Redirect(http.StatusFound, fmt.Sprintf(
+					"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
 			}
-			listings.evictAll(ctx.Session.Username())
-			ctx.Session.PutNotice(ctx.T("notice.draftsaved"))
-			return ctx.Redirect(http.StatusFound, fmt.Sprintf(
-				"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
-		} else {
 			return submitCompose(ctx, sender, msg, options)
-		}
+		})
 	}
 
 	ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))

@@ -558,7 +558,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		}
 		ao, err = to.Client.PutAddressObject(ctx.Request().Context(), at, card)
 		if err != nil {
-			return fmt.Errorf("failed to put address object: %v", err)
+			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 		return dav.Saved(ctx, AddressObject{AddressObject: ao}.URL(), to.Account)
 	}

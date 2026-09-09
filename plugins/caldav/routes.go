@@ -1240,7 +1240,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		ensureTimezones(cal, start)
 		co, err = putObject(ctx, to, newID.String()+".ics", co, cal)
 		if err != nil {
-			return fmt.Errorf("failed to put calendar object: %v", err)
+			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
 		// The event is saved before anybody is told about it: a send
@@ -1656,7 +1656,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		ensureTimezones(cal, due)
 		co, err = putObject(ctx, to, newID.String()+".ics", co, cal)
 		if err != nil {
-			return fmt.Errorf("failed to save task: %v", err)
+			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
 		return dav.Saved(ctx, TaskObject{CalendarObject: co}.URL(), to.Account)

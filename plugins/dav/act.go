@@ -1,6 +1,7 @@
 package dav
 
 import (
+	"fmt"
 	"net/http"
 
 	"git.mehdix.org/alborz"
@@ -32,7 +33,8 @@ func Selection[C any](ctx *alborz.Context, client func(*alborz.Session) (C, erro
 // client, what to each, in which words, and where to land.
 type Action[C any] struct {
 	Client func(*alborz.Session) (C, error)
-	// Do acts on one object. An error ends the run.
+	// Do acts on one object. An error is the server's no, and ends the
+	// run: it is said on the page, never answered as a failure of ours.
 	Do func(ctx *alborz.Context, ref Ref[C]) error
 	// List is where the action lands when the form names no page.
 	List string
@@ -40,7 +42,8 @@ type Action[C any] struct {
 	Done func(ctx *alborz.Context, done []Ref[C], next string) alborz.Notice
 }
 
-// Run does the action to the request's selection and lands.
+// Run does the action to the request's selection and lands. A refusal
+// is said on the page, never swallowed: it ends the run.
 func Run[C any](ctx *alborz.Context, a Action[C]) error {
 	refs, err := Selection(ctx, a.Client)
 	if err != nil {
@@ -50,7 +53,8 @@ func Run[C any](ctx *alborz.Context, a Action[C]) error {
 	done := 0
 	for _, ref := range refs {
 		if err := a.Do(ctx, ref); err != nil {
-			return err
+			ctx.Session.Notify(Refused(ctx, err))
+			return ctx.Redirect(http.StatusFound, next)
 		}
 		done++
 	}
@@ -68,4 +72,10 @@ func Handler[C any](a Action[C]) func(*alborz.Context) error {
 // Delete removes the object.
 func Delete[C files](ctx *alborz.Context, ref Ref[C]) error {
 	return ref.Client.RemoveAll(ctx.Request().Context(), ref.Path)
+}
+
+// Refused carries a server's no back to the page a button returns to;
+// there is no form to show it on.
+func Refused(ctx *alborz.Context, err error) alborz.Notice {
+	return alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)}
 }

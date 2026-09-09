@@ -232,7 +232,8 @@ func (p *plugin) registerScheduling() {
 		co, err := client.PutCalendarObject(ctx.Request().Context(),
 			path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), cal)
 		if err != nil {
-			return fmt.Errorf("failed to file the invitation: %v", err)
+			ctx.Session.Notify(dav.Refused(ctx, err))
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 		}
 
 		ctx.Session.PutNotice(ctx.T("invite.filed"))

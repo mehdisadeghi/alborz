@@ -119,15 +119,16 @@ func handleInvitationReply(ctx *alborz.Context) error {
 		return err
 	}
 	reply.Mailer = mailerName(ctx)
+	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/message/%s/%v", url.PathEscape(mboxName), uid)))
 	if err := ctx.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, reply)
 	}); err != nil {
-		return fmt.Errorf("failed to send the answer: %w", err)
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})
+		return ctx.Redirect(http.StatusFound, back)
 	}
 
 	ctx.Session.PutNotice(ctx.T("invite.answered"))
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(
-		fmt.Sprintf("/message/%s/%v", url.PathEscape(mboxName), uid))))
+	return ctx.Redirect(http.StatusFound, back)
 }
 
 // handleDownloadMessage hands over the bytes the server holds. It is

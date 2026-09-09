@@ -154,6 +154,8 @@
 "message.markunread" = "Als ungelesen markieren"
 "message.print" = "Drucken"
 "message.newer" = "Neuere"
+"message.filterfrom" = "Post von diesem Absender in diesem Ordner"
+"message.filterto" = "Post an diese Adresse in diesem Ordner"
 "message.older" = "Ältere"
 "message.attachments" = "Anhänge"
 "message.plaintext" = "Nur Text"

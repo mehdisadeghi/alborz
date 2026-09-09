@@ -154,6 +154,8 @@
 "message.markunread" = "خوانده‌نشده"
 "message.print" = "چاپ"
 "message.newer" = "جدیدتر"
+"message.filterfrom" = "نامه‌های این فرستنده در این پوشه"
+"message.filterto" = "نامه‌های به این نشانی در این پوشه"
 "message.older" = "قدیمی‌تر"
 "message.attachments" = "پیوست‌ها"
 "message.plaintext" = "متن ساده"

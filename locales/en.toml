@@ -158,6 +158,8 @@
 "message.markunread" = "Mark Unread"
 "message.print" = "Print"
 "message.newer" = "Newer"
+"message.filterfrom" = "Mail from this sender in this folder"
+"message.filterto" = "Mail to this address in this folder"
 "message.older" = "Older"
 "message.attachments" = "Attachments"
 "message.plaintext" = "Plain text"

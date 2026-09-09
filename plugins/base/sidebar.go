@@ -16,7 +16,10 @@ type IMAPBaseRenderData struct {
 	Mailbox              *MailboxStatus
 	Inbox                *MailboxStatus
 	Subscriptions        map[string]*MailboxStatus
-	Starred              bool
+	// ListView is the rail row the page answers to when it is not a
+	// folder: starred, unread, or a star colour. Not "View": the
+	// message page's own View is the rendered part.
+	ListView string
 
 	// Every account's folder tree, for the multi-account aside; empty
 	// with a single account.
@@ -285,7 +288,7 @@ func sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
 			ctx.Logger().Printf("sidebar for %q: %v", s.Username(), err)
 			continue
 		}
-		ib := assembleIMAPBase(ctx, &alborz.BaseRenderData{}, "", sb.clone(), false)
+		ib := assembleIMAPBase(ctx, &alborz.BaseRenderData{}, "", sb.clone(), "")
 		accounts = append(accounts, AccountSidebar{
 			Account:     s.Username(),
 			Categorized: ib.CategorizedMailboxes,
@@ -404,7 +407,7 @@ func (l *sidebarLoad) finish() (sidebar, error) {
 
 // assembleIMAPBase builds the render data from a loaded sidebar, applying
 // labels, unseen counts, and the active highlight.
-func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName string, sb sidebar, starred bool) *IMAPBaseRenderData {
+func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName string, sb sidebar, view string) *IMAPBaseRenderData {
 	if mboxName != "" {
 		sb.statuses[mboxName] = sb.active
 	}
@@ -412,7 +415,7 @@ func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName
 
 	var categorized CategorizedMailboxes
 	for i := range sb.mailboxes {
-		if sb.active != nil && sb.mailboxes[i].Name() == sb.active.Mailbox && !starred {
+		if sb.active != nil && sb.mailboxes[i].Name() == sb.active.Mailbox && view == "" {
 			sb.mailboxes[i].Active = true
 		}
 		sb.mailboxes[i].Label = sb.mailboxes[i].Name()
@@ -437,7 +440,7 @@ func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName
 		Inbox:                sb.inbox,
 		Mailbox:              sb.active,
 		Subscriptions:        sb.statuses,
-		Starred:              starred,
+		ListView:             view,
 	}
 }
 
@@ -467,10 +470,13 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 		return nil, err
 	}
 
-	// The starred view filters the active mailbox; highlight the Starred
-	// sidebar entry instead of the mailbox itself.
-	starred := ctx.QueryParam("starred") == "1"
-	ibase := assembleIMAPBase(ctx, base, mboxName, sb, starred)
+	// A view narrows the active mailbox; the rail highlights the view's
+	// row instead of the mailbox itself.
+	view, err := readView(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ibase := assembleIMAPBase(ctx, base, mboxName, sb, view)
 	ibase.SidebarAccounts = sidebarAccounts(ctx)
 	return ibase, nil
 }

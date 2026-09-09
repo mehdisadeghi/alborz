@@ -34,7 +34,7 @@ func TestStatusUnchangedNeedsEveryField(t *testing.T) {
 func TestListingCacheStates(t *testing.T) {
 	lc := &listingCache{entries: make(map[listingKey]*listingEntry)}
 	lc.store("u", "INBOX", &listingEntry{perPage: 25, total: 3})
-	lc.store("u", listingView("INBOX", "hello", false, "", ""), &listingEntry{perPage: 25})
+	lc.store("u", listingView("INBOX", "hello", "", "", ""), &listingEntry{perPage: 25})
 	lc.store("u", "Sent", &listingEntry{perPage: 25})
 
 	if e, state := lc.lookup("u", "INBOX", 25); state != listingFresh || e.total != 3 {
@@ -66,7 +66,7 @@ func TestListingCacheStates(t *testing.T) {
 	// A change to one folder drops its searches with it and leaves the
 	// other folders alone.
 	lc.evict("u", "INBOX")
-	if _, state := lc.lookup("u", listingView("INBOX", "hello", false, "", ""), 25); state != listingMiss {
+	if _, state := lc.lookup("u", listingView("INBOX", "hello", "", "", ""), 25); state != listingMiss {
 		t.Errorf("a search over the changed folder survived")
 	}
 	if _, state := lc.lookup("u", "Sent", 25); state != listingFresh {
@@ -77,7 +77,7 @@ func TestListingCacheStates(t *testing.T) {
 func TestListingCacheStaysBounded(t *testing.T) {
 	lc := &listingCache{entries: make(map[listingKey]*listingEntry)}
 	for i := 0; i < maxListingEntries+10; i++ {
-		lc.store("u", listingView("INBOX", fmt.Sprint("q", i), false, "", ""), &listingEntry{perPage: 25})
+		lc.store("u", listingView("INBOX", fmt.Sprint("q", i), "", "", ""), &listingEntry{perPage: 25})
 	}
 	if n := len(lc.entries); n != maxListingEntries {
 		t.Errorf("a crawler minted %d entries; the cap is %d", n, maxListingEntries)

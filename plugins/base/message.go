@@ -181,15 +181,18 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	messagesPerPage := perPage(ctx, settings)
 
 	query := ctx.QueryParam("query")
-	starred := ctx.QueryParam("starred") == "1"
+	railView, err := readView(ctx)
+	if err != nil {
+		return err
+	}
 	// A search's criteria are settled on the connection, which knows
 	// whether bare terms reach the whole message; until then the
 	// placeholder says only that there is a search.
 	var criteria *imap.SearchCriteria
 	if query != "" {
 		criteria = &imap.SearchCriteria{}
-	} else if starred {
-		criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+	} else if railView != "" {
+		criteria = ViewCriteria(railView)
 	}
 
 	// The rendered view needs the sidebar, and takes it from the cached
@@ -452,7 +455,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	if addressed(deliveredTo, msg.Envelope.To, msg.Envelope.Cc) {
 		deliveredTo = ""
 	}
-	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, starred)
+	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, railView)
 	ibase.SidebarAccounts = sidebarAccounts(ctx)
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject)
 	mbox := ibase.Mailbox
@@ -477,7 +480,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		InReplyTo:          inReplyTo,
 		Answers:            answers,
 		ThreadSupported:    threadAlgorithm != "",
-		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
+		Crumb:              viewCrumb(ctx, mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()), mboxName, railView),
 		PreferHTML:         settings.PreferHTML,
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        deliveredTo,

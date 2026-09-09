@@ -47,15 +47,11 @@ const maxListingEntries = 512
 // listingView names one cached view: the folder itself when nothing
 // narrows it, otherwise the folder and the narrowing. A search is as
 // cacheable as a plain listing; only its key is longer.
-func listingView(folder, query string, starred bool, sortKey, sortDir string) string {
-	if query == "" && !starred && sortKey == "" && sortDir == "" {
+func listingView(folder, query, view, sortKey, sortDir string) string {
+	if query == "" && view == "" && sortKey == "" && sortDir == "" {
 		return folder
 	}
-	starredMark := ""
-	if starred {
-		starredMark = "starred"
-	}
-	return strings.Join([]string{folder, query, starredMark, sortKey, sortDir}, listingSep)
+	return strings.Join([]string{folder, query, view, sortKey, sortDir}, listingSep)
 }
 
 // listingEntry is one cached folder view. Unified entries, keyed by role
@@ -95,7 +91,7 @@ type listingCache struct {
 type listingSpec struct {
 	mbox    string
 	query   string
-	starred bool
+	view    string
 	sortKey string
 	sortDir string
 	thread  imap.UID

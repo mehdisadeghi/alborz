@@ -497,16 +497,63 @@ header nav > div {
   gap: var(--space-4);
 }
 
-header nav .accounts { display: inline-block; position: relative; }
-header nav .accounts summary { cursor: pointer; color: var(--fg-muted); }
+/* The two menus sit in one row of the trailing group: as a flow box
+   they wrapped under each other before the row was short enough to
+   fold into the drawer. The account's name is the one entry that gives
+   way, and it truncates rather than wraps. */
+.nav-menus {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+header nav > div { min-width: 0; }
+header nav > div > :not(.nav-menus),
+.nav-menus > :not(.accounts) { flex-shrink: 0; }
+header nav .accounts { display: inline-block; position: relative; min-width: 0; }
+header nav .accounts-button { max-width: 100%; }
+header nav .accounts-button .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The menu buttons sit among the header's links and take their shape:
+   text, no box, a chevron saying there is more. A hover darkens the
+   text, as the old summary did; no underline, since they are not
+   links, and not the button box the generic rule paints, which has no
+   padding here to paint into. */
+header nav .accounts-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  color: var(--fg-muted);
+}
+/* The guards repeat the generic button hover's, which would otherwise
+   outweigh this and paint its box on a padless text button. */
+header nav .accounts-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+header nav .accounts:has(> :popover-open) > .accounts-button {
+  background: none;
+  border: 0;
+  color: var(--fg);
+}
 /* The switcher sits at the end of the header, so the panel hangs from
    its trailing edge and grows inwards; anchored at the start it grows
    towards the page edge and leaves the canvas once two accounts, or
    one long address, make it wide. */
-header nav .accounts-menu {
-  position: absolute;
-  inset-inline-end: 0;
-  z-index: 10;
+/* The drawer's copy is a disclosure and its panel sits in the flow;
+   the header's is a popover and shows only while open. */
+.nav-menus-drawer { display: none; }
+header nav .accounts summary { cursor: pointer; color: var(--fg-muted); }
+header nav .accounts-menu:not([popover]),
+header nav .accounts-menu:popover-open {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1360,7 +1407,6 @@ main.message .subject-row > .flag-button,
 /* The colour picker: one swatch per colour and one that clears, each a
    submit of its own, so it needs no script and no select. */
 .flag-colors {
-  display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
   padding: 0.3rem;
@@ -1390,26 +1436,26 @@ main.message .subject-row > .flag-button,
 /* The toolbar's own entry: the star it is currently set to, and a
    chevron saying there is more. Open, it lights up like the menu it
    belongs to. */
-.flag-menu > summary {
+.flag-menu > button {
   width: auto;
   gap: 0.1rem;
   padding-inline: 0.2rem;
 }
 
-.flag-menu[open] > summary {
+.flag-menu:has(> :popover-open) > button {
   background: var(--surface-selected);
 }
 
-.flag-menu > summary .flag-star { font-size: 13pt; }
+.flag-menu > button .flag-star { font-size: 13pt; }
 
 /* A menu folded into the overflow - the colours, the sort - is a
-   submenu: it opens in place and grows the menu around it. */
-.overflow-menu details.overflow { display: block; }
-.overflow-menu details.overflow > .overflow-menu {
-  position: static;
-  border: 0;
-  box-shadow: none;
-  padding-inline: var(--space-3);
+   submenu: it hangs off its own row, towards the start, and closes
+   with the menu it sits in. */
+.overflow-menu div.overflow { display: block; }
+.overflow-menu div.overflow > .overflow-menu {
+  position-area: inline-start span-block-end;
+  margin: 0;
+  margin-inline-end: 2px;
 }
 
 .message-list-unread.message-list-flags .flag-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
@@ -1941,7 +1987,7 @@ main table tfoot {
    three ways a control is off (:disabled, aria-disabled, .is-disabled);
    an unguarded hover rule written below its own counter-rule is how the
    trash icon came to redden while it was dead. */
-.overflow.is-disabled > summary,
+.overflow > button:disabled,
 .actions-search.is-disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -3414,23 +3460,28 @@ form[aria-busy="true"] button[disabled] {
 }
 
 /* Overflow menus keep secondary actions behind a ⋮, in the same
-   dropdown shape as the account menu. */
-details.overflow {
+   dropdown shape as the account menu. Every menu is a popover: the
+   browser closes it on a click outside or Escape, one click on another
+   menu's button opens that one, and the page under it stays live. The
+   panel hangs from its button through the implicit anchor a
+   popovertarget gives it, so no name has to be shared. */
+div.overflow {
   position: relative;
   display: inline-block;
 }
 
-.actions-wrap details.overflow {
+.actions-wrap div.overflow {
   margin-inline-start: 0.3rem;
 }
 
-details.overflow > summary {
-  list-style: none;
-  user-select: none;
-}
-
-details.overflow > summary::-webkit-details-marker {
-  display: none;
+.overflow-menu[popover],
+header nav .accounts-menu[popover] {
+  inset: auto;
+  margin: 0;
+  margin-block-start: 2px;
+  position-area: block-end span-inline-start;
+  position-try-fallbacks: flip-inline, flip-block;
+  color: inherit;
 }
 
 /* The sprite is markup, not a picture: it draws nothing itself. */
@@ -3689,11 +3740,7 @@ main.message .actions-end {
   border-color: var(--border-strong);
 }
 
-.overflow-menu {
-  position: absolute;
-  inset-inline-end: 0;
-  top: calc(100% + 2px);
-  z-index: 10;
+.overflow-menu:popover-open {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -4050,10 +4097,10 @@ aside ul.merged-roles {
    instead of the control: the toolbar is not sticky, so the static
    vertical position still puts it directly under what opened it. */
 @media (width <= 600px) {
-  details.overflow > .overflow-menu {
-    position: fixed;
-    inset-inline: var(--space-2) var(--space-2);
-    top: auto;
+  .overflow-menu[popover] {
+    position-area: block-end;
+    justify-self: center;
+    width: calc(100vw - 2 * var(--space-2));
     min-width: 0;
   }
 }
@@ -4142,6 +4189,8 @@ h1.no-word .title-short {
   header nav.is-icons { gap: var(--space-1); }
 
   header nav > div { float: none; display: none; }
+  .nav-menus { display: none; }
+  .nav-menus-drawer { display: contents; }
 
   /* The account block docks to the drawer as a fixed element, and says
      so with a z-index of its own - which counted for nothing, because
@@ -4171,7 +4220,6 @@ h1.no-word .title-short {
   .sidebar-toggle:checked ~ header nav > div > a { margin-inline-start: 0; }
 
   .sidebar-toggle:checked ~ header .accounts-menu {
-    position: static;
     padding-block: 0;
     padding-inline: 1rem 0;
     border: 0;

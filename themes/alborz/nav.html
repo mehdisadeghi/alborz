@@ -56,50 +56,8 @@
     {{ end }}
     {{ if .GlobalData.LoggedIn }}
     <div>
-      <details class="accounts">
-        {{/* The menu says which scope the page is in and offers the
-             others: each account's entry opens this section on that
-             account, and the merged entry opens it over all. There is
-             no active account to switch; the URL is the scope. */}}
-        <summary>{{ if .GlobalData.URLAccount }}{{ template "ltr" .GlobalData.URLAccount }}{{ else if .GlobalData.Unified }}{{$.T "nav.allaccounts"}}{{ else }}{{ template "ltr" .GlobalData.Username }}{{ end }}</summary>
-        <div class="accounts-menu">
-          {{ $section := printf "/%s" $page }}{{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = "/mailbox/INBOX" }}{{ end }}
-          {{ range .GlobalData.Accounts }}
-          <div class="account-menu-row">
-          <a href="{{$section}}{{ account "?" .Username }}"{{ if eq .Username $.GlobalData.URLAccount }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
-          {{if gt (len $.GlobalData.Accounts) 1}}
-          <form method="post" action="/logout" class="account-signout">
-            <button type="submit" name="account" value="{{.Username}}" title="{{$.T "nav.signout"}} {{.Username}}">{{$.T "nav.signout"}}</button>
-          </form>
-          {{end}}
-          </div>
-          {{ end }}
-          {{ if gt (len .GlobalData.Accounts) 1 }}
-          <a href="{{$section}}"{{ if .GlobalData.Unified }} class="active" aria-current="true"{{ end }}>{{$.T "nav.allaccounts"}}</a>
-          {{ end }}
-          <a href="/login?add=1">{{$.T "nav.addaccount"}}</a>
-        </div>
-      </details>
-      {{/* The language takes effect on the click, so it is a menu of
-           choices rather than a field with a Save button: a language
-           you must read in the wrong one to change is no choice. */}}
-      <details class="accounts lang-menu">
-        <summary>{{ with $.GlobalData.LanguageName }}{{.}}{{ else }}{{$.T "settings.langauto"}}{{ end }}</summary>
-        <div class="accounts-menu">
-          {{/* Following the browser is a choice too, and the only way
-               back to it once one was made. */}}
-          <form method="post" action="/language">
-            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-            <button type="submit" name="language" value=""{{ if eq $.GlobalData.Language "" }} class="active" disabled{{ end }}>{{$.T "settings.langauto"}}</button>
-          </form>
-          {{ range .GlobalData.LanguageChoices }}
-          <form method="post" action="/language">
-            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-            <button type="submit" name="language" value="{{.Code}}"{{ if eq .Code $.GlobalData.Language }} class="active" disabled{{ end }}>{{.Name}}</button>
-          </form>
-          {{ end }}
-        </div>
-      </details>
+      {{ template "nav-menus" (dict "g" $ "page" $page "drawer" false) }}
+      {{ template "nav-menus" (dict "g" $ "page" $page "drawer" true) }}
       <a href="/settings{{$q}}">{{$.T "nav.settings"}}</a>
       {{if eq (len .GlobalData.Accounts) 1}}<a href="/logout">{{$.T "nav.signout"}}</a>{{end}}
     </div>
@@ -128,4 +86,56 @@
 </header>
 {{ if .GlobalData.LoggedIn }}
 <label for="sidebar" class="sidebar-backdrop" aria-hidden="true"></label>
+{{ end }}
+
+{{/* The account and language menus, once as popovers for the header
+     and once as disclosures for the drawer's dock, where a menu opens
+     in place under its own row as it always did. One body each, so
+     the two never drift. dict: g page drawer. */}}
+{{ define "nav-menus" }}
+{{ $g := .g }}{{ $page := .page }}
+<div class="{{ if .drawer }}nav-menus-drawer{{ else }}nav-menus{{ end }}">
+  {{/* The menu says which scope the page is in and offers the
+       others: each account's entry opens this section on that
+       account, and the merged entry opens it over all. There is
+       no active account to switch; the URL is the scope. */}}
+  {{ if .drawer }}<details class="accounts"><summary>{{ if $g.GlobalData.URLAccount }}{{ template "ltr" $g.GlobalData.URLAccount }}{{ else if $g.GlobalData.Unified }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</summary>{{ else }}<div class="accounts"><button type="button" class="accounts-button" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.URLAccount }}{{ template "ltr" $g.GlobalData.URLAccount }}{{ else if $g.GlobalData.Unified }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
+  <div class="accounts-menu"{{ if not .drawer }} popover id="menu-accounts"{{ end }}>
+    {{ $section := printf "/%s" $page }}{{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = "/mailbox/INBOX" }}{{ end }}
+    {{ range $g.GlobalData.Accounts }}
+    <div class="account-menu-row">
+    <a href="{{$section}}{{ account "?" .Username }}"{{ if eq .Username $g.GlobalData.URLAccount }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
+    {{if gt (len $g.GlobalData.Accounts) 1}}
+    <form method="post" action="/logout" class="account-signout">
+      <button type="submit" name="account" value="{{.Username}}" title="{{$g.T "nav.signout"}} {{.Username}}">{{$g.T "nav.signout"}}</button>
+    </form>
+    {{end}}
+    </div>
+    {{ end }}
+    {{ if gt (len $g.GlobalData.Accounts) 1 }}
+    <a href="{{$section}}"{{ if $g.GlobalData.Unified }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
+    {{ end }}
+    <a href="/login?add=1">{{$g.T "nav.addaccount"}}</a>
+  </div>
+  {{ if .drawer }}</details>{{ else }}</div>{{ end }}
+  {{/* The language takes effect on the click, so it is a menu of
+     choices rather than a field with a Save button: a language
+     you must read in the wrong one to change is no choice. */}}
+  {{ if .drawer }}<details class="accounts lang-menu"><summary>{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</summary>{{ else }}<div class="accounts lang-menu"><button type="button" class="accounts-button" popovertarget="menu-language"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
+  <div class="accounts-menu"{{ if not .drawer }} popover id="menu-language"{{ end }}>
+    {{/* Following the browser is a choice too, and the only way
+         back to it once one was made. */}}
+    <form method="post" action="/language">
+      <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
+      <button type="submit" name="language" value=""{{ if eq $g.GlobalData.Language "" }} class="active" disabled{{ end }}>{{$g.T "settings.langauto"}}</button>
+    </form>
+    {{ range $g.GlobalData.LanguageChoices }}
+    <form method="post" action="/language">
+      <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
+      <button type="submit" name="language" value="{{.Code}}"{{ if eq .Code $g.GlobalData.Language }} class="active" disabled{{ end }}>{{.Name}}</button>
+    </form>
+    {{ end }}
+  </div>
+  {{ if .drawer }}</details>{{ else }}</div>{{ end }}
+</div>
 {{ end }}

@@ -49,27 +49,19 @@ for (const formId of bulk_forms) {
 		continue;
 	}
 	const boxes = document.querySelectorAll(`input[type="checkbox"][form="${formId}"]`);
-	// A menu is not a control the browser can disable: mark it, let CSS
-	// dim it and refuse the pointer, and shut it if it was open when the
-	// last row was unchecked.
-	const menus = document.querySelectorAll(`details[data-gated="${formId}"]`);
+	// A menu's button is a real button: disabled with the rest, and its
+	// panel shut if it was open when the last row was unchecked.
+	const menus = document.querySelectorAll(`[data-gated="${formId}"]`);
 	const update = () => {
 		const any = Array.prototype.some.call(boxes, box => box.checked);
 		for (const control of controls) {
 			control.disabled = !any;
 		}
 		for (const menu of menus) {
-			menu.classList.toggle("is-disabled", !any);
-			// The mark goes on the summary as well as the menu: the
-			// hover rules are guarded against a control's own off
-			// state, and CSS cannot ask about an ancestor's.
-			const summary = menu.querySelector("summary");
-			if (summary) {
-				summary.classList.toggle("is-disabled", !any);
-				summary.setAttribute("aria-disabled", String(!any));
-			}
-			if (!any) {
-				menu.open = false;
+			menu.querySelector(":scope > button").disabled = !any;
+			const panel = menu.querySelector(":scope > [popover]");
+			if (!any && panel.matches(":popover-open")) {
+				panel.hidePopover();
 			}
 		}
 	};
@@ -360,7 +352,7 @@ if (primeNav) {
 // whatever moved in, in row order. No control is duplicated for a
 // width, and the toggle costs nothing while the menu is empty.
 for (const wrap of document.querySelectorAll(".actions-wrap")) {
-	const details = wrap.querySelector("details.overflow:not(.flag-menu)");
+	const details = wrap.querySelector("div.overflow:not(.flag-menu)");
 	const menu = details && details.querySelector(":scope > .overflow-menu");
 	if (!menu) {
 		continue;
@@ -420,3 +412,25 @@ for (const wrap of document.querySelectorAll(".actions-wrap")) {
 }
 
 // @license-end
+
+// A browser without anchor positioning would centre every popover in
+// the viewport, which is where the UA sheet puts one. Until Safari and
+// Firefox of last year are gone, the panel is placed under its button
+// by hand when it opens, on the side the menu grows from.
+if (!CSS.supports("position-area", "block-end")) {
+	for (const panel of document.querySelectorAll("[popover].overflow-menu, [popover].accounts-menu")) {
+		panel.addEventListener("toggle", event => {
+			if (event.newState !== "open") {
+				return;
+			}
+			const button = document.querySelector(`[popovertarget="${panel.id}"]`);
+			const box = button.getBoundingClientRect();
+			panel.style.top = `${box.bottom + 2}px`;
+			if (document.documentElement.dir === "rtl") {
+				panel.style.left = `${box.left}px`;
+			} else {
+				panel.style.right = `${window.innerWidth - box.right}px`;
+			}
+		});
+	}
+}

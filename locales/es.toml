@@ -154,6 +154,8 @@
 "message.markunread" = "Marcar como no leído"
 "message.print" = "Imprimir"
 "message.newer" = "Más reciente"
+"message.filterfrom" = "Correo de este remitente en esta carpeta"
+"message.filterto" = "Correo a esta dirección en esta carpeta"
 "message.older" = "Más antiguo"
 "message.attachments" = "Adjuntos"
 "message.plaintext" = "Texto sin formato"

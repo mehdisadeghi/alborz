@@ -34,6 +34,7 @@ type Group[I any] struct {
 func Pooled[C, I any](ctx *alborz.Context, p *Provider, load func(context.Context, *alborz.Session) (C, []I, error), own func(*I, string), none error) ([]Account[C, I], error) {
 	var accounts []Account[C, I]
 	var lastErr error
+	var down []string
 	for _, s := range ctx.Sessions() {
 		if _, ok := p.URL(s); !ok {
 			continue
@@ -41,6 +42,7 @@ func Pooled[C, I any](ctx *alborz.Context, p *Provider, load func(context.Contex
 		c, infos, err := load(ctx.Request().Context(), s)
 		if err != nil {
 			lastErr = err
+			down = append(down, s.Username())
 			ctx.Logger().Printf("%s: skipping %q in the pooled view: %v", p.kind.Name, s.Username(), err)
 			continue
 		}
@@ -57,6 +59,7 @@ func Pooled[C, I any](ctx *alborz.Context, p *Provider, load func(context.Contex
 		}
 		return nil, none
 	}
+	ctx.Unreachable(down)
 	return accounts, nil
 }
 

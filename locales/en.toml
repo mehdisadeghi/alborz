@@ -668,6 +668,10 @@ other = "%d messages deleted."
 one = "%[2]s was signed out after 30 minutes of inactivity."
 other = "%[2]s were signed out after 30 minutes of inactivity."
 
+["notice.unreachable"]
+one = "The server for %[2]s did not answer. The other accounts are shown."
+other = "The servers for %[2]s did not answer. The other accounts are shown."
+
 
 ["notice.deleted"]
 one = "%d message deleted."

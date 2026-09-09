@@ -1,6 +1,7 @@
 package alborzbase
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -169,11 +170,24 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	}
 	wg.Wait()
 	alborz.AddTiming(ctx.Request().Context(), "imap", imapStart)
-	for _, err := range errs {
-		if err != nil {
+	// A server that did not answer costs its account's rows, not the
+	// page: the others are shown and the page says who is missing.
+	// Only when nobody answered is it the upstream page.
+	var down []string
+	for i, err := range errs {
+		var upstream alborz.UpstreamError
+		switch {
+		case err == nil:
+		case errors.As(err, &upstream):
+			down = append(down, ctx.Sessions()[i].Username())
+		default:
 			return err
 		}
 	}
+	if len(down) == len(errs) {
+		return errs[0]
+	}
+	ctx.Unreachable(down)
 
 	slices.SortStableFunc(msgs, unifiedLess(sortKey, reverse))
 	RowMarks(ctx, TrustedAuthServ(ctx, settings), msgs)

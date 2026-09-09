@@ -12,6 +12,7 @@ import (
 func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	path := ctx.Request().URL.Path
 	rows := map[string][]alborz.RailRow{}
+	var down []string
 	for _, account := range sieveAccounts(ctx) {
 		session := ctx.SessionFor(account.Username)
 		scoped := account.Username == ctx.URLAccount()
@@ -23,6 +24,7 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 			return nil
 		})
 		if err != nil {
+			down = append(down, account.Username)
 			ctx.Logger().Printf("rail %s filters: %v", account.Username, err)
 		}
 		row := func(label, at string) alborz.RailRow {
@@ -45,5 +47,6 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 		}
 		rows[account.Username] = append([]alborz.RailRow{scripts}, pages...)
 	}
+	ctx.Unreachable(down)
 	return rows
 }

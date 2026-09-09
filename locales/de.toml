@@ -668,6 +668,10 @@ other = "%d E-Mails gelöscht."
 one = "%[2]s wurde nach 30 Minuten Inaktivität abgemeldet."
 other = "%[2]s wurden nach 30 Minuten Inaktivität abgemeldet."
 
+["notice.unreachable"]
+one = "Der Server für %[2]s hat nicht geantwortet. Die anderen Konten werden angezeigt."
+other = "Die Server für %[2]s haben nicht geantwortet. Die anderen Konten werden angezeigt."
+
 
 ["notice.deleted"]
 one = "%d E-Mail gelöscht."

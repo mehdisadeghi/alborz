@@ -861,6 +861,13 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 		}
 	}
 
+	// A notice raised after the base data was built - by a rail or a
+	// pooled load that ran later in the same handler - belongs to this
+	// page, not to whichever the reader opens next.
+	if g := renderData.Global(); g.Notice == nil && ctx.Session != nil {
+		g.Notice = ctx.Session.PopNotice()
+	}
+
 	start := time.Now()
 	err := r.theme.ExecuteTemplate(w, name, data)
 	ctx.timing.add("render", start, time.Now())

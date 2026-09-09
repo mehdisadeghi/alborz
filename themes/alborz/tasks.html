@@ -34,9 +34,9 @@
           </span>
           {{/* Not gated on the selection: the check acts on the lists,
                and the controls that need rows are disabled one by one. */}}
-          <details class="overflow">
-            <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
-            <div class="overflow-menu">
+          <div class="overflow">
+            <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
+            <div class="overflow-menu" popover id="menu-more">
               <select form="tasks-form" name="to" aria-label="{{$.T "tasks.movelist"}}">
                 <option value="" disabled selected>{{$.T "mailbox.moveto"}}</option>
                 {{range .Calendars}}
@@ -46,7 +46,7 @@
               <button form="tasks-form" formaction="/tasks/move">{{$.T "mailbox.move"}}</button>
               <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
             </div>
-          </details>
+          </div>
         {{ template "toolbar-end" }}
             {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
             {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .Tasks) "rows" (tuple

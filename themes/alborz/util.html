@@ -135,11 +135,11 @@
   </span>
 </span>
 {{ else }}
-<details class="overflow flag-menu{{ with .class }} {{.}}{{ end }}" data-gated="{{.form}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
-  <summary class="icon-button" title="{{.clear}}" aria-label="{{.title}}">
+<div class="overflow flag-menu{{ with .class }} {{.}}{{ end }}" data-gated="{{.form}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+  <button type="button" class="icon-button" title="{{.clear}}" aria-label="{{.title}}" popovertarget="menu-flag">
     <span class="flag-star{{ with .current }} flag-{{.}}{{ end }}">{{ if .current }}&#9733;{{ else }}&#9734;{{ end }}</span>{{ template "icon" "down" }}<span class="label">{{.title}}</span>
-  </summary>
-  <div class="overflow-menu flag-colors">
+  </button>
+  <div class="overflow-menu flag-colors" popover id="menu-flag">
     {{ $d := . }}
     {{ range .colors }}
     <button {{ with $d.form }}form="{{.}}"{{ end }} formaction="{{$d.action}}"
@@ -151,7 +151,7 @@
       <span class="flag-star">&#9734;</span>{{.clear}}
     </button>
   </div>
-</details>
+</div>
 {{ end }}
 {{ end }}
 
@@ -199,9 +199,9 @@
 {{ if .disabled }}
 <span class="overflow sort-overflow" data-priority="30"><span class="icon-button" aria-disabled="true" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}">{{ template "sort-mark" .g }}</span></span>
 {{ else }}
-<details class="overflow sort-overflow" data-priority="30">
-  <summary class="icon-button" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}">{{ template "sort-mark" .g }}</summary>
-  <div class="overflow-menu">
+<div class="overflow sort-overflow" data-priority="30">
+  <button type="button" class="icon-button" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}" popovertarget="menu-sort">{{ template "sort-mark" .g }}</button>
+  <div class="overflow-menu" popover id="menu-sort">
     {{ range .rows }}
     {{ template "sort-th" (dict "label" (index . 0) "key" (index . 1) "s" $.s "class" "button-link") }}
     {{ end }}
@@ -213,7 +213,7 @@
        {{ if .current }}aria-current="true"{{ end }}>{{.label}}</a>
     {{ end }}
   </div>
-</details>
+</div>
 {{ end }}
 {{ end }}
 
@@ -363,9 +363,9 @@
      the old size means nothing in the new one.
      dict: options current base label. */}}
 {{ define "ipp-menu" }}
-<details class="overflow ipp-overflow" data-priority="4" data-yield="hide">
-  <summary class="icon-button" title="{{.label}}" aria-label="{{.label}}">{{ template "icon" "rows" }}</summary>
-  <div class="overflow-menu">
+<div class="overflow ipp-overflow" data-priority="4" data-yield="hide">
+  <button type="button" class="icon-button" title="{{.label}}" aria-label="{{.label}}" popovertarget="menu-ipp">{{ template "icon" "rows" }}</button>
+  <div class="overflow-menu" popover id="menu-ipp">
     {{ $d := . }}
     {{ range .options }}
     {{ if eq . $d.current }}
@@ -375,7 +375,7 @@
     {{ end }}
     {{ end }}
   </div>
-</details>
+</div>
 {{ end }}
 
 {{/* A choice between views. The order never changes and the chosen one

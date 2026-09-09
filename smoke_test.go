@@ -971,7 +971,7 @@ func TestAccountsScopeAndSignOut(t *testing.T) {
 		t.Errorf("the merged view has no merged entry in the rail")
 	}
 	scoped := get(t, c, base+"/mailbox/INBOX?account="+smokeUser2)
-	if !strings.Contains(scoped, `<summary><bdi class="ltr">`+smokeUser2) {
+	if !strings.Contains(scoped, `popovertarget="menu-accounts"><span class="label"><bdi class="ltr">`+smokeUser2) {
 		t.Errorf("a page scoped to %s does not say so in the nav", smokeUser2)
 	}
 	if !strings.Contains(scoped, `class="acct-folders aggregate-folders"`) {

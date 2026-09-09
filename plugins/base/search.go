@@ -191,6 +191,34 @@ func PrepareSearch(terms string, indexed bool) *imap.SearchCriteria {
 	return criteria
 }
 
+// A view is a folder narrowed by a flag: the starred, the unread, the
+// stars of one colour. It is a search with a name and costs nothing
+// more than one.
+const (
+	ViewStarred = "starred"
+	ViewUnread  = "unread"
+)
+
+// KnownView says whether a view name is one alborz offers; a colour
+// counts, since FlagColors is where the names come from.
+func KnownView(view string) bool {
+	return view == "" || view == ViewStarred || view == ViewUnread || slices.Contains(FlagColors[:], view)
+}
+
+// ViewCriteria is the search a view is, nil for the whole folder.
+func ViewCriteria(view string) *imap.SearchCriteria {
+	switch view {
+	case "":
+		return nil
+	case ViewStarred:
+		return &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+	case ViewUnread:
+		return &imap.SearchCriteria{NotFlag: []imap.Flag{imap.FlagSeen}}
+	}
+	add, del := FlagColorFlags(view)
+	return &imap.SearchCriteria{Flag: add, NotFlag: del}
+}
+
 // SearchesIndex says whether bare terms reach the whole message on this
 // connection, and SearchesText whether the query asks for it anyway.
 func SearchesIndex(c *imapclient.Client, settings *Settings) bool {

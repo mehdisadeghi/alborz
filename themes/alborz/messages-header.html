@@ -2,16 +2,19 @@
 {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
 {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
 {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-{{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ $ippbase := $hparams }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
-{{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if .Starred }}{{ $hplain = printf "%s&starred=1" $hplain }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hplain = printf "%s&ipp=%s" $hplain . }}{{ end }}
+{{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with .ListView }}{{ $hparams = printf "%s&view=%s" $hparams . }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ $ippbase := $hparams }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
+{{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with .ListView }}{{ $hplain = printf "%s&view=%s" $hplain . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hplain = printf "%s&ipp=%s" $hplain . }}{{ end }}
 {{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
-{{ $title := .Mailbox.Label }}{{ if .Starred }}{{ $title = $.T "mailbox.starred" }}{{ end }}
+{{ $title := .Mailbox.Label }}
 {{/* A folder the server says holds nothing has nothing to select and
      nothing to search. A question already asked keeps its field live,
      or the reader could not take it back. */}}
-{{ $asked := or .Query .Starred }}
+{{ $asked := or .Query .ListView }}
 {{ $empty := and .Mailbox.IsEmpty (not $asked) }}
-{{ template "toolbar-head" (dict "g" . "title" $title "selectall" true "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
+{{/* A colour view's heading is "Blue star"; the phone keeps the colour
+     and yields the word, the way the calendar keeps the month. */}}
+{{ $short := "" }}{{ if and .ListView (ne .ListView "starred") (ne .ListView "unread") }}{{ $short = $.T (printf "color.%s" .ListView) }}{{ end }}
+{{ template "toolbar-head" (dict "g" . "title" $title "shorttitle" $short "selectall" true "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
     {{$common := .CategorizedMailboxes.Common}}
     {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
     {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
@@ -89,7 +92,7 @@
              to the selection form, so it stays live with nothing
              selected. */}}
         {{ if not .GlobalData.Unified }}
-        {{ $exportall := printf "/message/%s/export%s" (.Mailbox.Name | pathescape) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | urlquery) }}{{ end }}
+        {{ $exportall := printf "/message/%s/export%s" (.Mailbox.Name | pathescape) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | urlquery) }}{{ else }}{{ with .ListView }}{{ $exportall = printf "%s%sview=%s" $exportall (or (and $aq "&") "?") . }}{{ end }}{{ end }}
         <a class="button-link" href="{{ localhref $exportall }}"{{ if $empty }} aria-disabled="true"{{ end }}>{{ if .Query }}{{$.T "mailbox.exportresults"}}{{ else }}{{$.T "mailbox.exportfolder"}}{{ end }}</a>
         {{ end }}
         {{/* Alborz hears about new mail only when a page is loaded, and

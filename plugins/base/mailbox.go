@@ -88,7 +88,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	// A search costs one live IMAP round trip per account, so it is the
 	// view that most wants the cache; only its key is longer.
 	cacheable := ctx.Request().Method == http.MethodGet && ask.page == 0
-	key := listingView("#"+role, spec.query, spec.starred, spec.sortKey, spec.sortDir)
+	key := listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir)
 	bound := alborz.RoundTripTimeout
 	if SearchesText(spec.query) {
 		bound = alborz.ScanTimeout
@@ -189,8 +189,8 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		RowMarks(ctx, TrustedAuthServ(ctx, settings), merged.msgs)
 	}
 	title := ctx.T("aside." + strings.ToLower(role))
-	if spec.starred {
-		title = ctx.T("mailbox.starred")
+	if spec.view != "" {
+		title = viewTitle(ctx, spec.view)
 	}
 
 	data := listPage(ctx, ask, merged, cutPage(merged.msgs, ask))
@@ -199,10 +199,10 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		// The role is the name: the rail marks the row by it and the
 		// refresh form posts to it. The label is what is read.
 		Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: role}, Label: title},
-		Starred:         spec.starred,
+		ListView:        spec.view,
 		SidebarAccounts: sidebarAccounts(ctx),
 	}
-	data.Crumb = []CrumbLink{{Label: title, URL: "/mailbox/" + role}}
+	data.Crumb = viewCrumb(ctx, []CrumbLink{{Label: ctx.T("aside." + strings.ToLower(role)), URL: "/mailbox/" + role}}, role, spec.view)
 	data.Outgoing = role == "Sent" || role == "Drafts"
 	data.PerPageOptions = perPageOptions(settings)
 	return ctx.Render(http.StatusOK, "mailbox.html", data)
@@ -377,7 +377,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	}
 	page, messagesPerPage, spec := ask.page, ask.perPage, ask.spec
 
-	key := listingView(mboxName, spec.query, spec.starred, spec.sortKey, spec.sortDir)
+	key := listingView(mboxName, spec.query, spec.view, spec.sortKey, spec.sortDir)
 	if spec.thread != 0 {
 		key = fmt.Sprintf("%s%sthread=%d", key, listingSep, spec.thread)
 	}
@@ -430,17 +430,22 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		msgs[i].Alias = trust.alias(&msgs[i])
 	}
 
-	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, spec.starred)
+	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, spec.view)
 	ibase.SidebarAccounts = sidebarAccounts(ctx)
-	title := ctx.T("mailbox.starred")
-	if !spec.starred && ibase.Mailbox != nil {
+	title := viewTitle(ctx, spec.view)
+	if spec.view == "" && ibase.Mailbox != nil {
 		title = ibase.Mailbox.Label
+	}
+	// The heading names the view, as the merged page's does; the
+	// label is set afresh on every render, so nothing lingers.
+	if spec.view != "" && ibase.Mailbox != nil {
+		ibase.Mailbox.Label = title
 	}
 	ibase.BaseRenderData.WithTitle(title)
 
 	data := listPage(ctx, ask, e, msgs)
 	data.IMAPBaseRenderData = *ibase
-	data.Crumb = mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username())
+	data.Crumb = viewCrumb(ctx, mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()), mboxName, spec.view)
 	data.Outgoing = outgoingFolder(sb.mailboxes, mboxName)
 	data.ThreadSupported = e.threadAlgorithm != ""
 	data.Threaded = spec.sortKey == threadSort && e.threadAlgorithm != ""
@@ -466,11 +471,15 @@ func readListAsk(ctx *alborz.Context, settings *Settings, also string) (listAsk,
 			return ask, echo.NewHTTPError(http.StatusBadRequest, "invalid page index")
 		}
 	}
+	view, err := readView(ctx)
+	if err != nil {
+		return ask, err
+	}
 	sortKey, sortDir, err := readSort(ctx, also)
 	if err != nil {
 		return ask, err
 	}
-	ask.spec = listingSpec{query: ctx.QueryParam("query"), starred: ctx.QueryParam("starred") == "1", sortKey: sortKey, sortDir: sortDir}
+	ask.spec = listingSpec{query: ctx.QueryParam("query"), view: view, sortKey: sortKey, sortDir: sortDir}
 	return ask, nil
 }
 
@@ -487,6 +496,37 @@ func readSort(ctx *alborz.Context, also string) (sortKey, sortDir string, err er
 		return "", "", echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
 	}
 	return sortKey, sortDir, nil
+}
+
+// readView is the view the URL asks for, refused when it names none
+// alborz has: a view is a link in the rail, never typed.
+func readView(ctx *alborz.Context) (string, error) {
+	view := ctx.QueryParam("view")
+	if !KnownView(view) {
+		return "", echo.NewHTTPError(http.StatusBadRequest, "unknown view")
+	}
+	return view, nil
+}
+
+// viewCrumb puts the view after the folder: a reader in Starred is one
+// step past the inbox, and the crumb leads back to the view, not past
+// it to the folder.
+func viewCrumb(ctx *alborz.Context, crumb []CrumbLink, folder, view string) []CrumbLink {
+	if view == "" {
+		return crumb
+	}
+	return append(crumb, CrumbLink{Label: viewTitle(ctx, view), URL: "/mailbox/" + url.PathEscape(folder) + "?view=" + url.QueryEscape(view)})
+}
+
+// viewTitle names a view the way the rail does.
+func viewTitle(ctx *alborz.Context, view string) string {
+	switch view {
+	case ViewStarred:
+		return ctx.T("mailbox.starred")
+	case ViewUnread:
+		return ctx.T("mailbox.unread")
+	}
+	return fmt.Sprintf(ctx.T("mailbox.starcolor"), ctx.T("color."+view))
 }
 
 // fetchListing reads one view of a folder, the sidebar's counts riding
@@ -531,16 +571,15 @@ func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *
 		if spec.query != "" {
 			e.headersOnly = !SearchesIndex(c, settings)
 			criteria = PrepareSearch(spec.query, !e.headersOnly)
-		} else if spec.starred {
-			criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
+		} else if spec.view != "" {
+			criteria = ViewCriteria(spec.view)
 		}
 		e.msgs, e.total, err = threadMessages(c, folder, e.threadAlgorithm, criteria, page, perPage)
 	case spec.query != "":
 		e.headersOnly = !SearchesIndex(c, settings)
 		e.msgs, e.total, err = searchMessages(c, folder, PrepareSearch(spec.query, !e.headersOnly), page, perPage, sortKey, reverse)
-	case spec.starred:
-		criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-		e.msgs, e.total, err = searchMessages(c, folder, criteria, page, perPage, sortKey, reverse)
+	case spec.view != "":
+		e.msgs, e.total, err = searchMessages(c, folder, ViewCriteria(spec.view), page, perPage, sortKey, reverse)
 	case spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != "") && e.sortSupported:
 		e.msgs, e.total, err = searchMessages(c, folder, &imap.SearchCriteria{}, page, perPage, sortKey, reverse)
 	default:
@@ -582,7 +621,7 @@ func newMailboxLocationGroups(ctx *alborz.Context) []NewMailboxLocationGroup {
 			ctx.Logger().Printf("folder locations for %q: %v", session.Username(), err)
 			continue
 		}
-		ib := assembleIMAPBase(ctx, &alborz.BaseRenderData{}, "", sb.clone(), false)
+		ib := assembleIMAPBase(ctx, &alborz.BaseRenderData{}, "", sb.clone(), "")
 		delimiter := rune('/')
 		for _, mailbox := range ib.Mailboxes {
 			if mailbox.Delim != 0 {

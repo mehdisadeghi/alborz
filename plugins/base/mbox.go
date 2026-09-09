@@ -43,6 +43,10 @@ func handleExportMbox(ctx *alborz.Context) error {
 	var uids []imap.UID
 	if ctx.FormValue("all") != "" {
 		query := ctx.QueryParam("query")
+		view, err := readView(ctx)
+		if err != nil {
+			return err
+		}
 		settings, err := LoadSettings(ctx.Session.Store())
 		if err != nil {
 			return err
@@ -54,6 +58,8 @@ func handleExportMbox(ctx *alborz.Context) error {
 			criteria := &imap.SearchCriteria{}
 			if query != "" {
 				criteria = PrepareSearch(query, SearchesIndex(c, settings))
+			} else if view != "" {
+				criteria = ViewCriteria(view)
 			}
 			data, err := c.UIDSearch(criteria, nil).Wait()
 			if err != nil {
@@ -312,8 +318,11 @@ func downloadName(name, fallback, ext string) string {
 type ExportRenderData struct {
 	IMAPBaseRenderData
 	Query string
-	Count int
-	Size  int64 // zero when the server does not say (STATUS=SIZE)
+	// ViewName is the rail view being exported, named as the rail names
+	// it; empty for a whole folder or a search.
+	ViewName string
+	Count    int
+	Size     int64 // zero when the server does not say (STATUS=SIZE)
 }
 
 // handleExportPage asks before a folder leaves: a whole folder is not
@@ -330,16 +339,25 @@ func handleExportPage(ctx *alborz.Context) error {
 	}
 	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), mboxName))
 	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Query: ctx.QueryParam("query")}
+	if ibase.ListView != "" {
+		data.ViewName = viewTitle(ctx, ibase.ListView)
+	}
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return err
 	}
 	err = ctx.DoIMAPWithin(alborz.ScanTimeout, func(c *imapclient.Client) error {
+		// A search or a view is counted the way it is listed; the whole
+		// folder is a STATUS away.
+		criteria := ViewCriteria(ibase.ListView)
 		if data.Query != "" {
+			criteria = PrepareSearch(data.Query, SearchesIndex(c, settings))
+		}
+		if criteria != nil {
 			if err := ensureMailboxSelected(c, mboxName); err != nil {
 				return err
 			}
-			found, err := c.UIDSearch(PrepareSearch(data.Query, SearchesIndex(c, settings)), nil).Wait()
+			found, err := c.UIDSearch(criteria, nil).Wait()
 			if err != nil {
 				return err
 			}

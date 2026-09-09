@@ -18,7 +18,7 @@ import (
 
 // The account's domain has no CardDAV server, or it holds no book;
 // the HTTP layer answers 404 rather than crashing on direct URLs.
-var errNoAddressBook = alborz.NotFoundf("carddav: no address book found")
+var errNoAddressBook = alborz.NotFound("notfound.addressbook")
 
 type AddressBookInfo struct {
 	dav.Collection

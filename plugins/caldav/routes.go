@@ -59,7 +59,7 @@ func (p *plugin) collectionPage() dav.Page {
 				}
 				i := subscriptionAt(settings.Subscriptions, path)
 				if i < 0 {
-					return dav.Collection{}, nil, "", "", alborz.NotFoundf("no such collection")
+					return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
 				}
 				sub := settings.Subscriptions[i]
 				return sub.info(ctx.Session.Username()).Collection,
@@ -71,7 +71,7 @@ func (p *plugin) collectionPage() dav.Page {
 			}
 			info := calendarByPath(calendars, path)
 			if info == nil {
-				return dav.Collection{}, nil, "", "", alborz.NotFoundf("no such collection")
+				return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
 			}
 			list := collectionList(*info)
 			label := ctx.T("nav.calendar")
@@ -107,7 +107,7 @@ func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
 	}
 	i := subscriptionAt(settings.Subscriptions, path)
 	if i < 0 {
-		return alborz.NotFoundf("no such collection")
+		return alborz.NotFound("notfound.collection")
 	}
 	name := strings.TrimSpace(ctx.FormValue("name"))
 	if name == "" {
@@ -129,7 +129,7 @@ func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
 	}
 	i := subscriptionAt(settings.Subscriptions, path)
 	if i < 0 {
-		return alborz.NotFoundf("no such collection")
+		return alborz.NotFound("notfound.collection")
 	}
 	name := settings.Subscriptions[i].Name
 	settings.Subscriptions = append(settings.Subscriptions[:i], settings.Subscriptions[i+1:]...)
@@ -1129,7 +1129,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		return fmt.Errorf("failed to multi-get calendar: %v", err)
 	}
 	if len(events) == 0 {
-		return alborz.NotFoundf("no such event")
+		return alborz.NotFound("notfound.event")
 	}
 	if len(events) != 1 {
 		return fmt.Errorf("expected exactly one calendar object with path %q, got %v", path, len(events))
@@ -1137,7 +1137,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	event := &events[0]
 	vevents := event.Data.Events()
 	if len(vevents) == 0 {
-		return alborz.NotFoundf("no such event")
+		return alborz.NotFound("notfound.event")
 	}
 	summary, _ := vevents[0].Props.Text("SUMMARY")
 
@@ -1197,11 +1197,11 @@ func feedObject(ctx *alborz.Context, address, uid string) (*CalendarInfo, *ical.
 		}
 	}
 	if info == nil {
-		return nil, nil, alborz.NotFoundf("no subscription at %q", address)
+		return nil, nil, alborz.NotFound("notfound.subscription", address)
 	}
 	feed, ok := subs.events(address, info.Color)
 	if !ok {
-		return nil, nil, alborz.NotFoundf("feed %q not fetched yet", address)
+		return nil, nil, alborz.NotFound("notfound.feed", address)
 	}
 	cal := ical.NewCalendar()
 	cal.Props = feed.Data.Props
@@ -1212,7 +1212,7 @@ func feedObject(ctx *alborz.Context, address, uid string) (*CalendarInfo, *ical.
 		}
 	}
 	if len(cal.Events()) == 0 {
-		return nil, nil, alborz.NotFoundf("no such event")
+		return nil, nil, alborz.NotFound("notfound.event")
 	}
 	return info, cal, nil
 }
@@ -1734,7 +1734,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		return fmt.Errorf("failed to get task: %v", err)
 	}
 	if len(tasks) == 0 {
-		return alborz.NotFoundf("no such task")
+		return alborz.NotFound("notfound.task")
 	}
 	if len(tasks) != 1 {
 		return fmt.Errorf("expected exactly one task with path %q, got %v", path, len(tasks))

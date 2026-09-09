@@ -19,7 +19,7 @@ import (
 
 // The account's domain has no CalDAV server, or it holds no calendar;
 // the HTTP layer answers 404 rather than crashing on direct URLs.
-var errNoCalendar = alborz.NotFoundf("caldav: no calendar found")
+var errNoCalendar = alborz.NotFound("notfound.calendar")
 
 type CalendarInfo struct {
 	dav.Collection

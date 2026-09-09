@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -62,9 +63,10 @@ func (ctx *Context) accountSessions() []*Session {
 		sessions = append(sessions, s)
 	}
 	if ctx.Session != nil && !activeListed {
-		sessions = append([]*Session{ctx.Session}, sessions...)
+		sessions = append(sessions, ctx.Session)
 		changed = true
 	}
+	byName(sessions)
 	if changed {
 		ctx.setAccountSessions(sessions)
 	} else {
@@ -83,6 +85,15 @@ func (ctx *Context) setAccountSessions(sessions []*Session) {
 		entries[i] = s.token + ":" + s.username
 	}
 	ctx.SetCookie(ctx.cookie(accountsCookieName, strings.Join(entries, "|"), 0))
+}
+
+// byName puts accounts in one order wherever they are listed, the
+// rail and every picker alike. Sign-in order is a history, not an
+// order: an account signed in again moved to the end.
+func byName(sessions []*Session) {
+	slices.SortStableFunc(sessions, func(a, b *Session) int {
+		return strings.Compare(strings.ToLower(a.username), strings.ToLower(b.username))
+	})
 }
 
 // Accounts lists the signed-in accounts in rail order.
@@ -116,6 +127,7 @@ func (ctx *Context) AddAccount(s *Session) {
 	if !replaced {
 		sessions = append(sessions, s)
 	}
+	byName(sessions)
 	ctx.Session = s
 	ctx.DefaultSession = s
 	ctx.SetSession(s)

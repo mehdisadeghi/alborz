@@ -1612,7 +1612,7 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
 	} else if len(msgs) == 0 {
-		return nil, nil, alborz.NotFoundf("message %v does not exist in this folder", uid)
+		return nil, nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
 	}
 	return messagePart(msgs[0], mboxName, uid, partPath)
 }
@@ -1664,7 +1664,7 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 		// The server answers a part path the message doesn't have
 		// with a fetch result missing the asked-for sections.
 		if len(partPath) > 0 {
-			return nil, nil, alborz.NotFoundf("message %v has no part %v", uid, partPath)
+			return nil, nil, alborz.NotFound("notfound.part", fmt.Sprint(uid))
 		}
 		return nil, nil, fmt.Errorf("server didn't return header and body")
 	}
@@ -1715,7 +1715,7 @@ func fetchRawMessage(conn *imapclient.Client, mboxName string, uid imap.UID) ([]
 		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
 	}
 	if len(msgs) == 0 {
-		return nil, nil, alborz.NotFoundf("message %v does not exist in this folder", uid)
+		return nil, nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
 	}
 	buf := msgs[0].FindBodySection(section)
 	if buf == nil {

@@ -358,7 +358,7 @@ func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []stri
 	}
 	if sel != nil {
 		if _, err := sel.Wait(); err != nil {
-			return nil, alborz.NotFoundf("folder %q does not exist", selectMbox)
+			return nil, alborz.NotFound("notfound.folder", selectMbox)
 		}
 	}
 
@@ -391,7 +391,7 @@ func (l *sidebarLoad) finish() (sidebar, error) {
 			// A subscription naming a folder that no longer exists must
 			// not take the page down; only the page's own mailbox does.
 			if l.names[i] == l.mboxName {
-				return l.sb, alborz.NotFoundf("folder %q does not exist", l.mboxName)
+				return l.sb, alborz.NotFound("notfound.folder", l.mboxName)
 			}
 			continue
 		}

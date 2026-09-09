@@ -343,7 +343,7 @@ func handleSignatureForm(ctx *alborz.Context) error {
 	if name := ctx.Param("name"); name != "" {
 		found, ok := settings.signatureNamed(name)
 		if !ok {
-			return alborz.NotFoundf("no signature named %q", name)
+			return alborz.NotFound("notfound.signature", name)
 		}
 		data.Editing, data.Was = found, found.Name
 	}

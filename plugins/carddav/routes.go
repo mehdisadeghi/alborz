@@ -379,7 +379,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		return fmt.Errorf("failed to query CardDAV address: %v", err)
 	}
 	if len(aos) == 0 {
-		return alborz.NotFoundf("no such contact")
+		return alborz.NotFound("notfound.contact")
 	}
 	if len(aos) != 1 {
 		return fmt.Errorf("expected exactly one address object with path %q, got %v", path, len(aos))
@@ -674,7 +674,7 @@ func (p *plugin) collectionPage() dav.Page {
 			}
 			info := dav.At(books, path)
 			if info == nil {
-				return dav.Collection{}, nil, "", "", alborz.NotFoundf("no such collection")
+				return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
 			}
 			return *info, p.dav.CountObjects(ctx, info.Path), "/contacts", ctx.T("nav.contacts"), nil
 		},

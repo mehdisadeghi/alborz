@@ -270,7 +270,7 @@ func handleRuleForm(ctx *alborz.Context) error {
 	if at := ctx.Param("index"); at != "" {
 		i, err := strconv.Atoi(at)
 		if err != nil || i < 0 || i >= len(data.Rules) {
-			return alborz.NotFoundf("no rule at %s", at)
+			return alborz.NotFound("notfound.rule")
 		}
 		data.Editing, data.Index = data.Rules[i], i
 	} else {

@@ -69,9 +69,17 @@ func (s *smtpSession) Auth(mech string) (sasl.Server, error) {
 }
 
 func (s *smtpSession) Mail(string, *smtp.MailOptions) error { return nil }
-func (s *smtpSession) Rcpt(string, *smtp.RcptOptions) error { return nil }
-func (s *smtpSession) Reset()                               {}
-func (s *smtpSession) Logout() error                        { return nil }
+
+// A recipient at refused@ is turned away the way a real submission
+// server turns away an unknown user; every other one is taken.
+func (s *smtpSession) Rcpt(to string, _ *smtp.RcptOptions) error {
+	if strings.HasPrefix(to, "refused@") {
+		return &smtp.SMTPError{Code: 550, EnhancedCode: smtp.EnhancedCode{5, 1, 1}, Message: "Recipient address rejected: User unknown"}
+	}
+	return nil
+}
+func (s *smtpSession) Reset()        {}
+func (s *smtpSession) Logout() error { return nil }
 
 func (s *smtpSession) Data(r io.Reader) error {
 	b, err := io.ReadAll(r)
@@ -1048,25 +1056,35 @@ func TestNextStaysOnTheSite(t *testing.T) {
 // plus any fields given as name, value pairs.
 func sendFrom(t *testing.T, c *http.Client, base, path, page string, fields ...string) {
 	t.Helper()
+	resp := postCompose(t, c, base, path, page, fields...)
+	resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		t.Fatalf("POST %s: %s", path, resp.Status)
+	}
+}
+
+// postCompose submits the page's form as the browser would, the later
+// fields overriding the message it writes by default.
+func postCompose(t *testing.T, c *http.Client, base, path, page string, fields ...string) *http.Response {
+	t.Helper()
 	mid := strings.NewReplacer("&lt;", "<", "&gt;", ">").Replace(
 		between(page, `name="message_id" value="`, `"`))
 	if mid == "" {
 		t.Fatalf("%s carries no message id", path)
 	}
-	var body bytes.Buffer
-	w := multipart.NewWriter(&body)
-	for _, f := range [][2]string{
-		{"message_id", mid},
-		{"in_reply_to", between(page, `name="in_reply_to" value="`, `"`)},
-		{"from", smokeUser}, {"to", "friend@example.org"},
-		{"subject", "direction"}, {"text", "سلام\n\nEnglish."},
-	} {
-		if err := w.WriteField(f[0], f[1]); err != nil {
-			t.Fatal(err)
-		}
+	form := map[string]string{
+		"message_id":  mid,
+		"in_reply_to": between(page, `name="in_reply_to" value="`, `"`),
+		"from":        smokeUser, "to": "friend@example.org",
+		"subject": "direction", "text": "سلام\n\nEnglish.",
 	}
 	for i := 0; i+1 < len(fields); i += 2 {
-		if err := w.WriteField(fields[i], fields[i+1]); err != nil {
+		form[fields[i]] = fields[i+1]
+	}
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	for name, value := range form {
+		if err := w.WriteField(name, value); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1075,9 +1093,33 @@ func sendFrom(t *testing.T, c *http.Client, base, path, page string, fields ...s
 	if err != nil {
 		t.Fatal(err)
 	}
+	return resp
+}
+
+// A submission server that turns a recipient away has answered, and
+// the answer belongs on the form with the message still in it. It once
+// became an error page, the typed text gone with it.
+func TestRefusedRecipientComesBackOnTheForm(t *testing.T) {
+	smtpAddr, sent := startSMTP(t)
+	base := startAlborz(t, startIMAP(t), smtpAddr)
+	c := login(t, base)
+
+	resp := postCompose(t, c, base, "/compose", get(t, c, base+"/compose"),
+		"to", "refused@example.org", "subject", "kept")
+	page, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		t.Fatalf("POST %s: %s", path, resp.Status)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("a refused recipient answered %s, want 422", resp.Status)
+	}
+	form := string(page)
+	if !strings.Contains(form, `role="alert"`) || !strings.Contains(form, "User unknown") {
+		t.Errorf("the server's refusal is not on the form:\n%s", form)
+	}
+	if !strings.Contains(form, `value="kept"`) {
+		t.Errorf("the typed subject did not survive the refusal")
+	}
+	if sent.Last() != "" {
+		t.Errorf("a refused message reached the wire:\n%s", headOf(sent.Last()))
 	}
 }
 

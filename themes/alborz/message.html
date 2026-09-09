@@ -103,9 +103,9 @@
                "current" .Message.FlagColor
                "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
 
-            <details class="overflow">
-              <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
-              <div class="overflow-menu">
+            <div class="overflow">
+              <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
+              <div class="overflow-menu" popover id="menu-more">
                 {{/* The bytes the server holds, which is what makes the
                      message filable and checkable elsewhere. */}}
                 <a class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
@@ -187,7 +187,7 @@
                   style="display: none"
                 >{{$.T "message.print"}}</a>
               </div>
-            </details>
+            </div>
 
           </div>
 

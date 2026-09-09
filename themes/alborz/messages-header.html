@@ -78,9 +78,9 @@
        "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $) "disabled" $empty) }}
 
     {{ if not .GlobalData.Unified }}
-    <details class="overflow">
-      <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
-      <div class="overflow-menu">
+    <div class="overflow">
+      <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
+      <div class="overflow-menu" popover id="menu-more">
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/forward{{$aq}}">{{$.T "message.forward"}}</button>
         {{/* One file holding the selection, which is what a person means
              by "give me these messages". Rare, so it is spelled out here
@@ -119,14 +119,14 @@
         <a class="button-link button-danger" href="/delete-mailbox/{{.Mailbox.Name | pathescape}}{{$aq}}">{{$.T "mailbox.deletefolder"}}</a>
         {{ end }}
       </div>
-    </details>
+    </div>
     {{ end }}
 
     {{ if .GlobalData.Unified }}
     {{ $path := $.GlobalData.URL.Path }}
-    <details class="overflow">
-      <summary class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}">{{ template "icon" "more" }}</summary>
-      <div class="overflow-menu">
+    <div class="overflow">
+      <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
+      <div class="overflow-menu" popover id="menu-more">
         <button form="messages-form" formaction="{{$act}}?action=export" data-download>{{$.T "mailbox.export"}}</button>
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
         <button form="messages-form" formaction="{{$act}}?action=read">{{$.T "mailbox.markread"}}</button>
@@ -138,7 +138,7 @@
         </form>
         {{ end }}
       </div>
-    </details>
+    </div>
     {{ end }}
 
 {{ template "toolbar-end" }}

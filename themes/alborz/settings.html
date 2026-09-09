@@ -60,6 +60,17 @@
           {{ end }}
         </div>
 
+        {{/* A full-text index the server keeps but does not announce.
+             Dovecot says SEARCH=FUZZY only for Solr; xapian and
+             flatcurve index just as well and say nothing. */}}
+        <div class="action-group">
+          <label for="indexed_search" class="checkbox">
+            <input type="checkbox" name="indexed_search" id="indexed_search" value="1"{{if .Settings.IndexedSearch}} checked{{end}}>
+            {{$.T "settings.indexedsearch"}}
+          </label>
+          <p class="hint">{{$.T "settings.indexedsearchhint"}}</p>
+        </div>
+
         <div class="action-group">
           <label for="subscriptions">{{$.T "settings.subs"}}</label>
           <select name="subscriptions" id="subscriptions" multiple>

@@ -60,6 +60,14 @@ type Settings struct {
 	// in. Naming one here pins it.
 	TrustedAuthServ string
 
+	// IndexedSearch states that the server keeps a full-text index it
+	// does not announce. Dovecot advertises SEARCH=FUZZY only for a
+	// backend that flags fuzzy matching, which Solr does and xapian
+	// and flatcurve do not, so an indexed server usually looks like an
+	// unindexed one. An advertised capability counts on its own; this
+	// is the reader vouching where the server is silent.
+	IndexedSearch bool
+
 	// ReplyBelowQuote puts the reply after the quoted message, the way a
 	// mailing list expects it, instead of before. Stored positively:
 	// the zero value keeps the reply on top, which is what a mail client
@@ -177,24 +185,28 @@ type Ability struct {
 	Label string // translation key
 	Hint  string // translation key
 	Have  bool
+	// Stated marks an ability the reader claimed in settings rather
+	// than one the server announced, so the page says which it was.
+	Stated bool
 }
 
 // abilities reports the capabilities that decide how alborz behaves.
 // The raw CAPABILITY line is not shown: a reader wants to know whether
 // sorting happens on the server, not that SORT=DISPLAY exists.
-func abilities(c *imapclient.Client) []Ability {
+func abilities(c *imapclient.Client, settings *Settings) []Ability {
 	caps := c.Caps()
+	indexed := caps.Has(imap.CapSearchFuzzy)
 	return []Ability{
-		{"settings.abilitysort", "settings.abilitysorthint", caps.Has(imap.CapSort)},
-		{"settings.abilitythread", "settings.abilitythreadhint", caps.Has(imap.Cap("THREAD=REFERENCES"))},
-		{"settings.abilitysettings", "settings.abilitysettingshint", caps.Has(imap.CapMetadata)},
-		{"settings.abilityquota", "settings.abilityquotahint", caps.Has(imap.CapQuota)},
-		{"settings.abilitypush", "settings.abilitypushhint", caps.Has(imap.CapIdle)},
-		{"settings.abilitycounts", "settings.abilitycountshint", caps.Has(imap.CapListStatus)},
-		{"settings.abilityindex", "settings.abilityindexhint", caps.Has(imap.CapSearchFuzzy)},
-		{"settings.abilityuidplus", "settings.abilityuidplushint", caps.Has(imap.CapUIDPlus)},
-		{"settings.abilitysize", "settings.abilitysizehint", caps.Has(imap.CapStatusSize)},
-		{"settings.abilityid", "settings.abilityidhint", caps.Has(imap.CapID)},
+		{"settings.abilitysort", "settings.abilitysorthint", caps.Has(imap.CapSort), false},
+		{"settings.abilitythread", "settings.abilitythreadhint", caps.Has(imap.Cap("THREAD=REFERENCES")), false},
+		{"settings.abilitysettings", "settings.abilitysettingshint", caps.Has(imap.CapMetadata), false},
+		{"settings.abilityquota", "settings.abilityquotahint", caps.Has(imap.CapQuota), false},
+		{"settings.abilitypush", "settings.abilitypushhint", caps.Has(imap.CapIdle), false},
+		{"settings.abilitycounts", "settings.abilitycountshint", caps.Has(imap.CapListStatus), false},
+		{"settings.abilityindex", "settings.abilityindexhint", indexed || settings.IndexedSearch, !indexed && settings.IndexedSearch},
+		{"settings.abilityuidplus", "settings.abilityuidplushint", caps.Has(imap.CapUIDPlus), false},
+		{"settings.abilitysize", "settings.abilitysizehint", caps.Has(imap.CapStatusSize), false},
+		{"settings.abilityid", "settings.abilityidhint", caps.Has(imap.CapID), false},
 	}
 }
 
@@ -483,6 +495,7 @@ func handleSettings(ctx *alborz.Context) error {
 		}
 		settings.From = ctx.FormValue("from")
 		settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
+		settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
 		settings.Timezone = ctx.FormValue("timezone")
 		// An empty field leaves the kept password alone; the box is
@@ -546,11 +559,15 @@ func handleSettings(ctx *alborz.Context) error {
 }
 
 func handleServers(ctx *alborz.Context) error {
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
+	}
 	var agent string
 	var abilityList []Ability
-	err := ctx.DoIMAP(func(c *imapclient.Client) error {
+	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		agent = serverAgent(c)
-		abilityList = abilities(c)
+		abilityList = abilities(c, settings)
 		return nil
 	})
 	if err != nil {

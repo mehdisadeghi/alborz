@@ -296,7 +296,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 					return err
 				}
 				if query != "" {
-					criteria = PrepareSearch(query, SearchesIndex(c))
+					criteria = PrepareSearch(query, SearchesIndex(c, settings))
 				}
 				if newerUID, olderUID, position, totalMsgs, err = messageNeighbors(c, msg.SeqNum, criteria); err != nil {
 					return err

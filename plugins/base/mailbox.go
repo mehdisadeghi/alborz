@@ -529,14 +529,14 @@ func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *
 		// number of threads rather than a number of messages.
 		criteria := &imap.SearchCriteria{}
 		if spec.query != "" {
-			e.headersOnly = !SearchesIndex(c)
+			e.headersOnly = !SearchesIndex(c, settings)
 			criteria = PrepareSearch(spec.query, !e.headersOnly)
 		} else if spec.starred {
 			criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 		}
 		e.msgs, e.total, err = threadMessages(c, folder, e.threadAlgorithm, criteria, page, perPage)
 	case spec.query != "":
-		e.headersOnly = !SearchesIndex(c)
+		e.headersOnly = !SearchesIndex(c, settings)
 		e.msgs, e.total, err = searchMessages(c, folder, PrepareSearch(spec.query, !e.headersOnly), page, perPage, sortKey, reverse)
 	case spec.starred:
 		criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}

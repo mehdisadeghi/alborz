@@ -193,7 +193,9 @@ func PrepareSearch(terms string, indexed bool) *imap.SearchCriteria {
 
 // SearchesIndex says whether bare terms reach the whole message on this
 // connection, and SearchesText whether the query asks for it anyway.
-func SearchesIndex(c *imapclient.Client) bool { return c.Caps().Has(imap.CapSearchFuzzy) }
+func SearchesIndex(c *imapclient.Client, settings *Settings) bool {
+	return c.Caps().Has(imap.CapSearchFuzzy) || settings.IndexedSearch
+}
 
 func SearchesText(terms string) bool {
 	return slices.ContainsFunc(searchTokens(terms), func(t string) bool {

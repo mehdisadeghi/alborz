@@ -203,16 +203,21 @@ func (s *Server) Domains() []string {
 // ErrNotFound marks errors the HTTP layer answers with 404.
 var ErrNotFound = errors.New("not found")
 
-// notFoundError carries the sentence the info page shows.
-type notFoundError struct{ msg string }
+// notFoundError names what is missing by a locale key, so the page
+// says it in the reader's language; the log gets the key and its
+// arguments.
+type notFoundError struct {
+	key  string
+	args []interface{}
+}
 
-func (e *notFoundError) Error() string { return e.msg }
+func (e *notFoundError) Error() string { return fmt.Sprintf("%s %v", e.key, e.args) }
 func (e *notFoundError) Unwrap() error { return ErrNotFound }
 
-// NotFoundf builds a not-found error whose text names the missing
-// subject, for the info page the HTTP layer renders.
-func NotFoundf(format string, args ...interface{}) error {
-	return &notFoundError{fmt.Sprintf(format, args...)}
+// NotFound builds a not-found error naming the missing subject by its
+// locale key, for the info page the HTTP layer renders.
+func NotFound(key string, args ...interface{}) error {
+	return &notFoundError{key, args}
 }
 
 // UnknownDomainError is returned when a login address does not belong to a
@@ -665,13 +670,16 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		// Not-found answers name what is missing instead of showing
 		// the generic error page.
 		if code == http.StatusNotFound {
-			message := err.Error()
-			if he != nil {
-				if m, ok := he.Message.(string); ok {
-					message = m
-				}
-			}
 			if actx, ok := ctx.Get("context").(*Context); ok {
+				message := err.Error()
+				var missing *notFoundError
+				if errors.As(err, &missing) {
+					message = actx.Tf(missing.key, missing.args...)
+				} else if he != nil {
+					if m, ok := he.Message.(string); ok {
+						message = m
+					}
+				}
 				if err := RenderInfo(actx, code, message); err == nil {
 					return
 				}

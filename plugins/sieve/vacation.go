@@ -262,7 +262,7 @@ func handleReplyForm(ctx *alborz.Context) error {
 	if at := ctx.Param("index"); at != "" {
 		i, err := strconv.Atoi(at)
 		if err != nil || i < 0 || i >= len(data.Replies) {
-			return alborz.NotFoundf("no reply at %s", at)
+			return alborz.NotFound("notfound.reply")
 		}
 		data.Editing, data.Index = data.Replies[i], i
 	}
@@ -383,7 +383,7 @@ func handleReplyDelete(ctx *alborz.Context) error {
 		return err
 	}
 	if index < 0 || index >= len(replies.Items) {
-		return alborz.NotFoundf("no reply at %d", index)
+		return alborz.NotFound("notfound.reply")
 	}
 	gone := replies.Items[index]
 	replies.Items = append(replies.Items[:index], replies.Items[index+1:]...)
@@ -417,7 +417,7 @@ func handleReplyActivate(ctx *alborz.Context) error {
 	if at := ctx.FormValue("index"); at != "" {
 		index, err := strconv.Atoi(at)
 		if err != nil || index < 0 || index >= len(replies.Items) {
-			return alborz.NotFoundf("no reply at %s", at)
+			return alborz.NotFound("notfound.reply")
 		}
 		next, saved = replies.Items[index].script(), ctx.T("notice.autoreplyon")
 	}

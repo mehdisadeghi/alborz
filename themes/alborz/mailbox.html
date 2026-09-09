@@ -33,8 +33,8 @@
           {{ $hflip := "desc" }}{{ if eq .SortDir "desc" }}{{ $hflip = "asc" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hreset := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-          {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hbase = "?starred=1" }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | addr) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | addr) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
-          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ if $.Starred }}{{ $hparams = printf "%s&starred=1" $hparams }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
+          {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | urlquery) }}{{ end }}{{ with $.ListView }}{{ $hbase = printf "?view=%s" . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | addr) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | addr) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
+          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.ListView }}{{ $hparams = printf "%s&view=%s" $hparams . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
           {{ $harrow := "↑" }}{{ if eq .SortDir "desc" }}{{ $harrow = "↓" }}{{ end }}
           <div class="list-row" role="row">
           <div class="list-header list-checkbox" role="columnheader"></div>
@@ -138,13 +138,13 @@
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
             {{if $.GlobalData.Unified}}
-            <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{.URL}}{{account "?" .Account}}">
+            <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{.URL}}{{account "?" .Account}}{{if $.ListView}}&view={{$.ListView}}{{else if $.Query}}&query={{$.Query | urlquery}}{{end}}">
             {{else}}
             {{/* Built in one piece: the escaper cannot follow a URL whose
                  query grows across branches. */}}
             {{$link := ""}}{{$sep := "?"}}
             {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%v" ($open.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
-            {{if $.Starred}}{{$link = printf "%s%sstarred=1" $link $sep}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | urlquery)}}{{$sep = "&"}}{{end}}
+            {{if $.ListView}}{{$link = printf "%s%sview=%s" $link $sep $.ListView}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | urlquery)}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | addr)}}{{end}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $link}}">
             {{end}}
@@ -190,7 +190,7 @@
 
           {{ end }}
           {{if not .Messages}}
-          <p class="empty-list">{{if .Query}}{{printf (.T "common.noresults") .Query}}{{else if .Starred}}{{$.T "mailbox.nostarred"}}{{else}}{{$.T "common.empty"}}{{end}}</p>
+          <p class="empty-list">{{if .Query}}{{printf (.T "common.noresults") .Query}}{{else if eq .ListView "starred"}}{{$.T "mailbox.nostarred"}}{{else if eq .ListView "unread"}}{{$.T "mailbox.nounread"}}{{else if .ListView}}{{printf ($.T "mailbox.nocolor") ($.T (printf "color.%s" .ListView))}}{{else}}{{$.T "common.empty"}}{{end}}</p>
           {{end}}
         </div>
       </section>

@@ -227,7 +227,12 @@ select {
     --bg-green: #17211a;
     --border-green: #2c4a33;
     --flag: #d9b62a;
+    --flag-orange: #f0883e;
+    --flag-yellow: #d4b400;
+    --flag-green: #4cbb6c;
+    --flag-blue: #6aa6ff;
     --flag-purple: #a86ee0;
+    --flag-grey: #9a9aa0;
 
     --notice-fg: #9ed6e0;
     --notice-bg: #12343b;
@@ -275,7 +280,12 @@ select {
   --bg-green: #17211a;
   --border-green: #2c4a33;
   --flag: #d9b62a;
+  --flag-orange: #f0883e;
+  --flag-yellow: #d4b400;
+  --flag-green: #4cbb6c;
+  --flag-blue: #6aa6ff;
   --flag-purple: #a86ee0;
+  --flag-grey: #9a9aa0;
 
   --notice-fg: #9ed6e0;
   --notice-bg: #12343b;
@@ -2858,12 +2868,14 @@ main.calendar .actions {
 
 /* Nested folders indent their content, not their rows: every row spans
    the sidebar, so the active highlight runs edge to edge. */
-aside li.folder-li { padding: 0; display: block; }
+aside li.folder-li { padding: 0; display: block; border-inline-start: 0; }
 aside details.folder-branch summary {
   list-style: none;
   cursor: pointer;
   display: flex;
-  padding: 0.4rem 0.5rem;
+  min-height: 2rem;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
   border-inline-start: 2px solid transparent;
 }
 aside details.folder-branch summary a { flex-grow: 1; }

@@ -207,7 +207,7 @@ func warmInbox(s *alborz.Session) error {
 	}
 	listings.store(user, "INBOX", own)
 	if merged.snap != nil {
-		listings.store(user, listingView("#INBOX", "", false, "", ""), merged)
+		listings.store(user, listingView("#INBOX", "", "", "", ""), merged)
 	}
 	if _, err := sidebarFor(s); err != nil {
 		return err

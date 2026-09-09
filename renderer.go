@@ -459,6 +459,12 @@ func (g GlobalRenderData) year(n int) string {
 	return g.printer().Sprint(number.Decimal(n, number.NoSeparator()))
 }
 
+// T translates a key in the page's language, for the defines that are
+// handed the global data rather than the page.
+func (g GlobalRenderData) T(key string) string {
+	return translate(g.Lang, key)
+}
+
 // Tf translates a format string and fills it in the page's language, so
 // the numbers inside a sentence are written like the sentence.
 func (g GlobalRenderData) Tf(key string, args ...interface{}) string {

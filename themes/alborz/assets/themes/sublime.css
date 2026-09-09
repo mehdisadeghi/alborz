@@ -30,7 +30,12 @@
   --bg-green: #2c2d24;
   --border-green: #49483e;
   --flag: #e6db74;
+  --flag-orange: #fd971f;
+  --flag-yellow: #e6db74;
+  --flag-green: #a6e22e;
+  --flag-blue: #66d9ef;
   --flag-purple: #ae81ff;
+  --flag-grey: #a8a89e;
 
   --notice-fg: #66d9ef;
   --notice-bg: #23282b;

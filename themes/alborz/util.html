@@ -223,8 +223,9 @@
 {{/* One account's folder list: (Categorized, "?account=x" or "",
      highlight-allowed, starred, active-name, global). */}}
 {{ define "mbox-list" }}
-{{ $cc := index . 0 }}{{ $q := index . 1 }}{{ $on := index . 2 }}{{ $starred := index . 3 }}{{ $active := index . 4 }}{{ $g := index . 5 }}
-{{ with $cc.InboxTree }}{{ template "mbox-node" (tuple . $q (and $on (not $starred)) $active $g) }}{{ end }}
+{{ $cc := index . 0 }}{{ $q := index . 1 }}{{ $on := index . 2 }}{{ $view := index . 3 }}{{ $active := index . 4 }}{{ $g := index . 5 }}
+{{ with $cc.InboxTree }}{{ template "mbox-node" (tuple . $q (and $on (not $view)) $active $g) }}{{ end }}
+{{ template "rail-views" (dict "q" $q "view" $view "on" (and $on (eq $active "INBOX")) "g" $g) }}
 {{ range $cc.CommonNodes }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
 {{ range $cc.AdditionalTree }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
 {{ end }}
@@ -704,50 +705,70 @@
      scope per request only, and the rows name the bare role. The page
      data is passed whole. */}}
 {{ define "rail-mail-merged" }}
-{{ $starred := .Starred }}
+{{ $view := .ListView }}
 {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
 {{ $all := $.GlobalData.Unified }}
 <details class="acct-folders aggregate-folders" data-rail-key="__merged" open>
 <summary class="aside-account"><a href="/mailbox/INBOX">{{$.T "nav.allaccounts"}}</a></summary>
 <ul class="merged-roles">
-  {{ range tuple (tuple "aside.inbox" "INBOX" false) (tuple "aside.starred" "INBOX" true) (tuple "aside.drafts" "Drafts" false) (tuple "aside.sent" "Sent" false) (tuple "aside.junk" "Junk" false) (tuple "aside.trash" "Trash" false) (tuple "aside.archive" "Archive" false) }}
-  {{ $role := index . 1 }}{{ $star := index . 2 }}
-  <li {{ if and $all (eq $active $role) (eq $starred $star) }}class="active"{{ end }}>
-    <a href="/mailbox/{{$role}}{{ if $star }}?starred=1{{ end }}">{{$.T (index . 0)}}</a>
-    {{ if not $star }}{{ with $.AllUnseen $role }}<span class="unseen">{{$.GlobalData.Num .}}</span>{{ end }}{{ end }}
+  {{ range tuple (tuple "aside.inbox" "INBOX") (tuple "aside.drafts" "Drafts") (tuple "aside.sent" "Sent") (tuple "aside.junk" "Junk") (tuple "aside.trash" "Trash") (tuple "aside.archive" "Archive") }}
+  {{ $role := index . 1 }}
+  <li {{ if and $all (eq $active $role) (not $view) }}class="active"{{ end }}>
+    <a href="/mailbox/{{$role}}">{{$.T (index . 0)}}</a>
+    {{ with $.AllUnseen $role }}<span class="unseen">{{$.GlobalData.Num .}}</span>{{ end }}
   </li>
+  {{ if eq $role "INBOX" }}{{ template "rail-views" (dict "q" "" "view" $view "on" (and $all (eq $active "INBOX")) "g" $.GlobalData) }}{{ end }}
   {{ end }}
 </ul>
 </details>
 {{ end }}
 
+{{/* The views under an inbox: the unread, the starred, and the stars
+     by colour, each a search with a name. They sit where the folders
+     sit and take the folder rows' shape, the colours as a branch.
+     dict: q (the account query or "") view on g. */}}
+{{ define "rail-views" }}
+{{ $sep := "?" }}{{ if .q }}{{ $sep = "&" }}{{ end }}
+<li{{ if and .on (eq .view "unread") }} class="active"{{ end }}>
+  <a href="/mailbox/INBOX{{.q}}{{$sep}}view=unread">{{.g.T "aside.unread"}}</a>
+</li>
+<li class="folder-li">
+  <details class="folder-branch" data-rail-key="views:{{.q}}">
+    <summary{{ if and .on (eq .view "starred") }} class="active"{{ end }}><a href="/mailbox/INBOX{{.q}}{{$sep}}view=starred">{{.g.T "aside.starred"}}</a></summary>
+    <ul>
+      {{ range flagcolors .g }}
+      <li{{ if and $.on (eq $.view .Name) }} class="active"{{ end }}><a href="/mailbox/INBOX{{$.q}}{{$sep}}view={{.Name}}"><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
+      {{ end }}
+    </ul>
+  </details>
+</li>
+{{ end }}
+
 {{/* One account's folder tree in the mail rail. dict: account data. */}}
 {{ define "rail-mail-account" }}
 {{ $d := .data }}
-{{ $starred := $d.Starred }}
+{{ $view := $d.ListView }}
 {{ $active := "" }}{{ with $d.Mailbox }}{{ $active = .Name }}{{ end }}
 {{ $q := printf "?account=%s" .account }}
 {{ range $d.SidebarAccounts }}{{ if eq .Account $.account }}
 <ul>
-  {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.URLAccount $.account) $starred $active $d.GlobalData) }}
+  {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.URLAccount $.account) $view $active $d.GlobalData) }}
 </ul>
 {{ end }}{{ end }}
 {{ end }}
 
 {{/* The one account's folder tree, with no heading over it. */}}
 {{ define "rail-mail-single" }}
-{{ $starred := .Starred }}
+{{ $view := .ListView }}
 {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
 <ul>
   {{ with .CategorizedMailboxes }}
-  {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
-  <li {{ if $starred }}class="active"{{ end }}>
-    <a href="/mailbox/INBOX?starred=1">{{$.T "aside.starred"}}</a>
-  </li>
-  {{ range .CommonNodes }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
+  {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
+  {{ template "rail-views" (dict "q" "" "view" $view "on" (eq $active "INBOX") "g" $.GlobalData) }}
+  {{ range .CommonNodes }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
   {{ if .Additional }}
   <hr />
-  {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $starred) $active $.GlobalData) }}{{ end }}
+  {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
   {{ end }}
   {{ end }}
 </ul>

@@ -332,7 +332,7 @@ func TestPagesAnswer(t *testing.T) {
 	}
 
 	paths := []string{
-		"/mailbox/INBOX", "/mailbox/INBOX?starred=1", "/mailbox/INBOX?query=redesign",
+		"/mailbox/INBOX", "/mailbox/INBOX?view=starred", "/mailbox/INBOX?query=redesign",
 		"/mailbox/INBOX%2FLists",
 		"/mailbox/Drafts", "/mailbox/Junk", "/mailbox/Trash",
 		"/compose", "/new-mailbox", "/settings", "/settings/browser",
@@ -922,7 +922,7 @@ func TestMessagesMoveDeleteAndFlag(t *testing.T) {
 	if resp := postForm(t, c, base+"/message/INBOX/flag", url.Values{"uids": {uids[2]}, "flags": {"\\Flagged"}, "action": {"add"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("flag: %s", resp.Status)
 	}
-	if starred := messageUIDs(get(t, c, base+"/mailbox/INBOX?starred=1")); len(starred) != 1 || starred[0] != uids[2] {
+	if starred := messageUIDs(get(t, c, base+"/mailbox/INBOX?view=starred")); len(starred) != 1 || starred[0] != uids[2] {
 		t.Errorf("starred view after flagging %s: %v", uids[2], starred)
 	}
 }

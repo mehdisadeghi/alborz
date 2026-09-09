@@ -241,7 +241,7 @@
           <tr>
             <th scope="row">{{$.T "compose.from"}}:</th>
             <td>
-              {{template "addr-list" (dict "addrs" .Message.Envelope.From "account" $.GlobalData.URLAccount)}}
+              {{template "addr-list" (dict "addrs" .Message.Envelope.From "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
               {{/* The verdict rides with the sender, because it is a
                    claim about the sender - and it is chrome, outside
                    the frame the message body draws in: the sanitizer
@@ -261,17 +261,17 @@
             <td>{{ template "date-full" (dict "g" .Global "time" .Message.Date) }}</td>
           </tr>
           <tr>
-            <th scope="row">{{$.T "compose.to"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.To "account" $.GlobalData.URLAccount)}}</td>
+            <th scope="row">{{$.T "compose.to"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.To "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "to" "filterlabel" ($.T "message.filterto"))}}</td>
           </tr>
           {{if .Message.Envelope.Cc}}
           <tr>
-            <th scope="row">{{$.T "compose.cc"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.Cc "account" $.GlobalData.URLAccount)}}</td>
+            <th scope="row">{{$.T "compose.cc"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.Cc "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "cc" "filterlabel" ($.T "message.filterto"))}}</td>
           </tr>
           {{end}}
           {{if .Message.Envelope.Bcc}}
           <tr>
             <th scope="row">{{$.T "compose.bcc"}}:</th>
-            <td>{{template "addr-list" (dict "addrs" .Message.Envelope.Bcc "account" $.GlobalData.URLAccount)}}</td>
+            <td>{{template "addr-list" (dict "addrs" .Message.Envelope.Bcc "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "")}}</td>
           </tr>
           {{ end }}
           {{/* Mail to an alias arrives looking like mail to the account.
@@ -519,15 +519,25 @@
         {{ end }}
       </div>
 
-      {{/* dict: addrs account. Writing to an address opens compose on
-           the account whose message it came from, never on whichever
-           account the browser holds as active. */}}
+      {{/* dict: addrs account mbox key. The name filters: it opens the
+           folder searched for mail from, or to, this address, the way
+           Apple Mail's "Search for" on an address does. The address
+           writes: compose on the account whose message it came from,
+           never on whichever account the browser holds as active. An
+           address without a name is shown once and filters; writing to
+           it is the reply beside it. */}}
       {{define "addr-list"}}
         {{ $aamp := account "&" .account }}
+        {{ $folder := printf "/mailbox/%s" (.mbox | pathescape) }}
         {{range $i, $addr := .addrs}}
           {{if $i}},{{end}}
-          <bdi dir="auto"><strong>{{.Name}}</strong>
+          {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $addr.Addr | urlquery) $aamp) }}{{ end }}
+          {{ if .Name }}
+          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Name}}</a>{{ else }}<strong>{{.Name}}</strong>{{ end }}
           &lt;<a href="{{ localhref (printf "/compose?to=%s%s" (.Addr | addr) $aamp) }}">{{.Addr}}</a>&gt;</bdi>
+          {{ else }}
+          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Addr}}</a>{{ else }}<a href="{{ localhref (printf "/compose?to=%s%s" ($addr.Addr | addr) $aamp) }}">{{$addr.Addr}}</a>{{ end }}</bdi>
+          {{ end }}
         {{end}}
       {{end}}
 

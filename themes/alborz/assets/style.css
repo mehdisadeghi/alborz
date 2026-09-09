@@ -2132,6 +2132,10 @@ aside .filter-edit {
 aside .filter-row:hover .filter-edit,
 aside .filter-edit:focus-visible { opacity: 1; }
 
+@media (hover: none) {
+  aside .filter-edit { opacity: 1; }
+}
+
 /* The same explanations a tooltip carries, on a tap. Quiet by default:
    it is there when wanted and silent when not. */
 .info-explain {
@@ -2934,6 +2938,26 @@ aside details.folder-branch summary {
   border-inline-start: 2px solid transparent;
 }
 aside details.folder-branch summary a { flex-grow: 1; }
+/* The chevron is the fold and the name is the link, the account
+   heading's shape. It takes the row's height as its hit area and sits
+   after the name, where a thumb finds it without landing on the link. */
+aside details.folder-branch summary::-webkit-details-marker { display: none; }
+aside details.folder-branch summary::after {
+  content: "›";
+  flex: none;
+  order: 1;
+  width: 2rem;
+  margin-inline-end: calc(-1 * var(--space-2));
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  transition: transform 0.1s ease-out;
+}
+aside details.folder-branch[open] > summary::after { transform: rotate(90deg); }
+:root:dir(rtl) aside details.folder-branch summary::after { transform: rotate(180deg); }
+:root:dir(rtl) aside details.folder-branch[open] > summary::after { transform: rotate(90deg); }
 aside details.folder-branch > ul > li,
 aside details.folder-branch > ul li.folder-li > details > summary {
   padding-inline-start: 1.3rem;
@@ -3982,15 +4006,32 @@ aside details.acct-folders > summary::-webkit-details-marker {
   display: none;
 }
 
+/* The chevron is the fold, and a fold needs a target a thumb can hit:
+   it takes the heading's full height and a finger's width, eating the
+   row's own padding so the heading text stays where it was. */
 aside details.acct-folders > summary::before {
   content: "›";
-  display: inline-block;
-  width: 0.75rem;
-  text-align: center;
+  flex: none;
+  width: 1.5rem;
+  margin-inline-start: -0.5rem;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.1s ease-out;
 }
 
 aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
+:root:dir(rtl) aside details.acct-folders > summary::before { transform: rotate(180deg); }
+:root:dir(rtl) aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
+
+/* A touch target is the row, not the glyph: the heading takes the
+   height every folder row has, and both chevrons a finger's width. */
+@media (hover: none) {
+  aside details.acct-folders > summary.aside-account { min-height: 2.75rem; }
+  aside details.acct-folders > summary::before,
+  aside details.folder-branch summary::after { width: 2.5rem; }
+}
 
 aside details.acct-folders li {
   padding-inline-start: 1rem;

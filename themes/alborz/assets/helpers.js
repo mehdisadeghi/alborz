@@ -113,7 +113,7 @@ for (const select of document.querySelectorAll("select[data-destination-key]")) 
 const submit_on_change = document.querySelectorAll("[data-submit-on-change]");
 for (let i = 0; i < submit_on_change.length; i++) {
 	submit_on_change[i].addEventListener("change", ev => {
-		ev.currentTarget.form.submit();
+		ev.currentTarget.form.requestSubmit();
 	});
 	const button = submit_on_change[i].form.querySelector("button");
 	if (button) {
@@ -252,6 +252,30 @@ window.addEventListener("pageshow", ev => {
 // The rail remembers which account groups the reader left open. Each
 // keyed <details> restores its state on load and saves it on toggle;
 // storage that is unavailable simply means the server default stands.
+// A change made on the rail - a collection ticked, Apply pressed -
+// reloads the page, and on a phone the drawer came back closed with
+// the rail out of sight. A form submitted from the drawer opens it
+// again on the page that follows; a link from the rail does not, since
+// its page is the reason for the tap.
+const drawer = document.getElementById("sidebar");
+if (drawer) {
+	try {
+		if (sessionStorage.getItem("drawer") === "1") {
+			drawer.checked = true;
+			sessionStorage.removeItem("drawer");
+		}
+	} catch (e) {}
+	for (const form of document.querySelectorAll("aside form")) {
+		form.addEventListener("submit", () => {
+			try {
+				if (drawer.checked) {
+					sessionStorage.setItem("drawer", "1");
+				}
+			} catch (e) {}
+		});
+	}
+}
+
 for (const d of document.querySelectorAll("details[data-rail-key]")) {
 	const key = "rail:" + d.dataset.railKey;
 	try {

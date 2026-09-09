@@ -661,6 +661,10 @@ other = "%d mensajes eliminados."
 one = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
 other = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
 
+["notice.unreachable"]
+one = "El servidor de %[2]s no respondió. Se muestran las demás cuentas."
+other = "Los servidores de %[2]s no respondieron. Se muestran las demás cuentas."
+
 
 ["notice.deleted"]
 one = "%d mensaje eliminado."

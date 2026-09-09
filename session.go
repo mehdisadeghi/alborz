@@ -242,7 +242,13 @@ func (s *Session) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) e
 		var err error
 		s.imapConn, err = s.manager.connectIMAP(s.domain, s.username, s.password)
 		if err != nil {
-			s.Close()
+			// A password the server no longer takes ends the session; a
+			// server that did not answer does not, or a mail server's
+			// bad minute would sign the account out and drop it from
+			// the account list.
+			if _, refused := err.(AuthError); refused {
+				s.Close()
+			}
 			return err
 		}
 	}
@@ -464,6 +470,17 @@ func (s *Session) PutNotice(text string) {
 func (ctx *Context) Undo(path string, fields url.Values) *NoticeAction {
 	fields.Set("undo", "1")
 	return &NoticeAction{Label: ctx.T("notice.undo"), Path: path, Fields: fields}
+}
+
+// Unreachable says on the page which accounts' servers did not answer,
+// so that a merged page can show what the others hold rather than
+// nothing. Nothing is said when every account answered.
+func (ctx *Context) Unreachable(accounts []string) {
+	if len(accounts) == 0 {
+		return
+	}
+	ctx.Session.Notify(Notice{Kind: NoticeWarning,
+		Text: ctx.Tf("notice.unreachable", len(accounts), strings.Join(accounts, ", "))})
 }
 
 func (s *Session) Notify(n Notice) {

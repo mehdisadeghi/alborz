@@ -960,12 +960,14 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 			failed = append(failed, s.Username()+": "+err.Error())
 		}
 	}
+	back := ctx.NextOr("/mailbox/" + url.PathEscape(role) + "?all=1")
 	if len(failed) > 0 {
-		return fmt.Errorf("failed to empty %s: %s", role, strings.Join(failed, "; "))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), strings.Join(failed, "; "))})
+		return ctx.Redirect(http.StatusFound, back)
 	}
 
 	ctx.Session.Notify(emptiedNotice(ctx, removed))
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s", role)))
+	return ctx.Redirect(http.StatusFound, back)
 }
 
 func handleDelete(ctx *alborz.Context) error {
@@ -1308,7 +1310,8 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 		done += len(uids)
 	}
 	if len(failed) > 0 {
-		return fmt.Errorf("failed on %s: %s", role, strings.Join(failed, "; "))
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), strings.Join(failed, "; "))})
+		return ctx.Redirect(http.StatusFound, back)
 	}
 	switch action {
 	case "move":

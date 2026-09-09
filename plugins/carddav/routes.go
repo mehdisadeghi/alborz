@@ -661,7 +661,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		}
 		ao, err = saveClient.PutAddressObject(ctx.Request().Context(), savePath, card)
 		if err != nil {
-			return fmt.Errorf("failed to put address object: %v", err)
+			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
 		return func() error {
@@ -845,7 +845,7 @@ func editCard(ctx *alborz.Context, p *plugin, change func(vcard.Card)) error {
 	change(ao.Card)
 	ao.Card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
 	if _, err := c.PutAddressObject(ctx.Request().Context(), ao.Path, ao.Card); err != nil {
-		return fmt.Errorf("failed to save the contact: %v", err)
+		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
 }

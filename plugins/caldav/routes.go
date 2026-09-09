@@ -787,7 +787,7 @@ func (p *plugin) addNote(ctx *alborz.Context, comp func(*ical.Calendar) *ical.Co
 	target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 	target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
 	if _, err := c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {
-		return fmt.Errorf("failed to save the note: %v", err)
+		ctx.Session.Notify(refusedNotice(ctx, err))
 	}
 	return ctx.Redirect(http.StatusFound, back)
 }
@@ -1398,7 +1398,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		ensureTimezones(cal, start)
 		co, err = saveClient.PutCalendarObject(ctx.Request().Context(), savePath, cal)
 		if err != nil {
-			return fmt.Errorf("failed to put calendar object: %v", err)
+			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
 		// The event is saved before anybody is told about it: a send
@@ -1881,7 +1881,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		ensureTimezones(cal, due)
 		co, err = saveClient.PutCalendarObject(ctx.Request().Context(), savePath, cal)
 		if err != nil {
-			return fmt.Errorf("failed to save task: %v", err)
+			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
 		if createAcct != "" {
@@ -1942,6 +1942,13 @@ func (p *plugin) noteEvent(ctx *alborz.Context) error {
 		return nil
 	}, "/calendar")
 }
+
+// refusedNotice carries a server's no back to the page a button
+// returns to; there is no form to show it on.
+func refusedNotice(ctx *alborz.Context, err error) alborz.Notice {
+	return alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)}
+}
+
 func (p *plugin) completeTask(ctx *alborz.Context) error {
 	taskPath, err := dav.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
@@ -1967,13 +1974,12 @@ func (p *plugin) completeTask(ctx *alborz.Context) error {
 	done := status != "COMPLETED"
 	markTodo(todo, done)
 
-	_, err = c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data)
-	if err != nil {
-		return fmt.Errorf("failed to update task: %v", err)
-	}
-
 	// A completion from the merged list returns to it.
 	target := ctx.NextOr(ctx.AccountPath("/tasks"))
+	if _, err := c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {
+		ctx.Session.Notify(refusedNotice(ctx, err))
+		return ctx.Redirect(http.StatusFound, target)
+	}
 	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
 	if ctx.FormValue("undo") == "" {
 		key := "notice.taskopen"
@@ -2042,7 +2048,8 @@ func (p *plugin) completeTasks(ctx *alborz.Context) error {
 		}
 		markTodo(todo, !undo)
 		if _, err := ref.Client.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {
-			return fmt.Errorf("failed to update task: %v", err)
+			ctx.Session.Notify(refusedNotice(ctx, err))
+			return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 		}
 	}
 	target := ctx.NextOr("/tasks")
@@ -2085,7 +2092,8 @@ func (p *plugin) moveTasks(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to get task: %v", err)
 		}
 		if _, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data); err != nil {
-			return fmt.Errorf("failed to move task: %v", err)
+			ctx.Session.Notify(refusedNotice(ctx, err))
+			break
 		}
 		if err := ref.Client.RemoveAll(ctx.Request().Context(), ref.Path); err != nil {
 			return fmt.Errorf("failed to delete task: %v", err)

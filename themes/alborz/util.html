@@ -393,7 +393,7 @@
   <p class="info-group-title">{{$.abilitiestitle}}</p>
   <ul class="info-abilities">
     {{ range . }}
-    <li class="{{ if .Have }}has{{ else }}has-not{{ end }}" title="{{$.page.T .Hint}}">{{$.page.T .Label}}</li>
+    <li class="{{ if .Have }}has{{ else }}has-not{{ end }}" title="{{$.page.T .Hint}}">{{$.page.T .Label}}{{ if .Stated }} ({{$.page.T "settings.abilitystated"}}){{ end }}</li>
     {{ end }}
   </ul>
   {{ end }}

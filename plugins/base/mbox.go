@@ -43,13 +43,17 @@ func handleExportMbox(ctx *alborz.Context) error {
 	var uids []imap.UID
 	if ctx.FormValue("all") != "" {
 		query := ctx.QueryParam("query")
+		settings, err := LoadSettings(ctx.Session.Store())
+		if err != nil {
+			return err
+		}
 		err = ctx.DoIMAPWithin(alborz.ScanTimeout, func(c *imapclient.Client) error {
 			if err := ensureMailboxSelected(c, mboxName); err != nil {
 				return err
 			}
 			criteria := &imap.SearchCriteria{}
 			if query != "" {
-				criteria = PrepareSearch(query, SearchesIndex(c))
+				criteria = PrepareSearch(query, SearchesIndex(c, settings))
 			}
 			data, err := c.UIDSearch(criteria, nil).Wait()
 			if err != nil {
@@ -306,12 +310,16 @@ func handleExportPage(ctx *alborz.Context) error {
 	}
 	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), mboxName))
 	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Query: ctx.QueryParam("query")}
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
+	}
 	err = ctx.DoIMAPWithin(alborz.ScanTimeout, func(c *imapclient.Client) error {
 		if data.Query != "" {
 			if err := ensureMailboxSelected(c, mboxName); err != nil {
 				return err
 			}
-			found, err := c.UIDSearch(PrepareSearch(data.Query, SearchesIndex(c)), nil).Wait()
+			found, err := c.UIDSearch(PrepareSearch(data.Query, SearchesIndex(c, settings)), nil).Wait()
 			if err != nil {
 				return err
 			}

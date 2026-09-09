@@ -315,7 +315,7 @@ func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listing
 	var err error
 	switch {
 	case spec.query != "":
-		e.headersOnly = !SearchesIndex(c)
+		e.headersOnly = !SearchesIndex(c, settings)
 		e.msgs, e.total, err = searchMessages(c, folder, PrepareSearch(spec.query, !e.headersOnly), 0, window, "", true)
 	case spec.starred:
 		criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
@@ -520,14 +520,14 @@ func fetchListing(c *imapclient.Client, user string, spec listingSpec, settings 
 		// number of threads rather than a number of messages.
 		criteria := &imap.SearchCriteria{}
 		if spec.query != "" {
-			e.headersOnly = !SearchesIndex(c)
+			e.headersOnly = !SearchesIndex(c, settings)
 			criteria = PrepareSearch(spec.query, !e.headersOnly)
 		} else if spec.starred {
 			criteria = &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
 		}
 		e.msgs, e.total, err = threadMessages(c, spec.mbox, e.threadAlgorithm, criteria, page, perPage)
 	case spec.query != "":
-		e.headersOnly = !SearchesIndex(c)
+		e.headersOnly = !SearchesIndex(c, settings)
 		e.msgs, e.total, err = searchMessages(c, spec.mbox, PrepareSearch(spec.query, !e.headersOnly), page, perPage, spec.sortKey, reverse)
 	case spec.starred:
 		criteria := &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}

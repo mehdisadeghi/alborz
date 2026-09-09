@@ -277,6 +277,10 @@ func subscriptionObjects(infos []CalendarInfo, scope string) []CalendarObject {
 			go subs.refresh(info.Address)
 		}
 		if obj, ok := subs.events(info.Address, info.Color); ok {
+			// The link carries the account, as every object's does, so
+			// the event page asks that account's subscriptions and no
+			// other's.
+			obj.Account = info.Account
 			out = append(out, obj)
 		}
 	}

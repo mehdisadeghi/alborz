@@ -312,7 +312,9 @@ func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []
 	if err != nil || mbox == nil {
 		return out
 	}
-	sel, err := c.Select(mbox.Name(), &imap.SelectOptions{ReadOnly: true}).Wait()
+	// Read-write for the same reason as the authserv sample: a
+	// read-only selection is not remembered and poisons the next STORE.
+	sel, err := c.Select(mbox.Name(), nil).Wait()
 	if err != nil || sel.NumMessages == 0 {
 		return out
 	}

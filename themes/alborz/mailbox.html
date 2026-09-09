@@ -5,7 +5,9 @@
 <div class="page-wrap">
   {{ template "aside" . }}
   <div class="container">
-    <form id="messages-form" method="POST"></form>
+    <form id="messages-form" method="POST">
+      <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
+    </form>
     {{/* Its own form: refreshing acts on the folder, so it must not
          carry the selection or be gated on one. */}}
     <form id="refresh-form" method="POST" action="/mailbox/{{.Mailbox.Name | pathescape}}/refresh{{ account "?" $.GlobalData.URLAccount }}">

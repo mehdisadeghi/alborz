@@ -65,7 +65,10 @@ func sampleAuthServ(ctx *alborz.Context) (string, error) {
 	// "seen often" and "written by our own server".
 	counts := make(map[string]int)
 	err := ctx.Session.DoIMAP(func(c *imapclient.Client) error {
-		mbox, err := c.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait()
+		// Read-write, though nothing is written: the client does not
+		// remember a read-only selection, and the next STORE on this
+		// connection would be refused with the folder still "selected".
+		mbox, err := c.Select("INBOX", nil).Wait()
 		if err != nil {
 			return err
 		}

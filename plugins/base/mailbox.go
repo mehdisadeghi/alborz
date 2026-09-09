@@ -183,7 +183,11 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	ctx.Unreachable(down)
 
 	slices.SortStableFunc(merged.msgs, unifiedLess(spec.sortKey, spec.reverse()))
-	RowMarks(ctx, TrustedAuthServ(ctx, settings), merged.msgs)
+	// Junk is one colour already; a tint there says nothing. The
+	// message page keeps its warning card.
+	if role != "Junk" {
+		RowMarks(ctx, TrustedAuthServ(ctx, settings), merged.msgs)
+	}
 	title := ctx.T("aside." + strings.ToLower(role))
 	if spec.starred {
 		title = ctx.T("mailbox.starred")
@@ -409,7 +413,9 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		}
 	}
 	sb, msgs := railFor(ctx.Session, mboxName, e.sb), e.msgs
-	RowMarks(ctx, TrustedAuthServ(ctx, settings), msgs)
+	if folderRole(sb.mailboxes, mboxName) != "junk" {
+		RowMarks(ctx, TrustedAuthServ(ctx, settings), msgs)
+	}
 	// The page's bodies are fetched behind it, so the next click, on
 	// any of its rows, asks the server nothing.
 	if cacheable {
@@ -1258,13 +1264,17 @@ func textQueryOffered(query string, headersOnly bool) string {
 
 // outgoingFolder says whether the folder holds the reader's own mail.
 func outgoingFolder(mailboxes []MailboxInfo, name string) bool {
+	role := folderRole(mailboxes, name)
+	return role == "sent" || role == "drafts"
+}
+
+func folderRole(mailboxes []MailboxInfo, name string) string {
 	for i := range mailboxes {
 		if mailboxes[i].Name() == name {
-			role := mailboxes[i].role()
-			return role == "sent" || role == "drafts"
+			return mailboxes[i].role()
 		}
 	}
-	return false
+	return ""
 }
 
 // A merged view holds rows of several accounts, so a selection names
@@ -1275,6 +1285,11 @@ func outgoingFolder(mailboxes []MailboxInfo, name string) bool {
 type rowRef struct {
 	account, mailbox string
 	uid              imap.UID
+}
+
+// String is the form parseRefs reads: what a row's checkbox carries.
+func (r rowRef) String() string {
+	return fmt.Sprintf("%s|%s|%d", r.account, r.mailbox, r.uid)
 }
 
 func parseRefs(values []string) ([]rowRef, error) {
@@ -1320,7 +1335,7 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
-	back := ctx.NextOr("/mailbox/" + url.PathEscape(role))
+	back := ctx.NextOr("/mailbox/" + url.PathEscape(role) + "?all=1")
 	if len(refs) == 0 {
 		return nothingSelected(ctx, back)
 	}
@@ -1329,6 +1344,7 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 		return streamMbox(ctx, refs, "messages", false)
 	}
 
+	// What a move put where, so that the undo can name it.
 	var landed []rowRef
 	to := formOrQueryParam(ctx, "to")
 	var act mailAct
@@ -1358,7 +1374,14 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 	return runAct(ctx, refs, act, func(done int) alborz.Notice {
 		switch action {
 		case "move":
-			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.movedto", done, ctx.T("aside."+strings.ToLower(to)))}
+			// The folder is the merged one, linked, and the undo moves
+			// every account's messages back to the role they came from.
+			fields := url.Values{"next": {back}}
+			for _, r := range landed {
+				fields.Add("refs", r.String())
+			}
+			return movedNotice(ctx, done, ctx.T("aside."+strings.ToLower(to)), "/mailbox/"+url.PathEscape(to)+"?all=1", len(landed),
+				"/mailbox/"+url.PathEscape(to)+"/all/act?action=move&to="+url.QueryEscape(role), fields)
 		}
 		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.changed", done)}
 	}, landOn(ctx, back))

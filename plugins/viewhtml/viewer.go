@@ -14,11 +14,18 @@ import (
 
 const tplSrc = `
 <!-- allow-same-origin is required to resize the frame with its content -->
-<!-- allow-popups is required for target="_blank" links -->
+<!-- allow-popups is required for target="_blank" links, and
+     allow-popups-to-escape-sandbox for where they land: a popup
+     inherits the sandbox otherwise, which gives it an opaque origin,
+     and a site that sets Cross-Origin-Opener-Policy then refuses to
+     load in it (Firefox: NS_ERROR_DOM_COOP_FAILED) - which is how a
+     confirmation link that works when pasted fails when clicked.
+     The frame runs no scripts either way; the links are the reader's
+     own navigation, and rel=noreferrer keeps the opener from it. -->
 <!-- The frame arrives hidden and the script shows it once sized, so the
      unsized box is never painted; without a script it is shown as it is. -->
 <div id="email-frame-wrap">
-<iframe id="email-frame" title="{{.Title}}" srcdoc="{{.Body}}" sandbox="allow-same-origin allow-popups" style="visibility: hidden"></iframe>
+<iframe id="email-frame" title="{{.Title}}" srcdoc="{{.Body}}" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" style="visibility: hidden"></iframe>
 </div>
 <noscript><style>#email-frame { visibility: visible; }</style></noscript>
 <script src="/plugins/viewhtml/assets/script.js?v=6"></script>

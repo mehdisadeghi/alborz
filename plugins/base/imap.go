@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"mime"
 	"net/mail"
 	"net/url"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
+	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/textproto"
 )
 
@@ -298,6 +300,12 @@ type IMAPMessage struct {
 	// References is the thread chain the message carries. ENVELOPE does
 	// not include it, so it comes from the header like the list ones.
 	References string
+	// Author is who wrote a message whose From the list replaced with
+	// its own address, named by the headers the list wrote; nil when
+	// the From is the author's own. Via is then the list itself, under
+	// the name it gave itself in that From.
+	Author *imap.Address
+	Via    *imap.Address
 	// ListID names the list, without the angle brackets and without the
 	// description some senders put before them. It is what says a
 	// message is list mail at all: List-Post can be absent from a list
@@ -495,17 +503,93 @@ func listAction(value string) string {
 	return composeFromMailto(firstListURI(value, "mailto"))
 }
 
+// headerWords decodes the encoded-words (RFC 2047) in a header field.
+// They have no business in a structured field like List-Unsubscribe,
+// and SendGrid writes them there anyway, splitting one URI across two
+// words; a reader who cannot leave a list because of that is a reader
+// stuck with the mail.
+var headerWords = &mime.WordDecoder{CharsetReader: charset.Reader}
+
+// decodedField is a header field with its encoded-words resolved, or
+// as written when they cannot be.
+func decodedField(h textproto.Header, key string) string {
+	value := h.Get(key)
+	if !strings.Contains(value, "=?") {
+		return value
+	}
+	decoded, err := headerWords.DecodeHeader(value)
+	if err != nil {
+		return value
+	}
+	return decoded
+}
+
+// viaName splits a display name a list rewrote: Mailman puts the
+// author's name in front of "via" and its own after it, so that a
+// message signed by the list still reads as the author's (RFC 7960
+// calls this the From munging DMARC forces on lists).
+var viaName = regexp.MustCompile(`^(.*\S)\s+via\s+(\S.*)$`)
+
+// authorBehindList names who wrote a message whose From the list
+// replaced with its own address. The list says so itself: Mailman 3
+// records the envelope sender it received in X-MailFrom, Mailman 2 and
+// Google Groups keep the original in X-Original-From, and a Reply-To
+// naming the same person is the third witness. Nothing is inferred
+// from absence: without one of those headers the From stands as
+// written.
+func authorBehindList(h textproto.Header, from *imap.Address, listID string) *imap.Address {
+	if listID == "" || from == nil {
+		return nil
+	}
+	parts := viaName.FindStringSubmatch(from.Name)
+	if parts == nil {
+		return nil
+	}
+	name := parts[1]
+	listed := strings.ToLower(from.Mailbox + "@" + from.Host)
+	for _, key := range []string{"X-Original-From", "X-MailFrom", "Reply-To"} {
+		value := decodedField(h, key)
+		if value == "" {
+			continue
+		}
+		addr, err := mail.ParseAddress(value)
+		if err != nil {
+			// X-MailFrom is a bare address, which the parser refuses
+			// only when it carries no angle brackets and no name.
+			if !strings.Contains(value, "@") || strings.ContainsAny(value, " ,<") {
+				continue
+			}
+			addr = &mail.Address{Address: strings.TrimSpace(value)}
+		}
+		if strings.ToLower(addr.Address) == listed {
+			continue
+		}
+		// A Reply-To is the sender's to write, so it is believed only
+		// when it names the same person the From does; the two headers
+		// the list wrote itself are believed as they are.
+		if key == "Reply-To" && !strings.EqualFold(strings.TrimSpace(addr.Name), name) {
+			continue
+		}
+		mailbox, host, ok := strings.Cut(addr.Address, "@")
+		if !ok {
+			continue
+		}
+		return &imap.Address{Name: name, Mailbox: mailbox, Host: host}
+	}
+	return nil
+}
+
 // setListHeaders records the mailing-list addresses a message carries.
 // List-Post: NO means the list refuses posts, which is not an address.
 func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 	msg.rootHeader = h
 	msg.References = strings.Join(strings.Fields(h.Get("References")), " ")
 	msg.DeliveredTo, _ = deliveryAddresses(h, "")
-	msg.ListHelp = listAction(h.Get("List-Help"))
-	msg.ListSubscribe = listAction(h.Get("List-Subscribe"))
-	msg.ListOwner = listAction(h.Get("List-Owner"))
-	msg.ListArchive = firstListURI(h.Get("List-Archive"), "https", "http")
-	if post := firstListURI(h.Get("List-Post"), "mailto"); post != "" {
+	msg.ListHelp = listAction(decodedField(h, "List-Help"))
+	msg.ListSubscribe = listAction(decodedField(h, "List-Subscribe"))
+	msg.ListOwner = listAction(decodedField(h, "List-Owner"))
+	msg.ListArchive = firstListURI(decodedField(h, "List-Archive"), "https", "http")
+	if post := firstListURI(decodedField(h, "List-Post"), "mailto"); post != "" {
 		msg.ListPost = strings.TrimPrefix(post, "mailto:")
 	}
 	msg.ListID = listID(h)
@@ -513,14 +597,21 @@ func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 	// send a message, which they can at least read before sending. Plain
 	// http is not offered: the POST is made from here, and only over a
 	// connection the list cannot be impersonated on.
-	msg.ListUnsubscribe = firstListURI(h.Get("List-Unsubscribe"), "https")
+	msg.ListUnsubscribe = firstListURI(decodedField(h, "List-Unsubscribe"), "https")
 	// RFC 8058: the promise is in a header of its own, and without it an
 	// https URI is a page to visit rather than an endpoint to post to.
-	if strings.Contains(strings.ToLower(h.Get("List-Unsubscribe-Post")), "one-click") {
+	if strings.Contains(strings.ToLower(decodedField(h, "List-Unsubscribe-Post")), "one-click") {
 		msg.OneClick = msg.ListUnsubscribe
 	}
 	if msg.ListUnsubscribe == "" {
-		msg.ListUnsubscribe = composeFromMailto(firstListURI(h.Get("List-Unsubscribe"), "mailto"))
+		msg.ListUnsubscribe = composeFromMailto(firstListURI(decodedField(h, "List-Unsubscribe"), "mailto"))
+	}
+	if msg.FetchMessageBuffer != nil && msg.Envelope != nil && len(msg.Envelope.From) > 0 {
+		from := msg.Envelope.From[0]
+		if msg.Author = authorBehindList(h, &from, msg.ListID); msg.Author != nil {
+			msg.Via = &imap.Address{Name: viaName.FindStringSubmatch(from.Name)[2],
+				Mailbox: from.Mailbox, Host: from.Host}
+		}
 	}
 }
 

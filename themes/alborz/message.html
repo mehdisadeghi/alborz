@@ -241,7 +241,17 @@
           <tr>
             <th scope="row">{{$.T "compose.from"}}:</th>
             <td>
-              {{template "addr-list" (dict "addrs" .Message.Envelope.From "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
+              {{/* A list that rewrote the From says who wrote the message in
+                     headers of its own; both are shown, the author first,
+                     since the list's address is the one that will not find
+                     them again. */}}
+                {{ if .Message.Author }}
+                {{template "addr-list" (dict "addrs" (tuple .Message.Author) "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "byname" true "filterlabel" ($.T "message.filterfrom"))}}
+                {{$.T "message.via"}}
+                {{template "addr-list" (dict "addrs" (tuple .Message.Via) "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
+                {{ else }}
+                {{template "addr-list" (dict "addrs" .Message.Envelope.From "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
+                {{ end }}
               {{/* The verdict rides with the sender, because it is a
                    claim about the sender - and it is chrome, outside
                    the frame the message body draws in: the sanitizer
@@ -531,7 +541,11 @@
         {{ $folder := printf "/mailbox/%s" (.mbox | pathescape) }}
         {{range $i, $addr := .addrs}}
           {{if $i}},{{end}}
-          {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $addr.Addr | urlquery) $aamp) }}{{ end }}
+          {{/* The author of list mail is filtered by name: their address
+               is not in the From header the list wrote, so a search for
+               it would find nothing. */}}
+          {{ $term := $addr.Addr }}{{ if $.byname }}{{ $term = printf "%q" $addr.Name }}{{ end }}
+          {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $term | urlquery) $aamp) }}{{ end }}
           {{ if .Name }}
           <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Name}}</a>{{ else }}<strong>{{.Name}}</strong>{{ end }}
           &lt;<a href="{{ localhref (printf "/compose?to=%s%s" (.Addr | addr) $aamp) }}">{{.Addr}}</a>&gt;</bdi>

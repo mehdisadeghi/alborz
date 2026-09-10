@@ -36,9 +36,6 @@ const (
 )
 
 const (
-	cookieName              = "alborz_session"
-	accountsCookieName      = "alborz_accounts"
-	loginTokenCookieName    = "alborz_login_tokens"
 	schemeCookieName        = "alborz_scheme"
 	themeCookieName         = "alborz_theme"
 	accountColorsCookieName = "alborz_account_colors"
@@ -89,11 +86,9 @@ type Server struct {
 	assetsMu sync.Mutex
 	assets   map[string]assetStamp // theme asset content stamps by name
 
-	// displayMemo keeps the store off the render path. The store does
-	// not remember a missing entry, so an unmade choice would otherwise
-	// cost a METADATA round trip on every page, behind the lock every
-	// IMAP command of the session queues on.
-	displayMemo *Memo[displayPrefs]
+	// Visits are the browsers signed in, each holding its accounts and
+	// what its reader is owed.
+	Visits *Visits
 
 	// loginFailures records, per username, when an automatic sign-in
 	// last failed, so the next request does not try again at once.
@@ -130,7 +125,20 @@ type domainUpstreams struct {
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
-		displayMemo: NewMemo[displayPrefs](time.Hour)}
+		Visits: newVisits()}
+
+	// Remembering a visit means keeping a password, so it takes both a
+	// place to put it and the key that seals the record. Without either
+	// a visit lasts as long as the process, which is what a session
+	// always did.
+	if options.CacheDir != "" && options.LoginKey != nil {
+		records, err := OpenVisitRecords(filepath.Join(options.CacheDir, "visits.db"), options.LoginKey)
+		if err != nil {
+			return nil, err
+		}
+		s.Visits.Records(records)
+		s.Visits.Sweep(time.Now().Add(-credentialCookieLife))
+	}
 
 	s.domains = make(map[string]*domainUpstreams)
 	for _, arg := range options.Upstreams {
@@ -450,6 +458,8 @@ func (s *Server) Logger() echo.Logger {
 type Context struct {
 	echo.Context
 	Server         *Server
+	visit          *Visit   // this browser's stay, resolved on demand
+	visitSecret    string   // its browser's key to what it remembers
 	Session        *Session // request-scoped account; nil if not logged in
 	DefaultSession *Session // the first listed account, for a page that needs one and was given none
 
@@ -762,16 +772,12 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			ctx.Set("context", ctx)
 			ctx.installTiming()
 
+			// Whether anyone is signed in is a question about the bag,
+			// not about any one account: the browser names its visit
+			// and the visit holds what it has signed into.
 			var session *Session
-			for _, value := range ctx.cookieValues(cookieName) {
-				s, err := ctx.Server.Sessions.get(value)
-				if err == nil {
-					session = s
-					break
-				}
-				if err != ErrSessionExpired {
-					return err
-				}
+			if live := ctx.accountSessions(); len(live) > 0 {
+				session = live[0]
 			}
 
 			// A session lives 30 minutes past the last request; the
@@ -781,14 +787,6 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			// being sent - was lost outright, because only a GET can be
 			// resumed. Sign the accounts back in and carry on with the
 			// request that arrived.
-			// The session-cookie account may have expired while
-			// others are still live; carry on with one of those rather
-			// than treating the whole visit as signed out.
-			if session == nil && !isPublic(ctx.Request().URL.Path) {
-				if live := ctx.accountSessions(); len(live) > 0 {
-					session = live[0]
-				}
-			}
 			if session == nil && !isPublic(ctx.Request().URL.Path) {
 				if ctx.RestoreRememberedAccounts() {
 					session = ctx.Session
@@ -798,7 +796,6 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				}
 			}
 			if session == nil {
-				ctx.SetSession(nil)
 				return handleUnauthenticated(next, ctx)
 			}
 			ctx.Session = session
@@ -815,7 +812,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			// An account that timed out while others stayed is said
 			// once, on the page, not by a bounce to the login form.
 			if len(ctx.lostAccounts) > 0 {
-				ctx.Session.Notify(Notice{Kind: NoticeWarning,
+				ctx.Notify(Notice{Kind: NoticeWarning,
 					Text: ctx.Tf("notice.accountexpired", len(ctx.lostAccounts), strings.Join(ctx.lostAccounts, ", "))})
 			}
 

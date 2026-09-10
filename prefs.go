@@ -121,68 +121,18 @@ func (ctx *Context) TextSize() string {
 	return ctx.pref(textSizeCookieName, func(v string) bool { return slices.Contains(textSizes, v) })
 }
 
-// displayKey holds the choices that follow the person rather than the
-// browser, in the account's own store: which calendar someone counts in
-// is not a property of the machine they read mail on.
-const displayKey = "alborz.display"
-
-type displayPrefs struct {
-	// Primary is the calendar the pages count in, Secondary the one
-	// glossed beside it; empty means Gregorian and none.
-	Primary   string
-	Secondary string
-}
-
-func (ctx *Context) displayPrefs() displayPrefs {
-	if ctx.Session == nil {
-		return displayPrefs{}
-	}
-	prefs, err := ctx.Server.displayMemo.Get(ctx.Session.Username(), func() (displayPrefs, error) {
-		var p displayPrefs
-		err := ctx.Session.Store().Get(displayKey, &p)
-		if err == ErrNoStoreEntry {
-			err = nil
-		}
-		return p, err
-	})
-	if err != nil {
-		ctx.Logger().Printf("failed to read display preferences: %v", err)
-	}
-	return prefs
-}
-
-// SetCalendars stores which calendar system the pages count in and
-// which one is glossed beside it. A name that is not known counts as
-// Gregorian; a gloss in the primary's own system is no gloss.
-func (ctx *Context) SetCalendars(primary, secondary string) error {
-	if !slices.Contains(calendarSystems, primary) {
-		primary = ""
-	}
-	if !slices.Contains(calendarSystems, secondary) || secondary == Calendar(primary).Name() {
-		secondary = ""
-	}
-	prefs := ctx.displayPrefs()
-	if prefs.Primary == primary && prefs.Secondary == secondary {
-		return nil
-	}
-	prefs.Primary, prefs.Secondary = primary, secondary
-	if err := ctx.Session.Store().Put(displayKey, &prefs); err != nil {
-		return err
-	}
-	ctx.Server.displayMemo.Forget(ctx.Session.Username())
-	return nil
-}
-
 // Calendars returns the chosen systems: the one counted in, empty for
-// Gregorian, and the one glossed, empty for none.
+// Gregorian, and the one glossed, empty for none. They are the
+// reader's, not an account's: which calendar someone counts in is not
+// a property of any one mailbox.
 func (ctx *Context) Calendars() (primary, secondary string) {
-	p := ctx.displayPrefs()
-	return p.Primary, p.Secondary
+	r := ctx.Reading()
+	return r.Primary, r.Secondary
 }
 
 // CalendarSystem is the system the reader counts in.
 func (ctx *Context) CalendarSystem() CalendarSystem {
-	return Calendar(ctx.displayPrefs().Primary)
+	return Calendar(ctx.Reading().Primary)
 }
 
 // SetLanguage stores the user's UI language choice in the browser,

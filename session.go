@@ -1,8 +1,6 @@
 package alborz
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/fernet/fernet-go"
@@ -22,7 +20,6 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.guido-berhoerster.org/managesieve"
 )
@@ -59,18 +56,7 @@ const (
 // sent, and what one upload may carry.
 const MaxAttachmentSize = 32 << 20
 
-func generateToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(b), nil
-}
-
-var (
-	ErrSessionExpired      = errors.New("session expired")
-	ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum file size")
-)
+var ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum file size")
 
 // UpstreamError is a server that did not answer, as distinct from
 // Alborz failing. A timeout is not a wrong password and must not read as
@@ -126,13 +112,9 @@ type Session struct {
 	manager            *SessionManager
 	username, password string
 	domain             string
-	token              string
 	closed             chan struct{}
 	pings              chan struct{}
 	store              Store
-
-	noticeLocker sync.Mutex
-	notice       *Notice // protected by noticeLocker
 
 	httpLocker   sync.Mutex
 	httpPassword string // protected by httpLocker
@@ -143,9 +125,6 @@ type Session struct {
 
 	sieveLocker sync.Mutex
 	sieveConn   SieveClient // protected by locker, can be nil
-
-	attachmentsLocker sync.Mutex
-	attachments       map[string]*Attachment // protected by attachmentsLocker
 }
 
 type Attachment struct {
@@ -156,6 +135,17 @@ type Attachment struct {
 // Done closes when the session ends, so work started for it can stop
 // with it.
 func (s *Session) Done() <-chan struct{} { return s.closed }
+
+// alive reports whether the session still holds its account: a reaped
+// or signed-out one does not, and the bag drops it.
+func (s *Session) alive() bool {
+	select {
+	case <-s.closed:
+		return false
+	default:
+		return true
+	}
+}
 
 // WatchIMAP opens a second connection to the account and hands it over.
 // It exists for one caller: the watcher that sits in IDLE waiting for
@@ -379,56 +369,12 @@ func (s *Session) SetHTTPBasicAuth(req *http.Request) error {
 
 // Close destroys the session. This can be used to log the user out.
 func (s *Session) Close() {
-	s.attachmentsLocker.Lock()
-	defer s.attachmentsLocker.Unlock()
-
-	for _, f := range s.attachments {
-		f.Form.RemoveAll()
-	}
-
 	select {
 	case <-s.closed:
 		// This space is intentionally left blank
 	default:
 		close(s.closed)
 	}
-}
-
-// Puts an attachment and returns a generated UUID
-func (s *Session) PutAttachment(in *multipart.FileHeader,
-	form *multipart.Form) (string, error) {
-	id := uuid.New()
-	s.attachmentsLocker.Lock()
-	defer s.attachmentsLocker.Unlock()
-
-	var size int64
-	for _, a := range s.attachments {
-		size += a.File.Size
-	}
-	if size+in.Size > MaxAttachmentSize {
-		return "", ErrAttachmentCacheSize
-	}
-
-	s.attachments[id.String()] = &Attachment{
-		File: in,
-		Form: form,
-	}
-	return id.String(), nil
-}
-
-// Removes an attachment from the session. Returns nil if there was no such
-// attachment.
-func (s *Session) PopAttachment(uuid string) *Attachment {
-	s.attachmentsLocker.Lock()
-	defer s.attachmentsLocker.Unlock()
-
-	a, ok := s.attachments[uuid]
-	if !ok {
-		return nil
-	}
-	delete(s.attachments, uuid)
-
-	return a
 }
 
 // Notice is what the next page tells the reader about the request
@@ -459,11 +405,6 @@ type NoticeAction struct {
 	Fields url.Values
 }
 
-// PutNotice records that a request did what it was asked.
-func (s *Session) PutNotice(text string) {
-	s.Notify(Notice{Kind: NoticeDone, Text: text})
-}
-
 // Undo is the action a notice carries when the handler knows the exact
 // inverse of what it just did: a POST back to itself with what that
 // needs, marked so the answer offers nothing further.
@@ -479,22 +420,15 @@ func (ctx *Context) Unreachable(accounts []string) {
 	if len(accounts) == 0 {
 		return
 	}
-	ctx.Session.Notify(Notice{Kind: NoticeWarning,
+	ctx.Notify(Notice{Kind: NoticeWarning,
 		Text: ctx.Tf("notice.unreachable", len(accounts), strings.Join(accounts, ", "))})
 }
 
-func (s *Session) Notify(n Notice) {
-	s.noticeLocker.Lock()
-	s.notice = &n
-	s.noticeLocker.Unlock()
-}
-
-func (s *Session) PopNotice() *Notice {
-	s.noticeLocker.Lock()
-	defer s.noticeLocker.Unlock()
-	n := s.notice
-	s.notice = nil
-	return n
+// NoticeName is a thing's own name inside a notice: quoted by the
+// sentence around it and cut by the page, since how much of a name
+// fits is the screen's business and not this side's.
+func NoticeName(name string) string {
+	return `<span class="notice-name">` + template.HTMLEscapeString(name) + `</span>`
 }
 
 // Store returns a store suitable for storing persistent user data.
@@ -525,8 +459,11 @@ type SessionManager struct {
 	// only the password wrap.
 	loginKey *fernet.Key
 
-	locker   sync.Mutex
-	sessions map[string]*Session // protected by locker
+	locker sync.Mutex
+	// sessions are the ones still open, for the shutdown that closes
+	// them. A session is reached through the visit that holds it, so
+	// nothing looks anything up here.
+	sessions map[*Session]struct{} // protected by locker
 	// warnedTransientStore says the METADATA warning has been printed;
 	// protected by locker, like the sessions it is set beside.
 	warnedTransientStore bool
@@ -534,7 +471,7 @@ type SessionManager struct {
 
 func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger, loginKey *fernet.Key) *SessionManager {
 	return &SessionManager{
-		sessions:      make(map[string]*Session),
+		sessions:      make(map[*Session]struct{}),
 		dialIMAP:      dialIMAP,
 		dialIMAPWatch: dialWatch,
 		dialSMTP:      dialSMTP,
@@ -545,7 +482,7 @@ func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialS
 }
 
 func (sm *SessionManager) Close() {
-	for _, s := range sm.sessions {
+	for s := range sm.sessions {
 		s.Close()
 	}
 }
@@ -587,17 +524,6 @@ func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapc
 	return c, nil
 }
 
-func (sm *SessionManager) get(token string) (*Session, error) {
-	sm.locker.Lock()
-	defer sm.locker.Unlock()
-
-	session, ok := sm.sessions[token]
-	if !ok {
-		return nil, ErrSessionExpired
-	}
-	return session, nil
-}
-
 // Put connects to the IMAP server and creates a new session. If authentication
 // fails, the error will be of type AuthError. Addresses outside the served
 // domains are rejected with UnknownDomainError.
@@ -611,29 +537,14 @@ func (sm *SessionManager) Put(username, password string) (*Session, error) {
 	sm.locker.Lock()
 	defer sm.locker.Unlock()
 
-	var token string
-	for {
-		token, err = generateToken()
-		if err != nil {
-			c.Logout()
-			return nil, err
-		}
-
-		if _, ok := sm.sessions[token]; !ok {
-			break
-		}
-	}
-
 	s := &Session{
-		manager:     sm,
-		closed:      make(chan struct{}),
-		pings:       make(chan struct{}, 5),
-		imapConn:    c,
-		username:    username,
-		password:    password,
-		domain:      domain,
-		token:       token,
-		attachments: make(map[string]*Attachment),
+		manager:  sm,
+		closed:   make(chan struct{}),
+		pings:    make(chan struct{}, 5),
+		imapConn: c,
+		username: username,
+		password: password,
+		domain:   domain,
 	}
 
 	s.store, err = sm.newStore(s)
@@ -641,7 +552,7 @@ func (sm *SessionManager) Put(username, password string) (*Session, error) {
 		return nil, err
 	}
 
-	sm.sessions[token] = s
+	sm.sessions[s] = struct{}{}
 
 	go sm.reap(s)
 
@@ -686,6 +597,6 @@ func (sm *SessionManager) reap(s *Session) {
 	// for it is what the next sign-in, or the cookie restoring it, is
 	// served from. Only signing out forgets, see Server.ForgetAccount.
 	sm.locker.Lock()
-	delete(sm.sessions, s.token)
+	delete(sm.sessions, s)
 	sm.locker.Unlock()
 }

@@ -378,6 +378,8 @@
 "settings.subs" = "Carpetas suscritas"
 "settings.perpage" = "Mensajes por página"
 "settings.timezone" = "Zona horaria"
+"settings.anchorlabel" = "Guardar estos ajustes en"
+"settings.anchorhint" = "Cómo lee este navegador: cuántos mensajes caben en una página, el reloj, el calendario. Guardados en esta cuenta, te siguen a otro navegador que inicie sesión con ella. Desmarca la casilla si compartes el buzón."
 "settings.davpassword" = "Contraseña de calendario y contactos"
 "settings.davstored" = "Guardada"
 "settings.davsame" = "La misma que la del correo"

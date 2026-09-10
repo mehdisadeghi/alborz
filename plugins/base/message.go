@@ -123,11 +123,11 @@ func handleInvitationReply(ctx *alborz.Context) error {
 	if err := ctx.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, reply)
 	}); err != nil {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 
-	ctx.Session.PutNotice(ctx.T("invite.answered"))
+	ctx.PutNotice(ctx.T("invite.answered"))
 	return ctx.Redirect(http.StatusFound, back)
 }
 
@@ -178,7 +178,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	// Read before the message's own IMAP work: the observed id may cost
 	// a sample of the inbox, and the session lock is not reentrant.
 	trusted := TrustedAuthServ(ctx, settings)
-	messagesPerPage := perPage(ctx, settings)
+	messagesPerPage := perPage(ctx)
 
 	query := ctx.QueryParam("query")
 	railView, err := readView(ctx)
@@ -627,16 +627,16 @@ func handleUnsubscribe(ctx *alborz.Context) error {
 	client := alborz.NewRemoteClient(unsubscribeTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		ctx.Logger().Printf("unsubscribe %s answered %s", msg.OneClick, resp.Status)
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
 		return ctx.Redirect(http.StatusFound, back)
 	}
-	ctx.Session.PutNotice(ctx.T("notice.unsubscribed"))
+	ctx.PutNotice(ctx.T("notice.unsubscribed"))
 	return ctx.Redirect(http.StatusFound, back)
 }
 

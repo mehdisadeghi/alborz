@@ -188,11 +188,11 @@ func handleForwardingKeep(ctx *alborz.Context) error {
 func answer(ctx *alborz.Context, err error, path, saved string) error {
 	switch {
 	case errors.Is(err, errChanged{}):
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("filters.changed")})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("filters.changed")})
 	case err != nil:
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: err.Error()})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: err.Error()})
 	default:
-		ctx.Session.PutNotice(saved)
+		ctx.PutNotice(saved)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath(path))
 }

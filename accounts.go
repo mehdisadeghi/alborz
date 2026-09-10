@@ -1,90 +1,34 @@
 package alborz
 
 import (
-	"encoding/json"
-	"log"
-	"net/http"
 	"net/url"
 	"slices"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/fernet/fernet-go"
 )
-
-// SetSession sets a cookie for the provided session. Passing a nil session
-// unsets the cookie.
-func (ctx *Context) SetSession(s *Session) {
-	if s == nil {
-		ctx.SetCookie(ctx.cookie(cookieName, "", 0))
-		return
-	}
-	ctx.SetCookie(ctx.cookie(cookieName, s.token, 0))
-}
 
 // Account describes one signed-in account for the rail.
 type Account struct {
 	Username string
 }
 
-// accountSessions returns the live sessions listed in the accounts cookie in
-// order. The session cookie's own is always a member; expired entries are
-// pruned and the cookie rewritten.
+// accountSessions is the visit's bag: every account this browser has
+// signed into. An account whose session has ended is dropped and named
+// for the page, rather than left in the list as if it were still here.
 func (ctx *Context) accountSessions() []*Session {
 	if ctx.accountsLoaded {
 		return ctx.accounts
 	}
-
-	var entries []string
-	if value, ok := ctx.cookieValue(accountsCookieName, func(string) bool { return true }); ok {
-		cookie := &http.Cookie{Value: value}
-		entries = strings.Split(cookie.Value, "|")
+	v := ctx.lookupVisit()
+	if v == nil {
+		return nil
 	}
-
-	var sessions []*Session
-	changed := false
-	activeListed := false
-	for _, entry := range entries {
-		token, username, _ := strings.Cut(entry, ":")
-		s, err := ctx.Server.Sessions.get(token)
-		if err != nil {
-			// The session is gone; name it for the page when the cookie
-			// carried who it was, and drop it from the list.
-			if username != "" {
-				ctx.lostAccounts = append(ctx.lostAccounts, username)
-			}
-			changed = true
-			continue
-		}
-		if s == ctx.Session {
-			activeListed = true
-		}
-		sessions = append(sessions, s)
-	}
-	if ctx.Session != nil && !activeListed {
-		sessions = append(sessions, ctx.Session)
-		changed = true
-	}
-	byName(sessions)
-	if changed {
-		ctx.setAccountSessions(sessions)
-	} else {
-		ctx.accounts = sessions
-		ctx.accountsLoaded = true
-	}
-	return sessions
-}
-
-func (ctx *Context) setAccountSessions(sessions []*Session) {
+	sessions, lost := v.Accounts()
+	ctx.lostAccounts = append(ctx.lostAccounts, lost...)
 	ctx.accounts = sessions
 	ctx.accountsLoaded = true
-
-	entries := make([]string, len(sessions))
-	for i, s := range sessions {
-		entries[i] = s.token + ":" + s.username
-	}
-	ctx.SetCookie(ctx.cookie(accountsCookieName, strings.Join(entries, "|"), 0))
+	return sessions
 }
 
 // byName puts accounts in one order wherever they are listed, the
@@ -111,27 +55,19 @@ func (ctx *Context) Sessions() []*Session {
 	return ctx.accountSessions()
 }
 
-// AddAccount appends s to the account list and makes it the request's
-// session. A previous session for the same username is closed and
-// replaced in place.
+// AddAccount puts the account in this browser's bag and makes it the
+// request's own. A session for the same address is replaced.
 func (ctx *Context) AddAccount(s *Session) {
-	sessions := ctx.accountSessions()
-	replaced := false
-	for i, other := range sessions {
-		if other.username == s.username {
-			other.Close()
-			sessions[i] = s
-			replaced = true
-		}
-	}
-	if !replaced {
-		sessions = append(sessions, s)
-	}
-	byName(sessions)
+	v := ctx.Visit()
+	v.Add(s)
+	// A browser with no reading settings of its own takes what the
+	// account brings, whether it is the first to sign in or joins
+	// later. One that has been told what to do is never overruled.
+	// Silently: the page size it starts with is not news.
+	ctx.adoptReading(s.Username())
+	ctx.accountsLoaded = false
 	ctx.Session = s
 	ctx.DefaultSession = s
-	ctx.SetSession(s)
-	ctx.setAccountSessions(sessions)
 	for _, ready := range ctx.Server.OnAccountReady {
 		ready(ctx, s)
 	}
@@ -204,123 +140,61 @@ func (ctx *Context) Logout() *Session {
 	return ctx.LogoutAccount(ctx.Session.username)
 }
 
-// LogoutAccount closes exactly the named account; the first remaining
-// one is what the session cookie then names.
+// LogoutAccount closes exactly the named account and takes it out of
+// the bag. A nil return means the bag is empty and nobody is signed in.
 func (ctx *Context) LogoutAccount(username string) *Session {
-	var remaining []*Session
-	var target *Session
-	for _, s := range ctx.accountSessions() {
-		if s.username == username {
-			target = s
-			continue
-		}
-		remaining = append(remaining, s)
+	v := ctx.lookupVisit()
+	if v == nil {
+		return nil
 	}
+	target := v.Remove(username)
 	if target == nil {
 		return ctx.DefaultSession
 	}
 	target.Close()
-	ctx.setAccountSessions(remaining)
+	ctx.accountsLoaded = false
 	ctx.forgetLoginToken(target.username)
+	remaining, _ := v.Accounts()
 	if len(remaining) == 0 {
 		ctx.Session = nil
 		ctx.DefaultSession = nil
-		ctx.SetSession(nil)
 		return nil
 	}
 	ctx.DefaultSession = remaining[0]
 	ctx.Session = ctx.DefaultSession
-	ctx.SetSession(ctx.DefaultSession)
 	return ctx.DefaultSession
 }
 
-type loginToken struct {
-	Username string
-	Password string
-}
-
-// SetLoginToken remembers the account's credentials for automatic
-// re-authentication after session expiry. Re-login of a known account
-// updates its entry in place. The cookie spans the site so logging
-// out at /logout can forget the account's credentials; the payload
-// stays fernet-encrypted with the server's login key.
+// SetLoginToken keeps the account's password with this visit, sealed
+// under the browser's own secret, so a session that ends or a restart
+// costs a reconnection rather than a login. What the browser holds is
+// an id and a key, never a password.
 func (ctx *Context) SetLoginToken(username, password string) {
-	tokens := ctx.loginTokens()
-	updated := false
-	for i := range tokens {
-		if tokens[i].Username == username {
-			tokens[i].Password = password
-			updated = true
-		}
+	v := ctx.Visit()
+	sealed, err := ctx.seal(password)
+	if err != nil {
+		ctx.Logger().Printf("failed to keep %q signed in: %v", username, err)
+		return
 	}
-	if !updated {
-		tokens = append(tokens, loginToken{username, password})
+	v.Remember(username, sealed)
+	if err := ctx.Server.Visits.Save(v); err != nil {
+		ctx.Logger().Printf("failed to write the visit: %v", err)
 	}
-	ctx.storeLoginTokens(tokens)
 }
 
-// forgetLoginToken drops the account's remembered credentials, so logging
-// out also forgets how to log back in.
+// forgetLoginToken drops the account's password, so signing out is
+// signing out.
 func (ctx *Context) forgetLoginToken(username string) {
-	tokens := ctx.loginTokens()
-	kept := make([]loginToken, 0, len(tokens))
-	for _, t := range tokens {
-		if t.Username != username {
-			kept = append(kept, t)
-		}
-	}
-	if len(kept) < len(tokens) {
-		ctx.storeLoginTokens(kept)
-	}
-}
-
-func (ctx *Context) storeLoginTokens(tokens []loginToken) {
-	if len(tokens) == 0 {
-		ctx.SetCookie(ctx.cookie(loginTokenCookieName, "", 0))
+	v := ctx.lookupVisit()
+	if v == nil {
 		return
 	}
-
-	payload, err := json.Marshal(tokens)
-	if err != nil {
-		panic(err) // Should never happen
-	}
-	fkey := ctx.Server.Options.LoginKey
-	if fkey == nil {
+	v.forget(username)
+	if v.remembered() {
+		ctx.Server.Visits.Save(v)
 		return
 	}
-
-	bytes, err := fernet.EncryptAndSign(payload, fkey)
-	if err != nil {
-		log.Printf("Warning: login token encryption failed: %v", err)
-		return
-	}
-
-	ctx.SetCookie(ctx.cookie(loginTokenCookieName, string(bytes), credentialCookieLife))
-}
-
-func (ctx *Context) loginTokens() []loginToken {
-	cookie, err := ctx.Cookie(loginTokenCookieName)
-	if err != nil || cookie == nil {
-		return nil
-	}
-
-	fkey := ctx.Server.Options.LoginKey
-	if fkey == nil {
-		return nil
-	}
-
-	bytes := fernet.VerifyAndDecrypt([]byte(cookie.Value),
-		credentialCookieLife, []*fernet.Key{fkey})
-	if bytes == nil {
-		return nil
-	}
-
-	var tokens []loginToken
-	if err := json.Unmarshal(bytes, &tokens); err != nil {
-		// A cookie from the single-account format; forget it.
-		return nil
-	}
-	return tokens
+	ctx.Server.Visits.Delete(v.ID)
 }
 
 const (
@@ -342,29 +216,44 @@ func (s *Server) recentlyFailed(username string) bool {
 	return time.Since(when.(time.Time)) < loginRetryAfter
 }
 
-// RestoreRememberedAccounts signs every remembered account back in,
-// leaving the recorded active one active, and reports whether any
-// account came back.
+// RestoreRememberedAccounts signs every account this visit remembers
+// back in, and reports whether any came back. The passwords are the
+// visit's, opened with the secret the browser carries.
 func (ctx *Context) RestoreRememberedAccounts() bool {
+	v := ctx.lookupVisit()
+	if v == nil {
+		return false
+	}
+	type credential struct{ address, password string }
+	var want []credential
+	v.mu.Lock()
+	for address, sealed := range v.remember {
+		password, ok := ctx.unseal(sealed)
+		if !ok {
+			continue
+		}
+		want = append(want, credential{address, password})
+	}
+	v.mu.Unlock()
+
 	// The accounts sign in concurrently: one unreachable upstream must
 	// not add its timeout to the others' wait.
-	tokens := ctx.loginTokens()
-	sessions := make([]*Session, len(tokens))
+	sessions := make([]*Session, len(want))
 	var wg sync.WaitGroup
-	for i, token := range tokens {
-		if ctx.Server.recentlyFailed(token.Username) {
+	for i, c := range want {
+		if ctx.Server.recentlyFailed(c.address) {
 			continue
 		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s, err := ctx.Server.Sessions.Put(token.Username, token.Password)
+			s, err := ctx.Server.Sessions.Put(c.address, c.password)
 			if err != nil {
-				ctx.Server.loginFailures.Store(token.Username, time.Now())
-				ctx.Logger().Printf("Login failed for %q: %v", token.Username, err)
+				ctx.Server.loginFailures.Store(c.address, time.Now())
+				ctx.Logger().Printf("Login failed for %q: %v", c.address, err)
 				return
 			}
-			ctx.Server.loginFailures.Delete(token.Username)
+			ctx.Server.loginFailures.Delete(c.address)
 			sessions[i] = s
 		}()
 	}
@@ -375,8 +264,18 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		if s == nil {
 			continue
 		}
-		ctx.AddAccount(s)
+		v.Add(s)
+		ctx.accountsLoaded = false
+		ctx.Session = s
+		ctx.DefaultSession = s
+		for _, ready := range ctx.Server.OnAccountReady {
+			ready(ctx, s)
+		}
 		restored = true
+	}
+	if restored {
+		live, _ := v.Accounts()
+		ctx.Session, ctx.DefaultSession = live[0], live[0]
 	}
 	return restored
 }

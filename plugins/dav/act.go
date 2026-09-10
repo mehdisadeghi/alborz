@@ -53,13 +53,13 @@ func Run[C any](ctx *alborz.Context, a Action[C]) error {
 	done := 0
 	for _, ref := range refs {
 		if err := a.Do(ctx, ref); err != nil {
-			ctx.Session.Notify(Refused(ctx, err))
+			ctx.Notify(Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, next)
 		}
 		done++
 	}
 	if a.Done != nil && done > 0 {
-		ctx.Session.Notify(a.Done(ctx, refs[:done], next))
+		ctx.Notify(a.Done(ctx, refs[:done], next))
 	}
 	return ctx.Redirect(http.StatusFound, next)
 }

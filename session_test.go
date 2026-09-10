@@ -10,8 +10,8 @@ import (
 func TestExpiryUnlistsTheSession(t *testing.T) {
 	sm := newSessionManager(nil, nil, nil, nil, nil, nil)
 	s := &Session{manager: sm, closed: make(chan struct{}), pings: make(chan struct{}, 5),
-		username: "a@test.local", token: "t"}
-	sm.sessions[s.token] = s
+		username: "a@test.local"}
+	sm.sessions[s] = struct{}{}
 	done := make(chan struct{})
 	go func() {
 		sm.reap(s)
@@ -24,13 +24,13 @@ func TestExpiryUnlistsTheSession(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("the reaper did not finish")
 	}
-	if _, err := sm.get(s.token); err != ErrSessionExpired {
-		t.Errorf("the session is still listed: %v", err)
+	if _, listed := sm.sessions[s]; listed {
+		t.Error("the session is still listed")
 	}
 }
 
 func TestFullAttachmentCacheStaysUsable(t *testing.T) {
-	s := &Session{attachments: make(map[string]*Attachment)}
+	s, _ := newVisit()
 	big := &multipart.FileHeader{Size: MaxAttachmentSize}
 	if _, err := s.PutAttachment(big, nil); err != nil {
 		t.Fatal(err)

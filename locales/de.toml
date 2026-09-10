@@ -378,6 +378,8 @@
 "settings.subs" = "Abonnierte Ordner"
 "settings.perpage" = "E-Mails pro Seite"
 "settings.timezone" = "Zeitzone"
+"settings.anchorlabel" = "Diese Einstellungen behalten auf"
+"settings.anchorhint" = "Wonach dieser Browser liest: wie viele Nachrichten auf eine Seite gehen, die Uhr, der Kalender. Auf diesem Konto gespeichert folgen sie in jeden Browser, der sich damit anmeldet. Für ein geteiltes Postfach das Häkchen entfernen."
 "settings.davpassword" = "Passwort für Kalender und Kontakte"
 "settings.davstored" = "Gespeichert"
 "settings.davsame" = "Wie das Mail-Passwort"

@@ -266,7 +266,7 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 
 	listings.evictAll(ctx.Session.Username())
 	listings.evictAll(sender.Username())
-	ctx.Session.PutNotice(ctx.T("notice.sent"))
+	ctx.PutNotice(ctx.T("notice.sent"))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 }
 
@@ -485,7 +485,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				continue
 			}
 
-			attachment := ctx.Session.PopAttachment(uuid)
+			attachment := ctx.PopAttachment(uuid)
 			if attachment == nil {
 				return fmt.Errorf("Unable to retrieve message attachment %s from session", uuid)
 			}
@@ -552,7 +552,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 					return refused{"form.draftrefused", err}
 				}
 				listings.evictAll(ctx.Session.Username())
-				ctx.Session.PutNotice(ctx.T("notice.draftsaved"))
+				ctx.PutNotice(ctx.T("notice.draftsaved"))
 				return ctx.Redirect(http.StatusFound, fmt.Sprintf(
 					"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
 			}
@@ -728,7 +728,7 @@ func handleComposeAttachment(ctx *alborz.Context) error {
 
 	var uuids []string
 	for _, fh := range form.File["attachments"] {
-		uuid, err := ctx.Session.PutAttachment(fh, form)
+		uuid, err := ctx.PutAttachment(fh, form)
 		if err == alborz.ErrAttachmentCacheSize {
 			form.RemoveAll()
 			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.toolarge")})
@@ -745,7 +745,7 @@ func handleComposeAttachment(ctx *alborz.Context) error {
 
 func handleCancelAttachment(ctx *alborz.Context) error {
 	uuid := ctx.Param("uuid")
-	a := ctx.Session.PopAttachment(uuid)
+	a := ctx.PopAttachment(uuid)
 	if a != nil {
 		a.Form.RemoveAll()
 	}

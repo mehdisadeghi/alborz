@@ -134,7 +134,7 @@ func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
 	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 		return err
 	}
-	ctx.Session.PutNotice(fmt.Sprintf(ctx.T("notice.unsubscribedcalendar"), name))
+	ctx.PutNotice(fmt.Sprintf(ctx.T("notice.unsubscribedcalendar"), name))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/calendar"))
 }
 
@@ -692,10 +692,6 @@ func (p *plugin) toggleCompleted(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 }
 func (p *plugin) month(ctx *alborz.Context) error {
-	baseSettings, err := alborzbase.LoadSettings(ctx.Session.Store())
-	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
-	}
 	loc := alborzbase.UserLocation(ctx)
 
 	// The month is the reader's calendar's month: its bounds, its page
@@ -711,7 +707,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	} else {
 		start = cal.MonthStart(time.Now().In(loc))
 	}
-	firstDayOfWeek := baseSettings.FirstDayOfWeek
+	firstDayOfWeek := ctx.Reading().FirstDayOfWeek
 
 	view := ctx.QueryParam("view")
 	if view != "" && view != "list" {
@@ -1252,10 +1248,10 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			method, told = alborzbase.MethodCancel, parseAttendees(ctx.FormValue("attendees_was"))
 		}
 		if err := sendScheduling(ctx, event, told, method); err != nil {
-			ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.sendfailed")})
+			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.sendfailed")})
 			ctx.Logger().Printf("failed to send the scheduling message: %v", err)
 		} else if len(told) > 0 {
-			ctx.Session.PutNotice(ctx.T("invite.sent"))
+			ctx.PutNotice(ctx.T("invite.sent"))
 		}
 
 		return dav.Saved(ctx, CalendarObject{CalendarObject: co}.URL(), to.Account)

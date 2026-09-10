@@ -376,6 +376,8 @@
 "settings.subs" = "Subscribed folders"
 "settings.perpage" = "Messages per page"
 "settings.timezone" = "Timezone"
+"settings.anchorlabel" = "Keep these settings on"
+"settings.anchorhint" = "What this browser reads by: how many messages a page holds, the clock, the calendar. Kept on this account, they follow you to another browser signed into it. Clear the box for a mailbox you share."
 "settings.davpassword" = "Calendar and contacts password"
 "settings.davstored" = "Stored"
 "settings.davsame" = "Same as the mail password"

@@ -511,9 +511,9 @@ func handleImport(ctx *alborz.Context) error {
 	listings.evictAll(selectedAccount)
 	if importErr != nil {
 		ctx.Logger().Printf("import into %q stopped after %d: %v", fullName, count, importErr)
-		session.PutNotice(ctx.Tf("notice.importstopped", count, fullName))
+		ctx.PutNotice(ctx.Tf("notice.importstopped", count, fullName))
 	} else {
-		session.PutNotice(ctx.Tf("notice.imported", count, fullName))
+		ctx.PutNotice(ctx.Tf("notice.imported", count, fullName))
 	}
 	return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
 }

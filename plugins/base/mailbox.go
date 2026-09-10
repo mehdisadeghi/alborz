@@ -72,11 +72,11 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 
 	// "account" exists only on a merge: it is a property of the merge,
 	// not of any single server's order.
-	settings, err := LoadSettings(ctx.Session.Store())
+	ask, err := readListAsk(ctx, "account")
 	if err != nil {
 		return err
 	}
-	ask, err := readListAsk(ctx, settings, "account")
+	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,6 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	}
 	data.Crumb = viewCrumb(ctx, []CrumbLink{{Label: ctx.T("aside." + strings.ToLower(role)), URL: "/mailbox/" + role}}, role, spec.view)
 	data.Outgoing = role == "Sent" || role == "Drafts"
-	data.PerPageOptions = perPageOptions(settings)
 	return ctx.Render(http.StatusOK, "mailbox.html", data)
 }
 
@@ -226,16 +225,17 @@ func cutPage(msgs []IMAPMessage, ask listAsk) []IMAPMessage {
 // it. e is what was read: the page itself, or the merge it was cut from.
 func listPage(ctx *alborz.Context, ask listAsk, e *listingEntry, rows []IMAPMessage) *MailboxRenderData {
 	data := &MailboxRenderData{
-		Messages:      rows,
-		PrevPage:      -1,
-		NextPage:      -1,
-		Total:         e.total,
-		Query:         ask.spec.query,
-		TextQuery:     textQueryOffered(ask.spec.query, e.headersOnly),
-		PerPage:       ask.perPage,
-		Sort:          ask.spec.sortKey,
-		SortDir:       map[bool]string{true: "desc", false: "asc"}[ask.spec.reverse()],
-		SortSupported: e.sortSupported,
+		Messages:       rows,
+		PrevPage:       -1,
+		NextPage:       -1,
+		Total:          e.total,
+		Query:          ask.spec.query,
+		TextQuery:      textQueryOffered(ask.spec.query, e.headersOnly),
+		PerPage:        ask.perPage,
+		PerPageOptions: perPageOptions(ctx.Reading().MessagesPerPage),
+		Sort:           ask.spec.sortKey,
+		SortDir:        map[bool]string{true: "desc", false: "asc"}[ask.spec.reverse()],
+		SortSupported:  e.sortSupported,
 	}
 	if len(rows) > 0 {
 		data.RangeFrom = ask.page*ask.perPage + 1
@@ -350,11 +350,11 @@ func handleGetMailbox(ctx *alborz.Context) error {
 
 	// thread is not a column to order by, so it is not in sortKeys, but
 	// it answers the same question and travels in the same parameter.
-	settings, err := LoadSettings(ctx.Session.Store())
+	ask, err := readListAsk(ctx, threadSort)
 	if err != nil {
 		return err
 	}
-	ask, err := readListAsk(ctx, settings, threadSort)
+	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return err
 	}
@@ -450,7 +450,6 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	data.ThreadSupported = e.threadAlgorithm != ""
 	data.Threaded = spec.sortKey == threadSort && e.threadAlgorithm != ""
 	data.PreferHTML = settings.PreferHTML
-	data.PerPageOptions = perPageOptions(settings)
 	return ctx.Render(http.StatusOK, "mailbox.html", data)
 }
 
@@ -463,8 +462,8 @@ type listAsk struct {
 
 // readListAsk reads it from the URL. also is the one order the page has
 // beyond the columns.
-func readListAsk(ctx *alborz.Context, settings *Settings, also string) (listAsk, error) {
-	ask := listAsk{perPage: perPage(ctx, settings)}
+func readListAsk(ctx *alborz.Context, also string) (listAsk, error) {
+	ask := listAsk{perPage: perPage(ctx)}
 	if raw := ctx.QueryParam("page"); raw != "" {
 		var err error
 		if ask.page, err = strconv.Atoi(raw); err != nil || ask.page < 0 {
@@ -773,7 +772,7 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 			})
 		}
 		listings.evictAll(ctx.Session.Username())
-		ctx.Session.PutNotice(ctx.T("notice.mailboxdeleted"))
+		ctx.PutNotice(ctx.T("notice.mailboxdeleted"))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 	}
 
@@ -834,7 +833,7 @@ func handleMove(ctx *alborz.Context) error {
 
 	to := formOrQueryParam(ctx, "to")
 	if to == "" {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nodestination")})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nodestination")})
 		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 
@@ -1041,7 +1040,7 @@ func handleEmptyMailbox(ctx *alborz.Context) error {
 	}
 
 	listings.evict(ctx.Session.Username(), mboxName)
-	ctx.Session.Notify(emptiedNotice(ctx, removed))
+	ctx.Notify(emptiedNotice(ctx, removed))
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
 
@@ -1104,11 +1103,11 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 	}
 	back := ctx.NextOr("/mailbox/" + url.PathEscape(role) + "?all=1")
 	if len(failed) > 0 {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), strings.Join(failed, "; "))})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), strings.Join(failed, "; "))})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 
-	ctx.Session.Notify(emptiedNotice(ctx, removed))
+	ctx.Notify(emptiedNotice(ctx, removed))
 	return ctx.Redirect(http.StatusFound, back)
 }
 
@@ -1132,10 +1131,6 @@ func handleDelete(ctx *alborz.Context) error {
 		return nothingSelected(ctx, back)
 	}
 
-	settings, err := LoadSettings(ctx.Session.Store())
-	if err != nil {
-		return err
-	}
 	var left int
 	return runAct(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), mailAct{
 		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
@@ -1151,7 +1146,7 @@ func handleDelete(ctx *alborz.Context) error {
 		// A whole page ticked and more behind it is a reader clearing
 		// the folder one page at a time. The rest is offered, behind a
 		// page that says how many, and never taken on its own.
-		if done >= perPage(ctx, settings) && left > 0 {
+		if done >= perPage(ctx) && left > 0 {
 			notice.Action = &alborz.NoticeAction{
 				Label: ctx.Tf("notice.deleteall", left),
 				Path:  ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName) + "/empty"),
@@ -1268,10 +1263,10 @@ var perPageLadder = []int{25, 50, 100}
 // perPageOptions is the ladder with the reader's own preference folded
 // in, sorted and without repeats, so the count in force is always one
 // of the choices and picking it is how they return to it.
-func perPageOptions(settings *Settings) []int {
+func perPageOptions(chosen int) []int {
 	seen := map[int]bool{}
 	var out []int
-	for _, n := range append(append([]int{}, perPageLadder...), settings.MessagesPerPage) {
+	for _, n := range append(append([]int{}, perPageLadder...), chosen) {
 		if n <= 0 || n > maxMessagesPerPage || seen[n] {
 			continue
 		}
@@ -1282,14 +1277,21 @@ func perPageOptions(settings *Settings) []int {
 	return out
 }
 
-func perPage(ctx *alborz.Context, settings *Settings) int {
+// perPage is how many messages a page holds: what this request asks
+// for, else what the reader reads by, else the default. It is the
+// reader's, not the account's, so a merged page counts the same as a
+// scoped one.
+func perPage(ctx *alborz.Context) int {
 	if raw := ctx.QueryParam("ipp"); raw != "" {
 		if n, err := alborz.ReadInt(raw); err == nil &&
 			n > 0 && n <= maxMessagesPerPage {
 			return n
 		}
 	}
-	return settings.MessagesPerPage
+	if n := ctx.Reading().MessagesPerPage; n > 0 && n <= maxMessagesPerPage {
+		return n
+	}
+	return defaultMessagesPerPage
 }
 
 // textQueryOffered is the widened query a results page offers, when the
@@ -1428,7 +1430,7 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 
 // nothingSelected says so on the page the action came from.
 func nothingSelected(ctx *alborz.Context, back string) error {
-	ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nomessages")})
+	ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nomessages")})
 	return ctx.Redirect(http.StatusFound, back)
 }
 
@@ -1460,10 +1462,10 @@ func runAct(ctx *alborz.Context, refs []rowRef, act mailAct, done func(n int) al
 				refused = append(refused, f.account+": "+f.err.Error())
 			}
 		}
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), strings.Join(refused, "; "))})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), strings.Join(refused, "; "))})
 		return land(false)
 	}
-	ctx.Session.Notify(done(n))
+	ctx.Notify(done(n))
 	return land(true)
 }
 

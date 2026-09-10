@@ -639,6 +639,19 @@ header .notice-action .button-link {
   text-decoration: underline;
 }
 
+/* A thing's own name inside a notice: as much of it as the screen can
+   hold, cut with an ellipsis rather than pushing the Undo beside it
+   off the bar. The bound is the viewport's, since that is what
+   decides how much fits. */
+.notice-name {
+  display: inline-block;
+  max-width: min(45vw, 32ch);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 /* The cross holds the edge without taking part in the centring, so
    the text sits where it always did. */
 header .notice-dismiss {

@@ -1,0 +1,166 @@
+package alborz
+
+import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/fernet/fernet-go"
+	bolt "go.etcd.io/bbolt"
+)
+
+// visitBucket holds one record per visit, sealed with the login key so
+// the file names nobody, the way the DAV cache seals its own.
+var visitBucket = []byte("visits")
+
+// readingBucket holds what a person reads by, under the account they
+// anchored it to, hashed so the file names nobody.
+var readingBucket = []byte("reading")
+
+func readingKey(account string) []byte {
+	sum := sha256.Sum256([]byte(account))
+	return sum[:]
+}
+
+// boltVisits keeps visits across a restart. A reader who asked to be
+// remembered is remembered by the server, so the browser carries an id
+// and a secret rather than a copy of their passwords.
+type boltVisits struct {
+	db  *bolt.DB
+	key *fernet.Key
+}
+
+// OpenVisitRecords opens the visit database, making it if it is not
+// there. The caller closes it.
+func OpenVisitRecords(path string, key *fernet.Key) (VisitRecords, error) {
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 5 * time.Second})
+	if err != nil {
+		return nil, fmt.Errorf("failed to open the visit store: %w", err)
+	}
+	err = db.Update(func(tx *bolt.Tx) error {
+		for _, name := range [][]byte{visitBucket, readingBucket} {
+			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	return &boltVisits{db: db, key: key}, nil
+}
+
+func (b *boltVisits) Load(id string) (*VisitRecord, bool) {
+	var sealed []byte
+	err := b.db.View(func(tx *bolt.Tx) error {
+		if v := tx.Bucket(visitBucket).Get([]byte(id)); v != nil {
+			sealed = append([]byte(nil), v...)
+		}
+		return nil
+	})
+	if err != nil || sealed == nil {
+		return nil, false
+	}
+	raw := fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{b.key})
+	if raw == nil {
+		// A rotated login key makes every record unreadable, which
+		// signs everyone out and loses nothing else.
+		return nil, false
+	}
+	var rec VisitRecord
+	if err := json.Unmarshal(raw, &rec); err != nil {
+		return nil, false
+	}
+	return &rec, true
+}
+
+func (b *boltVisits) Save(rec *VisitRecord) error {
+	raw, err := json.Marshal(rec)
+	if err != nil {
+		return err
+	}
+	sealed, err := fernet.EncryptAndSign(raw, b.key)
+	if err != nil {
+		return err
+	}
+	return b.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(visitBucket).Put([]byte(rec.ID), sealed)
+	})
+}
+
+func (b *boltVisits) Delete(id string) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(visitBucket).Delete([]byte(id))
+	})
+}
+
+// Sweep drops the visits nobody has come back to. A record outlives the
+// process, so without this the file only grows.
+func (b *boltVisits) Sweep(before time.Time) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(visitBucket)
+		var stale [][]byte
+		err := bucket.ForEach(func(k, v []byte) error {
+			raw := fernet.VerifyAndDecrypt(v, 0, []*fernet.Key{b.key})
+			if raw == nil {
+				stale = append(stale, append([]byte(nil), k...))
+				return nil
+			}
+			var rec VisitRecord
+			if err := json.Unmarshal(raw, &rec); err != nil || rec.Seen.Before(before) {
+				stale = append(stale, append([]byte(nil), k...))
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		for _, k := range stale {
+			if err := bucket.Delete(k); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (b *boltVisits) LoadReading(account string) (*Reading, bool) {
+	var sealed []byte
+	err := b.db.View(func(tx *bolt.Tx) error {
+		if v := tx.Bucket(readingBucket).Get(readingKey(account)); v != nil {
+			sealed = append([]byte(nil), v...)
+		}
+		return nil
+	})
+	if err != nil || sealed == nil {
+		return nil, false
+	}
+	raw := fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{b.key})
+	if raw == nil {
+		return nil, false
+	}
+	var r Reading
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return nil, false
+	}
+	return &r, true
+}
+
+func (b *boltVisits) SaveReading(account string, r *Reading) error {
+	raw, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	sealed, err := fernet.EncryptAndSign(raw, b.key)
+	if err != nil {
+		return err
+	}
+	return b.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(readingBucket).Put(readingKey(account), sealed)
+	})
+}
+
+func (b *boltVisits) Close() error { return b.db.Close() }

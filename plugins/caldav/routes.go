@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"mime"
 	"net/http"
@@ -136,7 +137,7 @@ func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
 	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 		return err
 	}
-	ctx.Session.PutNotice(fmt.Sprintf(ctx.T("notice.unsubscribedcalendar"), name))
+	ctx.PutNotice(fmt.Sprintf(ctx.T("notice.unsubscribedcalendar"), name))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/calendar"))
 }
 
@@ -787,7 +788,7 @@ func (p *plugin) addNote(ctx *alborz.Context, comp func(*ical.Calendar) *ical.Co
 	target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 	target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
 	if _, err := c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {
-		ctx.Session.Notify(refusedNotice(ctx, err))
+		ctx.Notify(refusedNotice(ctx, err))
 	}
 	return ctx.Redirect(http.StatusFound, back)
 }
@@ -842,10 +843,6 @@ func (p *plugin) toggleCompleted(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 }
 func (p *plugin) month(ctx *alborz.Context) error {
-	baseSettings, err := alborzbase.LoadSettings(ctx.Session.Store())
-	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
-	}
 	loc := alborzbase.UserLocation(ctx)
 
 	// The month is the reader's calendar's month: its bounds, its page
@@ -861,7 +858,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	} else {
 		start = cal.MonthStart(time.Now().In(loc))
 	}
-	firstDayOfWeek := baseSettings.FirstDayOfWeek
+	firstDayOfWeek := ctx.Reading().FirstDayOfWeek
 
 	view := ctx.QueryParam("view")
 	if view != "" && view != "list" {
@@ -1410,10 +1407,10 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			method, told = alborzbase.MethodCancel, parseAttendees(ctx.FormValue("attendees_was"))
 		}
 		if err := sendScheduling(ctx, event, told, method); err != nil {
-			ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.sendfailed")})
+			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.sendfailed")})
 			ctx.Logger().Printf("failed to send the scheduling message: %v", err)
 		} else if len(told) > 0 {
-			ctx.Session.PutNotice(ctx.T("invite.sent"))
+			ctx.PutNotice(ctx.T("invite.sent"))
 		}
 
 		if createAcct != "" {
@@ -1977,7 +1974,7 @@ func (p *plugin) completeTask(ctx *alborz.Context) error {
 	// A completion from the merged list returns to it.
 	target := ctx.NextOr(ctx.AccountPath("/tasks"))
 	if _, err := c.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {
-		ctx.Session.Notify(refusedNotice(ctx, err))
+		ctx.Notify(refusedNotice(ctx, err))
 		return ctx.Redirect(http.StatusFound, target)
 	}
 	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
@@ -1987,10 +1984,13 @@ func (p *plugin) completeTask(ctx *alborz.Context) error {
 			key = "notice.taskdone"
 		}
 		// The toggle is its own inverse.
-		notice = alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T(key),
+		summary, _ := todo.Props.Text("SUMMARY")
+		notice = alborz.Notice{Kind: alborz.NoticeDone,
+			Text:   fmt.Sprintf(ctx.T(key), summary),
+			Markup: template.HTML(fmt.Sprintf(ctx.T(key), alborz.NoticeName(summary))),
 			Action: ctx.Undo(ctx.AccountPath("/tasks/"+url.PathEscape(taskPath)+"/complete"), url.Values{"next": {target}})}
 	}
-	ctx.Session.Notify(notice)
+	ctx.Notify(notice)
 	return ctx.Redirect(http.StatusFound, target)
 }
 
@@ -2048,7 +2048,7 @@ func (p *plugin) completeTasks(ctx *alborz.Context) error {
 		}
 		markTodo(todo, !undo)
 		if _, err := ref.Client.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data); err != nil {
-			ctx.Session.Notify(refusedNotice(ctx, err))
+			ctx.Notify(refusedNotice(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 		}
 	}
@@ -2058,7 +2058,7 @@ func (p *plugin) completeTasks(ctx *alborz.Context) error {
 		notice = alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.tasksdone", len(refs)),
 			Action: ctx.Undo("/tasks/complete", url.Values{"paths": params["paths"], "next": {target}})}
 	}
-	ctx.Session.Notify(notice)
+	ctx.Notify(notice)
 	return ctx.Redirect(http.StatusFound, target)
 }
 
@@ -2092,7 +2092,7 @@ func (p *plugin) moveTasks(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to get task: %v", err)
 		}
 		if _, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data); err != nil {
-			ctx.Session.Notify(refusedNotice(ctx, err))
+			ctx.Notify(refusedNotice(ctx, err))
 			break
 		}
 		if err := ref.Client.RemoveAll(ctx.Request().Context(), ref.Path); err != nil {

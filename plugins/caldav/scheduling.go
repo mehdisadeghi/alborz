@@ -187,7 +187,7 @@ func (p *plugin) registerScheduling() {
 		if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
 			return fmt.Errorf("failed to remove the meeting: %v", err)
 		}
-		ctx.Session.PutNotice(ctx.T("invite.forgotten"))
+		ctx.PutNotice(ctx.T("invite.forgotten"))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 	})
 
@@ -232,11 +232,11 @@ func (p *plugin) registerScheduling() {
 		co, err := client.PutCalendarObject(ctx.Request().Context(),
 			path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), cal)
 		if err != nil {
-			ctx.Session.Notify(refusedNotice(ctx, err))
+			ctx.Notify(refusedNotice(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 		}
 
-		ctx.Session.PutNotice(ctx.T("invite.filed"))
+		ctx.PutNotice(ctx.T("invite.filed"))
 		if account != "" {
 			return ctx.Redirect(http.StatusFound,
 				CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.AddressParam(account))
@@ -325,9 +325,9 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 		return err
 	}
 	if n == 0 {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
 	} else {
-		ctx.Session.PutNotice(ctx.Tf("import.ics", n))
+		ctx.PutNotice(ctx.Tf("import.ics", n))
 	}
 	to := "/calendar"
 	if account != "" {

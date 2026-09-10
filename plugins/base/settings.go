@@ -14,7 +14,10 @@ const settingsKey = "base.settings"
 
 const (
 	maxMessagesPerPage = 100
-	maxSignature       = 2048
+	// defaultMessagesPerPage is what a reader who has chosen nothing
+	// gets.
+	defaultMessagesPerPage = 50
+	maxSignature           = 2048
 	// A header line may be 998 octets (RFC 5322 2.1.1); a body line in
 	// the wild is longer, and a scanner that stops is a truncated file.
 	maxMboxLine      = 1 << 20
@@ -32,7 +35,10 @@ type Signature struct {
 }
 
 type Settings struct {
-	MessagesPerPage int
+	// MessagesPerPage, the timezone, the first day of the week and
+	// whether HTML is preferred moved to the visit: they are what a
+	// person reads by, and a merged page cannot say which account they
+	// would belong to. See alborz.Reading.
 	// Signatures belong to the account rather than to an identity: which
 	// persona an address writes as is the writer's to decide per message,
 	// and a rule mapping the two would be wrong as often as it was right.
@@ -44,10 +50,8 @@ type Settings struct {
 	// Identities are the other addresses this mailbox may send as, one
 	// per line, each a bare address or a "Name <address>" pair. The
 	// account's own address is always offered and is not listed here.
-	Identities     []string
-	Subscriptions  []string
-	Timezone       string
-	FirstDayOfWeek int // 0 = Sunday, 1 = Monday (default)
+	Identities    []string
+	Subscriptions []string
 
 	// TrustedAuthServ is the authserv-id of the server that takes
 	// delivery for this account - what it calls itself in the
@@ -90,10 +94,7 @@ type Settings struct {
 }
 
 func LoadSettings(s alborz.Store) (*Settings, error) {
-	settings := &Settings{
-		MessagesPerPage: 50,
-		FirstDayOfWeek:  1, // Monday
-	}
+	settings := &Settings{}
 	if err := s.Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
@@ -108,8 +109,6 @@ func LoadSettings(s alborz.Store) (*Settings, error) {
 // empty when they hold.
 func (s *Settings) check() (string, int) {
 	switch {
-	case s.MessagesPerPage <= 0 || s.MessagesPerPage > maxMessagesPerPage:
-		return "form.perpage", maxMessagesPerPage
 	case len(s.Signatures) > maxSignatures:
 		return "form.signaturecount", maxSignatures
 	case len(s.From) > maxFullName:
@@ -148,10 +147,13 @@ type SettingsRenderData struct {
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
-	// Primary is the calendar system the pages count in, Secondary the
-	// one glossed beside it.
-	Primary    string
-	Secondary  string
+	// Reading is what this browser reads by, which belongs to the
+	// person rather than to the account whose page this is.
+	Reading alborz.Reading
+	// Anchor is the account those settings are kept on, empty when
+	// they are kept nowhere, and Anchored says whether it is this one.
+	Anchor     string
+	Anchored   bool
 	MaxPerPage int
 	Rail       map[string][]alborz.RailRow
 	// HasHTTPPassword says a calendar and contacts password is kept,
@@ -468,7 +470,6 @@ func handleSettings(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	primary, secondary := ctx.Calendars()
 
 	// The form answers its own invalid input, on the page it was typed
 	// on. Digits are read as they were typed: a page that counts in
@@ -479,8 +480,9 @@ func handleSettings(ctx *alborz.Context) error {
 			Settings:        settings,
 			Mailboxes:       mailboxes,
 			Subscriptions:   Subscriptions(settings.Subscriptions),
-			Primary:         primary,
-			Secondary:       secondary,
+			Reading:         ctx.Reading(),
+			Anchor:          ctx.Visit().Anchor(),
+			Anchored:        ctx.Visit().Anchor() == ctx.Session.Username(),
 			MaxPerPage:      maxMessagesPerPage,
 			HasHTTPPassword: hasHTTPPassword,
 			Error:           message,
@@ -489,15 +491,19 @@ func handleSettings(ctx *alborz.Context) error {
 	}
 
 	if ctx.Request().Method == http.MethodPost {
-		settings.MessagesPerPage, err = alborz.ReadInt(ctx.FormValue("messages_per_page"))
-		if err != nil {
+		// What the reader reads by is theirs, so it is written to the
+		// visit and kept on the account they anchored it to; what the
+		// account is stays with the account.
+		reading := ctx.Reading()
+		reading.MessagesPerPage, err = alborz.ReadInt(ctx.FormValue("messages_per_page"))
+		if err != nil || reading.MessagesPerPage <= 0 || reading.MessagesPerPage > maxMessagesPerPage {
 			return reject(fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage))
 		}
 		settings.From = ctx.FormValue("from")
 		settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
 		settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
-		settings.Timezone = ctx.FormValue("timezone")
+		reading.Timezone = ctx.FormValue("timezone")
 		// An empty field leaves the kept password alone; the box is
 		// how it is let go of, so nobody loses it by saving the page.
 		if ctx.FormValue("http_password_reset") != "" {
@@ -509,13 +515,20 @@ func handleSettings(ctx *alborz.Context) error {
 			return err
 		}
 		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
-		settings.PreferHTML = ctx.FormValue("prefer_html") != ""
+		reading.PreferHTML = ctx.FormValue("prefer_html") != ""
 		settings.SendHTML = ctx.FormValue("send_html") != ""
 		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
-			settings.FirstDayOfWeek, err = alborz.ReadInt(fdow)
-			if err != nil || settings.FirstDayOfWeek < 0 || settings.FirstDayOfWeek > 6 {
+			reading.FirstDayOfWeek, err = alborz.ReadInt(fdow)
+			if err != nil || reading.FirstDayOfWeek < 0 || reading.FirstDayOfWeek > 6 {
 				return reject(ctx.T("form.firstday"))
 			}
+		}
+		reading.Primary, reading.Secondary = ctx.FormValue("calendar"), ctx.FormValue("secondary")
+		if err := ctx.SetAnchor(anchorChosen(ctx)); err != nil {
+			return err
+		}
+		if err := ctx.SetReading(reading); err != nil {
+			return err
 		}
 
 		params, err := ctx.FormParams()
@@ -530,10 +543,6 @@ func handleSettings(ctx *alborz.Context) error {
 		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save settings: %w", err)
 		}
-		if err := ctx.SetCalendars(ctx.FormValue("calendar"), ctx.FormValue("secondary")); err != nil {
-			return fmt.Errorf("failed to save calendar choice: %w", err)
-		}
-
 		listings.evictAll(ctx.Session.Username())
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings"))
 	}
@@ -550,12 +559,24 @@ func handleSettings(ctx *alborz.Context) error {
 		Settings:        settings,
 		Mailboxes:       mailboxes,
 		Subscriptions:   Subscriptions(settings.Subscriptions),
-		Primary:         primary,
-		Secondary:       secondary,
+		Reading:         ctx.Reading(),
+		Anchor:          ctx.Visit().Anchor(),
+		Anchored:        ctx.Visit().Anchor() == ctx.Session.Username(),
 		MaxPerPage:      maxMessagesPerPage,
 		HasHTTPPassword: hasHTTPPassword,
 		Rail:            settingsRail(ctx),
 	})
+}
+
+// anchorChosen is the account the reader keeps their reading settings
+// on: the box is ticked by default and holds the account whose page
+// this is, and clearing it keeps them to this browser, for a mailbox
+// two people share.
+func anchorChosen(ctx *alborz.Context) string {
+	if ctx.FormValue("anchor") == "" {
+		return ""
+	}
+	return ctx.Session.Username()
 }
 
 func handleServers(ctx *alborz.Context) error {

@@ -68,6 +68,8 @@ github.com/valyala/fasttemplate v1.2.2/go.mod h1:KHLXt3tVN2HBp8eijSv/kGJopbvo7S+
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 gitlab.com/golang-commonmark/linkify v0.0.0-20200225224916-64bca66f6ad3 h1:1Coh5BsUBlXoEJmIEaNzVAWrtg9k7/eJzailMQr1grw=
 gitlab.com/golang-commonmark/linkify v0.0.0-20200225224916-64bca66f6ad3/go.mod h1:Gn+LZmCrhPECMD3SOKlE+BOHwhOYD9j7WT9NUtkCrC8=
+go.etcd.io/bbolt v1.5.0 h1:S7GAl7Fxv12yohbwFfIbQCGDWbQbtDGPET4P/bD4lxU=
+go.etcd.io/bbolt v1.5.0/go.mod h1:mkltfYE5aUHQxUct9N9V+Kp7aSjFqjgrhcXIS70Lrdk=
 go.guido-berhoerster.org/managesieve v0.8.1 h1:DV2rT9U55dv1vlTuw+OSDCK1fhk86nPU7Fs0SK6kugA=
 go.guido-berhoerster.org/managesieve v0.8.1/go.mod h1:uvqvWGFO2zONQiEQuDNH37Mg2pM7gTsDZSXtBOSmj98=
 go.yaml.in/yaml/v3 v3.0.4 h1:tfq32ie2Jv2UxXFdLJdh3jXuOzWiL1fo0bu/FbuKpbc=

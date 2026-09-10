@@ -351,9 +351,9 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	}
 
 	if warnings != "" {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
 	} else {
-		ctx.Session.PutNotice(ctx.T("notice.filtersaved"))
+		ctx.PutNotice(ctx.T("notice.filtersaved"))
 	}
 	return ctx.Redirect(http.StatusFound, "/filters?account="+alborz.AddressParam(ctx.Session.Username()))
 }
@@ -371,7 +371,7 @@ func handleActivateFilter(ctx *alborz.Context) error {
 		return err
 	}
 
-	ctx.Session.PutNotice(ctx.T("notice.filteron"))
+	ctx.PutNotice(ctx.T("notice.filteron"))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
 }
 
@@ -383,7 +383,7 @@ func handleDeactivateFilter(ctx *alborz.Context) error {
 		return err
 	}
 
-	ctx.Session.PutNotice(ctx.T("notice.filteroff"))
+	ctx.PutNotice(ctx.T("notice.filteroff"))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
 }
 
@@ -400,7 +400,7 @@ func handleDeleteFilter(ctx *alborz.Context) error {
 		return err
 	}
 
-	ctx.Session.PutNotice(ctx.T("notice.filterdeleted"))
+	ctx.PutNotice(ctx.T("notice.filterdeleted"))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
 }
 

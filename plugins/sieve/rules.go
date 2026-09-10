@@ -372,7 +372,7 @@ func handleBlock(ctx *alborz.Context) error {
 		return err
 	}
 	if junk == "" {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("filters.nojunk")})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("filters.nojunk")})
 		return ctx.Redirect(http.StatusFound, ctx.FormValue("next"))
 	}
 	// No editing session preceded this, so the script as it stands is

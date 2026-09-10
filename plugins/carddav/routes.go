@@ -845,7 +845,7 @@ func editCard(ctx *alborz.Context, p *plugin, change func(vcard.Card)) error {
 	change(ao.Card)
 	ao.Card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
 	if _, err := c.PutAddressObject(ctx.Request().Context(), ao.Path, ao.Card); err != nil {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
 }
@@ -1024,9 +1024,9 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 		return err
 	}
 	if n == 0 {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
 	} else {
-		ctx.Session.PutNotice(ctx.Tf("import.vcf", n))
+		ctx.PutNotice(ctx.Tf("import.vcf", n))
 	}
 	to := "/contacts"
 	if acct != ctx.Session.Username() {

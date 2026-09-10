@@ -743,7 +743,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.LoggedIn = true
 		global.Username = ctx.Session.username
 		global.Accounts = ctx.Accounts()
-		global.Notice = ctx.Session.PopNotice()
+		global.Notice = ctx.PopNotice()
 	}
 
 	return &BaseRenderData{
@@ -871,7 +871,7 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 	// pooled load that ran later in the same handler - belongs to this
 	// page, not to whichever the reader opens next.
 	if g := renderData.Global(); g.Notice == nil && ctx.Session != nil {
-		g.Notice = ctx.Session.PopNotice()
+		g.Notice = ctx.PopNotice()
 	}
 
 	start := time.Now()

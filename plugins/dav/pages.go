@@ -228,9 +228,9 @@ func (pg Page) importRaw(ctx *alborz.Context, collPath string, raw []byte) error
 		return err
 	}
 	if n == 0 {
-		ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
 	} else {
-		ctx.Session.PutNotice(ctx.Tf("import."+strings.TrimPrefix(pg.Ext, "."), n))
+		ctx.PutNotice(ctx.Tf("import."+strings.TrimPrefix(pg.Ext, "."), n))
 	}
 	pg.Forget(ctx.Session.Username())
 	return nil
@@ -424,7 +424,7 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 		base, _ := p.URL(ctx.Session)
 		target := base.ResolveReference(&url.URL{Path: collPath}).String()
 		if err := DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Session), target); err != nil {
-			ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
+			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectiondeletefailed"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
 		}
@@ -432,11 +432,11 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 		// A 2xx is not proof: some servers accept the DELETE and keep the
 		// collection. Listing again shows what the reader will see.
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err == nil {
-			ctx.Session.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
+			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectionkept"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
 		}
-		ctx.Session.PutNotice(fmt.Sprintf(ctx.T("notice.collectiondeleted"), info.Name))
+		ctx.PutNotice(fmt.Sprintf(ctx.T("notice.collectiondeleted"), info.Name))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 	}
 }

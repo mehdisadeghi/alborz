@@ -1242,3 +1242,77 @@ func noticeBar(body string) string {
 func alertText(body string) string {
 	return regexp.MustCompile(`(?s)<div class="alert"[^>]*>(.*?)</div>`).FindString(body)
 }
+
+// bothAccounts signs in twice, so the bag holds two, and returns the
+// client that carries them.
+func bothAccounts(t *testing.T, base string) *http.Client {
+	t.Helper()
+	c := login(t, base)
+	resp, err := c.PostForm(base+"/login?add=1",
+		url.Values{"username": {smokeUser2}, "password": {smokePass}})
+	if err != nil {
+		t.Fatalf("second sign-in: %v", err)
+	}
+	resp.Body.Close()
+	return c
+}
+
+// rowAccounts names the account of every row a listing shows, from the
+// reference its checkbox carries.
+func rowAccounts(body string) map[string]int {
+	out := map[string]int{}
+	for _, m := range regexp.MustCompile(`name="refs" value="([^|]+)\|`).FindAllStringSubmatch(body, -1) {
+		out[m[1]]++
+	}
+	return out
+}
+
+// TestScopeSelectsAccounts pins what the URL means: no account named
+// is every account, and one named is that one alone. The scope is the
+// only thing that decides, so a page that quietly falls back to a
+// current account shows up here.
+func TestScopeSelectsAccounts(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := bothAccounts(t, base)
+
+	merged := rowAccounts(get(t, c, base+"/mailbox/INBOX"))
+	if merged[smokeUser] == 0 || merged[smokeUser2] == 0 {
+		t.Fatalf("the merged inbox is not both accounts: %v", merged)
+	}
+	for _, account := range []string{smokeUser, smokeUser2} {
+		scoped := get(t, c, base+"/mailbox/INBOX?account="+account)
+		if n := len(messageUIDs(scoped)); n == 0 {
+			t.Errorf("%s has no rows when the page is scoped to it", account)
+		}
+		if strings.Contains(scoped, `value="`+other(account)+`|`) {
+			t.Errorf("a page scoped to %s shows %s's mail", account, other(account))
+		}
+	}
+}
+
+func other(account string) string {
+	if account == smokeUser {
+		return smokeUser2
+	}
+	return smokeUser
+}
+
+// TestNoticeReachesTheReaderFromAnyScope acts on the second account and
+// comes back to the merged view. A notice belongs to the person, not to
+// the account the action named, and one filed under an account waits
+// for a page scoped to it and turns up later on something unrelated.
+func TestNoticeReachesTheReaderFromAnyScope(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := bothAccounts(t, base)
+
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX?account="+smokeUser2))
+	if len(uids) == 0 {
+		t.Fatal("the second account has no message to act on")
+	}
+	resp := postForm(t, c, base+"/message/INBOX/move?account="+smokeUser2,
+		url.Values{"uids": {uids[0]}, "to": {"Archive"}, "next": {"/mailbox/INBOX"}})
+	resp.Body.Close()
+	if !strings.Contains(get(t, c, base+"/mailbox/INBOX"), "notice-text") {
+		t.Error("the merged view did not carry the notice the action raised")
+	}
+}

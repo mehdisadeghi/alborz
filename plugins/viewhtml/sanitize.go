@@ -286,6 +286,11 @@ func (san *sanitizer) sanitizeHTML(b []byte) ([]byte, error) {
 
 	p.AddTargetBlankToFullyQualifiedLinks(true)
 	p.RequireNoFollowOnLinks(true)
+	// The opened page learns nothing about where it was opened from,
+	// and holds no handle on the frame it was opened from: every
+	// current browser implies noopener with a target of its own, and
+	// noreferrer says so to the ones that do not.
+	p.RequireNoReferrerOnLinks(true)
 
 	return p.SanitizeBytes(b), nil
 }

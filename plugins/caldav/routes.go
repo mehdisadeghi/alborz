@@ -381,6 +381,10 @@ const (
 	settingsKey    = "caldav.settings"
 )
 
+func init() {
+	alborz.KeepKey(settingsKey)
+}
+
 // getCalendarObject fetches one event or task without go-webdav's
 // response parsing; see getAddressObject in the carddav plugin for why
 // the ETag makes that fail against Nextcloud.

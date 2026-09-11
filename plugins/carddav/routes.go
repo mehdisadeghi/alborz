@@ -53,6 +53,10 @@ func choose(store alborz.Store, paths []string) error {
 	return store.Put(settingsKey, settings)
 }
 
+func init() {
+	alborz.KeepKey(settingsKey)
+}
+
 type AddressObjectRenderData struct {
 	alborz.BaseRenderData
 	Rail dav.Rail

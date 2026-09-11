@@ -8,7 +8,7 @@ import (
 )
 
 func TestExpiryUnlistsTheSession(t *testing.T) {
-	sm := newSessionManager(nil, nil, nil, nil, nil, nil)
+	sm := newSessionManager(nil, nil, nil, nil, nil, nil, nil)
 	s := &Session{manager: sm, closed: make(chan struct{}), pings: make(chan struct{}, 5),
 		username: "a@test.local"}
 	sm.sessions[s] = struct{}{}

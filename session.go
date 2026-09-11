@@ -458,6 +458,9 @@ type SessionManager struct {
 	// loginKey seals what the store keeps for an account; nil leaves
 	// only the password wrap.
 	loginKey *fernet.Key
+	// kept is where an account's settings go when its server has no
+	// METADATA to hold them; nil where alborz keeps nothing itself.
+	kept VisitRecords
 
 	locker sync.Mutex
 	// sessions are the ones still open, for the shutdown that closes
@@ -469,8 +472,9 @@ type SessionManager struct {
 	warnedTransientStore bool
 }
 
-func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger, loginKey *fernet.Key) *SessionManager {
+func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger, loginKey *fernet.Key, kept VisitRecords) *SessionManager {
 	return &SessionManager{
+		kept:          kept,
 		sessions:      make(map[*Session]struct{}),
 		dialIMAP:      dialIMAP,
 		dialIMAPWatch: dialWatch,

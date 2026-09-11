@@ -18,10 +18,18 @@ var visitBucket = []byte("visits")
 // anchored it to, hashed so the file names nobody.
 var readingBucket = []byte("reading")
 
+// keptBucket holds what alborz keeps for an account whose server has no
+// METADATA: one sealed record per account, keyed the same hashed way.
+var keptBucket = []byte("kept")
+
 func readingKey(account string) []byte {
 	sum := sha256.Sum256([]byte(account))
 	return sum[:]
 }
+
+// openTimeout bounds the wait for the file's lock; every network and
+// file wait in alborz is bounded and says how long it waited.
+const openTimeout = 5 * time.Second
 
 // boltVisits keeps visits across a restart. A reader who asked to be
 // remembered is remembered by the server, so the browser carries an id
@@ -164,3 +172,45 @@ func (b *boltVisits) SaveReading(account string, r *Reading) error {
 }
 
 func (b *boltVisits) Close() error { return b.db.Close() }
+
+func (b *boltVisits) LoadKept(account string) (map[string]json.RawMessage, bool) {
+	var sealed []byte
+	err := b.db.View(func(tx *bolt.Tx) error {
+		if v := tx.Bucket(keptBucket).Get(readingKey(account)); v != nil {
+			sealed = append([]byte(nil), v...)
+		}
+		return nil
+	})
+	if err != nil || sealed == nil {
+		return nil, false
+	}
+	raw := fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{b.key})
+	if raw == nil {
+		return nil, false
+	}
+	entries := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, false
+	}
+	return entries, true
+}
+
+func (b *boltVisits) SaveKept(account string, entries map[string]json.RawMessage) error {
+	raw, err := json.Marshal(entries)
+	if err != nil {
+		return err
+	}
+	sealed, err := fernet.EncryptAndSign(raw, b.key)
+	if err != nil {
+		return err
+	}
+	return b.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(keptBucket).Put(readingKey(account), sealed)
+	})
+}
+
+func (b *boltVisits) DeleteReading(account string) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(readingBucket).Delete(readingKey(account))
+	})
+}

@@ -204,7 +204,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	}
 	data.Crumb = viewCrumb(ctx, []CrumbLink{{Label: ctx.T("aside." + strings.ToLower(role)), URL: "/mailbox/" + role}}, role, spec.view)
 	data.Outgoing = role == "Sent" || role == "Drafts"
-	return ctx.Render(http.StatusOK, "mailbox.html", data)
+	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 
 // window is how many rows each source of a merge gives: its own
@@ -450,7 +450,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	data.ThreadSupported = e.threadAlgorithm != ""
 	data.Threaded = spec.sortKey == threadSort && e.threadAlgorithm != ""
 	data.PreferHTML = settings.PreferHTML
-	return ctx.Render(http.StatusOK, "mailbox.html", data)
+	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 
 // listAsk is what a list page is asked for: which page of how many
@@ -1156,6 +1156,30 @@ func handleDelete(ctx *alborz.Context) error {
 	}, landOn(ctx, back))
 }
 
+// listTemplate is the whole page, or the part of it a narrowing
+// changes. Paging, sorting, the rows-per-page menu and a search swap
+// the list and say so; anything else - a boosted link, history, a page
+// asked for from outside - gets the page (TODO 126).
+func listTemplate(ctx *alborz.Context) string {
+	if ctx.PartialFor("main") {
+		return "message-list"
+	}
+	return "mailbox.html"
+}
+
+// StarRenderData is one message's star, which is all that changes when
+// a mark is set from a list row.
+type StarRenderData struct {
+	alborz.BaseRenderData
+	Mailbox string
+	Account template.URL
+	UID     imap.UID
+	Flagged bool
+	Color   string
+	Next    string
+	Label   string
+}
+
 func handleSetFlags(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
@@ -1182,9 +1206,33 @@ func handleSetFlags(ctx *alborz.Context) error {
 		if add == nil && del == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "unknown flag colour")
 		}
+		// One message's star is one message's star: where the page
+		// asked for that block, the whole listing does not have to be
+		// built and read again to show it. The new state is what was
+		// just stored, so nothing is fetched to find it out.
+		back := ctx.NextOr(mailboxURL(ctx, mboxName))
+		oneStar := ctx.Partial() && len(uids) == 1
 		return runAct(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), colourAct(add, del), func(int) alborz.Notice {
 			return alborz.Notice{}
-		}, landOn(ctx, ctx.NextOr(mailboxURL(ctx, mboxName))))
+		}, func(done bool) error {
+			if !oneStar || !done {
+				return ctx.Redirect(http.StatusFound, back)
+			}
+			label := ctx.T("mailbox.flagcolor")
+			if color[0] != "" {
+				label = ctx.T("mailbox.flagnone")
+			}
+			return ctx.Render(http.StatusOK, "row-star", &StarRenderData{
+				BaseRenderData: *alborz.NewBaseRenderData(ctx),
+				Mailbox:        mboxName,
+				Account:        template.URL("?account=" + alborz.AddressParam(ctx.Session.Username())),
+				UID:            uids[0],
+				Flagged:        color[0] != "",
+				Color:          color[0],
+				Next:           ctx.FormValue("next"),
+				Label:          label,
+			})
+		})
 	}
 
 	flags, ok := formParams["flags"]

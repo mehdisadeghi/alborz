@@ -43,19 +43,44 @@ func (ctx *Context) setPref(name, value string, valid bool) {
 	if !valid {
 		value = ""
 	}
+	ctx.keepPref(name, value)
 	ctx.SetCookie(ctx.cookie(name, value, preferenceCookieLife))
 }
 
+// keepPref remembers a choice for the rest of this request, so a
+// handler that answers with the thing it just changed shows the change
+// rather than what the browser sent.
+func (ctx *Context) keepPref(name, value string) {
+	if ctx.prefs == nil {
+		ctx.prefs = map[string]string{}
+	}
+	ctx.prefs[name] = value
+}
+
 func (ctx *Context) pref(name string, valid func(string) bool) string {
+	if v, ok := ctx.prefs[name]; ok {
+		if v == "" || valid(v) {
+			return v
+		}
+		return ""
+	}
 	if v, ok := ctx.cookieValue(name, valid); ok {
 		return v
 	}
 	return ""
 }
 
-// SetColorScheme stores the forced light or dark scheme per user.
+// SetColorScheme forces light or dark, or follows the system when the
+// scheme is neither. It lasts as long as the browser is open and no
+// longer, and it is never written down anywhere but this browser: a
+// scheme forced against the system's is an answer to the light in the
+// room, and the light in the room changes.
 func (ctx *Context) SetColorScheme(scheme string) {
-	ctx.setPref(schemeCookieName, scheme, scheme == "light" || scheme == "dark")
+	if scheme != "light" && scheme != "dark" {
+		scheme = ""
+	}
+	ctx.keepPref(schemeCookieName, scheme)
+	ctx.SetCookie(ctx.cookie(schemeCookieName, scheme, 0))
 }
 
 // ColorScheme returns the user's forced scheme, empty for the system.
@@ -142,14 +167,12 @@ func (ctx *Context) SetLanguage(code string) {
 	if !IsLanguage(code) {
 		code = ""
 	}
+	ctx.keepPref(langCookieName, code)
 	ctx.SetCookie(ctx.cookie(langCookieName, code, preferenceCookieLife))
 }
 
 // Language returns the user's explicit UI language choice, empty when
 // following the browser preference.
 func (ctx *Context) Language() string {
-	if c, ok := ctx.cookieValue(langCookieName, IsLanguage); ok {
-		return c
-	}
-	return ""
+	return ctx.pref(langCookieName, IsLanguage)
 }

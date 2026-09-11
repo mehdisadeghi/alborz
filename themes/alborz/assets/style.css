@@ -525,6 +525,20 @@ header nav .accounts-button .label {
    text, as the old summary did; no underline, since they are not
    links, and not the button box the generic rule paints, which has no
    padding here to paint into. */
+/* The appearance button ends the row: it is there at every width and on
+   every page, so it keeps the one place a permanent control should. */
+header nav .scheme-toggle {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+}
+
+/* With the appearance button after it, the group is no longer the last
+   child, so the push to the trailing side moves to whichever comes
+   first. */
+header nav > div { margin-inline-start: auto; }
+header nav > div ~ .scheme-toggle { margin-inline-start: 0; }
+
 header nav .accounts-button {
   display: inline-flex;
   align-items: center;

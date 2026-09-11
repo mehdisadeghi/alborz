@@ -143,8 +143,15 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	// place to put it and the key that seals the record. Without either
 	// a visit lasts as long as the process, which is what a session
 	// always did.
-	if options.CacheDir != "" && options.LoginKey != nil {
-		records, err := OpenVisitRecords(filepath.Join(options.CacheDir, "visits.db"), options.LoginKey)
+	if options.DataDir != "" && options.LoginKey != nil {
+		// Absolute, so every message about it names a path somebody can
+		// go and look at rather than one relative to a working
+		// directory they have to guess.
+		dataDir, err := filepath.Abs(options.DataDir)
+		if err != nil {
+			return nil, err
+		}
+		records, err := OpenVisitRecords(filepath.Join(dataDir, visitsFile), options.LoginKey)
 		if err != nil {
 			return nil, err
 		}
@@ -488,6 +495,12 @@ type Context struct {
 	// lostAccounts names the signed-in accounts whose session had
 	// expired by this request, for the notice the app page shows.
 	lostAccounts []string
+
+	// Preferences set while answering this request. A cookie written to
+	// the answer is not in the request that carried it, so a handler
+	// that stores a choice and then renders it must read its own write
+	// here rather than the browser's last one.
+	prefs map[string]string
 
 	// Per-request upstream and render durations, reported in Server-Timing.
 	timing *Timing

@@ -97,6 +97,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.POST("/settings/account", handleSettings)
 	p.POST("/settings/account/forget", handleForget)
 	p.POST("/language", handleLanguage)
+	p.POST("/scheme", handleScheme)
 }
 
 // mailboxURL is the page of a folder, under the account the request

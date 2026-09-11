@@ -31,6 +31,13 @@
       </section>
       {{/* Where you are, on every page that has a where. */}}
       {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb "class" "narrow-crumb") }}
+
+      {{/* What the list is narrowed by, which the crumb does not say:
+           a search, or the sender a reader clicked. Coming back to a
+           filtered page, this is the only thing that explains a short
+           list. */}}
+      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+
       {{/* Bare terms reached the headers only, since this server holds
            no index; the whole message is a slower search the reader
            asks for by name. */}}

@@ -1,0 +1,158 @@
+/* Solarized, both halves. Schoonover's palette holds one set of hues
+   against two backgrounds, so the light and dark sides are the same
+   theme rather than two. The accents are darkened in light and lifted
+   in dark: the originals sit near 3:1 on their own background, which
+   is under the floor for text: 4.5:1 against every surface here, the
+   raised one included, which the rail's own row is painted in. The doubled :root outweighs the scheme
+   blocks in the base sheet. */
+:root:root {
+  color-scheme: light;
+
+  --fg: #002b36;      /* base03 */
+  --fg-dim: #3f545b;
+  --fg-muted: #4a6169;
+  --fg-faint: #516870;
+
+  --bg: #fdf6e3;      /* base3, chrome and raised surfaces */
+  --bg-well: #f4eeda; /* content area behind them */
+  --bg-inset: #eee8d5; /* base2 */
+  --bg-button: #f7f1de;
+  --bg-active: #eee8d5;
+
+  --border: #e3dcc6;
+  --border-light: #ece5d0;
+  --border-faint: #f2ecd8;
+  --border-strong: #cfc8b2;
+
+  --link: #1c6d9c;
+  --link-read: #4f6490;
+  --link-unread: #155e88;
+
+  --green: #566a00;
+  --green-dark: #3d7154;
+  --bg-green: #f5f4dd;
+  --border-green: #d2d5a8;
+
+  --flag: #8a6800;
+  --flag-gold: var(--flag);
+  --flag-orange: #b8410f;
+  --flag-yellow: #8a6800;
+  --flag-green: #566a00;
+  --flag-blue: #1f7cbd;
+  --flag-purple: #6368b8;
+  --flag-grey: #6d7d7d;
+
+  --notice-fg: #00505f;
+  --notice-bg: #e4eddf;
+  --notice-border: #cddcd8;
+  --warning-fg: #6b5000;
+  --warning-bg: #f7ecd0;
+  --warning-border: #e6d5a5;
+  --alert-fg: #a12420;
+  --alert-bg: #f7e3dc;
+  --alert-border: #e8c5ba;
+  --warn-fg: #6b5000;
+  --warn-bg: #f7ecd0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --fg: #eee8d5;      /* base2 */
+    --fg-dim: #bcc7c5;
+    --fg-muted: #b0bdbc;
+    --fg-faint: #a3b0b0;
+
+    --bg: #073642;      /* base02, chrome and raised surfaces */
+    --bg-well: #002b36; /* base03, the page behind them */
+    --bg-inset: #0a3d4a;
+    --bg-button: #0a3d4a;
+    --bg-active: #0d4655;
+
+    --border: #14495a;
+    --border-light: #0e4152;
+    --border-faint: #0a3a48;
+    --border-strong: #23647a;
+
+    --link: #79bdf3;
+    --link-read: #a3b0e0;
+    --link-unread: #9ed3ff;
+
+    --green: #b0c33a;
+    --green-dark: #93c493;
+    --bg-green: #0b3b34;
+    --border-green: #1c5a4a;
+
+    --flag: #b58900;
+    --flag-gold: var(--flag);
+    --flag-orange: #e06a2c;
+    --flag-yellow: #c99b00;
+    --flag-green: #859900;
+    --flag-blue: #3f9fe0;
+    --flag-purple: #8a8fd8;
+    --flag-grey: #93a1a1;
+
+    --notice-fg: #8fc7d6;
+    --notice-bg: #04323f;
+    --notice-border: #0f4b5c;
+    --warning-fg: #e0bd66;
+    --warning-bg: #33290a;
+    --warning-border: #5c4a13;
+    --alert-fg: #f7a09b;
+    --alert-bg: #3a1d1c;
+    --alert-border: #5e2e2c;
+    --warn-fg: #d9b45a;
+    --warn-bg: #33290a;
+  }
+}
+
+:root:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --fg: #eee8d5;
+  --fg-dim: #bcc7c5;
+  --fg-muted: #b0bdbc;
+  --fg-faint: #a3b0b0;
+
+  --bg: #073642;
+  --bg-well: #002b36;
+  --bg-inset: #0a3d4a;
+  --bg-button: #0a3d4a;
+  --bg-active: #0d4655;
+
+  --border: #14495a;
+  --border-light: #0e4152;
+  --border-faint: #0a3a48;
+  --border-strong: #23647a;
+
+  --link: #79bdf3;
+  --link-read: #a3b0e0;
+  --link-unread: #9ed3ff;
+
+  --green: #b0c33a;
+  --green-dark: #93c493;
+  --bg-green: #0b3b34;
+  --border-green: #1c5a4a;
+
+  --flag: #b58900;
+  --flag-gold: var(--flag);
+  --flag-orange: #e06a2c;
+  --flag-yellow: #c99b00;
+  --flag-green: #859900;
+  --flag-blue: #3f9fe0;
+  --flag-purple: #8a8fd8;
+  --flag-grey: #93a1a1;
+
+  --notice-fg: #8fc7d6;
+  --notice-bg: #04323f;
+  --notice-border: #0f4b5c;
+  --warning-fg: #e0bd66;
+  --warning-bg: #33290a;
+  --warning-border: #5c4a13;
+  --alert-fg: #f7a09b;
+  --alert-bg: #3a1d1c;
+  --alert-border: #5e2e2c;
+  --warn-fg: #d9b45a;
+  --warn-bg: #33290a;
+}

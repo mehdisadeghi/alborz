@@ -3,7 +3,7 @@
 {{if and (eq .View "list") (eq .Span "month")}}{{$suffix = "&view=list&span=month"}}{{end}}
 {{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
-  <a class="icon-button" href="/calendar/export{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}" data-priority="10">{{ template "icon" "download" }}<span class="label">{{$.T "common.download"}}</span></a>
+  <a hx-boost="false" class="icon-button" href="/calendar/export{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}" data-priority="10">{{ template "icon" "download" }}<span class="label">{{$.T "common.download"}}</span></a>
 </span>
 <div class="overflow">
   <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>

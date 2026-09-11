@@ -8,10 +8,10 @@
   </aside>
 
   <div class="container">
-    <form id="address-book-form" method="post">
+    <form id="address-book-form" method="post" hx-boost="false">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
-    <form id="refresh-form" method="post" action="/contacts/refresh">
+    <form id="refresh-form" method="post" action="/contacts/refresh" hx-boost="false">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
     <main id="main" tabindex="-1" class="contact-list">
@@ -20,7 +20,6 @@
       </section>
 
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" "/contacts" "field" "" "collection" "" "path" "") }}
-
       <section class="contacts">
         {{ $multi := gt (len .GlobalData.Accounts) 1 }}
         <div class="contact-grid list-grid" role="table">

@@ -29,7 +29,7 @@
   <div class="container">
     <main id="main" tabindex="-1" class="message">
       {{ $here := printf "%v%s" .Message.URL $partq }}
-      <form id="message-flag-form" method="post">
+      <form id="message-flag-form" method="post" hx-boost="false">
         <input type="hidden" name="uids" value="{{.Message.UID}}">
         <input type="hidden" name="next" value="{{$here}}">
       </form>
@@ -108,7 +108,7 @@
               <div class="overflow-menu" popover id="menu-more">
                 {{/* The bytes the server holds, which is what makes the
                      message filable and checkable elsewhere. */}}
-                <a class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
+                <a hx-boost="false" class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
                 {{/* A rule starts from the message in hand: its sender,
                      its list and its subject are offered as conditions on
                      the account that received it. */}}
@@ -485,11 +485,16 @@
           <ul>
             {{ range .Message.Attachments }}
             <li>
+              {{/* A part the page can show is a page: boosted, like any
+                   other link. A part it cannot is bytes, and htmx would
+                   swap those into the document instead of letting the
+                   browser save them. */}}
               <a
                 class="nav-link"
                 {{if .IsText}}
                   href="?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}"
                 {{else}}
+                  hx-boost="false"
                   href="{{$.Message.URL}}/raw?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}"
                 {{end}}
               >
@@ -577,7 +582,7 @@
           {{ end }}
         >{{$.T "message.html"}}</a>
         {{ end }}
-        <a href="{{.Message.URL}}/raw?plain=1{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.raw"}}</a>
+        <a hx-boost="false" href="{{.Message.URL}}/raw?plain=1{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.raw"}}</a>
       </div>
 
       {{if .View}}
@@ -588,7 +593,7 @@
              previewed would be saying so of the thing just shown. */}}
       {{else}}
         <p>{{$.T "message.cantpreview"}}</p>
-        <a href="{{.Message.URL}}/raw?part={{.Part.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.download"}}</a>
+        <a hx-boost="false" href="{{.Message.URL}}/raw?part={{.Part.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.download"}}</a>
       {{end}}
     </main>
   </div>

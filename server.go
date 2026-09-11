@@ -576,7 +576,11 @@ func isPublic(path string) bool {
 	}
 	// The manifest names the application, not anything in it, and a
 	// browser fetches it before anyone has signed in.
+	// The worker and the page it shows when the network is gone say
+	// nothing about any account, and a browser fetches both before
+	// anyone has signed in.
 	return path == "/login" || path == "/manifest.webmanifest" ||
+		path == "/sw.js" || path == "/offline" ||
 		strings.HasPrefix(path, "/assets/")
 }
 
@@ -866,6 +870,38 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				icon("icon-maskable-512.png", "maskable"),
 			},
 		})
+	})
+
+	// The worker is written here rather than served as an asset: its
+	// scope is the path it is served from, so a worker under /assets/
+	// could only ever see /assets/, and the version it caches under is
+	// the digest of the files it holds. What it keeps is the shell -
+	// stylesheet, scripts, icons - and nothing an account owns.
+	e.GET("/sw.js", func(ectx echo.Context) error {
+		shell := []string{"style.css", "htmx.js", "helpers.js", "print.css",
+			"favicon-32x32.png", "icon-192.png", "icon-512.png"}
+		urls := make([]string, 0, len(shell)+1)
+		version := sha256.New()
+		for _, name := range shell {
+			u := s.assetURL(name)
+			urls = append(urls, u)
+			version.Write([]byte(u))
+		}
+		urls = append(urls, offlinePath)
+		body := fmt.Sprintf(serviceWorker,
+			hex.EncodeToString(version.Sum(nil))[:12], mustJSON(urls), offlinePath)
+		ectx.Response().Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		return ectx.String(http.StatusOK, body)
+	})
+
+	// The page the worker shows when the network is gone. It is a page
+	// of its own so it can be cached whole, and it says only what is
+	// true offline: nothing here is stored, so there is nothing to read
+	// until the connection is back.
+	e.GET(offlinePath, func(ectx echo.Context) error {
+		ctx := ectx.Get("context").(*Context)
+		return ctx.Render(http.StatusOK, "offline.html",
+			&struct{ BaseRenderData }{*NewBaseRenderData(ctx).WithTitle(ctx.T("offline.title"))})
 	})
 
 	// Assets are served from the embedded theme, with the theme directory

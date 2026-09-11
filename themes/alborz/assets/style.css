@@ -685,6 +685,27 @@ aside {
   border-inline-end: 1px solid var(--border-light);
 }
 
+/* A page swapped in place crosses over rather than blinking, as one
+   group and only one. Naming the header and the rail as groups of
+   their own made each morph from its old box to its new one, and the
+   rail is as tall as the page, so every navigation that changed the
+   page's height zoomed the chrome. The pseudo-elements a transition
+   builds sit outside the document, so the blanket rule above does not
+   reach them: a reader who asked for no motion gets the swap and none
+   of the fade. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
 /* Every rail row truncates: the name is in the title, and a rail is a
    list of places, not a place for a name to be read in full. */
 aside .filter-row,
@@ -4286,6 +4307,9 @@ h1.no-word .title-short {
     width: var(--drawer-width);
     z-index: 21;
     padding: 0.75rem;
+    /* Installed on a phone the dock sits on the home indicator, which
+       is a strip the system owns; the inset is zero in a browser. */
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
     background-color: var(--surface-raised);
     border-top: 1px solid var(--border);
     border-inline-end: 1px solid var(--border);
@@ -4309,6 +4333,10 @@ h1.no-word .title-short {
     width: var(--drawer-width);
     z-index: 20;
     overflow-y: auto;
+    /* The drawer is the whole height of the screen, so its first row
+       would otherwise sit against the top edge - and under the status
+       bar of an installed window. */
+    padding-top: max(var(--space-3), env(safe-area-inset-top));
     padding-bottom: 10rem; /* room for the docked account block */
     background-color: var(--surface-raised);
     border-inline-end: 1px solid var(--border);

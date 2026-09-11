@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"slices"
@@ -233,6 +234,12 @@ type VisitRecords interface {
 	// has to hang it on.
 	LoadReading(account string) (*Reading, bool)
 	SaveReading(account string, r *Reading) error
+	DeleteReading(account string) error
+	// LoadKept and SaveKept hold what an account's own server will
+	// not: without METADATA there is nowhere on it to write, and the
+	// settings would otherwise last only as long as the process.
+	LoadKept(account string) (map[string]json.RawMessage, bool)
+	SaveKept(account string, entries map[string]json.RawMessage) error
 }
 
 // Visits are the browsers signed in. The live ones are held here, and
@@ -254,6 +261,10 @@ func (vs *Visits) Records(r VisitRecords) { vs.records = r }
 
 // Remembers reports whether this deployment can remember a visit.
 func (vs *Visits) Remembers() bool { return vs.records != nil }
+
+// Keeper is where alborz writes for an account whose server will not,
+// nil when this deployment has nowhere of its own to write.
+func (vs *Visits) Keeper() VisitRecords { return vs.records }
 
 func (vs *Visits) Get(id string) *Visit {
 	vs.mu.Lock()

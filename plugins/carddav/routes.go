@@ -46,6 +46,10 @@ type Settings struct {
 
 const settingsKey = "carddav.settings"
 
+func init() {
+	alborz.KeepKey(settingsKey)
+}
+
 type AddressObjectRenderData struct {
 	alborz.BaseRenderData
 	Rail dav.Rail

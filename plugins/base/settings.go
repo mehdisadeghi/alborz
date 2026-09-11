@@ -12,6 +12,10 @@ import (
 
 const settingsKey = "base.settings"
 
+func init() {
+	alborz.KeepKey(settingsKey)
+}
+
 const (
 	maxMessagesPerPage = 100
 	// defaultMessagesPerPage is what a reader who has chosen nothing

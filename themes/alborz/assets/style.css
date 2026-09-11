@@ -3838,6 +3838,26 @@ header nav .accounts-menu[popover] {
     margin-inline: var(--space-1);
   }
 
+  /* Asked for on a narrow row, the search takes what the row has left
+     instead of the 24rem it asks for at width: a field that grows
+     inside a group which may not shrink pushes the row past the screen,
+     and the page scrolls sideways with half of it blank. The marks it
+     shares the group with step aside while it is open, the way the
+     count already does. */
+  .actions-end:has(.actions-search:focus-within) {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .actions-end:has(.actions-search:focus-within) > :not(.actions-search) {
+    display: none;
+  }
+
+  .actions-search:focus-within {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
   /* Chips buy the last of the row's width back from their own padding
      before the title is asked to give up any more of its floor. */
   .actions-pagination > strong,

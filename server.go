@@ -86,6 +86,9 @@ type Server struct {
 	assetsMu sync.Mutex
 	assets   map[string]assetStamp // theme asset content stamps by name
 
+	// Changes is what the watchers saw, for the streams to pass on.
+	Changes *Changes
+
 	// Visits are the browsers signed in, each holding its accounts and
 	// what its reader is owed.
 	Visits *Visits
@@ -125,7 +128,7 @@ type domainUpstreams struct {
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
-		Visits: newVisits()}
+		Visits: newVisits(), Changes: newChanges()}
 
 	// Remembering a visit means keeping a password, so it takes both a
 	// place to put it and the key that seals the record. Without either
@@ -870,6 +873,14 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				icon("icon-maskable-512.png", "maskable"),
 			},
 		})
+	})
+
+	// One stream per browser, for the pages that want to know without
+	// asking again. It is answered by the same context every page is,
+	// so a reader who is not signed in gets the sign-in answer here as
+	// anywhere else.
+	e.GET("/events", func(ectx echo.Context) error {
+		return handleEvents(ectx.Get("context").(*Context))
 	})
 
 	// The worker is written here rather than served as an asset: its

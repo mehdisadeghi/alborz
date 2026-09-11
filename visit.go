@@ -325,6 +325,15 @@ func (vs *Visits) LoadReading(account string) (*Reading, bool) {
 	return vs.records.LoadReading(account)
 }
 
+// ForgetReading drops what is kept under an account, for a reader
+// taking back everything alborz wrote about them there.
+func (vs *Visits) ForgetReading(account string) error {
+	if vs.records == nil {
+		return nil
+	}
+	return vs.records.DeleteReading(account)
+}
+
 func (vs *Visits) SaveReading(account string, r Reading) error {
 	if vs.records == nil {
 		return nil

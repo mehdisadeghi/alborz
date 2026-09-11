@@ -2,6 +2,7 @@ package alborz
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -48,6 +49,15 @@ const (
 	// shcalName is the Solar Hijri (Jalali) calendar.
 	shcalName = "shcal"
 )
+
+// CalendarNamed is the system that name stands for, empty for one we
+// do not have, so a form cannot store a calendar nothing can count in.
+func CalendarNamed(name string) string {
+	if slices.Contains(calendarSystems, name) {
+		return name
+	}
+	return ""
+}
 
 // calendarSystems are the ones a reader may count in, in the order the
 // settings offer them.

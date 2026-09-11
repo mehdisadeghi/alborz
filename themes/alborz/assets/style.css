@@ -1642,6 +1642,17 @@ main.create-update > form > .allday-label::before {
   margin-inline: var(--space-2);
 }
 
+/* Entry names are identifiers, not prose: monospaced, so the shared
+   prefix lines up and a stray character shows. */
+.kept-entries {
+  margin: var(--space-2) 0 0;
+  padding-inline-start: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  overflow-wrap: anywhere;
+}
+
 .list-card dt { color: var(--fg-dim); font-size: var(--text-sm); }
 .list-card dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 

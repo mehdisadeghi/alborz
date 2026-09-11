@@ -142,16 +142,20 @@
     {{ end }}
 
 {{ template "toolbar-end" }}
-  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty) }}
+  {{/* What the URL says, not what the page settled on: a direction
+       nobody chose is not a direction to carry into the next request. */}}
+  {{ $q := $.GlobalData.URL.Query }}
+  {{ $keep := dict "sort" ($q.Get "sort") "dir" ($q.Get "dir") "view" ($q.Get "view") "ipp" ($q.Get "ipp") "all" ($q.Get "all") }}
+  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty "target" "main" "keep" $keep) }}
 
   {{if gt .RangeFrom 0}}
   {{ $prev := "" }}{{if ge .PrevPage 0}}{{$prev = printf "?page=%d%s" .PrevPage $hparams}}{{end}}
   {{ $next := "" }}{{if ge .NextPage 0}}{{$next = printf "?page=%d%s" .NextPage $hparams}}{{end}}
-  {{ template "pagination" (dict "range" ($.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total) "prev" (dict "href" $prev "title" ($.T "mailbox.prevpage")) "next" (dict "href" $next "title" ($.T "mailbox.nextpage"))) }}
+  {{ template "pagination" (dict "range" ($.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total) "prev" (dict "href" $prev "title" ($.T "mailbox.prevpage")) "next" (dict "href" $next "title" ($.T "mailbox.nextpage")) "target" "main") }}
   {{ end }}
 
   {{ if gt .Total 0 }}
-  {{ template "ipp-menu" (dict "g" $.GlobalData "options" .PerPageOptions "current" .PerPage "base" $ippbase "label" ($.T "mailbox.perpage")) }}
+  {{ template "ipp-menu" (dict "g" $.GlobalData "options" .PerPageOptions "current" .PerPage "base" $ippbase "label" ($.T "mailbox.perpage") "target" "main") }}
   {{ end }}
 
   {{ if .SortSupported }}
@@ -159,7 +163,7 @@
     <button type="button" class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}" popovertarget="menu-sort">{{ template "sort-mark" $ }}</button>
     <div class="overflow-menu" popover id="menu-sort">
       {{ range tuple (tuple "sort.date" "date") (tuple "sort.starred" "starred") (tuple "sort.sender" "from") (tuple "sort.subject" "subject") (tuple "sort.size" "size") }}
-      {{ template "sort-th" (dict "label" ($.T (index . 0)) "key" (index . 1) "sort" $hsort "dir" $.SortDir "exp" $hexp "params" $hplain "reset" $hreset "dirx" $hdirx "class" "button-link") }}
+      {{ template "sort-th" (dict "label" ($.T (index . 0)) "key" (index . 1) "sort" $hsort "dir" $.SortDir "exp" $hexp "params" $hplain "reset" $hreset "dirx" $hdirx "class" "button-link" "target" "main") }}
       {{ end }}
       {{/* Not a column to order by but a shape to read in, so it sits
            at the end of the same menu rather than among the columns. */}}

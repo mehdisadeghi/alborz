@@ -5,21 +5,32 @@
 <div class="page-wrap">
   {{ template "aside" . }}
   <div class="container">
-    <form id="messages-form" method="POST">
+    <form id="messages-form" method="POST" hx-boost="false">
       <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
     </form>
     {{/* Its own form: refreshing acts on the folder, so it must not
          carry the selection or be gated on one. */}}
-    <form id="refresh-form" method="POST" action="/mailbox/{{.Mailbox.Name | pathescape}}/refresh{{ account "?" $.GlobalData.URLAccount }}">
+    <form id="refresh-form" method="POST" action="/mailbox/{{.Mailbox.Name | pathescape}}/refresh{{ account "?" $.GlobalData.URLAccount }}" hx-boost="false">
       <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
     </form>
     <main id="main" tabindex="-1" class="message-list">
+      {{ template "message-list" . }}
+    </main>
+  </div>
+</div>
+{{template "foot.html"}}
+
+{{/* Everything inside the list page that a narrowing changes: the
+     toolbar with its pager and its marks, what the page is narrowed
+     by, and the rows. Paging, sorting, the rows-per-page menu and a
+     search ask for this alone, so the rail and the header are not
+     sent again and the reader keeps their place in them (TODO 126). */}}
+{{ define "message-list" }}
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "messages-header.html" . }}
       </section>
       {{/* Where you are, on every page that has a where. */}}
       {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb "class" "narrow-crumb") }}
-
       {{/* Bare terms reached the headers only, since this server holds
            no index; the whole message is a slower search the reader
            asks for by name. */}}
@@ -39,23 +50,23 @@
           <div class="list-row" role="row">
           <div class="list-header list-checkbox" role="columnheader"></div>
           <div class="list-header message-list-flags" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "starred" .SortDir }}">
-            {{ if .SortSupported }}{{ template "sort-th" (dict "label" "★" "key" "starred" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset "idle" "☆" "class" "flag-sort") }}{{ end }}
+            {{ if .SortSupported }}{{ template "sort-th" (dict "target" "main" "label" "★" "key" "starred" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset "idle" "☆" "class" "flag-sort") }}{{ end }}
           </div>
           <div class="list-header message-list-sender" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "from" .SortDir }}">
             {{/* Sent and Drafts name whom the mail went to; the sort key
                  stays the server's, which orders these folders by the
                  recipient once told to sort by "to". */}}
             {{ $who := $.T "sort.sender" }}{{ $whokey := "from" }}{{ if .Outgoing }}{{ $who = $.T "sort.recipient" }}{{ $whokey = "to" }}{{ end }}
-            {{ if .SortSupported }}{{ template "sort-th" (dict "label" $who "key" $whokey "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{ $who }}{{ end }}
+            {{ if .SortSupported }}{{ template "sort-th" (dict "target" "main" "label" $who "key" $whokey "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{ $who }}{{ end }}
           </div>
           <div class="list-header list-primary message-list-subject" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "subject" .SortDir }}">
-            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.subject") "key" "subject" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.subject"}}{{ end }}
+            {{ if .SortSupported }}{{ template "sort-th" (dict "target" "main" "label" ($.T "sort.subject") "key" "subject" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.subject"}}{{ end }}
           </div>
           <div class="list-header message-list-date" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "date" .SortDir }}">
-            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.date") "key" "date" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.date"}}{{ end }}
+            {{ if .SortSupported }}{{ template "sort-th" (dict "target" "main" "label" ($.T "sort.date") "key" "date" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.date"}}{{ end }}
           </div>
           <div class="list-header message-list-size" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "size" .SortDir }}">
-            {{ if .SortSupported }}{{ template "sort-th" (dict "label" ($.T "sort.size") "key" "size" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.size"}}{{ end }}
+            {{ if .SortSupported }}{{ template "sort-th" (dict "target" "main" "label" ($.T "sort.size") "key" "size" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $hparams "reset" $hbase "dirx" $hreset) }}{{ else }}{{$.T "sort.size"}}{{ end }}
           </div>
           </div>
           {{/* A link that starts a new query keeps the scope the page is
@@ -85,29 +96,12 @@
             {{ end }}
           </div>
           <div class="message-list-flags {{$classes}}" role="cell">
-            <form method="POST" action="/message/{{.Mailbox}}/flag{{ if $.GlobalData.Unified }}{{account "?" .Account}}{{ else }}{{account "?" $.GlobalData.URLAccount}}{{ end }}">
-              <input type="hidden" name="uids" value="{{.UID}}">
-              {{/* Both directions go through the colour, which clears
-                   the bits as well as the flag. Removing \Flagged alone
-                   leaves the colour bits behind, so a mail flagged green
-                   elsewhere came back green the next time it was
-                   starred, however many times you unstarred it. */}}
-              {{ if .HasFlag "\\Flagged" -}}
-              <input type="hidden" name="color" value="">
-              {{ else }}
-              <input type="hidden" name="color" value="gold">
-              {{ end }}
-              <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-              <button class="flag-button button-link{{ with .FlagColor }} flag-{{.}}{{ end }}" type="submit"
-                      title="{{ if .HasFlag "\\Flagged" }}{{$.T "mailbox.flagnone"}}{{ else }}{{$.T "mailbox.flagcolor"}}{{ end }}"
-                      aria-label="{{ if .HasFlag "\\Flagged" }}{{$.T "mailbox.flagnone"}}{{ else }}{{$.T "mailbox.flagcolor"}}{{ end }}">
-                {{- if .HasFlag "\\Flagged" -}}
-                ★
-                {{- else -}}
-                ☆
-                {{- end -}}
-              </button>
-            </form>
+            {{ $starred := .HasFlag "\\Flagged" }}
+            {{ $star := $.T "mailbox.flagcolor" }}{{ if $starred }}{{ $star = $.T "mailbox.flagnone" }}{{ end }}
+            {{ $starq := account "?" $.GlobalData.URLAccount }}{{ if $.GlobalData.Unified }}{{ $starq = account "?" .Account }}{{ end }}
+            {{ template "row-star" (dict "Mailbox" .Mailbox "Account" $starq "UID" .UID
+                 "Flagged" $starred "Color" .FlagColor
+                 "Next" $.GlobalData.URL.RequestURI "Label" $star) }}
             {{if .Attachments}}<span class="message-mark" title="{{$.T "mailbox.attachment"}}"><span aria-hidden="true">📎</span><span class="visually-hidden">{{$.T "mailbox.attachment"}}</span></span>{{end}}
             {{if .HasFlag "\\Answered"}}<span class="message-mark" title="{{$.T "mailbox.answered"}}"><span aria-hidden="true">↩︎</span><span class="visually-hidden">{{$.T "mailbox.answered"}}</span></span>{{end}}
             {{if .HasFlag "$Forwarded"}}<span class="message-mark" title="{{$.T "mailbox.forwarded"}}"><span aria-hidden="true">↪︎</span><span class="visually-hidden">{{$.T "mailbox.forwarded"}}</span></span>{{end}}
@@ -170,7 +164,7 @@
             <span class="attach-line">
               {{ range $i, $a := . }}{{ if lt $i 3 }}
               {{ $name := $a.Filename }}{{ if eq $name "" }}{{ $name = $.T "mailbox.attachment" }}{{ end }}
-              <a class="attach-chip" href="{{ localhref (printf "%v%v" ($a.URL true) (account "&" $owner)) }}"
+              <a hx-boost="false" class="attach-chip" href="{{ localhref (printf "%v%v" ($a.URL true) (account "&" $owner)) }}"
                  title="{{$name}} ({{$a.SizeString}})">{{ template "ltr" $name }}</a>
               {{ end }}{{ end }}
               {{ if gt (len .) 3 }}
@@ -194,7 +188,4 @@
           {{end}}
         </div>
       </section>
-    </main>
-  </div>
-</div>
-{{template "foot.html"}}
+{{ end }}

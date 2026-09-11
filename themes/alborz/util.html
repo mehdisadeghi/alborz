@@ -123,6 +123,31 @@
      every other control that does: helpers.js disables it with the
      selection, and a container with nothing in it renders it dim from
      the start, since there is nothing there to check. */}}
+{{/* One message's star. The list row renders it, and so does the
+     answer to a mark, so a swap puts back exactly what the row had.
+     The keys are capitalised because the same block is rendered from
+     Go, where a field has to be exported to be read. ADR 13. */}}
+{{ define "row-star" }}
+<form method="POST" action="/message/{{.Mailbox}}/flag{{.Account}}"
+      hx-post="/message/{{.Mailbox}}/flag{{.Account}}" hx-target="this" hx-swap="outerHTML">
+  <input type="hidden" name="uids" value="{{.UID}}">
+  {{/* Both directions go through the colour, which clears the bits as
+       well as the flag. Removing \Flagged alone leaves the colour bits
+       behind, so a mail flagged green elsewhere came back green the
+       next time it was starred, however many times you unstarred it. */}}
+  <input type="hidden" name="color" value="{{ if .Flagged }}{{ else }}gold{{ end }}">
+  <input type="hidden" name="next" value="{{.Next}}">
+  <button class="flag-button button-link{{ with .Color }} flag-{{.}}{{ end }}" type="submit"
+          title="{{.Label}}" aria-label="{{.Label}}">
+    {{- if .Flagged -}}
+    &#9733;
+    {{- else -}}
+    &#9734;
+    {{- end -}}
+  </button>
+</form>
+{{ end }}
+
 {{ define "flag-menu" }}
 {{ if .disabled }}
 <span class="overflow flag-menu{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
@@ -172,6 +197,13 @@
 {{/* One sortable column header with the shared three-state cycle.
      dict: label key sort dir dirx exp params reset [idle]
      [class]; dir shows the arrow, dirx marks an explicit direction. */}}
+{{/* What a control writes when its section can answer with a piece of
+     the page rather than the whole of it: the target, the swap and the
+     address bar. Without a target it writes nothing and the control
+     stays what it was - a link the browser follows, boosted or not.
+     dict: target href. */}}
+{{ define "swaps" }}{{ with .target }} hx-get="{{$.href}}" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}{{ end }}
+
 {{ define "sort-th" }}
 {{ $arrow := "↑" }}{{ if eq .dir "desc" }}{{ $arrow = "↓" }}{{ end }}
 {{ $flip := "desc" }}{{ if eq .dir "desc" }}{{ $flip = "asc" }}{{ end }}
@@ -179,10 +211,10 @@
 {{ if and .exp (eq .sort .key) }}
 {{ $href := printf "?sort=%s&dir=%s%s" .key $flip .params }}
 {{ if .dirx }}{{ $href = .reset }}{{ end }}
-<a class="sort-header{{with .class}} {{.}}{{end}}" href="{{localhref $href}}"><strong><span class="sort-label">{{.label}}</span><span class="sort-arrow">{{$arrow}}</span></strong></a>
+<a class="sort-header{{with .class}} {{.}}{{end}}" href="{{localhref $href}}"{{ template "swaps" (dict "target" .target "href" (localhref $href)) }}><strong><span class="sort-label">{{.label}}</span><span class="sort-arrow">{{$arrow}}</span></strong></a>
 {{ else }}
 {{ $href := printf "?sort=%s%s" .key .params }}
-<a class="sort-header{{with .class}} {{.}}{{end}}" href="{{localhref $href}}">{{$idle}}</a>
+<a class="sort-header{{with .class}} {{.}}{{end}}" href="{{localhref $href}}"{{ template "swaps" (dict "target" .target "href" (localhref $href)) }}>{{$idle}}</a>
 {{ end }}
 
 {{ end }}
@@ -269,8 +301,13 @@
      A query already asked keeps it live whatever the count, or the
      reader could not change what they asked. */}}
 {{ define "toolbar-search" }}
-<form method="get" class="actions-search{{ if .disabled }} is-disabled{{ end }}">
+<form method="get" class="actions-search{{ if .disabled }} is-disabled{{ end }}"{{ with .target }} hx-get="" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}>
   {{ with .account }}<input type="hidden" name="account" value="{{.}}">{{ end }}
+  {{/* What the list is already narrowed or ordered by travels with the
+       search, or asking a question would silently widen the page: a
+       search from the merged view would answer for one account, and a
+       sorted list would come back in the default order. */}}
+  {{ range $name, $value := .keep }}{{ with $value }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
   <input type="text" name="query" dir="auto" value="{{.query}}" placeholder="{{.placeholder}}" aria-label="{{.placeholder}}"{{ if .disabled }} disabled{{ end }}>
   <button{{ if .disabled }} disabled{{ end }}>{{.button}}</button>
 </form>
@@ -281,8 +318,8 @@
 {{ define "pagination" }}
 <div class="actions-pagination">
   {{ with .range }}<span class="pagination-range" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}
-  {{ template "pager-link" (dict "step" .prev "icon" "prev") }}
-  {{ template "pager-link" (dict "step" .next "icon" "next") }}
+  {{ template "pager-link" (dict "step" .prev "icon" "prev" "target" .target) }}
+  {{ template "pager-link" (dict "step" .next "icon" "next" "target" .target) }}
 </div>
 {{ end }}
 
@@ -295,10 +332,10 @@
 {{ define "pager-link" }}
 {{ with .step }}
 {{ if .label }}
-{{ if .href }}<a href="{{localhref .href}}" class="button-link pager-link" data-priority="2" data-yield="word">{{ else }}<span class="button-link pager-link" aria-disabled="true" data-priority="2" data-yield="word">{{ end }}{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}{{ if .href }}</a>{{ else }}</span>{{ end }}
+{{ if .href }}<a href="{{localhref .href}}" class="button-link pager-link" data-priority="2" data-yield="word"{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ else }}<span class="button-link pager-link" aria-disabled="true" data-priority="2" data-yield="word">{{ end }}{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}{{ if .href }}</a>{{ else }}</span>{{ end }}
 {{ else }}
 {{ if .href }}
-<a href="{{localhref .href}}" class="icon-button" title="{{.title}}" aria-label="{{.title}}">{{ template "icon" $.icon }}</a>
+<a href="{{localhref .href}}" class="icon-button" title="{{.title}}" aria-label="{{.title}}"{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ template "icon" $.icon }}</a>
 {{ else }}
 <span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}">{{ template "icon" $.icon }}</span>
 {{ end }}
@@ -330,7 +367,7 @@
     {{ if eq . $d.current }}
     <span class="button-link is-current" aria-current="true">{{$d.g.Num .}}</span>
     {{ else }}
-    <a class="button-link" href="{{ localhref (printf "?ipp=%d%s" . $d.base) }}">{{$d.g.Num .}}</a>
+    <a class="button-link" href="{{ localhref (printf "?ipp=%d%s" . $d.base) }}"{{ template "swaps" (dict "target" $d.target "href" (localhref (printf "?ipp=%d%s" . $d.base))) }}>{{$d.g.Num .}}</a>
     {{ end }}
     {{ end }}
   </div>

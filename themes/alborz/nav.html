@@ -126,13 +126,15 @@
   {{ if .drawer }}<details class="accounts lang-menu"><summary>{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</summary>{{ else }}<div class="accounts lang-menu"><button type="button" class="accounts-button" popovertarget="menu-language"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
   <div class="accounts-menu"{{ if not .drawer }} popover id="menu-language"{{ end }}>
     {{/* Following the browser is a choice too, and the only way
-         back to it once one was made. */}}
-    <form method="post" action="/language">
+         back to it once one was made. The language sets the document's
+         own lang and dir, which live on the root element that a swap
+         does not replace, so this one asks for a whole page. */}}
+    <form method="post" action="/language" hx-boost="false">
       <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
       <button type="submit" name="language" value=""{{ if eq $g.GlobalData.Language "" }} class="active" disabled{{ end }}>{{$g.T "settings.langauto"}}</button>
     </form>
     {{ range $g.GlobalData.LanguageChoices }}
-    <form method="post" action="/language">
+    <form method="post" action="/language" hx-boost="false">
       <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
       <button type="submit" name="language" value="{{.Code}}"{{ if eq .Code $g.GlobalData.Language }} class="active" disabled{{ end }}>{{.Name}}</button>
     </form>

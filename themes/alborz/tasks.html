@@ -16,10 +16,10 @@
   </aside>
 
   <div class="container">
-    <form id="tasks-form" method="post">
+    <form id="tasks-form" method="post" hx-boost="false">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
-    <form id="refresh-form" method="post" action="/tasks/refresh">
+    <form id="refresh-form" method="post" action="/tasks/refresh" hx-boost="false">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
     <main id="main" tabindex="-1" class="task-list">

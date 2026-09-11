@@ -6,7 +6,7 @@
   {{ template "aside" . }}
   <div class="container">
     <main id="main" tabindex="-1" class="create-update">
-      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/export?all=1{{ with .Query }}&query={{ . | urlquery }}{{ else }}{{ with .ListView }}&view={{ . }}{{ end }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}" data-download>
+      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/export?all=1{{ with .Query }}&query={{ . | urlquery }}{{ else }}{{ with .ListView }}&view={{ . }}{{ end }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}" data-download hx-boost="false">
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
         <h1>{{ if .Query }}{{ printf ($.T "folder.exportresultsask") .Query }}{{ else if .ViewName }}{{ printf ($.T "folder.exportviewask") .ViewName }}{{ else }}{{ printf ($.T "folder.exportask") .Mailbox.Label }}{{ end }}</h1>
         <p>{{ $.GlobalData.Tf "folder.exportcount" .Count }}{{ if .Size }} {{ printf ($.T "folder.exportsize") (humansize .Size) }}{{ end }}</p>

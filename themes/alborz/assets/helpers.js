@@ -551,6 +551,30 @@ if (retry) {
 
 // @license-end
 
+// A watcher on the server sits in IDLE, so alborz learns that mail
+// arrived before anybody asks for a page. What that changes here is the
+// rail's count, which is the one place a number for a folder lives; the
+// list under the reader's hands is left exactly where it is, and the
+// folder they click is already fetched. A reader with no script loses
+// nothing they had.
+const rail = document.querySelector("aside");
+if (rail && window.EventSource) {
+	let due = null;
+	const live = new EventSource("/events");
+	live.addEventListener("mailbox", () => {
+		// Mail arrives in bursts; the counts are fetched once for the
+		// burst rather than once for each message.
+		clearTimeout(due);
+		due = setTimeout(() => {
+			const here = document.querySelector("aside");
+			if (here && window.htmx) {
+				htmx.ajax("GET", location.href,
+					{ source: here, target: here, select: "aside", swap: "outerHTML" });
+			}
+		}, 2000);
+	});
+}
+
 // The worker holds the stylesheet, the scripts and the icons, so the
 // application starts without waiting for them, and answers a page that
 // cannot be fetched with one that says so. It holds no mail: see

@@ -50,7 +50,7 @@ type watcherSet struct {
 // mail that arrives while nobody is looking is noticed rather than
 // waited for.
 func watchAccount(ctx *alborz.Context, s *alborz.Session) {
-	Watch(s, ctx.Logger())
+	Watch(s, ctx.Logger(), ctx.Server.Changes)
 }
 
 // warmAccount fetches the account's INBOX views and rail as it is
@@ -67,7 +67,7 @@ func warmAccount(ctx *alborz.Context, s *alborz.Session) {
 // Watch starts following an account's INBOX if nothing is following it
 // already. One watcher per account, however many browsers are signed in
 // to it: they all read the same cache.
-func Watch(s *alborz.Session, log echo.Logger) {
+func Watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
 	user := s.Username()
 
 	watchers.mu.Lock()
@@ -84,13 +84,13 @@ func Watch(s *alborz.Session, log echo.Logger) {
 			delete(watchers.running, user)
 			watchers.mu.Unlock()
 		}()
-		watch(s, log)
+		watch(s, log, changes)
 	}()
 }
 
 // watch keeps one connection in IDLE for as long as the session lives,
 // reconnecting when the connection or the server gives out.
-func watch(s *alborz.Session, log echo.Logger) {
+func watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
 	backoff := idleRetry
 	for {
 		select {
@@ -99,7 +99,7 @@ func watch(s *alborz.Session, log echo.Logger) {
 		default:
 		}
 
-		if err := follow(s); err != nil {
+		if err := follow(s, changes); err != nil {
 			log.Printf("watch %s: %v (retrying in %v)", s.Username(), err, backoff)
 			select {
 			case <-s.Done():
@@ -120,7 +120,7 @@ func watch(s *alborz.Session, log echo.Logger) {
 // handshake, a TLS handshake and a LOGIN for every message that arrives
 // - which a provider counting connections and logins reads as abuse, and
 // answers by refusing the account.
-func follow(s *alborz.Session) error {
+func follow(s *alborz.Session, changes *alborz.Changes) error {
 	changed := make(chan struct{}, 1)
 	c, err := s.WatchIMAP(func() { notify(changed) }, func(seqNum uint32, flags []imap.Flag) {
 		listings.setFlags(s.Username(), "INBOX", seqNum, flags)
@@ -150,7 +150,7 @@ func follow(s *alborz.Session) error {
 			return nil
 		default:
 		}
-		if err := idleOnce(s, c, changed); err != nil {
+		if err := idleOnce(s, c, changed, changes); err != nil {
 			return err
 		}
 	}
@@ -159,7 +159,7 @@ func follow(s *alborz.Session) error {
 // idleOnce waits on one IDLE. On a change the listing is dropped and
 // fetched again at once, on the session's own connection, so the visit
 // that follows new mail finds the page ready.
-func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}) error {
+func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}, changes *alborz.Changes) error {
 	cmd, err := c.Idle()
 	if err != nil {
 		return fmt.Errorf("failed to idle: %w", err)
@@ -173,6 +173,9 @@ func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}) er
 		if err := warmInbox(s); err != nil {
 			return fmt.Errorf("failed to refetch INBOX: %w", err)
 		}
+		// The page is told after the listing is back, so a browser
+		// that acts on the news finds it ready.
+		changes.Announce(s.Username(), "INBOX")
 	case <-window.C:
 	case <-s.Done():
 	}

@@ -293,36 +293,47 @@ const enhance = () => {
 		});
 	}
 
-	// Each prime nav remembers the place you last were in its section, a
-	// folder or a month with its scope (ADR 0001: the URL is the scope,
-	// this only fills what a bare nav click defaults to). Only a list page
-	// is a place; see nav.html.
+	// Each prime nav remembers the place you last were in its section:
+	// a folder, a month, a view. Not the account - the account is the
+	// scope, the URL carries it (ADR 0001), and a remembered one is
+	// wrong twice over: it outlives the account it names, and it
+	// overrules the account the reader is looking at right now. So a
+	// place is stored stripped of it and rescoped to whatever the
+	// current page is scoped to. Only a list page is a place; see
+	// nav.html.
 	(() => {
 		const nav = document.querySelector("header nav[data-here]");
 		if (!nav) {
 			return;
 		}
 		const key = section => "nav-place:" + section;
-		const read = k => {
-			try {
-				return localStorage.getItem(k);
-			} catch (e) {
-				return null;
+		// An address reads better unescaped, and every link the server
+		// writes leaves the at sign alone.
+		const scoped = (place, account) => {
+			const url = new URL(place, location.origin);
+			url.searchParams.delete("account");
+			if (account) {
+				url.searchParams.set("account", account);
 			}
+			return url.pathname + url.search.replace(/%40/g, "@");
 		};
 		const here = nav.dataset.here;
+		const account = new URLSearchParams(location.search).get("account");
 		if (here && "place" in nav.dataset) {
 			try {
-				localStorage.setItem(key(here), location.pathname + location.search);
+				localStorage.setItem(key(here), scoped(location.pathname + location.search, null));
 			} catch (e) {}
 		}
 		for (const a of nav.querySelectorAll("a[data-section]")) {
 			if (a.dataset.section === here) {
 				continue;
 			}
-			const place = read(key(a.dataset.section));
+			let place = null;
+			try {
+				place = localStorage.getItem(key(a.dataset.section));
+			} catch (e) {}
 			if (place !== null) {
-				a.setAttribute("href", place);
+				a.setAttribute("href", scoped(place, account));
 			}
 		}
 	})();

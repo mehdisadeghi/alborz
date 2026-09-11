@@ -17,6 +17,18 @@ try {
 // everything below runs more than once against a document that is
 // partly new. A listener added twice acts twice, so each is claimed for
 // its element by name; the element is forgotten with the DOM node.
+// Whether a finger is doing the pointing, which decides what may take
+// focus: on a touch screen a focused field is a keyboard over half the
+// page and, where the field has a suggestion list, the browser's own
+// sheet over the rest.
+const touch = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+if (touch) {
+	const opening = document.activeElement;
+	if (opening && opening.hasAttribute("autofocus")) {
+		opening.blur();
+	}
+}
+
 const claimed = new WeakMap();
 const once = (el, key) => {
 	let keys = claimed.get(el);
@@ -158,7 +170,7 @@ const enhance = () => {
 	// quote or below it. A browser focusing a textarea puts it at one end
 	// or the other depending on the browser; this says which end.
 	const caret = document.querySelector("textarea[data-caret]");
-	if (caret && once(caret, "caret")) {
+	if (caret && !touch && once(caret, "caret")) {
 		const at = caret.dataset.caret === "start" ? 0 : caret.value.length;
 		caret.focus();
 		caret.setSelectionRange(at, at);
@@ -436,6 +448,70 @@ enhance();
 // own kind; this is that event.
 document.addEventListener("htmx:load", enhance);
 
+// A native suggestion list is the browser's own popup, and on a phone it
+// covers the page the moment its field takes focus. Two consequences,
+// both handled here rather than by giving up the datalist: a page that
+// autofocuses a field should not open a sheet over itself on a touch
+// screen, and a popup open when htmx replaces the document's body
+// outlives the element it belonged to and hangs there over the next
+// page.
+document.addEventListener("htmx:beforeSwap", () => {
+	const focused = document.activeElement;
+	if (focused && focused !== document.body && focused.blur) {
+		focused.blur();
+	}
+});
+
+// The appearance button posts and comes back as itself. What it cannot
+// bring with it is the root element's attribute, which is where the
+// scheme is actually applied, so that is read off the block the server
+// sent rather than worked out here.
+document.addEventListener("htmx:afterSwap", ev => {
+	const toggle = ev.target.closest ? ev.target.closest(".scheme-toggle") : null;
+	if (!toggle) {
+		return;
+	}
+	const scheme = toggle.dataset.scheme;
+	if (scheme) {
+		document.documentElement.dataset.theme = scheme;
+	} else {
+		delete document.documentElement.dataset.theme;
+	}
+});
+
+// A watcher on the server sits in IDLE, so alborz learns that mail
+// arrived before anybody asks for a page. What that changes here is the
+// rail's count, which is the one place a number for a folder lives; the
+// list under the reader's hands is left exactly where it is, and the
+// folder they click is already fetched. A reader with no script loses
+// nothing they had.
+const rail = document.querySelector("aside");
+if (rail && window.EventSource) {
+	let due = null;
+	const live = new EventSource("/events");
+	live.addEventListener("mailbox", () => {
+		// Mail arrives in bursts; the counts are fetched once for the
+		// burst rather than once for each message.
+		clearTimeout(due);
+		due = setTimeout(() => {
+			const here = document.querySelector("aside");
+			if (here && window.htmx) {
+				htmx.ajax("GET", location.href,
+					{ source: here, target: here, select: "aside", swap: "outerHTML" });
+			}
+		}, 2000);
+	});
+}
+
+// The worker holds the stylesheet, the scripts and the icons, so the
+// application starts without waiting for them, and answers a page that
+// cannot be fetched with one that says so. It holds no mail: see
+// serviceworker.go.
+if ("serviceWorker" in navigator) {
+	window.addEventListener("load", () => {
+		navigator.serviceWorker.register("/sw.js").catch(() => {});
+	});
+}
 
 // A form is sent once. Nothing answers a click for the round trip's
 // length, so a reader clicks again and the server does the thing
@@ -550,54 +626,3 @@ if (retry) {
 }
 
 // @license-end
-
-// The appearance button posts and comes back as itself. What it cannot
-// bring with it is the root element's attribute, which is where the
-// scheme is actually applied, so that is read off the block the server
-// sent rather than worked out here.
-document.addEventListener("htmx:afterSwap", ev => {
-	const toggle = ev.target.closest ? ev.target.closest(".scheme-toggle") : null;
-	if (!toggle) {
-		return;
-	}
-	const scheme = toggle.dataset.scheme;
-	if (scheme) {
-		document.documentElement.dataset.theme = scheme;
-	} else {
-		delete document.documentElement.dataset.theme;
-	}
-});
-
-// A watcher on the server sits in IDLE, so alborz learns that mail
-// arrived before anybody asks for a page. What that changes here is the
-// rail's count, which is the one place a number for a folder lives; the
-// list under the reader's hands is left exactly where it is, and the
-// folder they click is already fetched. A reader with no script loses
-// nothing they had.
-const rail = document.querySelector("aside");
-if (rail && window.EventSource) {
-	let due = null;
-	const live = new EventSource("/events");
-	live.addEventListener("mailbox", () => {
-		// Mail arrives in bursts; the counts are fetched once for the
-		// burst rather than once for each message.
-		clearTimeout(due);
-		due = setTimeout(() => {
-			const here = document.querySelector("aside");
-			if (here && window.htmx) {
-				htmx.ajax("GET", location.href,
-					{ source: here, target: here, select: "aside", swap: "outerHTML" });
-			}
-		}, 2000);
-	});
-}
-
-// The worker holds the stylesheet, the scripts and the icons, so the
-// application starts without waiting for them, and answers a page that
-// cannot be fetched with one that says so. It holds no mail: see
-// serviceworker.go.
-if ("serviceWorker" in navigator) {
-	window.addEventListener("load", () => {
-		navigator.serviceWorker.register("/sw.js").catch(() => {});
-	});
-}

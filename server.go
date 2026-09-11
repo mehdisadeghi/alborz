@@ -22,9 +22,18 @@ import (
 )
 
 // BrandName is what a person reads: page titles, the User-Agent on a
-// message, the name given to an IMAP server. The code spells itself
-// "alborz" everywhere else.
+// message, the name given to an IMAP server.
 const BrandName = "Alborz"
+
+// AppName is what the machine reads: the directory alborz keeps its
+// data and its cache in, under whichever root the system gives it. One
+// name, spelt once.
+const AppName = "alborz"
+
+// visitsFile is what the visit store is called inside the data
+// directory. Named here because the flag's help text says where the
+// directory is, and this says what is in it.
+const visitsFile = "visits.db"
 
 // What a launcher paints before any stylesheet has loaded. The window
 // colour is the one head.html already declares for a light scheme, so
@@ -656,8 +665,15 @@ type Options struct {
 	LoginKey   *fernet.Key
 	// CacheDir keeps the calendar and contacts cache between runs,
 	// sealed under LoginKey; empty, or no key, keeps it in memory.
+	// Nothing here is missed if it is deleted, which is what makes it
+	// a cache.
 	CacheDir string
-	Version  string
+	// DataDir keeps what a reader would miss: the visits that remember
+	// an account, what they read by, and the settings of an account
+	// whose own server will not hold them. Sealed under LoginKey;
+	// empty, or no key, and a visit lasts as long as the process.
+	DataDir string
+	Version string
 	// ProjectURL is where the footer's name links, for a deployment that
 	// wants to point somewhere. Empty by default: a deployment is not the
 	// author's, and no address of anyone's belongs in a shipped binary.

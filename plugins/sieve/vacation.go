@@ -25,6 +25,10 @@ const (
 	dateLayout          = "2006-01-02"
 )
 
+func init() {
+	alborz.KeepKey(repliesKey)
+}
+
 // A Reply is one automatic answer the reader has written. Sieve sends
 // one per message, so one at a time is composed into the script; the
 // rest wait in the account's store, beside the signatures. Addresses

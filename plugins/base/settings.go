@@ -19,8 +19,9 @@ func init() {
 const (
 	maxMessagesPerPage = 100
 	// defaultMessagesPerPage is what a reader who has chosen nothing
-	// gets.
-	defaultMessagesPerPage = 50
+	// gets; the reading settings define it, and it is named here so the
+	// warming code that has no context can use it too.
+	defaultMessagesPerPage = alborz.DefaultMessagesPerPage
 	maxSignature           = 2048
 	// A header line may be 998 octets (RFC 5322 2.1.1); a body line in
 	// the wild is longer, and a scanner that stops is a truncated file.
@@ -151,19 +152,46 @@ type SettingsRenderData struct {
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
-	// Reading is what this browser reads by, which belongs to the
-	// person rather than to the account whose page this is.
-	Reading alborz.Reading
-	// Anchor is the account those settings are kept on, empty when
-	// they are kept nowhere, and Anchored says whether it is this one.
-	Anchor     string
-	Anchored   bool
-	MaxPerPage int
-	Rail       map[string][]alborz.RailRow
+	// Kept says where this account's settings are written and what is
+	// written there.
+	Kept KeptInfo
+	Rail map[string][]alborz.RailRow
 	// HasHTTPPassword says a calendar and contacts password is kept,
 	// which the form shows without ever showing the password.
 	HasHTTPPassword bool
 	Error           string
+}
+
+// KeptInfo says where an account's settings live. A server with no
+// METADATA cannot hold them, and then alborz does: the page says which,
+// names the host, and lists what is there, because settings written
+// somewhere the reader was never told about are settings they cannot
+// take back.
+type KeptInfo struct {
+	OnServer bool
+	Host     string
+	Entries  []string
+	// Reading says what the reader reads by is kept under this account
+	// too, which alborz holds itself whatever the server can do.
+	Reading bool
+}
+
+func keptInfo(ctx *alborz.Context) (KeptInfo, error) {
+	store, ok := ctx.Session.Store().(alborz.KeptStore)
+	if !ok {
+		return KeptInfo{}, nil
+	}
+	entries, err := store.Entries()
+	if err != nil {
+		return KeptInfo{}, err
+	}
+	host := ctx.Request().Host
+	if store.OnServer() {
+		_, domain, _ := strings.Cut(ctx.Session.Username(), "@")
+		host = ctx.Server.UpstreamsFor(domain).IMAP
+	}
+	_, reading := ctx.Server.Visits.LoadReading(ctx.Session.Username())
+	return KeptInfo{OnServer: store.OnServer(), Host: host, Entries: entries, Reading: reading}, nil
 }
 
 // ServerInfo is what alborz can say about the account's upstreams
@@ -216,9 +244,10 @@ func abilities(c *imapclient.Client, settings *Settings) []Ability {
 	}
 }
 
-// BrowserSettingsRenderData carries the choices stored in the browser
-// rather than in any account.
-type BrowserSettingsRenderData struct {
+// ReadingRenderData is the settings page that belongs to nobody's
+// account: what this browser reads by, and the choices the browser
+// itself keeps.
+type ReadingRenderData struct {
 	alborz.BaseRenderData
 	Rail          map[string][]alborz.RailRow
 	Language      string // explicit per-user choice, "" follows the browser
@@ -227,6 +256,14 @@ type BrowserSettingsRenderData struct {
 	AccountColors bool
 	AlignByScript bool
 	TextSize      string
+
+	Reading    alborz.Reading
+	MaxPerPage int
+	// Anchor is the account these settings are kept on, empty for
+	// none, and Accounts are the ones that could hold them.
+	Anchor   string
+	Accounts []alborz.Account
+	Error    string
 }
 
 type Subscriptions []string
@@ -298,20 +335,20 @@ type SignatureRenderData struct {
 type ServersRenderData struct {
 	alborz.BaseRenderData
 	Servers ServerInfo
-	Rail    map[string][]alborz.RailRow
+	Rail map[string][]alborz.RailRow
 }
 
-// settingsRail lists each account's places in this section. Settings
-// are per account by nature, so there is no merged entry; the browser's
-// own pane belongs to no account and closes the rail.
+// settingsRail lists the places in this section. What the reader reads
+// by names no account and heads the rail; what an account is follows,
+// once per account, because those are per account by nature.
 func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	path := ctx.Request().URL.Path
 	rows := map[string][]alborz.RailRow{}
 	for _, account := range ctx.Accounts() {
-		scoped := account.Username == ctx.Session.Username()
+		scoped := ctx.Session != nil && account.Username == ctx.Session.Username()
 		q := "?account=" + alborz.AddressParam(account.Username)
 		rows[account.Username] = []alborz.RailRow{
-			{Label: ctx.T("nav.settings"), Href: "/settings" + q, Active: scoped && path == "/settings"},
+			{Label: ctx.T("settings.account"), Href: "/settings/account" + q, Active: scoped && path == "/settings/account"},
 			{Label: ctx.T("settings.signatures"), Href: "/signatures" + q, Active: scoped && strings.HasPrefix(path, "/signatures")},
 			{Label: ctx.T("settings.servers"), Href: "/settings/servers" + q, Active: scoped && path == "/settings/servers"},
 		}
@@ -474,20 +511,21 @@ func handleSettings(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	kept, err := keptInfo(ctx)
+	if err != nil {
+		return err
+	}
 
 	// The form answers its own invalid input, on the page it was typed
 	// on. Digits are read as they were typed: a page that counts in
 	// Persian digits invites them back in its number fields.
 	reject := func(message string) error {
-		return ctx.Render(http.StatusUnprocessableEntity, "settings.html", &SettingsRenderData{
-			BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
+		return ctx.Render(http.StatusUnprocessableEntity, "settings-account.html", &SettingsRenderData{
+			BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
 			Settings:        settings,
 			Mailboxes:       mailboxes,
 			Subscriptions:   Subscriptions(settings.Subscriptions),
-			Reading:         ctx.Reading(),
-			Anchor:          ctx.Visit().Anchor(),
-			Anchored:        ctx.Visit().Anchor() == ctx.Session.Username(),
-			MaxPerPage:      maxMessagesPerPage,
+			Kept:            kept,
 			HasHTTPPassword: hasHTTPPassword,
 			Error:           message,
 			Rail:            settingsRail(ctx),
@@ -495,19 +533,10 @@ func handleSettings(ctx *alborz.Context) error {
 	}
 
 	if ctx.Request().Method == http.MethodPost {
-		// What the reader reads by is theirs, so it is written to the
-		// visit and kept on the account they anchored it to; what the
-		// account is stays with the account.
-		reading := ctx.Reading()
-		reading.MessagesPerPage, err = alborz.ReadInt(ctx.FormValue("messages_per_page"))
-		if err != nil || reading.MessagesPerPage <= 0 || reading.MessagesPerPage > maxMessagesPerPage {
-			return reject(fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage))
-		}
 		settings.From = ctx.FormValue("from")
 		settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
 		settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
-		reading.Timezone = ctx.FormValue("timezone")
 		// An empty field leaves the kept password alone; the box is
 		// how it is let go of, so nobody loses it by saving the page.
 		if ctx.FormValue("http_password_reset") != "" {
@@ -519,21 +548,7 @@ func handleSettings(ctx *alborz.Context) error {
 			return err
 		}
 		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
-		reading.PreferHTML = ctx.FormValue("prefer_html") != ""
 		settings.SendHTML = ctx.FormValue("send_html") != ""
-		if fdow := ctx.FormValue("first_day_of_week"); fdow != "" {
-			reading.FirstDayOfWeek, err = alborz.ReadInt(fdow)
-			if err != nil || reading.FirstDayOfWeek < 0 || reading.FirstDayOfWeek > 6 {
-				return reject(ctx.T("form.firstday"))
-			}
-		}
-		reading.Primary, reading.Secondary = ctx.FormValue("calendar"), ctx.FormValue("secondary")
-		if err := ctx.SetAnchor(anchorChosen(ctx)); err != nil {
-			return err
-		}
-		if err := ctx.SetReading(reading); err != nil {
-			return err
-		}
 
 		params, err := ctx.FormParams()
 		if err != nil {
@@ -548,7 +563,7 @@ func handleSettings(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to save settings: %w", err)
 		}
 		listings.evictAll(ctx.Session.Username())
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings"))
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
 
 	// Only when nothing is set: with a value in hand there is nothing to
@@ -557,30 +572,37 @@ func handleSettings(ctx *alborz.Context) error {
 	if settings.TrustedAuthServ == "" {
 		guess = SuggestAuthServ(ctx)
 	}
-	return ctx.Render(http.StatusOK, "settings.html", &SettingsRenderData{
-		BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
+	return ctx.Render(http.StatusOK, "settings-account.html", &SettingsRenderData{
+		BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
 		AuthServGuess:   guess,
 		Settings:        settings,
 		Mailboxes:       mailboxes,
 		Subscriptions:   Subscriptions(settings.Subscriptions),
-		Reading:         ctx.Reading(),
-		Anchor:          ctx.Visit().Anchor(),
-		Anchored:        ctx.Visit().Anchor() == ctx.Session.Username(),
-		MaxPerPage:      maxMessagesPerPage,
+		Kept:            kept,
 		HasHTTPPassword: hasHTTPPassword,
 		Rail:            settingsRail(ctx),
 	})
 }
 
-// anchorChosen is the account the reader keeps their reading settings
-// on: the box is ticked by default and holds the account whose page
-// this is, and clearing it keeps them to this browser, for a mailbox
-// two people share.
-func anchorChosen(ctx *alborz.Context) string {
-	if ctx.FormValue("anchor") == "" {
-		return ""
+// handleForget empties what alborz wrote for this account, wherever it
+// went. Written settings the reader cannot remove are settings they do
+// not own, and on a server it is the reader's mailbox that is holding
+// them.
+func handleForget(ctx *alborz.Context) error {
+	if err := ctx.Server.Visits.ForgetReading(ctx.Session.Username()); err != nil {
+		return err
 	}
-	return ctx.Session.Username()
+	store, ok := ctx.Session.Store().(alborz.KeptStore)
+	if !ok {
+		// Nothing else outlives the process to forget.
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
+	}
+	if err := store.Forget(); err != nil {
+		return err
+	}
+	listings.evictAll(ctx.Session.Username())
+	ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("settings.forgotten")})
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 }
 
 func handleServers(ctx *alborz.Context) error {
@@ -614,28 +636,102 @@ func handleLanguage(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr("/"))
 }
 
-// handleBrowserSettings serves the choices that live in the browser
-// rather than in an account's store. It touches no account, so a server
-// that is down cannot hold the language or the theme hostage.
-func handleBrowserSettings(ctx *alborz.Context) error {
-	if ctx.Request().Method == http.MethodPost {
-		ctx.SetColorScheme(ctx.FormValue("color_scheme"))
-		ctx.SetTheme(ctx.FormValue("theme"))
-		ctx.SetLanguage(ctx.FormValue("language"))
-		ctx.SetAccountColors(ctx.FormValue("account_colors") != "")
-		ctx.SetAlignByScript(ctx.FormValue("align_script") != "")
-		ctx.SetTextSize(ctx.FormValue("text_size"))
-		return ctx.Redirect(http.StatusFound, "/settings/browser")
+// handleReadingSettings serves what the person at the screen reads by,
+// which belongs to no account: the page size, the clock, the calendar,
+// the theme and the language. It names no account, so a server that is
+// down cannot hold any of it hostage.
+func handleReadingSettings(ctx *alborz.Context) error {
+	render := func(status int, message string) error {
+		return ctx.Render(status, "settings.html", &ReadingRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
+			Rail:           settingsRail(ctx),
+			Language:       ctx.Language(),
+			Theme:          ctx.Theme(),
+			ColorScheme:    ctx.ColorScheme(),
+			AccountColors:  ctx.AccountColors(),
+			AlignByScript:  ctx.AlignByScript(),
+			TextSize:       ctx.TextSize(),
+			Reading:        ctx.Reading(),
+			MaxPerPage:     maxMessagesPerPage,
+			Anchor:         ctx.Visit().Anchor(),
+			Accounts:       ctx.Accounts(),
+			Error:          message,
+		})
+	}
+	if ctx.Request().Method != http.MethodPost {
+		return render(http.StatusOK, "")
 	}
 
-	return ctx.Render(http.StatusOK, "settings-browser.html", &BrowserSettingsRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.forbrowser")),
-		Rail:           settingsRail(ctx),
-		Language:       ctx.Language(),
-		Theme:          ctx.Theme(),
-		ColorScheme:    ctx.ColorScheme(),
-		AccountColors:  ctx.AccountColors(),
-		AlignByScript:  ctx.AlignByScript(),
-		TextSize:       ctx.TextSize(),
-	})
+	// A field the form did not carry is not a field set to nothing: it
+	// was not on the page, and what it holds stays as it was. A field
+	// that is there and empty is a choice, and clears. The exception is
+	// a checkbox, where the browser sends nothing for "off" and absence
+	// is the only way it has to say so.
+	sent, err := ctx.FormParams()
+	if err != nil {
+		return err
+	}
+	given := func(name string) (string, bool) {
+		values, ok := sent[name]
+		if !ok || len(values) == 0 {
+			return "", false
+		}
+		return values[0], true
+	}
+
+	reading := ctx.Reading()
+	if v, ok := given("messages_per_page"); ok {
+		reading.MessagesPerPage, err = alborz.ReadInt(v)
+		if err != nil || reading.MessagesPerPage <= 0 || reading.MessagesPerPage > maxMessagesPerPage {
+			return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage))
+		}
+	}
+	if v, ok := given("timezone"); ok {
+		reading.Timezone = v
+	}
+	reading.PreferHTML = ctx.FormValue("prefer_html") != ""
+	if fdow, ok := given("first_day_of_week"); ok && fdow != "" {
+		reading.FirstDayOfWeek, err = alborz.ReadInt(fdow)
+		if err != nil || reading.FirstDayOfWeek < 0 || reading.FirstDayOfWeek > 6 {
+			return render(http.StatusUnprocessableEntity, ctx.T("form.firstday"))
+		}
+	}
+	if v, ok := given("calendar"); ok {
+		reading.Primary = alborz.CalendarNamed(v)
+	}
+	if v, ok := given("secondary"); ok {
+		reading.Secondary = alborz.CalendarNamed(v)
+	}
+	if reading.Secondary == reading.Primary {
+		reading.Secondary = ""
+	}
+	// The anchor is chosen from the accounts signed in; anything else
+	// names nowhere, which is what a shared mailbox wants.
+	if anchor, ok := given("anchor"); ok {
+		if ctx.SessionFor(anchor) == nil {
+			anchor = ""
+		}
+		if err := ctx.SetAnchor(anchor); err != nil {
+			return err
+		}
+	}
+	if err := ctx.SetReading(reading); err != nil {
+		return err
+	}
+
+	if v, ok := given("color_scheme"); ok {
+		ctx.SetColorScheme(v)
+	}
+	if v, ok := given("theme"); ok {
+		ctx.SetTheme(v)
+	}
+	if v, ok := given("language"); ok {
+		ctx.SetLanguage(v)
+	}
+	if v, ok := given("text_size"); ok {
+		ctx.SetTextSize(v)
+	}
+	ctx.SetAccountColors(ctx.FormValue("account_colors") != "")
+	ctx.SetAlignByScript(ctx.FormValue("align_script") != "")
+	return ctx.Redirect(http.StatusFound, "/settings")
 }

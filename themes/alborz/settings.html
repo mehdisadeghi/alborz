@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-  {{ template "scope-rail" (dict "kind" "rows" "path" "/settings" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "new" (dict "href" "/settings/browser" "label" ($.T "settings.forbrowser") "active" false)) }}
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/settings/account" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "new" (dict "href" "/settings" "label" ($.T "nav.settings") "active" (eq .GlobalData.URL.Path "/settings"))) }}
   </aside>
 
   <div class="container">
@@ -12,82 +12,10 @@
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "list-toolbar" (dict "title" ($.T "nav.settings")) }}
       </section>
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" "" "path" "") }}
-      {{ if .Error }}<div class="alert" role="alert">{{ .Error }}</div>{{ end }}
-
-      <form method="post">
-        <div class="action-group">
-          <label for="from">{{$.T "settings.fullname"}}</label>
-          <input
-            type="text"
-            name="from"
-            id="from"
-            dir="auto"
-            value="{{.Settings.From}}"
-          />
-        </div>
-
-        <div class="action-group">
-          <label for="identities">{{$.T "settings.identities"}}</label>
-          <textarea
-            name="identities"
-            id="identities"
-            rows="3"
-            dir="auto"
-            placeholder="{{$.T "settings.identitiesph"}}"
-          >{{range .Settings.Identities}}{{.}}
-{{end}}</textarea>
-          {{ template "hint" (dict "text" ($.T "help.identities") "example" ($.T "help.identitiesexample")) }}
-        </div>
-
-        {{/* Which server's verdict on a sender may be believed. It is
-             the name that server gives itself, and it cannot be guessed:
-             with none set no verdict is shown at all. */}}
-        <div class="action-group">
-          <label for="trusted_authserv">{{$.T "settings.authserv"}}</label>
-          <input type="text" name="trusted_authserv" id="trusted_authserv"
-                 value="{{.Settings.TrustedAuthServ}}" dir="ltr" spellcheck="false"
-                 {{ with .AuthServGuess }}list="authserv-guess" placeholder="{{.}}"{{ end }}>
-          {{/* Observed, never assumed: the name is the one this
-               account's own server wrote on mail already delivered
-               here, offered in the field's own list so that accepting
-               it is a choice the reader makes. */}}
-          {{ with .AuthServGuess }}
-          <datalist id="authserv-guess"><option value="{{.}}"></datalist>
-          {{ template "hint" (dict "text" ($.GlobalData.Tf "help.authservguess" .)) }}
-          {{ else }}
-          {{ template "hint" (dict "text" ($.T "help.authserv") "example" "mail.example.org") }}
-          {{ end }}
-        </div>
-
-        {{/* A full-text index the server keeps but does not announce.
-             Dovecot says SEARCH=FUZZY only for Solr; xapian and
-             flatcurve index just as well and say nothing. */}}
-        <div class="action-group">
-          <label for="indexed_search" class="checkbox">
-            <input type="checkbox" name="indexed_search" id="indexed_search" value="1"{{if .Settings.IndexedSearch}} checked{{end}}>
-            {{$.T "settings.indexedsearch"}}
-          </label>
-          <p class="hint">{{$.T "settings.indexedsearchhint"}}</p>
-        </div>
-
-        <div class="action-group">
-          <label for="subscriptions">{{$.T "settings.subs"}}</label>
-          <select name="subscriptions" id="subscriptions" multiple>
-            {{ $subs := .Subscriptions }}
-            {{ range .Mailboxes }}
-            {{ if and (ne .Name "INBOX") (not .IsInternal) }}
-            <option
-              value="{{.Name}}"
-              {{ if $subs.Has .Name }}
-              selected
-              {{ end }}
-            >{{.Name}}</option>
-            {{ end }}
-            {{ end }}
-          </select>
-        </div>
-
+      {{/* The language, the scheme, the text size and the reading
+           direction are attributes of the root element, which a swapped
+           body does not carry, so saving here asks for a whole page. */}}
+      <form method="post" hx-boost="false">
         <div class="action-group">
           <label for="messages_per_page">{{$.T "settings.perpage"}}</label>
           <input
@@ -99,8 +27,6 @@
             max="{{.MaxPerPage}}"
             required />
         </div>
-
-
         <div class="action-group">
           <label for="timezone">{{$.T "settings.timezone"}}</label>
           <input
@@ -112,59 +38,22 @@
             placeholder="{{$.T "settings.tzauto"}}" />
           <small>{{$.T "settings.tzhint"}}</small>
         </div>
-
-        {{ if or (call .GlobalData.HavePlugin "caldav") (call .GlobalData.HavePlugin "carddav") }}
-        <div class="action-group">
-          <label for="http_password">{{$.T "settings.davpassword"}}</label>
-          <input type="password" name="http_password" id="http_password" autocomplete="off"
-                 placeholder="{{if .HasHTTPPassword}}{{$.T "settings.davstored"}}{{else}}{{$.T "settings.davsame"}}{{end}}">
-          <small>{{$.T "settings.davhint"}}</small>
-          {{ if .HasHTTPPassword }}
-          <label for="http_password_reset" class="checkbox">
-            <input type="checkbox" name="http_password_reset" id="http_password_reset" value="1">
-            {{$.T "settings.davreset"}}
-          </label>
-          {{ end }}
-        </div>
-        {{ end }}
-
-
-
-        <div class="action-group">
-          <label for="send_html" class="checkbox">
-            <input type="checkbox" name="send_html" id="send_html" value="1"{{if .Settings.SendHTML}} checked{{end}}>
-            {{$.T "settings.sendhtml"}}
-          </label>
-          <p class="hint">{{$.T "settings.sendhtmlhint"}}</p>
-        </div>
-
         <div class="action-group">
           <label for="prefer_html" class="checkbox">
             <input type="checkbox" name="prefer_html" id="prefer_html" value="1"{{if .Reading.PreferHTML}} checked{{end}}>
             {{$.T "settings.preferhtml"}}
           </label>
         </div>
-
         <div class="action-group">
-          <label for="reply_position">{{$.T "settings.replyposition"}}</label>
-          <select name="reply_position" id="reply_position">
-            <option value="above" {{if not .Settings.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replytop"}}</option>
-            <option value="below" {{if .Settings.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replybottom"}}</option>
+          <label for="anchor">{{$.T "settings.anchorlabel"}}</label>
+          <select name="anchor" id="anchor" dir="ltr">
+            <option value="" {{if eq .Anchor ""}}selected{{end}}>{{$.T "settings.anchornone"}}</option>
+            {{ range .Accounts }}
+            <option value="{{.Username}}" {{if eq $.Anchor .Username}}selected{{end}}>{{.Username}}</option>
+            {{ end }}
           </select>
-        </div>
-        {{/* Which account keeps what this browser reads by. Ticked, the
-             next browser signed into it starts where this one left off;
-             cleared, these settings stay with this browser, which is
-             what a mailbox two people share wants. */}}
-        <div class="action-group">
-          <label for="anchor" class="checkbox">
-            <input type="checkbox" name="anchor" id="anchor" value="1"{{if .Anchored}} checked{{end}}>
-            {{ $.T "settings.anchorlabel" }} {{ template "ltr" $.GlobalData.Username }}
-          </label>
           <p class="hint">{{$.T "settings.anchorhint"}}</p>
         </div>
-
-
         <div class="action-group">
           <label for="first_day_of_week">{{$.T "settings.firstday"}}</label>
           <select name="first_day_of_week" id="first_day_of_week">
@@ -173,10 +62,6 @@
             <option value="6" {{if eq .Reading.FirstDayOfWeek 6}}selected{{end}}>{{$.T "settings.saturday"}}</option>
           </select>
         </div>
-
-        {{/* The calendar the pages count in, and the one glossed beside
-             it. Storage stays iCalendar; only what is shown and asked
-             for is counted in the chosen one. */}}
         <div class="action-group">
           <label for="calendar">{{$.T "settings.calendar"}}</label>
           <select name="calendar" id="calendar">
@@ -184,7 +69,6 @@
             <option value="shcal" {{if eq .Reading.Primary "shcal"}}selected{{end}}>{{$.T "settings.shcal"}}</option>
           </select>
         </div>
-
         <div class="action-group">
           <label for="secondary">{{$.T "settings.secondary"}}</label>
           <select name="secondary" id="secondary">
@@ -194,15 +78,76 @@
           </select>
           <p class="hint">{{$.T "settings.secondaryhint"}}</p>
         </div>
+        <div class="action-group">
+          <label for="language">{{$.T "settings.language"}}</label>
+          <select name="language" id="language">
+            <option value="" {{ if eq .Language "" }}selected{{ end }}>{{$.T "settings.langauto"}}</option>
+            <option value="en" {{ if eq .Language "en" }}selected{{ end }}>English</option>
+            <option value="fa" {{ if eq .Language "fa" }}selected{{ end }}>فارسی</option>
+            <option value="de" {{ if eq .Language "de" }}selected{{ end }}>Deutsch</option>
+            <option value="es" {{ if eq .Language "es" }}selected{{ end }}>Español</option>
+          </select>
+        </div>
 
-        <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
+        <div class="action-group">
+          <label for="theme">{{$.T "settings.theme"}}</label>
+          <select name="theme" id="theme">
+            <option value="" {{if eq .Theme ""}}selected{{end}}>{{$.T "settings.themedefault"}}</option>
+            <option value="sublime" {{if eq .Theme "sublime"}}selected{{end}}>Sublime</option>
+            <option value="glass" {{if eq .Theme "glass"}}selected{{end}}>Glass</option>
+            <option value="ink" {{if eq .Theme "ink"}}selected{{end}}>Ink</option>
+          </select>
+        </div>
+
+        <div class="action-group">
+          <label for="text_size">{{$.T "settings.textsize"}}</label>
+          <select name="text_size" id="text_size">
+            <option value="" {{if eq .TextSize ""}}selected{{end}}>{{$.T "settings.textdefault"}}</option>
+            <option value="large" {{if eq .TextSize "large"}}selected{{end}}>{{$.T "settings.textlarge"}}</option>
+            <option value="larger" {{if eq .TextSize "larger"}}selected{{end}}>{{$.T "settings.textlarger"}}</option>
+          </select>
+        </div>
+
+        <div class="action-group">
+          <label for="align_script" class="checkbox">
+            <input type="checkbox" name="align_script" id="align_script" value="1"{{if .AlignByScript}} checked{{end}}>
+            {{$.T "settings.alignscript"}}
+          </label>
+        </div>
+
+        <div class="action-group">
+          <label for="account_colors" class="checkbox">
+            <input type="checkbox" name="account_colors" id="account_colors" value="1"{{if .AccountColors}} checked{{end}}>
+            {{$.T "settings.accountcolors"}}
+          </label>
+        </div>
+
+        <div class="action-group">
+          <label for="color_scheme">{{$.T "settings.appearance"}}</label>
+          <select name="color_scheme" id="color_scheme">
+            <option value="" {{if eq .ColorScheme ""}}selected{{end}}>{{$.T "settings.system"}}</option>
+            <option value="light" {{if eq .ColorScheme "light"}}selected{{end}}>{{$.T "settings.light"}}</option>
+            <option value="dark" {{if eq .ColorScheme "dark"}}selected{{end}}>{{$.T "settings.dark"}}</option>
+          </select>
+        </div>
+
+        <div class="action-group">
+          <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
+        </div>
+
+        {{/* The browser decides, and it only asks on a gesture - so this
+             is a button rather than something the page does on load. It
+             stays hidden where the browser cannot offer it at all, and
+             it sits in the card so it shares the one left edge every
+             other control on this page is aligned to. */}}
+        <div class="action-group" id="handler-group" hidden>
+          <button type="button" data-protocol="mailto" data-handler="/compose?mailto=%s">{{$.T "settings.mailtohandler"}}</button>
+          <button type="button" data-protocol="webcal" data-handler="/calendar/import?url=%s">{{$.T "settings.webcalhandler"}}</button>
+          <p class="hint" id="register-mailto-asked" hidden>{{$.T "settings.mailtoasked"}}</p>
+          <p class="hint" id="register-mailto-before" hidden>{{$.T "settings.mailtobefore"}}</p>
+          <p class="hint" id="register-mailto-refused" hidden>{{$.T "settings.mailtorefused"}}</p>
+        </div>
       </form>
-
-      {{/* Where this account's mail actually lives. Not a setting - the
-           reader cannot change any of it - so it stands outside the form
-           that saves, under it, in the quiet type the object dates use.
-           It is the first thing a bug report has to say and the last
-           thing anyone can find out from a webmail. */}}
     </main>
   </div>
 </div>

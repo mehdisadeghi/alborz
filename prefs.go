@@ -6,7 +6,7 @@ import (
 
 // themeVariants are the selectable stylesheet overlays; the value is
 // validated here since it lands in a stylesheet URL.
-var themeVariants = []string{"sublime", "glass", "ink"}
+var themeVariants = []string{"sublime", "glass", "ink", "solarized"}
 
 // cookieValues returns every value the request carries for a name.
 // A browser may hold more than one cookie of the same name - an older

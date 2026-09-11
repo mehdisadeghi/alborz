@@ -518,4 +518,45 @@ window.addEventListener("pageshow", ev => {
 	}
 });
 
+// The offline page asks again by itself: the browser says when a
+// network is back, and a page whose only content is "no connection"
+// should not wait to be clicked. The link stays for a browser with no
+// script, and stays as the way to try before the network says anything.
+const retry = document.getElementById("offline-retry");
+if (retry) {
+	let asked = false;
+	const again = () => {
+		if (asked) {
+			return;
+		}
+		asked = true;
+		retry.textContent = retry.dataset.retrying || retry.textContent;
+		location.replace(retry.href);
+	};
+	window.addEventListener("online", again);
+	// A tab brought back to the front is a reader looking at it again.
+	document.addEventListener("visibilitychange", () => {
+		if (!document.hidden && navigator.onLine) {
+			again();
+		}
+	});
+	// And while it sits there, ask on a slow beat rather than never:
+	// a network can come back without the browser saying so.
+	setInterval(() => {
+		if (navigator.onLine) {
+			again();
+		}
+	}, 15000);
+}
+
 // @license-end
+
+// The worker holds the stylesheet, the scripts and the icons, so the
+// application starts without waiting for them, and answers a page that
+// cannot be fetched with one that says so. It holds no mail: see
+// serviceworker.go.
+if ("serviceWorker" in navigator) {
+	window.addEventListener("load", () => {
+		navigator.serviceWorker.register("/sw.js").catch(() => {});
+	});
+}

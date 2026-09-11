@@ -17,8 +17,17 @@
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-32x32.png"}}" sizes="32x32" />
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-16x16.png"}}" sizes="16x16" />
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-128.png"}}" sizes="128x128" />
+    {{/* No eval, so the page's own CSP needs no unsafe-eval; no history
+         cache, because htmx keeps page snapshots in localStorage and a
+         snapshot of a mailbox is the mail itself. */}}
+    <meta name="htmx-config" content='{"allowEval":false,"historyCacheSize":0,"includeIndicatorStyles":false,"globalViewTransitions":true}'>
+    <script defer src="{{call .GlobalData.Asset "htmx.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "helpers.js"}}"></script>
   </head>
-  <body>
+  {{/* Every link and form still works without a script: boosting only
+       asks for the same page over XHR and puts it in place, keeping the
+       scroll, the focus and the history the browser would have kept.
+       ADR 13. */}}
+  <body hx-boost="true">
     <a class="skip-link visually-hidden" href="#main">{{$.T "a11y.skip"}}</a>
     {{template "icons.html" .}}

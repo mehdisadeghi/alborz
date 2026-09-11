@@ -9,7 +9,7 @@
 
   <div class="container">
     {{ if and .AddressObject .Photo }}
-    <form id="photo-remove-form" method="post"
+    <form id="photo-remove-form" method="post" hx-boost="false"
           action="/contacts/{{.AddressObject.Path | pathescape}}/photo/delete{{account "?" .GlobalData.URLAccount}}">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>

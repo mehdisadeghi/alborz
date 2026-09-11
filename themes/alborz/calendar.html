@@ -9,7 +9,7 @@
   </aside>
 
   <div class="container">
-    <form id="refresh-form" method="post" action="/calendar/refresh">
+    <form id="refresh-form" method="post" action="/calendar/refresh" hx-boost="false">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
     <main id="main" tabindex="-1" class="calendar">

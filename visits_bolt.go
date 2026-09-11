@@ -3,7 +3,10 @@ package alborz
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/fernet/fernet-go"
@@ -42,12 +45,27 @@ type boltVisits struct {
 // OpenVisitRecords opens the visit database, making it if it is not
 // there. The caller closes it.
 func OpenVisitRecords(path string, key *fernet.Key) (VisitRecords, error) {
-	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 5 * time.Second})
+	// The directory is whoever runs alborz to make, with the ownership
+	// and the mode they meant. Alborz says which one is missing and
+	// stops.
+	dir := filepath.Dir(path)
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return nil, fmt.Errorf("%s is not there: it holds remembered logins and reading settings; "+
+			"make it, or name another with -data-dir", dir)
+	}
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: openTimeout})
 	if err != nil {
-		return nil, fmt.Errorf("failed to open the visit store: %w", err)
+		// One process at a time holds the file. The usual reason for
+		// waiting the whole timeout out is a second alborz on the same
+		// cache directory, and a message that does not say so sends
+		// the reader looking at their disk.
+		if errors.Is(err, bolt.ErrTimeout) {
+			return nil, fmt.Errorf("%s is locked: another alborz is using this cache directory (waited %v)", path, openTimeout)
+		}
+		return nil, fmt.Errorf("failed to open %s: %w", path, err)
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, name := range [][]byte{visitBucket, readingBucket} {
+		for _, name := range [][]byte{visitBucket, readingBucket, keptBucket} {
 			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
 				return err
 			}

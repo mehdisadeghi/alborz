@@ -84,21 +84,19 @@ func vcsStamp() string {
 	return strings.TrimSpace(revision + " " + date)
 }
 
-// defaultCacheDir is systemd's CacheDirectory when the unit grants one,
-// which is how a service gets /var/cache/<name>, and the XDG cache
-// directory otherwise: $XDG_CACHE_HOME, or ~/.cache.
+// defaultCacheDir is the XDG cache directory: $XDG_CACHE_HOME, or
+// ~/.cache. A deployment that keeps it elsewhere says so with
+// -cache-dir.
 func defaultCacheDir() string {
-	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
-		return dir
-	}
 	if dir := os.Getenv("XDG_CACHE_HOME"); dir != "" {
-		return filepath.Join(dir, "alborz")
+		return filepath.Join(dir, alborz.AppName)
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".cache", "alborz")
+	// The spec's own default for an unset XDG_CACHE_HOME.
+	return filepath.Join(home, ".cache", alborz.AppName)
 }
 
 func main() {
@@ -107,12 +105,16 @@ func main() {
 		loginKey string
 		options  alborz.Options
 	)
-	flag.StringVar(&options.Theme, "theme", "alborz", "theme directory name")
+	flag.StringVar(&options.Theme, "theme", alborz.AppName, "theme directory name")
 	flag.StringVar(&addr, "addr", ":1323", "listening address")
 	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
 		"directory keeping the calendar and contacts cache between runs, sealed under the login key; empty keeps it in memory")
+	// The working directory, the way a daemon told nothing keeps its
+	// state: the unit says where alborz runs and the file lands there.
+	flag.StringVar(&options.DataDir, "data-dir", ".",
+		"directory keeping remembered logins and reading settings, sealed under the login key; empty forgets them when the process ends")
 	flag.StringVar(&options.ProjectURL, "project-url", "",
 		"where the footer's project name links; unset prints the name alone")
 

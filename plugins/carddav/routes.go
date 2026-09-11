@@ -31,6 +31,9 @@ type AddressBookRenderData struct {
 	AddressObjects []AddressObject
 	Sorting        dav.Sorting
 	Query          string
+	// Filters are the narrowings in force that nothing else on the
+	// page states; a search is the only one contacts has.
+	Filters []alborz.Filter
 	// CollectionFor is the address book a contact is in, so the list
 	// can carry ownership on the collection rather than beside the name.
 	CollectionFor func(account, path string) dav.Collection
@@ -353,6 +356,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		AddressBooks:   addressBookInfos,
 		AddressObjects: aos,
 		Query:          queryText,
+		Filters:        searchFilter(ctx),
 		Sorting:        sorting,
 		CollectionFor:  collection,
 	})
@@ -909,6 +913,15 @@ func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session) error {
 		if r.Err != nil {
 			return r.Err
 		}
+	}
+	return nil
+}
+
+// searchFilter names the search a contact list was narrowed by, in the
+// one shape every list uses.
+func searchFilter(ctx *alborz.Context) []alborz.Filter {
+	if f, ok := ctx.FilterOn("query", ctx.T("filter.search")); ok {
+		return []alborz.Filter{f}
 	}
 	return nil
 }

@@ -20,14 +20,25 @@ type Reading struct {
 	Secondary string
 }
 
+// DefaultMessagesPerPage is the page size a reader who has never chosen
+// one reads by. Zero is not a page size, so it is what an unset value
+// means rather than a value in its own right.
+const DefaultMessagesPerPage = 50
+
 // Reading is what this browser reads by. It is the visit's own, seeded
-// once from the first account that brought some.
+// once from the first account that brought some. What was never chosen
+// comes back as the default rather than as a zero: a form renders what
+// is in force, and a page size of none is not in force anywhere.
 func (ctx *Context) Reading() Reading {
 	v := ctx.lookupVisit()
 	if v == nil {
-		return Reading{}
+		return Reading{MessagesPerPage: DefaultMessagesPerPage}
 	}
-	return v.reading()
+	r := v.reading()
+	if r.MessagesPerPage <= 0 {
+		r.MessagesPerPage = DefaultMessagesPerPage
+	}
+	return r
 }
 
 // SetReading records the choice and keeps it on the anchor account, so

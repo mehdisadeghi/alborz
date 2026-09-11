@@ -1,0 +1,160 @@
+{{ $aq := account "?" .GlobalData.URLAccount }}
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  <aside>
+  {{ template "scope-rail" (dict "kind" "rows" "path" "/settings/account" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "new" (dict "href" "/settings" "label" ($.T "nav.settings") "active" false)) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="settings">
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
+        {{ template "list-toolbar" (dict "title" ($.T "settings.account")) }}
+      </section>
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.account") "path" "/settings/account") }}
+      {{ if .Error }}<div class="alert" role="alert">{{ .Error }}</div>{{ end }}
+
+      <form method="post">
+        <div class="action-group">
+          <label for="from">{{$.T "settings.fullname"}}</label>
+          <input
+            type="text"
+            name="from"
+            id="from"
+            dir="auto"
+            value="{{.Settings.From}}"
+          />
+        </div>
+
+        <div class="action-group">
+          <label for="identities">{{$.T "settings.identities"}}</label>
+          <textarea
+            name="identities"
+            id="identities"
+            rows="3"
+            dir="auto"
+            placeholder="{{$.T "settings.identitiesph"}}"
+          >{{range .Settings.Identities}}{{.}}
+{{end}}</textarea>
+          {{ template "hint" (dict "text" ($.T "help.identities") "example" ($.T "help.identitiesexample")) }}
+        </div>
+
+        {{/* Which server's verdict on a sender may be believed. It is
+             the name that server gives itself, and it cannot be guessed:
+             with none set no verdict is shown at all. */}}
+        <div class="action-group">
+          <label for="trusted_authserv">{{$.T "settings.authserv"}}</label>
+          <input type="text" name="trusted_authserv" id="trusted_authserv"
+                 value="{{.Settings.TrustedAuthServ}}" dir="ltr" spellcheck="false"
+                 {{ with .AuthServGuess }}list="authserv-guess" placeholder="{{.}}"{{ end }}>
+          {{/* Observed, never assumed: the name is the one this
+               account's own server wrote on mail already delivered
+               here, offered in the field's own list so that accepting
+               it is a choice the reader makes. */}}
+          {{ with .AuthServGuess }}
+          <datalist id="authserv-guess"><option value="{{.}}"></datalist>
+          {{ template "hint" (dict "text" ($.GlobalData.Tf "help.authservguess" .)) }}
+          {{ else }}
+          {{ template "hint" (dict "text" ($.T "help.authserv") "example" "mail.example.org") }}
+          {{ end }}
+        </div>
+
+        {{/* A full-text index the server keeps but does not announce.
+             Dovecot says SEARCH=FUZZY only for Solr; xapian and
+             flatcurve index just as well and say nothing. */}}
+        <div class="action-group">
+          <label for="indexed_search" class="checkbox">
+            <input type="checkbox" name="indexed_search" id="indexed_search" value="1"{{if .Settings.IndexedSearch}} checked{{end}}>
+            {{$.T "settings.indexedsearch"}}
+          </label>
+          <p class="hint">{{$.T "settings.indexedsearchhint"}}</p>
+        </div>
+
+        <div class="action-group">
+          <label for="subscriptions">{{$.T "settings.subs"}}</label>
+          <select name="subscriptions" id="subscriptions" multiple>
+            {{ $subs := .Subscriptions }}
+            {{ range .Mailboxes }}
+            {{ if and (ne .Name "INBOX") (not .IsInternal) }}
+            <option
+              value="{{.Name}}"
+              {{ if $subs.Has .Name }}
+              selected
+              {{ end }}
+            >{{.Name}}</option>
+            {{ end }}
+            {{ end }}
+          </select>
+        </div>
+
+
+
+
+        {{ if or (call .GlobalData.HavePlugin "caldav") (call .GlobalData.HavePlugin "carddav") }}
+        <div class="action-group">
+          <label for="http_password">{{$.T "settings.davpassword"}}</label>
+          <input type="password" name="http_password" id="http_password" autocomplete="off"
+                 placeholder="{{if .HasHTTPPassword}}{{$.T "settings.davstored"}}{{else}}{{$.T "settings.davsame"}}{{end}}">
+          <small>{{$.T "settings.davhint"}}</small>
+          {{ if .HasHTTPPassword }}
+          <label for="http_password_reset" class="checkbox">
+            <input type="checkbox" name="http_password_reset" id="http_password_reset" value="1">
+            {{$.T "settings.davreset"}}
+          </label>
+          {{ end }}
+        </div>
+        {{ end }}
+
+
+
+        <div class="action-group">
+          <label for="send_html" class="checkbox">
+            <input type="checkbox" name="send_html" id="send_html" value="1"{{if .Settings.SendHTML}} checked{{end}}>
+            {{$.T "settings.sendhtml"}}
+          </label>
+          <p class="hint">{{$.T "settings.sendhtmlhint"}}</p>
+        </div>
+
+
+        <div class="action-group">
+          <label for="reply_position">{{$.T "settings.replyposition"}}</label>
+          <select name="reply_position" id="reply_position">
+            <option value="above" {{if not .Settings.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replytop"}}</option>
+            <option value="below" {{if .Settings.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replybottom"}}</option>
+          </select>
+        </div>
+        <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
+      </form>
+
+      {{/* Where these settings are written, and the way back out. A
+           server without METADATA has nowhere to keep them, so alborz
+           does, and a reader who was never told cannot take them
+           back. */}}
+      {{ if .Kept.Host }}
+      <details class="list-card">
+        <summary>{{$.T "settings.keptwhere"}}</summary>
+        <p>{{ if .Kept.OnServer }}{{$.T "settings.keptserver"}}{{ else }}{{$.T "settings.keptalborz"}}{{ end }} {{ template "ltr" .Kept.Host }}</p>
+        {{ if .Kept.Entries }}
+        <ul class="kept-entries" dir="ltr">
+          {{ range .Kept.Entries }}<li>{{ . }}</li>{{ end }}
+        </ul>
+        {{ end }}
+        {{ if .Kept.Reading }}<p class="hint">{{$.T "settings.keptreading"}}</p>{{ end }}
+        {{ if or .Kept.Entries .Kept.Reading }}
+        <form method="post" action="/settings/account/forget{{$aq}}">
+          <button class="button-danger">{{$.T "settings.forget"}}</button>
+          <p class="hint">{{$.T "settings.forgethint"}}</p>
+        </form>
+        {{ else }}
+        <p class="hint">{{$.T "settings.keptnothing"}}</p>
+        {{ end }}
+      </details>
+      {{ end }}
+
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

@@ -335,7 +335,7 @@ func TestPagesAnswer(t *testing.T) {
 		"/mailbox/INBOX", "/mailbox/INBOX?view=starred", "/mailbox/INBOX?query=redesign",
 		"/mailbox/INBOX%2FLists",
 		"/mailbox/Drafts", "/mailbox/Junk", "/mailbox/Trash",
-		"/compose", "/new-mailbox", "/settings", "/settings/browser",
+		"/compose", "/new-mailbox", "/settings", "/settings/account",
 		"/settings/servers", "/signatures", "/signatures/create",
 	}
 	for _, uid := range uids {
@@ -661,11 +661,11 @@ func TestSendHTMLIsDecidedByTheAccount(t *testing.T) {
 	}
 
 	set := func(on bool) {
-		form := url.Values{"messages_per_page": {"50"}}
+		form := url.Values{}
 		if on {
 			form.Set("send_html", "1")
 		}
-		resp, err := c.PostForm(base+"/settings", form)
+		resp, err := c.PostForm(base+"/settings/account", form)
 		if err != nil {
 			t.Fatal(err)
 		}

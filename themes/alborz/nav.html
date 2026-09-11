@@ -61,6 +61,10 @@
       <a href="/settings{{$q}}">{{$.T "nav.settings"}}</a>
       {{if eq (len .GlobalData.Accounts) 1}}<a href="/logout">{{$.T "nav.signout"}}</a>{{end}}
     </div>
+    {{/* Last in the row, and in the row itself rather than in the group
+         that folds into the drawer: it is one icon, it is wanted at any
+         width, and on a phone it is the only thing left in the corner. */}}
+    {{ template "scheme-toggle" $ }}
     {{ end }}
   </nav>
   {{ with .GlobalData.Notice }}
@@ -140,4 +144,23 @@
   </div>
   {{ if .drawer }}</details>{{ else }}</div>{{ end }}
 </div>
+{{ end }}
+
+{{/* Light, dark, or whatever the system says, as one button: it wears
+     the scheme in force and moves to the next on a click. With a script
+     the answer is this block again and the root element follows it;
+     without one the same form posts and the page comes back in the new
+     scheme. The choice is a cookie this browser carries for as long as
+     it is open, and alborz writes nothing down. */}}
+{{ define "scheme-toggle" }}
+{{ $scheme := .GlobalData.ColorScheme }}
+{{ $next := "light" }}{{ $icon := "system" }}{{ $label := $.T "scheme.tolight" }}
+{{ if eq $scheme "light" }}{{ $next = "dark" }}{{ $icon = "sun" }}{{ $label = $.T "scheme.todark" }}{{ end }}
+{{ if eq $scheme "dark" }}{{ $next = "" }}{{ $icon = "moon" }}{{ $label = $.T "scheme.tosystem" }}{{ end }}
+<form method="post" action="/scheme" class="scheme-toggle" data-scheme="{{$scheme}}"
+      hx-post="/scheme" hx-target="this" hx-swap="outerHTML">
+  <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+  <button type="submit" name="scheme" value="{{$next}}" class="icon-button"
+          title="{{$label}}" aria-label="{{$label}}">{{ template "icon" $icon }}</button>
+</form>
 {{ end }}

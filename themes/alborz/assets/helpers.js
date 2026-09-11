@@ -581,6 +581,23 @@ if (retry) {
 
 // @license-end
 
+// The appearance button posts and comes back as itself. What it cannot
+// bring with it is the root element's attribute, which is where the
+// scheme is actually applied, so that is read off the block the server
+// sent rather than worked out here.
+document.addEventListener("htmx:afterSwap", ev => {
+	const toggle = ev.target.closest ? ev.target.closest(".scheme-toggle") : null;
+	if (!toggle) {
+		return;
+	}
+	const scheme = toggle.dataset.scheme;
+	if (scheme) {
+		document.documentElement.dataset.theme = scheme;
+	} else {
+		delete document.documentElement.dataset.theme;
+	}
+});
+
 // A watcher on the server sits in IDLE, so alborz learns that mail
 // arrived before anybody asks for a page. What that changes here is the
 // rail's count, which is the one place a number for a folder lives; the

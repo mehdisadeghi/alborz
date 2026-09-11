@@ -650,6 +650,19 @@ func handleLanguage(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr("/"))
 }
 
+// handleScheme forces light or dark, or gives way to the system, and
+// returns to the page it was chosen from. Like the language, it takes
+// effect on the click: a scheme behind a Save button is a scheme you
+// have to stare at to change.
+func handleScheme(ctx *alborz.Context) error {
+	ctx.SetColorScheme(ctx.FormValue("scheme"))
+	if ctx.Partial() {
+		return ctx.Render(http.StatusOK, "scheme-toggle",
+			alborz.NewBaseRenderData(ctx))
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr("/"))
+}
+
 // handleReadingSettings serves what the person at the screen reads by,
 // which belongs to no account: the page size, the clock, the calendar,
 // the theme and the language. It names no account, so a server that is

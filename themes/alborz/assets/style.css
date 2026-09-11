@@ -1663,6 +1663,50 @@ main.create-update > form > .allday-label::before {
   margin-inline: var(--space-2);
 }
 
+/* What the list is narrowed by, in the crumb's box: the same strip
+   over the same list, at the same height, on the same edge, with the
+   same rule under it. A page that says where you are and a page that
+   says what it is filtered to are one kind of thing, so they are one
+   shape, and the strip's own rule is the gap - no margin of its own to
+   choose by eye. */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2rem;
+  padding: 0.4rem var(--space-2);
+  background: color-mix(in srgb, var(--surface) 58%, var(--surface-subtle));
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* The attachment chip's box, and only its width is different: a
+   filter's value is an address or a phrase, and both are longer than
+   a file name. */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 16rem;
+  text-decoration: none;
+}
+
+.filter-chip-label { color: var(--fg-faint); }
+
+.filter-chip-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-chip-x {
+  color: var(--fg-faint);
+  font-size: var(--text-md);
+  line-height: 1;
+}
+
+.filter-chip:hover .filter-chip-x { color: var(--fg); }
+
 /* Entry names are identifiers, not prose: monospaced, so the shared
    prefix lines up and a stray character shows. */
 .kept-entries {

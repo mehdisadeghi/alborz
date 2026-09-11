@@ -33,7 +33,10 @@ type AddressBookRenderData struct {
 	AddressObjects []AddressObject
 	Sort, SortDir  string
 	Query          string
-	ColorForPath   func(account, path string) string
+	// Filters are the narrowings in force that nothing else on the
+	// page states; a search is the only one contacts has.
+	Filters      []alborz.Filter
+	ColorForPath func(account, path string) string
 	// BookForPath names the address book a contact is in, so the list
 	// can carry ownership on the collection rather than beside the name.
 	BookForPath func(account, path string) string
@@ -415,6 +418,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		AddressBooks:   addressBookInfos,
 		AddressObjects: aos,
 		Query:          queryText,
+		Filters:        searchFilter(ctx),
 		Sort:           sortKey,
 		SortDir:        sortDir,
 		ColorForPath: func(account, contactPath string) string {
@@ -1186,6 +1190,15 @@ func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session) error {
 		if r.Err != nil {
 			return r.Err
 		}
+	}
+	return nil
+}
+
+// searchFilter names the search a contact list was narrowed by, in the
+// one shape every list uses.
+func searchFilter(ctx *alborz.Context) []alborz.Filter {
+	if f, ok := ctx.FilterOn("query", ctx.T("filter.search")); ok {
+		return []alborz.Filter{f}
 	}
 	return nil
 }

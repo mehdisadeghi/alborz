@@ -44,6 +44,10 @@ type MailboxRenderData struct {
 	// Threaded says this listing is one, so the rows carry a depth and
 	// the pager counts conversations rather than messages.
 	Threaded bool
+	// Filters are the narrowings in force that the page does not
+	// otherwise state: the crumb already names the folder and the
+	// view, and the rail names the account.
+	Filters []alborz.Filter
 	// PerPage is the count in force, and PerPageOptions the ladder the
 	// toolbar offers. The reader's own preference is always among them,
 	// so choosing it is how they get back to it.
@@ -237,6 +241,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		RangeTo:        to,
 		Total:          total,
 		Query:          query,
+		Filters:        searchFilters(ctx),
 		TextQuery:      textQueryOffered(query, headersOnly),
 		Outgoing:       role == "Sent" || role == "Drafts",
 		PerPage:        messagesPerPage,
@@ -498,6 +503,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		RangeTo:            rangeTo,
 		Total:              total,
 		Query:              query,
+		Filters:            searchFilters(ctx),
 		TextQuery:          textQueryOffered(query, e.headersOnly),
 		Outgoing:           outgoingFolder(sb.mailboxes, mboxName),
 		PerPage:            messagesPerPage,
@@ -1490,4 +1496,25 @@ func exportRefs(ctx *alborz.Context, refs []rowRef) error {
 		res.Flush()
 	}
 	return nil
+}
+
+// searchFilters names what a search narrowed the listing to. A scoped
+// term - from: or to: - is named by its field rather than shown as
+// syntax, because that is how the reader asked for it: by clicking a
+// sender.
+func searchFilters(ctx *alborz.Context) []alborz.Filter {
+	f, ok := ctx.FilterOn("query", ctx.T("filter.search"))
+	if !ok {
+		return nil
+	}
+	for _, scope := range []struct{ prefix, label string }{
+		{"from:", ctx.T("filter.from")},
+		{"to:", ctx.T("filter.to")},
+	} {
+		if rest, cut := strings.CutPrefix(f.Value, scope.prefix); cut {
+			f.Label, f.Value = scope.label, rest
+			break
+		}
+	}
+	return []alborz.Filter{f}
 }

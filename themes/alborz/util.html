@@ -123,6 +123,27 @@
      every other control that does: helpers.js disables it with the
      selection, and a container with nothing in it renders it dim from
      the start, since there is nothing there to check. */}}
+{{/* What a listing is narrowed by, above it, one chip each. A chip is
+     the attachment chip's box and its link removes that narrowing, so a
+     reader who came back to a filtered page can see why the list is
+     short and undo it in one click. Every list uses this one.
+     dict: filters clear. */}}
+{{ define "filter-chips" }}
+{{ with .filters }}
+<div class="filter-chips">
+  {{ range . }}
+  {{/* The whole value is in the tooltip, since the chip truncates it;
+       what the link does is said to a reader who cannot see the mark. */}}
+  <a class="attach-chip filter-chip" href="{{ localhref .Href }}" title="{{.Label}}: {{.Value}}" aria-label="{{$.remove}}: {{.Label}} {{.Value}}">
+    <span class="filter-chip-label">{{.Label}}</span>
+    <span class="filter-chip-value" dir="auto">{{.Value}}</span>
+    <span class="filter-chip-x" aria-hidden="true">&times;</span>
+  </a>
+  {{ end }}
+</div>
+{{ end }}
+{{ end }}
+
 {{/* One message's star. The list row renders it, and so does the
      answer to a mark, so a swap puts back exactly what the row had.
      The keys are capitalised because the same block is rendered from

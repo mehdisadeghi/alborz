@@ -116,6 +116,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	p.CloseFunc = provider.Close
 
 	registerRoutes(p)
+	p.registerServerCard()
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 
 	// A card attached to a mail is filed from its own row, into a book
@@ -234,4 +235,42 @@ func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]dav.Group[AddressBoo
 		return nil, err
 	}
 	return dav.WritableGroups(accounts, func(ab AddressBookInfo) bool { return ab.Writable }), nil
+}
+
+// registerServerCard answers for this account's contacts server on the
+// Servers page, beside mail's and the calendar's.
+func (p *plugin) registerServerCard() {
+	p.Inject("servers.html", func(ctx *alborz.Context, data alborz.RenderData) error {
+		servers, ok := data.(*alborzbase.ServersRenderData)
+		if !ok || ctx.Session == nil {
+			return nil
+		}
+		base, ok := p.dav.URL(ctx.Session)
+		if !ok {
+			return nil
+		}
+		card := alborzbase.ServerCard{Title: ctx.T("settings.davcontacts")}
+		found, err := dav.Describe(ctx.Request().Context(), p.dav.HTTPClient(ctx.Session), base)
+		if err != nil {
+			card.Rows = []map[string]any{
+				{"label": ctx.T("settings.serverhost"), "value": base.Host},
+				{"label": ctx.T("settings.serverunreachable"), "value": err.Error()},
+			}
+			servers.More = append(servers.More, card)
+			return nil
+		}
+		card.Rows = []map[string]any{
+			{"label": ctx.T("settings.serverhost"), "value": found.Host},
+			{"label": ctx.T("settings.serversoftware"), "value": found.Software},
+			{"label": ctx.T("settings.davcompliance"), "value": strings.Join(found.Compliance, ", ")},
+		}
+		card.Abilities = []alborzbase.Ability{
+			{Label: "settings.davability3", Hint: "settings.davability3hint", Have: found.Has("3")},
+			{Label: "settings.davabilityacl", Hint: "settings.davabilityaclhint", Have: found.Has("access-control")},
+			{Label: "settings.davabilitycards", Hint: "settings.davabilitycardshint", Have: found.Has("addressbook")},
+			{Label: "settings.davabilitymkcol", Hint: "settings.davabilitymkcolhint", Have: found.Has("extended-mkcol")},
+		}
+		servers.More = append(servers.More, card)
+		return nil
+	})
 }

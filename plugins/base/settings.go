@@ -335,7 +335,21 @@ type SignatureRenderData struct {
 type ServersRenderData struct {
 	alborz.BaseRenderData
 	Servers ServerInfo
+	// More are the other servers this account has, one card each,
+	// filled in by whichever plugin answers for them. Mail is not the
+	// only thing with an upstream, and a calendar that behaves oddly
+	// is somebody else's deployment too.
+	More []ServerCard
 	Rail map[string][]alborz.RailRow
+}
+
+// ServerCard is one upstream's card on the Servers page. Rows carry the
+// "label" and "value" pairs the shared card renders, which is why they
+// are maps rather than a type of their own.
+type ServerCard struct {
+	Title     string
+	Rows      []map[string]any
+	Abilities []Ability
 }
 
 // settingsRail lists the places in this section. What the reader reads

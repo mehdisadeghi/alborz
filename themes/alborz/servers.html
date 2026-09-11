@@ -27,6 +27,15 @@
          "abilities" .Servers.Abilities
          "abilitiestitle" ($.T "settings.abilities")) }}
 
+      {{/* Everything else this account talks to, one card each, in the
+           same shape: the calendar and contacts servers say what they
+           comply with, and a reader can see it without a packet
+           capture. */}}
+      {{ range .More }}
+      {{ template "info-card" (dict "title" .Title "page" $ "rows" .Rows
+         "abilities" .Abilities "abilitiestitle" ($.T "settings.abilities")) }}
+      {{ end }}
+
       {{ template "info-explain" (dict "label" ($.T "settings.explain") "items" .Servers.Explained) }}
     </main>
   </div>

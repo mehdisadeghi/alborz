@@ -142,21 +142,25 @@
     {{ end }}
 
 {{ template "toolbar-end" }}
-  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty) }}
+  {{/* What the URL says, not what the page settled on: a direction
+       nobody chose is not a direction to carry into the next request. */}}
+  {{ $q := $.GlobalData.URL.Query }}
+  {{ $keep := dict "sort" ($q.Get "sort") "dir" ($q.Get "dir") "view" ($q.Get "view") "ipp" ($q.Get "ipp") "all" ($q.Get "all") }}
+  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty "target" "main" "keep" $keep) }}
 
   {{if gt .RangeFrom 0}}
   {{ $prev := "" }}{{if ge .PrevPage 0}}{{$prev = printf "?page=%d%s" .PrevPage $hparams}}{{end}}
   {{ $next := "" }}{{if ge .NextPage 0}}{{$next = printf "?page=%d%s" .NextPage $hparams}}{{end}}
-  {{ template "pagination" (dict "range" ($.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total) "prev" (dict "href" $prev "title" ($.T "mailbox.prevpage")) "next" (dict "href" $next "title" ($.T "mailbox.nextpage"))) }}
+  {{ template "pagination" (dict "range" ($.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total) "prev" (dict "href" $prev "title" ($.T "mailbox.prevpage")) "next" (dict "href" $next "title" ($.T "mailbox.nextpage")) "target" "main") }}
   {{ end }}
 
   {{ if gt .Total 0 }}
-  {{ template "ipp-menu" (dict "g" $.GlobalData "options" .PerPageOptions "current" .PerPage "base" $ippbase "label" ($.T "mailbox.perpage")) }}
+  {{ template "ipp-menu" (dict "g" $.GlobalData "options" .PerPageOptions "current" .PerPage "base" $ippbase "label" ($.T "mailbox.perpage") "target" "main") }}
   {{ end }}
 
   {{ if .SortSupported }}
   {{ $thread := "" }}{{ if .ThreadSupported }}{{ $thread = dict "label" ($.T "sort.thread") "href" (printf "?sort=%s%s" "thread" $hplain) "current" .Threaded }}{{ end }}
-  {{ template "sort-menu" (dict "g" $ "thread" $thread
+  {{ template "sort-menu" (dict "g" $ "target" "main" "thread" $thread
      "s" (dict "Key" $hsort "Dir" $.SortDir "Explicit" $hexp "DirExplicit" $hdirx "Params" $hplain "Reset" $hreset)
      "rows" (tuple (tuple ($.T "sort.date") "date") (tuple ($.T "sort.starred") "starred") (tuple ($.T "sort.sender") "from") (tuple ($.T "sort.subject") "subject") (tuple ($.T "sort.size") "size"))) }}
   {{ end }}

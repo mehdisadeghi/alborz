@@ -149,18 +149,21 @@ select {
   --green-dark: #008040;
   --bg-green: #f6fff6;
   --border-green: #afa;
-  /* A flag is an icon, and 3:1 on the well is its floor. */
-  --flag: #8f7300;
+  /* A star for nothing yet wears no colour of its own; every flag is
+     an icon, and 3:1 on the well is the floor for all of them. */
+  --flag: #7a7a80;
   /* The seven colours Apple Mail and Outlook address with three IMAP
-     keywords. Ours, not theirs: only the order is shared, so a mail
-     flagged elsewhere wears the same colour here. */
-  --flag-gold: var(--flag);
-  --flag-orange: #d4650a;
-  --flag-yellow: #a48c00;
-  --flag-green: #1e8e3e;
-  --flag-blue: #1a73e8;
-  --flag-purple: #8430ce;
-  --flag-grey: #7a7a80;
+     keywords: their order and their hues, darkened here until each
+     clears the floor, so a message flagged red in Apple Mail is red
+     here. The closest pair is 22 dE apart, which is what keeps them
+     apart at a glance. */
+  --flag-red: #f90d00;
+  --flag-orange: #b86b00;
+  --flag-yellow: #997a00;
+  --flag-green: #269041;
+  --flag-blue: #0079fc;
+  --flag-purple: #af52de;
+  --flag-grey: #7d7d83;
 
   --notice-fg: #0c5460;
   --notice-bg: #d1ecf1;
@@ -229,13 +232,14 @@ select {
     --green-dark: #3fb968;
     --bg-green: #17211a;
     --border-green: #2c4a33;
-    --flag: #d9b62a;
-    --flag-orange: #f0883e;
-    --flag-yellow: #d4b400;
-    --flag-green: #4cbb6c;
-    --flag-blue: #6aa6ff;
-    --flag-purple: #a86ee0;
-    --flag-grey: #9a9aa0;
+    --flag: #9a9aa0;
+    --flag-red: #ff4238;
+    --flag-orange: #ff9500;
+    --flag-yellow: #ffcc00;
+    --flag-green: #34c759;
+    --flag-blue: #1f8aff;
+    --flag-purple: #b967e2;
+    --flag-grey: #8e8e93;
 
     --notice-fg: #9ed6e0;
     --notice-bg: #12343b;
@@ -282,13 +286,14 @@ select {
   --green-dark: #3fb968;
   --bg-green: #17211a;
   --border-green: #2c4a33;
-  --flag: #d9b62a;
-  --flag-orange: #f0883e;
-  --flag-yellow: #d4b400;
-  --flag-green: #4cbb6c;
-  --flag-blue: #6aa6ff;
-  --flag-purple: #a86ee0;
-  --flag-grey: #9a9aa0;
+  --flag: #9a9aa0;
+  --flag-red: #ff4238;
+  --flag-orange: #ff9500;
+  --flag-yellow: #ffcc00;
+  --flag-green: #34c759;
+  --flag-blue: #1f8aff;
+  --flag-purple: #b967e2;
+  --flag-grey: #8e8e93;
 
   --notice-fg: #9ed6e0;
   --notice-bg: #12343b;
@@ -1447,13 +1452,59 @@ main.message .subject-row > .flag-button,
    those - by specificity in the row, and by nothing but source order in
    the menu, which is the worse way to lose. An inherited variable is
    read by whichever rule wins, so there is no argument to have. */
-.flag-gold { --flag-set: var(--flag-gold); }
+.flag-red { --flag-set: var(--flag-red); }
 .flag-orange { --flag-set: var(--flag-orange); }
 .flag-yellow { --flag-set: var(--flag-yellow); }
 .flag-green { --flag-set: var(--flag-green); }
 .flag-blue { --flag-set: var(--flag-blue); }
 .flag-purple { --flag-set: var(--flag-purple); }
 .flag-grey { --flag-set: var(--flag-grey); }
+
+/* A star and its chevron are one control, not two: no gap, no second
+   box, one rounded outline over both, and the chevron narrow enough to
+   read as the star's own handle. */
+/* The compound selectors are deliberate: .actions .icon-button and
+   .icon-group .flag-button are written later in this sheet and would
+   otherwise take back the width and the box that make these two read
+   as one control. */
+.overflow.flag-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border-radius: var(--radius-sm);
+}
+
+.overflow.flag-split:hover { background: var(--bg-active); }
+
+.flag-split .flag-button.button-link,
+.flag-split .flag-more.icon-button {
+  margin: 0;
+  border: 0;
+  background: none;
+}
+
+/* A fixed box for the star: a filled star is wider than an empty one,
+   and a control that changes width when it is clicked moves the row
+   beside it. */
+.flag-split .flag-button.button-link {
+  width: 1.5rem;
+  min-width: 1.5rem;
+  padding-inline: 0;
+  text-align: center;
+}
+
+.flag-split .flag-more.icon-button {
+  width: 1.1rem;
+  min-width: 1.1rem;
+  padding: 0;
+  padding-inline-end: 0.2rem;
+  color: var(--fg-faint);
+}
+
+.flag-split .flag-more.icon-button:hover,
+.flag-split .flag-button.button-link:hover { background: none; }
+
+.flag-split .flag-more.icon-button:hover { color: var(--fg); }
 
 /* The colour picker: one swatch per colour and one that clears, each a
    submit of its own, so it needs no script and no select. */

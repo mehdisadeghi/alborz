@@ -82,7 +82,7 @@
 "mailbox.starred" = "Starred"
 "mailbox.unread" = "Unread"
 "mailbox.starcolor" = "%s star"
-"color.gold" = "Gold"
+"color.red" = "Red"
 "color.orange" = "Orange"
 "color.yellow" = "Yellow"
 "color.green" = "Green"

@@ -173,22 +173,6 @@ func (ctx *Context) Theme() string {
 	return ctx.pref(themeCookieName, func(v string) bool { return ctx.Server.hasTheme(v) })
 }
 
-// SetAccountColors stores whether merged lists mark each row with its
-// account's color. It is a reading aid of one browser, not a property
-// of the accounts, so it stays out of their stores.
-func (ctx *Context) SetAccountColors(on bool) {
-	value := ""
-	if on {
-		value = "1"
-	}
-	ctx.setPref(accountColorsCookieName, value, on)
-}
-
-// AccountColors reports whether the color marks are switched on.
-func (ctx *Context) AccountColors() bool {
-	return ctx.pref(accountColorsCookieName, func(v string) bool { return v == "1" }) == "1"
-}
-
 // SetAlignByScript stores whether a line aligns by its own script
 // rather than with the interface's edge.
 func (ctx *Context) SetAlignByScript(on bool) {

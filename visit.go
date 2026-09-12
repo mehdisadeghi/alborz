@@ -383,6 +383,11 @@ func (v *Visit) touch() {
 
 // Notify records what the next page tells the reader.
 func (v *Visit) Notify(n Notice) {
+	// A notice with nothing to say is a handler deciding this action
+	// speaks for itself; an empty bar would say the opposite.
+	if n.Text == "" && n.Markup == "" {
+		return
+	}
 	v.mu.Lock()
 	v.notice = &n
 	v.mu.Unlock()

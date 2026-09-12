@@ -915,11 +915,11 @@ var flagColorBits = [3]imap.Flag{"$MailFlagBit0", "$MailFlagBit1", "$MailFlagBit
 
 // FlagColors names the seven colours those three bits address, in the
 // order the two clients number them. The index is the value of the bit
-// field, so FlagColors[0] is what a plain \Flagged shows as.
-// The bit field's zero is "flagged, no colour bits", which is the state
-// a plain click leaves and the state every other client sets. It wears
-// the star's own gold here; Apple draws that same state red.
-var FlagColors = [7]string{"gold", "orange", "yellow", "green", "blue", "purple", "grey"}
+// field, so FlagColors[0] is what a plain \Flagged shows as: the state
+// a plain click leaves and the state every other client sets. Apple's
+// names and Apple's order, so a message flagged in Apple Mail wears
+// the colour there that it wears here.
+var FlagColors = [7]string{"red", "orange", "yellow", "green", "blue", "purple", "grey"}
 
 // FlagColor is the colour this message is flagged in, empty when it
 // carries no flag at all. A bit field naming no colour we know (the one

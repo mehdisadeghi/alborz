@@ -160,7 +160,7 @@
        well as the flag. Removing \Flagged alone leaves the colour bits
        behind, so a mail flagged green elsewhere came back green the
        next time it was starred, however many times you unstarred it. */}}
-  <input type="hidden" name="color" value="{{ if .Flagged }}{{ else }}gold{{ end }}">
+  <input type="hidden" name="color" value="{{ if .Flagged }}{{ else }}red{{ end }}">
   <input type="hidden" name="next" value="{{.Next}}">
   <button class="flag-button button-link{{ with .Color }} flag-{{.}}{{ end }}" type="submit"
           title="{{.Label}}" aria-label="{{.Label}}">
@@ -173,6 +173,31 @@
 </form>
 {{ end }}
 
+{{/* The seven colours and the one that clears, each a submit of its
+     own so the picker needs no script and no select. Shared by the
+     menu's two shapes. dict: form action colors clear. */}}
+{{ define "flag-colors-menu" }}
+<div class="overflow-menu flag-colors" popover id="menu-flag">
+  {{ $d := . }}
+  {{ range .colors }}
+  <button {{ with $d.form }}form="{{.}}"{{ end }} formaction="{{$d.action}}"
+          name="color" value="{{.Name}}">
+    <span class="flag-star flag-{{.Name}}">&#9733;</span>{{.Label}}
+  </button>
+  {{ end }}
+  <button {{ with .form }}form="{{.}}"{{ end }} formaction="{{.action}}" name="color" value="">
+    <span class="flag-star">&#9734;</span>{{.clear}}
+  </button>
+</div>
+{{ end }}
+
+{{/* dict: form action title clear colors [current class disabled toggle].
+     Three shapes of one control. Dim, when nothing is selected to act
+     on. A star and a chevron - toggle - where the page is about one
+     message: the star sets and clears on a click, the chevron opens
+     the seven, because a colour is a rarer want than a star and should
+     not cost the same click. A single button otherwise, acting on the
+     rows that are checked, gated like every other control that does. */}}
 {{ define "flag-menu" }}
 {{ if .disabled }}
 <span class="overflow flag-menu{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
@@ -180,23 +205,24 @@
     <span class="flag-star">&#9734;</span>{{ template "icon" "down" }}<span class="label">{{.title}}</span>
   </span>
 </span>
+{{ else if .toggle }}
+<div class="overflow flag-menu flag-split{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+  <button class="flag-button button-link{{ with .current }} flag-{{.}}{{ end }}"
+          {{ with .form }}form="{{.}}"{{ end }} formaction="{{.action}}"
+          name="color" value="{{ if .current }}{{ else }}red{{ end }}"
+          title="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}"
+          aria-label="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}">
+    {{- if .current }}&#9733;{{ else }}&#9734;{{ end -}}
+  </button>
+  <button type="button" class="icon-button flag-more" title="{{.title}}" aria-label="{{.title}}" popovertarget="menu-flag">{{ template "icon" "down" }}</button>
+  {{ template "flag-colors-menu" . }}
+</div>
 {{ else }}
 <div class="overflow flag-menu{{ with .class }} {{.}}{{ end }}" data-gated="{{.form}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <button type="button" class="icon-button" title="{{.clear}}" aria-label="{{.title}}" popovertarget="menu-flag">
     <span class="flag-star{{ with .current }} flag-{{.}}{{ end }}">{{ if .current }}&#9733;{{ else }}&#9734;{{ end }}</span>{{ template "icon" "down" }}<span class="label">{{.title}}</span>
   </button>
-  <div class="overflow-menu flag-colors" popover id="menu-flag">
-    {{ $d := . }}
-    {{ range .colors }}
-    <button {{ with $d.form }}form="{{.}}"{{ end }} formaction="{{$d.action}}"
-            name="color" value="{{.Name}}">
-      <span class="flag-star flag-{{.Name}}">&#9733;</span>{{.Label}}
-    </button>
-    {{ end }}
-    <button {{ with .form }}form="{{.}}"{{ end }} formaction="{{.action}}" name="color" value="">
-      <span class="flag-star">&#9734;</span>{{.clear}}
-    </button>
-  </div>
+  {{ template "flag-colors-menu" . }}
 </div>
 {{ end }}
 {{ end }}

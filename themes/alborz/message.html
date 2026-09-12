@@ -96,8 +96,11 @@
             </span>
 
 
+            {{/* One star for this message: it sets and clears, and the
+                 chevron beside it holds the colours. */}}
             {{ template "flag-menu" (dict
                "priority" 12
+               "toggle" true
                "form" "message-flag-form"
                "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $aq)
                "current" .Message.FlagColor
@@ -227,14 +230,6 @@
                   {{$.T "mailbox.nosubject"}}
                 {{end}}
               </h1>
-              <button class="flag-button button-link{{ with .Message.FlagColor }} flag-{{.}}{{ end }}"
-                      form="message-flag-form"
-                      formaction="/message/{{.Mailbox.Name | pathescape}}/flag{{$aq}}"
-                      name="color" value="{{ if $flagged }}{{ else }}gold{{ end }}"
-                      title="{{ if $flagged }}{{$.T "mailbox.flagnone"}}{{ else }}{{$.T "mailbox.flagcolor"}}{{ end }}"
-                      aria-label="{{ if $flagged }}{{$.T "mailbox.flagnone"}}{{ else }}{{$.T "mailbox.flagcolor"}}{{ end }}">
-                {{- if $flagged }}&#9733;{{ else }}&#9734;{{ end -}}
-              </button>
               </div>
             </th>
           </tr>

@@ -477,6 +477,43 @@ header nav {
   padding-inline: var(--space-2) var(--space-4);
 }
 footer { padding: var(--space-2) var(--space-4); }
+/* The name and the mark: dim, because they say where you are rather
+   than ask to be read, and the mark keeps its own colours so that no
+   theme can wash it out. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--fg-dim);
+  text-decoration: none;
+}
+
+.brand:hover { color: var(--fg); }
+
+.brand-mark {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+}
+
+.brand-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A span, not a div: the trailing group is "header nav > div" and it
+   is pushed to the far side, which is not where a name belongs. */
+header nav .header-brand {
+  display: flex;
+  align-items: center;
+  margin-inline-end: var(--space-2);
+}
+
+/* The drawer's head is the phone's; a wide screen keeps it in the row. */
+.rail-brand { display: none; }
+
 header nav > a {
   align-self: stretch;
   display: inline-flex;
@@ -4381,6 +4418,13 @@ h1.no-word .title-short {
   header nav > div { float: none; display: none; }
   .nav-menus { display: none; }
   .nav-menus-drawer { display: contents; }
+  header nav .header-brand { display: none; }
+
+  /* The drawer's head, above the folders and clear of the edge. */
+  .rail-brand {
+    display: flex;
+    padding: var(--space-1) var(--space-2) var(--space-3);
+  }
 
   /* The account block docks to the drawer as a fixed element, and says
      so with a z-index of its own - which counted for nothing, because

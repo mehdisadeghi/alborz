@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-  {{ template "scope-rail" (dict "kind" "rows" "path" "/settings/account" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "new" (dict "href" "/settings" "label" ($.T "nav.settings") "active" (eq .GlobalData.URL.Path "/settings"))) }}
+  {{ template "scope-rail" (dict "g" $ "kind" "rows" "path" "/settings/account" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "new" (dict "href" "/settings" "label" ($.T "nav.settings") "active" (eq .GlobalData.URL.Path "/settings"))) }}
   </aside>
 
   <div class="container">

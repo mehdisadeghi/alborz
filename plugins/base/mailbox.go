@@ -1285,12 +1285,28 @@ func handleSetFlags(ctx *alborz.Context) error {
 	}, landOn(ctx, target))
 }
 
+// onlySeen reports whether a store touches nothing but the read mark.
+func onlySeen(flags []string) bool {
+	for _, f := range flags {
+		if !strings.EqualFold(f, string(imap.FlagSeen)) {
+			return false
+		}
+	}
+	return len(flags) > 0
+}
+
 // flaggedNotice says what changed and offers the opposite store for
 // an add or a remove, whose inverse is exact. A set replaced flags it
 // did not record, so it has no undo; nor has an undo.
 func flaggedNotice(ctx *alborz.Context, uids, flags []string, op imap.StoreFlagsOp, mboxName, target string) alborz.Notice {
 	if ctx.FormValue("undo") != "" {
 		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
+	}
+	// Read and unread show in the row's own weight, so they are done
+	// without a word; a colour is worth an undo, since finding a star
+	// set by accident means looking through the folder for it.
+	if onlySeen(flags) {
+		return alborz.Notice{}
 	}
 	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.flagged", len(uids))}
 	inverse := map[imap.StoreFlagsOp]string{imap.StoreFlagsAdd: "remove", imap.StoreFlagsDel: "add"}[op]
@@ -1476,6 +1492,10 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 			}
 			return movedNotice(ctx, done, ctx.T("aside."+strings.ToLower(to)), "/mailbox/"+url.PathEscape(to)+"?all=1", len(landed),
 				"/mailbox/"+url.PathEscape(to)+"/all/act?action=move&to="+url.QueryEscape(role), fields)
+		case "read", "unread":
+			// The rows change weight in the list the reader is looking
+			// at. A line saying so is a line about something they can see.
+			return alborz.Notice{}
 		}
 		return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.changed", done)}
 	}, landOn(ctx, back))

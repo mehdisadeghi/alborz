@@ -45,11 +45,10 @@ const (
 )
 
 const (
-	schemeCookieName        = "alborz_scheme"
-	themeCookieName         = "alborz_theme"
-	accountColorsCookieName = "alborz_account_colors"
-	alignCookieName         = "alborz_align"
-	textSizeCookieName      = "alborz_text"
+	schemeCookieName   = "alborz_scheme"
+	themeCookieName    = "alborz_theme"
+	alignCookieName    = "alborz_align"
+	textSizeCookieName = "alborz_text"
 	// TimezoneCookieName is written by the page, not by us: the browser
 	// is the only party that knows its own zone.
 	TimezoneCookieName = "alborz_tz"

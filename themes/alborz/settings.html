@@ -122,22 +122,6 @@
         </div>
 
         <div class="action-group">
-          <label for="account_colors" class="checkbox">
-            <input type="checkbox" name="account_colors" id="account_colors" value="1"{{if .AccountColors}} checked{{end}}>
-            {{$.T "settings.accountcolors"}}
-          </label>
-        </div>
-
-        <div class="action-group">
-          <label for="color_scheme">{{$.T "settings.appearance"}}</label>
-          <select name="color_scheme" id="color_scheme">
-            <option value="" {{if eq .ColorScheme ""}}selected{{end}}>{{$.T "settings.system"}}</option>
-            <option value="light" {{if eq .ColorScheme "light"}}selected{{end}}>{{$.T "settings.light"}}</option>
-            <option value="dark" {{if eq .ColorScheme "dark"}}selected{{end}}>{{$.T "settings.dark"}}</option>
-          </select>
-        </div>
-
-        <div class="action-group">
           <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
         </div>
 

@@ -256,8 +256,6 @@ type ReadingRenderData struct {
 	// Themes are the overlays on offer, which a deployment adds to by
 	// dropping a stylesheet beside the built-in ones.
 	Themes        []alborz.Theme
-	ColorScheme   string
-	AccountColors bool
 	AlignByScript bool
 	TextSize      string
 
@@ -684,8 +682,6 @@ func handleReadingSettings(ctx *alborz.Context) error {
 			Language:       ctx.Language(),
 			Theme:          ctx.Theme(),
 			Themes:         ctx.Themes(),
-			ColorScheme:    ctx.ColorScheme(),
-			AccountColors:  ctx.AccountColors(),
 			AlignByScript:  ctx.AlignByScript(),
 			TextSize:       ctx.TextSize(),
 			Reading:        ctx.Reading(),
@@ -756,9 +752,6 @@ func handleReadingSettings(ctx *alborz.Context) error {
 		return err
 	}
 
-	if v, ok := given("color_scheme"); ok {
-		ctx.SetColorScheme(v)
-	}
 	if v, ok := given("theme"); ok {
 		ctx.SetTheme(v)
 	}
@@ -768,7 +761,6 @@ func handleReadingSettings(ctx *alborz.Context) error {
 	if v, ok := given("text_size"); ok {
 		ctx.SetTextSize(v)
 	}
-	ctx.SetAccountColors(ctx.FormValue("account_colors") != "")
 	ctx.SetAlignByScript(ctx.FormValue("align_script") != "")
 	return ctx.Redirect(http.StatusFound, "/settings")
 }

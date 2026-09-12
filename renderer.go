@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -69,10 +68,6 @@ type GlobalRenderData struct {
 
 	// Unified marks the merged all-accounts view
 	Unified bool
-
-	// AccountColors marks merged rows with a per-account color, an
-	// opt-in reading aid on top of the account's name
-	AccountColors bool
 
 	// AlignByScript lets each line align by its own writing direction
 	// instead of with the interface's edge
@@ -412,25 +407,6 @@ func (g GlobalRenderData) AccountTrack() template.CSS {
 	return template.CSS(fmt.Sprintf("%dch", n))
 }
 
-// AccountColor is the mark a merged row wears in the opt-in color mode.
-// The hues are spread over the accounts actually signed in, in name
-// order, so no two are a shade apart: hashing each name on its own gave
-// two of three accounts 25 and 27 degrees, which reads as one color.
-// The mark is a reading aid layered on the account's name, never the
-// only thing that says whose a row is.
-func (g GlobalRenderData) AccountColor(account string) template.CSS {
-	names := make([]string, len(g.Accounts))
-	for i, a := range g.Accounts {
-		names[i] = a.Username
-	}
-	slices.Sort(names)
-	i := slices.Index(names, account)
-	if i < 0 {
-		return ""
-	}
-	return template.CSS(fmt.Sprintf("hsl(%d 60%% 45%%)", i*360/len(names)))
-}
-
 // printers write numbers the way each language writes them - Persian
 // digits on a Persian page, each locale's own grouping - out of CLDR's
 // tables in x/text. Nothing here knows what a digit looks like.
@@ -742,7 +718,6 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Unified = ctx.Unified
-		global.AccountColors = ctx.AccountColors()
 		global.AlignByScript = ctx.AlignByScript()
 		global.CustomCSS = ctx.Server.custom
 		global.URLAccount = ctx.urlAccount

@@ -600,7 +600,6 @@
 "title.update" = "Update %s"
 "folder.deletetitle" = "Delete folder '%s'"
 "title.tasks" = "Tasks"
-"settings.accountcolors" = "Mark accounts with a color in merged lists"
 "mailbox.attachment" = "Has an attachment"
 "mailbox.answered" = "Replied"
 "mailbox.forwarded" = "Forwarded"

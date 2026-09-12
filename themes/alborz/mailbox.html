@@ -45,7 +45,7 @@
       <p class="hint search-widen"><a href="?query={{ . | urlquery }}{{ with $.GlobalData.URLAccount }}&account={{ . | addr }}{{ end }}{{ if $.GlobalData.Unified }}&all=1{{ end }}">{{ $.T "mailbox.searchtext" }}</a></p>
       {{ end }}
       <section class="messages">
-        <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}{{ if and .GlobalData.Unified .GlobalData.AccountColors }} account-colors{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
+        <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
           {{/* Header row; the labels sort where the server can. */}}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hflip := "desc" }}{{ if eq .SortDir "desc" }}{{ $hflip = "asc" }}{{ end }}
@@ -92,7 +92,7 @@
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
           {{/* A row earns a tint only for a fact that needs no argument;
                the rest of the facts wait on the message page. */}}
-          <div class="message-row list-row{{ if eq .Mark 2 }} row-alarm{{ else if eq .Mark 1 }} row-caution{{ end }}" role="row"{{ if $.Threaded }} style="--depth: {{.Depth}}"{{ end }}{{ if and $.GlobalData.Unified $.GlobalData.AccountColors }} style="--account: {{ $.GlobalData.AccountColor .Account }}"{{ end }}>
+          <div class="message-row list-row{{ if eq .Mark 2 }} row-alarm{{ else if eq .Mark 1 }} row-caution{{ end }}" role="row"{{ if $.Threaded }} style="--depth: {{.Depth}}"{{ end }}>
           {{/* A merged row is named by its account and folder as well,
                since the selection spans connections. */}}
           <div class="message-list-checkbox list-checkbox {{$classes}}" role="cell">

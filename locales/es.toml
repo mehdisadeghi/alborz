@@ -599,7 +599,6 @@
 "mailbox.account" = "Cuenta"
 "mailbox.emptyfolder" = "Vaciar carpeta"
 "mailbox.nosender" = "Remitente desconocido"
-"settings.accountcolors" = "Marcar las cuentas con un color en las listas combinadas"
 "mailbox.attachment" = "Tiene un archivo adjunto"
 "mailbox.answered" = "Respondido"
 "mailbox.forwarded" = "Reenviado"

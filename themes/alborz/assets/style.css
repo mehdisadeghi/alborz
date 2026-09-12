@@ -4234,14 +4234,15 @@ aside details.acct-folders > summary::-webkit-details-marker {
   display: none;
 }
 
-/* The chevron is the fold, and a fold needs a target a thumb can hit:
-   it takes the heading's full height and a finger's width, eating the
-   row's own padding so the heading text stays where it was. */
-aside details.acct-folders > summary::before {
+/* The chevron folds the account, and it sits after the name, where the
+   branch rows keep theirs. Before it, it pushed the account's own name
+   a chevron's width to the right of the folders under it, so the
+   heading of a group stood further in than the group. */
+aside details.acct-folders > summary::after {
   content: "›";
   flex: none;
   width: 1.5rem;
-  margin-inline-start: -0.5rem;
+  margin-inline-end: -0.5rem;
   align-self: stretch;
   display: inline-flex;
   align-items: center;

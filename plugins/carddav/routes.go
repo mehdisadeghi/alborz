@@ -662,22 +662,28 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		}
 
 		var savePath string
-		if ao != nil {
-			savePath = ao.Path
-		} else {
+		creating := ao == nil
+		if creating {
 			savePath = path.Join(addressBookPath, id.String()+".vcf")
+		} else {
+			savePath = ao.Path
 		}
 		ao, err = saveClient.PutAddressObject(ctx.Request().Context(), savePath, card)
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
-		return func() error {
-			if createAcct != "" {
-				return ctx.Redirect(http.StatusFound, AddressObject{AddressObject: ao}.URL()+"?account="+alborz.AddressParam(createAcct))
-			}
-			return ctx.Redirect(http.StatusFound, ctx.AccountPath(AddressObject{AddressObject: ao}.URL()))
-		}()
+		object := AddressObject{AddressObject: ao}
+		if creating {
+			// The card as written names the contact; what a PUT answers
+			// carries the path and no data at all.
+			named := AddressObject{AddressObject: &carddav.AddressObject{Path: ao.Path, Card: card}}
+			return dav.Made(ctx, ctx.T("notice.contactcreated"), named.DisplayName(), object.URL(), "/contacts", createAcct)
+		}
+		if createAcct != "" {
+			return ctx.Redirect(http.StatusFound, object.URL()+"?account="+alborz.AddressParam(createAcct))
+		}
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(object.URL()))
 	}
 
 	// Both map values would be evaluated eagerly; a missing object
@@ -823,15 +829,26 @@ func handleCreateBook(p *plugin) func(*alborz.Context) error {
 		if session == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
-		if err := p.createAddressBook(ctx.Request().Context(), session, data.Name, data.Color); err != nil {
+		bookPath, err := p.createAddressBook(ctx.Request().Context(), session, data.Name, data.Color)
+		if err != nil {
 			data.Error = err.Error()
 			if errors.Is(err, dav.ErrNameTaken) {
 				data.Error = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
+		return dav.Made(ctx, ctx.T("notice.bookcreated"), data.Name,
+			"/address-books/"+url.PathEscape(bookPath), "/contacts", otherAccount(ctx, data.Account))
 	}
+}
+
+// otherAccount is the account a form chose when it is not the one the
+// page is signed in as: only then does a link have to name it.
+func otherAccount(ctx *alborz.Context, chosen string) string {
+	if chosen == ctx.Session.Username() {
+		return ""
+	}
+	return chosen
 }
 
 // editCard reads one card, lets the caller change it, and writes it

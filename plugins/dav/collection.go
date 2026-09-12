@@ -196,8 +196,9 @@ func MakeCollection(ctx context.Context, client *http.Client, method, target str
 // the path segment only has to be unique and legal in a URL. Two
 // collections may share a display name but not an address, and a
 // server answers a taken one with 405, so this walks on rather than
-// making the reader rename what they meant.
-func CreateCollection(ctx context.Context, base *url.URL, homeSet, name, fallback string, make func(ctx context.Context, target string) error) error {
+// making the reader rename what they meant. The path it settled on is
+// returned, since the page that follows names the new collection.
+func CreateCollection(ctx context.Context, base *url.URL, homeSet, name, fallback string, make func(ctx context.Context, target string) error) (string, error) {
 	segment := url.PathEscape(strings.ToLower(strings.ReplaceAll(strings.TrimSpace(name), " ", "-")))
 	if segment == "" {
 		segment = fallback
@@ -208,13 +209,14 @@ func CreateCollection(ctx context.Context, base *url.URL, homeSet, name, fallbac
 		if attempt > 1 {
 			try = fmt.Sprintf("%s-%d", segment, attempt)
 		}
-		target := base.ResolveReference(&url.URL{Path: home + try + "/"}).String()
+		path := home + try + "/"
+		target := base.ResolveReference(&url.URL{Path: path}).String()
 		err := make(ctx, target)
 		if err == nil {
-			return nil
+			return path, nil
 		}
 		if !errors.Is(err, ErrCollectionExists) || attempt == maxCreateAttempts {
-			return err
+			return "", err
 		}
 	}
 }

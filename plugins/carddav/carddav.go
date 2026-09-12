@@ -131,34 +131,34 @@ func (ao AddressObject) PhotoURL() string {
 // createAddressBook makes a book on the account's own server, walking
 // to the first free address: two collections may share a display name
 // but not a path, and a server answers a taken one with 405.
-func (p *plugin) createAddressBook(ctx context.Context, session *alborz.Session, name, color string) error {
+func (p *plugin) createAddressBook(ctx context.Context, session *alborz.Session, name, color string) (string, error) {
 	c, infos, err := p.clientWithAddressBooks(ctx, session)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if dav.NameTaken(name, infos) {
-		return dav.ErrNameTaken
+		return "", dav.ErrNameTaken
 	}
 	davBase, _ := p.dav.URL(session)
 
 	principal, err := c.FindCurrentUserPrincipal(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to query CardDAV principal: %v", err)
+		return "", fmt.Errorf("failed to query CardDAV principal: %v", err)
 	}
 	homeSet, err := c.FindAddressBookHomeSet(ctx, principal)
 	if err != nil {
-		return fmt.Errorf("failed to query CardDAV address book home set: %v", err)
+		return "", fmt.Errorf("failed to query CardDAV address book home set: %v", err)
 	}
 
 	client := p.dav.HTTPClient(session)
-	err = dav.CreateCollection(ctx, davBase, homeSet, name, "contacts", func(ctx context.Context, target string) error {
+	path, err := dav.CreateCollection(ctx, davBase, homeSet, name, "contacts", func(ctx context.Context, target string) error {
 		return doMkcol(ctx, client, target, name, color)
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	p.books.Forget(session.Username())
-	return nil
+	return path, nil
 }
 
 // Modified is when the card last changed, for the list to show. There

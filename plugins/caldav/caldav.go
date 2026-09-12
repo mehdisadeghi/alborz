@@ -140,34 +140,34 @@ func newClient(u *url.URL, httpClient *http.Client) (*caldav.Client, error) {
 
 // createCalendar adds a collection to the account's calendar home and
 // forgets the cached list, so the new one appears at once.
-func (p *plugin) createCalendar(ctx context.Context, session *alborz.Session, name string, components []string, color string) error {
+func (p *plugin) createCalendar(ctx context.Context, session *alborz.Session, name string, components []string, color string) (string, error) {
 	c, infos, err := p.clientWithCalendars(ctx, session)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if dav.NameTaken(name, infos) {
-		return dav.ErrNameTaken
+		return "", dav.ErrNameTaken
 	}
 	davBase, _ := p.dav.URL(session)
 
 	principal, err := c.FindCurrentUserPrincipal(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to query CalDAV principal: %v", err)
+		return "", fmt.Errorf("failed to query CalDAV principal: %v", err)
 	}
 	homeSet, err := c.FindCalendarHomeSet(ctx, principal)
 	if err != nil {
-		return fmt.Errorf("failed to query CalDAV calendar home set: %v", err)
+		return "", fmt.Errorf("failed to query CalDAV calendar home set: %v", err)
 	}
 
 	client := p.dav.HTTPClient(session)
-	err = dav.CreateCollection(ctx, davBase, homeSet, name, "calendar", func(ctx context.Context, target string) error {
+	path, err := dav.CreateCollection(ctx, davBase, homeSet, name, "calendar", func(ctx context.Context, target string) error {
 		return doMkcalendar(ctx, client, target, name, components, color)
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	p.calendars.Forget(session.Username())
-	return nil
+	return path, nil
 }
 
 func (p *plugin) clientWithCalendars(ctx context.Context, session *alborz.Session) (*caldav.Client, []CalendarInfo, error) {

@@ -217,7 +217,8 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 		if data.Holds != "events" {
 			components = append(components, "VTODO")
 		}
-		if err := p.createCalendar(ctx.Request().Context(), session, data.Name, components, data.Color); err != nil {
+		calPath, err := p.createCalendar(ctx.Request().Context(), session, data.Name, components, data.Color)
+		if err != nil {
 			data.Error = err.Error()
 			if errors.Is(err, dav.ErrNameTaken) {
 				data.Error = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
@@ -226,10 +227,15 @@ func handleCreateCalendar(p *plugin) func(*alborz.Context) error {
 		}
 		// Back to the rail it was asked for, when the new collection
 		// shows there; a task list never appears under calendars.
+		made, where := ctx.T("notice.calendarcreated"), "/calendar"
 		if data.Holds == "tasks" || (forTasks && data.Holds == "both") {
-			return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
+			made, where = ctx.T("notice.tasklistcreated"), "/tasks"
 		}
-		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))
+		account := ""
+		if data.Account != ctx.Session.Username() {
+			account = data.Account
+		}
+		return dav.Made(ctx, made, data.Name, "/calendars/"+url.PathEscape(calPath), where, account)
 	}
 }
 
@@ -1495,7 +1501,8 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 
 		saveClient := c
 		var createAcct string
-		if co == nil {
+		creating := co == nil
+		if creating {
 			// The form's choice names its owner as "account|path".
 			saveClient, calendarPath, createAcct, err = p.resolveCreateCalendar(ctx, calendarPath, CalendarInfo.SupportsEvent)
 			if errors.Is(err, errUnknownCalendar) {
@@ -1608,10 +1615,14 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			ctx.PutNotice(ctx.T("invite.sent"))
 		}
 
-		if createAcct != "" {
-			return ctx.Redirect(http.StatusFound, CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.AddressParam(createAcct))
+		object := CalendarObject{CalendarObject: co}.URL()
+		if creating {
+			return dav.Made(ctx, ctx.T("notice.eventcreated"), summary, object, "/calendar", createAcct)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(CalendarObject{CalendarObject: co}.URL()))
+		if createAcct != "" {
+			return ctx.Redirect(http.StatusFound, object+"?account="+alborz.AddressParam(createAcct))
+		}
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(object))
 	}
 
 	summary, _ := event.Props.Text("SUMMARY")
@@ -2050,7 +2061,8 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 
 		saveClient := c
 		var createAcct string
-		if co == nil {
+		creating := co == nil
+		if creating {
 			// The form's choice names its owner as "account|path".
 			saveClient, calendarPath, createAcct, err = p.resolveCreateCalendar(ctx, calendarPath, CalendarInfo.SupportsTodo)
 			if errors.Is(err, errUnknownCalendar) {
@@ -2108,10 +2120,14 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
-		if createAcct != "" {
-			return ctx.Redirect(http.StatusFound, TaskObject{CalendarObject: co}.URL()+"?account="+alborz.AddressParam(createAcct))
+		object := TaskObject{CalendarObject: co}.URL()
+		if creating {
+			return dav.Made(ctx, ctx.T("notice.taskcreated"), summary, object, "/tasks", createAcct)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(TaskObject{CalendarObject: co}.URL()))
+		if createAcct != "" {
+			return ctx.Redirect(http.StatusFound, object+"?account="+alborz.AddressParam(createAcct))
+		}
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(object))
 	}
 
 	summary, _ := todo.Props.Text("SUMMARY")

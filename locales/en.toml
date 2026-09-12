@@ -544,6 +544,7 @@
 "notice.undo" = "Undo"
 "notice.undone" = "Undone."
 "notice.undofailed" = "Could not undo: they have moved since."
+"notice.noanswer" = "The server did not answer."
 "folder.emptytitle" = "Empty %s"
 "folder.emptyask" = "Delete everything in %s?"
 "folder.emptydo" = "Delete all"

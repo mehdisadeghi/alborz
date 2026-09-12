@@ -543,6 +543,7 @@
 "notice.undo" = "Deshacer"
 "notice.undone" = "Deshecho."
 "notice.undofailed" = "No se pudo deshacer: se han movido desde entonces."
+"notice.noanswer" = "El servidor no respondió."
 "folder.emptytitle" = "Vaciar %s"
 "folder.emptyask" = "¿Eliminar todo en %s?"
 "folder.emptydo" = "Eliminar todo"

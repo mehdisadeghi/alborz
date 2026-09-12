@@ -537,6 +537,7 @@
 "notice.undo" = "واگرد"
 "notice.undone" = "واگرد شد."
 "notice.undofailed" = "واگرد نشد: از آن زمان جابه‌جا شده‌اند."
+"notice.noanswer" = "سرور پاسخ نداد."
 "folder.emptytitle" = "خالی کردن %s"
 "folder.emptyask" = "همه‌چیز در %s حذف شود؟"
 "folder.emptydo" = "حذف همه"

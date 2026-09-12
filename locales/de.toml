@@ -543,6 +543,7 @@
 "notice.undo" = "Rückgängig"
 "notice.undone" = "Rückgängig gemacht."
 "notice.undofailed" = "Ließ sich nicht rückgängig machen: seither verschoben."
+"notice.noanswer" = "Der Server hat nicht geantwortet."
 "folder.emptytitle" = "%s leeren"
 "folder.emptyask" = "Alles in %s löschen?"
 "folder.emptydo" = "Alles löschen"

@@ -86,7 +86,7 @@ func TestCanonicalCollectionPath(t *testing.T) {
 func TestCreateCollectionWalksToAFreeAddress(t *testing.T) {
 	base, _ := url.Parse("https://dav.example/")
 	var tried []string
-	err := CreateCollection(context.Background(), base, "/cal/u/", "Work Stuff", "calendar",
+	made, err := CreateCollection(context.Background(), base, "/cal/u/", "Work Stuff", "calendar",
 		func(_ context.Context, target string) error {
 			tried = append(tried, target)
 			if len(tried) < 3 {
@@ -97,12 +97,15 @@ func TestCreateCollectionWalksToAFreeAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if made != "/cal/u/work-stuff-3/" {
+		t.Errorf("the address it settled on: %q", made)
+	}
 	if strings.Join(tried, " ") != "https://dav.example/cal/u/work-stuff/ https://dav.example/cal/u/work-stuff-2/ https://dav.example/cal/u/work-stuff-3/" {
 		t.Errorf("addresses tried: %v", tried)
 	}
 
 	other := errors.New("server down")
-	if err := CreateCollection(context.Background(), base, "/cal/u/", "", "calendar",
+	if _, err := CreateCollection(context.Background(), base, "/cal/u/", "", "calendar",
 		func(_ context.Context, target string) error { return other }); !errors.Is(err, other) {
 		t.Errorf("a failure that is not a taken address was retried: %v", err)
 	}

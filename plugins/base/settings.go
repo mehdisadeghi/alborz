@@ -3,6 +3,7 @@ package alborzbase
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -458,6 +459,11 @@ func handleSignatureSave(ctx *alborz.Context) error {
 	}
 	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 		return fmt.Errorf("failed to save settings: %w", err)
+	}
+	if !replaced {
+		ctx.Made(ctx.T("notice.signaturecreated"), name,
+			ctx.AccountPath("/signatures/"+url.PathEscape(name)),
+			ctx.AccountPath("/signatures/create"))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }

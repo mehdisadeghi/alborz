@@ -431,6 +431,32 @@ func NoticeName(name string) string {
 	return `<span class="notice-name">` + template.HTMLEscapeString(name) + `</span>`
 }
 
+// NoticeLink is the same name, leading to the thing it names.
+func NoticeLink(name, href string) string {
+	return `<a class="notice-name" href="` + template.HTMLEscapeString(href) + `">` +
+		template.HTMLEscapeString(name) + `</a>`
+}
+
+// Made is what every section says after making something. The reader
+// lands on the list, which is where the new thing now lives, and the
+// banner holds the two things wanted next: the thing itself, named and
+// linked, and the offer to make another with the form as it was.
+// sentence takes the name; again is the form's own address.
+func (ctx *Context) Made(sentence, name, href, again string) {
+	// A folder is its own list, so the reader is already looking at
+	// what was made and there is nowhere for the name to lead.
+	marked := NoticeName(name)
+	if href != "" {
+		marked = NoticeLink(name, href)
+	}
+	ctx.Notify(Notice{
+		Kind:   NoticeDone,
+		Text:   fmt.Sprintf(sentence, name),
+		Markup: template.HTML(fmt.Sprintf(sentence, marked)),
+		Action: &NoticeAction{Label: ctx.T("common.addanother"), Path: again},
+	})
+}
+
 // Store returns a store suitable for storing persistent user data.
 func (s *Session) Store() Store {
 	return s.store

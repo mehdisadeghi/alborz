@@ -711,6 +711,9 @@ func handleNewMailbox(ctx *alborz.Context) error {
 		}
 
 		listings.evictAll(selectedAccount)
+		// The folder is its own list, so the reader lands in it; the
+		// banner is the one every other create shows.
+		ctx.Made(ctx.T("notice.foldercreated"), name, "", ctx.Request().URL.RequestURI())
 		return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
 	}
 

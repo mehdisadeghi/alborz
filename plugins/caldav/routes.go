@@ -154,11 +154,11 @@ func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 	forTasks := ctx.QueryParam("for") == "tasks"
 	// Back to the rail it was asked for, when the new collection shows
 	// there; a task list never appears under calendars.
-	made := func(holds string) string {
+	made := func(holds string) (string, string) {
 		if holds == "tasks" {
-			return "/tasks"
+			return ctx.T("notice.tasklistcreated"), "/tasks"
 		}
-		return "/calendar"
+		return ctx.T("notice.calendarcreated"), "/calendar"
 	}
 	if forTasks {
 		rail, err := p.taskRail(ctx)
@@ -1449,7 +1449,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			ctx.PutNotice(ctx.T("invite.sent"))
 		}
 
-		return dav.Saved(ctx, CalendarObject{CalendarObject: co}.URL(), to.Account)
+		return dav.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, CalendarObject{CalendarObject: co}.URL(), "/calendar", to.Account)
 	}
 
 	summary, _ := event.Props.Text("SUMMARY")
@@ -1881,7 +1881,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
-		return dav.Saved(ctx, TaskObject{CalendarObject: co}.URL(), to.Account)
+		return dav.Saved(ctx, creating, ctx.T("notice.taskcreated"), summary, TaskObject{CalendarObject: co}.URL(), "/tasks", to.Account)
 	}
 
 	summary, _ := todo.Props.Text("SUMMARY")

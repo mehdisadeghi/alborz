@@ -3092,30 +3092,6 @@ main.calendar .actions {
   margin-inline-start: auto;
 }
 
-/* The opt-in color mark: a short rounded pip at the head of the line
-   that names the sender, the height of that line, the way k-9 marks a
-   row. It reads as a mark rather than a table border, and it sits with
-   the account it stands for instead of at an edge of its own. The color
-   is set on the row and inherits through the display:contents wrapper;
-   the pip is positioned, so switching the marks on never re-flows the
-   list. */
-.message-grid.account-colors .message-list-sender {
-  position: relative;
-  padding-inline-start: 0.6rem;
-}
-
-.message-grid.account-colors .message-list-sender::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 1.05em;
-  border-radius: 999px;
-  background: var(--account, transparent);
-}
-
 /* Nested folders indent their content, not their rows: every row spans
    the sidebar, so the active highlight runs edge to edge. */
 aside li.folder-li { padding: 0; display: block; border-inline-start: 0; }

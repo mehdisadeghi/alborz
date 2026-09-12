@@ -350,9 +350,15 @@ func handleSaveFilter(ctx *alborz.Context) error {
 		})
 	}
 
-	if warnings != "" {
+	switch {
+	case warnings != "":
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
-	} else {
+	case loaded == "":
+		// Nothing was loaded into the editor, so this script is new.
+		account := "?account=" + alborz.AddressParam(ctx.Session.Username())
+		ctx.Made(ctx.T("notice.filtercreated"), name,
+			"/filters/"+url.PathEscape(name)+account, "/filters/create"+account)
+	default:
 		ctx.PutNotice(ctx.T("notice.filtersaved"))
 	}
 	return ctx.Redirect(http.StatusFound, "/filters?account="+alborz.AddressParam(ctx.Session.Username()))

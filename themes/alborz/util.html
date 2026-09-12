@@ -698,7 +698,22 @@
      (usernames) all (the merged entry's label, none where the section
      has no merged view) new (dict href label active) data (the kind's
      own: for "rows", a map from account to its RailRow list). */}}
+{{/* The application's own name and mark. Its colours are its own -
+     the badge is a picture, not an icon, so no theme can wash it out -
+     and the word beside it is dim: it names the place you are in, it is
+     not something to read. dict: g. */}}
+{{ define "brand" }}
+<a class="brand" href="/" title="{{.g.GlobalData.Brand}}">
+  <img class="brand-mark" src="{{call .g.GlobalData.Asset "brand.svg"}}" alt="" width="20" height="20">
+  <span class="brand-name">{{.g.GlobalData.Brand}}</span>
+</a>
+{{ end }}
+
 {{ define "scope-rail" }}
+  {{/* On a phone the rail is the drawer, and the drawer's head is the
+       application's name; on a wide screen the header carries it and
+       this one stands down. */}}
+  <div class="rail-brand">{{ template "brand" (dict "g" .g) }}</div>
   {{ if gt (len .accounts) 1 }}
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-merged" .data }}
@@ -748,7 +763,7 @@
 {{ define "dav-rail" }}
 {{ $g := .g }}{{ $r := .rail }}
 <aside>
-  {{ template "scope-rail" (dict "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "all" ($g.T "nav.allaccounts") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI)) }}
+  {{ template "scope-rail" (dict "g" $g "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "all" ($g.T "nav.allaccounts") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI)) }}
 </aside>
 {{ end }}
 
@@ -861,7 +876,7 @@
 {{/* The mail pages' rail: the shared frame over the page's own data. */}}
 {{ define "aside" }}
 <aside>
-{{ template "scope-rail" (dict "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
+{{ template "scope-rail" (dict "g" $ "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
 </aside>
 {{ end }}
 

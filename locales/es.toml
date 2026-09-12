@@ -93,6 +93,7 @@
 "mailbox.notspam" = "No es spam"
 "mailbox.search" = "Buscar"
 "filter.search" = "Búsqueda"
+"brand.name" = "Alborz"
 "filter.from" = "De"
 "filter.to" = "Para"
 "filter.remove" = "Quitar este filtro"

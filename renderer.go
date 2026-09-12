@@ -721,7 +721,11 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Version = ctx.Server.Options.Version
-		global.Brand = BrandName
+		// The name a person reads is in their own script: the range is
+		// البرز to a Persian reader, and the same word either way. What
+		// a machine reads - the User-Agent, the name given to an IMAP
+		// server - stays BrandName.
+		global.Brand = translate(lang, "brand.name")
 		global.ProjectURL = ctx.Server.Options.ProjectURL
 		global.Language = ctx.Language()
 		global.LanguageChoices = LanguageChoices()
@@ -829,10 +833,14 @@ func (ctx *Context) dates() *GlobalRenderData {
 // PageTitle is the browser title: the page's subject and the brand,
 // or the brand alone on pages that name nothing.
 func (g *GlobalRenderData) PageTitle() string {
-	if g.Title == "" || g.Title == BrandName {
-		return BrandName
+	brand := g.Brand
+	if brand == "" {
+		brand = BrandName
 	}
-	return g.Title + " - " + BrandName
+	if g.Title == "" || g.Title == BrandName {
+		return brand
+	}
+	return g.Title + " - " + brand
 }
 
 type renderer struct {

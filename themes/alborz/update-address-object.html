@@ -55,6 +55,7 @@
         {{ template "field" (dict "label" ($.T "contacts.website") "name" "url" "type" "url" "value" (.Card.PreferredValue "URL") "placeholder" "https://example.org") }}
         {{$adr := ""}}{{with .Card.Address}}{{$adr = .StreetAddress}}{{end}}
         {{ template "field" (dict "label" ($.T "contacts.address") "name" "adr" "value" $adr "dir" "auto" "rows" "3" "placeholder" "1 Example Street\nCity 12345\nCountry") }}
+        {{ template "field" (dict "label" ($.T "contacts.categories") "name" "categories" "value" (.Card.Value "CATEGORIES") "dir" "auto" "hint" ($.T "contacts.categorieshint")) }}
         {{ template "field" (dict "label" ($.T "contacts.notes") "name" "note" "value" (.Card.PreferredValue "NOTE") "dir" "auto" "rows" "3") }}
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/contacts%s" $acct) "cancelLabel" ($.T "common.cancel")) }}

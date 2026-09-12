@@ -4,7 +4,8 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/contacts" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "aside.all") "new" (dict "href" (printf "/address-books/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "contacts.newbook")) "data" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "shown" ($.T "common.shown") "edithref" "/address-books/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
+    {{ $q := account "?" .GlobalData.URLAccount }}{{ $sep := "?" }}{{ if $q }}{{ $sep = "&" }}{{ end }}
+    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/contacts" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "aside.all") "new" (dict "href" (printf "/address-books/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "contacts.newbook")) "data" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "shown" ($.T "common.shown") "edithref" "/address-books/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI) "views" (dict "path" "/contacts" "view" .View "q" $q) "groups" (dict "key" (printf "groups:%s" $q) "label" ($.T "aside.groups") "open" (ne .Group "") "rows" .GroupRows "new" (dict "href" (printf "/contacts/create%s%skind=group" $q $sep) "label" ($.T "contacts.newgroup"))) "categories" (dict "key" (printf "categories:%s" $q) "label" ($.T "aside.categories") "open" (ne .Category "") "rows" .CategoryRows)) }}
   </aside>
 
   <div class="container">
@@ -50,7 +51,14 @@
               {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
             </div>
             <div class="contact-list-name list-primary list-cell" role="cell">
-              <a href="{{.URL}}{{account "?" .Account}}" dir="auto">
+              {{/* The star is always here, lit or not: a mark that
+                   appears from nowhere moves the name beside it. */}}
+              {{ template "card-star" (dict
+                 "Action" (printf "%s/color%s" .URL (account "?" .Account))
+                 "Current" .Color
+                 "Next" $.GlobalData.URL.RequestURI
+                 "Label" (or (and .Color ($.T "mailbox.flagnone")) ($.T "mailbox.flagcolor"))) }}
+              <a href="{{ call $.HrefFor .Account .Path }}" dir="auto">
                 {{.DisplayName}}
               </a>
               {{/* Desktop reads it in the Address book column; a card

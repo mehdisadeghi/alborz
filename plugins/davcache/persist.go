@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
+	"fmt"
 	"maps"
 	"net/http"
 	"net/url"
@@ -75,8 +76,11 @@ func (s *Store) save(username string, u *user) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(s.dir, 0o700); err != nil {
-		return err
+	// The directory is not ours to make (see visits_bolt.go); a cache
+	// that cannot be written is a cache that is not kept, which is
+	// what a cache is allowed to be.
+	if info, err := os.Stat(s.dir); err != nil || !info.IsDir() {
+		return fmt.Errorf("%s is not there: make it, or name another with -cache-dir", s.dir)
 	}
 	// Written beside and renamed over, so a crash mid-write leaves the
 	// last good file rather than half of a new one.

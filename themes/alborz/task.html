@@ -22,8 +22,10 @@
         <span class="icon-group">
           {{ $done := eq $status "COMPLETED" }}
           {{ $mark := $.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = $.T "tasks.markincomplete" }}{{ end }}
-          <form action="{{.Task.URL}}/complete{{$acct}}" method="post">
-            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+          {{/* Marking a task settles it, as marking a message unread
+               does, so the page gives way to the list it came from. */}}
+          <form action="{{.Task.URL}}/complete{{$acct}}" method="post" hx-boost="false">
+            <input type="hidden" name="next" value="{{.List}}">
             {{ if $done }}<input type="hidden" name="reopen" value="1">{{ end }}
             <button type="submit" class="icon-button" aria-pressed="{{$done}}" title="{{$mark}}" aria-label="{{$mark}}">{{ template "icon" "check" }}</button>
           </form>
@@ -34,6 +36,8 @@
             <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
           </form>
         </span>
+        {{ template "toolbar-end" }}
+        {{ template "object-nav" (dict "g" $ "n" .Neighbours) }}
         {{ template "toolbar-foot" }}
       </section>
 

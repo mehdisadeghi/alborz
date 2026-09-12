@@ -705,6 +705,14 @@ header .notice-action .button-link {
   vertical-align: bottom;
 }
 
+/* The name leads to what was just made, and reads as the action it is;
+   the bar's own colour carries it, as the action beside it does. */
+a.notice-name {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 /* The cross holds the edge without taking part in the centring, so
    the text sits where it always did. */
 header .notice-dismiss {
@@ -4250,15 +4258,19 @@ aside details.acct-folders > summary::after {
   transition: transform 0.1s ease-out;
 }
 
-aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
-:root:dir(rtl) aside details.acct-folders > summary::before { transform: rotate(180deg); }
-:root:dir(rtl) aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
+aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
+:root:dir(rtl) aside details.acct-folders > summary::after { transform: rotate(180deg); }
+:root:dir(rtl) aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
 
-/* A touch target is the row, not the glyph: the heading takes the
-   height every folder row has, and both chevrons a finger's width. */
+/* A touch target is the row, not the glyph. The heading takes the
+   height every folder row has, and the whole of it folds - so its
+   chevron keeps the width its negative margin was written for, and the
+   account's name stays on the same edge as the folders under it.
+   Widening it pushed the name a finger's width to the right of its own
+   contents. The branch chevron is the exception: it shares its row with
+   a link, so it needs a target of its own. */
 @media (hover: none) {
   aside details.acct-folders > summary.aside-account { min-height: 2.75rem; }
-  aside details.acct-folders > summary::before,
   aside details.folder-branch summary::after { width: 2.5rem; }
 }
 

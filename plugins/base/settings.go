@@ -250,9 +250,9 @@ func abilities(c *imapclient.Client, settings *Settings) []Ability {
 // itself keeps.
 type ReadingRenderData struct {
 	alborz.BaseRenderData
-	Rail          map[string][]alborz.RailRow
-	Language      string // explicit per-user choice, "" follows the browser
-	Theme string
+	Rail     map[string][]alborz.RailRow
+	Language string // explicit per-user choice, "" follows the browser
+	Theme    string
 	// Themes are the overlays on offer, which a deployment adds to by
 	// dropping a stylesheet beside the built-in ones.
 	Themes        []alborz.Theme
@@ -532,9 +532,15 @@ func handleSettings(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	// What the account keeps and where is one section of this page. A
+	// server that will not answer for it - METADATA refused, a depth it
+	// does not support - says so on the page; it is not a reason to
+	// refuse the settings.
 	kept, err := keptInfo(ctx)
 	if err != nil {
-		return err
+		ctx.Logger().Printf("settings: listing what %s keeps: %v", ctx.Session.Username(), err)
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.noanswer")})
+		kept = KeptInfo{}
 	}
 
 	// The form answers its own invalid input, on the page it was typed

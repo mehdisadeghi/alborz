@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "scope-rail" (dict "kind" "dav" "path" "/contacts" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "aside.all") "new" (dict "href" (printf "/address-books/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "contacts.newbook")) "data" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "shown" ($.T "common.shown") "edithref" "/address-books/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
+    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/contacts" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "aside.all") "new" (dict "href" (printf "/address-books/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "contacts.newbook")) "data" (dict "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "shown" ($.T "common.shown") "edithref" "/address-books/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
   </aside>
 
   <div class="container">

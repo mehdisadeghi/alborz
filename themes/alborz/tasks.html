@@ -72,36 +72,7 @@
           </div>
 
           {{range .Tasks}}
-          <div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
-            <div class="task-list-checkbox list-checkbox list-cell" role="cell">
-              <input type="checkbox" name="paths" value="{{.Task.Account}}|{{.Task.Path}}" form="tasks-form" aria-label="{{$.T "a11y.selecttask"}}{{with .Summary}}: {{.}}{{end}}">
-            </div>
-            <div class="task-list-status list-cell" role="cell" data-label="{{$.T "tasks.status"}}">
-              <form method="post" action="{{.Task.URL}}/complete{{account "?" .Task.Account}}" class="task-checkbox">
-                <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-                {{ if .Completed }}<input type="hidden" name="reopen" value="1">{{ end }}
-                <button type="submit" class="checkbox-button{{if .Completed}} checked{{end}}" aria-label="{{if .Completed}}{{$.T "tasks.markincomplete"}}{{else}}{{$.T "tasks.markcomplete"}}{{end}}" title="{{if .Completed}}{{$.T "tasks.markincomplete"}}{{else}}{{$.T "tasks.markcomplete"}}{{end}}">
-                  {{if .Completed}}&#10003;{{end}}
-                </button>
-              </form>
-            </div>
-            <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$.T "tasks.summary"}}">
-              <a href="{{.Task.URL}}{{account "?" .Task.Account}}" dir="auto">{{.Summary}}</a>
-            </div>
-            {{/* Ownership rides the collection it already names, as the
-                 event lists write it, rather than a column of its own. */}}
-            <div class="task-list-calendar list-cell" role="cell" data-label="{{$.T "common.calendar"}}">
-              {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}{{.Calendar.Name}}{{if $.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
-            </div>
-            {{/* Built before the tag: the escaper cannot follow an attribute that
-                 only some branches write. */}}
-            {{ $due := "" }}{{ $dueTitle := "" }}
-            {{ if not .Due.IsZero }}{{ $due = $.GlobalData.ShortDate .Due }}{{ $dueTitle = $.GlobalData.LongDate .Due }}{{ with $.GlobalData.SecondaryDate .Due }}{{ $dueTitle = printf "%s (%s)" $dueTitle . }}{{ end }}{{ end }}
-            <div class="task-list-due list-cell" role="cell" data-label="{{$.T "tasks.duedate"}}" title="{{$dueTitle}}">{{$due}}</div>
-            {{ $added := "" }}{{ $addedTitle := "" }}
-            {{ if not .Added.IsZero }}{{ $added = $.GlobalData.Since .Added }}{{ $addedTitle = $.GlobalData.FormatDate .Added }}{{ with $.GlobalData.SecondaryDate .Added }}{{ $addedTitle = printf "%s (%s)" $addedTitle . }}{{ end }}{{ end }}
-            <div class="task-list-added list-cell" role="cell" data-label="{{$.T "common.added"}}" title="{{$addedTitle}}">{{$added}}</div>
-          </div>
+          {{ template "task-row" (dict "G" $ "Row" . "Next" $.GlobalData.URL.RequestURI) }}
           {{end}}
           {{else}}
           <p class="empty-list">{{if .Query}}{{printf ($.T "common.noresults") .Query}}{{else}}{{$.T "tasks.empty"}}{{end}}</p>

@@ -40,10 +40,14 @@ type Action[C any] struct {
 	List string
 	// Done words what became of the objects acted on; nil says nothing.
 	Done func(ctx *alborz.Context, done []Ref[C], next string) alborz.Notice
+	// Piece answers a page that asked for a piece of itself about the
+	// one object it named; nil lands as any other request does.
+	Piece func(ctx *alborz.Context, ref Ref[C], next string) error
 }
 
 // Run does the action to the request's selection and lands. A refusal
-// is said on the page, never swallowed: it ends the run.
+// is said on the page, never swallowed: it ends the run and lands whole,
+// so the notice renders whether the request asked for a page or a piece.
 func Run[C any](ctx *alborz.Context, a Action[C]) error {
 	refs, err := Selection(ctx, a.Client)
 	if err != nil {
@@ -57,6 +61,11 @@ func Run[C any](ctx *alborz.Context, a Action[C]) error {
 			return ctx.Redirect(http.StatusFound, next)
 		}
 		done++
+	}
+	// A boosted form - the notice's Undo - asks for a page, not the row
+	// a row's own control swaps.
+	if a.Piece != nil && ctx.Partial() && ctx.Request().Header.Get("HX-Boosted") != "true" && len(refs) == 1 {
+		return a.Piece(ctx, refs[0], next)
 	}
 	if a.Done != nil && done > 0 {
 		ctx.Notify(a.Done(ctx, refs[:done], next))

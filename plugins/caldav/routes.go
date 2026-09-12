@@ -1942,15 +1942,52 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 		}
 		return completedNotice(ctx, done, len(marked), "/tasks/complete", url.Values{"paths": paths, "next": {next}})
 	}
+	var marked *caldav.CalendarObject
 	return dav.Run(ctx, dav.Action[*caldav.Client]{
 		Client: p.client,
 		List:   "/tasks",
-		Do: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client]) error {
-			_, err := changeComponent(ctx, ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
+		Do: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client]) (err error) {
+			marked, err = changeComponent(ctx, ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
 			return err
 		},
 		Done: words,
+		Piece: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client], next string) error {
+			// The row the click was on is the whole of what changed, and
+			// the same button undoes it, so a marked task answers with its
+			// row and the list stays where it is - no notice, as a star's
+			// does not.
+			calendars, err := p.dav.Collections(ctx.Request().Context(), ctx.Session)
+			if err != nil {
+				return err
+			}
+			holder := dav.Holding(calendars, "", ref.Path)
+			if holder == nil {
+				return errNoCalendar
+			}
+			// Only the pooled listing names the account on a calendar, and
+			// the row's own links need it whichever page asked.
+			cal := *holder
+			cal.Account = ref.Account
+			// The list's shape is in the address the form returns to; the
+			// write's own URL says nothing about sort or search.
+			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), dav.ListParamsIn(next, "account", "cal", "query", "sort", "dir"))
+			data := &TaskRowRenderData{BaseRenderData: *alborz.NewBaseRenderData(ctx), Row: row, Next: next}
+			data.G = &data.BaseRenderData
+			return ctx.Render(http.StatusOK, "task-row", data)
+		},
 	})
+}
+
+// TaskRowRenderData is one task's row, which is all that changes when
+// it is marked from the list.
+type TaskRowRenderData struct {
+	alborz.BaseRenderData
+	// G is what the row's own template asks the page for - the
+	// translations and the globals - which a fragment has to hand it
+	// by name, the list page being absent.
+	G    *alborz.BaseRenderData
+	Row  TaskRow
+	Next string
 }
 
 // taskRow is one task as a row of the list. The list builds every row

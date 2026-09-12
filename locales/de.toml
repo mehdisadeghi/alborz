@@ -583,6 +583,9 @@
 "form.firstday" = "Wählen Sie einen Wochenanfang."
 "form.recipientinvalid" = "Das ist keine gültige Adressliste."
 "mailbox.range" = "%d–%d von %d"
+"common.position" = "%d von %d"
+"common.previous" = "Vorheriges"
+"common.next" = "Nächstes"
 "mailbox.position" = "%d von %d"
 "settings.foraccount" = "Konto: %s"
 

@@ -1,0 +1,98 @@
+package dav
+
+import (
+	"net/url"
+
+	"git.mehdix.org/alborz"
+)
+
+// Item is one object as a list holds it: its path on the server, and
+// where its own page is with the list carried along.
+type Item struct {
+	Path string
+	URL  string
+}
+
+// Neighbours are the objects either side of the one on the page, in the
+// order the list showed them. It is how a reader walks a collection
+// without going back to the list, which the message page has always had
+// and the calendar, the tasks and the contacts had not. A page not
+// reached from a list, or an object no longer in it, gets a zero Total
+// and shows nothing.
+type Neighbours struct {
+	PrevURL  string
+	NextURL  string
+	Position int
+	Total    int
+}
+
+// Around places one object among the items a list holds, in that list's
+// own order.
+func Around(items []Item, path string) Neighbours {
+	at := -1
+	for i, it := range items {
+		if it.Path == path {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		return Neighbours{}
+	}
+	n := Neighbours{Position: at + 1, Total: len(items)}
+	if at > 0 {
+		n.PrevURL = items[at-1].URL
+	}
+	if at+1 < len(items) {
+		n.NextURL = items[at+1].URL
+	}
+	return n
+}
+
+// ListParams are the parameters of the request that decide which
+// objects a list holds and in what order. An object's page is opened
+// with them, and so are the links to its neighbours, so that walking a
+// list stays inside the list the reader was looking at.
+func ListParams(ctx *alborz.Context, keys ...string) url.Values {
+	return Keep(ctx.QueryParams(), keys...)
+}
+
+// ListParamsIn are the same, read from the URL a form returns to. A
+// fragment answering a write has the list's own address only there.
+func ListParamsIn(next string, keys ...string) url.Values {
+	u, err := url.Parse(next)
+	if err != nil {
+		return url.Values{}
+	}
+	return Keep(u.Query(), keys...)
+}
+
+// Keep takes the named parameters, and only those, from a query.
+func Keep(from url.Values, keys ...string) url.Values {
+	kept := url.Values{}
+	for _, key := range keys {
+		for _, v := range from[key] {
+			if v != "" {
+				kept.Add(key, v)
+			}
+		}
+	}
+	return kept
+}
+
+// ObjectURL is where one object's page is: the list's own parameters,
+// and the account holding the object where the list pools several.
+func ObjectURL(base, path, account string, params url.Values) string {
+	q := url.Values{}
+	for key, values := range params {
+		q[key] = values
+	}
+	if account != "" {
+		q.Set("account", account)
+	}
+	href := base + url.PathEscape(path)
+	if len(q) > 0 {
+		href += "?" + q.Encode()
+	}
+	return href
+}

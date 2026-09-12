@@ -584,6 +584,9 @@
 "form.firstday" = "Choose a day for the week to start on."
 "form.recipientinvalid" = "That is not a valid address list."
 "mailbox.range" = "%d–%d of %d"
+"common.position" = "%d of %d"
+"common.previous" = "Previous"
+"common.next" = "Next"
 "mailbox.position" = "%d of %d"
 
 "settings.alignscript" = "Align each line by its own script"

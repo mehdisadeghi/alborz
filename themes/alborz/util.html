@@ -527,6 +527,20 @@
   <div class="actions-end">
 {{ end }}
 
+{{/* Where the object sits in the list it was opened from, and the
+     objects either side of it: the pair the message page has, in the
+     same place and the same marks. Nothing where the list is not
+     known. dict: g n. */}}
+{{ define "object-nav" }}
+{{ with .n }}{{ if .Total }}
+<span class="action-group">
+  <span class="pagination-range" data-priority="1" data-yield="hide">{{$.g.GlobalData.Tf "common.position" .Position .Total}}</span>
+  {{ with .PrevURL }}<a class="icon-button" href="{{.}}" title="{{$.g.T "common.previous"}}" aria-label="{{$.g.T "common.previous"}}">{{ template "icon" "up" }}</a>{{ end }}
+  {{ with .NextURL }}<a class="icon-button" href="{{.}}" title="{{$.g.T "common.next"}}" aria-label="{{$.g.T "common.next"}}">{{ template "icon" "down" }}</a>{{ end }}
+</span>
+{{ end }}{{ end }}
+{{ end }}
+
 {{ define "toolbar-foot" }}
   </div>
 </div>
@@ -780,6 +794,9 @@
 {{ $when := $base.T "calendar.allday" }}{{ if not .AllDay }}{{ $when = $base.GlobalData.FormatTime .Start }}{{ end }}
 {{ $href := $obj.URL }}{{ if $obj.ReadOnly }}{{ $href = printf "%s?uid=%s" $obj.URL (.UID | urlquery) }}{{ end }}
 {{ with $obj.Account }}{{ $href = printf "%s%s" $href (account (qsep $href) .) }}{{ end }}
+{{/* The list the event was opened from rides along, so its page can
+     name the events either side of it. */}}
+{{ with $base.ListQuery }}{{ $href = printf "%s%s%s" $href (qsep $href) . }}{{ end }}
 {{ template "event-row" (dict
    "href" $href
    "when" $when

@@ -22,7 +22,10 @@
         <span class="icon-group">
           {{ $done := eq $status "COMPLETED" }}
           {{ $mark := $.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = $.T "tasks.markincomplete" }}{{ end }}
-          <form action="{{.Task.URL}}/complete{{$acct}}" method="post">
+          {{/* The whole page states the task's condition - its title,
+               its status line - so this one takes the page again
+               rather than the row the list swaps. */}}
+          <form action="{{.Task.URL}}/complete{{$acct}}" method="post" hx-boost="false">
             <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button type="submit" class="icon-button" aria-pressed="{{$done}}" title="{{$mark}}" aria-label="{{$mark}}">{{ template "icon" "check" }}</button>
           </form>
@@ -33,6 +36,8 @@
             <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
           </form>
         </span>
+        {{ template "toolbar-end" }}
+        {{ template "object-nav" (dict "g" $ "n" .Neighbours) }}
         {{ template "toolbar-foot" }}
       </section>
 

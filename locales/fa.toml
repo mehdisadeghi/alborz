@@ -584,6 +584,9 @@
 "form.firstday" = "روز آغاز هفته را برگزینید."
 "form.recipientinvalid" = "این فهرست نشانی معتبر نیست."
 "mailbox.range" = "%d–%d از %d"
+"common.position" = "%d از %d"
+"common.previous" = "قبلی"
+"common.next" = "بعدی"
 "mailbox.position" = "%d از %d"
 
 "settings.alignscript" = "هم‌ترازی هر خط بر پایهٔ خط خودش"

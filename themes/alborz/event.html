@@ -26,6 +26,8 @@
           </form>
           {{ end }}
         </span>
+        {{ template "toolbar-end" }}
+        {{ template "object-nav" (dict "g" $ "n" .Neighbours) }}
         {{ template "toolbar-foot" }}
       </section>
 

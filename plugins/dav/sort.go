@@ -2,7 +2,6 @@ package dav
 
 import (
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -59,13 +58,7 @@ func Sort[T any](ctx *alborz.Context, rows []T, columns []Column[T], tie func(T)
 	if dir != "" && dir != "asc" && dir != "desc" {
 		return s, echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
 	}
-	kept := url.Values{}
-	for _, k := range keep {
-		if v := ctx.QueryParam(k); v != "" {
-			kept.Set(k, v)
-		}
-	}
-	if len(kept) > 0 {
+	if kept := Keep(ctx.QueryParams(), keep...); len(kept) > 0 {
 		s.Params = "&" + alborz.AddressQuery(kept)
 		s.Reset = "?" + alborz.AddressQuery(kept)
 	}

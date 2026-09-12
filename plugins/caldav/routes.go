@@ -261,6 +261,10 @@ type CalendarRenderData struct {
 	View               string // "" for the month grid, "list" for the agenda
 	PrevPage, NextPage string
 	PrevTime, NextTime time.Time
+	// ListQuery is what the page's own URL says about which events it
+	// holds and in what order, carried on to an event's page so that
+	// page can name the events either side of it.
+	ListQuery string
 
 	EventsForDate func(time.Time) []Occurrence
 	// CollectionFor is the calendar holding a row's event.
@@ -272,6 +276,7 @@ type CalendarRenderData struct {
 
 type CalendarDateRenderData struct {
 	alborz.BaseRenderData
+	ListQuery          string
 	Time               time.Time
 	Calendars          []dav.Collection
 	Events             []Occurrence
@@ -284,9 +289,10 @@ type CalendarDateRenderData struct {
 
 type EventRenderData struct {
 	alborz.BaseRenderData
-	Rail     dav.Rail
-	Calendar *dav.Collection
-	Event    CalendarObject
+	Rail       dav.Rail
+	Calendar   *dav.Collection
+	Event      CalendarObject
+	Neighbours dav.Neighbours
 	// Repeats says the event's rule in words, or nothing, and
 	// RepeatsUntil its last day, kept apart to be read left to right.
 	Repeats, RepeatsUntil string
@@ -354,13 +360,17 @@ type TaskRow struct {
 	// the list already fetched. Zero where the writer left it out.
 	Added     time.Time
 	Completed bool
+	// Href is the task's own page with the list carried along, so that
+	// page can name the tasks either side of it.
+	Href string
 }
 
 type TaskRenderData struct {
 	alborz.BaseRenderData
-	Rail     dav.Rail
-	Calendar *dav.Collection
-	Task     TaskObject
+	Rail       dav.Rail
+	Calendar   *dav.Collection
+	Task       TaskObject
+	Neighbours dav.Neighbours
 }
 
 type UpdateTaskRenderData struct {
@@ -586,11 +596,11 @@ func registerRoutes(p *plugin) {
 	POST("/calendar", dav.HandleChoose("/calendar", "cal", choose(func(s *Settings, paths []string) {
 		s.CalendarFilter, s.VisibleCalendars = true, paths
 	})))
-	POST("/calendar/refresh", p.dav.HandleRefresh("/calendar"))
-	POST("/tasks/refresh", p.dav.HandleRefresh("/tasks"))
 	POST("/tasks", dav.HandleChoose("/tasks", "cal", choose(func(s *Settings, paths []string) {
 		s.TaskFilter, s.VisibleTasks = true, paths
 	})))
+	POST("/calendar/refresh", p.dav.HandleRefresh("/calendar"))
+	POST("/tasks/refresh", p.dav.HandleRefresh("/tasks"))
 	POST("/tasks/show-completed", p.toggleCompleted)
 	GET("/calendar", p.month)
 	GET("/calendar/export", p.exportMonth)
@@ -695,7 +705,93 @@ func (p *plugin) toggleCompleted(ctx *alborz.Context) error {
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 }
+
+// monthView is the month page as its handler works it out: the window
+// it asked the server for, the days it draws and what falls on each of
+// them. A single event's page builds the same view, to know which
+// events stand either side of it in the one the reader came from.
+type monthView struct {
+	loc       *time.Location
+	start     time.Time
+	since     time.Time
+	now       time.Time
+	span      string
+	view      string
+	thisMonth bool
+	page      string
+	prevPage  string
+	nextPage  string
+	prevTime  time.Time
+	nextTime  time.Time
+	accounts  int
+	calendars []dav.Collection
+	events    []CalendarObject
+	dates     []time.Time
+	// on holds each drawn day's occurrences, in the order they are
+	// shown; day keys it, in the display timezone.
+	on  map[time.Time][]Occurrence
+	day func(time.Time) time.Time
+}
+
+// shown is the page's occurrences in the order a reader meets them: by
+// day across the drawn dates, and the agenda's days only where the
+// agenda is what is drawn.
+func (mv monthView) shown() []Occurrence {
+	var out []Occurrence
+	for _, date := range mv.dates {
+		if mv.view == "list" && (date.Month() != mv.start.Month() || date.Before(mv.since)) {
+			continue
+		}
+		out = append(out, mv.on[mv.day(date)]...)
+	}
+	return out
+}
+
 func (p *plugin) month(ctx *alborz.Context) error {
+	mv, err := p.monthView(ctx)
+	if err != nil {
+		return err
+	}
+	template := "calendar.html"
+	if mv.view == "list" {
+		template = "calendar-list.html"
+	}
+	collection := dav.Labels(mv.calendars)
+	owner := ownerLabel(ctx, collection, mv.accounts > 1)
+	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).
+			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(mv.start)),
+		Time:      mv.start,
+		Now:       mv.now,
+		Since:     mv.since,
+		Span:      mv.span,
+		ThisMonth: mv.thisMonth,
+		Calendars: mv.calendars,
+		Dates:     mv.dates,
+		Events:    mv.events,
+		Page:      mv.page,
+		View:      mv.view,
+		PrevPage:  mv.prevPage,
+		NextPage:  mv.nextPage,
+		PrevTime:  mv.prevTime,
+		NextTime:  mv.nextTime,
+		ListQuery: monthQuery(ctx, mv),
+
+		EventsForDate: func(when time.Time) []Occurrence {
+			return mv.on[mv.day(when)]
+		},
+
+		CollectionFor: collection,
+		OwnerLabel:    owner,
+
+		Sub: func(a, b int) int {
+			// Why isn't this built-in, come on Go
+			return a - b
+		},
+	})
+}
+
+func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	loc := alborzbase.UserLocation(ctx)
 
 	// The month is the reader's calendar's month: its bounds, its page
@@ -706,7 +802,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		var err error
 		start, err = cal.ParsePage(s, loc)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			return monthView{}, echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 	} else {
 		start = cal.MonthStart(time.Now().In(loc))
@@ -715,11 +811,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 
 	view := ctx.QueryParam("view")
 	if view != "" && view != "list" {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid view")
-	}
-	template := "calendar.html"
-	if view == "list" {
-		template = "calendar-list.html"
+		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid view")
 	}
 
 	// Pad a week each way: the grid shows adjacent-month days, and a
@@ -733,7 +825,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	// it, the same range the grid draws.
 	span := ctx.QueryParam("span")
 	if span != "" && span != "month" {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid span")
+		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid span")
 	}
 	since := start
 	thisMonth := false
@@ -753,18 +845,18 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	only := dav.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
-		return err
+		return monthView{}, err
 	}
 
 	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
 	if err != nil {
-		return err
+		return monthView{}, err
 	}
 	query := eventQuery(queryStart, queryEnd)
 
 	events, err := querySites(ctx, sites, &query)
 	if err != nil {
-		return err
+		return monthView{}, err
 	}
 	events = append(events, subscriptionObjects(calendarInfos, ctx.URLAccount())...)
 
@@ -836,43 +928,80 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		})
 	}
 
-	collection := dav.Labels(calendarInfos)
-	owner := ownerLabel(ctx, collection, len(accounts) > 1)
-	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
+	return monthView{
+		loc:       loc,
+		start:     start,
+		since:     since,
+		now:       time.Now().In(loc),
+		span:      span,
+		view:      view,
+		thisMonth: thisMonth,
+		page:      cal.Page(start),
+		prevPage:  cal.Page(cal.AddMonths(start, -1)),
+		nextPage:  cal.Page(cal.AddMonths(start, 1)),
+		prevTime:  cal.AddMonths(start, -1),
+		nextTime:  cal.AddMonths(start, 1),
+		accounts:  len(accounts),
+		calendars: calendarInfos,
+		events:    events,
+		dates:     dates,
+		on:        eventMap,
+		day:       day,
+	}, nil
+}
+
+// dayView is the day page as its handler works it out: the day it
+// draws and what falls on it, in the order it is shown.
+type dayView struct {
+	start     time.Time
+	calendars []dav.Collection
+	events    []Occurrence
+	accounts  int
+}
+
+func (p *plugin) day(ctx *alborz.Context) error {
+	dv, err := p.dayView(ctx)
+	if err != nil {
+		return err
+	}
+	collection := dav.Labels(dv.calendars)
+	owner := ownerLabel(ctx, collection, dv.accounts > 1)
+	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
-			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(start)),
-		Time:      start,
-		Now:       time.Now().In(loc),
-		Since:     since,
-		Span:      span,
-		ThisMonth: thisMonth,
-		Calendars: calendarInfos,
-		Dates:     dates,
-		Events:    events,
-		Page:      cal.Page(start),
-		View:      view,
-		PrevPage:  cal.Page(cal.AddMonths(start, -1)),
-		NextPage:  cal.Page(cal.AddMonths(start, 1)),
-		PrevTime:  cal.AddMonths(start, -1),
-		NextTime:  cal.AddMonths(start, 1),
-
-		EventsForDate: func(when time.Time) []Occurrence {
-			if events, ok := eventMap[day(when)]; ok {
-				return events
-			}
-			return nil
-		},
-
+			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(dv.start)),
+		// The day is named even where the URL left it out, or an event
+		// opened from today would not know which list it came from.
+		ListQuery:     dayQuery(ctx, dv.start),
+		Time:          dv.start,
+		Calendars:     dv.calendars,
+		Events:        dv.events,
+		PrevPage:      dv.start.AddDate(0, 0, -1).Format(datePageLayout),
+		NextPage:      dv.start.AddDate(0, 0, 1).Format(datePageLayout),
 		CollectionFor: collection,
 		OwnerLabel:    owner,
-
-		Sub: func(a, b int) int {
-			// Why isn't this built-in, come on Go
-			return a - b
-		},
 	})
 }
-func (p *plugin) day(ctx *alborz.Context) error {
+
+// dayQuery and monthQuery are what an event's page is opened with: the
+// list it came from, named in full. The month and the day both have a
+// default the URL leaves out, and an event page cannot rebuild a list
+// it was not told about.
+func dayQuery(ctx *alborz.Context, start time.Time) string {
+	q := dav.ListParams(ctx, "account", "cal")
+	q.Set("date", start.Format(datePageLayout))
+	return q.Encode()
+}
+
+func monthQuery(ctx *alborz.Context, mv monthView) string {
+	q := dav.ListParams(ctx, "account", "cal", "span")
+	q.Set("month", mv.page)
+	if mv.view != "" {
+		q.Set("view", mv.view)
+	}
+	return q.Encode()
+}
+
+func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
 	loc := alborzbase.UserLocation(ctx)
 
 	var start time.Time
@@ -880,7 +1009,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		var err error
 		start, err = time.ParseInLocation(datePageLayout, s, loc)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			return dayView{}, echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 	} else {
 		now := time.Now().In(loc)
@@ -891,18 +1020,18 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	only := dav.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
-		return err
+		return dayView{}, err
 	}
 
 	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
 	if err != nil {
-		return err
+		return dayView{}, err
 	}
 	query := eventQuery(start, end)
 
 	events, err := querySites(ctx, sites, &query)
 	if err != nil {
-		return err
+		return dayView{}, err
 	}
 	events = append(events, subscriptionObjects(calendarInfos, ctx.URLAccount())...)
 
@@ -922,20 +1051,72 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		return shown[i].Start.Before(shown[j].Start)
 	})
 
-	collection := dav.Labels(calendarInfos)
-	owner := ownerLabel(ctx, collection, len(accounts) > 1)
-	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).
-			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(start)),
-		Time:          start,
-		Calendars:     calendarInfos,
-		Events:        shown,
-		PrevPage:      start.AddDate(0, 0, -1).Format(datePageLayout),
-		NextPage:      start.AddDate(0, 0, 1).Format(datePageLayout),
-		CollectionFor: collection,
-		OwnerLabel:    owner,
-	})
+	return dayView{start: start, calendars: calendarInfos, events: shown, accounts: len(accounts)}, nil
 }
+
+// eventKey names one row of an event list. An object's path is enough
+// for a calendar, where a recurring event is one object however many
+// times it is drawn; a subscribed feed is a single object holding every
+// event, so there the UID within it is what tells them apart.
+func eventKey(path, uid string, feed bool) string {
+	if feed {
+		return path + "#" + uid
+	}
+	return path
+}
+
+// eventItems are the events of the list the reader came from - the day
+// where the URL names one, the agenda where it names that - in the
+// order that list showed them. An event reached without a list has no
+// neighbours, and says so by having none.
+func (p *plugin) eventItems(ctx *alborz.Context) ([]dav.Item, error) {
+	var shown []Occurrence
+	switch {
+	case ctx.QueryParam("date") != "":
+		dv, err := p.dayView(ctx)
+		if err != nil {
+			return nil, err
+		}
+		shown = dv.events
+	case ctx.QueryParam("view") != "":
+		mv, err := p.monthView(ctx)
+		if err != nil {
+			return nil, err
+		}
+		shown = mv.shown()
+	default:
+		return nil, nil
+	}
+
+	params := dav.ListParams(ctx, "account", "cal", "month", "date", "view", "span")
+	var items []dav.Item
+	seen := map[string]bool{}
+	for _, oc := range shown {
+		uid, _ := oc.Event.Props.Text("UID")
+		key := eventKey(oc.Path, uid, oc.ReadOnly)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		href := dav.ObjectURL("/calendar/", oc.Path, oc.Account, params)
+		if oc.ReadOnly {
+			href = dav.ObjectURL("/calendar/", oc.Path, oc.Account, withUID(params, uid))
+		}
+		items = append(items, dav.Item{Path: key, URL: href})
+	}
+	return items, nil
+}
+
+// withUID names the event within a subscribed feed, which is one object
+// holding all of them.
+func withUID(params url.Values, uid string) url.Values {
+	q := url.Values{"uid": {uid}}
+	for key, values := range params {
+		q[key] = values
+	}
+	return q
+}
+
 func (p *plugin) event(ctx *alborz.Context) error {
 	path, err := dav.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
@@ -997,11 +1178,16 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	items, err := p.eventItems(ctx)
+	if err != nil {
+		return err
+	}
 	data := &EventRenderData{
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Event:          CalendarObject{CalendarObject: event},
+		Neighbours:     dav.Around(items, eventKey(path, "", false)),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborzbase.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "event.html", data)
@@ -1022,11 +1208,16 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 	if err != nil {
 		return err
 	}
+	items, err := p.eventItems(ctx)
+	if err != nil {
+		return err
+	}
 	data := &EventRenderData{
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       info,
 		Event:          CalendarObject{CalendarObject: &caldav.CalendarObject{Path: address, Data: cal}, Color: info.Color, ReadOnly: true},
+		Neighbours:     dav.Around(items, eventKey(address, ctx.QueryParam("uid"), true)),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &event, alborzbase.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "event.html", data)
@@ -1347,42 +1538,45 @@ func (p *plugin) rawObject(ctx *alborz.Context) error {
 }
 
 // Tasks routes
-
-// taskColumns are the orders the task list can be put in, by summary
-// unless asked.
-var taskColumns = []dav.Column[TaskRow]{
-	{Key: "summary", Value: func(row TaskRow) string { return strings.ToLower(row.Summary) }},
-	{Key: "status", Value: func(row TaskRow) string {
-		if row.Completed {
-			return "1"
-		}
-		return "0"
-	}},
-	{Key: "account", Value: func(row TaskRow) string { return strings.ToLower(row.Task.Account) }},
-	{Key: "calendar", Value: func(row TaskRow) string { return strings.ToLower(row.Calendar.Name) }},
-	{Key: "due", Value: func(row TaskRow) string { return dav.When(row.Due) }},
-	{Key: "added", Value: func(row TaskRow) string { return dav.When(row.Added) }},
+// TaskList is the list page in one value: its rows in the order they
+// are shown, the lists they came from, and what shaped them.
+type TaskList struct {
+	Rows      []TaskRow
+	Calendars []dav.Collection
+	// Items are the rows as the neighbours of a single task, in the
+	// same order.
+	Items []dav.Item
+	// ShowCompleted reads as on only when every account queried says
+	// so, since the aside carries one toggle for the pooled page.
+	ShowCompleted bool
+	Query         string
+	Sorting       dav.Sorting
 }
 
-func (p *plugin) tasks(ctx *alborz.Context) error {
+// taskList is what the list page shows, in the order it shows it: the
+// same visible lists, the same search, the same hidden completed ones
+// and the same sort. A single task's page asks for it as well, to know
+// what stands before and after it in the list it was opened from.
+func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
+	var rows []TaskRow
 	loc := alborzbase.UserLocation(ctx)
 	only := dav.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
-		return err
+		return TaskList{}, err
 	}
 
 	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsTodo, taskVisibility)
 	if err != nil {
-		return err
+		return TaskList{}, err
 	}
-	// One toggle for the pooled page reads as on only when every
-	// account queried says so.
+	// Whether each account shows its completed tasks, by account: every
+	// one queried must, for the list to say so.
 	completed := make(map[string]bool, len(accounts))
 	for _, acc := range accounts {
 		settings, err := loadSettings(acc.Session.Store())
 		if err != nil {
-			return fmt.Errorf("failed to load CalDAV settings: %w", err)
+			return TaskList{}, fmt.Errorf("failed to load CalDAV settings: %w", err)
 		}
 		completed[acc.Name] = settings.ShowCompleted
 	}
@@ -1394,10 +1588,10 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	}
 
 	search := ctx.QueryParam("query")
+	params := dav.ListParams(ctx, "account", "cal", "query", "sort", "dir")
 
 	query, openQueries := taskQueries()
 
-	var taskRows []TaskRow
 	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site dav.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		if completed[site.Collection.Account] {
 			return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
@@ -1422,7 +1616,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		return tasks, nil
 	}) {
 		if result.Err != nil {
-			return fmt.Errorf("failed to query tasks from %s: %v", result.Site.Collection.Name, result.Err)
+			return TaskList{}, fmt.Errorf("failed to query tasks from %s: %v", result.Site.Collection.Name, result.Err)
 		}
 
 		for _, task := range result.Value {
@@ -1444,38 +1638,58 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 					continue
 				}
 			}
-			summary, _ := todo.Props.Text("SUMMARY")
-			// The raw property value is an iCal timestamp
-			// ("20260830T100000Z"), which is not a thing to show
-			// anyone; parse it and let the page write the date.
-			due, _ := todo.Props.DateTime("DUE", loc)
-			added, _ := todo.Props.DateTime("CREATED", loc)
-			taskRows = append(taskRows, TaskRow{
-				Task:      TaskObject{CalendarObject: &task, Account: result.Site.Collection.Account},
-				Calendar:  result.Site.Collection,
-				Summary:   summary,
-				Status:    status,
-				Due:       due,
-				Added:     added,
-				Completed: status == "COMPLETED",
-			})
+			rows = append(rows, taskRow(&task, result.Site.Collection, loc, params))
 		}
 	}
 
-	sorting, err := dav.Sort(ctx, taskRows, taskColumns, func(row TaskRow) string {
+	sorting, err := dav.Sort(ctx, rows, taskColumns, func(row TaskRow) string {
 		return strings.ToLower(row.Task.Account + "\x00" + row.Calendar.Name + "\x00" + row.Summary)
 	}, "query")
 	if err != nil {
+		return TaskList{}, err
+	}
+	items := make([]dav.Item, len(rows))
+	for i, row := range rows {
+		items[i] = dav.Item{Path: row.Task.Path, URL: row.Href}
+	}
+	return TaskList{
+		Rows:          rows,
+		Items:         items,
+		Calendars:     calendarInfos,
+		ShowCompleted: showCompleted,
+		Query:         search,
+		Sorting:       sorting,
+	}, nil
+}
+
+// taskColumns are the orders the task list can be put in, by summary
+// unless asked.
+var taskColumns = []dav.Column[TaskRow]{
+	{Key: "summary", Value: func(row TaskRow) string { return strings.ToLower(row.Summary) }},
+	{Key: "status", Value: func(row TaskRow) string {
+		if row.Completed {
+			return "1"
+		}
+		return "0"
+	}},
+	{Key: "account", Value: func(row TaskRow) string { return strings.ToLower(row.Task.Account) }},
+	{Key: "calendar", Value: func(row TaskRow) string { return strings.ToLower(row.Calendar.Name) }},
+	{Key: "due", Value: func(row TaskRow) string { return dav.When(row.Due) }},
+	{Key: "added", Value: func(row TaskRow) string { return dav.When(row.Added) }},
+}
+
+func (p *plugin) tasks(ctx *alborz.Context) error {
+	list, err := p.taskList(ctx)
+	if err != nil {
 		return err
 	}
-
 	return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
-		Calendars:      calendarInfos,
-		Tasks:          taskRows,
-		ShowCompleted:  showCompleted,
-		Query:          search,
-		Sorting:        sorting,
+		Calendars:      list.Calendars,
+		Tasks:          list.Rows,
+		ShowCompleted:  list.ShowCompleted,
+		Query:          list.Query,
+		Sorting:        list.Sorting,
 	})
 }
 func (p *plugin) task(ctx *alborz.Context) error {
@@ -1535,11 +1749,19 @@ func (p *plugin) task(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	// The list the page was opened from is rebuilt to find what stands
+	// either side; the DAV reads behind it are cached, so the cost is
+	// the sorting, not another round trip.
+	list, err := p.taskList(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "task.html", &TaskRenderData{
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
+		Neighbours:     dav.Around(list.Items, path),
 	})
 }
 func (p *plugin) updateTask(ctx *alborz.Context) error {
@@ -1729,6 +1951,31 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 		},
 		Done: words,
 	})
+}
+
+// taskRow is one task as a row of the list. The list builds every row
+// through it, and a write answers with the row it has just made rather
+// than reading the collection again.
+func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location, params url.Values) TaskRow {
+	todo := getFirstTodo(task.Data)
+	summary, _ := todo.Props.Text("SUMMARY")
+	status, _ := todo.Props.Text("STATUS")
+	// The raw property value is an iCal timestamp ("20260830T100000Z"),
+	// which is not a thing to show anyone; parse it and let the page
+	// write the date.
+	due, _ := todo.Props.DateTime("DUE", loc)
+	added, _ := todo.Props.DateTime("CREATED", loc)
+	object := TaskObject{CalendarObject: task, Account: cal.Account}
+	return TaskRow{
+		Task:      object,
+		Href:      dav.ObjectURL("/tasks/", task.Path, object.Account, params),
+		Calendar:  cal,
+		Summary:   summary,
+		Status:    status,
+		Due:       due,
+		Added:     added,
+		Completed: status == "COMPLETED",
+	}
 }
 
 // wantsDone is the state a completion asks for: done, unless the form

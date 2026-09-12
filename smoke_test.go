@@ -510,10 +510,10 @@ func TestStarStickToTheScopedAccount(t *testing.T) {
 		t.Fatal("the message was already flagged before the test starred it")
 	}
 	postForm(t, c, base+"/message/INBOX/flag"+scoped,
-		url.Values{"uids": {uid}, "color": {"gold"}, "next": {here}})
+		url.Values{"uids": {uid}, "color": {"red"}, "next": {here}})
 
 	after := get(t, c, base+here)
-	if got := flagButtonColor(t, after); got != "gold" {
+	if got := flagButtonColor(t, after); got != "red" {
 		t.Fatalf("after starring on the scoped page the star is %q, not gold", got)
 	}
 }

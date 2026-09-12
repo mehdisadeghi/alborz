@@ -2179,7 +2179,7 @@ func (p *plugin) completeTask(ctx *alborz.Context) error {
 		return err
 	}
 
-	c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 	if err != nil {
 		return err
 	}
@@ -2204,6 +2204,28 @@ func (p *plugin) completeTask(ctx *alborz.Context) error {
 		ctx.Notify(refusedNotice(ctx, err))
 		return ctx.Redirect(http.StatusFound, target)
 	}
+	// The row the click was on is the whole of what changed, and the
+	// same button undoes it, so a marked task answers with its row and
+	// the list stays where it is - no notice, as a star's does not.
+	if ctx.Partial() {
+		holder := calendarHolding(calendars, taskPath)
+		if holder == nil {
+			return errNoCalendar
+		}
+		cal := *holder
+		// Only the pooled listing names the account on a calendar, and
+		// the row's own links need it whichever page asked.
+		if cal.Account == "" {
+			cal.Account = ctx.Session.Username()
+		}
+		// The list's shape is in the address the form returns to; the
+		// write's own URL says nothing about sort or search.
+		params := dav.ListParamsIn(target, "account", "cal", "query", "sort", "dir")
+		row := taskRow(co, cal, alborzbase.UserLocation(ctx), params)
+		data := &TaskRowRenderData{BaseRenderData: *alborz.NewBaseRenderData(ctx), Row: row, Next: target}
+		data.G = &data.BaseRenderData
+		return ctx.Render(http.StatusOK, "task-row", data)
+	}
 	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
 	if ctx.FormValue("undo") == "" {
 		key := "notice.taskopen"
@@ -2219,6 +2241,18 @@ func (p *plugin) completeTask(ctx *alborz.Context) error {
 	}
 	ctx.Notify(notice)
 	return ctx.Redirect(http.StatusFound, target)
+}
+
+// TaskRowRenderData is one task's row, which is all that changes when
+// it is marked from the list.
+type TaskRowRenderData struct {
+	alborz.BaseRenderData
+	// G is what the row's own template asks the page for - the
+	// translations and the globals - which a fragment has to hand it
+	// by name, the list page being absent.
+	G    *alborz.BaseRenderData
+	Row  TaskRow
+	Next string
 }
 
 // taskRow is one task as a row of the list. The list builds every row

@@ -527,6 +527,50 @@
   <div class="actions-end">
 {{ end }}
 
+{{/* One task as the list shows it, and as the answer to marking it
+     done: the row is what changes, so the row is what comes back.
+     Next is the list to return to, which the row carries itself: the
+     answer to a write is served from the write's own address, and a
+     row that took that for the list would send the next click there.
+     dict: G Row Next. */}}
+{{ define "task-row" }}
+{{ $g := .G }}{{ $next := .Next }}{{ with .Row }}
+<div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
+  <div class="task-list-checkbox list-checkbox list-cell" role="cell">
+    <input type="checkbox" name="paths" value="{{.Task.Account}}|{{.Task.Path}}" form="tasks-form" aria-label="{{$g.T "a11y.selecttask"}}{{with .Summary}}: {{.}}{{end}}">
+  </div>
+  <div class="task-list-status list-cell" role="cell" data-label="{{$g.T "tasks.status"}}">
+    {{ $mark := $g.T "tasks.markcomplete" }}{{ if .Completed }}{{ $mark = $g.T "tasks.markincomplete" }}{{ end }}
+    {{/* The row is the answer, so the row is the target: the page
+         around it neither reloads nor moves. */}}
+    <form method="post" action="{{.Task.URL}}/complete{{account "?" .Task.Account}}" class="task-checkbox"
+          hx-post="{{.Task.URL}}/complete{{account "?" .Task.Account}}" hx-target="closest .task-row" hx-swap="outerHTML">
+      <input type="hidden" name="next" value="{{$next}}">
+      <button type="submit" class="checkbox-button{{if .Completed}} checked{{end}}" aria-label="{{$mark}}" title="{{$mark}}">
+        {{if .Completed}}&#10003;{{end}}
+      </button>
+    </form>
+  </div>
+  <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "tasks.summary"}}">
+    <a href="{{.Href}}" dir="auto">{{.Summary}}</a>
+  </div>
+  {{/* Ownership rides the collection it already names, as the event
+       lists write it, rather than a column of its own. */}}
+  <div class="task-list-calendar list-cell" role="cell" data-label="{{$g.T "common.calendar"}}">
+    {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}{{.Calendar.Name}}{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
+  </div>
+  {{/* Built before the tag: the escaper cannot follow an attribute that
+       only some branches write. */}}
+  {{ $due := "" }}{{ $dueTitle := "" }}
+  {{ if not .Due.IsZero }}{{ $due = $g.GlobalData.ShortDate .Due }}{{ $dueTitle = $g.GlobalData.LongDate .Due }}{{ with $g.GlobalData.SecondaryDate .Due }}{{ $dueTitle = printf "%s (%s)" $dueTitle . }}{{ end }}{{ end }}
+  <div class="task-list-due list-cell" role="cell" data-label="{{$g.T "tasks.duedate"}}" title="{{$dueTitle}}">{{$due}}</div>
+  {{ $added := "" }}{{ $addedTitle := "" }}
+  {{ if not .Added.IsZero }}{{ $added = $g.GlobalData.Since .Added }}{{ $addedTitle = $g.GlobalData.FormatDate .Added }}{{ with $g.GlobalData.SecondaryDate .Added }}{{ $addedTitle = printf "%s (%s)" $addedTitle . }}{{ end }}{{ end }}
+  <div class="task-list-added list-cell" role="cell" data-label="{{$g.T "common.added"}}" title="{{$addedTitle}}">{{$added}}</div>
+</div>
+{{ end }}
+{{ end }}
+
 {{/* Where the object sits in the list it was opened from, and the
      objects either side of it: the pair the message page has, in the
      same place and the same marks. Nothing where the list is not

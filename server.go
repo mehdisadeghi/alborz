@@ -105,7 +105,31 @@ type Server struct {
 	// loginFailures records, per username, when an automatic sign-in
 	// last failed, so the next request does not try again at once.
 	loginFailures sync.Map
+
+	// themes are the stylesheet overlays on offer, the ones built in and
+	// whatever the deployment dropped beside them.
+	themes []Theme
+
+	// custom says a deployment left a custom.css in the theme's assets.
+	// It is loaded last, after the theme, so it can change anything
+	// without anybody forking the stylesheet it changes.
+	custom bool
 }
+
+// hasTheme reports whether a name is one of the overlays on offer.
+func (s *Server) hasTheme(name string) bool {
+	for _, t := range s.themes {
+		if t.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// customCSS is a deployment's own stylesheet, loaded after everything
+// else when it is there. Nothing ships it; it is the seam for a local
+// change that is nobody else's business.
+const customCSS = "custom.css"
 
 // assetStamp is one cached content digest; key identifies the content the
 // stamp was computed from.
@@ -138,6 +162,9 @@ type domainUpstreams struct {
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
 		Visits: newVisits(), Changes: newChanges()}
+	s.themes = readThemes(options.ThemesPath, options.Theme)
+	_, err := os.Stat(filepath.Join(options.ThemesPath, options.Theme, "assets", customCSS))
+	s.custom = err == nil
 
 	// Remembering a visit means keeping a password, so it takes both a
 	// place to put it and the key that seals the record. Without either

@@ -36,6 +36,17 @@ var templateFuncs = template.FuncMap{
 	},
 	"humansize": formatSize,
 	"sub":       func(a, b int) int { return a - b },
+	// themename is a stylesheet's file name read as a name: "solarized"
+	// is Solarized and "high-contrast" is High contrast. It is a proper
+	// noun either way, so it is not a string in the locale files, and a
+	// theme somebody drops in is named without asking anyone.
+	"themename": func(name string) string {
+		name = strings.ReplaceAll(name, "-", " ")
+		if name == "" {
+			return name
+		}
+		return strings.ToUpper(name[:1]) + name[1:]
+	},
 	// qsep is what joins another parameter to a URL: a crumb step may
 	// already carry one, and "?" twice makes a link nothing answers.
 	"qsep": func(raw string) string {

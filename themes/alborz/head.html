@@ -10,6 +10,11 @@
     {{- with .GlobalData.Theme}}
     <link rel="stylesheet" href="{{call $.GlobalData.Asset (printf "themes/%s.css" .)}}">
     {{- end}}
+    {{- if .GlobalData.CustomCSS}}
+    {{/* Whatever the deployment put beside the theme, last, so it can
+         change what the theme did. */}}
+    <link rel="stylesheet" href="{{call .GlobalData.Asset "custom.css"}}">
+    {{- end}}
     <link rel="stylesheet" href="{{call .GlobalData.Asset "print.css"}}" media="print">
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-196x196.png"}}" sizes="196x196" />
@@ -20,7 +25,7 @@
     {{/* No eval, so the page's own CSP needs no unsafe-eval; no history
          cache, because htmx keeps page snapshots in localStorage and a
          snapshot of a mailbox is the mail itself. */}}
-    <meta name="htmx-config" content='{"allowEval":false,"historyCacheSize":0,"includeIndicatorStyles":false,"globalViewTransitions":true}'>
+    <meta name="htmx-config" content='{"allowEval":false,"historyCacheSize":0,"includeIndicatorStyles":false,"globalViewTransitions":true,"timeout":20000}'>
     <script defer src="{{call .GlobalData.Asset "htmx.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "helpers.js"}}"></script>
   </head>

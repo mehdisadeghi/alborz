@@ -88,6 +88,10 @@ type GlobalRenderData struct {
 	// Theme variant stylesheet under assets/themes, empty for the default
 	Theme string
 
+	// CustomCSS is the deployment's own stylesheet where it left one,
+	// loaded after the theme so it wins.
+	CustomCSS bool
+
 	// TextSize scales the whole interface for a reader who wants it
 	// larger, empty for the size everyone else gets
 	TextSize string
@@ -740,6 +744,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.Unified = ctx.Unified
 		global.AccountColors = ctx.AccountColors()
 		global.AlignByScript = ctx.AlignByScript()
+		global.CustomCSS = ctx.Server.custom
 		global.URLAccount = ctx.urlAccount
 	}
 

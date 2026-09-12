@@ -252,7 +252,10 @@ type ReadingRenderData struct {
 	alborz.BaseRenderData
 	Rail          map[string][]alborz.RailRow
 	Language      string // explicit per-user choice, "" follows the browser
-	Theme         string
+	Theme string
+	// Themes are the overlays on offer, which a deployment adds to by
+	// dropping a stylesheet beside the built-in ones.
+	Themes        []alborz.Theme
 	ColorScheme   string
 	AccountColors bool
 	AlignByScript bool
@@ -680,6 +683,7 @@ func handleReadingSettings(ctx *alborz.Context) error {
 			Rail:           settingsRail(ctx),
 			Language:       ctx.Language(),
 			Theme:          ctx.Theme(),
+			Themes:         ctx.Themes(),
 			ColorScheme:    ctx.ColorScheme(),
 			AccountColors:  ctx.AccountColors(),
 			AlignByScript:  ctx.AlignByScript(),

@@ -93,10 +93,15 @@
           <label for="theme">{{$.T "settings.theme"}}</label>
           <select name="theme" id="theme">
             <option value="" {{if eq .Theme ""}}selected{{end}}>{{$.T "settings.themedefault"}}</option>
-            <option value="sublime" {{if eq .Theme "sublime"}}selected{{end}}>Sublime</option>
-            <option value="glass" {{if eq .Theme "glass"}}selected{{end}}>Glass</option>
-            <option value="ink" {{if eq .Theme "ink"}}selected{{end}}>Ink</option>
-            <option value="solarized" {{if eq .Theme "solarized"}}selected{{end}}>Solarized</option>
+            {{/* A theme's name is the stylesheet's, so one dropped into
+                 the theme's assets is offered here without a rebuild
+                 and without a string of its own: a proper noun is the
+                 same in every language. */}}
+            {{/* A theme written for one side of the day says so: the
+                 scheme toggle has nothing to do while it is on. */}}
+            {{ range .Themes }}
+            <option value="{{.Name}}" {{if eq $.Theme .Name}}selected{{end}}>{{ themename .Name }}{{ with .Scheme }} · {{ if eq . "dark" }}{{$.T "settings.dark"}}{{ else }}{{$.T "settings.light"}}{{ end }}{{ end }}</option>
+            {{ end }}
           </select>
         </div>
 

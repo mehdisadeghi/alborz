@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
@@ -111,6 +113,109 @@ func (ao AddressObject) DisplayName() string {
 
 func (ao AddressObject) PhotoURL() string {
 	return ao.Card.PreferredValue("PHOTO")
+}
+
+// A group is a card, not a list somebody keeps beside the cards: vCard
+// says so (RFC 6350 6.1.4 KIND:group, 6.6.5 MEMBER), and a CardDAV
+// server stores it like any other object. Apple writes the same two
+// properties with its own names on a 3.0 card, which is what a group
+// made on a phone looks like, so both are read and the standard pair is
+// written - alborz creates 4.0 cards.
+const (
+	appleKindField   = "X-ADDRESSBOOKSERVER-KIND"
+	appleMemberField = "X-ADDRESSBOOKSERVER-MEMBER"
+	// memberPrefix is how a member names a card: its UID as a URN
+	// (RFC 6350 6.6.5, RFC 4122).
+	memberPrefix = "urn:uuid:"
+)
+
+// IsGroup reports whether the card is a group of contacts rather than
+// one contact.
+func (ao AddressObject) IsGroup() bool {
+	return strings.EqualFold(ao.Card.Value(vcard.FieldKind), string(vcard.KindGroup)) ||
+		strings.EqualFold(ao.Card.Value(appleKindField), string(vcard.KindGroup))
+}
+
+// UID is the card's own identity, without the URN wrapper a member
+// reference carries.
+func (ao AddressObject) UID() string {
+	return strings.TrimPrefix(ao.Card.Value(vcard.FieldUID), memberPrefix)
+}
+
+// Members are the UIDs a group names, in the order the card lists them.
+func (ao AddressObject) Members() []string {
+	var out []string
+	for _, field := range []string{vcard.FieldMember, appleMemberField} {
+		for _, f := range ao.Card[field] {
+			if uid := strings.TrimPrefix(f.Value, memberPrefix); uid != "" {
+				out = append(out, uid)
+			}
+		}
+	}
+	return out
+}
+
+// Categories are the words the reader filed the contact under
+// (RFC 6350 6.7.1): the other way vCard says a contact belongs with
+// others, and the one every client shows.
+func (ao AddressObject) Categories() []string {
+	var out []string
+	for _, f := range ao.Card[vcard.FieldCategories] {
+		for _, word := range strings.Split(f.Value, ",") {
+			if word = strings.TrimSpace(word); word != "" {
+				out = append(out, word)
+			}
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// SetMembers writes a group's membership, replacing what was there.
+func SetMembers(card vcard.Card, uids []string) {
+	delete(card, appleMemberField)
+	delete(card, vcard.FieldMember)
+	for _, uid := range uids {
+		card.Add(vcard.FieldMember, &vcard.Field{Value: memberPrefix + uid})
+	}
+}
+
+// SetCategories writes the words a contact is filed under.
+func SetCategories(card vcard.Card, words []string) {
+	if len(words) == 0 {
+		delete(card, vcard.FieldCategories)
+		return
+	}
+	card.SetValue(vcard.FieldCategories, strings.Join(words, ","))
+}
+
+// colorField is where a contact's colour lives: a property of the card,
+// so the mark travels with it the way a mail's colour lives on the
+// server rather than in the browser that set it. ADR 17.
+const colorField = "X-ALBORZ-COLOR"
+
+// Color is the contact's own colour, one of the seven, or empty.
+func (ao AddressObject) Color() string {
+	return CardColor(ao.Card)
+}
+
+// CardColor is the colour written on a card, one of the seven, or empty.
+func CardColor(card vcard.Card) string {
+	name := card.Value(colorField)
+	if !slices.Contains(alborzbase.FlagColors[:], name) {
+		return ""
+	}
+	return name
+}
+
+// SetColor writes one of the seven on a card, or clears it. Anything
+// else is a caller's bug: the seven are what the interface offers.
+func SetColor(card vcard.Card, name string) {
+	if name == "" {
+		delete(card, colorField)
+		return
+	}
+	card.SetValue(colorField, name)
 }
 
 // Modified is when the card last changed, for the list to show. There

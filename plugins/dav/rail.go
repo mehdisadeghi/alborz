@@ -19,4 +19,17 @@ type Rail struct {
 	// Import is the section's page for bringing a file in.
 	ImportHref  string
 	ImportLabel string
+	// Groups and Categories are the contact rail's other narrowings,
+	// nil for every other kind (ADR 17).
+	Groups     []FilterRow
+	Categories []FilterRow
+}
+
+// FilterRow is one entry beside the collections: a narrowing the list
+// offers, the page with it, and whether it is in force. Groups and
+// categories are such rows on the contacts rail, nil elsewhere.
+type FilterRow struct {
+	Label  string
+	Href   string
+	Active bool
 }

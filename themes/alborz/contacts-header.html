@@ -1,5 +1,13 @@
 {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.contacts") "selectall" true "newhref" "/contacts/create" "newlabel" ($.T "contacts.new")) }}
     <span class="icon-group">
+      {{/* The colours over the rows that are checked, the menu the mail
+           list carries, gated the same way. */}}
+      {{ template "flag-menu" (dict
+         "priority" 12
+         "form" "address-book-form"
+         "action" (printf "/contacts/color%s" (account "?" $.GlobalData.URLAccount))
+         "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)
+         "disabled" (not .AddressObjects)) }}
       {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "address-book-form" "formaction" "/contacts/delete" "priority" 11) }}
       {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "address-book-form" "formaction" "/contacts/export" "priority" 10 "download" true) }}
     </span>

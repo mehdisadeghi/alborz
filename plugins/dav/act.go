@@ -3,8 +3,11 @@ package dav
 import (
 	"fmt"
 	"net/http"
+	"slices"
 
 	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"github.com/labstack/echo/v4"
 )
 
 // Selection is what a route acts on: the one object its own path names,
@@ -87,4 +90,48 @@ func Delete[C files](ctx *alborz.Context, ref Ref[C]) error {
 // there is no form to show it on.
 func Refused(ctx *alborz.Context, err error) alborz.Notice {
 	return alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)}
+}
+
+// StarRenderData is one object's star, which is all that changes when
+// a row is marked.
+type StarRenderData struct {
+	alborz.BaseRenderData
+	Action  string
+	Current string
+	Next    string
+	Label   string
+}
+
+// Star marks the selection with the colour the form asks for: one of
+// the seven, or none to clear it. mark sets it on one object in the
+// kind's own way and answers the colour the object had. A row that
+// asked for a piece of itself gets its star back and nothing moves; a
+// refused write leaves that star as it was, since the answer is the
+// server's state and never the click's.
+func Star[C any](ctx *alborz.Context, client func(*alborz.Session) (C, error), list string, mark func(ctx *alborz.Context, ref Ref[C], name string) (was string, err error)) error {
+	name := ctx.FormValue("color")
+	if name != "" && !slices.Contains(alborzbase.FlagColors[:], name) {
+		return echo.NewHTTPError(http.StatusBadRequest, "no such colour")
+	}
+	return Run(ctx, Action[C]{
+		Client: client,
+		List:   list,
+		Do: func(ctx *alborz.Context, ref Ref[C]) (err error) {
+			_, err = mark(ctx, ref, name)
+			return err
+		},
+		Piece: func(ctx *alborz.Context, ref Ref[C], next string) error {
+			label := ctx.T("mailbox.flagcolor")
+			if name != "" {
+				label = ctx.T("mailbox.flagnone")
+			}
+			return ctx.Render(http.StatusOK, "card-star", &StarRenderData{
+				BaseRenderData: *alborz.NewBaseRenderData(ctx),
+				Action:         ctx.AccountPath(ObjectURL(list+"/", ref.Path, "", nil) + "/color"),
+				Current:        name,
+				Next:           next,
+				Label:          label,
+			})
+		},
+	})
 }

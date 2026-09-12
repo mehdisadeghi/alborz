@@ -547,6 +547,7 @@
 "notice.undo" = "Deshacer"
 "notice.undone" = "Deshecho."
 "notice.undofailed" = "No se pudo deshacer: se han movido desde entonces."
+"notice.noanswer" = "El servidor no respondió."
 "notice.taskdone" = "Tarea «%s» marcada como hecha."
 "notice.taskopen" = "Tarea «%s» reabierta."
 "folder.emptytitle" = "Vaciar %s"

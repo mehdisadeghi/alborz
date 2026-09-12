@@ -550,6 +550,7 @@
 "notice.undo" = "Undo"
 "notice.undone" = "Undone."
 "notice.undofailed" = "Could not undo: they have moved since."
+"notice.noanswer" = "The server did not answer."
 "notice.taskdone" = "Task “%s” marked done."
 "notice.taskopen" = "Task “%s” reopened."
 "folder.emptytitle" = "Empty %s"

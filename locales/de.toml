@@ -547,6 +547,7 @@
 "notice.undo" = "Rückgängig"
 "notice.undone" = "Rückgängig gemacht."
 "notice.undofailed" = "Ließ sich nicht rückgängig machen: seither verschoben."
+"notice.noanswer" = "Der Server hat nicht geantwortet."
 "notice.taskdone" = "Aufgabe „%s“ als erledigt markiert."
 "notice.taskopen" = "Aufgabe „%s“ wieder geöffnet."
 "folder.emptytitle" = "%s leeren"

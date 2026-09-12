@@ -90,6 +90,16 @@
     <a class="notice-dismiss" href="{{$.GlobalData.URL.String}}" title="{{$.T "nav.dismiss"}}" aria-label="{{$.T "nav.dismiss"}}">{{ template "icon" "x" }}</a>
   </div>
   {{ end }}
+  {{/* A request that never came back leaves the page as it was, and
+       says so here. It is written by the server like every other
+       notice and only revealed by the script that knows the request
+       failed; hidden it costs no layout, and without a script nothing
+       can fail this way because the browser answers for itself. */}}
+  {{ if .GlobalData.LoggedIn }}
+  <div class="notice notice-failed" id="request-failed" role="alert" hidden>
+    <span class="notice-text">{{$.T "notice.noanswer"}}</span>
+  </div>
+  {{ end }}
 </header>
 {{ if .GlobalData.LoggedIn }}
 <label for="sidebar" class="sidebar-backdrop" aria-hidden="true"></label>

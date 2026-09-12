@@ -542,6 +542,7 @@
 "notice.undo" = "واگرد"
 "notice.undone" = "واگرد شد."
 "notice.undofailed" = "واگرد نشد: از آن زمان جابه‌جا شده‌اند."
+"notice.noanswer" = "سرور پاسخ نداد."
 "notice.taskdone" = "کار «%s» انجام‌شده علامت خورد."
 "notice.taskopen" = "کار «%s» دوباره باز شد."
 "folder.emptytitle" = "خالی کردن %s"

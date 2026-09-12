@@ -503,6 +503,33 @@ document.addEventListener("htmx:beforeSwap", () => {
 	}
 });
 
+// A request that does not come back must say so: htmx swaps nothing on
+// a failure and would otherwise leave a click looking like a click that
+// did nothing. The notice is the server's, written into every page and
+// hidden; this reveals it, and the next request that does come back
+// hides it again. The page itself is left exactly as it was - a POST
+// that timed out may still have reached the server, so nothing here
+// claims that nothing happened.
+// The element is looked up when something happens, not once at load: a
+// boosted navigation replaces the body, and a handler holding the first
+// page's notice would be pointing at a node no longer in the document -
+// which is exactly a failure that shows nothing.
+const failedNotice = () => document.getElementById("request-failed");
+for (const event of ["htmx:sendError", "htmx:timeout", "htmx:responseError"]) {
+	document.addEventListener(event, () => {
+		const notice = failedNotice();
+		if (notice) {
+			notice.hidden = false;
+		}
+	});
+}
+document.addEventListener("htmx:beforeRequest", () => {
+	const notice = failedNotice();
+	if (notice) {
+		notice.hidden = true;
+	}
+});
+
 // The appearance button posts and comes back as itself. What it cannot
 // bring with it is the root element's attribute, which is where the
 // scheme is actually applied, so that is read off the block the server

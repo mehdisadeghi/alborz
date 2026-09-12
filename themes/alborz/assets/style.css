@@ -3621,6 +3621,13 @@ button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
   background: transparent;
 }
 
+/* A star is its colour wherever it stands - a row, a title, a toolbar,
+   a card - and never the link's ink. */
+.flag-button,
+.flag-button.button-link {
+  color: var(--flag-set, var(--flag));
+}
+
 .button-primary {
   color: var(--on-accent);
   background: var(--accent);

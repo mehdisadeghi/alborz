@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -33,6 +34,8 @@ type AddressBookRenderData struct {
 	AddressObjects []AddressObject
 	Sort, SortDir  string
 	Query          string
+	// View is the colour the rail is filtering by, empty for all.
+	View string
 	// Filters are the narrowings in force that nothing else on the
 	// page states; a search is the only one contacts has.
 	Filters      []alborz.Filter
@@ -40,6 +43,63 @@ type AddressBookRenderData struct {
 	// BookForPath names the address book a contact is in, so the list
 	// can carry ownership on the collection rather than beside the name.
 	BookForPath func(account, path string) string
+	// HrefFor is where a contact's own page is, with the list carried
+	// along so that page can name the contacts either side of it.
+	HrefFor func(account, path string) string
+	// Groups are the group cards the accounts hold, and Categories the
+	// words in use; the rail filters by either (RFC 6350 6.1.4, 6.7.1).
+	Groups     []AddressObject
+	Categories []string
+	Group      string
+	Category   string
+}
+
+// FilterRow is one narrowing the rail offers: what it is called, where
+// it leads, and whether it is the one in force.
+type FilterRow struct {
+	Label  string
+	Href   string
+	Active bool
+}
+
+// GroupRows and CategoryRows are the two ways a contact belongs with
+// others, as rail rows. The URL keeps the account it is scoped to and
+// nothing else: a group and a colour narrow different things and one
+// question at a time is enough.
+func (d *AddressBookRenderData) GroupRows() []FilterRow {
+	rows := make([]FilterRow, 0, len(d.Groups))
+	for _, g := range d.Groups {
+		uid := g.UID()
+		if uid == "" {
+			continue
+		}
+		rows = append(rows, FilterRow{
+			Label:  g.DisplayName(),
+			Href:   d.filterHref("group", uid),
+			Active: uid == d.Group,
+		})
+	}
+	return rows
+}
+
+func (d *AddressBookRenderData) CategoryRows() []FilterRow {
+	rows := make([]FilterRow, 0, len(d.Categories))
+	for _, word := range d.Categories {
+		rows = append(rows, FilterRow{
+			Label:  word,
+			Href:   d.filterHref("category", word),
+			Active: word == d.Category,
+		})
+	}
+	return rows
+}
+
+func (d *AddressBookRenderData) filterHref(name, value string) string {
+	q := url.Values{name: {value}}
+	if account := d.GlobalData.URLAccount; account != "" {
+		q.Set("account", account)
+	}
+	return "/contacts?" + q.Encode()
 }
 
 type Settings struct {
@@ -69,6 +129,11 @@ type AddressObjectRenderData struct {
 	AddressObject AddressObject
 	Birthday      string    // the input format, for the edit form
 	BirthdayDate  time.Time // the same day, for the page to write out
+	Neighbours    dav.Neighbours
+	// In are the groups naming this contact and Groups the ones that do
+	// not, for the form that puts it in one.
+	In     []AddressObject
+	Groups []AddressObject
 }
 
 type UpdateAddressObjectRenderData struct {
@@ -315,6 +380,9 @@ func registerRoutes(p *plugin) {
 	POST("/contacts/create", p.updateContact)
 	GET("/contacts/:path/edit", p.updateContact)
 	POST("/contacts/:path/edit", p.updateContact)
+	POST("/contacts/color", p.colorContacts)
+	POST("/contacts/:path/group", p.groupContact)
+	POST("/contacts/:path/color", p.colorContact)
 	POST("/contacts/:path/note", p.noteContact)
 	POST("/contacts/:path/photo/delete", p.deletePhoto)
 	POST("/contacts/:path/delete", p.deleteContact)
@@ -338,31 +406,74 @@ func (p *plugin) chooseBooks(ctx *alborz.Context) error {
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr("/contacts"))
 }
-func (p *plugin) contacts(ctx *alborz.Context) error {
+
+// ContactList is the list page in one value: the cards in the order
+// they are shown, the books they came from, and what shaped them.
+type ContactList struct {
+	Cards []AddressObject
+	Books []AddressBookInfo
+	// Items are the cards as the neighbours of a single contact, in
+	// the same order.
+	Items []dav.Item
+	// Groups are the cards that are groups rather than people, which
+	// the list never shows as contacts and the rail offers as filters.
+	Groups []AddressObject
+	// Categories are the words in use across what was read, sorted.
+	Categories    []string
+	Query         string
+	View          string // a colour the rail is filtering by, or empty
+	Group         string // a group's UID, or empty
+	Category      string // a word from CATEGORIES, or empty
+	Sort, SortDir string
+}
+
+// contactList is what the list page shows, in the order it shows it. A
+// single contact's page asks for it as well, to know what stands before
+// and after it in the list it was opened from.
+func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 	queryText := ctx.QueryParam("query")
+	view := ctx.QueryParam("view")
+	if view != "" && !slices.Contains(alborzbase.FlagColors[:], view) {
+		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
+	}
+	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
+	params := dav.ListParams(ctx, "account", "book", "query", "view", "group", "category", "sort", "dir")
 
 	only := onlyBooks(ctx)
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
-		return err
+		return ContactList{}, err
 	}
 
 	addressBookInfos, sites, err := visibleBooks(accounts, ctx.URLAccount(), only)
 	if err != nil {
-		return err
+		return ContactList{}, err
 	}
 
 	query := contactsQuery(queryText)
 
-	var aos []AddressObject
+	var aos, groups []AddressObject
 	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site bookSite) ([]carddav.AddressObject, error) {
 		return site.client.QueryAddressBook(ctx, site.path, &query)
 	}) {
 		if result.Err != nil {
-			return fmt.Errorf("failed to query address book %s: %v", result.Site.name, result.Err)
+			return ContactList{}, fmt.Errorf("failed to query address book %s: %v", result.Site.name, result.Err)
 		}
 		for i := range result.Value {
-			aos = append(aos, AddressObject{AddressObject: &result.Value[i], Account: result.Site.account})
+			ao := AddressObject{AddressObject: &result.Value[i], Account: result.Site.account}
+			// A group is a card, so it arrives with the contacts; it is
+			// not one of them, and the list would read it as a person
+			// with no address.
+			if ao.IsGroup() {
+				groups = append(groups, ao)
+				continue
+			}
+			// A colour is a view, the way the mail rail's colours are:
+			// one parameter, and the list is the search it names.
+			if view != "" && ao.Color() != view {
+				continue
+			}
+			aos = append(aos, ao)
 		}
 	}
 
@@ -370,11 +481,11 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 	switch sortKey {
 	case "", "name", "email", "phone", "account", "book", "changed":
 	default:
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
+		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
 	}
 	sortDir := ctx.QueryParam("dir")
 	if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
+		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
 	}
 	key := func(ao AddressObject) string {
 		switch sortKey {
@@ -413,14 +524,90 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		return a < b
 	})
 
+	// A group names its members by UID, and the filter is the other way
+	// round: which cards this group holds.
+	if group != "" {
+		members := map[string]bool{}
+		for _, g := range groups {
+			if g.UID() != group {
+				continue
+			}
+			for _, uid := range g.Members() {
+				members[uid] = true
+			}
+		}
+		kept := aos[:0]
+		for _, ao := range aos {
+			if members[ao.UID()] {
+				kept = append(kept, ao)
+			}
+		}
+		aos = kept
+	}
+	if category != "" {
+		kept := aos[:0]
+		for _, ao := range aos {
+			if slices.Contains(ao.Categories(), category) {
+				kept = append(kept, ao)
+			}
+		}
+		aos = kept
+	}
+	// The words in use are the ones the rail offers: a filing scheme
+	// nobody has written to has nothing to show.
+	var words []string
+	for _, ao := range aos {
+		words = append(words, ao.Categories()...)
+	}
+	slices.Sort(words)
+	words = slices.Compact(words)
+	sort.SliceStable(groups, func(i, j int) bool {
+		return strings.ToLower(groups[i].DisplayName()) < strings.ToLower(groups[j].DisplayName())
+	})
+
+	items := make([]dav.Item, len(aos))
+	for i, ao := range aos {
+		items[i] = dav.Item{Path: ao.Path, URL: dav.ObjectURL("/contacts/", ao.Path, ao.Account, params)}
+	}
+	return ContactList{
+		Cards:      aos,
+		Books:      addressBookInfos,
+		Items:      items,
+		Groups:     groups,
+		Categories: words,
+		Query:      queryText,
+		View:       view,
+		Group:      group,
+		Category:   category,
+		Sort:       sortKey,
+		SortDir:    sortDir,
+	}, nil
+}
+
+func (p *plugin) contacts(ctx *alborz.Context) error {
+	list, err := p.contactList(ctx)
+	if err != nil {
+		return err
+	}
+	addressBookInfos := list.Books
+	hrefs := make(map[string]string, len(list.Items))
+	for _, item := range list.Items {
+		hrefs[item.Path] = item.URL
+	}
 	return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
 		AddressBooks:   addressBookInfos,
-		AddressObjects: aos,
-		Query:          queryText,
-		Filters:        searchFilter(ctx),
-		Sort:           sortKey,
-		SortDir:        sortDir,
+		AddressObjects: list.Cards,
+		HrefFor:        func(_, contactPath string) string { return hrefs[contactPath] },
+		Query:          list.Query,
+		View:           list.View,
+		Groups:         list.Groups,
+		Categories:     list.Categories,
+		Group:          list.Group,
+		Category:       list.Category,
+		Filters:        searchFilter(ctx, list),
+		Sort:           list.Sort,
+		SortDir:        list.SortDir,
 		ColorForPath: func(account, contactPath string) string {
 			for _, ab := range addressBookInfos {
 				if ab.Account == account && strings.HasPrefix(contactPath, ab.Path) {
@@ -479,7 +666,28 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	// The list the page was opened from is rebuilt to find what stands
+	// either side; the DAV reads behind it are cached, so the cost is
+	// the sorting, not another round trip.
+	list, err := p.contactList(ctx)
+	if err != nil {
+		return err
+	}
+	// A group names its members; a contact says nothing about the
+	// groups it is in, so the answer comes from reading them.
+	object := AddressObject{AddressObject: ao}
+	var in, rest []AddressObject
+	for _, g := range list.Groups {
+		if slices.Contains(g.Members(), object.UID()) {
+			in = append(in, g)
+		} else {
+			rest = append(rest, g)
+		}
+	}
 	return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
+		In:             in,
+		Groups:         rest,
+		Neighbours:     dav.Around(list.Items, path),
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()),
 		AddressBook:    addressBook,
@@ -631,6 +839,15 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		setValue(vcard.FieldBirthday, birthday)
 		setValue(vcard.FieldURL, strings.TrimSpace(ctx.FormValue("url")))
 		setValue(vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
+		// CATEGORIES is a comma list (RFC 6350 6.7.1), which is what the
+		// field asks for and what every other client shows.
+		var words []string
+		for _, word := range strings.Split(ctx.FormValue("categories"), ",") {
+			if word = strings.TrimSpace(word); word != "" {
+				words = append(words, word)
+			}
+		}
+		SetCategories(card, words)
 
 		if err := applyPhoto(ctx, card); err != nil {
 			switch {
@@ -842,6 +1059,198 @@ func handleCreateBook(p *plugin) func(*alborz.Context) error {
 	}
 }
 
+// colorName is the colour a form asked for: one of the seven, or empty
+// to clear it. Anything else is a request nobody's page made.
+func colorName(ctx *alborz.Context) (string, error) {
+	name := ctx.FormValue("color")
+	if name != "" && !slices.Contains(alborzbase.FlagColors[:], name) {
+		return "", echo.NewHTTPError(http.StatusBadRequest, "no such colour")
+	}
+	return name, nil
+}
+
+// CardStarRenderData is one contact's star, which is all that changes
+// when a row is marked.
+type CardStarRenderData struct {
+	alborz.BaseRenderData
+	Action  string
+	Current string
+	Next    string
+	Label   string
+}
+
+// colorContact marks one contact, from its own page or from its row.
+func (p *plugin) colorContact(ctx *alborz.Context) error {
+	name, err := colorName(ctx)
+	if err != nil {
+		return err
+	}
+	// A refused write leaves the star as it was: the answer is the
+	// server's state, never the click's.
+	var was string
+	err = changeCard(ctx, p, func(card vcard.Card) {
+		was = CardColor(card)
+		SetColor(card, name)
+	})
+	if errors.Is(err, errRefused) {
+		name = was
+	} else if err != nil {
+		return err
+	}
+	// The star is the whole of what changed on a row, so a page that
+	// asked for a piece of itself gets the star back and nothing moves.
+	if !ctx.Partial() {
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
+	}
+	objPath, err := dav.ParseObjectPath(ctx.Param("path"))
+	if err != nil {
+		return err
+	}
+	label := ctx.T("mailbox.flagcolor")
+	if name != "" {
+		label = ctx.T("mailbox.flagnone")
+	}
+	return ctx.Render(http.StatusOK, "card-star", &CardStarRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		Action:         AddressObject{AddressObject: &carddav.AddressObject{Path: objPath}}.URL() + "/color" + accountQuery(ctx),
+		Current:        name,
+		Next:           ctx.FormValue("next"),
+		Label:          label,
+	})
+}
+
+// accountQuery names the account a link must keep, or nothing.
+func accountQuery(ctx *alborz.Context) string {
+	if ctx.URLAccount() == "" {
+		return ""
+	}
+	return "?account=" + alborz.AddressParam(ctx.URLAccount())
+}
+
+// colorContacts marks the contacts a list had checked.
+func (p *plugin) colorContacts(ctx *alborz.Context) error {
+	name, err := colorName(ctx)
+	if err != nil {
+		return err
+	}
+	params, err := ctx.FormParams()
+	if err != nil {
+		return err
+	}
+	refs, err := dav.Selected(ctx, params["paths"], p.client)
+	if err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		ao, err := getAddressObject(ctx, ref.Client, ref.Path)
+		if err != nil {
+			return fmt.Errorf("failed to read the contact: %v", err)
+		}
+		SetColor(ao.Card, name)
+		ao.Card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
+		if _, err := ref.Client.PutAddressObject(ctx.Request().Context(), ao.Path, ao.Card); err != nil {
+			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
+			break
+		}
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
+}
+
+// groupContact adds a contact to a group or takes it out of one. What
+// changes is the group's card - a group names its members (RFC 6350
+// 6.6.5), a contact says nothing about its groups - except that a card
+// with no UID is given one first, since a member is named by UID.
+func (p *plugin) groupContact(ctx *alborz.Context) error {
+	objPath, err := dav.ParseObjectPath(ctx.Param("path"))
+	if err != nil {
+		return err
+	}
+	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+	if err != nil {
+		return err
+	}
+	ao, err := getAddressObject(ctx, c, objPath)
+	if err != nil {
+		return fmt.Errorf("failed to read the contact: %v", err)
+	}
+	contact := AddressObject{AddressObject: ao}
+	uid := contact.UID()
+	if uid == "" {
+		uid = uuid.New().String()
+		ao.Card.SetValue(vcard.FieldUID, memberPrefix+uid)
+		ao.Card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
+		if _, err := c.PutAddressObject(ctx.Request().Context(), ao.Path, ao.Card); err != nil {
+			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(contact.URL()))
+		}
+	}
+
+	list, err := p.contactList(ctx)
+	if err != nil {
+		return err
+	}
+	back := ctx.NextOr(ctx.AccountPath(contact.URL()))
+	if leaving := ctx.FormValue("leave"); leaving != "" {
+		for _, g := range list.Groups {
+			if g.UID() != leaving {
+				continue
+			}
+			kept := slices.DeleteFunc(g.Members(), func(m string) bool { return m == uid })
+			SetMembers(g.Card, kept)
+			if err := p.putCard(ctx, c, g.Path, g.Card); err != nil {
+				return err
+			}
+		}
+		return ctx.Redirect(http.StatusFound, back)
+	}
+
+	if name := strings.TrimSpace(ctx.FormValue("newgroup")); name != "" {
+		card := vcard.Card{}
+		card.SetValue(vcard.FieldVersion, "4.0")
+		card.SetValue(vcard.FieldFormattedName, name)
+		card.SetValue(vcard.FieldUID, memberPrefix+uuid.New().String())
+		card.SetKind(vcard.KindGroup)
+		SetMembers(card, []string{uid})
+		// The group is made where the contact is, which is the only
+		// book the page knows anything about.
+		book := ""
+		for _, b := range books {
+			if strings.HasPrefix(ao.Path, b.Path) {
+				book = b.Path
+			}
+		}
+		if book == "" {
+			return echo.NewHTTPError(http.StatusBadRequest, "the contact is in no address book")
+		}
+		if err := p.putCard(ctx, c, path.Join(book, uuid.New().String()+".vcf"), card); err != nil {
+			return err
+		}
+		return ctx.Redirect(http.StatusFound, back)
+	}
+
+	joining := ctx.FormValue("group")
+	for _, g := range list.Groups {
+		if g.UID() != joining || slices.Contains(g.Members(), uid) {
+			continue
+		}
+		SetMembers(g.Card, append(g.Members(), uid))
+		if err := p.putCard(ctx, c, g.Path, g.Card); err != nil {
+			return err
+		}
+	}
+	return ctx.Redirect(http.StatusFound, back)
+}
+
+// putCard writes a card with a fresh revision, and says on the page
+// where a server refused it rather than answering with an error page.
+func (p *plugin) putCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Card) error {
+	card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
+	if _, err := c.PutAddressObject(ctx.Request().Context(), at, card); err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
+	}
+	return nil
+}
+
 // otherAccount is the account a form chose when it is not the one the
 // page is signed in as: only then does a link have to name it.
 func otherAccount(ctx *alborz.Context, chosen string) string {
@@ -855,6 +1264,15 @@ func otherAccount(ctx *alborz.Context, chosen string) string {
 // back with a fresh REV. The read is deliberately not go-webdav's: see
 // getAddressObject for the ETag it cannot parse.
 func editCard(ctx *alborz.Context, p *plugin, change func(vcard.Card)) error {
+	if err := changeCard(ctx, p, change); err != nil {
+		return err
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
+}
+
+// changeCard is the same without an answer, for a caller that has one
+// of its own to give.
+func changeCard(ctx *alborz.Context, p *plugin, change func(vcard.Card)) error {
 	objPath, err := dav.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
@@ -871,9 +1289,14 @@ func editCard(ctx *alborz.Context, p *plugin, change func(vcard.Card)) error {
 	ao.Card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
 	if _, err := c.PutAddressObject(ctx.Request().Context(), ao.Path, ao.Card); err != nil {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
+		return errRefused
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/contacts")))
+	return nil
 }
+
+// errRefused is a write the server would not take; the notice is on
+// the page already and the caller answers with what the server holds.
+var errRefused = errors.New("carddav: write refused")
 
 // collectionPage is an address book's own page.
 func (p *plugin) collectionPage() dav.Page {
@@ -1138,19 +1561,11 @@ func (p *plugin) refresh(ctx *alborz.Context) error {
 // contactsQuery asks a book for what the list shows, narrowed to
 // queryText when there is one.
 func contactsQuery(queryText string) carddav.AddressBookQuery {
+	// Every property: a server that honours a narrower request (Nextcloud
+	// does) answers without the colour, the categories, the revision and
+	// a group's members, and the list showed a star that was not there.
 	query := carddav.AddressBookQuery{
-		DataRequest: carddav.AddressDataRequest{
-			Props: []string{
-				vcard.FieldFormattedName,
-				vcard.FieldName,
-				vcard.FieldEmail,
-				vcard.FieldTelephone,
-				vcard.FieldNickname,
-				vcard.FieldOrganization,
-				vcard.FieldPhoto,
-				vcard.FieldUID,
-			},
-		},
+		DataRequest: carddav.AddressDataRequest{AllProp: true},
 	}
 
 	if queryText != "" {
@@ -1213,9 +1628,27 @@ func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session) error {
 
 // searchFilter names the search a contact list was narrowed by, in the
 // one shape every list uses.
-func searchFilter(ctx *alborz.Context) []alborz.Filter {
+func searchFilter(ctx *alborz.Context, list ContactList) []alborz.Filter {
+	var out []alborz.Filter
 	if f, ok := ctx.FilterOn("query", ctx.T("filter.search")); ok {
-		return []alborz.Filter{f}
+		out = append(out, f)
 	}
-	return nil
+	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok {
+		f.Value = ctx.T("color." + f.Value)
+		out = append(out, f)
+	}
+	if f, ok := ctx.FilterOn("category", ctx.T("filter.category")); ok {
+		out = append(out, f)
+	}
+	if f, ok := ctx.FilterOn("group", ctx.T("filter.group")); ok {
+		// The URL names a group by UID; the chip names it the way the
+		// reader does.
+		for _, g := range list.Groups {
+			if g.UID() == f.Value {
+				f.Value = g.DisplayName()
+			}
+		}
+		out = append(out, f)
+	}
+	return out
 }

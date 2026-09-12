@@ -8,9 +8,22 @@
 
   <div class="container">
     <main id="main" tabindex="-1" class="contact">
+      <form id="contact-color-form" method="post" hx-boost="false">
+        <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+      </form>
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "newhref" (printf "/contacts/create%s" $acct) "newlabel" ($.T "contacts.new")) }}
         <span class="icon-group">
+          {{/* One star for this contact, the same control the message
+               page has: a click sets and clears, the chevron holds the
+               seven. */}}
+          {{ template "flag-menu" (dict
+             "priority" 12
+             "toggle" true
+             "form" "contact-color-form"
+             "action" (printf "%s/color%s" .AddressObject.URL $acct)
+             "current" .AddressObject.Color
+             "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
           <a class="icon-button" href="{{.AddressObject.URL}}/edit{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.AddressObject.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.AddressObject.URL}}/raw?save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".vcf" }}" aria-label="{{ printf ($.T "common.saveas") ".vcf" }}">{{ template "icon" "download" }}</a>
@@ -18,6 +31,8 @@
             <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
           </form>
         </span>
+        {{ template "toolbar-end" }}
+        {{ template "object-nav" (dict "g" $ "n" .Neighbours) }}
         {{ template "toolbar-foot" }}
       </section>
 
@@ -66,7 +81,45 @@
           <dt>{{$.T "contacts.notes"}}</dt>
           <dd>{{ template "user-text" . }}</dd>
           {{end}}
+          {{/* The two ways a card says it belongs with others: the
+               words it carries (RFC 6350 6.7.1) and the groups that
+               name it (6.6.5). Both are lines of the same list, since
+               to a reader they are the same fact. */}}
+          {{with .AddressObject.Categories}}
+          <dt>{{$.T "contacts.categories"}}</dt>
+          <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="/contacts?category={{$word | urlquery}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>
+          {{end}}
+          {{with .In}}
+          <dt>{{$.T "contacts.ingroups"}}</dt>
+          <dd class="contact-groups">
+            {{ range . }}
+            <span class="chip">
+              <a href="/contacts?group={{.UID | urlquery}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{.DisplayName}}</a>
+              <form method="post" action="{{$.AddressObject.URL}}/group{{$acct}}">
+                <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                <button type="submit" name="leave" value="{{.UID}}" class="button-link"
+                        title="{{$.T "contacts.leavegroup"}}" aria-label="{{$.T "contacts.leavegroup"}}">&times;</button>
+              </form>
+            </span>
+            {{ end }}
+          </dd>
+          {{end}}
         </dl>
+        {{/* Joining a group is naming one that exists or writing a name
+             that does not; either way the group's own card is what
+             changes. */}}
+        <form method="post" action="{{.AddressObject.URL}}/group{{$acct}}" class="group-form">
+          <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+          <label for="group">{{$.T "contacts.addtogroup"}}</label>
+          {{ if .Groups }}
+          <select name="group" id="group">
+            <option value="">{{$.T "contacts.newgroup"}}</option>
+            {{ range .Groups }}<option value="{{.UID}}">{{.DisplayName}}</option>{{ end }}
+          </select>
+          {{ end }}
+          <input type="text" name="newgroup" dir="auto" placeholder="{{$.T "contacts.groupname"}}" aria-label="{{$.T "contacts.groupname"}}">
+          <button type="submit">{{$.T "common.add"}}</button>
+        </form>
         {{ template "note-box" (dict
            "action" (printf "/contacts/%s/note%s" (.AddressObject.Path | pathescape) $acct)
            "next" .GlobalData.URL.RequestURI

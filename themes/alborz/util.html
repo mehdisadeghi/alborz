@@ -807,6 +807,15 @@
   {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true) }}
   {{ end }}
   {{ end }}
+  {{/* Colours are views, the way the mail rail carries them: one list
+       of seven, under the collections they narrow, whichever accounts
+       are shown. */}}
+  {{ with .views }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" .view "q" .q) }}{{ end }}
+  {{/* The two ways a contact belongs with others (RFC 6350): the
+       groups that name it, and the words it carries. Each is a filter
+       and neither is a place, so they sit with the views. */}}
+  {{ with .groups }}{{ template "rail-filter-list" . }}{{ end }}
+  {{ with .categories }}{{ template "rail-filter-list" . }}{{ end }}
   {{/* A rail lists places and closes with the entry that adds one;
        making an object is a toolbar action, beside the list it lands
        in. */}}
@@ -848,6 +857,67 @@
    "color" (or .Color (call $base.ColorForPath .Account .Path))
    "owner" (call $base.OwnerLabel .Account .Path)
    "timeLabel" ($base.T "calendar.time") "eventLabel" ($base.T "calendar.event") "calendarLabel" ($base.T "common.calendar")) }}
+{{ end }}
+{{ end }}
+
+{{/* A colour on one object that is not a message: the same star, the
+     same click to set and clear, and the same answer - the star alone -
+     where the page can swap it. The seven live in the menus; a row
+     offers the first, as a mail row does.
+     dict: Action Current Next Label. */}}
+{{ define "card-star" }}
+<form method="POST" action="{{.Action}}"
+      hx-post="{{.Action}}" hx-target="this" hx-swap="outerHTML">
+  <input type="hidden" name="color" value="{{ if .Current }}{{ else }}red{{ end }}">
+  <input type="hidden" name="next" value="{{.Next}}">
+  <button class="flag-button button-link{{ with .Current }} flag-{{.}}{{ end }}" type="submit"
+          title="{{.Label}}" aria-label="{{.Label}}">
+    {{- if .Current -}}
+    &#9733;
+    {{- else -}}
+    &#9734;
+    {{- end -}}
+  </button>
+</form>
+{{ end }}
+
+{{/* The seven colours as views of a list that is not mail's: same
+     rows, same stars, one parameter. dict: g path view q. */}}
+{{ define "rail-colors" }}
+{{ $sep := "?" }}{{ if .q }}{{ $sep = "&" }}{{ end }}
+<ul class="rail-views">
+  <li class="folder-li">
+    <details class="folder-branch" data-rail-key="colors:{{.q}}"{{ if .view }} open{{ end }}>
+      <summary>{{.g.T "aside.colors"}}</summary>
+      <ul>
+        {{ range flagcolors .g }}
+        <li{{ if eq $.view .Name }} class="active"{{ end }}><a href="{{$.path}}{{$.q}}{{$sep}}view={{.Name}}"><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
+        {{ end }}
+      </ul>
+    </details>
+  </li>
+</ul>
+{{ end }}
+
+{{/* One folded list of things a list can be narrowed to: the label,
+     the rows, and the one in force marked. Where a row can be made,
+     the last row makes one.
+     dict: key label open rows (each Label Href Active) [new]. */}}
+{{ define "rail-filter-list" }}
+{{ if or .rows .new }}
+<ul class="rail-views">
+  <li class="folder-li">
+    <details class="folder-branch" data-rail-key="{{.key}}"{{ if .open }} open{{ end }}>
+      <summary>{{.label}}</summary>
+      <ul>
+        {{ range .rows }}
+        <li{{ if .Active }} class="active"{{ end }}><a href="{{.Href}}" dir="auto">{{.Label}}</a></li>
+        {{ end }}
+        {{ with .new }}<li><a class="aside-create" href="{{.href}}">{{.label}}</a></li>{{ end }}
+      </ul>
+    </details>
+  </li>
+</ul>
 {{ end }}
 {{ end }}
 

@@ -349,13 +349,21 @@ func handleRuleSave(ctx *alborz.Context) error {
 		data.Editing, data.Index, data.Error = r, index, err.Error()
 		return ctx.Render(http.StatusUnprocessableEntity, "rule-edit.html", data)
 	}
+	made := -1
 	err = changeRules(ctx, func(rules []Rule) []Rule {
 		if index >= 0 && index < len(rules) {
 			rules[index] = r
 			return rules
 		}
+		made = len(rules)
 		return append(rules, r)
 	})
+	if err == nil && made >= 0 {
+		ctx.Made(ctx.T("notice.rulecreated"), r.Name,
+			ctx.AccountPath(fmt.Sprintf("/filters/rules/%d", made)),
+			ctx.AccountPath("/filters/rules/create"))
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters/rules"))
+	}
 	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
 }
 

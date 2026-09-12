@@ -9,11 +9,31 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// Saved lands a form that wrote an object on the object, in the account
-// that holds it.
-func Saved(ctx *alborz.Context, object, account string) error {
+// Made ends a create: the reader lands on the list the new thing now
+// belongs to, with a banner naming it - a link to the thing itself -
+// and the offer to make another from the form as it stood. Editing an
+// object goes back to the object, which is where the reader was; only
+// making one lands here.
+//
+// account names the owner where the form chose one, since a create in
+// the merged view can land in any of them.
+func Made(ctx *alborz.Context, sentence, name, object, list, account string) error {
 	if account != "" {
-		return ctx.Redirect(http.StatusFound, object+"?account="+alborz.AddressParam(account))
+		q := "?account=" + alborz.AddressParam(account)
+		object, list = object+q, list+q
+	} else {
+		object, list = ctx.AccountPath(object), ctx.AccountPath(list)
+	}
+	ctx.Made(sentence, name, object, ctx.Request().URL.RequestURI())
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(list))
+}
+
+// Saved lands a form that wrote an object: a new one on its list, with
+// the banner naming it; an edited one back on the object, which is
+// where the reader was.
+func Saved(ctx *alborz.Context, made bool, sentence, name, object, list, account string) error {
+	if made {
+		return Made(ctx, sentence, name, object, list, account)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath(object))
 }

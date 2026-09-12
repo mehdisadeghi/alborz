@@ -169,28 +169,28 @@ func Opened[C any](ctx context.Context, p *Provider, session *alborz.Session, cl
 // Create adds a collection to the account's home, walking to the first
 // free address, and forgets the found list, so the new one appears at
 // once.
-func (p *Provider) Create(ctx context.Context, session *alborz.Session, name, color string, components []string) error {
+func (p *Provider) Create(ctx context.Context, session *alborz.Session, name, color string, components []string) (string, error) {
 	infos, err := p.Collections(ctx, session)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if NameTaken(name, infos) {
-		return ErrNameTaken
+		return "", ErrNameTaken
 	}
 	base, _ := p.URL(session)
 	home, err := p.home(ctx, session)
 	if err != nil {
-		return err
+		return "", err
 	}
 	client := p.HTTPClient(session)
-	err = CreateCollection(ctx, base, home, name, p.kind.Unnamed, func(ctx context.Context, target string) error {
+	path, err := CreateCollection(ctx, base, home, name, p.kind.Unnamed, func(ctx context.Context, target string) error {
 		return p.kind.Make(ctx, client, target, name, color, components)
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	p.Forget(session.Username())
-	return nil
+	return path, nil
 }
 
 // URL resolves the session's endpoint, falling back to the unnamed

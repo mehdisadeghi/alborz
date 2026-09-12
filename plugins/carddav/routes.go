@@ -568,7 +568,10 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
-		return dav.Saved(ctx, AddressObject{AddressObject: ao}.URL(), to.Account)
+		// The card as written names the contact; what a PUT answers
+		// carries the path and no data at all.
+		named := AddressObject{AddressObject: &carddav.AddressObject{Path: ao.Path, Card: card}}
+		return dav.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), named.URL(), "/contacts", to.Account)
 	}
 
 	// Both map values would be evaluated eagerly; a missing object
@@ -632,7 +635,7 @@ func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 		return dav.CreateForm{}, err
 	}
 	return dav.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: "/contacts",
-		Made: func(string) string { return "/contacts" }}, nil
+		Made: func(string) (string, string) { return ctx.T("notice.bookcreated"), "/contacts" }}, nil
 }
 
 func writeCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Card) error {

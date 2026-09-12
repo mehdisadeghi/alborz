@@ -330,11 +330,13 @@ func handleReplySave(ctx *alborz.Context) error {
 		return err
 	}
 	was := append([]Reply(nil), replies.Items...)
+	made := -1
 	if index >= 0 && index < len(replies.Items) {
 		replies.Items[index] = v
 	} else if len(replies.Items) >= maxReplies {
 		return answer(ctx, fmt.Errorf(ctx.T("filters.toomanyreplies"), maxReplies), "/filters/autoreply", "")
 	} else {
+		made = len(replies.Items)
 		replies.Items = append(replies.Items, v)
 	}
 	if err := ctx.Session.Store().Put(repliesKey, replies); err != nil {
@@ -354,6 +356,12 @@ func handleReplySave(ctx *alborz.Context) error {
 				return v.script(), nil
 			})
 		})
+	}
+	if err == nil && made >= 0 {
+		ctx.Made(ctx.T("notice.autoreplycreated"), v.Name,
+			ctx.AccountPath(fmt.Sprintf("/filters/autoreply/%d", made)),
+			ctx.AccountPath("/filters/autoreply/create"))
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters/autoreply"))
 	}
 	saved := ctx.T("notice.autoreplykept")
 	if sent {

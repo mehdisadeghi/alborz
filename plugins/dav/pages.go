@@ -71,9 +71,9 @@ type CreateForm struct {
 	// an address book; OffersHolds lets the reader change it.
 	Holds       string
 	OffersHolds bool
-	// Made is the list the collection made shows in, by what it came to
-	// hold.
-	Made func(holds string) (list string)
+	// Made is the sentence for the collection made and the list it
+	// shows in, by what it came to hold.
+	Made func(holds string) (sentence, list string)
 }
 
 // held are the components a calendar made to hold those takes.
@@ -123,14 +123,20 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 		if session == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
-		if err := p.Create(ctx.Request().Context(), session, data.Name, data.Color, held[data.Holds]); err != nil {
+		path, err := p.Create(ctx.Request().Context(), session, data.Name, data.Color, held[data.Holds])
+		if err != nil {
 			data.Error = err.Error()
 			if errors.Is(err, ErrNameTaken) {
 				data.Error = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(f.Made(data.Holds)))
+		account := ""
+		if data.Account != ctx.Session.Username() {
+			account = data.Account
+		}
+		sentence, list := f.Made(data.Holds)
+		return Made(ctx, sentence, data.Name, pg.Base+url.PathEscape(path), list, account)
 	}
 }
 

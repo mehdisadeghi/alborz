@@ -30,10 +30,11 @@ const BrandName = "Alborz"
 // name, spelt once.
 const AppName = "alborz"
 
-// visitsFile is what the visit store is called inside the data
-// directory. Named here because the flag's help text says where the
-// directory is, and this says what is in it.
-const visitsFile = "visits.db"
+// storeFile is alborz's own database inside the data directory: the
+// remembered logins and what each browser reads by. Named after the
+// application, the way a bbolt file usually is, and spelt from AppName
+// so it follows the name rather than repeating it.
+const storeFile = AppName + ".db"
 
 // What a launcher paints before any stylesheet has loaded. The window
 // colour is the one head.html already declares for a light scheme, so
@@ -177,7 +178,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		if err != nil {
 			return nil, err
 		}
-		records, err := OpenVisitRecords(filepath.Join(dataDir, visitsFile), options.LoginKey)
+		records, err := OpenVisitRecords(filepath.Join(dataDir, storeFile), options.LoginKey)
 		if err != nil {
 			return nil, err
 		}

@@ -57,10 +57,11 @@ func OpenVisitRecords(path string, key *fernet.Key) (VisitRecords, error) {
 	if err != nil {
 		// One process at a time holds the file. The usual reason for
 		// waiting the whole timeout out is a second alborz on the same
-		// cache directory, and a message that does not say so sends
-		// the reader looking at their disk.
+		// data directory, and a message that does not say so sends the
+		// reader looking at their disk.
 		if errors.Is(err, bolt.ErrTimeout) {
-			return nil, fmt.Errorf("%s is locked: another alborz is using this cache directory (waited %v)", path, openTimeout)
+			return nil, fmt.Errorf("%s is locked: another alborz is running on this data directory (waited %v); "+
+				"stop it, or name another with -data-dir", path, openTimeout)
 		}
 		return nil, fmt.Errorf("failed to open %s: %w", path, err)
 	}

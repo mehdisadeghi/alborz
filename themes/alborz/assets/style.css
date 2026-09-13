@@ -735,6 +735,30 @@ header .notice-dismiss {
   line-height: 0;
 }
 
+/* A request in flight, as one line across the top of the page. It
+   crawls while the request is out and finishes when the answer lands:
+   a width that reached the end on its own would promise an arrival
+   nobody has. Under the skip link, which must stay reachable, and over
+   everything else. */
+.progress {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 99;
+  block-size: 2px;
+  inline-size: 0;
+  background: var(--accent);
+  transition: inline-size 6s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.progress-running { inline-size: 80%; }
+
+.progress-done {
+  inline-size: 100%;
+  opacity: 0;
+  transition: inline-size 0.15s ease-out, opacity 0.2s ease-out 0.1s;
+}
+
 footer { text-align: end; }
 
 .container {

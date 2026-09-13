@@ -473,6 +473,19 @@ document.addEventListener("htmx:beforeSwap", () => {
 	}
 });
 
+// htmx throws away anything that is not a 2xx, which is right for a
+// server that fell over and wrong for one that answered. A refusal is
+// an answer: the login page with its alert, a form with what was typed
+// still in it, an edit that met a newer copy. Swap those, and do not
+// raise the "no answer" notice for them.
+document.addEventListener("htmx:beforeSwap", ev => {
+	const status = ev.detail && ev.detail.xhr && ev.detail.xhr.status;
+	if (status === 401 || status === 409 || status === 422) {
+		ev.detail.shouldSwap = true;
+		ev.detail.isError = false;
+	}
+});
+
 // A request that does not come back must say so: htmx swaps nothing on
 // a failure and would otherwise leave a click looking like a click that
 // did nothing. The notice is the server's, written into every page and

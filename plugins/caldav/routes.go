@@ -334,6 +334,11 @@ type CalendarRenderData struct {
 	// holds and in what order, carried on to an event's page so that
 	// page can name the events either side of it.
 	ListQuery string
+	// SelectForm is the form a row's checkbox belongs to where the page
+	// has one; empty where it has none, and then no row offers a box
+	// and no column is kept for one. The agenda is a list like the
+	// others; the month grid is not a list at all.
+	SelectForm string
 
 	EventsForDate func(time.Time) []Occurrence
 	ColorForPath  func(account, path string) string
@@ -343,7 +348,10 @@ type CalendarRenderData struct {
 
 type CalendarDateRenderData struct {
 	alborz.BaseRenderData
-	ListQuery          string
+	ListQuery string
+	// SelectForm is empty here: a day is a page about a day, and the
+	// list it shows is the agenda's job to act on.
+	SelectForm         string
 	Time               time.Time
 	Calendars          []CalendarInfo
 	Events             []Occurrence
@@ -758,6 +766,7 @@ func registerRoutes(p *plugin) {
 	POST("/calendar/create", p.updateEvent)
 	GET("/calendar/:path/update", p.updateEvent)
 	POST("/calendar/:path/update", p.updateEvent)
+	POST("/calendar/delete", p.deleteEvents)
 	POST("/calendar/:path/delete", p.deleteEvent)
 	GET("/tasks", p.tasks)
 	GET("/tasks/:path", p.task)
@@ -932,6 +941,12 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		PrevTime:  mv.prevTime,
 		NextTime:  mv.nextTime,
 		ListQuery: monthQuery(ctx, mv),
+		SelectForm: func() string {
+			if mv.view == "list" {
+				return "events-form"
+			}
+			return ""
+		}(),
 
 		EventsForDate: func(when time.Time) []Occurrence {
 			return mv.on[mv.day(when)]
@@ -2310,6 +2325,25 @@ func markTodo(todo *ical.Component, done bool) {
 // selected resolves the task list's checked rows to their owning clients.
 func (p *plugin) selected(ctx *alborz.Context, refs []string) ([]dav.Ref[*caldav.Client], error) {
 	return dav.Selected(ctx, refs, p.client)
+}
+
+// deleteEvents removes what the agenda had checked. An event is an
+// object like a task, so this is the same act with the same shape.
+func (p *plugin) deleteEvents(ctx *alborz.Context) error {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return err
+	}
+	refs, err := p.selected(ctx, params["refs"])
+	if err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		if err := ref.Client.RemoveAll(ctx.Request().Context(), ref.Path); err != nil {
+			return fmt.Errorf("failed to delete event: %v", err)
+		}
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 }
 
 func (p *plugin) deleteTasks(ctx *alborz.Context) error {

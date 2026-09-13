@@ -319,9 +319,10 @@
 {{ define "date-day" }}{{ .g.LongDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
 
 {{ define "event-grid-header" }}
-<div class="event-header-row" role="row">
+<div class="event-header-row list-row" role="row">
+  {{ with .form }}<div class="list-header event-select list-checkbox" role="columnheader"></div>{{ end }}
   <div class="list-header event-time" role="columnheader">{{.time}}</div>
-  <div class="list-header event-summary" role="columnheader">{{.event}}</div>
+  <div class="list-header event-summary list-primary" role="columnheader">{{.event}}</div>
   <div class="list-header event-owner" role="columnheader">{{.calendar}}</div>
 </div>
 {{ end }}
@@ -330,13 +331,21 @@
      which calendar owns it, each in its own track. dict: href when
      summary color owner timeLabel eventLabel calendarLabel. */}}
 {{ define "event-row" }}
-<div class="event-row" role="row">
-  <div class="event-time" role="cell" data-label="{{.timeLabel}}">{{.when}}</div>
-  <div class="event-summary" role="cell" data-label="{{.eventLabel}}">
+<div class="event-row list-row" role="row">
+  {{/* Where the page carries a form to check into, an event is
+       selectable like a task or a message; the day page has none and
+       the cell is not drawn at all, so no column is reserved for it. */}}
+  {{ with .form }}
+  <div class="event-select list-checkbox list-cell" role="cell">
+    <input type="checkbox" name="refs" value="{{$.ref}}" form="{{.}}" aria-label="{{$.selectLabel}}{{with $.summary}}: {{.}}{{end}}">
+  </div>
+  {{ end }}
+  <div class="event-time list-cell" role="cell" data-label="{{.timeLabel}}">{{.when}}</div>
+  <div class="event-summary list-primary list-cell" role="cell" data-label="{{.eventLabel}}">
     {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
     {{ if .href }}<a href="{{.href}}" dir="auto">{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
   </div>
-  <div class="event-owner" role="cell" data-label="{{.calendarLabel}}">{{.owner}}</div>
+  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{.owner}}</div>
 </div>
 {{ end }}
 
@@ -853,6 +862,9 @@
 {{ template "event-row" (dict
    "href" $href
    "when" $when
+   "form" $base.SelectForm
+   "ref" (printf "%s|%s" $obj.Account $obj.Path)
+   "selectLabel" ($base.T "a11y.selectevent")
    "summary" .Summary
    "color" (or .Color (call $base.ColorForPath .Account .Path))
    "owner" (call $base.OwnerLabel .Account .Path)

@@ -83,6 +83,10 @@ type GlobalRenderData struct {
 	// Theme variant stylesheet under assets/themes, empty for the default
 	Theme string
 
+	// SchemePinned says the chosen theme is written for one side of the
+	// day only, so the scheme toggle has nothing to do and is not shown.
+	SchemePinned bool
+
 	// CustomCSS is the deployment's own stylesheet where it left one,
 	// loaded after the theme so it wins.
 	CustomCSS bool
@@ -720,6 +724,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.Unified = ctx.Unified
 		global.AlignByScript = ctx.AlignByScript()
 		global.CustomCSS = ctx.Server.custom
+		global.SchemePinned = ctx.ThemeScheme() != ""
 		global.URLAccount = ctx.urlAccount
 	}
 

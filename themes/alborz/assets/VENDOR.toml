@@ -1,0 +1,25 @@
+# What is copied in here from elsewhere, and where it came from. The
+# digest is of the file as the URL serves it, not of the copy in the
+# tree: each copy carries three lines of header naming the project and
+# its licence, and the header is ours.
+#
+# To check a copy: fetch the URL, compare the digest, and confirm the
+# vendored file is that file with our header of `header` lines on top.
+# Renewing a library is an edit here and an edit there in one commit,
+# so the diff shows the new digest beside the new bytes.
+
+[squire]
+file = "themes/alborz/assets/squire.js"
+version = "2.4.8"
+url = "https://cdn.jsdelivr.net/npm/squire-rte@2.4.8/dist/squire.js"
+sha256 = "75c1665d33ec8c1a08dbb5cadae8381acfded4677da44d70cf88a59e4082af20"
+header = 3
+license = "MIT"
+
+[htmx]
+file = "themes/alborz/assets/htmx.js"
+version = "2.0.10"
+url = "https://unpkg.com/htmx.org@2.0.10/dist/htmx.min.js"
+sha256 = "71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de"
+header = 4
+license = "0BSD"

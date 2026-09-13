@@ -3226,6 +3226,12 @@ aside details.folder-branch details.folder-branch > ul > li {
   grid-template-columns: 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
 
+/* The agenda is a list like the others, so where it offers selection it
+   keeps the same first column the mail and task lists do. */
+.event-grid-select {
+  grid-template-columns: var(--control-height) 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+}
+
 .event-header-row,
 .event-row { display: contents; }
 

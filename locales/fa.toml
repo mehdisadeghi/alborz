@@ -424,6 +424,7 @@
 "settings.light" = "روشن"
 "settings.dark" = "تیره"
 "scheme.tolight" = "رفتن به روشن"
+"scheme.pinned" = "این پوسته فقط یک حالت دارد."
 "scheme.todark" = "رفتن به تیره"
 "scheme.tosystem" = "پیروی از سامانه"
 "settings.firstday" = "نخستین روز هفته"

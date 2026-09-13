@@ -429,6 +429,7 @@
 "settings.light" = "Claro"
 "settings.dark" = "Oscuro"
 "scheme.tolight" = "Cambiar a claro"
+"scheme.pinned" = "Este tema solo tiene un modo."
 "scheme.todark" = "Cambiar a oscuro"
 "scheme.tosystem" = "Seguir al sistema"
 "settings.firstday" = "Primer día de la semana"

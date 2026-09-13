@@ -716,6 +716,16 @@ a.notice-name {
   text-decoration: underline;
 }
 
+/* What the dim scheme button says when there is nothing for it to do.
+   A popover rather than a tooltip alone: a finger has no hover. */
+.scheme-pinned {
+  max-inline-size: 16rem;
+  padding: var(--space-2);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  white-space: normal;
+}
+
 /* The cross holds the edge without taking part in the centring, so
    the text sits where it always did. */
 header .notice-dismiss {

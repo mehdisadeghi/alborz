@@ -250,9 +250,8 @@ func abilities(c *imapclient.Client, settings *Settings) []Ability {
 // itself keeps.
 type ReadingRenderData struct {
 	alborz.BaseRenderData
-	Rail     map[string][]alborz.RailRow
-	Language string // explicit per-user choice, "" follows the browser
-	Theme    string
+	Rail  map[string][]alborz.RailRow
+	Theme string
 	// Themes are the overlays on offer, which a deployment adds to by
 	// dropping a stylesheet beside the built-in ones.
 	Themes        []alborz.Theme
@@ -677,15 +676,14 @@ func handleScheme(ctx *alborz.Context) error {
 }
 
 // handleReadingSettings serves what the person at the screen reads by,
-// which belongs to no account: the page size, the clock, the calendar,
-// the theme and the language. It names no account, so a server that is
-// down cannot hold any of it hostage.
+// which belongs to no account: the page size, the clock, the calendar
+// and the theme. It names no account, so a server that is down cannot
+// hold any of it hostage.
 func handleReadingSettings(ctx *alborz.Context) error {
 	render := func(status int, message string) error {
 		return ctx.Render(status, "settings.html", &ReadingRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
 			Rail:           settingsRail(ctx),
-			Language:       ctx.Language(),
 			Theme:          ctx.Theme(),
 			Themes:         ctx.Themes(),
 			AlignByScript:  ctx.AlignByScript(),
@@ -760,9 +758,6 @@ func handleReadingSettings(ctx *alborz.Context) error {
 
 	if v, ok := given("theme"); ok {
 		ctx.SetTheme(v)
-	}
-	if v, ok := given("language"); ok {
-		ctx.SetLanguage(v)
 	}
 	if v, ok := given("text_size"); ok {
 		ctx.SetTextSize(v)

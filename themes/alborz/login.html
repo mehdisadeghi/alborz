@@ -4,10 +4,17 @@
   <section>
     <h1>{{ if .Add }}{{$.T "login.add"}}{{ else }}{{$.T "login.title"}}{{ end }}</h1>
 
+    {{/* A refused sign-in is answered on the form, in the card: this
+         page has no header to hang a notice bar from, and one across
+         the screen over a small card would be absurd. */}}
+    {{ with .GlobalData.Notice }}
+    <div class="alert" role="alert">{{ if .Markup }}{{ .Markup }}{{ else }}{{ .Text }}{{ end }}</div>
+    {{ end }}
+
     <form method="post" action="">
       <div class="action-group">
         <label for="username">{{$.T "login.username"}}</label>
-        <input type="text" name="username" id="username" autocomplete="username" autofocus />
+        <input type="text" name="username" id="username" value="{{.Username}}" autocomplete="username" autofocus />
       </div>
 
       <div class="action-group">
@@ -23,12 +30,6 @@
         </label>
       </div>
       {{end}}
-
-      {{ with .GlobalData.Notice }}
-      <div class="alert" role="alert">
-	{{ .Text }}
-      </div>
-      {{ end }}
 
       <div class="action-group">
         <button type="submit" class="button-primary">{{$.T "login.signin"}}</button>

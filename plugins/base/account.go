@@ -22,8 +22,12 @@ func handleLogin(ctx *alborz.Context) error {
 		CanRememberMe bool
 		RememberDays  int
 		Add           bool
+		// Username is what was typed, kept when the form comes back
+		// refused: a rejected sign-in should not cost the address too.
+		Username string
 	}{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		Username:       username,
 		CanRememberMe:  ctx.Server.Visits.Remembers(),
 		// The label says how long the box keeps you signed in, read
 		// from the lifetime the credential cookie is actually given.
@@ -52,7 +56,13 @@ func handleLogin(ctx *alborz.Context) error {
 			}
 			var domainErr alborz.UnknownDomainError
 			if errors.As(err, &domainErr) {
-				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("notice.loginerror"), domainErr.Error())}
+				// Which domain, and in the reader's own language: the
+				// error's own words are English and are for the log.
+				text := ctx.T("login.needsdomain")
+				if domainErr.Domain != "" {
+					text = fmt.Sprintf(ctx.T("login.baddomain"), domainErr.Domain)
+				}
+				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: text}
 				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
 			}
 			var baseline alborz.BaselineError

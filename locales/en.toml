@@ -436,6 +436,7 @@
 "settings.light" = "Light"
 "settings.dark" = "Dark"
 "scheme.tolight" = "Switch to light"
+"scheme.pinned" = "This theme has one mode only."
 "scheme.todark" = "Switch to dark"
 "scheme.tosystem" = "Follow the system"
 "settings.firstday" = "First day of week"

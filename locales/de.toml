@@ -436,6 +436,7 @@
 "settings.light" = "Hell"
 "settings.dark" = "Dunkel"
 "scheme.tolight" = "Auf hell umschalten"
+"scheme.pinned" = "Dieses Theme hat nur einen Modus."
 "scheme.todark" = "Auf dunkel umschalten"
 "scheme.tosystem" = "Dem System folgen"
 "settings.firstday" = "Erster Wochentag"

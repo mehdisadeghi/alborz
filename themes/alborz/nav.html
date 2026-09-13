@@ -174,6 +174,17 @@
      scheme. The choice is a cookie this browser carries for as long as
      it is open, and alborz writes nothing down. */}}
 {{ define "scheme-toggle" }}
+{{/* A theme written for one side of the day has nothing for this
+     button to do. It stays where it is, dim, and says why when asked:
+     a title for a pointer, and a popover for a finger, which no
+     tooltip ever reaches. */}}
+{{ if .GlobalData.SchemePinned }}
+<div class="overflow scheme-toggle">
+  <button type="button" class="icon-button" aria-disabled="true" popovertarget="menu-scheme"
+          title="{{$.T "scheme.pinned"}}" aria-label="{{$.T "scheme.pinned"}}">{{ template "icon" "system" }}</button>
+  <div class="overflow-menu scheme-pinned" popover id="menu-scheme">{{$.T "scheme.pinned"}}</div>
+</div>
+{{ else }}
 {{ $scheme := .GlobalData.ColorScheme }}
 {{ $next := "light" }}{{ $icon := "system" }}{{ $label := $.T "scheme.tolight" }}
 {{ if eq $scheme "light" }}{{ $next = "dark" }}{{ $icon = "sun" }}{{ $label = $.T "scheme.todark" }}{{ end }}
@@ -184,4 +195,5 @@
   <button type="submit" name="scheme" value="{{$next}}" class="icon-button"
           title="{{$label}}" aria-label="{{$label}}">{{ template "icon" $icon }}</button>
 </form>
+{{ end }}
 {{ end }}

@@ -9,8 +9,8 @@ import (
 	"git.mehdix.org/alborz/locales"
 )
 
-// The settings name a segment by a key put together from its name, which no template check sees.
-func TestEverySegmentIsNamedInEveryLanguage(t *testing.T) {
+// The settings name a segment or an add-on by a key put together from its name, which no template check sees.
+func TestEverySegmentAndAddonIsNamedInEveryLanguage(t *testing.T) {
 	a := Alborz(t)
 	if len(a.Server.Status) == 0 {
 		t.Fatal("no segments mounted; the check is vacuous")
@@ -27,6 +27,11 @@ func TestEverySegmentIsNamedInEveryLanguage(t *testing.T) {
 		for _, s := range a.Server.Status {
 			if !strings.Contains(string(text), `"`+s.Name+`.status"`) {
 				t.Errorf("%s does not name the segment %s", name, s.Name)
+			}
+		}
+		for _, addon := range a.Server.Addons {
+			if !strings.Contains(string(text), `"`+addon.Name+`.addon"`) {
+				t.Errorf("%s does not name the add-on %s", name, addon.Name)
 			}
 		}
 	}

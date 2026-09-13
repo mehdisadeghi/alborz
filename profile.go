@@ -37,6 +37,8 @@ type Display struct {
 	Language      string
 	// Status names the status bar's segments turned on; the bar keeps the order they were mounted in.
 	Status []string
+	// Addons names the add-ons turned on.
+	Addons []string
 }
 
 const ProfileKey = "profile"

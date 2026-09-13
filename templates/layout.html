@@ -33,6 +33,10 @@
     <script defer src="{{call .GlobalData.Asset "htmx.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "helpers.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "keys.js"}}"></script>
+    {{/* In the head, which a swap keeps, so an add-on's script runs once per page load. */}}
+    {{- range .GlobalData.Scripts }}
+    <script defer src="{{.}}"></script>
+    {{- end }}
   </head>
   <body hx-boost="true" data-events="{{url "core.events"}}" data-worker="{{url "core.worker"}}">
     <a class="skip-link visually-hidden" href="#main">{{$.T "a11y.skip"}}</a>

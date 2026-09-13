@@ -53,6 +53,8 @@ type Server struct {
 
 	// Status are the segments the status bar offers, in the order it draws them.
 	Status []Segment
+	// Addons are the add-ons on offer.
+	Addons []Addon
 
 	// Suggest offers addresses to write to.
 	Suggest []func(*Context) []string

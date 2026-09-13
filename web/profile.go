@@ -231,6 +231,18 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 		}
 		return strings.Join(on, " · ")
 	})
+	add("settings.addons", func(p alborz.Profile) string {
+		var on []string
+		for _, a := range ctx.Server.Addons {
+			if slices.Contains(p.Display.Addons, a.Name) {
+				on = append(on, g.T(a.Name+".addon"))
+			}
+		}
+		if len(on) == 0 {
+			return g.T("profile.off")
+		}
+		return strings.Join(on, " · ")
+	})
 	add("settings.language", func(p alborz.Profile) string {
 		return or(locale.Name(p.Display.Language), "settings.langauto")
 	})

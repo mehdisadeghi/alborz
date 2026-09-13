@@ -1073,6 +1073,8 @@
 "calendar.status.none" = "امروز رویدادی نیست"
 "date-gregorian.status" = "تاریخ میلادی"
 "date-shcal.status" = "تاریخ هجری شمسی"
+"settings.addons" = "افزونه‌ها"
+"snow.addon" = "بگذار برف ببارد"
 
 
 "notifications.title" = "اعلان‌ها"

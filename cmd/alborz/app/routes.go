@@ -1,9 +1,11 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
+	motdweb "git.mehdix.org/alborz/addons/motd/web"
 	snowweb "git.mehdix.org/alborz/addons/snow/web"
 	authweb "git.mehdix.org/alborz/auth/web"
 	filtersweb "git.mehdix.org/alborz/filters/web"
@@ -15,8 +17,15 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
+// Options are the web's, and what the add-ons compiled in take.
+type Options struct {
+	web.Options
+	// MOTD is the directory of message-of-the-day collections; empty offers none.
+	MOTD string
+}
+
 // Mount composes the groups, from out to in, and mounts each feature on its own.
-func Mount(s *web.Server) error {
+func Mount(s *web.Server, options Options) error {
 	// DAV clients send their password with every request and hold no session.
 	dav := s.Group("", "dav")
 
@@ -49,19 +58,24 @@ func Mount(s *web.Server) error {
 	filtersweb.Mount(app.Group("/filters", "filters"))
 	web.StatusRoutes(app)
 	web.SearchRoutes(app)
-	// The add-ons compiled in, each under its own name.
+	// The add-ons compiled in, each under its own name; an operator offers the ones that need a setting.
 	snowweb.Mount(app.Group("/addons", "snow"))
+	if options.MOTD != "" {
+		if err := motdweb.Mount(app.Group("", "motd"), options.MOTD); err != nil {
+			return fmt.Errorf("-motd: %w", err)
+		}
+	}
 	web.Fallback(app)
 	return nil
 }
 
 // New serves alborz with its features mounted.
-func New(logger *log.Logger, options web.Options) (*web.Server, http.Handler, error) {
-	s, err := web.New(logger, options, mailweb.TemplateFuncs)
+func New(logger *log.Logger, options Options) (*web.Server, http.Handler, error) {
+	s, err := web.New(logger, options.Options, mailweb.TemplateFuncs)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := Mount(s); err != nil {
+	if err := Mount(s, options); err != nil {
 		s.Close()
 		return nil, nil, err
 	}

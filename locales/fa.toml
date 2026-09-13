@@ -1075,6 +1075,7 @@
 "date-shcal.status" = "تاریخ هجری شمسی"
 "settings.addons" = "افزونه‌ها"
 "snow.addon" = "بگذار برف ببارد"
+"motd.status" = "متن روز"
 
 
 "notifications.title" = "اعلان‌ها"

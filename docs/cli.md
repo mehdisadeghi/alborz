@@ -75,6 +75,11 @@ must exist (default: the working directory)
 **-project-url**: where the footer's project name links (default: unset, the
 name is printed as text)
 
+**-motd**: directory of message-of-the-day collections, one `.toml` file per
+language in the format of `addons/motd/example.toml`, offered as a status bar
+segment; a directory alborz cannot read stops it starting (default: unset, no
+segment)
+
 **-h**, **--help**: show help message and exit
 
 # SIGNALS

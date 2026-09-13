@@ -1,0 +1,40 @@
+# An example collection, and the whole of the format. Copy it into the
+# directory alborz's -motd flag names, under a name of your own ending in
+# .toml, and put your own texts in it. Nothing ships with alborz: the
+# texts are somebody's choice and somebody's licence, and a collection
+# says which below.
+#
+# One file is one book in one language. The language below is what
+# decides who sees it; a reader whose language has no collection is
+# shown the English one, or whatever there is. A file that does not
+# parse, or that names no language or holds no texts, stops alborz from
+# starting, as a second collection in one language does.
+
+title = "A short collection"
+author = "The author, as the page should print it"
+
+# Whoever the collection says to credit besides the author, and where
+# to point. A translator wins over a source when both are given.
+translator = ""
+translator_url = ""
+source = "Where these texts were taken from"
+source_url = "https://example.org/collection"
+
+license = "The terms the texts are under"
+language = "en"
+
+# One text a day, chosen by the date, so everyone reading one
+# deployment meets the same one and it changes at midnight. Number is
+# what the book itself calls the text, not its place in this list.
+[[texts]]
+number = 1
+text = """
+The first text, over as many lines as it has.
+A line break inside it is kept: the title shows it, the bar a slash."""
+
+# A text may point somewhere of its own, and then that is what the
+# credit links to.
+[[texts]]
+number = 2
+url = "https://example.org/collection/2"
+text = "A single line needs no block string."

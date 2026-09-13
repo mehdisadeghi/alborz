@@ -607,7 +607,10 @@ if (rail && window.EventSource) {
 // serviceworker.go.
 if ("serviceWorker" in navigator) {
 	window.addEventListener("load", () => {
-		navigator.serviceWorker.register("/sw.js").catch(() => {});
+		// updateViaCache none: the worker's own script is revalidated on
+		// every registration rather than kept for a day, so a new shell
+		// is picked up on the next visit instead of the next week.
+		navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
 	});
 }
 

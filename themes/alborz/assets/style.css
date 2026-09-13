@@ -89,7 +89,13 @@ select {
   /* Product foundations. Theme stylesheets only need to replace the
      palette below; spacing, type, shape, and component geometry stay
      identical across every visual theme. */
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Two halves and a join: --font-sans is composed of both rather than
+     written out twice, so a theme sets the Latin face it wants, the
+     Persian one, or both, and the rule that joins them is here and
+     nowhere else. */
+  --font-latin: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-fa: Vazirmatn, Sahel, "IRANSans", "SF Arabic", "Geeza Pro", "Noto Naskh Arabic";
+  --font-sans: var(--font-latin);
   --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
@@ -307,10 +313,11 @@ select {
 
 /* The system stack has no Persian face of its own, so Persian falls to
    whatever the platform picks. Name the good ones first: any that is
-   installed is used, and nothing is downloaded when none is. */
+   installed is used, and nothing is downloaded when none is. The
+   theme's own Latin face follows them, so a theme that changes the
+   type does not have to know this rule exists. */
 :root:lang(fa) {
-  --font-sans: Vazirmatn, Sahel, "IRANSans", "SF Arabic", "Geeza Pro",
-    "Segoe UI", "Noto Naskh Arabic", system-ui, sans-serif;
+  --font-sans: var(--font-fa), var(--font-latin);
 }
 
 /* Persian sits taller than Latin at the same size - the letters carry

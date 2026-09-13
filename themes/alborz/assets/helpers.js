@@ -692,6 +692,74 @@ window.addEventListener("pageshow", ev => {
 	}
 });
 
+// A request in flight says so. htmx marks the element it is acting on
+// with .htmx-request and nothing else; what a reader wants is one place
+// to look, so a thin bar crosses the top of the page and the region
+// being swapped is marked busy. Nothing appears for a request that
+// answers quickly - a flash on every click is noise - and the bar is a
+// script's own element, so a page without one costs nothing.
+const progressDelay = 150;
+let progressTimer = null;
+let inFlight = 0;
+
+// A boosted swap replaces the body and the bar with it, so the bar is
+// found or made at the moment it is needed rather than held onto.
+const progressBar = () => {
+	let bar = document.querySelector(".progress");
+	if (!bar) {
+		bar = document.createElement("div");
+		bar.className = "progress";
+		bar.hidden = true;
+		document.body.appendChild(bar);
+	}
+	return bar;
+};
+
+const showProgress = () => {
+	const progress = progressBar();
+	progress.hidden = false;
+	// The bar crawls while the request is out and finishes when it
+	// lands: a width that reached the end on its own would promise an
+	// arrival nobody has.
+	requestAnimationFrame(() => progress.classList.add("progress-running"));
+};
+
+const endProgress = () => {
+	clearTimeout(progressTimer);
+	progressTimer = null;
+	const progress = progressBar();
+	progress.classList.remove("progress-running");
+	progress.classList.add("progress-done");
+	setTimeout(() => {
+		progress.hidden = true;
+		progress.classList.remove("progress-done");
+	}, 200);
+};
+
+document.addEventListener("htmx:beforeRequest", ev => {
+	inFlight++;
+	const target = ev.detail && ev.detail.target;
+	if (target && target.setAttribute) {
+		target.setAttribute("aria-busy", "true");
+	}
+	if (progressTimer === null && progressBar().hidden) {
+		progressTimer = setTimeout(showProgress, progressDelay);
+	}
+});
+
+for (const event of ["htmx:afterRequest", "htmx:sendError", "htmx:timeout", "htmx:responseError"]) {
+	document.addEventListener(event, ev => {
+		inFlight = Math.max(0, inFlight - 1);
+		const target = ev.detail && ev.detail.target;
+		if (target && target.removeAttribute) {
+			target.removeAttribute("aria-busy");
+		}
+		if (inFlight === 0) {
+			endProgress();
+		}
+	});
+}
+
 // The offline page asks again by itself: the browser says when a
 // network is back, and a page whose only content is "no connection"
 // should not wait to be clicked. The link stays for a browser with no

@@ -735,6 +735,7 @@
 "a11y.toolbar" = "Acciones"
 "a11y.selectrow" = "Seleccionar mensaje"
 "a11y.selecttask" = "Seleccionar tarea"
+"a11y.selectevent" = "Seleccionar evento"
 "a11y.selectcontact" = "Seleccionar contacto"
 "settings.textsize" = "Tamaño del texto"
 "settings.textdefault" = "Predeterminado"

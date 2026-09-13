@@ -1,8 +1,13 @@
 {{$suffix := ""}}
 {{if eq .View "list"}}{{$suffix = "&view=list"}}{{end}}
 {{if and (eq .View "list") (eq .Span "month")}}{{$suffix = "&view=list&span=month"}}{{end}}
-{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
+{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
+  {{/* The agenda is a list like the others, so it acts on what is
+       checked; the grid has no rows to check. */}}
+  {{ with .SelectForm }}
+  {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" . "formaction" "/calendar/delete" "priority" 11) }}
+  {{ end }}
   <a hx-boost="false" class="icon-button" href="/calendar/export{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}" data-priority="10">{{ template "icon" "download" }}<span class="label">{{$.T "common.download"}}</span></a>
 </span>
 <div class="overflow">

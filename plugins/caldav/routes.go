@@ -265,6 +265,11 @@ type CalendarRenderData struct {
 	// holds and in what order, carried on to an event's page so that
 	// page can name the events either side of it.
 	ListQuery string
+	// SelectForm is the form a row's checkbox belongs to where the page
+	// has one; empty where it has none, and then no row offers a box
+	// and no column is kept for one. The agenda is a list like the
+	// others; the month grid is not a list at all.
+	SelectForm string
 
 	EventsForDate func(time.Time) []Occurrence
 	// CollectionFor is the calendar holding a row's event.
@@ -276,7 +281,10 @@ type CalendarRenderData struct {
 
 type CalendarDateRenderData struct {
 	alborz.BaseRenderData
-	ListQuery          string
+	ListQuery string
+	// SelectForm is empty here: a day is a page about a day, and the
+	// list it shows is the agenda's job to act on.
+	SelectForm         string
 	Time               time.Time
 	Calendars          []dav.Collection
 	Events             []Occurrence
@@ -630,6 +638,7 @@ func registerRoutes(p *plugin) {
 	remove := func(list string) func(*alborz.Context) error {
 		return dav.Handler(dav.Action[*caldav.Client]{Client: p.client, Do: dav.Delete[*caldav.Client], List: list})
 	}
+	POST("/calendar/delete", remove("/calendar"))
 	POST("/calendar/:path/delete", remove("/calendar"))
 	GET("/tasks", p.tasks)
 	GET("/tasks/:path", p.task)
@@ -776,6 +785,12 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		PrevTime:  mv.prevTime,
 		NextTime:  mv.nextTime,
 		ListQuery: monthQuery(ctx, mv),
+		SelectForm: func() string {
+			if mv.view == "list" {
+				return "events-form"
+			}
+			return ""
+		}(),
 
 		EventsForDate: func(when time.Time) []Occurrence {
 			return mv.on[mv.day(when)]

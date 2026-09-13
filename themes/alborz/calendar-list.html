@@ -9,6 +9,14 @@
   </aside>
 
   <div class="container">
+    <form id="events-form" method="post" hx-boost="false">
+      <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
+    </form>
+    {{/* Its own form: refreshing acts on the calendars, so it must not
+         carry the selection or be gated on one. */}}
+    <form id="refresh-form" method="post" action="/calendar/refresh{{ account "?" $.GlobalData.URLAccount }}" hx-boost="false">
+      <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
+    </form>
     <main id="main" tabindex="-1" class="list">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "calendar-header.html" . }}
@@ -32,8 +40,8 @@
       <section class="events">
         {{$base := .}}
         {{$any := false}}
-        <div class="event-grid" role="table">
-          {{ template "event-grid-header" (dict "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
+        <div class="event-grid list-grid{{ if .SelectForm }} event-grid-select{{ end }}" role="table">
+          {{ template "event-grid-header" (dict "form" .SelectForm "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
           {{range .Dates}}
           {{if and ($base.GlobalData.SameMonth . $base.Time) (not (.Before $base.Since))}}
           {{$events := call $base.EventsForDate .}}

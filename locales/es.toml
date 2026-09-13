@@ -1073,6 +1073,8 @@
 "calendar.status.none" = "Sin eventos hoy"
 "date-gregorian.status" = "Fecha gregoriana"
 "date-shcal.status" = "Fecha de la hégira solar"
+"settings.addons" = "Complementos"
+"snow.addon" = "Que nieve"
 
 
 "notifications.title" = "Notificaciones"

@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	snowweb "git.mehdix.org/alborz/addons/snow/web"
 	authweb "git.mehdix.org/alborz/auth/web"
 	filtersweb "git.mehdix.org/alborz/filters/web"
 	mailweb "git.mehdix.org/alborz/mail/web"
@@ -48,6 +49,8 @@ func Mount(s *web.Server) error {
 	filtersweb.Mount(app.Group("/filters", "filters"))
 	web.StatusRoutes(app)
 	web.SearchRoutes(app)
+	// The add-ons compiled in, each under its own name.
+	snowweb.Mount(app.Group("/addons", "snow"))
 	web.Fallback(app)
 	return nil
 }

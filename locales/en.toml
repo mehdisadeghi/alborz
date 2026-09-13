@@ -1073,6 +1073,8 @@
 "calendar.status.none" = "No events today"
 "date-gregorian.status" = "Gregorian date"
 "date-shcal.status" = "Solar Hijri date"
+"settings.addons" = "Add-ons"
+"snow.addon" = "Let it snow"
 
 
 "notifications.title" = "Notifications"

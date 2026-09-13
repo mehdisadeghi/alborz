@@ -24,6 +24,9 @@ type ProfileRenderData struct {
 	// Segments are the status bar's on offer, StatusOn those turned on.
 	Segments []string
 	StatusOn map[string]bool
+	// Addons are the add-ons on offer, AddonsOn those turned on.
+	Addons   []string
+	AddonsOn map[string]bool
 
 	Reading    alborz.Reading
 	Writing    alborz.Writing
@@ -51,7 +54,9 @@ func handleProfile(ctx *web.Context) error {
 			AlignByScript:  p.Display.AlignByScript,
 			TextSize:       p.Display.TextSize,
 			Segments:       segments(ctx),
-			StatusOn:       statusOn(p.Display.Status),
+			StatusOn:       turnedOn(p.Display.Status),
+			Addons:         addons(ctx),
+			AddonsOn:       turnedOn(p.Display.Addons),
 			Reading:        p.Reading,
 			Writing:        p.Writing,
 			MaxPerPage:     web.MaxMessagesPerPage,
@@ -122,15 +127,8 @@ func handleProfile(ctx *web.Context) error {
 		}
 	}
 	p.Display.AlignByScript = ctx.FormValue("align_script") != ""
-	// A segment this deployment does not offer was not on the page, so it stays as it was.
-	offered := segments(ctx)
-	status := slices.DeleteFunc(slices.Clone(p.Display.Status), func(name string) bool { return slices.Contains(offered, name) })
-	for _, name := range sent["status"] {
-		if slices.Contains(offered, name) && !slices.Contains(status, name) {
-			status = append(status, name)
-		}
-	}
-	p.Display.Status = status
+	p.Display.Status = chosen(p.Display.Status, segments(ctx), sent["status"])
+	p.Display.Addons = chosen(p.Display.Addons, addons(ctx), sent["addon"])
 	var lockAfter time.Duration
 	if v, ok := given("lock_minutes"); ok {
 		minutes, err := locale.ReadInt(v)
@@ -183,7 +181,26 @@ func segments(ctx *web.Context) []string {
 	return names
 }
 
-func statusOn(names []string) map[string]bool {
+// chosen are the names sent among those offered; one not offered was not on the page, so it stays as it was.
+func chosen(was, offered, sent []string) []string {
+	out := slices.DeleteFunc(slices.Clone(was), func(name string) bool { return slices.Contains(offered, name) })
+	for _, name := range sent {
+		if slices.Contains(offered, name) && !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func addons(ctx *web.Context) []string {
+	var names []string
+	for _, a := range ctx.Server.Addons {
+		names = append(names, a.Name)
+	}
+	return names
+}
+
+func turnedOn(names []string) map[string]bool {
 	on := map[string]bool{}
 	for _, name := range names {
 		on[name] = true

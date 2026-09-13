@@ -94,6 +94,8 @@ type GlobalRenderData struct {
 	// StatusSeconds is how often a page asks them again.
 	StatusStart, StatusEnd []string
 	StatusSeconds          int
+	// Scripts are what the add-ons turned on load.
+	Scripts []string
 
 	Lang string
 
@@ -310,6 +312,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 		global.StatusStart, global.StatusEnd = ctx.statusOn()
 		global.StatusSeconds = int(statusEvery / time.Second)
 		global.SearchBlocks = ctx.waitingBlocks()
+		global.Scripts = ctx.scripts()
 	}
 
 	return &BaseRenderData{GlobalData: global}

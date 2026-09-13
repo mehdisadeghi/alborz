@@ -114,6 +114,18 @@
           {{ end }}
         </fieldset>
 
+        {{ with .Addons }}
+        <fieldset class="action-group choices">
+          <legend>{{$.T "settings.addons"}}</legend>
+          {{ range . }}
+          <label for="addon-{{.}}" class="checkbox">
+            <input type="checkbox" name="addon" id="addon-{{.}}" value="{{.}}"{{ if index $.AddonsOn . }} checked{{ end }}>
+            {{$.T (printf "%s.addon" .)}}
+          </label>
+          {{ end }}
+        </fieldset>
+        {{ end }}
+
         {{ with .LockMinutes }}
         <div class="action-group">
           <label for="lock_minutes">{{$.T "settings.lockminutes"}}</label>

@@ -78,16 +78,6 @@
           </select>
           <p class="hint">{{$.T "settings.secondaryhint"}}</p>
         </div>
-        <div class="action-group">
-          <label for="language">{{$.T "settings.language"}}</label>
-          <select name="language" id="language">
-            <option value="" {{ if eq .Language "" }}selected{{ end }}>{{$.T "settings.langauto"}}</option>
-            <option value="en" {{ if eq .Language "en" }}selected{{ end }}>English</option>
-            <option value="fa" {{ if eq .Language "fa" }}selected{{ end }}>فارسی</option>
-            <option value="de" {{ if eq .Language "de" }}selected{{ end }}>Deutsch</option>
-            <option value="es" {{ if eq .Language "es" }}selected{{ end }}>Español</option>
-          </select>
-        </div>
 
         <div class="action-group">
           <label for="theme">{{$.T "settings.theme"}}</label>

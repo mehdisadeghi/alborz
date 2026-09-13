@@ -834,6 +834,14 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			ctx.Set("context", ctx)
 			ctx.installTiming()
 
+			// A language in the URL is a choice and is kept, so the
+			// next click does not fall back to the old one. Typing it
+			// mid-flow - on the login or add-account page, where there
+			// is no menu to reach for - is the whole point.
+			if lang := queryLanguage(ectx); lang != "" {
+				ctx.SetLanguage(lang)
+			}
+
 			// Whether anyone is signed in is a question about the bag,
 			// not about any one account: the browser names its visit
 			// and the visit holds what it has signed into.

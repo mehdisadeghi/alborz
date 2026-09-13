@@ -392,7 +392,6 @@
 "form.repeatuntil" = "The repeat ends before the event starts, or its last day is not a date."
 "calendar.time" = "Time"
 "calendar.event" = "Event"
-"settings.language" = "Language"
 "settings.langauto" = "Auto"
 "settings.fullname" = "Full name"
 "settings.identities" = "Send as"

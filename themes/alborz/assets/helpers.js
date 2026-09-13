@@ -516,6 +516,23 @@ document.addEventListener("htmx:beforeSwap", ev => {
 	}
 });
 
+// A swap replaces the body and nothing above it, so the language and
+// the direction - which live on the root element - would stay whatever
+// the page before said. Signing in from a page asked for in Persian
+// left an English page running right to left. The answer the server
+// sent carries both; take them from it.
+document.addEventListener("htmx:beforeSwap", ev => {
+	const answer = ev.detail && ev.detail.xhr && ev.detail.xhr.responseText;
+	if (!answer) {
+		return;
+	}
+	const root = /<html[^>]*\slang="([A-Za-z-]+)"[^>]*\sdir="(ltr|rtl)"/i.exec(answer);
+	if (root) {
+		document.documentElement.lang = root[1];
+		document.documentElement.dir = root[2];
+	}
+});
+
 // A request that does not come back must say so: htmx swaps nothing on
 // a failure and would otherwise leave a click looking like a click that
 // did nothing. The notice is the server's, written into every page and

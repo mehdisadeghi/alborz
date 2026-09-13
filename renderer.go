@@ -767,9 +767,26 @@ func (g GlobalRenderData) LanguageName() string {
 	return ""
 }
 
-// requestLanguage resolves the request's UI language: the cookie
-// choice wins, else the Accept-Language negotiation.
+// queryLanguage is the language a URL names, empty when it names none
+// we have. It outranks the cookie and Accept-Language: it is how one
+// page is handed to somebody who reads another language, and how a
+// look at the Persian layout is an address rather than a settings
+// visit. One spelling only, "lang", which is what the html attribute,
+// Content-Language and Accept-Language all call it; a second would be
+// a second thing to keep right.
+func queryLanguage(ectx echo.Context) string {
+	if v := ectx.QueryParam("lang"); IsLanguage(v) {
+		return v
+	}
+	return ""
+}
+
+// requestLanguage resolves the request's UI language: a language in
+// the URL wins, then the cookie choice, else Accept-Language.
 func requestLanguage(ectx echo.Context) string {
+	if v := queryLanguage(ectx); v != "" {
+		return v
+	}
 	if c, err := ectx.Cookie(langCookieName); err == nil && IsLanguage(c.Value) {
 		return c.Value
 	}

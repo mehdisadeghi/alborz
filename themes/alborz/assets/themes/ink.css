@@ -122,8 +122,15 @@
   --alert-border: #fff;
 }
 
-body {
-  font-family: Georgia, "Times New Roman", serif;
+/* Both halves of the stack: --font-sans is composed of the Persian list
+   and the Latin one, and a serif theme should read as a serif in
+   Persian too - naskh is the answer there, not Georgia, which has no
+   Persian at all. Whichever of these is installed is used; the sans
+   list closes it so a machine with none still shows Persian. */
+:root:root {
+  --font-latin: Georgia, "Times New Roman", serif;
+  --font-fa: "Noto Naskh Arabic", Amiri, "Scheherazade New", "Geeza Pro",
+    "Vazirmatn", Sahel;
 }
 
 input[type="text"],

@@ -39,7 +39,7 @@ type App struct {
 }
 
 type config struct {
-	options   web.Options
+	options   app.Options
 	imap      *IMAPServer
 	upstreams []string
 	selfDAV   bool
@@ -99,17 +99,20 @@ func LoginIdle(d time.Duration) Option { return func(c *config) { c.options.Logi
 // ReminderTick paces the round that fires event reminders.
 func ReminderTick(d time.Duration) Option { return func(c *config) { c.options.ReminderTick = d } }
 
+// MOTD offers the message of the day from the collections in dir.
+func MOTD(dir string) Option { return func(c *config) { c.options.MOTD = dir } }
+
 // Guarded carries the requests to servers outsiders name.
 func Guarded(rt http.RoundTripper) Option { return func(c *config) { c.options.Guarded = rt } }
 
 // Alborz serves alborz until the test ends.
 func Alborz(t *testing.T, opts ...Option) *App {
 	t.Helper()
-	c := config{options: web.Options{
+	c := config{options: app.Options{Options: web.Options{
 		Options: alborz.Options{LoginKey: loginKey, Cache: true},
 		// An action that sends the reader elsewhere says what it did.
 		StrictNotices: true,
-	}}
+	}}}
 	for _, o := range opts {
 		o(&c)
 	}

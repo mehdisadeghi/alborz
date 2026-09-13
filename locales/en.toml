@@ -1075,6 +1075,7 @@
 "date-shcal.status" = "Solar Hijri date"
 "settings.addons" = "Add-ons"
 "snow.addon" = "Let it snow"
+"motd.status" = "Text of the day"
 
 
 "notifications.title" = "Notifications"

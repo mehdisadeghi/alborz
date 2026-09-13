@@ -1075,6 +1075,7 @@
 "date-shcal.status" = "Sonnen-Hidschri-Datum"
 "settings.addons" = "Erweiterungen"
 "snow.addon" = "Es schneien lassen"
+"motd.status" = "Text des Tages"
 
 
 "notifications.title" = "Benachrichtigungen"

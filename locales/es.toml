@@ -1075,6 +1075,7 @@
 "date-shcal.status" = "Fecha de la hégira solar"
 "settings.addons" = "Complementos"
 "snow.addon" = "Que nieve"
+"motd.status" = "Texto del día"
 
 
 "notifications.title" = "Notificaciones"

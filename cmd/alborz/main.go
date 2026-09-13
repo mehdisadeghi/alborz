@@ -23,7 +23,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/cmd/alborz/app"
-	"git.mehdix.org/alborz/web"
 )
 
 // serveProfiles listens only locally: a heap profile holds passwords and mail.
@@ -74,7 +73,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 		addr        string
 		profileAddr string
 		proxies     string
-		options     web.Options
+		options     app.Options
 	)
 	fs.StringVar(&addr, "addr", ":1323", "listening address")
 	fs.StringVar(&profileAddr, "pprof", "",
@@ -94,6 +93,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 		"directory keeping alborz.db: remembered logins and settings, sealed under the login key, and the calendars and address books kept here")
 	fs.StringVar(&options.ProjectURL, "project-url", "",
 		"where the footer's project name links; unset prints the name alone")
+	fs.StringVar(&options.MOTD, "motd", "",
+		"directory of message-of-the-day collections, in the format of addons/motd/example.toml, offered as a status bar segment; unset offers none")
 	fs.Usage = func() {
 		fmt.Fprint(fs.Output(), `usage: alborz [options...] <upstreams...>
 

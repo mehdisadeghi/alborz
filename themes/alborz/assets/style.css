@@ -3241,22 +3241,31 @@ aside details.folder-branch details.folder-branch > ul > li {
    its own track, so the owner never trails a summary of random length. */
 .event-grid {
   display: grid;
-  grid-template-columns: var(--star-track) 6.5rem 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
 
 /* The agenda is a list like the others, so where it offers selection it
    keeps the same first column the mail and task lists do. */
 .event-grid-select {
-  grid-template-columns: var(--control-height) var(--star-track) 6.5rem 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
 
 /* Banded by day, the date is the band's and the column goes. */
 .event-grid-grouped {
-  grid-template-columns: var(--star-track) 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--star-track) 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
 
 .event-grid-select.event-grid-grouped {
-  grid-template-columns: var(--control-height) var(--star-track) 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--control-height) var(--star-track) 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+}
+
+/* Half a laptop screen: the calendar track stops growing to its cap
+   before the summary is served, and the two share what is left. */
+@media (width < 60rem) {
+  .event-grid { grid-template-columns: var(--star-track) 6.5rem 5rem minmax(0, 3fr) minmax(6rem, 1fr); }
+  .event-grid-select { grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(0, 3fr) minmax(6rem, 1fr); }
+  .event-grid-grouped { grid-template-columns: var(--star-track) 5rem minmax(0, 3fr) minmax(6rem, 1fr); }
+  .event-grid-select.event-grid-grouped { grid-template-columns: var(--control-height) var(--star-track) 5rem minmax(0, 3fr) minmax(6rem, 1fr); }
 }
 
 .event-date { color: var(--fg-muted); }

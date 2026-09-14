@@ -11,22 +11,29 @@ Multi-account, RTL-ready mail user agent with calendars, contacts,
 tasks and sieve filters in a single binary.
 
 It speaks IMAP, SMTP, ManageSieve, CalDAV and CardDAV to the servers
-you already have, with no database and no script required.
+you already have. Settings live on the servers where they can; one
+file of its own holds remembered logins and what a server cannot keep.
 
 ## What it does
 
 - serves several mail domains, with logins limited to those domains
-- an account switcher and a merged view across accounts
-- full-text search, server-side sorting, threads and a starred view
-- a sieve filter editor
-- calendars and tasks with month, date and list views; contacts with
-  photos; collections created, edited and deleted in place
+- an account switcher and a merged view across accounts, on every
+  section
+- full-text search, server-side sorting and threads; a star in seven
+  colours on messages, contacts, events and tasks, with starred and
+  colour views on every list
+- a sieve filter editor, and rules, forwarding and auto-replies
+  composed as scripts
+- calendars with month, day and agenda views, tasks, and contacts
+  with photos, groups and categories; collections created, edited and
+  deleted in place; feeds subscribed by address
 - named signatures and identities per account, chosen per message
-- mail exported as .eml and mbox
+- mail imported and exported as mbox, messages as .eml
 - English, German, Persian and Spanish, with the Solar Hijri calendar
   beside the Gregorian one
-- responsive, dark scheme, theme variants, every page usable without a
-  script
+- responsive, light and dark schemes, theme variants, installable on a
+  phone; every page works without a script and takes htmx as an
+  enhancement
 - new mail pushed by IMAP IDLE, DAV traffic cached and revalidated by
   ctag
 
@@ -42,7 +49,7 @@ Beyond the five protocols above:
 | 8058, 2369, 2919 | One-Click unsubscribe, list headers |
 | 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA for settings, SORT and THREAD, special-use folders, CONDSTORE |
 | 5228, 5804, 5230, 6609, 5260 | Sieve scripts over ManageSieve; rules, forwarding and auto-replies composed as scripts |
-| 5545 | iCalendar with generated VTIMEZONE, recurrence expansion, alarms; calendar colours through Apple's property |
+| 5545, 7986, 7529 | iCalendar with generated VTIMEZONE, recurrence expansion, alarms; COLOR on events and tasks; RSCALE for rules counted in another calendar; calendar colours through Apple's property |
 | 3676, 5322 | format=flowed on send, References, Reply-To, signature delimiters |
 | 6350, 6186 | vCard, SRV discovery |
 

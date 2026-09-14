@@ -10,41 +10,44 @@ SummitPost.*
 Multi-account, RTL-ready mail user agent with calendars, contacts,
 tasks and sieve filters in a single binary.
 
-It speaks IMAP, SMTP, ManageSieve, CalDAV and CardDAV to the servers
-you already have, with no database and no script required.
+It works with your existing IMAP, SMTP, ManageSieve, CalDAV and
+CardDAV servers. Settings are stored on those servers where the
+protocol allows it; a local database holds remembered sign-ins and
+anything a server cannot store.
 
-## What it does
+## Features
 
-- serves several mail domains, with logins limited to those domains
-- an account switcher and a merged view across accounts
-- full-text search, server-side sorting, threads and a starred view
-- a sieve filter editor
-- calendars and tasks with month, date and list views; contacts with
-  photos; collections created, edited and deleted in place
-- named signatures and identities per account, chosen per message
-- mail exported as .eml and mbox
-- English, German, Persian and Spanish, with the Solar Hijri calendar
-  beside the Gregorian one
-- responsive, dark scheme, theme variants, every page usable without a
-  script
-- new mail pushed by IMAP IDLE, DAV traffic cached and revalidated by
-  ctag
+- Multiple accounts with unified views
+- CalDAV calendars: month, day and agenda views
+- CalDAV tasks (VTODO)
+- CardDAV contacts with photos, groups, categories
+- iCalendar feed subscriptions
+- Sieve filters: rules, forwarding, vacation
+- Per-account identities and signatures
+- Coloured stars on mail, contacts, events, tasks
+- Responsive PWA with light and dark themes
+- RTL; English, German, Persian and Spanish
+- Solar Hijri calendar alongside Gregorian
+- mbox and .eml import and export
+- Multiple mail domains per instance
+- No-JavaScript baseline
 
-## Standards implemented
+## Standards
 
-Beyond the five protocols above:
+In addition to the protocols above:
 
-| RFC | What for |
+| RFC | Scope |
 |---|---|
-| 5546, 6047 | iTIP and iMIP: meeting requests shown, answered, filed and sent |
-| 3156, Autocrypt, WKD | PGP/MIME signature verification; keys from the sender's domain, headers and attachments |
-| 8601 | Authentication-Results, read from a named trusted server only |
-| 8058, 2369, 2919 | One-Click unsubscribe, list headers |
-| 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA for settings, SORT and THREAD, special-use folders, CONDSTORE |
-| 5228, 5804, 5230, 6609, 5260 | Sieve scripts over ManageSieve; rules, forwarding and auto-replies composed as scripts |
-| 5545 | iCalendar with generated VTIMEZONE, recurrence expansion, alarms; calendar colours through Apple's property |
-| 3676, 5322 | format=flowed on send, References, Reply-To, signature delimiters |
-| 6350, 6186 | vCard, SRV discovery |
+| 5546, 6047 | iTIP and iMIP meeting requests: display, reply, file and send |
+| 3156, Autocrypt, WKD | PGP/MIME signature verification; key discovery |
+| 8601 | Authentication-Results from a trusted server only |
+| 8058, 2369, 2919 | One-click unsubscribe, list headers |
+| 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA, SORT and THREAD, special-use folders, CONDSTORE |
+| 4315, 5819, 6851 | UIDPLUS, LIST-STATUS, MOVE |
+| 5228, 5804, 5230, 6609, 5260 | Sieve and ManageSieve: rules, forwarding and vacation replies |
+| 5545, 7986, 7529 | iCalendar: VTIMEZONE generation, recurrence, alarms, COLOR, RSCALE |
+| 3676, 5322 | format=flowed, References, Reply-To, signature delimiter |
+| 6350, 6186 | vCard, SRV service discovery |
 
 ## Install
 

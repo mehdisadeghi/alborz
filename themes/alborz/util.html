@@ -766,7 +766,9 @@
      dict: kind ("mail" "dav" "rows") path urlaccount accounts
      (usernames) all (the merged entry's label, none where the section
      has no merged view) new (dict href label active) data (the kind's
-     own: for "rows", a map from account to its RailRow list). */}}
+     own: for "rows", a map from account to its RailRow list) home
+     (dict href label active: a page of the section outside every
+     account, on top in both counts). */}}
 {{/* The application's own name and mark. Its colours are its own -
      the badge is a picture, not an icon, so no theme can wash it out -
      and the word beside it is dim: it names the place you are in, it is
@@ -783,6 +785,7 @@
        application's name; on a wide screen the header carries it and
        this one stands down. */}}
   <div class="rail-brand">{{ template "brand" (dict "g" .g) }}</div>
+  {{ with .home }}<a class="aside-account aside-all{{ if .active }} active{{ end }}" href="{{.href}}">{{.label}}</a>{{ end }}
   {{ if gt (len .accounts) 1 }}
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-merged" .data }}

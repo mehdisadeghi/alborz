@@ -1,6 +1,8 @@
+{{/* Any view is the agenda: the plain list, or the list narrowed to a
+     star; the pager and Today keep whichever it is. */}}
 {{$suffix := ""}}
-{{if eq .View "list"}}{{$suffix = "&view=list"}}{{end}}
-{{if and (eq .View "list") (eq .Span "month")}}{{$suffix = "&view=list&span=month"}}{{end}}
+{{with .View}}{{$suffix = printf "&view=%s" .}}{{end}}
+{{if and .View (eq .Span "month")}}{{$suffix = printf "%s&span=month" $suffix}}{{end}}
 {{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
   {{/* The agenda is a list like the others, so it acts on what is
@@ -33,9 +35,9 @@
     </div>
     <div class="actions-pagination" data-priority="22">
       {{ template "toggle" (dict "items" (tuple
-         (dict "label" ($.T "calendar.month") "icon" "month" "current" (ne .View "list")
+         (dict "label" ($.T "calendar.month") "icon" "month" "current" (not .View)
                "href" (printf "?month=%s" .Page))
-         (dict "label" ($.T "calendar.list") "icon" "list" "current" (eq .View "list")
+         (dict "label" ($.T "calendar.list") "icon" "list" "current" (ne .View "")
                "href" (printf "?month=%s&view=list" .Page)))) }}
     </div>
 {{ template "toolbar-foot" }}

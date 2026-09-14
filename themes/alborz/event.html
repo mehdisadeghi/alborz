@@ -33,9 +33,26 @@
 
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
 
+      {{ if not .Event.ReadOnly }}
+      <form id="event-color-form" method="post" hx-boost="false">
+        <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+      </form>
+      {{ end }}
       <section class="details">
         {{ if .Event.Data.Events }}{{$event := index .Event.Data.Events 0}}
-        <h1>{{$event.Props.Text "SUMMARY"}}</h1>
+        <div class="subject-row">
+          <h1>{{$event.Props.Text "SUMMARY"}}</h1>
+          {{/* One star for this event, the same control the message page
+               has; a feed's event is read where it is and takes none. */}}
+          {{ if not .Event.ReadOnly }}
+          {{ template "flag-menu" (dict
+             "toggle" true
+             "form" "event-color-form"
+             "action" (printf "%s/color%s" .Event.URL $acct)
+             "current" .Star
+             "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
+          {{ end }}
+        </div>
         <table>
           <tr>
             <th scope="row">{{$.T "calendar.startdate"}}</th>

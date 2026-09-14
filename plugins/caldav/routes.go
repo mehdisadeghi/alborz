@@ -276,7 +276,10 @@ type CalendarRenderData struct {
 	CollectionFor func(account, path string) dav.Collection
 	// OwnerLabel names a row's calendar the way ownerLabel does.
 	OwnerLabel func(account, path string) string
-	Sub        func(a, b int) int
+	// StarView is the star the agenda is narrowed to, for the rail;
+	// empty for the grid and the plain agenda.
+	StarView string
+	Sub      func(a, b int) int
 }
 
 type CalendarDateRenderData struct {
@@ -300,6 +303,7 @@ type EventRenderData struct {
 	Rail       dav.Rail
 	Calendar   *dav.Collection
 	Event      CalendarObject
+	Star       string
 	Neighbours dav.Neighbours
 	// Repeats says the event's rule in words, or nothing, and
 	// RepeatsUntil its last day, kept apart to be read left to right.
@@ -357,7 +361,6 @@ type TasksRenderData struct {
 	Calendars []dav.Collection
 	Tasks     []TaskRow
 	View      string
-	Filters   []alborz.Filter
 
 	// True when every account shows completed tasks; the single aside
 	// toggle writes all of them.
@@ -380,6 +383,8 @@ type TaskRow struct {
 	// the list already fetched. Zero where the writer left it out.
 	Added     time.Time
 	Completed bool
+	// Star is the colour the task is marked in, or empty.
+	Star string
 	// Href is the task's own page with the list carried along, so that
 	// page can name the tasks either side of it.
 	Href string
@@ -390,6 +395,7 @@ type TaskRenderData struct {
 	Rail       dav.Rail
 	Calendar   *dav.Collection
 	Task       TaskObject
+	Star       string
 	Neighbours dav.Neighbours
 }
 
@@ -584,7 +590,7 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 			Props: []string{"VERSION"},
 			Comps: []caldav.CalendarCompRequest{{
 				Name:  "VEVENT",
-				Props: []string{"SUMMARY", "UID", "DTSTART", "DTEND", "DURATION"},
+				Props: []string{"SUMMARY", "UID", "DTSTART", "DTEND", "DURATION", "COLOR"},
 			}},
 			Expand: &caldav.CalendarExpandRequest{Start: start, End: end},
 		},
@@ -669,6 +675,8 @@ func registerRoutes(p *plugin) {
 	POST("/tasks/:path/note", p.note(getFirstTodo, "/tasks"))
 	POST("/calendar/:path/note", p.note(firstEvent, "/calendar"))
 	POST("/tasks/:path/complete", p.complete)
+	POST("/tasks/:path/color", p.color(getFirstTodo, "/tasks"))
+	POST("/calendar/:path/color", p.color(firstEvent, "/calendar"))
 }
 
 // A line added to what the object already says, from its own page.
@@ -760,7 +768,7 @@ type monthView struct {
 func (mv monthView) shown() []Occurrence {
 	var out []Occurrence
 	for _, date := range mv.dates {
-		if mv.view == "list" && (date.Month() != mv.start.Month() || date.Before(mv.since)) {
+		if mv.view != "" && (date.Month() != mv.start.Month() || date.Before(mv.since)) {
 			continue
 		}
 		out = append(out, mv.on[mv.day(date)]...)
@@ -774,7 +782,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		return err
 	}
 	template := "calendar.html"
-	if mv.view == "list" {
+	if mv.view != "" {
 		template = "calendar-list.html"
 	}
 	collection := dav.Labels(mv.calendars)
@@ -798,10 +806,16 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		NextTime:  mv.nextTime,
 		ListQuery: monthQuery(ctx, mv),
 		SelectForm: func() string {
-			if mv.view == "list" {
+			if mv.view != "" {
 				return "events-form"
 			}
 			return ""
+		}(),
+		StarView: func() string {
+			if mv.view == "list" {
+				return ""
+			}
+			return mv.view
 		}(),
 
 		EventsForDate: func(when time.Time) []Occurrence {
@@ -836,8 +850,10 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	}
 	firstDayOfWeek := ctx.Reading().FirstDayOfWeek
 
+	// "list" is the agenda; a star view is the agenda narrowed to the
+	// events marked so, since a grid cannot be narrowed and stay a month.
 	view := ctx.QueryParam("view")
-	if view != "" && view != "list" {
+	if view != "list" && !validStarView(view) {
 		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid view")
 	}
 
@@ -925,6 +941,9 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	eventMap := make(map[time.Time][]Occurrence)
 	for _, ev := range events {
 		for _, oc := range occurrences(ev, loc, queryStart, queryEnd) {
+			if view != "list" && !starMatches(oc.Star(), view) {
+				continue
+			}
 			var first, last time.Time
 			if oc.AllDay() {
 				first = writtenDay(oc.Start)
@@ -1179,6 +1198,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 					"DTSTART",
 					"DTEND",
 					"DURATION",
+					"COLOR",
 				},
 			}},
 		},
@@ -1214,6 +1234,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Event:          CalendarObject{CalendarObject: event},
+		Star:           componentColor(vevents[0].Component),
 		Neighbours:     dav.Around(items, eventKey(path, "", false)),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborzbase.UserLocation(ctx))
@@ -1577,6 +1598,7 @@ type TaskList struct {
 	// so, since the aside carries one toggle for the pooled page.
 	ShowCompleted bool
 	Query         string
+	View          string
 	Sorting       dav.Sorting
 }
 
@@ -1615,7 +1637,13 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	}
 
 	search := ctx.QueryParam("query")
-	params := dav.ListParams(ctx, "account", "cal", "query", "sort", "dir")
+	// A star is a view, the way the mail rail's colours are: one
+	// parameter, and the list is the search it names.
+	view := ctx.QueryParam("view")
+	if !validStarView(view) {
+		return TaskList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
+	}
+	params := dav.ListParams(ctx, "account", "cal", "query", "view", "sort", "dir")
 
 	query, openQueries := taskQueries()
 
@@ -1657,6 +1685,9 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 			if status == "COMPLETED" && !completed[result.Site.Collection.Account] {
 				continue
 			}
+			if !starMatches(componentColor(todo), view) {
+				continue
+			}
 			if search != "" {
 				summary, _ := todo.Props.Text("SUMMARY")
 				description, _ := todo.Props.Text("DESCRIPTION")
@@ -1685,6 +1716,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 		Calendars:     calendarInfos,
 		ShowCompleted: showCompleted,
 		Query:         search,
+		View:          view,
 		Sorting:       sorting,
 	}, nil
 }
@@ -1699,6 +1731,7 @@ var taskColumns = []dav.Column[TaskRow]{
 		}
 		return "0"
 	}},
+	{Key: alborzbase.ViewStarred, Value: func(row TaskRow) string { return dav.StarredFirst(row.Star) }},
 	{Key: "account", Value: func(row TaskRow) string { return strings.ToLower(row.Task.Account) }},
 	{Key: "calendar", Value: func(row TaskRow) string { return strings.ToLower(row.Calendar.Name) }},
 	{Key: "due", Value: func(row TaskRow) string { return dav.When(row.Due) }},
@@ -1712,6 +1745,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
+		View:           list.View,
 		Calendars:      list.Calendars,
 		Tasks:          list.Rows,
 		ShowCompleted:  list.ShowCompleted,
@@ -1750,6 +1784,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 					"UID",
 					"DUE",
 					"STATUS",
+					"COLOR",
 				},
 			}},
 		},
@@ -1788,6 +1823,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
+		Star:           componentColor(getFirstTodo(task.Data)),
 		Neighbours:     dav.Around(list.Items, path),
 	})
 }
@@ -1955,6 +1991,21 @@ func putObject(ctx *alborz.Context, to dav.Ref[*caldav.Client], name string, was
 	return to.Client.PutCalendarObject(ctx.Request().Context(), at, cal)
 }
 
+// color marks events or tasks, from their own page or from their row:
+// the star the mail and contact pages have, kept as COLOR (RFC 7986
+// 5.9) on the component itself.
+func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, list string) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		return dav.Star(ctx, p.client, list, func(ctx *alborz.Context, ref dav.Ref[*caldav.Client], name string) (was string, err error) {
+			_, err = changeComponent(ctx, ref, comp, func(target *ical.Component) {
+				was = componentColor(target)
+				setComponentColor(target, name)
+			})
+			return was, err
+		})
+	}
+}
+
 // complete marks tasks done or open again: the one a row or a page
 // names, or the rows the list had checked.
 func (p *plugin) complete(ctx *alborz.Context) error {
@@ -1997,7 +2048,7 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			cal.Account = ref.Account
 			// The list's shape is in the address the form returns to; the
 			// write's own URL says nothing about sort or search.
-			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), dav.ListParamsIn(next, "account", "cal", "query", "sort", "dir"))
+			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), dav.ListParamsIn(next, "account", "cal", "query", "view", "sort", "dir"))
 			data := &TaskRowRenderData{BaseRenderData: *alborz.NewBaseRenderData(ctx), Row: row, Next: next}
 			data.G = &data.BaseRenderData
 			return ctx.Render(http.StatusOK, "task-row", data)
@@ -2039,6 +2090,7 @@ func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location
 		Due:       due,
 		Added:     added,
 		Completed: status == "COMPLETED",
+		Star:      componentColor(todo),
 	}
 }
 

@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/calendar" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "aside.all") "new" (dict "href" (printf "/calendars/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.newcalendar")) "follow" (dict "href" (printf "/calendars/subscribe?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.subscribe")) "data" (dict "keep" (printf "&date=%s" (.Time.Format "2006-01-02")) "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar/date" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "shown" ($.T "common.shown") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
+    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/calendar" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "aside.all") "new" (dict "href" (printf "/calendars/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.newcalendar")) "follow" (dict "href" (printf "/calendars/subscribe?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.subscribe")) "data" (dict "keep" (printf "&date=%s" (.Time.Format "2006-01-02")) "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar/date" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "shown" ($.T "common.shown") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI) "views" (dict "path" "/calendar" "view" "" "q" (account "?" .GlobalData.URLAccount))) }}
   </aside>
 
   <div class="container">
@@ -18,7 +18,9 @@
 
       <section class="events">
         {{$base := .}}
-        <div class="event-grid" role="table">
+        {{/* A day is one band: its date is the title's, so the rows
+             drop the column the agenda's bands drop. */}}
+        <div class="event-grid list-grid event-grid-grouped" role="table">
           {{if .Events}}
           {{ template "event-grid-header" (dict "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
           {{ template "event-rows" (dict "events" .Events "base" $base) }}

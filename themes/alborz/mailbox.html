@@ -30,7 +30,7 @@
         {{ template "messages-header.html" . }}
       </section>
       {{/* Where you are, on every page that has a where. */}}
-      {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb "class" "narrow-crumb") }}
+      {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb) }}
 
       {{/* What the list is narrowed by, which the crumb does not say:
            a search, or the sender a reader clicked. Coming back to a

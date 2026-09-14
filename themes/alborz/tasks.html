@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/tasks" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?for=tasks&next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "tasks.newlist")) "data" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
+    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/tasks" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?for=tasks&next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "tasks.newlist")) "data" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI) "views" (dict "path" "/tasks" "view" .View "q" (account "?" .GlobalData.URLAccount))) }}
     <form method="post" action="/tasks/show-completed" class="aside-filter">
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
       <label class="show-completed-toggle">
@@ -54,6 +54,7 @@
             <div class="overflow sort-overflow" data-priority="30">
               <button type="button" class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}" popovertarget="menu-sort">{{ template "sort-mark" $ }}</button>
               <div class="overflow-menu" popover id="menu-sort">
+                {{template "sort-th" (dict "label" ($.T "sort.starred") "key" "starred" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}
                 {{template "sort-th" (dict "label" ($.T "tasks.status") "key" "status" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}
                 {{template "sort-th" (dict "label" ($.T "tasks.summary") "key" "summary" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}
                 {{template "sort-th" (dict "label" ($.T "common.calendar") "key" "calendar" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}
@@ -72,6 +73,10 @@
           {{if .Tasks}}
           <div class="task-header-row list-row" role="row">
             <div class="list-header list-checkbox" role="columnheader"></div>
+            <div class="list-header list-star" role="columnheader" aria-sort="{{ sortaria $explicit $.Sort "starred" $.SortDir }}">
+              {{template "sort-th" (dict "label" "★" "key" "starred" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "idle" "☆" "class" "flag-sort")}}
+              <span class="visually-hidden">{{$.T "sort.starred"}}</span>
+            </div>
             <div class="list-header task-list-status" role="columnheader" aria-sort="{{ sortaria $explicit $.Sort "status" $.SortDir }}">
               {{template "sort-th" (dict "label" "✓" "key" "status" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "status-sort")}}
               <span class="visually-hidden">{{$.T "tasks.status"}}</span>

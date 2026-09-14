@@ -14,16 +14,6 @@
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "newhref" (printf "/contacts/create%s" $acct) "newlabel" ($.T "contacts.new")) }}
         <span class="icon-group">
-          {{/* One star for this contact, the same control the message
-               page has: a click sets and clears, the chevron holds the
-               seven. */}}
-          {{ template "flag-menu" (dict
-             "priority" 12
-             "toggle" true
-             "form" "contact-color-form"
-             "action" (printf "%s/color%s" .AddressObject.URL $acct)
-             "current" .AddressObject.Color
-             "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
           <a class="icon-button" href="{{.AddressObject.URL}}/edit{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.AddressObject.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.AddressObject.URL}}/raw?save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".vcf" }}" aria-label="{{ printf ($.T "common.saveas") ".vcf" }}">{{ template "icon" "download" }}</a>
@@ -43,7 +33,18 @@
         {{if $photo}}
         <img class="contact-photo" src="{{photodatauri $photo}}" alt="">
         {{end}}
-        <h1>{{.AddressObject.DisplayName}}</h1>
+        <div class="subject-row">
+          <h1>{{.AddressObject.DisplayName}}</h1>
+          {{/* One star for this contact, the same control the message
+               page has: a click sets and clears, the chevron holds the
+               seven. */}}
+          {{ template "flag-menu" (dict
+             "toggle" true
+             "form" "contact-color-form"
+             "action" (printf "%s/color%s" .AddressObject.URL $acct)
+             "current" .AddressObject.Color
+             "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
+        </div>
         <dl>
           {{with .AddressObject.Card.PreferredValue "NICKNAME"}}
           <dt>{{$.T "contacts.nickname"}}</dt>

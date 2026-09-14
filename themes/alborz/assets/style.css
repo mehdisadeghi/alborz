@@ -184,6 +184,9 @@ select {
   /* The first column of the message and contact grids: the row's
      checkbox and the toolbar's select-all stand in the same track. */
   --check-track: 2.2rem;
+  /* The star column of the contact, task and event grids: the button's
+     box and the cell's padding either side. */
+  --star-track: 3rem;
 
   --surface: var(--bg);
   /* A menu floats over content it must not let through, which a page
@@ -1463,7 +1466,8 @@ main.create-update .actions > *:not(:last-child) {
 
 /* The header's star is the same mark as the rows', drawn at the same
    size on the same centre; only its ink follows the header. */
-.list-header.message-list-flags .flag-sort {
+.list-header.message-list-flags .flag-sort,
+.list-header.list-star .flag-sort {
   width: var(--control-height);
   justify-content: center;
   font-size: 13pt;
@@ -1472,18 +1476,24 @@ main.create-update .actions > *:not(:last-child) {
 
 /* Sorted, the arrow trails outside the star's track: centring the pair
    would slide the star out from under the ones in the rows. */
-.list-header.message-list-flags .flag-sort:has(.sort-arrow) {
+.list-header.message-list-flags .flag-sort:has(.sort-arrow),
+.list-header.list-star .flag-sort:has(.sort-arrow) {
   width: auto;
   justify-content: flex-start;
 }
 
-.list-header.message-list-flags .flag-sort .sort-label {
+.list-header.message-list-flags .flag-sort .sort-label,
+.list-header.list-star .flag-sort .sort-label {
   display: inline-block;
   width: var(--control-height);
   text-align: center;
 }
 
-.message-list-flags .flag-button {
+/* The star column of every table: mail's carries the other marks too,
+   the rest hold the star alone, and all draw it the same way on the
+   same centre. */
+.message-list-flags .flag-button,
+.list-star .flag-button {
   margin: 0;
   cursor: pointer;
   text-decoration: none;
@@ -1496,6 +1506,14 @@ main.create-update .actions > *:not(:last-child) {
   background: transparent;
 }
 
+.list-star { justify-content: center; }
+
+.list-star > form {
+  flex: 0 0 var(--control-height);
+  display: flex;
+  justify-content: center;
+}
+
 /* The star on the message page rides the subject line and stands at
    its trailing end, which is the end the subject does not start from:
    beside the first character it would sit where a subject's own leading
@@ -1503,19 +1521,38 @@ main.create-update .actions > *:not(:last-child) {
 /* The row lives inside the cell, not as the cell: a th told to be a
    flex container stops being a table cell, and the subject collapsed to
    the width of its longest word. */
-main.message .subject-row {
+.subject-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   width: 100%;
 }
 
-main.message .subject-row > h1 {
+.subject-row > h1 {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-main.message .subject-row > .flag-button,
+/* On a card the row takes the heading's margin, so the star centres on
+   the title rather than on the title plus the space under it. Its width
+   is left to the line: a box told to be the full width cannot sit
+   beside the floated photo and drops under it. */
+main .details > .subject-row {
+  width: auto;
+  margin: 0 0 var(--space-4);
+}
+
+main .details > .subject-row > h1 {
+  margin: 0;
+}
+
+/* Beside a title the star is the title's size, not a row's. */
+.subject-row .flag-split .flag-button.button-link {
+  width: 2rem;
+  min-width: 2rem;
+  font-size: var(--text-xl);
+}
+
 .icon-group .flag-button {
   display: inline-flex;
   align-items: center;
@@ -3188,7 +3225,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 .contact-grid {
   display: grid;
   grid-template-columns:
-    var(--check-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
+    var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
     minmax(6rem, 8rem) minmax(6rem, 7rem) minmax(6rem, 0.7fr);
   grid-template-rows: auto;
 }
@@ -3202,7 +3239,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 @media (width < 60rem) {
   .contact-grid {
     grid-template-columns:
-      var(--check-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
+      var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
       minmax(6rem, 8rem) minmax(6rem, 0.7fr);
   }
 
@@ -3212,7 +3249,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 @media (width < 48rem) {
   .contact-grid {
     grid-template-columns:
-      var(--check-track) 2.5rem minmax(8rem, 1fr)
+      var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr)
       minmax(6rem, 8rem) minmax(6rem, 0.7fr);
   }
 
@@ -3224,14 +3261,25 @@ aside details.folder-branch details.folder-branch > ul > li {
    its own track, so the owner never trails a summary of random length. */
 .event-grid {
   display: grid;
-  grid-template-columns: 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--star-track) 6.5rem 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
 
 /* The agenda is a list like the others, so where it offers selection it
    keeps the same first column the mail and task lists do. */
 .event-grid-select {
-  grid-template-columns: var(--control-height) 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--control-height) var(--star-track) 6.5rem 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
+
+/* Banded by day, the date is the band's and the column goes. */
+.event-grid-grouped {
+  grid-template-columns: var(--star-track) 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+}
+
+.event-grid-select.event-grid-grouped {
+  grid-template-columns: var(--control-height) var(--star-track) 6rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+}
+
+.event-date { color: var(--fg-muted); }
 
 .event-header-row,
 .event-row { display: contents; }
@@ -3293,7 +3341,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 .task-grid {
   display: grid;
   grid-template-columns:
-    var(--check-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
+    var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
     minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
@@ -3303,7 +3351,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 @media (width < 60rem) {
   .task-grid {
     grid-template-columns:
-      var(--check-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
+      var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
   }
 
   .task-grid .task-list-added { display: none; }
@@ -3314,7 +3362,7 @@ aside details.folder-branch details.folder-branch > ul > li {
    row is on and is never empty. */
 @media (width < 52rem) {
   .task-grid {
-    grid-template-columns: var(--check-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr);
+    grid-template-columns: var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr);
   }
 
   .task-grid .task-list-due { display: none; }
@@ -4575,12 +4623,20 @@ h1.no-word .title-short {
 
   .event-header-row { display: none; }
 
+  /* The tick keeps the card's leading edge across every line, as the
+     mail card's does; the text and the marks take the rest. */
   .event-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     column-gap: var(--space-2);
     padding: var(--space-2);
     border-bottom: 1px solid var(--border-light);
+  }
+
+  .event-row .event-select {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    align-self: center;
   }
 
   .event-row > * {
@@ -4593,15 +4649,42 @@ h1.no-word .title-short {
   .event-row:hover > * { background: transparent; }
 
   .event-row .event-summary {
-    grid-column: 1 / -1;
+    grid-column: 2;
     grid-row: 1;
     font-weight: 600;
   }
 
-  .event-row .event-time { grid-column: 1; grid-row: 2; }
+  /* The star stands at the trailing edge of the first line, where the
+     mail card keeps its marks. */
+  .event-row .list-star {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    align-self: center;
+  }
+
+  /* Date and time share the second line, the calendar takes a third;
+     banded by day there is no date and the calendar joins the time. */
+  .event-row .event-date { grid-column: 2; grid-row: 2; }
+
+  .event-row .event-time {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
 
   .event-row .event-owner {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+
+  .event-grid-grouped .event-row .event-time {
     grid-column: 2;
+    justify-self: start;
+  }
+
+  .event-grid-grouped .event-row .event-owner {
+    grid-column: 3;
     grid-row: 2;
     justify-self: end;
   }
@@ -4643,8 +4726,15 @@ h1.no-word .title-short {
   }
 
 
+  .task-row .list-star {
+    grid-column: 4;
+    grid-row: 1;
+    justify-self: end;
+    align-self: center;
+  }
+
   .task-row .task-list-summary {
-    grid-column: 3 / -1;
+    grid-column: 3;
     grid-row: 1;
     font-weight: 600;
   }
@@ -4718,11 +4808,11 @@ h1.no-word .title-short {
      beside the tick and spanning both lines. */
   .contact-row {
     display: grid;
-    grid-template-columns: auto 2.5rem minmax(0, 1fr);
+    grid-template-columns: auto 2.5rem minmax(0, 1fr) auto;
     grid-template-areas:
-      "check photo name"
-      "check photo phone"
-      "check photo email";
+      "check photo name  star"
+      "check photo phone star"
+      "check photo email star";
     column-gap: 0.5rem;
     padding-inline: 0.5rem;
     padding-block: 0.3rem;
@@ -4731,6 +4821,7 @@ h1.no-word .title-short {
   }
 
   .contact-row > .contact-list-checkbox { grid-area: check; }
+  .contact-row > .list-star { grid-area: star; align-self: center; }
   .contact-row > .contact-list-photo { grid-area: photo; }
   .contact-row > .contact-list-name { grid-area: name; }
   .contact-row > .contact-list-phone { grid-area: phone; }

@@ -43,8 +43,21 @@
 
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
 
+      <form id="task-color-form" method="post" hx-boost="false">
+        <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+      </form>
       <section class="details">
-        <h1 class="{{if eq $status "COMPLETED"}}completed{{end}}">{{$summary}}</h1>
+        <div class="subject-row">
+          <h1 class="{{if eq $status "COMPLETED"}}completed{{end}}">{{$summary}}</h1>
+          {{/* One star for this task, the same control the message page
+               has: a click sets and clears, the chevron holds the seven. */}}
+          {{ template "flag-menu" (dict
+             "toggle" true
+             "form" "task-color-form"
+             "action" (printf "%s/color%s" .Task.URL $acct)
+             "current" .Star
+             "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
+        </div>
         <dl>
           <dt>{{$.T "tasks.status"}}</dt>
           <dd>{{if eq $status "COMPLETED"}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</dd>

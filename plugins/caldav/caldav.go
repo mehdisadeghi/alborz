@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -316,6 +318,48 @@ func (o Occurrence) UID() string {
 func (o Occurrence) Summary() string {
 	summary, _ := o.Event.Props.Text(ical.PropSummary)
 	return summary
+}
+
+// Star is the colour the occurrence's own event is marked in, or empty.
+func (o Occurrence) Star() string {
+	return componentColor(o.Event.Component)
+}
+
+// componentColor reads COLOR (RFC 7986 5.9) as one of the seven names;
+// any other value is another client's and shows as no star.
+func componentColor(comp *ical.Component) string {
+	name, _ := comp.Props.Text(ical.PropColor)
+	if !slices.Contains(alborzbase.FlagColors[:], name) {
+		return ""
+	}
+	return name
+}
+
+// setComponentColor writes one of the seven, or clears it.
+func setComponentColor(comp *ical.Component, name string) {
+	if name == "" {
+		comp.Props.Del(ical.PropColor)
+		return
+	}
+	comp.Props.SetText(ical.PropColor, name)
+}
+
+// validStarView is a view a list of marked objects answers: nothing,
+// starred, or one of the seven.
+func validStarView(view string) bool {
+	return view == "" || view == alborzbase.ViewStarred || slices.Contains(alborzbase.FlagColors[:], view)
+}
+
+// starMatches says whether a mark answers a view: starred is any
+// colour, a colour is itself, no view is everything.
+func starMatches(star, view string) bool {
+	switch view {
+	case "":
+		return true
+	case alborzbase.ViewStarred:
+		return star != ""
+	}
+	return star == view
 }
 
 // occurrences lists every instance of an object that begins before end

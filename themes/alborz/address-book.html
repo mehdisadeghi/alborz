@@ -35,6 +35,10 @@
           {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
           <div class="list-row" role="row">
           <div class="list-header list-checkbox" role="columnheader"></div>
+          <div class="list-header list-star" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "starred" .SortDir }}">
+            {{ template "sort-th" (dict "label" "★" "key" "starred" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "idle" "☆" "class" "flag-sort") }}
+            <span class="visually-hidden">{{$.T "sort.starred"}}</span>
+          </div>
           <div class="list-header contact-list-photo" role="columnheader"></div>
           <div class="list-header list-primary contact-list-name" role="columnheader" aria-sort="{{ sortaria $hexp $hsort "name" .SortDir }}">
             {{ template "sort-th" (dict "label" ($.T "common.name") "key" "name" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx) }}
@@ -62,17 +66,19 @@
             <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
               <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form" aria-label="{{$.T "a11y.selectcontact"}}{{with .DisplayName}}: {{.}}{{end}}">
             </div>
-            <div class="contact-list-photo list-cell" role="cell">
-              {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
-            </div>
-            <div class="contact-list-name list-primary list-cell" role="cell">
-              {{/* The star is always here, lit or not: a mark that
-                   appears from nowhere moves the name beside it. */}}
+            {{/* The star has a column of its own, as the mail list draws
+                 it: always here, lit or not. */}}
+            <div class="list-star list-cell" role="cell">
               {{ template "card-star" (dict
                  "Action" (printf "%s/color%s" .URL (account "?" .Account))
                  "Current" .Color
                  "Next" $.GlobalData.URL.RequestURI
                  "Label" (or (and .Color ($.T "mailbox.flagnone")) ($.T "mailbox.flagcolor"))) }}
+            </div>
+            <div class="contact-list-photo list-cell" role="cell">
+              {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
+            </div>
+            <div class="contact-list-name list-primary list-cell" role="cell">
               <a href="{{ call $.HrefFor .Account .Path }}" dir="auto">
                 {{.DisplayName}}
               </a>

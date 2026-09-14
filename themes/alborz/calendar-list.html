@@ -4,8 +4,8 @@
 
 <div class="page-wrap">
   <aside>
-    {{ $keep := printf "&month=%s&view=list" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
-    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/calendar" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.newcalendar")) "follow" (dict "href" (printf "/calendars/subscribe?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.subscribe")) "data" (dict "keep" $keep "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI)) }}
+    {{ $keep := printf "&month=%s&view=%s" .Page .View }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/calendar" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.newcalendar")) "follow" (dict "href" (printf "/calendars/subscribe?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.subscribe")) "data" (dict "keep" $keep "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI) "views" (dict "path" "/calendar" "view" .StarView "q" (account "?" .GlobalData.URLAccount))) }}
   </aside>
 
   <div class="container">
@@ -31,9 +31,9 @@
       <div class="agenda-span">
         {{ template "toggle" (dict "label" ($.T "calendar.list") "items" (tuple
            (dict "label" ($.T "calendar.fromtoday") "current" (ne .Span "month")
-                 "href" (printf "?month=%s&view=list" .Page))
+                 "href" (printf "?month=%s&view=%s" .Page .View))
            (dict "label" ($.T "calendar.wholemonth") "current" (eq .Span "month")
-                 "href" (printf "?month=%s&view=list&span=month" .Page)))) }}
+                 "href" (printf "?month=%s&view=%s&span=month" .Page .View)))) }}
       </div>
       {{end}}
 

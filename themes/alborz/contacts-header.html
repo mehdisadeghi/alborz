@@ -30,6 +30,7 @@
   <div class="overflow sort-overflow" data-priority="30">
     <button type="button" class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}" popovertarget="menu-sort">{{ template "sort-mark" $ }}</button>
     <div class="overflow-menu" popover id="menu-sort">
+      {{ template "sort-th" (dict "label" ($.T "sort.starred") "key" "starred" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}
       {{ template "sort-th" (dict "label" ($.T "common.name") "key" "name" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}
       {{ template "sort-th" (dict "label" ($.T "contacts.email") "key" "email" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}
       {{ template "sort-th" (dict "label" ($.T "contacts.phone") "key" "phone" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}

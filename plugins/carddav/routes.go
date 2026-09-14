@@ -41,7 +41,7 @@ type AddressBookRenderData struct {
 	Filters      []alborz.Filter
 	ColorForPath func(account, path string) string
 	// BookForPath names the address book a contact is in, so the list
-	// can carry ownership on the collection rather than beside the name.
+	// can carry ownership on the collection rather than beside the name;
 	BookForPath func(account, path string) string
 	// HrefFor is where a contact's own page is, with the list carried
 	// along so that page can name the contacts either side of it.
@@ -433,7 +433,7 @@ type ContactList struct {
 func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 	queryText := ctx.QueryParam("query")
 	view := ctx.QueryParam("view")
-	if view != "" && !slices.Contains(alborzbase.FlagColors[:], view) {
+	if view != "" && view != alborzbase.ViewStarred && !slices.Contains(alborzbase.FlagColors[:], view) {
 		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
@@ -469,8 +469,12 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 				continue
 			}
 			// A colour is a view, the way the mail rail's colours are:
-			// one parameter, and the list is the search it names.
-			if view != "" && ao.Color() != view {
+			// one parameter, and the list is the search it names;
+			// starred is any colour at all.
+			if view == alborzbase.ViewStarred && ao.Color() == "" {
+				continue
+			}
+			if view != "" && view != alborzbase.ViewStarred && ao.Color() != view {
 				continue
 			}
 			aos = append(aos, ao)
@@ -479,7 +483,7 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 
 	sortKey := ctx.QueryParam("sort")
 	switch sortKey {
-	case "", "name", "email", "phone", "account", "book", "changed":
+	case "", "name", "email", "phone", "account", "book", "changed", alborzbase.ViewStarred:
 	default:
 		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
 	}
@@ -489,6 +493,12 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 	}
 	key := func(ao AddressObject) string {
 		switch sortKey {
+		case alborzbase.ViewStarred:
+			// Marked cards first, as the mail list orders by its flag.
+			if ao.Color() != "" {
+				return "0"
+			}
+			return "1"
 		case "email":
 			return strings.ToLower(ao.Card.PreferredValue("EMAIL"))
 		case "phone":
@@ -1634,7 +1644,11 @@ func searchFilter(ctx *alborz.Context, list ContactList) []alborz.Filter {
 		out = append(out, f)
 	}
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok {
-		f.Value = ctx.T("color." + f.Value)
+		if f.Value == alborzbase.ViewStarred {
+			f.Value = ctx.T("mailbox.starred")
+		} else {
+			f.Value = ctx.T("color." + f.Value)
+		}
 		out = append(out, f)
 	}
 	if f, ok := ctx.FilterOn("category", ctx.T("filter.category")); ok {

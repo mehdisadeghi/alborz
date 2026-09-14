@@ -63,8 +63,7 @@
     <div>
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" false) }}
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" true) }}
-      <a href="/settings{{$q}}">{{$.T "nav.settings"}}</a>
-      {{if eq (len .GlobalData.Accounts) 1}}<a href="/logout">{{$.T "nav.signout"}}</a>{{end}}
+      <a href="/settings">{{$.T "nav.settings"}}</a>
     </div>
     {{/* Last in the row, and in the row itself rather than in the group
          that folds into the drawer: it is one icon, it is wanted at any
@@ -121,26 +120,22 @@
   {{ if .drawer }}<details class="accounts"><summary>{{ if $g.GlobalData.URLAccount }}{{ template "ltr" $g.GlobalData.URLAccount }}{{ else if $g.GlobalData.Unified }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</summary>{{ else }}<div class="accounts"><button type="button" class="accounts-button" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.URLAccount }}{{ template "ltr" $g.GlobalData.URLAccount }}{{ else if $g.GlobalData.Unified }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
   <div class="accounts-menu"{{ if not .drawer }} popover id="menu-accounts"{{ end }}>
     {{/* Where this section keeps one account's page. Mail's is the
-         inbox; settings' is the account's own page, since /settings is
-         the reader's and takes no account at all. */}}
+         inbox; settings' is the account's own page, and its merged
+         page is the reader's settings, which apply to every account. */}}
     {{ $section := printf "/%s" $page }}
-    {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = "/mailbox/INBOX" }}{{ end }}
-    {{ if or (eq $page "settings") (eq $page "signatures") }}{{ $section = "/settings/account" }}{{ end }}
-    {{/* A section with no merged view offers no merged row: settings
-         and signatures are per account by nature. */}}
-    {{ $merges := not (or (eq $page "settings") (eq $page "signatures")) }}
+    {{ $merged := $section }}
+    {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = "/mailbox/INBOX" }}{{ $merged = $section }}{{ end }}
+    {{ if or (eq $page "settings") (eq $page "signatures") }}{{ $section = "/settings/account" }}{{ $merged = "/settings" }}{{ end }}
     {{ range $g.GlobalData.Accounts }}
     <div class="account-menu-row">
     <a href="{{$section}}{{ account "?" .Username }}"{{ if eq .Username $g.GlobalData.URLAccount }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
-    {{if gt (len $g.GlobalData.Accounts) 1}}
     <form method="post" action="/logout" class="account-signout">
       <button type="submit" name="account" value="{{.Username}}" title="{{$g.T "nav.signout"}} {{.Username}}">{{$g.T "nav.signout"}}</button>
     </form>
-    {{end}}
     </div>
     {{ end }}
-    {{ if and $merges (gt (len $g.GlobalData.Accounts) 1) }}
-    <a href="{{$section}}"{{ if $g.GlobalData.Unified }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
+    {{ if gt (len $g.GlobalData.Accounts) 1 }}
+    <a href="{{$merged}}"{{ if $g.GlobalData.Unified }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
     {{ end }}
     <a href="/login?add=1">{{$g.T "nav.addaccount"}}</a>
   </div>

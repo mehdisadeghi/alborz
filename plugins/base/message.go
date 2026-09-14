@@ -480,7 +480,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		InReplyTo:          inReplyTo,
 		Answers:            answers,
 		ThreadSupported:    threadAlgorithm != "",
-		Crumb:              viewCrumb(ctx, mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()), mboxName, railView),
+		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
 		PreferHTML:         settings.PreferHTML,
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        deliveredTo,

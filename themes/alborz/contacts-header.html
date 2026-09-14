@@ -19,6 +19,7 @@
     </div>
 {{ template "toolbar-end" }}
   {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query))) }}
+  {{ template "filter-menu" (dict "id" "menu-filter" "icon" "filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
   {{if not .AddressObjects}}
   <span class="overflow sort-overflow" data-priority="30"><span class="icon-button" aria-disabled="true" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}">{{ template "sort-mark" $ }}</span></span>
   {{else}}

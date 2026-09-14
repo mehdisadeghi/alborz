@@ -99,7 +99,7 @@
             {{ $m := .Modified }}{{ if not $m.IsZero }}{{ $changed = $.GlobalData.Since $m }}{{ $changedTitle = $.GlobalData.FormatDate $m }}{{ end }}
             <div class="contact-list-changed list-cell" role="cell" title="{{$changedTitle}}">{{$changed}}</div>
             <div class="contact-list-book list-cell" role="cell">
-              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}{{ call $.BookForPath .Account .Path }}{{if $.GlobalData.Unified}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}<a href="{{ call $.BookHref .Account .Path }}">{{ call $.BookForPath .Account .Path }}</a>{{if $.GlobalData.Unified}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
             </div>
           </div>
           {{end}}

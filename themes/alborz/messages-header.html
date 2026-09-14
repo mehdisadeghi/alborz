@@ -152,6 +152,8 @@
   {{ template "ipp-menu" (dict "g" $.GlobalData "options" .PerPageOptions "current" .PerPage "base" $ippbase "label" ($.T "mailbox.perpage") "target" "main") }}
   {{ end }}
 
+  {{ template "filter-menu" (dict "id" "menu-filter" "icon" "filter" "title" ($.T "filter.menu") "rows" .FilterRows "target" "main" "priority" 25 "class" "filter-overflow") }}
+
   {{ if .SortSupported }}
   <div class="overflow sort-overflow" data-priority="30">
     <button type="button" class="icon-button" title="{{$.T "mailbox.sortby"}}" aria-label="{{$.T "mailbox.sortby"}}" popovertarget="menu-sort">{{ template "sort-mark" $ }}</button>

@@ -37,12 +37,15 @@ type AddressBookRenderData struct {
 	// View is the colour the rail is filtering by, empty for all.
 	View string
 	// Filters are the narrowings in force that nothing else on the
-	// page states; a search is the only one contacts has.
+	// page states, and FilterRows the views the filter menu offers.
 	Filters      []alborz.Filter
+	FilterRows   []alborz.FilterRow
 	ColorForPath func(account, path string) string
 	// BookForPath names the address book a contact is in, so the list
 	// can carry ownership on the collection rather than beside the name;
+	// BookHref narrows the list to that book, in the row's own scope.
 	BookForPath func(account, path string) string
+	BookHref    func(account, path string) string
 	// HrefFor is where a contact's own page is, with the list carried
 	// along so that page can name the contacts either side of it.
 	HrefFor func(account, path string) string
@@ -616,6 +619,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		Group:          list.Group,
 		Category:       list.Category,
 		Filters:        searchFilter(ctx, list),
+		FilterRows:     alborzbase.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
 		Sort:           list.Sort,
 		SortDir:        list.SortDir,
 		ColorForPath: func(account, contactPath string) string {
@@ -630,6 +634,21 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 			for _, ab := range addressBookInfos {
 				if ab.Account == account && strings.HasPrefix(contactPath, ab.Path) {
 					return ab.Name
+				}
+			}
+			return ""
+		},
+		BookHref: func(account, contactPath string) string {
+			for _, ab := range addressBookInfos {
+				if ab.Account == account && strings.HasPrefix(contactPath, ab.Path) {
+					q := url.Values{"book": {ab.Path}}
+					if account == "" {
+						account = ctx.URLAccount()
+					}
+					if account != "" {
+						q.Set("account", account)
+					}
+					return "/contacts?" + q.Encode()
 				}
 			}
 			return ""
@@ -1652,6 +1671,16 @@ func searchFilter(ctx *alborz.Context, list ContactList) []alborz.Filter {
 		out = append(out, f)
 	}
 	if f, ok := ctx.FilterOn("category", ctx.T("filter.category")); ok {
+		out = append(out, f)
+	}
+	if f, ok := ctx.FilterOn("book", ctx.T("contacts.book")); ok {
+		// The URL names a book by path; the chip names it the way the
+		// reader does.
+		for _, ab := range list.Books {
+			if ab.Path == dav.CanonicalCollectionPath(f.Value) {
+				f.Value = ab.Name
+			}
+		}
 		out = append(out, f)
 	}
 	if f, ok := ctx.FilterOn("group", ctx.T("filter.group")); ok {

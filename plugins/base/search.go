@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -203,6 +204,29 @@ const (
 // counts, since FlagColors is where the names come from.
 func KnownView(view string) bool {
 	return view == "" || view == ViewStarred || view == ViewUnread || slices.Contains(FlagColors[:], view)
+}
+
+// ViewRows are the views a list's filter menu offers: unread where the
+// list has a read state, starred, and the seven colours. The one in
+// force links to clear, the page the caller names, since an agenda
+// cleared of its star is still the agenda.
+func ViewRows(ctx *alborz.Context, current string, unread bool, clear string) []alborz.FilterRow {
+	row := func(label, view, star string) alborz.FilterRow {
+		href := ctx.WithParam("view", view)
+		if view == current {
+			href = clear
+		}
+		return alborz.FilterRow{Label: label, Href: href, Current: view == current, Star: star}
+	}
+	var rows []alborz.FilterRow
+	if unread {
+		rows = append(rows, row(ctx.T("mailbox.unread"), ViewUnread, ""))
+	}
+	rows = append(rows, row(ctx.T("mailbox.starred"), ViewStarred, ""))
+	for _, name := range FlagColors {
+		rows = append(rows, row(ctx.T("color."+name), name, name))
+	}
+	return rows
 }
 
 // ViewCriteria is the search a view is, nil for the whole folder.

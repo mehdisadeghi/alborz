@@ -343,10 +343,18 @@ type CalendarRenderData struct {
 	EventsForDate func(time.Time) []Occurrence
 	ColorForPath  func(account, path string) string
 	OwnerLabel    func(account, path string) string
+	OwnerHref     func(account, path string) string
 	// StarView is the star the agenda is narrowed to, for the rail;
 	// empty for the grid and the plain agenda.
 	StarView string
-	Sub      func(a, b int) int
+	Filters  []alborz.Filter
+	// FilterRows is the agenda's filter menu and GroupRows its sort
+	// menu; both empty on the grid, which narrows and groups nothing.
+	FilterRows []alborz.FilterRow
+	GroupRows  []alborz.FilterRow
+	// Group is "day" when the agenda is banded by day, else empty.
+	Group string
+	Sub   func(a, b int) int
 }
 
 type CalendarDateRenderData struct {
@@ -362,6 +370,7 @@ type CalendarDateRenderData struct {
 
 	ColorForPath func(account, path string) string
 	OwnerLabel   func(account, path string) string
+	OwnerHref    func(account, path string) string
 }
 
 type EventRenderData struct {
@@ -424,9 +433,11 @@ type MoveTasksRenderData struct {
 
 type TasksRenderData struct {
 	alborz.BaseRenderData
-	Calendars []CalendarInfo
-	Tasks     []TaskRow
-	View      string
+	Calendars  []CalendarInfo
+	Tasks      []TaskRow
+	View       string
+	Filters    []alborz.Filter
+	FilterRows []alborz.FilterRow
 
 	// True when every account shows completed tasks; the single aside
 	// toggle writes all of them.
@@ -702,10 +713,15 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 // calendarLabels are the colour and the owner a row shows for an
 // object, found from the calendar its path lies under; the owner names
 // the account too once more than one is signed in.
-func calendarLabels(ctx *alborz.Context, calendars []CalendarInfo, multi bool) (color, owner func(account, path string) string) {
+func calendarLabels(ctx *alborz.Context, calendars []CalendarInfo, multi bool) (color, owner, ownerHref func(account, path string) string) {
+	// A feed's object is named by the feed's address rather than by a
+	// path under a collection, so a subscription matches on that.
 	find := func(account, path string) *CalendarInfo {
 		for i := range calendars {
-			if calendars[i].Account == account && strings.HasPrefix(path, calendars[i].Path) {
+			if calendars[i].Account != account {
+				continue
+			}
+			if strings.HasPrefix(path, calendars[i].Path) || (calendars[i].Address != "" && path == calendars[i].Address) {
 				return &calendars[i]
 			}
 		}
@@ -727,7 +743,23 @@ func calendarLabels(ctx *alborz.Context, calendars []CalendarInfo, multi bool) (
 		}
 		return cal.Name
 	}
-	return color, owner
+	// The calendar a row names is a link to the agenda narrowed to it,
+	// in the scope the row belongs to.
+	ownerHref = func(account, path string) string {
+		cal := find(account, path)
+		if cal == nil {
+			return ""
+		}
+		q := url.Values{"view": {"list"}, "cal": {cal.Path}}
+		if account == "" {
+			account = ctx.URLAccount()
+		}
+		if account != "" {
+			q.Set("account", account)
+		}
+		return "/calendar?" + q.Encode()
+	}
+	return color, owner, ownerHref
 }
 
 func calendarByPath(calendars []CalendarInfo, path string) *CalendarInfo {
@@ -903,6 +935,7 @@ type monthView struct {
 	now       time.Time
 	span      string
 	view      string
+	group     string
 	thisMonth bool
 	page      string
 	prevPage  string
@@ -942,7 +975,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	if mv.view != "" {
 		template = "calendar-list.html"
 	}
-	color, owner := calendarLabels(ctx, mv.calendars, mv.accounts > 1)
+	color, owner, ownerHref := calendarLabels(ctx, mv.calendars, mv.accounts > 1)
 	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(mv.start)),
@@ -973,6 +1006,10 @@ func (p *plugin) month(ctx *alborz.Context) error {
 			}
 			return mv.view
 		}(),
+		Filters:    calendarFilters(ctx, mv.calendars),
+		FilterRows: agendaRows(ctx, mv),
+		GroupRows:  groupRows(ctx, mv),
+		Group:      mv.group,
 
 		EventsForDate: func(when time.Time) []Occurrence {
 			return mv.on[mv.day(when)]
@@ -980,6 +1017,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 
 		ColorForPath: color,
 		OwnerLabel:   owner,
+		OwnerHref:    ownerHref,
 
 		Sub: func(a, b int) int {
 			// Why isn't this built-in, come on Go
@@ -1025,6 +1063,11 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	span := ctx.QueryParam("span")
 	if span != "" && span != "month" {
 		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid span")
+	}
+	// Rows by default; group=day bands them under the day they fall on.
+	group := ctx.QueryParam("group")
+	if group != "" && group != "day" {
+		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid group")
 	}
 	since := start
 	thisMonth := false
@@ -1137,6 +1180,7 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 		now:       time.Now().In(loc),
 		span:      span,
 		view:      view,
+		group:     group,
 		thisMonth: thisMonth,
 		page:      cal.Page(start),
 		prevPage:  cal.Page(cal.AddMonths(start, -1)),
@@ -1166,7 +1210,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	color, owner := calendarLabels(ctx, dv.calendars, dv.accounts > 1)
+	color, owner, ownerHref := calendarLabels(ctx, dv.calendars, dv.accounts > 1)
 	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(dv.start)),
@@ -1180,7 +1224,36 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		NextPage:     dv.start.AddDate(0, 0, 1).Format(datePageLayout),
 		ColorForPath: color,
 		OwnerLabel:   owner,
+		OwnerHref:    ownerHref,
 	})
+}
+
+// calendarFilters is what an agenda or a task list is narrowed by, as
+// chips above the rows: the star and the calendar the URL names.
+func calendarFilters(ctx *alborz.Context, calendars []CalendarInfo) []alborz.Filter {
+	var out []alborz.Filter
+	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok && f.Value != "list" {
+		if f.Value == alborzbase.ViewStarred {
+			f.Value = ctx.T("mailbox.starred")
+		} else {
+			f.Value = ctx.T("color." + f.Value)
+		}
+		// Cleared of its star the agenda is still the agenda, not the
+		// grid; a task list has no such second self.
+		if ctx.Request().URL.Path == "/calendar" {
+			f.Href = ctx.WithParam("view", "list")
+		}
+		out = append(out, f)
+	}
+	if f, ok := ctx.FilterOn("cal", ctx.T("common.calendar")); ok {
+		// The URL names a calendar by path; the chip names it the way
+		// the reader does.
+		if cal := calendarByPath(calendars, dav.CanonicalCollectionPath(f.Value)); cal != nil {
+			f.Value = cal.Name
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 // dayQuery and monthQuery are what an event's page is opened with: the
@@ -1194,12 +1267,46 @@ func dayQuery(ctx *alborz.Context, start time.Time) string {
 }
 
 func monthQuery(ctx *alborz.Context, mv monthView) string {
-	q := dav.ListParams(ctx, "account", "cal", "span")
+	q := dav.ListParams(ctx, "account", "cal", "span", "group")
 	q.Set("month", mv.page)
 	if mv.view != "" {
 		q.Set("view", mv.view)
 	}
 	return q.Encode()
+}
+
+// agendaRows is the agenda's filter menu: the slice of the month in
+// front of you, where today falls in it, then the star views. The grid
+// offers none, having nothing to narrow.
+func agendaRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
+	if mv.view == "" {
+		return nil
+	}
+	var rows []alborz.FilterRow
+	if mv.thisMonth {
+		rows = append(rows,
+			alborz.FilterRow{Label: ctx.T("calendar.fromtoday"), Href: ctx.WithParam("span", ""), Current: mv.span != "month"},
+			alborz.FilterRow{Label: ctx.T("calendar.wholemonth"), Href: ctx.WithParam("span", "month"), Current: mv.span == "month"})
+	}
+	star := mv.view
+	if star == "list" {
+		star = ""
+	}
+	// Cleared of its star the agenda is still the agenda.
+	return append(rows, alborzbase.ViewRows(ctx, star, false, ctx.WithParam("view", "list"))...)
+}
+
+// groupRows is the agenda's sort menu, which for now holds the one
+// way to group it.
+func groupRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
+	if mv.view == "" {
+		return nil
+	}
+	href := ctx.WithParam("group", "day")
+	if mv.group == "day" {
+		href = ctx.WithParam("group", "")
+	}
+	return []alborz.FilterRow{{Label: ctx.T("calendar.groupday"), Href: href, Current: mv.group == "day"}}
 }
 
 func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
@@ -1978,6 +2085,8 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 		View:           list.View,
+		Filters:        calendarFilters(ctx, list.Calendars),
+		FilterRows:     alborzbase.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
 		Calendars:      list.Calendars,
 		Tasks:          list.Rows,
 		ShowCompleted:  list.ShowCompleted,

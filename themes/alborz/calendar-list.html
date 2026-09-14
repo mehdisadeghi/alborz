@@ -24,6 +24,8 @@
 
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" "/calendar" "field" "" "collection" "" "path" "") }}
 
+      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+
       {{/* The agenda starts at today in the month you are living in; the
            whole of it is one click away. It leads the list rather than
            the toolbar, which has no room for a fourth group. */}}

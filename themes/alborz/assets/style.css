@@ -4423,21 +4423,6 @@ h1.no-word .title-short {
 /* Calendar groups indent under their account heading. */
 /* Folding is the native details element; the marker is hidden so the
    headers look exactly as before, the pointer being the only hint. */
-.show-completed-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.85rem;
-  color: var(--fg-muted);
-  margin-top: 1rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border-light);
-}
-
-.show-completed-toggle input {
-  width: auto;
-}
-
 /* Small screens: the desktop minimum width no longer applies and the
    sidebar becomes an off-canvas drawer, driven by the checkbox in the
    header so no script is involved. */

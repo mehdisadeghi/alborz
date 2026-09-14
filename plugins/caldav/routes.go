@@ -417,7 +417,6 @@ type Settings struct {
 	VisibleCalendars []string
 	TaskFilter       bool
 	VisibleTasks     []string
-	ShowCompleted    bool
 	Subscriptions    []Subscription
 }
 
@@ -438,13 +437,9 @@ type TasksRenderData struct {
 	View       string
 	Filters    []alborz.Filter
 	FilterRows []alborz.FilterRow
-
-	// True when every account shows completed tasks; the single aside
-	// toggle writes all of them.
-	ShowCompleted bool
-	Query         string
-	Sort          string
-	SortDir       string
+	Query      string
+	Sort       string
+	SortDir    string
 }
 
 // TaskRow is the flat, table-shaped representation shared by the task
@@ -786,7 +781,6 @@ func registerRoutes(p *plugin) {
 	POST("/calendar/refresh", p.refresh)
 	POST("/tasks/refresh", p.refresh)
 	POST("/tasks", p.chooseTaskLists)
-	POST("/tasks/show-completed", p.toggleCompleted)
 	GET("/calendar", p.month)
 	GET("/calendar/export", p.exportMonth)
 	GET("/calendar/date", p.day)
@@ -899,23 +893,6 @@ func (p *plugin) chooseTaskLists(ctx *alborz.Context) error {
 	settings.VisibleTasks = params["cal"]
 	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
 		return fmt.Errorf("failed to save CalDAV settings: %w", err)
-	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
-}
-
-// One toggle for the pooled page: a view option that reads as one
-// control writes every account's setting.
-func (p *plugin) toggleCompleted(ctx *alborz.Context) error {
-	on := ctx.FormValue("show-completed") == "1"
-	for _, session := range ctx.Sessions() {
-		settings, err := loadSettings(session.Store())
-		if err != nil {
-			return fmt.Errorf("failed to load CalDAV settings: %w", err)
-		}
-		settings.ShowCompleted = on
-		if err := session.Store().Put(settingsKey, settings); err != nil {
-			return fmt.Errorf("failed to save CalDAV settings: %w", err)
-		}
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr("/tasks"))
 }
@@ -1229,9 +1206,14 @@ func (p *plugin) day(ctx *alborz.Context) error {
 func calendarFilters(ctx *alborz.Context, calendars []CalendarInfo) []alborz.Filter {
 	var out []alborz.Filter
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok && f.Value != "list" {
-		if f.Value == alborzbase.ViewStarred {
+		switch f.Value {
+		case viewCompleted:
+			f.Label, f.Value = ctx.T("tasks.status"), ctx.T("tasks.completed")
+		case viewAll:
+			f.Label, f.Value = ctx.T("tasks.status"), ctx.T("tasks.all")
+		case alborzbase.ViewStarred:
 			f.Value = ctx.T("mailbox.starred")
-		} else {
+		default:
 			f.Value = ctx.T("color." + f.Value)
 		}
 		// Cleared of its star the agenda is still the agenda, not the
@@ -1290,6 +1272,28 @@ func agendaRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
 	}
 	// Cleared of its star the agenda is still the agenda.
 	return append(rows, alborzbase.ViewRows(ctx, star, false, ctx.WithParam("view", "list"))...)
+}
+
+// The task list's own views, beside the stars: open tasks are the
+// list itself and no view.
+const (
+	viewCompleted = "completed"
+	viewAll       = "all"
+)
+
+// taskRows is the task list's filter menu: the completed tasks, every
+// task, then the star views.
+func taskRows(ctx *alborz.Context, view string) []alborz.FilterRow {
+	clear := ctx.WithoutParam("view")
+	row := func(label, name string) alborz.FilterRow {
+		href := ctx.WithParam("view", name)
+		if name == view {
+			href = clear
+		}
+		return alborz.FilterRow{Label: label, Href: href, Current: name == view}
+	}
+	rows := []alborz.FilterRow{row(ctx.T("tasks.completed"), viewCompleted), row(ctx.T("tasks.all"), viewAll)}
+	return append(rows, alborzbase.ViewRows(ctx, view, false, clear)...)
 }
 
 // groupRows is the agenda's sort menu, which for now holds the one
@@ -1905,14 +1909,11 @@ type TaskList struct {
 	Calendars []CalendarInfo
 	// Items are the rows as the neighbours of a single task, in the
 	// same order.
-	Items []dav.Item
-	// ShowCompleted reads as on only when every account queried says
-	// so, since the aside carries one toggle for the pooled page.
-	ShowCompleted bool
-	Query         string
-	View          string
-	Sort          string
-	SortDir       string
+	Items   []dav.Item
+	Query   string
+	View    string
+	Sort    string
+	SortDir string
 }
 
 // taskList is what the list page shows, in the order it shows it: the
@@ -1932,19 +1933,19 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	if err != nil {
 		return TaskList{}, err
 	}
-	showCompleted := true
-	for _, site := range sites {
-		if !site.settings.ShowCompleted {
-			showCompleted = false
-		}
-	}
-
 	search := ctx.QueryParam("query")
 	// A star is a view, the way the mail rail's colours are: one
-	// parameter, and the list is the search it names.
+	// parameter, and the list is the search it names. Open tasks are
+	// the list with no view; the completed ones and all of them are
+	// views of their own.
 	view := ctx.QueryParam("view")
-	if !validStarView(view) {
+	if view != viewCompleted && view != viewAll && !validStarView(view) {
 		return TaskList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
+	}
+	star := view
+	withCompleted := view == viewCompleted || view == viewAll
+	if withCompleted {
+		star = ""
 	}
 	sortKey := ctx.QueryParam("sort")
 	sortDir := ctx.QueryParam("dir")
@@ -1962,7 +1963,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	query, openQueries := taskQueries()
 
 	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site querySite) ([]caldav.CalendarObject, error) {
-		if site.settings.ShowCompleted {
+		if withCompleted {
 			return site.client.QueryCalendar(ctx, site.cal.Path, &query)
 		}
 		// A server that ignores the filter answers both queries with
@@ -1996,10 +1997,11 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 			status, _ := todo.Props.Text("STATUS")
 			// A server that ignores the STATUS filter sends every task;
 			// the page hides what it was asked to hide either way.
-			if status == "COMPLETED" && !result.Site.settings.ShowCompleted {
+			completed := status == "COMPLETED"
+			if completed != (view == viewCompleted) && view != viewAll {
 				continue
 			}
-			if !starMatches(componentColor(todo), view) {
+			if !starMatches(componentColor(todo), star) {
 				continue
 			}
 			if search != "" {
@@ -2062,14 +2064,13 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 		items[i] = dav.Item{Path: row.Task.Path, URL: row.Href}
 	}
 	return TaskList{
-		Rows:          rows,
-		Items:         items,
-		Calendars:     calendarInfos,
-		ShowCompleted: showCompleted,
-		Query:         search,
-		View:          view,
-		Sort:          sortKey,
-		SortDir:       sortDir,
+		Rows:      rows,
+		Items:     items,
+		Calendars: calendarInfos,
+		Query:     search,
+		View:      view,
+		Sort:      sortKey,
+		SortDir:   sortDir,
 	}, nil
 }
 
@@ -2082,10 +2083,9 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 		View:           list.View,
 		Filters:        calendarFilters(ctx, list.Calendars),
-		FilterRows:     alborzbase.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
+		FilterRows:     taskRows(ctx, list.View),
 		Calendars:      list.Calendars,
 		Tasks:          list.Rows,
-		ShowCompleted:  list.ShowCompleted,
 		Query:          list.Query,
 		Sort:           list.Sort,
 		SortDir:        list.SortDir,
@@ -2792,15 +2792,11 @@ func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session, loc *time.L
 	if err != nil {
 		return err
 	}
-	settings, err := loadSettings(s.Store())
-	if err != nil {
-		return err
-	}
 	// The month page's range for the month the reader is in.
 	now := time.Now().In(loc)
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 	events := eventQuery(start.AddDate(0, 0, -7), start.AddDate(0, 1, 0).AddDate(0, 0, 7))
-	all, open := taskQueries()
+	_, open := taskQueries()
 	type ask struct {
 		path  string
 		query caldav.CalendarQuery
@@ -2811,12 +2807,8 @@ func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session, loc *time.L
 			asks = append(asks, ask{cal.Path, events})
 		}
 		if cal.SupportsTodo() {
-			if settings.ShowCompleted {
-				asks = append(asks, ask{cal.Path, all})
-			} else {
-				for _, q := range open {
-					asks = append(asks, ask{cal.Path, q})
-				}
+			for _, q := range open {
+				asks = append(asks, ask{cal.Path, q})
 			}
 		}
 	}

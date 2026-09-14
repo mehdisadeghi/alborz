@@ -69,7 +69,7 @@
             <input type="checkbox" name="indexed_search" id="indexed_search" value="1"{{if .Settings.IndexedSearch}} checked{{end}}>
             {{$.T "settings.indexedsearch"}}
           </label>
-          <p class="hint">{{$.T "settings.indexedsearchhint"}}</p>
+          {{ template "hint" (dict "text" ($.T "settings.indexedsearchhint")) }}
         </div>
 
         <div class="action-group">
@@ -97,7 +97,7 @@
           <label for="http_password">{{$.T "settings.davpassword"}}</label>
           <input type="password" name="http_password" id="http_password" autocomplete="off"
                  placeholder="{{if .HasHTTPPassword}}{{$.T "settings.davstored"}}{{else}}{{$.T "settings.davsame"}}{{end}}">
-          <small>{{$.T "settings.davhint"}}</small>
+          {{ template "hint" (dict "text" ($.T "settings.davhint")) }}
           {{ if .HasHTTPPassword }}
           <label for="http_password_reset" class="checkbox">
             <input type="checkbox" name="http_password_reset" id="http_password_reset" value="1">
@@ -114,7 +114,7 @@
             <input type="checkbox" name="send_html" id="send_html" value="1"{{if .Settings.SendHTML}} checked{{end}}>
             {{$.T "settings.sendhtml"}}
           </label>
-          <p class="hint">{{$.T "settings.sendhtmlhint"}}</p>
+          {{ template "hint" (dict "text" ($.T "settings.sendhtmlhint")) }}
         </div>
 
 
@@ -141,14 +141,14 @@
           {{ range .Kept.Entries }}<li>{{ . }}</li>{{ end }}
         </ul>
         {{ end }}
-        {{ if .Kept.Reading }}<p class="hint">{{$.T "settings.keptreading"}}</p>{{ end }}
+        {{ if .Kept.Reading }}{{ template "hint" (dict "text" ($.T "settings.keptreading")) }}{{ end }}
         {{ if or .Kept.Entries .Kept.Reading }}
         <form method="post" action="/settings/account/forget{{$aq}}">
           <button class="button-danger">{{$.T "settings.forget"}}</button>
-          <p class="hint">{{$.T "settings.forgethint"}}</p>
+          {{ template "hint" (dict "text" ($.T "settings.forgethint")) }}
         </form>
         {{ else }}
-        <p class="hint">{{$.T "settings.keptnothing"}}</p>
+        {{ template "hint" (dict "text" ($.T "settings.keptnothing")) }}
         {{ end }}
       </details>
       {{ end }}

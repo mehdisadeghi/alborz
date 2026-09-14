@@ -18,8 +18,7 @@
         {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}
         {{ end }}
 
-        {{ template "field" (dict "label" ($.T "calendar.address") "name" "address" "type" "url" "value" .Address "placeholder" "https://" "required" true "autofocus" true) }}
-        <small>{{$.T "calendar.addresshint"}}</small>
+        {{ template "field" (dict "label" ($.T "calendar.address") "name" "address" "type" "url" "value" .Address "placeholder" "https://" "required" true "autofocus" true "hint" ($.T "calendar.addresshint")) }}
 
         {{ template "form-actions" (dict "save" ($.T "calendar.subscribedo") "cancel" "/calendar" "cancelLabel" ($.T "common.cancel")) }}
       </form>

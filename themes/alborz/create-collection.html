@@ -34,7 +34,7 @@
             {{$.T (index . 1)}}
           </label>
           {{ end }}
-          <small>{{$.T "calendar.holdshint"}}</small>
+          {{ template "hint" (dict "text" ($.T "calendar.holdshint")) }}
         </fieldset>
         {{ end }}
 

@@ -19,6 +19,7 @@
     </div>
 {{ template "toolbar-end" }}
   {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query))) }}
+  {{ template "filter-menu" (dict "id" "menu-filter" "icon" "filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
   {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .AddressObjects) "rows" (tuple
      (tuple ($.T "sort.starred") "starred") (tuple ($.T "common.name") "name") (tuple ($.T "contacts.email") "email")
      (tuple ($.T "contacts.phone") "phone") (tuple ($.T "common.modified") "changed") (tuple ($.T "contacts.book") "book"))) }}

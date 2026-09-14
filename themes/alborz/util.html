@@ -257,6 +257,20 @@
      dict: target href. */}}
 {{ define "swaps" }}{{ with .target }} hx-get="{{$.href}}" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}{{ end }}
 
+{{/* A menu of narrowings or groupings, one row each, the one in force
+     marked: the sort menu's shape with the page's rows. dict: id icon
+     title rows [target priority class]. */}}
+{{ define "filter-menu" }}
+<div class="overflow{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+  <button type="button" class="icon-button" title="{{.title}}" aria-label="{{.title}}" popovertarget="{{.id}}">{{ template "icon" .icon }}<span class="label">{{.title}}</span></button>
+  <div class="overflow-menu" popover id="{{.id}}">
+    {{ range .rows }}
+    <a class="button-link{{ if .Current }} is-current{{ end }}" href="{{ localhref .Href }}"{{ if .Current }} aria-current="true"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .Href)) }}>{{ with .Star }}<span class="flag-star flag-{{.}}">&#9733;</span> {{ end }}{{.Label}}</a>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
 {{ define "sort-th" }}
 {{ $arrow := "↑" }}{{ if eq .s.Dir "desc" }}{{ $arrow = "↓" }}{{ end }}
 {{ $flip := "desc" }}{{ if eq .s.Dir "desc" }}{{ $flip = "asc" }}{{ end }}
@@ -398,7 +412,7 @@
     {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
     {{ if .href }}<a href="{{.href}}" dir="auto">{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
   </div>
-  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{.owner}}</div>
+  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}</div>
 </div>
 {{ end }}
 
@@ -628,9 +642,11 @@
     <a href="{{.Href}}" dir="auto">{{.Summary}}</a>
   </div>
   {{/* Ownership rides the collection it already names, as the event
-       lists write it, rather than a column of its own. */}}
+       lists write it, rather than a column of its own; the name narrows
+       the list to that calendar, in the scope the row belongs to. */}}
+  {{ $cq := printf "%v" (account "?" (or .Task.Account $g.GlobalData.URLAccount)) }}
   <div class="task-list-calendar list-cell" role="cell" data-label="{{$g.T "common.calendar"}}">
-    {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}{{.Calendar.Name}}{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
+    {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}<a href="/tasks{{$cq}}{{qsep $cq}}cal={{.Calendar.Path | urlquery}}">{{.Calendar.Name}}</a>{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
   </div>
   {{/* Built before the tag: the escaper cannot follow an attribute that
        only some branches write. */}}
@@ -928,6 +944,7 @@
    "starLabel" ($base.T "mailbox.flagcolor") "clearLabel" ($base.T "mailbox.flagnone")
    "color" (or .Color $collection.Color)
    "owner" (call $base.OwnerLabel .Account .Path)
+   "ownerhref" (call $base.CollectionHref .Account .Path)
    "timeLabel" ($base.T "calendar.time") "eventLabel" ($base.T "calendar.event") "calendarLabel" ($base.T "common.calendar")) }}
 {{ end }}
 {{ end }}

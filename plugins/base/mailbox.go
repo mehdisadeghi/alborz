@@ -45,9 +45,11 @@ type MailboxRenderData struct {
 	// the pager counts conversations rather than messages.
 	Threaded bool
 	// Filters are the narrowings in force that the page does not
-	// otherwise state: the crumb already names the folder and the
-	// view, and the rail names the account.
+	// otherwise state: the crumb already names the folder, and the
+	// rail names the account.
 	Filters []alborz.Filter
+	// FilterRows are the views the filter menu offers.
+	FilterRows []alborz.FilterRow
 	// PerPage is the count in force, and PerPageOptions the ladder the
 	// toolbar offers. The reader's own preference is always among them,
 	// so choosing it is how they get back to it.
@@ -206,7 +208,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		ListView:        spec.view,
 		SidebarAccounts: sidebarAccounts(ctx),
 	}
-	data.Crumb = viewCrumb(ctx, []CrumbLink{{Label: ctx.T("aside." + strings.ToLower(role)), URL: "/mailbox/" + role}}, role, spec.view)
+	data.Crumb = []CrumbLink{{Label: ctx.T("aside." + strings.ToLower(role)), URL: "/mailbox/" + role}}
 	data.Outgoing = role == "Sent" || role == "Drafts"
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
@@ -235,6 +237,7 @@ func listPage(ctx *alborz.Context, ask listAsk, e *listingEntry, rows []IMAPMess
 		Total:          e.total,
 		Query:          ask.spec.query,
 		Filters:        searchFilters(ctx),
+		FilterRows:     ViewRows(ctx, ask.spec.view, true, ctx.WithoutParam("view")),
 		TextQuery:      textQueryOffered(ask.spec.query, e.headersOnly),
 		PerPage:        ask.perPage,
 		PerPageOptions: perPageOptions(ctx.Reading().MessagesPerPage),
@@ -450,7 +453,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 
 	data := listPage(ctx, ask, e, msgs)
 	data.IMAPBaseRenderData = *ibase
-	data.Crumb = viewCrumb(ctx, mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()), mboxName, spec.view)
+	data.Crumb = mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username())
 	data.Outgoing = outgoingFolder(sb.mailboxes, mboxName)
 	data.ThreadSupported = e.threadAlgorithm != ""
 	data.Threaded = spec.sortKey == threadSort && e.threadAlgorithm != ""
@@ -510,16 +513,6 @@ func readView(ctx *alborz.Context) (string, error) {
 		return "", echo.NewHTTPError(http.StatusBadRequest, "unknown view")
 	}
 	return view, nil
-}
-
-// viewCrumb puts the view after the folder: a reader in Starred is one
-// step past the inbox, and the crumb leads back to the view, not past
-// it to the folder.
-func viewCrumb(ctx *alborz.Context, crumb []CrumbLink, folder, view string) []CrumbLink {
-	if view == "" {
-		return crumb
-	}
-	return append(crumb, CrumbLink{Label: viewTitle(ctx, view), URL: "/mailbox/" + url.PathEscape(folder) + "?view=" + url.QueryEscape(view)})
 }
 
 // viewTitle names a view the way the rail does.
@@ -1573,9 +1566,14 @@ func landOn(ctx *alborz.Context, back string) func(bool) error {
 // syntax, because that is how the reader asked for it: by clicking a
 // sender.
 func searchFilters(ctx *alborz.Context) []alborz.Filter {
+	var out []alborz.Filter
+	if f, ok := ctx.FilterOn("view", ctx.T("filter.view")); ok {
+		f.Value = viewTitle(ctx, f.Value)
+		out = append(out, f)
+	}
 	f, ok := ctx.FilterOn("query", ctx.T("filter.search"))
 	if !ok {
-		return nil
+		return out
 	}
 	for _, scope := range []struct{ prefix, label string }{
 		{"from:", ctx.T("filter.from")},
@@ -1586,5 +1584,5 @@ func searchFilters(ctx *alborz.Context) []alborz.Filter {
 			break
 		}
 	}
-	return []alborz.Filter{f}
+	return append(out, f)
 }

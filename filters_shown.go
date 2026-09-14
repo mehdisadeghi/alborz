@@ -14,13 +14,33 @@ type Filter struct {
 	Href  string
 }
 
+// FilterRow is one entry of a list's filter menu: a narrowing the list
+// offers, the page with it, and whether it is in force. A row in force
+// links to the page without it, so the same row is the way out.
+type FilterRow struct {
+	Label   string
+	Href    string
+	Current bool
+	// Star is the colour a row names, drawn as its glyph.
+	Star string
+}
+
 // WithoutParam is this page again with one query parameter dropped. The
 // page number goes with it: a page count is about a listing, and the
 // listing is not the same one once a filter is gone.
 func (ctx *Context) WithoutParam(name string) string {
+	return ctx.WithParam(name, "")
+}
+
+// WithParam is this page again with one query parameter set, or dropped
+// when the value is empty; the page number goes either way.
+func (ctx *Context) WithParam(name, value string) string {
 	u := *ctx.Request().URL
 	q := u.Query()
 	q.Del(name)
+	if value != "" {
+		q.Set(name, value)
+	}
 	q.Del("page")
 	u.RawQuery = AddressQuery(q)
 	u.Path = ctx.Request().URL.Path

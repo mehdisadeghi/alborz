@@ -98,12 +98,32 @@ func ObjectURL(base, path, account string, params url.Values) string {
 }
 
 // Labels are what a pooled list's row says about the collection holding
-// its object: the collection itself, the zero one when none holds it.
-func Labels(colls []Collection) func(account, path string) Collection {
-	return func(account, path string) Collection {
+// its object: the collection itself, the zero one when none holds it,
+// and the list narrowed to it through field, in the scope the row
+// belongs to. shape is what else the narrowed list's address says.
+func Labels(ctx *alborz.Context, colls []Collection, list, field string, shape url.Values) (collection func(account, path string) Collection, href func(account, path string) string) {
+	collection = func(account, path string) Collection {
 		if c := Holding(colls, account, path); c != nil {
 			return *c
 		}
 		return Collection{}
 	}
+	href = func(account, path string) string {
+		c := Holding(colls, account, path)
+		if c == nil {
+			return ""
+		}
+		q := url.Values{field: {c.Path}}
+		for key, values := range shape {
+			q[key] = values
+		}
+		if account == "" {
+			account = ctx.URLAccount()
+		}
+		if account != "" {
+			q.Set("account", account)
+		}
+		return list + "?" + q.Encode()
+	}
+	return collection, href
 }

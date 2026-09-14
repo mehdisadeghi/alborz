@@ -276,8 +276,6 @@ type CalendarRenderData struct {
 	// CollectionHref the agenda narrowed to it.
 	CollectionFor  func(account, path string) dav.Collection
 	CollectionHref func(account, path string) string
-	// OwnerLabel names a row's calendar the way ownerLabel does.
-	OwnerLabel func(account, path string) string
 	// StarView is the star the agenda is narrowed to, for the rail;
 	// empty for the grid and the plain agenda.
 	StarView string
@@ -304,8 +302,6 @@ type CalendarDateRenderData struct {
 
 	CollectionFor  func(account, path string) dav.Collection
 	CollectionHref func(account, path string) string
-	// OwnerLabel names a row's calendar the way ownerLabel does.
-	OwnerLabel func(account, path string) string
 }
 
 type EventRenderData struct {
@@ -613,18 +609,6 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 	}
 }
 
-// ownerLabel names the calendar holding a row's object, and its account
-// too once more than one is signed in.
-func ownerLabel(ctx *alborz.Context, collection func(account, path string) dav.Collection, multi bool) func(account, path string) string {
-	return func(account, path string) string {
-		cal := collection(account, path)
-		if multi && cal.Path != "" {
-			return cal.Name + " — " + alborz.ShortAccount(account, ctx.Accounts())
-		}
-		return cal.Name
-	}
-}
-
 func registerRoutes(p *plugin) {
 	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
 		return p.dav.Guarded(errNoCalendar, "calendar.unconfigured", h)
@@ -799,7 +783,6 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		template = "calendar-list.html"
 	}
 	collection, href := dav.Labels(ctx, mv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
-	owner := ownerLabel(ctx, collection, mv.accounts > 1)
 	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(mv.start)),
@@ -841,7 +824,6 @@ func (p *plugin) month(ctx *alborz.Context) error {
 
 		CollectionFor:  collection,
 		CollectionHref: href,
-		OwnerLabel:     owner,
 
 		Sub: func(a, b int) int {
 			// Why isn't this built-in, come on Go
@@ -1035,7 +1017,6 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		return err
 	}
 	collection, href := dav.Labels(ctx, dv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
-	owner := ownerLabel(ctx, collection, dv.accounts > 1)
 	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(dv.start)),
@@ -1049,7 +1030,6 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		NextPage:       dv.start.AddDate(0, 0, 1).Format(datePageLayout),
 		CollectionFor:  collection,
 		CollectionHref: href,
-		OwnerLabel:     owner,
 	})
 }
 

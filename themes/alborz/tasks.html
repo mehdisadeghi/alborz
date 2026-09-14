@@ -64,6 +64,17 @@
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 
+      {{/* One line for the next task: it goes into the list the page
+           is narrowed to, named in the field. */}}
+      {{ with .Quick }}
+      <form method="post" action="/tasks/create" class="quick-add" hx-boost="false">
+        <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
+        {{ $list := .Name }}{{ if $.GlobalData.Unified }}{{ $list = printf "%s · %s" .Name ($.GlobalData.AccountLabel .Account) }}{{ end }}
+        <input type="text" name="summary" required dir="auto" placeholder="{{ printf ($.T "tasks.quickadd") $list }}" aria-label="{{$.T "tasks.summary"}}">
+        <button>{{$.T "common.add"}}</button>
+      </form>
+      {{ end }}
+
       <section class="tasks">
         <div class="task-grid list-grid{{if $.GlobalData.Unified}} multi{{end}}" role="table">
           {{if .Tasks}}

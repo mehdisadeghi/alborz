@@ -434,8 +434,11 @@ type MoveTasksRenderData struct {
 
 type TasksRenderData struct {
 	alborz.BaseRenderData
-	Calendars  []CalendarInfo
-	Tasks      []TaskRow
+	Calendars []CalendarInfo
+	Tasks     []TaskRow
+	// Quick is the list a task typed above the rows goes into; nil
+	// when no list takes tasks.
+	Quick      *quickList
 	View       string
 	Filters    []alborz.Filter
 	FilterRows []alborz.FilterRow
@@ -1337,6 +1340,25 @@ func setPriorityBand(todo *ical.Component, band string) {
 	todo.Props.Set(prop)
 }
 
+// quickList is where a task typed above the list goes: the first list
+// the page shows that takes tasks, in the account the page is scoped
+// to. A page showing no such list has no line.
+type quickList struct {
+	Account string
+	Path    string
+	Name    string
+}
+
+func quickListOf(ctx *alborz.Context, calendars []CalendarInfo) *quickList {
+	scope := ctx.URLAccount()
+	for _, cal := range calendars {
+		if (scope == "" || cal.Account == scope) && cal.Visible && cal.Writable && cal.SupportsTodo() {
+			return &quickList{Account: cal.Account, Path: cal.Path, Name: cal.Name}
+		}
+	}
+	return nil
+}
+
 // taskRows is the task list's filter menu: the completed tasks, every
 // task, then the star views.
 func taskRows(ctx *alborz.Context, view string) []alborz.FilterRow {
@@ -2152,6 +2174,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
+		Quick:          quickListOf(ctx, list.Calendars),
 		View:           list.View,
 		Filters:        calendarFilters(ctx, list.Calendars),
 		FilterRows:     taskRows(ctx, list.View),

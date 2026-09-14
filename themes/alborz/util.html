@@ -158,7 +158,7 @@
        well as the flag. Removing \Flagged alone leaves the colour bits
        behind, so a mail flagged green elsewhere came back green the
        next time it was starred, however many times you unstarred it. */}}
-  <input type="hidden" name="color" value="{{ if .Flagged }}{{ else }}red{{ end }}">
+  <input type="hidden" name="color" value="{{ if .Flagged }}{{ else }}yellow{{ end }}">
   <input type="hidden" name="next" value="{{.Next}}">
   <button class="flag-button button-link{{ with .Color }} flag-{{.}}{{ end }}" type="submit"
           title="{{.Label}}" aria-label="{{.Label}}">
@@ -207,7 +207,7 @@
 <div class="overflow flag-menu flag-split{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <button class="flag-button button-link{{ with .current }} flag-{{.}}{{ end }}"
           {{ with .form }}form="{{.}}"{{ end }} formaction="{{.action}}"
-          name="color" value="{{ if .current }}{{ else }}red{{ end }}"
+          name="color" value="{{ if .current }}{{ else }}yellow{{ end }}"
           title="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}"
           aria-label="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}">
     {{- if .current }}&#9733;{{ else }}&#9734;{{ end -}}
@@ -886,7 +886,7 @@
 {{ define "card-star" }}
 <form method="POST" action="{{.Action}}"
       hx-post="{{.Action}}" hx-target="this" hx-swap="outerHTML">
-  <input type="hidden" name="color" value="{{ if .Current }}{{ else }}red{{ end }}">
+  <input type="hidden" name="color" value="{{ if .Current }}{{ else }}yellow{{ end }}">
   <input type="hidden" name="next" value="{{.Next}}">
   <button class="flag-button button-link{{ with .Current }} flag-{{.}}{{ end }}" type="submit"
           title="{{.Label}}" aria-label="{{.Label}}">

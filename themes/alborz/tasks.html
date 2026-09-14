@@ -51,7 +51,7 @@
             {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
             {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .Tasks) "rows" (tuple
                (tuple ($.T "tasks.status") "status") (tuple ($.T "tasks.summary") "summary") (tuple ($.T "common.calendar") "calendar")
-               (tuple ($.T "tasks.duedate") "due"))) }}
+               (tuple ($.T "tasks.duedate") "due") (tuple ($.T "common.added") "added"))) }}
         {{ template "toolbar-foot" }}
       </section>
 
@@ -66,9 +66,7 @@
             {{ template "sort-col" (dict "s" .Sorting "key" "summary" "label" ($.T "tasks.summary") "cell" "list-primary task-list-summary") }}
             {{ template "sort-col" (dict "s" .Sorting "key" "calendar" "label" ($.T "common.calendar") "cell" "task-list-calendar") }}
             {{ template "sort-col" (dict "s" .Sorting "key" "due" "label" ($.T "tasks.duedate") "cell" "task-list-due") }}
-            <div class="list-header task-list-added" role="columnheader">
-              {{template "sort-th" (dict "label" ($.T "common.added") "key" "added" "s" .Sorting)}}
-            </div>
+            {{ template "sort-col" (dict "s" .Sorting "key" "added" "label" ($.T "common.added") "cell" "task-list-added") }}
           </div>
 
           {{range .Tasks}}

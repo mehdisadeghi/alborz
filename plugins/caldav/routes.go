@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -386,6 +388,8 @@ type TaskRow struct {
 	// the list already fetched. Zero where the writer left it out.
 	Added     time.Time
 	Completed bool
+	// Priority is the band the task's PRIORITY falls in, or empty.
+	Priority string
 	// Star is the colour the task is marked in, or empty.
 	Star string
 	// Href is the task's own page with the list carried along, so that
@@ -399,6 +403,7 @@ type TaskRenderData struct {
 	Calendar   *dav.Collection
 	Task       TaskObject
 	Star       string
+	Priority   string
 	Neighbours dav.Neighbours
 }
 
@@ -411,8 +416,12 @@ type UpdateTaskRenderData struct {
 	Todo           *ical.Component
 	// Due is the due date as the field holds it: what was typed, or
 	// what the task has.
-	Due   string
-	Error string
+	Due string
+	// Priority is the band the select holds, and PriorityBands the
+	// bands it offers, in order.
+	Priority      string
+	PriorityBands []string
+	Error         string
 }
 
 const (
@@ -1020,6 +1029,8 @@ func calendarFilters(ctx *alborz.Context, calendars []dav.Collection) []alborz.F
 			f.Label, f.Value = ctx.T("tasks.status"), ctx.T("tasks.completed")
 		case viewAll:
 			f.Label, f.Value = ctx.T("tasks.status"), ctx.T("tasks.all")
+		case viewHigh:
+			f.Label, f.Value = ctx.T("tasks.priority"), ctx.T("tasks.priority.high")
 		case alborzbase.ViewStarred:
 			f.Value = ctx.T("mailbox.starred")
 		default:
@@ -1088,7 +1099,52 @@ func agendaRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
 const (
 	viewCompleted = "completed"
 	viewAll       = "all"
+	viewHigh      = "high"
 )
+
+// The bands RFC 5545 3.8.1.9 draws over PRIORITY: 1 to 4 high, 5
+// medium, 6 to 9 low, 0 or absent none. Apple writes 1, 5 and 9.
+const (
+	priorityHigh   = "high"
+	priorityMedium = "medium"
+	priorityLow    = "low"
+)
+
+var priorityBands = []string{priorityHigh, priorityMedium, priorityLow}
+
+func priorityBand(todo *ical.Component) string {
+	prop := todo.Props.Get(ical.PropPriority)
+	if prop == nil {
+		return ""
+	}
+	n, err := strconv.Atoi(prop.Value)
+	switch {
+	case err != nil || n <= 0:
+		return ""
+	case n <= 4:
+		return priorityHigh
+	case n == 5:
+		return priorityMedium
+	default:
+		return priorityLow
+	}
+}
+
+// setPriorityBand writes a band as Apple does, and leaves a number
+// another client wrote alone while it still falls in the band chosen.
+func setPriorityBand(todo *ical.Component, band string) {
+	if band == priorityBand(todo) {
+		return
+	}
+	value := map[string]string{priorityHigh: "1", priorityMedium: "5", priorityLow: "9"}[band]
+	if value == "" {
+		todo.Props.Del(ical.PropPriority)
+		return
+	}
+	prop := ical.NewProp(ical.PropPriority)
+	prop.Value = value
+	todo.Props.Set(prop)
+}
 
 // taskRows is the task list's filter menu: the completed tasks, every
 // task, then the star views.
@@ -1101,7 +1157,11 @@ func taskRows(ctx *alborz.Context, view string) []alborz.FilterRow {
 		}
 		return alborz.FilterRow{Label: label, Href: href, Current: name == view}
 	}
-	rows := []alborz.FilterRow{row(ctx.T("tasks.completed"), viewCompleted), row(ctx.T("tasks.all"), viewAll)}
+	rows := []alborz.FilterRow{
+		row(ctx.T("tasks.completed"), viewCompleted),
+		row(ctx.T("tasks.all"), viewAll),
+		row(ctx.T("tasks.priorityhigh"), viewHigh),
+	}
 	return append(rows, alborzbase.ViewRows(ctx, view, false, clear)...)
 }
 
@@ -1693,12 +1753,12 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	// the list with no view; the completed ones and all of them are
 	// views of their own.
 	view := ctx.QueryParam("view")
-	if view != viewCompleted && view != viewAll && !validStarView(view) {
+	if view != viewCompleted && view != viewAll && view != viewHigh && !validStarView(view) {
 		return TaskList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
 	}
 	star := view
 	withCompleted := view == viewCompleted || view == viewAll
-	if withCompleted {
+	if withCompleted || view == viewHigh {
 		star = ""
 	}
 	params := dav.ListParams(ctx, "account", "cal", "query", "view", "sort", "dir")
@@ -1747,6 +1807,9 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 			if !starMatches(componentColor(todo), star) {
 				continue
 			}
+			if view == viewHigh && priorityBand(todo) != priorityHigh {
+				continue
+			}
 			if search != "" {
 				summary, _ := todo.Props.Text("SUMMARY")
 				description, _ := todo.Props.Text("DESCRIPTION")
@@ -1788,6 +1851,13 @@ var taskColumns = []dav.Column[TaskRow]{
 			return "1"
 		}
 		return "0"
+	}},
+	// High first; a task with none after the low ones.
+	{Key: "priority", Value: func(row TaskRow) string {
+		if i := slices.Index(priorityBands, row.Priority); i >= 0 {
+			return strconv.Itoa(i)
+		}
+		return strconv.Itoa(len(priorityBands))
 	}},
 	{Key: alborzbase.ViewStarred, Value: func(row TaskRow) string { return dav.StarredFirst(row.Star) }},
 	{Key: "account", Value: func(row TaskRow) string { return strings.ToLower(row.Task.Account) }},
@@ -1883,6 +1953,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
 		Star:           componentColor(getFirstTodo(task.Data)),
+		Priority:       priorityBand(getFirstTodo(task.Data)),
 		Neighbours:     dav.Around(list.Items, path),
 	})
 }
@@ -1931,6 +2002,17 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		summary := ctx.FormValue("summary")
 		description := ctx.FormValue("description")
 		dueDate := ctx.FormValue("due-date")
+		params, err := ctx.FormParams()
+		if err != nil {
+			return err
+		}
+		// A form without the select, the line above the list, says
+		// nothing about priority and changes nothing.
+		_, prioritySent := params["priority"]
+		band := ctx.FormValue("priority")
+		if band != "" && !slices.Contains(priorityBands, band) {
+			return echo.NewHTTPError(http.StatusBadRequest, "no such priority")
+		}
 
 		reject := func(message string) error {
 			rail, err := p.taskRail(ctx)
@@ -1945,6 +2027,8 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 				CalendarObject: co,
 				Todo:           todo,
 				Due:            dueDate,
+				Priority:       band,
+				PriorityBands:  priorityBands,
 				Error:          message,
 			})
 		}
@@ -1985,6 +2069,9 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			due = at
 		} else {
 			todo.Props.Del(ical.PropDue)
+		}
+		if prioritySent {
+			setPriorityBand(todo, band)
 		}
 
 		newID := uuid.New()
@@ -2028,6 +2115,8 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		CalendarObject: co,
 		Todo:           todo,
 		Due:            due,
+		Priority:       priorityBand(todo),
+		PriorityBands:  priorityBands,
 	})
 }
 
@@ -2149,6 +2238,7 @@ func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location
 		Due:       due,
 		Added:     added,
 		Completed: status == "COMPLETED",
+		Priority:  priorityBand(todo),
 		Star:      componentColor(todo),
 	}
 }

@@ -35,6 +35,15 @@
 
         {{ template "field" (dict "label" ($.T "tasks.summary") "name" "summary" "value" $summary "dir" "auto" "required" true) }}
         {{ template "date-field" (dict "g" $ "label" ($.T "tasks.duedate") "name" "due-date" "value" .Due "hint" true) }}
+        <div class="field">
+          <label for="priority">{{$.T "tasks.priority"}}</label>
+          <select name="priority" id="priority">
+            <option value=""{{ if eq .Priority "" }} selected{{ end }}>{{$.T "tasks.priority.none"}}</option>
+            {{ range .PriorityBands }}
+            <option value="{{.}}"{{ if eq . $.Priority }} selected{{ end }}>{{ $.T (printf "tasks.priority.%s" .) }}</option>
+            {{ end }}
+          </select>
+        </div>
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" $desc "dir" "auto" "rows" "4") }}
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/tasks%s" $acct) "cancelLabel" ($.T "common.cancel")) }}

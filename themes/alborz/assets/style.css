@@ -481,7 +481,7 @@ header nav {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding-inline: var(--space-2) var(--space-4);
+  padding-inline: var(--space-2);
 }
 footer { padding: var(--space-2) var(--space-4); }
 /* The name and the mark: dim, because they say where you are rather
@@ -586,7 +586,8 @@ header nav .scheme-toggle {
    child, so the push to the trailing side moves to whichever comes
    first. */
 header nav > div { margin-inline-start: auto; }
-header nav > div ~ .scheme-toggle { margin-inline-start: 0; }
+/* The gap the trailing group keeps between its own entries. */
+header nav > div ~ .scheme-toggle { margin-inline-start: var(--space-1); }
 
 header nav .accounts-button {
   display: inline-flex;

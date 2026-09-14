@@ -2182,38 +2182,30 @@ main table tfoot {
    so it takes neither its hover nor its hairline and has to be stitched
    back on with a border hack. A cell that holds two lines is simply a
    taller row. */
-/* Names are shown only where the subject column has room for a name.
-   Below that they shrink into bubbles a character wide, which say less
-   than the clip mark already on the row - so they are not shown at all,
-   and the message page names them. The threshold is the window, since
-   without a script that is what the page can measure. */
-.attach-line { display: none; }
+/* The column is the second line's layout, so it lives only on the rows
+   that have one: on a row showing no names the subject is the only item
+   and the shared ellipsis rule gives it flex: 1 1 auto - which in a
+   column grows it down the whole cell, leaving the text at the top of a
+   row that centres every other. */
+.message-list-subject.has-attach {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.15rem;
+}
 
-/* The column is the second line's layout, so it lives where the second
-   line does. Applied at every width it also reached the rows showing no
-   names, where the subject is the only item and the shared ellipsis rule
-   gives it flex: 1 1 auto - which in a column grows it down the whole
-   cell, leaving the text at the top of a row that centres every other. */
-@media (width >= 60rem) {
-  .message-list-subject.has-attach {
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 0.15rem;
-  }
+/* The subject had the whole cell to itself and still does: the names
+   are under it, never beside it. */
+.message-list-subject.has-attach > a { max-width: 100%; }
 
-  /* The subject had the whole cell to itself and still does: the names
-     are under it, never beside it. */
-  .message-list-subject.has-attach > a { max-width: 100%; }
-
-  .attach-line {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    max-width: 100%;
-    min-width: 0;
-    overflow: hidden;
-  }
+.attach-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* A name wide enough to tell one file from another and no wider: past
@@ -4765,10 +4757,6 @@ h1.no-word .title-short {
   }
 
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
-
-  /* Two lines is what a phone row has room for; the names are on the
-     message itself. */
-  .attach-line { display: none; }
 
   /* A contact is the same two-line card: name over phone, the photo
      beside the tick and spanning both lines. */

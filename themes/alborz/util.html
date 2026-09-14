@@ -55,7 +55,7 @@
      part set apart, because it is literal syntax.
      dict: text [example]. */}}
 {{ define "hint" }}
-<small class="hint">{{.text}}{{ with .example }} <code>{{.}}</code>{{ end }}</small>
+<p class="hint">{{.text}}{{ with .example }} <code>{{.}}</code>{{ end }}</p>
 {{ end }}
 
 {{/* An identifier - an address, a domain, a host - printed inside a

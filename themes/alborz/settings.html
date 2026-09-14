@@ -37,7 +37,7 @@
             dir="ltr"
             value="{{.Reading.Timezone}}"
             placeholder="{{$.T "settings.tzauto"}}" />
-          <small>{{$.T "settings.tzhint"}}</small>
+          {{ template "hint" (dict "text" ($.T "settings.tzhint")) }}
         </div>
         <div class="action-group">
           <label for="prefer_html" class="checkbox">
@@ -53,7 +53,7 @@
             <option value="{{.Username}}" {{if eq $.Anchor .Username}}selected{{end}}>{{.Username}}</option>
             {{ end }}
           </select>
-          <p class="hint">{{$.T "settings.anchorhint"}}</p>
+          {{ template "hint" (dict "text" ($.T "settings.anchorhint")) }}
         </div>
         <div class="action-group">
           <label for="first_day_of_week">{{$.T "settings.firstday"}}</label>
@@ -77,7 +77,7 @@
             <option value="gregorian" {{if eq .Reading.Secondary "gregorian"}}selected{{end}}>{{$.T "settings.gregorian"}}</option>
             <option value="shcal" {{if eq .Reading.Secondary "shcal"}}selected{{end}}>{{$.T "settings.shcal"}}</option>
           </select>
-          <p class="hint">{{$.T "settings.secondaryhint"}}</p>
+          {{ template "hint" (dict "text" ($.T "settings.secondaryhint")) }}
         </div>
 
         <div class="action-group">

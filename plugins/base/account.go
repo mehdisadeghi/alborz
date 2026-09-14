@@ -102,7 +102,7 @@ func loginRedirect(ctx *alborz.Context) error {
 
 func handleLogout(ctx *alborz.Context) error {
 	username := ctx.Session.Username()
-	if ctx.Request().Method == http.MethodPost && ctx.FormValue("account") != "" {
+	if ctx.FormValue("account") != "" {
 		username = ctx.FormValue("account")
 	}
 	target := ctx.SessionFor(username)

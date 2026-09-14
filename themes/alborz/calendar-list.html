@@ -26,31 +26,22 @@
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 
-      {{/* The agenda starts at today in the month you are living in; the
-           whole of it is one click away. It leads the list rather than
-           the toolbar, which has no room for a fourth group. */}}
-      {{if .ThisMonth}}
-      <div class="agenda-span">
-        {{ template "toggle" (dict "label" ($.T "calendar.list") "items" (tuple
-           (dict "label" ($.T "calendar.fromtoday") "current" (ne .Span "month")
-                 "href" (printf "?month=%s&view=%s" .Page .View))
-           (dict "label" ($.T "calendar.wholemonth") "current" (eq .Span "month")
-                 "href" (printf "?month=%s&view=%s&span=month" .Page .View)))) }}
-      </div>
-      {{end}}
-
+      {{/* Rows with their date, or, asked for, banded under the day
+           they fall on with the date written the way every other date
+           on the page is. */}}
+      {{ $grouped := eq .Group "day" }}
       <section class="events">
         {{$base := .}}
         {{$any := false}}
-        <div class="event-grid list-grid{{ if .SelectForm }} event-grid-select{{ end }}" role="table">
-          {{ template "event-grid-header" (dict "form" .SelectForm "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
+        <div class="event-grid list-grid{{ if .SelectForm }} event-grid-select{{ end }}{{ if $grouped }} event-grid-grouped{{ end }}" role="table">
+          {{ template "event-grid-header" (dict "starred" ($.T "sort.starred") "form" .SelectForm "date" (and (not $grouped) ($.T "sort.date")) "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
           {{range .Dates}}
           {{if and ($base.GlobalData.SameMonth . $base.Time) (not (.Before $base.Since))}}
           {{$events := call $base.EventsForDate .}}
           {{if $events}}
           {{$any = true}}
-          <h2 class="event-day-header" role="rowheader">{{$base.GlobalData.WeekdayName .}}, {{$base.GlobalData.MonthName .}} {{$base.GlobalData.Day .}}</h2>
-          {{ template "event-rows" (dict "events" $events "base" $base) }}
+          {{ if $grouped }}<h2 class="event-day-header" role="rowheader">{{ template "date-day" (dict "g" $base.Global "time" .) }}</h2>{{ end }}
+          {{ template "event-rows" (dict "events" $events "base" $base "dated" (not $grouped)) }}
           {{end}}
           {{end}}
           {{end}}

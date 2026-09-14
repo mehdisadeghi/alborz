@@ -2800,9 +2800,7 @@ main.calendar .actions {
    pointer that just chose it. */
 .actions-pagination > strong,
 .actions-pagination > .button-link,
-.actions-pagination > span[aria-disabled],
-.agenda-span > strong,
-.agenda-span > .button-link {
+.actions-pagination > span[aria-disabled] {
   min-height: var(--control-height);
   white-space: nowrap;
   display: inline-flex;
@@ -2814,20 +2812,10 @@ main.calendar .actions {
   font-weight: 500;
 }
 
-.actions-pagination > strong,
-.agenda-span > strong {
+.actions-pagination > strong {
   border-color: var(--border);
   background: var(--surface-selected);
   color: var(--fg);
-}
-
-/* Which slice of the month the agenda lists, on the gutter the list
-   itself starts from. */
-.agenda-span {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-4);
 }
 
 .actions-wrap > .actions-pagination:first-child {

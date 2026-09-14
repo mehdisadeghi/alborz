@@ -930,9 +930,12 @@
      name the events either side of it. */}}
 {{ with $base.ListQuery }}{{ $href = printf "%s%s%s" $href (qsep $href) . }}{{ end }}
 {{ $staraction := "" }}{{ if not $obj.ReadOnly }}{{ $staraction = printf "%s/color%s" $obj.URL (account "?" $obj.Account) }}{{ end }}
+{{/* Rows carry their date unless the list is banded by day. */}}
+{{ $date := "" }}{{ $dateTitle := "" }}{{ if $.dated }}{{ $date = $base.GlobalData.ShortDate .Start }}{{ $dateTitle = $base.GlobalData.LongDate .Start }}{{ with $base.GlobalData.SecondaryDate .Start }}{{ $dateTitle = printf "%s (%s)" $dateTitle . }}{{ end }}{{ end }}
 {{ $collection := call $base.CollectionFor .Account .Path }}
 {{ template "event-row" (dict
    "href" $href
+   "date" $date "dateTitle" $dateTitle "dateLabel" ($base.T "sort.date")
    "when" $when
    "form" $base.SelectForm
    "ref" (printf "%s|%s" $obj.Account $obj.Path)

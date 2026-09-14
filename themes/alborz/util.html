@@ -412,7 +412,9 @@
     {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
     {{ if .href }}<a href="{{.href}}" dir="auto">{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
   </div>
-  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}</div>
+  {{/* Whose calendar it is rides after the name, as the task and
+       contact rows write it, on the merged view alone. */}}
+  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}{{ with .account }}<span class="row-account" title="{{$.accountTitle}}">{{ template "ltr" . }}</span>{{ end }}</div>
 </div>
 {{ end }}
 
@@ -946,8 +948,10 @@
    "next" $base.GlobalData.URL.RequestURI
    "starLabel" ($base.T "mailbox.flagcolor") "clearLabel" ($base.T "mailbox.flagnone")
    "color" (or .Color $collection.Color)
-   "owner" (call $base.OwnerLabel .Account .Path)
+   "owner" $collection.Name
    "ownerhref" (call $base.CollectionHref .Account .Path)
+   "account" (and $base.GlobalData.Unified ($base.GlobalData.AccountLabel .Account))
+   "accountTitle" .Account
    "timeLabel" ($base.T "calendar.time") "eventLabel" ($base.T "calendar.event") "calendarLabel" ($base.T "common.calendar")) }}
 {{ end }}
 {{ end }}

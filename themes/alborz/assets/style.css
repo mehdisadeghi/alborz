@@ -4364,6 +4364,7 @@ aside ul.merged-roles {
    literal dash wherever it likes. Every column that carries a
    collection and its owner reads the same. */
 .task-list-calendar .row-account::before,
+.event-owner .row-account::before,
 .contact-list-book .row-account::before,
 .info-card .row-account::before,
 .list-item .row-account::before,

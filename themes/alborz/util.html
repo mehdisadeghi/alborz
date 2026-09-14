@@ -335,7 +335,7 @@
 {{/* The badge is the unread count and shows only when there is one;
      what the folder holds in all is a hover away, since a bare name
      otherwise reads as an empty folder. */}}
-<a href="{{$n.Details.Info.URL}}{{$q}}"{{ if ge $n.Details.Info.Total 0 }} title="{{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ end }}>{{$n.Name}}</a>
+<a href="{{$n.Details.Info.URL}}{{$q}}"{{ template "list-get" (dict "g" $g "href" (printf "%v%s" $n.Details.Info.URL $q)) }}{{ if ge $n.Details.Info.Total 0 }} title="{{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ end }}>{{$n.Name}}</a>
 {{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$g.Num $n.Details.Info.Unseen}}</span>{{ end }}
 {{ else }}
 <span class="noselect">{{$n.Name}}</span>
@@ -1013,11 +1013,11 @@
 {{ $all := $.GlobalData.Unified }}
 <details class="acct-folders aggregate-folders" data-rail-key="__merged" open>
 <summary class="aside-account"><a href="/mailbox/INBOX">{{$.T "nav.allaccounts"}}</a></summary>
-<ul class="merged-roles">
+<ul class="merged-roles"{{ template "list-swap" . }}>
   {{ range tuple (tuple "aside.inbox" "INBOX") (tuple "aside.drafts" "Drafts") (tuple "aside.sent" "Sent") (tuple "aside.junk" "Junk") (tuple "aside.trash" "Trash") (tuple "aside.archive" "Archive") }}
   {{ $role := index . 1 }}
   <li {{ if and $all (eq $active $role) (not $view) }}class="active"{{ end }}>
-    <a href="/mailbox/{{$role}}">{{$.T (index . 0)}}</a>
+    <a href="/mailbox/{{$role}}"{{ template "list-get" (dict "g" $.GlobalData "href" (printf "/mailbox/%s" $role)) }}>{{$.T (index . 0)}}</a>
     {{ with $.AllUnseen $role }}<span class="unseen">{{$.GlobalData.Num .}}</span>{{ end }}
   </li>
   {{ if eq $role "INBOX" }}{{ template "rail-views" (dict "q" "" "view" $view "on" (and $all (eq $active "INBOX")) "g" $.GlobalData) }}{{ end }}
@@ -1033,14 +1033,14 @@
 {{ define "rail-views" }}
 {{ $sep := "?" }}{{ if .q }}{{ $sep = "&" }}{{ end }}
 <li{{ if and .on (eq .view "unread") }} class="active"{{ end }}>
-  <a href="/mailbox/INBOX{{.q}}{{$sep}}view=unread">{{.g.T "aside.unread"}}</a>
+  <a href="/mailbox/INBOX{{.q}}{{$sep}}view=unread"{{ template "list-get" (dict "g" .g "href" (printf "/mailbox/INBOX%s%sview=unread" .q $sep)) }}>{{.g.T "aside.unread"}}</a>
 </li>
 <li class="folder-li">
   <details class="folder-branch" data-rail-key="views:{{.q}}">
-    <summary{{ if and .on (eq .view "starred") }} class="active"{{ end }}><a href="/mailbox/INBOX{{.q}}{{$sep}}view=starred">{{.g.T "aside.starred"}}</a></summary>
+    <summary{{ if and .on (eq .view "starred") }} class="active"{{ end }}><a href="/mailbox/INBOX{{.q}}{{$sep}}view=starred"{{ template "list-get" (dict "g" .g "href" (printf "/mailbox/INBOX%s%sview=starred" .q $sep)) }}>{{.g.T "aside.starred"}}</a></summary>
     <ul>
       {{ range flagcolors .g }}
-      <li{{ if and $.on (eq $.view .Name) }} class="active"{{ end }}><a href="/mailbox/INBOX{{$.q}}{{$sep}}view={{.Name}}"><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
+      <li{{ if and $.on (eq $.view .Name) }} class="active"{{ end }}><a href="/mailbox/INBOX{{$.q}}{{$sep}}view={{.Name}}"{{ template "list-get" (dict "g" $.g "href" (printf "/mailbox/INBOX%s%sview=%s" $.q $sep .Name)) }}><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
       {{ end }}
     </ul>
   </details>
@@ -1054,17 +1054,26 @@
 {{ $active := "" }}{{ with $d.Mailbox }}{{ $active = .Name }}{{ end }}
 {{ $q := printf "?account=%s" .account }}
 {{ range $d.SidebarAccounts }}{{ if eq .Account $.account }}
-<ul>
+<ul{{ template "list-swap" $d }}>
   {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.URLAccount $.account) $view $active $d.GlobalData) }}
 </ul>
 {{ end }}{{ end }}
 {{ end }}
 
+{{/* On the list page a folder or a view opens into the list alone, and
+     the rail stays under the pointer; helpers.js moves the mark. Any
+     other page takes the whole page, as a boosted link does. The
+     attributes are inherited, so they sit once on the list of rows. */}}
+{{ define "list-swap" }}{{ if eq (index .GlobalData.Path 0) "mailbox" }} hx-boost="false" hx-target="#main" hx-swap="innerHTML show:none" hx-push-url="true"{{ end }}{{ end }}
+{{/* The request itself, on each row's link; a boosted link scrolls to
+     the top, which is the one thing this must not do. dict: g href. */}}
+{{ define "list-get" }}{{ if eq (index .g.Path 0) "mailbox" }} hx-get="{{.href}}"{{ end }}{{ end }}
+
 {{/* The one account's folder tree, with no heading over it. */}}
 {{ define "rail-mail-single" }}
 {{ $view := .ListView }}
 {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
-<ul>
+<ul{{ template "list-swap" . }}>
   {{ with .CategorizedMailboxes }}
   {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
   {{ template "rail-views" (dict "q" "" "view" $view "on" (eq $active "INBOX") "g" $.GlobalData) }}

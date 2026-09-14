@@ -547,6 +547,40 @@ document.addEventListener("htmx:afterSwap", ev => {
 	}
 });
 
+// A folder opened into the list leaves the rail where it was, so only
+// the mark moves: to the row whose link names the place the page now
+// shows, by path, account and view, whatever else the URL carries.
+const railPlace = href => {
+	const u = new URL(href, location.href);
+	return u.pathname + "|" + (u.searchParams.get("account") || "") + "|" + (u.searchParams.get("view") || "");
+};
+document.addEventListener("htmx:afterSwap", ev => {
+	if (!ev.target || ev.target.id !== "main") {
+		return;
+	}
+	// On a phone the list is under the drawer; a tap on a rail link is
+	// a tap for the page, and a reload used to close the drawer with it.
+	const from = ev.detail && ev.detail.requestConfig && ev.detail.requestConfig.elt;
+	const drawer = document.getElementById("sidebar");
+	if (drawer && from && from.closest && from.closest("aside")) {
+		drawer.checked = false;
+	}
+	const here = railPlace(location.href);
+	for (const marked of document.querySelectorAll("aside li.active, aside summary.active")) {
+		marked.classList.remove("active");
+	}
+	for (const link of document.querySelectorAll("aside a[href]")) {
+		if (railPlace(link.href) !== here) {
+			continue;
+		}
+		const row = link.closest("summary") || link.closest("li");
+		if (row) {
+			row.classList.add("active");
+		}
+		break;
+	}
+});
+
 // A watcher on the server sits in IDLE, so alborz learns that mail
 // arrived before anybody asks for a page. What that changes here is the
 // rail's count, which is the one place a number for a folder lives; the

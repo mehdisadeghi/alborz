@@ -24,9 +24,10 @@
       <section class="list-items">
         {{ $n := len .Rules }}
         {{ range $i, $r := .Rules }}
-        <div class="list-item">
+        <div class="list-item{{ if .Off }} off{{ end }}">
           <div class="list-content">
             <a href="/filters/rules/{{$i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
+            {{ if .Off }}<span class="list-meta">{{$.T "filters.off"}}</span>{{ end }}
             <span class="list-detail">{{ template "rule-words" (dict "r" . "g" $) }}</span>
           </div>
           <form method="post" action="/filters/rules/move{{$aq}}">
@@ -34,6 +35,11 @@
             <input type="hidden" name="index" value="{{$i}}">
             <button name="dir" value="up" class="icon-button" title="{{$.T "filters.moveup"}}" aria-label="{{$.T "filters.moveup"}}"{{ if eq $i 0 }} disabled{{ end }}>{{ template "icon" "up" }}</button>
             <button name="dir" value="down" class="icon-button" title="{{$.T "filters.movedown"}}" aria-label="{{$.T "filters.movedown"}}"{{ if eq (sub $n 1) $i }} disabled{{ end }}>{{ template "icon" "down" }}</button>
+          </form>
+          <form method="post" action="/filters/rules/toggle{{$aq}}">
+            <input type="hidden" name="loaded" value="{{$.Loaded}}">
+            <input type="hidden" name="index" value="{{$i}}">
+            <button>{{ if .Off }}{{$.T "filters.activate"}}{{ else }}{{$.T "filters.deactivate"}}{{ end }}</button>
           </form>
           <form method="post" action="/filters/rules/delete{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">

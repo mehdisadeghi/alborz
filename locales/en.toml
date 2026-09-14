@@ -286,6 +286,7 @@
 "filters.active" = "Active"
 "filters.activate" = "Activate"
 "filters.deactivate" = "Deactivate"
+"filters.off" = "Off"
 "filters.empty" = "No filters yet."
 "filters.noserver" = "No signed-in account has a filters server."
 "filters.forwarding" = "Forwarding"

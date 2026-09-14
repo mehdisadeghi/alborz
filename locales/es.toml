@@ -312,6 +312,7 @@
 "filters.activate" = "Activar"
 "filters.deactivate" = "Desactivar"
 "filters.empty" = "Todavía no hay filtros."
+"filters.noserver" = "Ninguna cuenta con sesión iniciada tiene un servidor de filtros."
 "filters.forwarding" = "Reenvío"
 "filters.forwardto" = "Reenviar a"
 "filters.keepcopy" = "Guardar una copia aquí"

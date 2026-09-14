@@ -281,6 +281,7 @@
 "filters.activate" = "فعال‌سازی"
 "filters.deactivate" = "غیرفعال‌سازی"
 "filters.empty" = "هنوز فیلتری نیست."
+"filters.noserver" = "هیچ‌کدام از حساب‌های واردشده سرور فیلتر ندارد."
 "filters.forwarding" = "بازفرستادن خودکار"
 "filters.forwardto" = "بازفرستادن به"
 "filters.keepcopy" = "یک نسخه اینجا بماند"

@@ -9,7 +9,7 @@
   </aside>
 
   <div class="container">
-    <main class="create-update">
+    <main id="main" tabindex="-1" class="create-update">
       <form method="post" action="/filters{{$aq}}" class="filter">
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" "" "path" "" "chooses" (and (not .Name) (gt (len .Accounts) 1))) }}
         <h1>
@@ -21,11 +21,8 @@
         {{ end }}
 
         {{ if .Name }}
-        <label>
-          <span>{{$.T "common.name"}}</span>
-          <input type="text" name="name" id="name" value="{{.Name}}" readonly />
-          <input type="hidden" name="loaded" value="{{.Loaded}}">
-        </label>
+        {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "readonly" true) }}
+        <input type="hidden" name="loaded" value="{{.Loaded}}">
         {{ else }}
         {{ if gt (len .Accounts) 1 }}
         {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}

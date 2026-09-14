@@ -520,6 +520,8 @@
 "folder.exportstrip" = "Sin adjuntos"
 "folder.exportstriphint" = "Cada adjunto se sustituye por una línea con el nombre del archivo, su tipo y su tamaño. Los mensajes firmados y cifrados quedan enteros."
 "folder.exportdo" = "Descargar mbox"
+"folder.moveask" = "Mover a"
+"folder.movedo" = "Mover"
 "aside.import" = "Importar correo"
 "folder.import" = "Importar correo"
 "calendar.import" = "Importar eventos"
@@ -552,7 +554,6 @@
 "notice.sent" = "Mensaje enviado."
 "notice.draftsaved" = "Guardado como borrador."
 "notice.nomessages" = "Ningún mensaje seleccionado."
-"notice.nodestination" = "Ninguna carpeta de destino seleccionada."
 "notice.alreadyempty" = "Esa carpeta ya estaba vacía."
 "notice.undo" = "Deshacer"
 "notice.undone" = "Deshecho."
@@ -751,6 +752,14 @@ other = "%d más"
 ["notice.emptied"]
 one = "%d mensaje eliminado."
 other = "%d mensajes eliminados."
+
+["folder.movecount"]
+one = "%d mensaje"
+other = "%d mensajes"
+
+["tasks.movecount"]
+one = "%d tarea"
+other = "%d tareas"
 
 ["notice.accountexpired"]
 one = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."

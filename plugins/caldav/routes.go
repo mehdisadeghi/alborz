@@ -713,7 +713,7 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 // calendarLabels are the colour and the owner a row shows for an
 // object, found from the calendar its path lies under; the owner names
 // the account too once more than one is signed in.
-func calendarLabels(ctx *alborz.Context, calendars []CalendarInfo, multi bool) (color, owner, ownerHref func(account, path string) string) {
+func calendarLabels(ctx *alborz.Context, calendars []CalendarInfo) (color, owner, ownerHref func(account, path string) string) {
 	// A feed's object is named by the feed's address rather than by a
 	// path under a collection, so a subscription matches on that.
 	find := func(account, path string) *CalendarInfo {
@@ -734,14 +734,10 @@ func calendarLabels(ctx *alborz.Context, calendars []CalendarInfo, multi bool) (
 		return ""
 	}
 	owner = func(account, path string) string {
-		cal := find(account, path)
-		if cal == nil {
-			return ""
+		if cal := find(account, path); cal != nil {
+			return cal.Name
 		}
-		if multi {
-			return cal.Name + " — " + alborz.ShortAccount(account, ctx.Accounts())
-		}
-		return cal.Name
+		return ""
 	}
 	// The calendar a row names is a link to the agenda narrowed to it,
 	// in the scope the row belongs to.
@@ -975,7 +971,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	if mv.view != "" {
 		template = "calendar-list.html"
 	}
-	color, owner, ownerHref := calendarLabels(ctx, mv.calendars, mv.accounts > 1)
+	color, owner, ownerHref := calendarLabels(ctx, mv.calendars)
 	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(mv.start)),
@@ -1210,7 +1206,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	color, owner, ownerHref := calendarLabels(ctx, dv.calendars, dv.accounts > 1)
+	color, owner, ownerHref := calendarLabels(ctx, dv.calendars)
 	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(dv.start)),

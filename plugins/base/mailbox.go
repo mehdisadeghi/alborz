@@ -1090,8 +1090,8 @@ func handleDelete(ctx *alborz.Context) error {
 }
 
 // listTemplate is the whole page, or the part of it a narrowing
-// changes. Paging, sorting, the rows-per-page menu and a search swap
-// the list and say so; anything else - a boosted link, history, a page
+// changes. Paging, sorting, the rows-per-page menu, a search and the
+// rail's rows swap the list and say so; anything else - history, a page
 // asked for from outside - gets the page (TODO 126).
 func listTemplate(ctx *alborz.Context) string {
 	if ctx.PartialFor("main") {

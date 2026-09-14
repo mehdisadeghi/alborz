@@ -23,7 +23,6 @@
       <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
     </form>
     <main id="main" tabindex="-1" class="task-list">
-      {{$multi := gt (len .GlobalData.Accounts) 1}}
       {{$params := ""}}{{with .Query}}{{$params = printf "&query=%s" (. | urlquery)}}{{end}}
       {{$reset := "?"}}{{with .Query}}{{$reset = printf "?query=%s" (. | urlquery)}}{{end}}
       {{$explicit := ne ($.GlobalData.URL.Query.Get "sort") ""}}
@@ -41,13 +40,9 @@
           <div class="overflow">
             <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
             <div class="overflow-menu" popover id="menu-more">
-              <select form="tasks-form" name="to" aria-label="{{$.T "tasks.movelist"}}">
-                <option value="" disabled selected>{{$.T "mailbox.moveto"}}</option>
-                {{range .Calendars}}
-                <option value="{{.Account}}|{{.Path}}">{{.Name}}{{if $multi}} ({{$.GlobalData.AccountLabel .Account}}){{end}}</option>
-                {{end}}
-              </select>
-              <button form="tasks-form" formaction="/tasks/move">{{$.T "mailbox.move"}}</button>
+              {{/* The destination is chosen on a page of its own, which
+                   the move route answers with when none is named. */}}
+              <button form="tasks-form" formaction="/tasks/move">{{$.T "mailbox.moveto"}}</button>
               <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
             </div>
           </div>

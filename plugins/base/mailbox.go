@@ -818,6 +818,14 @@ func formOrQueryParam(ctx *alborz.Context, k string) string {
 	return ctx.FormValue(k)
 }
 
+// MoveRenderData is the chooser a move without a destination answers
+// with: the selection it will act on, and the folders it may go to.
+type MoveRenderData struct {
+	IMAPBaseRenderData
+	UIDs []imap.UID
+	Next string
+}
+
 func handleMove(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
@@ -838,10 +846,20 @@ func handleMove(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
 	}
 
+	// A menu holds actions, one per row; the destination is a choice
+	// the reader states on a page, which this same route answers with.
 	to := formOrQueryParam(ctx, "to")
 	if to == "" {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.nodestination")})
-		return ctx.Redirect(http.StatusFound, mailboxURL(ctx, mboxName))
+		ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+		if err != nil {
+			return err
+		}
+		ibase.BaseRenderData.WithTitle(ctx.T("folder.moveask"))
+		return ctx.Render(http.StatusOK, "move.html", &MoveRenderData{
+			IMAPBaseRenderData: *ibase,
+			UIDs:               uids,
+			Next:               ctx.FormValue("next"),
+		})
 	}
 
 	var moved *imapclient.MoveData

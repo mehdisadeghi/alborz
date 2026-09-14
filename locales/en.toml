@@ -526,6 +526,8 @@
 "folder.exportstrip" = "Without attachments"
 "folder.exportstriphint" = "Each attachment is replaced by a line naming the file, its type and its size. Signed and encrypted messages stay whole."
 "folder.exportdo" = "Download mbox"
+"folder.moveask" = "Move to"
+"folder.movedo" = "Move"
 "aside.import" = "Import mail"
 "folder.import" = "Import mail"
 "calendar.import" = "Import events"
@@ -561,7 +563,6 @@
 "notice.sent" = "Message sent."
 "notice.draftsaved" = "Message saved as draft."
 "notice.nomessages" = "No messages selected."
-"notice.nodestination" = "No destination folder selected."
 "notice.alreadyempty" = "That folder was already empty."
 "notice.undo" = "Undo"
 "notice.undone" = "Undone."
@@ -761,6 +762,14 @@ other = "%d more"
 ["notice.emptied"]
 one = "%d message deleted."
 other = "%d messages deleted."
+
+["folder.movecount"]
+one = "%d message"
+other = "%d messages"
+
+["tasks.movecount"]
+one = "%d task"
+other = "%d tasks"
 
 ["notice.accountexpired"]
 one = "%[2]s was signed out after 30 minutes of inactivity."

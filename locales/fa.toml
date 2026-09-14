@@ -522,6 +522,8 @@
 "folder.exportstrip" = "بدون پیوست"
 "folder.exportstriphint" = "هر پیوست با خطی جایگزین می‌شود که نام پرونده، نوع و اندازه‌اش را می‌گوید. نامه‌های امضاشده و رمزشده دست‌نخورده می‌مانند."
 "folder.exportdo" = "بارگیری mbox"
+"folder.moveask" = "انتقال به"
+"folder.movedo" = "انتقال"
 "aside.import" = "درون‌ریزی نامه"
 "folder.import" = "درون‌ریزی نامه"
 "calendar.import" = "درون‌ریزی رویدادها"
@@ -553,7 +555,6 @@
 "notice.sent" = "نامه فرستاده شد."
 "notice.draftsaved" = "نامه به‌عنوان پیش‌نویس ذخیره شد."
 "notice.nomessages" = "نامه‌ای انتخاب نشده است."
-"notice.nodestination" = "پوشهٔ مقصدی انتخاب نشده است."
 "notice.alreadyempty" = "آن پوشه از پیش خالی بود."
 "notice.undo" = "واگرد"
 "notice.undone" = "واگرد شد."
@@ -761,6 +762,14 @@ other = "%d مورد دیگر"
 ["notice.emptied"]
 one = "%d نامه حذف شد."
 other = "%d نامه حذف شد."
+
+["folder.movecount"]
+one = "%d نامه"
+other = "%d نامه"
+
+["tasks.movecount"]
+one = "%d کار"
+other = "%d کار"
 
 ["notice.accountexpired"]
 one = "%[2]s پس از ۳۰ دقیقه بی‌کاری از حساب خارج شد."

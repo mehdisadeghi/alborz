@@ -101,15 +101,9 @@
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
-        <select form="messages-form" name="to" aria-label="{{$.T "mailbox.movefolder"}}">
-          <option value="" disabled selected>{{$.T "mailbox.moveto"}}</option>
-          {{range .Mailboxes}}
-            {{if and (not .IsInternal) (ne .Name $.Mailbox.Name)}}
-            <option value="{{.Name}}">{{.Label}}</option>
-            {{end}}
-          {{end}}
-        </select>
-        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">{{$.T "mailbox.move"}}</button>
+        {{/* The destination is chosen on a page of its own, which the
+             move route answers with when none is named. */}}
+        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">{{$.T "mailbox.moveto"}}</button>
         {{ if or (and $junk (eq .Mailbox.Name $junk)) (and $trash (eq .Mailbox.Name $trash)) }}
         <form method="post" action="/mailbox/{{.Mailbox.Name | pathescape}}/empty{{$aq}}">
           <button class="button-danger"{{ if .Mailbox.IsEmpty }} disabled{{ end }}>{{$.T "mailbox.emptyfolder"}}</button>

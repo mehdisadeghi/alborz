@@ -526,6 +526,8 @@
 "folder.exportstrip" = "Ohne Anhänge"
 "folder.exportstriphint" = "Jeder Anhang wird durch eine Zeile mit Dateiname, Typ und Größe ersetzt. Signierte und verschlüsselte Nachrichten bleiben ganz."
 "folder.exportdo" = "mbox herunterladen"
+"folder.moveask" = "Verschieben nach"
+"folder.movedo" = "Verschieben"
 "aside.import" = "Mail importieren"
 "folder.import" = "Mail importieren"
 "calendar.import" = "Termine importieren"
@@ -558,7 +560,6 @@
 "notice.sent" = "E-Mail gesendet."
 "notice.draftsaved" = "Als Entwurf gespeichert."
 "notice.nomessages" = "Keine E-Mails ausgewählt."
-"notice.nodestination" = "Kein Zielordner ausgewählt."
 "notice.alreadyempty" = "Dieser Ordner war bereits leer."
 "notice.undo" = "Rückgängig"
 "notice.undone" = "Rückgängig gemacht."
@@ -761,6 +762,14 @@ other = "%d weitere"
 ["notice.emptied"]
 one = "%d E-Mail gelöscht."
 other = "%d E-Mails gelöscht."
+
+["folder.movecount"]
+one = "%d Nachricht"
+other = "%d Nachrichten"
+
+["tasks.movecount"]
+one = "%d Aufgabe"
+other = "%d Aufgaben"
 
 ["notice.accountexpired"]
 one = "%[2]s wurde nach 30 Minuten Inaktivität abgemeldet."

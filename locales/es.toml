@@ -239,6 +239,7 @@
 "tasks.priority.medium" = "Media"
 "tasks.priority.low" = "Baja"
 "tasks.priorityhigh" = "Prioridad alta"
+"tasks.quickadd" = "Nueva tarea en %s"
 "tasks.pending" = "Pendiente"
 "calendar.new" = "Nuevo evento"
 "calendar.subscribeurlneeded" = "Introduce la dirección web de un calendario."

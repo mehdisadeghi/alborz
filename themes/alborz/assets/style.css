@@ -3334,6 +3334,16 @@ aside details.folder-branch details.folder-branch > ul > li {
     minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
+/* One line for the next task, in the rows' box. */
+.quick-add {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.quick-add input { flex: 1; min-width: 0; }
+
 .task-list-priority { color: var(--fg-dim); font-weight: 600; }
 
 

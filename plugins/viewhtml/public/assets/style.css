@@ -1,7 +1,11 @@
 /* The wrapper clips the layout box of a scaled-down frame, whose
-   transform shrinks it visually but not in layout. */
+   transform shrinks it visually but not in layout. It lays out left to
+   right whatever the page does: a too-wide frame in an RTL page would
+   overflow to the left, where the script's top-left scale origin sends
+   the shrunken mail out of view. The mail keeps its own direction. */
 #email-frame-wrap {
   overflow: hidden;
+  direction: ltr;
 }
 
 /* Without a script the frame cannot follow its content; it is a

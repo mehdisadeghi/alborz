@@ -573,7 +573,7 @@
      dict: G Row Next. */}}
 {{ define "task-row" }}
 {{ $g := .G }}{{ $next := .Next }}{{ with .Row }}
-<div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
+<div class="task-row list-row{{if .Completed}} completed{{end}}{{if .Priority}} prioritised{{end}}" role="row">
   <div class="task-list-checkbox list-checkbox list-cell" role="cell">
     <input type="checkbox" name="paths" value="{{.Task.Account}}|{{.Task.Path}}" form="tasks-form" aria-label="{{$g.T "a11y.selecttask"}}{{with .Summary}}: {{.}}{{end}}">
   </div>
@@ -597,6 +597,11 @@
         {{if .Completed}}&#10003;{{end}}
       </button>
     </form>
+  </div>
+  {{/* The marks Apple draws before a title: three for high, one for
+       low. A column, so the header sorts on it. */}}
+  <div class="task-list-priority list-cell" role="cell" data-label="{{$g.T "tasks.priority"}}">
+    {{ with .Priority }}<span aria-hidden="true">{{ if eq . "high" }}!!!{{ else if eq . "medium" }}!!{{ else }}!{{ end }}</span><span class="visually-hidden">{{ $g.T (printf "tasks.priority.%s" .) }}</span>{{ end }}
   </div>
   <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "tasks.summary"}}">
     <a href="{{.Href}}" dir="auto">{{.Summary}}</a>

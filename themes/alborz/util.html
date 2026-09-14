@@ -75,10 +75,13 @@
      dict: g home steps class [noroot]. */}}
 {{ define "crumb" }}
 {{ $account := .g.GlobalData.URLAccount }}
-<div class="context-crumb{{ with .class }} {{.}}{{ end }}">
+{{/* With one account there is nothing to choose, so the account step
+     is dropped here the way the rail drops its heading. */}}
+{{ $several := gt (len .g.GlobalData.Accounts) 1 }}
+<div class="context-crumb">
   {{- $sep := false }}
-  {{- if and (gt (len .g.GlobalData.Accounts) 1) (not .noroot) }}<a href="{{ .home }}">{{ .g.T "nav.allaccounts" }}</a>{{ $sep = true }}{{ end }}
-  {{- range $step := .steps }}{{ if $step.Label }}
+  {{- if and $several (not .noroot) }}<a href="{{ .home }}">{{ .g.T "nav.allaccounts" }}</a>{{ $sep = true }}{{ end }}
+  {{- range $step := .steps }}{{ if and $step.Label (or $several (not $step.Address)) }}
     {{- if $sep }} › {{ end }}{{ $sep = true }}
     {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}">{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
     {{- else }}{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}{{ end }}
@@ -89,7 +92,7 @@
 {{/* The path above a calendar, task or contact page. It reads the same
      way the mail one does - account, then section, then the collection
      - so the two do not drift apart. The account is the one the URL
-     names, or the only one; the merged view has none. A page with no
+     names; the merged view has none. A page with no
      collection to name stops after the section, a create form among
      them: it lands where the path says. A page of its own under the
      section, such as an account's signatures, names no field: its
@@ -100,7 +103,6 @@
      dict: g section home field collection path [noroot chooses items at keep]. */}}
 {{ define "dav-crumb" }}
 {{ $account := .g.GlobalData.URLAccount }}
-{{ if and (not $account) (not .g.GlobalData.Unified) }}{{ $account = .g.GlobalData.Username }}{{ end }}
 {{ if .chooses }}{{ $account = "" }}{{ end }}
 {{/* A collection named like its section - the one book called
      "Contacts" - would read "Contacts › Contacts"; its step says

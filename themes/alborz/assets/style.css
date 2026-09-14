@@ -4345,11 +4345,6 @@ aside ul.merged-roles {
 
 /* Page context, breadcrumb-weight: which account and container the
    page acts on, between the toolbar and the content. */
-/* The narrow layout's own crumb: the header cannot hold the switcher
-   there, so the page names the account instead. Wide windows have the
-   switcher in view and do not need it repeated. */
-.narrow-crumb { display: none; }
-
 .context-crumb {
   color: var(--fg-muted);
   font-size: var(--text-sm);
@@ -4853,8 +4848,6 @@ h1.no-word .title-short {
     min-height: 2.75rem;
     align-items: center;
   }
-
-  .narrow-crumb { display: block; }
 
   .list-item { min-height: 2.75rem; }
 

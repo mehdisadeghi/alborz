@@ -15,16 +15,25 @@ import (
 // one choice for all of them: a single redirect without :copy cancels
 // the copy for the message, whatever the other rules say.
 type Forwarding struct {
-	Addresses []string
-	Keep      bool
+	Forwards []Forward
+	Keep     bool
+}
+
+// A Forward that is off stays in the script under a test that never
+// holds, so it is read back whole and any client still shows it.
+type Forward struct {
+	Address string
+	Off     bool
 }
 
 // forwardLine matches one line of a script the page wrote itself; a
 // script that holds anything else was edited by hand.
 var forwardLine = regexp.MustCompile(`^redirect( :copy)? ` + quoted + `;$`)
 
+const forwardOff = "if false {"
+
 func (f Forwarding) script() string {
-	if len(f.Addresses) == 0 {
+	if len(f.Forwards) == 0 {
 		return ""
 	}
 	var b strings.Builder
@@ -32,12 +41,15 @@ func (f Forwarding) script() string {
 	if f.Keep {
 		b.WriteString(requireLine([]string{"copy"}))
 	}
-	for _, a := range f.Addresses {
+	for _, fw := range f.Forwards {
+		line := fmt.Sprintf("redirect %s;\n", quote(fw.Address))
 		if f.Keep {
-			fmt.Fprintf(&b, "redirect :copy %s;\n", quote(a))
-		} else {
-			fmt.Fprintf(&b, "redirect %s;\n", quote(a))
+			line = fmt.Sprintf("redirect :copy %s;\n", quote(fw.Address))
 		}
+		if fw.Off {
+			line = forwardOff + "\n    " + line + "}\n"
+		}
+		b.WriteString(line)
 	}
 	return b.String()
 }
@@ -47,16 +59,24 @@ func (f Forwarding) script() string {
 // understand.
 func readForwarding(content string) (f Forwarding, ok bool) {
 	f.Keep = true
+	off := false
 	for _, line := range strings.Split(content, "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "require ") {
+		switch {
+		case line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "require "):
+			continue
+		case line == forwardOff:
+			off = true
+			continue
+		case line == "}":
+			off = false
 			continue
 		}
 		m := forwardLine.FindStringSubmatch(line)
 		if m == nil {
 			return Forwarding{}, false
 		}
-		f.Addresses = append(f.Addresses, unquote(m[2]))
+		f.Forwards = append(f.Forwards, Forward{Address: unquote(m[2]), Off: off})
 		if m[1] == "" {
 			f.Keep = false
 		}
@@ -153,12 +173,12 @@ func handleForwardingAdd(ctx *alborz.Context) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "forwarding-create.html", data)
 	}
 	err := changeForwarding(ctx, func(f *Forwarding) {
-		for _, a := range f.Addresses {
-			if a == address {
+		for _, fw := range f.Forwards {
+			if fw.Address == address {
 				return
 			}
 		}
-		f.Addresses = append(f.Addresses, address)
+		f.Forwards = append(f.Forwards, Forward{Address: address})
 	})
 	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
 }
@@ -166,13 +186,25 @@ func handleForwardingAdd(ctx *alborz.Context) error {
 func handleForwardingDelete(ctx *alborz.Context) error {
 	address := ctx.FormValue("address")
 	err := changeForwarding(ctx, func(f *Forwarding) {
-		kept := f.Addresses[:0]
-		for _, a := range f.Addresses {
-			if a != address {
-				kept = append(kept, a)
+		kept := f.Forwards[:0]
+		for _, fw := range f.Forwards {
+			if fw.Address != address {
+				kept = append(kept, fw)
 			}
 		}
-		f.Addresses = kept
+		f.Forwards = kept
+	})
+	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
+}
+
+func handleForwardingToggle(ctx *alborz.Context) error {
+	address := ctx.FormValue("address")
+	err := changeForwarding(ctx, func(f *Forwarding) {
+		for i, fw := range f.Forwards {
+			if fw.Address == address {
+				f.Forwards[i].Off = !fw.Off
+			}
+		}
 	})
 	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
 }

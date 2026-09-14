@@ -27,6 +27,9 @@ type Rule struct {
 	Discard    bool
 	Forward    string // redirect :copy
 	Stop       bool
+	// Off keeps the rule in the script with a test that never holds,
+	// so it is read back whole and any client still shows it.
+	Off bool
 }
 
 // Condition is one test: a field, how it is matched, and the value.
@@ -80,7 +83,11 @@ func (r Rule) block() string {
 	for i, c := range r.Conditions {
 		tests[i] = c.test()
 	}
-	fmt.Fprintf(&b, "if %s(%s) {\n", join, strings.Join(tests, ", "))
+	test := fmt.Sprintf("%s(%s)", join, strings.Join(tests, ", "))
+	if r.Off {
+		test = "allof(false, " + test + ")"
+	}
+	fmt.Fprintf(&b, "if %s {\n", test)
 	if r.Folder != "" {
 		fmt.Fprintf(&b, "    fileinto %s;\n", quote(r.Folder))
 	}
@@ -138,6 +145,10 @@ func rulesScriptFor(rules []Rule) string {
 	return b.String()
 }
 
+// offPrefix opens a rule that is switched off: allof stops at the
+// first false (RFC 5228 5.2), so the rule keeps its tests unread.
+const offPrefix = "if allof(false, "
+
 var (
 	ruleName = regexp.MustCompile(`^# rule: (.*)$`)
 	ruleIf   = regexp.MustCompile(`^if (allof|anyof)\((.*)\) \{$`)
@@ -160,7 +171,12 @@ func readRules(content string) (rules []Rule, ok bool) {
 		if i >= len(lines) {
 			return nil, false
 		}
-		h := ruleIf.FindStringSubmatch(lines[i])
+		line := lines[i]
+		if strings.HasPrefix(line, offPrefix) && strings.HasSuffix(line, ")) {") {
+			r.Off = true
+			line = "if " + strings.TrimSuffix(strings.TrimPrefix(line, offPrefix), ")) {") + ") {"
+		}
+		h := ruleIf.FindStringSubmatch(line)
 		if h == nil {
 			return nil, false
 		}
@@ -352,6 +368,7 @@ func handleRuleSave(ctx *alborz.Context) error {
 	made := -1
 	err = changeRules(ctx, func(rules []Rule) []Rule {
 		if index >= 0 && index < len(rules) {
+			r.Off = rules[index].Off
 			rules[index] = r
 			return rules
 		}
@@ -444,6 +461,20 @@ func handleRuleMove(ctx *alborz.Context) error {
 			return rules
 		}
 		rules[index], rules[to] = rules[to], rules[index]
+		return rules
+	})
+	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
+}
+
+func handleRuleToggle(ctx *alborz.Context) error {
+	index, err := strconv.Atoi(ctx.FormValue("index"))
+	if err != nil {
+		return err
+	}
+	err = changeRules(ctx, func(rules []Rule) []Rule {
+		if index >= 0 && index < len(rules) {
+			rules[index].Off = !rules[index].Off
+		}
 		return rules
 	})
 	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))

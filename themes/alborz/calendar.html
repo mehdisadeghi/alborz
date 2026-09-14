@@ -5,7 +5,9 @@
 <div class="page-wrap">
   <aside>
     {{ $keep := printf "&month=%s" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
-    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/calendar" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.newcalendar")) "follow" (dict "href" (printf "/calendars/subscribe?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.subscribe")) "data" (dict "keep" $keep "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI) "views" (dict "path" "/calendar" "view" .StarView "q" (account "?" .GlobalData.URLAccount))) }}
+    {{/* The rail's links keep the month and the view in front of you:
+         an account or the merged view is a scope, not a place. */}}
+    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" (printf "/calendar?%s" (slice $keep 1)) "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/calendars/create?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.newcalendar")) "follow" (dict "href" (printf "/calendars/subscribe?next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "calendar.subscribe")) "data" (dict "keep" $keep "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/calendar" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI) "views" (dict "path" (printf "/calendar?month=%s" .Page) "view" .StarView "account" .GlobalData.URLAccount)) }}
   </aside>
 
   <div class="container">

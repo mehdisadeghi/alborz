@@ -837,7 +837,7 @@
   {{ if eq $.kind "dav" }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ end }}{{ end }}{{ end }}
   {{ if $has }}
   <details class="acct-folders" data-rail-key="{{$acct}}"{{ if eq $acct $.urlaccount }} open{{ end }}>
-    <summary class="aside-account"><a href="{{$.path}}{{ account "?" $acct }}">{{ template "ltr" $acct }}</a></summary>
+    <summary class="aside-account"><a href="{{$.path}}{{ account (qsep $.path) $acct }}">{{ template "ltr" $acct }}</a></summary>
     {{ if eq $.kind "mail" }}
     {{ template "rail-mail-account" (dict "account" $acct "data" $.data) }}
     {{ else if eq $.kind "rows" }}
@@ -860,7 +860,7 @@
   {{/* Colours are views, the way the mail rail carries them: one list
        of seven, under the collections they narrow, whichever accounts
        are shown. */}}
-  {{ with .views }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" .view "q" .q) }}{{ end }}
+  {{ with .views }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" .view "account" .account) }}{{ end }}
   {{/* The two ways a contact belongs with others (RFC 6350): the
        groups that name it, and the words it carries. Each is a filter
        and neither is a place, so they sit with the views. */}}
@@ -944,14 +944,17 @@
      colours as its branch: same rows, same stars, one parameter.
      dict: g path view q. */}}
 {{ define "rail-colors" }}
-{{ $sep := "?" }}{{ if .q }}{{ $sep = "&" }}{{ end }}
+{{/* The path may already carry a query - the calendar's month - so
+     the account and the view join it with whichever separator is
+     next. dict: g path view account. */}}
+{{ $base := printf "%s%v" .path (account (qsep .path) .account) }}
 <ul class="rail-views">
   <li class="folder-li">
-    <details class="folder-branch" data-rail-key="colors:{{.q}}"{{ if .view }} open{{ end }}>
-      <summary{{ if eq .view "starred" }} class="active"{{ end }}><a href="{{.path}}{{.q}}{{$sep}}view=starred">{{.g.T "aside.starred"}}</a></summary>
+    <details class="folder-branch" data-rail-key="colors:{{.account}}"{{ if .view }} open{{ end }}>
+      <summary{{ if eq .view "starred" }} class="active"{{ end }}><a href="{{$base}}{{qsep $base}}view=starred">{{.g.T "aside.starred"}}</a></summary>
       <ul>
         {{ range flagcolors .g }}
-        <li{{ if eq $.view .Name }} class="active"{{ end }}><a href="{{$.path}}{{$.q}}{{$sep}}view={{.Name}}"><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
+        <li{{ if eq $.view .Name }} class="active"{{ end }}><a href="{{$base}}{{qsep $base}}view={{.Name}}"><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
         {{ end }}
       </ul>
     </details>

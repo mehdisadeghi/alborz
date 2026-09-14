@@ -285,6 +285,7 @@
 "filters.active" = "فعال"
 "filters.activate" = "فعال‌سازی"
 "filters.deactivate" = "غیرفعال‌سازی"
+"filters.off" = "خاموش"
 "filters.empty" = "هنوز فیلتری نیست."
 "filters.forwarding" = "بازفرستادن خودکار"
 "filters.forwardto" = "بازفرستادن به"

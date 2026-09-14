@@ -316,6 +316,7 @@
 "filters.active" = "Aktiv"
 "filters.activate" = "Aktivieren"
 "filters.deactivate" = "Deaktivieren"
+"filters.off" = "Aus"
 "filters.empty" = "Noch keine Filter."
 "filters.forwarding" = "Weiterleitung"
 "filters.forwardto" = "Weiterleiten an"

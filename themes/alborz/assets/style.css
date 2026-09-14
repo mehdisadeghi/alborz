@@ -4157,6 +4157,9 @@ button:active,
   color: var(--fg-faint);
 }
 
+/* A rule or forward switched off stays in the list, dimmed. */
+.list-item.off .list-summary { color: var(--fg-faint); }
+
 .task-checkbox {
   margin-inline-end: 0.5rem;
 }

@@ -36,19 +36,25 @@
       {{ end }}
 
       <section class="list-items">
-        {{ range .Addresses }}
-        <div class="list-item">
+        {{ range .Forwards }}
+        <div class="list-item{{ if .Off }} off{{ end }}">
           <div class="list-content">
-            <span class="list-summary">{{ template "ltr" . }}</span>
+            <span class="list-summary">{{ template "ltr" .Address }}</span>
+            {{ if .Off }}<span class="list-meta">{{$.T "filters.off"}}</span>{{ end }}
           </div>
+          <form method="post" action="/filters/forwarding/toggle{{$aq}}">
+            <input type="hidden" name="loaded" value="{{$.Loaded}}">
+            <input type="hidden" name="address" value="{{.Address}}">
+            <button>{{ if .Off }}{{$.T "filters.activate"}}{{ else }}{{$.T "filters.deactivate"}}{{ end }}</button>
+          </form>
           <form method="post" action="/filters/forwarding/delete{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">
-            <input type="hidden" name="address" value="{{.}}">
+            <input type="hidden" name="address" value="{{.Address}}">
             <button class="button-danger">{{$.T "common.delete"}}</button>
           </form>
         </div>
         {{ end }}
-        {{ if and (not .Addresses) (not .ByHand) }}
+        {{ if and (not .Forwards) (not .ByHand) }}
         <p class="empty-list">{{$.T "filters.forwardnone"}}</p>
         {{ end }}
       </section>

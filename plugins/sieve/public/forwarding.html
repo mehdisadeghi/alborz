@@ -26,10 +26,10 @@
       <form method="post" action="/filters/forwarding/keep{{$aq}}" class="aside-filter list-option">
         <input type="hidden" name="loaded" value="{{.Loaded}}">
         <label class="checkbox">
-          <input type="checkbox" name="keep" value="1"{{ if .Keep }} checked{{ end }} onchange="this.form.requestSubmit()">
+          <input type="checkbox" name="keep" value="1"{{ if .Keep }} checked{{ end }} data-submit-on-change>
           {{$.T "filters.keepcopy"}}
         </label>
-        <noscript><button>{{$.T "common.save"}}</button></noscript>
+        <button>{{$.T "common.save"}}</button>
       </form>
       {{ else }}
       <p class="hint list-option">{{$.T "filters.keepcopyunsupported"}}</p>

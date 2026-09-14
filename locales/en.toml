@@ -284,6 +284,7 @@
 "filters.activate" = "Activate"
 "filters.deactivate" = "Deactivate"
 "filters.empty" = "No filters yet."
+"filters.noserver" = "No signed-in account has a filters server."
 "filters.forwarding" = "Forwarding"
 "filters.forwardto" = "Forward to"
 "filters.keepcopy" = "Keep a copy here"

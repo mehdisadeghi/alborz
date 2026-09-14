@@ -373,24 +373,14 @@ func handleActivateFilter(ctx *alborz.Context) error {
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.ActivateScript(name)
 	})
-	if err != nil {
-		return err
-	}
-
-	ctx.PutNotice(ctx.T("notice.filteron"))
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
+	return answer(ctx, err, "/filters", ctx.T("notice.filteron"))
 }
 
 func handleDeactivateFilter(ctx *alborz.Context) error {
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.ActivateScript("")
 	})
-	if err != nil {
-		return err
-	}
-
-	ctx.PutNotice(ctx.T("notice.filteroff"))
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
+	return answer(ctx, err, "/filters", ctx.T("notice.filteroff"))
 }
 
 func handleDeleteFilter(ctx *alborz.Context) error {
@@ -402,12 +392,7 @@ func handleDeleteFilter(ctx *alborz.Context) error {
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.DeleteScript(name)
 	})
-	if err != nil {
-		return err
-	}
-
-	ctx.PutNotice(ctx.T("notice.filterdeleted"))
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters"))
+	return answer(ctx, err, "/filters", ctx.T("notice.filterdeleted"))
 }
 
 // extensionHints names the Sieve extensions worth explaining, by what

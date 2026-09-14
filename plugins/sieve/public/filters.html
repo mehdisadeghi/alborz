@@ -5,11 +5,11 @@
 <div class="page-wrap">
   {{ $aq := account "?" .GlobalData.URLAccount }}
   <aside>
-  {{ template "scope-rail" (dict "g" $ "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
+  {{ template "scope-rail" (dict "g" $ "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (and .Accounts (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new")))) }}
   </aside>
 
   <div class="container">
-    <main class="list">
+    <main id="main" tabindex="-1" class="list">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{/* The plus sits where every other list has it: tasks,
              contacts and calendars all offer their create from the
@@ -19,36 +19,32 @@
 
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" "" "path" "") }}
 
-      {{/* One group per account shown, under its name when the view
-           is merged; every link and form names the account its script
-           lives on, since a bare one would act on the wrong server. */}}
+      {{/* An account whose server did not answer has nothing below;
+           the warning names it where the view shows several. */}}
       {{ range .Groups }}
-      {{ $gq := account "?" .Account }}
-      {{ if $.GlobalData.Unified }}<h2 class="list-group-heading">{{ template "ltr" .Account }}</h2>{{ end }}
+      {{ $label := $.GlobalData.AccountLabel .Account }}
       {{ with .Unreachable }}
       <div class="alert" role="alert">
-        <strong>{{$.T "filters.unreachable"}}</strong>
+        <strong>{{$.T "filters.unreachable"}}</strong>{{ if $.GlobalData.Unified }}<span class="row-account">{{ template "ltr" $label }}</span>{{ end }}
         <p class="code">{{.}}</p>
       </div>
       {{ end }}
+      {{ end }}
 
-      {{/* Which server holds these filters, what it is, and which
-           extensions a filter here may use - the last being the one
-           thing that decides whether a script the reader writes will
-           be accepted. */}}
-      {{ template "info-card" (dict "title" ($.T "filters.serverinfo")
-         "collapsed" true
-         "rows" (tuple
-           (dict "label" ($.T "settings.serversieve") "value" .Server)
-           (dict "label" ($.T "filters.software") "value" .Software))
-         "tags" .Extensions "tagstitle" ($.T "filters.extensions")
-         "page" $) }}
-
+      {{/* One list over every account shown; a row says whose it is
+           the way a task row does, and every link and form names the
+           account its script lives on, since a bare one would act on
+           the wrong server. */}}
       <section class="list-items">
+        {{ $any := false }}
+        {{ range .Groups }}
+        {{ $gq := account "?" .Account }}
+        {{ $label := $.GlobalData.AccountLabel .Account }}
         {{ range .Scripts }}
+        {{ $any = true }}
         <div class="list-item">
           <div class="list-content">
-            <a href="/filters/{{.Name | pathescape}}{{$gq}}" class="list-summary">{{.Name}}</a>
+            <a href="/filters/{{.Name | pathescape}}{{$gq}}" class="list-summary">{{.Name}}{{ if $.GlobalData.Unified }}<span class="row-account">{{ template "ltr" $label }}</span>{{ end }}</a>
             {{ if .Active }}
             <span class="list-meta">{{$.T "filters.active"}}</span>
             {{ end }}
@@ -67,10 +63,29 @@
           </form>
         </div>
         {{ end }}
-        {{ if not .Scripts }}
+        {{ end }}
+        {{ if not .Accounts }}
+        <p class="empty-list">{{$.T "filters.noserver"}}</p>
+        {{ else if not $any }}
         <p class="empty-list">{{$.T "filters.empty"}}</p>
         {{ end }}
       </section>
+
+      {{/* Which server holds these filters, what it is, and which
+           extensions a filter here may use - the last being the one
+           thing that decides whether a script the reader writes will
+           be accepted. One card per account, after the list. */}}
+      {{ range .Groups }}
+      {{ if not .Unreachable }}
+      {{ template "info-card" (dict "title" ($.T "filters.serverinfo")
+         "collapsed" true
+         "account" (and $.GlobalData.Unified ($.GlobalData.AccountLabel .Account))
+         "rows" (tuple
+           (dict "label" ($.T "settings.serversieve") "value" .Server)
+           (dict "label" ($.T "filters.software") "value" .Software))
+         "tags" .Extensions "tagstitle" ($.T "filters.extensions")
+         "page" $) }}
+      {{ end }}
       {{ end }}
 
       {{/* What the extensions mean, once for the page: the same

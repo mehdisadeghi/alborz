@@ -504,16 +504,17 @@
      for a page that repeats it per account and does not want it
      shouting; the glossary of what the tags mean is left to the
      caller when "explained" is not passed, so a merged page shows it
-     once rather than in every card. */}}
+     once rather than in every card. "account" says whose server, on a
+     page that shows several. */}}
 {{ define "info-card" }}
 {{ if .collapsed }}
 <details class="info-card info-card-fold">
-  <summary>{{.title}}</summary>
+  <summary>{{.title}}{{ with .account }}<span class="row-account">{{ template "ltr" . }}</span>{{ end }}</summary>
   {{ template "info-card-body" . }}
 </details>
 {{ else }}
 <section class="info-card">
-  <h2>{{.title}}</h2>
+  <h2>{{.title}}{{ with .account }}<span class="row-account">{{ template "ltr" . }}</span>{{ end }}</h2>
   {{ template "info-card-body" . }}
 </section>
 {{ end }}
@@ -670,7 +671,7 @@
 
 {{/* One stacked form field: a full-width caption over its control.
      dict: label name [type] [value] [dir] [placeholder] [required]
-           [rows] [autofocus]. */}}
+           [readonly] [rows] [autofocus]. */}}
 {{/* The caption points at the control rather than wrapping it. A label
      that wraps its control forwards a click to it, and a date input
      answers that second activation by closing the picker the first one
@@ -714,7 +715,7 @@
   {{ if .rows }}
   <textarea name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} rows="{{.rows}}"{{ if .autofocus }} autofocus{{ end }}>{{.value}}</textarea>
   {{ else }}
-  <input type="{{with .type}}{{.}}{{else}}text{{end}}" name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} value="{{.value}}"{{ if .placeholder }} placeholder="{{.placeholder}}"{{ end }}{{ if .required }} required{{ end }}{{ if .autofocus }} autofocus{{ end }}>
+  <input type="{{with .type}}{{.}}{{else}}text{{end}}" name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} value="{{.value}}"{{ if .placeholder }} placeholder="{{.placeholder}}"{{ end }}{{ if .required }} required{{ end }}{{ if .readonly }} readonly{{ end }}{{ if .autofocus }} autofocus{{ end }}>
   {{ end }}
   {{/* An example after the hint is a date or a code, read left to
        right whatever the page does. */}}

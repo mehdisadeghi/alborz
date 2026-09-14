@@ -29,7 +29,7 @@ const tplSrc = `
 </div>
 <noscript><style>#email-frame { visibility: visible; }</style></noscript>
 <script src="/plugins/viewhtml/assets/script.js?v=6"></script>
-<link rel="stylesheet" href="/plugins/viewhtml/assets/style.css?v=6">
+<link rel="stylesheet" href="/plugins/viewhtml/assets/style.css?v=7">
 `
 
 var tpl = template.Must(template.New("view-html.html").Parse(tplSrc))

@@ -30,6 +30,7 @@
           {{if .AddressObjects}}
           <div class="list-row" role="row">
           <div class="list-header list-checkbox" role="columnheader"></div>
+          {{ template "sort-col" (dict "s" .Sorting "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "list-star" "hidden" ($.T "sort.starred")) }}
           <div class="list-header contact-list-photo" role="columnheader"></div>
           {{ template "sort-col" (dict "s" .Sorting "key" "name" "label" ($.T "common.name") "cell" "list-primary contact-list-name") }}
           {{ template "sort-col" (dict "s" .Sorting "key" "email" "label" ($.T "contacts.email") "cell" "contact-list-email") }}
@@ -47,17 +48,19 @@
             <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
               <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form" aria-label="{{$.T "a11y.selectcontact"}}{{with .DisplayName}}: {{.}}{{end}}">
             </div>
-            <div class="contact-list-photo list-cell" role="cell">
-              {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
-            </div>
-            <div class="contact-list-name list-primary list-cell" role="cell">
-              {{/* The star is always here, lit or not: a mark that
-                   appears from nowhere moves the name beside it. */}}
+            {{/* The star has a column of its own, as the mail list draws
+                 it: always here, lit or not. */}}
+            <div class="list-star list-cell" role="cell">
               {{ template "card-star" (dict
                  "Action" (printf "%s/color%s" .URL (account "?" .Account))
                  "Current" .Color
                  "Next" $.GlobalData.URL.RequestURI
                  "Label" (or (and .Color ($.T "mailbox.flagnone")) ($.T "mailbox.flagcolor"))) }}
+            </div>
+            <div class="contact-list-photo list-cell" role="cell">
+              {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
+            </div>
+            <div class="contact-list-name list-primary list-cell" role="cell">
               <a href="{{ call $.HrefFor .Account .Path }}" dir="auto">
                 {{.DisplayName}}
               </a>

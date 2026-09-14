@@ -29,6 +29,15 @@ func When(t time.Time) string {
 	return t.Format(time.RFC3339)
 }
 
+// StarredFirst is a star as a column sorts it: the marked rows first,
+// as the mail list orders by its flag.
+func StarredFirst(star string) string {
+	if star != "" {
+		return "0"
+	}
+	return "1"
+}
+
 // Sorting is a list's order as its sort menu and its column headers
 // draw it. Key and Dir are the order in force; Explicit and DirExplicit
 // say whether the URL asked for them, since a default order marks no

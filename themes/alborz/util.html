@@ -364,6 +364,10 @@
 {{ define "event-grid-header" }}
 <div class="event-header-row list-row" role="row">
   {{ with .form }}<div class="list-header event-select list-checkbox" role="columnheader"></div>{{ end }}
+  {{/* The day's order is its own, so the star names the column and
+       does not sort it. */}}
+  <div class="list-header list-star" role="columnheader"><span class="sort-header flag-sort" aria-hidden="true">&#9734;</span><span class="visually-hidden">{{.starred}}</span></div>
+  {{ with .date }}<div class="list-header event-date" role="columnheader">{{.}}</div>{{ end }}
   <div class="list-header event-time" role="columnheader">{{.time}}</div>
   <div class="list-header event-summary list-primary" role="columnheader">{{.event}}</div>
   <div class="list-header event-owner" role="columnheader">{{.calendar}}</div>
@@ -383,6 +387,12 @@
     <input type="checkbox" name="paths" value="{{$.ref}}" form="{{.}}" aria-label="{{$.selectLabel}}{{with $.summary}}: {{.}}{{end}}">
   </div>
   {{ end }}
+  {{/* The star has a column of its own, as the mail list draws it; a
+       feed's event cannot be marked and its cell stays empty. */}}
+  <div class="list-star list-cell" role="cell">
+    {{ with .staraction }}{{ template "card-star" (dict "Action" . "Current" $.star "Next" $.next "Label" (or (and $.star $.clearLabel) $.starLabel)) }}{{ end }}
+  </div>
+  {{ with .date }}<div class="event-date list-cell" role="cell" data-label="{{$.dateLabel}}" title="{{$.dateTitle}}">{{.}}</div>{{ end }}
   <div class="event-time list-cell" role="cell" data-label="{{.timeLabel}}">{{.when}}</div>
   <div class="event-summary list-primary list-cell" role="cell" data-label="{{.eventLabel}}">
     {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
@@ -591,6 +601,15 @@
 <div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
   <div class="task-list-checkbox list-checkbox list-cell" role="cell">
     <input type="checkbox" name="paths" value="{{.Task.Account}}|{{.Task.Path}}" form="tasks-form" aria-label="{{$g.T "a11y.selecttask"}}{{with .Summary}}: {{.}}{{end}}">
+  </div>
+  {{/* The star has a column of its own, as the mail list draws it:
+       always here, lit or not. */}}
+  <div class="list-star list-cell" role="cell">
+    {{ template "card-star" (dict
+       "Action" (printf "%s/color%s" .Task.URL (account "?" .Task.Account))
+       "Current" .Star
+       "Next" $next
+       "Label" (or (and .Star ($g.T "mailbox.flagnone")) ($g.T "mailbox.flagcolor"))) }}
   </div>
   <div class="task-list-status list-cell" role="cell" data-label="{{$g.T "tasks.status"}}">
     {{ $mark := $g.T "tasks.markcomplete" }}{{ if .Completed }}{{ $mark = $g.T "tasks.markincomplete" }}{{ end }}
@@ -894,6 +913,7 @@
 {{/* The list the event was opened from rides along, so its page can
      name the events either side of it. */}}
 {{ with $base.ListQuery }}{{ $href = printf "%s%s%s" $href (qsep $href) . }}{{ end }}
+{{ $staraction := "" }}{{ if not $obj.ReadOnly }}{{ $staraction = printf "%s/color%s" $obj.URL (account "?" $obj.Account) }}{{ end }}
 {{ $collection := call $base.CollectionFor .Account .Path }}
 {{ template "event-row" (dict
    "href" $href
@@ -902,6 +922,10 @@
    "ref" (printf "%s|%s" $obj.Account $obj.Path)
    "selectLabel" ($base.T "a11y.selectevent")
    "summary" .Summary
+   "star" .Star
+   "staraction" $staraction
+   "next" $base.GlobalData.URL.RequestURI
+   "starLabel" ($base.T "mailbox.flagcolor") "clearLabel" ($base.T "mailbox.flagnone")
    "color" (or .Color $collection.Color)
    "owner" (call $base.OwnerLabel .Account .Path)
    "timeLabel" ($base.T "calendar.time") "eventLabel" ($base.T "calendar.event") "calendarLabel" ($base.T "common.calendar")) }}
@@ -929,14 +953,15 @@
 </form>
 {{ end }}
 
-{{/* The seven colours as views of a list that is not mail's: same
-     rows, same stars, one parameter. dict: g path view q. */}}
+{{/* The starred view of a list that is not mail's, with the seven
+     colours as its branch: same rows, same stars, one parameter.
+     dict: g path view q. */}}
 {{ define "rail-colors" }}
 {{ $sep := "?" }}{{ if .q }}{{ $sep = "&" }}{{ end }}
 <ul class="rail-views">
   <li class="folder-li">
     <details class="folder-branch" data-rail-key="colors:{{.q}}"{{ if .view }} open{{ end }}>
-      <summary>{{.g.T "aside.colors"}}</summary>
+      <summary{{ if eq .view "starred" }} class="active"{{ end }}><a href="{{.path}}{{.q}}{{$sep}}view=starred">{{.g.T "aside.starred"}}</a></summary>
       <ul>
         {{ range flagcolors .g }}
         <li{{ if eq $.view .Name }} class="active"{{ end }}><a href="{{$.path}}{{$.q}}{{$sep}}view={{.Name}}"><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>

@@ -20,6 +20,6 @@
 {{ template "toolbar-end" }}
   {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query))) }}
   {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .AddressObjects) "rows" (tuple
-     (tuple ($.T "common.name") "name") (tuple ($.T "contacts.email") "email") (tuple ($.T "contacts.phone") "phone")
-     (tuple ($.T "common.modified") "changed") (tuple ($.T "contacts.book") "book"))) }}
+     (tuple ($.T "sort.starred") "starred") (tuple ($.T "common.name") "name") (tuple ($.T "contacts.email") "email")
+     (tuple ($.T "contacts.phone") "phone") (tuple ($.T "common.modified") "changed") (tuple ($.T "contacts.book") "book"))) }}
 {{ template "toolbar-foot" }}

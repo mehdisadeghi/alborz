@@ -95,17 +95,6 @@
               {{ end }}
             </span>
 
-
-            {{/* One star for this message: it sets and clears, and the
-                 chevron beside it holds the colours. */}}
-            {{ template "flag-menu" (dict
-               "priority" 12
-               "toggle" true
-               "form" "message-flag-form"
-               "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $aq)
-               "current" .Message.FlagColor
-               "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
-
             <div class="overflow">
               <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
               <div class="overflow-menu" popover id="menu-more">
@@ -230,6 +219,14 @@
                   {{$.T "mailbox.nosubject"}}
                 {{end}}
               </h1>
+              {{/* One star for this message: it sets and clears, and the
+                   chevron beside it holds the colours. */}}
+              {{ template "flag-menu" (dict
+                 "toggle" true
+                 "form" "message-flag-form"
+                 "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $aq)
+                 "current" .Message.FlagColor
+                 "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
               </div>
             </th>
           </tr>

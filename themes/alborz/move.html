@@ -1,0 +1,31 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ template "aside" . }}
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/move{{ account "?" $.GlobalData.URLAccount }}" hx-boost="false">
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
+        <h1>{{$.T "folder.moveask"}}</h1>
+        <p>{{ $.GlobalData.Tf "folder.movecount" (len .UIDs) }}</p>
+        {{ range .UIDs }}<input type="hidden" name="uids" value="{{.}}">{{ end }}
+        <input type="hidden" name="next" value="{{.Next}}">
+        <div class="field">
+          <label for="to">{{$.T "mailbox.movefolder"}}</label>
+          <select name="to" id="to" required>
+            {{ range .Mailboxes }}
+            {{ if and (not .IsInternal) (ne .Name $.Mailbox.Name) }}
+            <option value="{{.Name}}">{{.Label}}</option>
+            {{ end }}
+            {{ end }}
+          </select>
+        </div>
+        {{ template "form-actions" (dict "save" ($.T "folder.movedo") "cancel" .Next "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

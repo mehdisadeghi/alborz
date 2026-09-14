@@ -1,0 +1,30 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      <form method="POST" action="/tasks/move" hx-boost="false">
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" "/tasks" "field" "" "collection" "" "path" "") }}
+        <h1>{{$.T "folder.moveask"}}</h1>
+        <p>{{ $.GlobalData.Tf "tasks.movecount" (len .Paths) }}</p>
+        {{ range .Paths }}<input type="hidden" name="paths" value="{{.}}">{{ end }}
+        <input type="hidden" name="next" value="{{.Next}}">
+        {{ $multi := gt (len .GlobalData.Accounts) 1 }}
+        <div class="field">
+          <label for="to">{{$.T "tasks.movelist"}}</label>
+          <select name="to" id="to" required>
+            {{ range .Calendars }}
+            <option value="{{.Account}}|{{.Path}}">{{.Name}}{{ if $multi }} ({{ $.GlobalData.AccountLabel .Account }}){{ end }}</option>
+            {{ end }}
+          </select>
+        </div>
+        {{ template "form-actions" (dict "save" ($.T "folder.movedo") "cancel" .Next "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+
+{{template "foot.html"}}

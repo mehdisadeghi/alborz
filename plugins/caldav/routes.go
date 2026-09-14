@@ -342,10 +342,22 @@ type Settings struct {
 	Subscriptions    []Subscription
 }
 
+// MoveTasksRenderData is the chooser a move without a destination
+// answers with: the selection it will act on, and the lists it may go to.
+type MoveTasksRenderData struct {
+	alborz.BaseRenderData
+	Rail      dav.Rail
+	Calendars []dav.Collection
+	Paths     []string
+	Next      string
+}
+
 type TasksRenderData struct {
 	alborz.BaseRenderData
 	Calendars []dav.Collection
 	Tasks     []TaskRow
+	View      string
+	Filters   []alborz.Filter
 
 	// True when every account shows completed tasks; the single aside
 	// toggle writes all of them.
@@ -2065,9 +2077,25 @@ func (p *plugin) move(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	// A menu holds actions, one per row; the destination is a choice
+	// the reader states on a page, which this same route answers with.
 	to := params.Get("to")
 	if to == "" {
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/tasks")))
+		list, err := p.taskList(ctx)
+		if err != nil {
+			return err
+		}
+		rail, err := p.taskRail(ctx)
+		if err != nil {
+			return err
+		}
+		return ctx.Render(http.StatusOK, "move-task.html", &MoveTasksRenderData{
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("folder.moveask")),
+			Rail:           rail,
+			Calendars:      list.Calendars,
+			Paths:          params["paths"],
+			Next:           ctx.NextOr(ctx.AccountPath("/tasks")),
+		})
 	}
 	targets, err := dav.Selected(ctx, []string{to}, p.client)
 	if err != nil {

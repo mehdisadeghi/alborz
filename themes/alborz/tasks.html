@@ -38,8 +38,9 @@
             {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
             {{ template "filter-menu" (dict "id" "menu-filter" "icon" "filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
             {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .Tasks) "rows" (tuple
-               (tuple ($.T "sort.starred") "starred") (tuple ($.T "tasks.status") "status") (tuple ($.T "tasks.summary") "summary")
-               (tuple ($.T "common.calendar") "calendar") (tuple ($.T "tasks.duedate") "due") (tuple ($.T "common.added") "added"))) }}
+               (tuple ($.T "sort.starred") "starred") (tuple ($.T "tasks.status") "status") (tuple ($.T "tasks.priority") "priority")
+               (tuple ($.T "tasks.summary") "summary") (tuple ($.T "common.calendar") "calendar") (tuple ($.T "tasks.duedate") "due")
+               (tuple ($.T "common.added") "added"))) }}
         {{ template "toolbar-foot" }}
       </section>
 
@@ -54,6 +55,7 @@
             <div class="list-header list-checkbox" role="columnheader"></div>
             {{ template "sort-col" (dict "s" .Sorting "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "list-star" "hidden" ($.T "sort.starred")) }}
             {{ template "sort-col" (dict "s" .Sorting "key" "status" "label" "✓" "class" "status-sort" "cell" "task-list-status" "hidden" ($.T "tasks.status")) }}
+            {{ template "sort-col" (dict "s" .Sorting "key" "priority" "label" "!" "class" "status-sort" "cell" "task-list-priority" "hidden" ($.T "tasks.priority")) }}
             {{ template "sort-col" (dict "s" .Sorting "key" "summary" "label" ($.T "tasks.summary") "cell" "list-primary task-list-summary") }}
             {{ template "sort-col" (dict "s" .Sorting "key" "calendar" "label" ($.T "common.calendar") "cell" "task-list-calendar") }}
             {{ template "sort-col" (dict "s" .Sorting "key" "due" "label" ($.T "tasks.duedate") "cell" "task-list-due") }}

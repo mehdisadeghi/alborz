@@ -61,6 +61,10 @@
         <dl>
           <dt>{{$.T "tasks.status"}}</dt>
           <dd>{{if eq $status "COMPLETED"}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</dd>
+          {{ with .Priority }}
+          <dt>{{$.T "tasks.priority"}}</dt>
+          <dd>{{ $.T (printf "tasks.priority.%s" .) }}</dd>
+          {{ end }}
           {{if $due}}
           <dt>{{$.T "tasks.duedate"}}</dt>
           <dd>{{$due.Value}}</dd>

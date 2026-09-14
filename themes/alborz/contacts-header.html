@@ -33,6 +33,8 @@
       {{ template "sort-th" (dict "label" ($.T "common.name") "key" "name" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}
       {{ template "sort-th" (dict "label" ($.T "contacts.email") "key" "email" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}
       {{ template "sort-th" (dict "label" ($.T "contacts.phone") "key" "phone" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}
+      {{ template "sort-th" (dict "label" ($.T "common.modified") "key" "changed" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}
+      {{ template "sort-th" (dict "label" ($.T "contacts.book") "key" "book" "sort" $hsort "dir" .SortDir "exp" $hexp "params" $cq "reset" $creset "dirx" $hdirx "class" "button-link") }}
     </div>
   </div>
   {{end}}

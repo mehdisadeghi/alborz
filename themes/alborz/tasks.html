@@ -63,6 +63,7 @@
                 {{template "sort-th" (dict "label" ($.T "tasks.summary") "key" "summary" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}
                 {{template "sort-th" (dict "label" ($.T "common.calendar") "key" "calendar" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}
                 {{template "sort-th" (dict "label" ($.T "tasks.duedate") "key" "due" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}
+                {{template "sort-th" (dict "label" ($.T "common.added") "key" "added" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit "class" "button-link")}}
               </div>
             </div>
             {{end}}
@@ -89,7 +90,7 @@
             <div class="list-header task-list-due" role="columnheader" aria-sort="{{ sortaria $explicit $.Sort "due" $.SortDir }}">
               {{template "sort-th" (dict "label" ($.T "tasks.duedate") "key" "due" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
-            <div class="list-header task-list-added" role="columnheader">
+            <div class="list-header task-list-added" role="columnheader" aria-sort="{{ sortaria $explicit $.Sort "added" $.SortDir }}">
               {{template "sort-th" (dict "label" ($.T "common.added") "key" "added" "sort" $.Sort "dir" $.SortDir "exp" $explicit "params" $params "reset" $reset "dirx" $dirExplicit)}}
             </div>
           </div>

@@ -134,10 +134,11 @@ func (bc *bodyCache) put(user, mbox string, validity uint32, token uint64, b *ca
 // discard removes messages after a move or deletion, including any in-flight
 // fetch or automatic-read token. A nil UID list removes the whole mailbox.
 func (bc *bodyCache) discard(user, mailbox string, uids []imap.UID) {
+	among := uidSet(uids)
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 	matches := func(k bodyKey) bool {
-		return k.user == user && k.mbox == mailbox && (uids == nil || slices.Contains(uids, k.uid))
+		return k.user == user && k.mbox == mailbox && (uids == nil || among[k.uid])
 	}
 	for k := range bc.entries {
 		if matches(k) {
@@ -183,15 +184,16 @@ func (bc *bodyCache) forget(user string) {
 
 // Flag changes retain body bytes and cancel prefetches taken before the write.
 func (bc *bodyCache) flags(user, mbox string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) {
+	among := uidSet(uids)
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 	for k := range bc.fetching {
-		if k.user == user && k.mbox == mbox && slices.Contains(uids, k.uid) {
+		if k.user == user && k.mbox == mbox && among[k.uid] {
 			delete(bc.fetching, k)
 		}
 	}
 	for k, b := range bc.entries {
-		if k.user != user || k.mbox != mbox || !slices.Contains(uids, k.uid) {
+		if k.user != user || k.mbox != mbox || !among[k.uid] {
 			continue
 		}
 		updated := *b
@@ -371,10 +373,11 @@ func (bc *bodyCache) current(user, mailbox string, uid imap.UID, part []int) *ca
 }
 
 func (bc *bodyCache) cancelSeen(user, mailbox string, uids []imap.UID) {
+	among := uidSet(uids)
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 	for k := range bc.seen {
-		if k.user == user && k.mbox == mailbox && slices.Contains(uids, k.uid) {
+		if k.user == user && k.mbox == mailbox && among[k.uid] {
 			delete(bc.seen, k)
 		}
 	}

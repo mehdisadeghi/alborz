@@ -130,6 +130,7 @@
 "mailbox.nounread" = "نامهٔ خوانده‌نشده‌ای نیست."
 "mailbox.nocolor" = "ستارهٔ %s وجود ندارد."
 "mailbox.selectall" = "انتخاب همه"
+"select.clear" = "لغو انتخاب"
 "mailbox.selectalljs" = "انتخاب همهٔ ردیف‌ها نیازمند جاوااسکریپت است"
 "mailbox.sortby" = "مرتب‌سازی"
 "mailbox.perpage" = "سطر در هر صفحه"
@@ -865,3 +866,15 @@ other = "%d نامه تغییر کردند."
 ["notice.movedto"]
 one = "نامه به %[2]s رفت."
 other = "%d نامه به %s رفتند."
+
+["select.page"]
+one = "%d پیام این صفحه انتخاب شد."
+other = "هر %d پیام این صفحه انتخاب شد."
+
+["select.everything"]
+one = "انتخاب %d پیام"
+other = "انتخاب هر %d پیام"
+
+["select.whole"]
+one = "%d پیام انتخاب شد."
+other = "هر %d پیام انتخاب شد."

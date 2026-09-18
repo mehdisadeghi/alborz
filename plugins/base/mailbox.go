@@ -819,18 +819,9 @@ type MoveRenderData struct {
 }
 
 func handleMove(ctx *alborz.Context) error {
-	mboxName, err := mailboxRef(ctx)
+	mboxName, _, uids, err := folderSelection(ctx)
 	if err != nil {
 		return err
-	}
-
-	formParams, err := ctx.FormParams()
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-	uids, err := parseUidList(formParams["uids"])
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
 	target := ctx.NextOr(mailboxURL(ctx, mboxName))
@@ -1144,18 +1135,9 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 }
 
 func handleDelete(ctx *alborz.Context) error {
-	mboxName, err := mailboxRef(ctx)
+	mboxName, _, uids, err := folderSelection(ctx)
 	if err != nil {
 		return err
-	}
-
-	formParams, err := ctx.FormParams()
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-	uids, err := parseUidList(formParams["uids"])
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
 	back := ctx.NextOr(mailboxURL(ctx, mboxName))
@@ -1214,26 +1196,14 @@ type StarRenderData struct {
 }
 
 func handleSetFlags(ctx *alborz.Context) error {
-	mboxName, err := mailboxRef(ctx)
+	mboxName, formParams, uids, err := folderSelection(ctx)
 	if err != nil {
 		return err
-	}
-
-	formParams, err := ctx.FormParams()
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-
-	uids, err := parseUidList(formParams["uids"])
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 	if len(uids) == 0 {
 		return nothingSelected(ctx, ctx.NextOr(mailboxURL(ctx, mboxName)))
 	}
 
-	// A colour is a flag plus a bit field, so it is set and cleared in
-	// one exchange rather than by asking the page to spell out both.
 	if color, ok := formParams["color"]; ok {
 		add, del := FlagColorFlags(color[0])
 		if add == nil && del == nil {
@@ -1480,9 +1450,9 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
-	refs, err := parseRefs(params["refs"])
+	refs, err := mergedSelection(ctx, role, params)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 	back := ctx.NextOr("/mailbox/" + url.PathEscape(role) + "?all=1")
 	if len(refs) == 0 {

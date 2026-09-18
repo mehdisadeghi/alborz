@@ -30,7 +30,24 @@
         {{ template "messages-header.html" . }}
       </section>
       {{/* Where you are, on every page that has a where. */}}
+      <div class="crumb-slot">
       {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb) }}
+      {{/* A page holds some of a list, and ticking the page's rows is
+           not what somebody emptying a folder means. Once every row of
+           the page is ticked the rest is on offer, in the crumb's own
+           box so that no row moves; the form then carries "everything"
+           and the server reads the whole view - the folder, the search,
+           the view - rather than the rows. */}}
+      {{ if gt .Total (len .Messages) }}
+      <div class="select-everything" data-form="messages-form" role="status" hidden>
+        <span class="select-page">{{ $.GlobalData.Tf "select.page" (len .Messages) }}</span>
+        <button type="button" class="select-widen">{{ $.GlobalData.Tf "select.everything" .Total }}</button>
+        <span class="select-whole" hidden>{{ $.GlobalData.Tf "select.whole" .Total }}</span>
+        <button type="button" class="select-narrow" hidden>{{ $.T "select.clear" }}</button>
+      </div>
+      <input type="hidden" name="everything" value="" form="messages-form">
+      {{ end }}
+      </div>
 
       {{/* What the list is narrowed by, which the crumb does not say:
            a search, or the sender a reader clicked. Coming back to a

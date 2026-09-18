@@ -133,6 +133,7 @@
 "mailbox.nounread" = "No unread messages."
 "mailbox.nocolor" = "No %s stars."
 "mailbox.selectall" = "Select all"
+"select.clear" = "Clear selection"
 "mailbox.selectalljs" = "Selecting every row needs JavaScript"
 "mailbox.sortby" = "Sort by"
 "mailbox.perpage" = "Rows per page"
@@ -865,3 +866,15 @@ other = "%d messages changed."
 ["notice.movedto"]
 one = "The message moved to %[2]s."
 other = "%d messages moved to %s."
+
+["select.page"]
+one = "%d message on this page selected."
+other = "All %d on this page selected."
+
+["select.everything"]
+one = "Select %d"
+other = "Select all %d"
+
+["select.whole"]
+one = "%d selected."
+other = "All %d selected."

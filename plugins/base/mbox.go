@@ -71,8 +71,8 @@ func handleExportMbox(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-	} else if uids, err = parseUidList(params["uids"]); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+	} else if uids, err = selection(ctx, mboxName, params); err != nil {
+		return err
 	}
 	if len(uids) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "no messages selected")

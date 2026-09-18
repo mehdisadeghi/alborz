@@ -353,6 +353,14 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 				rel := book.relationTo(evidence.From)
 				evidence.Relation = &rel
 			}
+			// Whom the reader knows does not stop at an account: mail
+			// from a host bills one address and its imitation reaches
+			// another, so every signed-in account's inbox is asked.
+			for _, s := range ctx.Sessions() {
+				if book := senderBookFor(s); book != nil && evidence.Named == nil {
+					evidence.Named = book.named(msg.Envelope.From[0].Name, evidence.From)
+				}
+			}
 		}
 		indicators = Indicators(evidence)
 	}

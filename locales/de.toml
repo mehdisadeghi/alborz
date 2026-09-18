@@ -729,6 +729,7 @@
 "indicator.junkedbefore" = "Post von dieser Adresse liegt im Junk-Ordner."
 "indicator.writtento" = "Du hast dieser Adresse schon geschrieben."
 "indicator.firstcontact" = "Erste Nachricht von dieser Adresse; an sie wurde nie geschrieben."
+"indicator.namedelsewhere" = "Der Name nennt %s; Mail von %s liegt im Posteingang, diese kommt von %s."
 "indicator.moneysubject" = "Der Betreff nennt Zahlung, Konto oder Passwort."
 "indicator.moneywords" = "zahlung, rechnung, passwort, bestätigen, bestätigung, gesperrt, konto, erstattung, überweisung, dringend, warnung, aktualisieren, zahlungsmethode, abgelaufen, sicherheit, ungewöhnlich, anmeldung"
 "auth.warning" = "Dein Mailserver konnte nicht bestätigen, dass diese Nachricht wirklich von der angegebenen Adresse stammt."

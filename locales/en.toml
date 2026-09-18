@@ -729,6 +729,7 @@
 "indicator.junkedbefore" = "Mail from this address is in the Junk folder."
 "indicator.writtento" = "You have written to this address before."
 "indicator.firstcontact" = "First message from this address; nothing was ever sent to it."
+"indicator.namedelsewhere" = "The name says %s; mail from %s is in your inbox, and this is from %s."
 "indicator.moneysubject" = "The subject mentions payment, an account or a password."
 "indicator.moneywords" = "payment, billing, invoice, password, verify, verification, suspended, account, refund, wire, urgent, alert, update, method, expire, confirm, security, unusual, login, sign in"
 "auth.warning" = "Your mail server could not confirm this message really came from the address it names."

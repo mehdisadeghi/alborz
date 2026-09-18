@@ -100,6 +100,10 @@ type user struct {
 	ctags      map[string]string // collection path -> last seen ctag
 	flights    map[string]*flight
 	refreshing map[string]bool // collections being revalidated
+	// writes counts alborz's own writes to a collection. A read that
+	// began before one, a reader's or a replay, read the collection as it
+	// was, and must not put that over what the write has since changed.
+	writes     map[string]uint64
 	lastActive time.Time
 	// poll is the account's service interval, see DefaultPoll.
 	poll time.Duration
@@ -113,6 +117,7 @@ func newUser(poll time.Duration) *user {
 		ctags:      make(map[string]string),
 		flights:    make(map[string]*flight),
 		refreshing: make(map[string]bool),
+		writes:     make(map[string]uint64),
 		poll:       poll,
 	}
 }
@@ -324,13 +329,24 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	u.mu.Unlock()
 
 	if !cacheable(req.Method) {
+		written, err := requestBody(req)
+		if err != nil {
+			return nil, err
+		}
 		resp, err := t.next.RoundTrip(req)
 		if err == nil && resp.StatusCode < 300 {
 			collection := collectionOf(req.URL.Path)
+			if u.applyWrite(req, written, resp, t.replay) {
+				u.settleBehind(collection)
+				return resp, nil
+			}
 			u.evict(collection)
-			// Creating or removing a collection changes what its parent
-			// lists, and that listing is how the sidebar is built.
-			if parent := parentOf(collection); parent != "" {
+			// Creating, removing or renaming a collection changes what
+			// its parent lists, and that listing is how the sidebar is
+			// built. A write to an object inside one does not, and the
+			// parent's entries are every sibling's: evicting them there
+			// made one saved task re-read every calendar of the account.
+			if parent := parentOf(collection); parent != "" && strings.HasSuffix(req.URL.Path, "/") {
 				u.evict(parent)
 			}
 		}
@@ -384,6 +400,9 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// between the two leaves a ctag the server no longer answers with,
 	// and the next stale read fetches over it instead of trusting it.
 	coll := collectionOf(req.URL.Path)
+	u.mu.Lock()
+	written := u.writes[coll]
+	u.mu.Unlock()
 	ctag := ""
 	if u.ctagOf(coll) == "" {
 		ctx, cancel := context.WithTimeout(req.Context(), ctagTimeout)
@@ -417,11 +436,15 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		replay:  t.replay,
 	}
 	u.mu.Lock()
-	u.entries[key] = e
-	if ctag != "" && u.ctags[coll] == "" {
-		u.ctags[coll] = ctag
+	// A write that landed while this read was out may not be in it: the
+	// reader gets what the server said, and nothing of it is held.
+	if u.writes[coll] == written {
+		u.entries[key] = e
+		if ctag != "" && u.ctags[coll] == "" {
+			u.ctags[coll] = ctag
+		}
+		u.dirty = true
 	}
-	u.dirty = true
 	u.mu.Unlock()
 	return e.response(req), nil
 }
@@ -488,6 +511,7 @@ func (u *user) evict(collection string) {
 		}
 	}
 	delete(u.ctags, collection)
+	u.writes[collection]++
 }
 
 func (c *Cache) refreshLoop() {
@@ -665,6 +689,11 @@ func (u *user) replayEntry(ctx context.Context, e *entry) bool {
 	}
 	req.Header.Set("Content-Type", "text/xml; charset=\"utf-8\"")
 
+	coll := collectionOf(e.url.Path)
+	u.mu.Lock()
+	written := u.writes[coll]
+	u.mu.Unlock()
+
 	resp, err := e.replay.Do(req)
 	if err != nil {
 		return false
@@ -690,12 +719,15 @@ func (u *user) replayEntry(ctx context.Context, e *entry) bool {
 	}
 
 	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.writes[coll] != written {
+		return false
+	}
 	e.status = resp.StatusCode
 	e.header = resp.Header
 	e.body = body
 	e.fetched = time.Now()
 	u.dirty = true
-	u.mu.Unlock()
 	return true
 }
 

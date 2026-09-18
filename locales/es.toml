@@ -729,6 +729,7 @@
 "indicator.junkedbefore" = "Hay correo de esta dirección en la carpeta de basura."
 "indicator.writtento" = "Ya has escrito a esta dirección."
 "indicator.firstcontact" = "Primer mensaje de esta dirección; nunca se le envió nada."
+"indicator.namedelsewhere" = "El nombre dice %s; hay correo de %s en la bandeja de entrada, y este viene de %s."
 "indicator.moneysubject" = "El asunto menciona un pago, una cuenta o una contraseña."
 "indicator.moneywords" = "pago, factura, contraseña, verificar, verificación, suspendida, cuenta, reembolso, transferencia, urgente, alerta, actualizar, método, caduca, confirmar, seguridad, inusual, acceso"
 "auth.warning" = "Tu servidor de correo no pudo confirmar que este mensaje venga de verdad de la dirección que indica."

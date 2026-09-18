@@ -5,10 +5,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/textproto"
+	"golang.org/x/net/publicsuffix"
 
 	"git.mehdix.org/alborz"
 )
@@ -59,6 +61,9 @@ type Evidence struct {
 	Subject  string
 	From     string // the author's address
 	Relation *Relation
+	// Named is set when the author's name names a domain the reader
+	// gets mail from and the author is not at it; see senderBook.named.
+	Named *NamedDomain
 	// MoneyWords are the page language's words for money and access,
 	// from the locale, split on commas.
 	MoneyWords []string
@@ -70,9 +75,16 @@ type Relation struct {
 	Junked    bool // mail from the address sits in the Junk folder
 }
 
+// NamedDomain is a name borrowed: the word of the author's name, the
+// domain in the reader's inbox it is the name of, and where the author
+// actually is.
+type NamedDomain struct {
+	Word, Known, Sender string
+}
+
 type check func(e *Evidence) []Indicator
 
-var checks = []check{scannerScore, twoScanners, weakAuthentication, senderRelation, moneySubject}
+var checks = []check{scannerScore, twoScanners, weakAuthentication, senderRelation, namedElsewhere, moneySubject}
 
 // Indicators runs every check over the evidence, alarms first. The
 // one combination that earns a colour on facts that are each plain
@@ -87,7 +99,7 @@ func Indicators(e *Evidence) []Indicator {
 	if unvouchedRequest(e) {
 		for i := range out {
 			switch out[i].Key {
-			case "indicator.spfonly", "indicator.firstcontact", "indicator.moneysubject":
+			case "indicator.spfonly", "indicator.namedelsewhere", "indicator.firstcontact", "indicator.moneysubject":
 				out[i].Grade = Caution
 			}
 		}
@@ -253,10 +265,25 @@ func senderRelation(e *Evidence) []Indicator {
 	return []Indicator{{Key: "indicator.firstcontact"}}
 }
 
-// unvouchedRequest says whether the combination holds.
+// unvouchedRequest says whether the combination holds: somebody the
+// reader never wrote to asks about money or access, and nothing vouches
+// for who they say they are - either no domain signed for them, or one
+// did and it is not the one their name claims. Authentication alone
+// vouches for a domain, not for the name written in front of it: a
+// hijacked domain passes SPF, DKIM and DMARC for whatever it sends.
 func unvouchedRequest(e *Evidence) bool {
-	return len(moneySubject(e)) > 0 && len(weakAuthentication(e)) > 0 &&
-		e.Relation != nil && !e.Relation.WrittenTo
+	return len(moneySubject(e)) > 0 && e.Relation != nil && !e.Relation.WrittenTo &&
+		(len(weakAuthentication(e)) > 0 || len(namedElsewhere(e)) > 0)
+}
+
+// namedElsewhere states the three things the reader can check: what the
+// name says, where mail under that name has come from, and where this
+// one came from.
+func namedElsewhere(e *Evidence) []Indicator {
+	if e.Named == nil {
+		return nil
+	}
+	return []Indicator{{Key: "indicator.namedelsewhere", Args: []any{e.Named.Word, e.Named.Known, e.Named.Sender}}}
 }
 
 // moneySubject notes a subject that asks for money or a password. The
@@ -280,7 +307,17 @@ func moneySubject(e *Evidence) []Indicator {
 // recent correspondents, which is what a first-contact question wants.
 type senderBook struct {
 	written, junked map[string]bool
+	// received holds the registrable domains of the inbox's authors, by
+	// their first label: "hetzner" for hetzner.com. It is what lets a
+	// name be checked against the reader's own mail and no list of
+	// brands: a sender calling itself Hetzner from another domain is a
+	// fact only for a reader who has mail from hetzner.com.
+	received map[string]string
 }
+
+// nameWordMin keeps the comparison to words that can name something:
+// "de", "hr" and "the" are words of many names and labels of domains.
+const nameWordMin = 4
 
 const (
 	senderBookTTL  = time.Hour
@@ -301,6 +338,19 @@ func senderBookFor(s *alborz.Session) *senderBook {
 				return err
 			}
 			book.junked, err = addressesIn(c, "junk", func(env *imap.Envelope) []imap.Address { return env.From })
+			if err != nil {
+				return err
+			}
+			authors, err := addressesIn(c, "inbox", func(env *imap.Envelope) []imap.Address { return env.From })
+			book.received = map[string]string{}
+			for addr := range authors {
+				domain, label := registrable(addr)
+				// Two domains can share a label, and the map's order is
+				// random: the same one is named every time.
+				if held, ok := book.received[label]; len(label) >= nameWordMin && (!ok || domain < held) {
+					book.received[label] = domain
+				}
+			}
 			return err
 		})
 		return book, err
@@ -345,6 +395,46 @@ func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []
 }
 
 // relationTo is what the book says about one address.
+// registrable is the domain an address could have been registered
+// under and its first label: mail.hetzner.com is hetzner.com, "hetzner".
+// Empty for an address whose domain is a public suffix or no domain.
+func registrable(addr string) (domain, label string) {
+	addr = strings.ToLower(strings.TrimSpace(addr))
+	domain, err := publicsuffix.EffectiveTLDPlusOne(addr[strings.LastIndex(addr, "@")+1:])
+	if err != nil {
+		return "", ""
+	}
+	label, _, _ = strings.Cut(domain, ".")
+	return domain, label
+}
+
+// named finds a word of the author's name that is the label of a domain
+// in the inbox, when the author is at another domain. A sender whose own
+// domain carries the word is not borrowing it: PayPal writing from
+// paypal.de to a reader who knows paypal.com is PayPal, Deutsche Bahn
+// from deutschebahn.com to one who knows bahn.de is the Bahn, and Acme
+// from acme.zendesk.com is Acme's desk. Anywhere in the host counts: a
+// warning that may be wrong is worse than none.
+func (b senderBook) named(name, addr string) *NamedDomain {
+	sender, _ := registrable(addr)
+	if sender == "" {
+		return nil
+	}
+	host := strings.ToLower(addr[strings.LastIndex(addr, "@")+1:])
+	words := strings.FieldsFunc(name, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	for _, word := range words {
+		label := strings.ToLower(word)
+		known, ok := b.received[label]
+		if !ok || strings.Contains(host, label) || known == sender {
+			continue
+		}
+		return &NamedDomain{Word: word, Known: known, Sender: sender}
+	}
+	return nil
+}
+
 func (b senderBook) relationTo(addr string) Relation {
 	addr = strings.ToLower(strings.TrimSpace(addr))
 	return Relation{WrittenTo: b.written[addr], Junked: b.junked[addr]}

@@ -294,19 +294,22 @@ const enhance = () => {
 	}
 
 	// Each prime nav remembers the place you last were in its section:
-	// a folder, a month, a view. Not the account - the account is the
-	// scope, the URL carries it (ADR 0001), and a remembered one is
-	// wrong twice over: it outlives the account it names, and it
-	// overrules the account the reader is looking at right now. So a
-	// place is stored stripped of it and rescoped to whatever the
-	// current page is scoped to. Only a list page is a place; see
-	// nav.html.
+	// a folder, a month, a view. The account is the scope and the URL
+	// carries it (ADR 0001), so a remembered place never overrules the
+	// account the reader is looking at: it is stored stripped of it and
+	// rescoped to the current page. But a place belongs to the scope it
+	// was seen in - a folder is one account's, a task list is one
+	// account's, and the merged view's Junk is a role that an account
+	// calling its folder Spam does not have - so each scope remembers
+	// its own, and a place is only ever reopened where it was found.
+	// Only a list page is a place; see nav.html.
 	(() => {
 		const nav = document.querySelector("header nav[data-here]");
 		if (!nav) {
 			return;
 		}
-		const key = section => "nav-place:" + section;
+		const account = new URLSearchParams(location.search).get("account");
+		const key = section => "nav-place:" + section + ":" + (account || "");
 		// An address reads better unescaped, and every link the server
 		// writes leaves the at sign alone.
 		const scoped = (place, account) => {
@@ -318,7 +321,6 @@ const enhance = () => {
 			return url.pathname + url.search.replace(/%40/g, "@");
 		};
 		const here = nav.dataset.here;
-		const account = new URLSearchParams(location.search).get("account");
 		if (here && "place" in nav.dataset) {
 			try {
 				localStorage.setItem(key(here), scoped(location.pathname + location.search, null));

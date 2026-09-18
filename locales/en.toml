@@ -43,6 +43,8 @@
 "notfound.addressbook" = "No address book was found on the server."
 "common.noresults" = "No results for “%s”."
 "mailbox.searchtext" = "Search the whole message too, which is slow on a server without an index"
+"search.title" = "Search"
+"search.allfolders" = "Search all folders"
 "nav.email" = "Email"
 "nav.contacts" = "Contacts"
 "nav.calendar" = "Calendar"

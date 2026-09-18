@@ -234,6 +234,16 @@ func (spec listingSpec) reverse() bool {
 	return sortKeys[spec.sortKey].descends
 }
 
+// absorb adds what another folder or account answered to a merge of
+// them: a merge sorts only where all of them do, and reached headers
+// only where any of them did.
+func (e *listingEntry) absorb(other *listingEntry) {
+	e.msgs = append(e.msgs, other.msgs...)
+	e.total += other.total
+	e.headersOnly = e.headersOnly || other.headersOnly
+	e.sortSupported = e.sortSupported && other.sortSupported
+}
+
 // snapshot returns a private copy so the caller can assemble and tag it
 // without racing other requests on the shared entry.
 func (e *listingEntry) snapshot() *listingEntry {

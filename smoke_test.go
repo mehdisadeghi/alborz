@@ -226,7 +226,32 @@ func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server
 		t.Fatalf("seed: %v", err)
 	}
 	mem.AddUser(other)
+	return serveIMAP(t, mem, caps)
+}
 
+// smokeElsewhere is an account of another domain, whose server a test
+// can take away while the first one keeps answering.
+const smokeElsewhere = "c@elsewhere.local"
+
+// startIMAPElsewhere is that domain's server: one account, one message.
+func startIMAPElsewhere(t *testing.T) (string, *imapserver.Server) {
+	t.Helper()
+	mem := imapmemserver.New()
+	user := imapmemserver.NewUser(smokeElsewhere, smokePass)
+	if err := user.Create("INBOX", nil); err != nil {
+		t.Fatalf("create INBOX: %v", err)
+	}
+	raw := fmt.Sprintf("From: gil@example.org\r\nTo: %s\r\nSubject: from elsewhere\r\n"+
+		"Message-ID: <elsewhere@test>\r\nContent-Type: text/plain\r\n\r\nHello.\r\n", smokeElsewhere)
+	if _, err := user.Append("INBOX", literal{strings.NewReader(raw), int64(len(raw))}, &imap.AppendOptions{}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	mem.AddUser(user)
+	return serveIMAP(t, mem, rigCaps())
+}
+
+func serveIMAP(t *testing.T, mem *imapmemserver.Server, caps imap.CapSet) (string, *imapserver.Server) {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -253,12 +278,17 @@ func (l literal) Size() int64 { return l.n }
 // startAlborz brings the app up against that IMAP server.
 func startAlborz(t *testing.T, imapAddr string, smtpAddr ...string) string {
 	t.Helper()
+	return startAlborzWith(t, append([]string{"test.local=imap+insecure://" + imapAddr},
+		smtpUpstreams(smtpAddr)...))
+}
+
+func startAlborzWith(t *testing.T, upstreams []string) string {
+	t.Helper()
 	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
 	_, err := alborz.New(e, &alborz.Options{
-		Upstreams: append([]string{"test.local=imap+insecure://" + imapAddr},
-			smtpUpstreams(smtpAddr)...),
+		Upstreams:  upstreams,
 		Theme:      "alborz",
 		ThemesPath: "./themes",
 		LoginKey:   key,
@@ -1259,6 +1289,34 @@ func TestMoveNoticeUndoes(t *testing.T) {
 	}
 }
 
+func TestSearchMoveUndoesIntoTheFolderItCameFrom(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	lists := base + "/mailbox/" + url.PathEscape("INBOX/Lists")
+	inbox, nested := messageUIDs(get(t, c, base+"/mailbox/INBOX")), messageUIDs(get(t, c, lists))
+	if len(nested) == 0 {
+		t.Fatal("the rig seeded no messages in INBOX/Lists")
+	}
+	results := "/search?query=" + url.QueryEscape("from:eve in:lists")
+	postForm(t, c, base+"/mailbox/INBOX/all/act?action=move&to=Archive",
+		url.Values{"refs": {smokeUser + "|INBOX/Lists|" + nested[0]}, "next": {results}})
+	moved := get(t, c, lists)
+	if n := len(messageUIDs(moved)); n != len(nested)-1 {
+		t.Fatalf("INBOX/Lists holds %d after the move, want %d", n, len(nested)-1)
+	}
+	action, fields := noticeAction(moved)
+	if fields.Get("undo") == "" {
+		t.Fatalf("the move's notice offers no undo: %q %v", action, fields)
+	}
+	postForm(t, c, base+action, fields)
+	if n := len(messageUIDs(get(t, c, lists))); n != len(nested) {
+		t.Errorf("INBOX/Lists holds %d after the undo, want %d", n, len(nested))
+	}
+	if n := len(messageUIDs(get(t, c, base+"/mailbox/INBOX"))); n != len(inbox) {
+		t.Errorf("INBOX holds %d after the undo, want %d", n, len(inbox))
+	}
+}
+
 // TestDeleteNoticeCountsTheRest deletes a whole page and expects the
 // notice to offer the rest of the folder by its count, through a page
 // that says the count again; a partial page must offer nothing.
@@ -1301,13 +1359,92 @@ func alertText(body string) string {
 func bothAccounts(t *testing.T, base string) *http.Client {
 	t.Helper()
 	c := login(t, base)
+	addAccount(t, c, base, smokeUser2)
+	return c
+}
+
+func addAccount(t *testing.T, c *http.Client, base, account string) {
+	t.Helper()
 	resp, err := c.PostForm(base+"/login?add=1",
-		url.Values{"username": {smokeUser2}, "password": {smokePass}})
+		url.Values{"username": {account}, "password": {smokePass}})
 	if err != nil {
 		t.Fatalf("second sign-in: %v", err)
 	}
 	resp.Body.Close()
-	return c
+}
+
+// rowRefs names every row a merged listing shows, in the order shown.
+func rowRefs(body string) []string {
+	var out []string
+	for _, m := range regexp.MustCompile(`name="refs" value="([^"]+)"`).FindAllStringSubmatch(body, -1) {
+		out = append(out, html.UnescapeString(m[1]))
+	}
+	return out
+}
+
+// TestMergedListsCutTheSamePage: the merged folder and the search
+// across folders both cut a page out of a merge. The second page is
+// where a cut that is off by one shows, or a total that is one
+// account's.
+func TestMergedListsCutTheSamePage(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := bothAccounts(t, base)
+	for _, list := range []string{"/mailbox/INBOX?", "/search?query=example&"} {
+		all := rowRefs(get(t, c, base+list+"ipp=100"))
+		if len(all) < 5 {
+			t.Fatalf("%s: need five seeded rows to have a third page, found %d", list, len(all))
+		}
+		body := get(t, c, base+list+"ipp=2&page=1")
+		if got := rowRefs(body); !slices.Equal(got, all[2:4]) {
+			t.Errorf("%s: the second page holds %v, want %v", list, got, all[2:4])
+		}
+		if want := fmt.Sprintf("3–4 of %d", len(all)); !strings.Contains(body, want) {
+			t.Errorf("%s: the second page does not say %q", list, want)
+		}
+		for _, page := range []string{"?page=0&", "?page=2&"} {
+			if !strings.Contains(html.UnescapeString(body), page) {
+				t.Errorf("%s: the second page has no link to %s", list, page)
+			}
+		}
+	}
+}
+
+// TestAServerDownCostsItsRowsNotThePage: with one account's server
+// gone, the merged folder and the search still show the other
+// account's rows, and say whose are missing.
+func TestAServerDownCostsItsRowsNotThePage(t *testing.T) {
+	elsewhere, srv := startIMAPElsewhere(t)
+	base := startAlborzWith(t, []string{
+		"test.local=imap+insecure://" + startIMAP(t),
+		"elsewhere.local=imap+insecure://" + elsewhere})
+	c := login(t, base)
+	addAccount(t, c, base, smokeElsewhere)
+	if rows := rowAccounts(get(t, c, base+"/mailbox/INBOX")); rows[smokeUser] == 0 || rows[smokeElsewhere] == 0 {
+		t.Fatalf("the merged inbox is not both accounts: %v", rows)
+	}
+
+	srv.Close()
+	for _, list := range []string{"/mailbox/INBOX", "/search?query=example"} {
+		// The connection's loss is noticed a moment after Close returns,
+		// and until then the cache answers for the account.
+		var body string
+		for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+			postForm(t, c, base+"/mailbox/INBOX/refresh", nil)
+			body = get(t, c, base+list)
+			if strings.Contains(body, "did not answer") {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s: nothing says a server did not answer: %s", list, noticeBar(body))
+			}
+		}
+		if !strings.Contains(noticeBar(body), smokeElsewhere) {
+			t.Errorf("%s: the notice does not name the account: %s", list, noticeBar(body))
+		}
+		if rows := rowAccounts(body); rows[smokeUser] == 0 || rows[smokeElsewhere] != 0 {
+			t.Errorf("%s: rows by account are %v", list, rows)
+		}
+	}
 }
 
 // rowAccounts names the account of every row a listing shows, from the

@@ -3111,6 +3111,16 @@ main.calendar .actions {
   font-weight: 400;
 }
 
+/* A row found across folders names its folder too, in a track every
+   row shares: sized to its own text the column of them would start
+   wherever each name does. Both classes, to outrank the rule that lets
+   the cell's links grow. */
+.message-list-sender a.row-account.row-folder {
+  flex: 0 0 var(--folder-track);
+  text-decoration: none;
+}
+.message-list-sender a.row-account.row-folder:hover { text-decoration: underline; }
+
 /* The name has the first claim on the room and yields last. */
 .message-list-sender > a {
   flex: 0 1 auto;

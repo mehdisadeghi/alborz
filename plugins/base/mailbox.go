@@ -28,6 +28,19 @@ type MailboxRenderData struct {
 	// TextQuery is the query widened to the whole message, offered
 	// when the search reached headers only; empty otherwise.
 	TextQuery string
+	// Merged says the rows are not one folder's: each is named by its
+	// account and folder, and the list's actions go by Role, every row's
+	// account resolving its own folder. Spanning says they are not one
+	// role's either - a search across folders - so each row names the
+	// folder it is in.
+	Merged, Spanning bool
+	Role             string
+	// FolderQuery is the query less its in:, for a row's folder to
+	// narrow the results to itself.
+	FolderQuery string
+	// FolderTrack is the width the rows' folder names share, so that a
+	// column of them has one edge whatever each folder is called.
+	FolderTrack template.CSS
 	// Outgoing says the folder holds what the reader wrote, so the
 	// rows name whom it went to rather than who wrote it.
 	Outgoing      bool
@@ -82,6 +95,9 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	if to := searchInstead(ctx, ask); to != "" {
+		return ctx.Redirect(http.StatusFound, to)
+	}
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return err
@@ -96,77 +112,25 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	cacheable := ctx.Request().Method == http.MethodGet
 	key := listingPage(listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir), ask.page, ask.perPage)
 	class, bound := listingBudget(spec)
-	var (
-		mu     sync.Mutex
-		wg     sync.WaitGroup
-		merged = &listingEntry{sortSupported: true}
-	)
-	// One span across the whole fan-out: the accounts are queried
-	// concurrently, so its wall-clock is the page's IMAP time.
-	imapStart := time.Now()
-	errs := make([]error, len(ctx.Sessions()))
-	answered := make([][]IMAPMessage, len(ctx.Sessions()))
-	for i, s := range ctx.Sessions() {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			user := s.Username()
-			folder := func(c *imapclient.Client) (string, error) { return resolveRole(c, user, role) }
-			fetch := func(c *imapclient.Client) (*listingEntry, error) {
-				name, err := folder(c)
-				if err != nil || name == "" {
-					return nil, err
-				}
-				return fetchUnifiedAccount(c, user, name, spec, settings, window, cacheable)
+	merged, err := gather(ctx, ctx.Sessions(), spec, func(s *alborz.Session) (*listingEntry, error) {
+		user := s.Username()
+		folder := func(c *imapclient.Client) (string, error) { return resolveRole(c, user, role) }
+		fetch := func(c *imapclient.Client) (*listingEntry, error) {
+			name, err := folder(c)
+			if err != nil || name == "" {
+				return nil, err
 			}
-			var e *listingEntry
-			if cacheable {
-				e, errs[i] = cachedListing(ctx, s, key, window, spec, folder, fetch)
-			} else {
-				alborz.CacheTiming(ctx.Request().Context(), "listing", false)
-				e, errs[i] = readOn(s, class, bound, fetch)(ctx.Request().Context())
-			}
-			if errs[i] != nil || e == nil {
-				return
-			}
-			Relate(s, e.msgs)
-			mu.Lock()
-			answered[i] = e.msgs
-			merged.total += e.total
-			merged.headersOnly = merged.headersOnly || e.headersOnly
-			merged.sortSupported = merged.sortSupported && e.sortSupported
-			mu.Unlock()
-		}()
-	}
-	wg.Wait()
-	// Absorbed in the accounts' order, not the order they answered in:
-	// the sort below is stable, so rows of equal rank would otherwise
-	// change places from one request to the next, and a page cut out of
-	// them would repeat a row or lose one.
-	for _, rows := range answered {
-		merged.msgs = append(merged.msgs, rows...)
-	}
-	alborz.AddTiming(ctx.Request().Context(), "imap", imapStart)
-	// A server that did not answer costs its account's rows, not the
-	// page: the others are shown and the page says who is missing.
-	// Only when nobody answered is it the upstream page.
-	var down []string
-	for i, err := range errs {
-		var upstream alborz.UpstreamError
-		switch {
-		case err == nil:
-		case errors.As(err, &upstream):
-			down = append(down, ctx.Sessions()[i].Username())
-		default:
-			return err
+			return fetchUnifiedAccount(c, user, name, spec, settings, window, cacheable)
 		}
+		if cacheable {
+			return cachedListing(ctx, s, key, window, spec, folder, fetch)
+		}
+		alborz.CacheTiming(ctx.Request().Context(), "listing", false)
+		return readOn(s, class, bound, fetch)(ctx.Request().Context())
+	})
+	if err != nil {
+		return err
 	}
-	if len(down) == len(errs) {
-		return errs[0]
-	}
-	ctx.Unreachable(down)
-
-	slices.SortStableFunc(merged.msgs, unifiedLess(spec.sortKey, spec.reverse()))
 	// Junk is one colour already; a tint there says nothing. The
 	// message page keeps its warning card.
 	if role != "Junk" {
@@ -188,6 +152,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	}
 	data.Crumb = []CrumbLink{{Label: ctx.T("aside." + strings.ToLower(role)), URL: "/mailbox/" + role}}
 	data.Outgoing = role == "Sent" || role == "Drafts"
+	data.Merged, data.Role = true, role
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 
@@ -235,6 +200,64 @@ func listPage(ctx *alborz.Context, ask listAsk, e *listingEntry, rows []IMAPMess
 		data.NextPage = ask.page + 1
 	}
 	return data
+}
+
+// gather asks every account at once and merges what they answer under
+// the order asked for. A server that did not answer costs its account's
+// rows, not the page: the others are shown and the page says who is
+// missing. Only when nobody answered is it the upstream page. An
+// account with nothing to say answers nil.
+func gather(ctx *alborz.Context, sessions []*alborz.Session, spec listingSpec, read func(*alborz.Session) (*listingEntry, error)) (*listingEntry, error) {
+	var wg sync.WaitGroup
+	// One span across the whole fan-out: the accounts are queried
+	// concurrently, so its wall-clock is the page's IMAP time.
+	imapStart := time.Now()
+	errs := make([]error, len(sessions))
+	asked := func(i int, s *alborz.Session) *listingEntry {
+		e, err := read(s)
+		if errs[i] = err; err != nil || e == nil {
+			return nil
+		}
+		Relate(s, e.msgs)
+		return e
+	}
+	entries := make([]*listingEntry, len(sessions))
+	for i, s := range sessions {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			entries[i] = asked(i, s)
+		}()
+	}
+	wg.Wait()
+	alborz.AddTiming(ctx.Request().Context(), "imap", imapStart)
+	// Absorbed in the accounts' order, not the order they answered in:
+	// the sort below is stable, so rows of equal rank would otherwise
+	// change places from one request to the next, and a page cut out of
+	// them would repeat a row or lose one.
+	merged := &listingEntry{sortSupported: true}
+	for _, e := range entries {
+		if e != nil {
+			merged.absorb(e)
+		}
+	}
+	var down []string
+	for i, err := range errs {
+		var upstream alborz.UpstreamError
+		switch {
+		case err == nil:
+		case errors.As(err, &upstream):
+			down = append(down, sessions[i].Username())
+		default:
+			return nil, err
+		}
+	}
+	if len(down) == len(errs) {
+		return nil, errs[0]
+	}
+	ctx.Unreachable(down)
+	slices.SortStableFunc(merged.msgs, unifiedLess(spec.sortKey, spec.reverse()))
+	return merged, nil
 }
 
 // unifiedLess merges the accounts' windows under the same order each
@@ -339,6 +362,9 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	ask, err := readListAsk(ctx, threadSort)
 	if err != nil {
 		return err
+	}
+	if to := searchInstead(ctx, ask); to != "" {
+		return ctx.Redirect(http.StatusFound, to)
 	}
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
@@ -448,6 +474,16 @@ func readListAsk(ctx *alborz.Context, also string) (listAsk, error) {
 	}
 	ask.spec = listingSpec{query: ctx.QueryParam("query"), view: view, sortKey: sortKey, sortDir: sortDir}
 	return ask, nil
+}
+
+// searchInstead is where a folder's page sends an ask that is not one
+// folder's to answer, empty when it is.
+func searchInstead(ctx *alborz.Context, ask listAsk) string {
+	// in: names where to look, and this page looks in one place.
+	if folder, everywhere := ParseQuery(ask.spec.query).Scope(); folder != "" || everywhere {
+		return ctx.AccountPath("/search?query=" + url.QueryEscape(ask.spec.query))
+	}
+	return ""
 }
 
 // readSort is the order a list is asked for: the column, and the
@@ -879,20 +915,24 @@ func leaving(key rowRef, uids []imap.UID) {
 	messagesLeaving(key.account, key.mailbox, uids)
 }
 
-// moveAct moves each share to the folder to names on its connection.
-// landed takes what the server says it put where (COPYUID, RFC 4315),
-// which is what an undo is made of.
+// moveAct moves each share to the folder to names on its connection,
+// or back to where an undo's reference says it came from. landed takes
+// what the server says it put where (COPYUID, RFC 4315), each naming
+// the folder it left, which is what an undo is made of.
 func moveAct(to func(*imapclient.Client, rowRef) (string, error), landed *[]rowRef) mailAct {
 	return mailAct{
 		announce: leaving,
 		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-			dest, err := to(c, key)
-			if err != nil {
-				return err
+			dest := key.origin
+			if dest == "" {
+				var err error
+				if dest, err = to(c, key); err != nil {
+					return err
+				}
 			}
 			moved, err := moveMessages(c, key.account, key.mailbox, dest, uids)
 			for _, uid := range uidNums(moved) {
-				*landed = append(*landed, rowRef{account: key.account, mailbox: dest, uid: uid})
+				*landed = append(*landed, rowRef{account: key.account, mailbox: dest, uid: uid, origin: key.mailbox})
 			}
 			return err
 		},
@@ -1383,25 +1423,36 @@ func folderRole(mailboxes []MailboxInfo, name string) string {
 type rowRef struct {
 	account, mailbox string
 	uid              imap.UID
+	// origin is the folder a moved message came from, which only an
+	// undo's reference carries: a role names one folder per account,
+	// and the rows of a search come from any.
+	origin string
 }
 
 // String is the form parseRefs reads: what a row's checkbox carries.
 func (r rowRef) String() string {
+	if r.origin != "" {
+		return fmt.Sprintf("%s|%s|%d|%s", r.account, r.mailbox, r.uid, r.origin)
+	}
 	return fmt.Sprintf("%s|%s|%d", r.account, r.mailbox, r.uid)
 }
 
 func parseRefs(values []string) ([]rowRef, error) {
 	var refs []rowRef
 	for _, v := range values {
-		parts := strings.SplitN(v, "|", 3)
-		if len(parts) != 3 {
+		parts := strings.SplitN(v, "|", 4)
+		if len(parts) < 3 {
 			return nil, fmt.Errorf("not a message reference: %q", v)
 		}
 		uid, err := parseUid(parts[2])
 		if err != nil {
 			return nil, err
 		}
-		refs = append(refs, rowRef{account: parts[0], mailbox: parts[1], uid: uid})
+		ref := rowRef{account: parts[0], mailbox: parts[1], uid: uid}
+		if len(parts) == 4 {
+			ref.origin = parts[3]
+		}
+		refs = append(refs, ref)
 	}
 	return refs, nil
 }
@@ -1411,7 +1462,7 @@ func parseRefs(values []string) ([]rowRef, error) {
 func grouped(refs []rowRef) map[rowRef][]imap.UID {
 	out := map[rowRef][]imap.UID{}
 	for _, r := range refs {
-		key := rowRef{account: r.account, mailbox: r.mailbox}
+		key := rowRef{account: r.account, mailbox: r.mailbox, origin: r.origin}
 		out[key] = append(out[key], r.uid)
 	}
 	return out
@@ -1473,7 +1524,7 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 		switch action {
 		case "move":
 			// The folder is the merged one, linked, and the undo moves
-			// every account's messages back to the role they came from.
+			// every account's messages back to the folder each came from.
 			fields := url.Values{"next": {back}}
 			for _, r := range landed {
 				fields.Add("refs", r.String())

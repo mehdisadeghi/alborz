@@ -44,8 +44,13 @@
       {{ with .TextQuery }}
       <p class="hint search-widen"><a href="?query={{ . | urlquery }}{{ with $.GlobalData.URLAccount }}&account={{ . | addr }}{{ end }}{{ if $.GlobalData.Unified }}&all=1{{ end }}">{{ $.T "mailbox.searchtext" }}</a></p>
       {{ end }}
+      {{/* A folder's search box looks in that folder; the same question
+           of every folder is one link away, and in: asks it by name. */}}
+      {{ if and .Query (not .Spanning) }}
+      <p class="hint search-widen"><a href="{{ localhref (printf "/search?query=%s%s" (.Query | urlquery) (account "&" $.GlobalData.URLAccount)) }}">{{ $.T "search.allfolders" }}</a></p>
+      {{ end }}
       <section class="messages">
-        <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if .GlobalData.Unified }} style="--account-track: {{ .GlobalData.AccountTrack }}"{{ end }}>
+        <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}>
           {{/* Header row; the labels sort where the server can. */}}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
@@ -71,6 +76,9 @@
                every account, not whichever one the view is anchored to. */}}
           {{ $scope := "" }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | addr) }}{{ end }}
           {{range .Messages}}
+          {{/* The account a row's links keep: the page's, or in a merged
+               list the row's own. */}}
+          {{ $owner := $.GlobalData.URLAccount }}{{ if $.Merged }}{{ $owner = .Account }}{{ end }}
           {{ $classes := "list-cell" }}
           {{ if not (.HasFlag "\\Seen") }}
           {{ $classes = printf "%s %s" $classes "message-list-unread" }}
@@ -86,7 +94,7 @@
           {{/* A merged row is named by its account and folder as well,
                since the selection spans connections. */}}
           <div class="message-list-checkbox list-checkbox {{$classes}}" role="cell">
-            {{ if $.GlobalData.Unified }}
+            {{ if $.Merged }}
             <input type="checkbox" name="refs" value="{{.Account}}|{{.Mailbox}}|{{.UID}}" form="messages-form" aria-label="{{$.T "a11y.selectrow"}}{{with .Envelope.Subject}}: {{.}}{{end}}">
             {{ else }}
             <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form" aria-label="{{$.T "a11y.selectrow"}}{{with .Envelope.Subject}}: {{.}}{{end}}">
@@ -95,8 +103,7 @@
           <div class="message-list-flags {{$classes}}" role="cell">
             {{ $starred := .HasFlag "\\Flagged" }}
             {{ $star := $.T "mailbox.flagcolor" }}{{ if $starred }}{{ $star = $.T "mailbox.flagnone" }}{{ end }}
-            {{ $starq := account "?" $.GlobalData.URLAccount }}{{ if $.GlobalData.Unified }}{{ $starq = account "?" .Account }}{{ end }}
-            {{ template "row-star" (dict "Mailbox" .Mailbox "Account" $starq "UID" .UID
+            {{ template "row-star" (dict "Mailbox" .Mailbox "Account" (account "?" $owner) "UID" .UID
                  "Flagged" $starred "Color" .FlagColor
                  "Next" $.GlobalData.URL.RequestURI "Label" $star) }}
             {{if .Attachments}}<span class="message-mark" title="{{$.T "mailbox.attachment"}}"><span aria-hidden="true">📎</span><span class="visually-hidden">{{$.T "mailbox.attachment"}}</span></span>{{end}}
@@ -124,11 +131,14 @@
                  small tag: a first message, or a sender already junked.
                  Known correspondents get nothing, which is most rows. It
                  opens the message's facts, so a thumb can ask. */}}
-            {{ if and (not $.Outgoing) .Relation }}{{ if .Relation.Junked }}<a class="sender-tag sender-junked" href="{{.URL}}{{ if $.GlobalData.Unified }}{{account "?" .Account}}{{ else }}{{account "?" $.GlobalData.URLAccount}}{{ end }}#facts">{{$.T "indicator.tagjunked"}}</a>{{ else if not .Relation.WrittenTo }}<a class="sender-tag" href="{{.URL}}{{ if $.GlobalData.Unified }}{{account "?" .Account}}{{ else }}{{account "?" $.GlobalData.URLAccount}}{{ end }}#facts">{{$.T "indicator.tagfirst"}}</a>{{ end }}{{ end }}
+            {{ if and (not $.Outgoing) .Relation }}{{ if .Relation.Junked }}<a class="sender-tag sender-junked" href="{{.URL}}{{account "?" $owner}}#facts">{{$.T "indicator.tagjunked"}}</a>{{ else if not .Relation.WrittenTo }}<a class="sender-tag" href="{{.URL}}{{account "?" $owner}}#facts">{{$.T "indicator.tagfirst"}}</a>{{ end }}{{ end }}
             {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
+            {{/* A row found by a search across folders says which one it
+                 is in, and narrows the results to it. */}}
+            {{ if $.Spanning }}<a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "/mailbox/%s?query=%s%s" (.Mailbox | pathescape) ($.FolderQuery | urlquery) (account "&" .Account)) }}">{{.Mailbox}}</a>{{ end }}
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
-            {{if $.GlobalData.Unified}}
+            {{if $.Merged}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{.URL}}{{account "?" .Account}}{{if $.ListView}}&view={{$.ListView}}{{else if $.Query}}&query={{$.Query | urlquery}}{{end}}">
             {{else}}
             {{/* Built in one piece: the escaper cannot follow a URL whose
@@ -156,7 +166,6 @@
                  than the subject's width. Three are named and the rest
                  counted; the count opens the message, where they all
                  are. */}}
-            {{ $owner := $.GlobalData.URLAccount }}{{ if $.GlobalData.Unified }}{{ $owner = .Account }}{{ end }}
             {{ with .Attachments }}
             <span class="attach-line">
               {{ range $i, $a := . }}{{ if lt $i 3 }}

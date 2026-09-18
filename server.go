@@ -586,6 +586,27 @@ func (s *Server) assetURL(name string) string {
 	return "/assets/" + name
 }
 
+// shellAssets is the part of alborz that outlives a page: what the head
+// loads once and a boosted navigation never loads again, and what the
+// worker keeps.
+var shellAssets = []string{"style.css", "htmx.js", "helpers.js", "print.css",
+	"favicon-32x32.png", "icon-192.png", "icon-512.png"}
+
+// shell is the shell's URLs and a digest of them. The worker caches
+// under the digest; a page carries it so that a tab still running an
+// older shell can tell, and load the page whole instead of swapping it
+// in under a stylesheet and scripts it was not written for.
+func (s *Server) shell() ([]string, string) {
+	urls := make([]string, 0, len(shellAssets)+1)
+	version := sha256.New()
+	for _, name := range shellAssets {
+		u := s.assetURL(name)
+		urls = append(urls, u)
+		version.Write([]byte(u))
+	}
+	return urls, hex.EncodeToString(version.Sum(nil))[:12]
+}
+
 // assetStamp returns the asset's content digest. Digests are cached: an
 // embedded asset cannot change while the process runs, and a disk override
 // is re-read when its modification time or size changes, which is what
@@ -968,18 +989,9 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 	// the digest of the files it holds. What it keeps is the shell -
 	// stylesheet, scripts, icons - and nothing an account owns.
 	e.GET("/sw.js", func(ectx echo.Context) error {
-		shell := []string{"style.css", "htmx.js", "helpers.js", "print.css",
-			"favicon-32x32.png", "icon-192.png", "icon-512.png"}
-		urls := make([]string, 0, len(shell)+1)
-		version := sha256.New()
-		for _, name := range shell {
-			u := s.assetURL(name)
-			urls = append(urls, u)
-			version.Write([]byte(u))
-		}
+		urls, version := s.shell()
 		urls = append(urls, offlinePath)
-		body := fmt.Sprintf(serviceWorker,
-			hex.EncodeToString(version.Sum(nil))[:12], mustJSON(urls), offlinePath)
+		body := fmt.Sprintf(serviceWorker, version, mustJSON(urls), offlinePath)
 		ectx.Response().Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		return ectx.String(http.StatusOK, body)
 	})

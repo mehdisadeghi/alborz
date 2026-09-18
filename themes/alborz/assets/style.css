@@ -97,6 +97,9 @@ select {
   --font-fa: Vazirmatn, Sahel, "IRANSans", "SF Arabic", "Geeza Pro", "Noto Naskh Arabic";
   --font-sans: var(--font-latin);
   --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  /* One step under the smallest text, for a mark beside text and not
+     text to be read: the build under the logo. */
+  --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-md: 0.875rem;
@@ -511,6 +514,25 @@ footer { padding: var(--space-2) var(--space-4); }
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* The build sits under the name on the name's own edge, in a line box
+   tight enough that the pair is no taller than the header's links: it
+   is for a fault report, not for reading. */
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+/* Rigid, like the mark: a build that wrapped would grow the header,
+   and the row already has its way of yielding - the sections turn to
+   icons once they no longer fit. */
+.brand-build {
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-faint);
+  white-space: nowrap;
 }
 
 /* A span, not a div: the trailing group is "header nav > div" and it

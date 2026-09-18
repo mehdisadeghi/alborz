@@ -714,6 +714,10 @@ type Options struct {
 	// empty, or no key, and a visit lasts as long as the process.
 	DataDir string
 	Version string
+	// Build is the revision and the tag it carries, for the rail's head;
+	// Revision is the first alone, which is all the header has room for.
+	Build    string
+	Revision string
 	// ProjectURL is where the footer's name links, for a deployment that
 	// wants to point somewhere. Empty by default: a deployment is not the
 	// author's, and no address of anyone's belongs in a shipped binary.

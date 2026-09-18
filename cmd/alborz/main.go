@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -63,11 +64,20 @@ const devVersion = "dev"
 // the VCS metadata below to go on.
 var version string
 
+// modified, when the build stamps it "true" or "false", replaces the go
+// tool's own word on whether the tree differed from the revision. The
+// go tool counts every file git does not know, so a note or a draft
+// lying in the checkout made every build dirty, which says nothing of
+// the binary; the Makefile asks only about what the build reads. A
+// build that does not pass it gets the go tool's answer, as before.
+var modified string
+
 // buildVersion is what the footer and the User-Agent report. A release
 // names itself and nothing else; anything else carries the revision,
 // since that is what identifies the build being run.
 func buildVersion() string {
-	stamp := vcsStamp()
+	revision, date := vcsStamp()
+	stamp := strings.TrimSpace(revision + " " + date)
 	switch {
 	case version == "":
 		return stamp
@@ -78,12 +88,26 @@ func buildVersion() string {
 	}
 }
 
+// buildName is what tells one build from another, for the rail's head
+// where a reader reporting a fault can see it: the revision, which
+// every build has, and the tag after it when the commit is one.
+func buildName() string {
+	revision, _ := vcsStamp()
+	if version == "" || version == devVersion {
+		return revision
+	}
+	if revision == "" {
+		return version
+	}
+	return revision + " @ " + version
+}
+
 // vcsStamp is the revision and date the go tool embeds into the binary;
 // empty for unstamped builds such as go run.
-func vcsStamp() string {
+func vcsStamp() (string, string) {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
-		return ""
+		return "", ""
 	}
 	var revision, date string
 	var dirty bool
@@ -98,7 +122,13 @@ func vcsStamp() string {
 		}
 	}
 	if revision == "" {
-		return ""
+		return "", ""
+	}
+	if modified != "" {
+		var err error
+		if dirty, err = strconv.ParseBool(modified); err != nil {
+			panic(fmt.Sprintf("main.modified stamped as %q: %v", modified, err))
+		}
 	}
 	if len(revision) > 7 {
 		revision = revision[:7]
@@ -106,7 +136,7 @@ func vcsStamp() string {
 	if dirty {
 		revision += "-dirty"
 	}
-	return strings.TrimSpace(revision + " " + date)
+	return revision, date
 }
 
 // defaultCacheDir is the XDG cache directory: $XDG_CACHE_HOME, or
@@ -179,6 +209,8 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 	options.ThemesPath = themesPath
 	options.Version = buildVersion()
+	options.Build = buildName()
+	options.Revision, _ = vcsStamp()
 
 	if loginKey != "" {
 		fernetKey, err := fernet.DecodeKey(loginKey)

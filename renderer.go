@@ -43,6 +43,10 @@ type GlobalRenderData struct {
 
 	// Build version, empty when the binary carries no VCS metadata
 	Version string
+	// Build and Revision name the running binary under the logo, in the
+	// rail and in the header: see Options.
+	Build    string
+	Revision string
 	// Brand is the product's name as a person reads it, so no page has
 	// to spell it and none can spell it differently.
 	Brand string
@@ -705,6 +709,8 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Version = ctx.Server.Options.Version
+		global.Build = ctx.Server.Options.Build
+		global.Revision = ctx.Server.Options.Revision
 		// The name a person reads is in their own script: the range is
 		// البرز to a Persian reader, and the same word either way. What
 		// a machine reads - the User-Agent, the name given to an IMAP

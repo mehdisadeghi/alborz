@@ -57,7 +57,7 @@ func handleExportMbox(ctx *alborz.Context) error {
 			}
 			criteria := &imap.SearchCriteria{}
 			if query != "" {
-				criteria = PrepareSearch(query, SearchesIndex(c, settings))
+				criteria = ParseQuery(query).Criteria(SearchesIndex(c, settings), time.Now())
 			} else if view != "" {
 				criteria = ViewCriteria(view)
 			}
@@ -351,7 +351,7 @@ func handleExportPage(ctx *alborz.Context) error {
 		// folder is a STATUS away.
 		criteria := ViewCriteria(ibase.ListView)
 		if data.Query != "" {
-			criteria = PrepareSearch(data.Query, SearchesIndex(c, settings))
+			criteria = ParseQuery(data.Query).Criteria(SearchesIndex(c, settings), time.Now())
 		}
 		if criteria != nil {
 			if err := ensureMailboxSelected(c, mboxName); err != nil {

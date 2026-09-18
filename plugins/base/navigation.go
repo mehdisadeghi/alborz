@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
@@ -39,7 +40,7 @@ func placeInList(c *imapclient.Client, settings *Settings, mailbox string, seq u
 	}
 	var criteria *imap.SearchCriteria
 	if query != "" {
-		criteria = PrepareSearch(query, SearchesIndex(c, settings))
+		criteria = ParseQuery(query).Criteria(SearchesIndex(c, settings), time.Now())
 	} else if view != "" {
 		criteria = ViewCriteria(view)
 	}

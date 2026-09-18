@@ -43,6 +43,8 @@ type GlobalRenderData struct {
 
 	// Build version, empty when the binary carries no VCS metadata
 	Version string
+	// Shell is the digest of what the head loads; see Server.shell.
+	Shell string
 	// Build and Revision name the running binary under the logo, in the
 	// rail and in the header: see Options.
 	Build    string
@@ -709,6 +711,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx {
 		global.Version = ctx.Server.Options.Version
+		_, global.Shell = ctx.Server.shell()
 		global.Build = ctx.Server.Options.Build
 		global.Revision = ctx.Server.Options.Revision
 		// The name a person reads is in their own script: the range is

@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#1f1f1f" media="(prefers-color-scheme: dark)">
     <title>{{.GlobalData.PageTitle}}</title>
+    <meta name="alborz-shell" content="{{.GlobalData.Shell}}">
     <link rel="stylesheet" href="{{call .GlobalData.Asset "style.css"}}">
     {{- with .GlobalData.Theme}}
     <link rel="stylesheet" href="{{call $.GlobalData.Asset (printf "themes/%s.css" .)}}">

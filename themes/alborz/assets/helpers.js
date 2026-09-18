@@ -503,6 +503,27 @@ document.addEventListener("htmx:beforeSwap", ev => {
 	}
 });
 
+// A boosted navigation swaps the body and leaves the head, so a tab
+// keeps the stylesheet and the scripts it first loaded for as long as
+// it stays open - and an installed window stays open for days, across
+// every deploy, drawing new markup with an old stylesheet. Each page
+// names the shell it was written for; one written for another is loaded
+// whole. Only for a GET: a form that comes back refused carries what
+// was typed, and a reload would throw that away.
+const loadedShell = (document.querySelector('meta[name="alborz-shell"]') || {}).content;
+document.addEventListener("htmx:beforeSwap", ev => {
+	const xhr = ev.detail && ev.detail.xhr;
+	const config = ev.detail && ev.detail.requestConfig;
+	if (!loadedShell || !xhr || !config || config.verb !== "get") {
+		return;
+	}
+	const named = /<meta name="alborz-shell" content="([0-9a-f]+)"/.exec(xhr.responseText);
+	if (named && named[1] !== loadedShell) {
+		ev.detail.shouldSwap = false;
+		location.assign(xhr.responseURL);
+	}
+});
+
 // A request that does not come back must say so: htmx swaps nothing on
 // a failure and would otherwise leave a click looking like a click that
 // did nothing. The notice is the server's, written into every page and

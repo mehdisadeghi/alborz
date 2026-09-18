@@ -16,8 +16,9 @@ import (
 // the Server-Timing response header so the browser's network panel
 // attributes a slow page to IMAP, ManageSieve, WebDAV, or rendering.
 type Timing struct {
-	mu    sync.Mutex
-	spans map[string][]span
+	mu     sync.Mutex
+	spans  map[string][]span
+	counts map[string]int
 }
 
 type span struct {
@@ -25,7 +26,7 @@ type span struct {
 }
 
 func newTiming() *Timing {
-	return &Timing{spans: make(map[string][]span)}
+	return &Timing{spans: make(map[string][]span), counts: make(map[string]int)}
 }
 
 // add records one span of the named kind ("imap", "sieve", "smtp", "dav",
@@ -59,7 +60,30 @@ func (t *Timing) Header() string {
 		ms := float64(mergedDuration(t.spans[kind])) / float64(time.Millisecond)
 		parts = append(parts, fmt.Sprintf("%s;dur=%.1f", kind, ms))
 	}
+	kinds = kinds[:0]
+	for kind := range t.counts {
+		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+	for _, kind := range kinds {
+		parts = append(parts, fmt.Sprintf("%s;desc=\"%d\"", kind, t.counts[kind]))
+	}
 	return strings.Join(parts, ", ")
+}
+
+// CacheTiming reports cache outcomes alongside queue, upstream and render spans.
+func CacheTiming(ctx context.Context, cache string, hit bool) {
+	t, ok := ctx.Value(timingKey).(*Timing)
+	if !ok {
+		return
+	}
+	outcome := "_miss"
+	if hit {
+		outcome = "_hit"
+	}
+	t.mu.Lock()
+	t.counts[cache+outcome]++
+	t.mu.Unlock()
 }
 
 // mergedDuration sums spans with overlaps counted once.
@@ -101,9 +125,13 @@ func (ctx *Context) DoIMAP(f func(*imapclient.Client) error) error {
 	return ctx.DoIMAPWithin(RoundTripTimeout, f)
 }
 
+func (ctx *Context) DoIMAPScan(f func(*imapclient.Client) error) error {
+	return ctx.Session.DoIMAPWork(ctx.Request().Context(), IMAPScan, ScanTimeout, f)
+}
+
 func (ctx *Context) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
 	start := time.Now()
-	err := ctx.Session.DoIMAPWithin(bound, f)
+	err := ctx.Session.DoIMAPContext(ctx.Request().Context(), bound, f)
 	ctx.timing.add("imap", start, time.Now())
 	return err
 }

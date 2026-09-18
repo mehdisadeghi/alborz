@@ -5,10 +5,14 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/labstack/echo/v4"
 )
+
+// Discovery across an account may take several exchanges; bound the whole load.
+const accountLoadBudget = 30 * time.Second
 
 // Account is one signed-in account's client and collections, for the
 // pages that pool every account's.
@@ -36,11 +40,21 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	var accounts []Account[C]
 	var lastErr error
 	var down []string
+	var sessions []*alborz.Session
 	for _, s := range ctx.Sessions() {
-		if _, ok := p.URL(s); !ok {
-			continue
+		if _, ok := p.URL(s); ok {
+			sessions = append(sessions, s)
 		}
-		c, infos, err := load(ctx.Request().Context(), s)
+	}
+	results := Each(ctx.Request().Context(), sessions, func(reqCtx context.Context, s *alborz.Session) (Account[C], error) {
+		reqCtx, cancel := context.WithTimeout(reqCtx, accountLoadBudget)
+		defer cancel()
+		c, infos, err := load(reqCtx, s)
+		return Account[C]{Client: c, Collections: infos}, err
+	})
+	for _, result := range results {
+		s, err := result.Site, result.Err
+		c, infos := result.Value.Client, result.Value.Collections
 		if err != nil {
 			lastErr = err
 			down = append(down, s.Username())

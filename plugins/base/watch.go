@@ -1,6 +1,7 @@
 package alborzbase
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -57,6 +58,8 @@ func watchAccount(ctx *alborz.Context, s *alborz.Session) {
 // signed in, so the first click on mail finds them cached.
 func warmAccount(ctx *alborz.Context, s *alborz.Session) {
 	log := ctx.Logger()
+	senderBookFor(s)
+	SuggestAuthServ(ctx)
 	go func() {
 		if err := warmInbox(s); err != nil {
 			log.Printf("warm %s: %v", s.Username(), err)
@@ -92,6 +95,7 @@ func Watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
 // reconnecting when the connection or the server gives out.
 func watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
 	backoff := idleRetry
+	reconnect := false
 	for {
 		select {
 		case <-s.Done():
@@ -99,7 +103,9 @@ func watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
 		default:
 		}
 
-		if err := follow(s, changes); err != nil {
+		err := follow(s, changes, reconnect)
+		reconnect = true
+		if err != nil {
 			log.Printf("watch %s: %v (retrying in %v)", s.Username(), err, backoff)
 			select {
 			case <-s.Done():
@@ -120,10 +126,16 @@ func watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
 // handshake, a TLS handshake and a LOGIN for every message that arrives
 // - which a provider counting connections and logins reads as abuse, and
 // answers by refusing the account.
-func follow(s *alborz.Session, changes *alborz.Changes) error {
+func follow(s *alborz.Session, changes *alborz.Changes, reconnect bool) error {
 	changed := make(chan struct{}, 1)
-	c, err := s.WatchIMAP(func() { notify(changed) }, func(seqNum uint32, flags []imap.Flag) {
-		listings.setFlags(s.Username(), "INBOX", seqNum, flags)
+	// The pages go stale here, on the connection's own reader, and not
+	// where the change is picked up: a FETCH that follows an EXPUNGE in
+	// one read names its message by the new numbering already.
+	c, err := s.WatchIMAP(func() {
+		mailboxStale(s.Username(), "INBOX")
+		notify(changed)
+	}, func(seqNum uint32, flags []imap.Flag) {
+		mailboxFlagsAnnounced(s.Username(), "INBOX", seqNum, flags)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
@@ -143,6 +155,13 @@ func follow(s *alborz.Session, changes *alborz.Changes) error {
 	if _, err := c.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
 		return fmt.Errorf("failed to select INBOX: %w", err)
 	}
+	// Reconnection can have missed changes while no watcher was listening.
+	if reconnect {
+		mailboxStale(s.Username(), "INBOX")
+		if err := warmInbox(s); err != nil {
+			return err
+		}
+	}
 
 	for {
 		select {
@@ -156,9 +175,7 @@ func follow(s *alborz.Session, changes *alborz.Changes) error {
 	}
 }
 
-// idleOnce waits on one IDLE. On a change the listing is dropped and
-// fetched again at once, on the session's own connection, so the visit
-// that follows new mail finds the page ready.
+// On an IDLE change, keep serving the old listing until its replacement is ready.
 func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}, changes *alborz.Changes) error {
 	cmd, err := c.Idle()
 	if err != nil {
@@ -169,7 +186,6 @@ func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}, ch
 	defer window.Stop()
 	select {
 	case <-changed:
-		listings.evict(s.Username(), "INBOX")
 		if err := warmInbox(s); err != nil {
 			return fmt.Errorf("failed to refetch INBOX: %w", err)
 		}
@@ -186,44 +202,32 @@ func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}, ch
 	return nil
 }
 
-// warmInbox fetches back what the eviction dropped: the account's INBOX
-// listing, its share of the merged one, and the rail's counts. All
-// three went with the folder, and any of them missing makes the next
-// click pay on the reader's time.
+// warmInbox shares the first page fetch with login and foreground readers.
 func warmInbox(s *alborz.Session) error {
 	settings, err := LoadSettings(s.Store())
 	if err != nil {
 		return err
 	}
 	user := s.Username()
-	var own, merged *listingEntry
-	err = s.DoIMAP(func(c *imapclient.Client) error {
-		var err error
-		if own, err = fetchListing(c, user, listingSpec{mbox: "INBOX"}, settings, 0, defaultMessagesPerPage); err != nil {
-			return err
-		}
-		merged, err = fetchUnifiedAccount(c, user, "INBOX", listingSpec{}, settings, defaultMessagesPerPage, true)
-		return err
-	})
+	generation := listings.epoch(user)
+	// The page size is the reader's, and a first page of another size
+	// is a miss: warming the default over a reader who set a hundred
+	// replaced their page with one they never get.
+	perPage := listings.pageSize(user, "INBOX", defaultMessagesPerPage)
+	own, err := listings.load(context.Background(), user, "INBOX", perPage, false, readOn(s, alborz.IMAPForeground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
+		return fetchListing(c, user, listingSpec{mbox: "INBOX"}, settings, 0, perPage)
+	}))
 	if err != nil {
 		return err
 	}
-	listings.store(user, "INBOX", own)
-	if merged.snap != nil {
-		listings.store(user, listingView("#INBOX", "", "", "", ""), merged)
+	// The default merged window is the same INBOX rows, qualified by account.
+	merged := own.snapshot()
+	merged.sb = sidebar{}
+	for i := range merged.msgs {
+		merged.msgs[i].Account = user
 	}
-	if _, err := sidebarFor(s); err != nil {
-		return err
-	}
-	return prefetchBodies(s, settings.PreferHTML, "INBOX", own.msgs)
-}
-
-// watching reports whether the account's INBOX is under IDLE, in which
-// case its listing is current until the watcher says otherwise.
-func (w *watcherSet) watching(user string) bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.running[user]
+	listings.storeAt(user, listingView("#INBOX", "", "", "", ""), merged, generation)
+	return nil
 }
 
 func notify(ch chan struct{}) {

@@ -22,10 +22,12 @@ type Memo[T any] struct {
 }
 
 type memoEntry[T any] struct {
-	mu        sync.Mutex
-	val       T
-	fetched   time.Time
-	reloading bool
+	mu         sync.Mutex
+	val        T
+	fetched    time.Time
+	loading    chan struct{}
+	version    uint64
+	retryAfter time.Time
 }
 
 // NewMemo returns a memo that reloads synchronously when stale.
@@ -55,32 +57,63 @@ func (m *Memo[T]) Get(user string, load func() (T, error)) (T, error) {
 	}
 	m.mu.Unlock()
 
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if e.fetched.IsZero() || (!m.background && time.Since(e.fetched) > m.ttl) {
-		val, err := load()
-		if err != nil {
-			var zero T
-			return zero, err
-		}
-		e.val, e.fetched = val, time.Now()
-		return val, nil
-	}
-
-	if m.background && time.Since(e.fetched) > m.ttl && !e.reloading {
-		e.reloading = true
-		go func() {
-			val, err := load()
-			e.mu.Lock()
-			e.reloading = false
-			if err == nil {
-				e.val, e.fetched = val, time.Now()
+	for {
+		e.mu.Lock()
+		if !e.fetched.IsZero() && (m.background || time.Since(e.fetched) <= m.ttl) {
+			if m.background && time.Since(e.fetched) > m.ttl {
+				m.start(e, load)
 			}
+			val := e.val
 			e.mu.Unlock()
-		}()
+			return val, nil
+		}
+		if e.loading != nil {
+			done := e.loading
+			e.mu.Unlock()
+			<-done
+			continue
+		}
+		e.loading = make(chan struct{})
+		version := e.version
+		e.mu.Unlock()
+		val, err := load()
+		e.mu.Lock()
+		if err == nil && version == e.version {
+			e.val, e.fetched = val, time.Now()
+		}
+		close(e.loading)
+		e.loading = nil
+		// A first load overtaken by Stale has nothing held to give way
+		// to: what it read is answered, and not kept.
+		if err == nil && !e.fetched.IsZero() {
+			val = e.val
+		}
+		e.mu.Unlock()
+		return val, err
 	}
-	return e.val, nil
+}
+
+// Failed background reads back off so a busy page cannot hammer an outage.
+const memoRetryDelay = 5 * time.Second
+
+func (m *Memo[T]) start(e *memoEntry[T], load func() (T, error)) {
+	if e.loading != nil || time.Now().Before(e.retryAfter) {
+		return
+	}
+	e.loading = make(chan struct{})
+	version := e.version
+	go func() {
+		val, err := load()
+		e.mu.Lock()
+		if err == nil && version == e.version {
+			e.val, e.fetched = val, time.Now()
+		} else if err != nil {
+			e.retryAfter = time.Now().Add(memoRetryDelay)
+		}
+		close(e.loading)
+		e.loading = nil
+		e.mu.Unlock()
+	}()
 }
 
 // Warm returns whatever is cached for the user and starts a background
@@ -100,17 +133,8 @@ func (m *Memo[T]) Warm(user string, load func() (T, error)) T {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if !e.reloading && (e.fetched.IsZero() || time.Since(e.fetched) > m.ttl) {
-		e.reloading = true
-		go func() {
-			val, err := load()
-			e.mu.Lock()
-			e.reloading = false
-			if err == nil {
-				e.val, e.fetched = val, time.Now()
-			}
-			e.mu.Unlock()
-		}()
+	if e.fetched.IsZero() || time.Since(e.fetched) > m.ttl {
+		m.start(e, load)
 	}
 	return e.val
 }
@@ -126,6 +150,7 @@ func (m *Memo[T]) Put(user string, val T) {
 	}
 	m.mu.Unlock()
 	e.mu.Lock()
+	e.version++
 	e.val, e.fetched = val, time.Now()
 	e.mu.Unlock()
 }
@@ -141,6 +166,7 @@ func (m *Memo[T]) Update(user string, f func(T) T) {
 	}
 	e.mu.Lock()
 	if !e.fetched.IsZero() {
+		e.version++
 		e.val = f(e.val)
 	}
 	e.mu.Unlock()
@@ -151,4 +177,20 @@ func (m *Memo[T]) Forget(user string) {
 	m.mu.Lock()
 	delete(m.entries, user)
 	m.mu.Unlock()
+}
+
+// Stale retains the last value while scheduling its next background refresh.
+func (m *Memo[T]) Stale(user string) {
+	m.mu.Lock()
+	e := m.entries[user]
+	m.mu.Unlock()
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	e.version++
+	if !e.fetched.IsZero() {
+		e.fetched = time.Now().Add(-m.ttl - time.Nanosecond)
+	}
+	e.mu.Unlock()
 }

@@ -93,12 +93,9 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	window := ask.window()
 	// A search costs one live IMAP round trip per account, so it is the
 	// view that most wants the cache; only its key is longer.
-	cacheable := ctx.Request().Method == http.MethodGet && ask.page == 0
-	key := listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir)
-	bound := alborz.RoundTripTimeout
-	if SearchesText(spec.query) {
-		bound = alborz.ScanTimeout
-	}
+	cacheable := ctx.Request().Method == http.MethodGet
+	key := listingPage(listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir), ask.page, ask.perPage)
+	class, bound := listingBudget(spec)
 	var (
 		mu     sync.Mutex
 		wg     sync.WaitGroup
@@ -114,13 +111,6 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		go func() {
 			defer wg.Done()
 			user := s.Username()
-			merge := func(e *listingEntry) {
-				mu.Lock()
-				answered[i] = e.msgs
-				merged.total += e.total
-				merged.headersOnly = merged.headersOnly || e.headersOnly
-				mu.Unlock()
-			}
 			folder := func(c *imapclient.Client) (string, error) { return resolveRole(c, user, role) }
 			fetch := func(c *imapclient.Client) (*listingEntry, error) {
 				name, err := folder(c)
@@ -129,35 +119,23 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 				}
 				return fetchUnifiedAccount(c, user, name, spec, settings, window, cacheable)
 			}
+			var e *listingEntry
 			if cacheable {
-				if e, state := listings.lookup(user, key, ask.perPage); e != nil {
-					merge(e)
-					if state == listingStale {
-						revalidate(s, key, e, folder, fetch)
-					}
-					return
-				}
+				e, errs[i] = cachedListing(ctx, s, key, window, spec, folder, fetch)
+			} else {
+				alborz.CacheTiming(ctx.Request().Context(), "listing", false)
+				e, errs[i] = readOn(s, class, bound, fetch)(ctx.Request().Context())
 			}
-			errs[i] = s.DoIMAPWithin(bound, func(c *imapclient.Client) error {
-				name, err := folder(c)
-				if err != nil || name == "" {
-					return err
-				}
-				if !c.Caps().Has(imap.CapSort) {
-					mu.Lock()
-					merged.sortSupported = false
-					mu.Unlock()
-				}
-				e, err := fetchUnifiedAccount(c, user, name, spec, settings, window, cacheable)
-				if err != nil {
-					return err
-				}
-				if cacheable && e.snap != nil {
-					listings.store(user, key, e)
-				}
-				merge(e)
-				return nil
-			})
+			if errs[i] != nil || e == nil {
+				return
+			}
+			Relate(s, e.msgs)
+			mu.Lock()
+			answered[i] = e.msgs
+			merged.total += e.total
+			merged.headersOnly = merged.headersOnly || e.headersOnly
+			merged.sortSupported = merged.sortSupported && e.sortSupported
+			mu.Unlock()
 		}()
 	}
 	wg.Wait()
@@ -332,7 +310,6 @@ func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listing
 	for j := range e.msgs {
 		e.msgs[j].Account = user
 	}
-	Relate(c, user, e.msgs)
 	if snapCmd != nil {
 		if st, err := snapCmd.Wait(); err == nil {
 			e.snap = st
@@ -368,12 +345,8 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	}
 	ask.spec.mbox = mboxName
 
-	// The default view of a folder is served from the listing cache when
-	// possible: a fresh entry renders without touching the server, a stale
-	// one after a single STATUS confirming nothing changed. Everything
-	// else pays one round trip for LIST plus SELECT and one for the query,
-	// with the sidebar's STATUS responses riding along.
-	cacheable := ctx.Request().Method == http.MethodGet && ask.page == 0
+	// Cached pages serve immediately while stale entries renew behind them.
+	cacheable := ctx.Request().Method == http.MethodGet
 	// thread names one conversation by any message in it. The server
 	// groups by message id, so this asks nothing of its header search.
 	if raw := ctx.QueryParam("thread"); raw != "" {
@@ -389,38 +362,22 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	if spec.thread != 0 {
 		key = fmt.Sprintf("%s%sthread=%d", key, listingSep, spec.thread)
 	}
-	user := ctx.Session.Username()
+	key = listingPage(key, page, messagesPerPage)
 	fetch := func(c *imapclient.Client) (*listingEntry, error) {
-		return fetchListing(c, user, spec, settings, page, messagesPerPage)
+		return fetchListing(c, ctx.Session.Username(), spec, settings, page, messagesPerPage)
 	}
 	var e *listingEntry
 	if cacheable {
-		var state listingState
-		if e, state = listings.lookup(user, key, messagesPerPage); e != nil &&
-			state == listingStale && !(mboxName == "INBOX" && watchers.watching(user)) {
-			// The page is served as it is and the server asked behind it;
-			// a watched INBOX needs no asking, the watcher already heard.
-			revalidate(ctx.Session, key, e, func(*imapclient.Client) (string, error) { return mboxName, nil }, fetch)
-		}
+		e, err = cachedListing(ctx, ctx.Session, key, messagesPerPage, spec,
+			func(*imapclient.Client) (string, error) { return mboxName, nil }, fetch)
+	} else {
+		e, err = loadListing(ctx, ctx.Session, key, messagesPerPage, spec, fetch)
 	}
-	if e == nil {
-		bound := alborz.RoundTripTimeout
-		if SearchesText(spec.query) {
-			bound = alborz.ScanTimeout
-		}
-		err = ctx.DoIMAPWithin(bound, func(c *imapclient.Client) error {
-			var err error
-			e, err = fetch(c)
-			return err
-		})
-		if err != nil {
-			return err
-		}
-		if cacheable {
-			listings.store(user, key, e)
-		}
+	if err != nil {
+		return err
 	}
 	sb, msgs := railFor(ctx.Session, mboxName, e.sb), e.msgs
+	Relate(ctx.Session, msgs)
 	if folderRole(sb.mailboxes, mboxName) != "junk" {
 		RowMarks(ctx, TrustedAuthServ(ctx, settings), msgs)
 	}
@@ -428,7 +385,10 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	// any of its rows, asks the server nothing.
 	if cacheable {
 		session := ctx.Session
-		go prefetchBodies(session, settings.PreferHTML, mboxName, e.msgs)
+		go prefetchBodies(session, settings.PreferHTML, mboxName, e.validity(), e.msgs)
+		if spec.query == "" && spec.sortKey != threadSort && spec.thread == 0 && ask.window() < e.total {
+			prefetchPage(session, settings, spec, page+1, messagesPerPage)
+		}
 	}
 
 	// A row shows the address it reached only where that is worth
@@ -541,14 +501,13 @@ func fetchListing(c *imapclient.Client, user string, spec listingSpec, settings 
 		return nil, err
 	}
 	e.snap = e.sb.active.StatusData
-	Relate(c, user, e.msgs)
 	return e, nil
 }
 
 // fetchRows reads one page of one folder under the spec: a
 // conversation, a search, a sort, or the plain list.
 func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *Settings, page, perPage int) (*listingEntry, error) {
-	e := &listingEntry{perPage: perPage, sortSupported: c.Caps().Has(imap.CapSort), threadAlgorithm: ThreadAlgorithm(c)}
+	e := &listingEntry{perPage: perPage, page: page, sortSupported: c.Caps().Has(imap.CapSort), threadAlgorithm: ThreadAlgorithm(c)}
 	// Each account's window is cut under the requested order, so the
 	// merge sees the right candidates: the largest matches, and not the
 	// largest of the newest. "account" is the merge's own order.
@@ -703,7 +662,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 			return render(http.StatusUnprocessableEntity, err.Error())
 		}
 
-		listings.evictAll(selectedAccount)
+		accountChanged(selectedAccount)
 		// The folder is its own list, so the reader lands in it; the
 		// banner is the one every other create shows.
 		ctx.Made(ctx.T("notice.foldercreated"), name, "", ctx.Request().URL.RequestURI())
@@ -765,14 +724,17 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 		// with children. Saying it was deleted anyway sends the user
 		// looking for a folder that is still there.
 		if err := ctx.DoIMAP(func(c *imapclient.Client) error {
-			return c.Delete(mbox.Name()).Wait()
+			if err := c.Delete(mbox.Name()).Wait(); err != nil {
+				return err
+			}
+			mailboxDeleted(ctx.Session.Username(), mbox.Name())
+			return nil
 		}); err != nil {
 			return ctx.Render(http.StatusUnprocessableEntity, "delete-mailbox.html", &DeleteMailboxRenderData{
 				IMAPBaseRenderData: *ibase,
 				Error:              err.Error(),
 			})
 		}
-		listings.evictAll(ctx.Session.Username())
 		ctx.PutNotice(ctx.T("notice.mailboxdeleted"))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 	}
@@ -795,11 +757,11 @@ func handleRefreshMailbox(ctx *alborz.Context) error {
 	// every account that is asked again.
 	if ctx.Unified {
 		for _, s := range ctx.Sessions() {
-			listings.evict(s.Username(), "#"+mboxName)
+			viewForgotten(s.Username(), "#"+mboxName)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s", url.PathEscape(mboxName))))
 	}
-	listings.evict(ctx.Session.Username(), mboxName)
+	viewForgotten(ctx.Session.Username(), mboxName)
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
 
@@ -874,10 +836,12 @@ func handleMove(ctx *alborz.Context) error {
 	}, landOn(ctx, target))
 }
 
-// mailAct is what an action does to one folder's share of a selection,
-// on that account's connection.
+// mailAct is what an action does to one folder's share of a selection:
+// announce speaks to the caches before the connection is taken, and do
+// runs on it.
 type mailAct struct {
-	do func(c *imapclient.Client, key rowRef, uids []imap.UID) error
+	announce func(key rowRef, uids []imap.UID)
+	do       func(c *imapclient.Client, key rowRef, uids []imap.UID) error
 }
 
 // actFailure is a share an action did not reach; err is nil where the
@@ -898,6 +862,9 @@ func actOn(ctx *alborz.Context, refs []rowRef, act mailAct) (done int, failed []
 			failed = append(failed, actFailure{account: key.account})
 			continue
 		}
+		if act.announce != nil {
+			act.announce(key, uids)
+		}
 		err := s.DoIMAP(func(c *imapclient.Client) error { return act.do(c, key, uids) })
 		if err != nil {
 			failed = append(failed, actFailure{key.account, err})
@@ -908,11 +875,16 @@ func actOn(ctx *alborz.Context, refs []rowRef, act mailAct) (done int, failed []
 	return done, failed
 }
 
+func leaving(key rowRef, uids []imap.UID) {
+	messagesLeaving(key.account, key.mailbox, uids)
+}
+
 // moveAct moves each share to the folder to names on its connection.
 // landed takes what the server says it put where (COPYUID, RFC 4315),
 // which is what an undo is made of.
 func moveAct(to func(*imapclient.Client, rowRef) (string, error), landed *[]rowRef) mailAct {
 	return mailAct{
+		announce: leaving,
 		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
 			dest, err := to(c, key)
 			if err != nil {
@@ -929,6 +901,7 @@ func moveAct(to func(*imapclient.Client, rowRef) (string, error), landed *[]rowR
 
 func flagAct(op imap.StoreFlagsOp, flags []imap.Flag) mailAct {
 	return mailAct{
+		announce: func(key rowRef, uids []imap.UID) { flagWriteStarting(key.account, key.mailbox, uids, op, flags) },
 		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
 			return writeFlags(c, key.account, key.mailbox, uids, op, flags)
 		},
@@ -951,8 +924,7 @@ func moveMessages(c *imapclient.Client, account, from, to string, uids []imap.UI
 	if err != nil {
 		return nil, fmt.Errorf("failed to move message: %w", err)
 	}
-	listings.evict(account, from)
-	listings.evict(account, to)
+	messagesMoved(account, from, to, uids)
 	return moved, nil
 }
 
@@ -962,8 +934,7 @@ func writeFlags(c *imapclient.Client, account, mailbox string, uids []imap.UID, 
 	if err := storeFlags(c, mailbox, imap.UIDSetNum(uids...), op, flags); err != nil {
 		return err
 	}
-	listings.evict(account, mailbox)
-	bodies.evict(account, mailbox, uids)
+	messagesFlagged(account, mailbox, uids, op, flags)
 	return nil
 }
 
@@ -1052,13 +1023,14 @@ func handleEmptyMailbox(ctx *alborz.Context) error {
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		var err error
 		removed, err = emptyMailbox(c, mboxName)
+		// Expunge can also remove messages already marked deleted elsewhere.
+		messagesRemoved(ctx.Session.Username(), mboxName)
 		return err
 	})
 	if err != nil {
 		return err
 	}
 
-	listings.evict(ctx.Session.Username(), mboxName)
 	ctx.Notify(emptiedNotice(ctx, removed))
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
@@ -1112,10 +1084,11 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 				return err
 			}
 			n, err := emptyMailbox(c, folder)
+			messagesRemoved(s.Username(), folder)
 			removed += n
 			return err
 		})
-		listings.evict(s.Username(), "#"+role)
+		viewForgotten(s.Username(), "#"+role)
 		if err != nil {
 			failed = append(failed, s.Username()+": "+err.Error())
 		}
@@ -1152,12 +1125,13 @@ func handleDelete(ctx *alborz.Context) error {
 
 	var left int
 	return runAct(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), mailAct{
+		announce: leaving,
 		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
+			defer messagesRemoved(key.account, key.mailbox)
 			if err := deleteMessages(c, key.mailbox, imap.UIDSetNum(uids...)); err != nil {
 				return err
 			}
 			left = int(c.Mailbox().NumMessages)
-			listings.evict(key.account, key.mailbox)
 			return nil
 		},
 	}, func(done int) alborz.Notice {
@@ -1492,7 +1466,7 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 	}
 	each := act.do
 	act.do = func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-		defer listings.evictAll(key.account)
+		defer accountChanged(key.account)
 		return each(c, key, uids)
 	}
 	return runAct(ctx, refs, act, func(done int) alborz.Notice {

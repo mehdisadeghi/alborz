@@ -486,6 +486,59 @@ func TestOpeningAHeldMessageAfterAFlagChange(t *testing.T) {
 	}
 }
 
+func TestCachedMessageAndSidebarWithoutUpstream(t *testing.T) {
+	addr, upstream := startIMAPServer(t, rigCaps())
+	base := startAlborz(t, addr)
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) == 0 {
+		t.Fatal("no seeded messages")
+	}
+	path := base + "/message/INBOX/" + uids[0] + "?part=1"
+	read := func(path, target string) (string, string) {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("HX-Request", "true")
+		req.Header.Set("HX-Target", target)
+		resp, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("response %d: %v", resp.StatusCode, err)
+		}
+		return string(body), resp.Header.Get("Server-Timing")
+	}
+	warm := false
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); {
+		_, timing := read(path, "body")
+		if strings.Contains(timing, "body_hit") {
+			warm = true
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !warm {
+		t.Fatal("message body never warmed")
+	}
+	fragment, _ := read(path, "message-navigation")
+	if !strings.Contains(fragment, `id="message-navigation"`) || strings.Contains(fragment, "<!DOCTYPE") {
+		t.Fatal("navigation endpoint did not return a fragment")
+	}
+	upstream.Close()
+	c.Timeout = time.Second
+	body, timing := read(path, "body")
+	if !strings.Contains(body, "message-flag-form") || !strings.Contains(timing, "body_hit") || strings.Contains(timing, "imap_work") {
+		t.Fatalf("cached message used upstream: %s", timing)
+	}
+	body, _ = read(base+"/mail/sidebar?path=/message/INBOX/"+uids[0], "aside")
+	if !strings.Contains(body, "data-mail-sidebar") || strings.Contains(body, "message-flag-form") {
+		t.Fatal("sidebar response rendered the message")
+	}
+}
+
 // TestStarStickToTheScopedAccount stars a message on a page scoped to
 // the second account and reads it back: the flag must land on the
 // account the URL names, and the reloaded page must show it, not the

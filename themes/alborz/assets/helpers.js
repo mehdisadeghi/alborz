@@ -596,9 +596,12 @@ if (rail && window.EventSource) {
 		// burst rather than once for each message.
 		clearTimeout(due);
 		due = setTimeout(() => {
-			const here = document.querySelector("aside");
+			const here = document.querySelector("aside[data-mail-sidebar]");
 			if (here && window.htmx) {
-				htmx.ajax("GET", location.href,
+				const url = new URL("/mail/sidebar", location.origin);
+				url.search = location.search;
+				url.searchParams.set("path", location.pathname);
+				htmx.ajax("GET", url.href,
 					{ source: here, target: here, select: "aside", swap: "outerHTML" });
 			}
 		}, 2000);

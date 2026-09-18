@@ -2,12 +2,47 @@ package alborzbase
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
+
+func handleSidebar(ctx *alborz.Context) error {
+	base := alborz.NewBaseRenderData(ctx)
+	page := ctx.QueryParam("path")
+	if !strings.HasPrefix(page, "/") || strings.HasPrefix(page, "//") {
+		page = "/mailbox/INBOX"
+	}
+	u := *base.GlobalData.URL
+	u.Path = page
+	q := u.Query()
+	q.Del("path")
+	u.RawQuery = q.Encode()
+	base.GlobalData.URL = &u
+	base.GlobalData.Path = strings.Split(page, "/")[1:]
+	folder := ""
+	parts := strings.Split(page, "/")
+	if len(parts) > 2 && (parts[1] == "mailbox" || parts[1] == "message") {
+		folder, _ = url.PathUnescape(parts[2])
+	}
+	view, err := readView(ctx)
+	if err != nil {
+		return err
+	}
+	sb, err := sidebarFor(ctx.Session)
+	if err != nil {
+		return err
+	}
+	sb = sb.clone()
+	sb.active = sb.statuses[folder]
+	data := assembleIMAPBase(ctx, base, folder, sb, view)
+	data.SidebarAccounts = sidebarAccounts(ctx)
+	return ctx.Render(http.StatusOK, "aside", data)
+}
 
 type IMAPBaseRenderData struct {
 	alborz.BaseRenderData
@@ -227,12 +262,8 @@ type AccountSidebar struct {
 	Categorized CategorizedMailboxes
 }
 
-// accountSidebars holds each account's folder tree with its counts, the
-// one source every rail draws from. A stale one is reloaded on the
-// page rather than behind it: a count is a fact that changes, and one a
-// page old is wrong in the way a stale listing is not. Every listing
-// fetch feeds it, so the reload is rarely the page's own.
-var accountSidebars = alborz.NewMemo[sidebar](listingFreshFor)
+// The rail serves its last counts while one refresh runs behind the page.
+var accountSidebars = alborz.NewBackgroundMemo[sidebar](listingFreshFor)
 
 // railFor is the account's sidebar for a page on one folder: the tree
 // and counts as the memo holds them, with that folder marked active.
@@ -260,7 +291,7 @@ func sidebarFor(s *alborz.Session) (sidebar, error) {
 			return sidebar{}, err
 		}
 		var sb sidebar
-		err = s.DoIMAP(func(c *imapclient.Client) error {
+		err = s.DoIMAPBackground(func(c *imapclient.Client) error {
 			load, err := startSidebar(c, "", "", settings.Subscriptions)
 			if err != nil {
 				return err

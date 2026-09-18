@@ -51,7 +51,7 @@ func handleExportMbox(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		err = ctx.DoIMAPWithin(alborz.ScanTimeout, func(c *imapclient.Client) error {
+		err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
 			if err := ensureMailboxSelected(c, mboxName); err != nil {
 				return err
 			}
@@ -346,7 +346,7 @@ func handleExportPage(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	err = ctx.DoIMAPWithin(alborz.ScanTimeout, func(c *imapclient.Client) error {
+	err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
 		// A search or a view is counted the way it is listed; the whole
 		// folder is a STATUS away.
 		criteria := ViewCriteria(ibase.ListView)
@@ -508,7 +508,7 @@ func handleImport(ctx *alborz.Context) error {
 		}
 		count++
 	}
-	listings.evictAll(selectedAccount)
+	accountChanged(selectedAccount)
 	if importErr != nil {
 		ctx.Logger().Printf("import into %q stopped after %d: %v", fullName, count, importErr)
 		ctx.PutNotice(ctx.Tf("notice.importstopped", count, fullName))

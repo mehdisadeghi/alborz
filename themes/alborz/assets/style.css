@@ -797,27 +797,6 @@ aside {
   border-inline-end: 1px solid var(--border-light);
 }
 
-/* A page swapped in place crosses over rather than blinking, as one
-   group and only one. Naming the header and the rail as groups of
-   their own made each morph from its old box to its new one, and the
-   rail is as tall as the page, so every navigation that changed the
-   page's height zoomed the chrome. The pseudo-elements a transition
-   builds sit outside the document, so the blanket rule above does not
-   reach them: a reader who asked for no motion gets the swap and none
-   of the fade. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 120ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none !important;
-  }
-}
-
 /* Every rail row truncates: the name is in the title, and a rail is a
    list of places, not a place for a name to be read in full. */
 aside .filter-row,
@@ -2779,8 +2758,6 @@ main.calendar .actions {
   order: 100;
 }
 
-
-
 .actions-search button {
   padding-inline: 0.5rem;
 }
@@ -2947,8 +2924,6 @@ main.calendar .actions {
   flex-direction: row;
   align-items: center;
 }
-
-
 
 /* The title takes the room it needs and yields it under pressure: a
    reserved track wastes it on short names and refuses to give it back
@@ -3346,8 +3321,6 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .task-list-priority { color: var(--fg-dim); font-weight: 600; }
 
-
-
 /* Metadata steps aside before the two columns a task list is for. */
 @media (width < 60rem) {
   .task-grid {
@@ -3368,8 +3341,6 @@ aside details.folder-branch details.folder-branch > ul > li {
 
   .task-grid .task-list-due { display: none; }
 }
-
-
 
 .task-row > * {
   min-height: 2.5rem;
@@ -3432,8 +3403,6 @@ aside details.folder-branch details.folder-branch > ul > li {
   border-radius: 50%;
   object-fit: cover;
 }
-
-
 
 /* Rows are not hyperlink soup: links show their nature on hover, as
    the tables these grids replaced did. */
@@ -4236,8 +4205,6 @@ main.task .details h1.completed {
   text-decoration: line-through;
   color: var(--fg-faint);
 }
-
-
 
 /* Account headings in the asides. */
 aside .aside-account {
@@ -5089,10 +5056,6 @@ main.message td.warning-cell {
 .list-row.row-caution .list-cell a {
   color: var(--fg);
 }
-
-
-
-
 
 
 

@@ -570,6 +570,8 @@
 "notice.undone" = "Deshecho."
 "notice.undofailed" = "No se pudo deshacer: se han movido desde entonces."
 "notice.noanswer" = "El servidor no respondió."
+"notice.offline" = "Sin conexión. Se muestran las páginas guardadas."
+"notice.slow" = "El servidor responde despacio. Se muestran las páginas guardadas."
 "common.addanother" = "Añadir otro"
 "notice.taskcreated" = "Tarea «%s» creada."
 "notice.eventcreated" = "Evento «%s» creado."

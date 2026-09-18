@@ -564,6 +564,8 @@
 "notice.undone" = "واگرد شد."
 "notice.undofailed" = "واگرد نشد: از آن زمان جابه‌جا شده‌اند."
 "notice.noanswer" = "سرور پاسخ نداد."
+"notice.offline" = "آفلاین. صفحه‌های ذخیره‌شده نمایش داده می‌شوند."
+"notice.slow" = "سرور کند است. صفحه‌های ذخیره‌شده نمایش داده می‌شوند."
 "common.addanother" = "افزودن مورد دیگر"
 "notice.taskcreated" = "کار «%s» ساخته شد."
 "notice.eventcreated" = "رویداد «%s» ساخته شد."

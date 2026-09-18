@@ -987,7 +987,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 	// scope is the path it is served from, so a worker under /assets/
 	// could only ever see /assets/, and the version it caches under is
 	// the digest of the files it holds. What it keeps is the shell -
-	// stylesheet, scripts, icons - and nothing an account owns.
+	// stylesheet, scripts, icons - and the pages of ADR 19.
 	e.GET("/sw.js", func(ectx echo.Context) error {
 		urls, version := s.shell()
 		urls = append(urls, offlinePath)

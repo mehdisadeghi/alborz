@@ -24,8 +24,17 @@
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-128.png"}}" sizes="128x128" />
     {{/* No eval, so the page's own CSP needs no unsafe-eval; no history
          cache, because htmx keeps page snapshots in localStorage and a
-         snapshot of a mailbox is the mail itself. */}}
-    <meta name="htmx-config" content='{"allowEval":false,"historyCacheSize":0,"includeIndicatorStyles":false,"globalViewTransitions":false,"timeout":20000}'>
+         snapshot of a mailbox is the mail itself. Nothing settles:
+         htmx would otherwise lend an element the attributes of the one
+         it replaces for a moment, by id, and main is main on every
+         page - so a page arrived with the last page's class on it, and
+         a script or a rule that reads that class met the wrong page.
+         Compose came up in its no-script layout that way. And no wait
+         before settling: the scripts that fit a page to its width run
+         when htmx says the content has loaded, which it says after the
+         settle delay, so every click painted the unfitted page first -
+         on a phone the header's words, a frame before its icons. */}}
+    <meta name="htmx-config" content='{"allowEval":false,"historyCacheSize":0,"includeIndicatorStyles":false,"globalViewTransitions":false,"attributesToSettle":[],"defaultSettleDelay":0,"timeout":20000}'>
     <script defer src="{{call .GlobalData.Asset "htmx.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "helpers.js"}}"></script>
   </head>

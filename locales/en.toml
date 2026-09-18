@@ -571,6 +571,8 @@
 "notice.undone" = "Undone."
 "notice.undofailed" = "Could not undo: they have moved since."
 "notice.noanswer" = "The server did not answer."
+"notice.offline" = "Offline. Showing saved pages."
+"notice.slow" = "The server is slow. Showing saved pages."
 "common.addanother" = "Add another"
 "notice.taskcreated" = "Task “%s” created."
 "notice.eventcreated" = "Event “%s” created."

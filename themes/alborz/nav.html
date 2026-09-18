@@ -100,6 +100,12 @@
   <div class="notice notice-failed" id="request-failed" role="alert" hidden>
     <span class="notice-text">{{$.T "notice.noanswer"}}</span>
   </div>
+  {{/* Shown by the worker's word, not the radio's: it is what knows
+       whether the page on screen came from the server or from what it
+       saved. A saved page carries this too, hidden like any other. */}}
+  <div class="notice notice-warning" id="offline-notice" role="status" data-offline="{{$.T "notice.offline"}}" data-slow="{{$.T "notice.slow"}}" hidden>
+    <span class="notice-text">{{$.T "notice.offline"}}</span>
+  </div>
   {{ end }}
 </header>
 {{ if .GlobalData.LoggedIn }}

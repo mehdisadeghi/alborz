@@ -536,11 +536,17 @@ document.addEventListener("htmx:beforeSwap", ev => {
 // page's notice would be pointing at a node no longer in the document -
 // which is exactly a failure that shows nothing.
 const failedNotice = () => document.getElementById("request-failed");
+// Offline already says the server did not answer; the two are one
+// notice, not two stacked.
+const offlineShown = () => {
+	const offline = document.getElementById("offline-notice");
+	return offline !== null && !offline.hidden;
+};
 for (const event of ["htmx:sendError", "htmx:timeout", "htmx:responseError"]) {
 	document.addEventListener(event, () => {
 		const notice = failedNotice();
 		if (notice) {
-			notice.hidden = false;
+			notice.hidden = offlineShown();
 		}
 	});
 }
@@ -633,6 +639,39 @@ if (rail && window.EventSource) {
 // application starts without waiting for them, and answers a page that
 // cannot be fetched with one that says so. It holds no mail: see
 // serviceworker.go.
+// The worker answers from what it saved when the server cannot be
+// reached, and says so; the notice follows what it says. A swap brings
+// a new notice, hidden as the server wrote it, so the state is applied
+// again to whatever the page now holds.
+if ("serviceWorker" in navigator) {
+	let offline = false;
+	let slow = false;
+	const showOffline = () => {
+		const notice = document.getElementById("offline-notice");
+		if (notice) {
+			notice.hidden = !offline;
+			notice.querySelector(".notice-text").textContent = slow ? notice.dataset.slow : notice.dataset.offline;
+		}
+		const failed = failedNotice();
+		if (offline && failed) {
+			failed.hidden = true;
+		}
+	};
+	navigator.serviceWorker.addEventListener("message", ev => {
+		if (ev.data && "alborzOffline" in ev.data) {
+			offline = ev.data.alborzOffline;
+			slow = ev.data.alborzSlow;
+			showOffline();
+		}
+	});
+	document.addEventListener("htmx:load", showOffline);
+	navigator.serviceWorker.ready.then(registration => {
+		if (registration.active) {
+			registration.active.postMessage("alborz-offline?");
+		}
+	});
+}
+
 if ("serviceWorker" in navigator) {
 	window.addEventListener("load", () => {
 		// updateViaCache none: the worker's own script is revalidated on

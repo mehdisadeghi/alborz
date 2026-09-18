@@ -4476,6 +4476,11 @@ h1.no-word .title-short {
   header nav.is-icons { gap: var(--space-1); }
 
   header nav > div { float: none; display: none; }
+  /* The group that pushed the appearance button to the far side is out
+     of the row here, so the button pushes itself: between the widths
+     where the sections are icons, which fill the row, and the desktop
+     header it sat after the last word, mid-row. */
+  header nav > div ~ .scheme-toggle { margin-inline-start: auto; }
   .nav-menus { display: none; }
   .nav-menus-drawer { display: contents; }
   header nav .header-brand { display: none; }

@@ -598,7 +598,10 @@
          go, the short title comes late, and New never leaves. */}}
     {{ with .title }}<h1{{ if $.shorttitle }} data-priority="20" data-yield="word"{{ end }}>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}</h1>{{ end }}
     {{ if and .title .newhref }}<span class="toolbar-rule" aria-hidden="true"></span>{{ end }}
-    {{ with .newhref }}<a class="icon-button" href="{{.}}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
+    {{/* back is the list a new object returns to, filter and order
+         kept: the create forms post to their own address, so what the
+         link carries is what the save reads. */}}
+    {{ with .newhref }}{{ $href := . }}{{ with $.back }}{{ $href = printf "%s%snext=%s" $href (qsep $href) (urlquery .) }}{{ end }}<a class="icon-button" href="{{ localhref $href }}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
 {{ end }}
 
 {{ define "toolbar-end" }}

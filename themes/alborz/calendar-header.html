@@ -3,7 +3,7 @@
 {{$suffix := ""}}
 {{with .View}}{{$suffix = printf "&view=%s" .}}{{end}}
 {{if and .View (eq .Span "month")}}{{$suffix = printf "%s&span=month" $suffix}}{{end}}
-{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" "/calendar/create" "newlabel" ($.T "calendar.new")) }}
+{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" "/calendar/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
   {{/* The agenda is a list like the others, so it acts on what is
        checked; the grid has no rows to check. */}}

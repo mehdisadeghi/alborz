@@ -16,7 +16,7 @@
     </form>
     <main id="main" tabindex="-1" class="task-list">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.tasks") "selectall" true "newhref" "/tasks/create" "newlabel" ($.T "tasks.new")) }}
+        {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.tasks") "selectall" true "newhref" "/tasks/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "tasks.new")) }}
           <span class="icon-group">
             {{/* Download leaves a narrowing row first, then delete. */}}
             {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "priority" 12 "form" "tasks-form" "formaction" "/tasks/complete") }}
@@ -52,6 +52,7 @@
            is narrowed to, named in the field. */}}
       {{ with .Quick }}
       <form method="post" action="/tasks/create" class="quick-add" hx-boost="false">
+        <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
         <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
         {{ $list := .Name }}{{ if $.GlobalData.Unified }}{{ $list = printf "%s · %s" .Name ($.GlobalData.AccountLabel .Account) }}{{ end }}
         <input type="text" name="summary" required dir="auto" placeholder="{{ printf ($.T "tasks.quickadd") $list }}" aria-label="{{$.T "tasks.summary"}}">

@@ -15,7 +15,7 @@
       {{$due := $todo.Props.Get "DUE"}}
 
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "toolbar-head" (dict "newhref" (printf "/tasks/create%s" $acct) "newlabel" ($.T "tasks.new")) }}
+        {{ template "toolbar-head" (dict "newhref" (printf "/tasks/create%s" $acct) "back" .List "newlabel" ($.T "tasks.new")) }}
         {{/* The same grammar the mail toolbar has: a pinned action,
              then marks, in icons of one size. A word beside an icon
              reads as two toolbars sharing a row. */}}
@@ -33,6 +33,7 @@
           <a hx-boost="false" class="icon-button" href="{{.Task.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.Task.URL}}/raw?save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".ics" }}" aria-label="{{ printf ($.T "common.saveas") ".ics" }}">{{ template "icon" "download" }}</a>
           <form action="{{.Task.URL}}/delete{{$acct}}" method="post">
+            <input type="hidden" name="next" value="{{.List}}">
             <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
           </form>
         </span>

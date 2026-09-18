@@ -67,6 +67,15 @@ func ListParamsIn(next string, keys ...string) url.Values {
 	return Keep(u.Query(), keys...)
 }
 
+// ListURL is the list those parameters name, for an object's page to
+// return to once the object is gone or a new one is made.
+func ListURL(path string, params url.Values) string {
+	if len(params) == 0 {
+		return path
+	}
+	return path + "?" + alborz.AddressQuery(params)
+}
+
 // Keep takes the named parameters, and only those, from a query.
 func Keep(from url.Values, keys ...string) url.Values {
 	kept := url.Values{}

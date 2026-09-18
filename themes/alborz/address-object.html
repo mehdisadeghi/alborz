@@ -12,12 +12,13 @@
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
       </form>
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "toolbar-head" (dict "newhref" (printf "/contacts/create%s" $acct) "newlabel" ($.T "contacts.new")) }}
+        {{ template "toolbar-head" (dict "newhref" (printf "/contacts/create%s" $acct) "back" .List "newlabel" ($.T "contacts.new")) }}
         <span class="icon-group">
           <a class="icon-button" href="{{.AddressObject.URL}}/edit{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.AddressObject.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.AddressObject.URL}}/raw?save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".vcf" }}" aria-label="{{ printf ($.T "common.saveas") ".vcf" }}">{{ template "icon" "download" }}</a>
           <form action="{{.AddressObject.URL}}/delete{{$acct}}" method="post">
+            <input type="hidden" name="next" value="{{.List}}">
             <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
           </form>
         </span>

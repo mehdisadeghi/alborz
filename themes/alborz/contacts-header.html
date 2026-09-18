@@ -1,4 +1,4 @@
-{{ template "toolbar-head" (dict "g" . "title" ($.T "nav.contacts") "selectall" true "newhref" "/contacts/create" "newlabel" ($.T "contacts.new")) }}
+{{ template "toolbar-head" (dict "g" . "title" ($.T "nav.contacts") "selectall" true "newhref" "/contacts/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "contacts.new")) }}
     <span class="icon-group">
       {{/* The colours over the rows that are checked, the menu the mail
            list carries, gated the same way. */}}

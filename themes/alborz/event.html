@@ -9,7 +9,7 @@
   <div class="container">
     <main id="main" tabindex="-1" class="event">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "toolbar-head" (dict "newhref" (printf "/calendar/create%s" $acct) "newlabel" ($.T "calendar.new")) }}
+        {{ template "toolbar-head" (dict "newhref" (printf "/calendar/create%s" $acct) "back" .List "newlabel" ($.T "calendar.new")) }}
         {{/* An event of a subscribed feed is read where it is: it can be
              looked at and saved, not changed. Its source is named by
              the UID within the feed. */}}
@@ -22,6 +22,7 @@
           <a hx-boost="false" class="icon-button" href="{{.Event.URL}}/raw{{$rawq}}{{ qsep $rawq }}save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".ics" }}" aria-label="{{ printf ($.T "common.saveas") ".ics" }}">{{ template "icon" "download" }}</a>
           {{ if not .Event.ReadOnly }}
           <form action="{{.Event.URL}}/delete{{$acct}}" method="post">
+            <input type="hidden" name="next" value="{{.List}}">
             <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
           </form>
           {{ end }}

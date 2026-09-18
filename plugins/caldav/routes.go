@@ -306,11 +306,17 @@ type CalendarDateRenderData struct {
 	CollectionHref func(account, path string) string
 }
 
+// eventListParams are what decide which events a view holds: an event's
+// page is opened with them and returns to them.
+var eventListParams = []string{"account", "cal", "month", "date", "view", "span"}
+
 type EventRenderData struct {
 	alborz.BaseRenderData
-	Rail       dav.Rail
-	Calendar   *dav.Collection
-	Event      CalendarObject
+	Rail     dav.Rail
+	Calendar *dav.Collection
+	Event    CalendarObject
+	// List is the view the page was opened from; see TaskRenderData.
+	List       string
 	Star       string
 	Neighbours dav.Neighbours
 	// Repeats says the event's rule in words, or nothing, and
@@ -400,11 +406,18 @@ type TaskRow struct {
 	Href string
 }
 
+// taskListParams are what decide which tasks a list holds and in what
+// order: a task's page is opened with them and returns to them.
+var taskListParams = []string{"account", "cal", "query", "view", "sort", "dir", "page", "ipp"}
+
 type TaskRenderData struct {
 	alborz.BaseRenderData
-	Rail       dav.Rail
-	Calendar   *dav.Collection
-	Task       TaskObject
+	Rail     dav.Rail
+	Calendar *dav.Collection
+	Task     TaskObject
+	// List is the list the page was opened from, filter and order kept,
+	// for what leaves the page with nothing to come back to.
+	List       string
 	Star       string
 	Priority   string
 	Neighbours dav.Neighbours
@@ -1287,7 +1300,7 @@ func (p *plugin) eventItems(ctx *alborz.Context) ([]dav.Item, error) {
 		return nil, nil
 	}
 
-	params := dav.ListParams(ctx, "account", "cal", "month", "date", "view", "span")
+	params := dav.ListParams(ctx, eventListParams...)
 	var items []dav.Item
 	seen := map[string]bool{}
 	for _, oc := range shown {
@@ -1384,6 +1397,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	}
 	data := &EventRenderData{
 		Rail:           rail,
+		List:           eventList(ctx),
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Event:          CalendarObject{CalendarObject: event},
@@ -1415,6 +1429,7 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 	}
 	data := &EventRenderData{
 		Rail:           rail,
+		List:           eventList(ctx),
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       info,
 		Event:          CalendarObject{CalendarObject: &caldav.CalendarObject{Path: address, Data: cal}, Color: info.Color, ReadOnly: true},
@@ -1783,7 +1798,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	if withCompleted || view == viewHigh {
 		star = ""
 	}
-	params := dav.ListParams(ctx, "account", "cal", "query", "view", "sort", "dir")
+	params := dav.ListParams(ctx, taskListParams...)
 
 	query, openQueries := taskQueries()
 
@@ -1975,6 +1990,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
+		List:           dav.ListURL("/tasks", dav.ListParams(ctx, taskListParams...)),
 		Star:           componentColor(getFirstTodo(task.Data)),
 		Priority:       priorityBand(getFirstTodo(task.Data)),
 		Neighbours:     dav.Around(list.Items, path),
@@ -2162,6 +2178,16 @@ func putObject(ctx *alborz.Context, to dav.Ref[*caldav.Client], name string, was
 	return to.Client.PutCalendarObject(ctx.Request().Context(), at, cal)
 }
 
+// eventList is the view an event's page came from: the day when the
+// request names one, the month otherwise.
+func eventList(ctx *alborz.Context) string {
+	params := dav.ListParams(ctx, eventListParams...)
+	if params.Get("date") != "" {
+		return dav.ListURL("/calendar/date", params)
+	}
+	return dav.ListURL("/calendar", params)
+}
+
 // color marks events or tasks, from their own page or from their row:
 // the star the mail and contact pages have, kept as COLOR (RFC 7986
 // 5.9) on the component itself.
@@ -2219,7 +2245,7 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			cal.Account = ref.Account
 			// The list's shape is in the address the form returns to; the
 			// write's own URL says nothing about sort or search.
-			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), dav.ListParamsIn(next, "account", "cal", "query", "view", "sort", "dir"))
+			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), dav.ListParamsIn(next, taskListParams...))
 			data := &TaskRowRenderData{BaseRenderData: *alborz.NewBaseRenderData(ctx), Row: row, Next: next}
 			data.G = &data.BaseRenderData
 			return ctx.Render(http.StatusOK, "task-row", data)

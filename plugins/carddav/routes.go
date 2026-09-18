@@ -132,9 +132,16 @@ func init() {
 	alborz.KeepKey(settingsKey)
 }
 
+// contactListParams are what decide which contacts a list holds and in
+// what order: a contact's page is opened with them and returns to them.
+var contactListParams = []string{"account", "book", "query", "view", "group", "category", "sort", "dir", "page", "ipp"}
+
 type AddressObjectRenderData struct {
 	alborz.BaseRenderData
 	Rail dav.Rail
+	// List is the list the page was opened from, filter and order kept,
+	// for what leaves the page with nothing to come back to.
+	List string
 	// Modified is when the card last changed: REV if the card carries
 	// one (vCard 6.7.4), and the server's own last-modified otherwise.
 	//
@@ -407,7 +414,7 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
-	params := dav.ListParams(ctx, "account", "book", "query", "view", "group", "category", "sort", "dir")
+	params := dav.ListParams(ctx, contactListParams...)
 
 	only := dav.Only(ctx, "book")
 	accounts, err := p.pooledBooks(ctx)
@@ -624,6 +631,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		In:             in,
 		Groups:         rest,
 		Neighbours:     dav.Around(list.Items, path),
+		List:           dav.ListURL("/contacts", dav.ListParams(ctx, contactListParams...)),
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()),
 		AddressBook:    addressBook,

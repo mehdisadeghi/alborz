@@ -32,7 +32,7 @@ func TestStatusUnchangedNeedsEveryField(t *testing.T) {
 }
 
 func TestListingCacheStates(t *testing.T) {
-	lc := &listingCache{entries: make(map[listingKey]*listingEntry)}
+	lc := newListingCache()
 	lc.store("u", "INBOX", &listingEntry{perPage: 25, total: 3})
 	lc.store("u", listingView("INBOX", "hello", "", "", ""), &listingEntry{perPage: 25})
 	lc.store("u", "Sent", &listingEntry{perPage: 25})
@@ -75,7 +75,7 @@ func TestListingCacheStates(t *testing.T) {
 }
 
 func TestListingCacheStaysBounded(t *testing.T) {
-	lc := &listingCache{entries: make(map[listingKey]*listingEntry)}
+	lc := newListingCache()
 	for i := 0; i < maxListingEntries+10; i++ {
 		lc.store("u", listingView("INBOX", fmt.Sprint("q", i), "", "", ""), &listingEntry{perPage: 25})
 	}
@@ -88,7 +88,7 @@ func TestListingCacheStaysBounded(t *testing.T) {
 // flag the server announced, change the cached row and the folder's
 // unseen count without the listing being fetched again.
 func TestListingTakesFlagsInPlace(t *testing.T) {
-	lc := &listingCache{entries: make(map[listingKey]*listingEntry), refreshing: make(map[listingKey]bool)}
+	lc := newListingCache()
 	unseen := uint32(2)
 	status := &MailboxStatus{StatusData: &imap.StatusData{Mailbox: "INBOX", NumUnseen: &unseen}}
 	sb := sidebar{statuses: map[string]*MailboxStatus{"INBOX": status}, active: status, inbox: status}
@@ -113,5 +113,14 @@ func TestListingTakesFlagsInPlace(t *testing.T) {
 	}
 	if n := *e.sb.active.NumUnseen; n != 0 {
 		t.Errorf("unseen after the server read seq 2: %d", n)
+	}
+
+	// An expunge renumbers: seq 1 now names another message than the
+	// row this page read it for.
+	lc.stale("u", "INBOX")
+	lc.setFlags("u", "INBOX", 1, []imap.Flag{imap.FlagFlagged})
+	e, _ = lc.lookup("u", "INBOX", 25)
+	if e.msgs[0].HasFlag(imap.FlagFlagged) {
+		t.Errorf("a stale page took flags by sequence number: %v", e.msgs[0].Flags)
 	}
 }

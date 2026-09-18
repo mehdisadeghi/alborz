@@ -264,8 +264,8 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 		}
 	}
 
-	listings.evictAll(ctx.Session.Username())
-	listings.evictAll(sender.Username())
+	accountChanged(ctx.Session.Username())
+	accountChanged(sender.Username())
 	ctx.PutNotice(ctx.T("notice.sent"))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 }
@@ -551,7 +551,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				if err != nil {
 					return refused{"form.draftrefused", err}
 				}
-				listings.evictAll(ctx.Session.Username())
+				accountChanged(ctx.Session.Username())
 				ctx.PutNotice(ctx.T("notice.draftsaved"))
 				return ctx.Redirect(http.StatusFound, fmt.Sprintf(
 					"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
@@ -620,7 +620,7 @@ func gatherCorrespondents(s *alborz.Session) []string {
 			}
 		}
 
-		err := s.DoIMAP(func(c *imapclient.Client) error {
+		err := s.DoIMAPBackground(func(c *imapclient.Client) error {
 			mailboxes, err := listMailboxes(c)
 			if err != nil {
 				return err

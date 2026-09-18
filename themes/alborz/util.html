@@ -1120,7 +1120,7 @@
 
 {{/* The mail pages' rail: the shared frame over the page's own data. */}}
 {{ define "aside" }}
-<aside>
+<aside data-mail-sidebar>
 {{ template "scope-rail" (dict "g" $ "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
 </aside>
 {{ end }}

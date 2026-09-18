@@ -287,36 +287,39 @@ const (
 	senderBookSpan = 2000
 )
 
-var senderBooks = alborz.NewMemo[senderBook](senderBookTTL)
+var senderBooks = alborz.NewMemo[*senderBook](senderBookTTL)
 
-func bookFor(c *imapclient.Client, user string) senderBook {
-	book, err := senderBooks.Get(user, func() (senderBook, error) {
-		return senderBook{
-			written: addressesIn(c, "sent", func(env *imap.Envelope) []imap.Address {
+func senderBookFor(s *alborz.Session) *senderBook {
+	return senderBooks.Warm(s.Username(), func() (*senderBook, error) {
+		book := &senderBook{}
+		err := s.DoIMAPBackground(func(c *imapclient.Client) error {
+			var err error
+			book.written, err = addressesIn(c, "sent", func(env *imap.Envelope) []imap.Address {
 				return append(append([]imap.Address(nil), env.To...), env.Cc...)
-			}),
-			junked: addressesIn(c, "junk", func(env *imap.Envelope) []imap.Address { return env.From }),
-		}, nil
+			})
+			if err != nil {
+				return err
+			}
+			book.junked, err = addressesIn(c, "junk", func(env *imap.Envelope) []imap.Address { return env.From })
+			return err
+		})
+		return book, err
 	})
-	if err != nil {
-		return senderBook{}
-	}
-	return book
 }
 
 // addressesIn collects the addresses pick chooses from the newest
 // messages of the role's folder, lower-cased.
-func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []imap.Address) map[string]bool {
+func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []imap.Address) (map[string]bool, error) {
 	out := map[string]bool{}
 	mbox, err := getMailboxByRole(c, role)
 	if err != nil || mbox == nil {
-		return out
+		return out, err
 	}
 	// Read-write for the same reason as the authserv sample: a
 	// read-only selection is not remembered and poisons the next STORE.
 	sel, err := c.Select(mbox.Name(), nil).Wait()
 	if err != nil || sel.NumMessages == 0 {
-		return out
+		return out, err
 	}
 	from := uint32(1)
 	if sel.NumMessages > senderBookSpan {
@@ -326,7 +329,7 @@ func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []
 	set.AddRange(from, sel.NumMessages)
 	msgs, err := c.Fetch(set, &imap.FetchOptions{Envelope: true}).Collect()
 	if err != nil {
-		return out
+		return out, err
 	}
 	for _, m := range msgs {
 		if m.Envelope == nil {
@@ -338,7 +341,7 @@ func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []
 			}
 		}
 	}
-	return out
+	return out, nil
 }
 
 // relationTo is what the book says about one address.
@@ -349,8 +352,11 @@ func (b senderBook) relationTo(addr string) Relation {
 
 // Relate stamps every row with what the book says about its author,
 // once the book is in hand.
-func Relate(c *imapclient.Client, user string, rows []IMAPMessage) {
-	book := bookFor(c, user)
+func Relate(s *alborz.Session, rows []IMAPMessage) {
+	book := senderBookFor(s)
+	if book == nil {
+		return
+	}
 	for i := range rows {
 		if from := envelopeSender(rows[i].Envelope); from != "" {
 			rel := book.relationTo(from)

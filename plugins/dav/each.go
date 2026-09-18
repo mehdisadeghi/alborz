@@ -22,17 +22,23 @@ type Result[S, R any] struct {
 func Each[S, R any](ctx context.Context, sites []S, query func(context.Context, S) (R, error)) []Result[S, R] {
 	results := make([]Result[S, R], len(sites))
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, MaxConcurrency)
-	for i, site := range sites {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			v, err := query(ctx, site)
-			results[i] = Result[S, R]{Site: site, Value: v, Err: err}
-		}()
+	jobs := make(chan int)
+	for range min(MaxConcurrency, len(sites)) {
+		wg.Go(func() {
+			for i := range jobs {
+				if err := ctx.Err(); err != nil {
+					results[i] = Result[S, R]{Site: sites[i], Err: err}
+					continue
+				}
+				v, err := query(ctx, sites[i])
+				results[i] = Result[S, R]{Site: sites[i], Value: v, Err: err}
+			}
+		})
 	}
+	for i := range sites {
+		jobs <- i
+	}
+	close(jobs)
 	wg.Wait()
 	return results
 }

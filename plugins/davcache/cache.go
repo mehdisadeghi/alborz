@@ -118,22 +118,24 @@ func newUser(poll time.Duration) *user {
 }
 
 type Cache struct {
-	mu    sync.Mutex
-	users map[string]*user
-	store *Store // nil keeps the cache in memory only
-	poll  time.Duration
-	stop  chan struct{}
-	wg    sync.WaitGroup
+	limits *hostLimits
+	mu     sync.Mutex
+	users  map[string]*user
+	store  *Store // nil keeps the cache in memory only
+	poll   time.Duration
+	stop   chan struct{}
+	wg     sync.WaitGroup
 }
 
 // New makes a cache polling collections every poll, warm from store
 // when there is one. It reports how many accounts it starts with.
 func New(store *Store, poll time.Duration) (*Cache, int, error) {
 	c := &Cache{
-		users: make(map[string]*user),
-		store: store,
-		poll:  poll,
-		stop:  make(chan struct{}),
+		users:  make(map[string]*user),
+		limits: &hostLimits{hosts: make(map[string]*hostLimit)},
+		store:  store,
+		poll:   poll,
+		stop:   make(chan struct{}),
 	}
 	if store != nil {
 		users, err := store.load(poll)
@@ -152,6 +154,7 @@ func New(store *Store, poll time.Duration) (*Cache, int, error) {
 // get past.
 func (c *Cache) Refresh(ctx context.Context, username string) {
 	u := c.user(username)
+	ctx = context.WithValue(ctx, foregroundKey{}, true)
 	ctx, cancel := context.WithTimeout(ctx, refreshBudget)
 	defer cancel()
 	colls := make(map[string][]*entry)
@@ -244,9 +247,9 @@ func (c *Cache) Transport(username string, next http.RoundTripper) http.RoundTri
 	return &transport{
 		cache:    c,
 		username: username,
-		next:     next,
+		next:     limitedTransport{next: next, limits: c.limits},
 		replay: &http.Client{
-			Transport: next,
+			Transport: limitedTransport{next: next, limits: c.limits, background: true},
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -361,6 +364,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	u.mu.Unlock()
 
 	if e := u.get(key); e != nil {
+		alborz.CacheTiming(req.Context(), "dav_cache", true)
 		// Served as it is, fresh or stale: the click never waits on the
 		// server. A stale collection is checked behind the page, one
 		// small PROPFIND for its ctag, and replayed only when it moved,
@@ -372,6 +376,8 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return e.response(req), nil
 	}
 
+	alborz.CacheTiming(req.Context(), "dav_cache", false)
+
 	// A collection with a ctag on record is renewed by one PROPFIND when
 	// it goes stale; one without is fetched all over again. The ctag is
 	// asked for before the read rather than after, so a write landing
@@ -381,7 +387,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctag := ""
 	if u.ctagOf(coll) == "" {
 		ctx, cancel := context.WithTimeout(req.Context(), ctagTimeout)
-		ctag = fetchCtag(ctx, t.replay, req.URL, coll)
+		ctag = fetchCtag(context.WithValue(ctx, foregroundKey{}, true), t.replay, req.URL, coll)
 		cancel()
 	}
 
@@ -510,20 +516,25 @@ func (c *Cache) refresh() {
 	c.mu.Unlock()
 
 	now := time.Now()
-	for name, u := range users {
+	names := make([]string, 0, len(users))
+	for name := range users {
+		names = append(names, name)
+	}
+	parallel(names, func(name string) {
+		u := users[name]
 		u.mu.Lock()
 		idle := now.Sub(u.lastActive)
 		u.mu.Unlock()
 		if idle > ForgetAfter {
 			c.Forget(name)
-			continue
+			return
 		}
 		// A budget per account: one slow server must not spend the time
 		// every other account's refresh needed.
 		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
 		u.refresh(ctx)
 		cancel()
-	}
+	})
 }
 
 // refresh renews the user's entries that are stale or about to be, per
@@ -546,12 +557,16 @@ func (u *user) refresh(ctx context.Context) {
 	}
 	u.mu.Unlock()
 
-	for coll, entries := range due {
-		if u.claim(coll) {
-			u.refreshCollection(ctx, coll, entries)
+	collections := make([]string, 0, len(due))
+	for coll := range due {
+		collections = append(collections, coll)
+	}
+	parallel(collections, func(coll string) {
+		if ctx.Err() == nil && u.claim(coll) {
+			u.refreshCollection(ctx, coll, due[coll])
 			u.release(coll)
 		}
-	}
+	})
 }
 
 // refreshBehind renews one collection's stale entries off the request

@@ -25,7 +25,7 @@
     {{/* No eval, so the page's own CSP needs no unsafe-eval; no history
          cache, because htmx keeps page snapshots in localStorage and a
          snapshot of a mailbox is the mail itself. */}}
-    <meta name="htmx-config" content='{"allowEval":false,"historyCacheSize":0,"includeIndicatorStyles":false,"globalViewTransitions":true,"timeout":20000}'>
+    <meta name="htmx-config" content='{"allowEval":false,"historyCacheSize":0,"includeIndicatorStyles":false,"globalViewTransitions":false,"timeout":20000}'>
     <script defer src="{{call .GlobalData.Asset "htmx.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "helpers.js"}}"></script>
   </head>

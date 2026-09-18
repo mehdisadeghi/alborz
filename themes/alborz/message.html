@@ -184,19 +184,7 @@
           </div>
 
           <div class="actions-end">
-            <span class="action-group">
-              {{ if .Position }}
-              <span class="pagination-range" data-priority="1" data-yield="hide">{{$.GlobalData.Tf "common.position" .Position .Total}}</span>
-              {{ end }}
-              {{/* Newer and older move along the list, not through
-                   pages: the marks point that way. */}}
-              {{ if .NewerURL }}
-              <a class="icon-button" href="{{.NewerURL}}{{$navq}}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}">{{ template "icon" "up" }}</a>
-              {{ end }}
-              {{ if .OlderURL }}
-              <a class="icon-button" href="{{.OlderURL}}{{$navq}}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}">{{ template "icon" "down" }}</a>
-              {{ end }}
-            </span>
+            {{ template "message-navigation" . }}
 
             </div>
         </div>
@@ -205,6 +193,7 @@
       {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb) }}
       <div class="message-header">
         <table>
+          <tbody>
           <tr>
             {{/* The star rides the subject line, at the end the subject
                  does not start from: put beside the first character it
@@ -309,22 +298,9 @@
                list it came through, and how many answered it. Any mail
                that is a reply gets it, not only list mail: the shape of
                the fact is the same either way. */}}
-          {{ if or .InReplyTo .Answers .Message.ListID }}
-          <tr>
-            {{/* The label is the link to the folder read as
-                 conversations: it is already the words "this thread"
-                 and costs no width. It appears only where the server
-                 threads, because that is the one way of finding a
-                 conversation that does not depend on the quality of the
-                 server's header search. */}}
-            <th scope="row">{{ if .ThreadSupported }}<a href="{{ localhref (printf "%v?thread=%d%s" $.Mailbox.URL .Message.UID (account "&" $.GlobalData.URLAccount)) }}">{{$.T "list.conversation"}}</a>{{ else }}{{$.T "list.conversation"}}{{ end }}:</th>
-            <td class="conversation">
-              {{ with .InReplyTo }}<a href="{{.URL}}{{account "?" $.GlobalData.URLAccount}}">{{ printf ($.T "list.answering") (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}
-              {{ with .Answers }}<a href="{{ (index . 0).URL }}{{account "?" $.GlobalData.URLAccount}}">{{ if eq (len .) 1 }}{{ printf ($.T "list.answeredby") (or (index . 0).From ($.T "mailbox.nosender")) }}{{ else }}{{ printf ($.T "list.answeredbymore") (or (index . 0).From ($.T "mailbox.nosender")) (sub (len .) 1) }}{{ end }}</a>{{ end }}
-              {{ with .Message.ListID }}<a href="{{ localhref (printf "%v?query=list:%s%s" $.Mailbox.URL (. | urlquery) (account "&" $.GlobalData.URLAccount)) }}">{{ printf ($.T "list.via") . }}</a>{{ end }}
-            </td>
-          </tr>
-          {{ end }}
+          </tbody>
+          <tbody id="message-conversation-body">{{ template "message-conversation" . }}</tbody>
+          <tbody>
           {{ if .Message.ListDetails }}
           <tr>
             <td colspan="2">
@@ -469,6 +445,7 @@
             </td>
           </tr>
           {{end}}
+        </tbody>
         </table>
         {{ $attachments := .Message.Attachments }}
         {{ if $attachments }}
@@ -593,3 +570,42 @@
 <script src="{{call .GlobalData.Asset "print.js"}}"></script>
 
 {{template "foot.html"}}
+
+{{ define "message-navigation" }}
+{{ $navq := account "?" .GlobalData.URLAccount }}{{ if .ListView }}{{ $navq = printf "?view=%s%s" .ListView (account "&" .GlobalData.URLAccount) }}{{ else if .Query }}{{ $navq = printf "?query=%s%s" (.Query | urlquery) (account "&" .GlobalData.URLAccount) }}{{ end }}
+<span id="message-navigation" class="action-group"{{ if .ContextPending }} hx-get="{{.ContextURL}}" hx-trigger="load" hx-target="this" hx-swap="outerHTML"{{ end }}>
+              {{ if .Position }}
+              <span class="pagination-range" data-priority="1" data-yield="hide">{{$.GlobalData.Tf "common.position" .Position .Total}}</span>
+              {{ end }}
+              {{/* Newer and older move along the list, not through
+                   pages: the marks point that way. */}}
+              {{ if .NewerURL }}
+              <a class="icon-button" href="{{.NewerURL}}{{$navq}}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}">{{ template "icon" "up" }}</a>
+              {{ end }}
+              {{ if .OlderURL }}
+              <a class="icon-button" href="{{.OlderURL}}{{$navq}}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}">{{ template "icon" "down" }}</a>
+              {{ end }}
+            </span>
+{{ end }}
+
+{{ define "message-conversation" }}
+          <tr id="message-conversation"{{ if not (or .InReplyTo .Answers .Message.ListID .ContextPending) }} hidden{{ end }}>
+            {{/* The label is the link to the folder read as
+                 conversations: it is already the words "this thread"
+                 and costs no width. It appears only where the server
+                 threads, because that is the one way of finding a
+                 conversation that does not depend on the quality of the
+                 server's header search. */}}
+            <th scope="row">{{ if .ThreadSupported }}<a href="{{ localhref (printf "%v?thread=%d%s" $.Mailbox.URL .Message.UID (account "&" $.GlobalData.URLAccount)) }}">{{$.T "list.conversation"}}</a>{{ else }}{{$.T "list.conversation"}}{{ end }}:</th>
+            <td class="conversation">
+              {{ with .InReplyTo }}<a href="{{.URL}}{{account "?" $.GlobalData.URLAccount}}">{{ printf ($.T "list.answering") (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}
+              {{ with .Answers }}<a href="{{ (index . 0).URL }}{{account "?" $.GlobalData.URLAccount}}">{{ if eq (len .) 1 }}{{ printf ($.T "list.answeredby") (or (index . 0).From ($.T "mailbox.nosender")) }}{{ else }}{{ printf ($.T "list.answeredbymore") (or (index . 0).From ($.T "mailbox.nosender")) (sub (len .) 1) }}{{ end }}</a>{{ end }}
+              {{ with .Message.ListID }}<a href="{{ localhref (printf "%v?query=list:%s%s" $.Mailbox.URL (. | urlquery) (account "&" $.GlobalData.URLAccount)) }}">{{ printf ($.T "list.via") . }}</a>{{ end }}
+            </td>
+          </tr>
+{{ end }}
+
+{{ define "message-context" }}
+{{ template "message-navigation" . }}
+<template><tbody id="message-conversation-body" hx-swap-oob="outerHTML">{{ template "message-conversation" . }}</tbody></template>
+{{ end }}

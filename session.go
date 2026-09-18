@@ -1,6 +1,7 @@
 package alborz
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/fernet/fernet-go"
@@ -120,8 +121,10 @@ type Session struct {
 	httpPassword string // protected by httpLocker
 	httpLoaded   bool   // protected by httpLocker
 
-	imapLocker sync.Mutex
-	imapConn   *imapclient.Client // protected by locker, can be nil
+	imapLocker imapQueue
+	imapConn   *imapclient.Client // protected by imapLocker
+	workLocker imapQueue
+	workConn   *imapclient.Client // lazy connection for prefetches and scans
 
 	sieveLocker sync.Mutex
 	sieveConn   SieveClient // protected by locker, can be nil
@@ -219,41 +222,103 @@ func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
 }
 
 // DoIMAPWithin is DoIMAP with the bound named by the caller.
-func (s *Session) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) (err error) {
-	s.imapLocker.Lock()
-	defer s.imapLocker.Unlock()
+func (s *Session) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
+	return s.DoIMAPContext(context.Background(), bound, f)
+}
 
-	if s.imapConn != nil && s.imapConn.State() == imap.ConnStateLogout {
-		s.imapConn.Close()
-		s.imapConn = nil
+// DoIMAPBackground keeps speculative reads off the interactive connection.
+func (s *Session) DoIMAPBackground(f func(*imapclient.Client) error) error {
+	return s.DoIMAPWork(context.Background(), IMAPBackground, RoundTripTimeout, f)
+}
+
+func (s *Session) DoIMAPContext(ctx context.Context, bound time.Duration, f func(*imapclient.Client) error) error {
+	return s.DoIMAPWork(ctx, IMAPForeground, bound, f)
+}
+
+// IMAPClass separates scheduling from the operation's time budget.
+type IMAPClass int
+
+const (
+	IMAPForeground IMAPClass = iota
+	IMAPBackground           // speculative listings, bodies and ancillary facts
+	IMAPScan                 // explicitly requested long reads, ahead of background batches
+)
+
+// waitError is what an IMAP wait that ended early comes to: the bound
+// running out is the mail server's silence, and anything else - the
+// session closing on a sign-out, the reader gone - is a cancellation,
+// which says nothing about the server.
+func waitError(err error, bound time.Duration) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return UpstreamError{Service: "mail", After: bound, cause: err}
 	}
+	return context.Canceled
+}
 
-	if s.imapConn == nil {
-		var err error
-		s.imapConn, err = s.manager.connectIMAP(s.domain, s.username, s.password)
+func (s *Session) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Duration, f func(*imapclient.Client) error) (err error) {
+	deadline := time.Now().Add(bound)
+	waiting, stopWaiting := context.WithDeadline(ctx, deadline)
+	defer stopWaiting()
+	queue, conn := &s.imapLocker, &s.imapConn
+	if class == IMAPBackground || class == IMAPScan {
+		queue, conn = &s.workLocker, &s.workConn
+	}
+	start := time.Now()
+	err = queue.acquire(waiting, s.Done(), class == IMAPBackground)
+	AddTiming(ctx, "imap_queue", start)
+	if err != nil {
+		return waitError(err, bound)
+	}
+	defer queue.release()
+	// The reader gone is theirs to hear; the bound run out in the queue
+	// is the mail server's, said below as every other wait is.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if start, ok := ctx.Value(imapStartKey{}).(func() bool); ok && !start() {
+		return context.Canceled
+	}
+	// Once a command starts it must be drained before this connection can
+	// be reused. Browser cancellation only abandons the wait, not the wire.
+	ctx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
+	defer cancel()
+	go func() {
+		select {
+		case <-s.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	if err := ctx.Err(); err != nil {
+		return waitError(err, bound)
+	}
+	start = time.Now()
+	defer func() { AddTiming(ctx, "imap_work", start) }()
+	if *conn != nil && (*conn).State() == imap.ConnStateLogout {
+		(*conn).Close()
+		*conn = nil
+	}
+	if *conn == nil {
+		*conn, err = s.manager.connectIMAPContext(ctx, s.domain, s.username, s.password)
 		if err != nil {
-			// A password the server no longer takes ends the session; a
-			// server that did not answer does not, or a mail server's
-			// bad minute would sign the account out and drop it from
-			// the account list.
-			if _, refused := err.(AuthError); refused {
+			var refused AuthError
+			if errors.As(err, &refused) {
 				s.Close()
 			}
 			return err
 		}
 	}
-
-	// TODO: to avoid races wrt. disconnection, re-run f if it returns
-	// io.UnexpectedEOF
-	c := s.imapConn
-	watchdog := time.AfterFunc(bound, func() { c.Close() })
-	// Stopped in a defer: a panic in f used to skip the stop, the
-	// watchdog then closed a connection the session still held, and
-	// every later request on the session waited its own timeout out.
+	c := *conn
+	stopped := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		c.Close()
+		close(stopped)
+	})
 	defer func() {
-		if !watchdog.Stop() {
-			s.imapConn = nil
-			err = UpstreamError{Service: "mail", After: bound, cause: err}
+		if !stop() {
+			<-stopped
+			*conn = nil
+			err = waitError(ctx.Err(), bound)
 		}
 	}()
 	return f(c)
@@ -518,6 +583,12 @@ func (sm *SessionManager) Close() {
 }
 
 func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapclient.Client, error) {
+	return sm.connectIMAPContext(context.Background(), domain, username, password)
+}
+
+func (sm *SessionManager) connectIMAPContext(ctx context.Context, domain, username, password string) (*imapclient.Client, error) {
+	ctx, cancel := context.WithTimeout(ctx, RoundTripTimeout)
+	defer cancel()
 	c, err := sm.dialIMAP(domain)
 	if err != nil {
 		// A refused connection, an unresolvable host, a dial that timed
@@ -531,15 +602,20 @@ func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapc
 		return nil, UpstreamError{Service: "mail", cause: err}
 	}
 
-	watchdog := time.AfterFunc(RoundTripTimeout, func() { c.Close() })
+	stopped := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() { c.Close(); close(stopped) })
 	err = c.Login(username, password).Wait()
-	timedOut := !watchdog.Stop()
+	if !stop() {
+		<-stopped
+		return nil, UpstreamError{Service: "mail", After: RoundTripTimeout, cause: ctx.Err()}
+	}
 	if err != nil {
-		c.Logout()
-		if timedOut {
-			return nil, fmt.Errorf("IMAP login timed out after %v", RoundTripTimeout)
+		c.Close()
+		var status *imap.Error
+		if errors.As(err, &status) {
+			return nil, AuthError{err}
 		}
-		return nil, AuthError{err}
+		return nil, UpstreamError{Service: "mail", cause: err}
 	}
 	if caps := c.Caps(); !caps.Has(imap.CapIMAP4rev1) && !caps.Has(imap.CapIMAP4rev2) {
 		c.Logout()
@@ -611,11 +687,16 @@ func (sm *SessionManager) reap(s *Session) {
 
 	timer.Stop()
 
-	s.imapLocker.Lock()
+	s.imapLocker.acquire(context.Background(), nil, false)
 	if s.imapConn != nil {
 		s.imapConn.Close()
 	}
-	s.imapLocker.Unlock()
+	s.imapLocker.release()
+	s.workLocker.acquire(context.Background(), nil, false)
+	if s.workConn != nil {
+		s.workConn.Close()
+	}
+	s.workLocker.release()
 
 	s.sieveLocker.Lock()
 	if s.sieveConn != nil {

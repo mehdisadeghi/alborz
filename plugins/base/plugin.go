@@ -57,15 +57,3 @@ func init() {
 		return loader(s)
 	})
 }
-
-// forgetAccount drops everything held for an account once it is gone:
-// its listings and sidebar, the people it writes to, its folder roles
-// and what its server calls itself. A cache with nobody behind it is a
-// leak, and until now only the listings were let go.
-func forgetAccount(username string) {
-	listings.evictAll(username)
-	bodies.forget(username)
-	correspondents.Forget(username)
-	unifiedFolders.Forget(username)
-	authServGuesses.Forget(username)
-}

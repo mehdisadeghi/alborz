@@ -138,7 +138,12 @@ func handleInvitationReply(ctx *alborz.Context) error {
 // what makes a message filable, forwardable to somebody else's tooling,
 // and checkable against what was actually stored, none of which a
 // rendered page can do.
-func handleDownloadMessage(ctx *alborz.Context) error {
+// handleDownloadMessage sends the message as the server holds it, byte
+// for byte. With plain it is shown rather than saved: the source view.
+// Parsing the message and writing it out again is not the message, and
+// go-message will not write text in a charset other than UTF-8, so a
+// source view built that way answered 500 to every ISO-8859-1 mail.
+func handleDownloadMessage(ctx *alborz.Context, plain bool) error {
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
 		return err
@@ -153,6 +158,12 @@ func handleDownloadMessage(ctx *alborz.Context) error {
 	}); err != nil {
 		return err
 	}
+	if plain {
+		// No charset can be right for a whole message, whose parts each
+		// name their own; UTF-8 is what 8-bit mail is written in, and a
+		// header is ASCII whatever is said here.
+		return ctx.Blob(http.StatusOK, "text/plain; charset=utf-8", raw)
+	}
 
 	subject := ""
 	if env != nil {
@@ -166,6 +177,9 @@ func handleDownloadMessage(ctx *alborz.Context) error {
 func handleGetPart(ctx *alborz.Context, raw bool) error {
 	if !raw && ctx.PartialFor("message-navigation") {
 		return handleMessageNavigation(ctx)
+	}
+	if raw && ctx.QueryParam("part") == "" {
+		return handleDownloadMessage(ctx, ctx.QueryParam("plain") == "1")
 	}
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
@@ -390,22 +404,12 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse part Content-Type: %v", err)
 	}
-	if len(partPath) == 0 {
-		if ctx.QueryParam("plain") == "1" {
-			mimeType = "text/plain"
-		} else {
-			mimeType = "message/rfc822"
-		}
-	}
 
 	if raw {
 		ctx.Response().Header().Set("Content-Type", mimeType)
 
 		disp, dispParams, _ := part.Header.ContentDisposition()
 		filename := dispParams["filename"]
-		if len(partPath) == 0 {
-			filename = msg.Envelope.Subject + ".eml"
-		}
 
 		// TODO: set Content-Length if possible
 
@@ -419,9 +423,6 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 			ctx.Response().Header().Set("Content-Disposition", disp)
 		}
 
-		if len(partPath) == 0 {
-			return part.WriteTo(ctx.Response())
-		}
 		return ctx.Stream(http.StatusOK, mimeType, part.Body)
 	}
 

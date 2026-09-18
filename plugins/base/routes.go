@@ -36,7 +36,9 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.GET("/message/:mbox/:uid/raw", func(ctx *alborz.Context) error {
 		return handleGetPart(ctx, true)
 	})
-	p.GET("/message/:mbox/:uid/eml", handleDownloadMessage)
+	p.GET("/message/:mbox/:uid/eml", func(ctx *alborz.Context) error {
+		return handleDownloadMessage(ctx, false)
+	})
 	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
 	p.POST("/mailbox/:mbox/refresh", handleRefreshMailbox)
 	p.GET("/message/:mbox/export", handleExportPage)

@@ -335,8 +335,11 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 	// The facts beside the message. The folders are asked about the
 	// sender once an hour per address, so the page rarely pays for it.
+	// Not in Junk, as the list colours no row there: a message filed as
+	// junk needs no telling, and "you junked this sender before" is the
+	// folder describing itself.
 	var indicators []Indicator
-	if !raw {
+	if !raw && folderRole(sb.mailboxes, mboxName) != "junk" {
 		evidence := &Evidence{
 			Header:     messageRootHeader(msg),
 			Trusted:    trusted,

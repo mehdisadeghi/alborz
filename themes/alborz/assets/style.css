@@ -4402,6 +4402,47 @@ aside ul.merged-roles {
   color: var(--fg-faint);
 }
 
+/* The offer to select more than the page takes the crumb's box while it
+   stands, rather than a line of its own: a bar arriving above the rows
+   would move every one of them under the hand that just ticked them. */
+.crumb-slot { position: relative; }
+
+.select-everything {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--row-pad);
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  background: var(--bg-active);
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* The sentence gives way before the button does: on a phone the two
+   do not fit in German, and the button is the one that is pressed. */
+.select-everything span {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.select-everything button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* Page context, breadcrumb-weight: which account and container the
    page acts on, between the toolbar and the content. */
 .context-crumb {

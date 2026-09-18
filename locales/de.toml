@@ -130,6 +130,7 @@
 "mailbox.nounread" = "Keine ungelesenen Nachrichten."
 "mailbox.nocolor" = "Keine Sterne in %s."
 "mailbox.selectall" = "Alle auswählen"
+"select.clear" = "Auswahl aufheben"
 "mailbox.selectalljs" = "Alle Zeilen auszuwählen braucht JavaScript"
 "mailbox.sortby" = "Sortieren nach"
 "mailbox.perpage" = "Zeilen pro Seite"
@@ -865,3 +866,15 @@ other = "%d Nachrichten geändert."
 ["notice.movedto"]
 one = "Die Nachricht ist jetzt in %[2]s."
 other = "%d Nachrichten sind jetzt in %s."
+
+["select.page"]
+one = "%d Nachricht auf dieser Seite ausgewählt."
+other = "Alle %d auf dieser Seite ausgewählt."
+
+["select.everything"]
+one = "%d auswählen"
+other = "Alle %d auswählen"
+
+["select.whole"]
+one = "%d ausgewählt."
+other = "Alle %d ausgewählt."

@@ -84,8 +84,27 @@ const enhance = () => {
 		// A menu's button is a real button: disabled with the rest, and its
 		// panel shut if it was open when the last row was unchecked.
 		const menus = document.querySelectorAll(`[data-gated="${formId}"]`);
+		// A page fully ticked may be widened to the whole list; see
+		// mailbox.html. Anything less than the full page is the rows
+		// again, so unticking one takes "everything" back.
+		const offer = document.querySelector(`.select-everything[data-form="${formId}"]`);
+		const everything = document.querySelector(`input[name="everything"][form="${formId}"]`);
+		const widen = on => {
+			everything.value = on ? "1" : "";
+			offer.querySelector(".select-page").hidden = on;
+			offer.querySelector(".select-widen").hidden = on;
+			offer.querySelector(".select-whole").hidden = !on;
+			offer.querySelector(".select-narrow").hidden = !on;
+		};
 		const update = () => {
 			const any = Array.prototype.some.call(boxes, box => box.checked);
+			if (offer) {
+				const page = boxes.length > 0 && Array.prototype.every.call(boxes, box => box.checked);
+				offer.hidden = !page;
+				if (!page) {
+					widen(false);
+				}
+			}
 			for (const control of controls) {
 				control.disabled = !any;
 			}
@@ -101,6 +120,18 @@ const enhance = () => {
 			if (once(box, "bulk")) {
 				box.addEventListener("change", update);
 			}
+		}
+		if (offer && once(offer, "bulk")) {
+			offer.querySelector(".select-widen").addEventListener("click", () => widen(true));
+			offer.querySelector(".select-narrow").addEventListener("click", () => {
+				for (const box of boxes) {
+					box.checked = false;
+				}
+				if (check_all) {
+					check_all.checked = false;
+				}
+				update();
+			});
 		}
 		if (check_all) {
 			// The markup ships it disabled and says it needs a script; this

@@ -412,10 +412,12 @@ func (lc *listingCache) setFlags(user, folder string, seqNum uint32, flags []ima
 // A confirmed flag edit updates plain pages in place. Filtered views are
 // invalidated because their membership may have changed.
 func (lc *listingCache) flags(user, folder string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) {
+	among := uidSet(uids)
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	lc.generation[user]++
 	deltas := make(map[imap.UID]int)
+	shown := make(map[imap.UID]bool)
 	for k, e := range lc.entries {
 		if k.user != user {
 			continue
@@ -429,9 +431,10 @@ func (lc *listingCache) flags(user, folder string, uids []imap.UID, op imap.Stor
 		}
 		for i := range e.msgs {
 			m := &e.msgs[i]
-			if !slices.Contains(uids, m.UID) {
+			if !among[m.UID] {
 				continue
 			}
+			shown[m.UID] = true
 			wasSeen := m.HasFlag(imap.FlagSeen)
 			buf := *m.FetchMessageBuffer
 			buf.Flags = changedFlags(buf.Flags, op, flags)
@@ -450,7 +453,23 @@ func (lc *listingCache) flags(user, folder string, uids []imap.UID, op imap.Stor
 	for _, delta := range deltas {
 		railUnseen(user, folder, delta)
 	}
+	// A whole view marked read reaches messages no cached page shows,
+	// and what they did to the unseen count only the server knows.
+	if len(shown) < len(uids) && (op == imap.StoreFlagsSet || slices.Contains(flags, imap.FlagSeen)) {
+		accountSidebars.Stale(user)
+	}
 	bodies.flags(user, folder, uids, op, flags)
+}
+
+// uidSet is a selection to look messages up in. A whole view can be a
+// hundred thousand UIDs, and the caches are walked under locks every
+// request of every reader waits on.
+func uidSet(uids []imap.UID) map[imap.UID]bool {
+	set := make(map[imap.UID]bool, len(uids))
+	for _, uid := range uids {
+		set[uid] = true
+	}
+	return set
 }
 
 // row is the cached row of the message, nil when off the page.

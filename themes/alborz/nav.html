@@ -17,7 +17,7 @@
     <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>
     {{/* Top left, before the sections: on a phone the drawer's head
          carries it instead and this one stands down. */}}
-    <span class="header-brand">{{ template "brand" (dict "g" $) }}</span>
+    <span class="header-brand">{{ template "brand" (dict "g" $ "build" .GlobalData.Revision) }}</span>
     {{ end }}
     {{/* Every section keeps the scope the URL carries: the account
          it names, or the merged view when it names none. */}}

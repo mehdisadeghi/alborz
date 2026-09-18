@@ -843,11 +843,15 @@
 {{/* The application's own name and mark. Its colours are its own -
      the badge is a picture, not an icon, so no theme can wash it out -
      and the word beside it is dim: it names the place you are in, it is
-     not something to read. dict: g. */}}
+     not something to read. dict: g, build (what names the running
+     binary under the name, as much of it as the place has room for). */}}
 {{ define "brand" }}
 <a class="brand" href="/" title="{{.g.GlobalData.Brand}}">
   <img class="brand-mark" src="{{call .g.GlobalData.Asset "brand.svg"}}" alt="" width="20" height="20">
-  <span class="brand-name">{{.g.GlobalData.Brand}}</span>
+  <span class="brand-text">
+    <span class="brand-name">{{.g.GlobalData.Brand}}</span>
+    {{ with .build }}<span class="brand-build">{{ template "ltr" . }}</span>{{ end }}
+  </span>
 </a>
 {{ end }}
 
@@ -855,7 +859,7 @@
   {{/* On a phone the rail is the drawer, and the drawer's head is the
        application's name; on a wide screen the header carries it and
        this one stands down. */}}
-  <div class="rail-brand">{{ template "brand" (dict "g" .g) }}</div>
+  <div class="rail-brand">{{ template "brand" (dict "g" .g "build" .g.GlobalData.Build) }}</div>
   {{ with .home }}<a class="aside-account aside-all{{ if .active }} active{{ end }}" href="{{.href}}">{{.label}}</a>{{ end }}
   {{ $merged := not .urlaccount }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $merged = false }}{{ end }}{{ end }}{{ end }}
   {{ if gt (len .accounts) 1 }}

@@ -598,15 +598,18 @@ document.addEventListener("htmx:afterSwap", ev => {
 	for (const marked of document.querySelectorAll("aside li.active, aside summary.active")) {
 		marked.classList.remove("active");
 	}
-	for (const link of document.querySelectorAll("aside a[href]")) {
-		if (railPlace(link.href) !== here) {
-			continue;
-		}
-		const row = link.closest("summary") || link.closest("li");
-		if (row) {
-			row.classList.add("active");
-		}
-		break;
+	// An account's name leads to its inbox, so the two share an address;
+	// the name is a scope and the inbox the place, and the place takes
+	// the mark. An inbox with folders under it is a branch, its row a
+	// summary like the account's heading, so it is the heading that is
+	// passed over rather than every summary; Starred is one too.
+	const rows = [...document.querySelectorAll("aside a[href]")]
+		.filter(link => railPlace(link.href) === here)
+		.map(link => link.closest("summary, li"))
+		.filter(row => row);
+	const row = rows.find(row => !row.classList.contains("aside-account")) || rows[0];
+	if (row) {
+		row.classList.add("active");
 	}
 });
 

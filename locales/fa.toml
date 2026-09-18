@@ -232,7 +232,7 @@
 "tasks.completed" = "انجام‌شده"
 "tasks.all" = "همه"
 "tasks.priority" = "اولویت"
-"tasks.priority.none" = "هیچ"
+"tasks.priority.none" = "بدون اولویت"
 "tasks.priority.high" = "زیاد"
 "tasks.priority.medium" = "متوسط"
 "tasks.priority.low" = "کم"

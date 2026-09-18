@@ -234,7 +234,7 @@
 "tasks.completed" = "Completada"
 "tasks.all" = "Todas"
 "tasks.priority" = "Prioridad"
-"tasks.priority.none" = "Ninguna"
+"tasks.priority.none" = "Sin prioridad"
 "tasks.priority.high" = "Alta"
 "tasks.priority.medium" = "Media"
 "tasks.priority.low" = "Baja"

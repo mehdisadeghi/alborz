@@ -1,10 +1,8 @@
 package alborzbase
 
 import (
-	"bufio"
 	"bytes"
 	"slices"
-	"strings"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
@@ -65,11 +63,11 @@ func splitSearchTokens(buf []byte, atEOF bool) (int, []byte, error) {
 	rest := buf[start:]
 
 	// The first word carrying a colon opens a term; whatever precedes it
-	// is one run of bare text.
+	// is one run of bare text. A quoted phrase is text whatever it holds.
 	term := -1
 	for i := 0; i < len(rest); {
-		word := i + wordLen(rest[i:])
-		if bytes.IndexByte(rest[i:word], ':') >= 0 {
+		word := i + bareLen(rest[i:])
+		if !phrased(rest[i:]) && bytes.IndexByte(rest[i:word], ':') >= 0 {
 			term = i
 			break
 		}
@@ -113,83 +111,33 @@ func wordLen(b []byte) int {
 	return len(b)
 }
 
+// phrased says whether bare text opens with a quoted phrase, negated or
+// not.
+func phrased(b []byte) bool {
+	return bytes.HasPrefix(b, []byte(`"`)) || bytes.HasPrefix(b, []byte(`-"`))
+}
+
+// bareLen is wordLen in a run of bare text, where a quoted phrase is
+// one word with its spaces, and an unclosed one runs to the end.
+func bareLen(b []byte) int {
+	if !phrased(b) {
+		return wordLen(b)
+	}
+	open := bytes.IndexByte(b, '"')
+	closing := bytes.IndexByte(b[open+1:], '"')
+	if closing < 0 {
+		return len(b)
+	}
+	end := open + closing + 2
+	return end + wordLen(b[end:])
+}
+
 // unquoted joins a term's key to its value without copying over the
 // caller's buffer, which bufio.Scanner still owns.
 func unquoted(key, value []byte) []byte {
 	token := make([]byte, 0, len(key)+len(value))
 	token = append(token, key...)
 	return append(token, value...)
-}
-
-// Matching is the server's; what is alborz's is the question. A bare
-// term searches From, To, Cc and Subject, and everything - TEXT, the
-// whole message - only on a server that says it holds an index: Dovecot
-// advertises SEARCH=FUZZY (RFC 6203) exactly when its full-text plugin
-// is loaded, and without an index TEXT over a large folder is a scan of
-// minutes. text: asks for the whole message regardless, which is what
-// the results page offers when it searched headers only; from:,
-// subject: and friends narrow the field, and body: is the body alone.
-func PrepareSearch(terms string, indexed bool) *imap.SearchCriteria {
-	var criteria *imap.SearchCriteria
-
-	scanner := bufio.NewScanner(strings.NewReader(terms))
-	scanner.Split(splitSearchTokens)
-
-	for scanner.Scan() {
-		term := scanner.Text()
-		if !strings.ContainsRune(term, ':') {
-			if indexed {
-				criteria = searchCriteriaAnd(
-					criteria, &imap.SearchCriteria{Text: []string{term}})
-			} else {
-				criteria = searchCriteriaAnd(
-					criteria,
-					searchCriteriaOr(
-						searchCriteriaHeader("From", term),
-						searchCriteriaHeader("To", term),
-						searchCriteriaHeader("Cc", term),
-						searchCriteriaHeader("Subject", term),
-					),
-				)
-			}
-		} else {
-			parts := strings.SplitN(term, ":", 2)
-			key, value := parts[0], parts[1]
-			switch strings.ToLower(key) {
-			case "from":
-				criteria = searchCriteriaAnd(
-					criteria, searchCriteriaHeader("From", value))
-			case "to":
-				criteria = searchCriteriaAnd(
-					criteria, searchCriteriaHeader("To", value))
-			case "cc":
-				criteria = searchCriteriaAnd(
-					criteria, searchCriteriaHeader("Cc", value))
-			case "subject":
-				criteria = searchCriteriaAnd(
-					criteria, searchCriteriaHeader("Subject", value))
-			case "list":
-				criteria = searchCriteriaAnd(
-					criteria, searchCriteriaHeader("List-Id", value))
-			case "body":
-				criteria = searchCriteriaAnd(
-					criteria, &imap.SearchCriteria{Body: []string{value}})
-			case "text":
-				criteria = searchCriteriaAnd(
-					criteria, &imap.SearchCriteria{Text: []string{value}})
-			default:
-				continue
-			}
-		}
-	}
-
-	// A term nobody recognises is skipped above, so a query made only of
-	// those narrows by nothing. That is empty criteria, not no criteria:
-	// the search path takes a pointer and a nil one is a crash.
-	if criteria == nil {
-		criteria = &imap.SearchCriteria{}
-	}
-	return criteria
 }
 
 // A view is a folder narrowed by a flag: the starred, the unread, the
@@ -244,45 +192,7 @@ func ViewCriteria(view string) *imap.SearchCriteria {
 }
 
 // SearchesIndex says whether bare terms reach the whole message on this
-// connection, and SearchesText whether the query asks for it anyway.
+// connection.
 func SearchesIndex(c *imapclient.Client, settings *Settings) bool {
 	return c.Caps().Has(imap.CapSearchFuzzy) || settings.IndexedSearch
-}
-
-func SearchesText(terms string) bool {
-	return slices.ContainsFunc(searchTokens(terms), func(t string) bool {
-		return strings.HasPrefix(strings.ToLower(t), "text:")
-	})
-}
-
-// TextQuery is the query with every bare term asked of the whole
-// message: the link a results page offers when it searched headers.
-// Empty when there is no bare term to widen.
-func TextQuery(terms string) string {
-	var out []string
-	widened := false
-	for _, t := range searchTokens(terms) {
-		if !strings.ContainsRune(t, ':') {
-			// A bare run of words is one phrase; quoted, it stays one.
-			if strings.ContainsRune(t, ' ') {
-				t = `"` + t + `"`
-			}
-			t, widened = "text:"+t, true
-		}
-		out = append(out, t)
-	}
-	if !widened {
-		return ""
-	}
-	return strings.Join(out, " ")
-}
-
-func searchTokens(terms string) []string {
-	scanner := bufio.NewScanner(strings.NewReader(terms))
-	scanner.Split(splitSearchTokens)
-	var out []string
-	for scanner.Scan() {
-		out = append(out, scanner.Text())
-	}
-	return out
 }

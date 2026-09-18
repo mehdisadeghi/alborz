@@ -526,14 +526,14 @@ func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *
 		criteria := &imap.SearchCriteria{}
 		if spec.query != "" {
 			e.headersOnly = !SearchesIndex(c, settings)
-			criteria = PrepareSearch(spec.query, !e.headersOnly)
+			criteria = ParseQuery(spec.query).Criteria(!e.headersOnly, time.Now())
 		} else if spec.view != "" {
 			criteria = ViewCriteria(spec.view)
 		}
 		e.msgs, e.total, err = threadMessages(c, folder, e.threadAlgorithm, criteria, page, perPage)
 	case spec.query != "":
 		e.headersOnly = !SearchesIndex(c, settings)
-		e.msgs, e.total, err = searchMessages(c, folder, PrepareSearch(spec.query, !e.headersOnly), page, perPage, sortKey, reverse)
+		e.msgs, e.total, err = searchMessages(c, folder, ParseQuery(spec.query).Criteria(!e.headersOnly, time.Now()), page, perPage, sortKey, reverse)
 	case spec.view != "":
 		e.msgs, e.total, err = searchMessages(c, folder, ViewCriteria(spec.view), page, perPage, sortKey, reverse)
 	case spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != "") && e.sortSupported:
@@ -1357,7 +1357,7 @@ func textQueryOffered(query string, headersOnly bool) string {
 	if !headersOnly {
 		return ""
 	}
-	return TextQuery(query)
+	return ParseQuery(query).Widened()
 }
 
 // outgoingFolder says whether the folder holds the reader's own mail.

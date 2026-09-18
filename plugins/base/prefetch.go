@@ -9,7 +9,7 @@ import (
 )
 
 func listingBudget(spec listingSpec) (alborz.IMAPClass, time.Duration) {
-	if SearchesText(spec.query) {
+	if ParseQuery(spec.query).WantsText() {
 		return alborz.IMAPScan, alborz.ScanTimeout
 	}
 	return alborz.IMAPForeground, alborz.RoundTripTimeout

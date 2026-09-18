@@ -29,9 +29,9 @@
     {{/* The merged view acts by role, each account resolving its own
          folder; a merged Junk offers the way back, a merged Trash only
          the end. */}}
-    {{ $role := "" }}{{ if .GlobalData.Unified }}{{ $role = .Mailbox.Name }}{{ end }}
+    {{ $role := "" }}{{ if .Merged }}{{ $role = .Role }}{{ end }}
     {{ $act := printf "/mailbox/%s/all/act" ($role | pathescape) }}
-    {{ if .GlobalData.Unified }}
+    {{ if .Merged }}
       {{ if ne $role "Archive" }}{{ $archiveAction = printf "%s?action=move&to=Archive" $act }}{{ end }}
       {{ if eq $role "Junk" }}
         {{ $junkIcon = "notjunk" }}{{ $junkLabel = $.T "mailbox.notspam" }}{{ $junkAction = printf "%s?action=move&to=INBOX" $act }}
@@ -70,14 +70,14 @@
 
     {{/* The colours are a menu of their own beside the marks, and the
          same menu folds into the overflow when the row has no room. */}}
-    {{ $flagAction := printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount) }}{{ if .GlobalData.Unified }}{{ $flagAction = printf "%s?action=flag" $act }}{{ end }}
+    {{ $flagAction := printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount) }}{{ if .Merged }}{{ $flagAction = printf "%s?action=flag" $act }}{{ end }}
     {{ template "flag-menu" (dict
        "priority" 12
        "form" "messages-form"
        "action" $flagAction
        "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $) "disabled" $empty) }}
 
-    {{ if not .GlobalData.Unified }}
+    {{ if not .Merged }}
     <div class="overflow">
       <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
       <div class="overflow-menu" popover id="menu-more">
@@ -91,7 +91,7 @@
              click; the merged view has no one folder to name. Not bound
              to the selection form, so it stays live with nothing
              selected. */}}
-        {{ if not .GlobalData.Unified }}
+        {{ if not .Merged }}
         {{ $exportall := printf "/message/%s/export%s" (.Mailbox.Name | pathescape) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | urlquery) }}{{ else }}{{ with .ListView }}{{ $exportall = printf "%s%sview=%s" $exportall (or (and $aq "&") "?") . }}{{ end }}{{ end }}
         <a class="button-link" href="{{ localhref $exportall }}"{{ if $empty }} aria-disabled="true"{{ end }}>{{ if .Query }}{{$.T "mailbox.exportresults"}}{{ else }}{{$.T "mailbox.exportfolder"}}{{ end }}</a>
         {{ end }}
@@ -116,7 +116,7 @@
     </div>
     {{ end }}
 
-    {{ if .GlobalData.Unified }}
+    {{ if .Merged }}
     {{ $path := $.GlobalData.URL.Path }}
     <div class="overflow">
       <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>

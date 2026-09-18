@@ -43,6 +43,8 @@
 "notfound.addressbook" = "دفترچهٔ نشانی‌ای روی کارگزار پیدا نشد."
 "common.noresults" = "برای «%s» نتیجه‌ای یافت نشد."
 "mailbox.searchtext" = "جستجو در تمام نامه هم، که روی کارگزار بدون نمایه کند است"
+"search.title" = "جستجو"
+"search.allfolders" = "جستجو در همهٔ پوشه‌ها"
 "nav.email" = "ایمیل"
 "nav.contacts" = "مخاطبین"
 "nav.calendar" = "تقویم"

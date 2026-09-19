@@ -266,7 +266,13 @@ func (p *Provider) Host(ctx *alborz.Context) string {
 	if u, ok := p.Remote(ctx.Session); ok {
 		return u.Host
 	}
-	return ctx.Request().Host
+	return originHost(ctx)
+}
+
+// originHost is the host part of where alborz is reached.
+func originHost(ctx *alborz.Context) string {
+	_, host, _ := strings.Cut(ctx.Origin(), "://")
+	return host
 }
 
 // KeepsHere says whether collections can be kept in this alborz.
@@ -290,7 +296,9 @@ func (p *Provider) Places(ctx *alborz.Context) []Group {
 			places = append(places, Collection{Path: placeServer, Name: u.Host})
 		}
 		if p.here != nil {
-			places = append(places, Collection{Path: placeHere, Name: alborz.BrandName})
+			// By its host, as the account's server is: two hosts side by
+			// side say where each keeps the collection.
+			places = append(places, Collection{Path: placeHere, Name: originHost(ctx)})
 		}
 		if len(places) > 0 {
 			groups = append(groups, Group{Account: s.Username(), Collections: places})

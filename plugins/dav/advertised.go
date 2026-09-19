@@ -139,7 +139,7 @@ func (p *Provider) InjectHere() alborz.InjectFunc {
 		servers.Cards = append(servers.Cards, alborzbase.ServerCard{
 			Group: alborzbase.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
 			Rows: []map[string]any{
-				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Scheme() + "://" + ctx.Request().Host + collections.Prefix + "/"},
+				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Origin() + collections.Prefix + "/"},
 				{"label": ctx.T("settings.davhereuser"), "value": ctx.Session.Username()},
 			},
 		})

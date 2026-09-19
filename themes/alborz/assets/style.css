@@ -3472,6 +3472,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   grid-column-start: 1;
   grid-column-end: 10;
   font-size: var(--text-md);
+  font-weight: 400;
   color: var(--fg-dim);
   margin: var(--space-8) var(--space-4);
   padding: var(--space-6);

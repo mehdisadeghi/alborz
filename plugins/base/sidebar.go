@@ -100,6 +100,32 @@ type CategorizedMailboxes struct {
 		Archive *MailboxDetails
 	}
 	Additional []MailboxDetails
+	// Hidden is how many folders past railFolderLimit the rail leaves
+	// out for not being subscribed.
+	Hidden int
+}
+
+// railFolderLimit is how many folders beyond the standard ones the rail
+// lists unasked: past it the rail runs off a laptop's screen, and an
+// account with that many has chosen the few it reads by subscribing to
+// them.
+const railFolderLimit = 25
+
+// trim keeps the standard folders and, past railFolderLimit others,
+// only those the rail counts - the subscribed and the open one. A kept
+// folder's parents come with it: the tree draws them from its path.
+func (cc *CategorizedMailboxes) trim() {
+	if len(cc.Additional) <= railFolderLimit {
+		return
+	}
+	kept := cc.Additional[:0]
+	for _, d := range cc.Additional {
+		if d.Status != nil {
+			kept = append(kept, d)
+		}
+	}
+	cc.Hidden = len(cc.Additional) - len(kept)
+	cc.Additional = kept
 }
 
 func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
@@ -463,6 +489,7 @@ func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName
 		}
 		categorized.Append(sb.mailboxes[i], status)
 	}
+	categorized.trim()
 
 	return &IMAPBaseRenderData{
 		BaseRenderData:       *base,

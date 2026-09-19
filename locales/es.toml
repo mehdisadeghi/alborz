@@ -886,6 +886,10 @@ other = "%d tareas"
 one = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
 other = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
 
+["aside.morefolders"]
+one = "%[1]d carpeta más"
+other = "%[1]d carpetas más"
+
 ["notice.davrefused"]
 one = "El servidor de calendario y contactos de %[2]s rechazó la contraseña."
 other = "Los servidores de calendario y contactos de %[2]s rechazaron las contraseñas."

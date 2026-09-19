@@ -886,6 +886,10 @@ other = "%d tasks"
 one = "%[2]s was signed out after 30 minutes of inactivity."
 other = "%[2]s were signed out after 30 minutes of inactivity."
 
+["aside.morefolders"]
+one = "%[1]d more folder"
+other = "%[1]d more folders"
+
 ["notice.davrefused"]
 one = "The calendar and contacts server for %[2]s refused the password."
 other = "The calendar and contacts servers for %[2]s refused the passwords."

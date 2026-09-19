@@ -384,6 +384,13 @@
 {{ template "rail-views" (dict "q" $q "view" $view "on" $on "oninbox" (eq $active "INBOX") "g" $g) }}
 {{ range $cc.CommonNodes }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
 {{ range $cc.AdditionalTree }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
+{{ template "rail-more-folders" (dict "n" $cc.Hidden "q" $q "g" $g) }}
+{{ end }}
+
+{{/* The folders the rail leaves out, as a count and the way to choose
+     which appear: the account's subscriptions. dict: n q g. */}}
+{{ define "rail-more-folders" }}
+{{ if .n }}<li><a class="aside-create" href="/settings/account{{.q}}#subscriptions">{{ .g.Tf "aside.morefolders" .n }}</a></li>{{ end }}
 {{ end }}
 
 {{/* The header row of the event grids; the order is the day's own, so
@@ -1197,6 +1204,7 @@
   <hr />
   {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
   {{ end }}
+  {{ template "rail-more-folders" (dict "n" .Hidden "q" "" "g" $.GlobalData) }}
   {{ end }}
 </ul>
 {{ end }}

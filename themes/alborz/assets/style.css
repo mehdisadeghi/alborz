@@ -4414,6 +4414,41 @@ aside ul.merged-roles {
   color: var(--fg-faint);
 }
 
+/* A row under a thumb. Sideways is the swipe's and up and down stays the
+   page's; the hint is what letting go would do, in the colour that
+   action has everywhere, lying where the row was. */
+.message-row { touch-action: pan-y; }
+
+.message-grid { position: relative; }
+
+.message-row.swiping {
+  position: relative;
+  z-index: 1;
+  background-color: var(--bg);
+}
+
+.swipe-hint {
+  position: absolute;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.swipe-away {
+  justify-content: flex-end;
+  color: var(--alert-fg);
+  background: var(--alert-bg);
+}
+
+.swipe-toward {
+  justify-content: flex-start;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+}
+
 /* The list of keys: a dialog like any other would be, since this is the
    first; two columns, the key and what it does, on one left edge each. */
 .keys-help {

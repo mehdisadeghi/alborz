@@ -173,10 +173,21 @@ func (p *GoPlugin) TemplateFuncs(funcs template.FuncMap) {
 type InjectFunc func(ctx *Context, data RenderData) error
 
 // Inject registers a function to execute prior to rendering a template. The
-// special name "*" matches any template.
+// special name "*" matches any template. Two registered for one name
+// both run, in the order they were registered: parts of one plugin ask
+// for the same page without knowing of each other.
 func (p *GoPlugin) Inject(name string, f InjectFunc) {
 	if p.injectFuncs == nil {
 		p.injectFuncs = make(map[string]InjectFunc)
+	}
+	if prev, ok := p.injectFuncs[name]; ok {
+		p.injectFuncs[name] = func(ctx *Context, data RenderData) error {
+			if err := prev(ctx, data); err != nil {
+				return err
+			}
+			return f(ctx, data)
+		}
+		return
 	}
 	p.injectFuncs[name] = f
 }

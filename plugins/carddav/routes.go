@@ -395,6 +395,7 @@ func registerRoutes(p *plugin) {
 	page := p.collectionPage()
 	GET("/address-books/create", page.HandleCreate(p.dav, p.createForm))
 	POST("/address-books/create", page.HandleCreate(p.dav, p.createForm))
+	GET("/contacts/export-all", page.HandleExportAll("/contacts", "address-books.zip"))
 	GET("/contacts/import", page.HandleImportPage(p.dav, "/contacts", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false))
 	POST("/contacts/import", page.HandleImportPage(p.dav, "/contacts", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false))
 	GET("/address-books/:path", page.Handle(p.dav))
@@ -1055,6 +1056,9 @@ func (p *plugin) collectionPage() dav.Page {
 		Forget: p.dav.Forget,
 		Show:   show,
 		Rail:   func(ctx *alborz.Context, _ string) (dav.Rail, error) { return p.bookRail(ctx) },
+		Create: func(ctx *alborz.Context, _, name string, here bool) (string, error) {
+			return p.dav.Create(ctx.Request().Context(), ctx.Session, name, dav.DefaultColor, here, nil)
+		},
 		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
 			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
 			if err != nil {

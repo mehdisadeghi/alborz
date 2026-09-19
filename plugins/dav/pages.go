@@ -1,12 +1,16 @@
 package dav
 
 import (
+	"archive/zip"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -196,6 +200,10 @@ type Page struct {
 	// and says how many; Export renders the collection, or the range
 	// asked for, as one file. Range is nil where the kind has no dates.
 	Import func(ctx *alborz.Context, path string, raw []byte) (int, error)
+	// Create makes a collection of the kind for an import that asked for
+	// a new one: on the account's server, or here. list says which
+	// section's, a calendar or a task list.
+	Create func(ctx *alborz.Context, list, name string, here bool) (string, error)
 	Export func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error)
 	// Rail is the section's rail for the list the page returns to.
 	Rail func(ctx *alborz.Context, list string) (Rail, error)
@@ -319,26 +327,25 @@ func (pg Page) HandleImport(p *Provider) func(*alborz.Context) error {
 		if file.Size > maxImportSize {
 			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the file is too large to import")
 		}
-		if err := pg.importFile(ctx, collPath, file); err != nil {
+		raw, err := readUpload(file)
+		if err != nil {
+			return err
+		}
+		if err := pg.importRaw(ctx, collPath, raw); err != nil {
 			return err
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.Base+url.PathEscape(collPath))))
 	}
 }
 
-// importFile reads the upload into the collection on ctx's account and
-// leaves the notice saying what happened.
-func (pg Page) importFile(ctx *alborz.Context, collPath string, file *multipart.FileHeader) error {
+// readUpload is the uploaded file whole, which its form has bounded.
+func readUpload(file *multipart.FileHeader) ([]byte, error) {
 	f, err := file.Open()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
-	raw, err := io.ReadAll(f)
-	if err != nil {
-		return err
-	}
-	return pg.importRaw(ctx, collPath, raw)
+	return io.ReadAll(f)
 }
 
 // fetchAddress reads a calendar from an address once and forgets it: a
@@ -368,6 +375,141 @@ func fetchAddress(address string) ([]byte, error) {
 		return nil, echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the calendar is too large to import")
 	}
 	return raw, nil
+}
+
+// ErrNothingToExport is a collection with nothing in it, which no
+// calendar file can be written for.
+var ErrNothingToExport = errors.New("nothing to export")
+
+// newPrefix marks a destination that is a new collection per file, in
+// the place that follows it.
+const newPrefix = "new:"
+
+// importFile is one calendar or address book to bring in: a file of
+// the kind, or one inside a bundle.
+type importFile struct {
+	name string
+	raw  []byte
+}
+
+// maxBundleFiles bounds the files a bundle may hold: an account's worth
+// of calendars and books is tens, not thousands.
+const maxBundleFiles = 200
+
+// maxBundleSize bounds what a bundle may unpack to, all files together:
+// an upload within maxImportSize can inflate a thousandfold, and every
+// file of it is held in memory until the last is imported. Four whole
+// uploads' worth is more than an account's export comes to.
+const maxBundleSize = 4 * maxImportSize
+
+// importFiles reads what was uploaded as the files it holds: a zip, as
+// a service's export of every calendar or book comes, is each file of
+// the kind inside it; anything else is itself.
+func (pg Page) importFiles(name string, raw []byte) ([]importFile, error) {
+	if !bytes.HasPrefix(raw, []byte("PK\x03\x04")) {
+		return []importFile{{name, raw}}, nil
+	}
+	z, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		return nil, fmt.Errorf("not a zip file: %v", err)
+	}
+	var out []importFile
+	size := 0
+	for _, f := range z.File {
+		// An empty file holds nothing to bring in; an export writes one
+		// for an empty address book.
+		if f.FileInfo().IsDir() || f.UncompressedSize64 == 0 || !strings.EqualFold(path.Ext(f.Name), pg.Ext) {
+			continue
+		}
+		if len(out) == maxBundleFiles {
+			return nil, fmt.Errorf("more than %d files in the bundle", maxBundleFiles)
+		}
+		r, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		body, err := io.ReadAll(io.LimitReader(r, maxImportSize+1))
+		r.Close()
+		if err != nil {
+			return nil, err
+		}
+		if len(body) > maxImportSize {
+			return nil, fmt.Errorf("%s is too large to import", f.Name)
+		}
+		if size += len(body); size > maxBundleSize {
+			return nil, fmt.Errorf("the bundle unpacks to more than %d MB", maxBundleSize>>20)
+		}
+		out = append(out, importFile{f.Name, body})
+	}
+	return out, nil
+}
+
+// collectionName is what a new collection for a file is called: the
+// name the file gives itself (X-WR-CALNAME, as every calendar export
+// writes it), else the file's own name.
+func collectionName(f importFile) string {
+	for _, line := range strings.Split(string(f.raw), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimRight(line, "\r"), "X-WR-CALNAME:"); ok && strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return strings.TrimSuffix(path.Base(f.name), path.Ext(f.name))
+}
+
+// importMany brings in several files, or one into a collection of its
+// own: each into a new collection in the chosen place, or all into the
+// chosen one. One notice says what came of all of them.
+func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, place string, isNew bool, collPath string) error {
+	// Every file is looked at before anything is made, so a bundle with
+	// one that is not what it claims leaves no empty collection behind.
+	begins := map[string]string{".ics": "BEGIN:VCALENDAR", ".vcf": "BEGIN:VCARD"}[pg.Ext]
+	for _, f := range files {
+		if !strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(string(f.raw), "\ufeff")), begins) {
+			return fmt.Errorf(ctx.T("import.notkind"), f.name, pg.Ext)
+		}
+	}
+	objects, collections := 0, 0
+	for _, f := range files {
+		target := collPath
+		if isNew {
+			var err error
+			if target, err = pg.createFree(ctx, list, collectionName(f), place == placeHere); err != nil {
+				return err
+			}
+			collections++
+		}
+		n, err := pg.Import(ctx, target, f.raw)
+		if err != nil {
+			return fmt.Errorf("%s: %v", f.name, err)
+		}
+		objects += n
+	}
+	pg.Forget(ctx.Session.Username())
+	if !isNew {
+		collections = 1
+	}
+	g := alborz.GlobalRenderData{Lang: ctx.PageLanguage()}
+	ctx.PutNotice(fmt.Sprintf(ctx.T("import.bundle"+strings.TrimPrefix(pg.Ext, ".")), g.Num(collections), g.Num(objects)))
+	return nil
+}
+
+// createFree makes a collection under the name, or under the first of
+// "name 2", "name 3" that is free: a service's export may hold two of
+// the same name, and a name already here is not a reason to stop.
+func (pg Page) createFree(ctx *alborz.Context, list, name string, here bool) (string, error) {
+	if name == "" {
+		name = ctx.T("import.untitled")
+	}
+	for i := 1; ; i++ {
+		try := name
+		if i > 1 {
+			try = fmt.Sprintf("%s %d", name, i)
+		}
+		p, err := pg.Create(ctx, list, try, here)
+		if !errors.Is(err, ErrNameTaken) || i == maxCreateAttempts {
+			return p, err
+		}
+	}
 }
 
 func (pg Page) importRaw(ctx *alborz.Context, collPath string, raw []byte) error {
@@ -431,6 +573,20 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 			}
 			groups[i].Collections = append(groups[i].Collections, coll)
 		}
+		// A new collection per file is a destination too, first in each
+		// account's group: in each place it can keep one.
+		for _, place := range p.Places(ctx) {
+			var news []Collection
+			for _, at := range place.Collections {
+				news = append(news, Collection{Path: newPrefix + at.Path, Name: fmt.Sprintf(ctx.T("import.newon"), at.Name)})
+			}
+			i := slices.IndexFunc(groups, func(g Group) bool { return g.Account == place.Account })
+			if i < 0 {
+				groups = append(groups, Group{Account: place.Account})
+				i = len(groups) - 1
+			}
+			groups[i].Collections = append(news, groups[i].Collections...)
+		}
 		data := &ImportData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T(title)),
 			Rail:           rail,
@@ -458,6 +614,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 		}
 		data.Account, data.Path = acct, collPath
 		var raw []byte
+		name := ""
 		if data.URL = strings.TrimSpace(ctx.FormValue("url")); address && data.URL != "" {
 			raw, err = fetchAddress(data.URL)
 			if err != nil {
@@ -473,18 +630,26 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 			if file.Size > maxImportSize {
 				return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the file is too large to import")
 			}
-			f, err := file.Open()
-			if err != nil {
+			if raw, err = readUpload(file); err != nil {
 				return err
 			}
-			defer f.Close()
-			if raw, err = io.ReadAll(f); err != nil {
-				return err
-			}
+			name = file.Filename
 		}
 		// The page's own hooks read the account off the context, so the
 		// chosen account is the context's for the write.
 		ctx.Session = session
+		files, err := pg.importFiles(name, raw)
+		if err != nil {
+			data.Error = err.Error()
+			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+		}
+		if place, isNew := strings.CutPrefix(collPath, newPrefix); isNew || len(files) > 1 {
+			if err := pg.importMany(ctx, list, files, place, isNew, collPath); err != nil {
+				data.Error = err.Error()
+				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+			}
+			return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
+		}
 		if err := pg.importRaw(ctx, collPath, raw); err != nil {
 			// A file that is not what it claims answers on the form,
 			// which is where the reader can pick another.
@@ -526,6 +691,10 @@ func (pg Page) HandleExport(p *Provider) func(*alborz.Context) error {
 			to = to.AddDate(0, 0, 1)
 		}
 		body, err := pg.Export(ctx, collPath, from, to)
+		if errors.Is(err, ErrNothingToExport) {
+			ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("export.empty")})
+			return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
+		}
 		if err != nil {
 			return err
 		}
@@ -534,6 +703,51 @@ func (pg Page) HandleExport(p *Provider) func(*alborz.Context) error {
 			name = "export"
 		}
 		return Download(ctx, name+pg.Ext, body)
+	}
+}
+
+// HandleExportAll sends every collection of the section the account
+// can read, each a file in one zip: what a move to another service, or
+// a copy kept aside, takes. A feed followed from elsewhere is not the
+// account's to export and stays out.
+func (pg Page) HandleExportAll(list, filename string) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		rail, err := pg.Rail(ctx, list)
+		if err != nil {
+			return err
+		}
+		var buf bytes.Buffer
+		z := zip.NewWriter(&buf)
+		taken := map[string]int{}
+		for _, coll := range rail.Items {
+			account := coll.Account
+			if coll.Address != "" || (account != "" && account != ctx.Session.Username()) {
+				continue
+			}
+			body, err := pg.Export(ctx, coll.Path, time.Time{}, time.Time{})
+			if errors.Is(err, ErrNothingToExport) || (err == nil && len(body) == 0) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			// Two collections of one name are two files.
+			name := coll.Name
+			if taken[name]++; taken[name] > 1 {
+				name = fmt.Sprintf("%s %d", name, taken[name])
+			}
+			w, err := z.CreateHeader(&zip.FileHeader{Name: name + pg.Ext, Method: zip.Deflate, Modified: time.Now()})
+			if err != nil {
+				return err
+			}
+			if _, err := w.Write(body); err != nil {
+				return err
+			}
+		}
+		if err := z.Close(); err != nil {
+			return err
+		}
+		return Download(ctx, filename, buf.Bytes())
 	}
 }
 

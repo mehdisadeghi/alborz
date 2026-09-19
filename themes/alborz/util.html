@@ -163,45 +163,45 @@
      The keys are capitalised because the same block is rendered from
      Go, where a field has to be exported to be read. ADR 13. */}}
 {{ define "row-star" }}
-<form method="POST" action="/message/{{.Mailbox | pathescape}}/flag{{.Account}}"
+<form method="POST" action="/message/{{.Mailbox | pathescape}}/flag{{.Account}}" class="row-star"
       hx-post="/message/{{.Mailbox | pathescape}}/flag{{.Account}}" hx-target="this" hx-swap="outerHTML">
   <input type="hidden" name="uids" value="{{.UID}}">
-  {{/* Both directions go through the colour, which clears the bits as
-       well as the flag. Removing \Flagged alone leaves the colour bits
-       behind, so a mail flagged green elsewhere came back green the
-       next time it was starred, however many times you unstarred it. */}}
-  <input type="hidden" name="color" value="{{ if .Flagged }}{{ else }}yellow{{ end }}">
   <input type="hidden" name="next" value="{{.Next}}">
-  <button class="flag-button button-link{{ with .Color }} flag-{{.}}{{ end }}" type="submit"
-          title="{{.Label}}" aria-label="{{.Label}}">
-    {{- if .Flagged -}}
-    &#9733;
-    {{- else -}}
-    &#9734;
-    {{- end -}}
-  </button>
+  {{/* The message page's star and chevron, the chevron shown where a
+       pointer rests on the row. Both directions go through the colour,
+       which clears the bits as well as the flag: removing \Flagged
+       alone left the colour bits behind, so a mail flagged green
+       elsewhere came back green the next time it was starred. A plain
+       \Flagged with no colour is a star with no colour of its own. */}}
+  {{ $current := .Color }}{{ if and .Flagged (not $current) }}{{ $current = "flagged" }}{{ end }}
+  {{ template "flag-menu" (dict "toggle" true "row" true "current" $current
+       "title" (.G.T "mailbox.flagcolor") "clear" (.G.T "mailbox.flagnone")) }}
 </form>
 {{ end }}
 
 {{/* The seven colours and the one that clears, each a submit of its
      own so the picker needs no script and no select. Shared by the
-     menu's two shapes. dict: form action colors clear. */}}
+     menu's two shapes. With row it is the one menu every row's chevron
+     opens: the colours are the same for every row, so the page holds
+     them once, and a script submits the row that opened it. Without
+     the script those chevrons stay hidden and a row's star still sets
+     and clears. dict: colors clear [form action id row]. */}}
 {{ define "flag-colors-menu" }}
-<div class="overflow-menu flag-colors" popover id="menu-flag">
+<div class="overflow-menu flag-colors" popover id="{{ or .id "menu-flag" }}">
   {{ $d := . }}
   {{ range .colors }}
-  <button {{ with $d.form }}form="{{.}}"{{ end }} formaction="{{$d.action}}"
-          name="color" value="{{.Name}}">
+  <button {{ if $d.row }}type="button"{{ else }}{{ with $d.form }}form="{{.}}"{{ end }}{{ with $d.action }} formaction="{{.}}"{{ end }}
+          name="color" value="{{.Name}}"{{ end }} data-color="{{.Name}}">
     <span class="flag-star flag-{{.Name}}">&#9733;</span>{{.Label}}
   </button>
   {{ end }}
-  <button {{ with .form }}form="{{.}}"{{ end }} formaction="{{.action}}" name="color" value="">
+  <button {{ if .row }}type="button"{{ else }}{{ with .form }}form="{{.}}"{{ end }}{{ with .action }} formaction="{{.}}"{{ end }} name="color" value=""{{ end }} data-color="">
     <span class="flag-star">&#9734;</span>{{.clear}}
   </button>
 </div>
 {{ end }}
 
-{{/* dict: form action title clear colors [current class disabled toggle].
+{{/* dict: form action title clear colors [current class disabled toggle row].
      Three shapes of one control. Dim, when nothing is selected to act
      on. A star and a chevron - toggle - where the page is about one
      message: the star sets and clears on a click, the chevron opens
@@ -216,16 +216,18 @@
   </span>
 </span>
 {{ else if .toggle }}
-<div class="overflow flag-menu flag-split{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+<div class="overflow flag-menu flag-split{{ with .class }} {{.}}{{ end }}" data-current="{{.current}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <button class="flag-button button-link{{ with .current }} flag-{{.}}{{ end }}"
-          {{ with .form }}form="{{.}}"{{ end }} formaction="{{.action}}"
+          {{ with .form }}form="{{.}}"{{ end }}{{ with .action }} formaction="{{.}}"{{ end }}
           name="color" value="{{ if .current }}{{ else }}yellow{{ end }}"
           title="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}"
           aria-label="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}">
     {{- if .current }}&#9733;{{ else }}&#9734;{{ end -}}
   </button>
-  <button type="button" class="icon-button flag-more" title="{{.title}}" aria-label="{{.title}}" popovertarget="menu-flag">{{ template "icon" "down" }}</button>
-  {{ template "flag-colors-menu" . }}
+  {{/* A row's chevron opens the page's one colours menu, which a
+       script points at the row's form; it is shown by that script. */}}
+  <button type="button" class="icon-button flag-more" title="{{.title}}" aria-label="{{.title}}" popovertarget="{{ if .row }}row-colors{{ else }}{{ or .id "menu-flag" }}{{ end }}"{{ if .row }} hidden data-row-colors{{ end }}>{{ template "icon" "down" }}</button>
+  {{ if not .row }}{{ template "flag-colors-menu" . }}{{ end }}
 </div>
 {{ else }}
 <div class="overflow flag-menu{{ with .class }} {{.}}{{ end }}" data-gated="{{.form}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
@@ -422,7 +424,7 @@
   {{/* The star has a column of its own, as the mail list draws it; a
        feed's event cannot be marked and its cell stays empty. */}}
   <div class="list-star list-cell" role="cell">
-    {{ with .staraction }}{{ template "card-star" (dict "Action" . "Current" $.star "Next" $.next "Label" (or (and $.star $.clearLabel) $.starLabel)) }}{{ end }}
+    {{ with .staraction }}{{ template "card-star" (dict "Action" . "Current" $.star "Next" $.next "Label" (or (and $.star $.clearLabel) $.starLabel) "MenuLabel" $.starLabel) }}{{ end }}
   </div>
   {{ with .date }}<div class="event-date list-cell" role="cell" data-label="{{$.dateLabel}}" title="{{$.dateTitle}}">{{.}}</div>{{ end }}
   <div class="event-time list-cell" role="cell" data-label="{{.timeLabel}}">{{.when}}</div>
@@ -646,7 +648,8 @@
        "Action" (printf "%s/color%s" .Task.URL (account "?" .Task.Account))
        "Current" .Star
        "Next" $next
-       "Label" (or (and .Star ($g.T "mailbox.flagnone")) ($g.T "mailbox.flagcolor"))) }}
+       "Label" (or (and .Star ($g.T "mailbox.flagnone")) ($g.T "mailbox.flagcolor"))
+       "MenuLabel" ($g.T "mailbox.flagcolor")) }}
   </div>
   <div class="task-list-status list-cell" role="cell" data-label="{{$g.T "tasks.status"}}">
     {{ $mark := $g.T "tasks.markcomplete" }}{{ if .Completed }}{{ $mark = $g.T "tasks.markincomplete" }}{{ end }}
@@ -1045,18 +1048,10 @@
      offers the first, as a mail row does.
      dict: Action Current Next Label. */}}
 {{ define "card-star" }}
-<form method="POST" action="{{.Action}}"
+<form method="POST" action="{{.Action}}" class="row-star"
       hx-post="{{.Action}}" hx-target="this" hx-swap="outerHTML">
-  <input type="hidden" name="color" value="{{ if .Current }}{{ else }}yellow{{ end }}">
   <input type="hidden" name="next" value="{{.Next}}">
-  <button class="flag-button button-link{{ with .Current }} flag-{{.}}{{ end }}" type="submit"
-          title="{{.Label}}" aria-label="{{.Label}}">
-    {{- if .Current -}}
-    &#9733;
-    {{- else -}}
-    &#9734;
-    {{- end -}}
-  </button>
+  {{ template "flag-menu" (dict "toggle" true "row" true "current" .Current "title" .MenuLabel "clear" .Label) }}
 </form>
 {{ end }}
 

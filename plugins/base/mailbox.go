@@ -1229,7 +1229,9 @@ type StarRenderData struct {
 	Flagged bool
 	Color   string
 	Next    string
-	Label   string
+	// G is what the star's words are read from: the page it is in, or
+	// this answer when it is the star alone.
+	G interface{ T(string) string }
 }
 
 func handleSetFlags(ctx *alborz.Context) error {
@@ -1258,11 +1260,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 			if !oneStar || !done {
 				return ctx.Redirect(http.StatusFound, back)
 			}
-			label := ctx.T("mailbox.flagcolor")
-			if color[0] != "" {
-				label = ctx.T("mailbox.flagnone")
-			}
-			return ctx.Render(http.StatusOK, "row-star", &StarRenderData{
+			star := &StarRenderData{
 				BaseRenderData: *alborz.NewBaseRenderData(ctx),
 				Mailbox:        mboxName,
 				Account:        template.URL(accountQuery(ctx.Session.Username())),
@@ -1270,8 +1268,9 @@ func handleSetFlags(ctx *alborz.Context) error {
 				Flagged:        color[0] != "",
 				Color:          color[0],
 				Next:           ctx.FormValue("next"),
-				Label:          label,
-			})
+			}
+			star.G = star
+			return ctx.Render(http.StatusOK, "row-star", star)
 		})
 	}
 

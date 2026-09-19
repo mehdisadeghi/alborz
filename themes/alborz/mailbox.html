@@ -115,10 +115,9 @@
           </div>
           <div class="message-list-flags {{$classes}}" role="cell">
             {{ $starred := .HasFlag "\\Flagged" }}
-            {{ $star := $.T "mailbox.flagcolor" }}{{ if $starred }}{{ $star = $.T "mailbox.flagnone" }}{{ end }}
             {{ template "row-star" (dict "Mailbox" .Mailbox "Account" (account "?" $owner) "UID" .UID
                  "Flagged" $starred "Color" .FlagColor
-                 "Next" $.GlobalData.URL.RequestURI "Label" $star) }}
+                 "Next" $.GlobalData.URL.RequestURI "G" $) }}
             {{if .Attachments}}<span class="message-mark" title="{{$.T "mailbox.attachment"}}"><span aria-hidden="true">📎</span><span class="visually-hidden">{{$.T "mailbox.attachment"}}</span></span>{{end}}
             {{if .HasFlag "\\Answered"}}<span class="message-mark" title="{{$.T "mailbox.answered"}}"><span aria-hidden="true">↩︎</span><span class="visually-hidden">{{$.T "mailbox.answered"}}</span></span>{{end}}
             {{if .HasFlag "$Forwarded"}}<span class="message-mark" title="{{$.T "mailbox.forwarded"}}"><span aria-hidden="true">↪︎</span><span class="visually-hidden">{{$.T "mailbox.forwarded"}}</span></span>{{end}}

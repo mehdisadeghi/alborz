@@ -1530,7 +1530,43 @@ main.create-update .actions > *:not(:last-child) {
   background: transparent;
 }
 
+/* A row's star is the message page's split star with the chevron kept
+   out of the way: the star has the track to itself on the header's
+   centre, and the chevron hangs past its end, in no one's space, shown
+   where a pointer rests on the row or the keyboard is in it. A phone
+   has no pointer to rest; its colours are the toolbar's. */
+.row-star .flag-split { position: relative; }
+
+.row-star .flag-split .flag-button.button-link {
+  width: var(--control-height);
+  min-width: var(--control-height);
+}
+
+.row-star .flag-split .flag-more.icon-button {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 100%;
+  /* It hangs over the next cell, and a later cell paints over it. */
+  z-index: 1;
+  visibility: hidden;
+}
+.row-star .flag-split .flag-more[hidden] { display: none; }
+
+/* As specific as the rule that hides it: the menu hangs from the
+   chevron, and a menu whose anchor is hidden is hidden with it, so a
+   chevron that hid when the pointer left the row for its own menu took
+   the menu away under the pointer. */
+@media (hover: hover) {
+  .list-row:hover .row-star .flag-split .flag-more.icon-button { visibility: visible; }
+}
+
+.row-star:focus-within .flag-split .flag-more.icon-button,
+.row-star.star-open .flag-split .flag-more.icon-button { visibility: visible; }
+
+/* The star's chevron hangs past the cell's edge, and a cell that
+   clips its overflow cut it off and passed its clicks to the next. */
 .list-star { justify-content: center; }
+.list-cell.list-star { overflow: visible; }
 
 .list-star > form {
   flex: 0 0 var(--control-height);

@@ -55,7 +55,8 @@
                  "Action" (printf "%s/color%s" .URL (account "?" .Account))
                  "Current" .Color
                  "Next" $.GlobalData.URL.RequestURI
-                 "Label" (or (and .Color ($.T "mailbox.flagnone")) ($.T "mailbox.flagcolor"))) }}
+                 "Label" (or (and .Color ($.T "mailbox.flagnone")) ($.T "mailbox.flagcolor"))
+                 "MenuLabel" ($.T "mailbox.flagcolor")) }}
             </div>
             <div class="contact-list-photo list-cell" role="cell">
               {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}

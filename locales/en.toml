@@ -523,6 +523,9 @@
 "settings.serversmtp" = "Sending (SMTP)"
 "settings.serversieve" = "Filters (ManageSieve)"
 "settings.davcalendar" = "Calendar server"
+"settings.davhere" = "Calendars and contacts kept on Alborz"
+"settings.davhereaddress" = "Address for other clients"
+"settings.davhereuser" = "Username"
 "settings.davcontacts" = "Contacts server"
 "settings.serverhost" = "Server"
 "settings.serverunreachable" = "Did not answer"
@@ -679,6 +682,7 @@
 "calendar.holdsevents" = "Events only"
 "calendar.holdstasks" = "Tasks only"
 "calendar.holdshint" = "Most servers fix this when the collection is created."
+"collection.placehint" = "A collection kept on Alborz can be shared with other accounts here."
 "tasks.newlist" = "New task list"
 "tasks.movelist" = "Move to list"
 # Plural forms last: a TOML table claims every key that follows it.

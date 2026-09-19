@@ -43,8 +43,8 @@ var addressBookColor = dav.Prop{XMLNS: "http://inf-it.com/ns/ab/", Name: "addres
 
 // listAddressBooks fetches the address book list with names and colors in a
 // single PROPFIND.
-func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL, homeSet string) ([]dav.Collection, error) {
-	listed, err := dav.ListCollections[davCollectionProps](ctx, client, baseURL, homeSet, `<D:propfind xmlns:D="DAV:" xmlns:I="http://inf-it.com/ns/ab/"><D:prop><D:resourcetype/><D:displayname/><I:addressbook-color/><D:current-user-privilege-set/></D:prop></D:propfind>`)
+func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL, homes []dav.Home) ([]dav.Collection, error) {
+	listed, err := dav.ListCollections[davCollectionProps](ctx, client, baseURL, homes, `<D:propfind xmlns:D="DAV:" xmlns:I="http://inf-it.com/ns/ab/"><D:prop><D:resourcetype/><D:displayname/><I:addressbook-color/><D:current-user-privilege-set/></D:prop></D:propfind>`)
 	if err != nil {
 		return nil, err
 	}

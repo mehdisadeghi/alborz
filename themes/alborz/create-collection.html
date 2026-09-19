@@ -14,8 +14,12 @@
 
         {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
 
-        {{ if gt (len .Accounts) 1 }}
-        {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}
+        {{/* Where the collection goes: an account, and on that account
+             its server or Alborz. One question, one picker; it is not
+             asked when there is one answer. */}}
+        {{ if .Chooses }}
+        {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "place" "key" "place" "groups" .Places "account" .Account "path" .Chosen "multi" (gt (len .Places) 1)) }}
+        {{ template "hint" (dict "text" ($.T "collection.placehint")) }}
         {{ end }}
 
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true) }}

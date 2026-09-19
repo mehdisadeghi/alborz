@@ -520,6 +520,9 @@
 "settings.serversmtp" = "فرستادن (SMTP)"
 "settings.serversieve" = "فیلترها (ManageSieve)"
 "settings.davcalendar" = "سرور گاه‌شمار"
+"settings.davhere" = "گاه‌شمارها و مخاطبان روی البرز"
+"settings.davhereaddress" = "نشانی برای برنامه‌های دیگر"
+"settings.davhereuser" = "نام کاربری"
 "settings.davcontacts" = "سرور مخاطبان"
 "settings.serverhost" = "سرور"
 "settings.serverunreachable" = "پاسخی نداد"
@@ -679,6 +682,7 @@
 "calendar.holdsevents" = "تنها رویداد"
 "calendar.holdstasks" = "تنها کار"
 "calendar.holdshint" = "بیشتر سرورها این را هنگام ساخت ثابت می‌کنند."
+"collection.placehint" = "مجموعه‌ای که روی البرز است را می‌توان با حساب‌های دیگرِ اینجا به اشتراک گذاشت."
 "tasks.newlist" = "فهرست کار تازه"
 "tasks.movelist" = "انتقال به فهرست"
 # Plural forms last: a TOML table claims every key that follows it.

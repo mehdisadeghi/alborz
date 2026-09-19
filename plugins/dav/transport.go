@@ -9,9 +9,11 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/plugins/collections"
 	"git.mehdix.org/alborz/plugins/davcache"
 	"github.com/emersion/go-webdav"
 	"github.com/labstack/echo/v4"
@@ -23,15 +25,19 @@ const requestTimeout = 10 * time.Second
 // longer than this is a loop, not a move.
 const maxRedirects = 10
 
-func httpClient(cache *davcache.Cache, session *alborz.Session, debug echo.Logger) *http.Client {
+func httpClient(cache *davcache.Cache, here http.Handler, session *alborz.Session, debug echo.Logger) *http.Client {
 	return &http.Client{
 		// A wedged DAV server fails the request instead of hanging it.
 		Timeout: requestTimeout,
-		Transport: cache.Transport(session.Username(), &roundTripper{
-			upstream: http.DefaultTransport,
-			session:  session,
-			debug:    debug,
-		}),
+		Transport: hereTripper{
+			here:    here,
+			account: session.Username(),
+			remote: cache.Transport(session.Username(), &roundTripper{
+				upstream: http.DefaultTransport,
+				session:  session,
+				debug:    debug,
+			}),
+		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -51,6 +57,49 @@ func IfUnchanged(etag string) webdav.ConditionalMatch {
 	}
 	return webdav.ConditionalMatch(strconv.Quote(etag))
 }
+
+// hereTripper answers a request for a collection kept here without it
+// leaving the process, as the session's account, and ahead of the
+// cache: the store is as near as the cache is, and a share has to show
+// the moment it is made.
+type hereTripper struct {
+	here    http.Handler
+	account string
+	remote  http.RoundTripper
+}
+
+func (t hereTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.here == nil || !strings.HasPrefix(req.URL.Path, collections.Prefix+"/") {
+		return t.remote.RoundTrip(req)
+	}
+	wrote := &written{header: make(http.Header), code: http.StatusOK}
+	t.here.ServeHTTP(wrote, req.WithContext(collections.As(req.Context(), t.account)))
+	if req.Body != nil {
+		req.Body.Close()
+	}
+	return &http.Response{
+		Status:        fmt.Sprintf("%d %s", wrote.code, http.StatusText(wrote.code)),
+		StatusCode:    wrote.code,
+		Proto:         req.Proto,
+		ProtoMajor:    req.ProtoMajor,
+		ProtoMinor:    req.ProtoMinor,
+		Header:        wrote.header,
+		Body:          io.NopCloser(&wrote.body),
+		ContentLength: int64(wrote.body.Len()),
+		Request:       req,
+	}, nil
+}
+
+// written is what the handler wrote, kept to be read as a response.
+type written struct {
+	header http.Header
+	code   int
+	body   bytes.Buffer
+}
+
+func (a *written) Header() http.Header         { return a.header }
+func (a *written) WriteHeader(code int)        { a.code = code }
+func (a *written) Write(b []byte) (int, error) { return a.body.Write(b) }
 
 // logDAVExchange prints one upstream DAV round trip: the query for
 // REPORTs, the status, and what kind of payload came back. Response

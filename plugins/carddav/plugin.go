@@ -12,6 +12,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"git.mehdix.org/alborz/plugins/collections"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
@@ -33,7 +34,7 @@ func (p *plugin) client(session *alborz.Session) (*carddav.Client, error) {
 	return newClient(u, p.dav.HTTPClient(session))
 }
 
-// findHome is where the account's server lists the account's address books.
+// findHome is where a source lists the account's address books.
 func findHome(ctx context.Context, client *http.Client, endpoint string) (string, error) {
 	c, err := carddav.NewClient(client, endpoint)
 	if err != nil {
@@ -78,6 +79,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		Poll:     10 * time.Minute,
 		Discover: carddav.DiscoverContextURL,
 		Own:      func(s alborz.Services) string { return s.CardDAV },
+		Holds:    collections.AddressBook,
 		FindHome: findHome,
 		List:     listAddressBooks,
 		Make:     doMkcol,
@@ -232,14 +234,14 @@ func (p *plugin) registerServerCard() {
 		found, err := dav.Describe(ctx.Request().Context(), p.dav.HTTPClient(ctx.Session), base)
 		if err != nil {
 			card.Rows = []map[string]any{
-				{"label": ctx.T("settings.serverhost"), "value": base.Host},
+				{"label": ctx.T("settings.serverhost"), "value": p.dav.Host(ctx)},
 				{"label": ctx.T("settings.serverunreachable"), "value": err.Error()},
 			}
 			servers.More = append(servers.More, card)
 			return nil
 		}
 		card.Rows = []map[string]any{
-			{"label": ctx.T("settings.serverhost"), "value": found.Host},
+			{"label": ctx.T("settings.serverhost"), "value": p.dav.Host(ctx)},
 			{"label": ctx.T("settings.serversoftware"), "value": found.Software},
 			{"label": ctx.T("settings.davcompliance"), "value": strings.Join(found.Compliance, ", ")},
 		}

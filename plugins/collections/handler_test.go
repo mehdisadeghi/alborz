@@ -4,22 +4,29 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 const event = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:e1\r\n" +
 	"DTSTAMP:20260101T100000Z\r\nDTSTART:20260102T100000Z\r\nSUMMARY:Lunch\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 
-// open is a store in a directory of its own.
+// open is a store in a data file of its own.
 func open(t *testing.T) *Store {
 	t.Helper()
-	store, err := Open(t.TempDir())
+	db, err := bolt.Open(filepath.Join(t.TempDir(), "alborz.db"), 0o600, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { db.Close() })
+	store, err := New(db)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return store
 }
 

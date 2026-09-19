@@ -20,6 +20,7 @@ import (
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	bolt "go.etcd.io/bbolt"
 )
 
 // BrandName is what a person reads: page titles, the User-Agent on a
@@ -108,6 +109,9 @@ type Server struct {
 	// directory to keep them in.
 	Collections  *collections.Store
 	davPasswords *davPasswords
+	// data is the one file everything kept is in; nil without a data
+	// directory.
+	data *bolt.DB
 
 	// loginFailures records, per username, when an automatic sign-in
 	// last failed, so the next request does not try again at once.
@@ -173,18 +177,8 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	_, err := os.Stat(filepath.Join(options.ThemesPath, options.Theme, "assets", customCSS))
 	s.custom = err == nil
 
-	// Remembering a visit means keeping a password, so it takes both a
-	// place to put it and the key that seals the record. Without either
-	// a visit lasts as long as the process, which is what a session
-	// always did.
+	// One file holds what alborz keeps, whoever keeps it (ADR 26).
 	if options.DataDir != "" {
-		store, err := collections.Open(options.DataDir)
-		if err != nil {
-			return nil, err
-		}
-		s.Collections, s.davPasswords = store, newDAVPasswords()
-	}
-	if options.DataDir != "" && options.LoginKey != nil {
 		// Absolute, so every message about it names a path somebody can
 		// go and look at rather than one relative to a working
 		// directory they have to guess.
@@ -192,7 +186,20 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		if err != nil {
 			return nil, err
 		}
-		records, err := OpenVisitRecords(filepath.Join(dataDir, storeFile), options.LoginKey)
+		if s.data, err = openData(dataDir, options.Build, e.Logger.Printf); err != nil {
+			return nil, err
+		}
+		if s.Collections, err = collections.New(s.data); err != nil {
+			return nil, err
+		}
+		s.davPasswords = newDAVPasswords()
+	}
+	// Remembering a visit means keeping a password, so it takes both a
+	// place to put it and the key that seals the record. Without either
+	// a visit lasts as long as the process, which is what a session
+	// always did.
+	if s.data != nil && options.LoginKey != nil {
+		records, err := OpenVisitRecords(s.data, options.LoginKey)
 		if err != nil {
 			return nil, err
 		}
@@ -303,8 +310,8 @@ func (err UnknownDomainError) Error() string {
 
 func (s *Server) Close() {
 	s.Sessions.Close()
-	if s.Collections != nil {
-		s.Collections.Close()
+	if s.data != nil {
+		s.data.Close()
 	}
 	for _, p := range s.plugins {
 		if err := p.Close(); err != nil {

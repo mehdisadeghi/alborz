@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync"
 
+	"git.mehdix.org/alborz/record"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -105,18 +106,15 @@ func newIMAPStore(session *Session) (*imapStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &imapStore{session, newMemoryStore()}, nil
+	return &imapStore{session: session, cache: newMemoryStore()}, nil
 }
 
 func (s *imapStore) key(key string) string {
 	return vendorRoot + "/" + key
 }
 
-func (s *imapStore) Get(key string, out interface{}) error {
-	if err := s.cache.Get(key, out); err != ErrNoStoreEntry {
-		return err
-	}
-
+// fetch is the entry as the server holds it now, nil where it has none.
+func (s *imapStore) fetch(key string) ([]byte, error) {
 	var entries map[string]*[]byte
 	err := s.session.DoIMAP(func(c *imapclient.Client) error {
 		data, err := c.GetMetadata("", []string{s.key(key)}, nil).Wait()
@@ -127,20 +125,42 @@ func (s *imapStore) Get(key string, out interface{}) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("alborz: failed to fetch IMAP store entry %q: %w", key, err)
+		return nil, fmt.Errorf("alborz: failed to fetch IMAP store entry %q: %w", key, err)
 	}
-	v, ok := entries[s.key(key)]
-	if !ok || v == nil {
+	if v := entries[s.key(key)]; v != nil {
+		return *v, nil
+	}
+	return nil, nil
+}
+
+func (s *imapStore) Get(key string, out interface{}) error {
+	if err := s.cache.Get(key, out); err != ErrNoStoreEntry {
+		return err
+	}
+	v, err := s.fetch(key)
+	if err != nil {
+		return err
+	}
+	if v == nil {
 		return ErrNoStoreEntry
 	}
-	if err := json.Unmarshal(*v, out); err != nil {
+	if err := json.Unmarshal(v, out); err != nil {
 		return fmt.Errorf("alborz: failed to unmarshal IMAP store entry %q: %v", key, err)
 	}
 	return s.cache.Put(key, out)
 }
 
+// Put merges into the entry as the server holds it at the moment of
+// writing, not as this session first read it: another instance, of a
+// newer version, may have written fields since (ADR 26). METADATA has
+// no compare-and-set, so a write in between the two round trips is
+// still lost.
 func (s *imapStore) Put(key string, v interface{}) error {
-	b, err := json.Marshal(v)
+	was, err := s.fetch(key)
+	if err != nil {
+		return err
+	}
+	b, err := record.Keep(was, v)
 	if err != nil {
 		return fmt.Errorf("alborz: failed to marshal IMAP store entry %q: %v", key, err)
 	}
@@ -151,7 +171,6 @@ func (s *imapStore) Put(key string, v interface{}) error {
 	if err != nil {
 		return fmt.Errorf("alborz: failed to put IMAP store entry %q: %w", key, err)
 	}
-
 	return s.cache.Put(key, v)
 }
 
@@ -254,12 +273,12 @@ func (s *localStore) Get(key string, out interface{}) error {
 }
 
 func (s *localStore) Put(key string, v interface{}) error {
-	raw, err := json.Marshal(v)
+	s.locker.Lock()
+	defer s.locker.Unlock()
+	raw, err := record.Keep(s.entries[key], v)
 	if err != nil {
 		return fmt.Errorf("alborz: failed to marshal store entry %q: %v", key, err)
 	}
-	s.locker.Lock()
-	defer s.locker.Unlock()
 	s.entries[key] = raw
 	return s.records.SaveKept(s.account, s.entries)
 }

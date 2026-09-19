@@ -658,6 +658,8 @@
 "notice.loginfailed" = "Address or password refused."
 "notice.davanswered" = "The calendar and contacts server for %s answered %s."
 "notice.loginerror" = "Failed to login: %s"
+"notice.loginmissing" = "Address or password missing."
+"notice.restorefailed" = "%s is not signed in. %s"
 "tasks.edittitle" = "Edit task"
 "tasks.createtitle" = "Create task"
 "calendar.edittitle" = "Edit event"
@@ -976,3 +978,7 @@ other = "Select all %d"
 ["select.whole"]
 one = "%d selected."
 other = "All %d selected."
+
+["notice.loginpaused"]
+one = "Too many refused passwords. Try again in %d minute."
+other = "Too many refused passwords. Try again in %d minutes."

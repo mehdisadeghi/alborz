@@ -44,6 +44,13 @@ const (
 	// like a broken one.
 	RoundTripTimeout = 10 * time.Second
 
+	// SignInTimeout bounds a sign-in made for a reader. A server that
+	// counts refusals by the reader's address answers a guessing one
+	// slower each time - Dovecot's auth penalty reaches 15 s on top of
+	// its 2 s failure delay - and that answer is a refusal to count, not
+	// a server that did not answer.
+	SignInTimeout = 20 * time.Second
+
 	// ScanTimeout bounds the one exchange the reader asked for knowing
 	// it is slow: a whole-message search on a server without an index,
 	// which reads every message of the folder.
@@ -302,7 +309,7 @@ func (s *Session) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Du
 		*conn = nil
 	}
 	if *conn == nil {
-		*conn, err = s.manager.connectIMAPContext(ctx, s.domain, s.username, s.password)
+		*conn, err = s.manager.connectIMAPContext(ctx, s.domain, s.username, s.password, "")
 		if err != nil {
 			var refused AuthError
 			if errors.As(err, &refused) {
@@ -539,8 +546,9 @@ func (s *Session) Store() Store {
 }
 
 type (
-	// DialIMAPFunc connects to the domain's upstream IMAP server.
-	DialIMAPFunc func(domain string) (*imapclient.Client, error)
+	// DialIMAPFunc connects to the domain's upstream IMAP server, for a
+	// reader at from, or for alborz itself when from is empty.
+	DialIMAPFunc func(domain, from string) (*imapclient.Client, error)
 	// DialIMAPWatchFunc dials with a handler for the updates a server
 	// sends unasked, which has to be given before the connection is
 	// made.
@@ -595,14 +603,20 @@ func (sm *SessionManager) Close() {
 	}
 }
 
-func (sm *SessionManager) connectIMAP(domain, username, password string) (*imapclient.Client, error) {
-	return sm.connectIMAPContext(context.Background(), domain, username, password)
+// connectIMAP signs in for a reader at from: a password the mail server
+// has not seen accepted yet, whose refusal its lockout counts.
+func (sm *SessionManager) connectIMAP(domain, username, password, from string) (*imapclient.Client, error) {
+	return sm.connectIMAPContext(context.Background(), domain, username, password, from)
 }
 
-func (sm *SessionManager) connectIMAPContext(ctx context.Context, domain, username, password string) (*imapclient.Client, error) {
-	ctx, cancel := context.WithTimeout(ctx, RoundTripTimeout)
+func (sm *SessionManager) connectIMAPContext(ctx context.Context, domain, username, password, from string) (*imapclient.Client, error) {
+	within := RoundTripTimeout
+	if from != "" {
+		within = SignInTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, within)
 	defer cancel()
-	c, err := sm.dialIMAP(domain)
+	c, err := sm.dialIMAP(domain, from)
 	if err != nil {
 		// A refused connection, an unresolvable host, a dial that timed
 		// out: all of them are the server not answering, which is not
@@ -620,7 +634,7 @@ func (sm *SessionManager) connectIMAPContext(ctx context.Context, domain, userna
 	err = c.Login(username, password).Wait()
 	if !stop() {
 		<-stopped
-		return nil, UpstreamError{Service: "mail", After: RoundTripTimeout, cause: ctx.Err()}
+		return nil, UpstreamError{Service: "mail", After: within, cause: ctx.Err()}
 	}
 	if err != nil {
 		c.Close()
@@ -646,9 +660,9 @@ func (sm *SessionManager) connectIMAPContext(ctx context.Context, domain, userna
 // Put connects to the IMAP server and creates a new session. If authentication
 // fails, the error will be of type AuthError. Addresses outside the served
 // domains are rejected with UnknownDomainError.
-func (sm *SessionManager) Put(username, password string) (*Session, error) {
+func (sm *SessionManager) Put(username, password, from string) (*Session, error) {
 	_, domain, _ := strings.Cut(username, "@")
-	c, err := sm.connectIMAP(domain, username, password)
+	c, err := sm.connectIMAP(domain, username, password, from)
 	if err != nil {
 		return nil, err
 	}

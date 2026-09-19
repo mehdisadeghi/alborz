@@ -60,3 +60,8 @@ require (
 // relies on (#147 #174 #179 #180 #181 #182 #194 #208 #209 #211) and our
 // own server patches: PROPPATCH, dead properties, octets kept as sent.
 replace github.com/emersion/go-webdav => github.com/mehdisadeghi/go-webdav v0.0.0-20260921101523-6a35b64d0a5f
+
+// Our fork of go-imap carries ID with fields RFC 2971 does not name,
+// which upstream has open (emersion/go-imap#693): Dovecot learns the
+// reader's address from x-originating-ip.
+replace github.com/emersion/go-imap/v2 => github.com/mehdisadeghi/go-imap/v2 v2.0.0-20260922080234-e6cff86c70d0

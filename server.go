@@ -110,6 +110,8 @@ type Server struct {
 	// directory to keep them in.
 	Collections  *collections.Store
 	davPasswords *davPasswords
+	// signInRefused counts the sign-in form's refused passwords.
+	signInRefused *refusals
 	// data is the one file everything kept is in; nil without a data
 	// directory.
 	data *bolt.DB
@@ -173,7 +175,7 @@ type domainUpstreams struct {
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
-		Visits: newVisits(), Changes: newChanges()}
+		Visits: newVisits(), Changes: newChanges(), signInRefused: newRefusals(signInTries, signInWindow)}
 	e.IPExtractor = echo.ExtractIPDirect()
 	if len(options.TrustedProxies) > 0 {
 		// Only the proxies named: echo trusts every private address by
@@ -421,7 +423,7 @@ func (s *Server) parseIMAPUpstream(domain string) error {
 
 	s.e.Logger.Printf("Domain %q: configured upstream IMAP server: %v", domain, u)
 
-	c, err := s.dialIMAP(domain)
+	c, err := s.dialIMAP(domain, "")
 	if err != nil {
 		s.e.Logger.Printf("Warning: IMAP server %v not reachable at startup: %v", u, err)
 	} else {

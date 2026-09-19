@@ -1,9 +1,7 @@
 package alborzbase
 
 import (
-	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 
@@ -46,36 +44,25 @@ func handleLogin(ctx *alborz.Context) error {
 		return loginRedirect(ctx)
 	}
 
+	// A form that comes back as it was left, saying nothing, reads as if
+	// nothing was sent.
+	if ctx.Request().Method == http.MethodPost && (username == "" || password == "") {
+		renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.loginmissing")}
+		return ctx.Render(http.StatusUnprocessableEntity, "login.html", &renderData)
+	}
+
 	if username != "" && password != "" {
-		s, err := ctx.Server.Sessions.Put(username, password)
+		s, err := ctx.Server.SignIn(username, password, ctx.RealIP())
 		if err != nil {
-			ctx.Logger().Printf("Login failed for %q: %v", username, err)
-			if _, ok := err.(alborz.AuthError); ok {
-				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.loginfailed")}
-				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
+			// One line per refusal naming the reader's address, for a
+			// fail2ban filter on alborz's own log.
+			ctx.Logger().Printf("Login failed for %q from %s: %v", username, ctx.RealIP(), err)
+			text, status := ctx.SignInRefusal(err)
+			if text == "" {
+				return fmt.Errorf("failed to put connection in pool: %w", err)
 			}
-			var domainErr alborz.UnknownDomainError
-			if errors.As(err, &domainErr) {
-				// Which domain, and in the reader's own language: the
-				// error's own words are English and are for the log.
-				text := ctx.T("login.needsdomain")
-				if domainErr.Domain != "" {
-					text = fmt.Sprintf(ctx.T("login.baddomain"), domainErr.Domain)
-				}
-				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: text}
-				return ctx.Render(http.StatusUnauthorized, "login.html", &renderData)
-			}
-			var baseline alborz.BaselineError
-			if errors.As(err, &baseline) {
-				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("notice.loginerror"), baseline.Error())}
-				return ctx.Render(http.StatusBadGateway, "login.html", &renderData)
-			}
-			var netErr *net.OpError
-			if errors.As(err, &netErr) {
-				renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("notice.loginerror"), netErr.Err)}
-				return ctx.Render(http.StatusServiceUnavailable, "login.html", &renderData)
-			}
-			return fmt.Errorf("failed to put connection in pool: %v", err)
+			renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: text}
+			return ctx.Render(status, "login.html", &renderData)
 		}
 		ctx.AddAccount(s)
 

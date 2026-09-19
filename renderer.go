@@ -743,13 +743,15 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.CustomCSS = ctx.Server.custom
 		global.SchemePinned = ctx.ThemeScheme() != ""
 		global.URLAccount = ctx.urlAccount
+		// A notice belongs to the visit, not to a session: a sign-in
+		// that failed has none, and the login page is where it is read.
+		global.Notice = ctx.PopNotice()
 	}
 
 	if isactx && ctx.Session != nil {
 		global.LoggedIn = true
 		global.Username = ctx.Session.username
 		global.Accounts = ctx.Accounts()
-		global.Notice = ctx.PopNotice()
 	}
 
 	return &BaseRenderData{
@@ -897,7 +899,7 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 	// A notice raised after the base data was built - by a rail or a
 	// pooled load that ran later in the same handler - belongs to this
 	// page, not to whichever the reader opens next.
-	if g := renderData.Global(); g.Notice == nil && ctx.Session != nil {
+	if g := renderData.Global(); g.Notice == nil {
 		g.Notice = ctx.PopNotice()
 	}
 

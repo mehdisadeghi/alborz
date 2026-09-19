@@ -657,6 +657,8 @@
 "notice.loginfailed" = "Adresse oder Passwort abgelehnt."
 "notice.davanswered" = "Der Kalender- und Kontaktserver für %s antwortete %s."
 "notice.loginerror" = "Anmeldung fehlgeschlagen: %s"
+"notice.loginmissing" = "Adresse oder Passwort fehlt."
+"notice.restorefailed" = "%s ist nicht angemeldet. %s"
 "notice.filtersaved" = "Filter gespeichert."
 "notice.filterwarn" = "Filter mit Warnungen gespeichert: %s"
 "notice.filteron" = "Filter aktiviert."
@@ -976,3 +978,7 @@ other = "Alle %d auswählen"
 ["select.whole"]
 one = "%d ausgewählt."
 other = "Alle %d ausgewählt."
+
+["notice.loginpaused"]
+one = "Zu viele abgelehnte Passwörter. In %d Minute erneut versuchen."
+other = "Zu viele abgelehnte Passwörter. In %d Minuten erneut versuchen."

@@ -14,12 +14,12 @@
     <form method="post" action="">
       <div class="action-group">
         <label for="username">{{$.T "login.username"}}</label>
-        <input type="text" name="username" id="username" value="{{.Username}}" autocomplete="username" autofocus />
+        <input type="text" name="username" id="username" value="{{.Username}}" autocomplete="username" required autofocus />
       </div>
 
       <div class="action-group">
         <label for="password">{{$.T "login.password"}}</label>
-        <input type="password" name="password" id="password" autocomplete="current-password" />
+        <input type="password" name="password" id="password" autocomplete="current-password" required />
       </div>
 
       {{if .CanRememberMe}}

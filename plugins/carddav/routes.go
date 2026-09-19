@@ -82,10 +82,15 @@ func contactGroupRows(groups []AddressObject, active, account string) []FilterRo
 		if uid == "" {
 			continue
 		}
+		edit := g.URL()
+		if g.Account != "" {
+			edit += "?account=" + alborz.AddressParam(g.Account)
+		}
 		rows = append(rows, FilterRow{
 			Label:  g.DisplayName(),
 			Href:   filterHref("group", uid, account),
 			Active: uid == active,
+			Edit:   edit,
 		})
 	}
 	return rows

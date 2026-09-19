@@ -655,10 +655,27 @@ document.addEventListener("htmx:afterSwap", ev => {
 // list under the reader's hands is left exactly where it is, and the
 // folder they click is already fetched. A reader with no script loses
 // nothing they had.
+// What the page asks for by itself says so: mail arriving is not the
+// reader being here, and would otherwise hold the lock off for ever.
+const unasked = "Alborz-Unasked";
+
 const rail = document.querySelector("aside");
 if (rail && window.EventSource) {
 	let due = null;
 	const live = new EventSource("/events");
+
+	// A lock taken in another tab: the server sends this page to the
+	// passkey, and back here after it.
+	live.addEventListener("locked", () => location.reload());
+	// A stream the server ended and will not reopen: a lock taken in
+	// another tab is one reason, and the lock's own script knows how to
+	// ask.
+	live.addEventListener("error", () => {
+		if (live.readyState === EventSource.CLOSED) {
+			document.dispatchEvent(new Event("alborz:streamclosed"));
+		}
+	});
+
 	live.addEventListener("mailbox", () => {
 		// Mail arrives in bursts; the counts are fetched once for the
 		// burst rather than once for each message.
@@ -670,7 +687,7 @@ if (rail && window.EventSource) {
 				url.search = location.search;
 				url.searchParams.set("path", location.pathname);
 				htmx.ajax("GET", url.href,
-					{ source: here, target: here, select: "aside", swap: "outerHTML" });
+					{ source: here, target: here, select: "aside", swap: "outerHTML", headers: { [unasked]: "1" } });
 			}
 		}, 2000);
 	});
@@ -900,6 +917,55 @@ if (retry) {
 			again();
 		}
 	}, 15000);
+}
+
+// A visit with a passkey locks after a time away, and the server will
+// answer nothing then. The page leaves with it, so what is on screen
+// does not outstay the lock: the time runs from the reader's last act
+// here, as the server's does from their last request.
+const lockAfter = Number((document.querySelector('meta[name="alborz-lock"]') || {}).content);
+if (lockAfter > 0 && location.pathname !== "/unlock") {
+	// Writing a long message is being here without asking the server
+	// for anything, and a lock that fell in the meantime would take the
+	// message with it when sent. So the server is told, no more often
+	// than this many seconds.
+	const tellEvery = 60;
+	let timer, told = Date.now();
+	const leave = () => location.assign("/unlock?next=" + encodeURIComponent(location.pathname + location.search));
+	// A locked visit answers everything with the way to the lock, and
+	// fetch follows it without a word: where it ended up is the answer.
+	// The lock may have been taken in another tab, which this one's own
+	// timer knows nothing of.
+	const tell = () => fetch("/alive", {method: "POST"}).then(answer => {
+		if (answer.redirected && new URL(answer.url).pathname === "/unlock") {
+			leave();
+		}
+	}).catch(() => {});
+	const arm = () => {
+		if (Date.now() - told > tellEvery * 1000) {
+			told = Date.now();
+			tell();
+		}
+		clearTimeout(timer);
+		timer = setTimeout(leave, lockAfter * 1000);
+	};
+	document.addEventListener("alborz:streamclosed", tell);
+	for (const event of ["pointerdown", "keydown"]) {
+		document.addEventListener(event, arm, {passive: true});
+	}
+	document.addEventListener("htmx:afterRequest", ev => {
+		if (!ev.detail.requestConfig.headers[unasked]) {
+			arm();
+		}
+	});
+	arm();
+	// Back and forward can show a page from memory without asking the
+	// server, which is the one that knows the browser was locked since.
+	window.addEventListener("pageshow", event => {
+		if (event.persisted) {
+			location.reload();
+		}
+	});
 }
 
 // @license-end

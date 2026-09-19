@@ -3,6 +3,7 @@ package alborz
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -98,9 +99,13 @@ const livePing = 25 * time.Second
 // what a change means where the reader is standing, and a reader with
 // no script never opens it at all.
 func handleEvents(ctx *Context) error {
-	mine := map[string]bool{}
-	for _, s := range ctx.Accounts() {
-		mine[s.Username] = true
+	v := ctx.Visit()
+	// The stream outlives the request that opened it, so who it may tell
+	// is asked each time: a visit that locked hears nothing more, and an
+	// account signed out from another browser is no longer this one's.
+	mine := func(account string) bool {
+		live, _ := v.Accounts()
+		return slices.ContainsFunc(live, func(s *Session) bool { return s.Username() == account })
 	}
 	changes, stop := ctx.Server.Changes.Listen()
 	defer stop()
@@ -115,6 +120,11 @@ func handleEvents(ctx *Context) error {
 	ping := time.NewTicker(livePing)
 	defer ping.Stop()
 	for {
+		if v.Locked(time.Now()) {
+			fmt.Fprint(res, "event: locked\ndata:\n\n")
+			res.Flush()
+			return nil
+		}
 		select {
 		case <-ctx.Request().Context().Done():
 			return nil
@@ -127,7 +137,7 @@ func handleEvents(ctx *Context) error {
 			if !ok {
 				return nil
 			}
-			if !mine[change.Account] {
+			if !mine(change.Account) {
 				continue
 			}
 			// One line each, and no newline can reach them: an

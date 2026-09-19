@@ -49,6 +49,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.POST("/login", handleLogin)
 
 	p.POST("/logout", handleLogout)
+	registerPasskeyRoutes(p)
 
 	p.GET("/compose", handleComposeNew)
 	p.POST("/compose", handleComposeNew)

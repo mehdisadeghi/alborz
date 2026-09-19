@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
@@ -269,6 +270,9 @@ type ReadingRenderData struct {
 	Anchor   string
 	Accounts []alborz.Account
 	Error    string
+	// LockMinutes is how long this browser waits before it locks, zero
+	// when it has no passkey and does not lock.
+	LockMinutes int
 }
 
 type Subscriptions []string
@@ -727,6 +731,7 @@ func handleReadingSettings(ctx *alborz.Context) error {
 			Anchor:         ctx.Visit().Anchor(),
 			Accounts:       ctx.Accounts(),
 			Error:          message,
+			LockMinutes:    lockMinutes(ctx.Visit().Lock()),
 		})
 	}
 	if ctx.Request().Method != http.MethodPost {
@@ -797,5 +802,23 @@ func handleReadingSettings(ctx *alborz.Context) error {
 		ctx.SetTextSize(v)
 	}
 	ctx.SetAlignByScript(ctx.FormValue("align_script") != "")
+	if v, ok := given("lock_minutes"); ok {
+		minutes, err := alborz.ReadInt(v)
+		if err != nil || time.Duration(minutes)*time.Minute < alborz.MinLockAfter {
+			return render(http.StatusUnprocessableEntity, ctx.T("form.lockminutes"))
+		}
+		visit := ctx.Visit()
+		visit.SetLockAfter(time.Duration(minutes) * time.Minute)
+		if err := ctx.Server.Visits.Save(visit); err != nil {
+			return err
+		}
+	}
 	return ctx.Redirect(http.StatusFound, "/settings")
+}
+
+func lockMinutes(l alborz.Lock) int {
+	if len(l.Passkeys) == 0 {
+		return 0
+	}
+	return int(l.Wait() / time.Minute)
 }

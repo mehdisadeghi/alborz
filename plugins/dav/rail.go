@@ -32,4 +32,7 @@ type FilterRow struct {
 	Label  string
 	Href   string
 	Active bool
+	// Edit is the page of what the row names, where it has one of its
+	// own: a group is a card, renamed and deleted there.
+	Edit string
 }

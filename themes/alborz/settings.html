@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-  {{ template "scope-rail" (dict "g" $ "kind" "rows" "path" "/settings/account" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "home" (dict "href" "/settings" "label" ($.T "nav.settings") "active" true)) }}
+  {{ template "settings-rail" (dict "g" $ "rail" .Rail "here" "settings") }}
   </aside>
 
   <div class="container">
@@ -112,6 +112,17 @@
           </label>
           {{ template "hint" (dict "text" ($.T "settings.alignscripthint")) }}
         </div>
+
+        {{/* Only a browser with a passkey locks, so only one has a
+             time to set; the passkeys themselves are a list of their
+             own, on the rail. */}}
+        {{ with .LockMinutes }}
+        <div class="action-group">
+          <label for="lock_minutes">{{$.T "settings.lockminutes"}}</label>
+          <input type="number" name="lock_minutes" id="lock_minutes" value="{{.}}" min="1" required>
+          {{ template "hint" (dict "text" ($.T "settings.lockminuteshint")) }}
+        </div>
+        {{ end }}
 
         <div class="action-group">
           <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>

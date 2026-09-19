@@ -126,7 +126,12 @@ const page = async (event, ask) => {
 		tell("");
 		// Not the sign-in page: it is what a purge leaves behind, and
 		// offline it would answer for the page the reader asked for.
-		if (answer.ok && new URL(event.request.url).pathname !== "/login" &&
+		// Nor the pages of a visit that locks: what is saved is read
+		// offline with no server to ask for the passkey, so such a visit
+		// keeps nothing, and what it kept before it had a lock goes.
+		if ((answer.headers.get("Cache-Control") || "").includes("no-store")) {
+			event.waitUntil(caches.delete(PAGES));
+		} else if (answer.ok && new URL(event.request.url).pathname !== "/login" &&
 			(answer.headers.get("Content-Type") || "").startsWith("text/html")) {
 			event.waitUntil(savePage(key, answer.clone()));
 		}
@@ -149,7 +154,7 @@ self.addEventListener("fetch", event => {
 	}
 	// Signing in or out ends what was saved: the pages were one
 	// reader's, and the next one at this browser may be another.
-	if (request.method === "POST" && (url.pathname === "/login" || url.pathname === "/logout")) {
+	if (request.method === "POST" && (url.pathname === "/login" || url.pathname === "/logout" || url.pathname === "/unlock/leave")) {
 		event.waitUntil(caches.delete(PAGES));
 		return;
 	}

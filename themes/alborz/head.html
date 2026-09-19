@@ -7,6 +7,7 @@
     <meta name="theme-color" content="#1f1f1f" media="(prefers-color-scheme: dark)">
     <title>{{.GlobalData.PageTitle}}</title>
     <meta name="alborz-shell" content="{{.GlobalData.Shell}}">
+    {{ with .GlobalData.LockSeconds }}<meta name="alborz-lock" content="{{.}}">{{ end }}
     <link rel="stylesheet" href="{{call .GlobalData.Asset "style.css"}}">
     {{- with .GlobalData.Theme}}
     <link rel="stylesheet" href="{{call $.GlobalData.Asset (printf "themes/%s.css" .)}}">

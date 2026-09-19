@@ -167,6 +167,13 @@
     {{/* The keys are found by pressing ?, which nobody does who has
          not been told; this is where they are told. */}}
     <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$g.T "keys.title"}}</button>
+    {{/* A browser with a passkey can be locked on purpose, as a screen
+         is before stepping away. */}}
+    {{ if $g.GlobalData.LockSeconds }}
+    <form method="post" action="/lock" hx-boost="false">
+      <button type="submit">{{$g.T "lock.now"}}</button>
+    </form>
+    {{ end }}
   </div>
   {{ if .drawer }}</details>{{ else }}</div>{{ end }}
   {{/* The language takes effect on the click, so it is a menu of

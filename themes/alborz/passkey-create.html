@@ -1,0 +1,33 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  <aside>
+  {{ template "settings-rail" (dict "g" $ "rail" .Rail "here" "passkeys") }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="create-update">
+      {{/* The browser's own prompt makes the passkey; the form names it
+           and asks for that prompt. Without a script there is no prompt
+           to ask for, and the post says so. */}}
+      <form method="post" action="/settings/passkeys/create" id="passkey-form" hx-boost="false"
+            data-begin="/settings/passkeys/begin" data-finish="/settings/passkeys/finish" data-next="/settings/passkeys"
+            data-unsupported="{{$.T "passkeys.unsupported"}}" data-failed="{{$.T "passkeys.addrefused"}}">
+        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "passkeys.title") "path" "/settings/passkeys") }}
+        <h1>{{$.T "passkeys.new"}}</h1>
+
+        <div class="alert" role="alert" id="passkey-error"{{ if not .Error }} hidden{{ end }}>{{.Error}}</div>
+
+        {{ template "field" (dict "label" ($.T "passkeys.name") "name" "name" "dir" "auto" "autofocus" true "hint" ($.T "passkeys.namehint")) }}
+        <p class="hint">{{$.T "passkeys.nosaved"}}</p>
+
+        {{ template "form-actions" (dict "save" ($.T "passkeys.add") "cancel" "/settings/passkeys" "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+    </main>
+  </div>
+</div>
+<script src="{{call .GlobalData.Asset "passkeys.js"}}"></script>
+
+{{template "foot.html" .}}

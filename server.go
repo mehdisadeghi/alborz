@@ -789,7 +789,8 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				"Error occured rendering error page: %w. How meta.", err))
 		}
 
-		ctx.Logger().Error(err)
+		// The route, since a status alone names no request.
+		ctx.Logger().Errorf("%s %s: %v", ctx.Request().Method, ctx.Request().URL.Path, err)
 	}
 
 	e.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {

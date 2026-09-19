@@ -1,8 +1,10 @@
 package alborzbase
 
 import (
+	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -50,7 +52,18 @@ func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]i
 	if err != nil {
 		return nil, err
 	}
-	return data.AllUIDs(), nil
+	uids := data.AllUIDs()
+	// The list drops what the envelope contradicts (carried), so
+	// everything in it cannot mean the rows it never showed.
+	q := ParseQuery(query)
+	if len(uids) == 0 || !q.Addressed() {
+		return uids, nil
+	}
+	kept, err := carried(c, q, imap.UIDSetNum(uids...))
+	if err != nil {
+		return nil, err
+	}
+	return slices.Collect(maps.Values(kept)), nil
 }
 
 // selection is what a bulk action on one folder applies to: the rows

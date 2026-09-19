@@ -318,6 +318,32 @@ func (q Query) Excluded() []string {
 	return out
 }
 
+// addressKeys are the terms that name a person, and so can be checked
+// against what the message itself says.
+var addressKeys = map[string]bool{"from": true, "to": true, "cc": true, "bcc": true}
+
+// Addressed reports whether the query names an address at all, which is
+// what makes checking the answers worth the trouble.
+func (q Query) Addressed() bool {
+	for _, term := range q.terms {
+		if !term.not && addressKeys[term.key] {
+			return true
+		}
+	}
+	return false
+}
+
+// Addresses are the terms naming a person, by key.
+func (q Query) Addresses() map[string][]string {
+	out := map[string][]string{}
+	for _, term := range q.terms {
+		if !term.not && addressKeys[term.key] {
+			out[term.key] = append(out[term.key], term.value)
+		}
+	}
+	return out
+}
+
 // Widened is the query with every bare term asked of the whole message:
 // the link a results page offers when it searched headers. Empty when
 // there is no bare term to widen.

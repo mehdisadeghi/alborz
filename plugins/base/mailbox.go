@@ -38,6 +38,10 @@ type MailboxRenderData struct {
 	// FolderQuery is the query less its in:, for a row's folder to
 	// narrow the results to itself.
 	FolderQuery string
+	// Everywhere is the query asked of every folder, junk and trash
+	// with the rest. Empty when it is already being asked that way,
+	// which is what makes the offer worth showing.
+	Everywhere string
 	// FolderTrack is the width the rows' folder names share, so that a
 	// column of them has one edge whatever each folder is called.
 	FolderTrack template.CSS
@@ -179,6 +183,7 @@ func listPage(ctx *alborz.Context, ask listAsk, e *listingEntry, rows []IMAPMess
 		NextPage:       -1,
 		Total:          e.total,
 		Query:          ask.spec.query,
+		Everywhere:     everywhereQuery(ask.spec.query),
 		Filters:        searchFilters(ctx),
 		FilterRows:     ViewRows(ctx, ask.spec.view, true, ctx.WithoutParam("view")),
 		TextQuery:      textQueryOffered(ask.spec.query, e.headersOnly),
@@ -447,6 +452,21 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 
+// everywhereQuery is the query with in:anywhere in place of whatever
+// scope it had, empty when it already reaches everywhere: a search
+// leaves junk and trash out until it is asked for them, and "all
+// folders" has to be the thing that asks.
+func everywhereQuery(query string) string {
+	if query == "" {
+		return ""
+	}
+	q := ParseQuery(query)
+	if _, everywhere := q.Scope(); everywhere {
+		return ""
+	}
+	return strings.TrimSpace(q.Without(queryScope) + " " + queryScope + ":" + Everywhere)
+}
+
 // listAsk is what a list page is asked for: which page of how many
 // rows, of what, in which order.
 type listAsk struct {
@@ -569,11 +589,12 @@ func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *
 		e.msgs, e.total, err = threadMessages(c, folder, e.threadAlgorithm, criteria, page, perPage)
 	case spec.query != "":
 		e.headersOnly = !SearchesIndex(c, settings)
-		e.msgs, e.total, err = searchMessages(c, folder, ParseQuery(spec.query).Criteria(!e.headersOnly, time.Now()), page, perPage, sortKey, reverse)
+		q := ParseQuery(spec.query)
+		e.msgs, e.total, err = searchMessages(c, folder, q, q.Criteria(!e.headersOnly, time.Now()), page, perPage, sortKey, reverse)
 	case spec.view != "":
-		e.msgs, e.total, err = searchMessages(c, folder, ViewCriteria(spec.view), page, perPage, sortKey, reverse)
+		e.msgs, e.total, err = searchMessages(c, folder, Query{}, ViewCriteria(spec.view), page, perPage, sortKey, reverse)
 	case spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != "") && e.sortSupported:
-		e.msgs, e.total, err = searchMessages(c, folder, &imap.SearchCriteria{}, page, perPage, sortKey, reverse)
+		e.msgs, e.total, err = searchMessages(c, folder, Query{}, &imap.SearchCriteria{}, page, perPage, sortKey, reverse)
 	default:
 		e.msgs, e.total, err = listMessages(c, folder, page, perPage)
 	}

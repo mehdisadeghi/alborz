@@ -53,19 +53,15 @@
            a search, or the sender a reader clicked. Coming back to a
            filtered page, this is the only thing that explains a short
            list. */}}
-      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
-
-      {{/* Bare terms reached the headers only, since this server holds
-           no index; the whole message is a slower search the reader
-           asks for by name. */}}
-      {{ with .TextQuery }}
-      <p class="hint search-widen"><a href="?query={{ . | urlquery }}{{ with $.GlobalData.URLAccount }}&account={{ . | addr }}{{ end }}{{ if $.GlobalData.Unified }}&all=1{{ end }}">{{ $.T "mailbox.searchtext" }}</a></p>
-      {{ end }}
-      {{/* A folder's search box looks in that folder; the same question
-           of every folder is one link away, and in: asks it by name. */}}
-      {{ if and .Query (not .Spanning) }}
-      <p class="hint search-widen"><a href="{{ localhref (printf "/search?query=%s%s" (.Query | urlquery) (account "&" $.GlobalData.URLAccount)) }}">{{ $.T "search.allfolders" }}</a></p>
-      {{ end }}
+      {{/* The ways a search can be widened ride the row that says what
+           it is narrowed by. Bare terms reached the headers only, since
+           this server holds no index, and the whole message is a slower
+           search asked for by name; a folder's search box looks in that
+           folder, and the same question of every folder is one link
+           away. */}}
+      {{ $whole := "" }}{{ with .TextQuery }}{{ $whole = printf "?query=%s%s%s" (. | urlquery) (account "&" $.GlobalData.URLAccount) (or (and $.GlobalData.Unified "&all=1") "") }}{{ end }}
+      {{ $everywhere := "" }}{{ with .Everywhere }}{{ $everywhere = localhref (printf "/search?query=%s%s" (. | urlquery) (account "&" $.GlobalData.URLAccount)) }}{{ end }}
+      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove") "offers" (tuple (tuple $whole ($.T "mailbox.searchtext")) (tuple $everywhere ($.T "search.allfolders")))) }}
       <section class="messages">
         <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}>
           {{/* Header row; the labels sort where the server can. */}}

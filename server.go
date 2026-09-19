@@ -686,11 +686,10 @@ func isPublic(path string) bool {
 	}
 	// The manifest names the application, not anything in it, and a
 	// browser fetches it before anyone has signed in.
-	// The worker and the page it shows when the network is gone say
-	// nothing about any account, and a browser fetches both before
-	// anyone has signed in.
+	// The worker says nothing about any account, and a browser fetches
+	// it before anyone has signed in.
 	return path == "/login" || path == "/manifest.webmanifest" ||
-		path == "/sw.js" || path == "/offline" ||
+		path == "/sw.js" ||
 		strings.HasPrefix(path, "/assets/")
 }
 
@@ -1063,20 +1062,9 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 	// stylesheet, scripts, icons - and the pages of ADR 19.
 	e.GET("/sw.js", func(ectx echo.Context) error {
 		urls, version := s.shell()
-		urls = append(urls, offlinePath)
-		body := fmt.Sprintf(serviceWorker, version, mustJSON(urls), offlinePath)
+		body := fmt.Sprintf(serviceWorker, version, mustJSON(urls))
 		ectx.Response().Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		return ectx.String(http.StatusOK, body)
-	})
-
-	// The page the worker shows when the network is gone. It is a page
-	// of its own so it can be cached whole, and it says only what is
-	// true offline: nothing here is stored, so there is nothing to read
-	// until the connection is back.
-	e.GET(offlinePath, func(ectx echo.Context) error {
-		ctx := ectx.Get("context").(*Context)
-		return ctx.Render(http.StatusOK, "offline.html",
-			&struct{ BaseRenderData }{*NewBaseRenderData(ctx).WithTitle(ctx.T("offline.title"))})
 	})
 
 	// Assets are served from the embedded theme, with the theme directory

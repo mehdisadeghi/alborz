@@ -27,6 +27,12 @@ fails is answered with `/offline`, a page that says alborz keeps nothing
 on the device and offers to try again - which is true, and is why it can
 say nothing more useful.
 
+*2026-09-19:* the pages the reader opened are now saved and answer
+offline under a notice (ADR 19), and `/offline` is gone: a page never
+saved fails the way any page does, with the browser's own words. A
+page of its own imitated an application, and retried on its own like
+one.
+
 **A stream instead of a poll.** One connection per browser, `/events`,
 carrying what the IDLE watchers already noticed: an account and a folder
 per line, no rendering, no mail. What a page does with that is update

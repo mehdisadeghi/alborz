@@ -966,7 +966,8 @@ main.create-update {
   background: var(--surface-subtle);
 }
 
-main.create-update > form {
+main.create-update > form,
+main.create-update > section.collection-file {
   width: min(100%, var(--content-form));
   padding: var(--space-4);
   background: var(--surface);
@@ -2312,7 +2313,31 @@ input[type="color"] {
   border-top: 1px solid var(--border-light);
 }
 
-.collection-file h3 {
+.collection-file .list-items { margin-bottom: var(--space-3); }
+
+/* A share's row starts on the heading's edge, and its address is never
+   cut short: it is the one thing the row is for, so what it may do
+   moves under it when the line cannot hold both. */
+.collection-file .list-item { padding-inline: 0; }
+
+.collection-file .list-content {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+.collection-file .list-summary {
+  flex: 0 1 auto;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.collection-file .list-detail {
+  flex: 1 0 auto;
+  white-space: normal;
+}
+
+.collection-file h2 {
   margin: 0 0 var(--space-2);
   font-size: var(--text-sm);
   color: var(--fg-muted);
@@ -2330,7 +2355,7 @@ input[type="color"] {
   color: var(--fg-dim);
 }
 
-.danger-zone h3 {
+.danger-zone h2 {
   margin: 0 0 var(--space-1);
   font-size: var(--text-sm);
   color: var(--fg-muted);
@@ -4871,7 +4896,8 @@ h1.no-word .title-short {
   .task-row .task-list-added { display: none; }
 
 
-  main.create-update > form {
+  main.create-update > form,
+  main.create-update > section.collection-file {
     padding: var(--space-3);
     border-radius: var(--radius-md);
   }
@@ -5240,3 +5266,28 @@ main.message td.warning-cell {
 
 
 
+
+/* An invitation in the rail: what is offered, by whom, and the two
+   answers, stacked so a long name or address takes its own line. */
+aside li.rail-invitation {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.rail-invitation .hint { margin: 0; }
+
+.rail-invitation-answer {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* The rail's own buttons are bare, which suits a row of places; an
+   answer is an action and wears the button every form does. */
+aside .rail-invitation-answer button:not(.button-quiet) {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  background: var(--bg-button);
+}
+
+aside .rail-invitation-answer button { padding: var(--space-1) var(--space-2); }

@@ -40,6 +40,13 @@ type CollectionRenderData struct {
 	// page as one with nothing on the server to import into, export
 	// from, or delete - only a subscription to end.
 	Address string
+	// SharedBy is the owner of a collection this account was invited
+	// to: not its to rename, and left rather than deleted. Sharing is
+	// the owner's view of the same, nil for a collection that is not
+	// kept here.
+	SharedBy string
+	Writable bool
+	Sharing  *Sharing
 }
 
 // NewCollectionRenderData renders create-collection.html. Only a
@@ -171,13 +178,15 @@ func ParseObjectPath(s string) (string, error) {
 // cached list once the collection changed. Base is the page's own path
 // prefix.
 type Page struct {
-	Base   string
+	Base string
+	// List is the section's list, where an answered invitation lands.
+	List   string
 	Color  Prop
 	Ext    string
 	Lookup func(ctx *alborz.Context, path string) (info Collection, count func() int, list, label string, err error)
 	Forget func(username string)
-	// Show ticks a collection the account just made among those it has
-	// chosen to see.
+	// Show ticks a collection the account just accepted among those it
+	// has chosen to see.
 	Show func(store alborz.Store, path string) error
 	// Import writes the objects of an uploaded file into the collection
 	// and says how many; Export renders the collection, or the range
@@ -200,31 +209,16 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 			return err
 		}
 		collPath = CanonicalCollectionPath(collPath)
-		info, count, list, label, err := pg.Lookup(ctx, collPath)
+		data, err := pg.data(ctx, p, collPath)
 		if err != nil {
 			return err
 		}
-		rail, err := pg.Rail(ctx, list)
-		if err != nil {
-			return err
-		}
-		data := &CollectionRenderData{
-			Rail:           rail,
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(info.Name),
-			Name:           info.Name,
-			Color:          info.Color,
-			Path:           info.Path,
-			Account:        ctx.Session.Username(),
-			Count:          count(),
-			Base:           pg.Base,
-			ListHref:       list,
-			BackLabel:      label,
-			Ext:            pg.Ext,
-			OffersRange:    pg.Ext == ".ics",
-			Address:        info.Address,
-		}
+		list := data.ListHref
 
 		if ctx.Request().Method == http.MethodPost {
+			if data.SharedBy != "" {
+				return echo.NewHTTPError(http.StatusForbidden, "the collection is its owner's to change")
+			}
 			name := strings.TrimSpace(ctx.FormValue("name"))
 			data.Name, data.Color = name, ctx.FormValue("color")
 			if name == "" {
@@ -243,6 +237,40 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 		}
 		return ctx.Render(http.StatusOK, "collection.html", data)
 	}
+}
+
+// data is the collection's page as it stands.
+func (pg Page) data(ctx *alborz.Context, p *Provider, collPath string) (*CollectionRenderData, error) {
+	info, count, list, label, err := pg.Lookup(ctx, collPath)
+	if err != nil {
+		return nil, err
+	}
+	rail, err := pg.Rail(ctx, list)
+	if err != nil {
+		return nil, err
+	}
+	sharing, err := pg.sharing(ctx, p, info)
+	if err != nil {
+		return nil, err
+	}
+	return &CollectionRenderData{
+		Rail:           rail,
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(info.Name),
+		Name:           info.Name,
+		Color:          info.Color,
+		Path:           info.Path,
+		Account:        ctx.Session.Username(),
+		Count:          count(),
+		Base:           pg.Base,
+		ListHref:       list,
+		BackLabel:      label,
+		Ext:            pg.Ext,
+		OffersRange:    pg.Ext == ".ics",
+		Address:        info.Address,
+		SharedBy:       info.SharedBy,
+		Writable:       info.Writable,
+		Sharing:        sharing,
+	}, nil
 }
 
 // maxImportSize bounds an uploaded calendar or address book: a few
@@ -500,6 +528,11 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 		if err != nil {
 			return err
 		}
+		if info.SharedBy == "" {
+			if err := pg.forgetInvitees(p, collPath); err != nil {
+				return err
+			}
+		}
 		base, _ := p.URL(ctx.Session)
 		target := base.ResolveReference(&url.URL{Path: collPath}).String()
 		if err := DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Session), target); err != nil {
@@ -515,7 +548,11 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 				Text: fmt.Sprintf(ctx.T("notice.collectionkept"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
 		}
-		ctx.PutNotice(fmt.Sprintf(ctx.T("notice.collectiondeleted"), info.Name))
+		done := "notice.collectiondeleted"
+		if info.SharedBy != "" {
+			done = "notice.shareleft"
+		}
+		ctx.PutNotice(fmt.Sprintf(ctx.T(done), info.Name))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 	}
 }

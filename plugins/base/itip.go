@@ -250,6 +250,26 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, cale
 	})
 }
 
+// SendText posts a short plain message from the session's account: what
+// a plugin has to tell somebody that is not the reader's own writing.
+func SendText(ctx *alborz.Context, to []string, subject, text string) error {
+	settings, err := LoadSettings(ctx.Session.Store())
+	if err != nil {
+		return err
+	}
+	msg := &OutgoingMessage{
+		From:      fromAddress(settings, ctx.Session.Username()),
+		To:        to,
+		Subject:   subject,
+		MessageID: newMessageID(),
+		Text:      text,
+		Mailer:    mailerName(ctx),
+	}
+	return ctx.DoSMTP(func(c *smtp.Client) error {
+		return sendMessage(c, msg)
+	})
+}
+
 // MethodRequest and MethodCancel are what an organizer sends: an
 // invitation, and its withdrawal.
 const (

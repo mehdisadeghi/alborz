@@ -930,6 +930,35 @@
   {{/* A rail lists places and closes with the entry that adds one;
        making an object is a toolbar action, beside the list it lands
        in. */}}
+  {{/* What other accounts here have offered this one, answered where
+       the collection would be listed. */}}
+  {{ if eq .kind "dav" }}{{ with .g.GlobalData.Extra.Invitations }}{{ with index . $.data.field }}
+  {{ $inv := . }}
+  <ul class="rail-views">
+    <li class="folder-li">
+      <details class="folder-branch" data-rail-key="invitations" open>
+        <summary>{{$.g.T "share.invitations"}}</summary>
+        <ul>
+          {{ range $inv.Items }}
+          {{ $item := . }}
+          <li class="rail-invitation">
+            <span dir="auto">{{.Name}}</span>
+            <span class="hint">{{ template "ltr" .From }}</span>
+            <span class="rail-invitation-answer">
+              {{ range tuple (tuple "accept" "share.accept" "") (tuple "decline" "share.decline" "button-quiet") }}
+              <form method="post" action="{{$inv.Base}}{{$item.Path | pathescape}}/{{index . 0}}{{ account "?" $item.Account }}">
+                <input type="hidden" name="next" value="{{$.g.GlobalData.URL.RequestURI}}">
+                <button{{ with index . 2 }} class="{{.}}"{{ end }}>{{$.g.T (index . 1)}}</button>
+              </form>
+              {{ end }}
+            </span>
+          </li>
+          {{ end }}
+        </ul>
+      </details>
+    </li>
+  </ul>
+  {{ end }}{{ end }}{{ end }}
   {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
   {{ with .follow }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
   {{ with .import }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}

@@ -384,6 +384,11 @@ func registerRoutes(p *plugin) {
 	POST("/address-books/:path/delete", page.HandleDelete(p.dav))
 	POST("/address-books/:path/import", page.HandleImport(p.dav))
 	GET("/address-books/:path/export", page.HandleExport(p.dav))
+	POST("/address-books/:path/share", page.HandleShare(p.dav))
+	POST("/address-books/:path/unshare", page.HandleUnshare(p.dav))
+	POST("/address-books/:path/accept", page.HandleAnswer(p.dav, true))
+	POST("/address-books/:path/decline", page.HandleAnswer(p.dav, false))
+	p.Inject("*", p.dav.InjectInvitations("book", page.Base, "/contacts", "/address-books"))
 	GET("/contacts/create", p.updateContact)
 	POST("/contacts/create", p.updateContact)
 	GET("/contacts/:path/edit", p.updateContact)
@@ -1020,6 +1025,7 @@ func changeCard(ctx *alborz.Context, ref dav.Ref[*carddav.Client], change func(v
 func (p *plugin) collectionPage() dav.Page {
 	return dav.Page{
 		Base:   "/address-books/",
+		List:   "/contacts",
 		Color:  addressBookColor,
 		Ext:    ".vcf",
 		Forget: p.dav.Forget,

@@ -13,8 +13,18 @@
         {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
         {{ template "dav-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref "field" "" "collection" "" "path" "") }}
 
+        {{/* A collection somebody else shares is theirs to name and
+             colour; what the page can say is whose it is. */}}
+        {{ if .SharedBy }}
+        <div class="field">
+          <label>{{$.T "share.sharedby"}}</label>
+          <span>{{ template "ltr" .SharedBy }}</span>
+          {{ template "hint" (dict "text" ($.T (or (and .Writable "share.canedit") "share.canview"))) }}
+        </div>
+        {{ else }}
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true) }}
         {{ template "field" (dict "label" ($.T "common.color") "name" "color" "type" "color" "value" .Color) }}
+        {{ end }}
         {{ with .Address }}
         <div class="field">
           <label>{{$.T "calendar.address"}}</label>
@@ -25,24 +35,87 @@
         {{/* What it holds is not offered: the component set is protected
              on every server in use, and changing it would mean copying
              every object into a new collection. */}}
+        {{ if not .SharedBy }}
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" .ListHref "cancelLabel" ($.T "common.cancel")) }}
+        {{ end }}
       </form>
+
+      {{ with .Sharing }}
+      {{/* Who else reaches the collection: each address with what it may
+           do and until when, the way out beside it, and the form that
+           adds one. */}}
+      <section class="collection-file" id="sharing">
+        <h2>{{$.T "share.title"}}</h2>
+        {{ if .Shares }}
+        <div class="list-items">
+          {{ range .Shares }}
+          <div class="list-item">
+            <div class="list-content">
+              <span class="list-summary">{{ template "ltr" .To }}</span>
+              <span class="list-detail">{{$.T (or (and .Write "share.canedit") "share.canview")}}{{ if not .Expires.IsZero }}, {{ printf ($.T "share.until") ($.GlobalData.ShortDate (.Expires.AddDate 0 0 -1)) }}{{ end }}</span>
+              {{ if .Ended }}<span class="list-meta">{{$.T "share.ended"}}</span>{{ else if not .Accepted }}<span class="list-meta">{{$.T "share.pending"}}</span>{{ end }}
+            </div>
+            <form method="post" action="{{$.Base}}{{$.Path | pathescape}}/unshare{{account "?" $.Account}}">
+              <input type="hidden" name="to" value="{{.To}}">
+              <button class="button-danger">{{$.T "share.remove"}}</button>
+            </form>
+          </div>
+          {{ end }}
+        </div>
+        {{ end }}
+        <form method="post" action="{{$.Base}}{{$.Path | pathescape}}/share{{account "?" $.Account}}#sharing">
+          {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
+          {{ template "field" (dict "label" ($.T "share.with") "name" "to" "type" "email" "value" .To "dir" "ltr" "required" true "hint" ($.T "share.withhint")) }}
+          <fieldset class="action-group choices">
+            <legend>{{$.T "share.access"}}</legend>
+            {{ range tuple (tuple "read" "share.canview" false) (tuple "write" "share.canedit" true) }}
+            {{ $v := index . 0 }}
+            <label for="access-{{$v}}" class="checkbox">
+              <input type="radio" name="access" id="access-{{$v}}" value="{{$v}}"{{ if eq $.Sharing.Write (index . 2) }} checked{{ end }}>
+              {{$.T (index . 1)}}
+            </label>
+            {{ end }}
+          </fieldset>
+          {{ template "date-field" (dict "g" $ "label" ($.T "share.lastday") "name" "until" "value" .Until "hint" true) }}
+          <button>{{$.T "share.do"}}</button>
+        </form>
+      </section>
+
+      {{ if .OffersPublic }}
+      <section class="collection-file" id="public">
+        <h2>{{$.T "share.publictitle"}}</h2>
+        {{ if .PublicURL }}
+        <form method="post" action="{{$.Base}}{{$.Path | pathescape}}/unpublish{{account "?" $.Account}}">
+          {{ template "field" (dict "label" ($.T "share.publicaddress") "name" "public-url" "value" .PublicURL "dir" "ltr" "readonly" true "hint" ($.T "share.publichint")) }}
+          <button class="button-danger">{{$.T "share.unpublish"}}</button>
+        </form>
+        {{ else }}
+        <form method="post" action="{{$.Base}}{{$.Path | pathescape}}/publish{{account "?" $.Account}}">
+          {{ template "hint" (dict "text" ($.T "share.publishhint")) }}
+          <button>{{$.T "share.publish"}}</button>
+        </form>
+        {{ end }}
+      </section>
+      {{ end }}
+      {{ end }}
 
       {{ if not .Address }}
       {{/* In and out as one file: the shape every other client reads
            and writes, and the only one a reader can keep. */}}
+      {{ if .Writable }}
       <form method="post" enctype="multipart/form-data" action="{{.Base}}{{.Path | pathescape}}/import{{account "?" .Account}}" class="collection-file">
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
-        <h3>{{$.T "collection.importtitle"}}</h3>
+        <h2>{{$.T "collection.importtitle"}}</h2>
         <label>
           <span>{{ printf ($.T "collection.importfile") .Ext }}</span>
           <input type="file" name="file" accept="{{.Ext}}" required>
         </label>
         <button>{{$.T "collection.importdo"}}</button>
       </form>
+      {{ end }}
       <form method="get" action="{{.Base}}{{.Path | pathescape}}/export" class="collection-file" data-download hx-boost="false">
         {{ with .GlobalData.URLAccount }}<input type="hidden" name="account" value="{{.}}">{{ end }}
-        <h3>{{$.T "collection.exporttitle"}}</h3>
+        <h2>{{$.T "collection.exporttitle"}}</h2>
         {{ if .OffersRange }}
         {{ template "field" (dict "label" ($.T "collection.exportfrom") "name" "from" "type" "date") }}
         {{ template "field" (dict "label" ($.T "collection.exportto") "name" "to" "type" "date") }}
@@ -58,10 +131,14 @@
            anywhere, so it is not a delete at all. */}}
       <form class="danger-zone" method="post" action="{{.Base}}{{.Path | pathescape}}/delete{{account "?" .Account}}">
         {{ if .Address }}
-        <h3>{{$.T "collection.unsubscribetitle"}}</h3>
+        <h2>{{$.T "collection.unsubscribetitle"}}</h2>
         <button class="button-danger">{{ printf ($.T "collection.unsubscribedo") .Name }}</button>
+        {{ else if .SharedBy }}
+        {{/* Leaving ends this account's access and deletes nothing. */}}
+        <h2>{{$.T "share.leavetitle"}}</h2>
+        <button class="button-danger">{{ printf ($.T "share.leavedo") .Name }}</button>
         {{ else }}
-        <h3>{{$.T "collection.deletetitle"}}</h3>
+        <h2>{{$.T "collection.deletetitle"}}</h2>
         {{ if gt .Count 0 }}
         <p>{{ $.GlobalData.Tf "collection.deletecount" .Count }}</p>
         {{ else if lt .Count 0 }}

@@ -28,6 +28,8 @@ import (
 )
 
 type AddressBookRenderData struct {
+	// Pager walks the pages of AddressObjects, which holds one of them.
+	Pager dav.Pager
 	alborz.BaseRenderData
 	AddressBooks   []dav.Collection
 	AddressObjects []AddressObject
@@ -582,11 +584,13 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 	for _, item := range list.Items {
 		hrefs[item.Path] = item.URL
 	}
+	cards, pager := dav.Paginate(ctx, list.Cards)
 	collection, href := dav.Labels(ctx, addressBookInfos, "/contacts", "book", nil)
 	return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
 		AddressBooks:   addressBookInfos,
-		AddressObjects: list.Cards,
+		AddressObjects: cards,
+		Pager:          pager,
 		HrefFor:        func(_, contactPath string) string { return hrefs[contactPath] },
 		Query:          list.Query,
 		View:           list.View,

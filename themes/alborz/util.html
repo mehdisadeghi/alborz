@@ -467,6 +467,18 @@
 
 {{/* One pagination group: an optional range, then prev and next links.
      dict: [range] [prev href label] [next href label]. */}}
+{{/* The pager of a list alborz holds whole and draws a page of, the
+     mail list's own pager over a dav.Pager. dict: g pager. */}}
+{{/* A list's pager and its page size, as mail's are: both stand on an
+     empty list too, dim, so the toolbar does not change with the count. */}}
+{{ define "list-pager" }}
+{{ with .pager }}
+{{ $range := "" }}{{ if .Total }}{{ $range = $.g.GlobalData.Tf "mailbox.range" .From .To .Total }}{{ end }}
+{{ template "pagination" (dict "range" $range "prev" (dict "href" .Prev "title" ($.g.T "mailbox.prevpage")) "next" (dict "href" .Next "title" ($.g.T "mailbox.nextpage")) "target" "main") }}
+{{ template "ipp-menu" (dict "g" $.g.GlobalData "options" .Options "current" .Per "base" .IppBase "label" ($.g.T "mailbox.perpage") "target" "main") }}
+{{ end }}
+{{ end }}
+
 {{ define "pagination" }}
 <div class="actions-pagination">
   {{ with .range }}<span class="pagination-range" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}

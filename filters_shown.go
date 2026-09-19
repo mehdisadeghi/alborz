@@ -2,6 +2,7 @@ package alborz
 
 import (
 	"net/url"
+	"strconv"
 )
 
 // Filter is one narrowing in force on a listing: what is narrowed, the
@@ -59,6 +60,22 @@ func (ctx *Context) FilterOn(name, label string) (Filter, bool) {
 		return Filter{}, false
 	}
 	return Filter{Label: label, Value: value, Href: ctx.WithoutParam(name)}, true
+}
+
+// PageHref is this page again at page n of its list, everything else it
+// was asked with kept; the first page is the address without a number.
+func (ctx *Context) PageHref(n int) string {
+	u := *ctx.Request().URL
+	q := u.Query()
+	q.Del("page")
+	if n > 0 {
+		q.Set("page", strconv.Itoa(n))
+	}
+	u.RawQuery = AddressQuery(q)
+	if u.RawQuery == "" {
+		return u.Path
+	}
+	return u.Path + "?" + u.RawQuery
 }
 
 // QueryValues is the request's query, for a handler building a filter

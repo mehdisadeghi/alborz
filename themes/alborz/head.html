@@ -38,6 +38,7 @@
     <meta name="htmx-config" content='{"allowEval":false,"historyCacheSize":0,"includeIndicatorStyles":false,"globalViewTransitions":false,"attributesToSettle":[],"defaultSettleDelay":0,"timeout":20000}'>
     <script defer src="{{call .GlobalData.Asset "htmx.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "helpers.js"}}"></script>
+    <script defer src="{{call .GlobalData.Asset "keys.js"}}"></script>
   </head>
   {{/* Every link and form still works without a script: boosting only
        asks for the same page over XHR and puts it in place, keeping the

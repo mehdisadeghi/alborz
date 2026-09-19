@@ -25,14 +25,14 @@
     {{/* Every section keeps the scope the URL carries: the account
          it names, or the merged view when it names none. */}}
     {{$q := account "?" .GlobalData.URLAccount}}
-    <a href="/mailbox/INBOX{{$q}}" data-section="mailbox"
+    <a href="/mailbox/INBOX{{$q}}" data-section="mailbox" data-go="m"
       {{ if eq $section "mailbox" }}
       class="active" aria-current="page"
       {{ end }}
     title="{{$.T "nav.email"}}" aria-label="{{$.T "nav.email"}}">{{ template "icon" "mail" }}<span class="label">{{$.T "nav.email"}}</span></a>
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/calendar{{$q}}" data-section="calendar"
+      href="/calendar{{$q}}" data-section="calendar" data-go="l"
       {{ if eq $page "calendar" }}
       class="active" aria-current="page"
       {{ end }}
@@ -40,7 +40,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "carddav" }}
     <a
-      href="/contacts{{$q}}" data-section="contacts"
+      href="/contacts{{$q}}" data-section="contacts" data-go="c"
       {{ if eq $page "contacts" }}
       class="active" aria-current="page"
       {{ end }}
@@ -48,7 +48,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/tasks{{$q}}" data-section="tasks"
+      href="/tasks{{$q}}" data-section="tasks" data-go="k"
       {{ if eq $page "tasks" }}
       class="active" aria-current="page"
       {{ end }}
@@ -56,7 +56,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "sieve" }}
     <a
-      href="/filters{{$q}}" data-section="filters"
+      href="/filters{{$q}}" data-section="filters" data-go="f"
       {{ if eq $page "filters" }}
       class="active" aria-current="page"
       {{ end }}
@@ -103,6 +103,23 @@
   <div class="notice notice-failed" id="request-failed" role="alert" hidden>
     <span class="notice-text">{{$.T "notice.noanswer"}}</span>
   </div>
+  {{/* What the keyboard does, opened by ? or from the account menu.
+       The keys every list has are written here; the ones this page's
+       own controls answer to are read off the page when it opens, in
+       the words the controls already carry. */}}
+  <dialog id="keys-help" class="keys-help" closedby="any" aria-labelledby="keys-help-title">
+    <h2 id="keys-help-title">{{$.T "keys.title"}}</h2>
+    <dl>
+      <dt><kbd>j</kbd> <kbd>k</kbd></dt><dd>{{$.T "keys.walk"}}</dd>
+      <dt><kbd>o</kbd></dt><dd>{{$.T "keys.open"}}</dd>
+      <dt><kbd>x</kbd></dt><dd>{{$.T "keys.select"}}</dd>
+      <dt><kbd>s</kbd></dt><dd>{{$.T "keys.star"}}</dd>
+      <dt><kbd>/</kbd></dt><dd>{{$.T "keys.search"}}</dd>
+      <dt><kbd>g</kbd>{{ range tuple "m" "l" "c" "k" "f" "s" }} <kbd data-go-key="{{.}}">{{.}}</kbd>{{ end }}</dt><dd>{{$.T "keys.go"}}</dd>
+      <dt><kbd>?</kbd></dt><dd>{{$.T "keys.title"}}</dd>
+    </dl>
+    <dl class="keys-page"></dl>
+  </dialog>
   {{/* Shown by the worker's word, not the radio's: it is what knows
        whether the page on screen came from the server or from what it
        saved. A saved page carries this too, hidden like any other. */}}
@@ -147,6 +164,9 @@
     <a href="{{$merged}}"{{ if $g.GlobalData.Unified }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
     {{ end }}
     <a href="/login?add=1">{{$g.T "nav.addaccount"}}</a>
+    {{/* The keys are found by pressing ?, which nobody does who has
+         not been told; this is where they are told. */}}
+    <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$g.T "keys.title"}}</button>
   </div>
   {{ if .drawer }}</details>{{ else }}</div>{{ end }}
   {{/* The language takes effect on the click, so it is a menu of

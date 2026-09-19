@@ -1,7 +1,6 @@
 package alborz
 
 import (
-	"net"
 	"net/netip"
 	"slices"
 	"strings"
@@ -52,19 +51,15 @@ func (v *Visit) signed() Signed {
 }
 
 // requestAddress is where a request came from, for the account holder
-// to recognise: the connection's own address, and nothing when that is
-// a loopback or private one, which is a proxy in front of alborz and
-// says nothing about the reader.
-func requestAddress(remote string) string {
-	host, _, err := net.SplitHostPort(remote)
-	if err != nil {
-		return ""
-	}
-	ip, err := netip.ParseAddr(host)
+// to recognise, and nothing when that is a loopback or private address:
+// a proxy in front of alborz that was not named as trusted, which says
+// nothing about the reader.
+func requestAddress(from string) string {
+	ip, err := netip.ParseAddr(from)
 	if err != nil || !publicAddr(ip) {
 		return ""
 	}
-	return host
+	return from
 }
 
 // SignedIn is every browser signed into the account: those in use now

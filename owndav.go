@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -157,10 +156,7 @@ func (s *Server) serveOwnDAV() echo.MiddlewareFunc {
 			}
 			username, password, ok := r.BasicAuth()
 			if ok {
-				// The connection's own address: a forwarded-for header is
-				// the client's to write, and would reset the pause at will.
-				source, _, _ := net.SplitHostPort(r.RemoteAddr)
-				err := s.authenticateDAV(username, password, source)
+				err := s.authenticateDAV(username, password, ectx.RealIP())
 				var upstream UpstreamError
 				if errors.As(err, &upstream) {
 					http.Error(w, err.Error(), http.StatusServiceUnavailable)

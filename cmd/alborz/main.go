@@ -159,6 +159,7 @@ func main() {
 		addr        string
 		profileAddr string
 		loginKey    string
+		proxies     string
 		options     alborz.Options
 	)
 	flag.StringVar(&options.Theme, "theme", alborz.AppName, "theme directory name")
@@ -168,6 +169,8 @@ func main() {
 	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
 	flag.BoolVar(&options.PrivateServices, "private-services", false,
 		"let an account name a calendar or contacts server on plain HTTP or a private address")
+	flag.StringVar(&proxies, "trusted-proxy", "",
+		"comma-separated addresses or CIDR ranges of the proxies in front of alborz, whose X-Forwarded-For names the reader; unset takes the connection's address")
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
 		"directory keeping the calendar and contacts cache between runs, sealed under the login key; empty keeps it in memory")
@@ -196,6 +199,22 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	flag.Parse()
 	if profileAddr != "" {
 		serveProfiles(profileAddr)
+	}
+
+	for _, p := range strings.FieldsFunc(proxies, func(r rune) bool { return r == ',' || r == ' ' }) {
+		if !strings.Contains(p, "/") {
+			if ip := net.ParseIP(p); ip != nil && ip.To4() != nil {
+				p += "/32"
+			} else {
+				p += "/128"
+			}
+		}
+		_, n, err := net.ParseCIDR(p)
+		if err != nil {
+			fmt.Fprintf(flag.CommandLine.Output(), "alborz: invalid -trusted-proxy %q: %v\n", p, err)
+			os.Exit(2)
+		}
+		options.TrustedProxies = append(options.TrustedProxies, n)
 	}
 
 	// The environment keeps the key out of the process list.

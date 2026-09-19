@@ -353,6 +353,10 @@ type ServersRenderData struct {
 	Services        alborz.Services
 	HasHTTPPassword bool
 	Error           string
+	// Places are where the account's new calendars and address books
+	// can go, filled in by the DAV plugins with their sources and Alborz
+	// (ADR 28); the account's default is one of them.
+	Places []Place
 }
 
 // The servers an account has, in the order the list shows them. A
@@ -392,6 +396,39 @@ func (c ServerCard) SourceText(t func(string) string) string {
 	}
 	return t(c.Source)
 }
+
+// Place is one place new collections can go: a source's id and what
+// the reader knows it by.
+type Place struct {
+	ID, Label string
+}
+
+// AddPlace offers a place once, however many plugins know it.
+func (d *ServersRenderData) AddPlace(id, label string) {
+	for _, p := range d.Places {
+		if p.ID == id {
+			return
+		}
+	}
+	d.Places = append(d.Places, Place{ID: id, Label: label})
+}
+
+// DefaultPlace is the one the page shows chosen: the account's, else
+// the first offered.
+func (d *ServersRenderData) DefaultPlace() string {
+	for _, p := range d.Places {
+		if p.ID == d.Services.Default {
+			return p.ID
+		}
+	}
+	if len(d.Places) > 0 {
+		return d.Places[0].ID
+	}
+	return ""
+}
+
+// placeIDs are the places an account's default can name (ADR 28).
+var placeIDs = []string{"domain", "host", "own", "here"}
 
 // ServerRow is one row of the list: a group of cards by its hosts.
 type ServerRow struct {
@@ -814,6 +851,9 @@ func handleServer(ctx *alborz.Context) error {
 		CalDAV:   strings.TrimSpace(ctx.FormValue("caldav_url")),
 		CardDAV:  strings.TrimSpace(ctx.FormValue("carddav_url")),
 		Username: strings.TrimSpace(ctx.FormValue("dav_username")),
+	}
+	if d := ctx.FormValue("dav_default"); slices.Contains(placeIDs, d) {
+		named.Default = d
 	}
 	for _, server := range []string{named.CalDAV, named.CardDAV} {
 		if server == "" {

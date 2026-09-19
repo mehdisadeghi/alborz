@@ -35,6 +35,16 @@
         {{ template "field" (dict "label" ($.T "settings.caldavurl") "name" "caldav_url" "type" "url" "value" .Services.CalDAV "dir" "ltr" "placeholder" ($.T "settings.serverdomain") "hint" ($.T "settings.serverhint")) }}
         {{ template "field" (dict "label" ($.T "settings.carddavurl") "name" "carddav_url" "type" "url" "value" .Services.CardDAV "dir" "ltr" "placeholder" ($.T "settings.serverdomain")) }}
         {{ template "field" (dict "label" ($.T "settings.davusername") "name" "dav_username" "value" .Services.Username "dir" "ltr" "placeholder" ($.T "settings.davusernamesame")) }}
+        {{ with .Places }}
+        {{/* Every source stands; this is only where a new calendar or
+             address book goes unless the form is told otherwise. */}}
+        <div class="action-group">
+          <label for="dav_default">{{$.T "settings.davdefault"}}</label>
+          <select name="dav_default" id="dav_default" dir="ltr">
+            {{ range . }}<option value="{{.ID}}"{{ if eq .ID $.DefaultPlace }} selected{{ end }}>{{.Label}}</option>{{ end }}
+          </select>
+        </div>
+        {{ end }}
         <div class="action-group">
           <label for="http_password">{{$.T "settings.davpassword"}}</label>
           <input type="password" name="http_password" id="http_password" autocomplete="off"

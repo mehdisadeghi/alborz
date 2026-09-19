@@ -1056,8 +1056,8 @@ func (p *plugin) collectionPage() dav.Page {
 		Forget: p.dav.Forget,
 		Show:   show,
 		Rail:   func(ctx *alborz.Context, _ string) (dav.Rail, error) { return p.bookRail(ctx) },
-		Create: func(ctx *alborz.Context, _, name string, here bool) (string, error) {
-			return p.dav.Create(ctx.Request().Context(), ctx.Session, name, dav.DefaultColor, here, nil)
+		Create: func(ctx *alborz.Context, _, name, place string) (string, error) {
+			return p.dav.Create(ctx.Request().Context(), ctx.Session, name, dav.DefaultColor, place, nil)
 		},
 		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
 			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)

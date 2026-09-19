@@ -88,15 +88,20 @@ type Listed[P CollectionProps] struct {
 // order, and a sidebar wants a stable one. Found and missing properties
 // come in separate propstats; the one naming the resource type carries
 // what was found.
-func ListCollections[P CollectionProps](ctx context.Context, client *http.Client, base *url.URL, homes []Home, propfind string) ([]Listed[P], error) {
+//
+// A home that does not answer is left out and returned as an error of
+// its own (ADR 28): the others stand.
+func ListCollections[P CollectionProps](ctx context.Context, client *http.Client, base *url.URL, homes []Home, propfind string) ([]Listed[P], []error) {
 	var responses []Response[P]
-	for _, home := range homes {
-		target := base.ResolveReference(&url.URL{Path: home.Path}).String()
-		ms, err := Propfind[P](ctx, client, target, propfind)
-		if err != nil {
-			return nil, err
+	var failed []error
+	for _, r := range Each(ctx, homes, func(ctx context.Context, home Home) (*MultiStatus[P], error) {
+		return Propfind[P](ctx, client, base.ResolveReference(&url.URL{Path: home.Path}).String(), propfind)
+	}) {
+		if r.Err != nil {
+			failed = append(failed, fmt.Errorf("%s: %w", r.Site.Path, r.Err))
+			continue
 		}
-		responses = append(responses, ms.Responses...)
+		responses = append(responses, r.Value.Responses...)
 	}
 	var out []Listed[P]
 	for _, resp := range responses {
@@ -133,7 +138,7 @@ func ListCollections[P CollectionProps](ctx context.Context, client *http.Client
 	sort.Slice(out, func(i, j int) bool {
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
-	return out, nil
+	return out, failed
 }
 
 // DefaultColor is what a new collection's colour field opens on, a
@@ -184,6 +189,19 @@ func SafeObjectName(uid string) string {
 // slow form, did not mean it.
 var ErrNameTaken = errors.New("a collection with that name is already there")
 
+// Source is the source the collection is on, which its path names
+// (ADR 28): the marker's, Alborz for one kept here, else the domain's.
+func (c Collection) Source() string {
+	if rest, ok := strings.CutPrefix(c.Path, "/@"); ok {
+		id, _, _ := strings.Cut(rest, "/")
+		return id
+	}
+	if strings.HasPrefix(c.Path, collections.Prefix+"/") {
+		return SourceHere
+	}
+	return SourceDomain
+}
+
 // At is the collection at path, or nil.
 func At(colls []Collection, path string) *Collection {
 	for i := range colls {
@@ -212,10 +230,11 @@ func Holding(colls []Collection, account, path string) *Collection {
 }
 
 // NameTaken says whether name is, but for case and edges, the display
-// name of a collection the account has.
-func NameTaken(name string, existing []Collection) bool {
+// name of a collection the account has on the place. The same name on
+// another place is how a move between servers looks while it lasts.
+func NameTaken(name, place string, existing []Collection) bool {
 	for _, c := range existing {
-		if strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(name)) {
+		if c.Source() == place && strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(name)) {
 			return true
 		}
 	}

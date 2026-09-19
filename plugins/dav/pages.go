@@ -71,10 +71,10 @@ type NewCollectionRenderData struct {
 	Rail        Rail
 	OffersHolds bool
 	Holds       string // "events", "tasks" or "both"
-	// Places are where the collection can go, and Here says the one
-	// chosen is kept here rather than on the account's server.
+	// Places are where the collection can go, and Place the one chosen:
+	// a source of the account's, or Alborz (ADR 28).
 	Places []Group
-	Here   bool
+	Place  string
 	Next   string // the list it was opened from
 	Error  string
 }
@@ -131,7 +131,7 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			Places:         p.Places(ctx),
 			Next:           ctx.FormValue("next"),
 		}
-		data.Account, data.Here = p.ReadPlace(ctx, data.Account)
+		data.Account, data.Place = p.ReadPlace(ctx, data.Account)
 		if ctx.Request().Method != http.MethodPost {
 			return ctx.Render(http.StatusOK, "create-collection.html", data)
 		}
@@ -150,11 +150,13 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 		if session == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
-		path, err := p.Create(ctx.Request().Context(), session, data.Name, data.Color, data.Here, held[data.Holds])
+		path, err := p.Create(ctx.Request().Context(), session, data.Name, data.Color, data.Place, held[data.Holds])
 		if err != nil {
 			data.Error = err.Error()
 			if errors.Is(err, ErrNameTaken) {
 				data.Error = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
+			} else if errors.Is(err, ErrPlaceDown) {
+				data.Error = ctx.T("form.placedown")
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
@@ -203,7 +205,7 @@ type Page struct {
 	// Create makes a collection of the kind for an import that asked for
 	// a new one: on the account's server, or here. list says which
 	// section's, a calendar or a task list.
-	Create func(ctx *alborz.Context, list, name string, here bool) (string, error)
+	Create func(ctx *alborz.Context, list, name, place string) (string, error)
 	Export func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error)
 	// Rail is the section's rail for the list the page returns to.
 	Rail func(ctx *alborz.Context, list string) (Rail, error)
@@ -473,7 +475,9 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 		target := collPath
 		if isNew {
 			var err error
-			if target, err = pg.createFree(ctx, list, collectionName(f), place == placeHere); err != nil {
+			if target, err = pg.createFree(ctx, list, collectionName(f), place); errors.Is(err, ErrPlaceDown) {
+				return errors.New(ctx.T("form.placedown"))
+			} else if err != nil {
 				return err
 			}
 			collections++
@@ -496,7 +500,7 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 // createFree makes a collection under the name, or under the first of
 // "name 2", "name 3" that is free: a service's export may hold two of
 // the same name, and a name already here is not a reason to stop.
-func (pg Page) createFree(ctx *alborz.Context, list, name string, here bool) (string, error) {
+func (pg Page) createFree(ctx *alborz.Context, list, name, place string) (string, error) {
 	if name == "" {
 		name = ctx.T("import.untitled")
 	}
@@ -505,7 +509,7 @@ func (pg Page) createFree(ctx *alborz.Context, list, name string, here bool) (st
 		if i > 1 {
 			try = fmt.Sprintf("%s %d", name, i)
 		}
-		p, err := pg.Create(ctx, list, try, here)
+		p, err := pg.Create(ctx, list, try, place)
 		if !errors.Is(err, ErrNameTaken) || i == maxCreateAttempts {
 			return p, err
 		}

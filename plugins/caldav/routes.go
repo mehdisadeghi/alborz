@@ -46,14 +46,14 @@ func (p *plugin) collectionPage() dav.Page {
 			}
 			return importObjects(ctx.Request().Context(), c, path, raw)
 		},
-		Create: func(ctx *alborz.Context, list, name string, here bool) (string, error) {
+		Create: func(ctx *alborz.Context, list, name, place string) (string, error) {
 			// A task list takes tasks; a calendar brought in whole keeps
 			// what it held, events and tasks both.
 			components := []string{"VEVENT", "VTODO"}
 			if list == "/tasks" {
 				components = []string{"VTODO"}
 			}
-			return p.dav.Create(ctx.Request().Context(), ctx.Session, name, dav.DefaultColor, here, components)
+			return p.dav.Create(ctx.Request().Context(), ctx.Session, name, dav.DefaultColor, place, components)
 		},
 		Export: func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error) {
 			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)

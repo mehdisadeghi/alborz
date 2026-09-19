@@ -51,7 +51,16 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 			answered[username] = code
 			return
 		}
-		down = append(down, username)
+		if !slices.Contains(down, username) {
+			down = append(down, username)
+		}
+	}
+	// A refusal stands until the reader changes something, so it is
+	// said once to a browser, not on every page of the section.
+	refuse := func(username string) {
+		if ctx.Visit().Once("davrefused:" + p.kind.Name + ":" + username) {
+			refused = append(refused, username)
+		}
 	}
 	var sessions []*alborz.Session
 	for _, s := range ctx.Sessions() {
@@ -73,6 +82,14 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 		if errors.Is(err, none) {
 			continue
 		}
+		// A refused password is an answer the reader can act on, not a
+		// failed page: the account keeps its place, empty, and is told.
+		var no *RefusedError
+		if errors.As(err, &no) {
+			accounts = append(accounts, Account[C]{Name: s.Username(), Session: s, Client: c})
+			refuse(s.Username())
+			continue
+		}
 		if err != nil {
 			lastErr = err
 			fail(s.Username(), err)
@@ -84,15 +101,12 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 			owned[i].Account = s.Username()
 		}
 		accounts = append(accounts, Account[C]{Name: s.Username(), Session: s, Client: c, Collections: owned})
-		var no *RefusedError
-		// A refusal stands until the reader changes something, so it is
-		// said once to a browser, not on every page of the section.
-		if trouble := p.Trouble(s.Username()); errors.As(trouble, &no) {
-			if ctx.Visit().Once("davrefused:" + p.kind.Name + ":" + s.Username()) {
-				refused = append(refused, s.Username())
+		for _, trouble := range p.Troubles(s.Username()) {
+			if errors.As(trouble, &no) {
+				refuse(s.Username())
+			} else {
+				fail(s.Username(), trouble)
 			}
-		} else if trouble != nil {
-			fail(s.Username(), trouble)
 		}
 	}
 	if len(accounts) == 0 {

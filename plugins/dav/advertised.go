@@ -17,8 +17,6 @@ import (
 // oddly is looking at somebody else's deployment, and the first thing
 // worth knowing is which one and what it claims to do.
 type Advertised struct {
-	// Host is the server alborz talks to for this account.
-	Host string
 	// Software is the Server header, which is the server's own claim
 	// and often absent.
 	Software string
@@ -46,7 +44,7 @@ func (a Advertised) Has(class string) bool {
 // the principal and the home come from the caller, which has already
 // found them to list the collections.
 func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertised, error) {
-	a := Advertised{Host: base.Host}
+	var a Advertised
 	req, err := http.NewRequestWithContext(ctx, http.MethodOptions, base.String(), nil)
 	if err != nil {
 		return a, err
@@ -66,66 +64,51 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 	return a, nil
 }
 
-// Origin is where the session's server is and how alborz came to it: the
-// one the account names, or the one for its domain. Empty when it has
-// none and keeps its collections here only.
-// record is the SRV record the domain's server was found at, empty
-// where the deployment named it or the account names its own.
-func (p *Provider) Origin(session *alborz.Session) (host, source, record string) {
-	if services, err := session.Services(); err == nil && p.kind.Own(services) != "" {
-		if u, ok := p.Remote(session); ok {
-			return u.Host, "servers.fromaccount", ""
-		}
-	}
-	if u, ok := p.Remote(session); ok {
-		_, domain, _ := strings.Cut(session.Username(), "@")
-		if record := p.found[domain]; strings.HasPrefix(record, "https://") {
-			return u.Host, "servers.frommailhost", record
-		} else if record != "" {
-			return u.Host, "servers.fromsrv", record
-		}
-		return u.Host, "servers.fromconfig", ""
-	}
-	return "", "", ""
-}
-
-// InjectCard puts the kind's server among the account's servers. The
-// list needs only where it is; the server's own page asks it what it
-// claims, which is one OPTIONS every DAV server answers anyway.
+// InjectCard puts each of the kind's sources among the account's
+// servers. The list needs only where each is; the server's own page
+// asks each what it claims, which is one OPTIONS every DAV server
+// answers anyway.
 func (p *Provider) InjectCard(title string, abilities func(Advertised) []alborzbase.Ability) alborz.InjectFunc {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
 		servers, ok := data.(*alborzbase.ServersRenderData)
 		if !ok || ctx.Session == nil {
 			return nil
 		}
-		host, source, record := p.Origin(ctx.Session)
-		if host == "" {
-			return nil
+		for _, src := range p.Sources(ctx.Session) {
+			servers.Cards = append(servers.Cards, p.card(ctx, servers, title, src, abilities))
+			servers.AddPlace(src.ID, src.URL.Host)
 		}
-		card := alborzbase.ServerCard{Group: alborzbase.ServerDAV, Title: ctx.T(title), Host: host, Source: source, Record: record}
-		if servers.Showing == alborzbase.ServerDAV {
-			remote, _ := p.Remote(ctx.Session)
-			found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Session), remote)
-			// A server that did not answer is worth saying so about; the
-			// page is not the place to fail over it.
-			if err != nil {
-				card.Rows = []map[string]any{
-					{"label": ctx.T("settings.serverhost"), "value": host},
-					{"label": ctx.T("settings.serverunreachable"), "value": err.Error()},
-				}
-			} else {
-				card.Rows = []map[string]any{
-					{"label": ctx.T("settings.serverhost"), "value": host},
-					{"label": ctx.T("settings.serversource"), "value": card.SourceText(ctx.T)},
-					{"label": ctx.T("settings.serversoftware"), "value": found.Software},
-					{"label": ctx.T("settings.davcompliance"), "value": strings.Join(found.Compliance, ", ")},
-				}
-				card.Abilities = abilities(found)
-			}
+		if p.here != nil {
+			servers.AddPlace(SourceHere, originHost(ctx))
 		}
-		servers.Cards = append(servers.Cards, card)
 		return nil
 	}
+}
+
+func (p *Provider) card(ctx *alborz.Context, servers *alborzbase.ServersRenderData, title string, src Source, abilities func(Advertised) []alborzbase.Ability) alborzbase.ServerCard {
+	host := src.URL.Host
+	card := alborzbase.ServerCard{Group: alborzbase.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
+	if servers.Showing == alborzbase.ServerDAV {
+		endpoint, _ := url.Parse(src.Endpoint())
+		found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Session), endpoint)
+		// A server that did not answer is worth saying so about; the
+		// page is not the place to fail over it.
+		if err != nil {
+			card.Rows = []map[string]any{
+				{"label": ctx.T("settings.serverhost"), "value": host},
+				{"label": ctx.T("settings.serverunreachable"), "value": err.Error()},
+			}
+		} else {
+			card.Rows = []map[string]any{
+				{"label": ctx.T("settings.serverhost"), "value": host},
+				{"label": ctx.T("settings.serversource"), "value": card.SourceText(ctx.T)},
+				{"label": ctx.T("settings.serversoftware"), "value": found.Software},
+				{"label": ctx.T("settings.davcompliance"), "value": strings.Join(found.Compliance, ", ")},
+			}
+			card.Abilities = abilities(found)
+		}
+	}
+	return card
 }
 
 // InjectHere puts the collections kept here among the account's

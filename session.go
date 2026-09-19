@@ -450,6 +450,14 @@ func (s *Session) SetHTTPBasicAuth(req *http.Request) error {
 	return nil
 }
 
+// SetMailBasicAuth signs a request with the mail login itself, for a
+// DAV server on the mail host (ADR 28), which knows the account by the
+// mail server's own name and password rather than the ones the account
+// gave for a server of its choosing.
+func (s *Session) SetMailBasicAuth(req *http.Request) {
+	req.SetBasicAuth(s.username, s.password)
+}
+
 // Close destroys the session. This can be used to log the user out.
 func (s *Session) Close() {
 	select {

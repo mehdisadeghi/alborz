@@ -579,6 +579,12 @@ func authorBehindList(h textproto.Header, from *imap.Address, listID string) *im
 	return nil
 }
 
+// HeaderField is one field of the whole message's header, decoded, for
+// a plugin that answers a message by what its header says.
+func (msg *IMAPMessage) HeaderField(key string) string {
+	return decodedField(msg.rootHeader, key)
+}
+
 // setListHeaders records the mailing-list addresses a message carries.
 // List-Post: NO means the list refuses posts, which is not an address.
 func (msg *IMAPMessage) setListHeaders(h textproto.Header) {

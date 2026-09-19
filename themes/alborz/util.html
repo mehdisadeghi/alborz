@@ -875,7 +875,8 @@
          or someone else's, shared. The words are the mark's title and
          what a screen reader hears. */}}
     {{ if or $i.Address $i.Public }}{{ $what := $.g.T "share.marksubscribed" }}{{ if $i.Public }}{{ $what = $.g.T "share.markpublic" }}{{ end }}<span class="rail-mark" title="{{$what}}" aria-label="{{$what}}">{{ template "icon" "broadcast" }}</span>
-    {{ else if $i.SharedBy }}{{ $who := printf ($.g.T "share.marksharedby") $i.SharedBy }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>{{ end }}
+    {{ else if $i.SharedBy }}{{ $who := printf "%s · %s" (printf ($.g.T "share.marksharedby") $i.SharedBy) ($.g.T (or (and $i.Writable "share.canedit") "share.canview")) }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>
+    {{ else if $i.SharedWith }}{{ $who := $.g.GlobalData.Tf "share.marksharedwith" $i.SharedWith }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>{{ end }}
   </a>
   {{/* The collection's own page, where it is renamed and deleted, and
        the tick that says whether it is in the merged view: the two
@@ -894,6 +895,31 @@
      editlabel next. "keep" is what the "only" link carries so that
      looking at one collection does not also change which view you are
      in. */}}
+{{/* A share as its invitee sees it, in the shape of a meeting
+     invitation: what, from whom, on what terms, and the answer or the
+     two ways to give one. The collection's page and the mail that
+     announced it show the same card. dict: g offer. */}}
+{{ define "share-offer" }}{{ $g := .g }}{{ with .offer }}
+<div class="detail-card invitation">
+  <h2>{{$g.T "invite.title"}}</h2>
+  <dl>
+    <dt>{{$g.T .Kind}}</dt><dd dir="auto">{{.Name}}</dd>
+    <dt>{{$g.T "share.from"}}</dt><dd>{{ template "ltr" .From }}</dd>
+    <dt>{{$g.T "share.access"}}</dt><dd>{{$g.T (or (and .Write "share.canedit") "share.canview")}}</dd>
+    {{ if not .Expires.IsZero }}<dt>{{$g.T "share.lastday"}}</dt><dd>{{ $g.GlobalData.ShortDate (.Expires.AddDate 0 0 -1) }}</dd>{{ end }}
+    {{ if not .Offered.IsZero }}<dt>{{$g.T "share.offered"}}</dt><dd>{{ template "date-full" (dict "g" $g.Global "time" .Offered) }}</dd>{{ end }}
+    {{ if and (ne .State "pending") (not .Answered.IsZero) }}<dt>{{$g.T (printf "share.answered%s" .State)}}</dt><dd>{{ template "date-full" (dict "g" $g.Global "time" .Answered) }}</dd>{{ end }}
+  </dl>
+  {{ if ne .State "accepted" }}
+  <form method="post" class="invitation-actions">
+    <input type="hidden" name="next" value="{{.Next}}">
+    <button formaction="{{.Accept}}" class="button-primary"{{ if eq .Answer "accept" }} autofocus{{ end }}>{{$g.T "share.accept"}}</button>
+    {{ if eq .State "pending" }}<button formaction="{{.Decline}}" class="button-danger"{{ if eq .Answer "decline" }} autofocus{{ end }}>{{$g.T "share.decline"}}</button>{{ end }}
+  </form>
+  {{ end }}
+</div>
+{{ end }}{{ end }}
+
 {{ define "rail-dav-account" }}
 {{ $d := .data }}
 <form method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter">
@@ -998,7 +1024,7 @@
           {{ range $inv.Items }}
           {{ $item := . }}
           <li class="rail-invitation">
-            <span dir="auto">{{.Name}}</span>
+            <a href="{{$inv.Base}}{{$item.Path | pathescape}}{{ account "?" $item.Account }}" dir="auto">{{.Name}}</a>
             <span class="hint">{{ template "ltr" .From }}</span>
             <span class="rail-invitation-answer">
               {{ range tuple (tuple "accept" "share.accept" "") (tuple "decline" "share.decline" "button-quiet") }}

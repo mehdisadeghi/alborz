@@ -205,7 +205,9 @@ type OutgoingMessage struct {
 	MessageID string
 	// Mailer names the software that wrote the message, for the
 	// conventional User-Agent header; empty leaves the header out.
-	Mailer    string
+	Mailer string
+	// Headers are set as they are, for what only a plugin knows to say.
+	Headers   map[string]string
 	InReplyTo string
 	// References is the thread this message belongs to, oldest first
 	// (RFC 5322 3.6.4). Gmail and Thunderbird thread on it before
@@ -346,6 +348,9 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 		h.Set("Content-Language", msg.Language)
 	}
 
+	for k, v := range msg.Headers {
+		h.Set(k, v)
+	}
 	if msg.Mailer != "" {
 		h.Set("User-Agent", msg.Mailer)
 	}

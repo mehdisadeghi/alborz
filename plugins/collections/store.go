@@ -103,6 +103,8 @@ type Share struct {
 	// after: the owner sees which, rather than the share vanishing.
 	Declined bool `json:",omitempty"`
 	Left     bool `json:",omitempty"`
+	// Answered is when the invitee last said yes or no.
+	Answered time.Time `json:",omitzero"`
 }
 
 func (s Share) Ref() Ref { return Ref{Owner: s.Owner, ID: s.Collection} }
@@ -551,6 +553,7 @@ func (s *Store) Answer(ref Ref, to string, yes bool) error {
 		if err != nil {
 			return err
 		}
+		sh.Answered = time.Now().UTC()
 		switch {
 		case yes:
 			sh.Accepted, sh.Declined, sh.Left = true, false, false

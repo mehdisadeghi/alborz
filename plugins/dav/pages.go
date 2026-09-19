@@ -47,6 +47,10 @@ type CollectionRenderData struct {
 	SharedBy string
 	Writable bool
 	Sharing  *Sharing
+	// Offer is the share this account holds of the collection, as its
+	// invitee: the whole page while it is unanswered, and a line of
+	// terms once it is accepted.
+	Offer *Offer
 }
 
 // NewCollectionRenderData renders create-collection.html. Only a
@@ -209,10 +213,28 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 			return err
 		}
 		collPath = CanonicalCollectionPath(collPath)
+		offer, err := pg.offer(ctx, p, collPath, ctx.Session.Username())
+		if err != nil {
+			return err
+		}
+		// An invitation not taken up is not yet a collection the account
+		// has: its page is the invitation.
+		if offer != nil && offer.State != "accepted" {
+			rail, err := pg.Rail(ctx, pg.List)
+			if err != nil {
+				return err
+			}
+			return ctx.Render(http.StatusOK, "collection.html", &CollectionRenderData{
+				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(offer.Name),
+				Rail:           rail, Name: offer.Name, Base: pg.Base, ListHref: pg.List,
+				Account: ctx.Session.Username(), Offer: offer,
+			})
+		}
 		data, err := pg.data(ctx, p, collPath)
 		if err != nil {
 			return err
 		}
+		data.Offer = offer
 		list := data.ListHref
 
 		if ctx.Request().Method == http.MethodPost {

@@ -377,12 +377,20 @@ type ServerCard struct {
 	Group string
 	Title string
 	// Host is where the server is, empty for the collections kept here;
-	// Source is how alborz came to it, a translation key, empty when
-	// the deployment set it.
-	Host, Source string
-	Rows         []map[string]any
-	Abilities    []Ability
-	Explained    []alborz.Explained
+	// Source is how alborz came to it, a translation key, and Record
+	// the SRV record it names where the server was found by one.
+	Host, Source, Record string
+	Rows                 []map[string]any
+	Abilities            []Ability
+	Explained            []alborz.Explained
+}
+
+// SourceText says how alborz came to the server, in words.
+func (c ServerCard) SourceText(t func(string) string) string {
+	if c.Record != "" {
+		return fmt.Sprintf(t(c.Source), c.Record)
+	}
+	return t(c.Source)
 }
 
 // ServerRow is one row of the list: a group of cards by its hosts.
@@ -406,7 +414,7 @@ func (d *ServersRenderData) Rows() []ServerRow {
 				hosts = append(hosts, c.Host)
 			}
 			if row.Source == "" && c.Source != "" {
-				row.Source = d.T(c.Source)
+				row.Source = c.SourceText(d.T)
 			}
 		}
 		if !found {
@@ -712,12 +720,23 @@ func handleForget(ctx *alborz.Context) error {
 func mailCards(ctx *alborz.Context, showing string) ([]ServerCard, error) {
 	_, domain, _ := strings.Cut(ctx.Session.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
+	// Where each came from: an SRV record, or the deployment naming it.
+	source := func(record string) (string, string) {
+		if record != "" {
+			return "servers.fromsrv", record
+		}
+		return "servers.fromconfig", ""
+	}
+	card := func(group, title, host, record string) ServerCard {
+		src, rec := source(record)
+		return ServerCard{Group: group, Title: ctx.T(title), Host: host, Source: src, Record: rec}
+	}
 	cards := []ServerCard{
-		{Group: ServerMail, Title: ctx.T("servers.mail"), Host: up.IMAP},
-		{Group: ServerSending, Title: ctx.T("servers.sending"), Host: up.SMTP},
+		card(ServerMail, "servers.mail", up.IMAP, up.IMAPFound),
+		card(ServerSending, "servers.sending", up.SMTP, up.SMTPFound),
 	}
 	if up.Sieve != "" {
-		cards = append(cards, ServerCard{Group: ServerFilters, Title: ctx.T("servers.filters"), Host: up.Sieve})
+		cards = append(cards, card(ServerFilters, "servers.filters", up.Sieve, up.SieveFound))
 	}
 	if showing != ServerMail {
 		return cards, nil
@@ -739,6 +758,8 @@ func mailCards(ctx *alborz.Context, showing string) ([]ServerCard, error) {
 	info := serverInfo(ctx, agent, abilityList)
 	cards[0].Rows = []map[string]any{
 		{"label": ctx.T("settings.serverhost"), "value": info.IMAP},
+		{"label": ctx.T("settings.serversource"), "value": cards[0].SourceText(ctx.T)},
+		{"label": ctx.T("settings.serverconnection"), "value": ctx.T("settings.conn" + up.IMAPSecurity)},
 		{"label": ctx.T("settings.serversoftware"), "value": info.Agent},
 	}
 	cards[0].Abilities, cards[0].Explained = info.Abilities, info.Explained

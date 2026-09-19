@@ -50,7 +50,7 @@ func (s *Server) parseSieveUpstream(domain string) error {
 		return fmt.Errorf("domain %q: %v", domain, err)
 	}
 	if u.Scheme == "" {
-		u, err = discoverSieve(u.Host)
+		u, d.sieve.found, err = discoverSieve(u.Host)
 		if err != nil {
 			s.e.Logger.Printf("Domain %q: failed to discover ManageSieve server: %v", domain, err)
 			return nil
@@ -81,6 +81,23 @@ type Upstreams struct {
 	IMAP  string
 	SMTP  string
 	Sieve string
+	// Found are the SRV records each was found at, empty where the
+	// deployment named it; Security is how each is reached: tls,
+	// starttls or none.
+	IMAPFound, SMTPFound, SieveFound          string
+	IMAPSecurity, SMTPSecurity, SieveSecurity string
+}
+
+// security names how a connection is protected: TLS from the first
+// byte, TLS after STARTTLS, or nothing.
+func security(tls, insecure bool) string {
+	switch {
+	case tls:
+		return "tls"
+	case insecure:
+		return "none"
+	}
+	return "starttls"
 }
 
 // UpstreamsFor names the servers configured for a domain. Any of them
@@ -90,7 +107,12 @@ func (s *Server) UpstreamsFor(domain string) Upstreams {
 	if !ok {
 		return Upstreams{}
 	}
-	return Upstreams{IMAP: d.imap.host, SMTP: d.smtp.host, Sieve: d.sieve.host}
+	return Upstreams{
+		IMAP: d.imap.host, SMTP: d.smtp.host, Sieve: d.sieve.host,
+		IMAPFound: d.imap.found, SMTPFound: d.smtp.found, SieveFound: d.sieve.found,
+		IMAPSecurity: security(d.imap.tls, d.imap.insecure), SMTPSecurity: security(d.smtp.tls, d.smtp.insecure),
+		SieveSecurity: security(false, d.sieve.insecure),
+	}
 }
 
 // SieveHost names the ManageSieve server a domain's filters live on,

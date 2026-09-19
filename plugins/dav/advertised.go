@@ -69,16 +69,22 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 // Origin is where the session's server is and how alborz came to it: the
 // one the account names, or the one for its domain. Empty when it has
 // none and keeps its collections here only.
-func (p *Provider) Origin(session *alborz.Session) (host, source string) {
+// record is the SRV record the domain's server was found at, empty
+// where the deployment named it or the account names its own.
+func (p *Provider) Origin(session *alborz.Session) (host, source, record string) {
 	if services, err := session.Services(); err == nil && p.kind.Own(services) != "" {
 		if u, ok := p.Remote(session); ok {
-			return u.Host, "servers.fromaccount"
+			return u.Host, "servers.fromaccount", ""
 		}
 	}
 	if u, ok := p.Remote(session); ok {
-		return u.Host, "servers.fromdomain"
+		_, domain, _ := strings.Cut(session.Username(), "@")
+		if record := p.found[domain]; record != "" {
+			return u.Host, "servers.fromsrv", record
+		}
+		return u.Host, "servers.fromconfig", ""
 	}
-	return "", ""
+	return "", "", ""
 }
 
 // InjectCard puts the kind's server among the account's servers. The
@@ -90,11 +96,11 @@ func (p *Provider) InjectCard(title string, abilities func(Advertised) []alborzb
 		if !ok || ctx.Session == nil {
 			return nil
 		}
-		host, source := p.Origin(ctx.Session)
+		host, source, record := p.Origin(ctx.Session)
 		if host == "" {
 			return nil
 		}
-		card := alborzbase.ServerCard{Group: alborzbase.ServerDAV, Title: ctx.T(title), Host: host, Source: source}
+		card := alborzbase.ServerCard{Group: alborzbase.ServerDAV, Title: ctx.T(title), Host: host, Source: source, Record: record}
 		if servers.Showing == alborzbase.ServerDAV {
 			remote, _ := p.Remote(ctx.Session)
 			found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Session), remote)
@@ -108,6 +114,7 @@ func (p *Provider) InjectCard(title string, abilities func(Advertised) []alborzb
 			} else {
 				card.Rows = []map[string]any{
 					{"label": ctx.T("settings.serverhost"), "value": host},
+					{"label": ctx.T("settings.serversource"), "value": card.SourceText(ctx.T)},
 					{"label": ctx.T("settings.serversoftware"), "value": found.Software},
 					{"label": ctx.T("settings.davcompliance"), "value": strings.Join(found.Compliance, ", ")},
 				}

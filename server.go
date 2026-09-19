@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"git.mehdix.org/alborz/plugins/collections"
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -102,6 +103,12 @@ type Server struct {
 	// what its reader is owed.
 	Visits *Visits
 
+	// Collections are the calendars, task lists and address books kept
+	// here rather than on a DAV server elsewhere; nil without a data
+	// directory to keep them in.
+	Collections  *collections.Store
+	davPasswords *davPasswords
+
 	// loginFailures records, per username, when an automatic sign-in
 	// last failed, so the next request does not try again at once.
 	loginFailures sync.Map
@@ -170,6 +177,13 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	// place to put it and the key that seals the record. Without either
 	// a visit lasts as long as the process, which is what a session
 	// always did.
+	if options.DataDir != "" {
+		store, err := collections.Open(options.DataDir)
+		if err != nil {
+			return nil, err
+		}
+		s.Collections, s.davPasswords = store, newDAVPasswords()
+	}
 	if options.DataDir != "" && options.LoginKey != nil {
 		// Absolute, so every message about it names a path somebody can
 		// go and look at rather than one relative to a working
@@ -289,6 +303,9 @@ func (err UnknownDomainError) Error() string {
 
 func (s *Server) Close() {
 	s.Sessions.Close()
+	if s.Collections != nil {
+		s.Collections.Close()
+	}
 	for _, p := range s.plugins {
 		if err := p.Close(); err != nil {
 			s.e.Logger.Printf("Failed to close plugin %q: %v", p.Name(), err)
@@ -830,6 +847,10 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			return err
 		}
 	})
+
+	if s.Collections != nil {
+		e.Pre(s.serveOwnDAV())
+	}
 
 	// HTML and stylesheets shrink several-fold over slow links; binary
 	// assets and raw message parts are left alone, and so is the event

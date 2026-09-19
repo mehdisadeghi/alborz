@@ -802,11 +802,13 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 			card.SetValue(vcard.FieldUID, id.URN())
 		}
 
-		at := path.Join(to.Path, id.String()+".vcf")
+		held, etag := "", ""
 		if !creating {
-			at = ao.Path
+			held, etag = ao.Path, ao.ETag
 		}
-		ao, err = to.Client.PutAddressObject(ctx.Request().Context(), at, card)
+		at, ifMatch, ifNoneMatch := dav.Target(to.Path, id.String()+".vcf", held, etag)
+		ao, err = to.Client.PutAddressObject(ctx.Request().Context(), at, card,
+			&carddav.PutAddressObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
@@ -982,7 +984,7 @@ func (p *plugin) putCard(ctx *alborz.Context, c *carddav.Client, at string, card
 
 func writeCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Card) error {
 	card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
-	_, err := c.PutAddressObject(ctx.Request().Context(), at, card)
+	_, err := c.PutAddressObject(ctx.Request().Context(), at, card, nil)
 	return err
 }
 
@@ -1159,12 +1161,12 @@ func importBook(ctx context.Context, client *carddav.Client, bookPath string, ra
 			card.SetValue(vcard.FieldUID, uid)
 		}
 		target := path.Join(bookPath, dav.SafeObjectName(uid)+".vcf")
-		if _, err := client.PutAddressObject(ctx, target, card); err != nil {
+		if _, err := client.PutAddressObject(ctx, target, card, nil); err != nil {
 			existing := cardPathByUID(ctx, client, bookPath, uid)
 			if existing == "" {
 				return n, fmt.Errorf("failed to write %s: %v", uid, err)
 			}
-			if _, err := client.PutAddressObject(ctx, existing, card); err != nil {
+			if _, err := client.PutAddressObject(ctx, existing, card, nil); err != nil {
 				return n, fmt.Errorf("failed to write %s: %v", uid, err)
 			}
 		}

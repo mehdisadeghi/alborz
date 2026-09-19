@@ -230,7 +230,7 @@ func (p *plugin) registerScheduling() {
 		}
 		ensureTimezones(cal, time.Now())
 		co, err := client.PutCalendarObject(ctx.Request().Context(),
-			path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), cal)
+			path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), cal, nil)
 		if err != nil {
 			ctx.Notify(dav.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
@@ -352,14 +352,14 @@ func importObjects(ctx context.Context, client *caldav.Client, calendarPath stri
 		}
 		for uid, obj := range objectsByUID(cal) {
 			target := path.Join(calendarPath, dav.SafeObjectName(uid)+".ics")
-			if _, err := client.PutCalendarObject(ctx, target, obj); err != nil {
+			if _, err := client.PutCalendarObject(ctx, target, obj, nil); err != nil {
 				// A server that refuses a UID it holds under another
 				// path names the object; find it and write there.
 				existing := objectPathByUID(ctx, client, calendarPath, uid)
 				if existing == "" {
 					return n, fmt.Errorf("failed to write %s: %v", uid, err)
 				}
-				if _, err := client.PutCalendarObject(ctx, existing, obj); err != nil {
+				if _, err := client.PutCalendarObject(ctx, existing, obj, nil); err != nil {
 					return n, fmt.Errorf("failed to write %s: %v", uid, err)
 				}
 			}

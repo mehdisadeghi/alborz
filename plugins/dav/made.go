@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"path"
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"github.com/emersion/go-webdav"
 )
 
 // Made ends a create: the reader lands on the list the new thing now
@@ -60,4 +62,15 @@ func Destination[C any](ctx *alborz.Context, value string, open func(context.Con
 		return Ref[C]{}, ErrNoDestination
 	}
 	return Ref[C]{c, account, path}, nil
+}
+
+// Target is where a form's object is written and on what condition: a
+// new one at a name of its own in the collection, and only while
+// nothing is there; a held one where it is, and only while it is the
+// object that was read.
+func Target(collection, name, held, etag string) (at string, ifMatch, ifNoneMatch webdav.ConditionalMatch) {
+	if held == "" {
+		return path.Join(collection, name), "", IfNew
+	}
+	return held, IfUnchanged(etag), ""
 }

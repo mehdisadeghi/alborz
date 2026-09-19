@@ -63,7 +63,7 @@
     <div>
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" false) }}
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" true) }}
-      <a href="/settings">{{$.T "nav.settings"}}</a>
+      <a href="/settings"{{ if or (eq $page "settings") (eq $page "signatures") }} class="active" aria-current="page"{{ end }}>{{$.T "nav.settings"}}</a>
     </div>
     {{/* Last in the row, and in the row itself rather than in the group
          that folds into the drawer: it is one icon, it is wanted at any

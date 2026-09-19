@@ -1,5 +1,11 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
+// A block of its own, as editor.js has: a boosted visit runs the script
+// again in the page it was first run in, and a const declared twice at
+// the top of two runs is a SyntaxError that stops the whole of the
+// second - the compose page then stayed in its no-script layout every
+// time but the first.
+{
 const textarea = document.querySelector("textarea.body");
 if (window.location.pathname.endsWith("/reply")) {
 	// Auto-focus body and scroll to bottom
@@ -47,6 +53,12 @@ window.addEventListener("dragover", dragNOP);
 
 window.addEventListener("drop", ev => {
 	ev.preventDefault();
+	// The window outlives the page: a listener from an earlier visit is
+	// still here, holding a form that is gone, and would upload the
+	// dropped file a second time for nobody.
+	if (!composeForm.isConnected) {
+		return;
+	}
 	const files = ev.dataTransfer.files;
 	for (let i = 0; i < files.length; i++) {
 		attachFile(files[i]);
@@ -207,6 +219,7 @@ function formatSI(num) {
     return signPrefix + sig.toFixed(0) + PREFIXES[exponent];
   }
   return signPrefix + parseFloat(sig.toPrecision(3)) + PREFIXES[exponent];
+}
 }
 
 // @license-end

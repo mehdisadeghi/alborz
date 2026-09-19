@@ -59,9 +59,20 @@ func refuseLocal(network, address string, _ syscall.RawConn) error {
 	if err != nil {
 		return err
 	}
-	ip = ip.Unmap()
-	if !ip.IsGlobalUnicast() || ip.IsPrivate() {
+	if !publicAddr(ip) {
 		return fmt.Errorf("refusing to connect to %s: not a public address", host)
 	}
 	return nil
+}
+
+// sharedAddressSpace is a carrier's NAT (RFC 6598): as private as the
+// ranges of RFC 1918, which are all netip's IsPrivate knows.
+var sharedAddressSpace = netip.MustParsePrefix("100.64.0.0/10")
+
+// publicAddr says whether an address is a machine out on the internet
+// rather than one of ours: not loopback, link-local, unspecified,
+// private or behind a carrier's NAT.
+func publicAddr(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !sharedAddressSpace.Contains(ip)
 }

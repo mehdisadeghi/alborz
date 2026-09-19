@@ -27,6 +27,9 @@ type Kind struct {
 	Poll time.Duration
 	// Discover finds the service's URL for a domain by its SRV record.
 	Discover func(ctx context.Context, domain string) (string, error)
+	// Own is the server an account names for itself, empty when it
+	// names none.
+	Own func(alborz.Services) string
 	// FindHome is the home set behind the account's server. Principal
 	// and home set are two round trips, asked through the kind's own
 	// go-webdav client: the two share no interface to ask through.
@@ -68,12 +71,12 @@ type Provider struct {
 	debug echo.Logger
 }
 
-// NewProvider resolves the service for every served domain. Nil without
-// an error means no domain has it, and the plugin has nothing to serve.
-// The URL of each domain's server is found by DNS alone, so startup
-// never waits on a DAV host; asking whether it answers is a probe run
-// in the background, and a request surfaces an unreachable one until
-// it does.
+// NewProvider resolves the service for every served domain. A domain
+// without one still has accounts that may name their own, so the
+// provider stands either way and Enabled answers per request. The URL
+// of each domain's server is found by DNS alone, so startup never waits
+// on a DAV host; asking whether it answers is a probe run in the
+// background, and a request surfaces an unreachable one until it does.
 func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	urls := make(map[string]*url.URL)
 	for _, domain := range srv.Domains() {
@@ -84,9 +87,6 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 		if u != nil {
 			urls[domain] = u
 		}
-	}
-	if len(urls) == 0 {
-		return nil, nil
 	}
 	var store *davcache.Store
 	if srv.Options.CacheDir != "" && srv.Options.LoginKey != nil {
@@ -193,9 +193,16 @@ func (p *Provider) Create(ctx context.Context, session *alborz.Session, name, co
 	return path, nil
 }
 
-// URL resolves the session's endpoint, falling back to the unnamed
-// provider's.
+// URL resolves the session's endpoint: the one the account names for
+// itself, then its domain's, then the unnamed provider's.
 func (p *Provider) URL(session *alborz.Session) (*url.URL, bool) {
+	if services, err := session.Services(); err == nil {
+		if own := p.kind.Own(services); own != "" {
+			if u, err := url.Parse(own); err == nil {
+				return u, true
+			}
+		}
+	}
 	u, ok := p.urls[session.Domain()]
 	if !ok {
 		u, ok = p.urls[""]

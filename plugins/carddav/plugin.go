@@ -77,12 +77,13 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		// asking for nothing.
 		Poll:     10 * time.Minute,
 		Discover: carddav.DiscoverContextURL,
+		Own:      func(s alborz.Services) string { return s.CardDAV },
 		FindHome: findHome,
 		List:     listAddressBooks,
 		Make:     doMkcol,
 		Unnamed:  "contacts",
 	})
-	if err != nil || provider == nil {
+	if err != nil {
 		return nil, err
 	}
 

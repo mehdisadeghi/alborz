@@ -166,6 +166,8 @@ func main() {
 	flag.StringVar(&profileAddr, "pprof", "",
 		"loopback address serving Go's profiles, the goroutine leak profile among them; unset serves none")
 	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
+	flag.BoolVar(&options.PrivateServices, "private-services", false,
+		"let an account name a calendar or contacts server on plain HTTP or a private address")
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
 		"directory keeping the calendar and contacts cache between runs, sealed under the login key; empty keeps it in memory")

@@ -35,12 +35,13 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		// minutes.
 		Poll:     davcache.DefaultPoll,
 		Discover: caldav.DiscoverContextURL,
+		Own:      func(s alborz.Services) string { return s.CalDAV },
 		FindHome: findHome,
 		List:     listCalendars,
 		Make:     doMkcalendar,
 		Unnamed:  "calendar",
 	})
-	if err != nil || provider == nil {
+	if err != nil {
 		return nil, err
 	}
 

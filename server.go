@@ -803,11 +803,13 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 	})
 
 	// HTML and stylesheets shrink several-fold over slow links; binary
-	// assets and raw message parts are left alone.
+	// assets and raw message parts are left alone, and so is the event
+	// stream, which a compressor only holds back and which, cut off by
+	// the page leaving, it answered a second time.
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Skipper: func(c echo.Context) bool {
 			p := c.Request().URL.Path
-			return strings.HasSuffix(p, ".png") || strings.HasSuffix(p, "/raw")
+			return strings.HasSuffix(p, ".png") || strings.HasSuffix(p, "/raw") || p == "/events"
 		},
 		MinLength: 1024,
 	}))

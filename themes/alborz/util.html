@@ -712,11 +712,11 @@
 
 {{/* The frame of a settings page that is a list: the rail, the toolbar
      with the page's name and its New, and the crumb. The page writes
-     its rows between the two. dict: g title path here [newhref newlabel]. */}}
+     its rows between the two. dict: g title path [newhref newlabel]. */}}
 {{ define "settings-list-open" }}
 <div class="page-wrap">
   <aside>
-  {{ template "settings-rail" (dict "g" .g "rail" .g.Rail "here" .here) }}
+  {{ template "settings-rail" (dict "g" .g "rail" .g.Rail) }}
   </aside>
 
   <div class="container">
@@ -908,7 +908,7 @@
        application's name; on a wide screen the header carries it and
        this one stands down. */}}
   <div class="rail-brand">{{ template "brand" (dict "g" .g "build" .g.GlobalData.Build) }}</div>
-  {{ range .homes }}<a class="aside-account aside-all{{ if .active }} active{{ end }}" href="{{.href}}">{{.label}}</a>{{ end }}
+  {{ with .homes }}{{ template "rail-rows" . }}{{ end }}
   {{ $merged := not .urlaccount }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $merged = false }}{{ end }}{{ end }}{{ end }}
   {{ if gt (len .accounts) 1 }}
   {{ if eq .kind "mail" }}
@@ -1106,7 +1106,7 @@
      dict: g rail. */}}
 {{ define "settings-rail" }}
 {{ $g := .g }}
-{{ template "scope-rail" (dict "g" $g "kind" "rows" "path" "/settings/account" "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "data" (dict "rows" .rail) "homes" (tuple (dict "href" "/settings" "label" ($g.T "nav.settings") "active" (eq .here "settings")) (dict "href" "/settings/passkeys" "label" ($g.T "passkeys.title") "active" (eq .here "passkeys")))) }}
+{{ template "scope-rail" (dict "g" $g "kind" "rows" "path" "/settings/account" "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "data" (dict "rows" .rail) "homes" (index .rail "")) }}
 {{ end }}
 
 {{/* The places a section offers per account, one row each. */}}

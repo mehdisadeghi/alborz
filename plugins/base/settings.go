@@ -444,7 +444,12 @@ func accountQuery(address string) string {
 // once per account, because those are per account by nature.
 func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	path := ctx.Request().URL.Path
-	rows := map[string][]alborz.RailRow{}
+	// Under no account: what this browser keeps, whichever accounts it
+	// is signed into.
+	rows := map[string][]alborz.RailRow{"": {
+		{Label: ctx.T("settings.general"), Href: "/settings", Active: path == "/settings"},
+		{Label: ctx.T("passkeys.title"), Href: "/settings/passkeys", Active: strings.HasPrefix(path, "/settings/passkeys")},
+	}}
 	for _, account := range ctx.Accounts() {
 		scoped := ctx.Session != nil && account.Username == ctx.Session.Username()
 		q := accountQuery(account.Username)
@@ -850,7 +855,7 @@ func handleScheme(ctx *alborz.Context) error {
 func handleReadingSettings(ctx *alborz.Context) error {
 	render := func(status int, message string) error {
 		return ctx.Render(status, "settings.html", &ReadingRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.settings")),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.general")),
 			Rail:           settingsRail(ctx),
 			Theme:          ctx.Theme(),
 			Themes:         ctx.Themes(),

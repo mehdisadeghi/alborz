@@ -433,6 +433,7 @@
 "settings.forgethint" = "Elimina todo lo anterior. Los ajustes vuelven a sus valores predeterminados."
 "settings.forgotten" = "Ajustes olvidados."
 "settings.account" = "Cuenta"
+"settings.general" = "General"
 "settings.anchornone" = "Solo este navegador"
 "settings.davpassword" = "Contraseña de calendario y contactos"
 "settings.davstored" = "Guardada"

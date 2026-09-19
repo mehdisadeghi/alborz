@@ -4,7 +4,7 @@
 
 {{ $aq := account "?" .GlobalData.URLAccount }}
 
-{{ template "settings-list-open" (dict "g" $ "title" ($.T "sessions.title") "path" "/settings/sessions" "here" "") }}
+{{ template "settings-list-open" (dict "g" $ "title" ($.T "sessions.title") "path" "/settings/sessions") }}
 
       {{/* Each browser as it says it is, where it last came from and
            when, with the way to take the account out of it. The device

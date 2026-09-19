@@ -22,8 +22,9 @@ type Change struct {
 // open on the account hears; a stream that nobody is reading is dropped
 // rather than waited for, since a change is worth nothing late.
 type Changes struct {
-	mu   sync.Mutex
-	subs map[chan Change]struct{}
+	mu     sync.Mutex
+	subs   map[chan Change]struct{}
+	closed bool
 }
 
 func newChanges() *Changes {
@@ -36,7 +37,11 @@ func newChanges() *Changes {
 func (c *Changes) Listen() (<-chan Change, func()) {
 	ch := make(chan Change, 8)
 	c.mu.Lock()
-	c.subs[ch] = struct{}{}
+	if c.closed {
+		close(ch)
+	} else {
+		c.subs[ch] = struct{}{}
+	}
 	c.mu.Unlock()
 	return ch, func() {
 		c.mu.Lock()
@@ -59,6 +64,20 @@ func (c *Changes) Publish(ch Change) {
 		case sub <- ch:
 		default:
 		}
+	}
+}
+
+// Close ends every stream, and every one opened after. A stream is a
+// request that never finishes on its own, and a shutdown that waits for
+// requests to finish would otherwise wait out its whole deadline for
+// each open tab, holding the port the next process wants.
+func (c *Changes) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closed = true
+	for sub := range c.subs {
+		delete(c.subs, sub)
+		close(sub)
 	}
 }
 

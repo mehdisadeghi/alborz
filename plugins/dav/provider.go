@@ -72,8 +72,11 @@ const WarmBudget = 30 * time.Second
 // domain's server is, the cache in front of it, and the client that
 // talks to it on a session's behalf.
 type Provider struct {
-	kind  Kind
-	urls  map[string]*url.URL // endpoint per served mail domain
+	kind Kind
+	urls map[string]*url.URL // endpoint per served mail domain
+	// found is, per domain, the SRV record its endpoint was found at;
+	// none where the deployment named it.
+	found map[string]string
 	cache *davcache.Cache
 	// here serves the collections kept in this alborz; nil without a
 	// data directory.
@@ -99,13 +102,17 @@ type Provider struct {
 // background, and a request surfaces an unreachable one until it does.
 func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	urls := make(map[string]*url.URL)
+	found := make(map[string]string)
 	for _, domain := range srv.Domains() {
-		u, err := domainURL(srv, kind, domain)
+		u, record, err := domainURL(srv, kind, domain)
 		if err != nil {
 			return nil, err
 		}
 		if u != nil {
 			urls[domain] = u
+		}
+		if record != "" {
+			found[domain] = record
 		}
 	}
 	var store *davcache.Store
@@ -119,7 +126,7 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	if warm > 0 {
 		srv.Logger().Printf("%s: cache warm for %d accounts", kind.Name, warm)
 	}
-	p := &Provider{kind: kind, urls: urls, cache: cache,
+	p := &Provider{kind: kind, urls: urls, found: found, cache: cache,
 		collections: alborz.NewBackgroundMemo[[]Collection](discoveryTTL)}
 	if srv.Collections != nil {
 		p.here, p.store = srv.Collections.Handler(), srv.Collections
@@ -445,13 +452,14 @@ func (p *Provider) Close() error {
 // domainURL resolves the domain's endpoint; nil without error means the
 // domain has none. It reads DNS and config only, so startup never waits
 // on the server itself.
-func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, error) {
+func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, error) {
 	secure, plain := kind.Schemes[0], kind.Schemes[1]
+	record := ""
 	u, err := srv.Upstream(domain, secure, plain, "https", "http+insecure")
 	if _, ok := err.(*alborz.NoUpstreamError); ok {
-		return nil, nil
+		return nil, "", nil
 	} else if err != nil {
-		return nil, fmt.Errorf("%s: domain %q: failed to parse upstream %s server: %v", kind.Name, domain, kind.Label, err)
+		return nil, "", fmt.Errorf("%s: domain %q: failed to parse upstream %s server: %v", kind.Name, domain, kind.Label, err)
 	}
 	v := *u // don't mutate the server's upstream config
 	u = &v
@@ -468,14 +476,21 @@ func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, error) {
 		s, err := kind.Discover(ctx, u.Host)
 		if err != nil {
 			srv.Logger().Printf("%s: domain %q: failed to discover %s server: %v", kind.Name, domain, kind.Label, err)
-			return nil, nil
+			return nil, "", nil
 		}
 		u, err = url.Parse(s)
 		if err != nil {
-			return nil, fmt.Errorf("%s: Discover returned an invalid URL: %v", kind.Name, err)
+			return nil, "", fmt.Errorf("%s: Discover returned an invalid URL: %v", kind.Name, err)
 		}
+		// go-webdav asks the TLS record first (RFC 6764 3), and the
+		// scheme it answers says which one it found.
+		service := kind.Name
+		if u.Scheme == "https" {
+			service += "s"
+		}
+		record = "_" + service + "._tcp." + domain
 	}
 
 	srv.Logger().Printf("Domain %q: configured upstream %s server: %v", domain, kind.Label, u)
-	return u, nil
+	return u, record, nil
 }

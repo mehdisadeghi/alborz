@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+// srvName is the record a service is looked up at (RFC 2782), which the
+// Servers page names as where a server was found.
+func srvName(service, domain string) string {
+	return "_" + service + "._tcp." + domain
+}
+
 func discoverTCP(service, name string) (string, error) {
 	_, addrs, err := net.LookupSRV(service, "tcp", name)
 	if dnsErr, ok := err.(*net.DNSError); ok {
@@ -32,59 +38,59 @@ func discoverTCP(service, name string) (string, error) {
 
 // discoverIMAP performs a DNS-based IMAP service discovery, as defined in
 // RFC 6186 section 3.2.
-func discoverIMAP(domain string) (*url.URL, error) {
+func discoverIMAP(domain string) (*url.URL, string, error) {
 	imapsHost, err := discoverTCP("imaps", domain)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if imapsHost != "" {
-		return &url.URL{Scheme: "imaps", Host: imapsHost}, nil
+		return &url.URL{Scheme: "imaps", Host: imapsHost}, srvName("imaps", domain), nil
 	}
 
 	imapHost, err := discoverTCP("imap", domain)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if imapHost != "" {
-		return &url.URL{Scheme: "imap", Host: imapHost}, nil
+		return &url.URL{Scheme: "imap", Host: imapHost}, srvName("imap", domain), nil
 	}
 
-	return nil, fmt.Errorf("IMAP service discovery not configured for domain %q", domain)
+	return nil, "", fmt.Errorf("IMAP service discovery not configured for domain %q", domain)
 }
 
 // discoverSieve performs a DNS-based ManageSieve service discovery, as
 // defined in RFC 5804. Sieve is optional: a missing record reports no URL
 // and no error.
-func discoverSieve(domain string) (*url.URL, error) {
+func discoverSieve(domain string) (*url.URL, string, error) {
 	host, err := discoverTCP("sieve", domain)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if host == "" {
-		return nil, nil
+		return nil, "", nil
 	}
-	return &url.URL{Scheme: "sieve", Host: host}, nil
+	return &url.URL{Scheme: "sieve", Host: host}, srvName("sieve", domain), nil
 }
 
 // discoverSMTP performs a DNS-based SMTP submission service discovery, as
 // defined in RFC 6186 section 3.1. RFC 8314 section 5.1 adds a new service for
 // SMTP submission with implicit TLS.
-func discoverSMTP(domain string) (*url.URL, error) {
+func discoverSMTP(domain string) (*url.URL, string, error) {
 	smtpsHost, err := discoverTCP("submissions", domain)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if smtpsHost != "" {
-		return &url.URL{Scheme: "smtps", Host: smtpsHost}, nil
+		return &url.URL{Scheme: "smtps", Host: smtpsHost}, srvName("submissions", domain), nil
 	}
 
 	smtpHost, err := discoverTCP("submission", domain)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if smtpHost != "" {
-		return &url.URL{Scheme: "smtp", Host: smtpHost}, nil
+		return &url.URL{Scheme: "smtp", Host: smtpHost}, srvName("submission", domain), nil
 	}
 
-	return nil, fmt.Errorf("SMTP service discovery not configured for domain %q", domain)
+	return nil, "", fmt.Errorf("SMTP service discovery not configured for domain %q", domain)
 }

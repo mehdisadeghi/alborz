@@ -157,19 +157,24 @@ type domainUpstreams struct {
 	// maps protocols to URLs (protocol can be empty for auto-discovery)
 	upstreams map[string]*url.URL
 
+	// Each server's found is the SRV record it was found at, empty where
+	// the deployment named it.
 	imap struct {
 		host     string
 		tls      bool
 		insecure bool
+		found    string
 	}
 	smtp struct {
 		host     string
 		tls      bool
 		insecure bool
+		found    string
 	}
 	sieve struct {
 		host     string
 		insecure bool
+		found    string
 	}
 }
 
@@ -399,7 +404,7 @@ func (s *Server) parseIMAPUpstream(domain string) error {
 	}
 
 	if u.Scheme == "" {
-		u, err = discoverIMAP(u.Host)
+		u, d.imap.found, err = discoverIMAP(u.Host)
 		if err != nil {
 			return fmt.Errorf("domain %q: failed to discover IMAP server: %v", domain, err)
 		}
@@ -443,7 +448,7 @@ func (s *Server) parseSMTPUpstream(domain string) error {
 	}
 
 	if u.Scheme == "" {
-		u, err = discoverSMTP(u.Host)
+		u, d.smtp.found, err = discoverSMTP(u.Host)
 		if err != nil {
 			s.e.Logger.Printf("Domain %q: failed to discover SMTP server: %v", domain, err)
 			return nil

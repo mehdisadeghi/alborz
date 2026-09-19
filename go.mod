@@ -21,6 +21,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	gitlab.com/golang-commonmark/linkify v0.0.0-20200225224916-64bca66f6ad3
+	go.etcd.io/bbolt v1.5.0
 	go.guido-berhoerster.org/managesieve v0.8.1
 	golang.org/x/crypto v0.55.0
 	golang.org/x/image v0.45.0
@@ -42,7 +43,11 @@ require (
 	github.com/teambition/rrule-go v1.8.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	go.etcd.io/bbolt v1.5.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
+
+// Our fork of go-webdav carries the open upstream pull requests alborz
+// relies on (#147 #174 #179 #180 #181 #182 #194 #208 #209 #211) and our
+// own server patches: PROPPATCH, dead properties, octets kept as sent.
+replace github.com/emersion/go-webdav => github.com/mehdisadeghi/go-webdav v0.0.0-20260921101523-6a35b64d0a5f

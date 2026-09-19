@@ -729,7 +729,7 @@ func changeComponent(ctx *alborz.Context, ref dav.Ref[*caldav.Client], comp func
 	change(target)
 	target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 	target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
-	_, err = ref.Client.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data)
+	_, err = ref.Client.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data, nil)
 	return co, err
 }
 
@@ -2174,14 +2174,16 @@ func newCalendar(comp *ical.Component) *ical.Calendar {
 	return cal
 }
 
-// putObject writes a form's object: a new one at a name of its own in
-// the collection, a held one where it is.
+// putObject writes a form's object where dav.Target says, on the
+// condition it says.
 func putObject(ctx *alborz.Context, to dav.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
-	at := path.Join(to.Path, name)
+	held, etag := "", ""
 	if was != nil {
-		at = was.Path
+		held, etag = was.Path, was.ETag
 	}
-	return to.Client.PutCalendarObject(ctx.Request().Context(), at, cal)
+	at, ifMatch, ifNoneMatch := dav.Target(to.Path, name, held, etag)
+	return to.Client.PutCalendarObject(ctx.Request().Context(), at, cal,
+		&caldav.PutCalendarObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
 }
 
 // eventList is the view an event's page came from: the day when the
@@ -2367,7 +2369,8 @@ func (p *plugin) move(ctx *alborz.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to get task: %v", err)
 			}
-			if _, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data); err != nil {
+			if _, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data,
+				&caldav.PutCalendarObjectOptions{IfNoneMatch: dav.IfNew}); err != nil {
 				return err
 			}
 			return dav.Delete(ctx, ref)

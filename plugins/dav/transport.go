@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/plugins/davcache"
+	"github.com/emersion/go-webdav"
 	"github.com/labstack/echo/v4"
 )
 
@@ -34,6 +36,20 @@ func httpClient(cache *davcache.Cache, session *alborz.Session, debug echo.Logge
 			return http.ErrUseLastResponse
 		},
 	}
+}
+
+// IfNew is a PUT's If-None-Match that holds only while nothing is at
+// the address (RFC 7232 3.2).
+const IfNew webdav.ConditionalMatch = "*"
+
+// IfUnchanged is a PUT's If-Match that holds only while the object is
+// the one that was read (RFC 7232 3.1). A server that gave no ETag gets
+// no condition.
+func IfUnchanged(etag string) webdav.ConditionalMatch {
+	if etag == "" {
+		return ""
+	}
+	return webdav.ConditionalMatch(strconv.Quote(etag))
 }
 
 // logDAVExchange prints one upstream DAV round trip: the query for

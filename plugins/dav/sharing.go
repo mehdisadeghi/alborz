@@ -48,7 +48,7 @@ func (p *Provider) invitations(ctx *alborz.Context) ([]Invitation, error) {
 	for _, s := range ctx.Sessions() {
 		account := strings.ToLower(s.Username())
 		shares, err := p.store.Shares(func(sh collections.Share) bool {
-			return sh.To == account && !sh.Accepted && (sh.Expires.IsZero() || now.Before(sh.Expires))
+			return sh.To == account && !sh.Accepted && !sh.Declined && !sh.Left && (sh.Expires.IsZero() || now.Before(sh.Expires))
 		})
 		if err != nil {
 			return nil, err
@@ -98,6 +98,62 @@ func (p *Provider) InjectInvitations(field, base string, sections ...string) alb
 		all[field] = &RailInvitations{Base: base, Items: items}
 		return nil
 	}
+}
+
+// Authors are who added an object kept here and who changed it last,
+// each left out where it is the account looking: "by you" says nothing.
+type Authors struct {
+	Creator, Editor string
+}
+
+// Authors of the object at path, as viewer sees them; none for an
+// object on a server elsewhere, which does not say.
+func (p *Provider) Authors(objPath, viewer string) Authors {
+	if p.store == nil {
+		return Authors{}
+	}
+	ref, name, ok := collections.HeldObject(objPath)
+	if !ok {
+		return Authors{}
+	}
+	o, err := p.store.Object(ref, name)
+	if err != nil {
+		return Authors{}
+	}
+	a := Authors{Creator: o.Creator, Editor: o.Editor}
+	if strings.EqualFold(a.Creator, viewer) {
+		a.Creator = ""
+	}
+	if strings.EqualFold(a.Editor, viewer) || !o.Modified.After(o.Created) {
+		a.Editor = ""
+	}
+	return a
+}
+
+// AddedBy is, for a row of a list, the account that added the object
+// when that is not the row's own account: a list's tooltip. account is
+// the row's, empty where the list is one account's, which is viewer.
+func (p *Provider) AddedBy(viewer string) func(account, path string) string {
+	return func(account, objPath string) string {
+		if account == "" {
+			account = viewer
+		}
+		return p.Authors(objPath, account).Creator
+	}
+}
+
+// Published says whether a collection kept here answers at a public
+// address.
+func (p *Provider) Published(collPath string) bool {
+	if p.store == nil {
+		return false
+	}
+	ref, _, ok := collections.Held(collPath)
+	if !ok {
+		return false
+	}
+	c, err := p.store.Collection(ref)
+	return err == nil && c.Public != ""
 }
 
 // Sharing is what the page of a collection kept here says about who
@@ -240,9 +296,9 @@ func (pg Page) HandleShare(p *Provider) func(*alborz.Context) error {
 			return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
 		}
 		// Changing what a share allows does not ask again for a yes
-		// already given.
-		if was, err := p.store.Share(ref, share.To); err == nil {
-			share.Accepted, share.Created = was.Accepted, was.Created
+		// already given; sharing again after a no is a new invitation.
+		if was, err := p.store.Share(ref, share.To); err == nil && was.Accepted {
+			share.Accepted, share.Created = true, was.Created
 		}
 		if err := p.store.PutShare(share); err != nil {
 			return err
@@ -297,24 +353,19 @@ func (pg Page) HandleAnswer(p *Provider, accept bool) func(*alborz.Context) erro
 		if !here || home != account {
 			return echo.NewHTTPError(http.StatusNotFound, "no such invitation")
 		}
-		share, err := p.store.Share(ref, account)
-		if err != nil {
+		if _, err := p.store.Share(ref, account); err != nil {
 			return echo.NewHTTPError(http.StatusNotFound, "no such invitation")
 		}
 		c, err := p.store.Collection(ref)
 		if err != nil {
 			return err
 		}
+		if err := p.store.Answer(ref, account, accept); err != nil {
+			return err
+		}
 		if !accept {
-			if err := p.store.RemoveShare(ref, account); err != nil {
-				return err
-			}
 			ctx.PutNotice(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
-		}
-		share.Accepted = true
-		if err := p.store.PutShare(*share); err != nil {
-			return err
 		}
 		if err := pg.Show(ctx.Session.Store(), CanonicalCollectionPath(collPath)); err != nil {
 			return err
@@ -348,6 +399,7 @@ func (pg Page) HandlePublish(p *Provider, publish bool) func(*alborz.Context) er
 		if err := p.store.Update(ref, func(c *collections.Collection) { c.Public = secret }); err != nil {
 			return err
 		}
+		pg.Forget(ctx.Session.Username())
 		notice := "notice.unpublished"
 		if publish {
 			notice = "notice.published"

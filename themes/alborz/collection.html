@@ -52,7 +52,7 @@
           <div class="list-item">
             <div class="list-content">
               <span class="list-summary">{{ template "ltr" .To }}</span>
-              <span class="list-detail">{{$.T (or (and .Write "share.canedit") "share.canview")}}{{ if not .Expires.IsZero }}, {{ printf ($.T "share.until") ($.GlobalData.ShortDate (.Expires.AddDate 0 0 -1)) }}{{ end }}{{ if .Ended }} · {{$.T "share.ended"}}{{ else if not .Accepted }} · {{$.T "share.pending"}}{{ end }}</span>
+              <span class="list-detail">{{$.T (or (and .Write "share.canedit") "share.canview")}}{{ if not .Expires.IsZero }}, {{ printf ($.T "share.until") ($.GlobalData.ShortDate (.Expires.AddDate 0 0 -1)) }}{{ end }}{{ if .Ended }} · {{$.T "share.ended"}}{{ else if .Declined }} · {{$.T "share.declined"}}{{ else if .Left }} · {{$.T "share.left"}}{{ else if not .Accepted }} · {{$.T "share.pending"}}{{ end }}</span>
             </div>
             <form method="post" action="{{$.Base}}{{$.Path | pathescape}}/unshare{{account "?" $.Account}}">
               <input type="hidden" name="to" value="{{.To}}">

@@ -68,6 +68,9 @@ type Collection struct {
 	// shared; SharedBy is its owner when that is another account.
 	Here     bool
 	SharedBy string
+	// Public marks a calendar kept here that answers at a public
+	// address.
+	Public bool
 }
 
 // Listed is one collection with the properties it was read from, for

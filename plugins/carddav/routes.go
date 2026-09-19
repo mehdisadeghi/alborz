@@ -50,6 +50,9 @@ type AddressBookRenderData struct {
 	// HrefFor is where a contact's own page is, with the list carried
 	// along so that page can name the contacts either side of it.
 	HrefFor func(account, path string) string
+	// AddedBy names who added a card kept here, where not the row's own
+	// account.
+	AddedBy func(account, path string) string
 	// Groups are the group cards the accounts hold, and Categories the
 	// words in use; the rail filters by either (RFC 6350 6.1.4, 6.7.1).
 	Groups     []AddressObject
@@ -165,6 +168,9 @@ var contactListParams = []string{"account", "book", "query", "view", "group", "c
 type AddressObjectRenderData struct {
 	alborz.BaseRenderData
 	Rail dav.Rail
+	// Authors are who added the object and changed it last, where it is
+	// kept here and that is another account.
+	Authors dav.Authors
 	// List is the list the page was opened from, filter and order kept,
 	// for what leaves the page with nothing to come back to.
 	List string
@@ -592,6 +598,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		AddressObjects: cards,
 		Pager:          pager,
 		HrefFor:        func(_, contactPath string) string { return hrefs[contactPath] },
+		AddedBy:        p.dav.AddedBy(ctx.Session.Username()),
 		Query:          list.Query,
 		View:           list.View,
 		Groups:         list.Groups,
@@ -661,6 +668,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		}
 	}
 	return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
+		Authors:        p.dav.Authors(object.Path, ctx.Session.Username()),
 		In:             in,
 		Groups:         rest,
 		Neighbours:     dav.Around(list.Items, path),

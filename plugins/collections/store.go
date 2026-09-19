@@ -72,12 +72,19 @@ type Dead struct {
 	XML          []byte
 }
 
-// Object is one event, task or card as it was written.
+// Object is one event, task or card as it was written, and by whom:
+// iCalendar and vCard have no field for who added an object, and in a
+// collection several accounts write to that is the thing to know.
 type Object struct {
 	Name     string
 	Data     []byte
 	ETag     string
 	Modified time.Time
+	// Creator wrote the object first, at Created; Editor wrote it last.
+	// Empty for an object written before they were kept.
+	Creator string    `json:",omitempty"`
+	Created time.Time `json:",omitzero"`
+	Editor  string    `json:",omitempty"`
 }
 
 func (c Collection) Ref() Ref { return Ref{Owner: c.Owner, ID: c.ID} }
@@ -92,6 +99,10 @@ type Share struct {
 	Expires  time.Time
 	Accepted bool
 	Created  time.Time
+	// Declined and Left are the invitee's no, before accepting and
+	// after: the owner sees which, rather than the share vanishing.
+	Declined bool `json:",omitempty"`
+	Left     bool `json:",omitempty"`
 }
 
 func (s Share) Ref() Ref { return Ref{Owner: s.Owner, ID: s.Collection} }
@@ -456,7 +467,7 @@ type Unless func(held string) error
 // PutObject writes an object as the account by.
 func (s *Store) PutObject(ref Ref, name string, data []byte, unless Unless, by string) (*Object, error) {
 	now := time.Now().UTC()
-	o := &Object{Name: name, Data: data, ETag: ETagOf(data), Modified: now}
+	o := &Object{Name: name, Data: data, ETag: ETagOf(data), Modified: now, Creator: by, Created: now, Editor: by}
 	err := s.db.Update(func(tx *bolt.Tx) error {
 		if err := writable(tx, ref, by, now); err != nil {
 			return err
@@ -469,6 +480,7 @@ func (s *Store) PutObject(ref Ref, name string, data []byte, unless Unless, by s
 		held := ""
 		if old != nil {
 			held = old.ETag
+			o.Creator, o.Created = old.Creator, old.Created
 		}
 		if unless != nil {
 			if err := unless(held); err != nil {
@@ -530,8 +542,28 @@ func (s *Store) Share(ref Ref, to string) (*Share, error) {
 	return sh, err
 }
 
-// RemoveShare ends a share: the owner revoking it, or the invitee
-// declining or leaving.
+// Answer is the invitee's yes or no to a share: a yes makes it live, a
+// no before one is Declined and a no after one is Left.
+func (s *Store) Answer(ref Ref, to string, yes bool) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := bucket(tx, sharesBucket)
+		sh, err := get[Share](b, shareKey(ref, to))
+		if err != nil {
+			return err
+		}
+		switch {
+		case yes:
+			sh.Accepted, sh.Declined, sh.Left = true, false, false
+		case sh.Accepted:
+			sh.Accepted, sh.Left = false, true
+		default:
+			sh.Declined = true
+		}
+		return put(b, shareKey(ref, to), sh)
+	})
+}
+
+// RemoveShare ends a share: the owner revoking it.
 func (s *Store) RemoveShare(ref Ref, to string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := bucket(tx, sharesBucket)

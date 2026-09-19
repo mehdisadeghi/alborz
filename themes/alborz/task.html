@@ -82,7 +82,8 @@
         {{ template "object-dates" (dict "g" $.Global
            "created" ($todo.Props.DateTime "CREATED" nil)
            "modified" ($todo.Props.DateTime "LAST-MODIFIED" nil)
-           "createdLabel" ($.T "common.created") "modifiedLabel" ($.T "common.modified")) }}
+           "createdLabel" ($.T "common.created") "modifiedLabel" ($.T "common.modified")
+           "authors" .Authors "bylabel" ($.T "common.by")) }}
       </section>
     </main>
   </div>

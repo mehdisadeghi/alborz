@@ -280,6 +280,9 @@ type CalendarRenderData struct {
 	// CollectionHref the agenda narrowed to it.
 	CollectionFor  func(account, path string) dav.Collection
 	CollectionHref func(account, path string) string
+	// AddedBy names who added an event kept here, where not the row's
+	// own account.
+	AddedBy func(account, path string) string
 	// StarView is the star the agenda is narrowed to, for the rail;
 	// empty for the grid and the plain agenda.
 	StarView string
@@ -306,6 +309,9 @@ type CalendarDateRenderData struct {
 
 	CollectionFor  func(account, path string) dav.Collection
 	CollectionHref func(account, path string) string
+	// AddedBy names who added an event kept here, where not the row's
+	// own account.
+	AddedBy func(account, path string) string
 }
 
 // eventListParams are what decide which events a view holds: an event's
@@ -317,6 +323,9 @@ type EventRenderData struct {
 	Rail     dav.Rail
 	Calendar *dav.Collection
 	Event    CalendarObject
+	// Authors are who added the object and changed it last, where it is
+	// kept here and that is another account.
+	Authors dav.Authors
 	// List is the view the page was opened from; see TaskRenderData.
 	List       string
 	Star       string
@@ -393,8 +402,11 @@ type TaskRow struct {
 	Task     TaskObject
 	Calendar dav.Collection
 	Summary  string
-	Status   string
-	Due      time.Time
+	// AddedBy names who added a task kept here, where not the row's own
+	// account; set for the rows drawn, not every row of the list.
+	AddedBy string
+	Status  string
+	Due     time.Time
 	// Added is CREATED (RFC 5545 3.8.7.1), which every task alborz has
 	// seen carries and which costs nothing to read: it is in the data
 	// the list already fetched. Zero where the writer left it out.
@@ -418,6 +430,9 @@ type TaskRenderData struct {
 	Rail     dav.Rail
 	Calendar *dav.Collection
 	Task     TaskObject
+	// Authors are who added the object and changed it last, where it is
+	// kept here and that is another account.
+	Authors dav.Authors
 	// List is the list the page was opened from, filter and order kept,
 	// for what leaves the page with nothing to come back to.
 	List       string
@@ -854,6 +869,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 			return mv.on[mv.day(when)]
 		},
 
+		AddedBy:        p.dav.AddedBy(ctx.Session.Username()),
 		CollectionFor:  collection,
 		CollectionHref: href,
 
@@ -1060,6 +1076,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		Events:         dv.events,
 		PrevPage:       dv.start.AddDate(0, 0, -1).Format(datePageLayout),
 		NextPage:       dv.start.AddDate(0, 0, 1).Format(datePageLayout),
+		AddedBy:        p.dav.AddedBy(ctx.Session.Username()),
 		CollectionFor:  collection,
 		CollectionHref: href,
 	})
@@ -1459,6 +1476,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		Event:          CalendarObject{CalendarObject: event},
 		Star:           componentColor(vevents[0].Component),
 		Neighbours:     dav.Around(items, eventKey(path, "", false)),
+		Authors:        p.dav.Authors(event.Path, ctx.Session.Username()),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborzbase.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "event.html", data)
@@ -1945,6 +1963,10 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		return err
 	}
 	rows, pager := dav.Paginate(ctx, list.Rows)
+	addedBy := p.dav.AddedBy(ctx.Session.Username())
+	for i := range rows {
+		rows[i].AddedBy = addedBy(rows[i].Calendar.Account, rows[i].Task.Path)
+	}
 	return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 		Quick:          quickListOf(ctx, list.Calendars),
@@ -2032,6 +2054,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		Star:           componentColor(getFirstTodo(task.Data)),
 		Priority:       priorityBand(getFirstTodo(task.Data)),
 		Neighbours:     dav.Around(list.Items, path),
+		Authors:        p.dav.Authors(task.Path, ctx.Session.Username()),
 	})
 }
 func (p *plugin) updateTask(ctx *alborz.Context) error {
@@ -2286,6 +2309,7 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			// The list's shape is in the address the form returns to; the
 			// write's own URL says nothing about sort or search.
 			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), dav.ListParamsIn(next, taskListParams...))
+			row.AddedBy = p.dav.AddedBy(ctx.Session.Username())(cal.Account, marked.Path)
 			data := &TaskRowRenderData{BaseRenderData: *alborz.NewBaseRenderData(ctx), Row: row, Next: next}
 			data.G = &data.BaseRenderData
 			return ctx.Render(http.StatusOK, "task-row", data)

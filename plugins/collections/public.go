@@ -14,7 +14,7 @@ import (
 // the secret in the address; publicExt is what a client expects a feed's
 // address to end in.
 const (
-	publicPrefix = Prefix + "/public/"
+	publicPrefix = "/pub/"
 	publicExt    = ".ics"
 )
 

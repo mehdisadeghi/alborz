@@ -146,12 +146,14 @@ func (s *Server) serveOwnDAV() echo.MiddlewareFunc {
 					return nil
 				}
 			}
-			if !strings.HasPrefix(r.URL.Path, collections.Prefix+"/") {
-				return next(ectx)
-			}
+			// A published calendar has an address of its own, outside the
+			// DAV server's, which a subscribing client needs no more of.
 			if collections.IsPublic(r.URL.Path) {
 				s.Collections.ServePublic(w, r)
 				return nil
+			}
+			if !strings.HasPrefix(r.URL.Path, collections.Prefix+"/") {
+				return next(ectx)
 			}
 			username, password, ok := r.BasicAuth()
 			if ok {

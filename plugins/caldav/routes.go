@@ -28,6 +28,7 @@ import (
 func (p *plugin) collectionPage() dav.Page {
 	return dav.Page{
 		Base:   "/calendars/",
+		List:   "/calendar",
 		Color:  calendarColor,
 		Ext:    ".ics",
 		Forget: p.dav.Forget,
@@ -685,6 +686,13 @@ func registerRoutes(p *plugin) {
 	POST("/calendars/:path/delete", p.forSubscription(p.unsubscribe, page.HandleDelete(p.dav)))
 	POST("/calendars/:path/import", page.HandleImport(p.dav))
 	GET("/calendars/:path/export", page.HandleExport(p.dav))
+	POST("/calendars/:path/share", page.HandleShare(p.dav))
+	POST("/calendars/:path/unshare", page.HandleUnshare(p.dav))
+	POST("/calendars/:path/accept", page.HandleAnswer(p.dav, true))
+	POST("/calendars/:path/decline", page.HandleAnswer(p.dav, false))
+	POST("/calendars/:path/publish", page.HandlePublish(p.dav, true))
+	POST("/calendars/:path/unpublish", page.HandlePublish(p.dav, false))
+	p.Inject("*", p.dav.InjectInvitations("cal", page.Base, "/calendar", "/calendars", "/tasks"))
 	GET("/calendar/create", p.updateEvent)
 	POST("/calendar/create", p.updateEvent)
 	GET("/calendar/:path/update", p.updateEvent)

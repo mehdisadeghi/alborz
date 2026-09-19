@@ -11,13 +11,13 @@ import (
 	"path"
 	"strings"
 	"time"
+	"uuid"
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 

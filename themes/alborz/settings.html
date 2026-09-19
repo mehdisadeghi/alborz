@@ -4,15 +4,15 @@
 
 <div class="page-wrap">
   <aside>
-  {{ template "settings-rail" (dict "g" $ "rail" .Rail "here" "settings") }}
+  {{ template "settings-rail" (dict "g" $ "rail" .Rail) }}
   </aside>
 
   <div class="container">
     <main id="main" tabindex="-1" class="settings">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "list-toolbar" (dict "title" ($.T "nav.settings")) }}
+        {{ template "list-toolbar" (dict "title" ($.T "settings.general")) }}
       </section>
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "chooses" true "field" "" "collection" "" "path" "") }}
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "chooses" true "field" "" "collection" ($.T "settings.general") "path" "/settings") }}
       {{/* The language, the scheme, the text size and the reading
            direction are attributes of the root element, which a swapped
            body does not carry, so saving here asks for a whole page. */}}

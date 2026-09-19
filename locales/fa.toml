@@ -428,6 +428,7 @@
 "settings.forgethint" = "همهٔ موارد بالا را حذف می‌کند. تنظیمات به مقدارهای پیش‌فرض بازمی‌گردند."
 "settings.forgotten" = "تنظیمات فراموش شد."
 "settings.account" = "حساب"
+"settings.general" = "عمومی"
 "settings.anchornone" = "فقط این مرورگر"
 "settings.davpassword" = "گذرواژهٔ تقویم و مخاطبان"
 "settings.davstored" = "ذخیره‌شده"

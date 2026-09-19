@@ -2,7 +2,7 @@
 {{template "nav.html" .}}
 {{template "util.html" .}}
 
-{{ template "settings-list-open" (dict "g" $ "title" ($.T "passkeys.title") "path" "/settings/passkeys" "here" "passkeys" "newhref" "/settings/passkeys/create" "newlabel" ($.T "passkeys.new")) }}
+{{ template "settings-list-open" (dict "g" $ "title" ($.T "passkeys.title") "path" "/settings/passkeys" "newhref" "/settings/passkeys/create" "newlabel" ($.T "passkeys.new")) }}
 
       {{/* A passkey has nothing to edit: the authenticator made it and
            keeps it. A row says which one it is and when it was last

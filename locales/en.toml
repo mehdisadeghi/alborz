@@ -431,6 +431,7 @@
 "settings.forgethint" = "Removes everything listed above. The settings return to their defaults."
 "settings.forgotten" = "Settings forgotten."
 "settings.account" = "Account"
+"settings.general" = "General"
 "settings.anchornone" = "This browser only"
 "settings.davpassword" = "Calendar and contacts password"
 "settings.davstored" = "Stored"

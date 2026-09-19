@@ -130,7 +130,8 @@
              is the last revision rather than the first. */}}
         {{ template "object-dates" (dict "g" $.Global
            "modified" .Modified
-           "modifiedLabel" ($.T "common.modified")) }}
+           "createdLabel" ($.T "common.added") "modifiedLabel" ($.T "common.modified")
+           "authors" .Authors "bylabel" ($.T "common.by")) }}
       </section>
     </main>
   </div>

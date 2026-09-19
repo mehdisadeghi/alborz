@@ -120,6 +120,13 @@ func Held(p string) (ref Ref, home string, ok bool) {
 	return at.ref, at.home, err == nil && at.ref.ID != ""
 }
 
+// HeldObject reads an object's path as the pages hold it: the
+// collection it is in and its name there.
+func HeldObject(p string) (ref Ref, name string, ok bool) {
+	at, err := parsePath(p)
+	return at.ref, at.object, err == nil && at.object != ""
+}
+
 // access is what the account of the request may do with the collection
 // a path names: nothing, read it, write its objects, or own it.
 type access int
@@ -268,7 +275,8 @@ func (s *Store) update(ctx context.Context, p string, kind Kind, change func(*Co
 
 // remove is DELETE: of an object, by whoever may write; of a collection,
 // by its owner, while an invitee stops seeing it, which is all a share
-// gives them the right to end.
+// gives them the right to end. The share stays, marked, so its owner
+// sees who left.
 func (s *Store) remove(ctx context.Context, p string, kind Kind) error {
 	at, _, may, err := s.reach(ctx, p, kind)
 	switch {
@@ -277,7 +285,7 @@ func (s *Store) remove(ctx context.Context, p string, kind Kind) error {
 	case at.object == "" && may == own:
 		return storeError(s.Delete(at.ref))
 	case at.object == "":
-		return storeError(s.RemoveShare(at.ref, userOf(ctx)))
+		return storeError(s.Answer(at.ref, userOf(ctx), false))
 	case may < write:
 		return errForbidden
 	}

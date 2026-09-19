@@ -62,7 +62,7 @@
               {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
             </div>
             <div class="contact-list-name list-primary list-cell" role="cell">
-              <a href="{{ call $.HrefFor .Account .Path }}" dir="auto">
+              <a href="{{ call $.HrefFor .Account .Path }}" dir="auto"{{ with call $.AddedBy .Account .Path }} title="{{ printf ($.T "share.addedby") . }}"{{ end }}>
                 {{.DisplayName}}
               </a>
               {{/* Desktop reads it in the Address book column; a card

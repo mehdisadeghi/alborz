@@ -22,21 +22,24 @@
      store keeps both - iCalendar in CREATED and LAST-MODIFIED (3.8.7.1
      and 3.8.7.3), vCard in REV (6.7.4), WebDAV in getlastmodified - and
      alborz fetched them and dropped them. They are what tells two
-     similar entries apart. dict: g created modified. */}}
-{{/* When a stored thing was written and last changed. Either may be
-     absent - a vCard has no created date at all - so both are optional
-     and the whole line disappears when neither is known.
-     dict: g [created createdLabel] [modified modifiedLabel]. */}}
+     similar entries apart. Either may be absent - a vCard has no
+     created date at all - so both are optional and the whole line
+     disappears when neither is known. By whom, too, where that is
+     another account: a collection several accounts write to has no
+     other place that says it.
+     dict: g [created createdLabel] [modified modifiedLabel] [authors
+     bylabel]. */}}
 {{ define "object-dates" }}
 {{ $created := .created }}{{ if not $created }}{{ $created = zerotime }}{{ end }}
 {{ $modified := .modified }}{{ if not $modified }}{{ $modified = zerotime }}{{ end }}
-{{ if or (not ($created.IsZero)) (not ($modified.IsZero)) }}
+{{ $by := "" }}{{ $changedBy := "" }}{{ with .authors }}{{ $by = .Creator }}{{ $changedBy = .Editor }}{{ end }}
+{{ if or (not ($created.IsZero)) (not ($modified.IsZero)) $by $changedBy }}
 <div class="object-dates">
-  {{ if not ($created.IsZero) }}
-  <span>{{.createdLabel}} {{ template "date-full" (dict "g" .g "time" $created) }}</span>
+  {{ if or (not ($created.IsZero)) $by }}
+  <span>{{.createdLabel}}{{ if not ($created.IsZero) }} {{ template "date-full" (dict "g" .g "time" $created) }}{{ end }}{{ with $by }} {{ $.bylabel }} {{ template "ltr" . }}{{ end }}</span>
   {{ end }}
-  {{ if not ($modified.IsZero) }}
-  <span>{{.modifiedLabel}} {{ template "date-full" (dict "g" .g "time" $modified) }}</span>
+  {{ if or (not ($modified.IsZero)) $changedBy }}
+  <span>{{.modifiedLabel}}{{ if not ($modified.IsZero) }} {{ template "date-full" (dict "g" .g "time" $modified) }}{{ end }}{{ with $changedBy }} {{ $.bylabel }} {{ template "ltr" . }}{{ end }}</span>
   {{ end }}
 </div>
 {{ end }}
@@ -437,7 +440,7 @@
   <div class="event-time list-cell" role="cell" data-label="{{.timeLabel}}">{{.when}}</div>
   <div class="event-summary list-primary list-cell" role="cell" data-label="{{.eventLabel}}">
     {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
-    {{ if .href }}<a href="{{.href}}" dir="auto">{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
+    {{ if .href }}<a href="{{.href}}" dir="auto"{{ with .addedby }} title="{{.}}"{{ end }}>{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
   </div>
   {{/* Whose calendar it is rides after the name, as the task and
        contact rows write it, on the merged view alone. */}}
@@ -465,8 +468,6 @@
 </form>
 {{ end }}
 
-{{/* One pagination group: an optional range, then prev and next links.
-     dict: [range] [prev href label] [next href label]. */}}
 {{/* The pager of a list alborz holds whole and draws a page of, the
      mail list's own pager over a dav.Pager. dict: g pager. */}}
 {{/* A list's pager and its page size, as mail's are: both stand on an
@@ -479,6 +480,8 @@
 {{ end }}
 {{ end }}
 
+{{/* One pagination group: an optional range, then prev and next links.
+     dict: [range] [prev href label] [next href label]. */}}
 {{ define "pagination" }}
 <div class="actions-pagination">
   {{ with .range }}<span class="pagination-range" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}
@@ -689,7 +692,7 @@
     {{ with .Priority }}<span aria-hidden="true">{{ if eq . "high" }}!!!{{ else if eq . "medium" }}!!{{ else }}!{{ end }}</span><span class="visually-hidden">{{ $g.T (printf "tasks.priority.%s" .) }}</span>{{ end }}
   </div>
   <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "tasks.summary"}}">
-    <a href="{{.Href}}" dir="auto">{{.Summary}}</a>
+    <a href="{{.Href}}" dir="auto"{{ with .AddedBy }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.Summary}}</a>
   </div>
   {{/* Ownership rides the collection it already names, as the event
        lists write it, rather than a column of its own; the name narrows
@@ -867,6 +870,12 @@
 <div class="filter-row{{ if .nested }} nested{{ end }}{{ if $i.Only }} active{{ end }}">
   <a class="filter-name {{.itemclass}}" href="{{ localhref (printf "%s%s" $base (account "&" $i.Account)) }}" title="{{$i.Name}}"{{ if $i.Only }} aria-current="true"{{ end }}>
     <span>{{$i.Name}}</span>
+    {{/* What the collection is besides the account's own: a feed it
+         follows or an address it answers at - Apple's broadcast mark -
+         or someone else's, shared. The words are the mark's title and
+         what a screen reader hears. */}}
+    {{ if or $i.Address $i.Public }}{{ $what := $.g.T "share.marksubscribed" }}{{ if $i.Public }}{{ $what = $.g.T "share.markpublic" }}{{ end }}<span class="rail-mark" title="{{$what}}" aria-label="{{$what}}">{{ template "icon" "broadcast" }}</span>
+    {{ else if $i.SharedBy }}{{ $who := printf ($.g.T "share.marksharedby") $i.SharedBy }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>{{ end }}
   </a>
   {{/* The collection's own page, where it is renamed and deleted, and
        the tick that says whether it is in the merged view: the two
@@ -890,7 +899,7 @@
 <form method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter">
 <input type="hidden" name="next" value="{{$d.next}}">
 {{ range $d.items }}{{ if eq .Account $.account }}
-{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "onlylabel" $d.onlylabel "alllabel" $d.alllabel "keep" $d.keep "nested" (not $.single) "edithref" $d.edithref "editlabel" $d.editlabel) }}
+{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "onlylabel" $d.onlylabel "alllabel" $d.alllabel "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edithref" $d.edithref "editlabel" $d.editlabel "g" $.g) }}
 {{ end }}{{ end }}
 <button>{{$d.apply}}</button>
 </form>
@@ -950,7 +959,7 @@
     {{ else if eq $.kind "rows" }}
     {{ template "rail-rows" (index $.data.rows $acct) }}
     {{ else }}
-    {{ template "rail-dav-account" (dict "account" $acct "data" $.data) }}
+    {{ template "rail-dav-account" (dict "account" $acct "data" $.data "g" $.g) }}
     {{ end }}
   </details>
   {{ end }}
@@ -961,7 +970,8 @@
   {{ else if and (eq .kind "rows") .accounts }}
   {{ template "rail-rows" (index .data.rows (index .accounts 0).Username) }}
   {{ else if and (eq .kind "dav") .data.items }}
-  {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true) }}
+  {{ with .all }}<a class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}">{{.}}</a>{{ end }}
+  {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true "g" .g) }}
   {{ end }}
   {{ end }}
   {{/* Colours are views, the way the mail rail carries them: one list
@@ -1036,6 +1046,7 @@
 {{/* The list the event was opened from rides along, so its page can
      name the events either side of it. */}}
 {{ with $base.ListQuery }}{{ $href = printf "%s%s%s" $href (qsep $href) . }}{{ end }}
+{{ $addedby := "" }}{{ with call $base.AddedBy .Account .Path }}{{ $addedby = printf ($base.T "share.addedby") . }}{{ end }}
 {{ $staraction := "" }}{{ if not $obj.ReadOnly }}{{ $staraction = printf "%s/color%s" $obj.URL (account "?" $obj.Account) }}{{ end }}
 {{/* Rows carry their date unless the list is banded by day. */}}
 {{ $date := "" }}{{ $dateTitle := "" }}{{ if $.dated }}{{ $date = $base.GlobalData.ShortDate .Start }}{{ $dateTitle = $base.GlobalData.LongDate .Start }}{{ with $base.GlobalData.SecondaryDate .Start }}{{ $dateTitle = printf "%s (%s)" $dateTitle . }}{{ end }}{{ end }}
@@ -1055,6 +1066,7 @@
    "color" (or .Color $collection.Color)
    "owner" $collection.Name
    "ownerhref" (call $base.CollectionHref .Account .Path)
+   "addedby" $addedby
    "account" (and $base.GlobalData.Unified ($base.GlobalData.AccountLabel .Account))
    "accountTitle" .Account
    "timeLabel" ($base.T "calendar.time") "eventLabel" ($base.T "calendar.event") "calendarLabel" ($base.T "common.calendar")) }}

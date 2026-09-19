@@ -204,6 +204,9 @@ func (p *Provider) Collections(ctx context.Context, session *alborz.Session) ([]
 		if err != nil {
 			return nil, fmt.Errorf("failed to list the %s collections: %v", p.kind.Label, err)
 		}
+		for i := range infos {
+			infos[i].Public = infos[i].Here && p.Published(infos[i].Path)
+		}
 		return infos, nil
 	})
 }

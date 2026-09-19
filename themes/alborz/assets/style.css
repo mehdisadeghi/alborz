@@ -5338,3 +5338,15 @@ aside .rail-invitation-answer button:not(.button-quiet) {
 }
 
 aside .rail-invitation-answer button { padding: var(--space-1) var(--space-2); }
+
+/* A collection's kind beside its name in the rail: a feed, a published
+   calendar or someone else's. The ink of a hint, the size of the text,
+   and no room taken from the name it follows. */
+.rail-mark {
+  display: inline-flex;
+  flex: none;
+  margin-inline-start: var(--space-1);
+  color: var(--fg-muted);
+}
+
+.rail-mark .icon { width: 0.9em; height: 0.9em; }

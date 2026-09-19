@@ -99,7 +99,8 @@
         {{ template "object-dates" (dict "g" .Global
            "created" ($event.Props.DateTime "CREATED" nil)
            "modified" ($event.Props.DateTime "LAST-MODIFIED" nil)
-           "createdLabel" ($.T "common.created") "modifiedLabel" ($.T "common.modified")) }}
+           "createdLabel" ($.T "common.created") "modifiedLabel" ($.T "common.modified")
+           "authors" .Authors "bylabel" ($.T "common.by")) }}
         {{ end }}
       </section>
     </main>

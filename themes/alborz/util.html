@@ -444,7 +444,7 @@
   </div>
   {{/* Whose calendar it is rides after the name, as the task and
        contact rows write it, on the merged view alone. */}}
-  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}{{ with .account }}<span class="row-account" title="{{$.accountTitle}}">{{ template "ltr" . }}</span>{{ end }}</div>
+  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}{{ template "collection-mark" (dict "g" .g "c" .collection) }}{{ with .account }}<span class="row-account" title="{{$.accountTitle}}">{{ template "ltr" . }}</span>{{ end }}</div>
 </div>
 {{ end }}
 
@@ -699,7 +699,7 @@
        the list to that calendar, in the scope the row belongs to. */}}
   {{ $cq := printf "%v" (account "?" (or .Task.Account $g.GlobalData.URLAccount)) }}
   <div class="task-list-calendar list-cell" role="cell" data-label="{{$g.T "common.calendar"}}">
-    {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}<a href="/tasks{{$cq}}{{qsep $cq}}cal={{.Calendar.Path | urlquery}}">{{.Calendar.Name}}</a>{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
+    {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}<a href="/tasks{{$cq}}{{qsep $cq}}cal={{.Calendar.Path | urlquery}}">{{.Calendar.Name}}</a>{{ template "collection-mark" (dict "g" $g "c" .Calendar) }}{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
   </div>
   {{/* Built before the tag: the escaper cannot follow an attribute that
        only some branches write. */}}
@@ -874,9 +874,7 @@
          follows or an address it answers at - Apple's broadcast mark -
          or someone else's, shared. The words are the mark's title and
          what a screen reader hears. */}}
-    {{ if or $i.Address $i.Public }}{{ $what := $.g.T "share.marksubscribed" }}{{ if $i.Public }}{{ $what = $.g.T "share.markpublic" }}{{ end }}<span class="rail-mark" title="{{$what}}" aria-label="{{$what}}">{{ template "icon" "broadcast" }}</span>
-    {{ else if $i.SharedBy }}{{ $who := printf "%s · %s" (printf ($.g.T "share.marksharedby") $i.SharedBy) ($.g.T (or (and $i.Writable "share.canedit") "share.canview")) }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>
-    {{ else if $i.SharedWith }}{{ $who := $.g.GlobalData.Tf "share.marksharedwith" $i.SharedWith }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>{{ end }}
+    {{ template "collection-mark" (dict "g" $.g "c" $i) }}
   </a>
   {{/* The collection's own page, where it is renamed and deleted, and
        the tick that says whether it is in the merged view: the two
@@ -895,6 +893,18 @@
      editlabel next. "keep" is what the "only" link carries so that
      looking at one collection does not also change which view you are
      in. */}}
+{{/* What a collection is besides the account's own, wherever it is
+     named - the rail, a row's calendar or book: a feed it follows or an
+     address it answers at, Apple's broadcast mark; someone else's,
+     shared, with the access given; the account's own, shared with
+     others. The words are the mark's title and what a screen reader
+     hears. dict: g c (a collection). */}}
+{{ define "collection-mark" }}{{ $g := .g }}{{ with .c }}
+{{- if or .Address .Public }}{{ $what := $g.T "share.marksubscribed" }}{{ if .Public }}{{ $what = $g.T "share.markpublic" }}{{ end }}<span class="rail-mark" title="{{$what}}" aria-label="{{$what}}">{{ template "icon" "broadcast" }}</span>
+{{- else if .SharedBy }}{{ $who := printf "%s · %s" (printf ($g.T "share.marksharedby") .SharedBy) ($g.T (or (and .Writable "share.canedit") "share.canview")) }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>
+{{- else if .SharedWith }}{{ $who := $g.GlobalData.Tf "share.marksharedwith" .SharedWith }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>{{ end }}
+{{- end }}{{ end }}
+
 {{/* A share as its invitee sees it, in the shape of a meeting
      invitation: what, from whom, on what terms, and the answer or the
      two ways to give one. The collection's page and the mail that
@@ -1092,6 +1102,7 @@
    "color" (or .Color $collection.Color)
    "owner" $collection.Name
    "ownerhref" (call $base.CollectionHref .Account .Path)
+   "collection" $collection "g" $base
    "addedby" $addedby
    "account" (and $base.GlobalData.Unified ($base.GlobalData.AccountLabel .Account))
    "accountTitle" .Account

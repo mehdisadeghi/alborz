@@ -4273,7 +4273,7 @@ button:active,
   text-decoration: none;
 }
 
-.list-summary:hover {
+a.list-summary:hover {
   text-decoration: underline;
 }
 

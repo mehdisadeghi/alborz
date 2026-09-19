@@ -858,8 +858,8 @@
      dict: kind ("mail" "dav" "rows") path urlaccount accounts
      (usernames) all (the merged entry's label, none where the section
      has no merged view) new (dict href label active) data (the kind's
-     own: for "rows", a map from account to its RailRow list) home
-     (dict href label active: a page of the section outside every
+     own: for "rows", a map from account to its RailRow list) homes
+     (tuple of dict href label active: the section's pages outside every
      account, on top in both counts). */}}
 {{/* The application's own name and mark. Its colours are its own -
      the badge is a picture, not an icon, so no theme can wash it out -
@@ -881,7 +881,7 @@
        application's name; on a wide screen the header carries it and
        this one stands down. */}}
   <div class="rail-brand">{{ template "brand" (dict "g" .g "build" .g.GlobalData.Build) }}</div>
-  {{ with .home }}<a class="aside-account aside-all{{ if .active }} active{{ end }}" href="{{.href}}">{{.label}}</a>{{ end }}
+  {{ range .homes }}<a class="aside-account aside-all{{ if .active }} active{{ end }}" href="{{.href}}">{{.label}}</a>{{ end }}
   {{ $merged := not .urlaccount }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $merged = false }}{{ end }}{{ end }}{{ end }}
   {{ if gt (len .accounts) 1 }}
   {{ if eq .kind "mail" }}
@@ -1069,8 +1069,9 @@
     <details class="folder-branch" data-rail-key="{{.key}}"{{ if .open }} open{{ end }}>
       <summary>{{.label}}</summary>
       <ul>
+        {{ $d := . }}
         {{ range .rows }}
-        <li{{ if .Active }} class="active"{{ end }}><a href="{{.Href}}" dir="auto">{{.Label}}</a></li>
+        <li{{ if .Active }} class="active"{{ end }}><a href="{{.Href}}" dir="auto">{{.Label}}</a>{{ with .Edit }}<a class="filter-edit" href="{{.}}" title="{{$d.editlabel}}">{{$d.editlabel}}</a>{{ end }}</li>
         {{ end }}
         {{ with .new }}<li><a class="aside-create" href="{{.href}}">{{.label}}</a></li>{{ end }}
       </ul>
@@ -1078,6 +1079,15 @@
   </li>
 </ul>
 {{ end }}
+{{ end }}
+
+{{/* The settings rail on every settings page. What this browser keeps
+     - how it reads, the passkeys that unlock it - applies to every
+     account and heads the rail; each account's own pages follow.
+     dict: g rail. */}}
+{{ define "settings-rail" }}
+{{ $g := .g }}
+{{ template "scope-rail" (dict "g" $g "kind" "rows" "path" "/settings/account" "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "data" (dict "rows" .rail) "homes" (tuple (dict "href" "/settings" "label" ($g.T "nav.settings") "active" (eq .here "settings")) (dict "href" "/settings/passkeys" "label" ($g.T "passkeys.title") "active" (eq .here "passkeys")))) }}
 {{ end }}
 
 {{/* The places a section offers per account, one row each. */}}

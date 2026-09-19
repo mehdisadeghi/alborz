@@ -1,0 +1,24 @@
+{{template "head.html" .}}
+
+{{/* A locked visit: the passkey opens it, and signing out is the way
+     past a passkey that is gone. A page without a script can only
+     offer the second. */}}
+<main id="main" tabindex="-1" class="login">
+  <section>
+    <h1>{{$.T "lock.title"}}</h1>
+    <div class="alert" role="alert" id="passkey-error" hidden></div>
+    <p class="action-group">
+      <button type="button" class="button-primary" id="passkey-unlock" autofocus
+              data-begin="/unlock/begin" data-finish="/unlock/finish" data-next="{{.Next}}"
+              data-unsupported="{{$.T "passkeys.unsupported"}}" data-failed="{{$.T "passkeys.refused"}}">{{$.T "lock.unlock"}}</button>
+    </p>
+    <noscript><p>{{$.T "passkeys.needsscript"}}</p></noscript>
+    <form method="post" action="/unlock/leave" class="action-group">
+      <button type="submit" class="button-link button-quiet">{{$.T "lock.leave"}}</button>
+      {{ template "hint" (dict "text" ($.T "lock.leavehint")) }}
+    </form>
+  </section>
+</main>
+<script src="{{call .GlobalData.Asset "passkeys.js"}}"></script>
+
+{{template "foot.html"}}

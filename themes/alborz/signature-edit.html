@@ -6,7 +6,7 @@
 
 <div class="page-wrap">
   <aside>
-  {{ template "scope-rail" (dict "g" $ "kind" "rows" "path" "/settings/account" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "home" (dict "href" "/settings" "label" ($.T "nav.settings") "active" false)) }}
+  {{ template "settings-rail" (dict "g" $ "rail" .Rail "here" "") }}
   </aside>
 
   <div class="container">

@@ -903,6 +903,25 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				ctx.SetLanguage(lang)
 			}
 
+			// A locked visit answers nothing but the way to unlock or
+			// leave, and does not sign its remembered accounts back in
+			// for whoever is holding the browser.
+			path, now := ctx.Request().URL.Path, time.Now()
+			// Pages saved for offline are read with no server to ask for
+			// the passkey, so a visit that locks has none saved.
+			v := ctx.lookupVisit()
+			if v != nil && v.locks() && !isPublic(path) {
+				ctx.Response().Header().Set("Cache-Control", "no-store")
+			}
+			if v != nil && v.Locked(now) {
+				if lockOpen(path) {
+					return next(ctx)
+				}
+				return redirectToUnlock(ctx)
+			} else if v != nil && !isBackground(ctx.Request()) {
+				v.act(now)
+			}
+
 			// Whether anyone is signed in is a question about the bag,
 			// not about any one account: the browser names its visit
 			// and the visit holds what it has signed into.

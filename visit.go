@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fernet/fernet-go"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 )
 
@@ -43,6 +44,12 @@ type Visit struct {
 	// will take what the first account brings.
 	read   *Reading
 	anchor string
+	// lock is what stands in front of the visit, active when the reader
+	// last did something, and ceremony the WebAuthn exchange under way.
+	lock     Lock
+	active   time.Time
+	locked   bool
+	ceremony *webauthn.SessionData
 }
 
 func (v *Visit) reading() Reading {
@@ -122,7 +129,7 @@ func (v *Visit) record() *VisitRecord {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	rec := &VisitRecord{ID: v.ID, Created: v.Created, Seen: v.seen,
-		Reading: v.read, Anchor: v.anchor}
+		Reading: v.read, Anchor: v.anchor, Lock: v.lock}
 	for address, sealed := range v.remember {
 		rec.Accounts = append(rec.Accounts, RememberedAccount{Address: address, Sealed: sealed})
 	}
@@ -145,7 +152,7 @@ func visitFromRecord(rec *VisitRecord) *Visit {
 	for _, a := range rec.Accounts {
 		v.remember[a.Address] = a.Sealed
 	}
-	v.read, v.anchor = rec.Reading, rec.Anchor
+	v.read, v.anchor, v.lock = rec.Reading, rec.Anchor, rec.Lock
 	return v
 }
 
@@ -212,6 +219,7 @@ type VisitRecord struct {
 	Accounts []RememberedAccount
 	Reading  *Reading
 	Anchor   string
+	Lock     Lock
 }
 
 // RememberedAccount is one account of a remembered visit.
@@ -364,6 +372,7 @@ func newVisit() (*Visit, string) {
 		ID:          base64.RawURLEncoding.EncodeToString(b[:32]),
 		Created:     now,
 		seen:        now,
+		active:      now,
 		attachments: map[string]*Attachment{},
 	}
 	return v, base64.RawURLEncoding.EncodeToString(b[32:])

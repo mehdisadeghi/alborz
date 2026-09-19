@@ -81,12 +81,13 @@
 <div class="context-crumb">
   {{- $sep := false }}
   {{- if and $several (not .noroot) }}<a href="{{ .home }}">{{ .g.T "nav.allaccounts" }}</a>{{ $sep = true }}{{ end }}
-  {{- /* The last step is the way up from the page, which is what u
-          means on the keyboard. */ -}}
-  {{- $last := sub (len .steps) 1 }}
+  {{- /* The last linked step is the way up from the page, which is
+          what u means on the keyboard; a step after it names the page
+          itself. */ -}}
+  {{- $up := -1 }}{{ range $i, $s := .steps }}{{ if and $s.Label $s.URL (or $several (not $s.Address)) }}{{ $up = $i }}{{ end }}{{ end }}
   {{- range $i, $step := .steps }}{{ if and $step.Label (or $several (not $step.Address)) }}
     {{- if $sep }} › {{ end }}{{ $sep = true }}
-    {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $last }} data-key="u"{{ end }}>{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
+    {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
     {{- else }}{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}{{ end }}
   {{- end }}{{ end }}
 </div>
@@ -117,7 +118,8 @@
 {{ template "crumb" (dict "g" .g "home" .home "noroot" .noroot "steps" (tuple
    (dict "Label" $account "URL" .home "Address" true)
    (dict "Label" .section "URL" .home)
-   (dict "Label" $collection "URL" $url))) }}
+   (dict "Label" $collection "URL" $url)
+   (dict "Label" .object))) }}
 {{ end }}
 
 {{/* The flag colours, as swatches. Each is its own submit, so the
@@ -701,6 +703,28 @@
 {{ end }}
 
 {{ define "toolbar-foot" }}
+  </div>
+</div>
+{{ end }}
+
+{{/* The frame of a settings page that is a list: the rail, the toolbar
+     with the page's name and its New, and the crumb. The page writes
+     its rows between the two. dict: g title path here [newhref newlabel]. */}}
+{{ define "settings-list-open" }}
+<div class="page-wrap">
+  <aside>
+  {{ template "settings-rail" (dict "g" .g "rail" .g.Rail "here" .here) }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="list">
+      <section class="actions" aria-label="{{.g.T "a11y.toolbar"}}">
+        {{ template "list-toolbar" (dict "title" .title "newhref" .newhref "newlabel" .newlabel) }}
+      </section>
+      {{ template "dav-crumb" (dict "g" .g "section" (.g.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" .title "path" .path) }}
+{{ end }}
+{{ define "settings-list-close" }}
+    </main>
   </div>
 </div>
 {{ end }}

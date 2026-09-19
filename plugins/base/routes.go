@@ -80,7 +80,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	scoped := func(h func(*alborz.Context) error) func(*alborz.Context) error {
 		return func(ctx *alborz.Context) error {
 			if ctx.Unified && ctx.Request().Method == http.MethodGet {
-				return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+"?account="+alborz.AddressParam(ctx.Session.Username()))
+				return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+accountQuery(ctx.Session.Username()))
 			}
 			return h(ctx)
 		}
@@ -97,6 +97,8 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.POST("/signatures/delete", handleSignatureDelete)
 	p.POST("/signatures/default", handleSignatureDefault)
 	p.GET("/settings/servers", scoped(handleServers))
+	p.GET("/settings/servers/:server", scoped(handleServer))
+	p.POST("/settings/servers/:server", scoped(handleServer))
 	p.GET("/settings/account", scoped(handleSettings))
 	p.POST("/settings/account", handleSettings)
 	p.POST("/settings/account/forget", handleForget)

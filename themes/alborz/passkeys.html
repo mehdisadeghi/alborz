@@ -2,18 +2,7 @@
 {{template "nav.html" .}}
 {{template "util.html" .}}
 
-<div class="page-wrap">
-  <aside>
-  {{ template "settings-rail" (dict "g" $ "rail" .Rail "here" "passkeys") }}
-  </aside>
-
-  <div class="container">
-    <main id="main" tabindex="-1" class="list">
-      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "list-toolbar" (dict "title" ($.T "passkeys.title") "newhref" "/settings/passkeys/create" "newlabel" ($.T "passkeys.new")) }}
-      </section>
-
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "passkeys.title") "path" "/settings/passkeys") }}
+{{ template "settings-list-open" (dict "g" $ "title" ($.T "passkeys.title") "path" "/settings/passkeys" "here" "passkeys" "newhref" "/settings/passkeys/create" "newlabel" ($.T "passkeys.new")) }}
 
       {{/* A passkey has nothing to edit: the authenticator made it and
            keeps it. A row says which one it is and when it was last
@@ -38,8 +27,6 @@
       </section>
       <p class="hint list-option">{{$.T "passkeys.hint"}}</p>
       <p class="hint list-option">{{$.T "passkeys.nosaved"}}</p>
-    </main>
-  </div>
-</div>
+{{ template "settings-list-close" }}
 
 {{template "foot.html" .}}

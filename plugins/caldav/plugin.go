@@ -2,7 +2,6 @@ package alborzcaldav
 
 import (
 	"embed"
-	"strings"
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
@@ -75,53 +74,12 @@ func init() {
 	})
 }
 
-// registerServerCard answers for this account's calendar server on the
-// Servers page, in the same shape mail answers for its own: where it
-// is, what it calls itself, and which of the protocol it claims. A
-// calendar that behaves oddly is somebody else's deployment, and this
-// is where a bug report starts.
+// registerServerCard puts the calendar server among the account's
+// servers.
 func (p *plugin) registerServerCard() {
-	p.Inject("servers.html", func(ctx *alborz.Context, data alborz.RenderData) error {
-		servers, ok := data.(*alborzbase.ServersRenderData)
-		if !ok || ctx.Session == nil {
-			return nil
-		}
-		base, ok := p.dav.URL(ctx.Session)
-		if !ok {
-			return nil
-		}
-		// What is kept here syncs to a phone like any DAV server's, and
-		// this is the address the phone is given.
-		if p.dav.KeepsHere() {
-			servers.More = append(servers.More, alborzbase.ServerCard{
-				Title: ctx.T("settings.davhere"),
-				Rows: []map[string]any{
-					{"label": ctx.T("settings.davhereaddress"), "value": ctx.Scheme() + "://" + ctx.Request().Host + collections.Prefix + "/"},
-					{"label": ctx.T("settings.davhereuser"), "value": ctx.Session.Username()},
-				},
-			})
-		}
-		card := alborzbase.ServerCard{Title: ctx.T("settings.davcalendar")}
-		found, err := dav.Describe(ctx.Request().Context(), p.dav.HTTPClient(ctx.Session), base)
-		if err != nil {
-			// A server that did not answer is worth saying so about;
-			// the page is not the place to fail over it.
-			card.Rows = []map[string]any{
-				{"label": ctx.T("settings.serverhost"), "value": p.dav.Host(ctx)},
-				{"label": ctx.T("settings.serverunreachable"), "value": err.Error()},
-			}
-			servers.More = append(servers.More, card)
-			return nil
-		}
-		card.Rows = []map[string]any{
-			{"label": ctx.T("settings.serverhost"), "value": p.dav.Host(ctx)},
-			{"label": ctx.T("settings.serversoftware"), "value": found.Software},
-			{"label": ctx.T("settings.davcompliance"), "value": strings.Join(found.Compliance, ", ")},
-		}
-		card.Abilities = davAbilities(found)
-		servers.More = append(servers.More, card)
-		return nil
-	})
+	card := p.dav.InjectCard("settings.davcalendar", davAbilities)
+	p.Inject("servers.html", card)
+	p.Inject("server.html", card)
 }
 
 // davAbilities names the classes that change what alborz can offer,

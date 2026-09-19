@@ -6,6 +6,10 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+
+	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"git.mehdix.org/alborz/plugins/collections"
 )
 
 // Advertised is what a DAV server says about itself when asked, and
@@ -60,4 +64,76 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 		}
 	}
 	return a, nil
+}
+
+// Origin is where the session's server is and how alborz came to it: the
+// one the account names, or the one for its domain. Empty when it has
+// none and keeps its collections here only.
+func (p *Provider) Origin(session *alborz.Session) (host, source string) {
+	if services, err := session.Services(); err == nil && p.kind.Own(services) != "" {
+		if u, ok := p.Remote(session); ok {
+			return u.Host, "servers.fromaccount"
+		}
+	}
+	if u, ok := p.Remote(session); ok {
+		return u.Host, "servers.fromdomain"
+	}
+	return "", ""
+}
+
+// InjectCard puts the kind's server among the account's servers. The
+// list needs only where it is; the server's own page asks it what it
+// claims, which is one OPTIONS every DAV server answers anyway.
+func (p *Provider) InjectCard(title string, abilities func(Advertised) []alborzbase.Ability) alborz.InjectFunc {
+	return func(ctx *alborz.Context, data alborz.RenderData) error {
+		servers, ok := data.(*alborzbase.ServersRenderData)
+		if !ok || ctx.Session == nil {
+			return nil
+		}
+		host, source := p.Origin(ctx.Session)
+		if host == "" {
+			return nil
+		}
+		card := alborzbase.ServerCard{Group: alborzbase.ServerDAV, Title: ctx.T(title), Host: host, Source: source}
+		if servers.Showing == alborzbase.ServerDAV {
+			remote, _ := p.Remote(ctx.Session)
+			found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Session), remote)
+			// A server that did not answer is worth saying so about; the
+			// page is not the place to fail over it.
+			if err != nil {
+				card.Rows = []map[string]any{
+					{"label": ctx.T("settings.serverhost"), "value": host},
+					{"label": ctx.T("settings.serverunreachable"), "value": err.Error()},
+				}
+			} else {
+				card.Rows = []map[string]any{
+					{"label": ctx.T("settings.serverhost"), "value": host},
+					{"label": ctx.T("settings.serversoftware"), "value": found.Software},
+					{"label": ctx.T("settings.davcompliance"), "value": strings.Join(found.Compliance, ", ")},
+				}
+				card.Abilities = abilities(found)
+			}
+		}
+		servers.Cards = append(servers.Cards, card)
+		return nil
+	}
+}
+
+// InjectHere puts the collections kept here among the account's
+// servers, with what a phone is given to sync them.
+func (p *Provider) InjectHere() alborz.InjectFunc {
+	return func(ctx *alborz.Context, data alborz.RenderData) error {
+		servers, ok := data.(*alborzbase.ServersRenderData)
+		if !ok || ctx.Session == nil || p.here == nil {
+			return nil
+		}
+		servers.Cards = append(servers.Cards, alborzbase.ServerCard{
+			Group: alborzbase.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
+			Rows: []map[string]any{
+				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Scheme() + "://" + ctx.Request().Host + collections.Prefix + "/"},
+				{"label": ctx.T("settings.davhereuser"), "value": ctx.Session.Username()},
+			},
+		})
+		return nil
+	}
 }

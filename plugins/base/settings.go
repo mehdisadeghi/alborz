@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -157,15 +158,9 @@ type SettingsRenderData struct {
 	Subscriptions Subscriptions
 	// Kept says where this account's settings are written and what is
 	// written there.
-	Kept KeptInfo
-	Rail map[string][]alborz.RailRow
-	// Services are the calendar and contacts servers the account names
-	// for itself.
-	Services alborz.Services
-	// HasHTTPPassword says a calendar and contacts password is kept,
-	// which the form shows without ever showing the password.
-	HasHTTPPassword bool
-	Error           string
+	Kept  KeptInfo
+	Rail  map[string][]alborz.RailRow
+	Error string
 }
 
 // KeptInfo says where an account's settings live. A server with no
@@ -343,22 +338,105 @@ type SignatureRenderData struct {
 // has to say.
 type ServersRenderData struct {
 	alborz.BaseRenderData
-	Servers ServerInfo
-	// More are the other servers this account has, one card each,
-	// filled in by whichever plugin answers for them. Mail is not the
-	// only thing with an upstream, and a calendar that behaves oddly
-	// is somebody else's deployment too.
-	More []ServerCard
 	Rail map[string][]alborz.RailRow
+	// Showing is the server the page is about, empty for the list: a
+	// card asks its server what it is only on its own page, so the list
+	// costs no round trip.
+	Showing string
+	// Cards are every server this account talks to, filled in by
+	// whichever plugin answers for each. Mail is not the only thing
+	// with an upstream, and a calendar that behaves oddly is somebody
+	// else's deployment too.
+	Cards []ServerCard
+	// The calendar and contacts servers the account names for itself,
+	// whether it keeps a password of their own, and what was refused.
+	Services        alborz.Services
+	HasHTTPPassword bool
+	Error           string
 }
 
-// ServerCard is one upstream's card on the Servers page. Rows carry the
-// "label" and "value" pairs the shared card renders, which is why they
-// are maps rather than a type of their own.
+// The servers an account has, in the order the list shows them. A
+// server with a page of its own is one with more to say than its host.
+const (
+	ServerMail    = "mail"
+	ServerSending = "sending"
+	ServerFilters = "filters"
+	ServerDAV     = "dav"
+)
+
+var serverOrder = []string{ServerMail, ServerSending, ServerFilters, ServerDAV}
+
+var serverPages = map[string]bool{ServerMail: true, ServerDAV: true}
+
+// ServerCard is one upstream's card. Rows carry the "label" and "value"
+// pairs the shared card renders, which is why they are maps rather than
+// a type of their own.
 type ServerCard struct {
-	Title     string
-	Rows      []map[string]any
-	Abilities []Ability
+	// Group is the list row the card belongs to; several cards can,
+	// as the calendar and the contacts server do.
+	Group string
+	Title string
+	// Host is where the server is, empty for the collections kept here;
+	// Source is how alborz came to it, a translation key, empty when
+	// the deployment set it.
+	Host, Source string
+	Rows         []map[string]any
+	Abilities    []Ability
+	Explained    []alborz.Explained
+}
+
+// ServerRow is one row of the list: a group of cards by its hosts.
+type ServerRow struct {
+	Title, Hosts, Source, Href string
+}
+
+// Rows are the list's rows, one per group that has a card.
+func (d *ServersRenderData) Rows() []ServerRow {
+	var rows []ServerRow
+	for _, group := range serverOrder {
+		row := ServerRow{Title: d.T("servers." + group)}
+		var hosts []string
+		found := false
+		for _, c := range d.Cards {
+			if c.Group != group {
+				continue
+			}
+			found = true
+			if c.Host != "" && !slices.Contains(hosts, c.Host) {
+				hosts = append(hosts, c.Host)
+			}
+			if row.Source == "" && c.Source != "" {
+				row.Source = d.T(c.Source)
+			}
+		}
+		if !found {
+			continue
+		}
+		row.Hosts = strings.Join(hosts, ", ")
+		if serverPages[group] {
+			row.Href = "/settings/servers/" + group + accountQuery(d.GlobalData.URLAccount)
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// Shown are the cards of the server the page is about.
+func (d *ServersRenderData) Shown() []ServerCard {
+	var shown []ServerCard
+	for _, c := range d.Cards {
+		if c.Group == d.Showing {
+			shown = append(shown, c)
+		}
+	}
+	return shown
+}
+
+func accountQuery(address string) string {
+	if address == "" {
+		return ""
+	}
+	return "?account=" + alborz.AddressParam(address)
 }
 
 // settingsRail lists the places in this section. What the reader reads
@@ -369,7 +447,7 @@ func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	rows := map[string][]alborz.RailRow{}
 	for _, account := range ctx.Accounts() {
 		scoped := ctx.Session != nil && account.Username == ctx.Session.Username()
-		q := "?account=" + alborz.AddressParam(account.Username)
+		q := accountQuery(account.Username)
 		rows[account.Username] = []alborz.RailRow{
 			{Label: ctx.T("settings.account"), Href: "/settings/account" + q, Active: scoped && path == "/settings/account"},
 			{Label: ctx.T("settings.signatures"), Href: "/signatures" + q, Active: scoped && strings.HasPrefix(path, "/signatures")},
@@ -535,14 +613,6 @@ func handleSettings(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	hasHTTPPassword, err := ctx.Session.HasHTTPPassword()
-	if err != nil {
-		return err
-	}
-	services, err := ctx.Session.Services()
-	if err != nil {
-		return err
-	}
 	// What the account keeps and where is one section of this page. A
 	// server that will not answer for it - METADATA refused, a depth it
 	// does not support - says so on the page; it is not a reason to
@@ -559,15 +629,13 @@ func handleSettings(ctx *alborz.Context) error {
 	// Persian digits invites them back in its number fields.
 	reject := func(message string) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "settings-account.html", &SettingsRenderData{
-			BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
-			Settings:        settings,
-			Mailboxes:       mailboxes,
-			Subscriptions:   Subscriptions(settings.Subscriptions),
-			Kept:            kept,
-			HasHTTPPassword: hasHTTPPassword,
-			Services:        services,
-			Error:           message,
-			Rail:            settingsRail(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
+			Settings:       settings,
+			Mailboxes:      mailboxes,
+			Subscriptions:  Subscriptions(settings.Subscriptions),
+			Kept:           kept,
+			Error:          message,
+			Rail:           settingsRail(ctx),
 		})
 	}
 
@@ -576,40 +644,6 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
 		settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
-		// An empty field leaves the kept password alone; the box is
-		// how it is let go of, so nobody loses it by saving the page.
-		if ctx.FormValue("http_password_reset") != "" {
-			err = ctx.Session.SetHTTPPassword("")
-		} else if p := ctx.FormValue("http_password"); p != "" {
-			err = ctx.Session.SetHTTPPassword(p)
-		}
-		if err != nil {
-			return err
-		}
-		// The account's own servers. What was typed is what the form
-		// shows again when one is refused.
-		named := alborz.Services{
-			CalDAV:   strings.TrimSpace(ctx.FormValue("caldav_url")),
-			CardDAV:  strings.TrimSpace(ctx.FormValue("carddav_url")),
-			Username: strings.TrimSpace(ctx.FormValue("dav_username")),
-		}
-		for _, server := range []string{named.CalDAV, named.CardDAV} {
-			if server == "" {
-				continue
-			}
-			if err := ctx.Server.CheckServiceURL(ctx.Request().Context(), server); err != nil {
-				services = named
-				return reject(fmt.Sprintf(ctx.T(serviceRefusals[err]), server))
-			}
-		}
-		if named != services {
-			if err := ctx.Session.SetServices(named); err != nil {
-				return err
-			}
-			// What is cached was read from the servers just left.
-			ctx.Server.ForgetAccount(ctx.Session.Username())
-			services = named
-		}
 		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
 		settings.SendHTML = ctx.FormValue("send_html") != ""
 
@@ -636,15 +670,13 @@ func handleSettings(ctx *alborz.Context) error {
 		guess = SuggestAuthServ(ctx)
 	}
 	return ctx.Render(http.StatusOK, "settings-account.html", &SettingsRenderData{
-		BaseRenderData:  *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
-		AuthServGuess:   guess,
-		Settings:        settings,
-		Mailboxes:       mailboxes,
-		Subscriptions:   Subscriptions(settings.Subscriptions),
-		Kept:            kept,
-		HasHTTPPassword: hasHTTPPassword,
-		Services:        services,
-		Rail:            settingsRail(ctx),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
+		AuthServGuess:  guess,
+		Settings:       settings,
+		Mailboxes:      mailboxes,
+		Subscriptions:  Subscriptions(settings.Subscriptions),
+		Kept:           kept,
+		Rail:           settingsRail(ctx),
 	})
 }
 
@@ -669,10 +701,24 @@ func handleForget(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 }
 
-func handleServers(ctx *alborz.Context) error {
+// mailCards are the servers the deployment names for the account's
+// domain; on its own page the mail server is asked what it is.
+func mailCards(ctx *alborz.Context, showing string) ([]ServerCard, error) {
+	_, domain, _ := strings.Cut(ctx.Session.Username(), "@")
+	up := ctx.Server.UpstreamsFor(domain)
+	cards := []ServerCard{
+		{Group: ServerMail, Title: ctx.T("servers.mail"), Host: up.IMAP},
+		{Group: ServerSending, Title: ctx.T("servers.sending"), Host: up.SMTP},
+	}
+	if up.Sieve != "" {
+		cards = append(cards, ServerCard{Group: ServerFilters, Title: ctx.T("servers.filters"), Host: up.Sieve})
+	}
+	if showing != ServerMail {
+		return cards, nil
+	}
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var agent string
 	var abilityList []Ability
@@ -682,13 +728,96 @@ func handleServers(ctx *alborz.Context) error {
 		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+	info := serverInfo(ctx, agent, abilityList)
+	cards[0].Rows = []map[string]any{
+		{"label": ctx.T("settings.serverhost"), "value": info.IMAP},
+		{"label": ctx.T("settings.serversoftware"), "value": info.Agent},
+	}
+	cards[0].Abilities, cards[0].Explained = info.Abilities, info.Explained
+	return cards, nil
+}
+
+func handleServers(ctx *alborz.Context) error {
+	cards, err := mailCards(ctx, "")
+	if err != nil {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "servers.html", &ServersRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.servers")),
-		Servers:        serverInfo(ctx, agent, abilityList),
 		Rail:           settingsRail(ctx),
+		Cards:          cards,
 	})
+}
+
+// handleServer is one server's page: what it says about itself, and for
+// the calendar and contacts servers the ones the account names.
+func handleServer(ctx *alborz.Context) error {
+	showing := ctx.Param("server")
+	if !serverPages[showing] {
+		return alborz.NotFound("notfound.server")
+	}
+	cards, err := mailCards(ctx, showing)
+	if err != nil {
+		return err
+	}
+	data := &ServersRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("servers." + showing)),
+		Rail:           settingsRail(ctx),
+		Showing:        showing,
+		Cards:          cards,
+	}
+	if showing != ServerDAV {
+		return ctx.Render(http.StatusOK, "server.html", data)
+	}
+	if data.HasHTTPPassword, err = ctx.Session.HasHTTPPassword(); err != nil {
+		return err
+	}
+	if data.Services, err = ctx.Session.Services(); err != nil {
+		return err
+	}
+	if ctx.Request().Method != http.MethodPost {
+		return ctx.Render(http.StatusOK, "server.html", data)
+	}
+
+	// The account's own servers. What was typed is what the form shows
+	// again when one is refused.
+	named := alborz.Services{
+		CalDAV:   strings.TrimSpace(ctx.FormValue("caldav_url")),
+		CardDAV:  strings.TrimSpace(ctx.FormValue("carddav_url")),
+		Username: strings.TrimSpace(ctx.FormValue("dav_username")),
+	}
+	for _, server := range []string{named.CalDAV, named.CardDAV} {
+		if server == "" {
+			continue
+		}
+		if err := ctx.Server.CheckServiceURL(ctx.Request().Context(), server); err != nil {
+			data.Services = named
+			data.Error = fmt.Sprintf(ctx.T(serviceRefusals[err]), server)
+			return ctx.Render(http.StatusUnprocessableEntity, "server.html", data)
+		}
+	}
+	// An empty field leaves the kept password alone; the box is how it
+	// is let go of, so nobody loses it by saving the page.
+	if ctx.FormValue("http_password_reset") != "" {
+		err = ctx.Session.SetHTTPPassword("")
+	} else if p := ctx.FormValue("http_password"); p != "" {
+		err = ctx.Session.SetHTTPPassword(p)
+	}
+	if err != nil {
+		return err
+	}
+	if named != data.Services {
+		if err := ctx.Session.SetServices(named); err != nil {
+			return err
+		}
+	}
+	// What is cached was read with the servers or the password just
+	// left, and a refusal said about them is no longer news.
+	ctx.Server.ForgetAccount(ctx.Session.Username())
+	ctx.PutNotice(ctx.T("notice.serverssaved"))
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/servers/"+ServerDAV))
 }
 
 // handleLanguage sets the interface language and returns to the page it

@@ -768,7 +768,7 @@ func (l *NewMailboxLocation) folder(name string) string {
 func folderURL(ctx *alborz.Context, account, name string) string {
 	destination := fmt.Sprintf("/mailbox/%s", url.PathEscape(name))
 	if len(ctx.Sessions()) > 1 {
-		destination += "?account=" + alborz.AddressParam(account)
+		destination += accountQuery(account)
 	}
 	return destination
 }
@@ -1265,7 +1265,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 			return ctx.Render(http.StatusOK, "row-star", &StarRenderData{
 				BaseRenderData: *alborz.NewBaseRenderData(ctx),
 				Mailbox:        mboxName,
-				Account:        template.URL("?account=" + alborz.AddressParam(ctx.Session.Username())),
+				Account:        template.URL(accountQuery(ctx.Session.Username())),
 				UID:            uids[0],
 				Flagged:        color[0] != "",
 				Color:          color[0],

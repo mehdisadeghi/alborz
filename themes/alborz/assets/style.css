@@ -1024,6 +1024,7 @@ main.create-update form.filter > label.script > textarea {
 
 /* Simple create forms (event, task, contact) */
 main.create-update form .field,
+main.settings form .field,
 main.create-update > form > label {
   display: block;
   margin-bottom: var(--space-3);
@@ -1035,6 +1036,7 @@ main.create-update > form > label {
    read like every other value and hint, which a bold wrapper made
    them not. */
 main.create-update form .field > label,
+main.settings form .field > label,
 main.create-update > form > label > span {
   display: block;
   margin-bottom: var(--space-1);
@@ -1044,6 +1046,8 @@ main.create-update > form > label > span {
 main.create-update form .field > input,
 main.create-update form .field > select,
 main.create-update form .field > textarea,
+main.settings form .field > input,
+main.settings form .field > select,
 main.create-update > form > label > input,
 main.create-update > form > label > select,
 main.create-update > form > label > textarea {
@@ -2510,6 +2514,7 @@ main > .info-explain {
 }
 
 .info-card h2,
+main.settings form > h2,
 details.info-card > summary {
   margin: 0 0 var(--space-2);
   font-size: var(--text-sm);
@@ -3720,7 +3725,10 @@ aside .aside-filter { display: flex; flex-direction: column; }
   vertical-align: middle;
 }
 
-main.settings form {
+/* A card of facts on a settings page stands in the form's box, so the
+   page has one left edge whatever it holds. */
+main.settings form,
+main.settings > .info-card {
   width: min(calc(100% - 2 * var(--space-4)), var(--content-form));
   margin: var(--space-4);
   padding: var(--space-4);
@@ -4260,8 +4268,10 @@ button:active,
   min-width: 0;
 }
 
+/* Every row's summary takes the same share of the row, not its own
+   width, so what follows it starts on one edge down the list. */
 .list-content .list-summary {
-  flex-grow: 1;
+  flex: 1 1 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4903,6 +4913,7 @@ h1.no-word .title-short {
   }
 
   main.settings form,
+  main.settings > .info-card,
   main.contact .details,
   main.task .details,
   main.event .details {

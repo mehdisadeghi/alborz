@@ -2,43 +2,22 @@
 {{template "nav.html" .}}
 {{template "util.html" .}}
 
-<div class="page-wrap">
-  <aside>
-  {{ template "settings-rail" (dict "g" $ "rail" .Rail "here" "") }}
-  </aside>
+{{ template "settings-list-open" (dict "g" $ "title" ($.T "settings.servers") "path" "/settings/servers" "here" "") }}
 
-  <div class="container">
-    <main id="main" tabindex="-1" class="settings">
-      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "list-toolbar" (dict "title" ($.T "settings.servers")) }}
+      {{/* Where this account's mail, filters, calendars and contacts
+           are, one row each, and how alborz came to each server. A
+           server with more to say than its host - what it claims, what
+           the account names instead - has a page of its own. */}}
+      <section class="list-items">
+        {{ range .Rows }}
+        <div class="list-item">
+          <div class="list-content">
+            {{ if .Href }}<a href="{{.Href}}" class="list-summary">{{.Title}}</a>{{ else }}<span class="list-summary">{{.Title}}</span>{{ end }}
+            <span class="list-detail">{{ with .Hosts }}{{ template "ltr" . }}{{ else }}{{ $.GlobalData.Brand }}{{ end }}{{ with .Source }} · {{.}}{{ end }}</span>
+          </div>
+        </div>
+        {{ end }}
       </section>
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.servers") "path" "/settings/servers") }}
-
-      {{/* Where this account's mail lives and what answers there. The
-           abilities are the ones that change what alborz does; each
-           is explained on hover and, since a phone has none, once
-           more at the end of the page. */}}
-      {{ template "info-card" (dict "title" ($.T "settings.servermail") "page" $
-         "rows" (tuple
-           (dict "label" ($.T "settings.serversoftware") "value" .Servers.Agent)
-           (dict "label" ($.T "settings.serverimap") "value" .Servers.IMAP)
-           (dict "label" ($.T "settings.serversmtp") "value" .Servers.SMTP)
-           (dict "label" ($.T "settings.serversieve") "value" .Servers.Sieve))
-         "abilities" .Servers.Abilities
-         "abilitiestitle" ($.T "settings.abilities")) }}
-
-      {{/* Everything else this account talks to, one card each, in the
-           same shape: the calendar and contacts servers say what they
-           comply with, and a reader can see it without a packet
-           capture. */}}
-      {{ range .More }}
-      {{ template "info-card" (dict "title" .Title "page" $ "rows" .Rows
-         "abilities" .Abilities "abilitiestitle" ($.T "settings.abilities")) }}
-      {{ end }}
-
-      {{ template "info-explain" (dict "label" ($.T "settings.explain") "items" .Servers.Explained) }}
-    </main>
-  </div>
-</div>
+{{ template "settings-list-close" }}
 
 {{template "foot.html" .}}

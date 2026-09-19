@@ -44,6 +44,11 @@ const once = (el, key) => {
 };
 
 const enhance = () => {
+	// The row stars' chevrons need the script that points the page's
+	// one colours menu at their row.
+	for (const chevron of document.querySelectorAll("[data-row-colors][hidden]")) {
+		chevron.hidden = false;
+	}
 	// An empty timezone field shows the browser's own zone as its placeholder.
 	// This lives here because the page CSP has no unsafe-inline for scripts.
 	const tz_input = document.getElementById("timezone");
@@ -967,5 +972,55 @@ if (lockAfter > 0 && location.pathname !== "/unlock") {
 		}
 	});
 }
+
+// One colours menu serves every row's star (row-colors): the chevron
+// that opens it names the row, and a colour submits that row's own
+// form the way its star does. Without this the chevrons stay hidden and
+// the stars still set and clear.
+let starForm = null;
+document.addEventListener("click", ev => {
+	const chevron = ev.target.closest("[data-row-colors]");
+	if (chevron) {
+		starForm = chevron.closest("form");
+		return;
+	}
+	const pick = ev.target.closest("#row-colors [data-color]");
+	if (!pick || !starForm) {
+		return;
+	}
+	const color = document.createElement("input");
+	color.type = "hidden";
+	color.name = "color";
+	color.value = pick.value;
+	starForm.append(color);
+	document.getElementById("row-colors").hidePopover();
+	starForm.requestSubmit();
+});
+
+// A colour menu opens on the star it belongs to: the colour already
+// given is marked, and picking it again clears it, as pressing a lit
+// star does. The row's chevron stays while its menu is open, since the
+// menu hangs from it.
+document.addEventListener("beforetoggle", ev => {
+	const menu = ev.target;
+	if (!menu.classList || !menu.classList.contains("flag-colors")) {
+		return;
+	}
+	const owner = menu.id === "row-colors" ? starForm : menu.closest(".flag-split");
+	const split = owner && (owner.matches(".flag-split") ? owner : owner.querySelector(".flag-split"));
+	if (menu.id === "row-colors" && starForm) {
+		starForm.classList.toggle("star-open", ev.newState === "open");
+	}
+	if (ev.newState !== "open" || !split) {
+		return;
+	}
+	const current = split.dataset.current;
+	for (const button of menu.querySelectorAll("[data-color]")) {
+		const given = button.dataset.color !== "" && button.dataset.color === current;
+		button.value = given ? "" : button.dataset.color;
+		button.toggleAttribute("aria-current", given);
+		button.classList.toggle("is-current", given);
+	}
+}, true);
 
 // @license-end

@@ -74,6 +74,10 @@
     {{ template "scheme-toggle" $ }}
     {{ end }}
   </nav>
+  {{/* One colours menu for every row's star on the page; see
+       row-colors. It hangs from whichever chevron opens it, and stays
+       out of the nav, whose menus a wide screen lays open. */}}
+  {{ if .GlobalData.LoggedIn }}{{ template "flag-colors-menu" (dict "id" "row-colors" "row" true "colors" (flagcolors $) "clear" ($.T "mailbox.flagnone")) }}{{ end }}
   {{ with .GlobalData.Notice }}
   <div class="notice notice-{{.Kind}}" role="{{if eq .Kind "failed"}}alert{{else}}status{{end}}">
     <span class="notice-text">{{ if .Markup }}{{ .Markup }}{{ else }}{{ .Text }}{{ end }}</span>

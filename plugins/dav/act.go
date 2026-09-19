@@ -96,10 +96,11 @@ func Refused(ctx *alborz.Context, err error) alborz.Notice {
 // a row is marked.
 type StarRenderData struct {
 	alborz.BaseRenderData
-	Action  string
-	Current string
-	Next    string
-	Label   string
+	Action    string
+	Current   string
+	Next      string
+	Label     string
+	MenuLabel string
 }
 
 // Star marks the selection with the colour the form asks for: one of
@@ -131,6 +132,7 @@ func Star[C any](ctx *alborz.Context, client func(*alborz.Session) (C, error), l
 				Current:        name,
 				Next:           next,
 				Label:          label,
+				MenuLabel:      ctx.T("mailbox.flagcolor"),
 			})
 		},
 	})

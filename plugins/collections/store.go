@@ -11,9 +11,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"uuid"
 
 	"git.mehdix.org/alborz/record"
-	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -256,7 +256,7 @@ func touch(tx *bolt.Tx, ref Ref) error {
 // own when none is.
 func (s *Store) Create(c Collection) (*Collection, error) {
 	if c.ID == "" {
-		c.ID = uuid.NewString()
+		c.ID = uuid.New().String()
 	}
 	c.Owner = strings.ToLower(c.Owner)
 	c.CTag = 0

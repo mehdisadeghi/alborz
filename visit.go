@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"uuid"
 
 	"github.com/fernet/fernet-go"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/google/uuid"
 )
 
 // A Visit is one browser's stay: the accounts it has signed into and

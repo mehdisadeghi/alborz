@@ -17,12 +17,12 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"uuid"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/image/draw"
 )
@@ -151,6 +151,10 @@ func choose(store alborz.Store, paths []string) error {
 func init() {
 	alborz.KeepKey(settingsKey)
 }
+
+// uidURN is how a UUID is written as a URN (RFC 9562 4), the form vCard
+// UIDs take by convention (RFC 6350 6.7.6).
+const uidURN = "urn:uuid:"
 
 // contactListParams are what decide which contacts a list holds and in
 // what order: a contact's page is opened with them and returns to them.
@@ -824,7 +828,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 
 		id := uuid.New()
 		if _, ok := card[vcard.FieldUID]; !ok {
-			card.SetValue(vcard.FieldUID, id.URN())
+			card.SetValue(vcard.FieldUID, uidURN+id.String())
 		}
 
 		held, etag := "", ""
@@ -1185,7 +1189,7 @@ func importBook(ctx context.Context, client *carddav.Client, bookPath string, ra
 		}
 		uid := card.Value(vcard.FieldUID)
 		if uid == "" {
-			uid = uuid.New().URN()
+			uid = uidURN + uuid.New().String()
 			card.SetValue(vcard.FieldUID, uid)
 		}
 		target := path.Join(bookPath, dav.SafeObjectName(uid)+".vcf")

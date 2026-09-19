@@ -79,7 +79,9 @@ func (p *Provider) Origin(session *alborz.Session) (host, source, record string)
 	}
 	if u, ok := p.Remote(session); ok {
 		_, domain, _ := strings.Cut(session.Username(), "@")
-		if record := p.found[domain]; record != "" {
+		if record := p.found[domain]; strings.HasPrefix(record, "https://") {
+			return u.Host, "servers.frommailhost", record
+		} else if record != "" {
 			return u.Host, "servers.fromsrv", record
 		}
 		return u.Host, "servers.fromconfig", ""

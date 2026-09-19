@@ -528,6 +528,7 @@
 "servers.dav" = "Kalender und Kontakte"
 "servers.fromaccount" = "Kontoeinstellung"
 "servers.fromsrv" = "SRV-Eintrag %s"
+"servers.frommailhost" = "Mailserver, unter %s"
 "servers.fromconfig" = "Serverkonfiguration"
 "settings.serversource" = "Quelle"
 "settings.serverconnection" = "Verbindung"

@@ -523,6 +523,7 @@
 "servers.dav" = "تقویم‌ها و مخاطبان"
 "servers.fromaccount" = "تنظیم حساب"
 "servers.fromsrv" = "رکورد SRV %s"
+"servers.frommailhost" = "سرور ایمیل، در %s"
 "servers.fromconfig" = "پیکربندی سرور"
 "settings.serversource" = "منبع"
 "settings.serverconnection" = "اتصال"

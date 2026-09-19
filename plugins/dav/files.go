@@ -22,6 +22,7 @@ type files interface {
 var exportTypes = map[string]string{
 	".ics": "text/calendar; charset=utf-8",
 	".vcf": "text/vcard; charset=utf-8",
+	".zip": "application/zip",
 }
 
 func attach(ctx *alborz.Context, name string) {

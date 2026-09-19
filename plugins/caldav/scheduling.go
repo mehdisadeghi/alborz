@@ -427,6 +427,10 @@ func exportCalendar(ctx context.Context, client *caldav.Client, calendarPath str
 	if err != nil {
 		return nil, err
 	}
+	// A VCALENDAR holds one component at least (RFC 5545 3.6).
+	if len(children) == 0 {
+		return nil, dav.ErrNothingToExport
+	}
 	return encodeCalendar(children)
 }
 
@@ -468,6 +472,18 @@ func encodeCalendar(children []*ical.Component) ([]byte, error) {
 				continue
 			}
 			zones[id] = true
+		}
+		// An event or task without DTSTAMP, as some clients write them,
+		// is not one RFC 5545 3.6.1 allows in a file, and one of them
+		// would keep the whole file from being written. The file gets
+		// the object's own last change, or now; the server's copy is
+		// not touched.
+		if (child.Name == ical.CompEvent || child.Name == ical.CompToDo) && child.Props.Get(ical.PropDateTimeStamp) == nil {
+			stamp := time.Now().UTC()
+			if t, err := child.Props.DateTime(ical.PropLastModified, time.UTC); err == nil && !t.IsZero() {
+				stamp = t
+			}
+			child.Props.SetDateTime(ical.PropDateTimeStamp, stamp)
 		}
 		out.Children = append(out.Children, child)
 	}

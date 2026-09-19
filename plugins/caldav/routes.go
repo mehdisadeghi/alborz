@@ -46,6 +46,15 @@ func (p *plugin) collectionPage() dav.Page {
 			}
 			return importObjects(ctx.Request().Context(), c, path, raw)
 		},
+		Create: func(ctx *alborz.Context, list, name string, here bool) (string, error) {
+			// A task list takes tasks; a calendar brought in whole keeps
+			// what it held, events and tasks both.
+			components := []string{"VEVENT", "VTODO"}
+			if list == "/tasks" {
+				components = []string{"VTODO"}
+			}
+			return p.dav.Create(ctx.Request().Context(), ctx.Session, name, dav.DefaultColor, here, components)
+		},
 		Export: func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error) {
 			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
 			if err != nil {
@@ -699,6 +708,8 @@ func registerRoutes(p *plugin) {
 	POST("/calendars/create", page.HandleCreate(p.dav, p.createForm))
 	for _, method := range []func(string, func(*alborz.Context) error){GET, POST} {
 		method("/calendar/import", page.HandleImportPage(p.dav, "/calendar", "nav.calendar", "calendar.import", "calendar.importhint", "event", true))
+		method("/calendar/export-all", page.HandleExportAll("/calendar", "calendars.zip"))
+		method("/tasks/export-all", page.HandleExportAll("/tasks", "task-lists.zip"))
 		method("/tasks/import", page.HandleImportPage(p.dav, "/tasks", "nav.tasks", "tasks.import", "tasks.importhint", "task", false))
 	}
 	GET("/calendars/:path", page.Handle(p.dav))

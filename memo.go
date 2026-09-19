@@ -179,6 +179,23 @@ func (m *Memo[T]) Forget(user string) {
 	m.mu.Unlock()
 }
 
+// Retry keeps the user's value but lets it go stale after the retry
+// delay, for a value only partly there - a listing a server was missing
+// from - so the next reader after that asks the missing part again.
+func (m *Memo[T]) Retry(user string) {
+	m.mu.Lock()
+	e := m.entries[user]
+	m.mu.Unlock()
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	if soon := time.Now().Add(memoRetryDelay - m.ttl); e.fetched.After(soon) {
+		e.fetched = soon
+	}
+	e.mu.Unlock()
+}
+
 // Stale retains the last value while scheduling its next background refresh.
 func (m *Memo[T]) Stale(user string) {
 	m.mu.Lock()

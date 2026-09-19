@@ -3,11 +3,16 @@ package dav
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
+
+	"git.mehdix.org/alborz"
 )
 
 type testProps struct {
@@ -125,5 +130,73 @@ func TestCountObjectsSkipsTheCollectionItself(t *testing.T) {
 	}
 	if n != 2 {
 		t.Errorf("counted %d, want 2", n)
+	}
+}
+
+func routerTo(own *httptest.Server, named http.RoundTripper) sourceRouter {
+	u, _ := url.Parse(own.URL + "/dav/")
+	return sourceRouter{
+		sources: []Source{{ID: SourceOwn, URL: u, Named: true}},
+		trusted: http.DefaultTransport,
+		named:   named,
+		sign:    func(req *http.Request, _ Source) error { req.SetBasicAuth("u", "secret"); return nil },
+	}
+}
+
+func TestASourceIsAskedInItsOwnPathsAndAnswersInOurs(t *testing.T) {
+	var asked string
+	own := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		asked = r.URL.Path + " " + string(b)
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusMultiStatus)
+		io.WriteString(w, `<D:href>/dav/cal/a.ics</D:href>`)
+	}))
+	defer own.Close()
+	req, _ := http.NewRequest("REPORT", "http://alborz.invalid/@own/dav/cal/", strings.NewReader(`<D:href>/@own/dav/cal/a.ics</D:href>`))
+	resp, err := routerTo(own, http.DefaultTransport).RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answered, _ := io.ReadAll(resp.Body)
+	if want := `/dav/cal/ <D:href>/dav/cal/a.ics</D:href>`; asked != want {
+		t.Errorf("the source was asked %q, want %q", asked, want)
+	}
+	if want := `<D:href>/@own/dav/cal/a.ics</D:href>`; string(answered) != want {
+		t.Errorf("the page was answered %q, want %q", answered, want)
+	}
+}
+
+func TestALoginStaysOnItsSourcesHost(t *testing.T) {
+	var got []string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, "other:"+r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer other.Close()
+	own := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _, signed := r.BasicAuth()
+		got = append(got, fmt.Sprintf("own:%v", signed))
+		http.Redirect(w, r, other.URL+"/elsewhere/", http.StatusTemporaryRedirect)
+	}))
+	defer own.Close()
+	req, _ := http.NewRequest("PROPFIND", "http://alborz.invalid/@own/dav/", nil)
+	_, err := routerTo(own, http.DefaultTransport).RoundTrip(req)
+	var refused *RefusedError
+	if !errors.As(err, &refused) {
+		t.Fatalf("a 401 after a redirect came back as %v, want a refusal", err)
+	}
+	if want := []string{"own:true", "other:"}; !slices.Equal(got, want) {
+		t.Errorf("the servers saw %q, want %q", got, want)
+	}
+}
+
+func TestAnAccountsServerIsNotDialledOnOurNetwork(t *testing.T) {
+	reached := false
+	own := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true }))
+	defer own.Close()
+	req, _ := http.NewRequest("PROPFIND", "http://alborz.invalid/@own/dav/", nil)
+	if _, err := routerTo(own, alborz.NewRemoteTransport()).RoundTrip(req); err == nil || reached {
+		t.Errorf("a loopback server was reached (%v), err %v", reached, err)
 	}
 }

@@ -33,6 +33,9 @@ type Services struct {
 	// Username is what the servers know the account as; empty is the
 	// address.
 	Username string
+	// Default is the place a new calendar or address book goes, one of
+	// the account's DAV sources or Alborz (ADR 28); empty is the first.
+	Default string `json:",omitempty"`
 }
 
 const servicesKey = "services"

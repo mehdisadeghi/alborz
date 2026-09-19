@@ -99,11 +99,8 @@ func doMkcalendar(ctx context.Context, client *http.Client, path, name, color st
 
 // listCalendars fetches the calendar list with names, colors, and supported
 // component sets in a single PROPFIND.
-func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, homes []dav.Home) ([]dav.Collection, error) {
-	listed, err := dav.ListCollections[davCollectionProps](ctx, client, baseURL, homes, `<D:propfind xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:resourcetype/><D:displayname/><C:supported-calendar-component-set/><D:current-user-privilege-set/><A:calendar-color/></D:prop></D:propfind>`)
-	if err != nil {
-		return nil, err
-	}
+func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, homes []dav.Home) ([]dav.Collection, []error) {
+	listed, failed := dav.ListCollections[davCollectionProps](ctx, client, baseURL, homes, `<D:propfind xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:resourcetype/><D:displayname/><C:supported-calendar-component-set/><D:current-user-privilege-set/><A:calendar-color/></D:prop></D:propfind>`)
 	infos := make([]dav.Collection, len(listed))
 	for i, l := range listed {
 		infos[i] = l.Collection
@@ -111,7 +108,7 @@ func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, h
 			infos[i].Components = append(infos[i].Components, comp.Name)
 		}
 	}
-	return infos, nil
+	return infos, failed
 }
 
 func newClient(u *url.URL, httpClient *http.Client) (*caldav.Client, error) {

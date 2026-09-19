@@ -22,19 +22,27 @@ const maxRemoteRedirects = 3
 // address is checked at the socket: a name that resolves to something
 // else the second time it is asked cannot get around it.
 func NewRemoteClient(timeout time.Duration) *http.Client {
-	dialer := &net.Dialer{Timeout: dialTimeout, Control: refuseLocal}
 	return &http.Client{
-		Timeout: timeout,
-		Transport: httpsOnly{&http.Transport{
-			DialContext:         dialer.DialContext,
-			TLSHandshakeTimeout: dialTimeout,
-		}},
+		Timeout:   timeout,
+		Transport: httpsOnly{NewRemoteTransport()},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxRemoteRedirects {
 				return errors.New("too many redirects")
 			}
 			return nil
 		},
+	}
+}
+
+// NewRemoteTransport connects to public addresses only, checked at the
+// socket, for any client whose host somebody outside the deployment
+// names: a redirect, or a name that resolves anew, gets no further
+// than the first address did.
+func NewRemoteTransport() *http.Transport {
+	dialer := &net.Dialer{Timeout: dialTimeout, Control: refuseLocal}
+	return &http.Transport{
+		DialContext:         dialer.DialContext,
+		TLSHandshakeTimeout: dialTimeout,
 	}
 }
 

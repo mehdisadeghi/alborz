@@ -252,9 +252,9 @@ func (c *Cache) Transport(username string, next http.RoundTripper) http.RoundTri
 	return &transport{
 		cache:    c,
 		username: username,
-		next:     limitedTransport{next: next, limits: c.limits},
+		next:     next,
 		replay: &http.Client{
-			Transport: limitedTransport{next: next, limits: c.limits, background: true},
+			Transport: replayed{next},
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},

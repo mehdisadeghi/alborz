@@ -43,16 +43,13 @@ var addressBookColor = dav.Prop{XMLNS: "http://inf-it.com/ns/ab/", Name: "addres
 
 // listAddressBooks fetches the address book list with names and colors in a
 // single PROPFIND.
-func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL, homes []dav.Home) ([]dav.Collection, error) {
-	listed, err := dav.ListCollections[davCollectionProps](ctx, client, baseURL, homes, `<D:propfind xmlns:D="DAV:" xmlns:I="http://inf-it.com/ns/ab/"><D:prop><D:resourcetype/><D:displayname/><I:addressbook-color/><D:current-user-privilege-set/></D:prop></D:propfind>`)
-	if err != nil {
-		return nil, err
-	}
+func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL, homes []dav.Home) ([]dav.Collection, []error) {
+	listed, failed := dav.ListCollections[davCollectionProps](ctx, client, baseURL, homes, `<D:propfind xmlns:D="DAV:" xmlns:I="http://inf-it.com/ns/ab/"><D:prop><D:resourcetype/><D:displayname/><I:addressbook-color/><D:current-user-privilege-set/></D:prop></D:propfind>`)
 	infos := make([]dav.Collection, len(listed))
 	for i, l := range listed {
 		infos[i] = l.Collection
 	}
-	return infos, nil
+	return infos, failed
 }
 
 // doMkcol makes an address book. RFC 5689 extended MKCOL is the way to

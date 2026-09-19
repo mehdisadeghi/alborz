@@ -96,6 +96,8 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.POST("/signatures", handleSignatureSave)
 	p.POST("/signatures/delete", handleSignatureDelete)
 	p.POST("/signatures/default", handleSignatureDefault)
+	p.GET("/settings/sessions", scoped(handleSessions))
+	p.POST("/settings/sessions", scoped(handleSessions))
 	p.GET("/settings/servers", scoped(handleServers))
 	p.GET("/settings/servers/:server", scoped(handleServer))
 	p.POST("/settings/servers/:server", scoped(handleServer))

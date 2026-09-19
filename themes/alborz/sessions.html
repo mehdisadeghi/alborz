@@ -1,0 +1,30 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+{{ $aq := account "?" .GlobalData.URLAccount }}
+
+{{ template "settings-list-open" (dict "g" $ "title" ($.T "sessions.title") "path" "/settings/sessions" "here" "") }}
+
+      {{/* Each browser as it says it is, where it last came from and
+           when, with the way to take the account out of it. The device
+           is the browser's own claim, so the claim is a hover away. */}}
+      <section class="list-items">
+        {{ range .Signed }}
+        {{ $d := devicename .Device }}
+        <div class="list-item">
+          <div class="list-content">
+            <span class="list-summary" title="{{.Device}}">{{ if and $d.Browser $d.System }}{{ printf ($.T "sessions.device") $d.Browser $d.System }}{{ else if or $d.Browser $d.System }}{{ or $d.Browser $d.System }}{{ else }}{{$.T "sessions.unknown"}}{{ end }}</span>
+            <span class="list-detail">{{ printf ($.T "sessions.lastused") (printf "%s %s" ($.GlobalData.ShortDate .Seen) ($.GlobalData.FormatTime .Seen)) }} · {{ printf ($.T "sessions.since") ($.GlobalData.ShortDate .Created) }}{{ with .Address }} · {{ template "ltr" . }}{{ end }}{{ if .Current }} · {{$.T "sessions.current"}}{{ end }}</span>
+          </div>
+          <form method="post" action="/settings/sessions{{$aq}}">
+            <input type="hidden" name="visit" value="{{.ID}}">
+            <button class="button-danger">{{$.T "nav.signout"}}</button>
+          </form>
+        </div>
+        {{ end }}
+      </section>
+      <p class="hint list-option">{{$.T "sessions.hint"}}</p>
+{{ template "settings-list-close" }}
+
+{{template "foot.html" .}}

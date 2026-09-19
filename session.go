@@ -699,6 +699,10 @@ func (sm *SessionManager) reap(s *Session) {
 	}
 
 	timer.Stop()
+	// Expired is ended: the bag drops it and the watchers stop, and a
+	// remembered visit signs in again. Left open it reconnected on the
+	// next request with nothing left to reap it.
+	s.Close()
 
 	s.imapLocker.acquire(context.Background(), nil, false)
 	if s.imapConn != nil {

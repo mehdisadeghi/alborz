@@ -1,6 +1,7 @@
 package alborz
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -36,6 +37,9 @@ type Visit struct {
 	// accounts is the bag: every account this browser has signed into,
 	// in one order wherever they are listed.
 	accounts []*Session
+	// proof is what the visit keeps of the secret its browser carries:
+	// the id names the visit, and only the secret opens it.
+	proof []byte
 	// remember holds each account's password sealed under the secret
 	// the browser carries, for a visit the reader asked to keep.
 	remember map[string][]byte
@@ -53,6 +57,9 @@ type Visit struct {
 	active   time.Time
 	locked   bool
 	ceremony *webauthn.SessionData
+	// device and address are what the browser last said about itself,
+	// for the account holder's list of browsers signed in.
+	device, address string
 }
 
 func (v *Visit) reading() Reading {
@@ -131,8 +138,8 @@ func (v *Visit) forget(address string) {
 func (v *Visit) record() *VisitRecord {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	rec := &VisitRecord{ID: v.ID, Created: v.Created, Seen: v.seen,
-		Reading: v.read, Anchor: v.anchor, Lock: v.lock}
+	rec := &VisitRecord{ID: v.ID, Created: v.Created, Seen: v.seen, Proof: v.proof,
+		Reading: v.read, Anchor: v.anchor, Lock: v.lock, Device: v.device, Address: v.address}
 	for address, sealed := range v.remember {
 		rec.Accounts = append(rec.Accounts, RememberedAccount{Address: address, Sealed: sealed})
 	}
@@ -148,6 +155,7 @@ func visitFromRecord(rec *VisitRecord) *Visit {
 	v := &Visit{
 		ID:          rec.ID,
 		Created:     rec.Created,
+		proof:       rec.Proof,
 		seen:        time.Now(),
 		attachments: map[string]*Attachment{},
 		remember:    map[string][]byte{},
@@ -156,6 +164,7 @@ func visitFromRecord(rec *VisitRecord) *Visit {
 		v.remember[a.Address] = a.Sealed
 	}
 	v.read, v.anchor, v.lock = rec.Reading, rec.Anchor, rec.Lock
+	v.device, v.address = rec.Device, rec.Address
 	return v
 }
 
@@ -207,9 +216,9 @@ func (v *Visit) Remove(username string) *Session {
 	return nil
 }
 
-// visitCookieName carries the id and nothing else: what the visit holds
-// is the server's business, and the browser only has to say which one
-// it is.
+// visitCookieName carries the id and the secret and nothing else: what
+// the visit holds is the server's business, and the browser only has to
+// say which one it is and show that it is its own.
 const visitCookieName = "alborz_visit"
 
 // VisitRecord is what a visit is worth keeping across a restart: who
@@ -219,10 +228,13 @@ type VisitRecord struct {
 	ID       string
 	Created  time.Time
 	Seen     time.Time
+	Proof    []byte
 	Accounts []RememberedAccount
 	Reading  *Reading
 	Anchor   string
 	Lock     Lock
+	Device   string `json:",omitempty"`
+	Address  string `json:",omitempty"`
 }
 
 // RememberedAccount is one account of a remembered visit.
@@ -240,6 +252,9 @@ type VisitRecords interface {
 	Save(rec *VisitRecord) error
 	Delete(id string) error
 	Sweep(before time.Time) error
+	// Each hands over every visit kept, for the list of browsers an
+	// account is signed into.
+	Each(func(*VisitRecord)) error
 	// LoadReading and SaveReading keep what a person reads by on the
 	// account they anchored it to, which is the only identity alborz
 	// has to hang it on.
@@ -371,14 +386,16 @@ func newVisit() (*Visit, string) {
 		panic(err) // A machine that cannot make a random id cannot serve mail.
 	}
 	now := time.Now()
+	secret := base64.RawURLEncoding.EncodeToString(b[32:])
 	v := &Visit{
 		ID:          base64.RawURLEncoding.EncodeToString(b[:32]),
 		Created:     now,
+		proof:       visitProof(secret),
 		seen:        now,
 		active:      now,
 		attachments: map[string]*Attachment{},
 	}
-	return v, base64.RawURLEncoding.EncodeToString(b[32:])
+	return v, secret
 }
 
 func (v *Visit) lastSeen() time.Time {
@@ -484,9 +501,10 @@ func (ctx *Context) Visit() *Visit {
 }
 
 // lookupVisit finds this browser's stay without making one. The cookie
-// carries the id and a secret: the id says which visit, and the secret
-// is the only key to the passwords a remembered visit holds, so the
-// store on its own opens nothing.
+// carries the id and a secret: the id says which visit, and is shown to
+// every other browser of the same account, so it opens nothing; the
+// secret is what makes the visit this browser's, and the only key to
+// the passwords a remembered visit holds.
 func (ctx *Context) lookupVisit() *Visit {
 	if ctx.visit != nil {
 		return ctx.visit
@@ -497,17 +515,42 @@ func (ctx *Context) lookupVisit() *Visit {
 	}
 	id, secret, _ := strings.Cut(value, ".")
 	v := ctx.Server.Visits.Get(id)
-	if v == nil {
+	stored := v == nil
+	if stored {
 		rec, found := ctx.Server.Visits.Record(id)
 		if !found {
 			return nil
 		}
 		v = visitFromRecord(rec)
+	}
+	if !v.opens(secret) {
+		return nil
+	}
+	if stored {
 		ctx.Server.Visits.Put(v)
 	}
 	v.touch()
 	ctx.visit, ctx.visitSecret = v, secret
 	return v
+}
+
+// visitProofLabel keeps the proof apart from visitKey, which is made of
+// the same secret: a proof that was the key would let the store open
+// the passwords it holds.
+const visitProofLabel = "alborz visit proof"
+
+// visitProof is what a visit keeps of its browser's secret: enough to
+// know the secret when it is shown, and nothing that opens a password.
+func visitProof(secret string) []byte {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(visitProofLabel))
+	return mac.Sum(nil)
+}
+
+// opens reports whether secret is this visit's. A visit with no proof
+// was written before visits kept one, and nobody can show it is theirs.
+func (v *Visit) opens(secret string) bool {
+	return len(v.proof) > 0 && hmac.Equal(v.proof, visitProof(secret))
 }
 
 // visitKey is the key the browser's secret stands for. The secret

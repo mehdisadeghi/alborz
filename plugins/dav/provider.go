@@ -74,8 +74,9 @@ const WarmBudget = 30 * time.Second
 type Provider struct {
 	kind Kind
 	urls map[string]*url.URL // endpoint per served mail domain
-	// found is, per domain, the SRV record its endpoint was found at;
-	// none where the deployment named it.
+	// found is, per domain, the SRV record its endpoint was found at,
+	// or the mail host's address that answered for it; none where the
+	// deployment named it.
 	found map[string]string
 	cache *davcache.Cache
 	// here serves the collections kept in this alborz; nil without a
@@ -96,10 +97,9 @@ type Provider struct {
 
 // NewProvider resolves the service for every served domain. A domain
 // without one still has accounts that may name their own, so the
-// provider stands either way and Enabled answers per request. The URL
-// of each domain's server is found by DNS alone, so startup never waits
-// on a DAV host; asking whether it answers is a probe run in the
-// background, and a request surfaces an unreachable one until it does.
+// provider stands either way and Enabled answers per request. Asking
+// whether a domain's server answers is a probe run in the background,
+// and a request surfaces an unreachable one until it does.
 func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	urls := make(map[string]*url.URL)
 	found := make(map[string]string)
@@ -450,8 +450,8 @@ func (p *Provider) Close() error {
 }
 
 // domainURL resolves the domain's endpoint; nil without error means the
-// domain has none. It reads DNS and config only, so startup never waits
-// on the server itself.
+// domain has none. Whether the server answers is asked in the
+// background, not here.
 func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, error) {
 	secure, plain := kind.Schemes[0], kind.Schemes[1]
 	record := ""
@@ -475,6 +475,11 @@ func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, 
 		defer cancel()
 		s, err := kind.Discover(ctx, u.Host)
 		if err != nil {
+			// No record for it; the mail host may serve DAV itself.
+			if found, ok := OnMailHost(srv.UpstreamsFor(domain).IMAP, kind.Name); ok {
+				srv.Logger().Printf("Domain %q: configured upstream %s server: %v (on the mail host)", domain, kind.Label, found)
+				return found, found.String(), nil
+			}
 			srv.Logger().Printf("%s: domain %q: failed to discover %s server: %v", kind.Name, domain, kind.Label, err)
 			return nil, "", nil
 		}

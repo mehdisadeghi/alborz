@@ -526,6 +526,7 @@
 "servers.dav" = "Calendars and contacts"
 "servers.fromaccount" = "Account setting"
 "servers.fromsrv" = "SRV record %s"
+"servers.frommailhost" = "Mail host, at %s"
 "servers.fromconfig" = "Server configuration"
 "settings.serversource" = "Source"
 "settings.serverconnection" = "Connection"

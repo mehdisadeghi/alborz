@@ -1,6 +1,7 @@
 package alborz
 
 import (
+	"errors"
 	"github.com/fernet/fernet-go"
 	"mime/multipart"
 	"testing"
@@ -82,5 +83,40 @@ func TestEnvelopeOpensAfterEitherKeyChanges(t *testing.T) {
 	}
 	if _, _, err := session(newKey(), "third").Open(e); err != ErrSealed {
 		t.Fatalf("both changed: %v, want ErrSealed", err)
+	}
+}
+
+func TestSideBySideTriesAreCountedBeforeTheyAreAnswered(t *testing.T) {
+	r := newRefusals(signInTries, signInWindow)
+	asked := make(chan struct{}, 4*signInTries)
+	answer := make(chan struct{})
+	results := make(chan error, 4*signInTries)
+	for range 4 * signInTries {
+		go func() {
+			results <- r.attempt("reader", func() error {
+				asked <- struct{}{}
+				<-answer
+				return AuthError{}
+			})
+		}()
+	}
+	for range signInTries {
+		<-asked
+	}
+	for range 3 * signInTries {
+		if !errors.As(<-results, new(PausedError)) {
+			t.Fatal("a try past the count was not paused")
+		}
+	}
+	close(answer)
+	if len(asked) != 0 {
+		t.Fatalf("%d more tries reached the mail server", len(asked))
+	}
+
+	accepted := newRefusals(1, signInWindow)
+	for range 2 {
+		if err := accepted.attempt("reader", func() error { return nil }); err != nil {
+			t.Fatalf("an accepted try stayed counted: %v", err)
+		}
 	}
 }

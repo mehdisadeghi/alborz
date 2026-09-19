@@ -1,6 +1,12 @@
 package alborz
 
 import (
+	"errors"
+	"fmt"
+	"html/template"
+	"math"
+	"net"
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
@@ -212,6 +218,81 @@ const (
 	loginRetryAfter = 2 * time.Minute
 )
 
+// signInTries refusals within signInWindow pause the sign-in form for
+// one reader: fail2ban's defaults (maxretry, findtime), so a mail server
+// that trusts alborz to name the reader is asked no more than its own
+// lockout would allow.
+const (
+	signInTries  = 5
+	signInWindow = 10 * time.Minute
+)
+
+// PausedError is a sign-in not asked of the mail server: the reader has
+// had signInTries refusals, and may try again at Until.
+type PausedError struct{ Until time.Time }
+
+func (e PausedError) Error() string {
+	return fmt.Sprintf("too many refused passwords; paused until %v", e.Until.Format(time.RFC3339))
+}
+
+// SignIn opens a session for username as the mail server says, for a
+// reader at from. Readers are counted by their address, or behind a
+// proxy not named as trusted, where every reader has the proxy's, by
+// address and account.
+func (s *Server) SignIn(username, password, from string) (*Session, error) {
+	var sess *Session
+	err := s.signInRefused.attempt(readerKey(from, username), func() (err error) {
+		sess, err = s.Sessions.Put(username, password, from)
+		return err
+	})
+	return sess, err
+}
+
+// readerKey is whom a refused password is counted against.
+func readerKey(from, username string) string {
+	if requestAddress(from) == "" {
+		return from + "\x00" + strings.ToLower(username)
+	}
+	return from
+}
+
+// SignInRefusal says why a sign-in failed, in the reader's language,
+// and with what status a form is answered. An empty text is alborz
+// itself failing, which is the caller's to raise as an error.
+func (ctx *Context) SignInRefusal(err error) (string, int) {
+	var paused PausedError
+	if errors.As(err, &paused) {
+		minutes := int(math.Ceil(time.Until(paused.Until).Minutes()))
+		return ctx.Tf("notice.loginpaused", minutes), http.StatusTooManyRequests
+	}
+	var refused AuthError
+	if errors.As(err, &refused) {
+		return ctx.T("notice.loginfailed"), http.StatusUnauthorized
+	}
+	var domain UnknownDomainError
+	if errors.As(err, &domain) {
+		// Which domain, and in the reader's own language: the error's
+		// own words are English and are for the log.
+		if domain.Domain == "" {
+			return ctx.T("login.needsdomain"), http.StatusUnauthorized
+		}
+		return fmt.Sprintf(ctx.T("login.baddomain"), domain.Domain), http.StatusUnauthorized
+	}
+	var baseline BaselineError
+	if errors.As(err, &baseline) {
+		return fmt.Sprintf(ctx.T("notice.loginerror"), baseline.Error()), http.StatusBadGateway
+	}
+	var dial *net.OpError
+	if errors.As(err, &dial) {
+		return fmt.Sprintf(ctx.T("notice.loginerror"), dial.Err), http.StatusServiceUnavailable
+	}
+	var upstream UpstreamError
+	if errors.As(err, &upstream) {
+		return fmt.Sprintf(ctx.T("notice.loginerror"), upstream.Error()), http.StatusGatewayTimeout
+	}
+	return "", http.StatusInternalServerError
+}
+
 // recentlyFailed reports whether signing this account in was tried and
 // failed too recently to be worth trying again.
 func (s *Server) recentlyFailed(username string) bool {
@@ -245,6 +326,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	// The accounts sign in concurrently: one unreachable upstream must
 	// not add its timeout to the others' wait.
 	sessions := make([]*Session, len(want))
+	refused := make([]error, len(want))
 	var wg sync.WaitGroup
 	for i, c := range want {
 		if ctx.Server.recentlyFailed(c.address) {
@@ -253,10 +335,11 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s, err := ctx.Server.Sessions.Put(c.address, c.password)
+			s, err := ctx.Server.Sessions.Put(c.address, c.password, ctx.RealIP())
 			if err != nil {
 				ctx.Server.loginFailures.Store(c.address, time.Now())
 				ctx.Logger().Printf("Login failed for %q: %v", c.address, err)
+				refused[i] = err
 				return
 			}
 			ctx.Server.loginFailures.Delete(c.address)
@@ -264,6 +347,54 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		}()
 	}
 	wg.Wait()
+
+	// An account missing from the rail is otherwise a silent loss: the
+	// reader is owed its name and the reason it did not come back.
+	var lost, marked []string
+	forgot := false
+	for i, err := range refused {
+		if err == nil {
+			continue
+		}
+		// A password the mail server refuses is not tried again: every
+		// retry is a failed login from the reader's own address, which
+		// a server counting them bans.
+		if errors.As(err, new(AuthError)) {
+			v.forget(want[i].address)
+			forgot = true
+		}
+		why, _ := ctx.SignInRefusal(err)
+		if why == "" {
+			why = err.Error()
+		}
+		say := ctx.T("notice.restorefailed")
+		lost = append(lost, fmt.Sprintf(say, want[i].address, why))
+		// The address reads left to right wherever the sentence runs,
+		// and the server's own words carry their own direction.
+		marked = append(marked, fmt.Sprintf(say,
+			`<bdi class="ltr">`+template.HTMLEscapeString(want[i].address)+`</bdi>`,
+			`<bdi>`+template.HTMLEscapeString(why)+`</bdi>`))
+	}
+	if forgot {
+		// The visit stays, for the notice it owes; only what was kept
+		// of it goes when no password is left.
+		var err error
+		if v.remembered() {
+			err = ctx.Server.Visits.Save(v)
+		} else if ctx.Server.Visits.Remembers() {
+			err = ctx.Server.Visits.Keeper().Delete(v.ID)
+		}
+		if err != nil {
+			ctx.Logger().Printf("failed to write the visit: %v", err)
+		}
+	}
+	if len(lost) > 0 {
+		v.Notify(Notice{
+			Kind:   NoticeFailed,
+			Text:   strings.Join(lost, " · "),
+			Markup: template.HTML(strings.Join(marked, " · ")),
+		})
+	}
 
 	restored := false
 	for _, s := range sessions {

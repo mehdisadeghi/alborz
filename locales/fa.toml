@@ -651,6 +651,8 @@
 "notice.loginfailed" = "نشانی یا رمز پذیرفته نشد."
 "notice.davanswered" = "سرور تقویم و مخاطبان %s پاسخ داد: %s"
 "notice.loginerror" = "ورود ناموفق بود: %s"
+"notice.loginmissing" = "نشانی یا رمز وارد نشده است."
+"notice.restorefailed" = "%s وارد نشده است. %s"
 "tasks.edittitle" = "ویرایش کار"
 "tasks.createtitle" = "ایجاد کار"
 "calendar.edittitle" = "ویرایش رویداد"
@@ -976,3 +978,7 @@ other = "انتخاب هر %d پیام"
 ["select.whole"]
 one = "%d پیام انتخاب شد."
 other = "هر %d پیام انتخاب شد."
+
+["notice.loginpaused"]
+one = "رمزهای زیادی پذیرفته نشد. %d دقیقهٔ دیگر دوباره امتحان کنید."
+other = "رمزهای زیادی پذیرفته نشد. %d دقیقهٔ دیگر دوباره امتحان کنید."

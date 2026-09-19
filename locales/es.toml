@@ -657,6 +657,8 @@
 "notice.loginfailed" = "Dirección o contraseña rechazadas."
 "notice.davanswered" = "El servidor de calendarios y contactos de %s respondió %s."
 "notice.loginerror" = "No se pudo iniciar sesión: %s"
+"notice.loginmissing" = "Falta la dirección o la contraseña."
+"notice.restorefailed" = "%s no ha iniciado sesión. %s"
 "notice.filtersaved" = "Filtro guardado."
 "notice.filterwarn" = "Filtro guardado con avisos: %s"
 "notice.filteron" = "Filtro activado."
@@ -976,3 +978,7 @@ other = "Seleccionar los %d"
 ["select.whole"]
 one = "%d seleccionado."
 other = "Los %d seleccionados."
+
+["notice.loginpaused"]
+one = "Demasiadas contraseñas rechazadas. Vuelve a intentarlo en %d minuto."
+other = "Demasiadas contraseñas rechazadas. Vuelve a intentarlo en %d minutos."

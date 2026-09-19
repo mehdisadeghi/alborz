@@ -156,6 +156,128 @@ func (p *Provider) Published(collPath string) bool {
 	return err == nil && c.Public != ""
 }
 
+// Offer is one share as its invitee sees it: what is offered, by whom,
+// with what access, and where it stands. The same card shows it on the
+// collection's page and beside the mail that announced it.
+type Offer struct {
+	// Kind is the locale key naming what the collection is.
+	Kind       string
+	Name, From string
+	Write      bool
+	Expires    time.Time
+	Offered    time.Time
+	Answered   time.Time
+	// State is pending, accepted, declined or left.
+	State string
+	// Accept and Decline are where the answers are posted; Answer is the
+	// one a mail's link asked for, for the page to put first.
+	Accept, Decline string
+	Answer          string
+	Next            string
+}
+
+// kindKey names what a collection holds, as a share's words say it.
+func (pg Page) kindKey(c *collections.Collection) string {
+	switch {
+	case pg.Ext == ".vcf":
+		return "share.kindaddressbook"
+	case len(c.Components) == 1 && c.Components[0] == "VTODO":
+		return "share.kindtasks"
+	}
+	return "share.kindcalendar"
+}
+
+// offer is the share of the collection at collPath the account holds,
+// nil when there is none: the path is the one in the account's own home.
+func (pg Page) offer(ctx *alborz.Context, p *Provider, collPath, account string) (*Offer, error) {
+	if p.store == nil {
+		return nil, nil
+	}
+	ref, home, here := collections.Held(collPath)
+	account = strings.ToLower(account)
+	if !here || home != account || ref.Owner == account {
+		return nil, nil
+	}
+	sh, err := p.store.Share(ref, account)
+	if errors.Is(err, collections.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	c, err := p.store.Collection(ref)
+	if err != nil {
+		return nil, err
+	}
+	// Each kind's pages answer for their own kind only: a calendar's
+	// invitation is not an address book's to show.
+	if c.Kind != p.kind.Holds {
+		return nil, nil
+	}
+	state := "pending"
+	switch {
+	case sh.Accepted:
+		state = "accepted"
+	case sh.Declined:
+		state = "declined"
+	case sh.Left:
+		state = "left"
+	}
+	base := pg.Base + url.PathEscape(collPath)
+	q := "?account=" + alborz.AddressParam(account)
+	return &Offer{
+		Kind: pg.kindKey(c), Name: c.Name, From: c.Owner, Write: sh.Write,
+		Expires: sh.Expires, Offered: sh.Created, Answered: sh.Answered, State: state,
+		Accept: base + "/accept" + q, Decline: base + "/decline" + q,
+		Answer: ctx.QueryParam("answer"), Next: pg.List + q,
+	}, nil
+}
+
+// InjectOffer puts the invitation a mail announces beside it, for the
+// account the mail was delivered to. The header only points: what is
+// shown is the store's own share, so a forged header shows nothing.
+func (pg Page) InjectOffer(p *Provider) alborz.InjectFunc {
+	return func(ctx *alborz.Context, data alborz.RenderData) error {
+		m, ok := data.(*alborzbase.MessageRenderData)
+		if !ok || m.Message == nil || ctx.Session == nil {
+			return nil
+		}
+		path := strings.TrimSpace(m.Message.HeaderField(alborzbase.ShareHeader))
+		if path == "" {
+			return nil
+		}
+		offer, err := pg.offer(ctx, p, CanonicalCollectionPath(path), ctx.Session.Username())
+		if err != nil || offer == nil {
+			return err
+		}
+		offer.Next = m.GlobalData.URL.RequestURI()
+		if m.Extra == nil {
+			m.Extra = make(map[string]interface{})
+		}
+		m.Extra["ShareOffer"] = offer
+		return nil
+	}
+}
+
+// SharedWith counts the accounts a collection kept here is shared with
+// or offered to, leaving out the ones that said no or whose share ended.
+func (p *Provider) SharedWith(collPath string) int {
+	if p.store == nil {
+		return 0
+	}
+	ref, home, ok := collections.Held(collPath)
+	if !ok || ref.Owner != home {
+		return 0
+	}
+	shares, err := p.store.Shares(func(sh collections.Share) bool {
+		return sh.Ref() == ref && !sh.Declined && !sh.Left && !sh.Ended()
+	})
+	if err != nil {
+		return 0
+	}
+	return len(shares)
+}
+
 // Sharing is what the page of a collection kept here says about who
 // else reaches it.
 type Sharing struct {
@@ -303,23 +425,80 @@ func (pg Page) HandleShare(p *Provider) func(*alborz.Context) error {
 		if err := p.store.PutShare(share); err != nil {
 			return err
 		}
-		// What the invitee may do has changed; its list is asked again.
+		// What the invitee may do has changed, and the owner's count of
+		// shares; both lists are asked again.
 		pg.Forget(share.To)
+		pg.Forget(ctx.Session.Username())
 		// The invitation waits in the invitee's rail whether or not the
 		// mail saying so got through, so a refused mail is a warning and
 		// the share stands.
 		notice := alborz.Notice{Kind: alborz.NoticeDone, Text: fmt.Sprintf(ctx.T("notice.shared"), info.Name, share.To)}
 		if !share.Accepted {
-			subject := fmt.Sprintf(ctx.T("share.mailsubject"), info.Name)
-			text := fmt.Sprintf(ctx.T("share.mailtext"), ctx.Session.Username(), info.Name,
-				ctx.Origin()+pg.List)
-			if err := alborzbase.SendText(ctx, []string{share.To}, subject, text); err != nil {
+			c, err := p.store.Collection(ref)
+			if err != nil {
+				return err
+			}
+			subject, text := pg.offerMail(ctx, c, share)
+			headers := map[string]string{alborzbase.ShareHeader: collections.PathOf(share.To, *c)}
+			if err := alborzbase.SendText(ctx, []string{share.To}, subject, text, headers); err != nil {
 				ctx.Logger().Printf("dav: failed to mail the invitation to %s: %v", share.To, err)
 				notice = alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.sharednomail"), share.To)}
 			}
 		}
 		ctx.Notify(notice)
 		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, info.Path))
+	}
+}
+
+// offerMail is the invitation as mail: who offers what in the subject,
+// the terms, and a link per answer to the page that takes it. A link
+// cannot answer by itself: mail scanners open every link on arrival,
+// and one that accepted would accept for the reader.
+func (pg Page) offerMail(ctx *alborz.Context, c *collections.Collection, sh collections.Share) (subject, text string) {
+	kind := pg.kindKey(c)
+	subject = fmt.Sprintf(ctx.T(kind+"mail"), sh.Owner, c.Name)
+	page := ctx.Origin() + pg.Base + url.PathEscape(collections.PathOf(sh.To, *c)) + "?account=" + alborz.AddressParam(sh.To)
+	access := ctx.T("share.canview")
+	if sh.Write {
+		access = ctx.T("share.canedit")
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s\n\n%s: %s\n", subject, ctx.T("share.access"), access)
+	if !sh.Expires.IsZero() {
+		fmt.Fprintf(&b, "%s: %s\n", ctx.T("share.lastday"), sh.Expires.AddDate(0, 0, -1).Format(time.DateOnly))
+	}
+	fmt.Fprintf(&b, "\n%s: %s&answer=accept\n%s: %s&answer=decline\n",
+		ctx.T("share.accept"), page, ctx.T("share.decline"), page)
+	return subject, b.String()
+}
+
+// HandleAccess turns one address's access between viewing and editing,
+// leaving the rest of the share as it was.
+func (pg Page) HandleAccess(p *Provider) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		info, ref, err := pg.owned(ctx)
+		if err != nil {
+			return err
+		}
+		sh, err := p.store.Share(ref, ctx.FormValue("to"))
+		if errors.Is(err, collections.ErrNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "no such share")
+		}
+		if err != nil {
+			return err
+		}
+		sh.Write = !sh.Write
+		if err := p.store.PutShare(*sh); err != nil {
+			return err
+		}
+		pg.Forget(sh.To)
+		pg.Forget(ctx.Session.Username())
+		key := "notice.sharecanview"
+		if sh.Write {
+			key = "notice.sharecanedit"
+		}
+		ctx.PutNotice(fmt.Sprintf(ctx.T(key), sh.To, info.Name))
+		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, info.Path)+"#sharing")
 	}
 }
 
@@ -335,6 +514,7 @@ func (pg Page) HandleUnshare(p *Provider) func(*alborz.Context) error {
 			return err
 		}
 		pg.Forget(to)
+		pg.Forget(ctx.Session.Username())
 		ctx.PutNotice(fmt.Sprintf(ctx.T("notice.unshared"), info.Name, to))
 		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, info.Path))
 	}
@@ -363,6 +543,8 @@ func (pg Page) HandleAnswer(p *Provider, accept bool) func(*alborz.Context) erro
 		if err := p.store.Answer(ref, account, accept); err != nil {
 			return err
 		}
+		// The owner's list counts who the collection is shared with.
+		pg.Forget(c.Owner)
 		if !accept {
 			ctx.PutNotice(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))

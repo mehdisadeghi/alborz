@@ -250,9 +250,15 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, cale
 	})
 }
 
+// ShareHeader names, in a share's invitation mail, the invitation the
+// mail stands for: the invitee's path to the collection. The mail page
+// answers it in place when that account has such an invitation open.
+const ShareHeader = "X-Alborz-Share"
+
 // SendText posts a short plain message from the session's account: what
 // a plugin has to tell somebody that is not the reader's own writing.
-func SendText(ctx *alborz.Context, to []string, subject, text string) error {
+// headers are set on it besides the usual ones.
+func SendText(ctx *alborz.Context, to []string, subject, text string, headers map[string]string) error {
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return err
@@ -264,6 +270,7 @@ func SendText(ctx *alborz.Context, to []string, subject, text string) error {
 		MessageID: newMessageID(),
 		Text:      text,
 		Mailer:    mailerName(ctx),
+		Headers:   headers,
 	}
 	return ctx.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, msg)

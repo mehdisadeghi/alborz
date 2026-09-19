@@ -7,6 +7,10 @@
 
   <div class="container">
     <main id="main" tabindex="-1" class="create-update">
+      {{ if and .Offer (ne .Offer.State "accepted") }}
+      <h1 dir="auto">{{.Name}}</h1>
+      {{ template "share-offer" (dict "g" $ "offer" .Offer) }}
+      {{ else }}
       <form method="post">
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
         <h1 dir="auto">{{.Name}}</h1>
@@ -16,11 +20,7 @@
         {{/* A collection somebody else shares is theirs to name and
              colour; what the page can say is whose it is. */}}
         {{ if .SharedBy }}
-        <div class="field">
-          <label>{{$.T "share.sharedby"}}</label>
-          <span>{{ template "ltr" .SharedBy }}</span>
-          {{ template "hint" (dict "text" ($.T (or (and .Writable "share.canedit") "share.canview"))) }}
-        </div>
+        {{ template "share-offer" (dict "g" $ "offer" .Offer) }}
         {{ else }}
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true) }}
         {{ template "field" (dict "label" ($.T "common.color") "name" "color" "type" "color" "value" .Color) }}
@@ -52,11 +52,19 @@
           <div class="list-item">
             <div class="list-content">
               <span class="list-summary">{{ template "ltr" .To }}</span>
-              <span class="list-detail">{{$.T (or (and .Write "share.canedit") "share.canview")}}{{ if not .Expires.IsZero }}, {{ printf ($.T "share.until") ($.GlobalData.ShortDate (.Expires.AddDate 0 0 -1)) }}{{ end }}{{ if .Ended }} · {{$.T "share.ended"}}{{ else if .Declined }} · {{$.T "share.declined"}}{{ else if .Left }} · {{$.T "share.left"}}{{ else if not .Accepted }} · {{$.T "share.pending"}}{{ end }}</span>
+              {{/* The state and when it came to be: the answer's time once
+                   there is one, the invitation's until then. */}}
+              {{ $state := "share.offered" }}{{ $at := .Created }}
+              {{ if .Ended }}{{ $state = "share.ended" }}{{ $at = .Expires }}
+              {{ else if .Declined }}{{ $state = "share.answereddeclined" }}{{ $at = .Answered }}
+              {{ else if .Left }}{{ $state = "share.answeredleft" }}{{ $at = .Answered }}
+              {{ else if .Accepted }}{{ $state = "share.answeredaccepted" }}{{ $at = .Answered }}{{ end }}
+              <span class="list-detail">{{$.T (or (and .Write "share.canedit") "share.canview")}}{{ if not .Expires.IsZero }}, {{ printf ($.T "share.until") ($.GlobalData.ShortDate (.Expires.AddDate 0 0 -1)) }}{{ end }} · {{$.T $state}}{{ if not $at.IsZero }} {{ $.GlobalData.ShortDate $at }}{{ end }}</span>
             </div>
-            <form method="post" action="{{$.Base}}{{$.Path | pathescape}}/unshare{{account "?" $.Account}}">
+            <form method="post" class="list-actions">
               <input type="hidden" name="to" value="{{.To}}">
-              <button class="button-danger">{{$.T "share.remove"}}</button>
+              <button formaction="{{$.Base}}{{$.Path | pathescape}}/access{{account "?" $.Account}}">{{$.T (or (and .Write "share.makeview") "share.makeedit")}}</button>
+              <button formaction="{{$.Base}}{{$.Path | pathescape}}/unshare{{account "?" $.Account}}" class="button-danger">{{$.T "share.remove"}}</button>
             </form>
           </div>
           {{ end }}
@@ -146,6 +154,7 @@
         <button class="button-danger">{{ if eq .Count 0 }}{{ printf ($.T "collection.deletedoempty") .Name }}{{ else }}{{ printf ($.T "collection.deletedo") .Name }}{{ end }}</button>
         {{ end }}
       </form>
+      {{ end }}
     </main>
   </div>
 </div>

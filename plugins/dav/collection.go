@@ -71,6 +71,9 @@ type Collection struct {
 	// Public marks a calendar kept here that answers at a public
 	// address.
 	Public bool
+	// SharedWith counts the accounts an owner's collection is offered
+	// to and not refused by.
+	SharedWith int
 }
 
 // Listed is one collection with the properties it was read from, for

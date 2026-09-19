@@ -371,6 +371,13 @@
             </td>
           </tr>
           {{ end }}{{ end }}
+          {{/* A share of a calendar or an address book, answered here as a
+               meeting request is. */}}
+          {{ with .Extra.ShareOffer }}
+          <tr>
+            <td colspan="2">{{ template "share-offer" (dict "g" $ "offer" .) }}</td>
+          </tr>
+          {{ end }}
           {{/* A meeting request, answered here rather than in whatever
                client the reader would otherwise have to open. The answer
                goes to the organizer as mail (RFC 6047); nothing is

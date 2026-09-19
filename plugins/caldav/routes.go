@@ -31,6 +31,7 @@ func (p *plugin) collectionPage() dav.Page {
 		Color:  calendarColor,
 		Ext:    ".ics",
 		Forget: p.dav.Forget,
+		Show:   show,
 		Rail: func(ctx *alborz.Context, list string) (dav.Rail, error) {
 			if list == "/tasks" {
 				return p.taskRail(ctx)
@@ -533,6 +534,26 @@ func choose(set func(*Settings, []string)) func(alborz.Store, []string) error {
 	}
 }
 
+// show ticks a collection the account just made or accepted in the
+// chosen sets in force: what to see was chosen before it existed, which
+// was not a choice to hide it.
+func show(store alborz.Store, path string) error {
+	settings, err := loadSettings(store)
+	if err != nil {
+		return err
+	}
+	if !settings.CalendarFilter && !settings.TaskFilter {
+		return nil
+	}
+	if settings.CalendarFilter {
+		settings.VisibleCalendars = append(settings.VisibleCalendars, path)
+	}
+	if settings.TaskFilter {
+		settings.VisibleTasks = append(settings.VisibleTasks, path)
+	}
+	return store.Put(settingsKey, settings)
+}
+
 func firstEvent(cal *ical.Calendar) *ical.Component {
 	if evs := cal.Events(); len(evs) > 0 {
 		return evs[0].Component
@@ -631,7 +652,7 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 
 func registerRoutes(p *plugin) {
 	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
-		return p.dav.Guarded(errNoCalendar, "calendar.unconfigured", h)
+		return p.dav.Guarded(errNoCalendar, "calendar.unconfigured", "/calendars/create", h)
 	}
 	GET := func(path string, h func(*alborz.Context) error) { p.GoPlugin.GET(path, guard(h)) }
 	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }

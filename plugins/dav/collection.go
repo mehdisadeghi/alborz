@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+
+	"git.mehdix.org/alborz/plugins/collections"
 )
 
 // Privileges is the DAV:current-user-privilege-set every listing asks
@@ -62,6 +64,10 @@ type Collection struct {
 	// Address is the feed a subscribed calendar is read from; empty for
 	// a collection held on the account's own server.
 	Address string
+	// Here marks a collection kept in this alborz, which is what can be
+	// shared; SharedBy is its owner when that is another account.
+	Here     bool
+	SharedBy string
 }
 
 // Listed is one collection with the properties it was read from, for
@@ -71,18 +77,23 @@ type Listed[P CollectionProps] struct {
 	Props P
 }
 
-// ListCollections reads the home set's collections in one PROPFIND,
-// sorted by name: servers list them in storage order, and a sidebar
-// wants a stable one. Found and missing properties come in separate
-// propstats; the one naming the resource type carries what was found.
-func ListCollections[P CollectionProps](ctx context.Context, client *http.Client, base *url.URL, homeSet, propfind string) ([]Listed[P], error) {
-	target := base.ResolveReference(&url.URL{Path: homeSet}).String()
-	ms, err := Propfind[P](ctx, client, target, propfind)
-	if err != nil {
-		return nil, err
+// ListCollections reads the collections of every home the account has,
+// one PROPFIND each, sorted by name: servers list them in storage
+// order, and a sidebar wants a stable one. Found and missing properties
+// come in separate propstats; the one naming the resource type carries
+// what was found.
+func ListCollections[P CollectionProps](ctx context.Context, client *http.Client, base *url.URL, homes []Home, propfind string) ([]Listed[P], error) {
+	var responses []Response[P]
+	for _, home := range homes {
+		target := base.ResolveReference(&url.URL{Path: home.Path}).String()
+		ms, err := Propfind[P](ctx, client, target, propfind)
+		if err != nil {
+			return nil, err
+		}
+		responses = append(responses, ms.Responses...)
 	}
 	var out []Listed[P]
-	for _, resp := range ms.Responses {
+	for _, resp := range responses {
 		for _, ps := range resp.PropStat {
 			if !strings.Contains(ps.Status, "200") {
 				continue
@@ -92,7 +103,7 @@ func ListCollections[P CollectionProps](ctx context.Context, client *http.Client
 				continue
 			}
 			writable, known := ps.Prop.Privileges().Writable()
-			out = append(out, Listed[P]{
+			listed := Listed[P]{
 				Collection: Collection{
 					Path:  CanonicalCollectionPath(resp.Href),
 					Name:  name,
@@ -102,7 +113,14 @@ func ListCollections[P CollectionProps](ctx context.Context, client *http.Client
 					Writable: writable || !known,
 				},
 				Props: ps.Prop,
-			})
+			}
+			if ref, home, here := collections.Held(listed.Path); here {
+				listed.Here = true
+				if ref.Owner != home {
+					listed.SharedBy = ref.Owner
+				}
+			}
+			out = append(out, listed)
 			break
 		}
 	}

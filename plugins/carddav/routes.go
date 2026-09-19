@@ -118,6 +118,21 @@ type Settings struct {
 
 const settingsKey = "carddav.settings"
 
+// show ticks a book the account just made or accepted in the chosen set
+// in force: what to see was chosen before it existed, which was not a
+// choice to hide it.
+func show(store alborz.Store, path string) error {
+	settings := &Settings{}
+	if err := store.Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
+		return err
+	}
+	if !settings.AddressBookFilter {
+		return nil
+	}
+	settings.VisibleAddressBooks = append(settings.VisibleAddressBooks, path)
+	return store.Put(settingsKey, settings)
+}
+
 // choose writes the books the reader ticked into the settings.
 func choose(store alborz.Store, paths []string) error {
 	settings := &Settings{}
@@ -347,7 +362,7 @@ func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
 
 func registerRoutes(p *plugin) {
 	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
-		return p.dav.Guarded(errNoAddressBook, "contacts.unconfigured", h)
+		return p.dav.Guarded(errNoAddressBook, "contacts.unconfigured", "/address-books/create", h)
 	}
 	GET := func(path string, h func(*alborz.Context) error) { p.GoPlugin.GET(path, guard(h)) }
 	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }
@@ -872,10 +887,11 @@ func (p *plugin) deletePhoto(ctx *alborz.Context) error {
 		}})
 }
 
-// createForm is the form for a new address book.
+// createForm is the form for a new address book. The first book is made
+// from a rail that lists none.
 func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 	rail, err := p.bookRail(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, errNoAddressBook) {
 		return dav.CreateForm{}, err
 	}
 	return dav.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: "/contacts",
@@ -1007,6 +1023,7 @@ func (p *plugin) collectionPage() dav.Page {
 		Color:  addressBookColor,
 		Ext:    ".vcf",
 		Forget: p.dav.Forget,
+		Show:   show,
 		Rail:   func(ctx *alborz.Context, _ string) (dav.Rail, error) { return p.bookRail(ctx) },
 		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
 			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)

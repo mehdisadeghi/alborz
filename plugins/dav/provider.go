@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/plugins/collections"
 	"git.mehdix.org/alborz/plugins/davcache"
 	"github.com/labstack/echo/v4"
 )
@@ -30,12 +32,14 @@ type Kind struct {
 	// Own is the server an account names for itself, empty when it
 	// names none.
 	Own func(alborz.Services) string
+	// Holds is the kind's collections among those kept here.
+	Holds collections.Kind
 	// FindHome is the home set behind the account's server. Principal
 	// and home set are two round trips, asked through the kind's own
 	// go-webdav client: the two share no interface to ask through.
 	FindHome func(ctx context.Context, client *http.Client, endpoint string) (string, error)
-	// List reads the kind's collections out of the home set.
-	List func(ctx context.Context, client *http.Client, base *url.URL, home string) ([]Collection, error)
+	// List reads the kind's collections out of the homes.
+	List func(ctx context.Context, client *http.Client, base *url.URL, homes []Home) ([]Collection, error)
 	// Make makes one at target, MKCALENDAR or extended MKCOL; an address
 	// book is given no components.
 	Make func(ctx context.Context, client *http.Client, target, name, color string, components []string) error
@@ -53,6 +57,12 @@ const discoveryTTL = 5 * time.Minute
 // every waiter behind the memo.
 const discoveryTimeout = 30 * time.Second
 
+// hereBase stands where a server's address would for an account whose
+// only collections are kept here. Nothing resolves it (RFC 2606 keeps
+// .invalid from ever existing): the transport answers every path under
+// collections.Prefix itself.
+var hereBase = &url.URL{Scheme: "http", Host: alborz.AppName + ".invalid", Path: collections.Prefix + "/"}
+
 // WarmBudget bounds what a sign-in may spend fetching an account's
 // first pages behind the scenes; a slow server leaves them cold.
 const WarmBudget = 30 * time.Second
@@ -64,6 +74,10 @@ type Provider struct {
 	kind  Kind
 	urls  map[string]*url.URL // endpoint per served mail domain
 	cache *davcache.Cache
+	// here serves the collections kept in this alborz; nil without a
+	// data directory.
+	here  http.Handler
+	store *collections.Store
 	// found per username; see Collections.
 	collections *alborz.Memo[[]Collection]
 
@@ -101,6 +115,9 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	}
 	p := &Provider{kind: kind, urls: urls, cache: cache,
 		collections: alborz.NewBackgroundMemo[[]Collection](discoveryTTL)}
+	if srv.Collections != nil {
+		p.here, p.store = srv.Collections.Handler(), srv.Collections
+	}
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
@@ -122,15 +139,44 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	return p, nil
 }
 
-// home is where the account's server lists its collections.
-func (p *Provider) home(ctx context.Context, session *alborz.Session) (string, error) {
-	u, _ := p.URL(session)
-	return p.kind.FindHome(ctx, p.HTTPClient(session), u.String())
+// URL is where the session's client starts: the account's server, or
+// for an account without one the collections kept here.
+func (p *Provider) URL(session *alborz.Session) (*url.URL, bool) {
+	if u, ok := p.Remote(session); ok {
+		return u, true
+	}
+	return hereBase, p.here != nil
+}
+
+// Home is one place an account's collections of the kind are listed.
+type Home struct {
+	Path string
+	// Here marks the home kept in this alborz rather than on the
+	// account's server.
+	Here bool
+}
+
+// homes are the places the account's collections are listed: its
+// server's home set, and the one kept here. An account has either or
+// both.
+func (p *Provider) homes(ctx context.Context, session *alborz.Session) ([]Home, error) {
+	var homes []Home
+	if u, ok := p.Remote(session); ok {
+		home, err := p.kind.FindHome(ctx, p.HTTPClient(session), u.String())
+		if err != nil {
+			return nil, err
+		}
+		homes = append(homes, Home{Path: home})
+	}
+	if p.here != nil {
+		homes = append(homes, Home{Path: collections.HomePath(p.kind.Holds, session.Username()), Here: true})
+	}
+	return homes, nil
 }
 
 // Collections is the account's list of the kind, empty when it has
-// none. Principal, home set, and list are three sequential round trips,
-// so they are found once per user rather than on every page. The load
+// none. Finding the homes and listing them is several round trips, so
+// they are found once per user rather than on every page. The load
 // outlives the request that starts it: a second page waiting on it must
 // not be failed by the first one's reader going away.
 func (p *Provider) Collections(ctx context.Context, session *alborz.Session) ([]Collection, error) {
@@ -139,11 +185,11 @@ func (p *Provider) Collections(ctx context.Context, session *alborz.Session) ([]
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), discoveryTimeout)
 		defer cancel()
 
-		home, err := p.home(ctx, session)
+		homes, err := p.homes(ctx, session)
 		if err != nil {
 			return nil, err
 		}
-		infos, err := p.kind.List(ctx, p.HTTPClient(session), base, home)
+		infos, err := p.kind.List(ctx, p.HTTPClient(session), base, homes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list the %s collections: %v", p.kind.Label, err)
 		}
@@ -166,10 +212,10 @@ func Opened[C any](ctx context.Context, p *Provider, session *alborz.Session, cl
 	return c, infos, err
 }
 
-// Create adds a collection to the account's home, walking to the first
-// free address, and forgets the found list, so the new one appears at
-// once.
-func (p *Provider) Create(ctx context.Context, session *alborz.Session, name, color string, components []string) (string, error) {
+// Create adds a collection to the account's home, the one kept here
+// when here says so, and forgets the found list, so the new one
+// appears at once.
+func (p *Provider) Create(ctx context.Context, session *alborz.Session, name, color string, here bool, components []string) (string, error) {
 	infos, err := p.Collections(ctx, session)
 	if err != nil {
 		return "", err
@@ -178,12 +224,12 @@ func (p *Provider) Create(ctx context.Context, session *alborz.Session, name, co
 		return "", ErrNameTaken
 	}
 	base, _ := p.URL(session)
-	home, err := p.home(ctx, session)
+	homes, err := p.homes(ctx, session)
 	if err != nil {
 		return "", err
 	}
 	client := p.HTTPClient(session)
-	path, err := CreateCollection(ctx, base, home, name, p.kind.Unnamed, func(ctx context.Context, target string) error {
+	path, err := CreateCollection(ctx, base, HomeFor(homes, here), name, p.kind.Unnamed, func(ctx context.Context, target string) error {
 		return p.kind.Make(ctx, client, target, name, color, components)
 	})
 	if err != nil {
@@ -193,9 +239,75 @@ func (p *Provider) Create(ctx context.Context, session *alborz.Session, name, co
 	return path, nil
 }
 
-// URL resolves the session's endpoint: the one the account names for
-// itself, then its domain's, then the unnamed provider's.
-func (p *Provider) URL(session *alborz.Session) (*url.URL, bool) {
+// Host names the server the account's pages talk to, which for an
+// account with none elsewhere is the one the reader is looking at.
+func (p *Provider) Host(ctx *alborz.Context) string {
+	if u, ok := p.Remote(ctx.Session); ok {
+		return u.Host
+	}
+	return ctx.Request().Host
+}
+
+// KeepsHere says whether collections can be kept in this alborz.
+func (p *Provider) KeepsHere() bool { return p.here != nil }
+
+// The places a new collection can go, as the create form posts them
+// after the account: the account's server, or here.
+const (
+	placeServer = "server"
+	placeHere   = "here"
+)
+
+// Places are where a new collection can go, grouped by account in the
+// shape the collection picker lists: each account's server by its host,
+// and its home here. An account with neither has no group.
+func (p *Provider) Places(ctx *alborz.Context) []Group {
+	var groups []Group
+	for _, s := range ctx.Sessions() {
+		var places []Collection
+		if u, ok := p.Remote(s); ok {
+			places = append(places, Collection{Path: placeServer, Name: u.Host})
+		}
+		if p.here != nil {
+			places = append(places, Collection{Path: placeHere, Name: alborz.BrandName})
+		}
+		if len(places) > 0 {
+			groups = append(groups, Group{Account: s.Username(), Collections: places})
+		}
+	}
+	return groups
+}
+
+// ReadPlace is the place the create form chose, or where a collection
+// goes when it had no choice to offer: the account's server when it has
+// one, here otherwise.
+func (p *Provider) ReadPlace(ctx *alborz.Context, account string) (string, bool) {
+	if chosen, kind, ok := strings.Cut(ctx.FormValue("place"), "|"); ok {
+		return chosen, kind == placeHere
+	}
+	s := ctx.SessionFor(account)
+	if s == nil {
+		return account, p.here != nil
+	}
+	_, remote := p.Remote(s)
+	return account, !remote
+}
+
+// HomeFor is the home a new collection goes to: the one kept here when
+// asked for, and otherwise the account's first, which is its server's
+// when it has one.
+func HomeFor(homes []Home, here bool) string {
+	for _, home := range homes {
+		if home.Here == here {
+			return home.Path
+		}
+	}
+	return homes[0].Path
+}
+
+// Remote resolves the account's DAV server: the one the account names
+// for itself, then its domain's, then the unnamed provider's.
+func (p *Provider) Remote(session *alborz.Session) (*url.URL, bool) {
 	if services, err := session.Services(); err == nil {
 		if own := p.kind.Own(services); own != "" {
 			if u, err := url.Parse(own); err == nil {
@@ -213,7 +325,7 @@ func (p *Provider) URL(session *alborz.Session) (*url.URL, bool) {
 // HTTPClient talks to the session's server through the cache, with the
 // account's credentials on every request.
 func (p *Provider) HTTPClient(session *alborz.Session) *http.Client {
-	return httpClient(p.cache, session, p.debug)
+	return httpClient(p.cache, p.here, session, p.debug)
 }
 
 // CountObjects counts a collection's objects for the session, lazily:
@@ -271,11 +383,15 @@ func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Session, fetch func(conte
 }
 
 // Guarded is a section's route for an account that may have none of
-// the kind, which is a state to explain and not an error: the account
-// is told in words that it has no such service.
-func (p *Provider) Guarded(none error, words string, h func(*alborz.Context) error) func(*alborz.Context) error {
+// the kind, which is a state to explain and not an error: one that may
+// keep its first here is a form away from it, at create, and any other
+// is told in words that the account has no such service.
+func (p *Provider) Guarded(none error, words, create string, h func(*alborz.Context) error) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		err := h(ctx)
+		if errors.Is(err, none) && p.KeepsHere() {
+			return ctx.Redirect(http.StatusFound, ctx.AccountPath(create))
+		}
 		if errors.Is(err, none) {
 			return alborz.RenderInfo(ctx, http.StatusOK, fmt.Sprintf(ctx.T(words), ctx.Session.Username()))
 		}

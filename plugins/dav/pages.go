@@ -56,8 +56,21 @@ type NewCollectionRenderData struct {
 	Rail        Rail
 	OffersHolds bool
 	Holds       string // "events", "tasks" or "both"
-	Next        string // the list it was opened from
-	Error       string
+	// Places are where the collection can go, and Here says the one
+	// chosen is kept here rather than on the account's server.
+	Places []Group
+	Here   bool
+	Next   string // the list it was opened from
+	Error  string
+}
+
+// Chooses says whether there is more than one place to pick from.
+func (d *NewCollectionRenderData) Chooses() bool {
+	n := 0
+	for _, g := range d.Places {
+		n += len(g.Collections)
+	}
+	return n > 1
 }
 
 // CreateForm is what a kind says about its form for a new collection:
@@ -80,7 +93,7 @@ type CreateForm struct {
 var held = map[string][]string{"events": {"VEVENT"}, "tasks": {"VTODO"}, "both": {"VEVENT", "VTODO"}}
 
 // HandleCreate is the form that adds a collection to the chosen
-// account. The component set is the one decision a calendar
+// account and place. The component set is the one decision a calendar
 // cannot change later on most servers, so it is asked here rather than
 // assumed.
 func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm, error)) func(*alborz.Context) error {
@@ -100,8 +113,10 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			BackLabel:      f.Section,
 			OffersHolds:    f.OffersHolds,
 			Holds:          f.Holds,
+			Places:         p.Places(ctx),
 			Next:           ctx.FormValue("next"),
 		}
+		data.Account, data.Here = p.ReadPlace(ctx, data.Account)
 		if ctx.Request().Method != http.MethodPost {
 			return ctx.Render(http.StatusOK, "create-collection.html", data)
 		}
@@ -112,9 +127,6 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 		if h := ctx.FormValue("holds"); f.OffersHolds && held[h] != nil {
 			data.Holds = h
 		}
-		if account := ctx.FormValue("account"); account != "" {
-			data.Account = account
-		}
 		if data.Name == "" {
 			data.Error = ctx.T("form.nameneeded")
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
@@ -123,13 +135,16 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 		if session == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
-		path, err := p.Create(ctx.Request().Context(), session, data.Name, data.Color, held[data.Holds])
+		path, err := p.Create(ctx.Request().Context(), session, data.Name, data.Color, data.Here, held[data.Holds])
 		if err != nil {
 			data.Error = err.Error()
 			if errors.Is(err, ErrNameTaken) {
 				data.Error = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
+		}
+		if err := pg.Show(session.Store(), path); err != nil {
+			return fmt.Errorf("failed to save the %s settings: %w", p.kind.Label, err)
 		}
 		account := ""
 		if data.Account != ctx.Session.Username() {
@@ -161,6 +176,9 @@ type Page struct {
 	Ext    string
 	Lookup func(ctx *alborz.Context, path string) (info Collection, count func() int, list, label string, err error)
 	Forget func(username string)
+	// Show ticks a collection the account just made among those it has
+	// chosen to see.
+	Show func(store alborz.Store, path string) error
 	// Import writes the objects of an uploaded file into the collection
 	// and says how many; Export renders the collection, or the range
 	// asked for, as one file. Range is nil where the kind has no dates.

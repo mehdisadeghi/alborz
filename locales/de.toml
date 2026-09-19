@@ -525,6 +525,9 @@
 "settings.serversmtp" = "Versand (SMTP)"
 "settings.serversieve" = "Filter (ManageSieve)"
 "settings.davcalendar" = "Kalenderserver"
+"settings.davhere" = "Kalender und Kontakte auf Alborz"
+"settings.davhereaddress" = "Adresse für andere Programme"
+"settings.davhereuser" = "Benutzername"
 "settings.davcontacts" = "Kontakteserver"
 "settings.serverhost" = "Server"
 "settings.serverunreachable" = "Keine Antwort"
@@ -679,6 +682,7 @@
 "calendar.holdsevents" = "Nur Termine"
 "calendar.holdstasks" = "Nur Aufgaben"
 "calendar.holdshint" = "Die meisten Server legen das bei der Erstellung fest."
+"collection.placehint" = "Eine Sammlung auf Alborz kann mit anderen Konten hier geteilt werden."
 "tasks.newlist" = "Neue Aufgabenliste"
 "tasks.movelist" = "In Liste verschieben"
 # Plural forms last: a TOML table claims every key that follows it.

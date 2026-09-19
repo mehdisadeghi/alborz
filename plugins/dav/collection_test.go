@@ -53,7 +53,7 @@ const homeListing = `<?xml version="1.0"?>
 func TestListCollectionsReadsWhatTheServerSaid(t *testing.T) {
 	client := &http.Client{Transport: answer{http.StatusMultiStatus, homeListing}}
 	base, _ := url.Parse("https://dav.example/")
-	listed, err := ListCollections[testProps](context.Background(), client, base, "/cal/u/", "<propfind/>")
+	listed, err := ListCollections[testProps](context.Background(), client, base, []Home{{Path: "/cal/u/"}}, "<propfind/>")
 	if err != nil {
 		t.Fatal(err)
 	}

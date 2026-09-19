@@ -52,7 +52,9 @@ type Collection struct {
 	Components []string
 	// Account owns the collection, set only where accounts are pooled.
 	Account string
-	Visible bool
+	// Visible is the reader's standing choice, which the rail's tick
+	// shows; Shown is what this page shows, which "only" narrows.
+	Visible, Shown bool
 	// Only marks the collection a URL is currently narrowed to, and only
 	// when it is the sole one: pressing the same link again is how a
 	// reader gets back out of a view they pressed their way into.

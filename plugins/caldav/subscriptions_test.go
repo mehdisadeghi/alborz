@@ -91,11 +91,11 @@ func TestSubscriptionIsACalendarInTheRail(t *testing.T) {
 	if err := subs.refresh(srv.URL); err != nil {
 		t.Fatal(err)
 	}
-	info.Visible = false
+	info.Shown = false
 	if got := subscriptionObjects([]dav.Collection{info}, ""); len(got) != 0 {
 		t.Errorf("a hidden subscription drew %d objects", len(got))
 	}
-	info.Visible = true
+	info.Shown = true
 	got := subscriptionObjects([]dav.Collection{info}, "")
 	if len(got) != 1 || !got[0].ReadOnly || got[0].Color != "#123456" {
 		t.Fatalf("a visible subscription drew %+v", got)

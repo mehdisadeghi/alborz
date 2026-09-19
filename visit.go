@@ -44,6 +44,9 @@ type Visit struct {
 	// will take what the first account brings.
 	read   *Reading
 	anchor string
+	// said holds what this browser has been told and need not hear on
+	// every page: a standing condition is news once.
+	said map[string]bool
 	// lock is what stands in front of the visit, active when the reader
 	// last did something, and ceremony the WebAuthn exchange under way.
 	lock     Lock
@@ -388,6 +391,20 @@ func (v *Visit) touch() {
 	v.mu.Lock()
 	v.seen = time.Now()
 	v.mu.Unlock()
+}
+
+// Once reports whether this is the first time the visit hears of key.
+func (v *Visit) Once(key string) bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.said[key] {
+		return false
+	}
+	if v.said == nil {
+		v.said = map[string]bool{}
+	}
+	v.said[key] = true
+	return true
 }
 
 // Notify records what the next page tells the reader.

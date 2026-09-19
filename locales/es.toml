@@ -639,6 +639,7 @@
 "folder.emptyask" = "¿Eliminar todo en %s?"
 "folder.emptydo" = "Eliminar todo"
 "notice.loginfailed" = "Dirección o contraseña rechazadas."
+"notice.davanswered" = "El servidor de calendarios y contactos de %s respondió %s."
 "notice.loginerror" = "No se pudo iniciar sesión: %s"
 "notice.filtersaved" = "Filtro guardado."
 "notice.filterwarn" = "Filtro guardado con avisos: %s"
@@ -871,9 +872,13 @@ other = "%d tareas"
 one = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
 other = "Se cerró la sesión de %[2]s tras 30 minutos de inactividad."
 
+["notice.davrefused"]
+one = "El servidor de calendario y contactos de %[2]s rechazó la contraseña."
+other = "Los servidores de calendario y contactos de %[2]s rechazaron las contraseñas."
+
 ["notice.unreachable"]
-one = "El servidor de %[2]s no respondió. Se muestran las demás cuentas."
-other = "Los servidores de %[2]s no respondieron. Se muestran las demás cuentas."
+one = "El servidor de %[2]s no respondió."
+other = "Los servidores de %[2]s no respondieron."
 
 
 ["notice.deleted"]

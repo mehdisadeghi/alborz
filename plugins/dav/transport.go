@@ -5,9 +5,11 @@ package dav
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -142,6 +144,34 @@ type roundTripper struct {
 	debug echo.Logger
 }
 
+// RefusedError is a DAV server saying no to the account's credentials.
+// It is an answer, and a different one from no answer: a mail account
+// often has no DAV account behind it, or one with a password of its own,
+// and the reader can do something about that and nothing about a server
+// that is down.
+type RefusedError struct {
+	Host string
+}
+
+func (e *RefusedError) Error() string { return e.Host + " refused the account's password" }
+
+// Answered is the HTTP status a DAV server answered with, where err
+// carries one, and zero where the server did not answer at all.
+// go-webdav keeps its error type internal and its Code field exported,
+// so the field is read by name.
+func Answered(err error) int {
+	for ; err != nil; err = errors.Unwrap(err) {
+		v := reflect.Indirect(reflect.ValueOf(err))
+		if v.Kind() != reflect.Struct {
+			continue
+		}
+		if code := v.FieldByName("Code"); code.IsValid() && code.CanInt() {
+			return int(code.Int())
+		}
+	}
+	return 0
+}
+
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err := rt.session.SetHTTPBasicAuth(req); err != nil {
 		return nil, err
@@ -153,6 +183,12 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	// The transport sent the credentials, so it is what knows they were
+	// turned down; past here a 401 is one more status in a string.
+	if resp.StatusCode == http.StatusUnauthorized {
+		resp.Body.Close()
+		return nil, &RefusedError{Host: req.URL.Host}
 	}
 
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {

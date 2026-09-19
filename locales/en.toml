@@ -640,6 +640,7 @@
 "folder.emptyask" = "Delete everything in %s?"
 "folder.emptydo" = "Delete all"
 "notice.loginfailed" = "Address or password refused."
+"notice.davanswered" = "The calendar and contacts server for %s answered %s."
 "notice.loginerror" = "Failed to login: %s"
 "tasks.edittitle" = "Edit task"
 "tasks.createtitle" = "Create task"
@@ -871,9 +872,13 @@ other = "%d tasks"
 one = "%[2]s was signed out after 30 minutes of inactivity."
 other = "%[2]s were signed out after 30 minutes of inactivity."
 
+["notice.davrefused"]
+one = "The calendar and contacts server for %[2]s refused the password."
+other = "The calendar and contacts servers for %[2]s refused the passwords."
+
 ["notice.unreachable"]
-one = "The server for %[2]s did not answer. The other accounts are shown."
-other = "The servers for %[2]s did not answer. The other accounts are shown."
+one = "The server for %[2]s did not answer."
+other = "The servers for %[2]s did not answer."
 
 
 ["notice.deleted"]

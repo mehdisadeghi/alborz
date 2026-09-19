@@ -277,7 +277,7 @@ func (p *Provider) Guarded(none error, words string, h func(*alborz.Context) err
 }
 
 // HandleChoose keeps which collections of list the reader ticked, in
-// the kind's own settings, and lands on the list.
+// the kind's own settings, and lands on the list no longer narrowed.
 func HandleChoose(list, field string, keep func(store alborz.Store, paths []string) error) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		params, err := ctx.FormParams()
@@ -287,7 +287,7 @@ func HandleChoose(list, field string, keep func(store alborz.Store, paths []stri
 		if err := keep(ctx.Session.Store(), params[field]); err != nil {
 			return fmt.Errorf("failed to save the chosen collections: %w", err)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(list))
+		return ctx.Redirect(http.StatusFound, Widened(ctx.NextOr(list), field))
 	}
 }
 

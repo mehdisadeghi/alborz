@@ -138,12 +138,13 @@ func Visible[C any](accounts []Account[C], scope string, only map[string]bool, c
 		}
 		for _, coll := range colls {
 			coll.Visible = !filter || visible[coll.Path]
+			coll.Shown = coll.Visible
 			if only != nil {
-				coll.Visible = only[coll.Path]
-				coll.Only = len(only) == 1 && coll.Visible
+				coll.Shown = only[coll.Path]
+				coll.Only = len(only) == 1 && coll.Shown
 			}
 			infos = append(infos, coll)
-			if coll.Visible && coll.Address == "" && (scope == "" || acc.Name == scope) {
+			if coll.Shown && coll.Address == "" && (scope == "" || acc.Name == scope) {
 				sites = append(sites, Site[C]{Client: acc.Client, Collection: coll})
 			}
 		}

@@ -67,6 +67,19 @@ func ListParamsIn(next string, keys ...string) url.Values {
 	return Keep(u.Query(), keys...)
 }
 
+// Widened is next without the narrowing to single collections that
+// field names: ticking a collection says which ones the reader wants,
+// so the page they return to is no longer the one "only" narrowed.
+func Widened(next, field string) string {
+	u, err := url.Parse(next)
+	if err != nil {
+		return next
+	}
+	q := u.Query()
+	q.Del(field)
+	return ListURL(u.Path, q)
+}
+
 // ListURL is the list those parameters name, for an object's page to
 // return to once the object is gone or a new one is made.
 func ListURL(path string, params url.Values) string {

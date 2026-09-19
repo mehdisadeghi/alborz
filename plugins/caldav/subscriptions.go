@@ -267,7 +267,7 @@ func (c *subCache) get(url, etag string) (*ical.Calendar, string, bool, error) {
 func subscriptionObjects(infos []dav.Collection, scope string) []CalendarObject {
 	var out []CalendarObject
 	for _, info := range infos {
-		if info.Address == "" || !info.Visible || (scope != "" && info.Account != scope) {
+		if info.Address == "" || !info.Shown || (scope != "" && info.Account != scope) {
 			continue
 		}
 		if !subs.fresh(info.Address) {

@@ -1174,7 +1174,7 @@ type quickList struct {
 func quickListOf(ctx *alborz.Context, calendars []dav.Collection) *quickList {
 	scope := ctx.URLAccount()
 	for _, cal := range calendars {
-		if (scope == "" || cal.Account == scope) && cal.Visible && cal.Writable && supportsTodo(cal.Components) {
+		if (scope == "" || cal.Account == scope) && cal.Shown && cal.Writable && supportsTodo(cal.Components) {
 			return &quickList{Account: cal.Account, Path: cal.Path, Name: cal.Name}
 		}
 	}

@@ -699,9 +699,7 @@ if (rail && window.EventSource) {
 }
 
 // The worker holds the stylesheet, the scripts and the icons, so the
-// application starts without waiting for them, and answers a page that
-// cannot be fetched with one that says so. It holds no mail: see
-// serviceworker.go.
+// application starts without waiting for them: see serviceworker.go.
 // The worker answers from what it saved when the server cannot be
 // reached, and says so; the notice follows what it says. A swap brings
 // a new notice, hidden as the server wrote it, so the state is applied
@@ -891,37 +889,6 @@ for (const event of ["htmx:afterRequest", "htmx:sendError", "htmx:timeout", "htm
 			endProgress();
 		}
 	});
-}
-
-// The offline page asks again by itself: the browser says when a
-// network is back, and a page whose only content is "no connection"
-// should not wait to be clicked. The link stays for a browser with no
-// script, and stays as the way to try before the network says anything.
-const retry = document.getElementById("offline-retry");
-if (retry) {
-	let asked = false;
-	const again = () => {
-		if (asked) {
-			return;
-		}
-		asked = true;
-		retry.textContent = retry.dataset.retrying || retry.textContent;
-		location.replace(retry.href);
-	};
-	window.addEventListener("online", again);
-	// A tab brought back to the front is a reader looking at it again.
-	document.addEventListener("visibilitychange", () => {
-		if (!document.hidden && navigator.onLine) {
-			again();
-		}
-	});
-	// And while it sits there, ask on a slow beat rather than never:
-	// a network can come back without the browser saying so.
-	setInterval(() => {
-		if (navigator.onLine) {
-			again();
-		}
-	}, 15000);
 }
 
 // A visit with a passkey locks after a time away, and the server will

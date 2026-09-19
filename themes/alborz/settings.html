@@ -110,6 +110,7 @@
             <input type="checkbox" name="align_script" id="align_script" value="1"{{if .AlignByScript}} checked{{end}}>
             {{$.T "settings.alignscript"}}
           </label>
+          {{ template "hint" (dict "text" ($.T "settings.alignscripthint")) }}
         </div>
 
         <div class="action-group">

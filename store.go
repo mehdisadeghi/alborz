@@ -163,7 +163,7 @@ const vendorRoot = "/private/vendor/alborz"
 // entries are asked for by name: the DEPTH walk of RFC 5464 needs the
 // options before the mailbox, and go-imap writes them after, which
 // Dovecot answers with BAD.
-var keptKeys = []string{httpPasswordKey}
+var keptKeys = []string{httpPasswordKey, servicesKey}
 
 // KeepKey names a key a plugin keeps in the store, so the account
 // holder can see and empty what is held.

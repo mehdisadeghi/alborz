@@ -136,6 +136,14 @@ func (s *Settings) signatureNamed(name string) (Signature, bool) {
 	return Signature{}, false
 }
 
+// serviceRefusals says in the reader's words why a server was refused.
+var serviceRefusals = map[error]string{
+	alborz.ErrServiceNotURL:   "settings.servernoturl",
+	alborz.ErrServiceNotHTTPS: "settings.servernothttps",
+	alborz.ErrServiceNoHost:   "settings.servernohost",
+	alborz.ErrServicePrivate:  "settings.serverprivate",
+}
+
 type SettingsRenderData struct {
 	alborz.BaseRenderData
 	// AuthServGuess is what this account's server appears to call itself
@@ -150,6 +158,9 @@ type SettingsRenderData struct {
 	// written there.
 	Kept KeptInfo
 	Rail map[string][]alborz.RailRow
+	// Services are the calendar and contacts servers the account names
+	// for itself.
+	Services alborz.Services
 	// HasHTTPPassword says a calendar and contacts password is kept,
 	// which the form shows without ever showing the password.
 	HasHTTPPassword bool
@@ -524,6 +535,10 @@ func handleSettings(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	services, err := ctx.Session.Services()
+	if err != nil {
+		return err
+	}
 	// What the account keeps and where is one section of this page. A
 	// server that will not answer for it - METADATA refused, a depth it
 	// does not support - says so on the page; it is not a reason to
@@ -546,6 +561,7 @@ func handleSettings(ctx *alborz.Context) error {
 			Subscriptions:   Subscriptions(settings.Subscriptions),
 			Kept:            kept,
 			HasHTTPPassword: hasHTTPPassword,
+			Services:        services,
 			Error:           message,
 			Rail:            settingsRail(ctx),
 		})
@@ -565,6 +581,30 @@ func handleSettings(ctx *alborz.Context) error {
 		}
 		if err != nil {
 			return err
+		}
+		// The account's own servers. What was typed is what the form
+		// shows again when one is refused.
+		named := alborz.Services{
+			CalDAV:   strings.TrimSpace(ctx.FormValue("caldav_url")),
+			CardDAV:  strings.TrimSpace(ctx.FormValue("carddav_url")),
+			Username: strings.TrimSpace(ctx.FormValue("dav_username")),
+		}
+		for _, server := range []string{named.CalDAV, named.CardDAV} {
+			if server == "" {
+				continue
+			}
+			if err := ctx.Server.CheckServiceURL(ctx.Request().Context(), server); err != nil {
+				services = named
+				return reject(fmt.Sprintf(ctx.T(serviceRefusals[err]), server))
+			}
+		}
+		if named != services {
+			if err := ctx.Session.SetServices(named); err != nil {
+				return err
+			}
+			// What is cached was read from the servers just left.
+			ctx.Server.ForgetAccount(ctx.Session.Username())
+			services = named
 		}
 		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
 		settings.SendHTML = ctx.FormValue("send_html") != ""
@@ -599,6 +639,7 @@ func handleSettings(ctx *alborz.Context) error {
 		Subscriptions:   Subscriptions(settings.Subscriptions),
 		Kept:            kept,
 		HasHTTPPassword: hasHTTPPassword,
+		Services:        services,
 		Rail:            settingsRail(ctx),
 	})
 }

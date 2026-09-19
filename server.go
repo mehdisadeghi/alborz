@@ -734,7 +734,11 @@ type Options struct {
 	// whose own server will not hold them. Sealed under LoginKey;
 	// empty, or no key, and a visit lasts as long as the process.
 	DataDir string
-	Version string
+	// PrivateServices lets an account name a calendar or contacts server
+	// on plain HTTP or on a private address: a rig's, or a deployment
+	// whose DAV server sits beside it. Off, only public HTTPS is taken.
+	PrivateServices bool
+	Version         string
 	// Build is the revision and the tag it carries, for the rail's head;
 	// Revision is the first alone, which is all the header has room for.
 	Build    string

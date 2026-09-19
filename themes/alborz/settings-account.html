@@ -92,7 +92,12 @@
 
 
 
-        {{ if or (call .GlobalData.HavePlugin "caldav") (call .GlobalData.HavePlugin "carddav") }}
+        {{/* Not behind the plugins being in force: an account whose
+             domain names no calendar server is the one that needs to
+             name its own, and until it has, the plugins are not. */}}
+        {{ template "field" (dict "label" ($.T "settings.caldavurl") "name" "caldav_url" "type" "url" "value" .Services.CalDAV "dir" "ltr" "placeholder" ($.T "settings.serverdomain") "hint" ($.T "settings.serverhint")) }}
+        {{ template "field" (dict "label" ($.T "settings.carddavurl") "name" "carddav_url" "type" "url" "value" .Services.CardDAV "dir" "ltr" "placeholder" ($.T "settings.serverdomain")) }}
+        {{ template "field" (dict "label" ($.T "settings.davusername") "name" "dav_username" "value" .Services.Username "dir" "ltr" "placeholder" ($.T "settings.davusernamesame")) }}
         <div class="action-group">
           <label for="http_password">{{$.T "settings.davpassword"}}</label>
           <input type="password" name="http_password" id="http_password" autocomplete="off"
@@ -105,7 +110,6 @@
           </label>
           {{ end }}
         </div>
-        {{ end }}
 
 
 

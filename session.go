@@ -120,6 +120,9 @@ type Session struct {
 	httpLocker   sync.Mutex
 	httpPassword string // protected by httpLocker
 	httpLoaded   bool   // protected by httpLocker
+	// services are the account's own HTTP servers; see Services.
+	services       Services // protected by httpLocker
+	servicesLoaded bool     // protected by httpLocker
 
 	imapLocker imapQueue
 	imapConn   *imapclient.Client // protected by imapLocker
@@ -428,7 +431,15 @@ func (s *Session) SetHTTPBasicAuth(req *http.Request) error {
 	if err != nil {
 		return err
 	}
-	req.SetBasicAuth(s.username, password)
+	services, err := s.Services()
+	if err != nil {
+		return err
+	}
+	username := s.username
+	if services.Username != "" {
+		username = services.Username
+	}
+	req.SetBasicAuth(username, password)
 	return nil
 }
 

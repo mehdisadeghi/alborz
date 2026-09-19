@@ -451,7 +451,8 @@ func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 		rows[account.Username] = []alborz.RailRow{
 			{Label: ctx.T("settings.account"), Href: "/settings/account" + q, Active: scoped && path == "/settings/account"},
 			{Label: ctx.T("settings.signatures"), Href: "/signatures" + q, Active: scoped && strings.HasPrefix(path, "/signatures")},
-			{Label: ctx.T("settings.servers"), Href: "/settings/servers" + q, Active: scoped && path == "/settings/servers"},
+			{Label: ctx.T("settings.servers"), Href: "/settings/servers" + q, Active: scoped && strings.HasPrefix(path, "/settings/servers")},
+			{Label: ctx.T("sessions.title"), Href: "/settings/sessions" + q, Active: scoped && path == "/settings/sessions"},
 		}
 	}
 	return rows

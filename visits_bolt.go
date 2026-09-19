@@ -111,6 +111,19 @@ func (b *boltVisits) Delete(id string) error {
 	})
 }
 
+func (b *boltVisits) Each(f func(*VisitRecord)) error {
+	return b.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(visitBucket).ForEach(func(_, sealed []byte) error {
+			raw := fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{b.key})
+			var rec VisitRecord
+			if raw != nil && json.Unmarshal(raw, &rec) == nil {
+				f(&rec)
+			}
+			return nil
+		})
+	})
+}
+
 // Sweep drops the visits nobody has come back to. A record outlives the
 // process, so without this the file only grows.
 func (b *boltVisits) Sweep(before time.Time) error {

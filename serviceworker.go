@@ -153,8 +153,11 @@ self.addEventListener("fetch", event => {
 		return;
 	}
 	// Signing in or out ends what was saved: the pages were one
-	// reader's, and the next one at this browser may be another.
-	if (request.method === "POST" && (url.pathname === "/login" || url.pathname === "/logout" || url.pathname === "/unlock/leave")) {
+	// reader's, and the next one at this browser may be another. The
+	// page of browsers signed in is among them because it signs this
+	// one out too, and a POST's answer is a redirect the worker cannot
+	// read to tell which browser it was.
+	if (request.method === "POST" && ["/login", "/logout", "/unlock/leave", "/settings/sessions"].includes(url.pathname)) {
 		event.waitUntil(caches.delete(PAGES));
 		return;
 	}

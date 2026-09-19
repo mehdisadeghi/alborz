@@ -1533,3 +1533,38 @@ func TestNoticeReachesTheReaderFromAnyScope(t *testing.T) {
 		t.Error("the merged view did not carry the notice the action raised")
 	}
 }
+
+// TestAVisitOpensOnlyToItsOwnSecret: the visit's id is printed on the
+// page of browsers signed in, for every other browser of the account to
+// read, so the id alone must open nothing.
+func TestAVisitOpensOnlyToItsOwnSecret(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+
+	at, _ := url.Parse(base)
+	var id string
+	for _, ck := range c.Jar.Cookies(at) {
+		if ck.Name == "alborz_visit" {
+			id, _, _ = strings.Cut(ck.Value, ".")
+		}
+	}
+	if id == "" {
+		t.Fatal("signing in left no visit cookie")
+	}
+	if uids := messageUIDs(get(t, c, base+"/mailbox/INBOX")); len(uids) == 0 {
+		t.Fatal("the visit's own browser was not shown its inbox")
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, base+"/mailbox/INBOX", nil)
+	req.AddCookie(&http.Cookie{Name: "alborz_visit", Value: id + ".x"})
+	other := &http.Client{Timeout: 20 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := other.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		t.Fatal("the inbox opened to a cookie holding the id and another secret")
+	}
+}

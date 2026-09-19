@@ -80,6 +80,7 @@ var templateFuncs = template.FuncMap{
 	},
 	// Named arguments for shared defines; positional tuples stop scaling
 	// past a few fields.
+	"devicename": alborz.DeviceName,
 	"dict": func(pairs ...interface{}) (map[string]interface{}, error) {
 		if len(pairs)%2 != 0 {
 			return nil, fmt.Errorf("dict: odd number of arguments")

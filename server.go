@@ -920,6 +920,11 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				return redirectToUnlock(ctx)
 			} else if v != nil && !isBackground(ctx.Request()) {
 				v.act(now)
+				if v.note(ctx.Request().UserAgent(), requestAddress(ctx.Request().RemoteAddr)) {
+					if err := s.Visits.Save(v); err != nil {
+						ctx.Logger().Printf("failed to write the visit: %v", err)
+					}
+				}
 			}
 
 			// Whether anyone is signed in is a question about the bag,

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -173,6 +174,16 @@ type domainUpstreams struct {
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
 		Visits: newVisits(), Changes: newChanges()}
+	e.IPExtractor = echo.ExtractIPDirect()
+	if len(options.TrustedProxies) > 0 {
+		// Only the proxies named: echo trusts every private address by
+		// default, and anyone on such a network could write the header.
+		trust := []echo.TrustOption{echo.TrustLoopback(false), echo.TrustLinkLocal(false), echo.TrustPrivateNet(false)}
+		for _, n := range options.TrustedProxies {
+			trust = append(trust, echo.TrustIPRange(n))
+		}
+		e.IPExtractor = echo.ExtractIPFromXFFHeader(trust...)
+	}
 	s.themes = readThemes(options.ThemesPath, options.Theme)
 	_, err := os.Stat(filepath.Join(options.ThemesPath, options.Theme, "assets", customCSS))
 	s.custom = err == nil
@@ -762,7 +773,11 @@ type Options struct {
 	// on plain HTTP or on a private address: a rig's, or a deployment
 	// whose DAV server sits beside it. Off, only public HTTPS is taken.
 	PrivateServices bool
-	Version         string
+	// TrustedProxies are the proxies in front of alborz whose
+	// X-Forwarded-For names the reader. Unset, the connection's own
+	// address is the reader's.
+	TrustedProxies []*net.IPNet
+	Version        string
 	// Build is the revision and the tag it carries, for the rail's head;
 	// Revision is the first alone, which is all the header has room for.
 	Build    string
@@ -920,7 +935,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				return redirectToUnlock(ctx)
 			} else if v != nil && !isBackground(ctx.Request()) {
 				v.act(now)
-				if v.note(ctx.Request().UserAgent(), requestAddress(ctx.Request().RemoteAddr)) {
+				if v.note(ctx.Request().UserAgent(), requestAddress(ctx.RealIP())) {
 					if err := s.Visits.Save(v); err != nil {
 						ctx.Logger().Printf("failed to write the visit: %v", err)
 					}

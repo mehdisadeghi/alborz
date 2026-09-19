@@ -4,7 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -28,6 +30,29 @@ import (
 )
 
 var themesPath = "./themes"
+
+// serveProfiles answers Go's profiles on their own listener. A heap
+// profile is the process's memory - passwords, mail - so the address
+// must be one only this machine reaches.
+func serveProfiles(addr string) {
+	host, _, err := net.SplitHostPort(addr)
+	if ip := net.ParseIP(host); err != nil || (host != "localhost" && (ip == nil || !ip.IsLoopback())) {
+		fmt.Fprintf(os.Stderr, "alborz: -pprof %s: the profiles hold the process's memory; give a loopback address such as localhost:6060\n", addr)
+		os.Exit(2)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			fmt.Fprintf(os.Stderr, "alborz: -pprof %s: %v\n", addr, err)
+			os.Exit(1)
+		}
+	}()
+}
 
 // devVersion is what a build off main calls itself: it is not a
 // release, and saying so is more useful than a number nobody cut.
@@ -101,12 +126,15 @@ func defaultCacheDir() string {
 
 func main() {
 	var (
-		addr     string
-		loginKey string
-		options  alborz.Options
+		addr        string
+		profileAddr string
+		loginKey    string
+		options     alborz.Options
 	)
 	flag.StringVar(&options.Theme, "theme", alborz.AppName, "theme directory name")
 	flag.StringVar(&addr, "addr", ":1323", "listening address")
+	flag.StringVar(&profileAddr, "pprof", "",
+		"loopback address serving Go's profiles, the goroutine leak profile among them; unset serves none")
 	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
@@ -114,7 +142,7 @@ func main() {
 	// The working directory, the way a daemon told nothing keeps its
 	// state: the unit says where alborz runs and the file lands there.
 	flag.StringVar(&options.DataDir, "data-dir", ".",
-		"directory keeping remembered logins and reading settings, sealed under the login key; empty forgets them when the process ends")
+		"directory keeping alborz.db: remembered logins and reading settings, sealed under the login key, and the calendars and address books kept here; empty keeps none of them")
 	flag.StringVar(&options.ProjectURL, "project-url", "",
 		"where the footer's project name links; unset prints the name alone")
 
@@ -134,6 +162,9 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 
 	flag.Parse()
+	if profileAddr != "" {
+		serveProfiles(profileAddr)
+	}
 
 	// The environment keeps the key out of the process list.
 	if loginKey == "" {

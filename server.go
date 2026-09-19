@@ -953,6 +953,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		defer s.mutex.RLock()
 		return handleEvents(ectx.Get("context").(*Context))
 	})
+	e.Server.RegisterOnShutdown(s.Changes.Close)
 
 	// The worker is written here rather than served as an asset: its
 	// scope is the path it is served from, so a worker under /assets/

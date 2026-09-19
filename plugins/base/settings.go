@@ -186,7 +186,7 @@ func keptInfo(ctx *alborz.Context) (KeptInfo, error) {
 	if err != nil {
 		return KeptInfo{}, err
 	}
-	host := ctx.Request().Host
+	_, host, _ := strings.Cut(ctx.Origin(), "://")
 	if store.OnServer() {
 		_, domain, _ := strings.Cut(ctx.Session.Username(), "@")
 		host = ctx.Server.UpstreamsFor(domain).IMAP

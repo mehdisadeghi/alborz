@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -160,6 +161,7 @@ func main() {
 		profileAddr string
 		loginKey    string
 		proxies     string
+		publicURL   string
 		options     alborz.Options
 	)
 	flag.StringVar(&options.Theme, "theme", alborz.AppName, "theme directory name")
@@ -171,6 +173,8 @@ func main() {
 		"let an account name a calendar or contacts server on plain HTTP or a private address")
 	flag.StringVar(&proxies, "trusted-proxy", "",
 		"comma-separated addresses or CIDR ranges of the proxies in front of alborz, whose X-Forwarded-For names the reader; unset takes the connection's address")
+	flag.StringVar(&publicURL, "public-url", "",
+		"where readers reach alborz, such as https://mail.example.org, for links in mail and addresses shown to other clients (or $LBRZ_PUBLIC_URL); unset uses each request's own")
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
 		"directory keeping the calendar and contacts cache between runs, sealed under the login key; empty keeps it in memory")
@@ -215,6 +219,20 @@ upstreams are given as repeated domain=url arguments, e.g.:
 			os.Exit(2)
 		}
 		options.TrustedProxies = append(options.TrustedProxies, n)
+	}
+
+	if publicURL == "" {
+		publicURL = os.Getenv("LBRZ_PUBLIC_URL")
+	}
+	if publicURL != "" {
+		u, err := url.Parse(publicURL)
+		// alborz answers at the root of its host; a path would be a
+		// prefix it does not serve under.
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || strings.Trim(u.Path, "/") != "" {
+			fmt.Fprintf(flag.CommandLine.Output(), "alborz: invalid -public-url %q: want scheme://host\n", publicURL)
+			os.Exit(2)
+		}
+		options.PublicURL = u
 	}
 
 	// The environment keeps the key out of the process list.

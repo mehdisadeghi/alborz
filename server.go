@@ -581,6 +581,16 @@ type Context struct {
 
 var aLongTimeAgo = time.Unix(233431200, 0)
 
+// Origin is where alborz is reached from outside, for a link that
+// leaves the page - into a mail, into another client's settings: the
+// -public-url when one is given, else the address this request came to.
+func (ctx *Context) Origin() string {
+	if u := ctx.Server.Options.PublicURL; u != nil {
+		return u.Scheme + "://" + u.Host
+	}
+	return ctx.Scheme() + "://" + ctx.Request().Host
+}
+
 // secureCookies reports whether cookies should be marked Secure. Behind a
 // TLS-terminating reverse proxy the request itself is plain HTTP, so the
 // forwarded protocol decides, which Scheme consults.
@@ -783,7 +793,10 @@ type Options struct {
 	// X-Forwarded-For names the reader. Unset, the connection's own
 	// address is the reader's.
 	TrustedProxies []*net.IPNet
-	Version        string
+	// PublicURL is where readers reach alborz, for the links it puts in
+	// mail and shows to other clients. Unset, each request's own address.
+	PublicURL *url.URL
+	Version   string
 	// Build is the revision and the tag it carries, for the rail's head;
 	// Revision is the first alone, which is all the header has room for.
 	Build    string

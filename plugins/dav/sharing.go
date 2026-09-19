@@ -189,7 +189,7 @@ func (pg Page) sharing(ctx *alborz.Context, p *Provider, info Collection) (*Shar
 	}
 	sharing := &Sharing{Shares: shares, OffersPublic: pg.Ext == ".ics"}
 	if c.Public != "" {
-		sharing.PublicURL = ctx.Scheme() + "://" + ctx.Request().Host + collections.PublicPath(c.Public)
+		sharing.PublicURL = ctx.Origin() + collections.PublicPath(c.Public)
 	}
 	return sharing, nil
 }
@@ -312,7 +312,7 @@ func (pg Page) HandleShare(p *Provider) func(*alborz.Context) error {
 		if !share.Accepted {
 			subject := fmt.Sprintf(ctx.T("share.mailsubject"), info.Name)
 			text := fmt.Sprintf(ctx.T("share.mailtext"), ctx.Session.Username(), info.Name,
-				ctx.Scheme()+"://"+ctx.Request().Host+pg.List)
+				ctx.Origin()+pg.List)
 			if err := alborzbase.SendText(ctx, []string{share.To}, subject, text); err != nil {
 				ctx.Logger().Printf("dav: failed to mail the invitation to %s: %v", share.To, err)
 				notice = alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.sharednomail"), share.To)}

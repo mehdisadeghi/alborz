@@ -647,6 +647,8 @@
 "notice.noanswer" = "El servidor no respondió."
 "notice.offline" = "Sin conexión. Se muestran las páginas guardadas."
 "notice.slow" = "El servidor responde despacio. Se muestran las páginas guardadas."
+"notice.starremoved" = "Estrella quitada."
+"notice.starchanged" = "Estrella cambiada a %s."
 "common.addanother" = "Añadir otro"
 "notice.taskcreated" = "Tarea «%s» creada."
 "notice.eventcreated" = "Evento «%s» creado."

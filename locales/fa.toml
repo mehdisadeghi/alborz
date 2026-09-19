@@ -641,6 +641,8 @@
 "notice.noanswer" = "سرور پاسخ نداد."
 "notice.offline" = "آفلاین. صفحه‌های ذخیره‌شده نمایش داده می‌شوند."
 "notice.slow" = "سرور کند است. صفحه‌های ذخیره‌شده نمایش داده می‌شوند."
+"notice.starremoved" = "ستاره برداشته شد."
+"notice.starchanged" = "ستاره به %s تغییر کرد."
 "common.addanother" = "افزودن مورد دیگر"
 "notice.taskcreated" = "کار «%s» ساخته شد."
 "notice.eventcreated" = "رویداد «%s» ساخته شد."

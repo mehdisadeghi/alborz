@@ -281,18 +281,6 @@ func validStarView(view string) bool {
 	return view == "" || view == alborzbase.ViewStarred || slices.Contains(alborzbase.FlagColors[:], view)
 }
 
-// starMatches says whether a mark answers a view: starred is any
-// colour, a colour is itself, no view is everything.
-func starMatches(star, view string) bool {
-	switch view {
-	case "":
-		return true
-	case alborzbase.ViewStarred:
-		return star != ""
-	}
-	return star == view
-}
-
 // occurrences lists every instance of an object that begins before end
 // and ends after start, in the display timezone.
 func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {

@@ -648,6 +648,8 @@
 "notice.noanswer" = "The server did not answer."
 "notice.offline" = "Offline. Showing saved pages."
 "notice.slow" = "The server is slow. Showing saved pages."
+"notice.starremoved" = "Star removed."
+"notice.starchanged" = "Star changed to %s."
 "common.addanother" = "Add another"
 "notice.taskcreated" = "Task “%s” created."
 "notice.eventcreated" = "Event “%s” created."

@@ -544,14 +544,19 @@ header nav .header-brand {
 /* The drawer's head is the phone's; a wide screen keeps it in the row. */
 .rail-brand { display: none; }
 
-header nav > a {
+/* A section is its name in the text's colour: left to the browser, a
+   visited one turned purple and the rest stayed blue. */
+header nav > a,
+header nav > div > a {
+  color: var(--fg);
   align-self: stretch;
   display: inline-flex;
   align-items: center;
   border-bottom: 2px solid transparent;
   text-decoration: none;
 }
-header nav > a:hover { border-bottom-color: var(--border-strong); }
+header nav > a:hover,
+header nav > div > a:hover { border-bottom-color: var(--border-strong); }
 /* A section link is its word for as long as the five words fit the
    row, and its icon once they do not; the script measures and marks
    the nav, so the switch lands where the words run out, in any
@@ -849,6 +854,11 @@ aside li {
 aside li a {
   flex-grow: 1;
 }
+
+/* A place in the rail reads as its name, as the folds and the create
+   rows beside it do: the text's colour, underlined under the pointer. */
+aside a { color: var(--fg); text-decoration: none; }
+aside a:hover { text-decoration: underline; }
 
 aside .active {
   font-weight: bold;

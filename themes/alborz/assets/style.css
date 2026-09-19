@@ -4431,6 +4431,9 @@ aside ul.merged-roles {
   text-overflow: ellipsis;
 }
 
+/* An offer to widen what the row above the list describes reads the
+   same whether it widens a selection or a search. */
+.filter-offer,
 .select-everything button {
   flex: 0 0 auto;
   padding: 0;

@@ -146,6 +146,9 @@
     <span class="filter-chip-x" aria-hidden="true">&times;</span>
   </a>
   {{ end }}
+  {{/* What would widen the list again short of dropping a filter, each
+       (href label); one with no href is not on offer. */}}
+  {{ range $.offers }}{{ if index . 0 }}<a class="filter-offer" href="{{ index . 0 }}">{{ index . 1 }}</a>{{ end }}{{ end }}
 </div>
 {{ end }}
 {{ end }}

@@ -1462,6 +1462,63 @@ func envelopeName(from []imap.Address) string {
 	return from[0].Addr()
 }
 
+// carried are the answers to an address search whose own headers
+// carry that address, UID by sequence number. A server that answers a
+// header search from a full-text index matches the address inside an
+// attached message - a forwarded .eml names its sender in its own From -
+// and mail carrying a message from somebody is not mail from them. Only
+// what the envelope contradicts is dropped; a server that answered
+// exactly keeps everything.
+//
+// It reads every answer and not a page of them: dropped from one page
+// only, the rows left a short page with Next still offered, a total
+// that changed from page to page, and a "select all" that named
+// neither.
+func carried(c *imapclient.Client, q Query, answers imap.NumSet) (map[uint32]imap.UID, error) {
+	wanted := q.Addresses()
+	kept := map[uint32]imap.UID{}
+	cmd := c.Fetch(answers, &imap.FetchOptions{UID: true, Envelope: true})
+	for msg := cmd.Next(); msg != nil; msg = cmd.Next() {
+		buf, err := msg.Collect()
+		if err != nil {
+			cmd.Close()
+			return nil, err
+		}
+		if envelopeCarries(buf.Envelope, wanted) {
+			kept[buf.SeqNum] = buf.UID
+		}
+	}
+	return kept, cmd.Close()
+}
+
+// envelopeCarries reports whether every address the query named is in
+// the field it named it for. The comparison is the one a header search
+// makes: the field's text, name and address together.
+func envelopeCarries(envelope *imap.Envelope, wanted map[string][]string) bool {
+	if envelope == nil {
+		return true
+	}
+	fields := map[string][]imap.Address{
+		"from": envelope.From, "to": envelope.To, "cc": envelope.Cc, "bcc": envelope.Bcc,
+	}
+	for key, values := range wanted {
+		for _, value := range values {
+			found := false
+			for _, address := range fields[key] {
+				written := address.Name + " <" + address.Addr() + ">"
+				if strings.Contains(strings.ToLower(written), strings.ToLower(value)) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // findByHeader returns up to limit messages whose header field contains
 // value, newest first.
 func findByHeader(conn *imapclient.Client, mboxName, key, value string, limit int) ([]ThreadNeighbour, error) {
@@ -1582,7 +1639,9 @@ func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, sort 
 	return sortSeqNums(conn, criteria, imapclient.SortCriterion{Key: sortKeys[sort].key, Reverse: reverse})
 }
 
-func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *imap.SearchCriteria, page, messagesPerPage int, sort string, reverse bool) (msgs []IMAPMessage, total int, err error) {
+// searchMessages reads one page of what the criteria answer. q is the
+// query the criteria came from, empty for a list no query narrowed.
+func searchMessages(conn *imapclient.Client, mboxName string, q Query, searchCriteria *imap.SearchCriteria, page, messagesPerPage int, sort string, reverse bool) (msgs []IMAPMessage, total int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
 	}
@@ -1590,6 +1649,13 @@ func searchMessages(conn *imapclient.Client, mboxName string, searchCriteria *im
 	nums, err := searchSeqNums(conn, searchCriteria, sort, reverse)
 	if err != nil {
 		return nil, 0, err
+	}
+	if q.Addressed() && len(nums) > 0 {
+		kept, err := carried(conn, q, imap.SeqSetNum(nums...))
+		if err != nil {
+			return nil, 0, err
+		}
+		nums = slices.DeleteFunc(nums, func(num uint32) bool { _, ok := kept[num]; return !ok })
 	}
 
 	total = len(nums)

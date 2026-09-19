@@ -8,7 +8,7 @@
   {{ with .next }}<input type="hidden" name="next" value="{{.}}">{{ end }}
   <input type="hidden" name="to" value="{{.to}}">
   {{ if .icon }}
-  <button class="icon-button{{with .class}} {{.}}{{end}}" title="{{.label}}" aria-label="{{.label}}">{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>
+  <button class="icon-button{{with .class}} {{.}}{{end}}" title="{{.label}}" aria-label="{{.label}}"{{ template "icon-key" .icon }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>
   {{ else }}
   <button>{{.label}}</button>
   {{ end }}
@@ -58,14 +58,14 @@
                      moves into the overflow where it has to be read. */}}
                 {{ if .Message.ListID }}
                 <a class="icon-button" href="{{.Message.URL}}/reply{{$partlistq}}" title="{{$.T "message.replylist"}} — {{.Message.ListID}}" aria-label="{{$.T "message.replylist"}}">{{ template "icon" "reply-list" }}</a>
-                <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.replyauthor"}}" aria-label="{{$.T "message.replyauthor"}}">{{ template "icon" "reply" }}</a>
+                <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.replyauthor"}}" aria-label="{{$.T "message.replyauthor"}}" data-key="r">{{ template "icon" "reply" }}</a>
                 {{ else }}
-                <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.reply"}}" aria-label="{{$.T "message.reply"}}">{{ template "icon" "reply" }}</a>
-                <a class="icon-button" href="{{.Message.URL}}/reply{{$partallq}}" title="{{$.T "message.replyall"}}" aria-label="{{$.T "message.replyall"}}">{{ template "icon" "reply-all" }}</a>
+                <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.reply"}}" aria-label="{{$.T "message.reply"}}" data-key="r">{{ template "icon" "reply" }}</a>
+                <a class="icon-button" href="{{.Message.URL}}/reply{{$partallq}}" title="{{$.T "message.replyall"}}" aria-label="{{$.T "message.replyall"}}" data-key="a">{{ template "icon" "reply-all" }}</a>
                 {{ end }}
                 {{/* Forward is the one of the three that leaves the
                      narrowest row, after archive. */}}
-                <a class="icon-button" href="{{.Message.URL}}/forward{{$partq}}" title="{{$.T "message.forward"}}" aria-label="{{$.T "message.forward"}}" data-priority="15">{{ template "icon" "forward" }}<span class="label">{{$.T "message.forward"}}</span></a>
+                <a class="icon-button" href="{{.Message.URL}}/forward{{$partq}}" title="{{$.T "message.forward"}}" aria-label="{{$.T "message.forward"}}" data-key="f" data-priority="15">{{ template "icon" "forward" }}<span class="label">{{$.T "message.forward"}}</span></a>
               {{end}}
             </span>
 
@@ -580,10 +580,10 @@
               {{/* Newer and older move along the list, not through
                    pages: the marks point that way. */}}
               {{ if .NewerURL }}
-              <a class="icon-button" href="{{.NewerURL}}{{$navq}}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}">{{ template "icon" "up" }}</a>
+              <a class="icon-button" href="{{.NewerURL}}{{$navq}}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}" data-key="k">{{ template "icon" "up" }}</a>
               {{ end }}
               {{ if .OlderURL }}
-              <a class="icon-button" href="{{.OlderURL}}{{$navq}}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}">{{ template "icon" "down" }}</a>
+              <a class="icon-button" href="{{.OlderURL}}{{$navq}}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}" data-key="j">{{ template "icon" "down" }}</a>
               {{ end }}
             </span>
 {{ end }}

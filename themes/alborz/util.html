@@ -81,9 +81,12 @@
 <div class="context-crumb">
   {{- $sep := false }}
   {{- if and $several (not .noroot) }}<a href="{{ .home }}">{{ .g.T "nav.allaccounts" }}</a>{{ $sep = true }}{{ end }}
-  {{- range $step := .steps }}{{ if and $step.Label (or $several (not $step.Address)) }}
+  {{- /* The last step is the way up from the page, which is what u
+          means on the keyboard. */ -}}
+  {{- $last := sub (len .steps) 1 }}
+  {{- range $i, $step := .steps }}{{ if and $step.Label (or $several (not $step.Address)) }}
     {{- if $sep }} › {{ end }}{{ $sep = true }}
-    {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}">{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
+    {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $last }} data-key="u"{{ end }}>{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
     {{- else }}{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}{{ end }}
   {{- end }}{{ end }}
 </div>
@@ -246,8 +249,15 @@
 {{/* One toolbar button that acts on the checked rows. dict: icon label
      form formaction [class priority]. A priority lets the row move it
      into the overflow menu when it has no room, lowest first. */}}
+{{/* The key an action answers to, by what it does, which its icon
+     already says: Gmail's letters. keys.js presses whatever carries
+     data-key, so an action gains its key here and nowhere else. An
+     action marked final has no Undo and answers to no key and no
+     swipe: a slip of the hand must not be the end of a message. */}}
+{{ define "icon-key" }}{{ with index (dict "archive" "e" "trash" "#" "junk" "!" "notjunk" "!") . }} data-key="{{.}}"{{ end }}{{ end }}
+
 {{ define "action-icon" }}
-<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ with .priority }} data-priority="{{.}}"{{ end }}{{ if .download }} data-download{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>
+<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ if not .final }}{{ template "icon-key" .icon }}{{ end }}{{ with .priority }} data-priority="{{.}}"{{ end }}{{ if .download }} data-download{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>
 {{ end }}
 
 {{/* One sortable column header with the shared three-state cycle, read
@@ -607,7 +617,7 @@
     {{/* back is the list a new object returns to, filter and order
          kept: the create forms post to their own address, so what the
          link carries is what the save reads. */}}
-    {{ with .newhref }}{{ $href := . }}{{ with $.back }}{{ $href = printf "%s%snext=%s" $href (qsep $href) (urlquery .) }}{{ end }}<a class="icon-button" href="{{ localhref $href }}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
+    {{ with .newhref }}{{ $href := . }}{{ with $.back }}{{ $href = printf "%s%snext=%s" $href (qsep $href) (urlquery .) }}{{ end }}<a class="icon-button" href="{{ localhref $href }}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}" data-key="c">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
 {{ end }}
 
 {{ define "toolbar-end" }}
@@ -1084,7 +1094,7 @@
 </li>
 <li class="folder-li">
   <details class="folder-branch" data-rail-key="views:{{.q}}">
-    <summary{{ if and .on (eq .view "starred") }} class="active"{{ end }}><a href="/search{{.q}}{{$sep}}view=starred"{{ template "list-get" (dict "g" .g "href" (printf "/search%s%sview=starred" .q $sep)) }}>{{.g.T "aside.starred"}}</a></summary>
+    <summary{{ if and .on (eq .view "starred") }} class="active"{{ end }}><a data-go="s"{{ if .on }} data-go-here{{ end }} href="/search{{.q}}{{$sep}}view=starred"{{ template "list-get" (dict "g" .g "href" (printf "/search%s%sview=starred" .q $sep)) }}>{{.g.T "aside.starred"}}</a></summary>
     <ul>
       {{ range flagcolors .g }}
       <li{{ if and $.on (eq $.view .Name) }} class="active"{{ end }}><a href="/search{{$.q}}{{$sep}}view={{.Name}}"{{ template "list-get" (dict "g" $.g "href" (printf "/search%s%sview=%s" $.q $sep .Name)) }}><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>

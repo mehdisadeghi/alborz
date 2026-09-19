@@ -203,6 +203,10 @@ select {
   --surface-inset: var(--bg-inset);
   --surface-selected: var(--bg-active);
   --surface-accent: var(--bg-green);
+  /* What dims the page under a dialog or the drawer. One value for both
+     schemes and every theme: it darkens whatever is under it, and a
+     theme's own surfaces show through it. */
+  --scrim: rgb(0 0 0 / 0.4);
   --accent: var(--green-dark);
   --accent-strong: var(--green);
   /* Label drawn on an accent fill; a theme whose background is
@@ -2115,6 +2119,14 @@ main.message h1 {
    style and, on a phone, a grid of its own. */
 .list-row {
   display: contents;
+}
+
+/* The keyboard's cursor is the focus on the row's link, and a link's
+   ring in one cell does not say "this row". The cells say it together,
+   in the surface a selected thing already has. Keyboard focus only: a
+   click on a row is not the cursor arriving. */
+.list-row:has(a:focus-visible) > .list-cell {
+  background: var(--bg-active);
 }
 
 .message-list-unread:first-child {
@@ -4402,6 +4414,44 @@ aside ul.merged-roles {
   color: var(--fg-faint);
 }
 
+/* The list of keys: a dialog like any other would be, since this is the
+   first; two columns, the key and what it does, on one left edge each. */
+.keys-help {
+  max-width: min(32rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-4);
+  color: var(--fg);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+}
+
+.keys-help::backdrop { background: var(--scrim); }
+.keys-help h2 { margin: 0 0 var(--space-3); font-size: var(--text-lg); }
+
+.keys-help dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.keys-help dl + dl:not(:empty) { margin-block-start: var(--space-2); }
+.keys-help dt { white-space: nowrap; }
+.keys-help dd { margin: 0; color: var(--fg-dim); }
+
+.keys-help kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: center;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
 /* The offer to select more than the page takes the crumb's box while it
    stands, rather than a line of its own: a bar arriving above the rows
    would move every one of them under the hand that just ticked them. */
@@ -4624,7 +4674,7 @@ h1.no-word .title-short {
     position: fixed;
     inset: 0;
     z-index: 15;
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: var(--scrim);
   }
 
   .sidebar-toggle:checked ~ .sidebar-backdrop { display: block; }

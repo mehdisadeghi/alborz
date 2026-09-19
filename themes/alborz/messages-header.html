@@ -25,7 +25,7 @@
          as marks in the toolbar, and as words in the overflow, where
          the narrow layout keeps them so the toolbar stays one row. The
          action strings are built once and shared between the two. */}}
-    {{ $archiveAction := "" }}{{ $junkAction := "" }}{{ $junkIcon := "junk" }}{{ $junkLabel := "" }}{{ $trashAction := "" }}{{ $trashLabel := "" }}
+    {{ $archiveAction := "" }}{{ $junkAction := "" }}{{ $junkIcon := "junk" }}{{ $junkLabel := "" }}{{ $trashAction := "" }}{{ $trashLabel := "" }}{{ $trashFinal := false }}
     {{/* The merged view acts by role, each account resolving its own
          folder; a merged Junk offers the way back, a merged Trash only
          the end. */}}
@@ -54,7 +54,7 @@
         {{ $trashLabel = $.T "mailbox.delete" }}
         {{ $trashAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($trash | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ else }}
-        {{ $trashLabel = $.T "mailbox.deleteperm" }}
+        {{ $trashLabel = $.T "mailbox.deleteperm" }}{{ $trashFinal = true }}
         {{ $trashAction = printf "/message/%s/delete%s" (.Mailbox.Name | pathescape) $aq }}
       {{ end }}
     {{ end }}
@@ -64,7 +64,7 @@
     <span class="icon-group">
       {{ with $archiveAction }}{{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" . "priority" 14) }}{{ end }}
       {{ with $junkAction }}{{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" . "priority" 13) }}{{ end }}
-      {{ with $trashAction }}{{ template "action-icon" (dict "icon" "trash" "label" $trashLabel "class" "icon-danger" "form" "messages-form" "formaction" . "priority" 11) }}{{ end }}
+      {{ with $trashAction }}{{ template "action-icon" (dict "icon" "trash" "label" $trashLabel "class" "icon-danger" "form" "messages-form" "formaction" . "priority" 11 "final" $trashFinal) }}{{ end }}
     </span>
     </span>
 

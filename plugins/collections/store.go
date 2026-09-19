@@ -8,13 +8,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"git.mehdix.org/alborz/record"
 	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
 )
@@ -22,13 +20,6 @@ import (
 // ErrNotFound is what a collection, an object or a share that is not
 // there answers with.
 var ErrNotFound = errors.New("collections: not found")
-
-// fileName is the store's file in the data directory.
-const fileName = "collections.db"
-
-// openTimeout is how long a second alborz on the same data directory
-// waits for the file before saying what is wrong, as the visits do.
-const openTimeout = 5 * time.Second
 
 // Kind is what a collection holds: iCalendar objects or vCards.
 type Kind string
@@ -116,8 +107,11 @@ func (s Share) Ended() bool {
 	return !s.Expires.IsZero() && !time.Now().Before(s.Expires)
 }
 
+// root is this package's bucket in alborz's data file, and the rest are
+// the kinds of record inside it (ADR 26).
 var (
-	collectionsBucket = []byte("collections")
+	root              = []byte("collections")
+	collectionsBucket = []byte("list")
 	objectsBucket     = []byte("objects")
 	sharesBucket      = []byte("shares")
 	// publicBucket maps a published calendar's secret to its collection:
@@ -126,30 +120,25 @@ var (
 	publicBucket = []byte("public")
 )
 
-// Store is the file and nothing else; every method is one transaction.
+func bucket(tx *bolt.Tx, name []byte) *bolt.Bucket { return tx.Bucket(root).Bucket(name) }
+
+// Store is its bucket in the data file and nothing else; every method
+// is one transaction.
 type Store struct {
 	db *bolt.DB
 }
 
-// Open opens the store in dir, making the file if it is not there. The
-// directory is the operator's to make, as it is for the visits.
-func Open(dir string) (*Store, error) {
-	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		return nil, fmt.Errorf("%s is not there: it holds the calendars and address books kept here; "+
-			"make it, or name another with -data-dir", dir)
-	}
-	path := filepath.Join(dir, fileName)
-	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: openTimeout})
-	if err != nil {
-		if errors.Is(err, bolt.ErrTimeout) {
-			return nil, fmt.Errorf("%s is locked: another alborz is running on this data directory (waited %v)", path, openTimeout)
+// New keeps collections in db, the data file the server opened, making
+// their buckets if they are not there.
+func New(db *bolt.DB) (*Store, error) {
+	err := db.Update(func(tx *bolt.Tx) error {
+		top, err := tx.CreateBucketIfNotExists(root)
+		if err != nil {
+			return err
 		}
-		return nil, fmt.Errorf("failed to open %s: %w", path, err)
-	}
-	err = db.Update(func(tx *bolt.Tx) error {
-		unpublished := tx.Bucket(publicBucket) == nil
+		unpublished := top.Bucket(publicBucket) == nil
 		for _, name := range [][]byte{collectionsBucket, objectsBucket, sharesBucket, publicBucket} {
-			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
+			if _, err := top.CreateBucketIfNotExists(name); err != nil {
 				return err
 			}
 		}
@@ -158,26 +147,20 @@ func Open(dir string) (*Store, error) {
 		}
 		return nil
 	})
-	if err != nil {
-		db.Close()
-		return nil, err
-	}
-	return &Store{db: db}, nil
+	return &Store{db: db}, err
 }
-
-func (s *Store) Close() error { return s.db.Close() }
 
 // indexPublic fills the index from the calendars published before it
 // was kept.
 func indexPublic(tx *bolt.Tx) error {
-	return each(tx.Bucket(collectionsBucket), nil, func(c Collection) error {
+	return each(bucket(tx, collectionsBucket), nil, func(c Collection) error {
 		return publish(tx, "", c)
 	})
 }
 
 // publish keeps the index with a collection's secret, which was before.
 func publish(tx *bolt.Tx, before string, c Collection) error {
-	index := tx.Bucket(publicBucket)
+	index := bucket(tx, publicBucket)
 	if before != "" && before != c.Public {
 		if err := index.Delete([]byte(before)); err != nil {
 			return err
@@ -227,8 +210,10 @@ func each[T any](b *bolt.Bucket, prefix []byte, fn func(T) error) error {
 	return nil
 }
 
+// put writes v over what is stored under key, keeping what a newer
+// version of alborz put there (ADR 26).
 func put(b *bolt.Bucket, key []byte, v any) error {
-	raw, err := json.Marshal(v)
+	raw, err := record.Keep(b.Get(key), v)
 	if err != nil {
 		return err
 	}
@@ -256,7 +241,7 @@ func stamp(b *bolt.Bucket, c *Collection) error {
 
 // touch moves the collection's ctag on, inside a write's transaction.
 func touch(tx *bolt.Tx, ref Ref) error {
-	b := tx.Bucket(collectionsBucket)
+	b := bucket(tx, collectionsBucket)
 	c, err := get[Collection](b, []byte(ref.key()))
 	if err != nil {
 		return err
@@ -276,7 +261,7 @@ func (s *Store) Create(c Collection) (*Collection, error) {
 	c.Owner = strings.ToLower(c.Owner)
 	c.CTag = 0
 	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(collectionsBucket)
+		b := bucket(tx, collectionsBucket)
 		if b.Get([]byte(c.Ref().key())) != nil {
 			return ErrExists
 		}
@@ -295,7 +280,7 @@ func (s *Store) Collection(ref Ref) (*Collection, error) {
 	var c *Collection
 	err := s.db.View(func(tx *bolt.Tx) error {
 		var err error
-		c, err = get[Collection](tx.Bucket(collectionsBucket), []byte(ref.key()))
+		c, err = get[Collection](bucket(tx, collectionsBucket), []byte(ref.key()))
 		return err
 	})
 	return c, err
@@ -304,7 +289,7 @@ func (s *Store) Collection(ref Ref) (*Collection, error) {
 // Update changes a collection's own properties.
 func (s *Store) Update(ref Ref, change func(*Collection)) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(collectionsBucket)
+		b := bucket(tx, collectionsBucket)
 		c, err := get[Collection](b, []byte(ref.key()))
 		if err != nil {
 			return err
@@ -324,7 +309,7 @@ func (s *Store) Update(ref Ref, change func(*Collection)) error {
 // Delete removes a collection with its objects and its shares.
 func (s *Store) Delete(ref Ref) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		c, err := get[Collection](tx.Bucket(collectionsBucket), []byte(ref.key()))
+		c, err := get[Collection](bucket(tx, collectionsBucket), []byte(ref.key()))
 		if err != nil {
 			return err
 		}
@@ -334,8 +319,8 @@ func (s *Store) Delete(ref Ref) error {
 			return err
 		}
 		for bucket, prefix := range map[*bolt.Bucket][]byte{
-			tx.Bucket(objectsBucket): []byte(ref.key() + "/"),
-			tx.Bucket(sharesBucket):  []byte(ref.key() + "\x00"),
+			bucket(tx, objectsBucket): []byte(ref.key() + "/"),
+			bucket(tx, sharesBucket):  []byte(ref.key() + "\x00"),
 		} {
 			cur := bucket.Cursor()
 			for k, _ := cur.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
@@ -344,7 +329,7 @@ func (s *Store) Delete(ref Ref) error {
 				}
 			}
 		}
-		return tx.Bucket(collectionsBucket).Delete([]byte(ref.key()))
+		return bucket(tx, collectionsBucket).Delete([]byte(ref.key()))
 	})
 }
 
@@ -357,7 +342,7 @@ func (s *Store) Visible(account string, kind Kind, now time.Time) ([]Seen, error
 	account = strings.ToLower(account)
 	var out []Seen
 	err := s.db.View(func(tx *bolt.Tx) error {
-		collections := tx.Bucket(collectionsBucket)
+		collections := bucket(tx, collectionsBucket)
 		err := each(collections, []byte(account+"/"), func(c Collection) error {
 			if c.Kind == kind {
 				out = append(out, Seen{c, own})
@@ -367,7 +352,7 @@ func (s *Store) Visible(account string, kind Kind, now time.Time) ([]Seen, error
 		if err != nil {
 			return err
 		}
-		return each(tx.Bucket(sharesBucket), nil, func(sh Share) error {
+		return each(bucket(tx, sharesBucket), nil, func(sh Share) error {
 			if !strings.EqualFold(sh.To, account) || !sh.Live(now) {
 				return nil
 			}
@@ -403,14 +388,14 @@ func accessOf(sh Share) access {
 // gives nothing. A collection the account cannot see is not found,
 // which is what it is to that account.
 func allowed(tx *bolt.Tx, ref Ref, account string, now time.Time) (*Collection, access, error) {
-	c, err := get[Collection](tx.Bucket(collectionsBucket), []byte(ref.key()))
+	c, err := get[Collection](bucket(tx, collectionsBucket), []byte(ref.key()))
 	if err != nil {
 		return nil, none, err
 	}
 	if c.Owner == account {
 		return c, own, nil
 	}
-	sh, err := get[Share](tx.Bucket(sharesBucket), shareKey(ref, account))
+	sh, err := get[Share](bucket(tx, sharesBucket), shareKey(ref, account))
 	if err != nil {
 		return nil, none, err
 	}
@@ -428,11 +413,11 @@ var ErrForbidden = errors.New("collections: not yours to change")
 func (s *Store) ByPublic(secret string) (*Collection, error) {
 	var found *Collection
 	err := s.db.View(func(tx *bolt.Tx) (err error) {
-		key := tx.Bucket(publicBucket).Get([]byte(secret))
+		key := bucket(tx, publicBucket).Get([]byte(secret))
 		if secret == "" || key == nil {
 			return ErrNotFound
 		}
-		found, err = get[Collection](tx.Bucket(collectionsBucket), key)
+		found, err = get[Collection](bucket(tx, collectionsBucket), key)
 		return err
 	})
 	return found, err
@@ -441,7 +426,7 @@ func (s *Store) ByPublic(secret string) (*Collection, error) {
 func (s *Store) Objects(ref Ref) ([]Object, error) {
 	var out []Object
 	err := s.db.View(func(tx *bolt.Tx) error {
-		return each(tx.Bucket(objectsBucket), []byte(ref.key()+"/"), func(o Object) error {
+		return each(bucket(tx, objectsBucket), []byte(ref.key()+"/"), func(o Object) error {
 			out = append(out, o)
 			return nil
 		})
@@ -453,7 +438,7 @@ func (s *Store) Object(ref Ref, name string) (*Object, error) {
 	var o *Object
 	err := s.db.View(func(tx *bolt.Tx) error {
 		var err error
-		o, err = get[Object](tx.Bucket(objectsBucket), objectKey(ref, name))
+		o, err = get[Object](bucket(tx, objectsBucket), objectKey(ref, name))
 		return err
 	})
 	return o, err
@@ -476,7 +461,7 @@ func (s *Store) PutObject(ref Ref, name string, data []byte, unless Unless, by s
 		if err := writable(tx, ref, by, now); err != nil {
 			return err
 		}
-		b := tx.Bucket(objectsBucket)
+		b := bucket(tx, objectsBucket)
 		old, err := get[Object](b, objectKey(ref, name))
 		if err != nil && !errors.Is(err, ErrNotFound) {
 			return err
@@ -513,7 +498,7 @@ func (s *Store) RemoveObject(ref Ref, name string, by string) error {
 		if err := writable(tx, ref, by, time.Now()); err != nil {
 			return err
 		}
-		b := tx.Bucket(objectsBucket)
+		b := bucket(tx, objectsBucket)
 		if b.Get(objectKey(ref, name)) == nil {
 			return ErrNotFound
 		}
@@ -528,10 +513,10 @@ func (s *Store) RemoveObject(ref Ref, name string, by string) error {
 func (s *Store) PutShare(sh Share) error {
 	sh.To = strings.ToLower(sh.To)
 	return s.db.Update(func(tx *bolt.Tx) error {
-		if tx.Bucket(collectionsBucket).Get([]byte(sh.Ref().key())) == nil {
+		if bucket(tx, collectionsBucket).Get([]byte(sh.Ref().key())) == nil {
 			return ErrNotFound
 		}
-		return put(tx.Bucket(sharesBucket), shareKey(sh.Ref(), sh.To), &sh)
+		return put(bucket(tx, sharesBucket), shareKey(sh.Ref(), sh.To), &sh)
 	})
 }
 
@@ -539,7 +524,7 @@ func (s *Store) Share(ref Ref, to string) (*Share, error) {
 	var sh *Share
 	err := s.db.View(func(tx *bolt.Tx) error {
 		var err error
-		sh, err = get[Share](tx.Bucket(sharesBucket), shareKey(ref, to))
+		sh, err = get[Share](bucket(tx, sharesBucket), shareKey(ref, to))
 		return err
 	})
 	return sh, err
@@ -549,7 +534,7 @@ func (s *Store) Share(ref Ref, to string) (*Share, error) {
 // declining or leaving.
 func (s *Store) RemoveShare(ref Ref, to string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(sharesBucket)
+		b := bucket(tx, sharesBucket)
 		if b.Get(shareKey(ref, to)) == nil {
 			return ErrNotFound
 		}
@@ -561,7 +546,7 @@ func (s *Store) RemoveShare(ref Ref, to string) error {
 func (s *Store) Shares(keep func(Share) bool) ([]Share, error) {
 	var out []Share
 	err := s.db.View(func(tx *bolt.Tx) error {
-		return each(tx.Bucket(sharesBucket), nil, func(sh Share) error {
+		return each(bucket(tx, sharesBucket), nil, func(sh Share) error {
 			if keep(sh) {
 				out = append(out, sh)
 			}

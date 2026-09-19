@@ -3,12 +3,9 @@ package alborz
 import (
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
+	"git.mehdix.org/alborz/record"
 	"github.com/fernet/fernet-go"
 	bolt "go.etcd.io/bbolt"
 )
@@ -42,30 +39,10 @@ type boltVisits struct {
 	key *fernet.Key
 }
 
-// OpenVisitRecords opens the visit database, making it if it is not
-// there. The caller closes it.
-func OpenVisitRecords(path string, key *fernet.Key) (VisitRecords, error) {
-	// The directory is whoever runs alborz to make, with the ownership
-	// and the mode they meant. Alborz says which one is missing and
-	// stops.
-	dir := filepath.Dir(path)
-	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		return nil, fmt.Errorf("%s is not there: it holds remembered logins and reading settings; "+
-			"make it, or name another with -data-dir", dir)
-	}
-	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: openTimeout})
-	if err != nil {
-		// One process at a time holds the file. The usual reason for
-		// waiting the whole timeout out is a second alborz on the same
-		// data directory, and a message that does not say so sends the
-		// reader looking at their disk.
-		if errors.Is(err, bolt.ErrTimeout) {
-			return nil, fmt.Errorf("%s is locked: another alborz is running on this data directory (waited %v); "+
-				"stop it, or name another with -data-dir", path, openTimeout)
-		}
-		return nil, fmt.Errorf("failed to open %s: %w", path, err)
-	}
-	err = db.Update(func(tx *bolt.Tx) error {
+// OpenVisitRecords keeps visits in the data file, making their buckets
+// if they are not there.
+func OpenVisitRecords(db *bolt.DB, key *fernet.Key) (VisitRecords, error) {
+	err := db.Update(func(tx *bolt.Tx) error {
 		for _, name := range [][]byte{visitBucket, readingBucket, keptBucket} {
 			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
 				return err
@@ -74,7 +51,6 @@ func OpenVisitRecords(path string, key *fernet.Key) (VisitRecords, error) {
 		return nil
 	})
 	if err != nil {
-		db.Close()
 		return nil, err
 	}
 	return &boltVisits{db: db, key: key}, nil
@@ -105,7 +81,20 @@ func (b *boltVisits) Load(id string) (*VisitRecord, bool) {
 }
 
 func (b *boltVisits) Save(rec *VisitRecord) error {
-	raw, err := json.Marshal(rec)
+	return b.db.Update(func(tx *bolt.Tx) error {
+		return b.putSealed(tx.Bucket(visitBucket), []byte(rec.ID), rec)
+	})
+}
+
+// putSealed writes v sealed, over what is stored under key and keeping
+// what a newer version put there (ADR 26). A record sealed with a key
+// that has since rotated is not read, and is replaced.
+func (b *boltVisits) putSealed(bucket *bolt.Bucket, key []byte, v any) error {
+	var old []byte
+	if sealed := bucket.Get(key); sealed != nil {
+		old = fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{b.key})
+	}
+	raw, err := record.Keep(old, v)
 	if err != nil {
 		return err
 	}
@@ -113,9 +102,7 @@ func (b *boltVisits) Save(rec *VisitRecord) error {
 	if err != nil {
 		return err
 	}
-	return b.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(visitBucket).Put([]byte(rec.ID), sealed)
-	})
+	return bucket.Put(key, sealed)
 }
 
 func (b *boltVisits) Delete(id string) error {
@@ -177,20 +164,10 @@ func (b *boltVisits) LoadReading(account string) (*Reading, bool) {
 }
 
 func (b *boltVisits) SaveReading(account string, r *Reading) error {
-	raw, err := json.Marshal(r)
-	if err != nil {
-		return err
-	}
-	sealed, err := fernet.EncryptAndSign(raw, b.key)
-	if err != nil {
-		return err
-	}
 	return b.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(readingBucket).Put(readingKey(account), sealed)
+		return b.putSealed(tx.Bucket(readingBucket), readingKey(account), r)
 	})
 }
-
-func (b *boltVisits) Close() error { return b.db.Close() }
 
 func (b *boltVisits) LoadKept(account string) (map[string]json.RawMessage, bool) {
 	var sealed []byte
@@ -215,16 +192,8 @@ func (b *boltVisits) LoadKept(account string) (map[string]json.RawMessage, bool)
 }
 
 func (b *boltVisits) SaveKept(account string, entries map[string]json.RawMessage) error {
-	raw, err := json.Marshal(entries)
-	if err != nil {
-		return err
-	}
-	sealed, err := fernet.EncryptAndSign(raw, b.key)
-	if err != nil {
-		return err
-	}
 	return b.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(keptBucket).Put(readingKey(account), sealed)
+		return b.putSealed(tx.Bucket(keptBucket), readingKey(account), entries)
 	})
 }
 

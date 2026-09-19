@@ -42,11 +42,11 @@ func findHome(ctx context.Context, client *http.Client, endpoint string) (string
 	}
 	principal, err := c.FindCurrentUserPrincipal(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to query CardDAV principal: %v", err)
+		return "", fmt.Errorf("failed to query CardDAV principal: %w", err)
 	}
 	homeSet, err := c.FindAddressBookHomeSet(ctx, principal)
 	if err != nil {
-		return "", fmt.Errorf("failed to query CardDAV address book home set: %v", err)
+		return "", fmt.Errorf("failed to query CardDAV address book home set: %w", err)
 	}
 	return homeSet, nil
 }

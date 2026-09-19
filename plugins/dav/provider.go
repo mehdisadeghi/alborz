@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -78,6 +79,11 @@ type Provider struct {
 	// data directory.
 	here  http.Handler
 	store *collections.Store
+	// troubles holds, per account, what its server answered the last
+	// time its homes were asked for, when that was not a home: the
+	// collections kept here are listed all the same, and the page says
+	// what became of the rest.
+	troubles sync.Map
 	// found per username; see Collections.
 	collections *alborz.Memo[[]Collection]
 
@@ -163,10 +169,15 @@ func (p *Provider) homes(ctx context.Context, session *alborz.Session) ([]Home, 
 	var homes []Home
 	if u, ok := p.Remote(session); ok {
 		home, err := p.kind.FindHome(ctx, p.HTTPClient(session), u.String())
-		if err != nil {
+		switch {
+		case err == nil:
+			p.troubles.Delete(session.Username())
+			homes = append(homes, Home{Path: home})
+		case p.here == nil:
 			return nil, err
+		default:
+			p.troubles.Store(session.Username(), err)
 		}
-		homes = append(homes, Home{Path: home})
 	}
 	if p.here != nil {
 		homes = append(homes, Home{Path: collections.HomePath(p.kind.Holds, session.Username()), Here: true})
@@ -303,6 +314,14 @@ func HomeFor(homes []Home, here bool) string {
 		}
 	}
 	return homes[0].Path
+}
+
+// Trouble is what kept the account's server out of its last listing,
+// nil when nothing did.
+func (p *Provider) Trouble(username string) error {
+	err, _ := p.troubles.Load(username)
+	trouble, _ := err.(error)
+	return trouble
 }
 
 // Remote resolves the account's DAV server: the one the account names

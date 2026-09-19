@@ -639,6 +639,7 @@
 "folder.emptyask" = "Alles in %s löschen?"
 "folder.emptydo" = "Alles löschen"
 "notice.loginfailed" = "Adresse oder Passwort abgelehnt."
+"notice.davanswered" = "Der Kalender- und Kontaktserver für %s antwortete %s."
 "notice.loginerror" = "Anmeldung fehlgeschlagen: %s"
 "notice.filtersaved" = "Filter gespeichert."
 "notice.filterwarn" = "Filter mit Warnungen gespeichert: %s"
@@ -871,9 +872,13 @@ other = "%d Aufgaben"
 one = "%[2]s wurde nach 30 Minuten Inaktivität abgemeldet."
 other = "%[2]s wurden nach 30 Minuten Inaktivität abgemeldet."
 
+["notice.davrefused"]
+one = "Der Kalender- und Kontakteserver für %[2]s hat das Passwort abgelehnt."
+other = "Die Kalender- und Kontakteserver für %[2]s haben die Passwörter abgelehnt."
+
 ["notice.unreachable"]
-one = "Der Server für %[2]s hat nicht geantwortet. Die anderen Konten werden angezeigt."
-other = "Die Server für %[2]s haben nicht geantwortet. Die anderen Konten werden angezeigt."
+one = "Der Server für %[2]s hat nicht geantwortet."
+other = "Die Server für %[2]s haben nicht geantwortet."
 
 
 ["notice.deleted"]

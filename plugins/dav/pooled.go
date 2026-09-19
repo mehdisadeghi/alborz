@@ -2,6 +2,9 @@ package dav
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -39,7 +42,17 @@ type Group struct {
 func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, *alborz.Session) (C, []Collection, error), none error) ([]Account[C], error) {
 	var accounts []Account[C]
 	var lastErr error
-	var down []string
+	var down, refused []string
+	// answered are the servers that said no in some other way than to
+	// the password, with what they said.
+	answered := map[string]int{}
+	fail := func(username string, err error) {
+		if code := Answered(err); code != 0 {
+			answered[username] = code
+			return
+		}
+		down = append(down, username)
+	}
 	var sessions []*alborz.Session
 	for _, s := range ctx.Sessions() {
 		if _, ok := p.URL(s); ok {
@@ -55,9 +68,14 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	for _, result := range results {
 		s, err := result.Site, result.Err
 		c, infos := result.Value.Client, result.Value.Collections
+		// An account with nothing of the kind is not one whose server
+		// failed: it has no entry, and nothing to be warned about.
+		if errors.Is(err, none) {
+			continue
+		}
 		if err != nil {
 			lastErr = err
-			down = append(down, s.Username())
+			fail(s.Username(), err)
 			ctx.Logger().Printf("%s: skipping %q in the pooled view: %v", p.kind.Name, s.Username(), err)
 			continue
 		}
@@ -66,6 +84,16 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 			owned[i].Account = s.Username()
 		}
 		accounts = append(accounts, Account[C]{Name: s.Username(), Session: s, Client: c, Collections: owned})
+		var no *RefusedError
+		// A refusal stands until the reader changes something, so it is
+		// said once to a browser, not on every page of the section.
+		if trouble := p.Trouble(s.Username()); errors.As(trouble, &no) {
+			if ctx.Visit().Once("davrefused:" + p.kind.Name + ":" + s.Username()) {
+				refused = append(refused, s.Username())
+			}
+		} else if trouble != nil {
+			fail(s.Username(), trouble)
+		}
 	}
 	if len(accounts) == 0 {
 		if lastErr != nil {
@@ -74,6 +102,18 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 		return nil, none
 	}
 	ctx.Unreachable(down)
+	for _, username := range slices.Sorted(maps.Keys(answered)) {
+		code := answered[username]
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
+			Text: fmt.Sprintf(ctx.T("notice.davanswered"), username, fmt.Sprintf("%d %s", code, http.StatusText(code)))})
+	}
+	// A refusal is the one the reader can end, so it is the one said
+	// when both happened, with the way to the account's own settings.
+	if len(refused) > 0 {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
+			Text:   ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
+			Action: &alborz.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.AddressParam(refused[0])}})
+	}
 	return accounts, nil
 }
 

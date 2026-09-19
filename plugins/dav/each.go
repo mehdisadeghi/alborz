@@ -3,6 +3,9 @@ package dav
 import (
 	"context"
 	"sync"
+
+	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 )
 
 // MaxConcurrency is how many collections are asked at once. A page
@@ -41,4 +44,55 @@ func Each[S, R any](ctx context.Context, sites []S, query func(context.Context, 
 	close(jobs)
 	wg.Wait()
 	return results
+}
+
+// Pager is one page of a list that alborz holds whole: a DAV query has
+// no way to ask for the rows after the first n, so the list is read,
+// narrowed and sorted as it always was, and only a page of it is drawn.
+// Prev and Next are empty where there is no page that way.
+type Pager struct {
+	From, To, Total int
+	Prev, Next      string
+	// Per is the page size in force and Options the sizes the list's
+	// menu offers; IppBase is the rest of the address a size keeps.
+	Per     int
+	Options []int
+	IppBase string
+}
+
+// Paginate is the page of items the request asks for, as many as the
+// reader reads by, and the pager that walks the rest.
+func Paginate[T any](ctx *alborz.Context, items []T) ([]T, Pager) {
+	per := alborzbase.PerPage(ctx)
+	page, err := alborz.ReadInt(ctx.QueryParam("page"))
+	if err != nil || page < 0 {
+		page = 0
+	}
+	// A page past the end is the last one: the list got shorter since
+	// the link was drawn, and an empty page says nothing true.
+	if last := max(0, (len(items)-1)/per); page > last {
+		page = last
+	}
+	from, to := page*per, min((page+1)*per, len(items))
+	// Another size starts from the first page, and keeps the rest of
+	// what the list was asked.
+	q := ctx.Request().URL.Query()
+	q.Del("ipp")
+	q.Del("page")
+	base := ""
+	if len(q) > 0 {
+		base = "&" + alborz.AddressQuery(q)
+	}
+	pager := Pager{From: from + 1, To: to, Total: len(items),
+		Per: per, Options: alborzbase.PerPageChoices(ctx), IppBase: base}
+	if len(items) == 0 {
+		pager.From = 0
+	}
+	if page > 0 {
+		pager.Prev = ctx.PageHref(page - 1)
+	}
+	if to < len(items) {
+		pager.Next = ctx.PageHref(page + 1)
+	}
+	return items[from:to], pager
 }

@@ -491,7 +491,7 @@ type listAsk struct {
 // readListAsk reads it from the URL. also is the one order the page has
 // beyond the columns.
 func readListAsk(ctx *alborz.Context, also string) (listAsk, error) {
-	ask := listAsk{perPage: perPage(ctx)}
+	ask := listAsk{perPage: PerPage(ctx)}
 	if raw := ctx.QueryParam("page"); raw != "" {
 		var err error
 		if ask.page, err = strconv.Atoi(raw); err != nil || ask.page < 0 {
@@ -1198,7 +1198,7 @@ func handleDelete(ctx *alborz.Context) error {
 		// A whole page ticked and more behind it is a reader clearing
 		// the folder one page at a time. The rest is offered, behind a
 		// page that says how many, and never taken on its own.
-		if done >= perPage(ctx) && left > 0 {
+		if done >= PerPage(ctx) && left > 0 {
 			notice.Action = &alborz.NoticeAction{
 				Label: ctx.Tf("notice.deleteall", left),
 				Path:  ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName) + "/empty"),
@@ -1380,11 +1380,17 @@ func perPageOptions(chosen int) []int {
 	return out
 }
 
-// perPage is how many messages a page holds: what this request asks
+// PerPageChoices are the page sizes a list's menu offers, the reader's
+// own among them.
+func PerPageChoices(ctx *alborz.Context) []int {
+	return perPageOptions(ctx.Reading().MessagesPerPage)
+}
+
+// PerPage is how many rows a page of a list holds: what this request asks
 // for, else what the reader reads by, else the default. It is the
 // reader's, not the account's, so a merged page counts the same as a
 // scoped one.
-func perPage(ctx *alborz.Context) int {
+func PerPage(ctx *alborz.Context) int {
 	if raw := ctx.QueryParam("ipp"); raw != "" {
 		if n, err := alborz.ReadInt(raw); err == nil &&
 			n > 0 && n <= maxMessagesPerPage {

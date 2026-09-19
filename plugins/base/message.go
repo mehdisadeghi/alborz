@@ -198,7 +198,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	// Read before the message's own IMAP work: the observed id may cost
 	// a sample of the inbox, and the session lock is not reentrant.
 	trusted := TrustedAuthServ(ctx, settings)
-	messagesPerPage := perPage(ctx)
+	messagesPerPage := PerPage(ctx)
 
 	query := ctx.QueryParam("query")
 	railView, err := readView(ctx)

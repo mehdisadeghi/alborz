@@ -25,7 +25,7 @@ type listPlace struct {
 // so its neighbours are the right ones; placed is false where the
 // server has to say.
 func cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
-	cached = listings.message(ctx.Session.Username(), listingView(mailbox, query, view, "", ""), uid, perPage(ctx))
+	cached = listings.message(ctx.Session.Username(), listingView(mailbox, query, view, "", ""), uid, PerPage(ctx))
 	if cached != nil {
 		place.newer, place.older, place.position, place.total, placed = cached.neighbours(uid)
 	}

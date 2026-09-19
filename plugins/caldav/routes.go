@@ -383,6 +383,7 @@ type TasksRenderData struct {
 	FilterRows []alborz.FilterRow
 	Query      string
 	Sorting    dav.Sorting
+	Pager      dav.Pager
 }
 
 // TaskRow is the flat, table-shaped representation shared by the task
@@ -1943,6 +1944,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	rows, pager := dav.Paginate(ctx, list.Rows)
 	return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 		Quick:          quickListOf(ctx, list.Calendars),
@@ -1950,7 +1952,8 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		Filters:        calendarFilters(ctx, list.Calendars),
 		FilterRows:     taskRows(ctx, list.View),
 		Calendars:      list.Calendars,
-		Tasks:          list.Rows,
+		Tasks:          rows,
+		Pager:          pager,
 		Query:          list.Query,
 		Sorting:        list.Sorting,
 	})

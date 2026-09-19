@@ -307,6 +307,8 @@ func moneySubject(e *Evidence) []Indicator {
 // recent correspondents, which is what a first-contact question wants.
 type senderBook struct {
 	written, junked map[string]bool
+	// junk is the folder junked is read from, whose moves outdate it.
+	junk string
 	// received holds the registrable domains of the inbox's authors, by
 	// their first label: "hetzner" for hetzner.com. It is what lets a
 	// name be checked against the reader's own mail and no list of
@@ -331,17 +333,17 @@ func senderBookFor(s *alborz.Session) *senderBook {
 		book := &senderBook{}
 		err := s.DoIMAPBackground(func(c *imapclient.Client) error {
 			var err error
-			book.written, err = addressesIn(c, "sent", func(env *imap.Envelope) []imap.Address {
+			book.written, _, err = addressesIn(c, "sent", func(env *imap.Envelope) []imap.Address {
 				return append(append([]imap.Address(nil), env.To...), env.Cc...)
 			})
 			if err != nil {
 				return err
 			}
-			book.junked, err = addressesIn(c, "junk", func(env *imap.Envelope) []imap.Address { return env.From })
+			book.junked, book.junk, err = addressesIn(c, "junk", func(env *imap.Envelope) []imap.Address { return env.From })
 			if err != nil {
 				return err
 			}
-			authors, err := addressesIn(c, "inbox", func(env *imap.Envelope) []imap.Address { return env.From })
+			authors, _, err := addressesIn(c, "inbox", func(env *imap.Envelope) []imap.Address { return env.From })
 			book.received = map[string]string{}
 			for addr := range authors {
 				domain, label := registrable(addr)
@@ -358,18 +360,18 @@ func senderBookFor(s *alborz.Session) *senderBook {
 }
 
 // addressesIn collects the addresses pick chooses from the newest
-// messages of the role's folder, lower-cased.
-func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []imap.Address) (map[string]bool, error) {
+// messages of the role's folder, lower-cased, and names the folder.
+func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []imap.Address) (map[string]bool, string, error) {
 	out := map[string]bool{}
 	mbox, err := getMailboxByRole(c, role)
 	if err != nil || mbox == nil {
-		return out, err
+		return out, "", err
 	}
 	// Read-write for the same reason as the authserv sample: a
 	// read-only selection is not remembered and poisons the next STORE.
 	sel, err := c.Select(mbox.Name(), nil).Wait()
 	if err != nil || sel.NumMessages == 0 {
-		return out, err
+		return out, mbox.Name(), err
 	}
 	from := uint32(1)
 	if sel.NumMessages > senderBookSpan {
@@ -379,7 +381,7 @@ func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []
 	set.AddRange(from, sel.NumMessages)
 	msgs, err := c.Fetch(set, &imap.FetchOptions{Envelope: true}).Collect()
 	if err != nil {
-		return out, err
+		return out, mbox.Name(), err
 	}
 	for _, m := range msgs {
 		if m.Envelope == nil {
@@ -391,7 +393,7 @@ func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []
 			}
 		}
 	}
-	return out, nil
+	return out, mbox.Name(), nil
 }
 
 // relationTo is what the book says about one address.
@@ -433,6 +435,21 @@ func (b senderBook) named(name, addr string) *NamedDomain {
 		return &NamedDomain{Word: word, Known: known, Sender: sender}
 	}
 	return nil
+}
+
+// junkMoved outdates the book when mail went into or out of the folder
+// it read junked senders from: a sender moved out of Junk is no longer
+// one, and a wrong warning is worse than none while the book is read
+// again.
+func junkMoved(user, from, to string) {
+	outdated := false
+	senderBooks.Update(user, func(b *senderBook) *senderBook {
+		outdated = b != nil && b.junk != "" && (b.junk == from || b.junk == to)
+		return b
+	})
+	if outdated {
+		senderBooks.Forget(user)
+	}
 }
 
 func (b senderBook) relationTo(addr string) Relation {

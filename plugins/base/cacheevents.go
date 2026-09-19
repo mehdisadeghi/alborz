@@ -52,6 +52,7 @@ func messagesMoved(user, from, to string, uids []imap.UID) {
 	bodies.discard(user, from, uids)
 	listings.evict(user, from)
 	listings.evict(user, to)
+	junkMoved(user, from, to)
 }
 
 // An expunge also removes what was marked deleted elsewhere, so the

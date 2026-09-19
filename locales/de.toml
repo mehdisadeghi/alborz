@@ -886,6 +886,10 @@ other = "%d Aufgaben"
 one = "%[2]s wurde nach 30 Minuten Inaktivität abgemeldet."
 other = "%[2]s wurden nach 30 Minuten Inaktivität abgemeldet."
 
+["aside.morefolders"]
+one = "%[1]d weiterer Ordner"
+other = "%[1]d weitere Ordner"
+
 ["notice.davrefused"]
 one = "Der Kalender- und Kontakteserver für %[2]s hat das Passwort abgelehnt."
 other = "Die Kalender- und Kontakteserver für %[2]s haben die Passwörter abgelehnt."

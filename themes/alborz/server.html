@@ -1,0 +1,59 @@
+{{template "head.html" .}}
+{{template "nav.html" .}}
+{{template "util.html" .}}
+
+<div class="page-wrap">
+  <aside>
+  {{ template "settings-rail" (dict "g" $ "rail" .Rail "here" "") }}
+  </aside>
+
+  <div class="container">
+    <main id="main" tabindex="-1" class="settings">
+      {{ $title := $.T (printf "servers.%s" .Showing) }}
+      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
+        {{ template "list-toolbar" (dict "title" $title) }}
+      </section>
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.servers") "path" "/settings/servers" "object" $title) }}
+      {{ if .Error }}<div class="alert" role="alert">{{ .Error }}</div>{{ end }}
+
+      {{/* What each server says about itself. The abilities are the ones
+           that change what alborz does; each is explained on hover and,
+           since a phone has none, once more under its card. */}}
+      {{ range .Shown }}
+      {{ template "info-card" (dict "title" .Title "page" $ "rows" .Rows
+         "abilities" .Abilities "abilitiestitle" ($.T "settings.abilities")
+         "explained" .Explained "explainlabel" ($.T "settings.explain")) }}
+      {{ end }}
+
+      {{/* The servers the account names for itself, where its domain's
+           are not the ones its calendars and contacts are on. One name
+           and one password serve both, which is how every server in use
+           is set up; the protocols would allow two. */}}
+      {{ if eq .Showing "dav" }}
+      <form method="post">
+        <h2>{{$.T "servers.named"}}</h2>
+        {{ template "field" (dict "label" ($.T "settings.caldavurl") "name" "caldav_url" "type" "url" "value" .Services.CalDAV "dir" "ltr" "placeholder" ($.T "settings.serverdomain") "hint" ($.T "settings.serverhint")) }}
+        {{ template "field" (dict "label" ($.T "settings.carddavurl") "name" "carddav_url" "type" "url" "value" .Services.CardDAV "dir" "ltr" "placeholder" ($.T "settings.serverdomain")) }}
+        {{ template "field" (dict "label" ($.T "settings.davusername") "name" "dav_username" "value" .Services.Username "dir" "ltr" "placeholder" ($.T "settings.davusernamesame")) }}
+        <div class="action-group">
+          <label for="http_password">{{$.T "settings.davpassword"}}</label>
+          <input type="password" name="http_password" id="http_password" autocomplete="off"
+                 placeholder="{{if .HasHTTPPassword}}{{$.T "settings.davstored"}}{{else}}{{$.T "settings.davsame"}}{{end}}">
+          {{ template "hint" (dict "text" ($.T "settings.davhint")) }}
+          {{ if .HasHTTPPassword }}
+          <label for="http_password_reset" class="checkbox">
+            <input type="checkbox" name="http_password_reset" id="http_password_reset" value="1">
+            {{$.T "settings.davreset"}}
+          </label>
+          {{ end }}
+        </div>
+        <div class="action-group">
+          <button type="submit" class="button-primary">{{$.T "common.save"}}</button>
+        </div>
+      </form>
+      {{ end }}
+    </main>
+  </div>
+</div>
+
+{{template "foot.html" .}}

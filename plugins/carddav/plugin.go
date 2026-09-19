@@ -218,40 +218,26 @@ func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]dav.Group, error) {
 	return dav.WritableGroups(accounts, func(ab dav.Collection) bool { return ab.Writable }), nil
 }
 
-// registerServerCard answers for this account's contacts server on the
-// Servers page, beside mail's and the calendar's.
+// registerServerCard puts the contacts server among the account's
+// servers, beside mail's and the calendar's.
 func (p *plugin) registerServerCard() {
-	p.Inject("servers.html", func(ctx *alborz.Context, data alborz.RenderData) error {
-		servers, ok := data.(*alborzbase.ServersRenderData)
-		if !ok || ctx.Session == nil {
-			return nil
-		}
-		base, ok := p.dav.URL(ctx.Session)
-		if !ok {
-			return nil
-		}
-		card := alborzbase.ServerCard{Title: ctx.T("settings.davcontacts")}
-		found, err := dav.Describe(ctx.Request().Context(), p.dav.HTTPClient(ctx.Session), base)
-		if err != nil {
-			card.Rows = []map[string]any{
-				{"label": ctx.T("settings.serverhost"), "value": p.dav.Host(ctx)},
-				{"label": ctx.T("settings.serverunreachable"), "value": err.Error()},
-			}
-			servers.More = append(servers.More, card)
-			return nil
-		}
-		card.Rows = []map[string]any{
-			{"label": ctx.T("settings.serverhost"), "value": p.dav.Host(ctx)},
-			{"label": ctx.T("settings.serversoftware"), "value": found.Software},
-			{"label": ctx.T("settings.davcompliance"), "value": strings.Join(found.Compliance, ", ")},
-		}
-		card.Abilities = []alborzbase.Ability{
+	card := p.dav.InjectCard("settings.davcontacts", func(found dav.Advertised) []alborzbase.Ability {
+		return []alborzbase.Ability{
 			{Label: "settings.davability3", Hint: "settings.davability3hint", Have: found.Has("3")},
 			{Label: "settings.davabilityacl", Hint: "settings.davabilityaclhint", Have: found.Has("access-control")},
 			{Label: "settings.davabilitycards", Hint: "settings.davabilitycardshint", Have: found.Has("addressbook")},
 			{Label: "settings.davabilitymkcol", Hint: "settings.davabilitymkcolhint", Have: found.Has("extended-mkcol")},
 		}
-		servers.More = append(servers.More, card)
-		return nil
 	})
+	// The collections kept here follow the servers they stand beside:
+	// the plugins load calendar first, so this is the last card.
+	here := p.dav.InjectHere()
+	both := func(ctx *alborz.Context, data alborz.RenderData) error {
+		if err := card(ctx, data); err != nil {
+			return err
+		}
+		return here(ctx, data)
+	}
+	p.Inject("servers.html", both)
+	p.Inject("server.html", both)
 }

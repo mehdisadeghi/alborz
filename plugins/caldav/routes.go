@@ -1800,30 +1800,10 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	}
 	params := dav.ListParams(ctx, taskListParams...)
 
-	query, openQueries := taskQueries()
+	query := taskQuery()
 
 	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site dav.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
-		if withCompleted {
-			return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
-		}
-		// A server that ignores the filter answers both queries with
-		// everything; an object is taken once whichever answered it.
-		var tasks []caldav.CalendarObject
-		seen := map[string]bool{}
-		for _, r := range dav.Each(ctx, openQueries, func(ctx context.Context, q caldav.CalendarQuery) ([]caldav.CalendarObject, error) {
-			return site.Client.QueryCalendar(ctx, site.Collection.Path, &q)
-		}) {
-			if r.Err != nil {
-				return nil, r.Err
-			}
-			for _, obj := range r.Value {
-				if !seen[obj.Path] {
-					seen[obj.Path] = true
-					tasks = append(tasks, obj)
-				}
-			}
-		}
-		return tasks, nil
+		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
 	}) {
 		if result.Err != nil {
 			return TaskList{}, fmt.Errorf("failed to query tasks from %s: %v", result.Site.Collection.Name, result.Err)
@@ -2381,10 +2361,17 @@ func joinCalendars(objects [][]byte) ([]byte, error) {
 	return encodeCalendar(children)
 }
 
-// taskQueries are what the task list asks a list for: every task, and
-// the two that together are the open ones.
-func taskQueries() (caldav.CalendarQuery, []caldav.CalendarQuery) {
-	query := caldav.CalendarQuery{
+// taskQuery is what the task list asks a list for: every task.
+//
+// The open tasks would be two queries, since an open task may carry no
+// STATUS and CalDAV filters have no OR: STATUS is-not-defined, and
+// STATUS not COMPLETED. go-webdav's client (v0.7.0) drops
+// is-not-defined as it encodes a filter, which turns the first into
+// "STATUS is defined" and loses every task without one - what phones
+// and other clients commonly write. Until it sends the element, the
+// open tasks are every task, and the page hides the completed.
+func taskQuery() caldav.CalendarQuery {
+	return caldav.CalendarQuery{
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
@@ -2404,25 +2391,6 @@ func taskQueries() (caldav.CalendarQuery, []caldav.CalendarQuery) {
 			Comps: []caldav.CompFilter{{Name: "VTODO"}},
 		},
 	}
-
-	// Where the account hides completed tasks the server is asked for
-	// the open ones only, so a list that has finished a thousand tasks
-	// does not send them all on every visit. An open task may carry no
-	// STATUS at all, and CalDAV filters have no OR, so it takes two
-	// queries: tasks without a STATUS, and tasks whose STATUS is not
-	// COMPLETED.
-	open := func(filter caldav.PropFilter) caldav.CalendarQuery {
-		q := query
-		q.CompFilter = caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{{
-			Name: "VTODO", Props: []caldav.PropFilter{filter},
-		}}}
-		return q
-	}
-	openQueries := []caldav.CalendarQuery{
-		open(caldav.PropFilter{Name: "STATUS", IsNotDefined: true}),
-		open(caldav.PropFilter{Name: "STATUS", TextMatch: &caldav.TextMatch{Text: "COMPLETED", NegateCondition: true}}),
-	}
-	return query, openQueries
 }
 
 // warm fetches what the calendar and task pages ask for first, as the
@@ -2442,7 +2410,7 @@ func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session, loc *time.L
 	now := time.Now().In(loc)
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 	events := eventQuery(start.AddDate(0, 0, -7), start.AddDate(0, 1, 0).AddDate(0, 0, 7))
-	_, open := taskQueries()
+	tasks := taskQuery()
 	type ask struct {
 		path  string
 		query caldav.CalendarQuery
@@ -2453,9 +2421,7 @@ func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session, loc *time.L
 			asks = append(asks, ask{cal.Path, events})
 		}
 		if supportsTodo(cal.Components) {
-			for _, q := range open {
-				asks = append(asks, ask{cal.Path, q})
-			}
+			asks = append(asks, ask{cal.Path, tasks})
 		}
 	}
 	for _, r := range dav.Each(ctx, asks, func(ctx context.Context, a ask) (int, error) {

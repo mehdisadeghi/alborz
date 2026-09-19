@@ -581,6 +581,14 @@ type Context struct {
 
 var aLongTimeAgo = time.Unix(233431200, 0)
 
+// Relocate answers a page that asked for a piece of itself by loading
+// path whole instead: what it asked about no longer belongs where it
+// stands, as a row that stopped matching its list's filter.
+func (ctx *Context) Relocate(path string) error {
+	ctx.Response().Header().Set("HX-Redirect", path)
+	return ctx.NoContent(http.StatusOK)
+}
+
 // Origin is where alborz is reached from outside, for a link that
 // leaves the page - into a mail, into another client's settings: the
 // -public-url when one is given, else the address this request came to.

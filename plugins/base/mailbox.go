@@ -1252,13 +1252,25 @@ func handleSetFlags(ctx *alborz.Context) error {
 		// asked for that block, the whole listing does not have to be
 		// built and read again to show it. The new state is what was
 		// just stored, so nothing is fetched to find it out.
+		// A star the list is narrowed to, taken off or changed, takes the
+		// row out of the list, as moving the message does. What it was is
+		// what the row said.
 		back := ctx.NextOr(mailboxURL(ctx, mboxName))
 		oneStar := ctx.Partial() && len(uids) == 1
+		leaves := oneStar && StarLeaves(ctx.FormValue("next"), color[0])
 		return runAct(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), colourAct(add, del), func(int) alborz.Notice {
-			return alborz.Notice{}
+			if !leaves {
+				return alborz.Notice{}
+			}
+			action := "/message/" + url.PathEscape(mboxName) + "/flag?account=" + alborz.AddressParam(ctx.Session.Username())
+			return StarNotice(ctx, color[0], action, url.Values{
+				"uids": {fmt.Sprint(uids[0])}, "color": {ctx.FormValue("was")}, "next": {back}})
 		}, func(done bool) error {
-			if !oneStar || !done {
+			switch {
+			case !oneStar:
 				return ctx.Redirect(http.StatusFound, back)
+			case leaves || !done:
+				return ctx.Relocate(back)
 			}
 			star := &StarRenderData{
 				BaseRenderData: *alborz.NewBaseRenderData(ctx),

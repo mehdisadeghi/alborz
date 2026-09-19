@@ -2,6 +2,8 @@ package alborzbase
 
 import (
 	"bytes"
+	"fmt"
+	"net/url"
 	"slices"
 	"time"
 
@@ -148,6 +150,39 @@ const (
 	ViewStarred = "starred"
 	ViewUnread  = "unread"
 )
+
+// StarMatches says whether a mark answers a view: starred is any
+// colour, a colour is itself, no view is everything.
+func StarMatches(star, view string) bool {
+	switch view {
+	case "":
+		return true
+	case ViewStarred:
+		return star != ""
+	}
+	return star == view
+}
+
+// StarLeaves says a row whose star is now star leaves the list at next:
+// the list is narrowed to a star, and this one no longer answers it.
+func StarLeaves(next, star string) bool {
+	u, err := url.Parse(next)
+	if err != nil {
+		return false
+	}
+	view := u.Query().Get("view")
+	return (view == ViewStarred || slices.Contains(FlagColors[:], view)) && !StarMatches(star, view)
+}
+
+// StarNotice says what became of a row's star that left its list, with
+// the way back: the same action with the colour it had.
+func StarNotice(ctx *alborz.Context, star, action string, undo url.Values) alborz.Notice {
+	text := ctx.T("notice.starremoved")
+	if star != "" {
+		text = fmt.Sprintf(ctx.T("notice.starchanged"), ctx.T("color."+star))
+	}
+	return alborz.Notice{Kind: alborz.NoticeDone, Text: text, Action: ctx.Undo(action, undo)}
+}
 
 // KnownView says whether a view name is one alborz offers; a colour
 // counts, since FlagColors is where the names come from.

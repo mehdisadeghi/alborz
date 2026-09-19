@@ -170,6 +170,9 @@
       hx-post="/message/{{.Mailbox | pathescape}}/flag{{.Account}}" hx-target="this" hx-swap="outerHTML">
   <input type="hidden" name="uids" value="{{.UID}}">
   <input type="hidden" name="next" value="{{.Next}}">
+  {{/* What the star was, for the notice that brings it back when the
+       row leaves a list narrowed to stars. */}}
+  <input type="hidden" name="was" value="{{.Color}}">
   {{/* The message page's star and chevron, the chevron shown where a
        pointer rests on the row. Both directions go through the colour,
        which clears the bits as well as the flag: removing \Flagged

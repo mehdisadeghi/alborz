@@ -996,7 +996,7 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	eventMap := make(map[time.Time][]Occurrence)
 	for _, ev := range events {
 		for _, oc := range occurrences(ev, loc, queryStart, queryEnd) {
-			if view != "list" && !starMatches(oc.Star(), view) {
+			if view != "list" && !alborzbase.StarMatches(oc.Star(), view) {
 				continue
 			}
 			var first, last time.Time
@@ -1897,7 +1897,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 			if completed != (view == viewCompleted) && view != viewAll {
 				continue
 			}
-			if !starMatches(componentColor(todo), star) {
+			if !alborzbase.StarMatches(componentColor(todo), star) {
 				continue
 			}
 			if view == viewHigh && priorityBand(todo) != priorityHigh {
@@ -2292,6 +2292,15 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 		},
 		Done: words,
 		Piece: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client], next string) error {
+			// A task the list no longer shows - done where the done are
+			// hidden, reopened in the list of the done - leaves it, as a
+			// moved message leaves its folder, with the notice that brings
+			// it back.
+			view := dav.ListParamsIn(next, "view").Get("view")
+			if view != viewAll && done != (view == viewCompleted) {
+				ctx.Notify(words(ctx, []dav.Ref[*caldav.Client]{ref}, next))
+				return ctx.Relocate(next)
+			}
 			// The row the click was on is the whole of what changed, and
 			// the same button undoes it, so a marked task answers with its
 			// row and the list stays where it is - no notice, as a star's

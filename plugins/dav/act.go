@@ -3,6 +3,7 @@ package dav
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 
 	"git.mehdix.org/alborz"
@@ -114,21 +115,29 @@ func Star[C any](ctx *alborz.Context, client func(*alborz.Session) (C, error), l
 	if name != "" && !slices.Contains(alborzbase.FlagColors[:], name) {
 		return echo.NewHTTPError(http.StatusBadRequest, "no such colour")
 	}
+	var was string
 	return Run(ctx, Action[C]{
 		Client: client,
 		List:   list,
 		Do: func(ctx *alborz.Context, ref Ref[C]) (err error) {
-			_, err = mark(ctx, ref, name)
+			was, err = mark(ctx, ref, name)
 			return err
 		},
 		Piece: func(ctx *alborz.Context, ref Ref[C], next string) error {
+			action := ctx.AccountPath(ObjectURL(list+"/", ref.Path, "", nil) + "/color")
+			// A star the list is narrowed to, taken off or changed, takes
+			// the row out of the list, as moving a message does.
+			if alborzbase.StarLeaves(next, name) {
+				ctx.Notify(alborzbase.StarNotice(ctx, name, action, url.Values{"color": {was}, "next": {next}}))
+				return ctx.Relocate(next)
+			}
 			label := ctx.T("mailbox.flagcolor")
 			if name != "" {
 				label = ctx.T("mailbox.flagnone")
 			}
 			return ctx.Render(http.StatusOK, "card-star", &StarRenderData{
 				BaseRenderData: *alborz.NewBaseRenderData(ctx),
-				Action:         ctx.AccountPath(ObjectURL(list+"/", ref.Path, "", nil) + "/color"),
+				Action:         action,
 				Current:        name,
 				Next:           next,
 				Label:          label,

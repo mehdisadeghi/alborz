@@ -647,6 +647,8 @@
 "notice.noanswer" = "Der Server hat nicht geantwortet."
 "notice.offline" = "Offline. Gespeicherte Seiten werden angezeigt."
 "notice.slow" = "Der Server antwortet langsam. Gespeicherte Seiten werden angezeigt."
+"notice.starremoved" = "Stern entfernt."
+"notice.starchanged" = "Stern auf %s geändert."
 "common.addanother" = "Weitere anlegen"
 "notice.taskcreated" = "Aufgabe „%s“ angelegt."
 "notice.eventcreated" = "Termin „%s“ angelegt."

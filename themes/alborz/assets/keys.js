@@ -1,5 +1,7 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
+// The keyboard and the thumb, which press the same controls.
+//
 // The keyboard, in the scheme webmail settled on and Gmail wrote down,
 // which is vi's where the two overlap: j and k walk a list, x ticks a
 // row, / searches, g and a letter goes somewhere, ? lists them all.
@@ -104,6 +106,117 @@
 			page.append(dt, dd);
 		}
 	}, true);
+
+	// The thumb presses the same controls. On a phone a row dragged
+	// sideways past a third of its width is the row and one action: away
+	// from the reading edge deletes, toward it junks, as Apple Mail has
+	// it and mirrored where the page is. The action is the toolbar's
+	// own - its form, its notice, its Undo - pressed for this row alone.
+	// Rows that are not boxes of their own (a wide screen's are cells of
+	// one grid) cannot be moved and are left alone.
+	const SWIPE_START = 12; // px of sideways travel before a drag is a swipe
+	const SWIPE_ACT = 1 / 3; // of the row's width, past which letting go acts
+	let swipe = null;
+	const hintFor = (row, control, side) => {
+		const hint = document.createElement("div");
+		hint.className = "swipe-hint swipe-" + side;
+		hint.textContent = control.getAttribute("aria-label") || control.getAttribute("title") || "";
+		hint.style.top = row.offsetTop + "px";
+		hint.style.height = row.offsetHeight + "px";
+		row.parentElement.append(hint);
+		return hint;
+	};
+	const endSwipe = act => {
+		const { row, hint, control } = swipe;
+		swipe = null;
+		row.classList.remove("swiping");
+		row.style.transform = "";
+		if (hint) {
+			hint.remove();
+		}
+		if (!act || !control) {
+			return;
+		}
+		for (const box of document.querySelectorAll('input[type="checkbox"][form]:checked')) {
+			box.click();
+		}
+		const box = row.querySelector('input[type="checkbox"][form]');
+		if (box) {
+			box.click();
+			control.click();
+		}
+	};
+	document.addEventListener("pointerdown", ev => {
+		// A second finger is a pinch or a scroll, never a swipe: the row
+		// goes back, and nothing acts until a finger has lifted.
+		if (swipe) {
+			if (swipe.row) {
+				endSwipe(false);
+			}
+			swipe = { id: null };
+			return;
+		}
+		const row = ev.pointerType === "touch" && rowOf(ev.target);
+		if (!row || !row.classList.contains("message-row") || getComputedStyle(row).display === "contents") {
+			return;
+		}
+		swipe = { id: ev.pointerId, row, x: ev.clientX, y: ev.clientY, dx: 0, hint: null, control: null, live: false };
+	});
+	document.addEventListener("pointermove", ev => {
+		if (!swipe || swipe.id !== ev.pointerId) {
+			return;
+		}
+		const dx = ev.clientX - swipe.x;
+		const dy = ev.clientY - swipe.y;
+		if (!swipe.live) {
+			if (Math.abs(dy) > Math.abs(dx)) {
+				swipe = null;
+				return;
+			}
+			if (Math.abs(dx) < SWIPE_START) {
+				return;
+			}
+			swipe.live = true;
+			swipe.row.classList.add("swiping");
+		}
+		const away = (dx < 0) !== (document.documentElement.dir === "rtl");
+		const key = away ? "#" : "!";
+		if (!swipe.hint || swipe.key !== key) {
+			if (swipe.hint) {
+				swipe.hint.remove();
+			}
+			swipe.key = key;
+			swipe.control = document.querySelector(`[data-key="${CSS.escape(key)}"]`);
+			swipe.hint = swipe.control ? hintFor(swipe.row, swipe.control, away ? "away" : "toward") : null;
+		}
+		swipe.dx = swipe.control ? dx : 0;
+		swipe.row.style.transform = `translateX(${swipe.dx}px)`;
+	});
+	for (const name of ["pointerup", "pointercancel"]) {
+		document.addEventListener(name, ev => {
+			if (!swipe) {
+				return;
+			}
+			if (swipe.id === null) {
+				swipe = null;
+				return;
+			}
+			if (swipe.id !== ev.pointerId) {
+				return;
+			}
+			const far = swipe.live && name === "pointerup" && Math.abs(swipe.dx) > swipe.row.offsetWidth * SWIPE_ACT;
+			const { row, live } = swipe;
+			endSwipe(far);
+			if (live) {
+				// The finger lifting over the row's link must not open it;
+				// the click comes at once or not at all. After the action,
+				// whose own clicks are this row's too.
+				const spent = new AbortController();
+				row.addEventListener("click", click => click.preventDefault(), { capture: true, signal: spent.signal });
+				setTimeout(() => spent.abort(), 400);
+			}
+		});
+	}
 
 	let going = 0;
 	document.addEventListener("keydown", ev => {

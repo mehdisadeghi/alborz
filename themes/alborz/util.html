@@ -216,11 +216,13 @@
      rows that are checked, gated like every other control that does. */}}
 {{ define "flag-menu" }}
 {{ if .disabled }}
-<span class="overflow flag-menu{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
-  <span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}">
+{{/* The live menu's element and box, inert: an empty folder's toolbar
+     is the same width as a full one's. */}}
+<div class="overflow flag-menu{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+  <button type="button" class="icon-button" disabled title="{{.title}}" aria-label="{{.title}}">
     <span class="flag-star">&#9734;</span>{{ template "icon" "down" }}<span class="label">{{.title}}</span>
-  </span>
-</span>
+  </button>
+</div>
 {{ else if .toggle }}
 <div class="overflow flag-menu flag-split{{ with .class }} {{.}}{{ end }}" data-current="{{.current}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <button class="flag-button button-link{{ with .current }} flag-{{.}}{{ end }}"
@@ -266,8 +268,13 @@
      swipe: a slip of the hand must not be the end of a message. */}}
 {{ define "icon-key" }}{{ with index (dict "archive" "e" "trash" "#" "junk" "!" "notjunk" "!") . }} data-key="{{.}}"{{ end }}{{ end }}
 
+{{/* A mark with no action where it stands - archive in the Archive,
+     spam in Drafts - keeps its place, dim and inert, so the marks after
+     it do not move from one folder to the next. It names no form, which
+     is what keeps the selection script from waking it. */}}
 {{ define "action-icon" }}
-<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ if not .final }}{{ template "icon-key" .icon }}{{ end }}{{ with .priority }} data-priority="{{.}}"{{ end }}{{ if .download }} data-download{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>
+{{ if not .formaction }}<button type="button" class="icon-button{{with .class}} {{.}}{{end}}" disabled title="{{.label}}" aria-label="{{.label}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>{{ else }}
+<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ if not .final }}{{ template "icon-key" .icon }}{{ end }}{{ with .priority }} data-priority="{{.}}"{{ end }}{{ if .download }} data-download{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>{{ end }}
 {{ end }}
 
 {{/* One sortable column header with the shared three-state cycle, read
@@ -641,7 +648,7 @@
     {{/* The steps a narrowing row takes are numbered across every
          toolbar; see ADR 8. The secondary month is the first thing to
          go, the short title comes late, and New never leaves. */}}
-    {{ with .title }}<h1{{ if $.shorttitle }} data-priority="20" data-yield="word"{{ end }}>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}</h1>{{ end }}
+    {{ with .title }}<h1 title="{{.}}"{{ if $.shorttitle }} data-priority="20" data-yield="word"{{ end }}>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}</h1>{{ end }}
     {{ if and .title .newhref }}<span class="toolbar-rule" aria-hidden="true"></span>{{ end }}
     {{/* back is the list a new object returns to, filter and order
          kept: the create forms post to their own address, so what the

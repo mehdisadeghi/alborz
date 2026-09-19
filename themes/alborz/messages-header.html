@@ -25,7 +25,7 @@
          as marks in the toolbar, and as words in the overflow, where
          the narrow layout keeps them so the toolbar stays one row. The
          action strings are built once and shared between the two. */}}
-    {{ $archiveAction := "" }}{{ $junkAction := "" }}{{ $junkIcon := "junk" }}{{ $junkLabel := "" }}{{ $trashAction := "" }}{{ $trashLabel := "" }}{{ $trashFinal := false }}
+    {{ $archiveAction := "" }}{{ $junkAction := "" }}{{ $junkIcon := "junk" }}{{ $junkLabel := $.T "mailbox.spam" }}{{ $trashAction := "" }}{{ $trashLabel := "" }}{{ $trashFinal := false }}
     {{/* The merged view acts by role, each account resolving its own
          folder; a merged Junk offers the way back, a merged Trash only
          the end. */}}
@@ -62,8 +62,8 @@
          archive last: archive is the disposal reached for most. The
          numbers are the toolbar-wide order of ADR 8. */}}
     <span class="icon-group">
-      {{ with $archiveAction }}{{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" . "priority" 14) }}{{ end }}
-      {{ with $junkAction }}{{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" . "priority" 13) }}{{ end }}
+      {{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" $archiveAction "priority" 14) }}
+      {{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" $junkAction "priority" 13) }}
       {{ with $trashAction }}{{ template "action-icon" (dict "icon" "trash" "label" $trashLabel "class" "icon-danger" "form" "messages-form" "formaction" . "priority" 11 "final" $trashFinal) }}{{ end }}
     </span>
     </span>
@@ -142,15 +142,14 @@
   {{ $keep := dict "sort" ($q.Get "sort") "dir" ($q.Get "dir") "view" ($q.Get "view") "ipp" ($q.Get "ipp") "all" ($q.Get "all") }}
   {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty "target" "main" "keep" $keep) }}
 
-  {{if gt .RangeFrom 0}}
-  {{ $prev := "" }}{{if ge .PrevPage 0}}{{$prev = printf "?page=%d%s" .PrevPage $hparams}}{{end}}
-  {{ $next := "" }}{{if ge .NextPage 0}}{{$next = printf "?page=%d%s" .NextPage $hparams}}{{end}}
-  {{ template "pagination" (dict "range" ($.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total) "prev" (dict "href" $prev "title" ($.T "mailbox.prevpage")) "next" (dict "href" $next "title" ($.T "mailbox.nextpage")) "target" "main") }}
-  {{ end }}
+  {{/* The pager and the page size stand in an empty folder too, dim,
+       so the toolbar does not change between one folder and the next. */}}
+  {{ $prev := "" }}{{if and (gt .RangeFrom 0) (ge .PrevPage 0)}}{{$prev = printf "?page=%d%s" .PrevPage $hparams}}{{end}}
+  {{ $next := "" }}{{if and (gt .RangeFrom 0) (ge .NextPage 0)}}{{$next = printf "?page=%d%s" .NextPage $hparams}}{{end}}
+  {{ $range := "" }}{{if gt .RangeFrom 0}}{{ $range = $.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total }}{{end}}
+  {{ template "pagination" (dict "range" $range "prev" (dict "href" $prev "title" ($.T "mailbox.prevpage")) "next" (dict "href" $next "title" ($.T "mailbox.nextpage")) "target" "main") }}
 
-  {{ if gt .Total 0 }}
   {{ template "ipp-menu" (dict "g" $.GlobalData "options" .PerPageOptions "current" .PerPage "base" $ippbase "label" ($.T "mailbox.perpage") "target" "main") }}
-  {{ end }}
 
   {{ template "filter-menu" (dict "id" "menu-filter" "icon" "filter" "title" ($.T "filter.menu") "rows" .FilterRows "target" "main" "priority" 25 "class" "filter-overflow") }}
 

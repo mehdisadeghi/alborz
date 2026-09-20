@@ -56,6 +56,11 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 )
 
+// Our fork of go-vcard carries what upstream has not merged: an escaped
+// \; kept through a save in N and ADR (emersion/go-vcard#40), and
+// unescaped in every other text value.
+replace github.com/emersion/go-vcard => github.com/mehdisadeghi/go-vcard v0.0.0-20260921114506-5470ed03a481
+
 // Our fork of go-webdav carries the open upstream pull requests alborz
 // relies on (#147 #174 #179 #180 #181 #182 #194 #208 #209 #211) and our
 // own server patches: PROPPATCH, dead properties, octets kept as sent.

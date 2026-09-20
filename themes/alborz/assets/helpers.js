@@ -695,6 +695,51 @@ if (rail && window.EventSource) {
 	let due = null;
 	const live = new EventSource("/events");
 
+	// The list the page is showing, when the page shows one: a folder of
+	// one account, or a role across them all.
+	const listing = () => document.querySelector("main.message-list [data-live-folder]");
+
+	// Whether the mail that arrived belongs to the list on screen. A
+	// merged list holds every account's folder of that name, so the
+	// account only has to match where the page names one.
+	const shows = (here, account, folder) =>
+		here.dataset.liveFolder === folder &&
+		(here.dataset.liveMerged === "1" || here.dataset.liveAccount === "" || here.dataset.liveAccount === account);
+
+	// Mail arriving is not the reader acting, but the rows under their
+	// hands are theirs: the list renews itself only while nothing is
+	// picked, nothing is open and it is the first page at its top.
+	// Otherwise the bar says mail came and renews it when asked.
+	const undisturbed = here =>
+		window.scrollY === 0 &&
+		// The row checkboxes belong to the selection form by name, not by
+		// nesting, so they are not inside it to be found.
+		!document.querySelector("input[type=checkbox][form=messages-form]:checked") &&
+		!document.querySelector("[popover]:popover-open") &&
+		!new URL(location.href).searchParams.get("page") &&
+		// The search field sits in the toolbar, beside the rows.
+		!here.closest("main").querySelector("input:focus, textarea:focus");
+
+	// The list renews itself the way its own pager does: the server
+	// answers a request naming main with the list alone.
+	const renew = (here, headers) => {
+		if (!window.htmx) {
+			return;
+		}
+		notices.live.hide();
+		htmx.ajax("GET", location.href, { source: here, target: "#main", swap: "innerHTML", headers });
+	};
+
+	const offer = here => {
+		const bar = notices.live.show(rail.dataset.liveArrived || "");
+		bar.querySelector("progress").hidden = true;
+		const button = document.createElement("button");
+		button.className = "button-link notice-action";
+		button.textContent = rail.dataset.liveShow || "";
+		button.addEventListener("click", () => renew(listing() || here));
+		bar.append(button);
+	};
+
 	// A lock taken in another tab: the server sends this page to the
 	// passkey, and back here after it.
 	live.addEventListener("locked", () => location.reload());
@@ -707,7 +752,23 @@ if (rail && window.EventSource) {
 		}
 	});
 
-	live.addEventListener("mailbox", () => {
+	// The bar goes along to calendar and contacts, where it is still news;
+	// back in mail, the page it lands on was fetched after the mail came.
+	let away = false;
+	document.addEventListener("htmx:afterSwap", () => {
+		if (!document.querySelector("aside[data-mail-sidebar]")) {
+			away = true;
+			return;
+		}
+		if (away) {
+			notices.live.hide();
+		}
+		away = false;
+	});
+
+	live.addEventListener("mailbox", ev => {
+		const [account, ...rest] = String(ev.data || "").split(" ");
+		const folder = rest.join(" ");
 		// Mail arrives in bursts; the counts are fetched once for the
 		// burst rather than once for each message.
 		clearTimeout(due);
@@ -719,6 +780,15 @@ if (rail && window.EventSource) {
 				url.searchParams.set("path", location.pathname);
 				htmx.ajax("GET", url.href,
 					{ source: here, target: here, select: "aside", swap: "outerHTML", headers: { [unasked]: "1" } });
+			}
+			const list = listing();
+			if (!list || !shows(list, account, folder)) {
+				return;
+			}
+			if (undisturbed(list)) {
+				renew(list, { [unasked]: "1" });
+			} else {
+				offer(list);
 			}
 		}, 2000);
 	});
@@ -1016,6 +1086,62 @@ document.addEventListener("beforetoggle", ev => {
 	}
 }, true);
 
+// What the browser has to say takes the same box, in the same place, as
+// what the server says: the notice bar. Written by hand because these
+// are the browser's own news - an upload's progress, mail that arrived -
+// and never come with a page. Each source of news has a bar of its own:
+// mail arriving during an upload must not take the upload's progress.
+// A notice nobody has to answer stays this long: one clause, read once.
+const noticeLinger = 5000;
+const noticeBar = () => {
+	let bar = null;
+	let leaving = 0;
+	const place = () => {
+		const nav = document.querySelector("body > nav, header nav");
+		(nav && nav.parentNode ? nav.parentNode : document.body)
+			.insertBefore(bar, nav ? nav.nextSibling : null);
+	};
+	return {
+		show(text, kind) {
+			clearTimeout(leaving);
+			if (!bar) {
+				bar = document.createElement("div");
+				bar.innerHTML = "<span class=\"notice-text\"></span><progress max=\"100\"></progress>";
+				place();
+			}
+			bar.className = "notice notice-" + (kind || "");
+			bar.setAttribute("role", kind === "failed" ? "alert" : "status");
+			bar.querySelector(".notice-text").textContent = text;
+			for (const old of bar.querySelectorAll("button")) {
+				old.remove();
+			}
+			return bar;
+		},
+		hide() {
+			clearTimeout(leaving);
+			if (bar) {
+				bar.remove();
+				bar = null;
+			}
+		},
+		// The timer is the bar's own: a later notice in the same bar
+		// takes it over, and another bar's never ends this one.
+		linger() {
+			clearTimeout(leaving);
+			leaving = setTimeout(() => this.hide(), noticeLinger);
+		},
+		// A page swapped under it takes the bar with it; what it reports
+		// is still going on, so it goes back on the new page, where it
+		// was.
+		reattach() {
+			if (bar && !bar.isConnected) {
+				place();
+			}
+		},
+	};
+};
+const notices = { live: noticeBar(), upload: noticeBar() };
+
 // Files dropped on a folder go into that folder: the drop says where,
 // so nothing is asked. What it says while it works it says where every
 // other message to the reader appears, in the notice bar's own shape.
@@ -1043,37 +1169,12 @@ document.addEventListener("beforetoggle", ev => {
 	const ownField = node => node && node.closest && node.closest('input[type="file"]');
 	const carriesFiles = ev => ev.dataTransfer && [...ev.dataTransfer.types].includes("Files") && !ownField(ev.target);
 	const say = key => (rail() && rail().dataset[key]) || "";
-	let bar = null;
+	const status = (text, kind) => notices.upload.show(text, kind).querySelector("progress");
+	const done = () => notices.upload.hide();
 
-	// The notice bar, written by hand because this one is the browser's
-	// news rather than the server's: same box, same place, same kinds.
-	const status = (text, kind) => {
-		if (!bar) {
-			bar = document.createElement("div");
-			bar.innerHTML = "<span class=\"notice-text\"></span><progress max=\"100\"></progress>";
-			const nav = document.querySelector("body > nav, header nav");
-			(nav && nav.parentNode ? nav.parentNode : document.body).insertBefore(bar, nav ? nav.nextSibling : null);
-		}
-		bar.className = "notice notice-" + (kind || "");
-		bar.setAttribute("role", kind === "failed" ? "alert" : "status");
-		bar.querySelector(".notice-text").textContent = text;
-		return bar.querySelector("progress");
-	};
-
-	const done = () => {
-		if (bar) {
-			bar.remove();
-			bar = null;
-		}
-	};
-
-	// A page swapped under the import takes the bar with it; the upload
-	// itself runs on, so the bar goes back on the new page rather than
-	// leaving the reader with nothing to watch.
 	document.addEventListener("htmx:afterSwap", () => {
-		if (bar && !bar.isConnected) {
-			document.body.prepend(bar);
-		}
+		notices.upload.reattach();
+		notices.live.reattach();
 	});
 
 	// A file dropped anywhere on the page is the browser's to open
@@ -1141,7 +1242,7 @@ document.addEventListener("beforetoggle", ev => {
 		}
 		if (mailArea(ev.target)) {
 			status(say("importingWhere"), "failed").hidden = true;
-			setTimeout(done, 5000);
+			notices.upload.linger();
 		}
 	});
 
@@ -1155,13 +1256,19 @@ document.addEventListener("beforetoggle", ev => {
 	// files wait in the page until one is pressed.
 	const ask = (accounts, waiting) => {
 		const here = decodeURIComponent(location.pathname.split("/").pop());
-		const progress = status(say("importingWhich").replace("%s", here));
-		progress.hidden = true;
+		const bar = notices.upload.show(say("importingWhich").replace("%s", here));
+		bar.querySelector("progress").hidden = true;
 		for (const account of accounts) {
 			const button = document.createElement("button");
 			button.className = "button-link notice-action";
 			button.textContent = account.account;
-			button.addEventListener("click", () => send(new URL(account.href, location.origin), waiting));
+			button.addEventListener("click", () => {
+				// The files go once, to one account.
+				for (const other of bar.querySelectorAll("button")) {
+					other.disabled = true;
+				}
+				send(new URL(account.href, location.origin), waiting);
+			});
 			bar.append(button);
 		}
 	};
@@ -1234,7 +1341,7 @@ document.addEventListener("beforetoggle", ev => {
 			// the only honest answer, and it clears itself.
 			if (found.length) {
 				status(say("importingNone"), "failed").hidden = true;
-				setTimeout(done, 4000);
+				notices.upload.linger();
 			}
 			return;
 		}

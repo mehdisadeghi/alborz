@@ -621,6 +621,8 @@
 "folder.dropfailed" = "درون‌ریزی انجام نشد (%s)."
 "folder.dropwhere" = "نامه را روی یک پوشه رها کنید تا درون‌ریزی شود."
 "folder.dropwhich" = "درون‌ریزی به %s:"
+"list.mailarrived" = "نامهٔ تازه رسید."
+"list.showarrived" = "نمایش"
 "calendar.import" = "درون‌ریزی رویدادها"
 "calendar.importhint" = "یک فایل .ics یا یک .zip از آن‌ها، آن‌طور که سرویسی تقویم‌هایش را صادر می‌کند؛ در تقویم انتخاب‌شده در بالا، یا هر کدام در تقویمی تازه."
 "tasks.import" = "درون‌ریزی کارها"

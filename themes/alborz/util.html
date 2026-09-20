@@ -1292,7 +1292,7 @@
 
 {{/* The mail pages' rail: the shared frame over the page's own data. */}}
 {{ define "aside" }}
-<aside data-mail-sidebar data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}">
+<aside data-mail-sidebar data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
 {{ template "scope-rail" (dict "g" $ "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
 </aside>
 {{ end }}

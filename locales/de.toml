@@ -626,6 +626,8 @@
 "folder.dropfailed" = "Der Import ist fehlgeschlagen (%s)."
 "folder.dropwhere" = "Mail auf einen Ordner ziehen, um sie zu importieren."
 "folder.dropwhich" = "In %s importieren:"
+"list.mailarrived" = "Neue Mail ist da."
+"list.showarrived" = "Anzeigen"
 "calendar.import" = "Termine importieren"
 "calendar.importhint" = "Eine .ics-Datei oder ein .zip davon, wie ein Dienst seine Kalender exportiert; in den oben gewählten Kalender oder jede in einen neuen."
 "tasks.import" = "Aufgaben importieren"

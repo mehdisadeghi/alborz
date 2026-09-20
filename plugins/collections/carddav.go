@@ -3,11 +3,13 @@ package collections
 import (
 	"bytes"
 	"context"
+	"errors"
 	"path"
 	"strconv"
 	"time"
 
 	"github.com/emersion/go-vcard"
+	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/carddav"
 )
 
@@ -65,7 +67,7 @@ func (b books) UpdateAddressBook(ctx context.Context, p string, update *carddav.
 }
 
 func (b books) DeleteAddressBook(ctx context.Context, p string) error {
-	return b.remove(ctx, p, AddressBook)
+	return b.remove(ctx, p, AddressBook, "")
 }
 
 // addressObject is calendarObject for a card.
@@ -119,8 +121,11 @@ func (b books) QueryAddressObjects(ctx context.Context, p string, query *carddav
 }
 
 func (b books) PutAddressObject(ctx context.Context, p string, card vcard.Card, opts *carddav.PutAddressObjectOptions) (*carddav.AddressObject, error) {
-	o, err := b.write(ctx, p, AddressBook, opts.Raw, opts.IfMatch, opts.IfNoneMatch,
+	o, err := b.write(ctx, p, AddressBook, card.Value(vcard.FieldUID), opts.Raw, opts.IfMatch, opts.IfNoneMatch,
 		func(Collection) error { return nil })
+	if errors.Is(err, ErrUIDConflict) {
+		return nil, carddav.NewPreconditionError(carddav.PreconditionNoUIDConflict)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -128,5 +133,9 @@ func (b books) PutAddressObject(ctx context.Context, p string, card vcard.Card, 
 }
 
 func (b books) DeleteAddressObject(ctx context.Context, p string) error {
-	return b.remove(ctx, p, AddressBook)
+	return b.remove(ctx, p, AddressBook, "")
+}
+
+func (b books) DeleteAddressObjectIfMatch(ctx context.Context, p string, ifMatch webdav.ConditionalMatch) error {
+	return b.remove(ctx, p, AddressBook, ifMatch)
 }

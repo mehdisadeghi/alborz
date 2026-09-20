@@ -76,7 +76,10 @@ type Dead struct {
 // iCalendar and vCard have no field for who added an object, and in a
 // collection several accounts write to that is the thing to know.
 type Object struct {
-	Name     string
+	Name string
+	// UID is the identity iCalendar and vCard both give an object (RFC
+	// 5545 3.8.4.7, RFC 6350 6.7.6), as its parser read it.
+	UID      string `json:",omitempty"`
 	Data     []byte
 	ETag     string
 	Modified time.Time
@@ -127,6 +130,9 @@ var (
 	collectionsBucket = []byte("list")
 	objectsBucket     = []byte("objects")
 	sharesBucket      = []byte("shares")
+	// uidsBucket maps a collection's UIDs to the objects holding them,
+	// so a write learns of a clash without reading every object.
+	uidsBucket = []byte("uids")
 	// publicBucket maps a published calendar's secret to its collection:
 	// a feed is asked for by anyone, and a wrong guess reads one key
 	// rather than every collection of every account.
@@ -150,7 +156,7 @@ func New(db *bolt.DB) (*Store, error) {
 			return err
 		}
 		unpublished := top.Bucket(publicBucket) == nil
-		for _, name := range [][]byte{collectionsBucket, objectsBucket, sharesBucket, publicBucket} {
+		for _, name := range [][]byte{collectionsBucket, objectsBucket, sharesBucket, uidsBucket, publicBucket} {
 			if _, err := top.CreateBucketIfNotExists(name); err != nil {
 				return err
 			}
@@ -193,6 +199,8 @@ func ETagOf(data []byte) string {
 }
 
 func objectKey(ref Ref, name string) []byte { return []byte(ref.key() + "/" + name) }
+
+func uidKey(ref Ref, uid string) []byte { return []byte(ref.key() + "\x00" + uid) }
 
 func shareKey(ref Ref, to string) []byte { return []byte(ref.key() + "\x00" + strings.ToLower(to)) }
 
@@ -334,6 +342,7 @@ func (s *Store) Delete(ref Ref) error {
 		for bucket, prefix := range map[*bolt.Bucket][]byte{
 			bucket(tx, objectsBucket): []byte(ref.key() + "/"),
 			bucket(tx, sharesBucket):  []byte(ref.key() + "\x00"),
+			bucket(tx, uidsBucket):    []byte(ref.key() + "\x00"),
 		} {
 			cur := bucket.Cursor()
 			for k, _ := cur.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
@@ -461,15 +470,19 @@ func (s *Store) Object(ref Ref, name string) (*Object, error) {
 // hold: somebody else wrote first.
 var ErrPrecondition = errors.New("collections: precondition failed")
 
+// ErrUIDConflict is a second object with a UID the collection already
+// holds (RFC 4791 5.3.2.1, RFC 6352 6.3.2.1).
+var ErrUIDConflict = errors.New("collections: UID already in the collection")
+
 // Unless is a write's condition: given the ETag of the object held,
 // empty when none is, it says why the write is off, ErrPrecondition when
 // somebody else wrote first. Nil is a write that does not care.
 type Unless func(held string) error
 
 // PutObject writes an object as the account by.
-func (s *Store) PutObject(ref Ref, name string, data []byte, unless Unless, by string) (*Object, error) {
+func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless, by string) (*Object, error) {
 	now := time.Now().UTC()
-	o := &Object{Name: name, Data: data, ETag: ETagOf(data), Modified: now, Creator: by, Created: now, Editor: by}
+	o := &Object{Name: name, UID: uid, Data: data, ETag: ETagOf(data), Modified: now, Creator: by, Created: now, Editor: by}
 	err := s.db.Update(func(tx *bolt.Tx) error {
 		if err := writable(tx, ref, by, now); err != nil {
 			return err
@@ -486,6 +499,28 @@ func (s *Store) PutObject(ref Ref, name string, data []byte, unless Unless, by s
 		}
 		if unless != nil {
 			if err := unless(held); err != nil {
+				return err
+			}
+		}
+		uids := bucket(tx, uidsBucket)
+		if uid != "" {
+			if holder := uids.Get(uidKey(ref, uid)); holder != nil && string(holder) != name {
+				// The index is believed only where the object it names
+				// says the same: an entry left behind names nothing.
+				other, err := get[Object](b, objectKey(ref, string(holder)))
+				if err != nil && !errors.Is(err, ErrNotFound) {
+					return err
+				}
+				if other != nil && other.UID == uid {
+					return ErrUIDConflict
+				}
+			}
+			if err := uids.Put(uidKey(ref, uid), []byte(name)); err != nil {
+				return err
+			}
+		}
+		if old != nil && old.UID != "" && old.UID != uid {
+			if err := uids.Delete(uidKey(ref, old.UID)); err != nil {
 				return err
 			}
 		}
@@ -506,15 +541,27 @@ func writable(tx *bolt.Tx, ref Ref, by string, now time.Time) error {
 	return err
 }
 
-// RemoveObject deletes an object as the account by.
-func (s *Store) RemoveObject(ref Ref, name string, by string) error {
+// RemoveObject deletes an object as the account by, unless its
+// condition says not to.
+func (s *Store) RemoveObject(ref Ref, name string, unless Unless, by string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		if err := writable(tx, ref, by, time.Now()); err != nil {
 			return err
 		}
 		b := bucket(tx, objectsBucket)
-		if b.Get(objectKey(ref, name)) == nil {
-			return ErrNotFound
+		old, err := get[Object](b, objectKey(ref, name))
+		if err != nil {
+			return err
+		}
+		if unless != nil {
+			if err := unless(old.ETag); err != nil {
+				return err
+			}
+		}
+		if old.UID != "" {
+			if err := bucket(tx, uidsBucket).Delete(uidKey(ref, old.UID)); err != nil {
+				return err
+			}
 		}
 		if err := b.Delete(objectKey(ref, name)); err != nil {
 			return err

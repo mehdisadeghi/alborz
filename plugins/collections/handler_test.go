@@ -96,7 +96,7 @@ func TestAShareGivesWhatItSaysAndNoMore(t *testing.T) {
 	}
 	// The store asks again inside its own transaction, which is what
 	// holds when a share ends between the handler's look and the write.
-	if _, err := store.PutObject(ref, "e3.ics", []byte(event), nil, guest); !errors.Is(err, ErrNotFound) {
+	if _, err := store.PutObject(ref, "e3.ics", "e3", []byte(event), nil, guest); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("a write by one who left: got %v, want %v", err, ErrNotFound)
 	}
 	if objects, _ := store.Objects(ref); len(objects) != 2 {
@@ -188,6 +188,8 @@ func TestAWriteHoldsToItsConditions(t *testing.T) {
 		{"a write unless it is the version held", http.MethodPut, "If-None-Match", held, http.StatusPreconditionFailed},
 		{"or one a weak tag was made from", http.MethodPut, "If-None-Match", func() string { return "W/" + held() }, http.StatusPreconditionFailed},
 		{"an edit of a version named weakly", http.MethodPut, "If-Match", func() string { return "W/" + held() }, http.StatusPreconditionFailed},
+		{"a stale delete", http.MethodDelete, "If-Match", func() string { return `"gone"` }, http.StatusPreconditionFailed},
+		{"a delete of the version held", http.MethodDelete, "If-Match", held, http.StatusNoContent},
 	} {
 		r := httptest.NewRequest(step.method, object, strings.NewReader(event))
 		r.Header.Set("Content-Type", "text/calendar")
@@ -238,7 +240,7 @@ func TestListingACalendarParsesNothing(t *testing.T) {
 	if got := serve(t, h, owner, "MKCALENDAR", HomePath(Calendar, owner)+"work/", ""); got != http.StatusCreated {
 		t.Fatalf("making the calendar: got %d", got)
 	}
-	if _, err := store.PutObject(Ref{Owner: owner, ID: "work"}, "e1.ics", []byte("no parser reads this"), nil, owner); err != nil {
+	if _, err := store.PutObject(Ref{Owner: owner, ID: "work"}, "e1.ics", "e1", []byte("no parser reads this"), nil, owner); err != nil {
 		t.Fatal(err)
 	}
 	r := httptest.NewRequest("PROPFIND", HomePath(Calendar, owner)+"work/", strings.NewReader(
@@ -282,7 +284,7 @@ func TestAPublishedCalendarReadsWithoutAnAccountAndOnlyByItsSecret(t *testing.T)
 		"e1.ics": strings.Replace(event, "SUMMARY:Lunch", invited, 1),
 		"e2.ics": strings.NewReplacer("e1", "e2", "SUMMARY:Lunch", guarded).Replace(event),
 	} {
-		if _, err := store.PutObject(c.Ref(), name, []byte(data), nil, c.Owner); err != nil {
+		if _, err := store.PutObject(c.Ref(), name, strings.TrimSuffix(name, ".ics"), []byte(data), nil, c.Owner); err != nil {
 			t.Fatal(err)
 		}
 	}

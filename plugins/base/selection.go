@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
@@ -41,12 +40,9 @@ func wholeView(form url.Values) (query, view string, whole bool) {
 
 // viewUIDs asks a selected folder for everything a view of it holds.
 func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]imap.UID, error) {
-	criteria := &imap.SearchCriteria{}
-	switch {
-	case query != "":
-		criteria = ParseQuery(query).Criteria(SearchesIndex(c, settings), time.Now())
-	case view != "":
-		criteria = ViewCriteria(view)
+	criteria := listCriteria(c, settings, query, view)
+	if criteria == nil {
+		criteria = &imap.SearchCriteria{}
 	}
 	data, err := c.UIDSearch(criteria, nil).Wait()
 	if err != nil {
@@ -77,6 +73,24 @@ func selection(ctx *alborz.Context, mboxName string, form url.Values) ([]imap.UI
 		}
 		return uids, nil
 	}
+	return folderViewUIDs(ctx, mboxName, query, view)
+}
+
+// folderSelection reads what a folder's action route is posted: the
+// folder it names, the form, and the selection the form makes of it.
+func folderSelection(ctx *alborz.Context) (mboxName string, form url.Values, uids []imap.UID, err error) {
+	if mboxName, err = mailboxRef(ctx); err != nil {
+		return "", nil, nil, err
+	}
+	if form, err = ctx.FormParams(); err != nil {
+		return "", nil, nil, echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	uids, err = selection(ctx, mboxName, form)
+	return mboxName, form, uids, err
+}
+
+// folderViewUIDs is everything a view of one folder holds.
+func folderViewUIDs(ctx *alborz.Context, mboxName, query, view string) ([]imap.UID, error) {
 	settings, err := LoadSettings(ctx.Session.Store())
 	if err != nil {
 		return nil, err
@@ -91,19 +105,6 @@ func selection(ctx *alborz.Context, mboxName string, form url.Values) ([]imap.UI
 		return err
 	})
 	return uids, err
-}
-
-// folderSelection reads what a folder's action route is posted: the
-// folder it names, the form, and the selection the form makes of it.
-func folderSelection(ctx *alborz.Context) (mboxName string, form url.Values, uids []imap.UID, err error) {
-	if mboxName, err = mailboxRef(ctx); err != nil {
-		return "", nil, nil, err
-	}
-	if form, err = ctx.FormParams(); err != nil {
-		return "", nil, nil, echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-	uids, err = selection(ctx, mboxName, form)
-	return mboxName, form, uids, err
 }
 
 // mergedSelection is the same for a list whose rows are several

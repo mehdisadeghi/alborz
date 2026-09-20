@@ -99,7 +99,13 @@ func (ctx *Context) AccountPath(path string) string {
 	if ctx.urlAccount == "" {
 		return path
 	}
-	return path + "?account=" + AddressParam(ctx.urlAccount)
+	// The path may already carry a query - a redirect to a search, say -
+	// and a second "?" makes the account part of the last value.
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	return path + sep + "account=" + AddressParam(ctx.urlAccount)
 }
 
 // NextOr returns the local page a form asked to return to, or fallback

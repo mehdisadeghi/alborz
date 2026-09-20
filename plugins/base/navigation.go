@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
@@ -38,13 +37,7 @@ func placeInList(c *imapclient.Client, settings *Settings, mailbox string, seq u
 	if err := ensureMailboxSelected(c, mailbox); err != nil {
 		return place, err
 	}
-	var criteria *imap.SearchCriteria
-	if query != "" {
-		criteria = ParseQuery(query).Criteria(SearchesIndex(c, settings), time.Now())
-	} else if view != "" {
-		criteria = ViewCriteria(view)
-	}
-	place.newer, place.older, place.position, place.total, err = messageNeighbors(c, seq, criteria)
+	place.newer, place.older, place.position, place.total, err = messageNeighbors(c, seq, listCriteria(c, settings, query, view))
 	return place, err
 }
 

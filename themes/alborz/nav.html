@@ -3,7 +3,10 @@
 {{ end }}
 <header>
   {{$page := (index .GlobalData.Path 0)}}
-  {{ $section := $page }}{{ if or (eq $page "message") (eq $page "compose") }}{{ $section = "mailbox" }}{{ end }}
+  {{/* Mail's pages sit at the root beside its lists: a message, a
+       search (the starred views are one), and the folder forms. */}}
+  {{ $section := $page }}
+  {{ range tuple "message" "compose" "search" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $section = "mailbox" }}{{ end }}{{ end }}
   {{/* Every page is a place the section returns to - a list, a
        message, an event, a card - except a form, which would come back
        empty. A form is a mail page named for what it makes, or a page
@@ -23,7 +26,7 @@
          it names, or the merged view when it names none. */}}
     {{$q := account "?" .GlobalData.URLAccount}}
     <a href="/mailbox/INBOX{{$q}}" data-section="mailbox"
-      {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}
+      {{ if eq $section "mailbox" }}
       class="active" aria-current="page"
       {{ end }}
     title="{{$.T "nav.email"}}" aria-label="{{$.T "nav.email"}}">{{ template "icon" "mail" }}<span class="label">{{$.T "nav.email"}}</span></a>

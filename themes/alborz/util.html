@@ -364,7 +364,10 @@
 {{ define "mbox-list" }}
 {{ $cc := index . 0 }}{{ $q := index . 1 }}{{ $on := index . 2 }}{{ $view := index . 3 }}{{ $active := index . 4 }}{{ $g := index . 5 }}
 {{ with $cc.InboxTree }}{{ template "mbox-node" (tuple . $q (and $on (not $view)) $active $g) }}{{ end }}
-{{ template "rail-views" (dict "q" $q "view" $view "on" (and $on (eq $active "INBOX")) "g" $g) }}
+{{/* A star view is no longer the inbox's: it looks in every folder,
+     so its row is marked wherever the page stands. Unread is still one
+     folder's state, and is marked only on the inbox. */}}
+{{ template "rail-views" (dict "q" $q "view" $view "on" $on "oninbox" (eq $active "INBOX") "g" $g) }}
 {{ range $cc.CommonNodes }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
 {{ range $cc.AdditionalTree }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
 {{ end }}
@@ -1064,7 +1067,7 @@
     <a href="/mailbox/{{$role}}"{{ template "list-get" (dict "g" $.GlobalData "href" (printf "/mailbox/%s" $role)) }}>{{$.T (index . 0)}}</a>
     {{ with $.AllUnseen $role }}<span class="unseen">{{$.GlobalData.Num .}}</span>{{ end }}
   </li>
-  {{ if eq $role "INBOX" }}{{ template "rail-views" (dict "q" "" "view" $view "on" (and $all (eq $active "INBOX")) "g" $.GlobalData) }}{{ end }}
+  {{ if eq $role "INBOX" }}{{ template "rail-views" (dict "q" "" "view" $view "on" $all "oninbox" (eq $active "INBOX") "g" $.GlobalData) }}{{ end }}
   {{ end }}
 </ul>
 </details>
@@ -1076,15 +1079,15 @@
      dict: q (the account query or "") view on g. */}}
 {{ define "rail-views" }}
 {{ $sep := "?" }}{{ if .q }}{{ $sep = "&" }}{{ end }}
-<li{{ if and .on (eq .view "unread") }} class="active"{{ end }}>
+<li{{ if and .on .oninbox (eq .view "unread") }} class="active"{{ end }}>
   <a href="/mailbox/INBOX{{.q}}{{$sep}}view=unread"{{ template "list-get" (dict "g" .g "href" (printf "/mailbox/INBOX%s%sview=unread" .q $sep)) }}>{{.g.T "aside.unread"}}</a>
 </li>
 <li class="folder-li">
   <details class="folder-branch" data-rail-key="views:{{.q}}">
-    <summary{{ if and .on (eq .view "starred") }} class="active"{{ end }}><a href="/mailbox/INBOX{{.q}}{{$sep}}view=starred"{{ template "list-get" (dict "g" .g "href" (printf "/mailbox/INBOX%s%sview=starred" .q $sep)) }}>{{.g.T "aside.starred"}}</a></summary>
+    <summary{{ if and .on (eq .view "starred") }} class="active"{{ end }}><a href="/search{{.q}}{{$sep}}view=starred"{{ template "list-get" (dict "g" .g "href" (printf "/search%s%sview=starred" .q $sep)) }}>{{.g.T "aside.starred"}}</a></summary>
     <ul>
       {{ range flagcolors .g }}
-      <li{{ if and $.on (eq $.view .Name) }} class="active"{{ end }}><a href="/mailbox/INBOX{{$.q}}{{$sep}}view={{.Name}}"{{ template "list-get" (dict "g" $.g "href" (printf "/mailbox/INBOX%s%sview=%s" $.q $sep .Name)) }}><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
+      <li{{ if and $.on (eq $.view .Name) }} class="active"{{ end }}><a href="/search{{$.q}}{{$sep}}view={{.Name}}"{{ template "list-get" (dict "g" $.g "href" (printf "/search%s%sview=%s" $.q $sep .Name)) }}><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
       {{ end }}
     </ul>
   </details>
@@ -1120,7 +1123,7 @@
 <ul{{ template "list-swap" . }}>
   {{ with .CategorizedMailboxes }}
   {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
-  {{ template "rail-views" (dict "q" "" "view" $view "on" (eq $active "INBOX") "g" $.GlobalData) }}
+  {{ template "rail-views" (dict "q" "" "view" $view "on" true "oninbox" (eq $active "INBOX") "g" $.GlobalData) }}
   {{ range .CommonNodes }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
   {{ if .Additional }}
   <hr />

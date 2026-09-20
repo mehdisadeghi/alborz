@@ -452,6 +452,20 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 
+// starViewPath is where a star view is answered, keeping what the list
+// already had in force: a reader who narrowed to a sender and then
+// asked for the starred ones means both, and the order they chose is
+// still the order they want.
+func starViewPath(ctx *alborz.Context, view string) string {
+	kept := url.Values{"view": {view}}
+	for _, name := range []string{"query", "sort", "dir", "ipp"} {
+		if value := ctx.QueryParam(name); value != "" {
+			kept.Set(name, value)
+		}
+	}
+	return ctx.AccountPath("/search?" + kept.Encode())
+}
+
 // everywhereQuery is the query with in:anywhere in place of whatever
 // scope it had, empty when it already reaches everywhere: a search
 // leaves junk and trash out until it is asked for them, and "all
@@ -502,6 +516,13 @@ func searchInstead(ctx *alborz.Context, ask listAsk) string {
 	// in: names where to look, and this page looks in one place.
 	if folder, everywhere := ParseQuery(ask.spec.query).Scope(); folder != "" || everywhere {
 		return ctx.AccountPath("/search?query=" + url.QueryEscape(ask.spec.query))
+	}
+	// A star is on the message, not in the folder: the view that asks
+	// for it looks wherever the reader filed it, which is the search
+	// page's fan-out. What the list was already narrowed and ordered by
+	// rides along.
+	if StarView(ask.spec.view) {
+		return starViewPath(ctx, ask.spec.view)
 	}
 	return ""
 }
@@ -579,20 +600,15 @@ func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *
 	case spec.sortKey == threadSort && e.threadAlgorithm != "":
 		// A conversation is the unit here, so the page holds a
 		// number of threads rather than a number of messages.
-		criteria := &imap.SearchCriteria{}
-		if spec.query != "" {
-			e.headersOnly = !SearchesIndex(c, settings)
-			criteria = ParseQuery(spec.query).Criteria(!e.headersOnly, time.Now())
-		} else if spec.view != "" {
-			criteria = ViewCriteria(spec.view)
+		e.headersOnly = spec.query != "" && !SearchesIndex(c, settings)
+		criteria := listCriteria(c, settings, spec.query, spec.view)
+		if criteria == nil {
+			criteria = &imap.SearchCriteria{}
 		}
 		e.msgs, e.total, err = threadMessages(c, folder, e.threadAlgorithm, criteria, page, perPage)
-	case spec.query != "":
-		e.headersOnly = !SearchesIndex(c, settings)
-		q := ParseQuery(spec.query)
-		e.msgs, e.total, err = searchMessages(c, folder, q, q.Criteria(!e.headersOnly, time.Now()), page, perPage, sortKey, reverse)
-	case spec.view != "":
-		e.msgs, e.total, err = searchMessages(c, folder, Query{}, ViewCriteria(spec.view), page, perPage, sortKey, reverse)
+	case spec.query != "" || spec.view != "":
+		e.headersOnly = spec.query != "" && !SearchesIndex(c, settings)
+		e.msgs, e.total, err = searchMessages(c, folder, ParseQuery(spec.query), listCriteria(c, settings, spec.query, spec.view), page, perPage, sortKey, reverse)
 	case spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != "") && e.sortSupported:
 		e.msgs, e.total, err = searchMessages(c, folder, Query{}, &imap.SearchCriteria{}, page, perPage, sortKey, reverse)
 	default:

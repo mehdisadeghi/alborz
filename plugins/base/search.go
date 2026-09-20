@@ -3,6 +3,7 @@ package alborzbase
 import (
 	"bytes"
 	"slices"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
@@ -154,6 +155,22 @@ func KnownView(view string) bool {
 	return view == "" || view == ViewStarred || view == ViewUnread || slices.Contains(FlagColors[:], view)
 }
 
+// StarView says whether a view is a mark the reader put on a message:
+// the star or one of its colours. A mark travels with the message, so
+// the view that asks for it looks wherever the message may have been
+// filed, while unread is the folder's own state and stays in it.
+func StarView(view string) bool {
+	return view == ViewStarred || slices.Contains(FlagColors[:], view)
+}
+
+// ViewLabel names a view for a page heading.
+func ViewLabel(ctx *alborz.Context, view string) string {
+	if view == ViewStarred {
+		return ctx.T("mailbox.starred")
+	}
+	return ctx.T("color." + view)
+}
+
 // ViewRows are the views a list's filter menu offers: unread where the
 // list has a read state, starred, and the seven colours. The one in
 // force links to clear, the page the caller names, since an agenda
@@ -189,6 +206,18 @@ func ViewCriteria(view string) *imap.SearchCriteria {
 	}
 	add, del := FlagColorFlags(view)
 	return &imap.SearchCriteria{Flag: add, NotFlag: del}
+}
+
+// listCriteria is the search a list is: its query and its view, both in
+// force when both are named, since a reader who narrowed to a sender
+// and then asked for the starred ones means both. nil for the whole
+// folder.
+func listCriteria(c *imapclient.Client, settings *Settings, query, view string) *imap.SearchCriteria {
+	criteria := ViewCriteria(view)
+	if query != "" {
+		criteria = searchCriteriaAnd(criteria, ParseQuery(query).Criteria(SearchesIndex(c, settings), time.Now()))
+	}
+	return criteria
 }
 
 // SearchesIndex says whether bare terms reach the whole message on this

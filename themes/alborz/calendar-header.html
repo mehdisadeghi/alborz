@@ -1,8 +1,11 @@
 {{/* Any view is the agenda: the plain list, or the list narrowed to a
      star; the pager and Today keep whichever it is. */}}
-{{$suffix := ""}}
-{{with .View}}{{$suffix = printf "&view=%s" .}}{{end}}
+{{$scope := ""}}{{with .Scope}}{{$scope = printf "&%s" .}}{{end}}
+{{$suffix := $scope}}
+{{with .View}}{{$suffix = printf "%s&view=%s" $suffix .}}{{end}}
 {{if and .View (eq .Span "month")}}{{$suffix = printf "%s&span=month" $suffix}}{{end}}
+{{/* The month names the page, in both views: the crumb is the scope
+     and the calendar it is narrowed to, as on every other page. */}}
 {{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" "/calendar/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
   {{/* The agenda is a list like the others, so it acts on what is
@@ -19,30 +22,36 @@
   </div>
 </div>
 {{ template "toolbar-end" }}
-    {{ template "pagination" (dict "prev" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "label" ($.GlobalData.MonthName .PrevTime)) "next" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "label" ($.GlobalData.MonthName .NextTime))) }}
-    {{/* Today keeps its place on the month it would take you to, or
+    {{/* The agenda's filters and its grouping; the grid has neither.
+         They come before the pager, so switching between the grid and
+         the agenda leaves the pager and the switch where they were. */}}
+    {{ with .FilterRows }}{{ template "filter-menu" (dict "id" "menu-filter" "icon" "filter" "title" ($.T "filter.menu") "rows" . "priority" 25 "class" "filter-overflow") }}{{ end }}
+    {{/* An agenda is in the day's order and sorts by nothing else, so
+         the menu that holds its grouping is named for that. */}}
+    {{ with .GroupRows }}{{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" . "priority" 30 "class" "group-overflow") }}{{ end }}
+    {{/* Back and forward flank Today, and carry the month they go to as
+         their tooltip rather than on the face: a name on one of them
+         and not the other is what made the row jump as it narrowed.
+         Today keeps its place on the month it would take you to, or
          every control after it moves the moment you arrive there. */}}
-    <div class="actions-pagination">
+    <div class="actions-pagination" data-priority="21">
+      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime)) "icon" "prev") }}
       {{if not .ThisMonth}}
       {{/* localhref, or html/template escapes the whole query as one
            value and "view=list" arrives as "view%3dlist" - which is how
            Today dropped the reader back into the month grid. */}}
       {{ $today := "/calendar" }}{{ if $suffix }}{{ $today = printf "/calendar?%s" (slice $suffix 1) }}{{ end }}
-      <a href="{{ localhref $today }}" class="button-link" data-priority="21">{{$.T "calendar.today"}}</a>
+      <a href="{{ localhref $today }}" class="button-link">{{$.T "calendar.today"}}</a>
       {{else}}
-      <span class="button-link" aria-disabled="true" data-priority="21">{{$.T "calendar.today"}}</span>
+      <span class="button-link" aria-disabled="true">{{$.T "calendar.today"}}</span>
       {{end}}
+      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "title" ($.GlobalData.MonthName .NextTime)) "icon" "next") }}
     </div>
     <div class="actions-pagination" data-priority="22">
       {{ template "toggle" (dict "items" (tuple
          (dict "label" ($.T "calendar.month") "icon" "month" "current" (not .View)
-               "href" (printf "?month=%s" .Page))
+               "href" (printf "?month=%s%s" .Page $scope))
          (dict "label" ($.T "calendar.list") "icon" "list" "current" (ne .View "")
-               "href" (printf "?month=%s&view=list" .Page)))) }}
+               "href" (printf "?month=%s&view=list%s" .Page $scope)))) }}
     </div>
-    {{/* The agenda's filters and its grouping; the grid has neither. */}}
-    {{ with .FilterRows }}{{ template "filter-menu" (dict "id" "menu-filter" "icon" "filter" "title" ($.T "filter.menu") "rows" . "priority" 25 "class" "filter-overflow") }}{{ end }}
-    {{/* An agenda is in the day's order and sorts by nothing else, so
-         the menu that holds its grouping is named for that. */}}
-    {{ with .GroupRows }}{{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" . "priority" 30 "class" "group-overflow") }}{{ end }}
 {{ template "toolbar-foot" }}

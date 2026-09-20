@@ -5,16 +5,12 @@
 {{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with .ListView }}{{ $hparams = printf "%s&view=%s" $hparams . }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ $ippbase := $hparams }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
 {{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with .ListView }}{{ $hplain = printf "%s&view=%s" $hplain . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hplain = printf "%s&ipp=%s" $hplain . }}{{ end }}
 {{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
-{{ $title := .Mailbox.Label }}
 {{/* A folder the server says holds nothing has nothing to select and
      nothing to search. A question already asked keeps its field live,
      or the reader could not take it back. */}}
 {{ $asked := or .Query .ListView }}
 {{ $empty := and .Mailbox.IsEmpty (not $asked) }}
-{{/* A colour view's heading is "Blue star"; the phone keeps the colour
-     and yields the word, the way the calendar keeps the month. */}}
-{{ $short := "" }}{{ if and .ListView (ne .ListView "starred") (ne .ListView "unread") }}{{ $short = $.T (printf "color.%s" .ListView) }}{{ end }}
-{{ template "toolbar-head" (dict "g" . "title" $title "shorttitle" $short "selectall" true "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
+{{ template "toolbar-head" (dict "g" . "selectall" true "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
     {{$common := .CategorizedMailboxes.Common}}
     {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
     {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}

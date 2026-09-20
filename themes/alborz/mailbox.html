@@ -31,7 +31,7 @@
       </section>
       {{/* Where you are, on every page that has a where. */}}
       <div class="crumb-slot">
-      {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb) }}
+      {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "heading" true "steps" .Crumb) }}
       {{/* A page holds some of a list, and ticking the page's rows is
            not what somebody emptying a folder means. Once every row of
            the page is ticked the rest is on offer, in the crumb's own

@@ -88,9 +88,13 @@
           what u means on the keyboard; a step after it names the page
           itself. */ -}}
   {{- $up := -1 }}{{ range $i, $s := .steps }}{{ if and $s.Label $s.URL (or $several (not $s.Address)) }}{{ $up = $i }}{{ end }}{{ end }}
+  {{- /* heading: the step that names the page is the page's heading,
+          so a list toolbar need not say it a second time. */ -}}
+  {{- $last := -1 }}{{ range $i, $s := .steps }}{{ if and $s.Label (or $several (not $s.Address)) }}{{ $last = $i }}{{ end }}{{ end }}
   {{- range $i, $step := .steps }}{{ if and $step.Label (or $several (not $step.Address)) }}
     {{- if $sep }} › {{ end }}{{ $sep = true }}
-    {{- if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
+    {{- if and $.heading (eq $i $last) }}<h1>{{ if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>{{ else }}{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}{{ end }}{{ with $.gloss }} <span class="crumb-gloss">{{.}}</span>{{ end }}</h1>
+    {{- else if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
     {{- else }}{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}{{ end }}
   {{- end }}{{ end }}
 </div>
@@ -118,7 +122,7 @@
 {{ range .items }}{{ if .Only }}{{ $collection = .Name }}{{ $path = .Path }}{{ end }}{{ end }}
 {{ if eq $collection .section }}{{ $collection = "" }}{{ end }}
 {{ $url := $path }}{{ if .field }}{{ $url = printf "%s?%s=%s%s" (or .at .home) .field ($path | urlquery) (or .keep "") }}{{ end }}
-{{ template "crumb" (dict "g" .g "home" .home "noroot" .noroot "steps" (tuple
+{{ template "crumb" (dict "g" .g "home" .home "noroot" .noroot "heading" .heading "gloss" .gloss "steps" (tuple
    (dict "Label" $account "URL" .home "Address" true)
    (dict "Label" .section "URL" .home)
    (dict "Label" $collection "URL" $url)

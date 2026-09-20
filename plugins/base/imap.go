@@ -670,9 +670,26 @@ func newIMAPPartNode(msg *IMAPMessage, path []int, part imap.BodyStructure) *IMA
 	}
 	if singlePart, ok := part.(*imap.BodyStructureSinglePart); ok {
 		node.Filename = singlePart.Filename()
-		node.Size = singlePart.Size
+		node.Size = decodedSize(singlePart)
 	}
 	return node
+}
+
+// A base64 line is 76 characters and its CRLF, and carries 57 bytes
+// (RFC 2045 6.8).
+const (
+	base64LineOctets = 78
+	base64LineBytes  = 57
+)
+
+// decodedSize is what a part weighs once saved. The structure counts
+// the octets as transferred: an attachment said to be 12 MB arrived as
+// a file of 9.
+func decodedSize(part *imap.BodyStructureSinglePart) uint32 {
+	if strings.EqualFold(part.Encoding, "base64") {
+		return uint32(uint64(part.Size) * base64LineBytes / base64LineOctets)
+	}
+	return part.Size
 }
 
 func (msg *IMAPMessage) TextPart() *IMAPPartNode {
@@ -841,6 +858,16 @@ func (node IMAPPartNode) PathString() string {
 	return strings.Join(l, ".")
 }
 
+// AttachmentsSize is what the whole set of attachments weighs, the
+// figure a reader wants before deciding to take them.
+func (msg *IMAPMessage) AttachmentsSize() string {
+	var total int64
+	for _, part := range msg.Attachments() {
+		total += int64(part.Size)
+	}
+	return formatSize(total)
+}
+
 func (node IMAPPartNode) SizeString() string {
 	return formatSize(int64(node.Size))
 }
@@ -918,7 +945,7 @@ func imapPartTree(msg *IMAPMessage, bs imap.BodyStructure, path []int) *IMAPPart
 			node.Path = []int{1}
 		}
 		node.Filename = bs.Filename()
-		node.Size = bs.Size
+		node.Size = decodedSize(bs)
 	}
 
 	return node

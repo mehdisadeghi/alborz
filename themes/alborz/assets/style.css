@@ -1372,20 +1372,61 @@ main.event pre {
   word-break: break-all;
 }
 
-main.message .message-header {
+/* The card takes the table's own left edge, so its box lines up with
+   the part tabs and its text with the header labels; its end matches
+   the gutter the header cells keep, or the download would sit flush
+   against the page. */
+main.message .message-header .parts {
+  margin: var(--space-3) 0;
+  padding-inline-end: var(--space-2);
+}
+
+/* The name, the figures and the download sit on one line, the download
+   at the end. A summary laid out as a flex box has no disclosure marker
+   of its own, so it takes the chevron the rail's folds use. */
+main.message .message-header .parts > summary {
   display: flex;
   flex-direction: row;
 }
 
-main.message .message-header .parts {
-  width: 30%;
-  margin-inline-start: 0.3rem;
-  padding: 0.3rem 0.5rem;
-  background: var(--bg);
-  border-top: 1px solid var(--border-faint);
+main.message .message-header .parts > summary::-webkit-details-marker { display: none; }
+
+/* The disclosure chevron, once: the glyph, its turn when open, and its
+   mirror where the page reads right to left. A disclosure's own rule
+   keeps only the box the glyph stands in. */
+main.message .message-header .parts > summary::before,
+.info-explain > summary::before,
+details.info-card > summary::before,
+aside details.folder-branch summary::after,
+aside details.acct-folders > summary::after {
+  content: "\203A";
+  transition: transform 0.1s ease-out;
+}
+main.message .message-header .parts[open] > summary::before,
+.info-explain[open] > summary::before,
+details.info-card[open] > summary::before,
+aside details.folder-branch[open] > summary::after,
+aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
+:root:dir(rtl) main.message .message-header .parts > summary::before,
+:root:dir(rtl) .info-explain > summary::before,
+:root:dir(rtl) details.info-card > summary::before,
+:root:dir(rtl) aside details.folder-branch summary::after,
+:root:dir(rtl) aside details.acct-folders > summary::after { transform: rotate(180deg); }
+:root:dir(rtl) main.message .message-header .parts[open] > summary::before,
+:root:dir(rtl) .info-explain[open] > summary::before,
+:root:dir(rtl) details.info-card[open] > summary::before,
+:root:dir(rtl) aside details.folder-branch[open] > summary::after,
+:root:dir(rtl) aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
+
+main.message .message-header .parts > summary::before {
+  flex: none;
+  width: 1rem;
+  color: var(--fg-muted);
+  text-align: center;
 }
 
-main.message .message-header .parts ul {
+
+main.message .message-header .parts > summary .hint {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1424,10 +1465,21 @@ main.task dl {
   margin: 0;
 }
 
+main.message .message-header .parts .parts-all {
+  margin-inline-start: auto;
+}
+
+main.message .message-header .parts ul {
+  margin: var(--space-2) 0 0;
+}
+
 main.contact dl dt,
 main.task dl dt {
+/* A file name is the reader's, not ours: it wraps rather than widening
+   the card. */
   font-weight: 500;
   color: var(--fg-muted);
+  overflow-wrap: anywhere;
 }
 
 main.contact dl dd,
@@ -2530,13 +2582,9 @@ main > .info-explain {
 .info-explain > summary::-webkit-details-marker { display: none; }
 
 .info-explain > summary::before {
-  content: "\203A";
   display: inline-block;
   width: 0.75rem;
-  transition: transform 0.1s ease-out;
 }
-
-.info-explain[open] > summary::before { transform: rotate(90deg); }
 
 .info-explain dl {
   display: grid;
@@ -2583,14 +2631,10 @@ details.info-card > summary {
 details.info-card > summary::-webkit-details-marker { display: none; }
 
 details.info-card > summary::before {
-  content: "\203A";
   display: inline-block;
   width: 0.75rem;
   text-align: center;
-  transition: transform 0.1s ease-out;
 }
-
-details.info-card[open] > summary::before { transform: rotate(90deg); }
 
 details.info-card[open] > summary { margin-bottom: var(--space-2); }
 
@@ -3299,7 +3343,6 @@ aside details.folder-branch summary a { flex-grow: 1; }
    after the name, where a thumb finds it without landing on the link. */
 aside details.folder-branch summary::-webkit-details-marker { display: none; }
 aside details.folder-branch summary::after {
-  content: "›";
   flex: none;
   order: 1;
   width: 2rem;
@@ -3309,11 +3352,7 @@ aside details.folder-branch summary::after {
   align-items: center;
   justify-content: center;
   color: var(--fg-muted);
-  transition: transform 0.1s ease-out;
 }
-aside details.folder-branch[open] > summary::after { transform: rotate(90deg); }
-:root:dir(rtl) aside details.folder-branch summary::after { transform: rotate(180deg); }
-:root:dir(rtl) aside details.folder-branch[open] > summary::after { transform: rotate(90deg); }
 aside details.folder-branch > ul > li,
 aside details.folder-branch > ul li.folder-li > details > summary {
   padding-inline-start: 1.3rem;
@@ -4424,7 +4463,6 @@ aside details.acct-folders > summary::-webkit-details-marker {
    a chevron's width to the right of the folders under it, so the
    heading of a group stood further in than the group. */
 aside details.acct-folders > summary::after {
-  content: "›";
   flex: none;
   width: 1.5rem;
   margin-inline-end: -0.5rem;
@@ -4432,12 +4470,7 @@ aside details.acct-folders > summary::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.1s ease-out;
 }
-
-aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
-:root:dir(rtl) aside details.acct-folders > summary::after { transform: rotate(180deg); }
-:root:dir(rtl) aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
 
 /* A touch target is the row, not the glyph. The heading takes the
    height every folder row has, and the whole of it folds - so its
@@ -5198,12 +5231,7 @@ h1.no-word .title-short {
   .message-row { min-height: 2.75rem; }
 
   /* Message view: header fields wrap and the parts pane stacks below. */
-  main.message .message-header { flex-direction: column; }
-  main.message .message-header .parts {
-    width: auto;
-    margin-inline-start: 0;
-    margin-top: 0.3rem;
-  }
+  main.message .message-header .parts { margin: var(--space-2) 0; }
   main.message th, main.event th { width: auto; }
   main.message td {
     white-space: normal;

@@ -456,8 +456,17 @@
         </table>
         {{ $attachments := .Message.Attachments }}
         {{ if $attachments }}
-        <section class="parts">
-          <h3>{{$.T "message.attachments"}}</h3>
+        {{/* The files are a card of their own under the header, never a
+             column beside it: fifty of them would otherwise set the
+             header's height and push the subject down the page. Folded
+             when there are many, and the whole lot is one click away
+             from the summary without opening it. */}}
+        <details class="list-card parts"{{ if $.AttachmentsOpen }} open{{ end }}>
+          <summary>
+            <span class="parts-name">{{$.T "message.attachments"}}</span>
+            <span class="hint">{{$.GlobalData.Tf "mailbox.attachmore" (len $attachments)}} · {{$.Message.AttachmentsSize}}</span>
+            <a class="parts-all" hx-boost="false" download href="{{$.Message.URL}}/attachments.zip{{$aq}}">{{$.T "message.downloadall"}}</a>
+          </summary>
           <ul>
             {{ range .Message.Attachments }}
             <li>

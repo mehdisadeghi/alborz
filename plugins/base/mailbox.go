@@ -793,6 +793,14 @@ type DeleteMailboxRenderData struct {
 	Error string
 }
 
+// RenameMailboxRenderData is the page that renames one folder: the
+// name it has, and what the server said if it refused.
+type RenameMailboxRenderData struct {
+	IMAPBaseRenderData
+	Name  string
+	Error string
+}
+
 type EmptyMailboxRenderData struct {
 	IMAPBaseRenderData
 	Count int
@@ -830,6 +838,58 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "delete-mailbox.html", &DeleteMailboxRenderData{
 		IMAPBaseRenderData: *ibase,
 	})
+}
+
+// handleRenameMailbox renames one folder, keeping it where it is: the
+// form names the folder and not its path, so a rename cannot quietly
+// move a folder under another one. What the server refuses - a name
+// taken, a special-use folder - comes back on the form.
+func handleRenameMailbox(ctx *alborz.Context) error {
+	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+	if err != nil {
+		return err
+	}
+	mbox := ibase.Mailbox
+	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.renametitle"), mbox.Label))
+	name := mbox.Label
+	render := func(status int, errText string) error {
+		return ctx.Render(status, "rename-mailbox.html", &RenameMailboxRenderData{
+			IMAPBaseRenderData: *ibase,
+			Name:               name,
+			Error:              errText,
+		})
+	}
+	if ctx.Request().Method != http.MethodPost {
+		return render(http.StatusOK, "")
+	}
+	name = strings.TrimSpace(ctx.FormValue("name"))
+	if name == "" {
+		return render(http.StatusUnprocessableEntity, ctx.T("form.nameneeded"))
+	}
+	// The folder keeps its place: only the last step of the path is
+	// what the reader named, and the server's own delimiter says where
+	// that step begins.
+	old := mbox.Name()
+	renamed := name
+	for _, info := range ibase.Mailboxes {
+		if info.Name() == old && info.Delim != 0 {
+			if at := strings.LastIndex(old, string(info.Delim)); at >= 0 {
+				renamed = old[:at+1] + name
+			}
+			break
+		}
+	}
+	if renamed == old {
+		return ctx.Redirect(http.StatusFound, folderURL(ctx, ctx.Session.Username(), old))
+	}
+	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
+		return c.Rename(old, renamed, nil).Wait()
+	}); err != nil {
+		return render(http.StatusUnprocessableEntity, err.Error())
+	}
+	mailboxDeleted(ctx.Session.Username(), old)
+	ctx.PutNotice(fmt.Sprintf(ctx.T("notice.folderrenamed"), name))
+	return ctx.Redirect(http.StatusFound, folderURL(ctx, ctx.Session.Username(), renamed))
 }
 
 // handleRefreshMailbox drops what is cached for the account and returns

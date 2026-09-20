@@ -106,6 +106,7 @@
         </form>
         {{ end }}
         {{ if not (eq .Mailbox.Name "INBOX") }}
+        <a class="button-link" href="/rename-mailbox/{{.Mailbox.Name | pathescape}}{{$aq}}">{{$.T "mailbox.renamefolder"}}</a>
         <a class="button-link button-danger" href="/delete-mailbox/{{.Mailbox.Name | pathescape}}{{$aq}}">{{$.T "mailbox.deletefolder"}}</a>
         {{ end }}
       </div>

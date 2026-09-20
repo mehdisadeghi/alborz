@@ -28,6 +28,8 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.GET("/import", handleImport)
 	p.POST("/import", handleImport)
 
+	p.GET("/rename-mailbox/:mbox", handleRenameMailbox)
+	p.POST("/rename-mailbox/:mbox", handleRenameMailbox)
 	p.GET("/delete-mailbox/:mbox", handleDeleteMailbox)
 	p.POST("/delete-mailbox/:mbox", handleDeleteMailbox)
 

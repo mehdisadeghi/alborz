@@ -841,7 +841,7 @@
 "calendar.week" = "Woche %s"
 "calendar.reminders" = "Erinnerungen"
 "calendar.remindersnote" = "In einem anderen Programm gesetzt. Alborz zeigt sie an, sendet sie aber nicht."
-"mailbox.export" = "Als mbox exportieren"
+"mailbox.export" = "Als mbox exportieren…"
 "message.downloademl" = "Als .eml herunterladen"
 "invite.title" = "Einladung"
 "invite.cancelled" = "Termin abgesagt"
@@ -991,6 +991,10 @@ other = "%d Nachrichten nach %s importiert."
 ["notice.importstopped"]
 one = "Der Import brach nach einer Nachricht ab; der Ordner %[2]s enthält sie."
 other = "Der Import brach nach %d Nachrichten ab; der Ordner %s enthält sie."
+
+["folder.exportselectedask"]
+one = "Die gewählte Nachricht exportieren?"
+other = "Die %d gewählten Nachrichten exportieren?"
 
 ["folder.exportcount"]
 one = "Er enthält eine Nachricht."

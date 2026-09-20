@@ -6,9 +6,13 @@
   {{ template "aside" . }}
   <div class="container">
     <main id="main" tabindex="-1" class="create-update">
-      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/export?all=1{{ with .Query }}&query={{ . | urlquery }}{{ else }}{{ with .ListView }}&view={{ . }}{{ end }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}" data-download hx-boost="false">
+      {{/* A selection posts the messages it named; the whole view asks
+           the server for them again under all=1. */}}
+      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/export{{ if not (or .UIDs .Everything) }}?all=1{{ with .Query }}&query={{ . | urlquery }}{{ end }}{{ with .ListView }}&view={{ . }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}{{ else }}{{ account "?" $.GlobalData.URLAccount }}{{ end }}" data-download hx-boost="false">
+        {{ range .UIDs }}<input type="hidden" name="uids" value="{{.}}">{{ end }}
+        {{ with .Everything }}<input type="hidden" name="everything" value="1"><input type="hidden" name="next" value="{{.}}">{{ end }}
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
-        <h1>{{ if .Query }}{{ printf ($.T "folder.exportresultsask") .Query }}{{ else if .ViewName }}{{ printf ($.T "folder.exportviewask") .ViewName }}{{ else }}{{ printf ($.T "folder.exportask") .Mailbox.Label }}{{ end }}</h1>
+        <h1>{{ if or .UIDs .Everything }}{{ $.GlobalData.Tf "folder.exportselectedask" .Count }}{{ else if .Query }}{{ printf ($.T "folder.exportresultsask") .Query }}{{ else if .ViewName }}{{ printf ($.T "folder.exportviewask") .ViewName }}{{ else }}{{ printf ($.T "folder.exportask") .Mailbox.Label }}{{ end }}</h1>
         <p>{{ $.GlobalData.Tf "folder.exportcount" .Count }}{{ if .Size }} {{ printf ($.T "folder.exportsize") (humansize .Size) }}{{ end }}</p>
         <div class="action-group">
           <label for="strip" class="checkbox">

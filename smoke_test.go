@@ -713,6 +713,19 @@ func TestExportFailsAsAnError(t *testing.T) {
 	if strings.Contains(buf.String(), "<!DOCTYPE") {
 		t.Error("the export carries an HTML page inside it")
 	}
+
+	// A whole list asked about names the list again, never its messages:
+	// a field for each is a page of megabytes on a large folder.
+	resp, err = c.PostForm(base+"/message/INBOX/export", url.Values{"everything": {"1"}, "next": {"/mailbox/INBOX"}, "ask": {"1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+	buf.ReadFrom(resp.Body)
+	resp.Body.Close()
+	if page := buf.String(); !strings.Contains(page, `name="everything"`) || strings.Contains(page, `name="uids"`) {
+		t.Errorf("the export page of a whole list carries its messages, or not the list")
+	}
 }
 
 // TestSendHTMLIsDecidedByTheAccount is about where a decision lives.

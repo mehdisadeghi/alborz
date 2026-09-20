@@ -238,6 +238,7 @@
 "tasks.priority.low" = "کم"
 "tasks.priorityhigh" = "اولویت زیاد"
 "tasks.quickadd" = "کار تازه در %s"
+"tasks.quicknew" = "کار تازه"
 "tasks.pending" = "در انتظار"
 "calendar.new" = "رویداد جدید"
 "calendar.subscribeurlneeded" = "نشانی وب یک تقویم را وارد کنید."

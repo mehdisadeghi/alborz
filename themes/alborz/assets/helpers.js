@@ -457,6 +457,11 @@ const enhance = () => {
 };
 
 enhance();
+// A quick add lands back on its list at #quick, so the next line can be
+// typed straight away; that is the point of the quick add.
+if (location.hash === "#quick") {
+	document.getElementById("quick")?.focus();
+}
 // htmx settles new content into the page without a load event of its
 // own kind; this is that event.
 document.addEventListener("htmx:load", enhance);

@@ -241,6 +241,7 @@
 "tasks.priority.low" = "Low"
 "tasks.priorityhigh" = "High priority"
 "tasks.quickadd" = "New task in %s"
+"tasks.quicknew" = "New task"
 "tasks.pending" = "Pending"
 "calendar.new" = "New event"
 "calendar.subscribeurlneeded" = "Enter the web address of a calendar."

@@ -48,14 +48,21 @@
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 
-      {{/* One line for the next task: it goes into the list the page
-           is narrowed to, named in the field. */}}
+      {{/* One line for the next task: what it says, which list it goes
+           into, and the button - the destination is the reader's to
+           change without leaving the line. A single list is named in
+           the field instead, since a picker of one asks nothing. */}}
       {{ with .Quick }}
       <form method="post" action="/tasks/create" class="quick-add" hx-boost="false">
-        <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-        <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
+        <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}#quick">
+        {{ $one := and (eq (len .Lists) 1) (eq (len (index .Lists 0).Collections) 1) }}
         {{ $list := .Name }}{{ if $.GlobalData.Unified }}{{ $list = printf "%s · %s" .Name ($.GlobalData.AccountLabel .Account) }}{{ end }}
-        <input type="text" name="summary" required dir="auto" placeholder="{{ printf ($.T "tasks.quickadd") $list }}" aria-label="{{$.T "tasks.summary"}}">
+        <input type="text" id="quick" name="summary" required dir="auto" placeholder="{{ if $one }}{{ printf ($.T "tasks.quickadd") $list }}{{ else }}{{ $.T "tasks.quicknew" }}{{ end }}" aria-label="{{$.T "tasks.summary"}}">
+        {{ if $one }}
+        <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
+        {{ else }}
+        {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "calendar" "key" "quicktask" "groups" .Lists "account" .Account "path" .Path "multi" (gt (len .Lists) 1) "quiet" true) }}
+        {{ end }}
         <button>{{$.T "common.add"}}</button>
       </form>
       {{ end }}

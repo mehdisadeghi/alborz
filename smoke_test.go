@@ -1384,6 +1384,34 @@ func TestSearchMoveUndoesIntoTheFolderItCameFrom(t *testing.T) {
 	}
 }
 
+func TestDroppedTwiceIsImportedOnce(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	eml := "From: ann@example.org\r\nTo: " + smokeUser + "\r\nSubject: dropped\r\n" +
+		"Message-ID: <dropped@test>\r\nContent-Type: text/plain\r\n\r\nBody.\r\n"
+	for range 2 {
+		var body bytes.Buffer
+		w := multipart.NewWriter(&body)
+		part, err := w.CreateFormFile("file", "dropped.eml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		part.Write([]byte(eml))
+		w.Close()
+		resp, err := c.Post(base+"/mailbox/Archive/import", w.FormDataContentType(), &body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("drop: %s", resp.Status)
+		}
+	}
+	if n := len(messageUIDs(get(t, c, base+"/mailbox/Archive"))); n != 1 {
+		t.Errorf("Archive holds %d after the same file dropped twice, want 1", n)
+	}
+}
+
 // TestDeleteNoticeCountsTheRest deletes a whole page and expects the
 // notice to offer the rest of the folder by its count, through a page
 // that says the count again; a partial page must offer nothing.

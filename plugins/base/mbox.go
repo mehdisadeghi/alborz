@@ -3,6 +3,7 @@ package alborzbase
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -479,39 +480,12 @@ func handleImport(ctx *alborz.Context) error {
 		return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.foldertaken"), fullName, err))
 	}
 
-	// One APPEND per message, each within the session's own bound. An
-	// import that stops leaves a named folder holding the first n,
-	// which the notice says, rather than a guess.
-	count := 0
-	messages := newMboxReader(file)
-	var importErr error
-	for {
-		raw, err := messages.next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			importErr = err
-			break
-		}
-		err = session.DoIMAP(func(c *imapclient.Client) error {
-			options := imap.AppendOptions{Flags: []imap.Flag{imap.FlagSeen}, Time: messageDate(raw)}
-			cmd := c.Append(fullName, int64(len(raw)), &options)
-			if _, err := cmd.Write(raw); err != nil {
-				return err
-			}
-			if err := cmd.Close(); err != nil {
-				return err
-			}
-			_, err := cmd.Wait()
-			return err
-		})
-		if err != nil {
-			importErr = err
-			break
-		}
-		count++
-	}
+	var count, held int
+	importErr := session.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
+		var err error
+		count, held, err = appendMessages(c, fullName, file, map[string]bool{})
+		return err
+	})
 	accountChanged(selectedAccount)
 	if importErr != nil {
 		ctx.Logger().Printf("import into %q stopped after %d: %v", fullName, count, importErr)
@@ -519,7 +493,192 @@ func handleImport(ctx *alborz.Context) error {
 	} else {
 		ctx.PutNotice(ctx.Tf("notice.imported", count, fullName))
 	}
+	if held > 0 {
+		ctx.Notify(alborz.Notice{Text: ctx.Tf("notice.importheld", held)})
+	}
 	return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
+}
+
+// appendMessages puts every message an mbox or a single file holds into
+// the folder, one APPEND each within the session's own bound. It
+// answers how many landed and how many were there already: an import
+// that stops leaves the first n where they are, which a notice can then
+// say rather than guess.
+//
+// A message the folder already holds is left alone, so the same file
+// dropped twice - or a drop repeated after a failure - adds nothing the
+// second time. Identity is the Message-ID (RFC 5322 3.6.4); a message
+// without one is taken at its word and appended.
+func appendMessages(c *imapclient.Client, folder string, r io.Reader, seen map[string]bool) (added, held int, err error) {
+	messages := newMboxReader(r)
+	for {
+		raw, err := messages.next()
+		if err == io.EOF {
+			return added, held, nil
+		}
+		if err != nil {
+			return added, held, err
+		}
+		id := messageID(raw)
+		if id != "" && seen[id] {
+			held++
+			continue
+		}
+		if id != "" {
+			seen[id] = true
+		}
+		options := imap.AppendOptions{Flags: []imap.Flag{imap.FlagSeen}, Time: messageDate(raw)}
+		cmd := c.Append(folder, int64(len(raw)), &options)
+		if _, err := cmd.Write(raw); err != nil {
+			return added, held, err
+		}
+		if err := cmd.Close(); err != nil {
+			return added, held, err
+		}
+		if _, err := cmd.Wait(); err != nil {
+			return added, held, err
+		}
+		added++
+	}
+}
+
+// importBound is how long a whole import may hold its connection. One
+// turn per message put every message behind the page's own requests,
+// and an import of eighty stopped halfway when one of those waits ran
+// out; the import takes the connection once and keeps it.
+const importBound = 10 * time.Minute
+
+// folderMessageIDs reads what the selected folder already holds, by
+// identity. A header search would be the obvious way to ask, and it is
+// the wrong one: it matches a substring of the field (RFC 9051 6.4.4),
+// a server that cannot search headers may answer with everything, and
+// one that indexes in its own time does not find what was appended a
+// moment ago - which is how a retried batch became a second copy.
+// Reading the envelopes answers from the folder itself, one at a time:
+// a large inbox's envelopes all at once are its ids a hundred times
+// over, held for a drop of one file.
+func folderMessageIDs(c *imapclient.Client) (map[string]bool, error) {
+	held := map[string]bool{}
+	mbox := c.Mailbox()
+	if mbox == nil || mbox.NumMessages == 0 {
+		return held, nil
+	}
+	var all imap.SeqSet
+	all.AddRange(1, mbox.NumMessages)
+	cmd := c.Fetch(all, &imap.FetchOptions{Envelope: true})
+	for msg := cmd.Next(); msg != nil; msg = cmd.Next() {
+		buf, err := msg.Collect()
+		if err != nil {
+			cmd.Close()
+			return nil, err
+		}
+		if buf.Envelope == nil {
+			continue
+		}
+		if id := strings.Trim(buf.Envelope.MessageID, "<>"); id != "" {
+			held[id] = true
+		}
+	}
+	return held, cmd.Close()
+}
+
+// messageID is what the message calls itself, empty when it says
+// nothing.
+func messageID(raw []byte) string {
+	header, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(raw)))
+	if err != nil {
+		return ""
+	}
+	return strings.Trim(strings.TrimSpace(header.Get("Message-Id")), "<>")
+}
+
+// importBodyError names what went wrong with the upload itself. A body
+// past the bound is 413, the answer a proxy in front of alborz gives
+// for the same reason, so a client that splits its batches on 413 does
+// the same here.
+func importBodyError(err error) error {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		return echo.NewHTTPError(http.StatusRequestEntityTooLarge, err)
+	}
+	return echo.NewHTTPError(http.StatusBadRequest, err)
+}
+
+// handleDropImport takes files dropped on a folder and puts their
+// messages in that folder. The drop names the destination, so there is
+// nothing left to ask; the answer is the notice the page will show.
+func handleDropImport(ctx *alborz.Context) error {
+	mboxName, err := mailboxRef(ctx)
+	if err != nil {
+		return err
+	}
+	req := ctx.Request()
+	req.Body = http.MaxBytesReader(ctx.Response(), req.Body, importMaxSize)
+	form, err := req.MultipartReader()
+	if err != nil {
+		return importBodyError(err)
+	}
+	account := ctx.Session.Username()
+	if ctx.URLAccount() != "" {
+		account = ctx.URLAccount()
+	}
+	session := ctx.SessionFor(account)
+	if session == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+	}
+	// The whole drop takes the connection once: every message behind
+	// the page's own requests is what stopped an import of eighty
+	// halfway. The body is read inside, so the files arrive as they are
+	// appended rather than being held in memory first.
+	count, held := 0, 0
+	var bodyErr error
+	importErr := session.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
+		if err := ensureMailboxSelected(c, mboxName); err != nil {
+			return err
+		}
+		// What the folder holds already, so a file dropped twice - or a
+		// batch the proxy refused and the browser sent again in halves -
+		// adds nothing the second time.
+		seen, err := folderMessageIDs(c)
+		if err != nil {
+			return err
+		}
+		for {
+			part, err := form.NextPart()
+			if err == io.EOF {
+				return nil
+			}
+			if err != nil {
+				bodyErr = err
+				return nil
+			}
+			if part.FormName() != "file" {
+				continue
+			}
+			n, already, err := appendMessages(c, mboxName, part, seen)
+			count += n
+			held += already
+			if err != nil {
+				return err
+			}
+		}
+	})
+	if bodyErr != nil {
+		accountChanged(account)
+		return importBodyError(bodyErr)
+	}
+	if importErr != nil {
+		accountChanged(account)
+		ctx.Logger().Printf("drop into %q stopped after %d: %v", mboxName, count, importErr)
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.Tf("notice.importstopped", count, mboxName)})
+		return ctx.NoContent(http.StatusOK)
+	}
+	accountChanged(account)
+	ctx.Notify(alborz.Notice{Text: ctx.Tf("notice.imported", count, mboxName)})
+	if held > 0 {
+		ctx.Notify(alborz.Notice{Text: ctx.Tf("notice.importheld", held)})
+	}
+	return ctx.NoContent(http.StatusOK)
 }
 
 // formField reads one small text field of a streamed form.

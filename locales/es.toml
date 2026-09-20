@@ -619,6 +619,13 @@
 "folder.movedo" = "Mover"
 "aside.import" = "Importar correo"
 "folder.import" = "Importar correo"
+"folder.dropimporting" = "Importando %s…"
+"folder.dropimportingmany" = "Importando %s archivos…"
+"folder.dropadding" = "Añadiendo a la carpeta…"
+"folder.dropnomail" = "No hay archivos de correo en lo soltado."
+"folder.dropfailed" = "La importación falló (%s)."
+"folder.dropwhere" = "Suelta el correo sobre una carpeta para importarlo."
+"folder.dropwhich" = "Importar en %s:"
 "calendar.import" = "Importar eventos"
 "calendar.importhint" = "Un archivo .ics, o un .zip de ellos como un servicio exporta sus calendarios; al calendario elegido arriba, o cada uno a uno nuevo."
 "tasks.import" = "Importar tareas"
@@ -995,6 +1002,10 @@ other = "La importación se detuvo tras %d mensajes; la carpeta %s los contiene.
 ["folder.exportselectedask"]
 one = "¿Exportar el mensaje elegido?"
 other = "¿Exportar los %d mensajes elegidos?"
+
+["notice.importheld"]
+one = "Uno ya estaba ahí."
+other = "%d ya estaban ahí."
 
 ["folder.exportcount"]
 one = "Contiene un mensaje."

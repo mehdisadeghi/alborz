@@ -62,7 +62,11 @@
       {{ $whole := "" }}{{ with .TextQuery }}{{ $whole = printf "?query=%s%s%s" (. | urlquery) (account "&" $.GlobalData.URLAccount) (or (and $.GlobalData.Unified "&all=1") "") }}{{ end }}
       {{ $everywhere := "" }}{{ with .Everywhere }}{{ $everywhere = localhref (printf "/search?query=%s%s" (. | urlquery) (account "&" $.GlobalData.URLAccount)) }}{{ end }}
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove") "offers" (tuple (tuple $whole ($.T "mailbox.searchtext")) (tuple $everywhere ($.T "search.allfolders")))) }}
-      <section class="messages">
+      {{/* Files dropped on the list go into the folder the list shows.
+           The merged view names no one folder, so it names no target
+           and the script asks which account's. It rides the part every
+           swap renews: on main it stayed that of the first folder loaded. */}}
+      <section class="messages"{{ if not .Merged }} data-drop-mbox="{{.Mailbox.URL}}{{ account "?" $.GlobalData.URLAccount }}"{{ end }}>
         <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}>
           {{/* Header row; the labels sort where the server can. */}}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}

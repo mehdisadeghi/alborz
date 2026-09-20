@@ -43,6 +43,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	})
 	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
 	p.POST("/mailbox/:mbox/refresh", handleRefreshMailbox)
+	p.POST("/mailbox/:mbox/import", handleDropImport)
 	p.GET("/message/:mbox/export", handleExportPage)
 	p.POST("/message/:mbox/export", handleExportMbox)
 

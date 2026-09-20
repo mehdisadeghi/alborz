@@ -39,7 +39,7 @@ type MailboxRenderData struct {
 	ThreadSupported bool
 	// Crumb is the path to this folder, account first.
 	Crumb []CrumbLink
-	// PreferHTML is the account's choice of which part a row opens.
+	// PreferHTML is the reader's choice of which part a row opens.
 	PreferHTML bool
 	// Threaded says this listing is one, so the rows carry a depth and
 	// the pager counts conversations rather than messages.
@@ -222,6 +222,7 @@ func listPage(ctx *alborz.Context, ask listAsk, e *listingEntry, rows []IMAPMess
 		Sort:           ask.spec.sortKey,
 		SortDir:        map[bool]string{true: "desc", false: "asc"}[ask.spec.reverse()],
 		SortSupported:  e.sortSupported,
+		PreferHTML:     ctx.Reading().PreferHTML,
 	}
 	if len(rows) > 0 {
 		data.RangeFrom = ask.page*ask.perPage + 1
@@ -385,7 +386,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	// any of its rows, asks the server nothing.
 	if cacheable {
 		session := ctx.Session
-		go prefetchBodies(session, settings.PreferHTML, mboxName, e.validity(), e.msgs)
+		go prefetchBodies(session, ctx.Reading().PreferHTML, mboxName, e.validity(), e.msgs)
 		if spec.query == "" && spec.sortKey != threadSort && spec.thread == 0 && ask.window() < e.total {
 			prefetchPage(session, settings, spec, page+1, messagesPerPage)
 		}
@@ -417,7 +418,6 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	data.Outgoing = outgoingFolder(sb.mailboxes, mboxName)
 	data.ThreadSupported = e.threadAlgorithm != ""
 	data.Threaded = spec.sortKey == threadSort && e.threadAlgorithm != ""
-	data.PreferHTML = settings.PreferHTML
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 

@@ -90,13 +90,6 @@ type Settings struct {
 	// an account that talks to lists wants it off and one that writes
 	// Persian to Gmail wants it on.
 	SendHTML bool
-
-	// PreferHTML opens a message at its HTML part where it has one.
-	// Plain text is the default because it is the part a sender wrote
-	// for reading rather than for looking at, and it carries no remote
-	// content; an account whose correspondents send HTML that says
-	// something the plain part does not wants the other order.
-	PreferHTML bool
 }
 
 func LoadSettings(s alborz.Store) (*Settings, error) {

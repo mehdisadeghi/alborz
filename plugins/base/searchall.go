@@ -70,10 +70,13 @@ func handleSearch(ctx *alborz.Context) error {
 		return err
 	}
 	ask.spec.query = strings.TrimSpace(ask.spec.query)
-	// A query is all the page answers.
-	ask.spec.view = ""
+	// The page answers two asks with one fan-out: a query, and a star
+	// view, which is a query with a name and no words.
+	if !StarView(ask.spec.view) {
+		ask.spec.view = ""
+	}
 	spec := ask.spec
-	if spec.query == "" {
+	if spec.query == "" && spec.view == "" {
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 	}
 	settings, err := LoadSettings(ctx.Session.Store())
@@ -137,8 +140,13 @@ func handleSearch(ctx *alborz.Context) error {
 		track = max(track, len([]rune(msgs[i].Mailbox)))
 	}
 	title := ctx.T("search.title")
-	base := alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf("%s: %s", title, spec.query))
-	ibase := &IMAPBaseRenderData{BaseRenderData: *base}
+	heading := fmt.Sprintf("%s: %s", title, spec.query)
+	if spec.view != "" {
+		title = ViewLabel(ctx, spec.view)
+		heading = title
+	}
+	base := alborz.NewBaseRenderData(ctx).WithTitle(heading)
+	ibase := &IMAPBaseRenderData{BaseRenderData: *base, ListView: spec.view}
 	if !ctx.Unified {
 		// One account's rail is its folder tree, which the merged rail
 		// builds for itself from the accounts.
@@ -146,7 +154,7 @@ func handleSearch(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		ibase = assembleIMAPBase(ctx, base, "", sb.clone(), "")
+		ibase = assembleIMAPBase(ctx, base, "", sb.clone(), spec.view)
 	}
 	ibase.SidebarAccounts = sidebarAccounts(ctx)
 	// No name: the rail marks the folder the page shows, and this page
@@ -154,9 +162,7 @@ func handleSearch(ctx *alborz.Context) error {
 	ibase.Mailbox = &MailboxStatus{StatusData: &imap.StatusData{}, Label: title}
 	data := listPage(ctx, ask, merged, msgs)
 	data.IMAPBaseRenderData = *ibase
-	data.Crumb = []CrumbLink{{Label: title, URL: "/search"}}
-	// The folder lists' views are not this page's.
-	data.FilterRows = nil
+	data.Crumb = []CrumbLink{{Label: title}}
 	data.Merged, data.Spanning, data.Role = true, true, searchRole
 	data.FolderQuery = q.Without(queryScope)
 	data.FolderTrack = template.CSS(fmt.Sprintf("%dch", min(track, folderTrackMax)))

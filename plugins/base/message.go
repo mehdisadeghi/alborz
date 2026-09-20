@@ -205,6 +205,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	if err != nil {
 		return err
 	}
+
 	// The rendered view needs the sidebar, and takes it from the cached
 	// listing the reader came from, with the message's place in the
 	// page. Without one its mailbox LIST is issued with the message's

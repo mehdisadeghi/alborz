@@ -1010,6 +1010,33 @@ func TestMessagesMoveDeleteAndFlag(t *testing.T) {
 	}
 }
 
+func TestStarViewKeepsItsQuery(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	refs := regexp.MustCompile(`name="refs" value="([^"]+)"`)
+	var starred []string
+	for _, query := range []string{"from:eve", "from:hal"} {
+		uids := messageUIDs(get(t, c, base+"/mailbox/INBOX?query="+url.QueryEscape(query)))
+		if len(uids) != 1 {
+			t.Fatalf("%q answers %d messages in INBOX, want 1", query, len(uids))
+		}
+		starred = append(starred, uids[0])
+	}
+	postForm(t, c, base+"/message/INBOX/flag", url.Values{"uids": starred, "flags": {"\\Flagged"}, "action": {"add"}})
+
+	narrowed := "/search?view=starred&query=" + url.QueryEscape("from:eve")
+	if rows := refs.FindAllString(get(t, c, base+narrowed), -1); len(rows) != 1 {
+		t.Fatalf("starred and from:eve lists %d rows, want the one that is both", len(rows))
+	}
+	resp := postForm(t, c, base+"/mailbox/INBOX/all/act?action=move&to=Archive", url.Values{"everything": {"1"}, "next": {narrowed}})
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("move: %s", resp.Status)
+	}
+	if n := len(messageUIDs(get(t, c, base+"/mailbox/Archive"))); n != 1 {
+		t.Errorf("Archive holds %d after moving everything starred from eve, want 1", n)
+	}
+}
+
 // TestFoldersAreMadeAndRemoved creates a top-level folder and deletes
 // it again, checking the sidebar between the two.
 func TestFoldersAreMadeAndRemoved(t *testing.T) {

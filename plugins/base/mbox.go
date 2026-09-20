@@ -47,28 +47,7 @@ func handleExportMbox(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		settings, err := LoadSettings(ctx.Session.Store())
-		if err != nil {
-			return err
-		}
-		err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
-			if err := ensureMailboxSelected(c, mboxName); err != nil {
-				return err
-			}
-			criteria := &imap.SearchCriteria{}
-			if query != "" {
-				criteria = ParseQuery(query).Criteria(SearchesIndex(c, settings), time.Now())
-			} else if view != "" {
-				criteria = ViewCriteria(view)
-			}
-			data, err := c.UIDSearch(criteria, nil).Wait()
-			if err != nil {
-				return err
-			}
-			uids = data.AllUIDs()
-			return nil
-		})
-		if err != nil {
+		if uids, err = folderViewUIDs(ctx, mboxName, query, view); err != nil {
 			return err
 		}
 	} else if uids, err = selection(ctx, mboxName, params); err != nil {
@@ -349,11 +328,7 @@ func handleExportPage(ctx *alborz.Context) error {
 	err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
 		// A search or a view is counted the way it is listed; the whole
 		// folder is a STATUS away.
-		criteria := ViewCriteria(ibase.ListView)
-		if data.Query != "" {
-			criteria = ParseQuery(data.Query).Criteria(SearchesIndex(c, settings), time.Now())
-		}
-		if criteria != nil {
+		if criteria := listCriteria(c, settings, data.Query, ibase.ListView); criteria != nil {
 			if err := ensureMailboxSelected(c, mboxName); err != nil {
 				return err
 			}

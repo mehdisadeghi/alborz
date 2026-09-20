@@ -841,7 +841,7 @@
 "calendar.week" = "Week %s"
 "calendar.reminders" = "Reminders"
 "calendar.remindersnote" = "Set in another client. Alborz shows them but does not send them."
-"mailbox.export" = "Export as mbox"
+"mailbox.export" = "Export as mbox…"
 "message.downloademl" = "Download as .eml"
 "invite.title" = "Invitation"
 "invite.cancelled" = "Meeting cancelled"
@@ -991,6 +991,10 @@ other = "%d messages imported into %s."
 ["notice.importstopped"]
 one = "The import stopped after one message; the folder %[2]s holds it."
 other = "The import stopped after %d messages; the folder %s holds them."
+
+["folder.exportselectedask"]
+one = "Export the message picked?"
+other = "Export the %d messages picked?"
 
 ["folder.exportcount"]
 one = "It holds one message."

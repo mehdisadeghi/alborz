@@ -841,7 +841,7 @@
 "calendar.week" = "Semana %s"
 "calendar.reminders" = "Recordatorios"
 "calendar.remindersnote" = "Definidos en otro cliente. Alborz los muestra pero no los envía."
-"mailbox.export" = "Exportar como mbox"
+"mailbox.export" = "Exportar como mbox…"
 "message.downloademl" = "Descargar como .eml"
 "invite.title" = "Invitación"
 "invite.cancelled" = "Reunión cancelada"
@@ -991,6 +991,10 @@ other = "%d mensajes importados en %s."
 ["notice.importstopped"]
 one = "La importación se detuvo tras un mensaje; la carpeta %[2]s lo contiene."
 other = "La importación se detuvo tras %d mensajes; la carpeta %s los contiene."
+
+["folder.exportselectedask"]
+one = "¿Exportar el mensaje elegido?"
+other = "¿Exportar los %d mensajes elegidos?"
 
 ["folder.exportcount"]
 one = "Contiene un mensaje."

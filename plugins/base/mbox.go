@@ -56,6 +56,11 @@ func handleExportMbox(ctx *alborz.Context) error {
 	if len(uids) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "no messages selected")
 	}
+	// Leaving the attachments out is a choice, and a choice gets the
+	// page rather than a menu row that decides for the reader.
+	if ctx.FormValue("ask") != "" {
+		return exportPage(ctx, uids, params)
+	}
 
 	name := mboxName
 	if strip {
@@ -302,6 +307,30 @@ type ExportRenderData struct {
 	ViewName string
 	Count    int
 	Size     int64 // zero when the server does not say (STATUS=SIZE)
+	// UIDs are the messages picked in the list, empty when the page is
+	// about the whole folder or a search's results.
+	UIDs []imap.UID
+	// Everything is the address of the list when the pick was all of
+	// it. The form names the list again, as the list's own form did: a
+	// hidden field for each of a hundred thousand messages is a page of
+	// megabytes, posted back.
+	Everything string
+}
+
+// exportPage asks about a selection the reader has already made: the
+// same page, counting what was picked rather than what the folder
+// holds.
+func exportPage(ctx *alborz.Context, uids []imap.UID, form url.Values) error {
+	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+	if err != nil {
+		return err
+	}
+	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), ibase.Mailbox.Label))
+	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Count: len(uids), UIDs: uids}
+	if _, _, whole := wholeView(form); whole {
+		data.UIDs, data.Everything = nil, form.Get("next")
+	}
+	return ctx.Render(http.StatusOK, "export.html", data)
 }
 
 // handleExportPage asks before a folder leaves: a whole folder is not

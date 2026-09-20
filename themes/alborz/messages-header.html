@@ -81,7 +81,7 @@
         {{/* One file holding the selection, which is what a person means
              by "give me these messages". Rare, so it is spelled out here
              rather than given a mark on the toolbar. */}}
-        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/export{{$aq}}" data-download>{{$.T "mailbox.export"}}</button>
+        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/export{{ or $aq "?" }}{{ if $aq }}&{{ end }}ask=1">{{$.T "mailbox.export"}}</button>
         {{/* The whole view - the folder, or what the search found -
              goes through a page of its own, since it is not a casual
              click; the merged view has no one folder to name. Not bound

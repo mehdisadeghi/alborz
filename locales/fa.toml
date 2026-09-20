@@ -841,7 +841,7 @@
 "calendar.week" = "هفتهٔ %s"
 "calendar.reminders" = "یادآورها"
 "calendar.remindersnote" = "در برنامهٔ دیگری تنظیم شده‌اند. البرز آنها را نشان می‌دهد اما نمی‌فرستد."
-"mailbox.export" = "برون‌بری به mbox"
+"mailbox.export" = "برون‌بری به mbox…"
 "message.downloademl" = "دریافت به شکل eml."
 "invite.title" = "دعوت"
 "invite.cancelled" = "نشست لغو شد"
@@ -991,6 +991,10 @@ other = "%d نامه به %s درون‌ریزی شد."
 ["notice.importstopped"]
 one = "درون‌ریزی پس از یک نامه متوقف شد؛ پوشهٔ %[2]s آن را دارد."
 other = "درون‌ریزی پس از %d نامه متوقف شد؛ پوشهٔ %s آن‌ها را دارد."
+
+["folder.exportselectedask"]
+one = "نامهٔ انتخاب‌شده برون‌بری شود؟"
+other = "%d نامهٔ انتخاب‌شده برون‌بری شود؟"
 
 ["folder.exportcount"]
 one = "یک نامه دارد."

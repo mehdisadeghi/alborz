@@ -624,6 +624,8 @@
 "folder.dropfailed" = "The import failed (%s)."
 "folder.dropwhere" = "Drop mail on a folder to import it."
 "folder.dropwhich" = "Import into %s:"
+"list.mailarrived" = "New mail arrived."
+"list.showarrived" = "Show"
 "calendar.import" = "Import events"
 "calendar.importhint" = "An .ics file, or a .zip of them as a service exports its calendars; into the calendar chosen above, or each into a new one."
 "tasks.import" = "Import tasks"

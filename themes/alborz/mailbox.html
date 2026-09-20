@@ -64,9 +64,12 @@
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove") "offers" (tuple (tuple $whole ($.T "mailbox.searchtext")) (tuple $everywhere ($.T "search.allfolders")))) }}
       {{/* Files dropped on the list go into the folder the list shows.
            The merged view names no one folder, so it names no target
-           and the script asks which account's. It rides the part every
-           swap renews: on main it stayed that of the first folder loaded. */}}
-      <section class="messages"{{ if not .Merged }} data-drop-mbox="{{.Mailbox.URL}}{{ account "?" $.GlobalData.URLAccount }}"{{ end }}>
+           and the script asks which account's. */}}
+      {{/* live-folder names what this list is showing, so mail arriving
+           elsewhere leaves it alone; merged means every account's folder
+           of that name. Both ride the part every swap renews: on main
+           they stayed those of the first folder loaded. */}}
+      <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{.Mailbox.URL}}{{ account "?" $.GlobalData.URLAccount }}"{{ end }}>
         <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}>
           {{/* Header row; the labels sort where the server can. */}}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}

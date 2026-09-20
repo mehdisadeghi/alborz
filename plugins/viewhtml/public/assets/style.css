@@ -6,6 +6,12 @@
 #email-frame-wrap {
   overflow: hidden;
   direction: ltr;
+  /* A mail with little or nothing in it leaves the frame short, and
+     the page showed through under it while the same mail read as text
+     filled the reading area. The wrapper carries the frame's own
+     canvas, so both look the same whatever the message holds. */
+  flex: 1 0 auto;
+  background-color: white;
 }
 
 /* Without a script the frame cannot follow its content; it is a

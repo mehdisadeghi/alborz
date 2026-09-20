@@ -414,18 +414,29 @@ func originHost(ctx *alborz.Context) string {
 // KeepsHere says whether collections can be kept in this alborz.
 func (p *Provider) KeepsHere() bool { return p.here != nil }
 
-// Places are where a new collection can go, grouped by account in the
-// shape the collection picker lists: each of the account's sources by
-// its host, and Alborz by its own. An account with none has no group.
+// PlaceLabel says what a place is rather than where it is: a host name
+// alone tells a reader nothing about which of their servers it is, and
+// alborz's own host tells them least of all.
+func PlaceLabel(ctx *alborz.Context, id, host string) string {
+	label := ctx.T("place." + id)
+	if host == "" {
+		return label
+	}
+	return label + " · " + host
+}
+
+// Places are where a new collection can go, grouped by account: each of
+// the account's sources and Alborz, named by what it is. An account
+// with none has no group.
 func (p *Provider) Places(ctx *alborz.Context) []Group {
 	var groups []Group
 	for _, s := range ctx.Sessions() {
 		var places []Collection
 		for _, src := range p.Sources(s) {
-			places = append(places, Collection{Path: src.ID, Name: src.URL.Host})
+			places = append(places, Collection{Path: src.ID, Name: PlaceLabel(ctx, src.ID, src.URL.Host)})
 		}
 		if p.here != nil {
-			places = append(places, Collection{Path: SourceHere, Name: originHost(ctx)})
+			places = append(places, Collection{Path: SourceHere, Name: PlaceLabel(ctx, SourceHere, originHost(ctx))})
 		}
 		if len(places) > 0 {
 			groups = append(groups, Group{Account: s.Username(), Collections: places})
@@ -438,8 +449,20 @@ func (p *Provider) Places(ctx *alborz.Context) []Group {
 // goes when it had no choice to offer: the account's default when it
 // has one it can still reach, else its first source, else Alborz.
 func (p *Provider) ReadPlace(ctx *alborz.Context, account string) (string, string) {
-	if chosen, place, ok := strings.Cut(ctx.FormValue("place"), "|"); ok {
-		return chosen, place
+	// Two questions, two fields: whose collection it is, and which of
+	// that account's places keeps it. One field holding both read as a
+	// list of servers with accounts mixed through it.
+	if chosen := ctx.FormValue("account"); chosen != "" && ctx.SessionFor(chosen) != nil {
+		account = chosen
+	}
+	if place := ctx.FormValue("place"); place != "" {
+		return account, place
+	}
+	// The account in force is the one the reader is looking at; without
+	// it the form would offer the visit's first account, and a
+	// collection made without touching the picker landed there.
+	if scoped := ctx.URLAccount(); scoped != "" {
+		account = scoped
 	}
 	s := ctx.SessionFor(account)
 	if s == nil {

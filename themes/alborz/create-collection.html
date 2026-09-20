@@ -14,12 +14,42 @@
 
         {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
 
-        {{/* Where the collection goes: an account, and on that account
-             its server or Alborz. One question, one picker; it is not
-             asked when there is one answer. */}}
+        {{/* Two questions, and they are not the same one: whose
+             collection this is, and which of that account's places
+             keeps it. Asking them in one list mixed the accounts
+             through the servers. Neither is asked where there is one
+             answer. */}}
+        {{ if gt (len .Places) 1 }}
+        <div class="field">
+          <label for="account">{{$.T "settings.account"}}</label>
+          <select name="account" id="account" data-place-account>
+            {{ if .Asks }}<option value="" selected>{{$.T "common.chooseaccount"}}</option>{{ end }}
+            {{ range .Places }}
+            <option value="{{.Account}}"{{ if and (not $.Asks) (eq .Account $.Account) }} selected{{ end }}>{{ template "ltr" .Account }}</option>
+            {{ end }}
+          </select>
+        </div>
+        {{ end }}
+
         {{ if .Chooses }}
-        {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "place" "key" "place" "groups" .Places "account" .Account "path" .Place "multi" (gt (len .Places) 1)) }}
-        {{ template "hint" (dict "text" ($.T "collection.placehint")) }}
+        <div class="field">
+          <label for="place">{{$.T "common.saveto"}}</label>
+          {{/* Every account's places are here, and each says whose it
+               is: a reader without a script sees them grouped, and
+               with one sees only the account they chose. */}}
+          <select name="place" id="place" data-destination-key="place" data-place-of{{ if .Asks }} required{{ end }}>
+            {{ if .Asks }}<option value="" selected>{{$.T "common.choosesaveto"}}</option>{{ end }}
+            {{ range .Places }}
+            {{ $acct := .Account }}
+            {{ if gt (len $.Places) 1 }}<optgroup label="{{$acct}}">{{ end }}
+            {{ range .Collections }}
+            <option value="{{.Path}}" data-account="{{$acct}}"{{ if and (eq $acct $.Account) (eq .Path $.Place) }} selected{{ end }}>{{.Name}}</option>
+            {{ end }}
+            {{ if gt (len $.Places) 1 }}</optgroup>{{ end }}
+            {{ end }}
+          </select>
+          <p class="hint">{{$.T "collection.placehint"}}</p>
+        </div>
         {{ end }}
 
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true) }}

@@ -542,6 +542,21 @@ func readSort(ctx *alborz.Context, also string) (sortKey, sortDir string, err er
 	return sortKey, sortDir, nil
 }
 
+// listOrder is the order a list was in, as its links carry it: the
+// column asked for and whether it runs the other way. An order the
+// server cannot sort by is no order at all here.
+func listOrder(ctx *alborz.Context) (sortKey string, reverse bool) {
+	sortKey = ctx.QueryParam("sort")
+	if _, ok := sortKeys[sortKey]; !ok || sortKey == threadSort {
+		return "", true
+	}
+	reverse = sortKeys[sortKey].descends
+	if dir := ctx.QueryParam("dir"); dir != "" {
+		reverse = dir == "desc"
+	}
+	return sortKey, reverse
+}
+
 // readView is the view the URL asks for, refused when it names none
 // alborz has: a view is a link in the rail, never typed.
 func readView(ctx *alborz.Context) (string, error) {

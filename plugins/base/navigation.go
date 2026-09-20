@@ -25,19 +25,19 @@ type listPlace struct {
 // so its neighbours are the right ones; placed is false where the
 // server has to say.
 func cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
-	cached = listings.message(ctx.Session.Username(), listingView(mailbox, query, view, "", ""), uid, PerPage(ctx))
-	if cached != nil {
-		place.newer, place.older, place.position, place.total, placed = cached.neighbours(uid)
-	}
-	return cached, place, placed
+	sortKey, _ := listOrder(ctx)
+	return listings.message(ctx.Session.Username(), listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, PerPage(ctx))
 }
 
-// placeInList asks the server for the same, of the message at seq.
-func placeInList(c *imapclient.Client, settings *Settings, mailbox string, seq uint32, query, view string) (place listPlace, err error) {
+// placeInList asks the server for the same. The order the list was in
+// is the order Newer and Older mean: the message was opened from that
+// list, and its links carry it on.
+func placeInList(ctx *alborz.Context, c *imapclient.Client, settings *Settings, mailbox string, uid imap.UID, query, view string) (place listPlace, err error) {
 	if err := ensureMailboxSelected(c, mailbox); err != nil {
 		return place, err
 	}
-	place.newer, place.older, place.position, place.total, err = messageNeighbors(c, seq, listCriteria(c, settings, query, view))
+	sortKey, reverse := listOrder(ctx)
+	place.newer, place.older, place.position, place.total, err = messageNeighbors(c, uid, listCriteria(c, settings, query, view), sortKey, reverse)
 	return place, err
 }
 
@@ -110,7 +110,7 @@ func handleMessageNavigation(ctx *alborz.Context) error {
 		msg := data.Message
 		if !placed {
 			var err error
-			if place, err = placeInList(c, settings, mailbox, msg.SeqNum, data.Query, view); err != nil {
+			if place, err = placeInList(ctx, c, settings, mailbox, uid, data.Query, view); err != nil {
 				return err
 			}
 		}
@@ -128,7 +128,7 @@ func handleMessageNavigation(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	data.NewerURL, data.OlderURL = messageURL(mailbox, place.newer), messageURL(mailbox, place.older)
+	data.NewerURL, data.OlderURL = neighbourURL(ctx, mailbox, place.newer), neighbourURL(ctx, mailbox, place.older)
 	data.Position, data.Total = place.position, place.total
 	data.IMAPBaseRenderData = *assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mailbox, sb, view)
 	return ctx.Render(http.StatusOK, "message-context", data)

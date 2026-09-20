@@ -579,7 +579,6 @@
 {{template "foot.html"}}
 
 {{ define "message-navigation" }}
-{{ $navq := account "?" .GlobalData.URLAccount }}{{ if .ListView }}{{ $navq = printf "?view=%s%s" .ListView (account "&" .GlobalData.URLAccount) }}{{ else if .Query }}{{ $navq = printf "?query=%s%s" (.Query | urlquery) (account "&" .GlobalData.URLAccount) }}{{ end }}
 <span id="message-navigation" class="action-group"{{ if .ContextPending }} hx-get="{{.ContextURL}}" hx-trigger="load" hx-target="this" hx-swap="outerHTML"{{ end }}>
               {{ if .Position }}
               <span class="pagination-range" data-priority="1" data-yield="hide">{{$.GlobalData.Tf "common.position" .Position .Total}}</span>
@@ -587,10 +586,10 @@
               {{/* Newer and older move along the list, not through
                    pages: the marks point that way. */}}
               {{ if .NewerURL }}
-              <a class="icon-button" href="{{.NewerURL}}{{$navq}}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}" data-key="k">{{ template "icon" "up" }}</a>
+              <a class="icon-button" href="{{.NewerURL}}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}" data-key="k">{{ template "icon" "up" }}</a>
               {{ end }}
               {{ if .OlderURL }}
-              <a class="icon-button" href="{{.OlderURL}}{{$navq}}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}" data-key="j">{{ template "icon" "down" }}</a>
+              <a class="icon-button" href="{{.OlderURL}}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}" data-key="j">{{ template "icon" "down" }}</a>
               {{ end }}
             </span>
 {{ end }}

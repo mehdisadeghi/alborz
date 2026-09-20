@@ -699,6 +699,17 @@ header nav .account-menu-row {
   gap: var(--space-3);
 }
 header nav .account-menu-row > form { margin: 0; }
+
+/* An address is the account's, and a long one would set the menu's
+   width; it yields instead. */
+header nav .account-menu-row > form a,
+header nav .account-menu-row > a {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 header nav .account-menu-row > form:first-child { grid-column: 1; }
 header nav .account-menu-row .account-signout { grid-column: 2; }
 header nav .account-menu-row .account-signout button {
@@ -871,6 +882,24 @@ aside li {
 
 aside li a {
   flex-grow: 1;
+}
+
+/* A folder's name is the server's, and a long one used to take three
+   rail rows' worth of height. One line, cut with an ellipsis, as the
+   calendar and address-book rows beside it already are. */
+aside li a,
+aside details.folder-branch > summary > a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* An invitation says who sent it, and an address is not ours to cut:
+   it wraps inside the rail rather than running out of it. */
+aside li .hint {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* A place in the rail reads as its name, as the folds and the create
@@ -1151,6 +1180,10 @@ main.create-update #attachment-list *:not(:last-child) {
 
 main.create-update #attachment-list .upload .filename {
   flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 main.create-update #attachment-list .upload button {
@@ -1386,7 +1419,9 @@ main.message .message-header .parts {
    of its own, so it takes the chevron the rail's folds use. */
 main.message .message-header .parts > summary {
   display: flex;
-  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
 }
 
 main.message .message-header .parts > summary::-webkit-details-marker { display: none; }
@@ -1428,12 +1463,23 @@ main.message .message-header .parts > summary::before {
 
 main.message .message-header .parts > summary .hint {
   margin: 0;
+}
+
+main.message .message-header .parts .parts-all {
+  margin-inline-start: auto;
+}
+
+main.message .message-header .parts ul {
+  margin: var(--space-2) 0 0;
   padding: 0;
   list-style: none;
 }
 
+/* A file name is the reader's, not ours: it wraps rather than widening
+   the card. */
 main.message .message-header .parts li {
   margin-inline-start: 0;
+  overflow-wrap: anywhere;
 }
 
 /* View pages (contact, task, event) */
@@ -1460,35 +1506,59 @@ main.event .details h1 {
 main.contact dl,
 main.task dl {
   display: grid;
-  grid-template-columns: auto 1fr;
+  /* minmax(0,...), or a long address or URL widens the track past the
+     card, the way every other card in the sheet already guards. */
+  grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-2) var(--space-4);
   margin: 0;
 }
 
-main.message .message-header .parts .parts-all {
-  margin-inline-start: auto;
-}
-
-main.message .message-header .parts ul {
-  margin: var(--space-2) 0 0;
-}
-
 main.contact dl dt,
 main.task dl dt {
-/* A file name is the reader's, not ours: it wraps rather than widening
-   the card. */
   font-weight: 500;
   color: var(--fg-muted);
-  overflow-wrap: anywhere;
 }
 
 main.contact dl dd,
 main.task dl dd {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 main.contact dl dd.contact-address {
   white-space: pre-line;
+}
+
+/* A group the contact is in, and the way out of it, in the attachment
+   chip's box: the form beside the name is part of the chip, not a
+   block of its own under it. */
+main.contact dl dd.contact-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+main.contact .chip {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  max-width: 100%;
+}
+
+main.contact .chip > a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+main.contact .chip form { display: inline-flex; margin: 0; }
+
+main.contact .chip button {
+  padding: 0;
+  color: var(--fg-muted);
+  line-height: 1;
 }
 
 main.event .details table {
@@ -2351,12 +2421,17 @@ main table tfoot {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 0.05rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 1rem;
   color: var(--fg-muted);
   font-size: var(--text-sm);
   line-height: 1.4;
+}
+
+/* A chip is the attachment chip: one box, wherever one stands. */
+.attach-chip,
+main.contact .chip {
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
 }
 
 /* What did not fit, counted rather than named. A round box for one
@@ -3284,6 +3359,7 @@ main.calendar .actions {
 .message-list-sender a:not(.sender-tag),
 .message-list-subject a,
 .contact-list-name a,
+.contact-list-book a,
 .contact-list-email,
 .contact-list-phone,
 .task-list-summary a,
@@ -3367,10 +3443,12 @@ aside details.folder-branch details.folder-branch > ul > li {
   display: grid;
   grid-template-columns:
     var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
-    minmax(6rem, 8rem) minmax(6rem, 7rem) minmax(6rem, 0.7fr);
+    minmax(6rem, 8rem) minmax(6rem, 7rem) minmax(7rem, 0.7fr);
   grid-template-rows: auto;
 }
 
+/* The book column's floor holds its own heading: at 6rem the label
+   "Address book" was 7px wider than the track it names. */
 /* The contacts list drops the date first, then the address: a name and
    a number are what the column is for. Written below the base rule it
    overrides, since a media query adds no specificity and the later of
@@ -3381,7 +3459,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   .contact-grid {
     grid-template-columns:
       var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
-      minmax(6rem, 8rem) minmax(6rem, 0.7fr);
+      minmax(6rem, 8rem) minmax(7rem, 0.7fr);
   }
 
   .contact-grid .contact-list-changed { display: none; }
@@ -3391,7 +3469,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   .contact-grid {
     grid-template-columns:
       var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr)
-      minmax(6rem, 8rem) minmax(6rem, 0.7fr);
+      minmax(6rem, 8rem) minmax(7rem, 0.7fr);
   }
 
   .contact-grid .contact-list-email { display: none; }
@@ -3727,6 +3805,9 @@ main.calendar .events .overflow {
 main.calendar .date h3 {
   display: grid;
   grid-template-columns: auto 1fr;
+  /* A cell is a seventh of the width whatever the width is, and a
+     spelled-out month in it would run into its neighbour. */
+  overflow: hidden;
   align-items: start;
   row-gap: 0.15rem;
   column-gap: var(--space-1);
@@ -4661,6 +4742,18 @@ aside ul.merged-roles {
   cursor: pointer;
 }
 
+/* Page context, breadcrumb-weight: which account and container the
+   page acts on, between the toolbar and the content. */
+.context-crumb {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  min-height: 2rem;
+  padding: var(--row-pad);
+  background: color-mix(in srgb, var(--surface) 58%, var(--surface-subtle));
+  border-bottom: 1px solid var(--border-light);
+}
+
 /* A folder under the pointer with files over it, and the bar that
    reports what is going into it. */
 main.drop-into {
@@ -4686,18 +4779,6 @@ aside a.drop-into {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Page context, breadcrumb-weight: which account and container the
-   page acts on, between the toolbar and the content. */
-.context-crumb {
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  line-height: 1.4;
-  min-height: 2rem;
-  padding: var(--row-pad);
-  background: color-mix(in srgb, var(--surface) 58%, var(--surface-subtle));
-  border-bottom: 1px solid var(--border-light);
 }
 
 /* The step that names the page is the page's heading, and reads as the

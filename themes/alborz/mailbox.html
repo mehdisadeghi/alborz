@@ -151,13 +151,21 @@
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
             {{if $.Merged}}
-            <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{.URL}}{{account "?" .Account}}{{if $.ListView}}&view={{$.ListView}}{{else if $.Query}}&query={{$.Query | urlquery}}{{end}}">
+            {{$mlink := printf "%v" .URL}}{{$msep := "?"}}
+            {{with .Account}}{{$mlink = printf "%s%saccount=%s" $mlink $msep (. | addr)}}{{$msep = "&"}}{{end}}
+            {{if $.ListView}}{{$mlink = printf "%s%sview=%s" $mlink $msep $.ListView}}{{$msep = "&"}}{{else if $.Query}}{{$mlink = printf "%s%squery=%s" $mlink $msep ($.Query | urlquery)}}{{$msep = "&"}}{{end}}
+            {{with $.Sort}}{{$mlink = printf "%s%ssort=%s&dir=%s" $mlink $msep . $.SortDir}}{{$msep = "&"}}{{end}}
+            <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $mlink}}">
             {{else}}
             {{/* Built in one piece: the escaper cannot follow a URL whose
                  query grows across branches. */}}
             {{$link := ""}}{{$sep := "?"}}
             {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%v" ($open.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
             {{if $.ListView}}{{$link = printf "%s%sview=%s" $link $sep $.ListView}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | urlquery)}}{{$sep = "&"}}{{end}}
+            {{/* The order the list is in travels with the row: what
+                 Newer and Older mean on the message is what they meant
+                 here. */}}
+            {{with $.Sort}}{{$link = printf "%s%ssort=%s&dir=%s" $link $sep . $.SortDir}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | addr)}}{{end}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $link}}">
             {{end}}

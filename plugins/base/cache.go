@@ -196,8 +196,10 @@ func (lc *listingCache) epoch(user string) uint64 {
 	return lc.generation[user]
 }
 
-// message finds a recently visited page containing this message.
-func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) *listingEntry {
+// message finds a recently visited page containing this message, and
+// its place in the view: the page's rows either side of it, or across
+// the page's edge the rows of the held page next to it.
+func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) (*listingEntry, listPlace, bool) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	var found *listingEntry
@@ -210,10 +212,19 @@ func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) *l
 		}
 	}
 	if found == nil {
-		return nil
+		return nil, listPlace{}, false
 	}
 	found.lastUse = time.Now()
-	return found.snapshot()
+	held := func(page int) *listingEntry {
+		if e := lc.entries[listingKey{user, listingPage(view, page, perPage)}]; e != nil && e.perPage == perPage && found.adjoins(e) {
+			return e
+		}
+		return nil
+	}
+	var place listPlace
+	var placed bool
+	place.newer, place.older, place.position, place.total, placed = found.neighbours(uid, held(found.page-1), held(found.page+1))
+	return found.snapshot(), place, placed
 }
 
 // listingSpec is what it takes to fetch a view again without the
@@ -483,25 +494,41 @@ func (e *listingEntry) row(uid imap.UID) *IMAPMessage {
 }
 
 // neighbours places the message in the cached page: the rows either
-// side of it, its position and the folder's total. Not found means the
-// server has to say, at the page's far edge as much as off the page.
-func (e *listingEntry) neighbours(uid imap.UID) (newer, older imap.UID, pos, total int, found bool) {
-	for i := range e.msgs {
-		if e.msgs[i].UID != uid {
-			continue
-		}
-		if (i == 0 && e.page > 0) || i+1 == len(e.msgs) && e.total > e.page*e.perPage+len(e.msgs) {
-			return 0, 0, 0, 0, false
-		}
-		if i > 0 {
-			newer = e.msgs[i-1].UID
-		}
-		if i+1 < len(e.msgs) {
-			older = e.msgs[i+1].UID
-		}
-		return newer, older, e.page*e.perPage + i + 1, e.total, true
+// side of it, its position and the folder's total. At the page's edge
+// the neighbour is the facing row of the page before or after, nil when
+// not held; not found means the server has to say.
+func (e *listingEntry) neighbours(uid imap.UID, before, after *listingEntry) (newer, older imap.UID, pos, total int, found bool) {
+	i := slices.IndexFunc(e.msgs, func(m IMAPMessage) bool { return m.UID == uid })
+	if i < 0 {
+		return 0, 0, 0, 0, false
 	}
-	return 0, 0, 0, 0, false
+	switch {
+	case i > 0:
+		newer = e.msgs[i-1].UID
+	case e.page == 0:
+	case before != nil && len(before.msgs) > 0:
+		newer = before.msgs[len(before.msgs)-1].UID
+	default:
+		return 0, 0, 0, 0, false
+	}
+	switch {
+	case i+1 < len(e.msgs):
+		older = e.msgs[i+1].UID
+	case e.total <= e.page*e.perPage+len(e.msgs):
+	case after != nil && len(after.msgs) > 0:
+		older = after.msgs[0].UID
+	default:
+		return 0, 0, 0, 0, false
+	}
+	return newer, older, e.page*e.perPage + i + 1, e.total, true
+}
+
+// adjoins says the other page was cut from the same list as this one:
+// taken while the folder held the same messages, so no row slid across
+// the edge between them. An arrival moves UIDNEXT, an expunge the total.
+func (e *listingEntry) adjoins(other *listingEntry) bool {
+	return e.snap != nil && other.snap != nil && e.total == other.total &&
+		e.snap.UIDValidity == other.snap.UIDValidity && e.snap.UIDNext == other.snap.UIDNext
 }
 
 // claim marks the view as being checked; false means someone already is.

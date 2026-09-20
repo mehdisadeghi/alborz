@@ -633,6 +633,24 @@ func (msg *IMAPMessage) URL() *url.URL {
 	return messageURL(msg.Mailbox, msg.UID)
 }
 
+// neighbourURL is where Newer and Older point: the message, and the
+// list it is being read in. Without the narrowing and the order, one
+// step sideways would land the reader in the plain folder.
+func neighbourURL(ctx *alborz.Context, mboxName string, uid imap.UID) *url.URL {
+	next := messageURL(mboxName, uid)
+	if next == nil {
+		return nil
+	}
+	kept := url.Values{}
+	for _, name := range []string{"query", "view", "sort", "dir", "ipp", "account", "all", "thread"} {
+		if value := ctx.QueryParam(name); value != "" {
+			kept.Set(name, value)
+		}
+	}
+	next.RawQuery = kept.Encode()
+	return next
+}
+
 // messageURL returns nil for the zero UID so templates can elide the link.
 func messageURL(mboxName string, uid imap.UID) *url.URL {
 	if uid == 0 {
@@ -1621,15 +1639,7 @@ func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, sort 
 	}
 
 	if sort == "starred" {
-		flagged := *criteria
-		flagged.Flag = append(append([]imap.Flag{}, criteria.Flag...), imap.FlagFlagged)
-		unflagged := *criteria
-		unflagged.NotFlag = append(append([]imap.Flag{}, criteria.NotFlag...), imap.FlagFlagged)
-
-		first, second := &flagged, &unflagged
-		if !reverse {
-			first, second = second, first
-		}
+		first, second := starredHalves(criteria, reverse)
 		byDate := imapclient.SortCriterion{Key: imapclient.SortKeyDate, Reverse: true}
 		nums, err := sortSeqNums(conn, first, byDate)
 		if err != nil {
@@ -1643,6 +1653,46 @@ func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, sort 
 	}
 
 	return sortSeqNums(conn, criteria, imapclient.SortCriterion{Key: sortKeys[sort].key, Reverse: reverse})
+}
+
+// starredHalves splits criteria into the flagged and the unflagged
+// messages, in the order the starred list shows them.
+func starredHalves(criteria *imap.SearchCriteria, reverse bool) (first, second *imap.SearchCriteria) {
+	flagged := *criteria
+	flagged.Flag = append(append([]imap.Flag{}, criteria.Flag...), imap.FlagFlagged)
+	unflagged := *criteria
+	unflagged.NotFlag = append(append([]imap.Flag{}, criteria.NotFlag...), imap.FlagFlagged)
+	if !reverse {
+		return &unflagged, &flagged
+	}
+	return &flagged, &unflagged
+}
+
+// sortedUIDs is searchSeqNums for a server that sorts, in UIDs. The
+// starred order's two halves are asked together.
+func sortedUIDs(conn *imapclient.Client, criteria *imap.SearchCriteria, sort string, reverse bool) ([]imap.UID, error) {
+	var cmds []*imapclient.SortCommand
+	if sort == "starred" {
+		first, second := starredHalves(criteria, reverse)
+		byDate := []imapclient.SortCriterion{{Key: imapclient.SortKeyDate, Reverse: true}}
+		cmds = append(cmds,
+			conn.UIDSort(&imapclient.SortOptions{SearchCriteria: first, SortCriteria: byDate}),
+			conn.UIDSort(&imapclient.SortOptions{SearchCriteria: second, SortCriteria: byDate}))
+	} else {
+		cmds = append(cmds, conn.UIDSort(&imapclient.SortOptions{SearchCriteria: criteria,
+			SortCriteria: []imapclient.SortCriterion{{Key: sortKeys[sort].key, Reverse: reverse}}}))
+	}
+	var uids []imap.UID
+	for _, cmd := range cmds {
+		nums, err := cmd.Wait()
+		if err != nil {
+			return nil, fmt.Errorf("UID SORT failed: %v", err)
+		}
+		for _, num := range nums {
+			uids = append(uids, imap.UID(num))
+		}
+	}
+	return uids, nil
 }
 
 // searchMessages reads one page of what the criteria answer. q is the
@@ -1705,65 +1755,94 @@ func searchMessages(conn *imapclient.Client, mboxName string, q Query, searchCri
 // returns the UIDs shown before (newer) and after (older) it, along with its
 // 1-based position and the view's total. criteria narrows the walk to the
 // filtered view the message was opened from; nil walks the whole mailbox.
+// sortKey is the order the list was in, so that Newer and Older mean what
+// the reader's own ordering means rather than what the mailbox's does.
 // A zero position means the message is not part of the filtered view.
-func messageNeighbors(conn *imapclient.Client, seqNum uint32, criteria *imap.SearchCriteria) (newer, older imap.UID, pos, total int, err error) {
-	var newerSeq, olderSeq uint32
+//
+// The question is asked in UIDs and in one round trip: a sequence number
+// a cached row or a held body remembers is from before whatever was
+// expunged since, and would place the message one off or nowhere.
+func messageNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.SearchCriteria, sortKey string, reverse bool) (newer, older imap.UID, pos, total int, err error) {
+	plain := criteria == nil && sortKey == ""
 	if criteria == nil {
-		total = int(conn.Mailbox().NumMessages)
-		pos = total - int(seqNum) + 1
-		if int(seqNum) < total {
-			newerSeq = seqNum + 1
+		criteria = &imap.SearchCriteria{}
+	}
+	var uids []imap.UID
+	if plain || !conn.Caps().Has(imap.CapSort) {
+		// The folder's own order, and any list a server without SORT
+		// answers, is UID order: newest first unless the reader turned
+		// a search around.
+		descending := plain || reverse
+		if conn.Caps().Has(imap.CapESearch) {
+			return uidNeighbors(conn, uid, criteria, descending)
 		}
-		if seqNum > 1 {
-			olderSeq = seqNum - 1
-		}
-	} else {
-		nums, err := searchSeqNums(conn, criteria, "", true)
+		data, err := conn.UIDSearch(criteria, nil).Wait()
 		if err != nil {
-			return 0, 0, 0, 0, err
+			return 0, 0, 0, 0, fmt.Errorf("UID SEARCH failed: %v", err)
 		}
-		total = len(nums)
-		i := -1
-		for j, num := range nums {
-			if num == seqNum {
-				i = j
-				break
-			}
+		uids = data.AllUIDs()
+		if descending {
+			slices.Reverse(uids)
 		}
-		if i < 0 {
-			return 0, 0, 0, 0, nil
-		}
-		pos = i + 1
-		if i > 0 {
-			newerSeq = nums[i-1]
-		}
-		if i < len(nums)-1 {
-			olderSeq = nums[i+1]
-		}
+	} else if uids, err = sortedUIDs(conn, criteria, sortKey, reverse); err != nil {
+		return 0, 0, 0, 0, err
 	}
+	i := slices.Index(uids, uid)
+	if i < 0 {
+		return 0, 0, 0, 0, nil
+	}
+	if i > 0 {
+		newer = uids[i-1]
+	}
+	if i+1 < len(uids) {
+		older = uids[i+1]
+	}
+	return newer, older, i + 1, len(uids), nil
+}
 
-	var seqs []uint32
-	for _, s := range []uint32{newerSeq, olderSeq} {
-		if s != 0 {
-			seqs = append(seqs, s)
-		}
+// uidNeighbors places the message in a list in UID order by counting
+// either side of it, so a folder of any size answers in a few numbers.
+// The searches are sent together and answered in one round trip.
+func uidNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.SearchCriteria, descending bool) (newer, older imap.UID, pos, total int, err error) {
+	within := func(r imap.UIDRange) *imap.SearchCriteria {
+		c := *criteria
+		c.UID = append(slices.Clone(criteria.UID), imap.UIDSet{r})
+		return &c
 	}
-	if len(seqs) == 0 {
-		return 0, 0, pos, total, nil
+	// A zero Stop is "*", and uid+1:* still holds the highest UID when
+	// that is below uid+1 (RFC 9051 6.4.9): what it answers at or below
+	// uid is not above it.
+	aboveCmd := conn.UIDSearch(within(imap.UIDRange{Start: uid + 1}), &imap.SearchOptions{ReturnMin: true, ReturnCount: true})
+	selfCmd := conn.UIDSearch(within(imap.UIDRange{Start: uid, Stop: uid}), &imap.SearchOptions{ReturnCount: true})
+	var belowCmd *imapclient.SearchCommand
+	if uid > 1 {
+		belowCmd = conn.UIDSearch(within(imap.UIDRange{Start: 1, Stop: uid - 1}), &imap.SearchOptions{ReturnMax: true, ReturnCount: true})
 	}
-	msgs, err := conn.Fetch(imap.SeqSetNum(seqs...), &imap.FetchOptions{UID: true}).Collect()
+	above, err := aboveCmd.Wait()
 	if err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("failed to fetch neighbor UIDs: %v", err)
+		return 0, 0, 0, 0, fmt.Errorf("UID SEARCH failed: %v", err)
 	}
-	for _, m := range msgs {
-		if m.SeqNum == newerSeq {
-			newer = m.UID
-		}
-		if m.SeqNum == olderSeq {
-			older = m.UID
+	self, err := selfCmd.Wait()
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("UID SEARCH failed: %v", err)
+	}
+	below := &imap.SearchData{}
+	if belowCmd != nil {
+		if below, err = belowCmd.Wait(); err != nil {
+			return 0, 0, 0, 0, fmt.Errorf("UID SEARCH failed: %v", err)
 		}
 	}
-	return newer, older, pos, total, nil
+	if self.Count == 0 {
+		return 0, 0, 0, 0, nil
+	}
+	if imap.UID(above.Min) <= uid {
+		above = &imap.SearchData{}
+	}
+	total = int(above.Count + 1 + below.Count)
+	if descending {
+		return imap.UID(above.Min), imap.UID(below.Max), int(above.Count) + 1, total, nil
+	}
+	return imap.UID(below.Max), imap.UID(above.Min), int(below.Count) + 1, total, nil
 }
 
 func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {

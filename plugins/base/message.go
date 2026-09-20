@@ -317,7 +317,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 				return nil
 			}
 			if !placed {
-				if place, err = placeInList(c, settings, mboxName, msg.SeqNum, query, railView); err != nil {
+				if place, err = placeInList(ctx, c, settings, mboxName, uid, query, railView); err != nil {
 					return err
 				}
 			}
@@ -465,8 +465,8 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		View:               view,
 		MailboxPage:        int(*mbox.NumMessages-msg.SeqNum) / messagesPerPage,
 		Flags:              flags,
-		NewerURL:           messageURL(mbox.Name(), place.newer),
-		OlderURL:           messageURL(mbox.Name(), place.older),
+		NewerURL:           neighbourURL(ctx, mbox.Name(), place.newer),
+		OlderURL:           neighbourURL(ctx, mbox.Name(), place.older),
 		Position:           place.position,
 		Total:              place.total,
 		Query:              query,

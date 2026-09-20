@@ -223,7 +223,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	// so the answer costs no fetch.
 	if !raw && ctx.QueryParam("part") == "" && cached != nil {
 		if row := cached.row(uid); row != nil {
-			if preferred := row.PreferredPart(settings.PreferHTML); preferred != nil && len(preferred.Path) > 0 {
+			if preferred := row.PreferredPart(ctx.Reading().PreferHTML); preferred != nil && len(preferred.Path) > 0 {
 				partPath = preferred.Path
 			}
 		}
@@ -387,7 +387,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	// A link naming no part, like Newer and Older, opens the part the
 	// mailbox rows would link to; the bare envelope has no viewer.
 	if !raw && len(partPath) == 0 {
-		preferred := msg.PreferredPart(settings.PreferHTML)
+		preferred := msg.PreferredPart(ctx.Reading().PreferHTML)
 		if preferred != nil && len(preferred.Path) > 0 {
 			q := ctx.Request().URL.Query()
 			q.Set("part", preferred.PathString())
@@ -477,7 +477,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Answers:            answers,
 		ThreadSupported:    threadAlgorithm != "",
 		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
-		PreferHTML:         settings.PreferHTML,
+		PreferHTML:         ctx.Reading().PreferHTML,
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        deliveredTo,
 		ForwardedBy:        ForwardedBy(msg.rootHeader, trusted, msg.ListID),

@@ -1016,4 +1016,268 @@ document.addEventListener("beforetoggle", ev => {
 	}
 }, true);
 
+// Files dropped on a folder go into that folder: the drop says where,
+// so nothing is asked. What it says while it works it says where every
+// other message to the reader appears, in the notice bar's own shape.
+(() => {
+	const rail = () => document.querySelector("aside");
+	// Only a row that is one folder of one account: a view's row names a
+	// search, and a merged role's row names a folder per account, so
+	// neither can say where a file should land.
+	const folderLink = node => node && node.closest && node.closest("aside a[data-folder]");
+	// Where a drop is a question rather than an answer: the mail rail,
+	// or a list that names no single folder.
+	const mailArea = node => node && node.closest && node.closest("aside[data-mail-sidebar], main.message-list");
+	// The list itself is the folder it shows: a drop on it lands there,
+	// which is where a hand with a file in it goes first. The folder is
+	// named inside the list, by the part every swap renews.
+	const dropMbox = list => list.querySelector("[data-drop-mbox]");
+	const listArea = node => {
+		const list = node && node.closest && node.closest("main.message-list");
+		return list && dropMbox(list) ? list : null;
+	};
+	const target = node => folderLink(node) || listArea(node);
+	const folderURL = el => el.dataset.folder || dropMbox(el).dataset.dropMbox;
+	// A file field takes a dropped file by itself, and refusing the drop
+	// for the page would refuse it for the field too.
+	const ownField = node => node && node.closest && node.closest('input[type="file"]');
+	const carriesFiles = ev => ev.dataTransfer && [...ev.dataTransfer.types].includes("Files") && !ownField(ev.target);
+	const say = key => (rail() && rail().dataset[key]) || "";
+	let bar = null;
+
+	// The notice bar, written by hand because this one is the browser's
+	// news rather than the server's: same box, same place, same kinds.
+	const status = (text, kind) => {
+		if (!bar) {
+			bar = document.createElement("div");
+			bar.innerHTML = "<span class=\"notice-text\"></span><progress max=\"100\"></progress>";
+			const nav = document.querySelector("body > nav, header nav");
+			(nav && nav.parentNode ? nav.parentNode : document.body).insertBefore(bar, nav ? nav.nextSibling : null);
+		}
+		bar.className = "notice notice-" + (kind || "");
+		bar.setAttribute("role", kind === "failed" ? "alert" : "status");
+		bar.querySelector(".notice-text").textContent = text;
+		return bar.querySelector("progress");
+	};
+
+	const done = () => {
+		if (bar) {
+			bar.remove();
+			bar = null;
+		}
+	};
+
+	// A page swapped under the import takes the bar with it; the upload
+	// itself runs on, so the bar goes back on the new page rather than
+	// leaving the reader with nothing to watch.
+	document.addEventListener("htmx:afterSwap", () => {
+		if (bar && !bar.isConnected) {
+			document.body.prepend(bar);
+		}
+	});
+
+	// A file dropped anywhere on the page is the browser's to open
+	// otherwise: it leaves the page, or opens a tab per file. The page
+	// refuses the whole lot but a file field's, and a folder under the
+	// pointer takes them.
+	window.addEventListener("dragenter", ev => {
+		if (carriesFiles(ev)) {
+			ev.preventDefault();
+		}
+	});
+
+	document.addEventListener("dragover", ev => {
+		if (!carriesFiles(ev)) {
+			return;
+		}
+		ev.preventDefault();
+		const into = target(ev.target);
+		if (into) {
+			into.classList.add("drop-into");
+		}
+	});
+
+	document.addEventListener("dragleave", ev => {
+		const into = target(ev.target);
+		// Crossing from one row to the next leaves a child, not the
+		// area: the outline stays until the pointer is really out.
+		if (into && !into.contains(ev.relatedTarget)) {
+			into.classList.remove("drop-into");
+		}
+	});
+
+	document.addEventListener("drop", ev => {
+		if (!carriesFiles(ev)) {
+			return;
+		}
+		ev.preventDefault();
+		const into = target(ev.target);
+		if (into) {
+			into.classList.remove("drop-into");
+		}
+		// A dropped directory carries no bytes of its own, and Apple
+		// Mail exports a mailbox as exactly that: a .mbox folder with
+		// the mbox file inside. The entries are walked for the files.
+		const entries = [...ev.dataTransfer.items]
+			.map(item => item.webkitGetAsEntry && item.webkitGetAsEntry())
+			.filter(Boolean);
+		const dropped = [...ev.dataTransfer.files];
+		const waiting = entries.length ? collect(entries) : Promise.resolve(dropped);
+		if (into) {
+			send(new URL(folderURL(into), location.origin), waiting);
+			return;
+		}
+		// A merged list names the folder and not the account: every
+		// account has one. The rail knows which accounts hold this very
+		// folder, so the question is which of them, not where.
+		const accounts = holders();
+		if (accounts.length === 1) {
+			send(new URL(accounts[0].href, location.origin), waiting);
+			return;
+		}
+		if (accounts.length > 1) {
+			ask(accounts, waiting);
+			return;
+		}
+		if (mailArea(ev.target)) {
+			status(say("importingWhere"), "failed").hidden = true;
+			setTimeout(done, 5000);
+		}
+	});
+
+	// holders are the rail rows for the folder this page is showing,
+	// one per account that has it.
+	const holders = () => [...document.querySelectorAll("aside a[data-folder]")]
+		.map(row => ({href: row.dataset.folder, label: row.textContent.trim(), account: new URL(row.dataset.folder, location.origin).searchParams.get("account")}))
+		.filter(row => row.account && new URL(row.href, location.origin).pathname === location.pathname);
+
+	// ask puts the accounts in the notice bar, one button each: the
+	// files wait in the page until one is pressed.
+	const ask = (accounts, waiting) => {
+		const here = decodeURIComponent(location.pathname.split("/").pop());
+		const progress = status(say("importingWhich").replace("%s", here));
+		progress.hidden = true;
+		for (const account of accounts) {
+			const button = document.createElement("button");
+			button.className = "button-link notice-action";
+			button.textContent = account.account;
+			button.addEventListener("click", () => send(new URL(account.href, location.origin), waiting));
+			bar.append(button);
+		}
+	};
+
+	// What holds mail: an mbox by name or extension, or a single
+	// message. An Apple .mbox folder also holds Info.plist, a table of
+	// contents and the same messages again as .emlx, and none of those
+	// is mail to import.
+	const mailLike = file => /^mbox$|\.(mbox|eml)$/i.test(file.name);
+
+	// collect walks what was dropped, a directory at a time, and answers
+	// the files inside it.
+	const collect = async entries => {
+		const files = [];
+		const pending = [...entries];
+		while (pending.length) {
+			const entry = pending.shift();
+			if (entry.isFile) {
+				files.push(await new Promise((ok, no) => entry.file(ok, no)));
+				continue;
+			}
+			const reader = entry.createReader();
+			for (;;) {
+				const batch = await new Promise((ok, no) => reader.readEntries(ok, no));
+				if (!batch.length) {
+					break;
+				}
+				pending.push(...batch);
+			}
+		}
+		return files;
+	};
+
+	// post sends one batch and answers the status; the fraction it
+	// reports is the whole drop's, not the batch's.
+	const post = (href, batch, before, total) => new Promise(resolve => {
+		const body = new FormData();
+		for (const file of batch) {
+			body.append("file", file);
+		}
+		// One file reads as its name; eighty read as eighty, never as
+		// eighty names.
+		const naming = batch.length === 1
+			? say("importing").replace("%s", batch[0].name)
+			: say("importingMany").replace("%s", new Intl.NumberFormat(document.documentElement.lang || "en").format(batch.length));
+		const progress = status(naming);
+		const request = new XMLHttpRequest();
+		request.open("POST", href.pathname + "/import" + href.search);
+		request.upload.addEventListener("progress", e => {
+			if (e.lengthComputable) {
+				progress.value = Math.round(((before + (e.loaded / e.total) * batch.length) / total) * 100);
+			}
+		});
+		// Uploaded and not yet answered: the server is appending, and how
+		// long that takes is the server's to know. The bar says it is
+		// working rather than standing at the end.
+		request.upload.addEventListener("load", () => {
+			progress.removeAttribute("value");
+			status(say("importingAdding"));
+		});
+		request.addEventListener("loadend", () => resolve(request.status));
+		request.send(body);
+	});
+
+	const send = async (href, waiting) => {
+		const found = await waiting;
+		const files = found.filter(mailLike);
+		if (!files.length) {
+			// Something was dropped and none of it is mail: saying so is
+			// the only honest answer, and it clears itself.
+			if (found.length) {
+				status(say("importingNone"), "failed").hidden = true;
+				setTimeout(done, 4000);
+			}
+			return;
+		}
+		// A reload takes the document down and the upload with it, and
+		// the folder keeps whatever arrived before that. The browser
+		// asks first while one is in flight.
+		const hold = ev => ev.preventDefault();
+		window.addEventListener("beforeunload", hold);
+		// A proxy in front of alborz has its own idea of how large a
+		// request may be, and answers 413 without saying what it is. A
+		// refused batch is halved and tried again, down to one file,
+		// so the reader never has to know the number.
+		const pending = [files];
+		let landed = 0;
+		let refused = 0;
+		let failure = 0;
+		while (pending.length) {
+			const batch = pending.shift();
+			const code = await post(href, batch, landed + refused, files.length);
+			if (code >= 200 && code <= 299) {
+				landed += batch.length;
+				continue;
+			}
+			if (code === 413 && batch.length > 1) {
+				const half = Math.ceil(batch.length / 2);
+				pending.unshift(batch.slice(0, half), batch.slice(half));
+				continue;
+			}
+			refused += batch.length;
+			failure = code;
+		}
+		window.removeEventListener("beforeunload", hold);
+		if (refused) {
+			// One file too large for the proxy, or a server that said
+			// no: what landed has landed, and the rest is named.
+			status(say("importingFailed").replace("%s", failure || "-"), "failed").hidden = true;
+			return;
+		}
+		done();
+		// The folder that took the files is where the reader wants to
+		// be: reloading the page they were on shows them nothing.
+		location.assign(href.href);
+	};
+})();
+
 // @license-end

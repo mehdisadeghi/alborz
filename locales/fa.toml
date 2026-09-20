@@ -614,6 +614,13 @@
 "folder.movedo" = "انتقال"
 "aside.import" = "درون‌ریزی نامه"
 "folder.import" = "درون‌ریزی نامه"
+"folder.dropimporting" = "در حال درون‌ریزی %s…"
+"folder.dropimportingmany" = "در حال درون‌ریزی %s فایل…"
+"folder.dropadding" = "افزودن به پوشه…"
+"folder.dropnomail" = "در آنچه رها شد فایل نامه‌ای نبود."
+"folder.dropfailed" = "درون‌ریزی انجام نشد (%s)."
+"folder.dropwhere" = "نامه را روی یک پوشه رها کنید تا درون‌ریزی شود."
+"folder.dropwhich" = "درون‌ریزی به %s:"
 "calendar.import" = "درون‌ریزی رویدادها"
 "calendar.importhint" = "یک فایل .ics یا یک .zip از آن‌ها، آن‌طور که سرویسی تقویم‌هایش را صادر می‌کند؛ در تقویم انتخاب‌شده در بالا، یا هر کدام در تقویمی تازه."
 "tasks.import" = "درون‌ریزی کارها"
@@ -995,6 +1002,10 @@ other = "درون‌ریزی پس از %d نامه متوقف شد؛ پوشهٔ 
 ["folder.exportselectedask"]
 one = "نامهٔ انتخاب‌شده برون‌بری شود؟"
 other = "%d نامهٔ انتخاب‌شده برون‌بری شود؟"
+
+["notice.importheld"]
+one = "یکی از پیش آنجا بود."
+other = "%d تا از پیش آنجا بودند."
 
 ["folder.exportcount"]
 one = "یک نامه دارد."

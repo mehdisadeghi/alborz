@@ -47,16 +47,13 @@ attachmentsInput.addEventListener("input", ev => {
 	}
 });
 
-window.addEventListener("dragenter", dragNOP);
-window.addEventListener("dragleave", dragNOP);
-window.addEventListener("dragover", dragNOP);
-
-window.addEventListener("drop", ev => {
-	ev.preventDefault();
-	// The window outlives the page: a listener from an earlier visit is
-	// still here, holding a form that is gone, and would upload the
-	// dropped file a second time for nobody.
-	if (!composeForm.isConnected) {
+// The page takes the drop, not the window: the window outlives a boosted
+// page, and a listener left on it held the form of every earlier visit.
+// helpers.js already keeps the browser from opening a dropped file.
+composeForm.closest(".page-wrap").addEventListener("drop", ev => {
+	// A drop on a folder is an import into it, not an attachment, and
+	// one on the file field is the field's own, which attaches it.
+	if (ev.target.closest("aside a[href*='/mailbox/'], input[type='file']")) {
 		return;
 	}
 	const files = ev.dataTransfer.files;
@@ -64,11 +61,6 @@ window.addEventListener("drop", ev => {
 		attachFile(files[i]);
 	}
 });
-
-function dragNOP(e) {
-    e.stopPropagation();
-    e.preventDefault();
-}
 
 const attachmentUUIDsNode = document.getElementById("attachment-uuids");
 function updateState() {

@@ -383,7 +383,10 @@
 {{/* The badge is the unread count and shows only when there is one;
      what the folder holds in all is a hover away, since a bare name
      otherwise reads as an empty folder. */}}
-<a href="{{$n.Details.Info.URL}}{{$q}}"{{ template "list-get" (dict "g" $g "href" (printf "%v%s" $n.Details.Info.URL $q)) }}{{ if ge $n.Details.Info.Total 0 }} title="{{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ end }}>{{$n.Name}}</a>
+{{/* data-folder marks a row that is one folder of one account, which
+     is what a dropped file can be imported into. A view's row - unread,
+     starred, a colour - and a merged role's row name no such thing. */}}
+<a href="{{$n.Details.Info.URL}}{{$q}}" data-folder="{{$n.Details.Info.URL}}{{$q}}"{{ template "list-get" (dict "g" $g "href" (printf "%v%s" $n.Details.Info.URL $q)) }}{{ if ge $n.Details.Info.Total 0 }} title="{{$n.Name}} · {{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ else }} title="{{$n.Name}}"{{ end }}>{{$n.Name}}</a>
 {{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$g.Num $n.Details.Info.Unseen}}</span>{{ end }}
 {{ else }}
 <span class="noselect">{{$n.Name}}</span>
@@ -1289,7 +1292,7 @@
 
 {{/* The mail pages' rail: the shared frame over the page's own data. */}}
 {{ define "aside" }}
-<aside data-mail-sidebar>
+<aside data-mail-sidebar data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}">
 {{ template "scope-rail" (dict "g" $ "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
 </aside>
 {{ end }}

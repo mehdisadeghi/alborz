@@ -617,6 +617,13 @@
 "folder.movedo" = "Move"
 "aside.import" = "Import mail"
 "folder.import" = "Import mail"
+"folder.dropimporting" = "Importing %s…"
+"folder.dropimportingmany" = "Importing %s files…"
+"folder.dropadding" = "Adding to the folder…"
+"folder.dropnomail" = "No mail files in what was dropped."
+"folder.dropfailed" = "The import failed (%s)."
+"folder.dropwhere" = "Drop mail on a folder to import it."
+"folder.dropwhich" = "Import into %s:"
 "calendar.import" = "Import events"
 "calendar.importhint" = "An .ics file, or a .zip of them as a service exports its calendars; into the calendar chosen above, or each into a new one."
 "tasks.import" = "Import tasks"
@@ -995,6 +1002,10 @@ other = "The import stopped after %d messages; the folder %s holds them."
 ["folder.exportselectedask"]
 one = "Export the message picked?"
 other = "Export the %d messages picked?"
+
+["notice.importheld"]
+one = "One was already there."
+other = "%d were already there."
 
 ["folder.exportcount"]
 one = "It holds one message."

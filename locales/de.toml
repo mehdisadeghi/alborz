@@ -619,6 +619,13 @@
 "folder.movedo" = "Verschieben"
 "aside.import" = "Mail importieren"
 "folder.import" = "Mail importieren"
+"folder.dropimporting" = "%s wird importiert…"
+"folder.dropimportingmany" = "%s Dateien werden importiert…"
+"folder.dropadding" = "Wird im Ordner abgelegt…"
+"folder.dropnomail" = "Keine Mail-Dateien im Abgelegten."
+"folder.dropfailed" = "Der Import ist fehlgeschlagen (%s)."
+"folder.dropwhere" = "Mail auf einen Ordner ziehen, um sie zu importieren."
+"folder.dropwhich" = "In %s importieren:"
 "calendar.import" = "Termine importieren"
 "calendar.importhint" = "Eine .ics-Datei oder ein .zip davon, wie ein Dienst seine Kalender exportiert; in den oben gewählten Kalender oder jede in einen neuen."
 "tasks.import" = "Aufgaben importieren"
@@ -995,6 +1002,10 @@ other = "Der Import brach nach %d Nachrichten ab; der Ordner %s enthält sie."
 ["folder.exportselectedask"]
 one = "Die gewählte Nachricht exportieren?"
 other = "Die %d gewählten Nachrichten exportieren?"
+
+["notice.importheld"]
+one = "Eine war schon da."
+other = "%d waren schon da."
 
 ["folder.exportcount"]
 one = "Er enthält eine Nachricht."

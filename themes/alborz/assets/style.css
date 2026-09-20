@@ -4661,6 +4661,33 @@ aside ul.merged-roles {
   cursor: pointer;
 }
 
+/* A folder under the pointer with files over it, and the bar that
+   reports what is going into it. */
+main.drop-into {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+aside a.drop-into {
+  background: var(--bg-active);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The import's own progress, inside the notice bar it borrows. Its
+   line is one line: what it names is the reader's own file, and a
+   hundred of them would otherwise push the page down. */
+.notice > progress {
+  flex: none;
+  width: 8rem;
+}
+
+.notice:has(> progress) > .notice-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Page context, breadcrumb-weight: which account and container the
    page acts on, between the toolbar and the content. */
 .context-crumb {

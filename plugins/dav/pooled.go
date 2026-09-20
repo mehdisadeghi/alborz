@@ -78,8 +78,10 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 		s, err := result.Site, result.Err
 		c, infos := result.Value.Client, result.Value.Collections
 		// An account with nothing of the kind is not one whose server
-		// failed: it has no entry, and nothing to be warned about.
+		// failed: it keeps its place with nothing in it, so a reader
+		// can see the account is there and make the first one.
 		if errors.Is(err, none) {
+			accounts = append(accounts, Account[C]{Name: s.Username(), Session: s, Client: c})
 			continue
 		}
 		// A refused password is an answer the reader can act on, not a

@@ -822,7 +822,10 @@
      picker sits on already says what it is. */}}
 <label{{ if .quiet }} class="picker-quiet"{{ end }}>
   <span{{ if .quiet }} class="visually-hidden"{{ end }}>{{.label}}</span>
-  <select name="{{.name}}" data-destination-key="{{.key}}">
+  <select name="{{.name}}" data-destination-key="{{.key}}"{{ if .ask }} required{{ end }}>
+    {{/* ask: nothing in force, so nothing is chosen until the reader
+         chooses; a select that opens on an answer gets that answer. */}}
+    {{ if .ask }}<option value="" selected>{{ .asklabel }}</option>{{ end }}
     {{ range .groups }}
     {{ $acct := .Account }}
     {{ if $.multi }}<optgroup label="{{.Account}}">{{ end }}

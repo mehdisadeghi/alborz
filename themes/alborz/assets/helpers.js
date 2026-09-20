@@ -173,6 +173,32 @@ const enhance = () => {
 	// Creation has no fixed account context: remember one destination per
 	// object type in this browser, while the optgroups continue to show the
 	// account namespace only once when the menu is opened.
+	// Whose collection it is decides which places can keep it: the form
+	// lists every account's, grouped, and the account chosen leaves its
+	// own on the list. Without a script the groups say whose is whose.
+	for (const account of document.querySelectorAll("select[data-place-account]")) {
+		const places = account.form && account.form.querySelector("select[data-place-of]");
+		if (!places || !once(account, "placeaccount")) {
+			continue;
+		}
+		const narrow = () => {
+			for (const group of places.querySelectorAll("optgroup")) {
+				group.hidden = account.value !== "" && group.label !== account.value;
+			}
+			for (const option of places.querySelectorAll("option[data-account]")) {
+				option.hidden = account.value !== "" && option.dataset.account !== account.value;
+			}
+			// A place of another account is no longer on offer, so it is
+			// no longer the answer.
+			const chosen = places.selectedOptions[0];
+			if (chosen && chosen.hidden) {
+				places.value = "";
+			}
+		};
+		account.addEventListener("change", narrow);
+		narrow();
+	}
+
 	for (const select of document.querySelectorAll("select[data-destination-key]")) {
 		if (!once(select, "destination")) {
 			continue;

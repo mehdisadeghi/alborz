@@ -75,8 +75,18 @@ type NewCollectionRenderData struct {
 	// a source of the account's, or Alborz (ADR 28).
 	Places []Group
 	Place  string
-	Next   string // the list it was opened from
-	Error  string
+	// Scope is the account the page was in, empty on a merged page.
+	Scope string
+	Next  string // the list it was opened from
+	Error string
+}
+
+// Asks says the reader has to name the place rather than take one:
+// several accounts are signed in and the page they came from names
+// none, so any preselection would be alborz choosing an account for
+// them - which is how a collection landed in the first one.
+func (d *NewCollectionRenderData) Asks() bool {
+	return d.Chooses() && d.Scope == ""
 }
 
 // Chooses says whether there is more than one place to pick from.
@@ -122,6 +132,7 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(f.Title),
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Session.Username(),
+			Scope:          ctx.URLAccount(),
 			Color:          DefaultColor,
 			Title:          f.Title,
 			ListHref:       f.List,
@@ -138,6 +149,10 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 
 		data.Name = strings.TrimSpace(ctx.FormValue("name"))
 		data.Color = ctx.FormValue("color")
+		if data.Asks() && ctx.FormValue("place") == "" {
+			data.Error = ctx.T("form.destinationneeded")
+			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
+		}
 		// A form that offers no choice cannot be posted one.
 		if h := ctx.FormValue("holds"); f.OffersHolds && held[h] != nil {
 			data.Holds = h

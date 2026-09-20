@@ -1169,16 +1169,42 @@ type quickList struct {
 	Account string
 	Path    string
 	Name    string
+	// Lists are the task lists the line can write into, grouped by
+	// account: where a task goes is the reader's to say, on the line
+	// they are typing it on.
+	Lists []dav.Group
 }
 
 func quickListOf(ctx *alborz.Context, calendars []dav.Collection) *quickList {
 	scope := ctx.URLAccount()
+	var quick *quickList
+	var lists []dav.Group
 	for _, cal := range calendars {
-		if (scope == "" || cal.Account == scope) && cal.Shown && cal.Writable && supportsTodo(cal.Components) {
-			return &quickList{Account: cal.Account, Path: cal.Path, Name: cal.Name}
+		if !cal.Writable || !supportsTodo(cal.Components) || (scope != "" && cal.Account != scope) {
+			continue
 		}
+		// The list in force is the one a task lands in; failing that,
+		// the first the page shows.
+		if quick == nil && cal.Shown {
+			quick = &quickList{Account: cal.Account, Path: cal.Path, Name: cal.Name}
+		}
+		at := -1
+		for i := range lists {
+			if lists[i].Account == cal.Account {
+				at = i
+			}
+		}
+		if at < 0 {
+			lists = append(lists, dav.Group{Account: cal.Account})
+			at = len(lists) - 1
+		}
+		lists[at].Collections = append(lists[at].Collections, cal)
 	}
-	return nil
+	if quick == nil {
+		return nil
+	}
+	quick.Lists = lists
+	return quick
 }
 
 // taskRows is the task list's filter menu: the completed tasks, every

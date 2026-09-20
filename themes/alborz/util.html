@@ -739,8 +739,10 @@
      so one select answers both questions. dict: label name key groups
      account path multi. */}}
 {{ define "collection-picker" }}
-<label>
-  <span>{{.label}}</span>
+{{/* quiet: the label is for the screen reader only, where the row the
+     picker sits on already says what it is. */}}
+<label{{ if .quiet }} class="picker-quiet"{{ end }}>
+  <span{{ if .quiet }} class="visually-hidden"{{ end }}>{{.label}}</span>
   <select name="{{.name}}" data-destination-key="{{.key}}">
     {{ range .groups }}
     {{ $acct := .Account }}

@@ -577,6 +577,8 @@ func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialS
 }
 
 func (sm *SessionManager) Close() {
+	sm.locker.Lock()
+	defer sm.locker.Unlock()
 	for s := range sm.sessions {
 		s.Close()
 	}

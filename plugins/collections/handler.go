@@ -10,9 +10,11 @@ import (
 )
 
 var (
-	_ caldav.Backend       = calendars{}
-	_ caldav.UpdateBackend = calendars{}
-	_ carddav.Backend      = books{}
+	_ caldav.Backend                   = calendars{}
+	_ caldav.UpdateBackend             = calendars{}
+	_ caldav.ConditionalDeleteBackend  = calendars{}
+	_ carddav.Backend                  = books{}
+	_ carddav.ConditionalDeleteBackend = books{}
 )
 
 // maxObject bounds what an account sends: an object, or a report naming

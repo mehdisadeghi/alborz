@@ -193,9 +193,10 @@ func (s *Store) objects(ctx context.Context, p string, kind Kind) ([]Object, err
 
 // write keeps an object at a path, octet for octet as it was sent, so
 // the tag a PUT answers with names what the client holds (RFC 4791
-// 5.3.4, RFC 6352 6.3.2.3); accepts is the collection's own say on what
-// it takes.
-func (s *Store) write(ctx context.Context, p string, kind Kind, data []byte, ifMatch, ifNoneMatch webdav.ConditionalMatch, accepts func(Collection) error) (*Object, error) {
+// 5.3.4, RFC 6352 6.3.2.3), under the UID its kind's parser read;
+// accepts is the collection's own say on what it takes. A UID conflict goes back as the store said it, for
+// each protocol to name in its own words.
+func (s *Store) write(ctx context.Context, p string, kind Kind, uid string, data []byte, ifMatch, ifNoneMatch webdav.ConditionalMatch, accepts func(Collection) error) (*Object, error) {
 	at, c, may, err := s.reach(ctx, p, kind)
 	if err != nil {
 		return nil, err
@@ -206,7 +207,10 @@ func (s *Store) write(ctx context.Context, p string, kind Kind, data []byte, ifM
 	if err := accepts(*c); err != nil {
 		return nil, err
 	}
-	o, err := s.PutObject(at.ref, at.object, data, conditions(ifMatch, ifNoneMatch), userOf(ctx))
+	o, err := s.PutObject(at.ref, at.object, uid, data, conditions(ifMatch, ifNoneMatch), userOf(ctx))
+	if errors.Is(err, ErrUIDConflict) {
+		return nil, err
+	}
 	return o, storeError(err)
 }
 
@@ -277,7 +281,7 @@ func (s *Store) update(ctx context.Context, p string, kind Kind, change func(*Co
 // by its owner, while an invitee stops seeing it, which is all a share
 // gives them the right to end. The share stays, marked, so its owner
 // sees who left.
-func (s *Store) remove(ctx context.Context, p string, kind Kind) error {
+func (s *Store) remove(ctx context.Context, p string, kind Kind, ifMatch webdav.ConditionalMatch) error {
 	at, _, may, err := s.reach(ctx, p, kind)
 	switch {
 	case err != nil:
@@ -289,7 +293,7 @@ func (s *Store) remove(ctx context.Context, p string, kind Kind) error {
 	case may < write:
 		return errForbidden
 	}
-	return storeError(s.RemoveObject(at.ref, at.object, userOf(ctx)))
+	return storeError(s.RemoveObject(at.ref, at.object, conditions(ifMatch, ""), userOf(ctx)))
 }
 
 // statusError is an answer with its HTTP status. go-webdav keeps the

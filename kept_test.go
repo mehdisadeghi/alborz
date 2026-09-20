@@ -60,6 +60,94 @@ func put(t *testing.T, base, path, contentType, body string) {
 	}
 }
 
+// dav makes one request to alborz's own DAV server as the account, and
+// returns what came back, body and all.
+func dav(t *testing.T, method, url string, header map[string]string, body string) (*http.Response, string) {
+	t.Helper()
+	req, err := http.NewRequest(method, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.SetBasicAuth(smokeUser, smokePass)
+	for k, v := range header {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	answer, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp, string(answer)
+}
+
+// event is one calendar object, named by its UID.
+func event(uid, summary string) string {
+	return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:" + uid +
+		"\r\nDTSTAMP:20260901T080000Z\r\nDTSTART:20260915T100000Z\r\nDTEND:20260915T110000Z\r\nSUMMARY:" +
+		summary + "\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+}
+
+// keptCalendar makes a calendar of alborz's own and answers its path.
+func keptCalendar(t *testing.T, base string, c *http.Client, name, id string) string {
+	t.Helper()
+	form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {name}, "color": {"#22aa55"}}
+	if resp := postForm(t, c, base+"/calendars/create", form); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the calendar answered %s", resp.Status)
+	}
+	return base + "/alborz/dav/calendars/" + smokeUser + "/" + id + "/"
+}
+
+// A DELETE carries If-Match when a client deletes what it believes it
+// has (RFC 9110 13.1.1); go-webdav's server hands the backend the path
+// alone, and the object went whatever tag was sent.
+func TestADeleteWithAStaleTagKeepsTheObject(t *testing.T) {
+	base := startAlborzKept(t, startIMAP(t))
+	c := login(t, base)
+	cal := keptCalendar(t, base, c, "Plans", "plans")
+	put(t, base, strings.TrimPrefix(cal+"dentist.ics", base), "text/calendar", event("dentist", "Dentist"))
+
+	if resp, _ := dav(t, http.MethodDelete, cal+"dentist.ics", map[string]string{"If-Match": `"stale"`}, ""); resp.StatusCode != http.StatusPreconditionFailed {
+		t.Fatalf("a delete with a stale tag answered %s", resp.Status)
+	}
+	resp, _ := dav(t, http.MethodGet, cal+"dentist.ics", nil, "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the object is gone after a refused delete: %s", resp.Status)
+	}
+	if resp, _ := dav(t, http.MethodDelete, cal+"dentist.ics", map[string]string{"If-Match": resp.Header.Get("ETag")}, ""); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("a delete with the object's own tag answered %s", resp.Status)
+	}
+	if resp, _ := dav(t, http.MethodGet, cal+"dentist.ics", nil, ""); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("the deleted object is still there: %s", resp.Status)
+	}
+}
+
+// One UID per calendar (RFC 4791 5.3.2.1): a second object holding it
+// is refused, and a rewrite of the object that holds it is not.
+func TestASecondObjectWithATakenUIDIsRefused(t *testing.T) {
+	base := startAlborzKept(t, startIMAP(t))
+	c := login(t, base)
+	cal := keptCalendar(t, base, c, "Work", "work")
+	put(t, base, strings.TrimPrefix(cal+"review.ics", base), "text/calendar", event("review", "Review"))
+
+	resp, _ := dav(t, http.MethodPut, cal+"copy.ics", map[string]string{"Content-Type": "text/calendar"}, event("review", "Review again"))
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("a second object with a taken UID answered %s", resp.Status)
+	}
+	if resp, _ := dav(t, http.MethodGet, cal+"copy.ics", nil, ""); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("the refused object was written anyway: %s", resp.Status)
+	}
+	if resp, _ := dav(t, http.MethodPut, cal+"review.ics", map[string]string{"Content-Type": "text/calendar"}, event("review", "Review, moved")); resp.StatusCode/100 != 2 {
+		t.Fatalf("rewriting the object that holds the UID answered %s", resp.Status)
+	}
+	if _, kept := dav(t, http.MethodGet, cal+"review.ics", nil, ""); !strings.Contains(kept, "Review, moved") {
+		t.Errorf("the rewrite did not stick: %s", kept)
+	}
+}
+
 // A task with no STATUS is open (RFC 5545 3.8.1.11), and phones write
 // them so. go-webdav's client drops is-not-defined from a filter, which
 // once turned "tasks without a STATUS" into "tasks with one", and such a
@@ -351,17 +439,7 @@ func walk(t *testing.T, base string, c *http.Client, k walked, scope string) {
 		put(t, base, k.collection+"carried"+k.ext, k.mime, k.object("carried", "Walked carried"))
 		moved("moving the checked", postForm(t, c, base+"/tasks/move", url.Values{"paths": {ref("carried")}, "to": {smokeUser + "|" + errands}, "next": {next}}))
 		found("the moved task", get(t, c, base+k.objects+url.PathEscape(errands+"carried"+k.ext)+"/raw"+acct), "Walked carried")
-		left, err := http.NewRequest(http.MethodGet, base+k.collection+"carried"+k.ext, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		left.SetBasicAuth(smokeUser, smokePass)
-		resp, err := http.DefaultClient.Do(left)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusNotFound {
+		if resp, _ := dav(t, http.MethodGet, base+k.collection+"carried"+k.ext, nil, ""); resp.StatusCode != http.StatusNotFound {
 			t.Errorf("the moved task is still in the list it left: %s", resp.Status)
 		}
 	case "contact":

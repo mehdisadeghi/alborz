@@ -3,6 +3,7 @@ package collections
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -177,16 +178,19 @@ func (b calendars) QueryCalendarObjects(ctx context.Context, p string, query *ca
 }
 
 func (b calendars) PutCalendarObject(ctx context.Context, p string, cal *ical.Calendar, opts *caldav.PutCalendarObjectOptions) (*caldav.CalendarObject, error) {
-	component, _, err := caldav.ValidateCalendarObject(cal)
+	component, uid, err := caldav.ValidateCalendarObject(cal)
 	if err != nil {
 		return nil, caldav.NewPreconditionError(caldav.PreconditionValidCalendarObjectResource)
 	}
-	o, err := b.write(ctx, p, Calendar, opts.Raw, opts.IfMatch, opts.IfNoneMatch, func(c Collection) error {
+	o, err := b.write(ctx, p, Calendar, uid, opts.Raw, opts.IfMatch, opts.IfNoneMatch, func(c Collection) error {
 		if !slices.Contains(c.Components, component) {
 			return caldav.NewPreconditionError(caldav.PreconditionSupportedCalendarComponent)
 		}
 		return nil
 	})
+	if errors.Is(err, ErrUIDConflict) {
+		return nil, caldav.NewPreconditionError(caldav.PreconditionNoUIDConflict)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -217,5 +221,9 @@ func conditions(ifMatch, ifNoneMatch webdav.ConditionalMatch) Unless {
 }
 
 func (b calendars) DeleteCalendarObject(ctx context.Context, p string) error {
-	return b.remove(ctx, p, Calendar)
+	return b.remove(ctx, p, Calendar, "")
+}
+
+func (b calendars) DeleteCalendarObjectIfMatch(ctx context.Context, p string, ifMatch webdav.ConditionalMatch) error {
+	return b.remove(ctx, p, Calendar, ifMatch)
 }

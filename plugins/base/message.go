@@ -1,12 +1,15 @@
 package alborzbase
 
 import (
+	"archive/zip"
+	"bytes"
 	"fmt"
 	"html/template"
 	"io"
 	"mime"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -85,6 +88,16 @@ type MessageRenderData struct {
 	// as chrome outside the body frame. Its zero value says nothing,
 	// which is what an unsigned message deserves.
 	Signature Verification
+}
+
+// attachmentsShown is how many files the card shows without being
+// asked: enough for the mail that carries a few, while the mail that
+// carries fifty keeps the body in view.
+const attachmentsShown = 5
+
+// AttachmentsOpen reports whether the card starts open.
+func (d *MessageRenderData) AttachmentsOpen() bool {
+	return len(d.Message.Attachments()) <= attachmentsShown
 }
 
 // handleInvitationReply answers a meeting request by mail, which is
@@ -172,6 +185,102 @@ func handleDownloadMessage(ctx *alborz.Context, plain bool) error {
 	ctx.Response().Header().Set("Content-Disposition",
 		downloadName(subject, fmt.Sprintf("%v", uid), ".eml"))
 	return ctx.Blob(http.StatusOK, "message/rfc822", raw)
+}
+
+// handleDownloadAttachments sends every attachment of one message as a
+// zip, so a message holding fifty files is one click rather than fifty.
+// It writes as it walks: the parts are already in memory, the archive
+// need not be.
+func handleDownloadAttachments(ctx *alborz.Context) error {
+	mboxName, uid, err := messageRef(ctx)
+	if err != nil {
+		return err
+	}
+	var raw []byte
+	var env *imap.Envelope
+	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
+		var err error
+		raw, env, err = fetchRawMessage(c, mboxName, uid)
+		return err
+	}); err != nil {
+		return err
+	}
+	entity, err := message.Read(bytes.NewReader(raw))
+	if err != nil && !message.IsUnknownCharset(err) {
+		return err
+	}
+	subject := ""
+	if env != nil {
+		subject = env.Subject
+	}
+	ctx.Response().Header().Set("Content-Disposition",
+		downloadName(subject, fmt.Sprintf("%v", uid), ".zip"))
+	ctx.Response().Header().Set("Content-Type", "application/zip")
+	ctx.Response().WriteHeader(http.StatusOK)
+	archive := zip.NewWriter(ctx.Response())
+	taken := map[string]int{}
+	if err := writeAttachments(archive, entity, taken); err != nil {
+		// The reader has bytes by now, so the file ends short rather
+		// than turning into an error page.
+		ctx.Logger().Printf("attachments %q uid %v: %v", mboxName, uid, err)
+	}
+	return archive.Close()
+}
+
+// writeAttachments puts every attached part into the archive, naming an
+// unnamed one after the extension its type gives. What is attached is
+// what the message's card counts (Attachments): a part that says so,
+// at any depth, and the message itself when it is nothing else.
+func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]int) error {
+	if mr := e.MultipartReader(); mr != nil {
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				return nil
+			}
+			if err != nil && !message.IsUnknownCharset(err) {
+				return err
+			}
+			if err := writeAttachments(archive, part, taken); err != nil {
+				return err
+			}
+		}
+	}
+	mediaType, _, _ := e.Header.ContentType()
+	disposition, params, _ := e.Header.ContentDisposition()
+	if disposition != "attachment" {
+		return nil
+	}
+	w, err := archive.Create(zipEntryName(params["filename"], mediaType, taken))
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(w, e.Body)
+	return err
+}
+
+// zipEntryName keeps the file's own name where it has one, and keeps
+// names apart: a message may attach the same name twice.
+func zipEntryName(filename, mediaType string, taken map[string]int) string {
+	name := strings.Map(func(r rune) rune {
+		switch {
+		case r < 0x20, r == '\\', r == '/', r == 0x7f:
+			return -1
+		}
+		return r
+	}, filename)
+	if name == "" {
+		name = "part"
+		if exts, err := mime.ExtensionsByType(mediaType); err == nil && len(exts) > 0 {
+			name += exts[0]
+		}
+	}
+	taken[name]++
+	if n := taken[name]; n > 1 {
+		ext := path.Ext(name)
+		name = fmt.Sprintf("%s %d%s", strings.TrimSuffix(name, ext), n, ext)
+	}
+	return name
 }
 
 func handleGetPart(ctx *alborz.Context, raw bool) error {

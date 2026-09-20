@@ -1,6 +1,7 @@
 package alborz_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"fmt"
 	"github.com/emersion/go-sasl"
@@ -1096,6 +1097,32 @@ func TestAccountsScopeAndSignOut(t *testing.T) {
 	resp := postForm(t, c, base+"/mailbox/INBOX", nil)
 	if resp.StatusCode != http.StatusFound || !strings.HasPrefix(resp.Header.Get("Location"), "/login") {
 		t.Errorf("after signing out of every account a page still answered %s to %s", resp.Status, resp.Header.Get("Location"))
+	}
+}
+
+func TestZipHoldsTheAttachmentsTheCardCounts(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX?query="+url.QueryEscape("from:bob")))
+	if len(uids) != 1 {
+		t.Fatalf("from:bob answers %d messages, want the one with attachments", len(uids))
+	}
+	listed := strings.Count(get(t, c, base+"/message/INBOX/"+uids[0]), "/raw?part=")
+	if listed == 0 {
+		t.Fatal("the message page lists no attachment")
+	}
+	resp, err := c.Get(base + "/message/INBOX/" + uids[0] + "/attachments.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	archive, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatalf("attachments.zip: %v", err)
+	}
+	if len(archive.File) != listed {
+		t.Errorf("the zip holds %d files and the page lists %d", len(archive.File), listed)
 	}
 }
 

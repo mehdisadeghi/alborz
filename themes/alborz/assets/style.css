@@ -130,6 +130,9 @@ select {
      after it stand still from folder to folder and month to month; a
      longer name truncates, the whole of it in the title. */
   --title-track: 12rem;
+  /* A title with its secondary month beside it, the longest a month
+     runs in two calendars ("September 2026 Shahrivar - Mehr 1405"). */
+  --title-track-glossed: 24rem;
   /* A list row's cell, its header, the chips above it and the crumb:
      one box, so their text shares a baseline and an edge. */
   --row-pad: 0.4rem var(--space-2);
@@ -3066,6 +3069,10 @@ main.calendar .actions {
   min-width: var(--title-floor);
 }
 
+.actions-message h1:not(:last-child):has(.title-secondary:not([hidden])) {
+  flex-basis: var(--title-track-glossed);
+}
+
 /* A control never yields its size to the title: squeezing an icon
    button is how the calendar's new-event mark came to sit on top of the
    pager. */
@@ -4631,6 +4638,21 @@ aside ul.merged-roles {
   padding: var(--row-pad);
   background: color-mix(in srgb, var(--surface) 58%, var(--surface-subtle));
   border-bottom: 1px solid var(--border-light);
+}
+
+/* The step that names the page is the page's heading, and reads as the
+   crumb's last step rather than as a heading of its own. */
+.context-crumb h1 {
+  display: inline;
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.context-crumb .crumb-gloss {
+  color: var(--fg-muted);
+  font-weight: 400;
 }
 
 /* An overflow menu is right-aligned to the control that opens it, and

@@ -20,7 +20,7 @@
         {{ template "contacts-header.html" . }}
       </section>
 
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" "/contacts" "field" "book" "items" .AddressBooks "collection" "" "path" "") }}
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" "/contacts" "field" "book" "items" .AddressBooks "collection" "" "path" "" "heading" true) }}
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 

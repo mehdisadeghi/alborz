@@ -269,6 +269,10 @@ type CalendarRenderData struct {
 	// holds and in what order, carried on to an event's page so that
 	// page can name the events either side of it.
 	ListQuery string
+	// Scope is the account and the calendars the page is narrowed to,
+	// which every link in its toolbar keeps: another month or the
+	// other view of the same calendars.
+	Scope string
 	// SelectForm is the form a row's checkbox belongs to where the page
 	// has one; empty where it has none, and then no row offers a box
 	// and no column is kept for one. The agenda is a list like the
@@ -850,6 +854,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		PrevTime:  mv.prevTime,
 		NextTime:  mv.nextTime,
 		ListQuery: monthQuery(ctx, mv),
+		Scope:     alborz.AddressQuery(dav.ListParams(ctx, "account", "cal")),
 		SelectForm: func() string {
 			if mv.view != "" {
 				return "events-form"

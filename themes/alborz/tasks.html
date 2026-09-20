@@ -16,7 +16,7 @@
     </form>
     <main id="main" tabindex="-1" class="task-list">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "toolbar-head" (dict "g" . "title" ($.T "nav.tasks") "selectall" true "newhref" "/tasks/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "tasks.new")) }}
+        {{ template "toolbar-head" (dict "g" . "selectall" true "newhref" "/tasks/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "tasks.new")) }}
           <span class="icon-group">
             {{/* Download leaves a narrowing row first, then delete. */}}
             {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "priority" 12 "form" "tasks-form" "formaction" "/tasks/complete") }}
@@ -45,7 +45,7 @@
         {{ template "toolbar-foot" }}
       </section>
 
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal" "items" .Calendars "collection" "" "path" "") }}
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal" "items" .Calendars "collection" "" "path" "" "heading" true) }}
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 

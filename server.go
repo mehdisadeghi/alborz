@@ -913,11 +913,22 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		MinLength: 1024,
 	}))
 
+	// A browser's POST from another origin is refused: the cookies are
+	// Lax so that an installed app's cold launch, a navigation with no
+	// initiator, is still signed in, and Lax lets a sibling on the same
+	// site post with them. DAV clients send no browser headers and pass.
+	e.Use(echo.WrapMiddleware(http.NewCrossOriginProtection().Handler))
+
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ectx echo.Context) error {
 			// `style-src 'unsafe-inline'` is required for e-mails with
-			// embedded stylesheets
-			ectx.Response().Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:")
+			// embedded stylesheets. Only alborz frames alborz, and a form
+			// or a base in a message cannot point elsewhere.
+			ectx.Response().Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'; form-action 'self'; base-uri 'none'")
+			// The same for browsers that read framing from this header
+			// alone, and no guessing an attachment into something else.
+			ectx.Response().Header().Set("X-Frame-Options", "SAMEORIGIN")
+			ectx.Response().Header().Set("X-Content-Type-Options", "nosniff")
 			// DNS prefetching has privacy implications
 			ectx.Response().Header().Set("X-DNS-Prefetch-Control", "off")
 			// Assets revalidate by default so theme and plugin edits are

@@ -263,6 +263,9 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	e := echo.New()
 	e.HideBanner = true
 	if l, ok := e.Logger.(*log.Logger); ok {
+		// Logs are diagnostics; the useful startup line is the prologue
+		// on stdout, so the log stream never drowns it.
+		l.SetOutput(os.Stderr)
 		l.SetHeader("${time_rfc3339} ${level}")
 	}
 	s, err := alborz.New(e, &options)
@@ -284,6 +287,15 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		}))
 		e.Logger.SetLevel(log.DEBUG)
 	}
+
+	// Bind before announcing, so the prologue only says the server is up
+	// once the port is actually open.
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		e.Logger.Fatal(err)
+	}
+	e.Listener = ln
+	fmt.Fprint(os.Stdout, alborz.Prologue)
 
 	go func() {
 		if err := e.Start(addr); err != nil && err != http.ErrServerClosed {

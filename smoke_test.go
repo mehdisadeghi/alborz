@@ -706,7 +706,7 @@ func TestExportFailsAsAnError(t *testing.T) {
 	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/mbox") {
 		t.Fatalf("a good export was served as %q", ct)
 	}
-	if n := strings.Count(buf.String(), "\r\nFrom ") + strings.Count(
+	if n := strings.Count(buf.String(), "\nFrom ") + strings.Count(
 		buf.String()[:min(6, buf.Len())], "From "); n < 2 {
 		t.Errorf("expected two messages, found %d separators", n)
 	}

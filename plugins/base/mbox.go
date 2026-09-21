@@ -18,6 +18,7 @@ import (
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-mbox"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/textproto"
 	"github.com/labstack/echo/v4"
@@ -88,6 +89,10 @@ func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) err
 	// the error page rendered into a body already claiming to be an
 	// mbox, and the reader was handed an .mbox file full of HTML.
 	res := ctx.Response()
+	archive := mbox.NewWriter(res)
+	archive.Mboxrd = true
+	// The last message is only whole once the archive is closed.
+	defer archive.Close()
 	started := false
 	for _, r := range refs {
 		s := ctx.SessionFor(r.account)
@@ -129,7 +134,7 @@ func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) err
 			res.WriteHeader(http.StatusOK)
 			started = true
 		}
-		if err := writeMbox(res, raw, env); err != nil {
+		if err := writeMbox(archive, raw, env); err != nil {
 			ctx.Logger().Printf("export %s %q uid %v: %v", r.account, r.mailbox, r.uid, err)
 			return nil
 		}
@@ -219,53 +224,25 @@ func copyWithoutAttachments(w *message.Writer, e *message.Entity, note string) e
 	}
 }
 
-// mboxSeparator opens each message in an mbox file. The address and the
-// date are the envelope sender and delivery time in the original
-// format's own shape; nothing reads them, but a file without them is
-// not an mbox.
-func mboxSeparator(env *imap.Envelope) string {
-	from := "alborz"
-	if env != nil && len(env.From) > 0 {
-		if addr := env.From[0].Addr(); addr != "" {
-			from = addr
-		}
-	}
+// writeMbox appends one message. The sender and the date of its
+// separator are the envelope's; nothing reads them, but a file without
+// them is not an mbox. Lines end as an mbox's do, in LF.
+func writeMbox(archive *mbox.Writer, raw []byte, env *imap.Envelope) error {
+	var from string
 	when := time.Now()
-	if env != nil && !env.Date.IsZero() {
-		when = env.Date
+	if env != nil {
+		if len(env.From) > 0 {
+			from = env.From[0].Addr()
+		}
+		if !env.Date.IsZero() {
+			when = env.Date
+		}
 	}
-	return "From " + from + " " + when.UTC().Format(time.ANSIC) + "\r\n"
-}
-
-// writeMbox appends one message in mboxrd form. A line that would be
-// read as the next message's separator is quoted with a ">", and one
-// already quoted gains another, which is what makes the escaping
-// reversible.
-func writeMbox(w io.Writer, raw []byte, env *imap.Envelope) error {
-	if _, err := io.WriteString(w, mboxSeparator(env)); err != nil {
+	w, err := archive.CreateMessage(from, when)
+	if err != nil {
 		return err
 	}
-	scanner := bufio.NewScanner(bytes.NewReader(raw))
-	scanner.Buffer(make([]byte, 0, 64*1024), maxMboxLine)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		trimmed := bytes.TrimLeft(line, ">")
-		if bytes.HasPrefix(trimmed, []byte("From ")) {
-			if _, err := w.Write([]byte(">")); err != nil {
-				return err
-			}
-		}
-		if _, err := w.Write(line); err != nil {
-			return err
-		}
-		if _, err := io.WriteString(w, "\r\n"); err != nil {
-			return err
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-	_, err := io.WriteString(w, "\r\n")
+	_, err = w.Write(bytes.ReplaceAll(raw, []byte("\r\n"), []byte("\n")))
 	return err
 }
 
@@ -510,9 +487,9 @@ func handleImport(ctx *alborz.Context) error {
 // second time. Identity is the Message-ID (RFC 5322 3.6.4); a message
 // without one is taken at its word and appended.
 func appendMessages(c *imapclient.Client, folder string, r io.Reader, seen map[string]bool) (added, held int, err error) {
-	messages := newMboxReader(r)
+	next := mboxMessages(r)
 	for {
-		raw, err := messages.next()
+		raw, err := next()
 		if err == io.EOF {
 			return added, held, nil
 		}
@@ -700,82 +677,36 @@ func messageDate(raw []byte) time.Time {
 	return time.Now()
 }
 
-// mboxReader hands out the messages of an mbox one at a time, in the
-// CRLF form the server wants, with mboxrd's quoting undone. A file that
-// does not open with a separator is one message.
-type mboxReader struct {
-	r     *bufio.Reader
-	first bool
-	done  bool
-}
+// mboxSeparator is what every message of an mbox opens with.
+const mboxSeparator = "From "
 
-func newMboxReader(r io.Reader) *mboxReader {
-	return &mboxReader{r: bufio.NewReaderSize(r, 64*1024), first: true}
-}
-
-func (m *mboxReader) next() ([]byte, error) {
-	if m.done {
-		return nil, io.EOF
-	}
-	var msg bytes.Buffer
-	for {
-		line, err := m.readLine()
-		if err == io.EOF {
-			m.done = true
-			if msg.Len() == 0 {
+// mboxMessages hands out the messages of an mbox one at a time, in the
+// CRLF form the server wants. A file that does not open with a
+// separator is one message, which is what a dropped .eml is.
+func mboxMessages(r io.Reader) func() ([]byte, error) {
+	buffered := bufio.NewReader(r)
+	if head, _ := buffered.Peek(len(mboxSeparator)); string(head) != mboxSeparator {
+		done := false
+		return func() ([]byte, error) {
+			if done {
 				return nil, io.EOF
 			}
-			return msg.Bytes(), nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		if bytes.HasPrefix(line, []byte("From ")) {
-			if m.first {
-				m.first = false
-				continue
+			done = true
+			raw, err := io.ReadAll(buffered)
+			if err == nil && len(raw) == 0 {
+				return nil, io.EOF
 			}
-			if msg.Len() > 0 {
-				return msg.Bytes(), nil
-			}
-			continue
+			return crlf(raw), err
 		}
-		if m.first {
-			// No separator at the top: the whole file is one message,
-			// and the line is its first.
-			m.first = false
-			m.done = true
-			msg.Write(line)
-			msg.WriteString("\r\n")
-			rest, err := io.ReadAll(m.r)
-			if err != nil {
-				return nil, err
-			}
-			msg.Write(crlf(rest))
-			return msg.Bytes(), nil
-		}
-		if trimmed := bytes.TrimLeft(line, ">"); bytes.HasPrefix(trimmed, []byte("From ")) {
-			line = line[1:]
-		}
-		msg.Write(line)
-		msg.WriteString("\r\n")
 	}
-}
-
-// readLine is one line without its ending, of any length.
-func (m *mboxReader) readLine() ([]byte, error) {
-	var line []byte
-	for {
-		chunk, isPrefix, err := m.r.ReadLine()
+	archive := mbox.NewReader(buffered)
+	archive.Mboxrd = true
+	return func() ([]byte, error) {
+		message, err := archive.NextMessage()
 		if err != nil {
-			if err == io.EOF && len(line) > 0 {
-				return line, nil
-			}
 			return nil, err
 		}
-		line = append(line, chunk...)
-		if !isPrefix {
-			return line, nil
-		}
+		raw, err := io.ReadAll(message)
+		return crlf(raw), err
 	}
 }

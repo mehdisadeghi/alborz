@@ -53,6 +53,8 @@ github.com/mattn/go-runewidth v0.0.19 h1:v++JhqYnZuu5jSKrk9RbgF5v4CGUjqRfBm05byF
 github.com/mattn/go-runewidth v0.0.19/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
 github.com/mehdisadeghi/go-imap/v2 v2.0.0-20260922080234-e6cff86c70d0 h1:uOxSt5ozbz+ceCSW2teenpZM2XKpjlF+3pCTAOpsFtU=
 github.com/mehdisadeghi/go-imap/v2 v2.0.0-20260922080234-e6cff86c70d0/go.mod h1:dhoFe2Q0PwLrMD7oZw8ODuaD0vLYPe5uj2wcOMnvh48=
+github.com/mehdisadeghi/go-mbox v0.0.0-20260921114627-f2df45e279df h1:GZO6zjVUpCHOwQwUlWmG2jKVi9GOlwJ1j/fkchryJIo=
+github.com/mehdisadeghi/go-mbox v0.0.0-20260921114627-f2df45e279df/go.mod h1:Yp9IVuuOYLEuMv4yjgDHvhb5mHOcYH6x92Oas3QqEZI=
 github.com/mehdisadeghi/go-msgauth v0.0.0-20260921123823-04a6405fe7bc h1:CsQrcp6sLciBhY5hKZaaCQfglyPNj+Nq/XPnu0YIPQk=
 github.com/mehdisadeghi/go-msgauth v0.0.0-20260921123823-04a6405fe7bc/go.mod h1:9vHeiBKZywph9DZEVdXYAFrustFrmPZ+fWdlbnGT4hc=
 github.com/mehdisadeghi/go-vcard v0.0.0-20260921114506-5470ed03a481 h1:keeVEdC0sMktK5SHbBDPv9CHTCPqcnGBAw9oqlRdeqk=

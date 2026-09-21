@@ -9,6 +9,7 @@ require (
 	github.com/dromara/carbon/v2 v2.6.17
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
+	github.com/emersion/go-mbox v1.0.4
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-msgauth v0.7.0
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
@@ -70,6 +71,10 @@ replace github.com/emersion/go-webdav => github.com/mehdisadeghi/go-webdav v0.0.
 // Our fork of go-msgauth carries the authres parser rework upstream has
 // not merged (emersion/go-msgauth#53): quoted values and comments.
 replace github.com/emersion/go-msgauth => github.com/mehdisadeghi/go-msgauth v0.0.0-20260921123823-04a6405fe7bc
+
+// Our fork of go-mbox adds the reversible mboxrd quoting, which upstream
+// does not have: a body line reading ">From " survives a round trip.
+replace github.com/emersion/go-mbox => github.com/mehdisadeghi/go-mbox v0.0.0-20260921114627-f2df45e279df
 
 // Our fork of go-imap carries ID with fields RFC 2971 does not name,
 // which upstream has open (emersion/go-imap#693): Dovecot learns the

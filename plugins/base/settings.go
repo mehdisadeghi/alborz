@@ -26,13 +26,10 @@ const (
 	// warming code that has no context can use it too.
 	defaultMessagesPerPage = alborz.DefaultMessagesPerPage
 	maxSignature           = 2048
-	// A header line may be 998 octets (RFC 5322 2.1.1); a body line in
-	// the wild is longer, and a scanner that stops is a truncated file.
-	maxMboxLine      = 1 << 20
-	maxDownloadName  = 80
-	maxSignatures    = 20
-	maxSignatureName = 60
-	maxFullName      = 512
+	maxDownloadName        = 80
+	maxSignatures          = 20
+	maxSignatureName       = 60
+	maxFullName            = 512
 )
 
 // Signature is one of an account's sign-offs: a name to pick it by and

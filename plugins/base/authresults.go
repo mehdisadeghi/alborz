@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/emersion/go-message/textproto"
+	"github.com/emersion/go-msgauth/authres"
 )
 
 // AuthResults is the receiving server's verdict on a sender (RFC 8601).
@@ -21,8 +22,6 @@ type AuthResults struct {
 	// about (header.d), which need not be the author's.
 	DKIMDomain string
 }
-
-var authMethods = map[string]bool{"spf": true, "dkim": true, "dmarc": true}
 
 // Failed reports a refusal. Only failures are shown: a mark on every
 // message teaches people to ignore marks.
@@ -88,90 +87,30 @@ func sameServerFamily(id, trusted string) bool {
 	return id == trusted || serverFamily(id) == serverFamily(trusted)
 }
 
-// parseAuthResults reads an authserv-id and its method=result pairs
-// (RFC 8601 2.2).
+// parseAuthResults reads an authserv-id and its verdicts (RFC 8601 2.2).
 func parseAuthResults(value string) (string, *AuthResults, bool) {
-	parts := strings.Split(value, ";")
-	if len(parts) == 0 {
-		return "", nil, false
-	}
-
 	// An ARC set puts its instance number first: "i=3; mail.example.org".
 	// The seal is our own server's either way, so the id is what is read
 	// and the instance is not.
-	if strings.HasPrefix(strings.TrimSpace(strings.ToLower(parts[0])), "i=") && len(parts) > 1 {
-		parts = parts[1:]
+	if first, rest, ok := strings.Cut(value, ";"); ok && strings.HasPrefix(strings.ToLower(strings.TrimSpace(first)), "i=") {
+		value = rest
 	}
-
-	// The id may carry a version: "mx.example.org 1".
-	id := strings.ToLower(strings.TrimSpace(parts[0]))
-	if i := strings.IndexAny(id, " \t"); i >= 0 {
-		id = id[:i]
-	}
-	if id == "" {
+	id, results, err := authres.Parse(value)
+	if err != nil || id == "" {
 		return "", nil, false
 	}
-
 	out := &AuthResults{}
-	for _, part := range parts[1:] {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		// The rest of the clause names what was checked, and for SPF that
-		// includes the envelope sender the verdict is about. Read it
-		// before the clause is cut down to its verdict.
-		if from := propertyValue(part, "smtp.mailfrom"); from != "" {
-			out.MailFrom = from
-		}
-		if d := propertyValue(part, "header.d"); d != "" {
-			out.DKIMDomain = d
-		}
-		// The verdict is the first token; the rest names what was checked.
-		if i := strings.IndexAny(part, " \t"); i >= 0 {
-			part = part[:i]
-		}
-		method, verdict, ok := strings.Cut(part, "=")
-		if !ok {
-			continue
-		}
-		method = strings.ToLower(strings.TrimSpace(method))
-		if !authMethods[method] {
-			continue
-		}
-		verdict = strings.ToLower(strings.TrimSpace(verdict))
-		switch method {
-		case "spf":
-			out.SPF = verdict
-		case "dkim":
-			out.DKIM = verdict
-		case "dmarc":
-			out.DMARC = verdict
+	for _, result := range results {
+		switch r := result.(type) {
+		case *authres.SPFResult:
+			out.SPF, out.MailFrom = string(r.Value), r.From
+		case *authres.DKIMResult:
+			out.DKIM, out.DKIMDomain = string(r.Value), r.Domain
+		case *authres.DMARCResult:
+			out.DMARC = string(r.Value)
 		}
 	}
-	return id, out, true
-}
-
-// propertyValue reads one ptype.property of a method clause (RFC 8601
-// 2.3). The value may be quoted, and the comment before it may contain
-// the same address, so the property is found by name rather than by
-// looking for something that resembles an address.
-func propertyValue(clause, name string) string {
-	i := strings.Index(strings.ToLower(clause), name+"=")
-	if i < 0 {
-		return ""
-	}
-	v := strings.TrimSpace(clause[i+len(name)+1:])
-	if strings.HasPrefix(v, "\"") {
-		if end := strings.IndexByte(v[1:], '"'); end >= 0 {
-			return v[1 : end+1]
-		}
-		return ""
-	}
-	if end := strings.IndexAny(v, " \t;"); end >= 0 {
-		v = v[:end]
-	}
-	return v
+	return strings.ToLower(id), out, true
 }
 
 // ForwardedBy names the mailbox that passed a message on, or "" when

@@ -76,6 +76,10 @@ replace github.com/emersion/go-msgauth => github.com/mehdisadeghi/go-msgauth v0.
 // does not have: a body line reading ">From " survives a round trip.
 replace github.com/emersion/go-mbox => github.com/mehdisadeghi/go-mbox v0.0.0-20260921114627-f2df45e279df
 
+// Our fork of go-ical adds NewTimezone, the VTIMEZONE of a zone over a
+// span, which upstream leaves to every caller.
+replace github.com/emersion/go-ical => github.com/mehdisadeghi/go-ical v0.0.0-20260921115030-4aff18c21c48
+
 // Our fork of go-imap carries ID with fields RFC 2971 does not name,
 // which upstream has open (emersion/go-imap#693): Dovecot learns the
 // reader's address from x-originating-ip.

@@ -49,120 +49,51 @@ func ensureTimezones(cal *ical.Calendar, around time.Time) {
 	}
 }
 
-// timezoneComponent describes one zone as the two observances in force
-// around the given time, each recurring yearly. nil means the zone is
-// not one this build knows, which leaves the object as it was rather
-// than inventing a definition for it.
+// localTime is how an observance writes its onset: a wall clock with
+// neither a zone nor a Z (RFC 5545 3.6.5).
+const localTime = "20060102T150405"
+
+// timezoneComponent describes one zone by its changes in the years
+// either side of the given time, as go-ical reads them off Go's zone
+// data. nil means the zone is not one this build knows, which leaves
+// the object as it was rather than inventing a definition for it.
+//
+// A recurring event has no last year, and a list of changes does: so
+// the newest change in each direction also carries the yearly rule it
+// is an instance of. That is an inference from the pattern, not a fact
+// of the zone data, which Go does not expose; a zone that did not
+// change both ways in the span gets no rule.
 func timezoneComponent(tzid string, around time.Time) *ical.Component {
 	loc, err := time.LoadLocation(tzid)
 	if err != nil {
 		return nil
 	}
+	year := around.In(loc).Year()
+	tz := ical.NewTimezone(loc,
+		time.Date(year-1, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(year+1, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	tz := ical.NewComponent(ical.CompTimezone)
-	tz.Props.SetText(ical.PropTimezoneID, tzid)
-
-	changes := transitions(loc, around)
-	if len(changes) == 0 {
-		// A zone that does not move: one observance, standing since
-		// before anything this program will be asked to write.
-		name, offset := around.In(loc).Zone()
-		tz.Children = append(tz.Children,
-			observance(ical.CompTimezoneStandard, time.Date(1970, 1, 1, 0, 0, 0, 0, loc), offset, offset, name, ""))
+	// The first observance is the one already in force when the span
+	// opens, not a change seen in it.
+	newest := make(map[string]*ical.Component)
+	for _, observance := range tz.Children[1:] {
+		newest[observance.Name] = observance
+	}
+	if len(newest) < 2 {
 		return tz
 	}
-
-	for _, at := range changes {
-		before := at.Add(-time.Second).In(loc)
-		after := at.In(loc)
-		_, from := before.Zone()
-		name, to := after.Zone()
-
-		kind := ical.CompTimezoneStandard
-		if after.IsDST() {
-			kind = ical.CompTimezoneDaylight
+	for _, observance := range newest {
+		onset, err := time.Parse(localTime, observance.Props.Get(ical.PropDateTimeStart).Value)
+		if err != nil {
+			panic(err)
 		}
-		// The onset is written in the offset it replaces, which is what
-		// makes a local time unambiguous at the moment it changes.
-		onset := at.In(time.FixedZone("", from))
-		tz.Children = append(tz.Children,
-			observance(kind, onset, from, to, name, yearlyRule(onset)))
+		// Written, not set as text: a rule's semicolons escaped are a
+		// different rule.
+		rule := ical.NewProp(ical.PropRecurrenceRule)
+		rule.Value = yearlyRule(onset)
+		observance.Props.Set(rule)
 	}
 	return tz
-}
-
-// observance is one STANDARD or DAYLIGHT block. DTSTART is a local time
-// with neither a zone nor a Z, so it is written rather than set: what
-// the property means here is a wall clock, not an instant.
-func observance(kind string, onset time.Time, from, to int, name, rule string) *ical.Component {
-	c := ical.NewComponent(kind)
-	setRaw(c, ical.PropDateTimeStart, onset.Format("20060102T150405"))
-	setRaw(c, ical.PropTimezoneOffsetFrom, utcOffset(from))
-	setRaw(c, ical.PropTimezoneOffsetTo, utcOffset(to))
-	if name != "" {
-		c.Props.SetText(ical.PropTimezoneName, name)
-	}
-	if rule != "" {
-		setRaw(c, ical.PropRecurrenceRule, rule)
-	}
-	return c
-}
-
-// setRaw writes a value that is not text - a local time, a UTC offset, a
-// recurrence rule - so that it is neither escaped as text nor labelled
-// VALUE=TEXT. A rule written through SetText comes out with its
-// semicolons backslashed, which is a different rule.
-func setRaw(c *ical.Component, name, value string) {
-	prop := ical.NewProp(name)
-	prop.Value = value
-	c.Props.Set(prop)
-}
-
-// transitions finds when the zone's offset last changed in each
-// direction, looking over the years either side of the given time. Go
-// holds the rules but will not name them, so they are read back off the
-// clock: a day at a time until the offset differs, then bisected.
-func transitions(loc *time.Location, around time.Time) []time.Time {
-	year := around.In(loc).Year()
-	at := time.Date(year-1, 1, 1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(year+1, 1, 1, 0, 0, 0, 0, time.UTC)
-
-	// One per direction: the DST rules in use everywhere change twice a
-	// year, and a yearly rule covers every repetition of each.
-	latest := make(map[bool]time.Time)
-	for at.Before(end) {
-		next := at.AddDate(0, 0, 1)
-		_, a := at.In(loc).Zone()
-		_, b := next.In(loc).Zone()
-		if a != b {
-			exact := bisect(loc, at, next)
-			latest[exact.In(loc).IsDST()] = exact
-		}
-		at = next
-	}
-
-	var out []time.Time
-	for _, dst := range []bool{true, false} {
-		if t, ok := latest[dst]; ok {
-			out = append(out, t)
-		}
-	}
-	return out
-}
-
-// bisect narrows a day known to contain a change down to the second it
-// happens on.
-func bisect(loc *time.Location, lo, hi time.Time) time.Time {
-	_, before := lo.In(loc).Zone()
-	for hi.Sub(lo) > time.Second {
-		mid := lo.Add(hi.Sub(lo) / 2)
-		if _, o := mid.In(loc).Zone(); o == before {
-			lo = mid
-		} else {
-			hi = mid
-		}
-	}
-	return hi
 }
 
 // yearlyRule expresses the onset as the rule it is an instance of - the
@@ -178,14 +109,4 @@ func yearlyRule(onset time.Time) string {
 		ordinal = -1
 	}
 	return fmt.Sprintf("FREQ=YEARLY;BYMONTH=%d;BYDAY=%d%s", int(onset.Month()), ordinal, day)
-}
-
-// utcOffset writes seconds east of UTC as iCalendar's signed hhmm.
-func utcOffset(seconds int) string {
-	sign := "+"
-	if seconds < 0 {
-		sign = "-"
-		seconds = -seconds
-	}
-	return fmt.Sprintf("%s%02d%02d", sign, seconds/3600, seconds%3600/60)
 }

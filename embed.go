@@ -8,3 +8,12 @@ import "embed"
 //
 //go:embed all:themes/alborz
 var embeddedTheme embed.FS
+
+// prologue is the ASCII art printed to stderr once the port is bound.
+//
+//go:embed prologue.txt
+var prologue string
+
+// Prologue names the running program, drawn large, for whoever starts
+// it to see at a glance.
+var Prologue = prologue

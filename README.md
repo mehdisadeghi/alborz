@@ -18,17 +18,26 @@ anything a server cannot store.
 ## Features
 
 - Multiple accounts with unified views
+- Search across folders with Gmail-style operators
 - CalDAV calendars: month, day and agenda views
 - CalDAV tasks (VTODO)
 - CardDAV contacts with photos, groups, categories
 - iCalendar feed subscriptions
+- Built-in CalDAV/CardDAV server with sharing
+- Multiple DAV servers per account
 - Sieve filters: rules, forwarding, vacation
 - Per-account identities and signatures
 - Coloured stars on mail, contacts, events, tasks
+- Gmail-style keyboard shortcuts
 - Responsive PWA with light and dark themes
+- Offline reading of visited pages
+- Passkey (WebAuthn) lock
+- Session list with remote sign-out
 - RTL; English, German, Persian and Spanish
 - Solar Hijri calendar alongside Gregorian
 - mbox and .eml import and export
+- Drag-and-drop mail import
+- Calendar and address book archive import/export
 - Multiple mail domains per instance
 - No-JavaScript baseline
 
@@ -46,8 +55,11 @@ In addition to the protocols above:
 | 4315, 5819, 6851 | UIDPLUS, LIST-STATUS, MOVE |
 | 5228, 5804, 5230, 6609, 5260 | Sieve and ManageSieve: rules, forwarding and vacation replies |
 | 5545, 7986, 7529 | iCalendar: VTIMEZONE generation, recurrence, alarms, COLOR, RSCALE |
+| 4791, 6352, 6764 | CalDAV and CardDAV server, `.well-known` discovery |
+| 4918, 7232 | WebDAV dead properties, conditional requests |
 | 3676, 5322 | format=flowed, References, Reply-To, signature delimiter |
 | 6350, 6186 | vCard, SRV service discovery |
+| WebAuthn | Passkeys |
 
 ## Install
 

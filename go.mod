@@ -10,6 +10,7 @@ require (
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-message v0.18.2
+	github.com/emersion/go-msgauth v0.7.0
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0
 	github.com/emersion/go-vcard v0.1.0
@@ -65,6 +66,10 @@ replace github.com/emersion/go-vcard => github.com/mehdisadeghi/go-vcard v0.0.0-
 // relies on (#147 #174 #179 #180 #181 #182 #194 #208 #209 #211) and our
 // own server patches: PROPPATCH, dead properties, octets kept as sent.
 replace github.com/emersion/go-webdav => github.com/mehdisadeghi/go-webdav v0.0.0-20260921101523-6a35b64d0a5f
+
+// Our fork of go-msgauth carries the authres parser rework upstream has
+// not merged (emersion/go-msgauth#53): quoted values and comments.
+replace github.com/emersion/go-msgauth => github.com/mehdisadeghi/go-msgauth v0.0.0-20260921123823-04a6405fe7bc
 
 // Our fork of go-imap carries ID with fields RFC 2971 does not name,
 // which upstream has open (emersion/go-imap#693): Dovecot learns the

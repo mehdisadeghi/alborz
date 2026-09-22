@@ -5292,10 +5292,15 @@ h1.no-word .title-short {
      both flush to the same edge. The star used to sit inside the second
      line beside the attachment mark, so a row carrying one pushed it
      out of line; the marks now order to its left and it holds that
-     edge whatever else the row has. */
+     edge whatever else the row has.
+
+     The column is as wide as what it holds, not a fixed reserve: it is
+     the last one, so every date and every star keeps the card's edge
+     whatever its width, and what "1 hr ago" does not need is the
+     subject's, which is the line that truncates. */
   .message-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) 6rem;
+    grid-template-columns: auto minmax(0, 1fr) max-content;
     grid-template-areas:
       "check sender  date"
       "check subject flags";

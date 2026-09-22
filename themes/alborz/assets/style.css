@@ -5243,6 +5243,11 @@ h1.no-word .title-short {
 
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
 
+  /* The card is the row here: the frame an unread row's first cell
+     draws at the table's edge would land inside it, a bar between two
+     whites. */
+  .message-row > .message-list-unread { border-inline: 0; }
+
   /* A contact is the same two-line card: name over phone, the photo
      beside the tick and spanning both lines. */
   .contact-row {

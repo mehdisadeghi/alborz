@@ -258,7 +258,15 @@ func (san *sanitizer) sanitizeNode(n *html.Node) {
 			attr := &n.Attr[i]
 
 			if strings.EqualFold(attr.Key, "style") {
-				decls, err := cssparser.ParseDeclarations(attr.Val)
+				// douceur reads the last declaration's value as empty
+				// unless something terminates it, and style="color:red"
+				// is how mail is written. A second semicolon is an error
+				// there, so one is added only where it is missing.
+				value := strings.TrimSpace(attr.Val)
+				if value != "" && !strings.HasSuffix(value, ";") {
+					value += ";"
+				}
+				decls, err := cssparser.ParseDeclarations(value)
 				if err != nil {
 					attr.Val = ""
 					continue

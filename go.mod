@@ -80,7 +80,9 @@ replace github.com/emersion/go-mbox => github.com/mehdisadeghi/go-mbox v0.0.0-20
 // span, which upstream leaves to every caller.
 replace github.com/emersion/go-ical => github.com/mehdisadeghi/go-ical v0.0.0-20260921115030-4aff18c21c48
 
-// Our fork of go-imap carries ID with fields RFC 2971 does not name,
-// which upstream has open (emersion/go-imap#693): Dovecot learns the
-// reader's address from x-originating-ip.
-replace github.com/emersion/go-imap/v2 => github.com/mehdisadeghi/go-imap/v2 v2.0.0-20260922080234-e6cff86c70d0
+// Our fork of go-imap carries what upstream has open: ID with fields
+// RFC 2971 does not name, so Dovecot learns the reader's address
+// (emersion/go-imap#693); Dovecot's BODYSTRUCTURE for message/global
+// (#704); an error, not a clean end, for a body cut off mid-transfer
+// (#676).
+replace github.com/emersion/go-imap/v2 => github.com/mehdisadeghi/go-imap/v2 v2.0.0-20250317164603-f648aa3a4b46

@@ -108,6 +108,8 @@ func (p *plugin) groupContact(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	// The contact comes back naming the groups it is now in.
+	ctx.Quiet()
 	back := ctx.NextOr(ctx.AccountPath(contact.URL()))
 	if leaving := ctx.FormValue("leave"); leaving != "" {
 		for _, g := range list.Groups {

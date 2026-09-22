@@ -492,7 +492,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 // A line added where the contact is read, not behind the edit form.
 func (p *plugin) note(ctx *alborz.Context) error {
 	note := strings.TrimSpace(ctx.FormValue("note"))
-	return dav.Run(ctx, dav.Action[*carddav.Client]{Client: p.client, List: "/contacts",
+	return dav.Run(ctx, dav.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: dav.Quiet[*carddav.Client],
 		Do: func(ctx *alborz.Context, ref dav.Ref[*carddav.Client]) error {
 			if note == "" {
 				return nil
@@ -514,7 +514,7 @@ func (p *plugin) note(ctx *alborz.Context) error {
 // request to delete a photo. Idempotent - a contact with no picture
 // is what it leaves either way.
 func (p *plugin) deletePhoto(ctx *alborz.Context) error {
-	return dav.Run(ctx, dav.Action[*carddav.Client]{Client: p.client, List: "/contacts",
+	return dav.Run(ctx, dav.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: dav.Quiet[*carddav.Client],
 		Do: func(ctx *alborz.Context, ref dav.Ref[*carddav.Client]) error {
 			return changeCard(ctx, ref, func(card vcard.Card) { delete(card, vcard.FieldPhoto) })
 		}})

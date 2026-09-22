@@ -702,6 +702,7 @@ func handleSettings(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to save settings: %w", err)
 		}
 		accountChanged(ctx.Session.Username())
+		ctx.PutNotice(ctx.T("notice.settingssaved"))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
 
@@ -733,6 +734,7 @@ func handleForget(ctx *alborz.Context) error {
 	store, ok := ctx.Session.Store().(alborz.KeptStore)
 	if !ok {
 		// Nothing else outlives the process to forget.
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("settings.forgotten")})
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
 	if err := store.Forget(); err != nil {

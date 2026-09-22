@@ -571,6 +571,8 @@ func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 		for _, s := range ctx.Sessions() {
 			p.cache.Refresh(ctx.Request().Context(), s.Username())
 		}
+		// The list itself is what was asked for.
+		ctx.Quiet()
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(list)))
 	}
 }
@@ -616,6 +618,8 @@ func HandleChoose(list, field string, keep func(store alborz.Store, paths []stri
 		if err := keep(ctx.Session.Store(), params[field]); err != nil {
 			return fmt.Errorf("failed to save the chosen collections: %w", err)
 		}
+		// The list comes back holding what was chosen.
+		ctx.Quiet()
 		return ctx.Redirect(http.StatusFound, Widened(ctx.NextOr(list), field))
 	}
 }

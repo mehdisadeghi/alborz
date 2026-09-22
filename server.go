@@ -545,7 +545,10 @@ func (s *Server) Logger() echo.Logger {
 //	ctx := ectx.(*alborz.Context)
 type Context struct {
 	echo.Context
-	Server         *Server
+	Server *Server
+	// quiet marks an action that speaks for itself: what it did shows
+	// where the reader already is, so it writes no notice and says so.
+	quiet          bool
 	visit          *Visit   // this browser's stay, resolved on demand
 	visitSecret    string   // its browser's key to what it remembers
 	Session        *Session // request-scoped account; nil if not logged in
@@ -793,6 +796,11 @@ type Options struct {
 	// whose own server will not hold them. Sealed under LoginKey;
 	// empty, or no key, and a visit lasts as long as the process.
 	DataDir string
+	// StrictNotices fails an action that sends the reader elsewhere
+	// with nothing to say, instead of only writing it to the log. The
+	// tests run under it, so a handler that forgets is a failure and
+	// not a line nobody reads.
+	StrictNotices bool
 	// PrivateServices lets an account name a calendar or contacts server
 	// on plain HTTP or on a private address: a rig's, or a deployment
 	// whose DAV server sits beside it. Off, only public HTTPS is taken.
@@ -1040,6 +1048,33 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			}
 
 			return next(ctx)
+		}
+	})
+
+	// An action that sends the reader elsewhere says what it did: a POST
+	// answered with a redirect and no notice is a handler that forgot,
+	// and the log names it. What changes in place, and a form sent back
+	// with its refusal, answer without a redirect and are not asked.
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(ectx echo.Context) error {
+			err := next(ectx)
+			status := ectx.Response().Status
+			if err != nil || ectx.Request().Method != http.MethodPost || status < 300 || status >= 400 {
+				return err
+			}
+			ctx := ectx.(*Context)
+			if ctx.quiet {
+				return err
+			}
+			if v := ctx.lookupVisit(); v != nil && v.HasNotice() {
+				return err
+			}
+			ctx.Logger().Printf("POST %s answered %d with no notice", ctx.Request().URL.Path, status)
+			if s.Options.StrictNotices {
+				return fmt.Errorf("POST %s answered %d with no notice: say what it did, or ctx.Quiet()",
+					ctx.Request().URL.Path, status)
+			}
+			return err
 		}
 	})
 

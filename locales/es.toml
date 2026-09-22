@@ -548,6 +548,7 @@
 "servers.onalborz" = "Alborz"
 "servers.named" = "Servidores personalizados"
 "notice.serverssaved" = "Servidores guardados."
+"notice.settingssaved" = "Ajustes guardados."
 "notfound.server" = "No existe ese servidor."
 "common.by" = "por"
 "share.markpublic" = "Publicado"
@@ -1051,4 +1052,18 @@ other = "Demasiadas contraseñas rechazadas. Vuelve a intentarlo en %d minutos."
 one = "Compartido con %d cuenta"
 other = "Compartido con %d cuentas"
 
+["notice.contactsdeleted"]
+one = "Un contacto eliminado."
+other = "%d contactos eliminados."
 
+["notice.eventsdeleted"]
+one = "Un evento eliminado."
+other = "%d eventos eliminados."
+
+["notice.tasksdeleted"]
+one = "Una tarea eliminada."
+other = "%d tareas eliminadas."
+
+["notice.tasksmoved"]
+one = "Una tarea movida."
+other = "%d tareas movidas."

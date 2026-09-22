@@ -436,6 +436,13 @@ func (v *Visit) Notify(n Notice) {
 	v.mu.Unlock()
 }
 
+// HasNotice reports whether a notice waits for the next page.
+func (v *Visit) HasNotice() bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.notice != nil
+}
+
 // PopNotice takes what the reader is owed, once.
 func (v *Visit) PopNotice() *Notice {
 	v.mu.Lock()
@@ -591,7 +598,20 @@ func (ctx *Context) unseal(sealed []byte) (string, bool) {
 
 // Notify records what the next page tells the reader, and PutNotice
 // says a request did what it was asked.
-func (ctx *Context) Notify(n Notice) { ctx.Visit().Notify(n) }
+// Quiet says this action needs no notice: its result shows where the
+// reader is. Said rather than left out, so a handler that forgot to
+// speak is told apart from one that chose not to.
+func (ctx *Context) Quiet() { ctx.quiet = true }
+
+func (ctx *Context) Notify(n Notice) {
+	// An empty notice is a handler deciding the action speaks for
+	// itself, which is Quiet by another name.
+	if n.Text == "" && n.Markup == "" {
+		ctx.Quiet()
+		return
+	}
+	ctx.Visit().Notify(n)
+}
 
 func (ctx *Context) PutNotice(text string) {
 	ctx.Notify(Notice{Kind: NoticeDone, Text: text})

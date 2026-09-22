@@ -112,7 +112,10 @@ func registerRoutes(p *plugin) {
 	POST("/contacts/:path/color", p.color)
 	POST("/contacts/:path/note", p.note)
 	POST("/contacts/:path/photo/delete", p.deletePhoto)
-	remove := dav.Handler(dav.Action[*carddav.Client]{Client: p.client, Do: dav.Delete[*carddav.Client], List: "/contacts"})
+	remove := dav.Handler(dav.Action[*carddav.Client]{Client: p.client, Do: dav.Delete[*carddav.Client], List: "/contacts",
+		Done: func(ctx *alborz.Context, done []dav.Ref[*carddav.Client], _ string) alborz.Notice {
+			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.contactsdeleted", len(done))}
+		}})
 	POST("/contacts/:path/delete", remove)
 	POST("/contacts/delete", remove)
 	POST("/contacts/from-message", p.importFromMessage)

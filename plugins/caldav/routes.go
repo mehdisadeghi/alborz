@@ -235,7 +235,14 @@ func registerRoutes(p *plugin) {
 	GET("/calendar/:path/update", p.updateEvent)
 	POST("/calendar/:path/update", p.updateEvent)
 	remove := func(list string) func(*alborz.Context) error {
-		return dav.Handler(dav.Action[*caldav.Client]{Client: p.client, Do: dav.Delete[*caldav.Client], List: list})
+		key := "notice.eventsdeleted"
+		if list == "/tasks" {
+			key = "notice.tasksdeleted"
+		}
+		return dav.Handler(dav.Action[*caldav.Client]{Client: p.client, Do: dav.Delete[*caldav.Client], List: list,
+			Done: func(ctx *alborz.Context, done []dav.Ref[*caldav.Client], _ string) alborz.Notice {
+				return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf(key, len(done))}
+			}})
 	}
 	POST("/calendar/delete", remove("/calendar"))
 	POST("/calendar/:path/delete", remove("/calendar"))
@@ -267,7 +274,7 @@ func registerRoutes(p *plugin) {
 func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		note := strings.TrimSpace(ctx.FormValue("note"))
-		return dav.Run(ctx, dav.Action[*caldav.Client]{Client: p.client, List: list,
+		return dav.Run(ctx, dav.Action[*caldav.Client]{Client: p.client, List: list, Done: dav.Quiet[*caldav.Client],
 			Do: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client]) error {
 				if note == "" {
 					return nil

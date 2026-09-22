@@ -297,6 +297,8 @@ func startAlborzWith(t *testing.T, upstreams []string) string {
 		Theme:      "alborz",
 		ThemesPath: "./themes",
 		LoginKey:   key,
+		// A handler that sends the reader elsewhere says what it did.
+		StrictNotices: true,
 	})
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)

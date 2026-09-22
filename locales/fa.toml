@@ -543,6 +543,7 @@
 "servers.onalborz" = "البرز"
 "servers.named" = "سرورهای سفارشی"
 "notice.serverssaved" = "سرورها ذخیره شدند."
+"notice.settingssaved" = "تنظیمات ذخیره شد."
 "notfound.server" = "چنین سروری نیست."
 "common.by" = "توسط"
 "share.markpublic" = "منتشرشده"
@@ -1051,4 +1052,18 @@ other = "رمزهای زیادی پذیرفته نشد. %d دقیقهٔ دیگر
 one = "با %d حساب به اشتراک گذاشته شده"
 other = "با %d حساب به اشتراک گذاشته شده"
 
+["notice.contactsdeleted"]
+one = "یک مخاطب حذف شد."
+other = "%d مخاطب حذف شد."
 
+["notice.eventsdeleted"]
+one = "یک رویداد حذف شد."
+other = "%d رویداد حذف شد."
+
+["notice.tasksdeleted"]
+one = "یک کار حذف شد."
+other = "%d کار حذف شد."
+
+["notice.tasksmoved"]
+one = "یک کار جابه‌جا شد."
+other = "%d کار جابه‌جا شد."

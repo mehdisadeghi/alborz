@@ -138,6 +138,17 @@ func (d *ComposeRenderData) SelectedFrom() string {
 	return fallback
 }
 
+// Uploads are the files the form had taken before it was sent back.
+func (d *ComposeRenderData) Uploads() []*formAttachment {
+	var out []*formAttachment
+	for _, att := range d.Message.Attachments {
+		if a, ok := att.(*formAttachment); ok && a.ID != "" {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 func (d *ComposeRenderData) PartAttachments() []*imapAttachment {
 	var out []*imapAttachment
 	for _, att := range d.Message.Attachments {
@@ -328,11 +339,22 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		// it comes back on the form, the text kept, in the server's
 		// own words. Only a server that did not answer at all, or
 		// alborz itself failing, leaves the page.
+		//
+		// The uploads stay with the visit until the message has left,
+		// so a refused send comes back with them.
+		var uploads []string
 		submit := func(f func() error) error {
 			err := f()
 			var no refused
 			if errors.As(err, &no) {
 				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), fmt.Sprintf(ctx.T(no.key), no.cause))
+			}
+			if err == nil {
+				for _, id := range uploads {
+					if a := ctx.PopAttachment(id); a != nil {
+						a.Form.RemoveAll()
+					}
+				}
 			}
 			return err
 		}
@@ -476,7 +498,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 
 		for _, fh := range form.File["attachments"] {
-			msg.Attachments = append(msg.Attachments, &formAttachment{fh})
+			msg.Attachments = append(msg.Attachments, &formAttachment{FileHeader: fh})
 		}
 
 		uuids := ctx.FormValue("attachment-uuids")
@@ -485,13 +507,13 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				continue
 			}
 
-			attachment := ctx.PopAttachment(uuid)
+			attachment := ctx.PeekAttachment(uuid)
 			if attachment == nil {
 				return fmt.Errorf("Unable to retrieve message attachment %s from session", uuid)
 			}
 			msg.Attachments = append(msg.Attachments,
-				&formAttachment{attachment.File})
-			defer attachment.Form.RemoveAll()
+				&formAttachment{FileHeader: attachment.File, ID: uuid})
+			uploads = append(uploads, uuid)
 		}
 
 		// A message with nowhere to go is not sent, and is not reported

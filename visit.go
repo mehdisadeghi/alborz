@@ -462,6 +462,14 @@ func (v *Visit) PutAttachment(in *multipart.FileHeader, form *multipart.Form) (s
 	return id.String(), nil
 }
 
+// PeekAttachment is one the form still holds, left in place: a send the
+// server refuses must find it again.
+func (v *Visit) PeekAttachment(id string) *Attachment {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.attachments[id]
+}
+
 // PopAttachment takes one back, once.
 func (v *Visit) PopAttachment(id string) *Attachment {
 	v.mu.Lock()
@@ -596,10 +604,17 @@ func (ctx *Context) PopNotice() *Notice {
 	return nil
 }
 
-// PutAttachment and PopAttachment hold what the compose form has taken
-// and not yet sent.
+// PutAttachment, PeekAttachment and PopAttachment hold what the
+// compose form has taken and not yet sent.
 func (ctx *Context) PutAttachment(in *multipart.FileHeader, form *multipart.Form) (string, error) {
 	return ctx.Visit().PutAttachment(in, form)
+}
+
+func (ctx *Context) PeekAttachment(id string) *Attachment {
+	if v := ctx.lookupVisit(); v != nil {
+		return v.PeekAttachment(id)
+	}
+	return nil
 }
 
 func (ctx *Context) PopAttachment(id string) *Attachment {

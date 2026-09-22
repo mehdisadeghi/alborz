@@ -1191,8 +1191,11 @@ main.create-update .headers {
   align-items: center;
 }
 
+/* minmax, as the narrow layouts have it: a plain 1fr keeps the fields'
+   own width, and on a phone without a script that was wider than the
+   window. */
 main.create-update .headers.no-js {
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 main.create-update .headers label {
@@ -4365,6 +4368,52 @@ header nav .accounts-menu[popover] {
 }
 
 /* The message toolbar's trailing group hugs the right edge; the list
+/* Without a script nothing folds a row that does not fit - ADR 8's
+   folding is the script's - so the row wraps rather than push the page
+   past the window. */
+@media (scripting: none) {
+  .actions-wrap,
+  .actions-message,
+  .actions-end {
+    flex-wrap: wrap;
+  }
+
+  .actions-end {
+    flex-shrink: 1;
+    min-width: 0;
+  }
+
+  /* The nav turns to icons by script too. */
+  header nav {
+    flex-wrap: wrap;
+  }
+
+  /* At rest the search is its icon: the 24rem it asks for when open
+     would take a wrapped line of its own and push past the window. */
+  .actions-search {
+    flex: 0 0 min-content;
+  }
+
+  .actions-search input[type="text"] {
+    flex: none;
+  }
+
+  /* Opened, it takes a line of its own, the width of the row, and the
+     field shares it with its button. */
+  .actions-end:has(.actions-search:focus-within),
+  .actions-search:focus-within {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .actions-search:focus-within input[type="text"] {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+}
+
    pages already get this from their growing search field. */
 main.message .actions-end {
   justify-content: flex-end;

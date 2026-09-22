@@ -37,6 +37,7 @@ var (
 	composedTag   = regexp.MustCompile(`<[^>]*>`)
 	composedDir   = regexp.MustCompile(` dir="[^"]*"`)
 	itemDir       = regexp.MustCompile(`<li[^>]* dir="(ltr|rtl)"`)
+	quoteTag      = regexp.MustCompile(`<blockquote([^>]*)>`)
 )
 
 // composedHTML is the editor's HTML made fit to send: the policy
@@ -55,6 +56,11 @@ func composedHTML(raw string) string {
 		attrs := composedDir.ReplaceAllString(m[2], "")
 		return "<" + m[1] + attrs + ` dir="` + alborz.ParagraphDir(text) + `">` + m[3] + "</" + m[1] + ">"
 	})
+	// Every quote is marked as one (type=cite, as Apple Mail and
+	// Thunderbird write it): Apple Mail draws its quote bars from it, and
+	// Gmail and Outlook fold the history behind it. The policy keeps no
+	// type, so the mark is added once, here.
+	clean = quoteTag.ReplaceAllString(clean, `<blockquote$1 type="cite">`)
 	// A list's marker and indent sit on the side its items run to, so
 	// the list takes its first item's direction.
 	return composedList.ReplaceAllStringFunc(clean, func(list string) string {

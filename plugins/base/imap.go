@@ -697,6 +697,7 @@ func (msg *IMAPMessage) TextPart() *IMAPPartNode {
 		return nil
 	}
 
+	files := fileParts(msg.BodyStructure)
 	var best *IMAPPartNode
 	isTextPlain := false
 	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
@@ -705,10 +706,7 @@ func (msg *IMAPMessage) TextPart() *IMAPPartNode {
 			return true
 		}
 
-		if !strings.EqualFold(singlePart.Type, "text") {
-			return true
-		}
-		if disp := singlePart.Disposition(); disp != nil && !strings.EqualFold(disp.Value, "inline") {
+		if !strings.EqualFold(singlePart.Type, "text") || files[fmt.Sprint(path)] {
 			return true
 		}
 
@@ -747,6 +745,7 @@ func (msg *IMAPMessage) HTMLPart() *IMAPPartNode {
 		return nil
 	}
 
+	files := fileParts(msg.BodyStructure)
 	var best *IMAPPartNode
 	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
 		singlePart, ok := part.(*imap.BodyStructureSinglePart)
@@ -754,10 +753,7 @@ func (msg *IMAPMessage) HTMLPart() *IMAPPartNode {
 			return true
 		}
 
-		if !strings.EqualFold(singlePart.Type, "text") {
-			return true
-		}
-		if disp := singlePart.Disposition(); disp != nil && !strings.EqualFold(disp.Value, "inline") {
+		if !strings.EqualFold(singlePart.Type, "text") || files[fmt.Sprint(path)] {
 			return true
 		}
 
@@ -775,14 +771,11 @@ func (msg *IMAPMessage) Attachments() []IMAPPartNode {
 		return nil
 	}
 
+	files := fileParts(msg.BodyStructure)
 	var attachments []IMAPPartNode
 	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
 		singlePart, ok := part.(*imap.BodyStructureSinglePart)
-		if !ok {
-			return true
-		}
-
-		if disp := singlePart.Disposition(); disp == nil || !strings.EqualFold(disp.Value, "attachment") {
+		if !ok || !files[fmt.Sprint(path)] {
 			return true
 		}
 
@@ -790,6 +783,46 @@ func (msg *IMAPMessage) Attachments() []IMAPPartNode {
 		return true
 	})
 	return attachments
+}
+
+// attached is the one rule for what is a file and what is the message
+// itself, read by the page, the list, the zip and the body alike.
+// Senders mark a file three ways: Content-Disposition attachment
+// (RFC 2183), inline with a filename, as Apple Mail places every file
+// inside the HTML, or only a name on the Content-Type, as older Outlook
+// does. A part the HTML shows by its Content-ID (multipart/related,
+// RFC 2387) and unnamed text are the message; anything else is a file.
+func attached(mediaType, disposition, filename, contentID string, related bool) bool {
+	switch {
+	case strings.EqualFold(disposition, "attachment"):
+		return true
+	case related && contentID != "":
+		return false
+	case filename != "":
+		return true
+	}
+	return !strings.HasPrefix(strings.ToLower(mediaType), "text/")
+}
+
+// fileParts is attached over a structure, keyed by part path.
+func fileParts(bs imap.BodyStructure) map[string]bool {
+	related := map[string]bool{}
+	files := map[string]bool{}
+	bs.Walk(func(path []int, part imap.BodyStructure) bool {
+		switch part := part.(type) {
+		case *imap.BodyStructureMultiPart:
+			related[fmt.Sprint(path)] = strings.EqualFold(part.Subtype, "related")
+		case *imap.BodyStructureSinglePart:
+			var disposition string
+			if disp := part.Disposition(); disp != nil {
+				disposition = disp.Value
+			}
+			files[fmt.Sprint(path)] = attached(part.MediaType(), disposition, part.Filename(),
+				part.ID, related[fmt.Sprint(path[:len(path)-1])])
+		}
+		return true
+	})
+	return files
 }
 
 func pathsEqual(a, b []int) bool {

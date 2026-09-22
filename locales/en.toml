@@ -202,6 +202,7 @@
 "message.filterto" = "Mail to this address in this folder"
 "message.older" = "Older"
 "message.attachments" = "Attachments"
+"message.unnamedfile" = "Unnamed file"
 "message.downloadall" = "Download all"
 "message.plaintext" = "Plain text"
 "message.html" = "HTML"

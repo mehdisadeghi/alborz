@@ -199,6 +199,7 @@
 "message.filterto" = "نامه‌های به این نشانی در این پوشه"
 "message.older" = "قدیمی‌تر"
 "message.attachments" = "پیوست‌ها"
+"message.unnamedfile" = "فایل بی‌نام"
 "message.downloadall" = "دریافت همه"
 "message.plaintext" = "متن ساده"
 "message.html" = "HTML"

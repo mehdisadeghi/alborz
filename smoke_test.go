@@ -26,6 +26,7 @@ import (
 	_ "git.mehdix.org/alborz/plugins/viewhtml"
 	_ "git.mehdix.org/alborz/plugins/viewtext"
 	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-imap/v2/imapserver"
 	"github.com/emersion/go-imap/v2/imapserver/imapmemserver"
 	"github.com/fernet/fernet-go"
@@ -936,6 +937,111 @@ func TestRefusedSendKeepsItsUploads(t *testing.T) {
 	}
 	if !strings.Contains(got, `filename=kept.txt`) && !strings.Contains(got, `filename="kept.txt"`) {
 		t.Errorf("the retry left without its attachment:\n%s", headOf(got))
+	}
+}
+
+// TestEverySenderShapeOfAFileIsListed: senders mark a file in more
+// ways than Content-Disposition: attachment, and a file marked another
+// way was shown nowhere - every file Apple Mail sends among them - while
+// an attached text file took the place of the message. The page and the
+// zip must agree on the files, and the body must stay the body.
+func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
+	addr := startIMAP(t)
+	base := startAlborz(t, addr)
+	c := login(t, base)
+
+	pdf := "Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQgZmFrZQo=\r\n"
+	text := "Content-Type: text/plain; charset=utf-8\r\n\r\nBody text.\r\n"
+	shapes := []struct {
+		name  string
+		parts []string
+		top   string
+		files []string
+		body  string
+	}{
+		{"disposition attachment", []string{text,
+			"Content-Type: application/pdf; name=\"a.pdf\"\r\nContent-Disposition: attachment; filename=\"a.pdf\"\r\n" + pdf},
+			"mixed", []string{"a.pdf"}, "Body text."},
+		{"inline with a filename, as Apple Mail sends", []string{text,
+			"Content-Type: application/pdf; name=\"b.pdf\"\r\nContent-Disposition: inline; filename=b.pdf\r\n" + pdf},
+			"mixed", []string{"b.pdf"}, "Body text."},
+		{"a name on the type alone", []string{text, "Content-Type: application/pdf; name=\"c.pdf\"\r\n" + pdf},
+			"mixed", []string{"c.pdf"}, "Body text."},
+		{"no name and not text", []string{text, "Content-Type: application/octet-stream\r\n" + pdf},
+			"mixed", []string{"Unnamed file"}, "Body text."},
+		{"an attached text file", []string{text,
+			"Content-Type: text/plain; charset=utf-8; name=\"notes.txt\"\r\nContent-Disposition: inline; filename=\"notes.txt\"\r\n\r\nThese are notes.\r\n"},
+			"mixed", []string{"notes.txt"}, "Body text."},
+		{"the file inside Apple Mail's HTML", []string{
+			"Content-Type: text/plain; charset=utf-8\r\n\r\nBody text.\r\n",
+			"Content-Type: multipart/mixed; boundary=\"inner\"\r\n\r\n--inner\r\n" +
+				"Content-Type: text/html; charset=utf-8\r\n\r\n<p>Above.</p>\r\n--inner\r\n" +
+				"Content-Type: application/pdf; name=\"apple.pdf\"\r\nContent-Disposition: inline; filename=apple.pdf\r\n" + pdf +
+				"--inner\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Below.</p>\r\n--inner--\r\n"},
+			"alternative", []string{"apple.pdf"}, "Body text."},
+		{"an image the HTML shows by its Content-ID", []string{
+			"Content-Type: text/html; charset=utf-8\r\n\r\n<p>Body text. <img src=\"cid:pic\"></p>\r\n",
+			"Content-Type: image/png; name=\"pic.png\"\r\nContent-Disposition: inline; filename=\"pic.png\"\r\nContent-ID: <pic>\r\n" + pdf},
+			"related", nil, "Body text."},
+	}
+
+	ic, err := imapclient.DialInsecure(addr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ic.Close()
+	if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ic.Create("Shapes", nil).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range shapes {
+		var b strings.Builder
+		fmt.Fprintf(&b, "From: <eve@example.org>\r\nTo: <%s>\r\nSubject: %s\r\nMIME-Version: 1.0\r\n"+
+			"Content-Type: multipart/%s; boundary=\"outer\"\r\n\r\n", smokeUser, s.name, s.top)
+		for _, p := range s.parts {
+			b.WriteString("--outer\r\n" + p)
+		}
+		b.WriteString("--outer--\r\n")
+		cmd := ic.Append("Shapes", int64(b.Len()), nil)
+		cmd.Write([]byte(b.String()))
+		cmd.Close()
+		if _, err := cmd.Wait(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	listed := regexp.MustCompile(`>\s*([^<>]+?)\s*</a> \([a-z]+/[^,]+, `)
+	for i, s := range shapes {
+		path := fmt.Sprintf("/message/Shapes/%d", i+1)
+		page := get(t, c, base+path)
+		if !strings.Contains(page, html.EscapeString(s.name)) {
+			t.Fatalf("%s: %s is not the message appended", s.name, path)
+		}
+		var files []string
+		for _, m := range listed.FindAllStringSubmatch(page, -1) {
+			files = append(files, m[1])
+		}
+		if !slices.Equal(files, s.files) {
+			t.Errorf("%s: the page lists %q, want %q", s.name, files, s.files)
+		}
+		if !strings.Contains(page, s.body) || strings.Contains(page, "These are notes.") {
+			t.Errorf("%s: the body is not the message's text", s.name)
+		}
+		resp, err := c.Get(base + path + "/attachments.zip")
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		archive, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+		if err != nil {
+			t.Fatalf("%s: attachments.zip: %v", s.name, err)
+		}
+		if len(archive.File) != len(s.files) {
+			t.Errorf("%s: the zip holds %d files and the page lists %d", s.name, len(archive.File), len(s.files))
+		}
 	}
 }
 

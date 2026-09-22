@@ -199,6 +199,7 @@
 "message.filterto" = "Correo a esta dirección en esta carpeta"
 "message.older" = "Más antiguo"
 "message.attachments" = "Adjuntos"
+"message.unnamedfile" = "Archivo sin nombre"
 "message.downloadall" = "Descargar todo"
 "message.plaintext" = "Texto sin formato"
 "message.html" = "HTML"

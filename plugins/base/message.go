@@ -219,7 +219,7 @@ func handleDownloadAttachments(ctx *alborz.Context) error {
 	ctx.Response().WriteHeader(http.StatusOK)
 	archive := zip.NewWriter(ctx.Response())
 	taken := map[string]int{}
-	if err := writeAttachments(archive, entity, taken); err != nil {
+	if err := writeAttachments(archive, entity, taken, false); err != nil {
 		// The reader has bytes by now, so the file ends short rather
 		// than turning into an error page.
 		ctx.Logger().Printf("attachments %q uid %v: %v", mboxName, uid, err)
@@ -229,9 +229,11 @@ func handleDownloadAttachments(ctx *alborz.Context) error {
 
 // writeAttachments puts every attached part into the archive, naming an
 // unnamed one after the extension its type gives. What is attached is
-// what the message's card counts (Attachments): a part that says so,
-// at any depth, and the message itself when it is nothing else.
-func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]int) error {
+// what the message's card counts (Attachments): a part that attached
+// calls a file, at any depth, and the message itself when it is
+// nothing else. related is whether e sits in a multipart/related.
+func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]int, related bool) error {
+	mediaType, typeParams, _ := e.Header.ContentType()
 	if mr := e.MultipartReader(); mr != nil {
 		for {
 			part, err := mr.NextPart()
@@ -241,17 +243,20 @@ func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]i
 			if err != nil && !message.IsUnknownCharset(err) {
 				return err
 			}
-			if err := writeAttachments(archive, part, taken); err != nil {
+			if err := writeAttachments(archive, part, taken, strings.EqualFold(mediaType, "multipart/related")); err != nil {
 				return err
 			}
 		}
 	}
-	mediaType, _, _ := e.Header.ContentType()
 	disposition, params, _ := e.Header.ContentDisposition()
-	if disposition != "attachment" {
+	filename := params["filename"]
+	if filename == "" {
+		filename = typeParams["name"]
+	}
+	if !attached(mediaType, disposition, filename, e.Header.Get("Content-Id"), related) {
 		return nil
 	}
-	w, err := archive.Create(zipEntryName(params["filename"], mediaType, taken))
+	w, err := archive.Create(zipEntryName(filename, mediaType, taken))
 	if err != nil {
 		return err
 	}

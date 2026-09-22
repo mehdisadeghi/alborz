@@ -59,6 +59,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.POST("/compose", handleComposeNew)
 
 	p.POST("/compose/attachment", handleComposeAttachment)
+	p.GET("/compose/attachment/:uuid", handleGetAttachment)
 	p.POST("/compose/attachment/:uuid/remove", handleCancelAttachment)
 
 	p.GET("/message/:mbox/:uid/reply", handleReply)

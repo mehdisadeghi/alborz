@@ -516,6 +516,15 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			uploads = append(uploads, uuid)
 		}
 
+		if msg.HTML != "" {
+			images, held, err := inlineImages(ctx, msg.HTML, msg.MessageID)
+			if err != nil {
+				return err
+			}
+			msg.Inline = images
+			uploads = append(uploads, held...)
+		}
+
 		// A message with nowhere to go is not sent, and is not reported
 		// as sent; a draft may of course be addressed later.
 		if !saveAsDraft && len(msg.To) == 0 && len(msg.Cc) == 0 && len(msg.Bcc) == 0 {
@@ -888,20 +897,10 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	}
 	ret.Text = replyBody(ctx, inReplyTo, quoted, settings.ReplyBelowQuote)
 	ret.QuoteBelow = !settings.ReplyBelowQuote
-	if node := inReplyTo.HTMLPart(); node != nil {
-		var raw []byte
-		err := ctx.DoIMAP(func(c *imapclient.Client) error {
-			_, part, err := getMessagePart(c, inReplyToPath.Mailbox, inReplyToPath.Uid, node.Path)
-			if err != nil {
-				return err
-			}
-			raw, err = io.ReadAll(part.Body)
-			return err
-		})
-		if err != nil {
-			return ret, err
-		}
-		ret.QuoteHTML = replyHTML(ctx, inReplyTo, composedHTML(string(raw)), settings.ReplyBelowQuote)
+	if quoted, err := quotedHTML(ctx, inReplyToPath, inReplyTo); err != nil {
+		return ret, err
+	} else if quoted != "" {
+		ret.QuoteHTML = replyHTML(ctx, inReplyTo, quoted, settings.ReplyBelowQuote)
 	}
 
 	ret.MessageID = newMessageID()
@@ -971,6 +970,47 @@ func forwardBody(ctx *alborz.Context, original *IMAPMessage, body string) string
 	b.WriteString("\n")
 	b.WriteString(body)
 	return b.String()
+}
+
+// forwardHTML is forwardBody for the editor: the separator and the
+// headers, then the original as it was written.
+func forwardHTML(ctx *alborz.Context, original *IMAPMessage, body string) template.HTML {
+	head := strings.TrimSpace(forwardBody(ctx, original, ""))
+	lines := strings.Split(html.EscapeString(head), "\n")
+	return template.HTML(`<p dir="auto"><br></p>` + "\n" +
+		`<p dir="` + alborz.ParagraphDir(head) + `">` + strings.Join(lines, "<br>") + "</p>\n<div>" + body + "</div>\n")
+}
+
+// quotedHTML is a message's HTML as the editor may quote, forward or
+// reopen it: Apple Mail's pieces joined, its images pointed at the
+// parts that hold them, and the policy applied (ADR 40). Empty when the
+// message has no HTML.
+func quotedHTML(ctx *alborz.Context, path messagePath, msg *IMAPMessage) (string, error) {
+	node := msg.HTMLPart()
+	if node == nil {
+		return "", nil
+	}
+	var raw []byte
+	err := ctx.DoIMAP(func(c *imapclient.Client) error {
+		var (
+			part *message.Entity
+			err  error
+		)
+		if pieces := msg.HTMLPieces(node.Path); pieces != nil {
+			part, err = joinedHTML(c, path.Mailbox, path.Uid, pieces)
+		} else {
+			_, part, err = getMessagePart(c, path.Mailbox, path.Uid, node.Path)
+		}
+		if err != nil {
+			return err
+		}
+		raw, err = io.ReadAll(part.Body)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	return composedHTML(localImages(string(raw), msg, ctx.Session.Username())), nil
 }
 
 func addressLine(a imap.Address) string {
@@ -1131,6 +1171,12 @@ func handleForward(ctx *alborz.Context) error {
 		}
 		msg.Text = forwardBody(ctx, source, body)
 		msg.QuoteBelow = true
+		if quoted, err := quotedHTML(ctx, sourcePath, source); err != nil {
+			return err
+		} else if quoted != "" {
+			msg.QuoteHTML = forwardHTML(ctx, source, quoted)
+			msg.QuoteRich = true
+		}
 
 		msg.MessageID = newMessageID()
 		msg.Subject = source.Envelope.Subject
@@ -1200,19 +1246,10 @@ func handleEdit(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to read part body: %v", err)
 		}
 		msg.Text = string(b)
-		// A draft written in the editor opens in it again.
-		if node := source.HTMLPart(); node != nil {
-			if err := ctx.DoIMAP(func(c *imapclient.Client) error {
-				_, part, err := getMessagePart(c, sourcePath.Mailbox, sourcePath.Uid, node.Path)
-				if err != nil {
-					return err
-				}
-				b, err := io.ReadAll(part.Body)
-				msg.HTML = composedHTML(string(b))
-				return err
-			}); err != nil {
-				return fmt.Errorf("failed to read the draft's HTML: %v", err)
-			}
+		// A draft written in the editor opens in it again, its images
+		// pointed at the draft's own parts.
+		if msg.HTML, err = quotedHTML(ctx, sourcePath, source); err != nil {
+			return fmt.Errorf("failed to read the draft's HTML: %v", err)
 		}
 
 		if len(source.Envelope.From) > 0 {

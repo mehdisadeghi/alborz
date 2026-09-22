@@ -148,7 +148,7 @@
 
   {{ template "ipp-menu" (dict "g" $.GlobalData "options" .PerPageOptions "current" .PerPage "base" $ippbase "label" ($.T "mailbox.perpage") "target" "main") }}
 
-  {{ template "filter-menu" (dict "id" "menu-filter" "icon" "filter" "title" ($.T "filter.menu") "rows" .FilterRows "target" "main" "priority" 25 "class" "filter-overflow") }}
+  {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "target" "main" "priority" 25 "class" "filter-overflow") }}
 
   {{ if .SortSupported }}
   {{ $thread := "" }}{{ if .ThreadSupported }}{{ $thread = dict "label" ($.T "sort.thread") "href" (printf "?sort=%s%s" "thread" $hplain) "current" .Threaded }}{{ end }}

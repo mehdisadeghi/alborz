@@ -2262,6 +2262,7 @@ main.create-update .headers > .compose-more {
    sends: it is not one of the actions that finish the message. */
 .signature-pick {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   margin-block: var(--space-2);
@@ -4367,7 +4368,6 @@ header nav .accounts-menu[popover] {
   margin-inline-start: 0;
 }
 
-/* The message toolbar's trailing group hugs the right edge; the list
 /* Without a script nothing folds a row that does not fit - ADR 8's
    folding is the script's - so the row wraps rather than push the page
    past the window. */
@@ -4414,6 +4414,7 @@ header nav .accounts-menu[popover] {
   }
 }
 
+/* The message toolbar's trailing group hugs the right edge; the list
    pages already get this from their growing search field. */
 main.message .actions-end {
   justify-content: flex-end;
@@ -5207,6 +5208,14 @@ h1.no-word .title-short {
     grid-row: 1;
     justify-self: end;
     align-self: center;
+  }
+
+  /* A card's star sits at its end, so the chevron hangs inwards: past
+     the end it lay beyond the window, hidden, and still widened the
+     page. */
+  .list-row .row-star .flag-split .flag-more.icon-button {
+    inset-inline-start: auto;
+    inset-inline-end: 100%;
   }
 
   /* The marks sit before the summary as on a desktop row; a row

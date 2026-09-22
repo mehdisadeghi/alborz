@@ -291,7 +291,6 @@ type Sharing struct {
 	// Form is what a refused share had typed, for the page to keep.
 	To, Until string
 	Write     bool
-	Error     string
 }
 
 // sharing reads the page's sharing block: nil for a collection on a
@@ -412,7 +411,7 @@ func (pg Page) HandleShare(p *Provider) func(*alborz.Context) error {
 			if dataErr != nil {
 				return dataErr
 			}
-			data.Sharing.Error = ctx.T(err.Error())
+			data.Refused(ctx.T(err.Error()))
 			data.Sharing.To, data.Sharing.Until = ctx.FormValue("to"), ctx.FormValue("until")
 			data.Sharing.Write = share.Write
 			return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)

@@ -180,7 +180,6 @@ type SubscribeRenderData struct {
 	Account  string
 	Address  string
 	Next     string
-	Error    string
 }
 
 // handleSubscribe follows a calendar by its address. The feed is fetched
@@ -208,7 +207,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			data.Account = account
 		}
 		if data.Address == "" {
-			data.Error = ctx.T("calendar.subscribeurlneeded")
+			data.Refused(ctx.T("calendar.subscribeurlneeded"))
 			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
 		}
 		session := ctx.SessionFor(data.Account)
@@ -221,13 +220,13 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			return err
 		}
 		if subscriptionAt(settings.Subscriptions, sub.path()) >= 0 {
-			data.Error = fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL)
+			data.Refused(fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL))
 			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
 		}
 		if err := subs.refresh(sub.URL); err != nil {
-			data.Error = fmt.Sprintf(ctx.T("calendar.feedfailed"), sub.URL, err)
+			data.Refused(fmt.Sprintf(ctx.T("calendar.feedfailed"), sub.URL, err))
 			if errors.Is(err, errNotFeed) {
-				data.Error = fmt.Sprintf(ctx.T("calendar.notfeed"), sub.URL)
+				data.Refused(fmt.Sprintf(ctx.T("calendar.notfeed"), sub.URL))
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
 		}

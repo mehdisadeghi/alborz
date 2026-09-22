@@ -396,9 +396,9 @@ func handleImport(ctx *alborz.Context) error {
 	}
 	name := ""
 	render := func(status int, errText string) error {
+		ibase.BaseRenderData.Refused(errText)
 		return ctx.Render(status, "import.html", &NewMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
-			Error:              errText,
 			Name:               name,
 			SelectedAccount:    selectedAccount,
 			SelectedLocation:   selectedLocation,

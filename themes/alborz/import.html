@@ -13,7 +13,7 @@
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
         <h1>{{$.T "folder.import"}}</h1>
         {{ template "folder-location" $ }}
-        {{ template "import-fields" (dict "g" $ "name" ($.T "folder.name") "namevalue" .Name "namehint" ($.T "folder.importname") "file" ($.T "folder.importfile") "accept" ".mbox,.eml,application/mbox,message/rfc822" "hint" ($.T "folder.importhint") "go" ($.T "folder.importgo") "cancel" (printf "/mailbox/INBOX%s" $acct) "error" .Error) }}
+        {{ template "import-fields" (dict "g" $ "name" ($.T "folder.name") "namevalue" .Name "namehint" ($.T "folder.importname") "file" ($.T "folder.importfile") "accept" ".mbox,.eml,application/mbox,message/rfc822" "hint" ($.T "folder.importhint") "go" ($.T "folder.importgo") "cancel" (printf "/mailbox/INBOX%s" $acct)) }}
       </form>
     </main>
   </div>

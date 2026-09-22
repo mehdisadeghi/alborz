@@ -1,4 +1,5 @@
 {{template "head.html" .}}
+{{ template "notices" (dict "g" $) }}
 
 {{/* A locked visit: the passkey opens it, and signing out is the way
      past a passkey that is gone. A page without a script can only
@@ -6,7 +7,6 @@
 <main id="main" tabindex="-1" class="login">
   <section>
     <h1>{{$.T "lock.title"}}</h1>
-    <div class="alert" role="alert" id="passkey-error" hidden></div>
     <p class="action-group">
       <button type="button" class="button-primary" id="passkey-unlock" autofocus
               data-begin="/unlock/begin" data-finish="/unlock/finish" data-next="{{.Next}}"

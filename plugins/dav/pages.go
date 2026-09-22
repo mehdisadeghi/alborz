@@ -34,7 +34,6 @@ type CollectionRenderData struct {
 	ListHref  string
 	BackLabel string
 	Rail      Rail
-	Error     string
 	// Ext is the file type the collection is exported as and imported
 	// from, ".ics" or ".vcf"; OffersRange says the export form takes a
 	// date range, which only a calendar has.
@@ -78,7 +77,6 @@ type NewCollectionRenderData struct {
 	// Scope is the account the page was in, empty on a merged page.
 	Scope string
 	Next  string // the list it was opened from
-	Error string
 }
 
 // Asks says the reader has to name the place rather than take one:
@@ -150,7 +148,7 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 		data.Name = strings.TrimSpace(ctx.FormValue("name"))
 		data.Color = ctx.FormValue("color")
 		if data.Asks() && ctx.FormValue("place") == "" {
-			data.Error = ctx.T("form.destinationneeded")
+			data.Refused(ctx.T("form.destinationneeded"))
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
 		// A form that offers no choice cannot be posted one.
@@ -158,7 +156,7 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			data.Holds = h
 		}
 		if data.Name == "" {
-			data.Error = ctx.T("form.nameneeded")
+			data.Refused(ctx.T("form.nameneeded"))
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
 		session := ctx.SessionFor(data.Account)
@@ -167,11 +165,11 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 		}
 		path, err := p.Create(ctx.Request().Context(), session, data.Name, data.Color, data.Place, held[data.Holds])
 		if err != nil {
-			data.Error = err.Error()
+			data.Refused(err.Error())
 			if errors.Is(err, ErrNameTaken) {
-				data.Error = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
+				data.Refused(fmt.Sprintf(ctx.T("form.nametaken"), data.Name))
 			} else if errors.Is(err, ErrPlaceDown) {
-				data.Error = ctx.T("form.placedown")
+				data.Refused(ctx.T("form.placedown"))
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
@@ -269,14 +267,14 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 			name := strings.TrimSpace(ctx.FormValue("name"))
 			data.Name, data.Color = name, ctx.FormValue("color")
 			if name == "" {
-				data.Error = ctx.T("form.nameneeded")
+				data.Refused(ctx.T("form.nameneeded"))
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
 			}
 			base, _ := p.URL(ctx.Session)
 			target := base.ResolveReference(&url.URL{Path: collPath}).String()
 			if err := Proppatch(ctx.Request().Context(), p.HTTPClient(ctx.Session),
 				target, name, ctx.FormValue("color"), pg.Color); err != nil {
-				data.Error = err.Error()
+				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
 			}
 			pg.Forget(ctx.Session.Username())
@@ -561,7 +559,6 @@ type ImportData struct {
 	// browser handed over, or one typed - and URL what it holds.
 	Address bool
 	URL     string
-	Error   string
 }
 
 // HandleImportPage is the section's import page, reached from its
@@ -628,7 +625,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 		acct, collPath, ok := strings.Cut(ctx.FormValue("collection"), "|")
 		session := ctx.SessionFor(acct)
 		if !ok || session == nil {
-			data.Error = ctx.T("form.destinationneeded")
+			data.Refused(ctx.T("form.destinationneeded"))
 			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
 		}
 		data.Account, data.Path = acct, collPath
@@ -637,13 +634,13 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 		if data.URL = strings.TrimSpace(ctx.FormValue("url")); address && data.URL != "" {
 			raw, err = fetchAddress(data.URL)
 			if err != nil {
-				data.Error = err.Error()
+				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
 			}
 		} else {
 			file, err := ctx.FormFile("file")
 			if err != nil {
-				data.Error = ctx.T("form.fileneeded")
+				data.Refused(ctx.T("form.fileneeded"))
 				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
 			}
 			if file.Size > maxImportSize {
@@ -659,12 +656,12 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 		ctx.Session = session
 		files, err := pg.importFiles(name, raw)
 		if err != nil {
-			data.Error = err.Error()
+			data.Refused(err.Error())
 			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
 		}
 		if place, isNew := strings.CutPrefix(collPath, newPrefix); isNew || len(files) > 1 {
 			if err := pg.importMany(ctx, list, files, place, isNew, collPath); err != nil {
-				data.Error = err.Error()
+				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
 			}
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
@@ -672,7 +669,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 		if err := pg.importRaw(ctx, collPath, raw); err != nil {
 			// A file that is not what it claims answers on the form,
 			// which is where the reader can pick another.
-			data.Error = err.Error()
+			data.Refused(err.Error())
 			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))

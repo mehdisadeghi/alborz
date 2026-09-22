@@ -59,10 +59,6 @@ type UpdateEventRenderData struct {
 	Repeat    Repeat
 	// RepeatFreqs are the rules the form offers, in its order.
 	RepeatFreqs []string
-
-	// Error is shown as an alert on the form just submitted: invalid
-	// input is answered by the page itself, never by a status page.
-	Error string
 }
 
 // newEventStart reads the ?date= a create link carries and keeps the
@@ -410,7 +406,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "update-event.html", &UpdateEventRenderData{
 				Rail:           rail,
-				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.createtitle")),
+				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.createtitle")).Refused(message),
 				Groups:         groups,
 				Calendar:       currentCalendar,
 				CalendarObject: co,
@@ -422,7 +418,6 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 				EndDate:        ctx.FormValue("end_date"),
 				Repeat:         Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.FormValue("until")},
 				RepeatFreqs:    repeatFreqs,
-				Error:          message,
 			})
 		}
 		if summary == "" {

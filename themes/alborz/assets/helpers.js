@@ -58,16 +58,6 @@ const enhance = () => {
 		} catch (e) {}
 	}
 
-	// Clearing a notice needs no round trip where a script runs; the
-	// markup's link is the fallback for where none does.
-	const notice_dismiss = document.querySelector(".notice-dismiss");
-	if (notice_dismiss && once(notice_dismiss, "dismiss")) {
-		notice_dismiss.addEventListener("click", ev => {
-			ev.preventDefault();
-			notice_dismiss.closest(".notice").remove();
-		});
-	}
-
 	// Bulk actions operate on the checked rows: the select-all box appears
 	// where there are rows, and every control bound to the bulk form is
 	// disabled while nothing is selected - the move destination as much as
@@ -617,20 +607,20 @@ const failedNotice = () => document.getElementById("request-failed");
 // notice, not two stacked.
 const offlineShown = () => {
 	const offline = document.getElementById("offline-notice");
-	return offline !== null && !offline.hidden;
+	return offline !== null && offline.open;
 };
 for (const event of ["htmx:sendError", "htmx:timeout", "htmx:responseError"]) {
 	document.addEventListener(event, () => {
 		const notice = failedNotice();
-		if (notice) {
-			notice.hidden = offlineShown();
+		if (notice && !offlineShown()) {
+			notice.show();
 		}
 	});
 }
 document.addEventListener("htmx:beforeRequest", () => {
 	const notice = failedNotice();
 	if (notice) {
-		notice.hidden = true;
+		notice.close();
 	}
 });
 
@@ -814,12 +804,12 @@ if ("serviceWorker" in navigator) {
 	const showOffline = () => {
 		const notice = document.getElementById("offline-notice");
 		if (notice) {
-			notice.hidden = !offline;
 			notice.querySelector(".notice-text").textContent = slow ? notice.dataset.slow : notice.dataset.offline;
+			offline ? notice.show() : notice.close();
 		}
 		const failed = failedNotice();
 		if (offline && failed) {
-			failed.hidden = true;
+			failed.close();
 		}
 	};
 	navigator.serviceWorker.addEventListener("message", ev => {
@@ -1099,15 +1089,18 @@ document.addEventListener("beforetoggle", ev => {
 // are the browser's own news - an upload's progress, mail that arrived -
 // and never come with a page. Each source of news has a bar of its own:
 // mail arriving during an upload must not take the upload's progress.
-// A notice nobody has to answer stays this long: one clause, read once.
-const noticeLinger = 5000;
+// A notice nobody has to answer stays this long: one clause, read once,
+// and the six seconds a done notice from the server stays (ADR 41).
+const noticeLinger = 6000;
 const noticeBar = () => {
 	let bar = null;
 	let leaving = 0;
+	// In the page's notice layer, first, where the server's go (ADR 41).
 	const place = () => {
-		const nav = document.querySelector("body > nav, header nav");
-		(nav && nav.parentNode ? nav.parentNode : document.body)
-			.insertBefore(bar, nav ? nav.nextSibling : null);
+		const layer = document.querySelector(".notices");
+		if (layer) {
+			layer.prepend(bar);
+		}
 	};
 	return {
 		show(text, kind) {

@@ -638,7 +638,6 @@ func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *
 
 type NewMailboxRenderData struct {
 	IMAPBaseRenderData
-	Error            string
 	Name             string
 	SelectedAccount  string
 	SelectedLocation string
@@ -716,9 +715,9 @@ func handleNewMailbox(ctx *alborz.Context) error {
 	}
 	name := ""
 	render := func(status int, errText string) error {
+		ibase.BaseRenderData.Refused(errText)
 		return ctx.Render(status, "new-mailbox.html", &NewMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
-			Error:              errText,
 			Name:               name,
 			SelectedAccount:    selectedAccount,
 			SelectedLocation:   selectedLocation,
@@ -791,15 +790,13 @@ func folderURL(ctx *alborz.Context, account, name string) string {
 
 type DeleteMailboxRenderData struct {
 	IMAPBaseRenderData
-	Error string
 }
 
 // RenameMailboxRenderData is the page that renames one folder: the
 // name it has, and what the server said if it refused.
 type RenameMailboxRenderData struct {
 	IMAPBaseRenderData
-	Name  string
-	Error string
+	Name string
 }
 
 type EmptyMailboxRenderData struct {
@@ -827,9 +824,9 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 			mailboxDeleted(ctx.Session.Username(), mbox.Name())
 			return nil
 		}); err != nil {
+			ibase.BaseRenderData.Refused(err.Error())
 			return ctx.Render(http.StatusUnprocessableEntity, "delete-mailbox.html", &DeleteMailboxRenderData{
 				IMAPBaseRenderData: *ibase,
-				Error:              err.Error(),
 			})
 		}
 		ctx.PutNotice(ctx.T("notice.mailboxdeleted"))
@@ -854,10 +851,10 @@ func handleRenameMailbox(ctx *alborz.Context) error {
 	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.renametitle"), mbox.Label))
 	name := mbox.Label
 	render := func(status int, errText string) error {
+		ibase.BaseRenderData.Refused(errText)
 		return ctx.Render(status, "rename-mailbox.html", &RenameMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
 			Name:               name,
-			Error:              errText,
 		})
 	}
 	if ctx.Request().Method != http.MethodPost {

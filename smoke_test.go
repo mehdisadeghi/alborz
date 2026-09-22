@@ -1019,6 +1019,26 @@ func TestPastedImageTravelsBesideTheHTML(t *testing.T) {
 	}
 }
 
+// TestDoneNoticeClosesWithoutAScript: a notice floats over the page and
+// its cross closes it with no script, through the dialog's own form
+// (ADR 41); a done one is marked so that it leaves by itself.
+func TestDoneNoticeClosesWithoutAScript(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) == 0 {
+		t.Fatal("no seeded messages")
+	}
+	postForm(t, c, base+"/message/INBOX/move?to=Trash", url.Values{"uids": uids[:1]})
+	notice := noticeBar(get(t, c, base+"/mailbox/INBOX"))
+	if !strings.Contains(notice, "notice-done") {
+		t.Fatalf("no done notice after a move: %q", notice)
+	}
+	if !strings.Contains(notice, `<form method="dialog" class="notice-dismiss">`) {
+		t.Errorf("the notice has no cross that closes it without a script:\n%s", notice)
+	}
+}
+
 // TestEverySenderShapeOfAFileIsListed: senders mark a file in more
 // ways than Content-Disposition: attachment, and a file marked another
 // way was shown nowhere - every file Apple Mail sends among them - while
@@ -1538,7 +1558,7 @@ func TestRefusedRecipientComesBackOnTheForm(t *testing.T) {
 		t.Fatalf("a refused recipient answered %s, want 422", resp.Status)
 	}
 	form := string(page)
-	if !strings.Contains(form, `role="alert"`) || !strings.Contains(form, "User unknown") {
+	if !strings.Contains(noticeBar(form), "User unknown") {
 		t.Errorf("the server's refusal is not on the form:\n%s", form)
 	}
 	if !strings.Contains(form, `value="kept"`) {
@@ -1718,7 +1738,7 @@ func TestDeleteNoticeCountsTheRest(t *testing.T) {
 }
 
 func noticeBar(body string) string {
-	return regexp.MustCompile(`(?s)<div class="notice[^"]*"[^>]*>(.*?)</div>`).FindString(body)
+	return regexp.MustCompile(`(?s)<dialog open class="notice[^"]*"[^>]*>(.*?)</dialog>`).FindString(body)
 }
 
 func alertText(body string) string {

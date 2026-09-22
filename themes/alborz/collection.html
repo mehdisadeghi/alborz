@@ -14,7 +14,6 @@
       <form method="post">
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
         <h1 dir="auto">{{.Name}}</h1>
-        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
         {{ template "dav-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref "field" "" "collection" "" "path" "") }}
 
         {{/* A collection somebody else shares is theirs to name and
@@ -71,7 +70,6 @@
         </div>
         {{ end }}
         <form method="post" action="{{$.Base}}{{$.Path | pathescape}}/share{{account "?" $.Account}}#sharing">
-          {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
           {{ template "field" (dict "label" ($.T "share.with") "name" "to" "type" "email" "value" .To "dir" "ltr" "required" true "hint" ($.T "share.withhint")) }}
           <fieldset class="action-group choices">
             <legend>{{$.T "share.access"}}</legend>

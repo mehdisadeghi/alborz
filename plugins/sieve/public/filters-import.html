@@ -18,7 +18,7 @@
         {{ if gt (len .Accounts) 1 }}
         {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}
         {{ end }}
-        {{ template "import-fields" (dict "g" $ "file" ($.T "filters.importfile") "accept" ".sieve,.siv,text/plain" "hint" ($.T "filters.importhint") "go" ($.T "filters.importgo") "cancel" (printf "/filters%s" $aq) "error" .Error) }}
+        {{ template "import-fields" (dict "g" $ "file" ($.T "filters.importfile") "accept" ".sieve,.siv,text/plain" "hint" ($.T "filters.importhint") "go" ($.T "filters.importgo") "cancel" (printf "/filters%s" $aq)) }}
       </form>
     </main>
   </div>

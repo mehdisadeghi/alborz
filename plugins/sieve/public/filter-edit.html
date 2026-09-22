@@ -17,9 +17,6 @@
           {{if .Name}}{{$.T "filters.edittitle"}}{{else}}{{$.T "filters.createtitle"}}{{end}}
         </h1>
 
-        {{ if .Error }}
-        <div class="alert" role="alert">{{.Error}}</div>
-        {{ end }}
 
         {{ if .Name }}
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "readonly" true) }}

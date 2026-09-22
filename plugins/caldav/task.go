@@ -50,7 +50,6 @@ type UpdateTaskRenderData struct {
 	// bands it offers, in order.
 	Priority      string
 	PriorityBands []string
-	Error         string
 }
 
 // The bands RFC 5545 3.8.1.9 draws over PRIORITY: 1 to 4 high, 5
@@ -241,7 +240,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "update-task.html", &UpdateTaskRenderData{
 				Rail:           rail,
-				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("tasks.createtitle")),
+				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("tasks.createtitle")).Refused(message),
 				Groups:         groups,
 				Calendar:       currentCalendar,
 				CalendarObject: co,
@@ -249,7 +248,6 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 				Due:            dueDate,
 				Priority:       band,
 				PriorityBands:  priorityBands,
-				Error:          message,
 			})
 		}
 		if summary == "" {

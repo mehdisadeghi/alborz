@@ -14,7 +14,6 @@
         {{ template "list-toolbar" (dict "title" $title) }}
       </section>
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.servers") "path" "/settings/servers" "object" $title) }}
-      {{ if .Error }}<div class="alert" role="alert">{{ .Error }}</div>{{ end }}
 
       {{/* What each server says about itself. The abilities are the ones
            that change what alborz does; each is explained on hover and,

@@ -50,16 +50,16 @@
 	// source carries where to begin and finish and what to say: the
 	// unlock button, or the form that adds a passkey under a name.
 	const ceremony = async (source, create, name) => {
-		const says = document.getElementById("passkey-error");
+		const says = document.getElementById("script-failed");
 		const fail = text => {
-			says.textContent = text;
-			says.hidden = false;
+			says.querySelector(".notice-text").textContent = text;
+			says.show();
 		};
 		if (!window.PublicKeyCredential) {
 			fail(source.dataset.unsupported);
 			return;
 		}
-		says.hidden = true;
+		says.close();
 		try {
 			const begun = await post(source.dataset.begin);
 			if (!begun.ok) {

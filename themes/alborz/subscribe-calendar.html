@@ -12,7 +12,6 @@
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" "/calendar" "field" "" "collection" "" "path" "" "chooses" (gt (len .Accounts) 1)) }}
         <h1>{{$.T "calendar.subscribe"}}</h1>
 
-        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
 
         {{ if gt (len .Accounts) 1 }}
         {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}

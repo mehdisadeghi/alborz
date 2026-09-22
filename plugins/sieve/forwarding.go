@@ -101,7 +101,6 @@ type ForwardingRenderData struct {
 	CanWire bool
 	// Address is what the create form holds, and Error what it answers.
 	Address string
-	Error   string
 	Rail    map[string][]alborz.RailRow
 }
 
@@ -169,7 +168,8 @@ func handleForwardingAdd(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		data.Address, data.Error = address, fmt.Sprintf(ctx.T("filters.notanaddress"), address)
+		data.Address = address
+		data.Refused(fmt.Sprintf(ctx.T("filters.notanaddress"), address))
 		return ctx.Render(http.StatusUnprocessableEntity, "forwarding-create.html", data)
 	}
 	err := changeForwarding(ctx, func(f *Forwarding) {

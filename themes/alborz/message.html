@@ -486,7 +486,7 @@
               {{- if .Filename -}}
                 {{.Filename}}
               {{- else -}}
-                (no filename)
+                {{$.T "message.unnamedfile"}}
               {{- end -}}
               </a> ({{.MIMEType}}, {{.SizeString}})
               {{/* A calendar or a card attached to a mail is filed from its

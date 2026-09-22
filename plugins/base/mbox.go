@@ -189,8 +189,14 @@ func copyWithoutAttachments(w *message.Writer, e *message.Entity, note string) e
 		header := part.Header
 		mediaType, _, _ := header.ContentType()
 		disposition, dispParams, _ := header.ContentDisposition()
+		name := dispParams["filename"]
+		if name == "" {
+			_, params, _ := header.ContentType()
+			name = params["name"]
+		}
+		// Only text stays: an image the HTML shows is weight all the same.
 		keep := strings.HasPrefix(mediaType, "multipart/") ||
-			(strings.HasPrefix(mediaType, "text/") && disposition != "attachment")
+			(strings.HasPrefix(mediaType, "text/") && !attached(mediaType, disposition, name, "", false))
 		if keep {
 			if strings.HasPrefix(mediaType, "text/") {
 				_, params, _ := header.ContentType()
@@ -206,11 +212,6 @@ func copyWithoutAttachments(w *message.Writer, e *message.Entity, note string) e
 			}
 			pw.Close()
 			continue
-		}
-		name := dispParams["filename"]
-		if name == "" {
-			_, params, _ := header.ContentType()
-			name = params["name"]
 		}
 		size, _ := io.Copy(io.Discard, part.Body)
 		var stub message.Header

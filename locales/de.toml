@@ -199,6 +199,7 @@
 "message.filterto" = "Post an diese Adresse in diesem Ordner"
 "message.older" = "Ältere"
 "message.attachments" = "Anhänge"
+"message.unnamedfile" = "Unbenannte Datei"
 "message.downloadall" = "Alle herunterladen"
 "message.plaintext" = "Nur Text"
 "message.html" = "HTML"

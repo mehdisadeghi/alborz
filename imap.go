@@ -1,11 +1,14 @@
 package alborz
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"mime"
 	"net"
 	"os"
+	"regexp"
+	"sync"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -35,10 +38,9 @@ func (s *Server) dial(domain, from string, unilateral *imapclient.UnilateralData
 		return nil, UnknownDomainError{domain}
 	}
 
-	// TODO: don't print passwords to debug logs
 	var debugWriter io.Writer
 	if s.Options.Debug {
-		debugWriter = os.Stderr
+		debugWriter = &maskedTrace{w: os.Stderr}
 	}
 
 	options := &imapclient.Options{
@@ -86,3 +88,50 @@ func (s *Server) dial(domain, from string, unilateral *imapclient.UnilateralData
 // not alborz's, which every reader shares. A server that does not trust
 // alborz, or knows no such field, ignores it.
 const forwardedFor = "x-originating-ip"
+
+// redacted stands where a credential was in the IMAP trace.
+const redacted = "***REDACTED***"
+
+// credential finds a command that carries a password: LOGIN, or an
+// AUTHENTICATE with its initial response (RFC 4959).
+var credential = regexp.MustCompile(`(?im)^(\S+) (LOGIN|AUTHENTICATE)\b`)
+
+// serverSide is the server's side of the trace: untagged data, a
+// continuation request, or a command's completion.
+var serverSide = regexp.MustCompile(`^(?:[*+]|\S+ (?:OK|NO|BAD)\b)`)
+
+// maskedTrace keeps credentials out of the IMAP trace -debug writes.
+// The client's traffic and the server's reach it interleaved, a chunk
+// at a time, so it works on chunks: a LOGIN or an AUTHENTICATE is cut
+// after its name, and what the client sends until that command is
+// answered - a literal password, a SASL response - is masked whole.
+type maskedTrace struct {
+	mu sync.Mutex
+	w  io.Writer
+	// tag is the command whose credentials may still follow.
+	tag string
+}
+
+func (t *maskedTrace) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := p
+	switch {
+	case t.tag != "" && serverSide.Match(p):
+		// The completion may follow other lines in the chunk.
+		if bytes.HasPrefix(p, []byte(t.tag+" ")) || bytes.Contains(p, []byte("\n"+t.tag+" ")) {
+			t.tag = ""
+		}
+	case t.tag != "":
+		out = []byte(redacted + "\r\n")
+	default:
+		if m := credential.FindSubmatchIndex(p); m != nil {
+			t.tag = string(p[m[2]:m[3]])
+			out = append(bytes.Clone(p[:m[1]]), " "+redacted+"\r\n"...)
+		}
+	}
+	if _, err := t.w.Write(out); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}

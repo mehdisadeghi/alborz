@@ -264,7 +264,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	data := &EventRenderData{
 		Rail:           rail,
 		List:           eventList(ctx),
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       calendar,
 		Event:          CalendarObject{CalendarObject: event},
 		Star:           componentColor(vevents[0].Component),
@@ -297,7 +297,7 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 	data := &EventRenderData{
 		Rail:           rail,
 		List:           eventList(ctx),
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       info,
 		Event:          CalendarObject{CalendarObject: &caldav.CalendarObject{Path: address, Data: cal}, Color: info.Color, ReadOnly: true},
 		Neighbours:     dav.Around(items, eventKey(address, ctx.QueryParam("uid"), true)),

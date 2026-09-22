@@ -954,6 +954,15 @@
 {{ $d := .data }}
 <form method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter">
 <input type="hidden" name="next" value="{{$d.next}}">
+{{/* Under several accounts, each has its own All: the account's list
+     with no collection narrowing it, marked while that is the page. */}}
+{{ with .all }}
+{{ $narrowed := false }}{{ range $d.items }}{{ if .Only }}{{ $narrowed = true }}{{ end }}{{ end }}
+{{ $on := and (eq $.account $.urlaccount) (not $narrowed) }}
+<div class="filter-row nested{{ if $on }} active{{ end }}">
+  <a class="filter-name" href="{{ localhref (printf "%s%s" $.path (account (qsep $.path) $.account)) }}"{{ if $on }} aria-current="true"{{ end }}><span>{{.}}</span></a>
+</div>
+{{ end }}
 {{ range $d.items }}{{ if eq .Account $.account }}
 {{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "onlylabel" $d.onlylabel "alllabel" $d.alllabel "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edithref" $d.edithref "editlabel" $d.editlabel "g" $.g) }}
 {{ end }}{{ end }}
@@ -998,7 +1007,9 @@
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-merged" .data }}
   {{ else }}
-  {{ with .all }}<a class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}">{{.}}</a>{{ end }}
+  {{/* Named for what it merges, as mail's is, so it is not taken for
+       the All inside each account below. */}}
+  {{ with .all }}<a class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}">{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
   {{ end }}
   {{ range .accounts }}
   {{ $acct := .Username }}
@@ -1015,7 +1026,7 @@
     {{ else if eq $.kind "rows" }}
     {{ template "rail-rows" (index $.data.rows $acct) }}
     {{ else }}
-    {{ template "rail-dav-account" (dict "account" $acct "data" $.data "g" $.g) }}
+    {{ template "rail-dav-account" (dict "account" $acct "data" $.data "g" $.g "all" $.all "path" $.path "urlaccount" $.urlaccount) }}
     {{ end }}
   </details>
   {{ end }}
@@ -1082,7 +1093,7 @@
 {{ define "dav-rail" }}
 {{ $g := .g }}{{ $r := .rail }}
 <aside>
-  {{ template "scope-rail" (dict "g" $g "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "all" ($g.T "nav.allaccounts") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "shown" ($g.T "common.shown") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI) "groups" (dict "key" "groups" "label" ($g.T "aside.groups") "rows" $r.Groups "editlabel" ($g.T "common.edit")) "categories" (dict "key" "categories" "label" ($g.T "aside.categories") "rows" $r.Categories)) }}
+  {{ template "scope-rail" (dict "g" $g "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "all" ($g.T "aside.all") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "shown" ($g.T "common.shown") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI) "groups" (dict "key" "groups" "label" ($g.T "aside.groups") "rows" $r.Groups "editlabel" ($g.T "common.edit")) "categories" (dict "key" "categories" "label" ($g.T "aside.categories") "rows" $r.Categories)) }}
 </aside>
 {{ end }}
 

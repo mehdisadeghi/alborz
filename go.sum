@@ -55,8 +55,8 @@ github.com/mehdisadeghi/go-imap/v2 v2.0.0-20250317164603-f648aa3a4b46 h1:PNsUA/W
 github.com/mehdisadeghi/go-imap/v2 v2.0.0-20250317164603-f648aa3a4b46/go.mod h1:dhoFe2Q0PwLrMD7oZw8ODuaD0vLYPe5uj2wcOMnvh48=
 github.com/mehdisadeghi/go-mbox v0.0.0-20260921114627-f2df45e279df h1:GZO6zjVUpCHOwQwUlWmG2jKVi9GOlwJ1j/fkchryJIo=
 github.com/mehdisadeghi/go-mbox v0.0.0-20260921114627-f2df45e279df/go.mod h1:Yp9IVuuOYLEuMv4yjgDHvhb5mHOcYH6x92Oas3QqEZI=
-github.com/mehdisadeghi/go-msgauth v0.0.0-20260921123823-04a6405fe7bc h1:CsQrcp6sLciBhY5hKZaaCQfglyPNj+Nq/XPnu0YIPQk=
-github.com/mehdisadeghi/go-msgauth v0.0.0-20260921123823-04a6405fe7bc/go.mod h1:9vHeiBKZywph9DZEVdXYAFrustFrmPZ+fWdlbnGT4hc=
+github.com/mehdisadeghi/go-msgauth v0.0.0-20260922210921-dc02bdf6079e h1:b6NeYKyEEuOBGWeWyKUSf5S66ShbMqP+0cT0CE3CylI=
+github.com/mehdisadeghi/go-msgauth v0.0.0-20260922210921-dc02bdf6079e/go.mod h1:9vHeiBKZywph9DZEVdXYAFrustFrmPZ+fWdlbnGT4hc=
 github.com/mehdisadeghi/go-vcard v0.0.0-20260921114506-5470ed03a481 h1:keeVEdC0sMktK5SHbBDPv9CHTCPqcnGBAw9oqlRdeqk=
 github.com/mehdisadeghi/go-vcard v0.0.0-20260921114506-5470ed03a481/go.mod h1:HMJKR5wlh/ziNp+sHEDV2ltblO4JD2+IdDOWtGcQBTM=
 github.com/mehdisadeghi/go-webdav v0.0.0-20260921101523-6a35b64d0a5f h1:GY2srXwlag3jFOPkQn1fAQ0uucfBsIORUFC9bR8pOgE=

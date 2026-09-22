@@ -958,31 +958,56 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 		top   string
 		files []string
 		body  string
+		// open is a part to open as well, and shows what it must show,
+		// hides what it must not.
+		open  string
+		shows []string
+		hides []string
 	}{
 		{"disposition attachment", []string{text,
 			"Content-Type: application/pdf; name=\"a.pdf\"\r\nContent-Disposition: attachment; filename=\"a.pdf\"\r\n" + pdf},
-			"mixed", []string{"a.pdf"}, "Body text."},
+			"mixed", []string{"a.pdf"}, "Body text.", "", nil, nil},
 		{"inline with a filename, as Apple Mail sends", []string{text,
 			"Content-Type: application/pdf; name=\"b.pdf\"\r\nContent-Disposition: inline; filename=b.pdf\r\n" + pdf},
-			"mixed", []string{"b.pdf"}, "Body text."},
+			"mixed", []string{"b.pdf"}, "Body text.", "", nil, nil},
 		{"a name on the type alone", []string{text, "Content-Type: application/pdf; name=\"c.pdf\"\r\n" + pdf},
-			"mixed", []string{"c.pdf"}, "Body text."},
+			"mixed", []string{"c.pdf"}, "Body text.", "", nil, nil},
 		{"no name and not text", []string{text, "Content-Type: application/octet-stream\r\n" + pdf},
-			"mixed", []string{"Unnamed file"}, "Body text."},
+			"mixed", []string{"Unnamed file"}, "Body text.", "", nil, nil},
 		{"an attached text file", []string{text,
 			"Content-Type: text/plain; charset=utf-8; name=\"notes.txt\"\r\nContent-Disposition: inline; filename=\"notes.txt\"\r\n\r\nThese are notes.\r\n"},
-			"mixed", []string{"notes.txt"}, "Body text."},
+			"mixed", []string{"notes.txt"}, "Body text.", "", nil, nil},
 		{"the file inside Apple Mail's HTML", []string{
 			"Content-Type: text/plain; charset=utf-8\r\n\r\nBody text.\r\n",
 			"Content-Type: multipart/mixed; boundary=\"inner\"\r\n\r\n--inner\r\n" +
 				"Content-Type: text/html; charset=utf-8\r\n\r\n<p>Above.</p>\r\n--inner\r\n" +
 				"Content-Type: application/pdf; name=\"apple.pdf\"\r\nContent-Disposition: inline; filename=apple.pdf\r\n" + pdf +
 				"--inner\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Below.</p>\r\n--inner--\r\n"},
-			"alternative", []string{"apple.pdf"}, "Body text."},
+			"alternative", []string{"apple.pdf"}, "Body text.",
+			// The pieces read as one, as they do in Apple Mail.
+			"2.3", []string{"Above.", "Below."}, nil},
 		{"an image the HTML shows by its Content-ID", []string{
 			"Content-Type: text/html; charset=utf-8\r\n\r\n<p>Body text. <img src=\"cid:pic\"></p>\r\n",
 			"Content-Type: image/png; name=\"pic.png\"\r\nContent-Disposition: inline; filename=\"pic.png\"\r\nContent-ID: <pic>\r\n" + pdf},
-			"related", nil, "Body text."},
+			"related", nil, "Body text.", "", nil, nil},
+		{"the signature of a signed message", []string{text,
+			"Content-Type: application/pgp-signature; name=\"signature.asc\"\r\nContent-Disposition: attachment; filename=\"signature.asc\"\r\n\r\n-----BEGIN PGP SIGNATURE-----\r\n"},
+			"signed; protocol=\"application/pgp-signature\"", nil, "Body text.", "", nil, nil},
+		{"a forwarded message", []string{text,
+			"Content-Type: message/rfc822\r\n\r\nFrom: <x@example.org>\r\nSubject: Inner\r\n\r\nInner body.\r\n"},
+			"mixed", []string{"Inner.eml"}, "Body text.", "", nil, nil},
+		{"text beside HTML that shows an image", []string{text,
+			"Content-Type: multipart/related; boundary=\"rel\"\r\n\r\n--rel\r\n" +
+				"Content-Type: text/html; charset=utf-8\r\n\r\n<p>Body text. <img src=\"cid:logo\"></p>\r\n--rel\r\n" +
+				"Content-Type: image/png; name=\"logo.png\"\r\nContent-ID: <logo>\r\n" + pdf + "--rel--\r\n"},
+			// The image belongs to the HTML, which is the other version
+			// of this message; the text the reader chose is words alone.
+			"alternative", nil, "Body text.", "1", nil, []string{`class="shown-image"`}},
+		{"text and the image it shows itself", []string{text,
+			"Content-Type: image/png; name=\"logo.png\"\r\nContent-ID: <logo>\r\n" + pdf},
+			// Beside the text and named by no file list, so the page
+			// shows it rather than losing it.
+			"related", nil, "Body text.", "1", []string{`class="shown-image" src="/message/Shapes/11/raw?part=2"`}, nil},
 	}
 
 	ic, err := imapclient.DialInsecure(addr, nil)
@@ -1041,6 +1066,20 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 		}
 		if len(archive.File) != len(s.files) {
 			t.Errorf("%s: the zip holds %d files and the page lists %d", s.name, len(archive.File), len(s.files))
+		}
+		if s.open == "" {
+			continue
+		}
+		opened := get(t, c, base+path+"?part="+s.open)
+		for _, want := range s.shows {
+			if !strings.Contains(html.UnescapeString(opened), want) {
+				t.Errorf("%s: part %s does not show %q", s.name, s.open, want)
+			}
+		}
+		for _, unwanted := range s.hides {
+			if strings.Contains(html.UnescapeString(opened), unwanted) {
+				t.Errorf("%s: part %s shows %q", s.name, s.open, unwanted)
+			}
 		}
 	}
 }

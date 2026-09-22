@@ -2,8 +2,10 @@ package alborzbase
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"mime"
@@ -17,6 +19,8 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
+	"github.com/emersion/go-message/mail"
+	"github.com/emersion/go-message/textproto"
 	"github.com/emersion/go-smtp"
 	"github.com/labstack/echo/v4"
 )
@@ -219,7 +223,7 @@ func handleDownloadAttachments(ctx *alborz.Context) error {
 	ctx.Response().WriteHeader(http.StatusOK)
 	archive := zip.NewWriter(ctx.Response())
 	taken := map[string]int{}
-	if err := writeAttachments(archive, entity, taken, false); err != nil {
+	if err := writeAttachments(archive, entity, taken, ""); err != nil {
 		// The reader has bytes by now, so the file ends short rather
 		// than turning into an error page.
 		ctx.Logger().Printf("attachments %q uid %v: %v", mboxName, uid, err)
@@ -227,12 +231,62 @@ func handleDownloadAttachments(ctx *alborz.Context) error {
 	return archive.Close()
 }
 
+// joinedHTML is one document of the pieces HTMLPieces names, fetched in
+// one exchange. An image is referred to by its path, which the viewer
+// resolves to the part as it does a Content-ID.
+func joinedHTML(c *imapclient.Client, mboxName string, uid imap.UID, pieces []IMAPPartNode) (*message.Entity, error) {
+	if err := ensureMailboxSelected(c, mboxName); err != nil {
+		return nil, err
+	}
+	options := &imap.FetchOptions{}
+	for _, p := range pieces {
+		if p.MIMEType == "text/html" {
+			options.BodySection = append(options.BodySection,
+				&imap.FetchItemBodySection{Peek: true, Part: p.Path, Specifier: imap.PartSpecifierMIME},
+				&imap.FetchItemBodySection{Peek: true, Part: p.Path})
+		}
+	}
+	msgs, err := c.Fetch(imap.UIDSetNum(uid), options).Collect()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch the HTML pieces: %v", err)
+	} else if len(msgs) == 0 {
+		return nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
+	}
+	var joined bytes.Buffer
+	sections := options.BodySection
+	for _, p := range pieces {
+		if p.MIMEType != "text/html" {
+			fmt.Fprintf(&joined, `<p><img src="part:%s" alt="%s"></p>`, p.PathString(), html.EscapeString(p.Filename))
+			continue
+		}
+		headerBuf, bodyBuf := msgs[0].FindBodySection(sections[0]), msgs[0].FindBodySection(sections[1])
+		sections = sections[2:]
+		if headerBuf == nil || bodyBuf == nil {
+			return nil, fmt.Errorf("server didn't return HTML piece %v", p.PathString())
+		}
+		h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(headerBuf)))
+		if err != nil {
+			return nil, err
+		}
+		piece, err := message.New(message.Header{Header: h}, bytes.NewReader(bodyBuf))
+		if err != nil && !message.IsUnknownCharset(err) {
+			return nil, err
+		}
+		if _, err := io.Copy(&joined, piece.Body); err != nil {
+			return nil, err
+		}
+	}
+	var h message.Header
+	h.SetContentType("text/html", map[string]string{"charset": "utf-8"})
+	return message.New(h, &joined)
+}
+
 // writeAttachments puts every attached part into the archive, naming an
 // unnamed one after the extension its type gives. What is attached is
 // what the message's card counts (Attachments): a part that attached
 // calls a file, at any depth, and the message itself when it is
-// nothing else. related is whether e sits in a multipart/related.
-func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]int, related bool) error {
+// nothing else. parent is the subtype of the multipart e sits in.
+func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]int, parent string) error {
 	mediaType, typeParams, _ := e.Header.ContentType()
 	if mr := e.MultipartReader(); mr != nil {
 		for {
@@ -243,7 +297,7 @@ func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]i
 			if err != nil && !message.IsUnknownCharset(err) {
 				return err
 			}
-			if err := writeAttachments(archive, part, taken, strings.EqualFold(mediaType, "multipart/related")); err != nil {
+			if err := writeAttachments(archive, part, taken, strings.TrimPrefix(mediaType, "multipart/")); err != nil {
 				return err
 			}
 		}
@@ -253,8 +307,20 @@ func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]i
 	if filename == "" {
 		filename = typeParams["name"]
 	}
-	if !attached(mediaType, disposition, filename, e.Header.Get("Content-Id"), related) {
+	if !attached(mediaType, disposition, filename, e.Header.Get("Content-Id"), parent) {
 		return nil
+	}
+	if filename == "" && strings.EqualFold(mediaType, "message/rfc822") {
+		body, err := io.ReadAll(e.Body)
+		if err != nil {
+			return err
+		}
+		inner, err := mail.CreateReader(bytes.NewReader(body))
+		if err == nil {
+			subject, _ := inner.Header.Subject()
+			filename = attachmentName(subject)
+		}
+		e.Body = bytes.NewReader(body)
 	}
 	w, err := archive.Create(zipEntryName(filename, mediaType, taken))
 	if err != nil {
@@ -541,7 +607,18 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		return ctx.Stream(http.StatusOK, mimeType, part.Body)
 	}
 
-	view, err := viewMessagePart(ctx, msg, part)
+	if pieces := msg.HTMLPieces(partPath); pieces != nil {
+		err := ctx.DoIMAP(func(c *imapclient.Client) error {
+			var err error
+			part, err = joinedHTML(c, mboxName, uid, pieces)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	view, err := viewMessagePart(ctx, msg, partPath, part)
 	if err != nil {
 		view = nil
 		if err != ErrViewUnsupported {

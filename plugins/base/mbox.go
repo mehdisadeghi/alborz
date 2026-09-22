@@ -196,7 +196,7 @@ func copyWithoutAttachments(w *message.Writer, e *message.Entity, note string) e
 		}
 		// Only text stays: an image the HTML shows is weight all the same.
 		keep := strings.HasPrefix(mediaType, "multipart/") ||
-			(strings.HasPrefix(mediaType, "text/") && !attached(mediaType, disposition, name, "", false))
+			(strings.HasPrefix(mediaType, "text/") && !attached(mediaType, disposition, name, "", ""))
 		if keep {
 			if strings.HasPrefix(mediaType, "text/") {
 				_, params, _ := header.ContentType()

@@ -1332,6 +1332,13 @@ main.message pre {
   max-width: 78ch;
 }
 
+/* The images the HTML version shows by Content-ID, in the text's card
+   after the text. */
+main.message .shown-image {
+  height: auto;
+  margin-block-start: var(--space-3);
+}
+
 /* First columns carry the ink inset; interior cells keep the tighter
    rhythm between columns. The cell stretches like its neighbours, or
    its bottom border draws above theirs and steps the row hairline;

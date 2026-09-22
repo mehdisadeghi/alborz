@@ -671,6 +671,9 @@ func newIMAPPartNode(msg *IMAPMessage, path []int, part imap.BodyStructure) *IMA
 	if singlePart, ok := part.(*imap.BodyStructureSinglePart); ok {
 		node.Filename = singlePart.Filename()
 		node.Size = decodedSize(singlePart)
+		if inner := singlePart.MessageRFC822; node.Filename == "" && inner != nil && inner.Envelope != nil {
+			node.Filename = attachmentName(inner.Envelope.Subject)
+		}
 	}
 	return node
 }
@@ -790,13 +793,17 @@ func (msg *IMAPMessage) Attachments() []IMAPPartNode {
 // Senders mark a file three ways: Content-Disposition attachment
 // (RFC 2183), inline with a filename, as Apple Mail places every file
 // inside the HTML, or only a name on the Content-Type, as older Outlook
-// does. A part the HTML shows by its Content-ID (multipart/related,
-// RFC 2387) and unnamed text are the message; anything else is a file.
-func attached(mediaType, disposition, filename, contentID string, related bool) bool {
+// does. The signature of a multipart/signed (RFC 1847), a part the HTML
+// shows by its Content-ID (multipart/related, RFC 2387) and unnamed text
+// are the message; anything else is a file. parent is the subtype of the
+// multipart the part sits in.
+func attached(mediaType, disposition, filename, contentID, parent string) bool {
 	switch {
+	case strings.EqualFold(parent, "signed") && signatureTypes[strings.ToLower(mediaType)]:
+		return false
 	case strings.EqualFold(disposition, "attachment"):
 		return true
-	case related && contentID != "":
+	case strings.EqualFold(parent, "related") && contentID != "":
 		return false
 	case filename != "":
 		return true
@@ -804,21 +811,29 @@ func attached(mediaType, disposition, filename, contentID string, related bool) 
 	return !strings.HasPrefix(strings.ToLower(mediaType), "text/")
 }
 
+// signatureTypes are what a multipart/signed carries its signature as:
+// OpenPGP (RFC 3156) and S/MIME (RFC 8551, with the older x- name).
+var signatureTypes = map[string]bool{
+	"application/pgp-signature":     true,
+	"application/pkcs7-signature":   true,
+	"application/x-pkcs7-signature": true,
+}
+
 // fileParts is attached over a structure, keyed by part path.
 func fileParts(bs imap.BodyStructure) map[string]bool {
-	related := map[string]bool{}
+	parents := map[string]string{}
 	files := map[string]bool{}
 	bs.Walk(func(path []int, part imap.BodyStructure) bool {
 		switch part := part.(type) {
 		case *imap.BodyStructureMultiPart:
-			related[fmt.Sprint(path)] = strings.EqualFold(part.Subtype, "related")
+			parents[fmt.Sprint(path)] = part.Subtype
 		case *imap.BodyStructureSinglePart:
 			var disposition string
 			if disp := part.Disposition(); disp != nil {
 				disposition = disp.Value
 			}
 			files[fmt.Sprint(path)] = attached(part.MediaType(), disposition, part.Filename(),
-				part.ID, related[fmt.Sprint(path[:len(path)-1])])
+				part.ID, parents[fmt.Sprint(path[:len(path)-1])])
 		}
 		return true
 	})
@@ -853,6 +868,73 @@ func (msg *IMAPMessage) PartByPath(path []int) *IMAPPartNode {
 		return result == nil
 	})
 	return result
+}
+
+// ShownImages are the images the HTML shows by their Content-ID, which
+// no file list names: read as text, the message shows them after it, or
+// they are nowhere at all (ADR 39).
+//
+// Only the ones beside the part being read. An image under an HTML
+// alternative belongs to that version of the message, and the reader
+// looking at the plain text chose the other one - where the sender put
+// words and nothing else.
+func (msg *IMAPMessage) ShownImages(path []int) []IMAPPartNode {
+	if msg.BodyStructure == nil || len(path) == 0 {
+		return nil
+	}
+	beside := path[:len(path)-1]
+	files := fileParts(msg.BodyStructure)
+	var images []IMAPPartNode
+	msg.BodyStructure.Walk(func(p []int, part imap.BodyStructure) bool {
+		single, ok := part.(*imap.BodyStructureSinglePart)
+		if ok && strings.EqualFold(single.Type, "image") && !files[fmt.Sprint(p)] &&
+			pathsEqual(p[:len(p)-1], beside) {
+			images = append(images, *newIMAPPartNode(msg, p, single))
+		}
+		return true
+	})
+	return images
+}
+
+// HTMLPieces are the parts the HTML at path is one of, in order, when a
+// client split it around what sits between: Apple Mail writes its HTML
+// branch as a multipart/mixed of HTML, file, HTML, and a reader there
+// sees one message with the images in place. Nil when the HTML is whole.
+func (msg *IMAPMessage) HTMLPieces(path []int) []IMAPPartNode {
+	if msg.BodyStructure == nil || len(path) == 0 {
+		return nil
+	}
+	parent := path[:len(path)-1]
+	files := fileParts(msg.BodyStructure)
+	var (
+		mixed, named bool
+		pieces       []IMAPPartNode
+	)
+	msg.BodyStructure.Walk(func(p []int, part imap.BodyStructure) bool {
+		switch part := part.(type) {
+		case *imap.BodyStructureMultiPart:
+			if pathsEqual(p, parent) {
+				mixed = strings.EqualFold(part.Subtype, "mixed")
+			}
+		case *imap.BodyStructureSinglePart:
+			if len(p) != len(path) || !pathsEqual(p[:len(p)-1], parent) {
+				return true
+			}
+			disp := part.Disposition()
+			switch {
+			case part.MediaType() == "text/html" && !files[fmt.Sprint(p)]:
+				named = named || pathsEqual(p, path)
+				pieces = append(pieces, *newIMAPPartNode(msg, p, part))
+			case strings.EqualFold(part.Type, "image") && (disp == nil || strings.EqualFold(disp.Value, "inline")):
+				pieces = append(pieces, *newIMAPPartNode(msg, p, part))
+			}
+		}
+		return true
+	})
+	if !mixed || !named || len(pieces) < 2 {
+		return nil
+	}
+	return pieces
 }
 
 func (msg *IMAPMessage) PartByID(id string) *IMAPPartNode {

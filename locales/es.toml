@@ -325,6 +325,7 @@
 "pgp.claimmessage" = "Firmado con una clave que este mensaje traía para %s. Nada más confirma la clave."
 "pgp.claimmessageother" = "Firmado con una clave que este mensaje traía para %s. El dominio publica otra clave."
 "pgp.reasonunverified" = "La firma no corresponde a este mensaje."
+"smime.claim" = "Firmado con un certificado emitido a %s por una autoridad en la que confía este servidor."
 "filters.new" = "Nuevo filtro"
 "filters.import" = "Importar script"
 "filters.importfile" = "Archivo del script"

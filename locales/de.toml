@@ -325,6 +325,7 @@
 "pgp.claimmessage" = "Signiert mit einem Schlüssel, den diese Nachricht für %s mitbrachte. Nichts weiter bestätigt den Schlüssel."
 "pgp.claimmessageother" = "Signiert mit einem Schlüssel, den diese Nachricht für %s mitbrachte. Die Domain veröffentlicht einen anderen Schlüssel."
 "pgp.reasonunverified" = "Die Signatur passt nicht zu dieser Nachricht."
+"smime.claim" = "Signiert mit einem Zertifikat für %s von einer Stelle, der dieser Server vertraut."
 "filters.new" = "Neuer Filter"
 "filters.import" = "Skript importieren"
 "filters.importfile" = "Skriptdatei"

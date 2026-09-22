@@ -297,6 +297,7 @@
 "pgp.claimmessage" = "Signed with a key this message carried for %s. Nothing else confirms the key."
 "pgp.claimmessageother" = "Signed with a key this message carried for %s. The domain publishes a different key."
 "pgp.reasonunverified" = "The signature does not match this message."
+"smime.claim" = "Signed with a certificate issued to %s by an authority this server trusts."
 "filters.new" = "New filter"
 "filters.import" = "Import script"
 "filters.importfile" = "Script file"

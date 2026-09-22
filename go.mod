@@ -22,6 +22,7 @@ require (
 	github.com/labstack/gommon v0.5.0
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
+	github.com/smallstep/pkcs7 v0.2.3
 	gitlab.com/golang-commonmark/linkify v0.0.0-20200225224916-64bca66f6ad3
 	go.etcd.io/bbolt v1.5.0
 	go.guido-berhoerster.org/managesieve v0.8.1

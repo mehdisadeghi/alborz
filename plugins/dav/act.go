@@ -42,7 +42,8 @@ type Action[C any] struct {
 	Do func(ctx *alborz.Context, ref Ref[C]) error
 	// List is where the action lands when the form names no page.
 	List string
-	// Done words what became of the objects acted on; nil says nothing.
+	// Done words what became of the objects acted on. Quiet is the
+	// answer where the action shows where the reader already is.
 	Done func(ctx *alborz.Context, done []Ref[C], next string) alborz.Notice
 	// Piece answers a page that asked for a piece of itself about the
 	// one object it named; nil lands as any other request does.
@@ -82,6 +83,13 @@ func Handler[C any](a Action[C]) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error { return Run(ctx, a) }
 }
 
+// Quiet is Done for an action whose result shows where the reader
+// already is: a star on the row, a note on the object's own page.
+func Quiet[C any](ctx *alborz.Context, _ []Ref[C], _ string) alborz.Notice {
+	ctx.Quiet()
+	return alborz.Notice{}
+}
+
 // Delete removes the object.
 func Delete[C files](ctx *alborz.Context, ref Ref[C]) error {
 	return ref.Client.RemoveAll(ctx.Request().Context(), ref.Path)
@@ -119,6 +127,7 @@ func Star[C any](ctx *alborz.Context, client func(*alborz.Session) (C, error), l
 	return Run(ctx, Action[C]{
 		Client: client,
 		List:   list,
+		Done:   Quiet[C],
 		Do: func(ctx *alborz.Context, ref Ref[C]) (err error) {
 			was, err = mark(ctx, ref, name)
 			return err

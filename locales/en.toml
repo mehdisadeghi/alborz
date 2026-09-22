@@ -546,6 +546,7 @@
 "servers.onalborz" = "Alborz"
 "servers.named" = "Custom servers"
 "notice.serverssaved" = "Servers saved."
+"notice.settingssaved" = "Settings saved."
 "notfound.server" = "There is no such server."
 "common.by" = "by"
 "share.markpublic" = "Published"
@@ -1051,4 +1052,18 @@ other = "Too many refused passwords. Try again in %d minutes."
 one = "Shared with %d account"
 other = "Shared with %d accounts"
 
+["notice.contactsdeleted"]
+one = "One contact deleted."
+other = "%d contacts deleted."
 
+["notice.eventsdeleted"]
+one = "One event deleted."
+other = "%d events deleted."
+
+["notice.tasksdeleted"]
+one = "One task deleted."
+other = "%d tasks deleted."
+
+["notice.tasksmoved"]
+one = "One task moved."
+other = "%d tasks moved."

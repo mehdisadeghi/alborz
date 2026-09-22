@@ -462,6 +462,9 @@ func (p *plugin) move(ctx *alborz.Context) error {
 	}
 	target := targets[0]
 	return dav.Run(ctx, dav.Action[*caldav.Client]{Client: p.client, List: "/tasks",
+		Done: func(ctx *alborz.Context, done []dav.Ref[*caldav.Client], _ string) alborz.Notice {
+			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.tasksmoved", len(done))}
+		},
 		Do: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client]) error {
 			if path.Dir(ref.Path)+"/" == target.Path {
 				return nil

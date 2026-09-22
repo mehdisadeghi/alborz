@@ -899,6 +899,8 @@ func handleRefreshMailbox(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	// The folder comes back as it now stands, which is the answer.
+	ctx.Quiet()
 	// The merged view is every account's folder of that role, so it is
 	// every account that is asked again.
 	if ctx.Unified {

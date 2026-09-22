@@ -37,6 +37,8 @@ func Saved(ctx *alborz.Context, made bool, sentence, name, object, list, account
 	if made {
 		return Made(ctx, sentence, name, object, list, account)
 	}
+	// The object's own page is what was edited.
+	ctx.Quiet()
 	object = ctx.AccountPath(object)
 	if from := ctx.From(); from != "" {
 		sep := "?"

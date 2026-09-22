@@ -84,6 +84,8 @@ func loginRedirect(ctx *alborz.Context) error {
 		!strings.HasPrefix(path, "//") && !strings.HasPrefix(path, "/\\") {
 		return ctx.Redirect(http.StatusFound, path)
 	}
+	// The inbox is the answer to signing in.
+	ctx.Quiet()
 	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 }
 
@@ -97,6 +99,9 @@ func handleLogout(ctx *alborz.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 	}
 	ctx.Server.ForgetAccount(username)
+	// Where signing out lands says it: another account's inbox, or the
+	// sign-in page.
+	ctx.Quiet()
 	if ctx.LogoutAccount(username) != nil {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	}

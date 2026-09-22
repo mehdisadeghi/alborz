@@ -85,6 +85,7 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 		// A change that is nobody's tells no page anything, and wakes
 		// this visit's streams in its other tabs to find the lock.
 		ctx.Server.Changes.Publish(alborz.Change{})
+		ctx.Quiet()
 		return ctx.Redirect(http.StatusSeeOther, "/unlock")
 	})
 	// The reader is at the keyboard with nothing to ask for: the request

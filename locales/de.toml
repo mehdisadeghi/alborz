@@ -548,6 +548,7 @@
 "servers.onalborz" = "Alborz"
 "servers.named" = "Eigene Server"
 "notice.serverssaved" = "Server gespeichert."
+"notice.settingssaved" = "Einstellungen gespeichert."
 "notfound.server" = "Diesen Server gibt es nicht."
 "common.by" = "von"
 "share.markpublic" = "Veröffentlicht"
@@ -1051,4 +1052,18 @@ other = "Zu viele abgelehnte Passwörter. In %d Minuten erneut versuchen."
 one = "Mit %d Konto geteilt"
 other = "Mit %d Konten geteilt"
 
+["notice.contactsdeleted"]
+one = "Ein Kontakt gelöscht."
+other = "%d Kontakte gelöscht."
 
+["notice.eventsdeleted"]
+one = "Ein Termin gelöscht."
+other = "%d Termine gelöscht."
+
+["notice.tasksdeleted"]
+one = "Eine Aufgabe gelöscht."
+other = "%d Aufgaben gelöscht."
+
+["notice.tasksmoved"]
+one = "Eine Aufgabe verschoben."
+other = "%d Aufgaben verschoben."

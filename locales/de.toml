@@ -926,7 +926,7 @@ one = "%d weiteres"
 other = "%d weitere"
 
 ["notice.emptied"]
-one = "%d E-Mail gelöscht."
+one = "Eine E-Mail gelöscht."
 other = "%d E-Mails gelöscht."
 
 ["folder.movecount"]
@@ -955,7 +955,7 @@ other = "Die Server für %[2]s haben nicht geantwortet."
 
 
 ["notice.deleted"]
-one = "%d E-Mail gelöscht."
+one = "Eine E-Mail gelöscht."
 other = "%d E-Mails gelöscht."
 
 ["message.forwardcount"]
@@ -971,23 +971,23 @@ one = "%d Anhang"
 other = "%d Anhänge"
 
 ["import.ics"]
-one = "%d Eintrag in den Kalender übernommen."
+one = "Ein Eintrag in den Kalender übernommen."
 other = "%d Einträge in den Kalender übernommen."
 
 ["import.vcf"]
-one = "%d Kontakt übernommen."
+one = "Ein Kontakt übernommen."
 other = "%d Kontakte übernommen."
 
 ["notice.flagged"]
-one = "%d Nachricht geändert."
+one = "Eine Nachricht geändert."
 other = "%d Nachrichten geändert."
 
 ["notice.tasksopen"]
-one = "%d Aufgabe wieder geöffnet."
+one = "Eine Aufgabe wieder geöffnet."
 other = "%d Aufgaben wieder geöffnet."
 
 ["notice.tasksdone"]
-one = "%d Aufgabe erledigt."
+one = "Eine Aufgabe erledigt."
 other = "%d Aufgaben erledigt."
 
 ["notice.deleteall"]
@@ -1023,7 +1023,7 @@ one = "Eine Nachricht, %[2]d ungelesen"
 other = "%d Nachrichten, %d ungelesen"
 
 ["notice.changed"]
-one = "%d Nachricht geändert."
+one = "Eine Nachricht geändert."
 other = "%d Nachrichten geändert."
 
 ["notice.movedto"]
@@ -1031,7 +1031,7 @@ one = "Die Nachricht ist jetzt in %[2]s."
 other = "%d Nachrichten sind jetzt in %s."
 
 ["select.page"]
-one = "%d Nachricht auf dieser Seite ausgewählt."
+one = "Eine Nachricht auf dieser Seite ausgewählt."
 other = "Alle %d auf dieser Seite ausgewählt."
 
 ["select.everything"]
@@ -1039,7 +1039,7 @@ one = "%d auswählen"
 other = "Alle %d auswählen"
 
 ["select.whole"]
-one = "%d ausgewählt."
+one = "Eine ausgewählt."
 other = "Alle %d ausgewählt."
 
 ["notice.loginpaused"]

@@ -926,7 +926,7 @@ one = "%d más"
 other = "%d más"
 
 ["notice.emptied"]
-one = "%d mensaje eliminado."
+one = "Un mensaje eliminado."
 other = "%d mensajes eliminados."
 
 ["folder.movecount"]
@@ -955,7 +955,7 @@ other = "Los servidores de %[2]s no respondieron."
 
 
 ["notice.deleted"]
-one = "%d mensaje eliminado."
+one = "Un mensaje eliminado."
 other = "%d mensajes eliminados."
 
 ["message.forwardcount"]
@@ -971,23 +971,23 @@ one = "%d adjunto"
 other = "%d adjuntos"
 
 ["import.ics"]
-one = "%d entrada añadida al calendario."
+one = "Una entrada añadida al calendario."
 other = "%d entradas añadidas al calendario."
 
 ["import.vcf"]
-one = "%d contacto añadido."
+one = "Un contacto añadido."
 other = "%d contactos añadidos."
 
 ["notice.flagged"]
-one = "%d mensaje actualizado."
+one = "Un mensaje actualizado."
 other = "%d mensajes actualizados."
 
 ["notice.tasksopen"]
-one = "%d tarea reabierta."
+one = "Una tarea reabierta."
 other = "%d tareas reabiertas."
 
 ["notice.tasksdone"]
-one = "%d tarea marcada como hecha."
+one = "Una tarea marcada como hecha."
 other = "%d tareas marcadas como hechas."
 
 ["notice.deleteall"]
@@ -1023,7 +1023,7 @@ one = "Un mensaje, %[2]d sin leer"
 other = "%d mensajes, %d sin leer"
 
 ["notice.changed"]
-one = "%d mensaje cambiado."
+one = "Un mensaje cambiado."
 other = "%d mensajes cambiados."
 
 ["notice.movedto"]
@@ -1031,7 +1031,7 @@ one = "El mensaje se movió a %[2]s."
 other = "%d mensajes se movieron a %s."
 
 ["select.page"]
-one = "%d mensaje de esta página seleccionado."
+one = "Un mensaje de esta página seleccionado."
 other = "Los %d de esta página seleccionados."
 
 ["select.everything"]
@@ -1039,7 +1039,7 @@ one = "Seleccionar %d"
 other = "Seleccionar los %d"
 
 ["select.whole"]
-one = "%d seleccionado."
+one = "Uno seleccionado."
 other = "Los %d seleccionados."
 
 ["notice.loginpaused"]

@@ -97,6 +97,7 @@ var allowedStyles = map[string]bool{
 
 type sanitizer struct {
 	msg                  *alborzbase.IMAPMessage
+	account              string
 	allowRemoteResources bool
 	hasRemoteResources   bool
 	// text is what the mail says, gathered while the tree is already
@@ -148,7 +149,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 		if part == nil || !strings.HasPrefix(part.MIMEType, "image/") {
 			return "about:blank"
 		}
-		return part.URL(true).String()
+		return part.URL(true, san.account).String()
 	// TODO: mid support?
 	case "cid":
 		if san.msg == nil {
@@ -160,7 +161,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 			return "about:blank"
 		}
 
-		return part.URL(true).String()
+		return part.URL(true, san.account).String()
 	case "https":
 		san.hasRemoteResources = true
 

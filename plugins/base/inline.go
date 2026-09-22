@@ -20,7 +20,7 @@ import (
 
 // localImage is what an image in the editor may name: an upload the
 // visit holds, or a part of a message an account holds.
-var localImage = regexp.MustCompile(`^/compose/attachment/[0-9a-f-]+$|^/message/[^?]+/[0-9]+/raw\?part=[0-9.]+(&account=[^&]+)?$`)
+var localImage = regexp.MustCompile(`^/compose/attachment/[0-9a-f-]+$|^/message/[^?]+/[0-9]+/raw\?(account=[^&]+&)?part=[0-9.]+$`)
 
 var imageSrc = regexp.MustCompile(`(?i)(<img\b[^>]*?\bsrc=")([^"]*)(")`)
 
@@ -69,10 +69,7 @@ func localImages(body string, msg *IMAPMessage, account string) string {
 		if part == nil || !strings.HasPrefix(part.MIMEType, "image/") {
 			return tag
 		}
-		// In localImage's order, which a sorted query would not keep.
-		u := part.URL(true)
-		u.RawQuery = "part=" + part.PathString() + "&account=" + alborz.QueryValue(account)
-		return m[1] + html.EscapeString(u.String()) + m[3]
+		return m[1] + html.EscapeString(part.URL(true, account).String()) + m[3]
 	})
 }
 

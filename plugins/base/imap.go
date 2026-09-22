@@ -1000,7 +1000,11 @@ func formatSize(n int64) string {
 	}
 }
 
-func (node IMAPPartNode) URL(raw bool) *url.URL {
+// URL is where a part is fetched from. The account belongs in it: a URL
+// that names none is served by the first account signed in (ADR 1), so
+// an image or a file in any other account's message was looked for in
+// the wrong mailbox and answered with a 404.
+func (node IMAPPartNode) URL(raw bool, account string) *url.URL {
 	u := node.Message.URL()
 	// Both halves or neither: url.URL uses RawPath only while it is a
 	// valid encoding of Path, so appending to one alone silently drops
@@ -1012,6 +1016,9 @@ func (node IMAPPartNode) URL(raw bool) *url.URL {
 	}
 	q := u.Query()
 	q.Set("part", node.PathString())
+	if account != "" {
+		q.Set("account", account)
+	}
 	u.RawQuery = alborz.Query(q)
 	return u
 }

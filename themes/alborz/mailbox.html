@@ -168,7 +168,7 @@
             {{/* Built in one piece: the escaper cannot follow a URL whose
                  query grows across branches. */}}
             {{$link := ""}}{{$sep := "?"}}
-            {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%v" ($open.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
+            {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%v" ($open.URL false "")}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
             {{if $.ListView}}{{$link = printf "%s%sview=%s" $link $sep $.ListView}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | qv)}}{{$sep = "&"}}{{end}}
             {{/* The order the list is in travels with the row: what
                  Newer and Older mean on the message is what they meant
@@ -199,7 +199,7 @@
             <span class="attach-line">
               {{ range $i, $a := . }}{{ if lt $i 3 }}
               {{ $name := $a.Filename }}{{ if eq $name "" }}{{ $name = $.T "mailbox.attachment" }}{{ end }}
-              <a hx-boost="false" class="attach-chip" href="{{ localhref (printf "%v%v" ($a.URL true) (account "&" $owner)) }}"
+              <a hx-boost="false" class="attach-chip" href="{{ localhref (printf "%v" ($a.URL true $owner)) }}"
                  title="{{$name}} ({{$a.SizeString}})">{{ template "ltr" $name }}</a>
               {{ end }}{{ end }}
               {{ if gt (len .) 3 }}

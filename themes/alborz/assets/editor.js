@@ -21,7 +21,11 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 
 	// What the editor may hold: the tags the server will keep. Anything
 	// pasted from elsewhere is reduced to these before it enters.
-	const allowed = { P: 1, DIV: 1, BR: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, UL: 1, OL: 1, LI: 1, BLOCKQUOTE: 1, A: 1 };
+	const allowed = { P: 1, DIV: 1, BR: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, UL: 1, OL: 1, LI: 1, BLOCKQUOTE: 1, A: 1, IMG: 1 };
+	// An image names an upload or a part alborz holds, as the server's
+	// policy has it (ADR 40); a pasted image from the web is dropped.
+	const localImage = /^\/compose\/attachment\/[0-9a-f-]+$|^\/message\/[^?]+\/[0-9]+\/raw\?part=[0-9.]+(&account=[^&]+)?$/;
+	const shownTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 	const sanitize = html => {
 		const doc = new DOMParser().parseFromString(html, "text/html");
 		const frag = document.createDocumentFragment();
@@ -35,6 +39,15 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 					}
 					if (!allowed[node.tagName]) {
 						copy(node, to);
+						continue;
+					}
+					if (node.tagName === "IMG") {
+						if (localImage.test(node.getAttribute("src") || "")) {
+							const img = document.createElement("img");
+							img.setAttribute("src", node.getAttribute("src"));
+							img.setAttribute("alt", node.getAttribute("alt") || "");
+							to.appendChild(img);
+						}
 						continue;
 					}
 					const el = document.createElement(node.tagName);
@@ -223,6 +236,34 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		reflect();
 	});
 
+	// An image pasted or dropped on the editor is uploaded as a file is
+	// and placed where the caret is; anything else dropped there is left
+	// to the page, which attaches it.
+	const placeImages = (files, ev) => {
+		const images = [...files].filter(f => shownTypes.includes(f.type));
+		if (!editor || images.length === 0 || images.length !== files.length) {
+			return;
+		}
+		ev.preventDefault();
+		// Squire listens on the same element and would take it too.
+		ev.stopImmediatePropagation();
+		for (const file of images) {
+			const body = new FormData();
+			body.append("attachments", file);
+			fetch("/compose/attachment", { method: "POST", body: body })
+				.then(resp => resp.json().then(data => ({ ok: resp.ok, data: data })))
+				.then(({ ok, data }) => {
+					if (!ok) {
+						throw new Error(data.error);
+					}
+					editor.insertImage("/compose/attachment/" + data[0], { alt: file.name });
+				})
+				.catch(err => window.alert(err.message));
+		}
+	};
+	holder.addEventListener("paste", ev => placeImages(ev.clipboardData.files, ev), true);
+	holder.addEventListener("drop", ev => placeImages(ev.dataTransfer.files, ev), true);
+
 	// An untouched reply opens on the original's HTML, quoted; one the
 	// writer has already typed into keeps what was typed.
 	const quoteHTML = document.getElementById("quote-html");
@@ -248,9 +289,12 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		}
 	}, true);
 
-	// A draft written here opens here.
+	// A draft written here opens here, and so does a forward of HTML,
+	// which as text would reach the next reader flattened.
 	if (htmlInput.value) {
 		open(htmlInput.value);
+	} else if (quoteHTML && "open" in quoteHTML.dataset && textarea.value === textarea.defaultValue) {
+		open(quoteHTML.innerHTML);
 	}
 }
 }

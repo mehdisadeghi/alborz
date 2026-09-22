@@ -13,6 +13,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-smtp"
 )
@@ -247,6 +248,12 @@ type OutgoingMessage struct {
 	// it is not passed on to the next reader.
 	HTML      string
 	QuoteHTML template.HTML
+	// QuoteRich opens the page in the editor on QuoteHTML: a forward of
+	// an HTML message, which as text would reach the next reader
+	// flattened.
+	QuoteRich bool
+	// Inline are the images the HTML shows, resolved for the send.
+	Inline []inlineImage
 	// SendHTML adds an alternative part carrying the direction each
 	// paragraph runs in. The plain part stays exactly what was typed,
 	// so a client preferring plain text sees no change at all.
@@ -391,11 +398,11 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	// two parts where one will do.
 	switch {
 	case msg.HTML != "" && msg.CalendarMethod == "":
-		if err := writeAlternative(mw, th, body, msg.HTML); err != nil {
+		if err := writeAlternative(mw, th, body, msg.HTML, msg.Inline); err != nil {
 			return err
 		}
 	case msg.SendHTML && msg.CalendarMethod == "":
-		if err := writeAlternative(mw, th, body, alborz.HTMLAlternative(msg.Text)); err != nil {
+		if err := writeAlternative(mw, th, body, alborz.HTMLAlternative(msg.Text), nil); err != nil {
 			return err
 		}
 	default:
@@ -467,8 +474,10 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
 // as the editor left it, or one that adds nothing but which way each
 // paragraph runs. The plain part comes first, which is what
 // multipart/alternative means by least-preferred first (RFC 2046
-// 5.1.4): a client that wants plain text takes it.
-func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody string) error {
+// 5.1.4): a client that wants plain text takes it. The images the HTML
+// shows go beside it in a multipart/related (RFC 2387), which the
+// plain part has no use for.
+func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody string, images []inlineImage) error {
 	iw, err := mw.CreateInline()
 	if err != nil {
 		return fmt.Errorf("failed to create alternative part: %v", err)
@@ -488,6 +497,14 @@ func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody stri
 		return fmt.Errorf("failed to close text part: %v", err)
 	}
 
+	if len(images) > 0 {
+		if err := writeRelated(iw, cidImages(htmlBody, images), images); err != nil {
+			iw.Close()
+			return err
+		}
+		return iw.Close()
+	}
+
 	var hh mail.InlineHeader
 	hh.Set("Content-Type", "text/html; charset=utf-8")
 	hw, err := iw.CreatePart(hh)
@@ -505,4 +522,68 @@ func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody stri
 		return fmt.Errorf("failed to close html part: %v", err)
 	}
 	return iw.Close()
+}
+
+// writeRelated writes the HTML and the images it shows as one
+// multipart/related inside the alternative.
+func writeRelated(iw *mail.InlineWriter, htmlBody string, images []inlineImage) error {
+	var rh mail.InlineHeader
+	rh.Set("Content-Type", `multipart/related; type="text/html"`)
+	// A multipart is never encoded; left unset, the writer would pick
+	// quoted-printable for it.
+	rh.Set("Content-Transfer-Encoding", "7bit")
+	part, err := iw.CreatePart(rh)
+	if err != nil {
+		return fmt.Errorf("failed to create related part: %v", err)
+	}
+	rw := part.(*message.Writer)
+
+	var hh message.Header
+	hh.Set("Content-Type", "text/html; charset=utf-8")
+	hh.Set("Content-Transfer-Encoding", "quoted-printable")
+	hw, err := rw.CreatePart(hh)
+	if err != nil {
+		rw.Close()
+		return fmt.Errorf("failed to create html part: %v", err)
+	}
+	if _, err := io.WriteString(hw, htmlBody); err != nil {
+		hw.Close()
+		rw.Close()
+		return fmt.Errorf("failed to write html part: %v", err)
+	}
+	if err := hw.Close(); err != nil {
+		rw.Close()
+		return fmt.Errorf("failed to close html part: %v", err)
+	}
+
+	for _, im := range images {
+		var h message.Header
+		h.SetContentType(im.MIMEType(), map[string]string{"name": im.Filename()})
+		h.SetContentDisposition("inline", map[string]string{"filename": im.Filename()})
+		h.Set("Content-Id", "<"+im.ContentID+">")
+		h.Set("Content-Transfer-Encoding", "base64")
+		w, err := rw.CreatePart(h)
+		if err != nil {
+			rw.Close()
+			return fmt.Errorf("failed to create image part: %v", err)
+		}
+		f, err := im.Open()
+		if err != nil {
+			w.Close()
+			rw.Close()
+			return fmt.Errorf("failed to open image: %v", err)
+		}
+		_, err = io.Copy(w, f)
+		f.Close()
+		if err != nil {
+			w.Close()
+			rw.Close()
+			return fmt.Errorf("failed to write image: %v", err)
+		}
+		if err := w.Close(); err != nil {
+			rw.Close()
+			return fmt.Errorf("failed to close image part: %v", err)
+		}
+	}
+	return rw.Close()
 }

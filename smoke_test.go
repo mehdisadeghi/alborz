@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/textproto"
 	"net/url"
 	"regexp"
 	"slices"
@@ -29,6 +30,7 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-imap/v2/imapserver"
 	"github.com/emersion/go-imap/v2/imapserver/imapmemserver"
+	"github.com/emersion/go-message"
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
 )
@@ -937,6 +939,83 @@ func TestRefusedSendKeepsItsUploads(t *testing.T) {
 	}
 	if !strings.Contains(got, `filename=kept.txt`) && !strings.Contains(got, `filename="kept.txt"`) {
 		t.Errorf("the retry left without its attachment:\n%s", headOf(got))
+	}
+}
+
+// TestPastedImageTravelsBesideTheHTML: an image pasted into the editor
+// is an upload the HTML names; it must leave as a part of the
+// multipart/related under the Content-ID the HTML then names, and not
+// as a file as well (ADR 40).
+func TestPastedImageTravelsBesideTheHTML(t *testing.T) {
+	smtpAddr, sent := startSMTP(t)
+	base := startAlborz(t, startIMAP(t), smtpAddr)
+	c := login(t, base)
+
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", `form-data; name="attachments"; filename="shot.png"`)
+	h.Set("Content-Type", "image/png")
+	fw, err := w.CreatePart(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw.Write([]byte("\x89PNG\r\n\x1a\nnot really"))
+	w.Close()
+	resp, err := c.Post(base+"/compose/attachment", w.FormDataContentType(), &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	if err := json.NewDecoder(resp.Body).Decode(&ids); err != nil || len(ids) != 1 {
+		t.Fatalf("upload: %s, %v, %v", resp.Status, ids, err)
+	}
+	resp.Body.Close()
+
+	sendFrom(t, c, base, "/compose", get(t, c, base+"/compose"), "subject", "pasted",
+		"html", `<p>Look: <img src="/compose/attachment/`+ids[0]+`" alt="shot.png"></p>`)
+	got := sent.Last()
+	if !strings.Contains(got, "Subject: pasted") {
+		t.Fatalf("the message was not sent:\n%s", headOf(got))
+	}
+
+	entity, err := message.Read(strings.NewReader(got))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var (
+		htmlBody, cid string
+		related       bool
+		files         int
+	)
+	entity.Walk(func(_ []int, part *message.Entity, err error) error {
+		if err != nil {
+			return err
+		}
+		mediaType, _, _ := part.Header.ContentType()
+		disposition, _, _ := part.Header.ContentDisposition()
+		switch {
+		case mediaType == "multipart/related":
+			related = true
+		case mediaType == "text/html":
+			b, _ := io.ReadAll(part.Body)
+			htmlBody = string(b)
+		case mediaType == "image/png" && disposition == "inline":
+			cid = strings.Trim(part.Header.Get("Content-Id"), "<>")
+		}
+		if disposition == "attachment" {
+			files++
+		}
+		return nil
+	})
+	if !related || cid == "" {
+		t.Fatalf("no image beside the HTML (related %v, Content-ID %q):\n%s", related, cid, headOf(got))
+	}
+	if !strings.Contains(htmlBody, `src="cid:`+cid+`"`) {
+		t.Errorf("the HTML does not name the image by its Content-ID %q:\n%s", cid, htmlBody)
+	}
+	if files != 0 {
+		t.Errorf("the image also left as %d file(s)", files)
 	}
 }
 

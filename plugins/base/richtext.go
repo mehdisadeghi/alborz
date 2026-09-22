@@ -18,8 +18,15 @@ var composedPolicy = func() *bluemonday.Policy {
 	p := bluemonday.NewPolicy()
 	p.AllowElements("p", "div", "br", "b", "strong", "i", "em", "u", "s", "ul", "ol", "li", "blockquote", "a")
 	p.AllowAttrs("dir").Matching(regexp.MustCompile(`^(ltr|rtl|auto)$`)).OnElements("p", "div", "li", "blockquote", "ul", "ol")
-	p.AllowAttrs("href").OnElements("a")
+	p.AllowAttrs("href").Matching(regexp.MustCompile(`^(?i)(https?|mailto):`)).OnElements("a")
 	p.AllowURLSchemes("http", "https", "mailto")
+	// An image names what alborz holds and nothing else (ADR 40); the
+	// relative URL is what lets the reference through, and the pattern
+	// is what keeps every other one out.
+	p.AllowRelativeURLs(true)
+	p.AllowElements("img")
+	p.AllowAttrs("src").Matching(localImage).OnElements("img")
+	p.AllowAttrs("alt").OnElements("img")
 	p.RequireNoFollowOnLinks(false)
 	return p
 }()
@@ -39,7 +46,7 @@ var (
 // the message out the same way.
 func composedHTML(raw string) string {
 	clean := composedPolicy.Sanitize(raw)
-	if strings.TrimSpace(composedTag.ReplaceAllString(clean, "")) == "" {
+	if strings.TrimSpace(composedTag.ReplaceAllString(clean, "")) == "" && !strings.Contains(clean, "<img") {
 		return ""
 	}
 	clean = composedBlock.ReplaceAllStringFunc(clean, func(block string) string {

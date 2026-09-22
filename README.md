@@ -2,6 +2,7 @@
 
 [![build](https://github.com/mehdisadeghi/alborz/actions/workflows/build.yml/badge.svg)](https://github.com/mehdisadeghi/alborz/actions/workflows/build.yml)
 [![release](https://img.shields.io/github/v/release/mehdisadeghi/alborz)](https://github.com/mehdisadeghi/alborz/releases/latest)
+[![image](https://img.shields.io/badge/image-ghcr.io-blue?logo=docker&logoColor=white)](https://github.com/mehdisadeghi/alborz/pkgs/container/alborz)
 
 ![](shahalborz.jpg)
 *Shahalborz, Alborz mountains. Image based on a [photo by nomad] on
@@ -66,6 +67,14 @@ In addition to the protocols above:
 Release binaries for linux/amd64, arm64 and armv7 are attached to every
 [release]; see [INSTALLATION.md](INSTALLATION.md) for a systemd unit and
 for building from source.
+
+A container image is published at `ghcr.io/mehdisadeghi/alborz`, tagged
+`latest` and per release:
+
+    docker run -p 1323:1323 -v alborz-data:/data -e LBRZ_LOGIN_KEY=<key> ghcr.io/mehdisadeghi/alborz example.org
+
+Without the volume and the key it still runs, but forgets sign-ins on a
+restart and keeps its data inside the container.
 
 ## Usage
 

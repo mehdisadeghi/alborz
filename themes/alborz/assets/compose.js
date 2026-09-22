@@ -101,18 +101,7 @@ function attachFile(file) {
 	};
 	attachments.push(attachment);
 	attachmentsNode.appendChild(node);
-	node.querySelector("button").addEventListener("click", ev => {
-		attachment.xhr.abort();
-		attachments = attachments.filter(a => a !== attachment);
-		node.remove();
-		updateState();
-
-		if (typeof attachment.uuid !== "undefined") {
-			const cancel = new XMLHttpRequest();
-			cancel.open("POST", `/compose/attachment/${attachment.uuid}/remove`);
-			cancel.send();
-		}
-	});
+	removable(attachment);
 
 	let formData = new FormData();
 	formData.append("attachments", file);
@@ -155,6 +144,30 @@ function attachFile(file) {
 
 	updateState();
 }
+
+function removable(attachment) {
+	attachment.node.querySelector("button").addEventListener("click", ev => {
+		attachment.xhr?.abort();
+		attachments = attachments.filter(a => a !== attachment);
+		attachment.node.remove();
+		updateState();
+
+		if (typeof attachment.uuid !== "undefined") {
+			const cancel = new XMLHttpRequest();
+			cancel.open("POST", `/compose/attachment/${attachment.uuid}/remove`);
+			cancel.send();
+		}
+	});
+}
+
+// A refused send renders what it held; those uploads are finished.
+for (const node of attachmentsNode.querySelectorAll(".upload[data-uuid]")) {
+	helpNode.remove();
+	const attachment = { node: node, progress: 1.0, uuid: node.dataset.uuid };
+	attachments.push(attachment);
+	removable(attachment);
+}
+updateState();
 
 function attachmentNodeFor(file) {
 	const node = document.createElement("div"),

@@ -113,6 +113,17 @@
               </label>
             </div>
             {{end}}
+            {{/* What a refused send held, back on the form: compose.js
+                 takes these as uploads already finished. */}}
+            {{range .Uploads}}
+            <div class="upload" data-uuid="{{.ID}}">
+              <span class="progress"></span>
+              <span class="filename">{{.Filename}}</span>
+              <span class="error"></span>
+              <span class="size">{{.SizeString}}</span>
+              <button type="button">&times;</button>
+            </div>
+            {{end}}
             {{range .PartAttachments}}
             <div class="upload">
               <label class="filename">

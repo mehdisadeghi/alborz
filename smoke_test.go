@@ -3,6 +3,7 @@ package alborz_test
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
@@ -884,6 +885,57 @@ func TestSendWithoutMessageIDStillSends(t *testing.T) {
 	}
 	if !strings.Contains(sent.Last(), "Message-Id: <") {
 		t.Errorf("the message left without an id:\n%s", headOf(sent.Last()))
+	}
+}
+
+// TestRefusedSendKeepsItsUploads: a refused send comes back on the
+// form, and the next Send must still carry the file. The upload was
+// once taken from the visit before SMTP was tried, and the retry went
+// out without it and said nothing.
+func TestRefusedSendKeepsItsUploads(t *testing.T) {
+	smtpAddr, sent := startSMTP(t)
+	base := startAlborz(t, startIMAP(t), smtpAddr)
+	c := login(t, base)
+
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	fw, err := w.CreateFormFile("attachments", "kept.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw.Write([]byte("the attached words"))
+	w.Close()
+	resp, err := c.Post(base+"/compose/attachment", w.FormDataContentType(), &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	if err := json.NewDecoder(resp.Body).Decode(&ids); err != nil || len(ids) != 1 {
+		t.Fatalf("upload: %s, %v, %v", resp.Status, ids, err)
+	}
+	resp.Body.Close()
+
+	resp = postCompose(t, c, base, "/compose", get(t, c, base+"/compose"),
+		"to", "refused@example.org", "subject", "kept", "attachment-uuids", ids[0])
+	var page bytes.Buffer
+	page.ReadFrom(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("a refused recipient was answered with %s", resp.Status)
+	}
+	// What the script reads back into the form's uploads.
+	kept := between(page.String(), `data-uuid="`, `"`)
+	if kept != ids[0] {
+		t.Fatalf("the refused form holds upload %q, want %q", kept, ids[0])
+	}
+
+	sendFrom(t, c, base, "/compose", page.String(), "subject", "kept", "attachment-uuids", kept)
+	got := sent.Last()
+	if !strings.Contains(got, "Subject: kept") {
+		t.Fatalf("the retry was not sent:\n%s", headOf(got))
+	}
+	if !strings.Contains(got, `filename=kept.txt`) && !strings.Contains(got, `filename="kept.txt"`) {
+		t.Errorf("the retry left without its attachment:\n%s", headOf(got))
 	}
 }
 

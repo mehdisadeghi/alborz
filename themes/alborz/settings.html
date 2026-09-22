@@ -12,7 +12,7 @@
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "list-toolbar" (dict "title" ($.T "settings.general")) }}
       </section>
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "chooses" true "field" "" "collection" ($.T "settings.general") "path" "/settings" "heading" true) }}
+      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "chooses" true "field" "" "collection" ($.T "settings.general") "path" "/settings") }}
       {{/* The language, the scheme, the text size and the reading
            direction are attributes of the root element, which a swapped
            body does not carry, so saving here asks for a whole page. */}}

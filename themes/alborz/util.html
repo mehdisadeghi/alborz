@@ -1093,7 +1093,7 @@
 {{ define "dav-rail" }}
 {{ $g := .g }}{{ $r := .rail }}
 <aside>
-  {{ template "scope-rail" (dict "g" $g "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "all" ($g.T "aside.all") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "shown" ($g.T "common.shown") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI) "groups" (dict "key" "groups" "label" ($g.T "aside.groups") "rows" $r.Groups "editlabel" ($g.T "common.edit")) "categories" (dict "key" "categories" "label" ($g.T "aside.categories") "rows" $r.Categories)) }}
+  {{ template "scope-rail" (dict "g" $g "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.Scope "accounts" $g.GlobalData.Accounts "all" ($g.T "aside.all") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "shown" ($g.T "common.shown") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI) "groups" (dict "key" "groups" "label" ($g.T "aside.groups") "rows" $r.Groups "editlabel" ($g.T "common.edit")) "categories" (dict "key" "categories" "label" ($g.T "aside.categories") "rows" $r.Categories)) }}
 </aside>
 {{ end }}
 
@@ -1225,7 +1225,7 @@
 {{ define "rail-mail-merged" }}
 {{ $view := .ListView }}
 {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
-{{ $all := $.GlobalData.Unified }}
+{{ $all := $.GlobalData.Merged }}
 <details class="acct-folders aggregate-folders" data-rail-key="__merged" open>
 <summary class="aside-account"><a href="/mailbox/INBOX">{{$.T "nav.allaccounts"}}</a></summary>
 <ul class="merged-roles"{{ template "list-swap" . }}>
@@ -1270,7 +1270,7 @@
 {{ $q := printf "?account=%s" .account }}
 {{ range $d.SidebarAccounts }}{{ if eq .Account $.account }}
 <ul{{ template "list-swap" $d }}>
-  {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.URLAccount $.account) $view $active $d.GlobalData) }}
+  {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.Scope $.account) $view $active $d.GlobalData) }}
 </ul>
 {{ end }}{{ end }}
 {{ end }}
@@ -1281,8 +1281,12 @@
      attributes are inherited, so they sit once on the list of rows. */}}
 {{ define "list-swap" }}{{ if eq (index .GlobalData.Path 0) "mailbox" }} hx-boost="false" hx-target="#main" hx-swap="innerHTML show:none" hx-push-url="true"{{ end }}{{ end }}
 {{/* The request itself, on each row's link; a boosted link scrolls to
-     the top, which is the one thing this must not do. dict: g href. */}}
-{{ define "list-get" }}{{ if eq (index .g.Path 0) "mailbox" }} hx-get="{{.href}}"{{ end }}{{ end }}
+     the top, which is the one thing this must not do. A link into
+     another scope - a merged folder from one account's, or the other
+     way - takes the whole page, since the header's switcher and nav
+     name the scope and a swap of the list alone leaves them behind.
+     dict: g href. */}}
+{{ define "list-get" }}{{ if and (eq (index .g.Path 0) "mailbox") (eq (hrefaccount .href) .g.URLAccount) }} hx-get="{{.href}}"{{ end }}{{ end }}
 
 {{/* The one account's folder tree, with no heading over it. */}}
 {{ define "rail-mail-single" }}
@@ -1305,7 +1309,7 @@
 {{/* The mail pages' rail: the shared frame over the page's own data. */}}
 {{ define "aside" }}
 <aside data-mail-sidebar data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
-{{ template "scope-rail" (dict "g" $ "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
+{{ template "scope-rail" (dict "g" $ "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.Scope "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
 </aside>
 {{ end }}
 

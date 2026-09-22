@@ -561,7 +561,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, railView)
 	ibase.SidebarAccounts = sidebarAccounts(ctx)
-	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject)
+	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject).WithItem()
 	mbox := ibase.Mailbox
 
 	contextURL := *ctx.Request().URL

@@ -164,7 +164,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "task.html", &TaskRenderData{
 		Rail:           rail,
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
 		List:           cmp.Or(ctx.From(), dav.ListURL("/tasks", dav.ListParams(ctx, taskListParams...))),

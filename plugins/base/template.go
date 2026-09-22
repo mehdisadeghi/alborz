@@ -55,6 +55,15 @@ var templateFuncs = template.FuncMap{
 		}
 		return "?"
 	},
+	// hrefaccount is the account a link names, empty for the merged
+	// view: whether following it changes the scope.
+	"hrefaccount": func(href string) string {
+		u, err := url.Parse(href)
+		if err != nil {
+			return ""
+		}
+		return u.Query().Get("account")
+	},
 	// from names the list a row's link was followed from, so the page
 	// it opens returns to that list in its scope (see Context.From).
 	"from": func(href, list string) string {

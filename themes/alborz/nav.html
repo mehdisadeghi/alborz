@@ -15,7 +15,7 @@
   {{ $place := true }}
   {{ range tuple "compose" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $place = false }}{{ end }}{{ end }}
   {{ range tuple "create" "update" "edit" "reply" "forward" "subscribe" "empty" "export" "import" }}{{ if eq $last . }}{{ $place = false }}{{ end }}{{ end }}
-  <nav data-here="{{$section}}"{{ if $place }} data-place{{ end }}>
+  <nav data-here="{{$section}}" data-scope="{{.GlobalData.Scope}}"{{ if $place }} data-place{{ end }}>
     {{ if .GlobalData.LoggedIn }}
     <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>
     {{/* Top left, before the sections: on a phone the drawer's head
@@ -24,7 +24,7 @@
     {{ end }}
     {{/* Every section keeps the scope the URL carries: the account
          it names, or the merged view when it names none. */}}
-    {{$q := account "?" .GlobalData.URLAccount}}
+    {{$q := account "?" .GlobalData.Scope}}
     <a href="/mailbox/INBOX{{$q}}" data-section="mailbox" data-go="m"
       {{ if eq $section "mailbox" }}
       class="active" aria-current="page"
@@ -147,7 +147,7 @@
        others: each account's entry opens this section on that
        account, and the merged entry opens it over all. There is
        no active account to switch; the URL is the scope. */}}
-  {{ if .drawer }}<details class="accounts"><summary>{{ if $g.GlobalData.URLAccount }}{{ template "ltr" $g.GlobalData.URLAccount }}{{ else if $g.GlobalData.Unified }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</summary>{{ else }}<div class="accounts"><button type="button" class="accounts-button" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.URLAccount }}{{ template "ltr" $g.GlobalData.URLAccount }}{{ else if $g.GlobalData.Unified }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
+  {{ if .drawer }}<details class="accounts"><summary>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</summary>{{ else }}<div class="accounts"><button type="button" class="accounts-button" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
   <div class="accounts-menu"{{ if not .drawer }} popover id="menu-accounts"{{ end }}>
     {{/* Where this section keeps one account's page. Mail's is the
          inbox; settings' is the account's own page, and its merged
@@ -158,14 +158,19 @@
     {{ if or (eq $page "settings") (eq $page "signatures") }}{{ $section = "/settings/account" }}{{ $merged = "/settings" }}{{ end }}
     {{ range $g.GlobalData.Accounts }}
     <div class="account-menu-row">
-    <a href="{{$section}}{{ account "?" .Username }}"{{ if eq .Username $g.GlobalData.URLAccount }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
+    {{/* The account that holds the object in view keeps the object. */}}
+    {{ $to := printf "%s%s" $section (account "?" .Username) }}{{ if and $g.GlobalData.Item (eq .Username $g.GlobalData.URLAccount) }}{{ $to = $g.GlobalData.Own }}{{ end }}
+    <a href="{{ localhref $to }}"{{ if eq .Username $g.GlobalData.Scope }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
     <form method="post" action="/logout" class="account-signout">
       <button type="submit" name="account" value="{{.Username}}" title="{{$g.T "nav.signout"}} {{.Username}}">{{$g.T "nav.signout"}}</button>
     </form>
     </div>
     {{ end }}
     {{ if gt (len $g.GlobalData.Accounts) 1 }}
-    <a href="{{$merged}}"{{ if $g.GlobalData.Unified }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
+    {{/* Every object is inside all accounts: from one, the object stays
+         and the merged list becomes the one it returns to. */}}
+    {{ $all := $merged }}{{ if $g.GlobalData.Item }}{{ $all = from $g.GlobalData.Own $merged }}{{ end }}
+    <a href="{{ localhref $all }}"{{ if $g.GlobalData.Merged }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
     {{ end }}
     <a href="/login?add=1">{{$g.T "nav.addaccount"}}</a>
     {{/* The keys are found by pressing ?, which nobody does who has

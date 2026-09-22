@@ -370,17 +370,25 @@ const enhance = () => {
 		if (!nav) {
 			return;
 		}
-		const account = new URLSearchParams(location.search).get("account");
+		// The scope is the list's: an object opened from the merged view
+		// is looked at under it, though its own URL names its account.
+		const account = nav.dataset.scope;
 		const key = section => "nav-place:" + section + ":" + (account || "");
-		// An address reads better unescaped, and every link the server
-		// writes leaves the at sign alone.
+		// Rewritten as text: URLSearchParams re-escapes every value, and
+		// the server writes them readably (QueryValue).
 		const scoped = (place, account) => {
-			const url = new URL(place, location.origin);
-			url.searchParams.delete("account");
-			if (account) {
-				url.searchParams.set("account", account);
+			const [path, query = ""] = place.split("?");
+			const params = query.split("&").filter(p => p);
+			// An object's own account is whose server holds it, not a
+			// scope; the list it came from carries that.
+			if (params.some(p => p.startsWith("from="))) {
+				return place;
 			}
-			return url.pathname + url.search.replace(/%40/g, "@");
+			const kept = params.filter(p => !p.startsWith("account="));
+			if (account) {
+				kept.push("account=" + account);
+			}
+			return path + (kept.length ? "?" + kept.join("&") : "");
 		};
 		const here = nav.dataset.here;
 		if (here && "place" in nav.dataset) {

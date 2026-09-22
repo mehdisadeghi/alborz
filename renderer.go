@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -88,6 +89,20 @@ type GlobalRenderData struct {
 
 	// From is the list the page was opened from; see Context.From.
 	From string
+
+	// Scope and Merged are the account the page is looked at under and
+	// whether that is all of them: the list it was opened from, when it
+	// names one, or else the URL's own. The nav, the account switcher
+	// and the rail follow them; the page's own links keep URLAccount,
+	// the account that holds what it shows.
+	Scope  string
+	Merged bool
+	// Item says the page shows one object - a message, an event, a
+	// task, a contact - and Own is the page's own URL without From.
+	// Choosing a scope the object is inside keeps the reader on it:
+	// its account, or all of them (ADR 37).
+	Item bool
+	Own  string
 
 	// Forced color scheme: "light" or "dark", empty to follow the system
 	ColorScheme string
@@ -747,6 +762,21 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.SchemePinned = ctx.ThemeScheme() != ""
 		global.URLAccount = ctx.urlAccount
 		global.From = ctx.From()
+		global.Scope, global.Merged = ctx.urlAccount, ctx.Unified
+		// Cut from the raw query, which keeps the values as they were
+		// written; Values.Encode would escape them again.
+		req := ctx.Request().URL
+		kept := slices.DeleteFunc(strings.Split(req.RawQuery, "&"), func(p string) bool {
+			return p == "" || strings.HasPrefix(p, "from=")
+		})
+		global.Own = req.EscapedPath()
+		if q := strings.Join(kept, "&"); q != "" {
+			global.Own += "?" + q
+		}
+		if u, err := url.Parse(global.From); err == nil && global.From != "" {
+			global.Scope = u.Query().Get("account")
+			global.Merged = global.Scope == "" && len(ctx.Sessions()) > 1
+		}
 		// A notice belongs to the visit, not to a session: a sign-in
 		// that failed has none, and the login page is where it is read.
 		global.Notice = ctx.PopNotice()
@@ -836,6 +866,12 @@ func RenderInfo(ctx *Context, code int, message string) error {
 // the template renders it, so every page carries it.
 func (brd *BaseRenderData) WithTitle(title string) *BaseRenderData {
 	brd.GlobalData.Title = title
+	return brd
+}
+
+// WithItem marks the page as showing one object; see GlobalData.Item.
+func (brd *BaseRenderData) WithItem() *BaseRenderData {
+	brd.GlobalData.Item = true
 	return brd
 }
 

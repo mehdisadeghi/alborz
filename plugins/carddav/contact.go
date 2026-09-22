@@ -280,7 +280,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		Neighbours:     dav.Around(list.Items, path),
 		List:           cmp.Or(ctx.From(), dav.ListURL("/contacts", dav.ListParams(ctx, contactListParams...))),
 		Rail:           rail,
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()),
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()).WithItem(),
 		AddressBook:    addressBook,
 		AddressObject:  AddressObject{AddressObject: ao},
 		Birthday:       birthdayValue(ao.Card),

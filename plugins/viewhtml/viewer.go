@@ -61,6 +61,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 
 	san := sanitizer{
 		msg:                  msg,
+		account:              ctx.URLAccount(),
 		allowRemoteResources: allowRemoteResources,
 	}
 	body, err = san.sanitizeHTML(body)

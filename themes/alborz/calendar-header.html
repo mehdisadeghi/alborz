@@ -25,7 +25,7 @@
     {{/* The agenda's filters and its grouping; the grid has neither.
          They come before the pager, so switching between the grid and
          the agenda leaves the pager and the switch where they were. */}}
-    {{ with .FilterRows }}{{ template "filter-menu" (dict "id" "menu-filter" "icon" "filter" "title" ($.T "filter.menu") "rows" . "priority" 25 "class" "filter-overflow") }}{{ end }}
+    {{ with .FilterRows }}{{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" . "priority" 25 "class" "filter-overflow") }}{{ end }}
     {{/* An agenda is in the day's order and sorts by nothing else, so
          the menu that holds its grouping is named for that. */}}
     {{ with .GroupRows }}{{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" . "priority" 30 "class" "group-overflow") }}{{ end }}

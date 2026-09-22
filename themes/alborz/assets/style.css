@@ -130,9 +130,6 @@ select {
      after it stand still from folder to folder and month to month; a
      longer name truncates, the whole of it in the title. */
   --title-track: 12rem;
-  /* A title with its secondary month beside it, the longest a month
-     runs in two calendars ("September 2026 Shahrivar - Mehr 1405"). */
-  --title-track-glossed: 24rem;
   /* A list row's cell, its header, the chips above it and the crumb:
      one box, so their text shares a baseline and an edge. */
   --row-pad: 0.4rem var(--space-2);
@@ -3262,10 +3259,6 @@ main.calendar .actions {
   min-width: var(--title-floor);
 }
 
-.actions-message h1:not(:last-child):has(.title-secondary:not([hidden])) {
-  flex-basis: var(--title-track-glossed);
-}
-
 /* A control never yields its size to the title: squeezing an icon
    button is how the calendar's new-event mark came to sit on top of the
    pager. */
@@ -3944,10 +3937,20 @@ main.calendar .date h3 .day-secondary {
   color: var(--fg-faint);
 }
 
+/* The month in the second calendar, under the first in small type: the
+   title is as wide as its first month, not as both side by side, which
+   took the room the view switch needed. Under the first it costs the
+   row nothing, so it no longer yields; it truncates on its own line.
+   Contained, it adds nothing to the title's width: a second month
+   longer than the first would otherwise widen the title again. */
 .title-secondary {
-  margin-inline-start: 0.4rem;
-  font-size: var(--text-sm);
+  display: block;
+  contain: inline-size;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-xs);
   font-weight: 500;
+  line-height: 1.2;
   color: var(--fg-muted);
 }
 
@@ -5391,8 +5394,10 @@ h1.no-word .title-short {
 
   .actions-wrap { min-width: 0; }
   .actions-message { column-gap: 0.3rem; }
-  /* Too little width to reserve a track; the title takes what is left. */
-  .actions-message h1 { flex: 1 1 auto; max-width: none; }
+  /* Too little width to reserve a track; the title takes what is left.
+     Named as the track rule is, or that rule, the more specific, wins. */
+  .actions-message h1,
+  .actions-message h1:not(:last-child) { flex: 1 1 auto; max-width: none; }
 
   .actions-wrap .action-group { margin-inline-start: 0; }
   .actions-pagination { margin-inline-start: auto; }

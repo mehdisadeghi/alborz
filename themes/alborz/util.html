@@ -322,13 +322,14 @@
 
 {{/* A list's sort menu in its toolbar: one row per order, a tuple of
      label and key each. A list with nothing in it keeps the control,
-     dim, so the toolbar does not change with the count. dict: g s rows
-     [disabled target thread]. */}}
+     dim, so the toolbar does not change with the count. wide keeps it
+     on a desktop, where the headers do not hold every order. dict: g s
+     rows [disabled target thread wide]. */}}
 {{ define "sort-menu" }}
 {{ if .disabled }}
-<span class="overflow sort-overflow" data-priority="30"><span class="icon-button" aria-disabled="true" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}">{{ template "sort-mark" .g }}</span></span>
+<span class="overflow sort-overflow{{ if .wide }} sort-wide{{ end }}" data-priority="30"><span class="icon-button" aria-disabled="true" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}">{{ template "sort-mark" .g }}</span></span>
 {{ else }}
-<div class="overflow sort-overflow" data-priority="30">
+<div class="overflow sort-overflow{{ if .wide }} sort-wide{{ end }}" data-priority="30">
   <button type="button" class="icon-button" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}" popovertarget="menu-sort">{{ template "sort-mark" .g }}</button>
   <div class="overflow-menu" popover id="menu-sort">
     {{ range .rows }}
@@ -676,7 +677,7 @@
      dict: G Row Next. */}}
 {{ define "task-row" }}
 {{ $g := .G }}{{ $next := .Next }}{{ with .Row }}
-<div class="task-row list-row{{if .Completed}} completed{{end}}{{if .Priority}} prioritised{{end}}" role="row">
+<div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
   <div class="task-list-checkbox list-checkbox list-cell" role="cell">
     <input type="checkbox" name="paths" value="{{.Task.Account}}|{{.Task.Path}}" form="tasks-form" aria-label="{{$g.T "a11y.selecttask"}}{{with .Summary}}: {{.}}{{end}}">
   </div>
@@ -692,21 +693,17 @@
   </div>
   <div class="task-list-status list-cell" role="cell" data-label="{{$g.T "tasks.status"}}">
     {{ $mark := $g.T "tasks.markcomplete" }}{{ if .Completed }}{{ $mark = $g.T "tasks.markincomplete" }}{{ end }}
+    {{ with .Priority }}{{ $mark = printf "%s · %s" $mark ($g.T (printf "tasks.priority.%s" .)) }}{{ end }}
     {{/* The row is the answer, so the row is the target: the page
          around it neither reloads nor moves. */}}
     <form method="post" action="{{.Task.URL}}/complete{{account "?" .Task.Account}}" class="task-checkbox"
           hx-post="{{.Task.URL}}/complete{{account "?" .Task.Account}}" hx-target="closest .task-row" hx-swap="outerHTML">
       <input type="hidden" name="next" value="{{$next}}">
       {{ if .Completed }}<input type="hidden" name="reopen" value="1">{{ end }}
-      <button type="submit" class="checkbox-button{{if .Completed}} checked{{end}}" aria-label="{{$mark}}" title="{{$mark}}">
+      <button type="submit" class="checkbox-button{{if .Completed}} checked{{end}}{{with .Priority}} prio-{{.}}{{end}}" aria-label="{{$mark}}" title="{{$mark}}">
         {{if .Completed}}&#10003;{{end}}
       </button>
     </form>
-  </div>
-  {{/* The marks Apple draws before a title: three for high, one for
-       low. A column, so the header sorts on it. */}}
-  <div class="task-list-priority list-cell" role="cell" data-label="{{$g.T "tasks.priority"}}">
-    {{ with .Priority }}<span aria-hidden="true">{{ if eq . "high" }}!!!{{ else if eq . "medium" }}!!{{ else }}!{{ end }}</span><span class="visually-hidden">{{ $g.T (printf "tasks.priority.%s" .) }}</span>{{ end }}
   </div>
   <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "tasks.summary"}}">
     <a href="{{.Href}}" dir="auto"{{ with .AddedBy }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.Summary}}</a>

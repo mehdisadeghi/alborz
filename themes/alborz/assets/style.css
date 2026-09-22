@@ -184,6 +184,11 @@ select {
   --flag-blue: #0079fc;
   --flag-purple: #af52de;
   --flag-grey: #7d7d83;
+  /* A task's priority on its ring, in Tasks.org's colours: the flags'
+     own, so every theme and both schemes carry them. */
+  --prio-high: var(--flag-red);
+  --prio-medium: var(--flag-orange);
+  --prio-low: var(--flag-blue);
 
   --notice-fg: #0c5460;
   --notice-bg: #d1ecf1;
@@ -3640,7 +3645,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 .task-grid {
   display: grid;
   grid-template-columns:
-    var(--check-track) var(--star-track) 2.75rem 2rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
+    var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
     minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
@@ -3654,13 +3659,11 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .quick-add input { flex: 1; min-width: 0; }
 
-.task-list-priority { color: var(--fg-dim); font-weight: 600; }
-
 /* Metadata steps aside before the two columns a task list is for. */
 @media (width < 60rem) {
   .task-grid {
     grid-template-columns:
-      var(--check-track) var(--star-track) 2.75rem 2rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
+      var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
   }
 
   .task-grid .task-list-added { display: none; }
@@ -3671,7 +3674,7 @@ aside details.folder-branch details.folder-branch > ul > li {
    row is on and is never empty. */
 @media (width < 52rem) {
   .task-grid {
-    grid-template-columns: var(--check-track) var(--star-track) 2.75rem 2rem minmax(8rem, 1fr) minmax(5rem, 0.5fr);
+    grid-template-columns: var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr);
   }
 
   .task-grid .task-list-due { display: none; }
@@ -4426,6 +4429,11 @@ main.message .actions-end {
   display: none;
 }
 
+/* Where the headers do not hold every order, the menu stays. */
+.actions .sort-overflow.sort-wide {
+  display: inline-block;
+}
+
 /* The count of rows belongs beside the paging it changes. */
 .actions .ipp-overflow { display: inline-block; }
 
@@ -4562,6 +4570,20 @@ button:active,
   line-height: 1;
   padding: 0;
 }
+
+/* Priority is the ring's colour, as Tasks.org draws it: no mark of its
+   own on a row that already carries a tick, a star and this circle.
+   The ring widens so the colour reads at this size; the words are the
+   label's. */
+.checkbox-button.prio-high,
+.checkbox-button.prio-medium,
+.checkbox-button.prio-low {
+  border-width: 2px;
+}
+
+.checkbox-button.prio-high { border-color: var(--prio-high); }
+.checkbox-button.prio-medium { border-color: var(--prio-medium); }
+.checkbox-button.prio-low { border-color: var(--prio-low); }
 
 .checkbox-button.checked {
   background: var(--green);
@@ -5172,7 +5194,7 @@ h1.no-word .title-short {
 
   .task-row {
     display: grid;
-    grid-template-columns: auto 2rem auto minmax(0, 1fr) auto;
+    grid-template-columns: auto 2rem minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
     column-gap: var(--space-2);
     padding: var(--space-2);
@@ -5204,7 +5226,7 @@ h1.no-word .title-short {
 
 
   .task-row .list-star {
-    grid-column: 5;
+    grid-column: 4;
     grid-row: 1;
     justify-self: end;
     align-self: center;
@@ -5218,19 +5240,8 @@ h1.no-word .title-short {
     inset-inline-end: 100%;
   }
 
-  /* The marks sit before the summary as on a desktop row; a row
-     without them gives the summary their column too, so no gap is
-     paid for an empty cell. */
-  .task-row .task-list-priority {
-    grid-column: 3;
-    grid-row: 1;
-    align-self: center;
-  }
-
-  .task-row:not(.prioritised) .task-list-priority { display: none; }
-
   .task-row .task-list-summary {
-    grid-column: 4;
+    grid-column: 3;
     grid-row: 1;
     font-weight: 600;
   }
@@ -5239,17 +5250,14 @@ h1.no-word .title-short {
      step decided. */
   .task-row .task-list-calendar {
     display: flex;
-    grid-column: 4;
+    grid-column: 3;
     grid-row: 2;
   }
-
-  .task-row:not(.prioritised) .task-list-summary,
-  .task-row:not(.prioritised) .task-list-calendar { grid-column: 3 / 5; }
 
   .task-row .task-list-due { display: block; }
 
   .task-row .task-list-due {
-    grid-column: 5;
+    grid-column: 4;
     grid-row: 2;
     justify-self: end;
   }

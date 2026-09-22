@@ -70,8 +70,9 @@ replace github.com/emersion/go-vcard => github.com/mehdisadeghi/go-vcard v0.0.0-
 replace github.com/emersion/go-webdav => github.com/mehdisadeghi/go-webdav v0.0.0-20260921101523-6a35b64d0a5f
 
 // Our fork of go-msgauth carries the authres parser rework upstream has
-// not merged (emersion/go-msgauth#53): quoted values and comments.
-replace github.com/emersion/go-msgauth => github.com/mehdisadeghi/go-msgauth v0.0.0-20260921123823-04a6405fe7bc
+// not merged (emersion/go-msgauth#53): quoted values and comments, and
+// the fix for the method with no properties that rework dropped.
+replace github.com/emersion/go-msgauth => github.com/mehdisadeghi/go-msgauth v0.0.0-20260922210921-dc02bdf6079e
 
 // Our fork of go-mbox adds the reversible mboxrd quoting, which upstream
 // does not have: a body line reading ">From " survives a round trip.

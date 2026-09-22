@@ -363,7 +363,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	default:
 		ctx.PutNotice(ctx.T("notice.filtersaved"))
 	}
-	return ctx.Redirect(http.StatusFound, "/filters?account="+alborz.AddressParam(ctx.Session.Username()))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr("/filters?account="+alborz.AddressParam(ctx.Session.Username())))
 }
 
 func handleActivateFilter(ctx *alborz.Context) error {

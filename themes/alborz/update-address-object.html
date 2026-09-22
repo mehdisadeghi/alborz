@@ -58,7 +58,7 @@
         {{ template "field" (dict "label" ($.T "contacts.categories") "name" "categories" "value" (.Card.Value "CATEGORIES") "dir" "auto" "hint" ($.T "contacts.categorieshint")) }}
         {{ template "field" (dict "label" ($.T "contacts.notes") "name" "note" "value" (.Card.PreferredValue "NOTE") "dir" "auto" "rows" "3") }}
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/contacts%s" $acct) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/contacts%s" $acct)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
     </main>
   </div>

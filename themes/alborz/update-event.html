@@ -60,7 +60,7 @@
         {{ template "hint" (dict "text" ($.T "help.attendees")) }}
         <input type="hidden" name="attendees_was" value="{{ .Attendees }}">
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/calendar%s" $acct) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/calendar%s" $acct)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
     </main>
   </div>

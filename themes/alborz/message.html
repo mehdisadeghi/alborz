@@ -36,7 +36,7 @@
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         <div class="actions-wrap">
           <div class="actions-message">
-            {{$back := printf "%v?page=%v%s" .Mailbox.URL .MailboxPage $aamp}}
+            {{$back := printf "%v?page=%v%s" .Mailbox.URL .MailboxPage $aamp}}{{ with .GlobalData.From }}{{ $back = . }}{{ end }}
             {{$common := .CategorizedMailboxes.Common}}
             {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
             {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
@@ -595,10 +595,10 @@
               {{/* Newer and older move along the list, not through
                    pages: the marks point that way. */}}
               {{ if .NewerURL }}
-              <a class="icon-button" href="{{.NewerURL}}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}" data-key="k">{{ template "icon" "up" }}</a>
+              <a class="icon-button" href="{{ localhref (from (printf "%v" .NewerURL) $.GlobalData.From) }}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}" data-key="k">{{ template "icon" "up" }}</a>
               {{ end }}
               {{ if .OlderURL }}
-              <a class="icon-button" href="{{.OlderURL}}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}" data-key="j">{{ template "icon" "down" }}</a>
+              <a class="icon-button" href="{{ localhref (from (printf "%v" .OlderURL) $.GlobalData.From) }}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}" data-key="j">{{ template "icon" "down" }}</a>
               {{ end }}
             </span>
 {{ end }}

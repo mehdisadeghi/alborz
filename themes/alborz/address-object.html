@@ -14,7 +14,7 @@
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "newhref" (printf "/contacts/create%s" $acct) "back" .List "newlabel" ($.T "contacts.new")) }}
         <span class="icon-group">
-          <a class="icon-button" href="{{.AddressObject.URL}}/edit{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
+          <a class="icon-button" href="{{ localhref (from (printf "%s/edit%s" .AddressObject.URL $acct) $.GlobalData.From) }}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.AddressObject.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.AddressObject.URL}}/raw?save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".vcf" }}" aria-label="{{ printf ($.T "common.saveas") ".vcf" }}">{{ template "icon" "download" }}</a>
           <form action="{{.AddressObject.URL}}/delete{{$acct}}" method="post">

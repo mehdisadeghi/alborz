@@ -85,7 +85,7 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
-	params := dav.ListParams(ctx, contactListParams...)
+	params := dav.RowParams(ctx, "/contacts", dav.ListParams(ctx, contactListParams...))
 
 	only := dav.Only(ctx, "book")
 	accounts, err := p.pooledBooks(ctx)

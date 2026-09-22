@@ -55,6 +55,18 @@ var templateFuncs = template.FuncMap{
 		}
 		return "?"
 	},
+	// from names the list a row's link was followed from, so the page
+	// it opens returns to that list in its scope (see Context.From).
+	"from": func(href, list string) string {
+		if list == "" {
+			return href
+		}
+		sep := "?"
+		if strings.Contains(href, "?") {
+			sep = "&"
+		}
+		return href + sep + "from=" + url.QueryEscape(list)
+	},
 	// A flat list of days is drawn as a grid, so the template needs to
 	// know where a row begins.
 	"mod": func(a, b int) int { return a % b },

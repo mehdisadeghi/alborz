@@ -166,7 +166,7 @@ func (p *plugin) eventItems(ctx *alborz.Context) ([]dav.Item, error) {
 		return nil, nil
 	}
 
-	params := dav.ListParams(ctx, eventListParams...)
+	params := dav.RowParams(ctx, "", dav.ListParams(ctx, eventListParams...))
 	var items []dav.Item
 	seen := map[string]bool{}
 	for _, oc := range shown {
@@ -556,9 +556,13 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "update-event.html", data)
 }
 
-// eventList is the view an event's page came from: the day when the
-// request names one, the month otherwise.
+// eventList is the view an event's page came from: the list its row
+// named, or else the day when the request names one, the month
+// otherwise.
 func eventList(ctx *alborz.Context) string {
+	if from := ctx.From(); from != "" {
+		return from
+	}
 	params := dav.ListParams(ctx, eventListParams...)
 	if params.Get("date") != "" {
 		return dav.ListURL("/calendar/date", params)

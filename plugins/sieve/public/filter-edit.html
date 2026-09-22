@@ -11,6 +11,7 @@
   <div class="container">
     <main id="main" tabindex="-1" class="create-update">
       <form method="post" action="/filters{{$aq}}" class="filter">
+        {{ with .GlobalData.From }}<input type="hidden" name="next" value="{{.}}">{{ end }}
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" "" "path" "" "chooses" (and (not .Name) (gt (len .Accounts) 1))) }}
         <h1>
           {{if .Name}}{{$.T "filters.edittitle"}}{{else}}{{$.T "filters.createtitle"}}{{end}}
@@ -35,7 +36,7 @@
           <textarea name="content" id="content" class="code" dir="ltr" spellcheck="false">{{.Content}}</textarea>
         </label>
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/filters%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/filters%s" $aq)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
     </main>
   </div>

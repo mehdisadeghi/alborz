@@ -86,6 +86,9 @@ type GlobalRenderData struct {
 	// must keep pointing into the same account; empty otherwise.
 	URLAccount string
 
+	// From is the list the page was opened from; see Context.From.
+	From string
+
 	// Forced color scheme: "light" or "dark", empty to follow the system
 	ColorScheme string
 
@@ -743,6 +746,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.CustomCSS = ctx.Server.custom
 		global.SchemePinned = ctx.ThemeScheme() != ""
 		global.URLAccount = ctx.urlAccount
+		global.From = ctx.From()
 		// A notice belongs to the visit, not to a session: a sign-in
 		// that failed has none, and the login page is where it is read.
 		global.Notice = ctx.PopNotice()

@@ -44,21 +44,24 @@
         {{ $any = true }}
         <div class="list-item">
           <div class="list-content">
-            <a href="/filters/{{.Name | pathescape}}{{$gq}}" class="list-summary">{{.Name}}{{ if $.GlobalData.Unified }}<span class="row-account">{{ template "ltr" $label }}</span>{{ end }}</a>
+            <a href="{{ localhref (from (printf "/filters/%s%s" (.Name | pathescape) $gq) $.GlobalData.URL.RequestURI) }}" class="list-summary">{{.Name}}{{ if $.GlobalData.Unified }}<span class="row-account">{{ template "ltr" $label }}</span>{{ end }}</a>
             {{ if .Active }}
             <span class="list-meta">{{$.T "filters.active"}}</span>
             {{ end }}
           </div>
           {{ if .Active }}
           <form method="post" action="/filters/deactivate{{$gq}}">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button>{{$.T "filters.deactivate"}}</button>
           </form>
           {{ else }}
           <form method="post" action="/filters/{{.Name | pathescape}}/activate{{$gq}}">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button>{{$.T "filters.activate"}}</button>
           </form>
           {{ end }}
           <form method="post" action="/filters/{{.Name | pathescape}}/delete{{$gq}}">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button class="button-danger">{{$.T "common.delete"}}</button>
           </form>
         </div>

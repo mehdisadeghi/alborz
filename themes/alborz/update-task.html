@@ -46,7 +46,7 @@
         </div>
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" $desc "dir" "auto" "rows" "4") }}
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/tasks%s" $acct) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/tasks%s" $acct)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
     </main>
   </div>

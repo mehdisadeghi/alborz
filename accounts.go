@@ -120,16 +120,31 @@ func (ctx *Context) AccountPath(path string) string {
 // to that page: the form carries where it was submitted from, and the
 // handler comes back to it instead of a fixed landing page.
 func (ctx *Context) NextOr(fallback string) string {
-	next := ctx.FormValue("next")
-	if next == "" {
-		return fallback
+	if next := localPath(ctx.FormValue("next")); next != "" {
+		return next
+	}
+	return fallback
+}
+
+// From is the list an object's page was opened from, when its row said
+// so; empty otherwise. The object's own account is in the URL too, so
+// the list's scope - merged or one account - cannot be read back from
+// it, and the page returns here instead.
+func (ctx *Context) From() string {
+	return localPath(ctx.QueryParam("from"))
+}
+
+// localPath is raw when it is a path on this site, empty otherwise.
+func localPath(raw string) string {
+	if raw == "" {
+		return ""
 	}
 	// A backslash is read as a slash by browsers, so "/\\host" would
 	// leave the site the way "//host" does.
-	u, err := url.Parse(next)
+	u, err := url.Parse(raw)
 	if err != nil || u.Host != "" || !strings.HasPrefix(u.Path, "/") ||
-		strings.ContainsRune(next, '\\') {
-		return fallback
+		strings.ContainsRune(raw, '\\') {
+		return ""
 	}
 	return u.String()
 }

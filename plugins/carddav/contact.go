@@ -2,6 +2,7 @@ package alborzcarddav
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -277,7 +278,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		In:             in,
 		Groups:         rest,
 		Neighbours:     dav.Around(list.Items, path),
-		List:           dav.ListURL("/contacts", dav.ListParams(ctx, contactListParams...)),
+		List:           cmp.Or(ctx.From(), dav.ListURL("/contacts", dav.ListParams(ctx, contactListParams...))),
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()),
 		AddressBook:    addressBook,

@@ -1102,6 +1102,7 @@
 {{/* The list the event was opened from rides along, so its page can
      name the events either side of it. */}}
 {{ with $base.ListQuery }}{{ $href = printf "%s%s%s" $href (qsep $href) . }}{{ end }}
+{{ $href = from $href $base.GlobalData.URL.RequestURI }}
 {{ $addedby := "" }}{{ with call $base.AddedBy .Account .Path }}{{ $addedby = printf ($base.T "share.addedby") . }}{{ end }}
 {{ $staraction := "" }}{{ if not $obj.ReadOnly }}{{ $staraction = printf "%s/color%s" $obj.URL (account "?" $obj.Account) }}{{ end }}
 {{/* Rows carry their date unless the list is banded by day. */}}

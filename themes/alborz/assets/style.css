@@ -4502,6 +4502,19 @@ button:active,
   max-width: 600px;
 }
 
+/* What the reader's own folders say about the sender, under the address
+   it is about, where the list's tag leads. A fact, in the ink facts
+   take; a sender already in Junk is the one worth a colour. */
+.sender-fact {
+  margin: var(--space-1) 0 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.sender-fact-junked {
+  color: var(--warning-fg);
+}
+
 /* Grouped lists (tasks, calendar agenda, filters) */
 .list {
   flex-grow: 1;

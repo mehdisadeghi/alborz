@@ -42,6 +42,10 @@ type MessageRenderData struct {
 	// AuthResults is what the receiving server said about the sender's
 	// domain, nil when no trusted server reported or none is named.
 	AuthResults *AuthResults
+	// Relation is what the reader's folders say about the sender, for
+	// the line under the address: the list's tag leads to it, so it is
+	// on the page whether or not the message earned a card.
+	Relation *Relation
 	// Warnings are the indicators that earned a colour, and Mark the
 	// colour: none, caution or alarm. Nothing is said about a message
 	// with nothing against it.
@@ -534,6 +538,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	// junk needs no telling, and "you junked this sender before" is the
 	// folder describing itself.
 	var indicators []Indicator
+	var relation *Relation
 	if !raw && folderRole(sb.mailboxes, mboxName) != "junk" {
 		evidence := &Evidence{
 			Header:     messageRootHeader(msg),
@@ -546,7 +551,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		if evidence.From != "" {
 			if book := senderBookFor(ctx.Session); book != nil {
 				rel := book.relationTo(evidence.From)
-				evidence.Relation = &rel
+				evidence.Relation, relation = &rel, &rel
 			}
 			// Whom the reader knows does not stop at an account: mail
 			// from a host bills one address and its imitation reaches
@@ -663,6 +668,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Query:              query,
 		Signature:          signature,
 		AuthResults:        authResults,
+		Relation:           relation,
 		Warnings:           warnings,
 		Mark:               mark,
 		InReplyTo:          inReplyTo,

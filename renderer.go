@@ -166,18 +166,45 @@ func (brd *BaseRenderData) T(key string) string {
 // them across requests safe.
 var carbonLangs = map[string]*carbon.Language{}
 
-// carbonFixes correct what carbon's own locale files get wrong.
+// carbonFixes correct what carbon's own locale files get wrong, and
+// shorten what a list column has to hold: a date cell is six rems
+// wide, and "54 minutes ago" is not. The units are abbreviated the way
+// each language abbreviates them; "ago" stays, since a bare "54 min"
+// does not say past from future.
 var carbonFixes = map[string]map[string]string{
-	// German says "vor" and "in" with the dative, which takes -n in the
-	// plural; carbon ships "vor 3 Tage".
+	"en": {
+		"second": "1 sec|%d sec",
+		"minute": "1 min|%d min",
+		"hour":   "1 hr|%d hr",
+		"day":    "1 day|%d days",
+		"week":   "1 wk|%d wks",
+		"month":  "1 mo|%d mo",
+		"year":   "1 yr|%d yrs",
+		"now":    "now",
+	},
 	"de": {
-		"year":  "1 Jahr|%d Jahren",
-		"month": "1 Monat|%d Monaten",
+		"second": "1 Sek|%d Sek",
+		"minute": "1 Min|%d Min",
+		"hour":   "1 Std|%d Std",
+		// German says "vor" with the dative, which takes -n in the
+		// plural; the abbreviations do not inflect, only the day does.
 		"day":   "1 Tag|%d Tagen",
+		"week":  "1 Wo|%d Wo",
+		"month": "1 Mon|%d Mon",
+		"year":  "1 J|%d J",
+		"now":   "jetzt",
 	},
 	// Spanish writes its months and weekdays in lower case, and keeps
 	// their accents.
 	"es": {
+		"second":       "1 seg|%d seg",
+		"minute":       "1 min|%d min",
+		"hour":         "1 h|%d h",
+		"day":          "1 día|%d días",
+		"week":         "1 sem|%d sem",
+		"month":        "1 mes|%d meses",
+		"year":         "1 año|%d años",
+		"now":          "ahora",
 		"months":       "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre",
 		"short_months": "ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic",
 		"weeks":        "domingo|lunes|martes|miércoles|jueves|viernes|sábado",
@@ -209,8 +236,9 @@ func (g *GlobalRenderData) at(t time.Time) *carbon.Carbon {
 }
 
 // Since dates a message the way a list reads it, in the reader's
-// language: "5 minutes ago", "vor 3 Tagen", "۸ ماه پیش". The exact date
-// belongs in the row's tooltip, where precision costs no width.
+// language and as short as the column: "5 min ago", "vor 3 Tagen",
+// "۸ ماه پیش". The exact date belongs in the row's tooltip, where
+// precision costs no width.
 func (g *GlobalRenderData) Since(t time.Time) string {
 	return g.shapeDigits(g.at(t).DiffForHumans())
 }

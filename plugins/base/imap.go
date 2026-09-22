@@ -400,7 +400,7 @@ func composeFromMailto(uri string) string {
 	if q.Get("to") == "" {
 		return ""
 	}
-	return "/compose?" + alborz.AddressQuery(q)
+	return "/compose?" + alborz.Query(q)
 }
 
 // deliveryHeaders are the ways an MTA writes down which address a
@@ -647,7 +647,7 @@ func neighbourURL(ctx *alborz.Context, mboxName string, uid imap.UID) *url.URL {
 			kept.Set(name, value)
 		}
 	}
-	next.RawQuery = kept.Encode()
+	next.RawQuery = alborz.Query(kept)
 	return next
 }
 
@@ -897,7 +897,7 @@ func (node IMAPPartNode) URL(raw bool) *url.URL {
 	}
 	q := u.Query()
 	q.Set("part", node.PathString())
-	u.RawQuery = q.Encode()
+	u.RawQuery = alborz.Query(q)
 	return u
 }
 

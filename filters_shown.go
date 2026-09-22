@@ -43,7 +43,7 @@ func (ctx *Context) WithParam(name, value string) string {
 		q.Set(name, value)
 	}
 	q.Del("page")
-	u.RawQuery = AddressQuery(q)
+	u.RawQuery = Query(q)
 	u.Path = ctx.Request().URL.Path
 	if u.RawQuery == "" {
 		return u.Path
@@ -71,7 +71,7 @@ func (ctx *Context) PageHref(n int) string {
 	if n > 0 {
 		q.Set("page", strconv.Itoa(n))
 	}
-	u.RawQuery = AddressQuery(q)
+	u.RawQuery = Query(q)
 	if u.RawQuery == "" {
 		return u.Path
 	}

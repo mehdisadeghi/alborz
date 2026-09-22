@@ -65,7 +65,7 @@ var templateFuncs = template.FuncMap{
 		if strings.Contains(href, "?") {
 			sep = "&"
 		}
-		return href + sep + "from=" + url.QueryEscape(list)
+		return href + sep + "from=" + alborz.QueryValue(list)
 	},
 	// A flat list of days is drawn as a grid, so the template needs to
 	// know where a row begins.
@@ -120,8 +120,9 @@ var templateFuncs = template.FuncMap{
 		return "ascending"
 	},
 	"pathescape": url.PathEscape,
-	// An address in a query value keeps its at sign; see AddressParam.
-	"addr":       alborz.AddressParam,
+	// qv writes a query value readably; see QueryValue. A template.URL,
+	// or the escaper would percent-encode what QueryValue left alone.
+	"qv":         func(v string) template.URL { return template.URL(alborz.QueryValue(v)) },
 	"subjectdir": alborz.SubjectDir,
 	// account renders the query fragment naming an account, or nothing
 	// when there is none. The template.URL return matters: the contextual
@@ -131,7 +132,7 @@ var templateFuncs = template.FuncMap{
 		if username == "" {
 			return ""
 		}
-		return template.URL(sep + "account=" + alborz.AddressParam(username))
+		return template.URL(sep + "account=" + alborz.QueryValue(username))
 	},
 	// localhref preserves the query separators in application-generated
 	// relative links. html/template otherwise treats a complete dynamic

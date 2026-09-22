@@ -41,7 +41,7 @@ func TestUnsubscribeComposesFromTheReceivingAccount(t *testing.T) {
 	if !strings.HasPrefix(href, "/compose?") {
 		t.Fatalf("a mailto unsubscribe did not become a compose link: %q", href)
 	}
-	for _, want := range []string{"account=mehdi@mehdix.org", "to=~sircmpwn%2Fsr.ht-discuss%2Bunsubscribe@lists.sr.ht", "subject=unsubscribe"} {
+	for _, want := range []string{"account=mehdi@mehdix.org", "to=~sircmpwn/sr.ht-discuss%2Bunsubscribe@lists.sr.ht", "subject=unsubscribe"} {
 		if !strings.Contains(href, want) {
 			t.Errorf("%q lacks %s", href, want)
 		}

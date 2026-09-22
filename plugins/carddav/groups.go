@@ -44,7 +44,7 @@ func contactGroupRows(groups []AddressObject, active, account string) []FilterRo
 		}
 		edit := g.URL()
 		if g.Account != "" {
-			edit += "?account=" + alborz.AddressParam(g.Account)
+			edit += "?account=" + alborz.QueryValue(g.Account)
 		}
 		rows = append(rows, FilterRow{
 			Label:  g.DisplayName(),
@@ -73,7 +73,7 @@ func filterHref(name, value, account string) string {
 	if account != "" {
 		q.Set("account", account)
 	}
-	return "/contacts?" + q.Encode()
+	return "/contacts?" + alborz.Query(q)
 }
 
 // groupContact adds a contact to a group or takes it out of one. What

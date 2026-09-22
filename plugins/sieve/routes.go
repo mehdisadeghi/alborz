@@ -75,12 +75,12 @@ func registerRoutes(p *alborz.GoPlugin) {
 				return echo.NewHTTPError(http.StatusBadRequest, "filters require an account")
 			}
 			if !ctx.Unified && ctx.Server.SieveEnabled(ctx.Session.Domain()) {
-				target := ctx.Request().URL.Path + "?account=" + alborz.AddressParam(ctx.Session.Username())
+				target := ctx.Request().URL.Path + "?account=" + alborz.QueryValue(ctx.Session.Username())
 				return ctx.Redirect(http.StatusFound, target)
 			}
 			for _, session := range ctx.Sessions() {
 				if ctx.Server.SieveEnabled(session.Domain()) {
-					target := ctx.Request().URL.Path + "?account=" + alborz.AddressParam(session.Username())
+					target := ctx.Request().URL.Path + "?account=" + alborz.QueryValue(session.Username())
 					return ctx.Redirect(http.StatusFound, target)
 				}
 			}
@@ -357,13 +357,13 @@ func handleSaveFilter(ctx *alborz.Context) error {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
 	case loaded == "":
 		// Nothing was loaded into the editor, so this script is new.
-		account := "?account=" + alborz.AddressParam(ctx.Session.Username())
+		account := "?account=" + alborz.QueryValue(ctx.Session.Username())
 		ctx.Made(ctx.T("notice.filtercreated"), name,
 			"/filters/"+url.PathEscape(name)+account, "/filters/create"+account)
 	default:
 		ctx.PutNotice(ctx.T("notice.filtersaved"))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr("/filters?account="+alborz.AddressParam(ctx.Session.Username())))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr("/filters?account="+alborz.QueryValue(ctx.Session.Username())))
 }
 
 func handleActivateFilter(ctx *alborz.Context) error {

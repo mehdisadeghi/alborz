@@ -24,7 +24,7 @@
   {{ $aq := "" }}{{ $aamp := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ $aamp = printf "&account=%s" . }}{{ end }}
   {{/* The query strings every action shares, built once. */}}
   {{ $partq := $aq }}{{ $partallq := $aq }}{{ $partlistq := printf "?list=1%s" $aamp }}{{ with .Message.PreferredPart $.PreferHTML }}{{ $partq = printf "?part=%s%s" .PathString $aamp }}{{ $partallq = printf "?part=%s&all=true%s" .PathString $aamp }}{{ $partlistq = printf "?part=%s&list=1%s" .PathString $aamp }}{{ end }}
-  {{ $navq := $aq }}{{ if .ListView }}{{ $navq = printf "?view=%s%s" .ListView $aamp }}{{ else if .Query }}{{ $navq = printf "?query=%s%s" (.Query | urlquery) $aamp }}{{ end }}
+  {{ $navq := $aq }}{{ if .ListView }}{{ $navq = printf "?view=%s%s" .ListView $aamp }}{{ else if .Query }}{{ $navq = printf "?query=%s%s" (.Query | qv) $aamp }}{{ end }}
   {{ template "aside" . }}
   <div class="container">
     <main id="main" tabindex="-1" class="message">
@@ -106,7 +106,7 @@
                      the account that received it. */}}
                 {{ if call $.GlobalData.HavePlugin "sieve" }}
                 {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
-                <a class="button-link" href="{{ localhref (printf "/filters/rules/create?from=%s&list=%s&subject=%s%v" ($from | urlquery) (.Message.ListID | urlquery) (.Message.Envelope.Subject | urlquery) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
+                <a class="button-link" href="{{ localhref (printf "/filters/rules/create?from=%s&list=%s&subject=%s%v" ($from | qv) (.Message.ListID | qv) (.Message.Envelope.Subject | qv) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
                 {{/* Blocking is a rule that junks the sender, which is
                      all a user agent can do about one, and what trains
                      the server's filter where it learns from that
@@ -315,7 +315,7 @@
                 <dl>
                   {{ with .Message.ListPost }}
                   <dt>{{$.T "list.post"}}</dt>
-                  <dd><a href="{{ localhref (printf "/compose?to=%s" (. | addr)) }}">{{ template "ltr" . }}</a></dd>
+                  <dd><a href="{{ localhref (printf "/compose?to=%s" (. | qv)) }}">{{ template "ltr" . }}</a></dd>
                   {{ end }}
                   {{ with .Message.ListHelp }}
                   <dt>{{$.T "list.help"}}</dt>
@@ -535,12 +535,12 @@
                is not in the From header the list wrote, so a search for
                it would find nothing. */}}
           {{ $term := $addr.Addr }}{{ if $.byname }}{{ $term = printf "%q" $addr.Name }}{{ end }}
-          {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $term | urlquery) $aamp) }}{{ end }}
+          {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $term | qv) $aamp) }}{{ end }}
           {{ if .Name }}
           <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Name}}</a>{{ else }}<strong>{{.Name}}</strong>{{ end }}
-          &lt;<a href="{{ localhref (printf "/compose?to=%s%s" (.Addr | addr) $aamp) }}">{{.Addr}}</a>&gt;</bdi>
+          &lt;<a href="{{ localhref (printf "/compose?to=%s%s" (.Addr | qv) $aamp) }}">{{.Addr}}</a>&gt;</bdi>
           {{ else }}
-          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Addr}}</a>{{ else }}<a href="{{ localhref (printf "/compose?to=%s%s" ($addr.Addr | addr) $aamp) }}">{{$addr.Addr}}</a>{{ end }}</bdi>
+          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Addr}}</a>{{ else }}<a href="{{ localhref (printf "/compose?to=%s%s" ($addr.Addr | qv) $aamp) }}">{{$addr.Addr}}</a>{{ end }}</bdi>
           {{ end }}
         {{end}}
       {{end}}
@@ -615,7 +615,7 @@
             <td class="conversation">
               {{ with .InReplyTo }}<a href="{{.URL}}{{account "?" $.GlobalData.URLAccount}}">{{ printf ($.T "list.answering") (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}
               {{ with .Answers }}<a href="{{ (index . 0).URL }}{{account "?" $.GlobalData.URLAccount}}">{{ if eq (len .) 1 }}{{ printf ($.T "list.answeredby") (or (index . 0).From ($.T "mailbox.nosender")) }}{{ else }}{{ printf ($.T "list.answeredbymore") (or (index . 0).From ($.T "mailbox.nosender")) (sub (len .) 1) }}{{ end }}</a>{{ end }}
-              {{ with .Message.ListID }}<a href="{{ localhref (printf "%v?query=list:%s%s" $.Mailbox.URL (. | urlquery) (account "&" $.GlobalData.URLAccount)) }}">{{ printf ($.T "list.via") . }}</a>{{ end }}
+              {{ with .Message.ListID }}<a href="{{ localhref (printf "%v?query=list:%s%s" $.Mailbox.URL (. | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ printf ($.T "list.via") . }}</a>{{ end }}
             </td>
           </tr>
 {{ end }}

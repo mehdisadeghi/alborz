@@ -120,7 +120,7 @@ func fillEventForm(ctx *alborz.Context, d *UpdateEventRenderData, loc *time.Loca
 func dayQuery(ctx *alborz.Context, start time.Time) string {
 	q := dav.ListParams(ctx, "account", "cal")
 	q.Set("date", start.Format(datePageLayout))
-	return q.Encode()
+	return alborz.Query(q)
 }
 
 func monthQuery(ctx *alborz.Context, mv monthView) string {
@@ -129,7 +129,7 @@ func monthQuery(ctx *alborz.Context, mv monthView) string {
 	if mv.view != "" {
 		q.Set("view", mv.view)
 	}
-	return q.Encode()
+	return alborz.Query(q)
 }
 
 // eventKey names one row of an event list. An object's path is enough

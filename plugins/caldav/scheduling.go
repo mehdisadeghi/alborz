@@ -239,7 +239,7 @@ func (p *plugin) registerScheduling() {
 		ctx.PutNotice(ctx.T("invite.filed"))
 		if account != "" {
 			return ctx.Redirect(http.StatusFound,
-				CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.AddressParam(account))
+				CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.QueryValue(account))
 		}
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(CalendarObject{CalendarObject: co}.URL()))
 	})
@@ -331,7 +331,7 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 	}
 	to := "/calendar"
 	if account != "" {
-		to += "?account=" + alborz.AddressParam(account)
+		to += "?account=" + alborz.QueryValue(account)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }

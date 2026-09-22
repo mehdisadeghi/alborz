@@ -478,7 +478,7 @@ func accountQuery(address string) string {
 	if address == "" {
 		return ""
 	}
-	return "?account=" + alborz.AddressParam(address)
+	return "?account=" + alborz.QueryValue(address)
 }
 
 // settingsRail lists the places in this section. What the reader reads

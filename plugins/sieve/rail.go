@@ -16,7 +16,7 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	for _, account := range sieveAccounts(ctx) {
 		session := ctx.SessionFor(account.Username)
 		scoped := account.Username == ctx.URLAccount()
-		q := "?account=" + alborz.AddressParam(account.Username)
+		q := "?account=" + alborz.QueryValue(account.Username)
 		var include, vacation bool
 		err := session.DoSieve(func(c alborz.SieveClient) error {
 			include = hasExtension(c, "include")

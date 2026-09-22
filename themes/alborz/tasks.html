@@ -4,7 +4,7 @@
 
 <div class="page-wrap">
   <aside>
-    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/tasks" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "aside.all") "new" (dict "href" (printf "/calendars/create?for=tasks&next=%s" (.GlobalData.URL.RequestURI | urlquery)) "label" ($.T "tasks.newlist")) "data" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "shown" ($.T "common.shown") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI) "views" (dict "path" "/tasks" "view" .View "account" .GlobalData.URLAccount)) }}
+    {{ template "scope-rail" (dict "g" $ "kind" "dav" "path" "/tasks" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "all" ($.T "aside.all") "new" (dict "href" (printf "/calendars/create?for=tasks&next=%s" (.GlobalData.URL.RequestURI | qv)) "label" ($.T "tasks.newlist")) "data" (dict "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "apply" ($.T "common.apply") "onlylabel" ($.T "common.only") "alllabel" ($.T "common.showall") "shown" ($.T "common.shown") "edithref" "/calendars/" "editlabel" ($.T "common.edit") "next" .GlobalData.URL.RequestURI) "views" (dict "path" "/tasks" "view" .View "account" .GlobalData.URLAccount)) }}
   </aside>
 
   <div class="container">

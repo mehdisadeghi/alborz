@@ -21,7 +21,7 @@ func handleSidebar(ctx *alborz.Context) error {
 	u.Path = page
 	q := u.Query()
 	q.Del("path")
-	u.RawQuery = q.Encode()
+	u.RawQuery = alborz.Query(q)
 	base.GlobalData.URL = &u
 	base.GlobalData.Path = strings.Split(page, "/")[1:]
 	folder := ""

@@ -463,7 +463,7 @@ func starViewPath(ctx *alborz.Context, view string) string {
 			kept.Set(name, value)
 		}
 	}
-	return ctx.AccountPath("/search?" + kept.Encode())
+	return ctx.AccountPath("/search?" + alborz.Query(kept))
 }
 
 // everywhereQuery is the query with in:anywhere in place of whatever
@@ -515,7 +515,7 @@ func readListAsk(ctx *alborz.Context, also string) (listAsk, error) {
 func searchInstead(ctx *alborz.Context, ask listAsk) string {
 	// in: names where to look, and this page looks in one place.
 	if folder, everywhere := ParseQuery(ask.spec.query).Scope(); folder != "" || everywhere {
-		return ctx.AccountPath("/search?query=" + url.QueryEscape(ask.spec.query))
+		return ctx.AccountPath("/search?query=" + alborz.QueryValue(ask.spec.query))
 	}
 	// A star is on the message, not in the folder: the view that asks
 	// for it looks wherever the reader filed it, which is the search
@@ -1337,7 +1337,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 			if !leaves {
 				return alborz.Notice{}
 			}
-			action := "/message/" + url.PathEscape(mboxName) + "/flag?account=" + alborz.AddressParam(ctx.Session.Username())
+			action := "/message/" + url.PathEscape(mboxName) + "/flag?account=" + alborz.QueryValue(ctx.Session.Username())
 			return StarNotice(ctx, color[0], action, url.Values{
 				"uids": {fmt.Sprint(uids[0])}, "color": {ctx.FormValue("was")}, "next": {back}})
 		}, func(done bool) error {
@@ -1629,7 +1629,7 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 				fields.Add("refs", r.String())
 			}
 			return movedNotice(ctx, done, ctx.T("aside."+strings.ToLower(to)), "/mailbox/"+url.PathEscape(to)+"?all=1", len(landed),
-				"/mailbox/"+url.PathEscape(to)+"/all/act?action=move&to="+url.QueryEscape(role), fields)
+				"/mailbox/"+url.PathEscape(to)+"/all/act?action=move&to="+alborz.QueryValue(role), fields)
 		case "read", "unread":
 			// The rows change weight in the list the reader is looking
 			// at. A line saying so is a line about something they can see.

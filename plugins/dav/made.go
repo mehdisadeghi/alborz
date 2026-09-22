@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
 	"path"
 	"strings"
 
@@ -22,7 +21,7 @@ import (
 // the merged view can land in any of them.
 func Made(ctx *alborz.Context, sentence, name, object, list, account string) error {
 	if account != "" {
-		q := "?account=" + alborz.AddressParam(account)
+		q := "?account=" + alborz.QueryValue(account)
 		object, list = object+q, list+q
 	} else {
 		object, list = ctx.AccountPath(object), ctx.AccountPath(list)
@@ -44,7 +43,7 @@ func Saved(ctx *alborz.Context, made bool, sentence, name, object, list, account
 		if strings.Contains(object, "?") {
 			sep = "&"
 		}
-		object += sep + "from=" + url.QueryEscape(from)
+		object += sep + "from=" + alborz.QueryValue(from)
 	}
 	return ctx.Redirect(http.StatusFound, object)
 }

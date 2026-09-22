@@ -137,7 +137,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		PrevTime:  mv.prevTime,
 		NextTime:  mv.nextTime,
 		ListQuery: monthQuery(ctx, mv),
-		Scope:     alborz.AddressQuery(dav.ListParams(ctx, "account", "cal")),
+		Scope:     alborz.Query(dav.ListParams(ctx, "account", "cal")),
 		SelectForm: func() string {
 			if mv.view != "" {
 				return "events-form"

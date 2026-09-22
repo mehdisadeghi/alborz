@@ -81,7 +81,7 @@ func Paginate[T any](ctx *alborz.Context, items []T) ([]T, Pager) {
 	q.Del("page")
 	base := ""
 	if len(q) > 0 {
-		base = "&" + alborz.AddressQuery(q)
+		base = "&" + alborz.Query(q)
 	}
 	pager := Pager{From: from + 1, To: to, Total: len(items),
 		Per: per, Options: alborzbase.PerPageChoices(ctx), IppBase: base}

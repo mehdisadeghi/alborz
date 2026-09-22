@@ -86,7 +86,7 @@ func ListURL(path string, params url.Values) string {
 	if len(params) == 0 {
 		return path
 	}
-	return path + "?" + alborz.AddressQuery(params)
+	return path + "?" + alborz.Query(params)
 }
 
 // Keep takes the named parameters, and only those, from a query.
@@ -133,7 +133,7 @@ func ObjectURL(base, path, account string, params url.Values) string {
 	}
 	href := base + url.PathEscape(path)
 	if len(q) > 0 {
-		href += "?" + q.Encode()
+		href += "?" + alborz.Query(q)
 	}
 	return href
 }
@@ -164,7 +164,7 @@ func Labels(ctx *alborz.Context, colls []Collection, list, field string, shape u
 		if account != "" {
 			q.Set("account", account)
 		}
-		return list + "?" + q.Encode()
+		return list + "?" + alborz.Query(q)
 	}
 	return collection, href
 }

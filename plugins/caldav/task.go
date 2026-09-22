@@ -1,6 +1,7 @@
 package alborzcaldav
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -166,7 +167,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary),
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
-		List:           dav.ListURL("/tasks", dav.ListParams(ctx, taskListParams...)),
+		List:           cmp.Or(ctx.From(), dav.ListURL("/tasks", dav.ListParams(ctx, taskListParams...))),
 		Star:           componentColor(getFirstTodo(task.Data)),
 		Priority:       priorityBand(getFirstTodo(task.Data)),
 		Neighbours:     dav.Around(list.Items, path),

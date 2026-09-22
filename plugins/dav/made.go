@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 
@@ -37,7 +38,15 @@ func Saved(ctx *alborz.Context, made bool, sentence, name, object, list, account
 	if made {
 		return Made(ctx, sentence, name, object, list, account)
 	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath(object))
+	object = ctx.AccountPath(object)
+	if from := ctx.From(); from != "" {
+		sep := "?"
+		if strings.Contains(object, "?") {
+			sep = "&"
+		}
+		object += sep + "from=" + url.QueryEscape(from)
+	}
+	return ctx.Redirect(http.StatusFound, object)
 }
 
 // ErrNoDestination is a create form naming a collection the account

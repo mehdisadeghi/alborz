@@ -191,7 +191,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	if withCompleted || view == viewHigh {
 		star = ""
 	}
-	params := dav.ListParams(ctx, taskListParams...)
+	params := dav.RowParams(ctx, "/tasks", dav.ListParams(ctx, taskListParams...))
 
 	query := taskQuery()
 
@@ -351,7 +351,9 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			cal.Account = ref.Account
 			// The list's shape is in the address the form returns to; the
 			// write's own URL says nothing about sort or search.
-			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), dav.ListParamsIn(next, taskListParams...))
+			params := dav.ListParamsIn(next, taskListParams...)
+			params.Set("from", next)
+			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), params)
 			row.AddedBy = p.dav.AddedBy(ctx.Session.Username())(cal.Account, marked.Path)
 			data := &TaskRowRenderData{BaseRenderData: *alborz.NewBaseRenderData(ctx), Row: row, Next: next}
 			data.G = &data.BaseRenderData

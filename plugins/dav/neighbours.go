@@ -102,6 +102,25 @@ func Keep(from url.Values, keys ...string) url.Values {
 	return kept
 }
 
+// RowParams are a row's list parameters with the list its page returns
+// to: this page, when it is the list at path, or the list this page was
+// itself opened from, which its neighbours pass on.
+func RowParams(ctx *alborz.Context, path string, params url.Values) url.Values {
+	from := ctx.From()
+	if ctx.Request().URL.Path == path {
+		from = ctx.Request().URL.RequestURI()
+	}
+	if from == "" {
+		return params
+	}
+	q := url.Values{}
+	for key, values := range params {
+		q[key] = values
+	}
+	q.Set("from", from)
+	return q
+}
+
 // ObjectURL is where one object's page is: the list's own parameters,
 // and the account holding the object where the list pools several.
 func ObjectURL(base, path, account string, params url.Values) string {

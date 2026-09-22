@@ -16,7 +16,7 @@
         {{ $rawq := "" }}{{ if .Event.ReadOnly }}{{ $rawq = printf "?uid=%s" (((index .Event.Data.Events 0).Props.Text "UID") | urlquery) }}{{ end }}
         <span class="icon-group">
           {{ if not .Event.ReadOnly }}
-          <a class="icon-button" href="{{.Event.URL}}/update{{$acct}}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
+          <a class="icon-button" href="{{ localhref (from (printf "%s/update%s" .Event.URL $acct) $.GlobalData.From) }}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
           {{ end }}
           <a hx-boost="false" class="icon-button" href="{{.Event.URL}}/raw{{$rawq}}{{ account (qsep $rawq) $.GlobalData.URLAccount }}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.Event.URL}}/raw{{$rawq}}{{ qsep $rawq }}save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".ics" }}" aria-label="{{ printf ($.T "common.saveas") ".ics" }}">{{ template "icon" "download" }}</a>

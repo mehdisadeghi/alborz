@@ -162,6 +162,7 @@
             {{with .Account}}{{$mlink = printf "%s%saccount=%s" $mlink $msep (. | addr)}}{{$msep = "&"}}{{end}}
             {{if $.ListView}}{{$mlink = printf "%s%sview=%s" $mlink $msep $.ListView}}{{$msep = "&"}}{{else if $.Query}}{{$mlink = printf "%s%squery=%s" $mlink $msep ($.Query | urlquery)}}{{$msep = "&"}}{{end}}
             {{with $.Sort}}{{$mlink = printf "%s%ssort=%s&dir=%s" $mlink $msep . $.SortDir}}{{$msep = "&"}}{{end}}
+            {{$mlink = from $mlink $.GlobalData.URL.RequestURI}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $mlink}}">
             {{else}}
             {{/* Built in one piece: the escaper cannot follow a URL whose
@@ -174,6 +175,7 @@
                  here. */}}
             {{with $.Sort}}{{$link = printf "%s%ssort=%s&dir=%s" $link $sep . $.SortDir}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | addr)}}{{end}}
+            {{$link = from $link $.GlobalData.URL.RequestURI}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $link}}">
             {{end}}
               {{/* No bdi here: it isolates, and an isolate reads to the

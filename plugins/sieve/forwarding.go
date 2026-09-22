@@ -215,8 +215,8 @@ func handleForwardingKeep(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
 }
 
-// answer returns to a page, saying what happened: a change made
-// elsewhere, a refusal, or the save.
+// answer returns to a page - the one the form came from, or path -
+// saying what happened: a change made elsewhere, a refusal, or the save.
 func answer(ctx *alborz.Context, err error, path, saved string) error {
 	switch {
 	case errors.Is(err, errChanged{}):
@@ -226,5 +226,5 @@ func answer(ctx *alborz.Context, err error, path, saved string) error {
 	default:
 		ctx.PutNotice(saved)
 	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath(path))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(path)))
 }

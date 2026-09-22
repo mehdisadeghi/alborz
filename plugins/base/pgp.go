@@ -39,6 +39,7 @@ type KeySource string
 const (
 	KeyFromMessage KeySource = "message" // Autocrypt, or attached
 	KeyFromDomain  KeySource = "domain"  // the Web Key Directory
+	KeyFromCA      KeySource = "ca"      // an S/MIME certificate's issuer
 )
 
 // Verification is what the page says about a message's authenticity. It is
@@ -80,6 +81,13 @@ const pgpProtocol = "application/pgp-signature"
 // at some level with exactly two parts, so the walk stops at the first
 // one it finds rather than guessing among several.
 func signedParts(bs imap.BodyStructure) (content, sig []int, ok bool) {
+	content, sig, _, ok = signedPartsOf(bs)
+	return content, sig, ok
+}
+
+// signedPartsOf is signedParts with the protocol the signature is in,
+// which decides who checks it: OpenPGP or S/MIME.
+func signedPartsOf(bs imap.BodyStructure) (content, sig []int, protocol string, ok bool) {
 	bs.Walk(func(path []int, part imap.BodyStructure) bool {
 		if ok {
 			return false
@@ -89,15 +97,20 @@ func signedParts(bs imap.BodyStructure) (content, sig []int, ok bool) {
 			return true
 		}
 		second, isSingle := multi.Children[1].(*imap.BodyStructureSinglePart)
-		if !isSingle || !strings.EqualFold(second.MediaType(), pgpProtocol) {
+		if !isSingle {
 			return true
 		}
+		media := strings.ToLower(second.MediaType())
+		if media != pgpProtocol && !smimeProtocols[media] {
+			return true
+		}
+		protocol = media
 		content = append(append([]int{}, path...), 1)
 		sig = append(append([]int{}, path...), 2)
 		ok = true
 		return false
 	})
-	return content, sig, ok
+	return content, sig, protocol, ok
 }
 
 // autocryptKey reads the sender's own key out of the Autocrypt header
@@ -152,7 +165,8 @@ func autocryptKey(h textproto.Header) (openpgp.EntityList, string, error) {
 func verifySignature(conn *imapclient.Client, mboxName string, uid imap.UID,
 	bs imap.BodyStructure, rootHeader textproto.Header, from string) Verification {
 
-	if _, _, ok := signedParts(bs); !ok {
+	_, _, protocol, ok := signedPartsOf(bs)
+	if !ok {
 		return Verification{}
 	}
 
@@ -166,6 +180,9 @@ func verifySignature(conn *imapclient.Client, mboxName string, uid imap.UID,
 	}
 
 	authors := authorAddresses(rootHeader, signed)
+	if smimeProtocols[protocol] {
+		return verifySMIME(signed, sig, authors)
+	}
 	domainKeys := domainKeys(authors)
 	messageKeys := senderKeys(rootHeader, raw, authors)
 	if len(domainKeys)+len(messageKeys) == 0 {

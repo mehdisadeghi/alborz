@@ -150,7 +150,7 @@
                  small tag: a first message, or a sender already junked.
                  Known correspondents get nothing, which is most rows. It
                  opens the message's facts, so a thumb can ask. */}}
-            {{ if and (not $.Outgoing) .Relation }}{{ if .Relation.Junked }}<a class="sender-tag sender-junked" href="{{.URL}}{{account "?" $owner}}#facts">{{$.T "indicator.tagjunked"}}</a>{{ else if not .Relation.WrittenTo }}<a class="sender-tag" href="{{.URL}}{{account "?" $owner}}#facts">{{$.T "indicator.tagfirst"}}</a>{{ end }}{{ end }}
+            {{ if and (not $.Outgoing) .Relation }}{{ if .Relation.Junked }}<a class="sender-tag sender-junked" href="{{.URL}}{{account "?" $owner}}#facts">{{$.T "indicator.tagjunked"}}</a>{{ else if and (not .Relation.WrittenTo) (le .Relation.Seen 1) }}<a class="sender-tag" href="{{.URL}}{{account "?" $owner}}#facts">{{$.T "indicator.tagfirst"}}</a>{{ end }}{{ end }}
             {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
             {{/* A row found by a search across folders says which one it
                  is in, and narrows the results to it. */}}

@@ -73,6 +73,10 @@ type Evidence struct {
 type Relation struct {
 	WrittenTo bool // the address appears in the Sent folder
 	Junked    bool // mail from the address sits in the Junk folder
+	// Seen counts the message's author among the inbox's recent
+	// authors, this message included: a correspondent who writes often
+	// is nothing to remark on, however one-sided the correspondence.
+	Seen int
 }
 
 // NamedDomain is a name borrowed: the word of the author's name, the
@@ -259,9 +263,14 @@ func senderRelation(e *Evidence) []Indicator {
 		return []Indicator{{Key: "indicator.junkedbefore", Grade: Caution}}
 	case rel.WrittenTo:
 		return []Indicator{{Key: "indicator.writtento"}}
+	case rel.Seen > 1:
+		// Somebody who has written before, whether or not they were
+		// ever answered: nothing to say about them.
+		return nil
 	}
-	// A first message is a fact, not a colour: most mail worth reading
-	// once came from a stranger.
+	// A sender nothing is known of is a fact, not a colour: most mail
+	// worth reading once came from a stranger. What was looked at is
+	// said, since neither folder is read past its recent messages.
 	return []Indicator{{Key: "indicator.firstcontact"}}
 }
 
@@ -306,7 +315,9 @@ func moneySubject(e *Evidence) []Indicator {
 // messages of each folder: a Sent folder of years is read for its
 // recent correspondents, which is what a first-contact question wants.
 type senderBook struct {
-	written, junked map[string]bool
+	written, junked map[string]int
+	// seen counts how often the inbox's recent authors name an address.
+	seen map[string]int
 	// junk is the folder junked is read from, whose moves outdate it.
 	junk string
 	// received holds the registrable domains of the inbox's authors, by
@@ -344,6 +355,7 @@ func senderBookFor(s *alborz.Session) *senderBook {
 				return err
 			}
 			authors, _, err := addressesIn(c, "inbox", func(env *imap.Envelope) []imap.Address { return env.From })
+			book.seen = authors
 			book.received = map[string]string{}
 			for addr := range authors {
 				domain, label := registrable(addr)
@@ -361,8 +373,8 @@ func senderBookFor(s *alborz.Session) *senderBook {
 
 // addressesIn collects the addresses pick chooses from the newest
 // messages of the role's folder, lower-cased, and names the folder.
-func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []imap.Address) (map[string]bool, string, error) {
-	out := map[string]bool{}
+func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []imap.Address) (map[string]int, string, error) {
+	out := map[string]int{}
 	mbox, err := getMailboxByRole(c, role)
 	if err != nil || mbox == nil {
 		return out, "", err
@@ -389,7 +401,7 @@ func addressesIn(c *imapclient.Client, role string, pick func(*imap.Envelope) []
 		}
 		for _, a := range pick(m.Envelope) {
 			if addr := strings.ToLower(a.Addr()); addr != "" {
-				out[addr] = true
+				out[addr]++
 			}
 		}
 	}
@@ -454,7 +466,7 @@ func junkMoved(user, from, to string) {
 
 func (b senderBook) relationTo(addr string) Relation {
 	addr = strings.ToLower(strings.TrimSpace(addr))
-	return Relation{WrittenTo: b.written[addr], Junked: b.junked[addr]}
+	return Relation{WrittenTo: b.written[addr] > 0, Junked: b.junked[addr] > 0, Seen: b.seen[addr]}
 }
 
 // Relate stamps every row with what the book says about its author,

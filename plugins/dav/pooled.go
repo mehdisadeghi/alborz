@@ -104,6 +104,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 		}
 		accounts = append(accounts, Account[C]{Name: s.Username(), Session: s, Client: c, Collections: owned})
 		for _, trouble := range p.Troubles(s.Username()) {
+			ctx.Logger().Printf("%s: %q in the pooled view without a source: %v", p.kind.Name, s.Username(), trouble)
 			if errors.As(trouble, &no) {
 				refuse(s.Username())
 			} else {

@@ -252,6 +252,7 @@ func gather(ctx *alborz.Context, sessions []*alborz.Session, spec listingSpec, r
 		switch {
 		case err == nil:
 		case errors.As(err, &upstream):
+			ctx.Logger().Printf("merged view without %q: %v", sessions[i].Username(), err)
 			down = append(down, sessions[i].Username())
 		default:
 			return nil, err

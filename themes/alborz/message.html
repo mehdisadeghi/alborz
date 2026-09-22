@@ -358,19 +358,6 @@
             </td>
           </tr>
           {{ end }}
-          {{ with .AuthResults }}{{ if .Failed }}
-          <tr>
-            <th scope="row">{{$.T "auth.title"}}</th>
-            <td>
-              <p class="auth-failed">{{$.T "auth.warning"}}</p>
-              <ul class="auth-list">
-                {{ with .SPF }}<li>{{$.T "auth.spf"}}: {{ template "ltr" . }}</li>{{ end }}
-                {{ with .DKIM }}<li>{{$.T "auth.dkim"}}: {{ template "ltr" . }}</li>{{ end }}
-                {{ with .DMARC }}<li>{{$.T "auth.dmarc"}}: {{ template "ltr" . }}</li>{{ end }}
-              </ul>
-            </td>
-          </tr>
-          {{ end }}{{ end }}
           {{/* A share of a calendar or an address book, answered here as a
                meeting request is. */}}
           {{ with .Extra.ShareOffer }}

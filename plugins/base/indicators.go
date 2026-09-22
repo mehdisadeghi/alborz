@@ -88,7 +88,7 @@ type NamedDomain struct {
 
 type check func(e *Evidence) []Indicator
 
-var checks = []check{scannerScore, twoScanners, weakAuthentication, senderRelation, namedElsewhere, moneySubject}
+var checks = []check{scannerScore, twoScanners, failedAuthentication, weakAuthentication, senderRelation, namedElsewhere, moneySubject}
 
 // Indicators runs every check over the evidence, alarms first. The
 // one combination that earns a colour on facts that are each plain
@@ -238,6 +238,28 @@ func readScore(h textproto.Header) (Score, bool) {
 	return Score{}, false
 }
 
+// failedAuthentication is the trusted server refusing one of the
+// checks, which is a caution and belongs in the same card as the rest:
+// a red block of its own beside a yellow card says one thing twice,
+// and mail from a home server fails these often. The values are the
+// fact; what they mean is the reader's to weigh.
+func failedAuthentication(e *Evidence) []Indicator {
+	r := e.Auth
+	if r == nil || !r.Failed() {
+		return nil
+	}
+	return []Indicator{{Key: "indicator.authfailed", Grade: Caution,
+		Args: []any{or(r.SPF, "none"), or(r.DKIM, "none"), or(r.DMARC, "none")}}}
+}
+
+// or is the value, or what stands for its absence.
+func or(value, empty string) string {
+	if value == "" {
+		return empty
+	}
+	return value
+}
+
 // weakAuthentication says who vouched for the author's domain, from the
 // trusted server's verdict. A pass on every method is nothing to say;
 // SPF alone speaks for the envelope domain, which the sender chose.
@@ -247,7 +269,8 @@ func weakAuthentication(e *Evidence) []Indicator {
 		return nil
 	}
 	dkim, dmarc := strings.ToLower(r.DKIM), strings.ToLower(r.DMARC)
-	if dkim == "pass" || dmarc == "pass" {
+	if dkim == "pass" || dmarc == "pass" || r.Failed() {
+		// A refusal is said once, by failedAuthentication.
 		return nil
 	}
 	return []Indicator{{Key: "indicator.spfonly", Args: []any{r.SPF, r.DKIM, r.DMARC}}}
@@ -282,7 +305,7 @@ func senderRelation(e *Evidence) []Indicator {
 // hijacked domain passes SPF, DKIM and DMARC for whatever it sends.
 func unvouchedRequest(e *Evidence) bool {
 	return len(moneySubject(e)) > 0 && e.Relation != nil && !e.Relation.WrittenTo &&
-		(len(weakAuthentication(e)) > 0 || len(namedElsewhere(e)) > 0)
+		(len(weakAuthentication(e)) > 0 || len(failedAuthentication(e)) > 0 || len(namedElsewhere(e)) > 0)
 }
 
 // namedElsewhere states the three things the reader can check: what the

@@ -19,7 +19,6 @@
         <h1>
           {{if .CalendarObject}}{{$.T "tasks.edittitle"}}{{else}}{{$.T "tasks.createtitle"}}{{end}}
         </h1>
-        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
 
         {{$summary := ""}}
         {{$desc := ""}}

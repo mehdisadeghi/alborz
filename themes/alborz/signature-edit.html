@@ -15,7 +15,6 @@
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.signatures") "path" "/signatures") }}
         <h1>{{ if .Was }}{{$.T "settings.signatureedit"}}{{ else }}{{$.T "settings.signaturenew"}}{{ end }}</h1>
 
-        {{ with .Error }}<div class="alert" role="alert">{{.}}</div>{{ end }}
 
         <input type="hidden" name="was" value="{{.Was}}">
         {{ template "field" (dict "label" ($.T "settings.signaturename") "name" "name" "value" .Editing.Name "dir" "auto" "required" true "autofocus" true) }}

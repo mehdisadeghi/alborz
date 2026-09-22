@@ -19,7 +19,6 @@
         <h1>
           {{if .CalendarObject}}{{$.T "calendar.edittitle"}}{{else}}{{$.T "calendar.createtitle"}}{{end}}
         </h1>
-        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
         {{if not .CalendarObject}}
         {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .Calendar.Account}}{{$cur = .}}{{end}}
         {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "calendar" "key" "event" "groups" .Groups "account" $cur "path" .Calendar.Path "multi" (gt (len .GlobalData.Accounts) 1)) }}

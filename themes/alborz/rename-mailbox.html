@@ -9,7 +9,6 @@
       <form method="POST">
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
         <h1>{{printf ($.T "folder.renametitle") .Mailbox.Label}}</h1>
-        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
         {{/* The name alone: a folder is renamed where it stands, and
              moving it under another is a different question. */}}
         {{ template "field" (dict "label" ($.T "folder.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true "hint" ($.T "folder.renamehint")) }}

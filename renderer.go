@@ -869,6 +869,15 @@ func (brd *BaseRenderData) WithTitle(title string) *BaseRenderData {
 	return brd
 }
 
+// Refused makes a form's refusal the page's notice (ADR 41). An empty
+// text is no refusal and leaves the notice as it was.
+func (brd *BaseRenderData) Refused(text string) *BaseRenderData {
+	if text != "" {
+		brd.GlobalData.Notice = &Notice{Kind: NoticeFailed, Text: text}
+	}
+	return brd
+}
+
 // WithItem marks the page as showing one object; see GlobalData.Item.
 func (brd *BaseRenderData) WithItem() *BaseRenderData {
 	brd.GlobalData.Item = true

@@ -14,7 +14,6 @@
         {{ template "list-toolbar" (dict "title" ($.T "settings.account")) }}
       </section>
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.account") "path" "/settings/account") }}
-      {{ if .Error }}<div class="alert" role="alert">{{ .Error }}</div>{{ end }}
 
       <form method="post">
         <div class="action-group">

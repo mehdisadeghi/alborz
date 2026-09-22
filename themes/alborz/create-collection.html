@@ -12,7 +12,6 @@
         {{ template "dav-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref "field" "" "collection" "" "path" "" "chooses" (gt (len .Accounts) 1)) }}
         <h1>{{.Title}}</h1>
 
-        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
 
         {{/* Two questions, and they are not the same one: whose
              collection this is, and which of that account's places

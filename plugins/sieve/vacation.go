@@ -211,7 +211,6 @@ type RepliesRenderData struct {
 	CanReply   bool
 	CanDate    bool
 	CanWire    bool
-	Error      string
 	Rail       map[string][]alborz.RailRow
 }
 
@@ -322,7 +321,8 @@ func handleReplySave(ctx *alborz.Context) error {
 		if derr != nil {
 			return derr
 		}
-		data.Editing, data.Index, data.Error = v, index, err.Error()
+		data.Editing, data.Index = v, index
+		data.Refused(err.Error())
 		return ctx.Render(http.StatusUnprocessableEntity, "autoreply-edit.html", data)
 	}
 	replies, err := loadReplies(ctx.Session.Store())

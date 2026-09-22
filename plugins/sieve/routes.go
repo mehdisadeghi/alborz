@@ -51,7 +51,6 @@ type FilterRenderData struct {
 	// Loaded fingerprints the script as the editor received it, so a
 	// save can tell whether the server still holds that version.
 	Loaded string
-	Error  string
 	// Suggested is the name an imported script arrives with, for the
 	// reader to keep or change before the first save.
 	Suggested string
@@ -233,7 +232,7 @@ func handleImportFilter(ctx *alborz.Context) error {
 	}
 	file, err := ctx.FormFile("file")
 	if err != nil {
-		data.Error = ctx.T("form.fileneeded")
+		data.Refused(ctx.T("form.fileneeded"))
 		return ctx.Render(http.StatusUnprocessableEntity, "filters-import.html", data)
 	}
 	if file.Size > maxScriptSize {
@@ -283,10 +282,9 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	content := ctx.FormValue("content")
 	if strings.TrimSpace(name) == "" {
 		return ctx.Render(http.StatusUnprocessableEntity, "filter-edit.html", &FilterRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(ctx.T("form.nameneeded")),
 			Rail:           rail(ctx),
 			Content:        content,
-			Error:          ctx.T("form.nameneeded"),
 			Accounts:       sieveAccounts(ctx),
 			Account:        ctx.FormValue("account"),
 		})
@@ -327,12 +325,11 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	})
 	if err == nil && changed {
 		return ctx.Render(http.StatusConflict, "filter-edit.html", &FilterRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(ctx.T("filters.changed")),
 			Rail:           rail(ctx),
 			Name:           name,
 			Content:        content,
 			Loaded:         loaded,
-			Error:          ctx.T("filters.changed"),
 			Accounts:       sieveAccounts(ctx),
 			Account:        ctx.FormValue("account"),
 		})
@@ -341,12 +338,11 @@ func handleSaveFilter(ctx *alborz.Context) error {
 		// The server rejects invalid scripts; show the reason next to
 		// the script instead of an error page.
 		return ctx.Render(http.StatusUnprocessableEntity, "filter-edit.html", &FilterRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(err.Error()),
 			Rail:           rail(ctx),
 			Name:           name,
 			Content:        content,
 			Loaded:         loaded,
-			Error:          err.Error(),
 			Accounts:       sieveAccounts(ctx),
 			Account:        ctx.FormValue("account"),
 		})

@@ -19,8 +19,7 @@ type PasskeysRenderData struct {
 // PasskeyRenderData renders passkey-create.html.
 type PasskeyRenderData struct {
 	alborz.BaseRenderData
-	Rail  map[string][]alborz.RailRow
-	Error string
+	Rail map[string][]alborz.RailRow
 }
 
 // UnlockRenderData renders unlock.html.
@@ -45,7 +44,7 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 		// The form posts only where no script took it over, and without
 		// one there is no prompt to make a passkey with.
 		if ctx.Request().Method == http.MethodPost {
-			data.Error = ctx.T("passkeys.needsscript")
+			data.Refused(ctx.T("passkeys.needsscript"))
 			return ctx.Render(http.StatusUnprocessableEntity, "passkey-create.html", data)
 		}
 		return ctx.Render(http.StatusOK, "passkey-create.html", data)

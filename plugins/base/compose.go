@@ -36,7 +36,6 @@ type ComposeRenderData struct {
 	// Attached are whole messages carried as message/rfc822 parts,
 	// which have no part path in the message being written.
 	Attached []AttachedMessage
-	Error    string
 	// Identities offered in the From dropdown, one entry per account.
 	Identities []AccountIdentities
 	// Signatures the account holds, and the one under the message now.
@@ -325,6 +324,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		}
 		render := func(status int, signature, errText string) error {
 			ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
+			ibase.BaseRenderData.Refused(errText)
 			return ctx.Render(status, "compose.html", &ComposeRenderData{
 				IMAPBaseRenderData: *ibase,
 				Message:            msg,
@@ -332,7 +332,6 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				Identities:         composeIdentities(ctx, msg.From),
 				Signatures:         settings.Signatures,
 				Signature:          signature,
-				Error:              errText,
 			})
 		}
 		// A server's no to the message is an answer, not a breakage:

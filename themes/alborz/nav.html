@@ -78,35 +78,8 @@
        row-colors. It hangs from whichever chevron opens it, and stays
        out of the nav, whose menus a wide screen lays open. */}}
   {{ if .GlobalData.LoggedIn }}{{ template "flag-colors-menu" (dict "id" "row-colors" "row" true "colors" (flagcolors $) "clear" ($.T "mailbox.flagnone")) }}{{ end }}
-  {{ with .GlobalData.Notice }}
-  <div class="notice notice-{{.Kind}}" role="{{if eq .Kind "failed"}}alert{{else}}status{{end}}">
-    <span class="notice-text">{{ if .Markup }}{{ .Markup }}{{ else }}{{ .Text }}{{ end }}</span>
-    {{ with .Action }}
-      {{/* Anything that changes state posts; a link is for going
-           somewhere. */}}
-      {{ if .Fields }}
-      <form method="post" action="{{.Path}}" class="notice-action">
-        {{ range $name, $values := .Fields }}{{ range $values }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
-        <button class="button-link">{{.Label}}</button>
-      </form>
-      {{ else }}
-      <a class="notice-action" href="{{.Path}}">{{.Label}}</a>
-      {{ end }}
-    {{ end }}
-    {{/* Without a script the only way to clear the bar is the page
-         again; helpers.js turns the link into removing the bar. */}}
-    <a class="notice-dismiss" href="{{$.GlobalData.URL.String}}" title="{{$.T "nav.dismiss"}}" aria-label="{{$.T "nav.dismiss"}}">{{ template "icon" "x" }}</a>
-  </div>
-  {{ end }}
-  {{/* A request that never came back leaves the page as it was, and
-       says so here. It is written by the server like every other
-       notice and only revealed by the script that knows the request
-       failed; hidden it costs no layout, and without a script nothing
-       can fail this way because the browser answers for itself. */}}
+  {{ template "notices" (dict "g" $) }}
   {{ if .GlobalData.LoggedIn }}
-  <div class="notice notice-failed" id="request-failed" role="alert" hidden>
-    <span class="notice-text">{{$.T "notice.noanswer"}}</span>
-  </div>
   {{/* What the keyboard does, opened by ? or from the account menu.
        The keys every list has are written here; the ones this page's
        own controls answer to are read off the page when it opens, in
@@ -124,12 +97,6 @@
     </dl>
     <dl class="keys-page"></dl>
   </dialog>
-  {{/* Shown by the worker's word, not the radio's: it is what knows
-       whether the page on screen came from the server or from what it
-       saved. A saved page carries this too, hidden like any other. */}}
-  <div class="notice notice-warning" id="offline-notice" role="status" data-offline="{{$.T "notice.offline"}}" data-slow="{{$.T "notice.slow"}}" hidden>
-    <span class="notice-text">{{$.T "notice.offline"}}</span>
-  </div>
   {{ end }}
 </header>
 {{ if .GlobalData.LoggedIn }}

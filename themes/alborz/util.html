@@ -1316,7 +1316,7 @@
 {{/* The import form's own fields, shared by every section that takes a
      file: an optional name, the file, and what to expect. The choice of
      where it lands - a folder location or a collection - is the
-     section's, given before. dict: g file accept hint go cancel error
+     section's, given before. dict: g file accept hint go cancel
      [name namehint namevalue namerequired]. */}}
 {{ define "import-fields" }}
 {{ if .name }}{{ template "field" (dict "label" .name "name" "name" "value" .namevalue "dir" "auto" "hint" .namehint "required" .namerequired) }}{{ end }}
@@ -1325,7 +1325,6 @@
   <input type="file" name="file" id="file" accept="{{ .accept }}"{{ if not .optional }} required{{ end }}>
   <p class="hint">{{ .hint }}</p>
 </div>
-{{ if .error }}<div class="alert" role="alert">{{ .error }}</div>{{ end }}
 {{ template "form-actions" (dict "save" .go "cancel" .cancel "cancelLabel" (.g.T "common.cancel")) }}
 {{ end }}
 
@@ -1344,4 +1343,50 @@
     {{end}}
   </select>
 </label>
+{{ end }}
+
+{{/* Every notice, whoever has something to say (ADR 41): the text,
+     at most one action, and a cross that closes it without a script.
+     dict: g kind [text markup action id closed slow]. closed renders it
+     shut, for a script to open; slow is the offline notice's second
+     sentence, which its script swaps in. */}}
+{{ define "notice" }}
+<dialog{{ if not .closed }} open{{ end }} class="notice notice-{{.kind}}"{{ with .id }} id="{{.}}"{{ end }}{{ with .slow }} data-offline="{{$.text}}" data-slow="{{.}}"{{ end }}>
+  <span class="notice-text" role="{{ if eq .kind "failed" }}alert{{ else }}status{{ end }}">{{ if .markup }}{{ .markup }}{{ else }}{{ .text }}{{ end }}</span>
+  {{ with .action }}
+    {{/* Anything that changes state posts; a link is for going
+         somewhere. */}}
+    {{ if .Fields }}
+    <form method="post" action="{{.Path}}" class="notice-action">
+      {{ range $name, $values := .Fields }}{{ range $values }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
+      <button class="button-link">{{.Label}}</button>
+    </form>
+    {{ else }}
+    <a class="notice-action" href="{{.Path}}">{{.Label}}</a>
+    {{ end }}
+  {{ end }}
+  <form method="dialog" class="notice-dismiss"><button title="{{.g.T "nav.dismiss"}}" aria-label="{{.g.T "nav.dismiss"}}">{{ template "icon" "x" }}</button></form>
+</dialog>
+{{ end }}
+
+{{/* The layer every notice of a page is drawn in, over whatever sits
+     under it and out of the page's flow, so nothing moves when one
+     comes or goes. dict: g. */}}
+{{ define "notices" }}
+<div class="notices">
+  {{ with .g.GlobalData.Notice }}{{ template "notice" (dict "g" $.g "kind" .Kind "text" .Text "markup" .Markup "action" .Action) }}{{ end }}
+  {{/* What a page's own script has to report as failed - a passkey
+       the browser refused - it writes into this one. */}}
+  {{ template "notice" (dict "g" .g "kind" "failed" "id" "script-failed" "closed" true) }}
+  {{ if .g.GlobalData.LoggedIn }}
+  {{/* A request that never came back leaves the page as it was, and
+       says so here; only the script that knows the request failed
+       opens it, and without a script nothing can fail this way. */}}
+  {{ template "notice" (dict "g" .g "kind" "failed" "text" (.g.T "notice.noanswer") "id" "request-failed" "closed" true) }}
+  {{/* Opened by the worker's word, not the radio's: it is what knows
+       whether the page on screen came from the server or from what it
+       saved. */}}
+  {{ template "notice" (dict "g" .g "kind" "warning" "text" (.g.T "notice.offline") "slow" (.g.T "notice.slow") "id" "offline-notice" "closed" true) }}
+  {{ end }}
+</div>
 {{ end }}

@@ -155,9 +155,8 @@ type SettingsRenderData struct {
 	Subscriptions Subscriptions
 	// Kept says where this account's settings are written and what is
 	// written there.
-	Kept  KeptInfo
-	Rail  map[string][]alborz.RailRow
-	Error string
+	Kept KeptInfo
+	Rail map[string][]alborz.RailRow
 }
 
 // KeptInfo says where an account's settings live. A server with no
@@ -261,7 +260,6 @@ type ReadingRenderData struct {
 	// none, and Accounts are the ones that could hold them.
 	Anchor   string
 	Accounts []alborz.Account
-	Error    string
 	// LockMinutes is how long this browser waits before it locks, zero
 	// when it has no passkey and does not lock.
 	LockMinutes int
@@ -324,9 +322,8 @@ type SignatureRenderData struct {
 	Editing Signature
 	// Was is the name the form started with, so a rename replaces rather
 	// than duplicates; empty when adding.
-	Was   string
-	Error string
-	Rail  map[string][]alborz.RailRow
+	Was  string
+	Rail map[string][]alborz.RailRow
 }
 
 // ServersRenderData is what answers for the account: where its mail
@@ -349,7 +346,6 @@ type ServersRenderData struct {
 	// whether it keeps a password of their own, and what was refused.
 	Services        alborz.Services
 	HasHTTPPassword bool
-	Error           string
 	// Places are where the account's new calendars and address books
 	// can go, filled in by the DAV plugins with their sources and Alborz
 	// (ADR 28); the account's default is one of them.
@@ -553,10 +549,9 @@ func handleSignatureSave(ctx *alborz.Context) error {
 	editing := Signature{Name: name, Text: text}
 	render := func(message string) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "signature-edit.html", &SignatureRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")).Refused(message),
 			Editing:        editing,
 			Was:            was,
-			Error:          message,
 			Rail:           settingsRail(ctx),
 		})
 	}
@@ -677,12 +672,11 @@ func handleSettings(ctx *alborz.Context) error {
 	// Persian digits invites them back in its number fields.
 	reject := func(message string) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "settings-account.html", &SettingsRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")).Refused(message),
 			Settings:       settings,
 			Mailboxes:      mailboxes,
 			Subscriptions:  Subscriptions(settings.Subscriptions),
 			Kept:           kept,
-			Error:          message,
 			Rail:           settingsRail(ctx),
 		})
 	}
@@ -858,7 +852,7 @@ func handleServer(ctx *alborz.Context) error {
 		}
 		if err := ctx.Server.CheckServiceURL(ctx.Request().Context(), server); err != nil {
 			data.Services = named
-			data.Error = fmt.Sprintf(ctx.T(serviceRefusals[err]), server)
+			data.Refused(fmt.Sprintf(ctx.T(serviceRefusals[err]), server))
 			return ctx.Render(http.StatusUnprocessableEntity, "server.html", data)
 		}
 	}
@@ -913,7 +907,7 @@ func handleScheme(ctx *alborz.Context) error {
 func handleReadingSettings(ctx *alborz.Context) error {
 	render := func(status int, message string) error {
 		return ctx.Render(status, "settings.html", &ReadingRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.general")),
+			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.general")).Refused(message),
 			Rail:           settingsRail(ctx),
 			Theme:          ctx.Theme(),
 			Themes:         ctx.Themes(),
@@ -923,7 +917,6 @@ func handleReadingSettings(ctx *alborz.Context) error {
 			MaxPerPage:     maxMessagesPerPage,
 			Anchor:         ctx.Visit().Anchor(),
 			Accounts:       ctx.Accounts(),
-			Error:          message,
 			LockMinutes:    lockMinutes(ctx.Visit().Lock()),
 		})
 	}

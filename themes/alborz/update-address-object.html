@@ -25,7 +25,6 @@
         <h1>
           {{if .AddressObject}}{{$.T "contacts.edittitle"}}{{else}}{{$.T "contacts.createtitle"}}{{end}}
         </h1>
-        {{ if .Error }}<div class="alert" role="alert">{{.Error}}</div>{{ end }}
 
         {{if not .AddressObject}}
         {{ $cur := .GlobalData.Username }}{{ with .GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{with .AddressBook.Account}}{{$cur = .}}{{end}}

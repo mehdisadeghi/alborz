@@ -235,7 +235,6 @@ type RulesRenderData struct {
 	Folders []string
 	Fields  []string
 	Matches []string
-	Error   string
 	Rail    map[string][]alborz.RailRow
 }
 
@@ -362,7 +361,8 @@ func handleRuleSave(ctx *alborz.Context) error {
 		if data.Folders, derr = alborzbase.MailboxNames(ctx); derr != nil {
 			return derr
 		}
-		data.Editing, data.Index, data.Error = r, index, err.Error()
+		data.Editing, data.Index = r, index
+		data.Refused(err.Error())
 		return ctx.Render(http.StatusUnprocessableEntity, "rule-edit.html", data)
 	}
 	made := -1

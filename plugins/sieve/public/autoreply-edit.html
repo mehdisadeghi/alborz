@@ -13,7 +13,6 @@
       <form method="post" action="/filters/autoreply{{$aq}}">
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" ($.T "filters.autoreply") "path" "/filters/autoreply") }}
         <h1>{{ if ge .Index 0 }}{{$.T "filters.replyedit"}}{{ else }}{{$.T "filters.replynew"}}{{ end }}</h1>
-        {{ with .Error }}<div class="alert" role="alert">{{.}}</div>{{ end }}
         <input type="hidden" name="loaded" value="{{.Loaded}}">
         {{ if ge .Index 0 }}<input type="hidden" name="index" value="{{.Index}}">{{ end }}
 

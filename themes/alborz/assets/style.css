@@ -724,37 +724,100 @@ header a.active {
   text-decoration: none;
 }
 
-/* One bar for every outcome, coloured by how it went: the text, then
-   what follows from it, then the way to clear it at the far edge. */
-header .notice {
+/* The layer every notice is drawn in (ADR 41): out of the page's flow,
+   so nothing moves when a notice comes or goes. Fixed to the window
+   rather than the document, because a reader who has scrolled down a
+   list is exactly the one who is told mail arrived, and a bar pinned to
+   the top of the page says it where they cannot see it. The layer lets
+   the pointer through to the toolbar beside a notice; the notice itself
+   takes it. */
+.notices {
+  position: fixed;
+  inset-block-start: var(--space-2);
+  inset-inline: 0;
+  z-index: 13;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  pointer-events: none;
+}
+
+/* Under the nav while the nav is there: the bar starts below it and
+   stays where it started as the page scrolls under it. */
+header .notices {
+  inset-block-start: calc(var(--toolbar-height) + var(--space-2));
+}
+
+/* One notice for every outcome, coloured by how it went: the text,
+   then what follows from it, then the cross, one gap apart. Boxed like
+   a menu, since it floats over the page as a menu does. */
+.notice {
   position: relative;
+  inset: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  padding: var(--space-2) calc(var(--space-2) + 1.5rem);
+  max-width: min(100%, 40rem);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
   color: var(--notice-fg);
   background-color: var(--notice-bg);
   border: 1px solid var(--notice-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  pointer-events: auto;
+  animation: notice-in 120ms ease-out;
+  transition: opacity 120ms ease-in, transform 120ms ease-in, display 120ms allow-discrete;
 }
 
-header .notice-warning {
+/* A closed notice is gone: the cross closes it, and a script opens and
+   closes the ones it owns. The author rule is needed because the
+   one above outranks the browser's own for a closed dialog. */
+dialog.notice:not([open]) {
+  display: none;
+  opacity: 0;
+  transform: translateY(-0.25rem);
+}
+
+/* A done notice leaves by itself after six seconds, time to read one
+   clause and reach its Undo; resting on it, focusing into it or
+   pressing it holds it. A warning or a failure stays (ADR 41). */
+.notice-done {
+  animation: notice-in 120ms ease-out, notice-out 120ms ease-in 6s forwards;
+}
+
+.notice-done:is(:hover, :focus-within, :active) {
+  animation-play-state: paused;
+}
+
+@keyframes notice-in {
+  from { opacity: 0; transform: translateY(-0.25rem); }
+}
+
+@keyframes notice-out {
+  to { opacity: 0; transform: translateY(-0.25rem); visibility: hidden; }
+}
+
+.notice-warning {
   color: var(--warning-fg);
   background-color: var(--warning-bg);
   border-color: var(--warning-border);
 }
 
-header .notice-failed {
+.notice-failed {
   color: var(--alert-fg);
   background-color: var(--alert-bg);
   border-color: var(--alert-border);
 }
 
-header .notice-action { margin: 0; }
-header .notice-action,
-header .notice-action .button-link,
-header .notice-dismiss { color: inherit; }
-header .notice-action .button-link {
+.notice-action { margin: 0; }
+.notice-action,
+.notice-action .button-link,
+.notice-dismiss button { color: inherit; }
+.notice-action .button-link {
   padding: 0;
   font-weight: 600;
   text-decoration: underline;
@@ -791,13 +854,17 @@ a.notice-name {
   white-space: normal;
 }
 
-/* The cross holds the edge without taking part in the centring, so
-   the text sits where it always did. */
-header .notice-dismiss {
-  position: absolute;
-  inset-inline-end: var(--space-2);
+.notice-dismiss {
   display: inline-flex;
+  margin: 0;
   line-height: 0;
+}
+
+.notice-dismiss button {
+  padding: 0;
+  line-height: 0;
+  background: none;
+  border: 0;
 }
 
 /* A request in flight, as one line across the top of the page. It

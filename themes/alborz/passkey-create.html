@@ -18,8 +18,6 @@
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "passkeys.title") "path" "/settings/passkeys") }}
         <h1>{{$.T "passkeys.new"}}</h1>
 
-        <div class="alert" role="alert" id="passkey-error"{{ if not .Error }} hidden{{ end }}>{{.Error}}</div>
-
         {{ template "field" (dict "label" ($.T "passkeys.name") "name" "name" "dir" "auto" "autofocus" true "hint" ($.T "passkeys.namehint")) }}
         <p class="hint">{{$.T "passkeys.nosaved"}}</p>
 

@@ -59,7 +59,6 @@ type UpdateAddressObjectRenderData struct {
 	AddressObject *carddav.AddressObject // nil if creating a new contact
 	Card          vcard.Card
 	Name          string
-	Error         string
 	Birthday      string
 	// Photo is the card's picture as it stands, so the form can show
 	// what it is about to replace.
@@ -340,7 +339,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "update-address-object.html", &UpdateAddressObjectRenderData{
 				Rail:           rail,
-				BaseRenderData: *alborz.NewBaseRenderData(ctx),
+				BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(message),
 				Groups:         groups,
 				AddressBook:    currentAddressBook,
 				AddressObject:  ao,
@@ -348,7 +347,6 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 				Name:           fn,
 				Birthday:       ctx.FormValue("bday"),
 				Photo:          card.PreferredValue(vcard.FieldPhoto),
-				Error:          message,
 			})
 		}
 		if strings.TrimSpace(fn) == "" {

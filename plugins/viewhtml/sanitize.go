@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	alborzbase "git.mehdix.org/alborz/plugins/base"
@@ -129,6 +130,25 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 	}
 
 	switch strings.ToLower(u.Scheme) {
+	// An image among the pieces of a split HTML body, by path; see
+	// HTMLPieces. Like a Content-ID it reaches only this message's images.
+	case "part":
+		if san.msg == nil {
+			return "about:blank"
+		}
+		var path []int
+		for _, s := range strings.Split(u.Opaque, ".") {
+			n, err := strconv.Atoi(s)
+			if err != nil {
+				return "about:blank"
+			}
+			path = append(path, n)
+		}
+		part := san.msg.PartByPath(path)
+		if part == nil || !strings.HasPrefix(part.MIMEType, "image/") {
+			return "about:blank"
+		}
+		return part.URL(true).String()
 	// TODO: mid support?
 	case "cid":
 		if san.msg == nil {

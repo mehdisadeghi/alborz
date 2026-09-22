@@ -16,7 +16,7 @@ import (
 // TODO: dim quotes and "On xxx, xxx wrote:" lines
 
 const (
-	tplStr     = `<pre dir="auto">{{range .}}{{.}}{{end}}</pre>`
+	tplStr     = `<pre dir="auto">{{range .Tokens}}{{.}}{{end}}{{range .Images}}<img class="shown-image" src="{{.Src}}" alt="{{.Alt}}">{{end}}</pre>`
 	linkTplStr = `<a href="{{.Href}}" target="_blank" rel="nofollow noopener">{{.Text}}</a>`
 )
 
@@ -25,6 +25,16 @@ var tpl *template.Template
 func init() {
 	tpl = template.Must(template.New("view-text.html").Parse(tplStr))
 	template.Must(tpl.New("view-text-link.html").Parse(linkTplStr))
+}
+
+type textRenderData struct {
+	Tokens []interface{}
+	Images []imageRenderData
+}
+
+type imageRenderData struct {
+	Src string
+	Alt string
 }
 
 type linkRenderData struct {
@@ -55,7 +65,7 @@ func executeTemplate(name string, data interface{}) (template.HTML, error) {
 
 type viewer struct{}
 
-func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, part *message.Entity) (interface{}, error) {
+func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, path []int, part *message.Entity) (interface{}, error) {
 	mimeType, _, err := part.Header.ContentType()
 	if err != nil {
 		return nil, err
@@ -140,7 +150,11 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		return nil, fmt.Errorf("failed to read part body: %v", err)
 	}
 
-	return executeTemplate("view-text.html", tokens)
+	data := textRenderData{Tokens: tokens}
+	for _, image := range msg.ShownImages(path) {
+		data.Images = append(data.Images, imageRenderData{Src: image.URL(true).String(), Alt: image.Filename})
+	}
+	return executeTemplate("view-text.html", data)
 }
 
 func init() {

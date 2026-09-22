@@ -43,7 +43,7 @@ type frameData struct {
 
 type viewer struct{}
 
-func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, part *message.Entity) (interface{}, error) {
+func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, _ []int, part *message.Entity) (interface{}, error) {
 	allowRemoteResources := ctx.QueryParam("allow-remote-resources") == "1"
 
 	mimeType, _, err := part.Header.ContentType()

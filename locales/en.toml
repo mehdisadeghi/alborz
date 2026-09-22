@@ -926,7 +926,7 @@ one = "%d more"
 other = "%d more"
 
 ["notice.emptied"]
-one = "%d message deleted."
+one = "One message deleted."
 other = "%d messages deleted."
 
 ["folder.movecount"]
@@ -955,7 +955,7 @@ other = "The servers for %[2]s did not answer."
 
 
 ["notice.deleted"]
-one = "%d message deleted."
+one = "One message deleted."
 other = "%d messages deleted."
 
 ["message.forwardcount"]
@@ -971,23 +971,23 @@ one = "%d attachment"
 other = "%d attachments"
 
 ["import.ics"]
-one = "%d entry added to the calendar."
+one = "One entry added to the calendar."
 other = "%d entries added to the calendar."
 
 ["import.vcf"]
-one = "%d contact added."
+one = "One contact added."
 other = "%d contacts added."
 
 ["notice.flagged"]
-one = "%d message updated."
+one = "One message updated."
 other = "%d messages updated."
 
 ["notice.tasksopen"]
-one = "%d task reopened."
+one = "One task reopened."
 other = "%d tasks reopened."
 
 ["notice.tasksdone"]
-one = "%d task marked done."
+one = "One task marked done."
 other = "%d tasks marked done."
 
 ["notice.deleteall"]
@@ -1023,7 +1023,7 @@ one = "One message, %[2]d unread"
 other = "%d messages, %d unread"
 
 ["notice.changed"]
-one = "%d message changed."
+one = "One message changed."
 other = "%d messages changed."
 
 ["notice.movedto"]
@@ -1031,7 +1031,7 @@ one = "The message moved to %[2]s."
 other = "%d messages moved to %s."
 
 ["select.page"]
-one = "%d message on this page selected."
+one = "One message on this page selected."
 other = "All %d on this page selected."
 
 ["select.everything"]
@@ -1039,7 +1039,7 @@ one = "Select %d"
 other = "Select all %d"
 
 ["select.whole"]
-one = "%d selected."
+one = "One selected."
 other = "All %d selected."
 
 ["notice.loginpaused"]

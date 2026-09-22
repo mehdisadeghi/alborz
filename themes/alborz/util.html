@@ -655,7 +655,7 @@
     {{/* The steps a narrowing row takes are numbered across every
          toolbar; see ADR 8. The secondary month is the first thing to
          go, the short title comes late, and New never leaves. */}}
-    {{ with .title }}<h1 title="{{.}}"{{ if $.shorttitle }} data-priority="20" data-yield="word"{{ end }}>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}</h1>{{ end }}
+    {{ with .title }}<h1 title="{{.}}"{{ if $.shorttitle }} data-priority="20" data-yield="word"{{ end }}>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>{{ end }}
     {{ if and .title .newhref }}<span class="toolbar-rule" aria-hidden="true"></span>{{ end }}
     {{/* back is the list a new object returns to, filter and order
          kept: the create forms post to their own address, so what the

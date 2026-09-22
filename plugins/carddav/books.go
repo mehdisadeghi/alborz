@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -78,7 +77,7 @@ func (p *plugin) collectionPage() dav.Page {
 // listing every account's address books.
 func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 	rail := dav.Rail{Path: "/contacts", Field: "book", ItemClass: "addressbook-item", Action: "/contacts", EditHref: "/address-books/",
-		NewHref: "/address-books/create?next=" + url.QueryEscape(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
+		NewHref: "/address-books/create?next=" + alborz.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
 		ImportHref: "/contacts/import", ImportLabel: ctx.T("contacts.import")}
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
@@ -159,7 +158,7 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 	}
 	to := "/contacts"
 	if acct != ctx.Session.Username() {
-		to += "?account=" + alborz.AddressParam(acct)
+		to += "?account=" + alborz.QueryValue(acct)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }

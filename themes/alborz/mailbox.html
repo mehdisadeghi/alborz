@@ -59,8 +59,8 @@
            search asked for by name; a folder's search box looks in that
            folder, and the same question of every folder is one link
            away. */}}
-      {{ $whole := "" }}{{ with .TextQuery }}{{ $whole = printf "?query=%s%s%s" (. | urlquery) (account "&" $.GlobalData.URLAccount) (or (and $.GlobalData.Unified "&all=1") "") }}{{ end }}
-      {{ $everywhere := "" }}{{ with .Everywhere }}{{ $everywhere = localhref (printf "/search?query=%s%s" (. | urlquery) (account "&" $.GlobalData.URLAccount)) }}{{ end }}
+      {{ $whole := "" }}{{ with .TextQuery }}{{ $whole = printf "?query=%s%s%s" (. | qv) (account "&" $.GlobalData.URLAccount) (or (and $.GlobalData.Unified "&all=1") "") }}{{ end }}
+      {{ $everywhere := "" }}{{ with .Everywhere }}{{ $everywhere = localhref (printf "/search?query=%s%s" (. | qv) (account "&" $.GlobalData.URLAccount)) }}{{ end }}
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove") "offers" (tuple (tuple $whole ($.T "mailbox.searchtext")) (tuple $everywhere ($.T "search.allfolders")))) }}
       {{/* Files dropped on the list go into the folder the list shows.
            The merged view names no one folder, so it names no target
@@ -75,8 +75,8 @@
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hreset := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-          {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | urlquery) }}{{ end }}{{ with $.ListView }}{{ $hbase = printf "?view=%s" . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | addr) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | addr) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
-          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | urlquery) }}{{ end }}{{ with $.ListView }}{{ $hparams = printf "%s&view=%s" $hparams . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | addr) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
+          {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | qv) }}{{ end }}{{ with $.ListView }}{{ $hbase = printf "?view=%s" . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | qv) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | qv) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
+          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | qv) }}{{ end }}{{ with $.ListView }}{{ $hparams = printf "%s&view=%s" $hparams . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | qv) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
           <div class="list-row" role="row">
           <div class="list-header list-checkbox" role="columnheader"></div>
           {{ $s := dict "Key" $hsort "Dir" .SortDir "Explicit" $hexp "DirExplicit" $hreset "Params" $hparams "Reset" $hbase }}
@@ -94,7 +94,7 @@
           {{/* A link that starts a new query keeps the scope the page is
                read under: a sender clicked in the merged view searches
                every account, not whichever one the view is anchored to. */}}
-          {{ $scope := "" }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | addr) }}{{ end }}
+          {{ $scope := "" }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | qv) }}{{ end }}
           {{range .Messages}}
           {{/* The account a row's links keep: the page's, or in a merged
                list the row's own. */}}
@@ -138,7 +138,7 @@
             {{ $people := .Envelope.From }}{{ $field := "from" }}{{ if $.Outgoing }}{{ $people = .Envelope.To }}{{ $field = "to" }}{{ end }}
             {{ if not $people }}{{$.T "mailbox.nosender"}}{{ end }}
             {{ range $people }}
-            <a dir="auto"{{with $.GlobalData.ContentLang .Name}} lang="{{.}}"{{end}} href="{{ localhref (printf "?query=%s:%s%s" $field (.Addr | addr) $scope) }}">
+            <a dir="auto"{{with $.GlobalData.ContentLang .Name}} lang="{{.}}"{{end}} href="{{ localhref (printf "?query=%s:%s%s" $field (.Addr | qv) $scope) }}">
             {{ if .Name }}
               {{.Name}}
             {{ else }}
@@ -154,13 +154,13 @@
             {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
             {{/* A row found by a search across folders says which one it
                  is in, and narrows the results to it. */}}
-            {{ if $.Spanning }}<a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "/mailbox/%s?query=%s%s" (.Mailbox | pathescape) ($.FolderQuery | urlquery) (account "&" .Account)) }}">{{.Mailbox}}</a>{{ end }}
+            {{ if $.Spanning }}<a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "/mailbox/%s?query=%s%s" (.Mailbox | pathescape) ($.FolderQuery | qv) (account "&" .Account)) }}">{{.Mailbox}}</a>{{ end }}
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
             {{if $.Merged}}
             {{$mlink := printf "%v" .URL}}{{$msep := "?"}}
-            {{with .Account}}{{$mlink = printf "%s%saccount=%s" $mlink $msep (. | addr)}}{{$msep = "&"}}{{end}}
-            {{if $.ListView}}{{$mlink = printf "%s%sview=%s" $mlink $msep $.ListView}}{{$msep = "&"}}{{else if $.Query}}{{$mlink = printf "%s%squery=%s" $mlink $msep ($.Query | urlquery)}}{{$msep = "&"}}{{end}}
+            {{with .Account}}{{$mlink = printf "%s%saccount=%s" $mlink $msep (. | qv)}}{{$msep = "&"}}{{end}}
+            {{if $.ListView}}{{$mlink = printf "%s%sview=%s" $mlink $msep $.ListView}}{{$msep = "&"}}{{else if $.Query}}{{$mlink = printf "%s%squery=%s" $mlink $msep ($.Query | qv)}}{{$msep = "&"}}{{end}}
             {{with $.Sort}}{{$mlink = printf "%s%ssort=%s&dir=%s" $mlink $msep . $.SortDir}}{{$msep = "&"}}{{end}}
             {{$mlink = from $mlink $.GlobalData.URL.RequestURI}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $mlink}}">
@@ -169,12 +169,12 @@
                  query grows across branches. */}}
             {{$link := ""}}{{$sep := "?"}}
             {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%v" ($open.URL false)}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
-            {{if $.ListView}}{{$link = printf "%s%sview=%s" $link $sep $.ListView}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | urlquery)}}{{$sep = "&"}}{{end}}
+            {{if $.ListView}}{{$link = printf "%s%sview=%s" $link $sep $.ListView}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | qv)}}{{$sep = "&"}}{{end}}
             {{/* The order the list is in travels with the row: what
                  Newer and Older mean on the message is what they meant
                  here. */}}
             {{with $.Sort}}{{$link = printf "%s%ssort=%s&dir=%s" $link $sep . $.SortDir}}{{$sep = "&"}}{{end}}
-            {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | addr)}}{{end}}
+            {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | qv)}}{{end}}
             {{$link = from $link $.GlobalData.URL.RequestURI}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $link}}">
             {{end}}

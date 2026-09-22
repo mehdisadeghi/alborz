@@ -1037,10 +1037,10 @@ func handleForwardSelection(ctx *alborz.Context) error {
 	}
 	q := url.Values{"uids": {strings.Join(refs, ",")}}
 	if a := ctx.URLAccount(); a != "" {
-		q.Set("account", alborz.AddressParam(a))
+		q.Set("account", alborz.QueryValue(a))
 	}
 	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/message/%v/forward?%s",
-		url.PathEscape(mboxName), q.Encode()))
+		url.PathEscape(mboxName), alborz.Query(q)))
 }
 
 // handleForwardAttached composes one message carrying several whole

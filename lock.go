@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -168,7 +167,7 @@ func isBackground(r *http.Request) bool {
 func redirectToUnlock(ctx *Context) error {
 	to := unlockPath
 	if ctx.Request().Method == http.MethodGet {
-		to += "?next=" + url.QueryEscape(ctx.Request().URL.RequestURI())
+		to += "?next=" + QueryValue(ctx.Request().URL.RequestURI())
 	}
 	return ctx.Redirect(http.StatusSeeOther, to)
 }

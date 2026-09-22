@@ -8,7 +8,7 @@
     <main id="main" tabindex="-1" class="create-update">
       {{/* A selection posts the messages it named; the whole view asks
            the server for them again under all=1. */}}
-      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/export{{ if not (or .UIDs .Everything) }}?all=1{{ with .Query }}&query={{ . | urlquery }}{{ end }}{{ with .ListView }}&view={{ . }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}{{ else }}{{ account "?" $.GlobalData.URLAccount }}{{ end }}" data-download hx-boost="false">
+      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/export{{ if not (or .UIDs .Everything) }}?all=1{{ with .Query }}&query={{ . | qv }}{{ end }}{{ with .ListView }}&view={{ . }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}{{ else }}{{ account "?" $.GlobalData.URLAccount }}{{ end }}" data-download hx-boost="false">
         {{ range .UIDs }}<input type="hidden" name="uids" value="{{.}}">{{ end }}
         {{ with .Everything }}<input type="hidden" name="everything" value="1"><input type="hidden" name="next" value="{{.}}">{{ end }}
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
@@ -25,7 +25,7 @@
           <button type="submit" class="button-primary"{{ if eq .Count 0 }} disabled{{ end }}>{{$.T "folder.exportdo"}}</button>
           {{/* Built in one piece: the escaper cannot follow a URL whose
                query grows across branches. */}}
-          {{ $back := printf "%v" .Mailbox.URL }}{{ $sep := "?" }}{{ with .Query }}{{ $back = printf "%s?query=%s" $back (. | urlquery) }}{{ $sep = "&" }}{{ else }}{{ with .ListView }}{{ $back = printf "%s?view=%s" $back . }}{{ $sep = "&" }}{{ end }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $back = printf "%s%saccount=%s" $back $sep (. | addr) }}{{ end }}
+          {{ $back := printf "%v" .Mailbox.URL }}{{ $sep := "?" }}{{ with .Query }}{{ $back = printf "%s?query=%s" $back (. | qv) }}{{ $sep = "&" }}{{ else }}{{ with .ListView }}{{ $back = printf "%s?view=%s" $back . }}{{ $sep = "&" }}{{ end }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $back = printf "%s%saccount=%s" $back $sep (. | qv) }}{{ end }}
           <a class="button-link button-quiet" href="{{ localhref $back }}">{{$.T "common.cancel"}}</a>
         </div>
       </form>

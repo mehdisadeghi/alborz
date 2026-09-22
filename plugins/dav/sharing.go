@@ -224,7 +224,7 @@ func (pg Page) offer(ctx *alborz.Context, p *Provider, collPath, account string)
 		state = "left"
 	}
 	base := pg.Base + url.PathEscape(collPath)
-	q := "?account=" + alborz.AddressParam(account)
+	q := "?account=" + alborz.QueryValue(account)
 	return &Offer{
 		Kind: pg.kindKey(c), Name: c.Name, From: c.Owner, Write: sh.Write,
 		Expires: sh.Expires, Offered: sh.Created, Answered: sh.Answered, State: state,
@@ -457,7 +457,7 @@ func (pg Page) HandleShare(p *Provider) func(*alborz.Context) error {
 func (pg Page) offerMail(ctx *alborz.Context, c *collections.Collection, sh collections.Share) (subject, text string) {
 	kind := pg.kindKey(c)
 	subject = fmt.Sprintf(ctx.T(kind+"mail"), sh.Owner, c.Name)
-	page := ctx.Origin() + pg.Base + url.PathEscape(collections.PathOf(sh.To, *c)) + "?account=" + alborz.AddressParam(sh.To)
+	page := ctx.Origin() + pg.Base + url.PathEscape(collections.PathOf(sh.To, *c)) + "?account=" + alborz.QueryValue(sh.To)
 	access := ctx.T("share.canview")
 	if sh.Write {
 		access = ctx.T("share.canedit")

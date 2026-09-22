@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"maps"
 	"math"
 	"net"
 	"net/http"
@@ -85,18 +86,30 @@ func (ctx *Context) URLAccount() string {
 	return ctx.urlAccount
 }
 
-// AddressParam writes an address into a URL query the way a reader
-// would type it. RFC 3986 allows "@" unescaped in a query, and every
-// address in alborz's links is one, so escaping it only makes the bar
-// unreadable. Everything else is escaped as usual.
-func AddressParam(address string) string {
-	return strings.ReplaceAll(url.QueryEscape(address), "%40", "@")
+// readable undoes the escapes a query value does not need: RFC 3986
+// allows ":", "@", "/", "?" and "," in a query, and addresses, paths
+// and alborz's own URLs are most of what its links carry there.
+var readable = strings.NewReplacer("%40", "@", "%2F", "/", "%3A", ":", "%3F", "?", "%2C", ",")
+
+// QueryValue writes a value into a URL query the way a reader would
+// type it, escaping only what would end or split it.
+func QueryValue(v string) string {
+	return readable.Replace(url.QueryEscape(v))
 }
 
-// AddressQuery encodes a whole query the way AddressParam encodes one
-// value: an address in it keeps its at sign, for the same reason.
-func AddressQuery(q url.Values) string {
-	return strings.ReplaceAll(q.Encode(), "%40", "@")
+// Query encodes a whole query, keys in order, each value as
+// QueryValue writes it.
+func Query(q url.Values) string {
+	var b strings.Builder
+	for _, k := range slices.Sorted(maps.Keys(q)) {
+		for _, v := range q[k] {
+			if b.Len() > 0 {
+				b.WriteByte('&')
+			}
+			b.WriteString(QueryValue(k) + "=" + QueryValue(v))
+		}
+	}
+	return b.String()
 }
 
 // AccountPath appends the request's account parameter to path, so a flow
@@ -111,7 +124,7 @@ func (ctx *Context) AccountPath(path string) string {
 	if strings.Contains(path, "?") {
 		sep = "&"
 	}
-	return path + sep + "account=" + AddressParam(ctx.urlAccount)
+	return path + sep + "account=" + QueryValue(ctx.urlAccount)
 }
 
 // NextOr returns the local page a form asked to return to, or fallback

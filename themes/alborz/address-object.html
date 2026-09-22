@@ -53,7 +53,7 @@
           {{end}}
           {{range .AddressObject.Card.Values "EMAIL"}}
           <dt>{{$.T "contacts.email"}}</dt>
-          <dd><a href="{{ localhref (printf "/compose?to=%s" (. | addr)) }}">{{ template "ltr" . }}</a></dd>
+          <dd><a href="{{ localhref (printf "/compose?to=%s" (. | qv)) }}">{{ template "ltr" . }}</a></dd>
           {{end}}
           {{range .AddressObject.Card.Values "TEL"}}
           <dt>{{$.T "contacts.phone"}}</dt>
@@ -89,14 +89,14 @@
                to a reader they are the same fact. */}}
           {{with .AddressObject.Categories}}
           <dt>{{$.T "contacts.categories"}}</dt>
-          <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="/contacts?category={{$word | urlquery}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>
+          <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="/contacts?category={{$word | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>
           {{end}}
           {{with .In}}
           <dt>{{$.T "contacts.ingroups"}}</dt>
           <dd class="contact-groups">
             {{ range . }}
             <span class="chip">
-              <a href="/contacts?group={{.UID | urlquery}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{.DisplayName}}</a>
+              <a href="/contacts?group={{.UID | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{.DisplayName}}</a>
               <form method="post" action="{{$.AddressObject.URL}}/group{{$acct}}">
                 <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
                 <button type="submit" name="leave" value="{{.UID}}" class="button-link"

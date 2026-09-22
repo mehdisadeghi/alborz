@@ -121,7 +121,7 @@
 {{ $collection := .collection }}{{ $path := .path }}
 {{ range .items }}{{ if .Only }}{{ $collection = .Name }}{{ $path = .Path }}{{ end }}{{ end }}
 {{ if eq $collection .section }}{{ $collection = "" }}{{ end }}
-{{ $url := $path }}{{ if .field }}{{ $url = printf "%s?%s=%s%s" (or .at .home) .field ($path | urlquery) (or .keep "") }}{{ end }}
+{{ $url := $path }}{{ if .field }}{{ $url = printf "%s?%s=%s%s" (or .at .home) .field ($path | qv) (or .keep "") }}{{ end }}
 {{ template "crumb" (dict "g" .g "home" .home "noroot" .noroot "heading" .heading "gloss" .gloss "steps" (tuple
    (dict "Label" $account "URL" .home "Address" true)
    (dict "Label" .section "URL" .home)
@@ -660,7 +660,7 @@
     {{/* back is the list a new object returns to, filter and order
          kept: the create forms post to their own address, so what the
          link carries is what the save reads. */}}
-    {{ with .newhref }}{{ $href := . }}{{ with $.back }}{{ $href = printf "%s%snext=%s" $href (qsep $href) (urlquery .) }}{{ end }}<a class="icon-button" href="{{ localhref $href }}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}" data-key="c">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
+    {{ with .newhref }}{{ $href := . }}{{ with $.back }}{{ $href = printf "%s%snext=%s" $href (qsep $href) (qv .) }}{{ end }}<a class="icon-button" href="{{ localhref $href }}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}" data-key="c">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
 {{ end }}
 
 {{ define "toolbar-end" }}
@@ -716,7 +716,7 @@
        the list to that calendar, in the scope the row belongs to. */}}
   {{ $cq := printf "%v" (account "?" (or .Task.Account $g.GlobalData.URLAccount)) }}
   <div class="task-list-calendar list-cell" role="cell" data-label="{{$g.T "common.calendar"}}">
-    {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}<a href="/tasks{{$cq}}{{qsep $cq}}cal={{.Calendar.Path | urlquery}}">{{.Calendar.Name}}</a>{{ template "collection-mark" (dict "g" $g "c" .Calendar) }}{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
+    {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}<a href="/tasks{{$cq}}{{qsep $cq}}cal={{.Calendar.Path | qv}}">{{.Calendar.Name}}</a>{{ template "collection-mark" (dict "g" $g "c" .Calendar) }}{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
   </div>
   {{/* Built before the tag: the escaper cannot follow an attribute that
        only some branches write. */}}
@@ -886,7 +886,7 @@
      the tick is its standing membership in the merged view. */}}
 {{ define "dav-filter-item" }}
 {{ $i := .item }}
-{{ $base := printf "%s?%s=%s" .action .field ($i.Path | urlquery) }}{{ with .keep }}{{ $base = printf "%s%s" $base . }}{{ end }}
+{{ $base := printf "%s?%s=%s" .action .field ($i.Path | qv) }}{{ with .keep }}{{ $base = printf "%s%s" $base . }}{{ end }}
 <div class="filter-row{{ if .nested }} nested{{ end }}{{ if $i.Only }} active{{ end }}">
   <a class="filter-name {{.itemclass}}" href="{{ localhref (printf "%s%s" $base (account "&" $i.Account)) }}" title="{{$i.Name}}"{{ if $i.Only }} aria-current="true"{{ end }}>
     <span>{{$i.Name}}</span>
@@ -1097,7 +1097,7 @@
 {{/* The time is this occurrence's own: a recurring event is drawn once
      per instance and the component names only the first. */}}
 {{ $when := $base.T "calendar.allday" }}{{ if not .AllDay }}{{ $when = $base.GlobalData.FormatTime .Start }}{{ end }}
-{{ $href := $obj.URL }}{{ if $obj.ReadOnly }}{{ $href = printf "%s?uid=%s" $obj.URL (.UID | urlquery) }}{{ end }}
+{{ $href := $obj.URL }}{{ if $obj.ReadOnly }}{{ $href = printf "%s?uid=%s" $obj.URL (.UID | qv) }}{{ end }}
 {{ with $obj.Account }}{{ $href = printf "%s%s" $href (account (qsep $href) .) }}{{ end }}
 {{/* The list the event was opened from rides along, so its page can
      name the events either side of it. */}}

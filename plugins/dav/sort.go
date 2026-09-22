@@ -68,8 +68,8 @@ func Sort[T any](ctx *alborz.Context, rows []T, columns []Column[T], tie func(T)
 		return s, echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
 	}
 	if kept := Keep(ctx.QueryParams(), keep...); len(kept) > 0 {
-		s.Params = "&" + alborz.AddressQuery(kept)
-		s.Reset = "?" + alborz.AddressQuery(kept)
+		s.Params = "&" + alborz.Query(kept)
+		s.Reset = "?" + alborz.Query(kept)
 	}
 	value := columns[at].Value
 	slices.SortStableFunc(rows, func(a, b T) int {

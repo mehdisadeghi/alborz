@@ -128,7 +128,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	if len(refused) > 0 {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
 			Text:   ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
-			Action: &alborz.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.AddressParam(refused[0])}})
+			Action: &alborz.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.QueryValue(refused[0])}})
 	}
 	return accounts, nil
 }

@@ -501,7 +501,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		if preferred != nil && len(preferred.Path) > 0 {
 			q := ctx.Request().URL.Query()
 			q.Set("part", preferred.PathString())
-			return ctx.Redirect(http.StatusFound, msg.URL().String()+"?"+q.Encode())
+			return ctx.Redirect(http.StatusFound, msg.URL().String()+"?"+alborz.Query(q))
 		}
 	}
 
@@ -624,7 +624,7 @@ func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) 
 	if from := writeAs(settings, trust, msg, msg.Envelope.To, msg.Envelope.Cc); from != "" {
 		q.Set("from", from)
 	}
-	u.RawQuery = alborz.AddressQuery(q)
+	u.RawQuery = alborz.Query(q)
 	return u.String()
 }
 

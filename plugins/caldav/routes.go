@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -114,7 +113,7 @@ func taskVisibility(s *Settings) (bool, []string)  { return s.TaskFilter, s.Visi
 // its list, listing every account's calendars of the kind.
 func (p *plugin) eventRail(ctx *alborz.Context) (dav.Rail, error) {
 	rail, err := p.calendarRail(ctx, supportsEvent, eventVisibility)
-	next := url.QueryEscape(ctx.Request().URL.RequestURI())
+	next := alborz.QueryValue(ctx.Request().URL.RequestURI())
 	rail.Path, rail.Action = "/calendar", "/calendar"
 	rail.NewHref, rail.NewLabel = "/calendars/create?next="+next, ctx.T("calendar.newcalendar")
 	rail.FollowHref, rail.FollowLabel = "/calendars/subscribe?next="+next, ctx.T("calendar.subscribe")
@@ -125,7 +124,7 @@ func (p *plugin) eventRail(ctx *alborz.Context) (dav.Rail, error) {
 func (p *plugin) taskRail(ctx *alborz.Context) (dav.Rail, error) {
 	rail, err := p.calendarRail(ctx, supportsTodo, taskVisibility)
 	rail.Path, rail.Action = "/tasks", "/tasks"
-	rail.NewHref, rail.NewLabel = "/calendars/create?for=tasks&next="+url.QueryEscape(ctx.Request().URL.RequestURI()), ctx.T("tasks.newlist")
+	rail.NewHref, rail.NewLabel = "/calendars/create?for=tasks&next="+alborz.QueryValue(ctx.Request().URL.RequestURI()), ctx.T("tasks.newlist")
 	rail.ImportHref, rail.ImportLabel = "/tasks/import", ctx.T("tasks.import")
 	return rail, err
 }

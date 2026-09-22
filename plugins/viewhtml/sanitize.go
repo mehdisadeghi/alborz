@@ -304,6 +304,12 @@ func (san *sanitizer) sanitizeHTML(b []byte) ([]byte, error) {
 	p.AllowElements("style")
 	p.AllowElementsContent("style")
 	p.AllowAttrs("style", "class", "id").Globally()
+	// A policy for comment boxes knows the HTML people write today.
+	// Mail is written by mailers, and they still centre a logo and a
+	// button the way they did in 1999; dropping the element left every
+	// such message ragged against the left edge. It takes no attribute
+	// and names no URL, so there is nothing in it to sanitise.
+	p.AllowElements("center")
 
 	p.AddTargetBlankToFullyQualifiedLinks(true)
 	p.RequireNoFollowOnLinks(true)

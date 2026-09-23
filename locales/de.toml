@@ -203,6 +203,7 @@
 "message.downloadall" = "Alle herunterladen"
 "message.plaintext" = "Nur Text"
 "message.html" = "HTML"
+"message.astext" = "Als Text"
 "message.raw" = "Roh-E-Mail"
 "message.cantpreview" = "Dieser Teil lässt sich nicht anzeigen."
 "message.download" = "Herunterladen"

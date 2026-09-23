@@ -23,12 +23,16 @@ import (
 	"github.com/emersion/go-message/textproto"
 	"github.com/emersion/go-smtp"
 	"github.com/labstack/echo/v4"
+	"jaytaylor.com/html2text"
 )
 
 type MessageRenderData struct {
 	IMAPBaseRenderData
-	Message        *IMAPMessage
-	Part           *IMAPPartNode
+	Message *IMAPMessage
+	Part    *IMAPPartNode
+	// AsText is the HTML part being read as words (htmlAsText), which
+	// only a message with no plain part of its own offers.
+	AsText         bool
 	View           interface{}
 	MailboxPage    int
 	Flags          map[imap.Flag]bool
@@ -233,6 +237,20 @@ func handleDownloadAttachments(ctx *alborz.Context) error {
 		ctx.Logger().Printf("attachments %q uid %v: %v", mboxName, uid, err)
 	}
 	return archive.Close()
+}
+
+// htmlAsText reads an HTML part as words, for a message whose sender
+// wrote no plain part at all. It is alborz's rendering, not something
+// the sender sent, and the tab that opens it says so; the conversion is
+// the one a reply already makes of the mail it quotes.
+func htmlAsText(part *message.Entity) (*message.Entity, error) {
+	text, err := html2text.FromReader(part.Body, html2text.Options{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the HTML as text: %v", err)
+	}
+	var header textproto.Header
+	header.Set("Content-Type", "text/plain; charset=utf-8")
+	return message.New(message.Header{Header: header}, strings.NewReader(text))
 }
 
 // joinedHTML is one document of the pieces HTMLPieces names, fetched in
@@ -623,6 +641,13 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		}
 	}
 
+	asText := ctx.QueryParam("text") == "1" && strings.EqualFold(mimeType, "text/html")
+	if asText {
+		if part, err = htmlAsText(part); err != nil {
+			return err
+		}
+	}
+
 	view, err := viewMessagePart(ctx, msg, partPath, part)
 	if err != nil {
 		view = nil
@@ -658,6 +683,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		IMAPBaseRenderData: *ibase,
 		Message:            msg,
 		Part:               msg.PartByPath(partPath),
+		AsText:             asText,
 		View:               view,
 		MailboxPage:        int(*mbox.NumMessages-msg.SeqNum) / messagesPerPage,
 		Flags:              flags,

@@ -203,6 +203,7 @@
 "message.downloadall" = "Descargar todo"
 "message.plaintext" = "Texto sin formato"
 "message.html" = "HTML"
+"message.astext" = "Como texto"
 "message.raw" = "Correo en bruto"
 "message.cantpreview" = "No se puede previsualizar esta parte."
 "message.download" = "Descargar"

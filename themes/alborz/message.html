@@ -555,10 +555,20 @@
         >{{$.T "message.plaintext"}}</a>
         {{ end }}
         {{ end }}
+        {{/* A sender who wrote HTML alone left no words to read; the
+             message is offered as text as well, converted here. */}}
+        {{ if and $html (or (not $text) (eq $text.MIMEType "text/html")) }}
+        <a
+          href="?part={{$html.PathString}}&amp;text=1{{account "&" $.GlobalData.URLAccount}}"
+          {{ if $.AsText }}
+          class="active"
+          {{ end }}
+        >{{$.T "message.astext"}}</a>
+        {{ end }}
         {{ if $html }}
         <a
           href="?part={{$html.PathString}}{{account "&" $.GlobalData.URLAccount}}"
-          {{ if eq $html.PathString .Part.PathString }}
+          {{ if and (eq $html.PathString .Part.PathString) (not $.AsText) }}
           class="active"
           {{ end }}
         >{{$.T "message.html"}}</a>

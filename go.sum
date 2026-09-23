@@ -2,6 +2,8 @@ github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/ProtonMail/go-crypto v1.1.6 h1:ZcV+Ropw6Qn0AX9brlQLAUXfqLBc7Bl+f/DmNxpLfdw=
 github.com/ProtonMail/go-crypto v1.1.6/go.mod h1:rA3QumHc/FZ8pAHreoekgiAbzpNsfQAosU5td4SnOrE=
+github.com/ProtonMail/go-crypto v1.5.0 h1:sKmuvjOgsnrtpMvZ+84MCnTJCpjxZ1qCFn076lz1yT0=
+github.com/ProtonMail/go-crypto v1.5.0/go.mod h1:/RaSu30DaKO4RY+XdV/ACcCcZkGr7AhUIduq5sjzzCo=
 github.com/aymerick/douceur v0.2.0 h1:Mv+mAeH1Q+n9Fr+oyamOlAkUNPWPlA8PPGR0QAaYuPk=
 github.com/aymerick/douceur v0.2.0/go.mod h1:wlT5vV2O3h55X9m7iVYN0TBM0NH/MmbLnd30/FjWUq4=
 github.com/clipperhouse/stringish v0.1.1 h1:+NSqMOr3GR6k1FdRhhnXrLfztGzuG+VuFDfatpWHKCs=
@@ -10,6 +12,8 @@ github.com/clipperhouse/uax29/v2 v2.3.0 h1:SNdx9DVUqMoBuBoW3iLOj4FQv3dN5mDtuqwuh
 github.com/clipperhouse/uax29/v2 v2.3.0/go.mod h1:Wn1g7MK6OoeDT0vL+Q0SQLDz/KpfsVRgg6W7ihQeh4g=
 github.com/cloudflare/circl v1.3.7 h1:qlCDlTPz2n9fu58M0Nh1J/JzcFpfgkFHHX3O35r5vcU=
 github.com/cloudflare/circl v1.3.7/go.mod h1:sRTcRWXGLrKw6yIGJ+l7amYJFfAXbZG0kBSc8r4zxgA=
+github.com/cloudflare/circl v1.6.3 h1:9GPOhQGF9MCYUeXyMYlqTR6a5gTrgR/fBLXvUgtVcg8=
+github.com/cloudflare/circl v1.6.3/go.mod h1:2eXP6Qfat4O/Yhh8BznvKnJ+uzEoTQ6jVKJRn81BiS4=
 github.com/dromara/carbon/v2 v2.6.17 h1:QL1LVcp5A/NQtIPbc1vrL9qIXxPNWnaDOBaFlmP1iDg=
 github.com/dromara/carbon/v2 v2.6.17/go.mod h1:NGo3reeV5vhWCYWcSqbJRZm46MEwyfYI5EJRdVFoLJo=
 github.com/emersion/go-message v0.18.2 h1:rl55SQdjd9oJcIoQNhubD2Acs1E6IzlZISRTK7x/Lpg=
@@ -22,10 +26,14 @@ github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611 h1:JwYtKJ/DVEoIA5
 github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611/go.mod h1:zHMNeYgqrTpKyjawjitDg0Osd1P/FmeA0SZLYK3RfLQ=
 github.com/fxamacker/cbor/v2 v2.9.3 h1:oQBnFATpNdY8gJHTndDDv5Xl4QqNaz51G5LLEPhng3Q=
 github.com/fxamacker/cbor/v2 v2.9.3/go.mod h1:vM4b+DJCtHn+zz7h3FFp/hDAI9WNWCsZj23V5ytsSxQ=
+github.com/fxamacker/cbor/v2 v2.9.4 h1:xwjVlxEMR3S605oUlgBjKLTTeGFciYPGYCtF/35LKGo=
+github.com/fxamacker/cbor/v2 v2.9.4/go.mod h1:vM4b+DJCtHn+zz7h3FFp/hDAI9WNWCsZj23V5ytsSxQ=
 github.com/go-viper/mapstructure/v2 v2.5.0 h1:vM5IJoUAy3d7zRSVtIwQgBj7BiWtMPfmPEgAXnvj1Ro=
 github.com/go-viper/mapstructure/v2 v2.5.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
 github.com/go-webauthn/webauthn v0.18.1 h1:KaQw6M+ODLvxHwddyeo6zFhhmicfLup/BClhigB6A+0=
 github.com/go-webauthn/webauthn v0.18.1/go.mod h1:s4rZTQnKHWxIh6G3yEGqlxvtiLceA1jigll8FpqSgQ8=
+github.com/go-webauthn/webauthn v0.18.2 h1:0BeftmEHU7i3Dv0VFwBtidy/ba37Vcdjvqst9EYu8Sk=
+github.com/go-webauthn/webauthn v0.18.2/go.mod h1:hEXaOuLxvZ3zG9miZe3ehlyeVso9AtklXG+kTn36k+A=
 github.com/go-webauthn/x v0.3.1 h1:1ff37z3XfmTTomkhlURgGizLIDyOvPgTt2t9nlzKLRo=
 github.com/go-webauthn/x v0.3.1/go.mod h1:ZInxAynYXfBPvvm5gzKZ7geBlL23K71xASMgohHl/Rg=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=

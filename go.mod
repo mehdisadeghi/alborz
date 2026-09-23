@@ -4,7 +4,7 @@ go 1.27.1
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/ProtonMail/go-crypto v1.1.6
+	github.com/ProtonMail/go-crypto v1.5.0
 	github.com/aymerick/douceur v0.2.0
 	github.com/dromara/carbon/v2 v2.6.17
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
@@ -17,7 +17,7 @@ require (
 	github.com/emersion/go-vcard v0.1.0
 	github.com/emersion/go-webdav v0.7.0
 	github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611
-	github.com/go-webauthn/webauthn v0.18.1
+	github.com/go-webauthn/webauthn v0.18.2
 	github.com/labstack/echo/v4 v4.15.4
 	github.com/labstack/gommon v0.5.0
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -36,8 +36,8 @@ require (
 require (
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
-	github.com/cloudflare/circl v1.3.7 // indirect
-	github.com/fxamacker/cbor/v2 v2.9.3 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.4 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/go-webauthn/x v0.3.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect

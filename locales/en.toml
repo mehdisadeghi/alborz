@@ -206,6 +206,7 @@
 "message.downloadall" = "Download all"
 "message.plaintext" = "Plain text"
 "message.html" = "HTML"
+"message.astext" = "As text"
 "message.raw" = "Raw email"
 "message.cantpreview" = "Can't preview this message part."
 "message.download" = "Download"

@@ -203,6 +203,7 @@
 "message.downloadall" = "دریافت همه"
 "message.plaintext" = "متن ساده"
 "message.html" = "HTML"
+"message.astext" = "به صورت متن"
 "message.raw" = "نامهٔ خام"
 "message.cantpreview" = "پیش‌نمایش این بخش ممکن نیست."
 "message.download" = "دریافت"

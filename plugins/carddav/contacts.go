@@ -304,16 +304,8 @@ func searchFilter(ctx *alborz.Context, list ContactList) []alborz.Filter {
 	if f, ok := ctx.FilterOn("category", ctx.T("filter.category")); ok {
 		out = append(out, f)
 	}
-	if f, ok := ctx.FilterOn("book", ctx.T("contacts.book")); ok {
-		// The URL names a book by path; the chip names it the way the
-		// reader does.
-		for _, ab := range list.Books {
-			if ab.Path == dav.CanonicalCollectionPath(f.Value) {
-				f.Value = ab.Name
-			}
-		}
-		out = append(out, f)
-	}
+	// The book the page is in is a place, not a narrowing of one: the
+	// rail marks it and the crumb names it, as a mail folder is named.
 	if f, ok := ctx.FilterOn("group", ctx.T("filter.group")); ok {
 		// The URL names a group by UID; the chip names it the way the
 		// reader does.

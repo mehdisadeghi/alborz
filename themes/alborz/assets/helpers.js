@@ -602,6 +602,8 @@ document.addEventListener("htmx:beforeSwap", ev => {
 // boosted navigation replaces the body, and a handler holding the first
 // page's notice would be pointing at a node no longer in the document -
 // which is exactly a failure that shows nothing.
+// The header a page puts on what it asks for by itself (lock.go).
+const unasked = "Alborz-Unasked";
 const failedNotice = () => document.getElementById("request-failed");
 // Offline already says the server did not answer; the two are one
 // notice, not two stacked.
@@ -610,7 +612,15 @@ const offlineShown = () => {
 	return offline !== null && offline.open;
 };
 for (const event of ["htmx:sendError", "htmx:timeout", "htmx:responseError"]) {
-	document.addEventListener(event, () => {
+	document.addEventListener(event, ev => {
+		// What the page asked for by itself - the counts after mail
+		// arrived, a list renewing under nobody's hands - is not a click
+		// that did nothing, and its failure is not news. Saying so put a
+		// failure on the screen of a reader who had asked for nothing.
+		if (ev.detail && ev.detail.requestConfig &&
+			ev.detail.requestConfig.headers[unasked]) {
+			return;
+		}
 		const notice = failedNotice();
 		if (notice && !offlineShown()) {
 			notice.show();
@@ -686,7 +696,6 @@ document.addEventListener("htmx:afterSwap", ev => {
 // nothing they had.
 // What the page asks for by itself says so: mail arriving is not the
 // reader being here, and would otherwise hold the lock off for ever.
-const unasked = "Alborz-Unasked";
 
 const rail = document.querySelector("aside");
 if (rail && window.EventSource) {

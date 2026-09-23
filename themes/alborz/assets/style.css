@@ -2311,14 +2311,14 @@ main.message pre {
    which edge a row clusters to is a property of the page, not the row. */
 :root:dir(rtl) .list .list-summary,
 :root:dir(rtl) .message-list-subject a,
-:root:dir(rtl) .message-list-sender a:not(.sender-tag),
+:root:dir(rtl) .message-list-sender a,
 :root:dir(rtl) .contact-list-name a {
   text-align: right;
 }
 
 :root:dir(ltr) .list .list-summary,
 :root:dir(ltr) .message-list-subject a,
-:root:dir(ltr) .message-list-sender a:not(.sender-tag),
+:root:dir(ltr) .message-list-sender a,
 :root:dir(ltr) .contact-list-name a {
   text-align: left;
 }
@@ -3417,7 +3417,7 @@ main.calendar .actions {
 /* A cut word is a defect; a cut sentence ending in an ellipsis is a
    layout. The cells are flex containers, where text-overflow never
    reaches the text, so the ellipsis rides the item that holds it. */
-.message-list-sender a:not(.sender-tag),
+.message-list-sender a,
 .message-list-subject a,
 .contact-list-name a,
 .contact-list-book a,
@@ -4505,15 +4505,6 @@ button:active,
 /* What the reader's own folders say about the sender, under the address
    it is about, where the list's tag leads. A fact, in the ink facts
    take; a sender already in Junk is the one worth a colour. */
-.sender-fact {
-  margin: var(--space-1) 0 0;
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-}
-
-.sender-fact-junked {
-  color: var(--warning-fg);
-}
 
 /* Grouped lists (tasks, calendar agenda, filters) */
 .list {
@@ -5551,20 +5542,6 @@ h1.no-word .title-short {
   main.calendar .events .overflow { font-size: 0.7rem; }
 }
 
-/* A row earns a tint only for a warning sign; a warning card on the
-   message page is the list card's shape in the warning's colour. */
-.list-row.row-alarm .list-cell {
-  background: var(--alert-bg);
-}
-
-.list-row.row-caution .list-cell {
-  background: var(--warn-bg);
-}
-
-.list-row.row-alarm .list-cell a,
-.list-row.row-caution .list-cell a {
-  color: var(--fg);
-}
 
 /* The cell pads the card the way the header cells pad their words,
    so the box sits inside the same edges as the lines above it. */
@@ -5603,43 +5580,7 @@ main.message td.warning-cell {
   color: var(--alert-fg);
 }
 
-/* The sender's tag: a chip after the name, in the attachment chips'
-   box, quiet unless it says the sender was junked before. */
-.sender-tag {
-  display: inline-block;
-  flex: 0 0 auto;
-  align-self: center;
-  margin-inline-start: 0.35rem;
-  font-weight: 400;
-  padding: 0 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  font-size: var(--text-xs);
-  color: var(--fg-muted);
-  text-decoration: none;
-  white-space: nowrap;
-}
 
-/* The sender cell is the tag's container: where the name has no
-   room, the tag goes before the name does. */
-.message-list-sender {
-  container-type: inline-size;
-}
-
-@container (width < 16rem) {
-  .sender-tag { display: none; }
-}
-
-.sender-tag.sender-junked {
-  color: var(--alert-fg);
-  border-color: var(--alert-fg);
-}
-
-/* A tinted row keeps its links legible on the tint. */
-.list-row.row-alarm .list-cell a,
-.list-row.row-caution .list-cell a {
-  color: var(--fg);
-}
 
 
 

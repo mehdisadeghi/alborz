@@ -135,11 +135,6 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	// Junk is one colour already; a tint there says nothing. The
-	// message page keeps its warning card.
-	if role != "Junk" {
-		RowMarks(ctx, TrustedAuthServ(ctx, settings), merged.msgs)
-	}
 	title := ctx.T("aside." + strings.ToLower(role))
 	if spec.view != "" {
 		title = viewTitle(ctx, spec.view)
@@ -223,7 +218,6 @@ func gather(ctx *alborz.Context, sessions []*alborz.Session, spec listingSpec, r
 		if errs[i] = err; err != nil || e == nil {
 			return nil
 		}
-		Relate(s, e.msgs)
 		return e
 	}
 	entries := make([]*listingEntry, len(sessions))
@@ -410,10 +404,6 @@ func handleGetMailbox(ctx *alborz.Context) error {
 		return err
 	}
 	sb, msgs := railFor(ctx.Session, mboxName, e.sb), e.msgs
-	Relate(ctx.Session, msgs)
-	if folderRole(sb.mailboxes, mboxName) != "junk" {
-		RowMarks(ctx, TrustedAuthServ(ctx, settings), msgs)
-	}
 	// The page's bodies are fetched behind it, so the next click, on
 	// any of its rows, asks the server nothing.
 	if cacheable {

@@ -126,13 +126,6 @@ func handleSearch(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	// Junk is one colour already, here as on its own list.
-	trusted := TrustedAuthServ(ctx, settings)
-	for i := range merged.msgs {
-		if !junk[rowRef{account: merged.msgs[i].Account, mailbox: merged.msgs[i].Mailbox}] {
-			RowMarks(ctx, trusted, merged.msgs[i:i+1])
-		}
-	}
 	msgs := cutPage(merged.msgs, ask)
 
 	track := 0

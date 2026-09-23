@@ -55,28 +55,17 @@ func (t Indicator) Text(g *alborz.GlobalRenderData) string { return g.Tf(t.Key, 
 // Evidence is what the checks read. Relation is known only on the
 // message page, where the folders were asked; the list has the header.
 type Evidence struct {
-	Header   textproto.Header
-	Trusted  string // the authserv-id the reader confirmed
-	Auth     *AuthResults
-	Subject  string
-	From     string // the author's address
-	Relation *Relation
+	Header  textproto.Header
+	Trusted string // the authserv-id the reader confirmed
+	Auth    *AuthResults
+	Subject string
+	From    string // the author's address
 	// Named is set when the author's name names a domain the reader
 	// gets mail from and the author is not at it; see senderBook.named.
 	Named *NamedDomain
 	// MoneyWords are the page language's words for money and access,
 	// from the locale, split on commas.
 	MoneyWords []string
-}
-
-// Relation is what the reader's own folders say about the sender.
-type Relation struct {
-	WrittenTo bool // the address appears in the Sent folder
-	Junked    bool // mail from the address sits in the Junk folder
-	// Seen counts the message's author among the inbox's recent
-	// authors, this message included: a correspondent who writes often
-	// is nothing to remark on, however one-sided the correspondence.
-	Seen int
 }
 
 // NamedDomain is a name borrowed: the word of the author's name, the
@@ -88,7 +77,7 @@ type NamedDomain struct {
 
 type check func(e *Evidence) []Indicator
 
-var checks = []check{scannerScore, twoScanners, failedAuthentication, weakAuthentication, senderRelation, namedElsewhere, moneySubject}
+var checks = []check{scannerScore, twoScanners, failedAuthentication, weakAuthentication, namedElsewhere, moneySubject}
 
 // Indicators runs every check over the evidence, alarms first. The
 // one combination that earns a colour on facts that are each plain
@@ -103,7 +92,7 @@ func Indicators(e *Evidence) []Indicator {
 	if unvouchedRequest(e) {
 		for i := range out {
 			switch out[i].Key {
-			case "indicator.spfonly", "indicator.namedelsewhere", "indicator.firstcontact", "indicator.moneysubject":
+			case "indicator.spfonly", "indicator.namedelsewhere", "indicator.moneysubject":
 				out[i].Grade = Caution
 			}
 		}
@@ -276,27 +265,6 @@ func weakAuthentication(e *Evidence) []Indicator {
 	return []Indicator{{Key: "indicator.spfonly", Args: []any{r.SPF, r.DKIM, r.DMARC}}}
 }
 
-func senderRelation(e *Evidence) []Indicator {
-	rel := e.Relation
-	if rel == nil || e.From == "" {
-		return nil
-	}
-	switch {
-	case rel.Junked:
-		return []Indicator{{Key: "indicator.junkedbefore", Grade: Caution}}
-	case rel.WrittenTo:
-		return []Indicator{{Key: "indicator.writtento"}}
-	case rel.Seen > 1:
-		// Somebody who has written before, whether or not they were
-		// ever answered: nothing to say about them.
-		return nil
-	}
-	// A sender nothing is known of is a fact, not a colour: most mail
-	// worth reading once came from a stranger. What was looked at is
-	// said, since neither folder is read past its recent messages.
-	return []Indicator{{Key: "indicator.firstcontact"}}
-}
-
 // unvouchedRequest says whether the combination holds: somebody the
 // reader never wrote to asks about money or access, and nothing vouches
 // for who they say they are - either no domain signed for them, or one
@@ -304,7 +272,7 @@ func senderRelation(e *Evidence) []Indicator {
 // vouches for a domain, not for the name written in front of it: a
 // hijacked domain passes SPF, DKIM and DMARC for whatever it sends.
 func unvouchedRequest(e *Evidence) bool {
-	return len(moneySubject(e)) > 0 && e.Relation != nil && !e.Relation.WrittenTo &&
+	return len(moneySubject(e)) > 0 &&
 		(len(weakAuthentication(e)) > 0 || len(failedAuthentication(e)) > 0 || len(namedElsewhere(e)) > 0)
 }
 
@@ -338,11 +306,6 @@ func moneySubject(e *Evidence) []Indicator {
 // messages of each folder: a Sent folder of years is read for its
 // recent correspondents, which is what a first-contact question wants.
 type senderBook struct {
-	written, junked map[string]int
-	// seen counts how often the inbox's recent authors name an address.
-	seen map[string]int
-	// junk is the folder junked is read from, whose moves outdate it.
-	junk string
 	// received holds the registrable domains of the inbox's authors, by
 	// their first label: "hetzner" for hetzner.com. It is what lets a
 	// name be checked against the reader's own mail and no list of
@@ -366,19 +329,7 @@ func senderBookFor(s *alborz.Session) *senderBook {
 	return senderBooks.Warm(s.Username(), func() (*senderBook, error) {
 		book := &senderBook{}
 		err := s.DoIMAPBackground(func(c *imapclient.Client) error {
-			var err error
-			book.written, _, err = addressesIn(c, "sent", func(env *imap.Envelope) []imap.Address {
-				return append(append([]imap.Address(nil), env.To...), env.Cc...)
-			})
-			if err != nil {
-				return err
-			}
-			book.junked, book.junk, err = addressesIn(c, "junk", func(env *imap.Envelope) []imap.Address { return env.From })
-			if err != nil {
-				return err
-			}
 			authors, _, err := addressesIn(c, "inbox", func(env *imap.Envelope) []imap.Address { return env.From })
-			book.seen = authors
 			book.received = map[string]string{}
 			for addr := range authors {
 				domain, label := registrable(addr)
@@ -470,62 +421,4 @@ func (b senderBook) named(name, addr string) *NamedDomain {
 		return &NamedDomain{Word: word, Known: known, Sender: sender}
 	}
 	return nil
-}
-
-// junkMoved outdates the book when mail went into or out of the folder
-// it read junked senders from: a sender moved out of Junk is no longer
-// one, and a wrong warning is worse than none while the book is read
-// again.
-func junkMoved(user, from, to string) {
-	outdated := false
-	senderBooks.Update(user, func(b *senderBook) *senderBook {
-		outdated = b != nil && b.junk != "" && (b.junk == from || b.junk == to)
-		return b
-	})
-	if outdated {
-		senderBooks.Forget(user)
-	}
-}
-
-func (b senderBook) relationTo(addr string) Relation {
-	addr = strings.ToLower(strings.TrimSpace(addr))
-	return Relation{WrittenTo: b.written[addr] > 0, Junked: b.junked[addr] > 0, Seen: b.seen[addr]}
-}
-
-// Relate stamps every row with what the book says about its author,
-// once the book is in hand.
-func Relate(s *alborz.Session, rows []IMAPMessage) {
-	book := senderBookFor(s)
-	if book == nil {
-		return
-	}
-	for i := range rows {
-		if from := envelopeSender(rows[i].Envelope); from != "" {
-			rel := book.relationTo(from)
-			rows[i].Relation = &rel
-		}
-	}
-}
-
-// RowMarks colours the rows of a listing from everything a row knows:
-// its header, what the folders say about its author, and the page's
-// words for money, which is the language's and so the request's.
-func RowMarks(ctx *alborz.Context, trusted string, rows []IMAPMessage) {
-	words := strings.Split(ctx.T("indicator.moneywords"), ",")
-	for i := range rows {
-		row := &rows[i]
-		if row.rootHeader.Len() == 0 || row.Envelope == nil {
-			continue
-		}
-		e := &Evidence{
-			Header:     row.rootHeader,
-			Trusted:    trusted,
-			Auth:       readAuthResults(row.rootHeader, trusted),
-			Subject:    row.Envelope.Subject,
-			From:       envelopeSender(row.Envelope),
-			Relation:   row.Relation,
-			MoneyWords: words,
-		}
-		row.Mark = Mark(Indicators(e), row.NotJunk())
-	}
 }

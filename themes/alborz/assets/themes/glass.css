@@ -36,14 +36,17 @@
   --border-green: rgba(52, 199, 89, 0.35);
   --flag: #9a7400;
 
+  /* A notice floats over the page (ADR 41), so it is the one surface
+     this theme keeps opaque: at the translucency the rest of the glass
+     has, the toolbar under it reads through the words. */
   --notice-fg: #0c5460;
-  --notice-bg: rgba(209, 236, 241, 0.7);
-  --notice-border: rgba(190, 229, 235, 0.8);
+  --notice-bg: #d1ecf1;
+  --notice-border: #bee5eb;
   --alert-fg: #a11224;
-  --alert-bg: rgba(248, 215, 218, 0.72);
+  --alert-bg: #f8d7da;
   --warn-fg: #6b4e00;
-  --warn-bg: rgba(255, 243, 205, 0.85);
-  --alert-border: rgba(245, 198, 203, 0.8);
+  --warn-bg: #fff3cd;
+  --alert-border: #f5c6cb;
 }
 
 body {

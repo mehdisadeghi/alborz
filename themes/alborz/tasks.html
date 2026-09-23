@@ -58,7 +58,7 @@
       {{ with .Quick }}
       <form method="post" action="/tasks/create" class="quick-add" hx-boost="false">
         <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}#quick">
-        {{ $one := and (eq (len .Lists) 1) (eq (len (index .Lists 0).Collections) 1) }}
+        {{ $one := .Only }}
         {{ $list := .Name }}{{ if $.GlobalData.Unified }}{{ $list = printf "%s · %s" .Name ($.GlobalData.AccountLabel .Account) }}{{ end }}
         <input type="text" id="quick" name="summary" required dir="auto" placeholder="{{ if $one }}{{ printf ($.T "tasks.quickadd") $list }}{{ else }}{{ $.T "tasks.quicknew" }}{{ end }}" aria-label="{{$.T "tasks.summary"}}">
         {{ if $one }}

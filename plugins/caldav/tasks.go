@@ -93,20 +93,27 @@ type quickList struct {
 	// account: where a task goes is the reader's to say, on the line
 	// they are typing it on.
 	Lists []dav.Group
+	// Only says the page shows one list, so where a task goes is
+	// already answered and the picker would ask it twice.
+	Only bool
 }
 
 func quickListOf(ctx *alborz.Context, calendars []dav.Collection) *quickList {
 	scope := ctx.URLAccount()
 	var quick *quickList
 	var lists []dav.Group
+	shown := 0
 	for _, cal := range calendars {
 		if !cal.Writable || !supportsTodo(cal.Components) || (scope != "" && cal.Account != scope) {
 			continue
 		}
 		// The list in force is the one a task lands in; failing that,
 		// the first the page shows.
-		if quick == nil && cal.Shown {
-			quick = &quickList{Account: cal.Account, Path: cal.Path, Name: cal.Name}
+		if cal.Shown {
+			shown++
+			if quick == nil {
+				quick = &quickList{Account: cal.Account, Path: cal.Path, Name: cal.Name}
+			}
 		}
 		at := -1
 		for i := range lists {
@@ -124,6 +131,7 @@ func quickListOf(ctx *alborz.Context, calendars []dav.Collection) *quickList {
 		return nil
 	}
 	quick.Lists = lists
+	quick.Only = shown == 1
 	return quick
 }
 

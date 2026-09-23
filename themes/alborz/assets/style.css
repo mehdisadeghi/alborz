@@ -114,6 +114,11 @@ select {
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
+  /* Room under the last line of a page: breathing space in a browser,
+     and in an installed window the home indicator the system draws
+     over, which is where a message frame sized to its mail exactly
+     would otherwise end. */
+  --space-bottom: max(0.75rem, env(safe-area-inset-bottom));
   --space-4: 1rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
@@ -1036,6 +1041,7 @@ main {
   padding: 0;
   min-width: 0;
   background-color: var(--surface-subtle);
+  padding-bottom: var(--space-bottom);
 }
 
 main.login {
@@ -5106,7 +5112,7 @@ h1.no-word .title-short {
   .sidebar-toggle:checked ~ .sidebar-backdrop { display: block; }
 
   /* Lists and toolbars run edge to edge; standalone forms keep an inset. */
-  main { padding: 0; }
+  main { padding: 0 0 var(--space-bottom); }
   main.create-update { padding: var(--space-2); }
   main.settings { padding: 0; }
 

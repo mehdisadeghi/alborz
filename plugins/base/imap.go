@@ -311,12 +311,6 @@ type IMAPMessage struct {
 	// message is list mail at all: List-Post can be absent from a list
 	// that refuses posts, and present on nothing else.
 	ListID string
-	// Mark is the colour the row earns from its indicators, set once
-	// the row is related to the reader's folders.
-	Mark Grade
-	// Relation is what the reader's folders know about the author, nil
-	// until the row was related.
-	Relation *Relation
 	// ListHelp, ListSubscribe, ListOwner and ListArchive are the rest of
 	// RFC 2369. A list that offers them is saying where to ask, how to
 	// join, who runs it and where the past is kept.
@@ -1166,17 +1160,15 @@ func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 // than the whole header, and it rides the round trip the row already
 // costs.
 //
-// Received is asked for as well, and it is the expensive part - a
-// message carries several and they are long. It is here because a
-// delivery header is only worth believing when our own server wrote it,
-// and the Received lines are what says where in the message's life a
-// header appeared. A row that cannot judge that would have to show an
-// address the sender could have written.
+// The scanner, authentication and Received lines are not asked for: a
+// row says nothing about them since the warnings live on the message
+// page, where the whole header is fetched anyway, and Received is long
+// and repeated - the one field that made this fetch expensive.
 func listHeaderItem() *imap.FetchItemBodySection {
 	return &imap.FetchItemBodySection{
 		Peek:         true,
 		Specifier:    imap.PartSpecifierHeader,
-		HeaderFields: append(slices.Clone(deliveryHeaders), "List-Id", "Received", "X-Spam-Status", "X-Spam-Score", "X-Spam-Flag", "X-Spam-Level", "X-Spam-Report", "X-Spam-Checker-Version", "X-Spamd-Result", "X-Spamd-Bar", "X-Rspamd-Score", "X-Migadu-Spam-Score", "Authentication-Results", "DKIM-Signature"),
+		HeaderFields: append(slices.Clone(deliveryHeaders), "List-Id"),
 	}
 }
 

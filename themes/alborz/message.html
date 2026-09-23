@@ -238,16 +238,7 @@
                    the frame the message body draws in: the sanitizer
                    allows a style element, so a message can paint a
                    convincing green band of its own inside it. */}}
-              {{/* What the reader's own folders say about this sender,
-                   where there is something to say: the list's tag leads
-                   here, and a message that earned no card would
-                   otherwise lead nowhere. */}}
-              {{ with .Relation }}
-              {{ if .Junked }}<p class="sender-fact sender-fact-junked" id="sender">{{$.T "indicator.junkedbefore"}}</p>
-              {{ else if and (not .WrittenTo) (le .Seen 1) }}<p class="sender-fact" id="sender">{{$.T "indicator.firstcontact"}}</p>
-              {{ end }}
-              {{ end }}
-              {{ if .Signature.Confirmed }}
+                            {{ if .Signature.Confirmed }}
               <span class="sig sig-verified" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.verified"}}</span>
               {{ else if eq .Signature.State "good" }}
               <span class="sig sig-good" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.good"}}</span>

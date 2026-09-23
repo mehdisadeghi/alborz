@@ -46,10 +46,6 @@ type MessageRenderData struct {
 	// AuthResults is what the receiving server said about the sender's
 	// domain, nil when no trusted server reported or none is named.
 	AuthResults *AuthResults
-	// Relation is what the reader's folders say about the sender, for
-	// the line under the address: the list's tag leads to it, so it is
-	// on the page whether or not the message earned a card.
-	Relation *Relation
 	// Warnings are the indicators that earned a colour, and Mark the
 	// colour: none, caution or alarm. Nothing is said about a message
 	// with nothing against it.
@@ -550,13 +546,10 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 			return err
 		}
 	}
-	// The facts beside the message. The folders are asked about the
-	// sender once an hour per address, so the page rarely pays for it.
-	// Not in Junk, as the list colours no row there: a message filed as
-	// junk needs no telling, and "you junked this sender before" is the
-	// folder describing itself.
+	// The warning signs beside the message, read from the header the
+	// fetch already brought. Not in Junk: a message filed as junk needs
+	// no telling.
 	var indicators []Indicator
-	var relation *Relation
 	if !raw && folderRole(sb.mailboxes, mboxName) != "junk" {
 		evidence := &Evidence{
 			Header:     messageRootHeader(msg),
@@ -567,10 +560,6 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 			MoneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
 		}
 		if evidence.From != "" {
-			if book := senderBookFor(ctx.Session); book != nil {
-				rel := book.relationTo(evidence.From)
-				evidence.Relation, relation = &rel, &rel
-			}
 			// Whom the reader knows does not stop at an account: mail
 			// from a host bills one address and its imitation reaches
 			// another, so every signed-in account's inbox is asked.
@@ -694,7 +683,6 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		Query:              query,
 		Signature:          signature,
 		AuthResults:        authResults,
-		Relation:           relation,
 		Warnings:           warnings,
 		Mark:               mark,
 		InReplyTo:          inReplyTo,

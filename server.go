@@ -939,13 +939,17 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			ectx.Response().Header().Set("X-Content-Type-Options", "nosniff")
 			// DNS prefetching has privacy implications
 			ectx.Response().Header().Set("X-DNS-Prefetch-Control", "off")
-			// Assets revalidate by default so theme and plugin edits are
-			// picked up; the theme asset handler upgrades URLs stamped
-			// with the current content to immutable.
-			path := ectx.Request().URL.Path
-			if strings.HasPrefix(path, "/assets/") || strings.HasPrefix(path, "/plugins/") {
-				ectx.Response().Header().Set("Cache-Control", "no-cache")
-			}
+			// Everything revalidates by default: assets so a theme or
+			// plugin edit is picked up, pages because a page is a folder
+			// at a moment and carries no validator a store could
+			// revalidate with - left to a browser's own heuristics it is
+			// reused, and the reader is shown a mailbox from before the
+			// mail arrived with nothing but a forced reload to clear it.
+			// The asset handler upgrades URLs stamped with the current
+			// content to immutable, and a visit that locks says no-store
+			// below; no-cache here keeps the pages the worker saves to
+			// read offline (ADR 19).
+			ectx.Response().Header().Set("Cache-Control", "no-cache")
 			return next(ectx)
 		}
 	})

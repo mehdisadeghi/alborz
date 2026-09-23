@@ -2,8 +2,11 @@ package alborzbase
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -38,6 +41,11 @@ const (
 	// is how a watcher turns an outage into a login storm.
 	idleRetry    = 30 * time.Second
 	idleMaxRetry = 15 * time.Minute
+	// sweepWindow is how often a server without NOTIFY is asked about
+	// every other folder (ADR 45): short enough that mail a rule files
+	// is seen while the reader still wonders, long enough that an
+	// account with many folders is not asking all the time.
+	sweepWindow = 2 * time.Minute
 )
 
 var watchers = &watcherSet{running: make(map[string]bool)}
@@ -127,15 +135,27 @@ func watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
 // - which a provider counting connections and logins reads as abuse, and
 // answers by refusing the account.
 func follow(s *alborz.Session, changes *alborz.Changes, reconnect bool) error {
+	user := s.Username()
 	changed := make(chan struct{}, 1)
+	var overflowed atomic.Bool
 	// The pages go stale here, on the connection's own reader, and not
 	// where the change is picked up: a FETCH that follows an EXPUNGE in
 	// one read names its message by the new numbering already.
 	c, err := s.WatchIMAP(func() {
-		mailboxStale(s.Username(), "INBOX")
+		mailboxStale(user, "INBOX")
 		notify(changed)
 	}, func(seqNum uint32, flags []imap.Flag) {
-		mailboxFlagsAnnounced(s.Username(), "INBOX", seqNum, flags)
+		mailboxFlagsAnnounced(user, "INBOX", seqNum, flags)
+	}, func(mailbox string) {
+		// INBOX speaks as the selected mailbox and is warmed before it
+		// is announced; this is every other folder, under NOTIFY.
+		if mailbox != "INBOX" {
+			mailboxStale(user, mailbox)
+			changes.Announce(user, mailbox)
+		}
+	}, func() {
+		overflowed.Store(true)
+		notify(changed)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
@@ -155,34 +175,104 @@ func follow(s *alborz.Session, changes *alborz.Changes, reconnect bool) error {
 	if _, err := c.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
 		return fmt.Errorf("failed to select INBOX: %w", err)
 	}
-	// Reconnection can have missed changes while no watcher was listening.
+	// Reconnection can have missed changes while no watcher was
+	// listening, and since every folder is watched, in any folder.
 	if reconnect {
-		mailboxStale(s.Username(), "INBOX")
+		accountChanged(user)
 		if err := warmInbox(s); err != nil {
 			return err
 		}
 	}
 
+	window, sweep := idleWindow, (func() error)(nil)
+	if !armNotify(c) {
+		window, sweep = sweepWindow, folderSweep(user, c, changes)
+		// The first sweep is the baseline, taken now: taken at the first
+		// wake instead, what a rule filed in the meantime would be the
+		// baseline itself, and never announced.
+		if err := sweep(); err != nil {
+			return err
+		}
+	}
 	for {
 		select {
 		case <-s.Done():
 			return nil
 		default:
 		}
-		if err := idleOnce(s, c, changed, changes); err != nil {
+		if err := idleOnce(s, c, changed, changes, window); err != nil {
 			return err
+		}
+		// The server stopped saying: what it did not say is unknown, so
+		// nothing cached is trusted, and reconnecting arms NOTIFY again.
+		if overflowed.Load() {
+			accountChanged(user)
+			return errors.New("the server stopped notifying")
+		}
+		if sweep != nil {
+			if err := sweep(); err != nil {
+				return err
+			}
 		}
 	}
 }
 
+// armNotify asks the server for news of every folder on this connection
+// (RFC 5465). Offered and accepted, or the watcher sweeps instead: an
+// older Dovecot and most other servers do not offer it, and a server
+// that offers it can still refuse the set asked for.
+func armNotify(c *imapclient.Client) bool {
+	if !c.Caps().Has(imap.CapNotify) {
+		return false
+	}
+	both := []imap.NotifyEvent{imap.NotifyEventMessageNew, imap.NotifyEventMessageExpunge}
+	cmd, err := c.Notify(&imap.NotifyOptions{Items: []imap.NotifyItem{
+		{MailboxSpec: imap.NotifyMailboxSpecSelected, Events: append(both, imap.NotifyEventFlagChange)},
+		{MailboxSpec: imap.NotifyMailboxSpecPersonal, Events: both},
+	}})
+	return err == nil && cmd.Wait() == nil
+}
+
+// folderSweep watches every folder but INBOX on a server that will not
+// say when one moves: each wake of the watcher asks each folder for its
+// UIDNEXT and announces the ones that moved since the last time.
+func folderSweep(user string, c *imapclient.Client, changes *alborz.Changes) func() error {
+	seen := map[string]imap.UID{}
+	return func() error {
+		folders, err := c.List("", "*", nil).Collect()
+		if err != nil {
+			return fmt.Errorf("failed to list folders: %w", err)
+		}
+		for _, f := range folders {
+			if f.Mailbox == "INBOX" || slices.Contains(f.Attrs, imap.MailboxAttrNoSelect) ||
+				slices.Contains(f.Attrs, imap.MailboxAttrNonExistent) {
+				continue
+			}
+			status, err := c.Status(f.Mailbox, &imap.StatusOptions{UIDNext: true}).Wait()
+			if err != nil {
+				// Gone between the LIST and here; the next sweep lists
+				// what there is.
+				continue
+			}
+			last, known := seen[f.Mailbox]
+			seen[f.Mailbox] = status.UIDNext
+			if known && status.UIDNext != last {
+				mailboxStale(user, f.Mailbox)
+				changes.Announce(user, f.Mailbox)
+			}
+		}
+		return nil
+	}
+}
+
 // On an IDLE change, keep serving the old listing until its replacement is ready.
-func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}, changes *alborz.Changes) error {
+func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}, changes *alborz.Changes, length time.Duration) error {
 	cmd, err := c.Idle()
 	if err != nil {
 		return fmt.Errorf("failed to idle: %w", err)
 	}
 
-	window := time.NewTimer(idleWindow)
+	window := time.NewTimer(length)
 	defer window.Stop()
 	select {
 	case <-changed:

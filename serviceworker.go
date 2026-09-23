@@ -36,6 +36,8 @@ const PAGES_DAYS = 7;
 // a dead connection does not fail a request, it lets it hang.
 const NETWORK_WAIT = 5000;
 const SAVED_AT = "X-Alborz-Saved";
+// What the server sends as a file rather than a page.
+const DOWNLOADS = ["/raw", "/eml", "/attachments.zip", "/export"];
 
 self.addEventListener("install", event => {
 	event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -176,6 +178,13 @@ self.addEventListener("fetch", event => {
 	// yesterday's page - which in an installed window, where there is
 	// no address bar to force the issue, looks like an application that
 	// cannot be updated.
+	// A download is a navigation the browser ends by saving a file, and
+	// a worker in the middle of one leaves an installed window loading
+	// for ever: nothing is shown, nothing is saved. These answer as
+	// themselves, straight from the network.
+	if (DOWNLOADS.some(part => url.pathname.endsWith(part))) {
+		return;
+	}
 	if (request.mode === "navigate") {
 		// redirect manual, not follow: a response a worker followed
 		// cannot be handed back for a navigation, and most of alborz's

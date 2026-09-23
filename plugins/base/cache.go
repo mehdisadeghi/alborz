@@ -33,6 +33,10 @@ type listingState int
 
 const (
 	listingMiss listingState = iota
+	// listingChanged is an entry the watcher saw the folder move under:
+	// it is still there to be read in place, and no page is drawn from
+	// it.
+	listingChanged
 	listingStale
 	listingFresh
 )
@@ -76,6 +80,10 @@ type listingEntry struct {
 	snap        *imap.StatusData
 	fetched     time.Time
 	lastUse     time.Time
+	// changed says the watcher saw the folder move, as against an entry
+	// that merely aged: what it holds is known to be wrong, so it is not
+	// shown while a revalidation runs behind the page.
+	changed bool
 }
 
 type listingKey struct{ user, view string }
@@ -279,6 +287,9 @@ func (lc *listingCache) lookup(user, view string, perPage int) (*listingEntry, l
 		return nil, listingMiss
 	}
 	e.lastUse = time.Now()
+	if e.changed {
+		return e.snapshot(), listingChanged
+	}
 	if time.Since(e.fetched) > listingFreshFor {
 		return e.snapshot(), listingStale
 	}
@@ -304,7 +315,7 @@ func (lc *listingCache) store(user, view string, e *listingEntry) {
 func (lc *listingCache) storeAt(user, view string, e *listingEntry, generation uint64) {
 	kept := e.snapshot()
 	now := time.Now()
-	kept.fetched, kept.lastUse = now, now
+	kept.fetched, kept.lastUse, kept.changed = now, now, false
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	if lc.generation[user] != generation {
@@ -555,7 +566,7 @@ func (lc *listingCache) stale(user, folder string) {
 	lc.generation[user]++
 	for k, e := range lc.entries {
 		if k.user == user && (k.view == folder || strings.HasPrefix(k.view, folder+listingSep) || strings.HasPrefix(k.view, "#")) {
-			e.fetched = time.Time{}
+			e.fetched, e.changed = time.Time{}, true
 		}
 	}
 }

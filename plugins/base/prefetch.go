@@ -33,7 +33,11 @@ func readOn(s *alborz.Session, class alborz.IMAPClass, bound time.Duration, fetc
 // behind the page, and read through the cache when it holds none.
 // Revalidation also covers gaps while the IDLE connection is down.
 func cachedListing(ctx *alborz.Context, s *alborz.Session, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
-	if e, state := listings.lookup(s.Username(), view, size); e != nil {
+	// A folder the watcher saw change is read again rather than shown:
+	// the reader was told mail arrived - the count beside the folder
+	// moved - and a page drawn from what the cache held says the
+	// opposite, however quickly it renders.
+	if e, state := listings.lookup(s.Username(), view, size); e != nil && state != listingChanged {
 		alborz.CacheTiming(ctx.Request().Context(), "listing", true)
 		if state == listingStale {
 			revalidate(s, view, e, folder, fetch)

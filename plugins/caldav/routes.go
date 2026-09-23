@@ -330,14 +330,10 @@ func calendarFilters(ctx *alborz.Context, calendars []dav.Collection) []alborz.F
 		}
 		out = append(out, f)
 	}
-	if f, ok := ctx.FilterOn("cal", ctx.T("common.calendar")); ok {
-		// The URL names a calendar by path; the chip names it the way
-		// the reader does.
-		if cal := dav.At(calendars, dav.CanonicalCollectionPath(f.Value)); cal != nil {
-			f.Value = cal.Name
-		}
-		out = append(out, f)
-	}
+	// The calendar the page is in is a place, not a narrowing of one:
+	// the rail marks it and the crumb names it, as a mail folder is
+	// named. A chip would say it a third time, and its cross would
+	// navigate rather than widen.
 	return out
 }
 

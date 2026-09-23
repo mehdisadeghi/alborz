@@ -21,11 +21,54 @@ if (emailFrame) {
 	var contentSize = function() {
 		var doc = emailFrame.contentWindow.document;
 		var root = doc.documentElement, body = doc.body;
+		// The body's own margins are outside its scroll width, so a
+		// frame made as wide as the content alone is narrower than the
+		// mail by those margins. The overflow that follows is hidden,
+		// but the engine still keeps a scrollbar's gutter at the foot
+		// of the frame, and the last line of the mail sits in it.
+		var sides = 0;
+		if (body) {
+			var style = emailFrame.contentWindow.getComputedStyle(body);
+			sides = parseFloat(style.marginLeft) + parseFloat(style.marginRight);
+		}
 		return {
-			width: Math.max(root.scrollWidth, body ? body.scrollWidth : 0),
+			width: Math.max(root.scrollWidth, body ? body.scrollWidth + sides : 0),
 			height: Math.max(root.scrollHeight, body ? body.scrollHeight : 0)
 		};
 	};
+	// How much of the mail the frame cannot show at the height it has.
+	// The document's own viewport is not the frame's box: the engine
+	// keeps a strip of it - a scrollbar's gutter, a chrome of its own -
+	// and what falls in that strip is the last line of the mail.
+	var unseen = function() {
+		var doc = emailFrame.contentWindow.document;
+		var root = doc.documentElement;
+		if (!root || !root.clientHeight) {
+			return 0;
+		}
+		return Math.max(0, Math.ceil(contentSize().height) - root.clientHeight);
+	};
+
+	// The height the frame is given, grown until the document can show
+	// all of it. Two passes settle every mail seen so far; the third is
+	// there so a pathological one cannot spin.
+	var fitFrame = function(scale) {
+		for (var pass = 0; pass < 3; pass++) {
+			var height = Math.ceil(contentSize().height) +
+				Math.max(0, emailFrame.offsetHeight - emailFrame.clientHeight);
+			if (pass > 0) {
+				height = parseFloat(emailFrame.style.height) + unseen();
+			}
+			emailFrame.style.height = height + "px";
+			if (scale) {
+				emailFrame.parentNode.style.height = (height * scale) + "px";
+			}
+			if (unseen() === 0) {
+				break;
+			}
+		}
+	};
+
 	var applied = { width: -1, height: -1, avail: -1 };
 	// The height this script last wrote. One written by anyone else -
 	// a reader in the developer tools - is theirs, and is left alone.
@@ -62,12 +105,10 @@ if (emailFrame) {
 				emailFrame.style.width = width + "px";
 				emailFrame.style.transformOrigin = "0 0";
 				emailFrame.style.transform = "scale(" + f + ")";
-				var height = contentSize().height;
-				emailFrame.style.height = height + "px";
-				emailFrame.parentNode.style.height = (height * f) + "px";
+				fitFrame(f);
 			} else {
-				emailFrame.style.height = contentSize().height + "px";
 				emailFrame.parentNode.style.height = "";
+				fitFrame(0);
 			}
 			ours = emailFrame.style.height;
 			var settled = contentSize();
@@ -90,12 +131,11 @@ if (emailFrame) {
 				return;
 			}
 			doc.alborzLocked = true;
-			if (doc.documentElement) {
-				doc.documentElement.style.overflow = "hidden";
-			}
-			if (doc.body) {
-				doc.body.style.overflow = "hidden";
-			}
+			// The frame is sized to its content, so it has nothing to
+			// scroll and needs no clip. Hiding the overflow instead cost
+			// the mail its last line: Firefox clips the root's content a
+			// line short of the frame, and a hidden overflow makes that
+			// unreachable rather than merely scrollable.
 			win.addEventListener("resize", function() {
 				resizeFrame(false);
 			});

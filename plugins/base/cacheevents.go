@@ -88,9 +88,13 @@ func mailboxFlagsAnnounced(user, mailbox string, seqNum uint32, flags []imap.Fla
 }
 
 // A reader who asks for a refresh means the cached view, whatever its
-// age says.
+// age says - and the counts beside it. Marking the aside stale is not
+// enough: a background memo serves the stale value and reloads behind
+// it, so the page that answers the refresh still carries the old unread
+// count, and only the click after that shows the new one.
 func viewForgotten(user, view string) {
 	listings.evict(user, view)
+	accountSidebars.Forget(user)
 }
 
 // Sending, importing, creating a folder, changing settings: each

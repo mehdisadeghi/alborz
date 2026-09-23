@@ -171,11 +171,19 @@ func (s *Session) alive() bool {
 //
 // onChange is for what reshapes a listing, arrivals and expunges;
 // onFlags for a flag set on one message, which a listing takes in
-// place rather than being fetched again for it.
-func (s *Session) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []imap.Flag)) (*imapclient.Client, error) {
+// place rather than being fetched again for it. onFolder is another
+// folder moving, which a server says only under NOTIFY (RFC 5465), and
+// onOverflow the server giving up on saying it.
+func (s *Session) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []imap.Flag), onFolder func(mailbox string), onOverflow func()) (*imapclient.Client, error) {
 	c, err := s.manager.dialIMAPWatch(s.domain, &imapclient.UnilateralDataHandler{
 		Expunge: func(uint32) { onChange() },
 		Mailbox: func(*imapclient.UnilateralDataMailbox) { onChange() },
+		Status: func(data *imap.StatusData) {
+			if data != nil && data.Mailbox != "" {
+				onFolder(data.Mailbox)
+			}
+		},
+		NotificationOverflow: onOverflow,
 		// A flag set in another client arrives as an untagged FETCH, not
 		// as EXISTS: without this, reading a message on a phone changed
 		// nothing here. The message must be consumed or the connection's

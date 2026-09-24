@@ -553,6 +553,18 @@ document.addEventListener("htmx:beforeSwap", ev => {
 	}
 });
 
+// An error page alborz wrote is shown; the notice is for no answer.
+document.addEventListener("htmx:beforeSwap", ev => {
+	const xhr = ev.detail && ev.detail.xhr;
+	if (!xhr || xhr.status < 500 || !ev.detail.boosted) {
+		return;
+	}
+	if (/<meta name="alborz-shell"/.test(xhr.responseText)) {
+		ev.detail.shouldSwap = true;
+		ev.detail.isError = false;
+	}
+});
+
 // A swap replaces the body and nothing above it, so the language and
 // the direction - which live on the root element - would stay whatever
 // the page before said. Signing in from a page asked for in Persian

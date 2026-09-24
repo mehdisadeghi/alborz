@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/cention-sany/utf7"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/charset"
@@ -17,6 +18,13 @@ import (
 
 // dialIMAP connects to the domain's upstream IMAP server. It is the
 // gatekeeper for the domain whitelist: unknown domains are rejected here.
+
+// UTF-7 (RFC 2152) is in no charset index go-message consults.
+func init() {
+	for _, name := range []string{"utf-7", "unicode-1-1-utf-7"} {
+		charset.RegisterEncoding(name, utf7.UTF7)
+	}
+}
 func (s *Server) dialIMAP(domain, from string) (*imapclient.Client, error) {
 	return s.dial(domain, from, nil)
 }

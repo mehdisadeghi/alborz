@@ -601,18 +601,20 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	if raw {
 		ctx.Response().Header().Set("Content-Type", mimeType)
 
-		disp, dispParams, _ := part.Header.ContentDisposition()
-		filename := dispParams["filename"]
+		disp, _, _ := part.Header.ContentDisposition()
 
 		// TODO: set Content-Length if possible
 
 		// Be careful not to serve types like text/html as inline
 		if !strings.EqualFold(mimeType, "text/plain") || strings.EqualFold(disp, "attachment") {
-			dispParams := make(map[string]string)
-			if filename != "" {
-				dispParams["filename"] = filename
+			// The name the page and the zip give it.
+			var filename string
+			if node := msg.PartByPath(partPath); node != nil {
+				filename = node.Filename
 			}
-			disp := mime.FormatMediaType("attachment", dispParams)
+			disp := mime.FormatMediaType("attachment", map[string]string{
+				"filename": zipEntryName(filename, mimeType, map[string]int{}),
+			})
 			ctx.Response().Header().Set("Content-Disposition", disp)
 		}
 

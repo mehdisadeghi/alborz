@@ -107,7 +107,7 @@ func handleSearch(ctx *alborz.Context) error {
 		found := &listingEntry{sortSupported: true}
 		for _, folder := range searchFolders(sb.mailboxes, q) {
 			e, err := readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
-				return fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.window(), false)
+				return fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.window(), listFetchOptions, false)
 			})(ctx.Request().Context())
 			if err != nil {
 				return nil, err

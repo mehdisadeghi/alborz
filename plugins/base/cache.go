@@ -307,6 +307,37 @@ func (lc *listingCache) pageSize(user, view string, fallback int) int {
 	return fallback
 }
 
+// heldSize is the size of the view's entry while its rows stand, or 0:
+// a changed entry is read again at the size the page needs.
+func (lc *listingCache) heldSize(user, view string) int {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	if e, ok := lc.entries[listingKey{user, view}]; ok && !e.changed {
+		return e.perPage
+	}
+	return 0
+}
+
+// fill puts whole rows in place of the ones a merge window holds only
+// by what the merge compares.
+func (lc *listingCache) fill(user, view string, rows []IMAPMessage) {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	e := lc.entries[listingKey{user, view}]
+	if e == nil {
+		return
+	}
+	whole := make(map[imap.UID]IMAPMessage, len(rows))
+	for _, r := range rows {
+		whole[r.UID] = r
+	}
+	for i, m := range e.msgs {
+		if r, ok := whole[m.UID]; ok && m.BodyStructure == nil {
+			e.msgs[i] = r
+		}
+	}
+}
+
 // store keeps its own copies, so the caller's data stays free to mutate.
 func (lc *listingCache) store(user, view string, e *listingEntry) {
 	lc.storeAt(user, view, e, lc.epoch(user))

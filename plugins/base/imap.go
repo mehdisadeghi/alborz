@@ -1172,6 +1172,9 @@ func listHeaderItem() *imap.FetchItemBodySection {
 	}
 }
 
+// rowFields is what a list fetches of each row.
+type rowFields func(header *imap.FetchItemBodySection) *imap.FetchOptions
+
 // listFetchOptions is what every row in every list needs, in one place
 // so a column added to one list is not missing from the other.
 func listFetchOptions(header *imap.FetchItemBodySection) *imap.FetchOptions {
@@ -1184,6 +1187,36 @@ func listFetchOptions(header *imap.FetchItemBodySection) *imap.FetchOptions {
 		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
 		BodySection:   []*imap.FetchItemBodySection{header},
 	}
+}
+
+// mergeFetchOptions is what a merge compares and no more: a row deeper
+// than the page shown is read only to find the page.
+func mergeFetchOptions(*imap.FetchItemBodySection) *imap.FetchOptions {
+	return &imap.FetchOptions{
+		Envelope:     true,
+		Flags:        true,
+		UID:          true,
+		RFC822Size:   true,
+		InternalDate: true,
+	}
+}
+
+// wholeRows reads the named rows of a folder as every list shows them.
+func wholeRows(conn *imapclient.Client, mboxName string, uids []imap.UID) ([]IMAPMessage, error) {
+	if err := ensureMailboxSelected(conn, mboxName); err != nil {
+		return nil, err
+	}
+	header := listHeaderItem()
+	fetched, err := conn.Fetch(imap.UIDSetNum(uids...), listFetchOptions(header)).Collect()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch message list: %v", err)
+	}
+	rows := make([]IMAPMessage, len(fetched))
+	for i, msg := range fetched {
+		rows[i] = IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
+		rows[i].setRowHeaders(msg.FindBodySection(header))
+	}
+	return rows, nil
 }
 
 // setRowHeaders fills in what the small header fetch answered. A server
@@ -1248,7 +1281,7 @@ func listID(h textproto.Header) string {
 	return strings.TrimSpace(id)
 }
 
-func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPage int) (msgs []IMAPMessage, total int, err error) {
+func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPage int, fields rowFields) (msgs []IMAPMessage, total int, err error) {
 	// A fresh SELECT already reports the message count; only an already
 	// selected mailbox needs a NOOP to notice new mail.
 	if mbox := conn.Mailbox(); mbox != nil && mbox.Name == mboxName {
@@ -1280,7 +1313,7 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 	var seqSet imap.SeqSet
 	seqSet.AddRange(uint32(from), uint32(to))
 	header := listHeaderItem()
-	imapMsgs, err := conn.Fetch(seqSet, listFetchOptions(header)).Collect()
+	imapMsgs, err := conn.Fetch(seqSet, fields(header)).Collect()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
 	}
@@ -1838,7 +1871,7 @@ func sortedUIDs(conn *imapclient.Client, criteria *imap.SearchCriteria, sort str
 
 // searchMessages reads one page of what the criteria answer. q is the
 // query the criteria came from, empty for a list no query narrowed.
-func searchMessages(conn *imapclient.Client, mboxName string, q Query, searchCriteria *imap.SearchCriteria, page, messagesPerPage int, sort string, reverse bool) (msgs []IMAPMessage, total int, err error) {
+func searchMessages(conn *imapclient.Client, mboxName string, q Query, searchCriteria *imap.SearchCriteria, page, messagesPerPage int, sort string, reverse bool, fields rowFields) (msgs []IMAPMessage, total int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
 	}
@@ -1874,7 +1907,7 @@ func searchMessages(conn *imapclient.Client, mboxName string, q Query, searchCri
 
 	seqSet := imap.SeqSetNum(nums...)
 	header := listHeaderItem()
-	results, err := conn.Fetch(seqSet, listFetchOptions(header)).Collect()
+	results, err := conn.Fetch(seqSet, fields(header)).Collect()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
 	}

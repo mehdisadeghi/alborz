@@ -108,30 +108,37 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	}
 	spec := ask.spec
 
-	// The first page comes from the listing cache when it can, the
-	// slowest account no longer gating every click.
-	window := ask.window()
 	// A search costs one live IMAP round trip per account, so it is the
 	// view that most wants the cache; only its key is longer.
 	cacheable := ctx.Request().Method == http.MethodGet
-	key := listingPage(listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir), ask.page, ask.perPage)
+	key := listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir)
 	class, bound := listingBudget(spec)
 	merged, err := gather(ctx, ctx.Sessions(), spec, func(s *alborz.Session) (*listingEntry, error) {
 		user := s.Username()
+		size := ask.held(listings.heldSize(user, key))
+		// A window of one page is all shown, so it is read whole.
+		fields := mergeFetchOptions
+		if size == ask.perPage {
+			fields = listFetchOptions
+		}
 		folder := func(c *imapclient.Client) (string, error) { return resolveRole(c, user, role) }
 		fetch := func(c *imapclient.Client) (*listingEntry, error) {
 			name, err := folder(c)
 			if err != nil || name == "" {
 				return nil, err
 			}
-			return fetchUnifiedAccount(c, user, name, spec, settings, window, cacheable)
+			return fetchUnifiedAccount(c, user, name, spec, settings, size, fields, cacheable)
 		}
 		if cacheable {
-			return cachedListing(ctx, s, key, window, spec, folder, fetch)
+			return cachedListing(ctx, s, key, size, spec, folder, fetch)
 		}
 		alborz.CacheTiming(ctx.Request().Context(), "listing", false)
 		return readOn(s, class, bound, fetch)(ctx.Request().Context())
 	})
+	if err != nil {
+		return err
+	}
+	rows, err := wholePage(ctx, role, key, cutPage(merged.msgs, ask), class, bound)
 	if err != nil {
 		return err
 	}
@@ -140,7 +147,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		title = viewTitle(ctx, spec.view)
 	}
 
-	data := listPage(ctx, ask, merged, cutPage(merged.msgs, ask))
+	data := listPage(ctx, ask, merged, rows)
 	data.IMAPBaseRenderData = IMAPBaseRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
 		// The role is the name: the rail marks the row by it and the
@@ -160,6 +167,75 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 // any of them may be the merge's.
 func (ask listAsk) window() int {
 	return (ask.page + 1) * ask.perPage
+}
+
+// held is how many rows each account keeps for a merge (ADR 46): the
+// pages up to the one asked for, rounded up to a power of two so a walk
+// through n pages refetches log n times, or what is held when more.
+func (ask listAsk) held(have int) int {
+	pages := 1
+	for pages < ask.page+1 {
+		pages *= 2
+	}
+	return max(pages*ask.perPage, have)
+}
+
+// wholePage fetches the page's rows the windows hold only by what the
+// merge compares, and writes them back into the windows. A row that
+// could not be fetched is left off rather than shown without its marks.
+func wholePage(ctx *alborz.Context, role, key string, page []IMAPMessage, class alborz.IMAPClass, bound time.Duration) ([]IMAPMessage, error) {
+	missing := map[string][]imap.UID{}
+	for _, m := range page {
+		if m.BodyStructure == nil {
+			missing[m.Account] = append(missing[m.Account], m.UID)
+		}
+	}
+	if len(missing) == 0 {
+		return page, nil
+	}
+	fetched, err := gather(ctx, ctx.Sessions(), listingSpec{}, func(s *alborz.Session) (*listingEntry, error) {
+		user, uids := s.Username(), missing[s.Username()]
+		if len(uids) == 0 {
+			return nil, nil
+		}
+		return readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
+			name, err := resolveRole(c, user, role)
+			if err != nil || name == "" {
+				return nil, err
+			}
+			rows, err := wholeRows(c, name, uids)
+			if err != nil {
+				return nil, err
+			}
+			for i := range rows {
+				rows[i].Account = user
+			}
+			listings.fill(user, key, rows)
+			return &listingEntry{msgs: rows}, nil
+		})(ctx.Request().Context())
+	})
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		account string
+		uid     imap.UID
+	}
+	whole := make(map[row]IMAPMessage, len(fetched.msgs))
+	for _, m := range fetched.msgs {
+		whole[row{m.Account, m.UID}] = m
+	}
+	rows := make([]IMAPMessage, 0, len(page))
+	for _, m := range page {
+		if m.BodyStructure == nil {
+			var ok bool
+			if m, ok = whole[row{m.Account, m.UID}]; !ok {
+				continue
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
 }
 
 // cutPage is the page asked for, out of the merged windows.
@@ -322,12 +398,12 @@ func unifiedLess(sortKey string, reverse bool) func(a, b IMAPMessage) int {
 // fetchUnifiedAccount reads one account's newest window of a merged
 // view. withSnap takes the folder's STATUS along, for an entry meant to
 // be cached; the answer doubles as what a later check compares against.
-func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listingSpec, settings *Settings, window int, withSnap bool) (*listingEntry, error) {
+func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listingSpec, settings *Settings, window int, fields rowFields, withSnap bool) (*listingEntry, error) {
 	var snapCmd *imapclient.StatusCommand
 	if withSnap {
 		snapCmd = c.Status(folder, listingStatusOptions(c))
 	}
-	e, err := fetchRows(c, folder, spec, settings, 0, window)
+	e, err := fetchRows(c, folder, spec, settings, 0, window, fields)
 	if err != nil {
 		return nil, err
 	}
@@ -576,7 +652,7 @@ func fetchListing(c *imapclient.Client, user string, spec listingSpec, settings 
 	if err != nil {
 		return nil, err
 	}
-	e, err := fetchRows(c, spec.mbox, spec, settings, page, perPage)
+	e, err := fetchRows(c, spec.mbox, spec, settings, page, perPage, listFetchOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -589,7 +665,7 @@ func fetchListing(c *imapclient.Client, user string, spec listingSpec, settings 
 
 // fetchRows reads one page of one folder under the spec: a
 // conversation, a search, a sort, or the plain list.
-func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *Settings, page, perPage int) (*listingEntry, error) {
+func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *Settings, page, perPage int, fields rowFields) (*listingEntry, error) {
 	e := &listingEntry{perPage: perPage, page: page, sortSupported: c.Caps().Has(imap.CapSort), threadAlgorithm: ThreadAlgorithm(c)}
 	// Each account's window is cut under the requested order, so the
 	// merge sees the right candidates: the largest matches, and not the
@@ -614,11 +690,11 @@ func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *
 		e.msgs, e.total, err = threadMessages(c, folder, e.threadAlgorithm, criteria, page, perPage)
 	case spec.query != "" || spec.view != "":
 		e.headersOnly = spec.query != "" && !SearchesIndex(c, settings)
-		e.msgs, e.total, err = searchMessages(c, folder, ParseQuery(spec.query), listCriteria(c, settings, spec.query, spec.view), page, perPage, sortKey, reverse)
+		e.msgs, e.total, err = searchMessages(c, folder, ParseQuery(spec.query), listCriteria(c, settings, spec.query, spec.view), page, perPage, sortKey, reverse, fields)
 	case spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != "") && e.sortSupported:
-		e.msgs, e.total, err = searchMessages(c, folder, Query{}, &imap.SearchCriteria{}, page, perPage, sortKey, reverse)
+		e.msgs, e.total, err = searchMessages(c, folder, Query{}, &imap.SearchCriteria{}, page, perPage, sortKey, reverse, fields)
 	default:
-		e.msgs, e.total, err = listMessages(c, folder, page, perPage)
+		e.msgs, e.total, err = listMessages(c, folder, page, perPage, fields)
 	}
 	if err != nil {
 		return nil, err

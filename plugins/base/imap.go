@@ -2068,8 +2068,9 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 		bodyBuf = append(headerBuf, bodyBuf...)
 	}
 
+	// An unknown charset leaves the part as its bytes, as the download does.
 	part, err := message.New(message.Header{Header: h}, bytes.NewReader(bodyBuf))
-	if err != nil {
+	if err != nil && !message.IsUnknownCharset(err) {
 		return nil, nil, fmt.Errorf("failed to create message reader: %v", err)
 	}
 

@@ -214,18 +214,9 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
-			Comps: []caldav.CalendarCompRequest{{
-				Name: "VEVENT",
-				Props: []string{
-					"SUMMARY",
-					"DESCRIPTION",
-					"UID",
-					"DTSTART",
-					"DTEND",
-					"DURATION",
-					"COLOR",
-				},
-			}},
+			// The whole event, alarms and attendees included: the page draws
+			// them, and a server returns only what is asked for.
+			Comps: []caldav.CalendarCompRequest{{Name: "VEVENT", AllProps: true, AllComps: true}},
 		},
 	}
 

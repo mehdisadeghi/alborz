@@ -125,6 +125,12 @@ func ListCollections[P CollectionProps](ctx context.Context, client *http.Client
 				},
 				Props: ps.Prop,
 			}
+			// DAV:displayname is optional. A collection with no name still
+			// needs one in the rail, and its last path step is what the
+			// client itself calls it.
+			if listed.Name == "" {
+				listed.Name = nameFromPath(listed.Path)
+			}
 			if ref, home, here := collections.Held(listed.Path); here {
 				listed.Here = true
 				if ref.Owner != home {
@@ -139,6 +145,19 @@ func ListCollections[P CollectionProps](ctx context.Context, client *http.Client
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
 	return out, failed
+}
+
+// nameFromPath is the last step of a collection's canonical path,
+// unescaped, for a server that sent no displayname.
+func nameFromPath(p string) string {
+	p = strings.TrimSuffix(p, "/")
+	if at := strings.LastIndex(p, "/"); at >= 0 {
+		p = p[at+1:]
+	}
+	if name, err := url.PathUnescape(p); err == nil {
+		return name
+	}
+	return p
 }
 
 // DefaultColor is what a new collection's colour field opens on, a

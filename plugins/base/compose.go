@@ -257,8 +257,13 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 		}
 	}
 
+	// The notice leads back to the copy just saved, so the mailbox and
+	// UID of the append are worth keeping.
+	var sent *MailboxInfo
+	var sentUID imap.UID
 	err = sender.DoIMAP(func(c *imapclient.Client) error {
-		_, _, err := appendMessage(c, msg, "sent")
+		var err error
+		sent, sentUID, err = appendMessage(c, msg, "sent")
 		return err
 	})
 	if err != nil {
@@ -276,7 +281,15 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 
 	accountChanged(ctx.Session.Username())
 	accountChanged(sender.Username())
-	ctx.PutNotice(ctx.T("notice.sent"))
+	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.sent")}
+	if sent != nil && sentUID != 0 {
+		// The copy is in the sending account's Sent, which need not be
+		// the scope the reader is in, so the link names it.
+		view := messageURL(sent.Name(), sentUID)
+		view.RawQuery = "account=" + alborz.QueryValue(sender.Username())
+		notice.Action = &alborz.NoticeAction{Label: ctx.T("notice.view"), Path: view.String()}
+	}
+	ctx.Notify(notice)
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 }
 

@@ -242,7 +242,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 
 	sorting, err := dav.Sort(ctx, rows, taskColumns, func(row TaskRow) string {
 		return strings.ToLower(row.Task.Account + "\x00" + row.Calendar.Name + "\x00" + row.Summary)
-	}, "query")
+	}, taskListParams...)
 	if err != nil {
 		return TaskList{}, err
 	}

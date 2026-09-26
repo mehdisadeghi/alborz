@@ -851,16 +851,6 @@ a.notice-name {
   text-decoration: underline;
 }
 
-/* What the dim scheme button says when there is nothing for it to do.
-   A popover rather than a tooltip alone: a finger has no hover. */
-.scheme-pinned {
-  max-inline-size: 16rem;
-  padding: var(--space-2);
-  color: var(--fg-dim);
-  font-size: var(--text-sm);
-  white-space: normal;
-}
-
 .notice-dismiss {
   display: inline-flex;
   margin: 0;
@@ -3698,6 +3688,14 @@ aside details.folder-branch details.folder-branch > ul > li {
 }
 
 .task-list-status { gap: var(--space-2); }
+
+/* The star's chevron hangs past its track into the cell beside it. On
+   the task grid that cell is the completion control, so the status
+   starts clear of the chevron instead of under it. The phone card,
+   where the star sits at the row's end, keeps the ordinary padding. */
+@media (width > 600px) {
+  .task-grid .task-list-status { padding-inline-start: var(--space-3); }
+}
 
 /* The status column sorts through a glyph, like the mail flag column:
    the track stays fixed so the arrow never widens it. */

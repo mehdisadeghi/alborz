@@ -519,8 +519,15 @@ func (ctx *Context) Unreachable(accounts []string) {
 	if len(accounts) == 0 {
 		return
 	}
+	// Each name leads to the account's own servers, which is where the
+	// reader can do something about one that did not answer.
+	linked := make([]string, len(accounts))
+	for i, name := range accounts {
+		linked[i] = NoticeLink(name, "/settings/account?account="+QueryValue(name))
+	}
 	ctx.Notify(Notice{Kind: NoticeWarning,
-		Text: ctx.Tf("notice.unreachable", len(accounts), strings.Join(accounts, ", "))})
+		Text:   ctx.Tf("notice.unreachable", len(accounts), strings.Join(accounts, ", ")),
+		Markup: template.HTML(ctx.Tf("notice.unreachable", len(accounts), strings.Join(linked, ", ")))})
 }
 
 // NoticeName is a thing's own name inside a notice: quoted by the

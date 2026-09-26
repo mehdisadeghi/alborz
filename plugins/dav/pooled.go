@@ -122,7 +122,8 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	for _, username := range slices.Sorted(maps.Keys(answered)) {
 		code := answered[username]
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
-			Text: fmt.Sprintf(ctx.T("notice.davanswered"), username, fmt.Sprintf("%d %s", code, http.StatusText(code)))})
+			Text:   fmt.Sprintf(ctx.T("notice.davanswered"), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
+			Action: &alborz.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.QueryValue(username)}})
 	}
 	// A refusal is the one the reader can end, so it is the one said
 	// when both happened, with the way to the account's own settings.

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/mail"
 	"net/url"
@@ -552,7 +553,10 @@ func (pg Page) HandleAnswer(p *Provider, accept bool) func(*alborz.Context) erro
 			return err
 		}
 		pg.Forget(ctx.Session.Username())
-		ctx.PutNotice(fmt.Sprintf(ctx.T("notice.shareaccepted"), c.Name))
+		// The name leads to the collection the account just accepted.
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone,
+			Text:   fmt.Sprintf(ctx.T("notice.shareaccepted"), c.Name),
+			Markup: template.HTML(fmt.Sprintf(ctx.T("notice.shareaccepted"), alborz.NoticeLink(c.Name, pg.pageOf(ctx, CanonicalCollectionPath(collPath)))))})
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
 	}
 }

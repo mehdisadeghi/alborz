@@ -131,7 +131,7 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 
 	sorting, err := dav.Sort(ctx, aos, contactColumns(addressBookInfos), func(ao AddressObject) string {
 		return strings.ToLower(ao.DisplayName())
-	}, "query", "account")
+	}, contactListParams...)
 	if err != nil {
 		return ContactList{}, err
 	}

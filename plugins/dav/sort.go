@@ -50,10 +50,17 @@ type Sorting struct {
 	Params, Reset string
 }
 
+// sortDrops are the parameters a sort link never carries: the order it
+// replaces and the page it was on, since a new order starts at the
+// first page. Every other parameter the list declares in its own slice
+// rides along, so a new filter needs no second place to be named.
+var sortDrops = []string{"sort", "dir", "page"}
+
 // Sort puts rows in the order the URL asks for, the first column's when
 // it asks for none, and says what the sort controls draw. tie orders
 // the rows a column holds equal, and turns with the direction as the
-// column does. keep names the parameters a sort link carries on.
+// column does. keep names the parameters a sort link carries on, less
+// sortDrops.
 func Sort[T any](ctx *alborz.Context, rows []T, columns []Column[T], tie func(T) string, keep ...string) (Sorting, error) {
 	key, dir := ctx.QueryParam("sort"), ctx.QueryParam("dir")
 	s := Sorting{Key: key, Dir: dir, Explicit: key != "", DirExplicit: dir != "", Reset: "?"}
@@ -67,7 +74,11 @@ func Sort[T any](ctx *alborz.Context, rows []T, columns []Column[T], tie func(T)
 	if dir != "" && dir != "asc" && dir != "desc" {
 		return s, echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
 	}
-	if kept := Keep(ctx.QueryParams(), keep...); len(kept) > 0 {
+	kept := Keep(ctx.QueryParams(), keep...)
+	for _, k := range sortDrops {
+		kept.Del(k)
+	}
+	if len(kept) > 0 {
 		s.Params = "&" + alborz.Query(kept)
 		s.Reset = "?" + alborz.Query(kept)
 	}

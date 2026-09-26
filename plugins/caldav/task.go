@@ -116,17 +116,9 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
-			Comps: []caldav.CalendarCompRequest{{
-				Name: "VTODO",
-				Props: []string{
-					"SUMMARY",
-					"DESCRIPTION",
-					"UID",
-					"DUE",
-					"STATUS",
-					"COLOR",
-				},
-			}},
+			// The whole to-do: the form reads its priority and its dates,
+			// and a server returns only what is asked for.
+			Comps: []caldav.CalendarCompRequest{{Name: "VTODO", AllProps: true, AllComps: true}},
 		},
 	}
 
@@ -265,7 +257,13 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			}
 		}
 
-		todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
+		// DTSTAMP is the instance's creation (RFC 5545 3.8.7.2), which the
+		// Added column reads; an edit moves LAST-MODIFIED instead.
+		if creating {
+			todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
+		} else {
+			todo.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
+		}
 		todo.Props.SetText(ical.PropSummary, summary)
 
 		if description != "" {
@@ -288,6 +286,9 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		} else {
 			todo.Props.Del(ical.PropDue)
 		}
+		// DUE and DTSTART must not stand together (RFC 5545 3.6.2);
+		// alborz keeps the date in DUE, as the form shows it there.
+		todo.Props.Del(ical.PropDateTimeStart)
 		if prioritySent {
 			setPriorityBand(todo, band)
 		}
@@ -312,12 +313,19 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 	}
 
 	summary, _ := todo.Props.Text("SUMMARY")
+	// The form shows the date the list shows, from DUE or, for a writer
+	// that sent only the start, DTSTART.
 	var due string
-	if prop := todo.Props.Get(ical.PropDue); prop != nil {
-		at, err := prop.DateTime(loc)
-		if err != nil {
+	at, err := todo.Props.DateTime(ical.PropDue, loc)
+	if err != nil {
+		return err
+	}
+	if at.IsZero() {
+		if at, err = todo.Props.DateTime(ical.PropDateTimeStart, loc); err != nil {
 			return err
 		}
+	}
+	if !at.IsZero() {
 		due = ctx.InputDate(at)
 	}
 

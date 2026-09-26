@@ -171,9 +171,10 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
+			// The whole event: a server that cannot expand a rule still has
+			// to send the rule, or the list draws only the first instance.
 			Comps: []caldav.CalendarCompRequest{{
-				Name:  "VEVENT",
-				Props: []string{"SUMMARY", "UID", "DTSTART", "DTEND", "DURATION", "COLOR"},
+				Name: "VEVENT", AllProps: true, AllComps: true,
 			}},
 			Expand: &caldav.CalendarExpandRequest{Start: start, End: end},
 		},

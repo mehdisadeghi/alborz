@@ -56,9 +56,10 @@ type TaskRow struct {
 	AddedBy string
 	Status  string
 	Due     time.Time
-	// Added is CREATED (RFC 5545 3.8.7.1), which every task alborz has
-	// seen carries and which costs nothing to read: it is in the data
-	// the list already fetched. Zero where the writer left it out.
+	// Added is DTSTAMP (RFC 5545 3.8.7.2), the one timestamp every
+	// writer must send, falling back to CREATED where a writer sent the
+	// optional one instead. Both are in the data the list already
+	// fetched; zero where the writer sent neither.
 	Added     time.Time
 	Completed bool
 	// Priority is the band the task's PRIORITY falls in, or empty.
@@ -392,8 +393,16 @@ func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location
 	// The raw property value is an iCal timestamp ("20260830T100000Z"),
 	// which is not a thing to show anyone; parse it and let the page
 	// write the date.
-	due, _ := todo.Props.DateTime("DUE", loc)
-	added, _ := todo.Props.DateTime("CREATED", loc)
+	// RFC 5545 3.6.2 lets a to-do carry DUE or DTSTART, never both:
+	// a writer that has only the start is still saying when it is for.
+	due, _ := todo.Props.DateTime(ical.PropDue, loc)
+	if due.IsZero() {
+		due, _ = todo.Props.DateTime(ical.PropDateTimeStart, loc)
+	}
+	added, _ := todo.Props.DateTime(ical.PropDateTimeStamp, loc)
+	if added.IsZero() {
+		added, _ = todo.Props.DateTime(ical.PropCreated, loc)
+	}
 	object := TaskObject{CalendarObject: task, Account: cal.Account}
 	return TaskRow{
 		Task:      object,
@@ -503,16 +512,11 @@ func taskQuery() caldav.CalendarQuery {
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
-			Comps: []caldav.CalendarCompRequest{{
-				Name: "VTODO",
-				Props: []string{
-					"SUMMARY",
-					"UID",
-					"DUE",
-					"STATUS",
-					"DESCRIPTION",
-				},
-			}},
+			// A server returns only what is asked for, so ask for the whole
+			// to-do: every column reads a property of it, and naming them
+			// one by one is how a read for a property nobody requested came
+			// to be blank.
+			Comps: []caldav.CalendarCompRequest{{Name: "VTODO", AllProps: true, AllComps: true}},
 		},
 		CompFilter: caldav.CompFilter{
 			Name:  "VCALENDAR",

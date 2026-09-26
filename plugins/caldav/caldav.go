@@ -181,7 +181,7 @@ func (ao CalendarObject) Alarms() []Alarm {
 		return nil
 	}
 	start, _ := comp.Props.DateTime(ical.PropDateTimeStart, nil)
-	end, _ := comp.Props.DateTime(ical.PropDateTimeEnd, nil)
+	end := componentEnd(comp)
 
 	var out []Alarm
 	for _, child := range comp.Children {
@@ -211,6 +211,32 @@ func (ao CalendarObject) Alarms() []Alarm {
 		out = append(out, Alarm{At: at, Action: action})
 	}
 	return out
+}
+
+// componentEnd is when a component ends, for an alarm whose trigger is
+// related to END: an event's DTEND or DTSTART+DURATION, a to-do's DUE.
+func componentEnd(comp *ical.Component) time.Time {
+	switch comp.Name {
+	case ical.CompEvent:
+		event := ical.Event{Component: comp}
+		end, _ := event.DateTimeEnd(nil)
+		return end
+	case ical.CompToDo:
+		if due, _ := comp.Props.DateTime(ical.PropDue, nil); !due.IsZero() {
+			return due
+		}
+		start, _ := comp.Props.DateTime(ical.PropDateTimeStart, nil)
+		if start.IsZero() {
+			return time.Time{}
+		}
+		if durProp := comp.Props.Get(ical.PropDuration); durProp != nil {
+			if d, err := durProp.Duration(); err == nil {
+				return start.Add(d)
+			}
+		}
+		return start
+	}
+	return time.Time{}
 }
 
 // Occurrence is one drawing of an event: a component of an object plus

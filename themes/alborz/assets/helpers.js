@@ -345,61 +345,6 @@ const enhance = () => {
 		});
 	}
 
-	// Each prime nav remembers the place you last were in its section:
-	// a folder, a month, a view. The account is the scope and the URL
-	// carries it (ADR 0001), so a remembered place never overrules the
-	// account the reader is looking at: it is stored stripped of it and
-	// rescoped to the current page. But a place belongs to the scope it
-	// was seen in - a folder is one account's, a task list is one
-	// account's, and the merged view's Junk is a role that an account
-	// calling its folder Spam does not have - so each scope remembers
-	// its own, and a place is only ever reopened where it was found.
-	// Only a list page is a place; see nav.html.
-	(() => {
-		const nav = document.querySelector("header nav[data-here]");
-		if (!nav) {
-			return;
-		}
-		// The scope is the list's: an object opened from the merged view
-		// is looked at under it, though its own URL names its account.
-		const account = nav.dataset.scope;
-		const key = section => "nav-place:" + section + ":" + (account || "");
-		// Rewritten as text: URLSearchParams re-escapes every value, and
-		// the server writes them readably (QueryValue).
-		const scoped = (place, account) => {
-			const [path, query = ""] = place.split("?");
-			const params = query.split("&").filter(p => p);
-			// An object's own account is whose server holds it, not a
-			// scope; the list it came from carries that.
-			if (params.some(p => p.startsWith("from="))) {
-				return place;
-			}
-			const kept = params.filter(p => !p.startsWith("account="));
-			if (account) {
-				kept.push("account=" + account);
-			}
-			return path + (kept.length ? "?" + kept.join("&") : "");
-		};
-		const here = nav.dataset.here;
-		if (here && "place" in nav.dataset) {
-			try {
-				localStorage.setItem(key(here), scoped(location.pathname + location.search, null));
-			} catch (e) {}
-		}
-		for (const a of nav.querySelectorAll("a[data-section]")) {
-			if (a.dataset.section === here) {
-				continue;
-			}
-			let place = null;
-			try {
-				place = localStorage.getItem(key(a.dataset.section));
-			} catch (e) {}
-			if (place !== null) {
-				a.setAttribute("href", scoped(place, account));
-			}
-		}
-	})();
-
 	// The section links are words while the five fit the row and icons
 	// once they do not. Measured, not set at a width: the words are longer
 	// in German and Persian than in English, and a row that scrolls hides

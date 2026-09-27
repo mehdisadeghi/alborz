@@ -7,15 +7,7 @@
        search (the starred views are one), and the folder forms. */}}
   {{ $section := $page }}
   {{ range tuple "message" "compose" "search" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $section = "mailbox" }}{{ end }}{{ end }}
-  {{/* Every page is a place the section returns to - a list, a
-       message, an event, a card - except a form, which would come back
-       empty. A form is a mail page named for what it makes, or a page
-       whose last step is one. */}}
-  {{ $last := $page }}{{ range .GlobalData.Path }}{{ $last = . }}{{ end }}
-  {{ $place := true }}
-  {{ range tuple "compose" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $place = false }}{{ end }}{{ end }}
-  {{ range tuple "create" "update" "edit" "reply" "forward" "subscribe" "empty" "export" "import" }}{{ if eq $last . }}{{ $place = false }}{{ end }}{{ end }}
-  <nav data-here="{{$section}}" data-scope="{{.GlobalData.Scope}}"{{ if $place }} data-place{{ end }}>
+  <nav>
     {{ if .GlobalData.LoggedIn }}
     <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>
     {{/* Top left, before the sections: on a phone the drawer's head
@@ -25,14 +17,14 @@
     {{/* Every section keeps the scope the URL carries: the account
          it names, or the merged view when it names none. */}}
     {{$q := account "?" .GlobalData.Scope}}
-    <a href="/mailbox/INBOX{{$q}}" data-section="mailbox" data-go="m"
+    <a href="/mailbox/INBOX{{$q}}" data-go="m"
       {{ if eq $section "mailbox" }}
       class="active" aria-current="page"
       {{ end }}
     title="{{$.T "nav.email"}}" aria-label="{{$.T "nav.email"}}">{{ template "icon" "mail" }}<span class="label">{{$.T "nav.email"}}</span></a>
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/calendar{{$q}}" data-section="calendar" data-go="l"
+      href="/calendar{{$q}}" data-go="l"
       {{ if eq $page "calendar" }}
       class="active" aria-current="page"
       {{ end }}
@@ -40,7 +32,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "carddav" }}
     <a
-      href="/contacts{{$q}}" data-section="contacts" data-go="c"
+      href="/contacts{{$q}}" data-go="c"
       {{ if eq $page "contacts" }}
       class="active" aria-current="page"
       {{ end }}
@@ -48,7 +40,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "caldav" }}
     <a
-      href="/tasks{{$q}}" data-section="tasks" data-go="k"
+      href="/tasks{{$q}}" data-go="k"
       {{ if eq $page "tasks" }}
       class="active" aria-current="page"
       {{ end }}
@@ -56,7 +48,7 @@
     {{ end }}
     {{ if call .GlobalData.HavePlugin "sieve" }}
     <a
-      href="/filters{{$q}}" data-section="filters" data-go="f"
+      href="/filters{{$q}}" data-go="f"
       {{ if eq $page "filters" }}
       class="active" aria-current="page"
       {{ end }}

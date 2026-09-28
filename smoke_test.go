@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/textproto"
 	"net/url"
 	"regexp"
@@ -289,7 +290,7 @@ func startAlborz(t *testing.T, imapAddr string, smtpAddr ...string) string {
 
 func startAlborzWith(t *testing.T, upstreams []string) string {
 	t.Helper()
-	return serveAlborz(t, upstreams, "")
+	return serveAlborz(t, upstreams, "", true)
 }
 
 // startAlborzKeeping has a data directory, for a test that saves
@@ -297,10 +298,10 @@ func startAlborzWith(t *testing.T, upstreams []string) string {
 func startAlborzKeeping(t *testing.T, imapAddr string, smtpAddr ...string) string {
 	t.Helper()
 	return serveAlborz(t, append([]string{"test.local=imap+insecure://" + imapAddr},
-		smtpUpstreams(smtpAddr)...), t.TempDir())
+		smtpUpstreams(smtpAddr)...), t.TempDir(), true)
 }
 
-func serveAlborz(t *testing.T, upstreams []string, dataDir string) string {
+func serveAlborz(t *testing.T, upstreams []string, dataDir string, cache bool) string {
 	t.Helper()
 	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 	e := echo.New()
@@ -311,6 +312,7 @@ func serveAlborz(t *testing.T, upstreams []string, dataDir string) string {
 		ThemesPath: "./themes",
 		LoginKey:   key,
 		DataDir:    dataDir,
+		Cache:      cache,
 		// A handler that sends the reader elsewhere says what it did.
 		StrictNotices: true,
 	})
@@ -482,11 +484,6 @@ func loginAs(t *testing.T, base, account string) *http.Client {
 		t.Fatalf("login: %v", err)
 	}
 	resp.Body.Close()
-	// The listing cache is one per process and keyed by user, so a
-	// fresh rig would still be read through what the last test left
-	// in it. Asking for a refresh is what a reader does; here it is
-	// what isolates the tests.
-	postForm(t, c, base+"/mailbox/INBOX/refresh", nil)
 	return c
 }
 
@@ -2064,5 +2061,38 @@ func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// With caching off every page asks the servers and nothing is kept. The
+// path a reader walks still answers, and opening a message still marks
+// it read, which with caching on rides the body fetched ahead.
+func TestCachingOffServesEveryPage(t *testing.T) {
+	stub := &davStub{cals: map[string]davCal{davHome + "personal/": {"Personal", "#3366cc"}},
+		refuse: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}}
+	dav := httptest.NewServer(stub)
+	defer dav.Close()
+	base := serveAlborz(t, []string{
+		"test.local=imap+insecure://" + startIMAP(t),
+		"test.local=caldav+insecure://" + strings.TrimPrefix(dav.URL, "http://") + "/dav",
+	}, "", false)
+	c := login(t, base)
+
+	if len(messageUIDs(get(t, c, base+"/mailbox/INBOX"))) == 0 {
+		t.Fatal("the inbox listed no messages")
+	}
+	unread := messageUIDs(get(t, c, base+"/mailbox/INBOX?view=unread"))
+	if len(unread) == 0 {
+		t.Fatal("no unread message to open")
+	}
+	uid := unread[0]
+	if page := get(t, c, base+"/message/INBOX/"+uid+"?part=1"); !strings.Contains(page, "message-flag-form") {
+		t.Fatal("the message page did not render")
+	}
+	if slices.Contains(messageUIDs(get(t, c, base+"/mailbox/INBOX?view=unread")), uid) {
+		t.Errorf("message %s is still unread after it was opened", uid)
+	}
+	if !strings.Contains(get(t, c, base+"/calendar"), "Personal") {
+		t.Error("the calendar page does not show the server's calendar")
 	}
 }

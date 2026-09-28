@@ -17,7 +17,8 @@ var public embed.FS
 
 type plugin struct {
 	alborz.GoPlugin
-	dav *dav.Provider
+	dav  *dav.Provider
+	subs *subCache
 }
 
 func (p *plugin) client(ctx context.Context, login *alborz.Login) (*caldav.Client, error) {
@@ -50,6 +51,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	p := &plugin{
 		GoPlugin: alborz.GoPlugin{Name: "caldav", Files: public},
 		dav:      provider,
+		subs:     newSubCache(srv.Options.CacheFor(subRefreshAfter)),
 	}
 	p.EnabledFunc = provider.Enabled
 	p.CloseFunc = provider.Close

@@ -376,7 +376,7 @@ func (p *plugin) rawObject(ctx *alborz.Context) error {
 	// An event of a feed has no object of its own on any server; it is
 	// handed over as the calendar the page shows.
 	uid := ctx.QueryParam("uid")
-	_, cal, err := feedObject(ctx, path, uid)
+	_, cal, err := p.feedObject(ctx, path, uid)
 	if err != nil {
 		return err
 	}

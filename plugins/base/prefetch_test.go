@@ -6,30 +6,31 @@ import (
 	"testing"
 	"time"
 
+	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 func TestBodyIdentityAndFlagWrite(t *testing.T) {
-	bc := newBodyCache()
+	bc := newBodyCache(bodyKeepFor)
 	k := bodyKey{user: "u", mbox: "INBOX", validity: 1, uid: 7}
 	part := []int{1}
 	bc.observe(k.user, k.mbox, k.validity)
 	token := bc.claim(k, part)
 	bc.put(k.user, k.mbox, k.validity, token, &cachedBody{buf: &imapclient.FetchMessageBuffer{UID: k.uid}, part: part})
-	if bc.get(k.user, k.mbox, 2, k.uid, part) != nil {
+	if bc.entries[bodyKey{k.user, k.mbox, 2, k.uid}] != nil {
 		t.Fatal("body survived a UIDVALIDITY change")
 	}
 	bc.flags(k.user, k.mbox, []imap.UID{k.uid}, imap.StoreFlagsAdd, []imap.Flag{imap.FlagFlagged})
 	bc.put(k.user, k.mbox, k.validity, token, &cachedBody{buf: &imapclient.FetchMessageBuffer{UID: k.uid}, part: part})
-	b := bc.get(k.user, k.mbox, k.validity, k.uid, part)
+	b := bc.current(k.user, k.mbox, k.uid, part)
 	if b == nil || len(b.buf.Flags) != 1 || b.buf.Flags[0] != imap.FlagFlagged {
 		t.Fatal("prefetch overwrote confirmed flags")
 	}
 }
 
 func TestListingFetchOutlivesItsFirstReader(t *testing.T) {
-	lc := newListingCache()
+	lc := newListingCache(listingKeepFor, alborz.NewBackgroundMemo[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
 	started, finish := make(chan struct{}), make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	first := make(chan error, 1)
@@ -62,7 +63,7 @@ func TestListingFetchOutlivesItsFirstReader(t *testing.T) {
 }
 
 func TestMailboxResetInvalidatesBodiesAndPendingWrites(t *testing.T) {
-	bc := newBodyCache()
+	bc := newBodyCache(bodyKeepFor)
 	k := bodyKey{user: "u", mbox: "INBOX", validity: 1, uid: 7}
 	bc.observe(k.user, k.mbox, k.validity)
 	token := bc.claim(k, []int{1})
@@ -84,7 +85,7 @@ func TestMailboxResetInvalidatesBodiesAndPendingWrites(t *testing.T) {
 }
 
 func TestListingFetchCannotUndoInvalidation(t *testing.T) {
-	lc := newListingCache()
+	lc := newListingCache(listingKeepFor, alborz.NewBackgroundMemo[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
 	_, err := lc.load(context.Background(), "u", "INBOX", 25, false, func(context.Context) (*listingEntry, error) {
 		lc.evict("u", "INBOX")
 		return &listingEntry{perPage: 25, total: 3}, nil
@@ -98,7 +99,7 @@ func TestListingFetchCannotUndoInvalidation(t *testing.T) {
 }
 
 func TestRemovedBodyCannotReturnFromPrefetch(t *testing.T) {
-	bc := newBodyCache()
+	bc := newBodyCache(bodyKeepFor)
 	bc.observe("u", "INBOX", 1)
 	for _, uid := range []imap.UID{7, 8} {
 		k := bodyKey{"u", "INBOX", 1, uid}

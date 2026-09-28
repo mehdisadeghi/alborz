@@ -84,7 +84,8 @@ type Provider struct {
 	// startup probes after NewProvider returns; hostsMu guards the writes.
 	hosts   map[string]*url.URL
 	hostsMu sync.Mutex
-	cache   *davcache.Cache
+	// cache is nil with caching off.
+	cache *davcache.Cache
 	// trusted reaches the servers the deployment names or finds; named
 	// reaches the one an account names, which without the operator's
 	// -private-services is out on the internet at every hop or is not
@@ -128,19 +129,23 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 			found[domain] = record
 		}
 	}
-	var store *davcache.Store
-	if srv.Options.CacheDir != "" && srv.Options.LoginKey != nil {
-		store = davcache.NewStore(filepath.Join(srv.Options.CacheDir, kind.Name), srv.Options.LoginKey)
-	}
-	cache, warm, err := davcache.New(store, kind.Poll)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load the %s cache: %w", kind.Name, err)
-	}
-	if warm > 0 {
-		srv.Logger().Printf("%s: cache warm for %d accounts", kind.Name, warm)
+	var cache *davcache.Cache
+	if srv.Options.Cache {
+		var store *davcache.Store
+		if srv.Options.CacheDir != "" && srv.Options.LoginKey != nil {
+			store = davcache.NewStore(filepath.Join(srv.Options.CacheDir, kind.Name), srv.Options.LoginKey)
+		}
+		c, warm, err := davcache.New(store, kind.Poll)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load the %s cache: %w", kind.Name, err)
+		}
+		if warm > 0 {
+			srv.Logger().Printf("%s: cache warm for %d accounts", kind.Name, warm)
+		}
+		cache = c
 	}
 	p := &Provider{kind: kind, urls: urls, found: found, hosts: hosts, cache: cache,
-		collections: alborz.NewBackgroundMemo[[]Collection](discoveryTTL)}
+		collections: alborz.NewBackgroundMemo[[]Collection](srv.Options.CacheFor(discoveryTTL))}
 	p.trusted, p.named = srv.Outgoing.Trusted, srv.Outgoing.Trusted
 	if !srv.Options.PrivateServices {
 		p.named = srv.Outgoing.Guarded
@@ -582,8 +587,12 @@ func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 }
 
 // Warm fetches an account's first pages behind a sign-in, so that they
-// open from the cache. It outlives the request, within WarmBudget.
+// open from the cache; without one there is nothing to fill. It
+// outlives the request, within WarmBudget.
 func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Login, fetch func(context.Context) error) {
+	if p.cache == nil {
+		return
+	}
 	log := ctx.Logger()
 	go func() {
 		bg, cancel := context.WithTimeout(context.Background(), WarmBudget)

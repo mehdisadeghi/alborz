@@ -148,6 +148,7 @@ func startAlborzDav(t *testing.T, imapAddr, davURL string) string {
 		Theme:      "alborz",
 		ThemesPath: "./themes",
 		LoginKey:   key,
+		Cache:      true,
 	}); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}

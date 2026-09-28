@@ -372,9 +372,9 @@ func zipEntryName(filename, mediaType string, taken map[string]int) string {
 	return name
 }
 
-func handleGetPart(ctx *alborz.Context, raw bool) error {
+func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 	if !raw && ctx.PartialFor("message-navigation") {
-		return handleMessageNavigation(ctx)
+		return p.handleMessageNavigation(ctx)
 	}
 	if raw && ctx.QueryParam("part") == "" {
 		return handleDownloadMessage(ctx, ctx.QueryParam("plain") == "1")
@@ -395,7 +395,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 	// Read before the message's own IMAP work: the observed id may cost
 	// a sample of the inbox, and the login lock is not reentrant.
-	trusted := TrustedAuthServ(ctx, settings)
+	trusted := p.TrustedAuthServ(ctx, settings)
 	messagesPerPage := PerPage(ctx)
 
 	query := ctx.QueryParam("query")
@@ -415,7 +415,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		placed bool
 	)
 	if !raw {
-		cached, place, placed = cachedPlace(ctx, mboxName, uid, query, railView)
+		cached, place, placed = p.cachedPlace(ctx, mboxName, uid, query, railView)
 	}
 	// A link naming no part, like Newer and Older, opens the part the
 	// mailbox rows would link to. The cached row knows the structure,
@@ -432,7 +432,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	// parts on the connection that holds the folder.
 	var held *cachedBody
 	if !raw {
-		held = bodies.current(ctx.Login.Username(), mboxName, uid, partPath)
+		held = p.bodies.current(ctx.Login.Username(), mboxName, uid, partPath)
 		if held != nil && len(partPath) == 0 {
 			partPath = held.part
 		}
@@ -463,7 +463,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		sb = cached.sb
 	}
 	if held != nil && cached == nil {
-		sb, err = sidebarFor(ctx.Login)
+		sb, err = p.sidebarFor(ctx.Login)
 		if err != nil {
 			return err
 		}
@@ -481,7 +481,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		// The peek left the message unread on the server; the page is
 		// what reads it, and nothing waits on the server saying so.
 		if !msg.HasFlag(imap.FlagSeen) {
-			markHeldSeen(ctx.Login, mboxName, uid, held.validity)
+			p.markHeldSeen(ctx.Login, mboxName, uid, held.validity)
 		}
 	}
 	sent := sentFolder(sb.mailboxes)
@@ -508,7 +508,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 				}
 				// The body fetch marked the message read; the cached listings say
 				// so too rather than being fetched again for one flag.
-				messageRead(ctx.Login.Username(), mboxName, uid)
+				p.messageRead(ctx.Login.Username(), mboxName, uid)
 				permanentFlags = c.Mailbox().PermanentFlags
 			}
 			if raw {
@@ -529,7 +529,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 				// connection that has the mailbox open. A message nobody
 				// signed costs nothing here: signedParts walks a structure
 				// already in hand and finds nothing.
-				signature = verifySignature(ctx.Server.Outgoing.Remote(wkdTimeout), c, mboxName, uid, msg.BodyStructure,
+				signature = p.verifySignature(ctx.Server.Outgoing.Remote(wkdTimeout), c, mboxName, uid, msg.BodyStructure,
 					messageRootHeader(msg), envelopeSender(msg.Envelope))
 				// What our own server made of SPF, DKIM and DMARC when
 				// it took delivery. Read from the same header set, and
@@ -564,7 +564,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 			// from a host bills one address and its imitation reaches
 			// another, so every signed-in account's inbox is asked.
 			for _, s := range ctx.Logins() {
-				if book := senderBookFor(s); book != nil && evidence.Named == nil {
+				if book := p.senderBookFor(s); book != nil && evidence.Named == nil {
 					evidence.Named = book.named(msg.Envelope.From[0].Name, evidence.From)
 				}
 			}
@@ -655,7 +655,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		flags[f] = msg.HasFlag(f)
 	}
 
-	trust := newDeliveryTrust(ctx, settings, ctx.Login.Username())
+	trust := p.newDeliveryTrust(ctx, settings, ctx.Login.Username())
 	// The row says where the mail went only where To and Cc do not
 	// already: an alias the sender wrote out is on the page once.
 	deliveredTo := trust.alias(msg)
@@ -663,7 +663,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		deliveredTo = ""
 	}
 	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, railView)
-	ibase.SidebarAccounts = sidebarAccounts(ctx)
+	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject).WithItem()
 	mbox := ibase.Mailbox
 

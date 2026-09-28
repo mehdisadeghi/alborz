@@ -64,7 +64,7 @@ func folderNamed(mbox *MailboxInfo, named string) bool {
 // scope: the URL's account, or all of them. Each folder gives its own
 // newest window and the page is cut from the merge, the way the merged
 // view cuts its page from the accounts.
-func handleSearch(ctx *alborz.Context) error {
+func (p *plugin) handleSearch(ctx *alborz.Context) error {
 	ask, err := readListAsk(ctx, "account")
 	if err != nil {
 		return err
@@ -95,7 +95,7 @@ func handleSearch(ctx *alborz.Context) error {
 		junk = map[rowRef]bool{}
 	)
 	merged, err := gather(ctx, logins, spec, func(s *alborz.Login) (*listingEntry, error) {
-		sb, err := sidebarFor(s)
+		sb, err := p.sidebarFor(s)
 		if err != nil {
 			return nil, err
 		}
@@ -143,13 +143,13 @@ func handleSearch(ctx *alborz.Context) error {
 	if !ctx.Unified {
 		// One account's rail is its folder tree, which the merged rail
 		// builds for itself from the accounts.
-		sb, err := sidebarFor(ctx.Login)
+		sb, err := p.sidebarFor(ctx.Login)
 		if err != nil {
 			return err
 		}
 		ibase = assembleIMAPBase(ctx, base, "", sb.clone(), spec.view)
 	}
-	ibase.SidebarAccounts = sidebarAccounts(ctx)
+	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	// No name: the rail marks the folder the page shows, and this page
 	// shows none.
 	ibase.Mailbox = &MailboxStatus{StatusData: &imap.StatusData{}, Label: title}

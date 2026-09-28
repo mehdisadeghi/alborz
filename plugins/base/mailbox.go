@@ -83,7 +83,7 @@ type MailboxDetails struct {
 // each resolves per account through its special-use attributes.
 var unifiedRoles = []string{"INBOX", "Drafts", "Sent", "Junk", "Trash", "Archive"}
 
-func handleUnifiedMailbox(ctx *alborz.Context) error {
+func (p *plugin) handleUnifiedMailbox(ctx *alborz.Context) error {
 	role, err := mailboxRef(ctx)
 	if err != nil {
 		return err
@@ -115,13 +115,13 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	class, bound := listingBudget(spec)
 	merged, err := gather(ctx, ctx.Logins(), spec, func(s *alborz.Login) (*listingEntry, error) {
 		user := s.Username()
-		size := ask.held(listings.heldSize(user, key))
+		size := ask.held(p.listings.heldSize(user, key))
 		// A window of one page is all shown, so it is read whole.
 		fields := mergeFetchOptions
 		if size == ask.perPage {
 			fields = listFetchOptions
 		}
-		folder := func(c *imapclient.Client) (string, error) { return resolveRole(c, user, role) }
+		folder := func(c *imapclient.Client) (string, error) { return p.resolveRole(c, user, role) }
 		fetch := func(c *imapclient.Client) (*listingEntry, error) {
 			name, err := folder(c)
 			if err != nil || name == "" {
@@ -130,7 +130,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 			return fetchUnifiedAccount(c, user, name, spec, settings, size, fields, cacheable)
 		}
 		if cacheable {
-			return cachedListing(ctx, s, key, size, spec, folder, fetch)
+			return p.cachedListing(ctx, s, key, size, spec, folder, fetch)
 		}
 		alborz.CacheTiming(ctx.Request().Context(), "listing", false)
 		return readOn(s, class, bound, fetch)(ctx.Request().Context())
@@ -138,7 +138,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	rows, err := wholePage(ctx, role, key, cutPage(merged.msgs, ask), class, bound)
+	rows, err := p.wholePage(ctx, role, key, cutPage(merged.msgs, ask), class, bound)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 		// refresh form posts to it. The label is what is read.
 		Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: role}, Label: title},
 		ListView:        spec.view,
-		SidebarAccounts: sidebarAccounts(ctx),
+		SidebarAccounts: p.sidebarAccounts(ctx),
 	}
 	data.Crumb = []CrumbLink{{Label: ctx.T("aside." + strings.ToLower(role)), URL: "/mailbox/" + role}}
 	data.Outgoing = role == "Sent" || role == "Drafts"
@@ -183,7 +183,7 @@ func (ask listAsk) held(have int) int {
 // wholePage fetches the page's rows the windows hold only by what the
 // merge compares, and writes them back into the windows. A row that
 // could not be fetched is left off rather than shown without its marks.
-func wholePage(ctx *alborz.Context, role, key string, page []IMAPMessage, class alborz.IMAPClass, bound time.Duration) ([]IMAPMessage, error) {
+func (p *plugin) wholePage(ctx *alborz.Context, role, key string, page []IMAPMessage, class alborz.IMAPClass, bound time.Duration) ([]IMAPMessage, error) {
 	missing := map[string][]imap.UID{}
 	for _, m := range page {
 		if m.BodyStructure == nil {
@@ -199,7 +199,7 @@ func wholePage(ctx *alborz.Context, role, key string, page []IMAPMessage, class 
 			return nil, nil
 		}
 		return readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
-			name, err := resolveRole(c, user, role)
+			name, err := p.resolveRole(c, user, role)
 			if err != nil || name == "" {
 				return nil, err
 			}
@@ -210,7 +210,7 @@ func wholePage(ctx *alborz.Context, role, key string, page []IMAPMessage, class 
 			for i := range rows {
 				rows[i].Account = user
 			}
-			listings.fill(user, key, rows)
+			p.listings.fill(user, key, rows)
 			return &listingEntry{msgs: rows}, nil
 		})(ctx.Request().Context())
 	})
@@ -418,14 +418,14 @@ func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listing
 	return e, nil
 }
 
-func handleGetMailbox(ctx *alborz.Context) error {
+func (p *plugin) handleGetMailbox(ctx *alborz.Context) error {
 	// Reading mail is what precedes writing it, so this is where the
 	// recipient suggestions are put on to warm. Nothing here waits for
 	// them and nothing on this page shows them.
-	gatherCorrespondents(ctx.Login)
+	p.gatherCorrespondents(ctx.Login)
 
 	if ctx.Unified {
-		return handleUnifiedMailbox(ctx)
+		return p.handleUnifiedMailbox(ctx)
 	}
 
 	mboxName, err := mailboxRef(ctx)
@@ -471,34 +471,34 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	}
 	var e *listingEntry
 	if cacheable {
-		e, err = cachedListing(ctx, ctx.Login, key, messagesPerPage, spec,
+		e, err = p.cachedListing(ctx, ctx.Login, key, messagesPerPage, spec,
 			func(*imapclient.Client) (string, error) { return mboxName, nil }, fetch)
 	} else {
-		e, err = loadListing(ctx, ctx.Login, key, messagesPerPage, spec, fetch)
+		e, err = p.loadListing(ctx, ctx.Login, key, messagesPerPage, spec, fetch)
 	}
 	if err != nil {
 		return err
 	}
-	sb, msgs := railFor(ctx.Login, mboxName, e.sb), e.msgs
+	sb, msgs := p.railFor(ctx.Login, mboxName, e.sb), e.msgs
 	// The page's bodies are fetched behind it, so the next click, on
 	// any of its rows, asks the server nothing.
 	if cacheable {
 		login := ctx.Login
-		go prefetchBodies(login, ctx.Reading().PreferHTML, mboxName, e.validity(), e.msgs)
+		p.prefetchBodies(login, ctx.Reading().PreferHTML, mboxName, e.validity(), e.msgs)
 		if spec.query == "" && spec.sortKey != threadSort && spec.thread == 0 && ask.window() < e.total {
-			prefetchPage(login, settings, spec, page+1, messagesPerPage)
+			p.prefetchPage(login, settings, spec, page+1, messagesPerPage)
 		}
 	}
 
 	// A row shows the address it reached only where that is worth
 	// believing; the headers saying so are part of the message.
-	trust := newDeliveryTrust(ctx, settings, ctx.Login.Username())
+	trust := p.newDeliveryTrust(ctx, settings, ctx.Login.Username())
 	for i := range msgs {
 		msgs[i].Alias = trust.alias(&msgs[i])
 	}
 
 	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, spec.view)
-	ibase.SidebarAccounts = sidebarAccounts(ctx)
+	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	title := viewTitle(ctx, spec.view)
 	if spec.view == "" && ibase.Mailbox != nil {
 		title = ibase.Mailbox.Label
@@ -722,11 +722,11 @@ type NewMailboxLocationGroup struct {
 	Locations []NewMailboxLocation
 }
 
-func newMailboxLocationGroups(ctx *alborz.Context) []NewMailboxLocationGroup {
+func (p *plugin) newMailboxLocationGroups(ctx *alborz.Context) []NewMailboxLocationGroup {
 	var groups []NewMailboxLocationGroup
 	key := 0
 	for _, login := range ctx.Logins() {
-		sb, err := sidebarFor(login)
+		sb, err := p.sidebarFor(login)
 		if err != nil {
 			ctx.Logger().Printf("folder locations for %q: %v", login.Username(), err)
 			continue
@@ -761,8 +761,8 @@ func newMailboxLocationGroups(ctx *alborz.Context) []NewMailboxLocationGroup {
 	return groups
 }
 
-func handleNewMailbox(ctx *alborz.Context) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+func (p *plugin) handleNewMailbox(ctx *alborz.Context) error {
+	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -771,7 +771,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 	if ctx.URLAccount() != "" {
 		selectedAccount = ctx.URLAccount()
 	}
-	locationGroups := newMailboxLocationGroups(ctx)
+	locationGroups := p.newMailboxLocationGroups(ctx)
 	selectedLocation := ""
 	for _, group := range locationGroups {
 		if group.Account == selectedAccount && len(group.Locations) > 0 {
@@ -816,7 +816,7 @@ func handleNewMailbox(ctx *alborz.Context) error {
 			return render(http.StatusUnprocessableEntity, err.Error())
 		}
 
-		accountChanged(selectedAccount)
+		p.accountChanged(selectedAccount)
 		// The folder is its own list, so the reader lands in it; the
 		// banner is the one every other create shows.
 		ctx.Made(ctx.T("notice.foldercreated"), name, "", ctx.Request().URL.RequestURI())
@@ -870,8 +870,8 @@ type EmptyMailboxRenderData struct {
 	Count int
 }
 
-func handleDeleteMailbox(ctx *alborz.Context) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+func (p *plugin) handleDeleteMailbox(ctx *alborz.Context) error {
+	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -887,7 +887,7 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 			if err := c.Delete(mbox.Name()).Wait(); err != nil {
 				return err
 			}
-			mailboxDeleted(ctx.Login.Username(), mbox.Name())
+			p.mailboxDeleted(ctx.Login.Username(), mbox.Name())
 			return nil
 		}); err != nil {
 			ibase.BaseRenderData.Refused(err.Error())
@@ -908,8 +908,8 @@ func handleDeleteMailbox(ctx *alborz.Context) error {
 // form names the folder and not its path, so a rename cannot quietly
 // move a folder under another one. What the server refuses - a name
 // taken, a special-use folder - comes back on the form.
-func handleRenameMailbox(ctx *alborz.Context) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+func (p *plugin) handleRenameMailbox(ctx *alborz.Context) error {
+	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -951,7 +951,7 @@ func handleRenameMailbox(ctx *alborz.Context) error {
 	}); err != nil {
 		return render(http.StatusUnprocessableEntity, err.Error())
 	}
-	mailboxDeleted(ctx.Login.Username(), old)
+	p.mailboxDeleted(ctx.Login.Username(), old)
 	ctx.PutNotice(fmt.Sprintf(ctx.T("notice.folderrenamed"), name))
 	return ctx.Redirect(http.StatusFound, folderURL(ctx, ctx.Login.Username(), renamed))
 }
@@ -960,7 +960,7 @@ func handleRenameMailbox(ctx *alborz.Context) error {
 // to the page that asked. The IDLE watcher already evicts on what the
 // server announces; this is for a server without IDLE, where a reader
 // who knows something arrived has no other way to say so.
-func handleRefreshMailbox(ctx *alborz.Context) error {
+func (p *plugin) handleRefreshMailbox(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
@@ -971,11 +971,11 @@ func handleRefreshMailbox(ctx *alborz.Context) error {
 	// every account that is asked again.
 	if ctx.Unified {
 		for _, s := range ctx.Logins() {
-			viewForgotten(s.Username(), "#"+mboxName)
+			p.viewForgotten(s.Username(), "#"+mboxName)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s", url.PathEscape(mboxName))))
 	}
-	viewForgotten(ctx.Login.Username(), mboxName)
+	p.viewForgotten(ctx.Login.Username(), mboxName)
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
 }
 
@@ -996,7 +996,7 @@ type MoveRenderData struct {
 	Next string
 }
 
-func handleMove(ctx *alborz.Context) error {
+func (p *plugin) handleMove(ctx *alborz.Context) error {
 	mboxName, _, uids, err := folderSelection(ctx)
 	if err != nil {
 		return err
@@ -1011,7 +1011,7 @@ func handleMove(ctx *alborz.Context) error {
 	// the reader states on a page, which this same route answers with.
 	to := formOrQueryParam(ctx, "to")
 	if to == "" {
-		ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+		ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 		if err != nil {
 			return err
 		}
@@ -1024,7 +1024,7 @@ func handleMove(ctx *alborz.Context) error {
 	}
 
 	var landed []rowRef
-	act := moveAct(func(*imapclient.Client, rowRef) (string, error) { return to, nil }, &landed)
+	act := p.moveAct(func(*imapclient.Client, rowRef) (string, error) { return to, nil }, &landed)
 	return runAct(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), act, func(done int) alborz.Notice {
 		// Named the way a person would: the folder by its label, linked,
 		// so the moved thing is one click away.
@@ -1080,17 +1080,17 @@ func actOn(ctx *alborz.Context, refs []rowRef, act mailAct) (done int, failed []
 	return done, failed
 }
 
-func leaving(key rowRef, uids []imap.UID) {
-	messagesLeaving(key.account, key.mailbox, uids)
+func (p *plugin) leaving(key rowRef, uids []imap.UID) {
+	p.messagesLeaving(key.account, key.mailbox, uids)
 }
 
 // moveAct moves each share to the folder to names on its connection,
 // or back to where an undo's reference says it came from. landed takes
 // what the server says it put where (COPYUID, RFC 4315), each naming
 // the folder it left, which is what an undo is made of.
-func moveAct(to func(*imapclient.Client, rowRef) (string, error), landed *[]rowRef) mailAct {
+func (p *plugin) moveAct(to func(*imapclient.Client, rowRef) (string, error), landed *[]rowRef) mailAct {
 	return mailAct{
-		announce: leaving,
+		announce: p.leaving,
 		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
 			dest := key.origin
 			if dest == "" {
@@ -1099,7 +1099,7 @@ func moveAct(to func(*imapclient.Client, rowRef) (string, error), landed *[]rowR
 					return err
 				}
 			}
-			moved, err := moveMessages(c, key.account, key.mailbox, dest, uids)
+			moved, err := p.moveMessages(c, key.account, key.mailbox, dest, uids)
 			for _, uid := range uidNums(moved) {
 				*landed = append(*landed, rowRef{account: key.account, mailbox: dest, uid: uid, origin: key.mailbox})
 			}
@@ -1108,24 +1108,24 @@ func moveAct(to func(*imapclient.Client, rowRef) (string, error), landed *[]rowR
 	}
 }
 
-func flagAct(op imap.StoreFlagsOp, flags []imap.Flag) mailAct {
+func (p *plugin) flagAct(op imap.StoreFlagsOp, flags []imap.Flag) mailAct {
 	return mailAct{
-		announce: func(key rowRef, uids []imap.UID) { flagWriteStarting(key.account, key.mailbox, uids, op, flags) },
+		announce: func(key rowRef, uids []imap.UID) { p.flagWriteStarting(key.account, key.mailbox, uids, op, flags) },
 		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-			return writeFlags(c, key.account, key.mailbox, uids, op, flags)
+			return p.writeFlags(c, key.account, key.mailbox, uids, op, flags)
 		},
 	}
 }
 
-func colourAct(add, del []imap.Flag) mailAct {
+func (p *plugin) colourAct(add, del []imap.Flag) mailAct {
 	return mailAct{do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-		return writeColour(c, key.account, key.mailbox, uids, add, del)
+		return p.writeColour(c, key.account, key.mailbox, uids, add, del)
 	}}
 }
 
 // moveMessages moves a selection of one folder and tells the caches on
 // the connection turn that moved it.
-func moveMessages(c *imapclient.Client, account, from, to string, uids []imap.UID) (*imapclient.MoveData, error) {
+func (p *plugin) moveMessages(c *imapclient.Client, account, from, to string, uids []imap.UID) (*imapclient.MoveData, error) {
 	if err := ensureMailboxSelected(c, from); err != nil {
 		return nil, err
 	}
@@ -1133,24 +1133,24 @@ func moveMessages(c *imapclient.Client, account, from, to string, uids []imap.UI
 	if err != nil {
 		return nil, fmt.Errorf("failed to move message: %w", err)
 	}
-	messagesMoved(account, from, to, uids)
+	p.messagesMoved(account, from, to, uids)
 	return moved, nil
 }
 
 // writeFlags stores flags on a selection of one folder and tells the
 // caches on the connection turn that stored them.
-func writeFlags(c *imapclient.Client, account, mailbox string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) error {
+func (p *plugin) writeFlags(c *imapclient.Client, account, mailbox string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) error {
 	if err := storeFlags(c, mailbox, imap.UIDSetNum(uids...), op, flags); err != nil {
 		return err
 	}
-	messagesFlagged(account, mailbox, uids, op, flags)
+	p.messagesFlagged(account, mailbox, uids, op, flags)
 	return nil
 }
 
 // writeColour sets a star's colour. A colour is a flag plus a bit
 // field, so it is set and cleared in one exchange rather than by asking
 // the page to spell out both.
-func writeColour(c *imapclient.Client, account, mailbox string, uids []imap.UID, add, del []imap.Flag) error {
+func (p *plugin) writeColour(c *imapclient.Client, account, mailbox string, uids []imap.UID, add, del []imap.Flag) error {
 	for _, step := range []struct {
 		op    imap.StoreFlagsOp
 		flags []imap.Flag
@@ -1158,7 +1158,7 @@ func writeColour(c *imapclient.Client, account, mailbox string, uids []imap.UID,
 		if len(step.flags) == 0 {
 			continue
 		}
-		if err := writeFlags(c, account, mailbox, uids, step.op, step.flags); err != nil {
+		if err := p.writeFlags(c, account, mailbox, uids, step.op, step.flags); err != nil {
 			return fmt.Errorf("failed to set flag colour: %w", err)
 		}
 	}
@@ -1206,14 +1206,14 @@ func uidNums(moved *imapclient.MoveData) []imap.UID {
 
 // handleEmptyMailbox expunges everything in a folder, the standard
 // one-click cleanup for Junk and Trash.
-func handleEmptyMailbox(ctx *alborz.Context) error {
+func (p *plugin) handleEmptyMailbox(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
 	}
 
 	if ctx.Request().Method == http.MethodGet {
-		ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+		ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 		if err != nil {
 			return err
 		}
@@ -1233,7 +1233,7 @@ func handleEmptyMailbox(ctx *alborz.Context) error {
 		var err error
 		removed, err = emptyMailbox(c, mboxName)
 		// Expunge can also remove messages already marked deleted elsewhere.
-		messagesRemoved(ctx.Login.Username(), mboxName)
+		p.messagesRemoved(ctx.Login.Username(), mboxName)
 		return err
 	})
 	if err != nil {
@@ -1274,7 +1274,7 @@ func emptiedNotice(ctx *alborz.Context, removed int) alborz.Notice {
 // handleEmptyAllMailbox empties the same role folder on every signed-in
 // account: the pooled Junk/Trash views act on the merge, so a single
 // control clears them all.
-func handleEmptyAllMailbox(ctx *alborz.Context) error {
+func (p *plugin) handleEmptyAllMailbox(ctx *alborz.Context) error {
 	role, err := url.PathUnescape(ctx.Param("role"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -1288,16 +1288,16 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 	var removed int
 	for _, s := range ctx.Logins() {
 		err := s.DoIMAP(func(c *imapclient.Client) error {
-			folder, err := resolveRole(c, s.Username(), role)
+			folder, err := p.resolveRole(c, s.Username(), role)
 			if err != nil {
 				return err
 			}
 			n, err := emptyMailbox(c, folder)
-			messagesRemoved(s.Username(), folder)
+			p.messagesRemoved(s.Username(), folder)
 			removed += n
 			return err
 		})
-		viewForgotten(s.Username(), "#"+role)
+		p.viewForgotten(s.Username(), "#"+role)
 		if err != nil {
 			failed = append(failed, s.Username()+": "+err.Error())
 		}
@@ -1312,7 +1312,7 @@ func handleEmptyAllMailbox(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, back)
 }
 
-func handleDelete(ctx *alborz.Context) error {
+func (p *plugin) handleDelete(ctx *alborz.Context) error {
 	mboxName, _, uids, err := folderSelection(ctx)
 	if err != nil {
 		return err
@@ -1325,9 +1325,9 @@ func handleDelete(ctx *alborz.Context) error {
 
 	var left int
 	return runAct(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), mailAct{
-		announce: leaving,
+		announce: p.leaving,
 		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-			defer messagesRemoved(key.account, key.mailbox)
+			defer p.messagesRemoved(key.account, key.mailbox)
 			if err := deleteMessages(c, key.mailbox, imap.UIDSetNum(uids...)); err != nil {
 				return err
 			}
@@ -1375,7 +1375,7 @@ type StarRenderData struct {
 	G interface{ T(string) string }
 }
 
-func handleSetFlags(ctx *alborz.Context) error {
+func (p *plugin) handleSetFlags(ctx *alborz.Context) error {
 	mboxName, formParams, uids, err := folderSelection(ctx)
 	if err != nil {
 		return err
@@ -1399,7 +1399,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 		back := ctx.NextOr(mailboxURL(ctx, mboxName))
 		oneStar := ctx.Partial() && len(uids) == 1
 		leaves := oneStar && StarLeaves(ctx.FormValue("next"), color[0])
-		return runAct(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), colourAct(add, del), func(int) alborz.Notice {
+		return runAct(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), p.colourAct(add, del), func(int) alborz.Notice {
 			if !leaves {
 				return alborz.Notice{}
 			}
@@ -1467,7 +1467,7 @@ func handleSetFlags(ctx *alborz.Context) error {
 			target = ctx.AccountPath(fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uids[0]))
 		}
 	}
-	return runAct(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), flagAct(op, l), func(int) alborz.Notice {
+	return runAct(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), p.flagAct(op, l), func(int) alborz.Notice {
 		return flaggedNotice(ctx, formParams["uids"], flags, op, mboxName, target)
 	}, landOn(ctx, target))
 }
@@ -1633,7 +1633,7 @@ func grouped(refs []rowRef) map[rowRef][]imap.UID {
 	return out
 }
 
-func handleUnifiedAct(ctx *alborz.Context) error {
+func (p *plugin) handleUnifiedAct(ctx *alborz.Context) error {
 	role, err := url.PathUnescape(ctx.Param("role"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -1645,7 +1645,7 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
-	refs, err := mergedSelection(ctx, role, params)
+	refs, err := p.mergedSelection(ctx, role, params)
 	if err != nil {
 		return err
 	}
@@ -1664,25 +1664,25 @@ func handleUnifiedAct(ctx *alborz.Context) error {
 	var act mailAct
 	switch action {
 	case "move":
-		act = moveAct(func(c *imapclient.Client, key rowRef) (string, error) {
-			return resolveRole(c, key.account, to)
+		act = p.moveAct(func(c *imapclient.Client, key rowRef) (string, error) {
+			return p.resolveRole(c, key.account, to)
 		}, &landed)
 	case "flag":
 		add, del := FlagColorFlags(ctx.FormValue("color"))
 		if add == nil && del == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "unknown flag colour")
 		}
-		act = colourAct(add, del)
+		act = p.colourAct(add, del)
 	case "read":
-		act = flagAct(imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen})
+		act = p.flagAct(imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen})
 	case "unread":
-		act = flagAct(imap.StoreFlagsDel, []imap.Flag{imap.FlagSeen})
+		act = p.flagAct(imap.StoreFlagsDel, []imap.Flag{imap.FlagSeen})
 	default:
 		return echo.NewHTTPError(http.StatusBadRequest, "unknown action")
 	}
 	each := act.do
 	act.do = func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-		defer accountChanged(key.account)
+		defer p.accountChanged(key.account)
 		return each(c, key, uids)
 	}
 	return runAct(ctx, refs, act, func(done int) alborz.Notice {

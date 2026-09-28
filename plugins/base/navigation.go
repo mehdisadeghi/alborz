@@ -24,9 +24,9 @@ type listPlace struct {
 // page is the list the reader came from, narrowing and order and all,
 // so its neighbours are the right ones; placed is false where the
 // server has to say.
-func cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
+func (p *plugin) cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
 	sortKey, _ := listOrder(ctx)
-	return listings.message(ctx.Login.Username(), listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, PerPage(ctx))
+	return p.listings.message(ctx.Login.Username(), listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, PerPage(ctx))
 }
 
 // placeInList asks the server for the same. The order the list was in
@@ -60,7 +60,7 @@ func readThread(ctx *alborz.Context, c *imapclient.Client, mailbox, sent string,
 }
 
 // Navigation never downloads a body or changes the read state.
-func handleMessageNavigation(ctx *alborz.Context) error {
+func (p *plugin) handleMessageNavigation(ctx *alborz.Context) error {
 	mailbox, uid, err := messageRef(ctx)
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func handleMessageNavigation(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	sb, err := sidebarFor(ctx.Login)
+	sb, err := p.sidebarFor(ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func handleMessageNavigation(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	cached, place, placed := cachedPlace(ctx, mailbox, uid, data.Query, view)
+	cached, place, placed := p.cachedPlace(ctx, mailbox, uid, data.Query, view)
 	if cached != nil {
 		data.Message = cached.row(uid)
 		data.ThreadSupported = cached.threadAlgorithm != ""

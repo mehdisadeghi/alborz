@@ -121,11 +121,11 @@ type deliveryTrust struct {
 	authserv string
 }
 
-func newDeliveryTrust(ctx *alborz.Context, settings *Settings, account string) deliveryTrust {
+func (p *plugin) newDeliveryTrust(ctx *alborz.Context, settings *Settings, account string) deliveryTrust {
 	return deliveryTrust{
 		account:  account,
 		domains:  ctx.Server.Domains(),
-		authserv: TrustedAuthServ(ctx, settings),
+		authserv: p.TrustedAuthServ(ctx, settings),
 	}
 }
 

@@ -1,6 +1,7 @@
 package alborzbase
 
 import (
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -11,23 +12,19 @@ import (
 )
 
 // The body cache holds, for each row of a listing, the part the message
-// page would open, fetched behind the page so that opening a message
-// asks the server nothing. A body never changes; what is held goes
-// when the account does, or when newer pages push it out.
+// page would open, fetched behind the page so opening it asks the server
+// nothing.
 const (
-	// bodyKeepPerUser bounds what one account holds: two pages' worth.
+	// bodyKeepPerUser is two pages' worth.
 	bodyKeepPerUser = 100
 	// bodyMaxPartSize is the largest part fetched ahead of a click that
-	// may never come; a larger one is fetched when opened, as before.
+	// may never come.
 	bodyMaxPartSize = 512 << 10
-	// bodyFetchBatch is how many messages one FETCH asks for. A click
-	// arriving behind the batch waits for that one round trip.
+	// bodyFetchBatch bounds the round trip a click can wait behind.
 	bodyFetchBatch = 10
-	// A shared byte limit keeps many idle accounts from exhausting memory.
+	// bodyMaxBytes keeps many idle accounts from exhausting memory.
 	bodyMaxBytes = 64 << 20
-	// bodyKeepFor lets go of what nobody has opened for this long, so
-	// an account that never comes back does not hold its pages.
-	bodyKeepFor = listingKeepFor
+	bodyKeepFor  = listingKeepFor
 )
 
 type bodyKey struct {
@@ -40,22 +37,22 @@ type cachedBody struct {
 	validity uint32
 	buf      *imapclient.FetchMessageBuffer
 	part     []int
-	// permanent is what the folder let the page offer as flags, read
-	// from the connection that fetched the body.
+	// permanent is the folder's PERMANENTFLAGS on the fetching connection.
 	permanent []imap.Flag
 	lastUse   time.Time
 }
 
-var bodies = newBodyCache()
-
 type mailboxKey struct{ user, mailbox string }
 
-func newBodyCache() *bodyCache {
-	return &bodyCache{entries: make(map[bodyKey]*cachedBody), fetching: make(map[bodyKey]uint64),
+// newBodyCache keeps a body for keepFor after its last use; with none it
+// keeps nothing and only tracks the pending automatic reads.
+func newBodyCache(keepFor time.Duration) *bodyCache {
+	return &bodyCache{keepFor: keepFor, entries: make(map[bodyKey]*cachedBody), fetching: make(map[bodyKey]uint64),
 		validity: make(map[mailboxKey]uint32), seen: make(map[bodyKey]uint64)}
 }
 
 type bodyCache struct {
+	keepFor  time.Duration
 	mu       sync.Mutex
 	entries  map[bodyKey]*cachedBody
 	fetching map[bodyKey]uint64
@@ -64,25 +61,13 @@ type bodyCache struct {
 	seen     map[bodyKey]uint64
 }
 
-// get returns the held body when it is the part asked for.
-func (bc *bodyCache) get(user, mbox string, validity uint32, uid imap.UID, part []int) *cachedBody {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
-	b, ok := bc.entries[bodyKey{user, mbox, validity, uid}]
-	if !ok || !samePath(b.part, part) {
-		return nil
-	}
-	b.lastUse = time.Now()
-	return b
-}
-
 func (bc *bodyCache) claim(k bodyKey, part []int) uint64 {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
-	if b := bc.entries[k]; b != nil && samePath(b.part, part) {
+	if bc.keepFor == 0 {
 		return 0
 	}
-	if bc.fetching[k] != 0 {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	if b := bc.entries[k]; b != nil && slices.Equal(b.part, part) || bc.fetching[k] != 0 {
 		return 0
 	}
 	bc.next++
@@ -94,10 +79,7 @@ func (bc *bodyCache) put(user, mbox string, validity uint32, token uint64, b *ca
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 	k := bodyKey{user, mbox, validity, b.buf.UID}
-	if token == 0 || bc.fetching[k] != token {
-		return
-	}
-	if bc.validity[mailboxKey{user, mbox}] != validity {
+	if token == 0 || bc.fetching[k] != token || bc.validity[mailboxKey{user, mbox}] != validity {
 		return
 	}
 	b.validity = validity
@@ -105,7 +87,7 @@ func (bc *bodyCache) put(user, mbox string, validity uint32, token uint64, b *ca
 	bc.entries[k] = b
 	held, bytes := 0, 0
 	for k, e := range bc.entries {
-		if time.Since(e.lastUse) > bodyKeepFor {
+		if time.Since(e.lastUse) > bc.keepFor {
 			delete(bc.entries, k)
 			continue
 		}
@@ -114,7 +96,6 @@ func (bc *bodyCache) put(user, mbox string, validity uint32, token uint64, b *ca
 		}
 		bytes += e.size()
 	}
-	// The least recently read go until the account is within bounds.
 	for held > bodyKeepPerUser || bytes > bodyMaxBytes {
 		var oldest bodyKey
 		var when time.Time
@@ -131,55 +112,28 @@ func (bc *bodyCache) put(user, mbox string, validity uint32, token uint64, b *ca
 	}
 }
 
-// discard removes messages after a move or deletion, including any in-flight
-// fetch or automatic-read token. A nil UID list removes the whole mailbox.
+// drop removes the matching bodies with their pending fetches and
+// automatic reads; the caller holds mu.
+func (bc *bodyCache) drop(match func(bodyKey) bool) {
+	maps.DeleteFunc(bc.entries, func(k bodyKey, _ *cachedBody) bool { return match(k) })
+	maps.DeleteFunc(bc.fetching, func(k bodyKey, _ uint64) bool { return match(k) })
+	maps.DeleteFunc(bc.seen, func(k bodyKey, _ uint64) bool { return match(k) })
+}
+
+// discard removes messages after a move or deletion; nil uids is the
+// whole mailbox.
 func (bc *bodyCache) discard(user, mailbox string, uids []imap.UID) {
 	among := uidSet(uids)
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
-	matches := func(k bodyKey) bool {
-		return k.user == user && k.mbox == mailbox && (uids == nil || among[k.uid])
-	}
-	for k := range bc.entries {
-		if matches(k) {
-			delete(bc.entries, k)
-		}
-	}
-	for k := range bc.fetching {
-		if matches(k) {
-			delete(bc.fetching, k)
-		}
-	}
-	for k := range bc.seen {
-		if matches(k) {
-			delete(bc.seen, k)
-		}
-	}
+	bc.drop(func(k bodyKey) bool { return k.user == user && k.mbox == mailbox && (uids == nil || among[k.uid]) })
 }
 
 func (bc *bodyCache) forget(user string) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
-	for k := range bc.validity {
-		if k.user == user {
-			delete(bc.validity, k)
-		}
-	}
-	for k := range bc.seen {
-		if k.user == user {
-			delete(bc.seen, k)
-		}
-	}
-	for k := range bc.fetching {
-		if k.user == user {
-			delete(bc.fetching, k)
-		}
-	}
-	for k := range bc.entries {
-		if k.user == user {
-			delete(bc.entries, k)
-		}
-	}
+	maps.DeleteFunc(bc.validity, func(k mailboxKey, _ uint32) bool { return k.user == user })
+	bc.drop(func(k bodyKey) bool { return k.user == user })
 }
 
 // Flag changes retain body bytes and cancel prefetches taken before the write.
@@ -187,11 +141,7 @@ func (bc *bodyCache) flags(user, mbox string, uids []imap.UID, op imap.StoreFlag
 	among := uidSet(uids)
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
-	for k := range bc.fetching {
-		if k.user == user && k.mbox == mbox && among[k.uid] {
-			delete(bc.fetching, k)
-		}
-	}
+	maps.DeleteFunc(bc.fetching, func(k bodyKey, _ uint64) bool { return k.user == user && k.mbox == mbox && among[k.uid] })
 	for k, b := range bc.entries {
 		if k.user != user || k.mbox != mbox || !among[k.uid] {
 			continue
@@ -212,42 +162,20 @@ func (b *cachedBody) size() int {
 	return n
 }
 
-func samePath(a, b []int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // prefetchBodies fetches the preferred part of each row not held yet,
 // a batch of messages per FETCH and a FETCH per part path, off the
 // reader's time. The fetch peeks, so nothing is marked read by it.
-func prefetchBodies(s *alborz.Login, preferHTML bool, mbox string, validity uint32, rows []IMAPMessage) error {
+func (p *plugin) prefetchBodies(s *alborz.Login, preferHTML bool, mbox string, validity uint32, rows []IMAPMessage) {
 	if validity == 0 {
-		return nil
+		return
 	}
 	user := s.Username()
 	claimed := make(map[bodyKey]uint64)
-	defer func() {
-		bodies.mu.Lock()
-		for k, token := range claimed {
-			if bodies.fetching[k] == token {
-				delete(bodies.fetching, k)
-			}
-		}
-		bodies.mu.Unlock()
-	}()
 	byPath := map[string][]imap.UID{}
 	paths := map[string][]int{}
 	for i := range rows {
 		row := &rows[i]
-		// A signed message is verified from its whole raw bytes on the
-		// connection, so the page fetches it itself.
+		// A signed message is verified from its raw bytes by the page.
 		if _, _, ok := signedParts(row.BodyStructure); ok {
 			continue
 		}
@@ -257,7 +185,7 @@ func prefetchBodies(s *alborz.Login, preferHTML bool, mbox string, validity uint
 		}
 		key := part.PathString()
 		body := bodyKey{user, mbox, validity, row.UID}
-		token := bodies.claim(body, part.Path)
+		token := p.bodies.claim(body, part.Path)
 		if token == 0 {
 			continue
 		}
@@ -265,74 +193,82 @@ func prefetchBodies(s *alborz.Login, preferHTML bool, mbox string, validity uint
 		byPath[key] = append(byPath[key], row.UID)
 		paths[key] = part.Path
 	}
-	var lastClient *imapclient.Client
-	var lastSelection *imapclient.SelectedMailbox
-	for key, uids := range byPath {
-		for len(uids) > 0 {
-			n := min(bodyFetchBatch, len(uids))
-			batch, path := uids[:n], paths[key]
-			uids = uids[n:]
-			err := s.DoIMAPBackground(func(c *imapclient.Client) error {
-				bodies.mu.Lock()
-				active := make([]imap.UID, 0, len(batch))
-				for _, uid := range batch {
-					k := bodyKey{user, mbox, validity, uid}
-					if bodies.fetching[k] == claimed[k] {
-						active = append(active, uid)
+	if len(claimed) == 0 {
+		return
+	}
+	go func() {
+		defer func() {
+			p.bodies.mu.Lock()
+			maps.DeleteFunc(p.bodies.fetching, func(k bodyKey, token uint64) bool { return claimed[k] == token })
+			p.bodies.mu.Unlock()
+		}()
+		var lastClient *imapclient.Client
+		var lastSelection *imapclient.SelectedMailbox
+		for key, uids := range byPath {
+			for len(uids) > 0 {
+				n := min(bodyFetchBatch, len(uids))
+				batch, path := uids[:n], paths[key]
+				uids = uids[n:]
+				err := s.DoIMAPBackground(func(c *imapclient.Client) error {
+					p.bodies.mu.Lock()
+					active := make([]imap.UID, 0, len(batch))
+					for _, uid := range batch {
+						k := bodyKey{user, mbox, validity, uid}
+						if p.bodies.fetching[k] == claimed[k] {
+							active = append(active, uid)
+						}
 					}
-				}
-				bodies.mu.Unlock()
-				if len(active) == 0 {
-					return nil
-				}
-				if c != lastClient || c.Mailbox() != lastSelection || lastSelection == nil {
-					selected, err := c.Select(mbox, nil).Wait()
+					p.bodies.mu.Unlock()
+					if len(active) == 0 {
+						return nil
+					}
+					if c != lastClient || c.Mailbox() != lastSelection || lastSelection == nil {
+						selected, err := c.Select(mbox, nil).Wait()
+						if err != nil {
+							return err
+						}
+						p.mailboxIdentified(user, mbox, selected.UIDValidity)
+						if selected.UIDValidity != validity {
+							return nil
+						}
+						lastClient, lastSelection = c, c.Mailbox()
+					}
+					msgs, err := c.Fetch(imap.UIDSetNum(active...), partFetchOptions(path, true)).Collect()
 					if err != nil {
 						return err
 					}
-					mailboxIdentified(user, mbox, selected.UIDValidity)
-					if selected.UIDValidity != validity {
-						return nil
+					permanent := c.Mailbox().PermanentFlags
+					for _, msg := range msgs {
+						p.bodies.put(user, mbox, validity, claimed[bodyKey{user, mbox, validity, msg.UID}], &cachedBody{buf: msg, part: path, permanent: permanent})
 					}
-					lastClient, lastSelection = c, c.Mailbox()
-				}
-				msgs, err := c.Fetch(imap.UIDSetNum(active...), partFetchOptions(path, true)).Collect()
+					return nil
+				})
 				if err != nil {
-					return err
+					return
 				}
-				permanent := c.Mailbox().PermanentFlags
-				for _, msg := range msgs {
-					bodies.put(user, mbox, validity, claimed[bodyKey{user, mbox, validity, msg.UID}], &cachedBody{buf: msg, part: path, permanent: permanent})
-				}
-				return nil
-			})
-			if err != nil {
-				return err
 			}
 		}
-	}
-	return nil
+	}()
 }
 
 func changedFlags(current []imap.Flag, op imap.StoreFlagsOp, flags []imap.Flag) []imap.Flag {
-	current = append([]imap.Flag(nil), current...)
 	switch op {
 	case imap.StoreFlagsSet:
-		current = append([]imap.Flag(nil), flags...)
-	case imap.StoreFlagsAdd:
-		for _, f := range flags {
-			if !slices.Contains(current, f) {
-				current = append(current, f)
-			}
-		}
+		return append([]imap.Flag(nil), flags...)
 	case imap.StoreFlagsDel:
-		current = slices.DeleteFunc(current, func(f imap.Flag) bool { return slices.Contains(flags, f) })
+		return slices.DeleteFunc(append([]imap.Flag(nil), current...), func(f imap.Flag) bool { return slices.Contains(flags, f) })
+	}
+	current = append([]imap.Flag(nil), current...)
+	for _, f := range flags {
+		if !slices.Contains(current, f) {
+			current = append(current, f)
+		}
 	}
 	return current
 }
 
-// Mailbox identity outlives any one cached page. Resetting UIDVALIDITY
-// invalidates bodies and pending writes, not just listing membership.
+// observe records the mailbox's UIDVALIDITY; a new one voids what is
+// held and pending under the old.
 func (bc *bodyCache) observe(user, mailbox string, validity uint32) {
 	if validity == 0 {
 		return
@@ -344,28 +280,14 @@ func (bc *bodyCache) observe(user, mailbox string, validity uint32) {
 		return
 	}
 	bc.validity[key] = validity
-	for k := range bc.entries {
-		if k.user == user && k.mbox == mailbox && k.validity != validity {
-			delete(bc.entries, k)
-		}
-	}
-	for k := range bc.fetching {
-		if k.user == user && k.mbox == mailbox && k.validity != validity {
-			delete(bc.fetching, k)
-		}
-	}
-	for k := range bc.seen {
-		if k.user == user && k.mbox == mailbox && k.validity != validity {
-			delete(bc.seen, k)
-		}
-	}
+	bc.drop(func(k bodyKey) bool { return k.user == user && k.mbox == mailbox && k.validity != validity })
 }
 
 func (bc *bodyCache) current(user, mailbox string, uid imap.UID, part []int) *cachedBody {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 	b := bc.entries[bodyKey{user, mailbox, bc.validity[mailboxKey{user, mailbox}], uid}]
-	if b == nil || (len(part) != 0 && !samePath(b.part, part)) {
+	if b == nil || (len(part) != 0 && !slices.Equal(b.part, part)) {
 		return nil
 	}
 	b.lastUse = time.Now()
@@ -376,44 +298,40 @@ func (bc *bodyCache) cancelSeen(user, mailbox string, uids []imap.UID) {
 	among := uidSet(uids)
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
-	for k := range bc.seen {
-		if k.user == user && k.mbox == mailbox && among[k.uid] {
-			delete(bc.seen, k)
-		}
-	}
+	maps.DeleteFunc(bc.seen, func(k bodyKey, _ uint64) bool { return k.user == user && k.mbox == mailbox && among[k.uid] })
 }
 
-func markHeldSeen(s *alborz.Login, mailbox string, uid imap.UID, validity uint32) {
+func (p *plugin) markHeldSeen(s *alborz.Login, mailbox string, uid imap.UID, validity uint32) {
 	k := bodyKey{s.Username(), mailbox, validity, uid}
-	bodies.mu.Lock()
-	if bodies.seen[k] != 0 {
-		bodies.mu.Unlock()
+	p.bodies.mu.Lock()
+	if p.bodies.seen[k] != 0 {
+		p.bodies.mu.Unlock()
 		return
 	}
-	bodies.next++
-	token := bodies.next
-	bodies.seen[k] = token
-	bodies.mu.Unlock()
+	p.bodies.next++
+	token := p.bodies.next
+	p.bodies.seen[k] = token
+	p.bodies.mu.Unlock()
 	go func() {
 		defer func() {
-			bodies.mu.Lock()
-			if bodies.seen[k] == token {
-				delete(bodies.seen, k)
+			p.bodies.mu.Lock()
+			if p.bodies.seen[k] == token {
+				delete(p.bodies.seen, k)
 			}
-			bodies.mu.Unlock()
+			p.bodies.mu.Unlock()
 		}()
 		s.DoIMAP(func(c *imapclient.Client) error {
-			bodies.mu.Lock()
-			current := bodies.seen[k] == token
-			bodies.mu.Unlock()
+			p.bodies.mu.Lock()
+			current := p.bodies.seen[k] == token
+			p.bodies.mu.Unlock()
 			if !current {
 				return nil
 			}
 			if err := storeFlags(c, mailbox, imap.UIDSetNum(uid), imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen}); err != nil {
 				return err
 			}
-			// Keep confirmation on the same connection turn as the STORE.
-			messageRead(s.Username(), mailbox, uid)
+			// Confirmed on the same connection turn as the STORE.
+			p.messageRead(s.Username(), mailbox, uid)
 			return nil
 		})
 	}()

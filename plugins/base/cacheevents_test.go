@@ -18,7 +18,7 @@ var cacheTypes = map[string]string{"listings": "listingCache", "bodies": "bodyCa
 // so a method added later is guarded from the day it is written, and
 // letting one through is a decision made here, in sight.
 var cacheDirect = map[string][]string{
-	"listingCache": {"lookup", "message", "load", "claim", "release", "epoch", "pageSize", "heldSize", "storeAt", "fill", "refresh"},
+	"listingCache": {"lookup", "message", "load", "claim", "release", "keeps", "epoch", "pageSize", "heldSize", "storeAt", "fill", "refresh"},
 	"bodyCache":    {"current", "claim", "put"},
 }
 
@@ -109,10 +109,10 @@ func TestCacheWritesGoThroughEvents(t *testing.T) {
 				if !ok {
 					return true
 				}
-				cache, ok := sel.X.(*ast.Ident)
+				cache, ok := sel.X.(*ast.SelectorExpr)
 				typ := ""
 				if ok {
-					typ = cacheTypes[cache.Name]
+					typ = cacheTypes[cache.Sel.Name]
 				}
 				if typ == "" {
 					return true
@@ -125,7 +125,7 @@ func TestCacheWritesGoThroughEvents(t *testing.T) {
 				case home && !methods[typ][member]:
 				default:
 					t.Errorf("%s:%d: %s.%s in %s bypasses cacheevents.go, so the other cache is left to the caller",
-						name, fset.Position(sel.Pos()).Line, cache.Name, member, fn.Name.Name)
+						name, fset.Position(sel.Pos()).Line, cache.Sel.Name, member, fn.Name.Name)
 				}
 				return true
 			})
@@ -181,8 +181,8 @@ func TestCachePatchesStayOnTheConnectionTurn(t *testing.T) {
 			if !ok {
 				return true
 			}
-			patch, ok := call.Fun.(*ast.Ident)
-			if !ok || !cachePatches[patch.Name] {
+			patch, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || !cachePatches[patch.Sel.Name] {
 				return true
 			}
 			found++
@@ -193,7 +193,7 @@ func TestCachePatchesStayOnTheConnectionTurn(t *testing.T) {
 			}
 			at := fset.Position(call.Pos())
 			t.Errorf("%s:%d: %s outside the DoIMAP callback that confirmed it: a write landing in between is patched over",
-				filepath.Base(at.Filename), at.Line, patch.Name)
+				filepath.Base(at.Filename), at.Line, patch.Sel.Name)
 			return true
 		})
 	}

@@ -123,6 +123,7 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 		p.collections.Forget(username)
 		p.troubles.Delete(username)
 	})
+	srv.OnClose = append(srv.OnClose, p.Close)
 
 	// Probes may take seconds each, so they run after the port is open.
 	for _, domain := range srv.Domains() {

@@ -22,8 +22,9 @@ var (
 	proxyCacheControl = "private, max-age=86400"
 )
 
-func init() {
-	p := alborz.GoPlugin{Name: "viewhtml"}
+// Mount serves the proxy for a message's remote images.
+func Mount(s *alborz.Server) {
+	p := s.Router()
 
 	p.GET("/proxy", func(ctx *alborz.Context) error {
 		u, err := url.Parse(ctx.QueryParam("src"))
@@ -66,6 +67,4 @@ func init() {
 		lr := io.LimitedReader{R: resp.Body, N: int64(proxyMaxSize)}
 		return ctx.Stream(http.StatusOK, mediaType, &lr)
 	})
-
-	alborz.RegisterPluginLoader(p.Loader())
 }

@@ -53,7 +53,7 @@ func (p *plugin) registerRoutes() {
 	p.POST("/login", handleLogin)
 
 	p.POST("/logout", handleLogout)
-	registerPasskeyRoutes(&p.GoPlugin)
+	registerPasskeyRoutes(p.Router)
 
 	p.GET("/compose", p.handleComposeNew)
 	p.POST("/compose", p.handleComposeNew)

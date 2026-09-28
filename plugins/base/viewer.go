@@ -23,15 +23,8 @@ type Viewer interface {
 	ViewMessagePart(*alborz.Context, *IMAPMessage, []int, *message.Entity) (View, error)
 }
 
-var viewers []Viewer
-
-// RegisterViewer registers a message part viewer.
-func RegisterViewer(viewer Viewer) {
-	viewers = append(viewers, viewer)
-}
-
-func viewMessagePart(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.Entity) (View, error) {
-	for _, viewer := range viewers {
+func (p *plugin) viewMessagePart(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.Entity) (View, error) {
+	for _, viewer := range p.viewers {
 		v, err := viewer.ViewMessagePart(ctx, msg, path, part)
 		if err == ErrViewUnsupported {
 			continue

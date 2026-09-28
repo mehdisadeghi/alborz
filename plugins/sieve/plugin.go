@@ -1,21 +1,13 @@
 package alborzsieve
 
 import (
-	"embed"
-
 	"git.mehdix.org/alborz"
 )
 
-//go:embed all:public
-var public embed.FS
-
-func init() {
-	alborz.RegisterPluginLoader(func(srv *alborz.Server) ([]alborz.Plugin, error) {
-		p := alborz.GoPlugin{Name: "sieve", Files: public}
-		registerRoutes(&p)
-		srv.OnAccountReady = append(srv.OnAccountReady, warm)
-		return []alborz.Plugin{p.Plugin()}, nil
-	})
+// Mount serves the filters.
+func Mount(srv *alborz.Server) {
+	registerRoutes(srv.Router())
+	srv.OnAccountReady = append(srv.OnAccountReady, warm)
 }
 
 // warm dials ManageSieve at sign-in so the first filters visit does not wait for it.

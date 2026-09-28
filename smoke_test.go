@@ -24,9 +24,12 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	_ "git.mehdix.org/alborz/plugins/base"
-	_ "git.mehdix.org/alborz/plugins/viewhtml"
-	_ "git.mehdix.org/alborz/plugins/viewtext"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
+	alborzcaldav "git.mehdix.org/alborz/plugins/caldav"
+	alborzcarddav "git.mehdix.org/alborz/plugins/carddav"
+	alborzsieve "git.mehdix.org/alborz/plugins/sieve"
+	alborzviewhtml "git.mehdix.org/alborz/plugins/viewhtml"
+	alborzviewtext "git.mehdix.org/alborz/plugins/viewtext"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-imap/v2/imapserver"
@@ -264,11 +267,29 @@ func startAlborzWith(t *testing.T, upstreams []string) string {
 
 var smokeKey = fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 
+// newAlborz wires the features as cmd/alborz does.
+func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
+	t.Helper()
+	s, err := alborz.New(e, options, alborzbase.TemplateFuncs)
+	if err != nil {
+		t.Fatalf("start alborz: %v", err)
+	}
+	alborzbase.Mount(s, alborzviewhtml.Viewer{}, alborzviewtext.Viewer{})
+	if err := alborzcaldav.Mount(s); err != nil {
+		t.Fatalf("start alborz: %v", err)
+	}
+	if err := alborzcarddav.Mount(s); err != nil {
+		t.Fatalf("start alborz: %v", err)
+	}
+	alborzsieve.Mount(s)
+	alborzviewhtml.Mount(s)
+}
+
 func serveAlborz(t *testing.T, upstreams []string, key *fernet.Key, cache bool) string {
 	t.Helper()
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
-	_, err := alborz.New(e, &alborz.Options{
+	newAlborz(t, e, &alborz.Options{
 		Upstreams:  upstreams,
 		Theme:      "alborz",
 		ThemesPath: "./themes",
@@ -278,9 +299,6 @@ func serveAlborz(t *testing.T, upstreams []string, key *fernet.Key, cache bool) 
 		// A handler that sends the reader elsewhere says what it did.
 		StrictNotices: true,
 	})
-	if err != nil {
-		t.Fatalf("start alborz: %v", err)
-	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

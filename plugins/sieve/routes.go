@@ -46,7 +46,7 @@ type FilterRenderData struct {
 	Rail     map[string][]alborz.RailRow
 }
 
-func registerRoutes(p *alborz.GoPlugin) {
+func registerRoutes(p alborz.Router) {
 	requireAccount := func(h func(*alborz.Context) error) func(*alborz.Context) error {
 		return func(ctx *alborz.Context) error {
 			if ctx.URLAccount() != "" && ctx.Server.SieveEnabled(ctx.Login.Domain()) {

@@ -61,8 +61,8 @@ func registerRoutes(p *plugin) {
 	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
 		return p.dav.Guarded(errNoAddressBook, "/address-books/create", h)
 	}
-	GET := func(path string, h func(*alborz.Context) error) { p.GoPlugin.GET(path, guard(h)) }
-	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }
+	GET := func(path string, h func(*alborz.Context) error) { p.Router.GET(path, guard(h)) }
+	POST := func(path string, h func(*alborz.Context) error) { p.Router.POST(path, guard(h)) }
 	POST("/contacts", dav.HandleChoose("/contacts", "book", choose))
 	GET("/contacts", p.contacts)
 	POST("/contacts/export", dav.HandleExport(p.client, "/contacts",

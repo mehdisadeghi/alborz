@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"git.mehdix.org/alborz"
-	_ "git.mehdix.org/alborz/plugins/caldav"
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
 )
@@ -135,7 +134,7 @@ func startAlborzDav(t *testing.T, imapAddr, davURL string) string {
 	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
-	if _, err := alborz.New(e, &alborz.Options{
+	newAlborz(t, e, &alborz.Options{
 		Upstreams: []string{
 			"test.local=imap+insecure://" + imapAddr,
 			"test.local=caldav+insecure://" + strings.TrimPrefix(davURL, "http://") + "/dav",
@@ -145,9 +144,7 @@ func startAlborzDav(t *testing.T, imapAddr, davURL string) string {
 		LoginKey:   key,
 		DataDir:    t.TempDir(),
 		Cache:      true,
-	}); err != nil {
-		t.Fatalf("start alborz: %v", err)
-	}
+	})
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

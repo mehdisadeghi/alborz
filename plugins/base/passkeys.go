@@ -27,7 +27,7 @@ type UnlockRenderData struct {
 	Next string
 }
 
-func registerPasskeyRoutes(p *alborz.GoPlugin) {
+func registerPasskeyRoutes(p alborz.Router) {
 	p.GET("/settings/passkeys", func(ctx *alborz.Context) error {
 		return ctx.Render(http.StatusOK, "passkeys.html", &PasskeysRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.title")),

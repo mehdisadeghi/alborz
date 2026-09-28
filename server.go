@@ -604,7 +604,7 @@ func (s *Server) assetStamp(name string) string {
 	if onDisk {
 		content, err = os.ReadFile(diskPath)
 	} else {
-		content, err = fs.ReadFile(embeddedTheme, path.Join("themes/alborz/assets", name))
+		content, err = fs.ReadFile(embeddedTheme, path.Join("templates/assets", name))
 	}
 	if err != nil {
 		return ""
@@ -959,7 +959,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 	})
 
 	// The theme directory on disk overrides the embedded theme file by file.
-	embeddedAssets, err := fs.Sub(embeddedTheme, "themes/alborz/assets")
+	embeddedAssets, err := fs.Sub(embeddedTheme, "templates/assets")
 	if err != nil {
 		return nil, err
 	}

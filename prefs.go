@@ -18,7 +18,7 @@ func readThemes(themesPath, theme string) []Theme {
 		}
 		found[short] = Theme{Name: short, Scheme: pinnedScheme(string(source))}
 	}
-	built, _ := fs.Glob(embeddedTheme, "themes/alborz/assets/themes/*.css")
+	built, _ := fs.Glob(embeddedTheme, "templates/assets/themes/*.css")
 	for _, name := range built {
 		source, _ := fs.ReadFile(embeddedTheme, name)
 		add(name, source)

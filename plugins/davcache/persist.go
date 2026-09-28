@@ -99,8 +99,8 @@ func (s *Store) remove(username string) error {
 	return err
 }
 
-// load reads every user file the key opens. One it cannot open was
-// sealed under another key and is dropped: it would never open again.
+// load reads every user file the key opens. One it cannot open or
+// decode is dropped: what it held is derived, and fetched again.
 func (s *Store) load(poll time.Duration) (map[string]*user, error) {
 	names, err := os.ReadDir(s.dir)
 	if os.IsNotExist(err) {
@@ -128,7 +128,10 @@ func (s *Store) load(poll time.Duration) (map[string]*user, error) {
 		}
 		var su storedUser
 		if err := gob.NewDecoder(bytes.NewReader(raw)).Decode(&su); err != nil {
-			return nil, err
+			if err := os.Remove(path); err != nil {
+				return nil, err
+			}
+			continue
 		}
 		u := newUser(poll)
 		u.lastActive = su.LastActive

@@ -6,6 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/ProtonMail/go-crypto v1.5.0
 	github.com/aymerick/douceur v0.2.0
+	github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a
 	github.com/dromara/carbon/v2 v2.6.17
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
@@ -18,7 +19,7 @@ require (
 	github.com/emersion/go-webdav v0.7.0
 	github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611
 	github.com/go-webauthn/webauthn v0.18.2
-	github.com/labstack/echo/v4 v4.15.4
+	github.com/labstack/echo/v4 v4.16.0
 	github.com/labstack/gommon v0.5.0
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
@@ -34,7 +35,6 @@ require (
 )
 
 require (
-	github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect

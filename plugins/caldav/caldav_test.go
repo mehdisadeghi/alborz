@@ -50,6 +50,49 @@ END:VCALENDAR
 	}
 }
 
+func TestOccurrencesKeepAnOverrideToItsOwnSeries(t *testing.T) {
+	cal, err := ical.NewDecoder(strings.NewReader(strings.ReplaceAll(`BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:test
+BEGIN:VEVENT
+UID:standup
+DTSTART:20260901T090000Z
+DTEND:20260901T100000Z
+RRULE:FREQ=DAILY;COUNT=3
+SUMMARY:Standup
+END:VEVENT
+BEGIN:VEVENT
+UID:standup
+RECURRENCE-ID:20260902T090000Z
+DTSTART:20260902T140000Z
+DTEND:20260902T150000Z
+SUMMARY:Standup, moved
+END:VEVENT
+BEGIN:VEVENT
+UID:gym
+DTSTART:20260901T090000Z
+DTEND:20260901T100000Z
+RRULE:FREQ=DAILY;COUNT=3
+SUMMARY:Gym
+END:VEVENT
+END:VCALENDAR
+`, "\n", "\r\n"))).Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj := CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}
+	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	var gym []string
+	for _, o := range occurrences(obj, time.UTC, from, from.AddDate(0, 0, 7)) {
+		if summary, _ := o.Event.Props.Text(ical.PropSummary); summary == "Gym" {
+			gym = append(gym, o.Start.UTC().Format("02T15:04"))
+		}
+	}
+	if got, want := strings.Join(gym, " "), "01T09:00 02T09:00 03T09:00"; got != want {
+		t.Errorf("gym drawn at %q, want %q", got, want)
+	}
+}
+
 func TestObjectsByUIDKeepsASeriesTogether(t *testing.T) {
 	cal, err := ical.NewDecoder(strings.NewReader(strings.ReplaceAll(`BEGIN:VCALENDAR
 VERSION:2.0

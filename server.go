@@ -924,7 +924,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 	// A browser's POST from another origin is refused: the cookies are
 	// Lax so that an installed app's cold launch, a navigation with no
 	// initiator, is still signed in, and Lax lets a sibling on the same
-	// site post with them. DAV clients send no browser headers and pass.
+	// site post with them.
 	e.Use(echo.WrapMiddleware(http.NewCrossOriginProtection().Handler))
 
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {

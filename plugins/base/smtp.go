@@ -27,38 +27,84 @@ const wrapColumn = 72
 // paragraph typed into a textarea is one line however long it runs - and
 // marks the folds as format=flowed (RFC 3676) so a client that
 // understands it can lay the paragraph out for its own window. A line
-// that is quoted, indented or already short is left exactly as it is:
+// that is indented or already short is left exactly as it is:
 // preformatted text is the one thing rewrapping destroys.
 func wrapText(text string) string {
 	var out strings.Builder
+	// A reader would take a leading space as stuffing and "From " is mangled in transit (RFC 3676 4.4).
+	emit := func(line, end string) {
+		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "From ") {
+			out.WriteString(" ")
+		}
+		out.WriteString(line)
+		out.WriteString(end)
+	}
 	for _, line := range strings.Split(text, "\n") {
-		if len(line) <= wrapColumn || quoteDepth(line) > 0 ||
+		line, cr := strings.CutSuffix(line, "\r")
+		end := "\n"
+		if cr {
+			end = "\r\n"
+		}
+		// A typed trailing space would read as a soft break; quoted lines keep theirs, and so does "-- " (RFC 3676 4.2, 4.3).
+		markers := line[:len(line)-len(strings.TrimLeft(line, ">"))]
+		if line != "-- " && markers == "" {
+			line = strings.TrimRight(line, " ")
+		}
+		if len(line) <= wrapColumn ||
 			strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
-			out.WriteString(line)
-			out.WriteString("\n")
+			emit(line, end)
 			continue
 		}
-		words := strings.Split(line, " ")
+		// Every piece of a quoted line carries its markers, so it stays at its depth (RFC 3676 4.5).
+		lead, text := "", line
+		if markers != "" {
+			lead, text = markers+" ", strings.TrimPrefix(line[len(markers):], " ")
+		}
+		words := strings.Split(text, " ")
 		cur := ""
 		for _, w := range words {
 			switch {
 			case cur == "":
 				cur = w
-			case len(cur)+1+len(w) <= wrapColumn:
+			case len(lead)+len(cur)+1+len(w) <= wrapColumn:
 				cur += " " + w
 			default:
 				// A flowed line ends in a space: that is what says the
 				// next line continues it, and what lets the reader's
 				// client fold it differently.
-				out.WriteString(cur)
-				out.WriteString(" \n")
+				emit(lead+cur, " "+end)
 				cur = w
 			}
 		}
-		out.WriteString(cur)
-		out.WriteString("\n")
+		emit(lead+cur, end)
 	}
 	return strings.TrimSuffix(out.String(), "\n")
+}
+
+// Unflow undoes format=flowed: soft-broken lines of one quote depth join, stuffing goes (RFC 3676 4).
+func Unflow(text string, delSp bool) string {
+	var out []string
+	soft, depth := false, -1
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSuffix(line, "\r")
+		content := strings.TrimLeft(line, ">")
+		n := len(line) - len(content)
+		content = strings.TrimPrefix(content, " ")
+		joins := soft && n == depth
+		soft, depth = content != "-- " && strings.HasSuffix(content, " "), n
+		if soft && delSp {
+			content = strings.TrimSuffix(content, " ")
+		}
+		if joins {
+			out[len(out)-1] += content
+			continue
+		}
+		if n > 0 {
+			content = strings.Repeat(">", n) + " " + content
+		}
+		out = append(out, content)
+	}
+	return strings.Join(out, "\n")
 }
 
 // quoteMaxDepth is how deep a quoted quote is carried. A reply to a
@@ -101,7 +147,12 @@ func quote(r io.Reader) (string, error) {
 		} else {
 			blank = 0
 		}
-		builder.WriteString("> ")
+		// Markers nest without a space; a space after them is stuffing (RFC 3676 4.5).
+		if strings.HasPrefix(line, ">") {
+			builder.WriteString(">")
+		} else {
+			builder.WriteString("> ")
+		}
 		builder.WriteString(line)
 		builder.WriteString("\n")
 	}

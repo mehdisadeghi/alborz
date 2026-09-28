@@ -99,9 +99,9 @@ func (v Reply) script() string {
 	return b.String()
 }
 
-// replyBoundary separates the two parts of a reply; the text is
-// quoted-printable, which cannot contain it.
-const replyBoundary = "alborz-reply"
+// replyBoundary separates the two parts of a reply; quoted-printable
+// never writes "=_", so no encoded line can equal it.
+const replyBoundary = "=_alborz-reply"
 
 // replyEntity is the reply as a MIME entity (RFC 5230 :mime): the text
 // as written, and the HTML alternative that carries its direction, the

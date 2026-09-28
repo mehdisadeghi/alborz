@@ -301,6 +301,40 @@
 "calendar.shmonth.10" = "Dey"
 "calendar.shmonth.11" = "Bahman"
 "calendar.shmonth.12" = "Esfand"
+"calendar.gmonth.1" = "Januar"
+"calendar.gmonth.2" = "Februar"
+"calendar.gmonth.3" = "März"
+"calendar.gmonth.4" = "April"
+"calendar.gmonth.5" = "Mai"
+"calendar.gmonth.6" = "Juni"
+"calendar.gmonth.7" = "Juli"
+"calendar.gmonth.8" = "August"
+"calendar.gmonth.9" = "September"
+"calendar.gmonth.10" = "Oktober"
+"calendar.gmonth.11" = "November"
+"calendar.gmonth.12" = "Dezember"
+"calendar.gmonthshort.1" = "Jan."
+"calendar.gmonthshort.2" = "Feb."
+"calendar.gmonthshort.3" = "März"
+"calendar.gmonthshort.4" = "Apr."
+"calendar.gmonthshort.5" = "Mai"
+"calendar.gmonthshort.6" = "Juni"
+"calendar.gmonthshort.7" = "Juli"
+"calendar.gmonthshort.8" = "Aug."
+"calendar.gmonthshort.9" = "Sep."
+"calendar.gmonthshort.10" = "Okt."
+"calendar.gmonthshort.11" = "Nov."
+"calendar.gmonthshort.12" = "Dez."
+"calendar.weekday.0" = "Sonntag"
+"calendar.weekday.1" = "Montag"
+"calendar.weekday.2" = "Dienstag"
+"calendar.weekday.3" = "Mittwoch"
+"calendar.weekday.4" = "Donnerstag"
+"calendar.weekday.5" = "Freitag"
+"calendar.weekday.6" = "Samstag"
+"since.now" = "jetzt"
+"since.ago" = "vor %s"
+"since.ahead" = "%s ab jetzt"
 "calendar.repeat.never" = "Nie"
 "calendar.repeat.daily" = "Jeden Tag"
 "calendar.repeat.weekly" = "Jede Woche"
@@ -1066,3 +1100,32 @@ other = "%d Aufgaben gelöscht."
 ["notice.tasksmoved"]
 one = "Eine Aufgabe verschoben."
 other = "%d Aufgaben verschoben."
+
+["since.second"]
+one = "%d Sek"
+other = "%d Sek"
+
+["since.minute"]
+one = "%d Min"
+other = "%d Min"
+
+["since.hour"]
+one = "%d Std"
+other = "%d Std"
+
+# "vor" takes the dative, whose plural adds -n; only the day inflects.
+["since.day"]
+one = "%d Tag"
+other = "%d Tagen"
+
+["since.week"]
+one = "%d Wo"
+other = "%d Wo"
+
+["since.month"]
+one = "%d Mon"
+other = "%d Mon"
+
+["since.year"]
+one = "%d J"
+other = "%d J"

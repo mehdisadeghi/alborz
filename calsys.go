@@ -5,8 +5,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/dromara/carbon/v2"
 )
 
 // A CalendarSystem counts the same instants in its own months and
@@ -110,11 +108,7 @@ func (gregorian) ParsePage(s string, loc *time.Location) (time.Time, error) {
 	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, loc), nil
 }
 func (gregorian) MonthName(month int, lang string) string {
-	l, ok := carbonLangs[lang]
-	if !ok {
-		l = carbonLangs["en"]
-	}
-	return carbon.CreateFromDate(2000, month, 1).SetLanguage(l).ToMonthString()
+	return translate(lang, fmt.Sprintf("calendar.gmonth.%d", month))
 }
 func (gregorian) YearDay(t time.Time) int  { return t.YearDay() }
 func (gregorian) WeekStarts() time.Weekday { return time.Monday }
@@ -205,9 +199,8 @@ func (solarHijri) WeekStarts() time.Weekday { return time.Saturday }
 // reckoning is Borkowski's (The Persian calendar for 3000 years, Earth,
 // Moon and Planets 74, 1996), which follows the astronomical rule Iran
 // keeps - Nowruz on the day of the March equinox, or the next when it
-// falls after noon in Tehran - from 1178 to 3177; the 33-year arithmetic
-// that most libraries use puts the 1403 leap day a year late and has
-// every day of 1404 wrong by one.
+// falls after noon in Tehran - from 1178 to 3177; the 2820-year cycle
+// some libraries use instead gets 1403 and 1404 wrong.
 func shYear(jy int) (sinceLeap int, nowruz time.Time) {
 	breaks := [...]int{-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178}
 	if jy < breaks[0] || jy >= breaks[len(breaks)-1] {

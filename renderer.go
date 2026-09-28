@@ -14,7 +14,6 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"github.com/dromara/carbon/v2"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 	"golang.org/x/text/number"
@@ -157,86 +156,68 @@ func (brd *BaseRenderData) T(key string) string {
 	return translate(brd.GlobalData.Lang, key)
 }
 
-// carbonLangs holds one prepared carbon language per UI language. They
-// are built once and only read afterwards, which is what makes sharing
-// them across requests safe.
-var carbonLangs = map[string]*carbon.Language{}
-
-// carbonFixes correct what carbon's own locale files get wrong, and
-// shorten what a list column has to hold: a date cell is six rems
-// wide, and "54 minutes ago" is not. The units are abbreviated the way
-// each language abbreviates them; "ago" stays, since a bare "54 min"
-// does not say past from future.
-var carbonFixes = map[string]map[string]string{
-	"en": {
-		"second": "1 sec|%d sec",
-		"minute": "1 min|%d min",
-		"hour":   "1 hr|%d hr",
-		"day":    "1 day|%d days",
-		"week":   "1 wk|%d wks",
-		"month":  "1 mo|%d mo",
-		"year":   "1 yr|%d yrs",
-		"now":    "now",
-	},
-	"de": {
-		"second": "1 Sek|%d Sek",
-		"minute": "1 Min|%d Min",
-		"hour":   "1 Std|%d Std",
-		// German says "vor" with the dative, which takes -n in the
-		// plural; the abbreviations do not inflect, only the day does.
-		"day":   "1 Tag|%d Tagen",
-		"week":  "1 Wo|%d Wo",
-		"month": "1 Mon|%d Mon",
-		"year":  "1 J|%d J",
-		"now":   "jetzt",
-	},
-	// Spanish writes its months and weekdays in lower case, and keeps
-	// their accents.
-	"es": {
-		"second":       "1 seg|%d seg",
-		"minute":       "1 min|%d min",
-		"hour":         "1 h|%d h",
-		"day":          "1 día|%d días",
-		"week":         "1 sem|%d sem",
-		"month":        "1 mes|%d meses",
-		"year":         "1 año|%d años",
-		"now":          "ahora",
-		"months":       "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre",
-		"short_months": "ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic",
-		"weeks":        "domingo|lunes|martes|miércoles|jueves|viernes|sábado",
-		"short_weeks":  "dom|lun|mar|mié|jue|vie|sáb",
-	},
-}
-
-func init() {
-	for _, code := range languages {
-		lang := carbon.NewLanguage().SetLocale(code)
-		if fixes, ok := carbonFixes[code]; ok {
-			lang.SetResources(fixes)
-		}
-		if lang.Error != nil {
-			panic(fmt.Sprintf("alborz: carbon has no usable %q locale: %v", code, lang.Error))
-		}
-		carbonLangs[code] = lang
-	}
-}
-
-// at reads t in the user's zone under the page's language, so every
-// name carbon spells comes back translated.
-func (g *GlobalRenderData) at(t time.Time) *carbon.Carbon {
-	lang, ok := carbonLangs[g.Lang]
-	if !ok {
-		lang = carbonLangs["en"]
-	}
-	return carbon.CreateFromStdTime(g.InTimezone(t)).SetLanguage(lang)
-}
-
 // Since dates a message the way a list reads it, in the reader's
 // language and as short as the column: "5 min ago", "vor 3 Tagen",
 // "۸ ماه پیش". The exact date belongs in the row's tooltip, where
 // precision costs no width.
 func (g *GlobalRenderData) Since(t time.Time) string {
-	return g.shapeDigits(g.at(t).DiffForHumans())
+	unit, n := elapsed(g.InTimezone(t), g.InTimezone(time.Now()))
+	if unit == "" {
+		return g.T("since.now")
+	}
+	key := "since.ago"
+	if n < 0 {
+		key, n = "since.ahead", -n
+	}
+	// A count of years is never grouped: a date with no year reads
+	// "2025 yrs ago", not "2,025".
+	span := g.printer().Sprintf(translateCount(g.Lang, "since."+unit, n), number.Decimal(n, number.NoSeparator()))
+	return g.Tf(key, span)
+}
+
+// secondsIn are the units elapsed counts by the clock rather than by
+// the calendar.
+var secondsIn = []struct {
+	unit string
+	n    int64
+}{
+	{"week", int64(7 * 24 * time.Hour / time.Second)},
+	{"day", int64(24 * time.Hour / time.Second)},
+	{"hour", int64(time.Hour / time.Second)},
+	{"minute", int64(time.Minute / time.Second)},
+	{"second", 1},
+}
+
+// elapsed is the largest whole unit from t to now and how many of it
+// passed, negative when t is still ahead and no unit at all within the
+// second. Years and months are counted on the calendar, so a month is
+// whatever the month was.
+func elapsed(t, now time.Time) (string, int) {
+	sign, s, e := 1, t, now
+	if e.Before(s) {
+		sign, s, e = -1, e, s
+	}
+	years := e.Year() - s.Year()
+	if s.AddDate(years, 0, 0).After(e) {
+		years--
+	}
+	if years > 0 {
+		return "year", sign * years
+	}
+	months := (e.Year()-s.Year())*12 + int(e.Month()-s.Month())
+	if s.AddDate(0, months, 0).After(e) {
+		months--
+	}
+	if months > 0 {
+		return "month", sign * months
+	}
+	secs := e.Unix() - s.Unix()
+	for _, u := range secondsIn {
+		if secs >= u.n {
+			return u.unit, sign * int(secs/u.n)
+		}
+	}
+	return "", 0
 }
 
 // FormatDate states a full date and time: a message header and an event
@@ -311,7 +292,7 @@ func (g *GlobalRenderData) Weekdays() []string {
 
 // WeekdayName translates the weekday of t.
 func (g *GlobalRenderData) WeekdayName(t time.Time) string {
-	return g.at(t).ToWeekString()
+	return g.T(fmt.Sprintf("calendar.weekday.%d", g.InTimezone(t).Weekday()))
 }
 
 // MonthYearShort is MonthYear abbreviated, for a toolbar too narrow to
@@ -335,12 +316,7 @@ func (g *GlobalRenderData) shortMonth(cal CalendarSystem, month int) string {
 	if cal.Name() != gregorianName {
 		return cal.MonthName(month, g.Lang)
 	}
-	short := g.at(time.Date(2000, time.Month(month), 1, 12, 0, 0, 0, time.UTC)).ToShortMonthString()
-	if g.Lang == "de" {
-		// German marks an abbreviation with a period.
-		short += "."
-	}
-	return short
+	return g.T(fmt.Sprintf("calendar.gmonthshort.%d", month))
 }
 
 // primary is the calendar system the page counts in, and secondary the
@@ -512,10 +488,8 @@ func (g GlobalRenderData) Tf(key string, args ...interface{}) string {
 	return g.printer().Sprintf(translateCount(g.Lang, key, count), args...)
 }
 
-// persianDigits shapes the digits inside a string a library already
-// formatted. It exists only for carbon, which fills its own relative
-// phrases ("%d ماه پیش") with Latin numerals and offers no hook: every
-// number alborz formats itself goes through a printer instead.
+// persianDigits shapes the digits of a string formatted without a
+// printer, such as a typed date.
 var persianDigits = [10]rune{'۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'}
 
 // LatinDigits rewrites the digit shapes someone may type - Persian

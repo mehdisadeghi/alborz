@@ -301,6 +301,40 @@
 "calendar.shmonth.10" = "Dey"
 "calendar.shmonth.11" = "Bahman"
 "calendar.shmonth.12" = "Esfand"
+"calendar.gmonth.1" = "enero"
+"calendar.gmonth.2" = "febrero"
+"calendar.gmonth.3" = "marzo"
+"calendar.gmonth.4" = "abril"
+"calendar.gmonth.5" = "mayo"
+"calendar.gmonth.6" = "junio"
+"calendar.gmonth.7" = "julio"
+"calendar.gmonth.8" = "agosto"
+"calendar.gmonth.9" = "septiembre"
+"calendar.gmonth.10" = "octubre"
+"calendar.gmonth.11" = "noviembre"
+"calendar.gmonth.12" = "diciembre"
+"calendar.gmonthshort.1" = "ene"
+"calendar.gmonthshort.2" = "feb"
+"calendar.gmonthshort.3" = "mar"
+"calendar.gmonthshort.4" = "abr"
+"calendar.gmonthshort.5" = "may"
+"calendar.gmonthshort.6" = "jun"
+"calendar.gmonthshort.7" = "jul"
+"calendar.gmonthshort.8" = "ago"
+"calendar.gmonthshort.9" = "sep"
+"calendar.gmonthshort.10" = "oct"
+"calendar.gmonthshort.11" = "nov"
+"calendar.gmonthshort.12" = "dic"
+"calendar.weekday.0" = "domingo"
+"calendar.weekday.1" = "lunes"
+"calendar.weekday.2" = "martes"
+"calendar.weekday.3" = "miércoles"
+"calendar.weekday.4" = "jueves"
+"calendar.weekday.5" = "viernes"
+"calendar.weekday.6" = "sábado"
+"since.now" = "ahora"
+"since.ago" = "hace %s"
+"since.ahead" = "%s desde ahora"
 "calendar.repeat.never" = "Nunca"
 "calendar.repeat.daily" = "Cada día"
 "calendar.repeat.weekly" = "Cada semana"
@@ -1066,3 +1100,31 @@ other = "%d tareas eliminadas."
 ["notice.tasksmoved"]
 one = "Una tarea movida."
 other = "%d tareas movidas."
+
+["since.second"]
+one = "%d seg"
+other = "%d seg"
+
+["since.minute"]
+one = "%d min"
+other = "%d min"
+
+["since.hour"]
+one = "%d h"
+other = "%d h"
+
+["since.day"]
+one = "%d día"
+other = "%d días"
+
+["since.week"]
+one = "%d sem"
+other = "%d sem"
+
+["since.month"]
+one = "%d mes"
+other = "%d meses"
+
+["since.year"]
+one = "%d año"
+other = "%d años"

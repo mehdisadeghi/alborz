@@ -7,7 +7,6 @@ require (
 	github.com/ProtonMail/go-crypto v1.5.0
 	github.com/aymerick/douceur v0.2.0
 	github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a
-	github.com/dromara/carbon/v2 v2.6.17
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-mbox v1.0.4

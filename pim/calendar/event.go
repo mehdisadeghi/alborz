@@ -10,7 +10,6 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-ical"
@@ -459,10 +458,10 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		}
 
 		// Saved before sending: a failed send must not lose the event.
-		method := mail.MethodRequest
+		method := methodRequest
 		told := attendees
 		if len(attendees) == 0 && had {
-			method, told = mail.MethodCancel, parseAttendees(ctx.FormValue("attendees_was"))
+			method, told = methodCancel, parseAttendees(ctx.FormValue("attendees_was"))
 		}
 		if err := sendScheduling(ctx, event, told, method); err != nil {
 			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.sendfailed")})

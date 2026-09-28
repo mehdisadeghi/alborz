@@ -79,7 +79,7 @@ func setScheduling(event *ical.Event, organizer string, attendees []string) {
 
 func schedulingMail(event *ical.Event, method string) (string, error) {
 	cal := ical.NewCalendar()
-	cal.Props.SetText(ical.PropProductID, mail.ItipProductID)
+	cal.Props.SetText(ical.PropProductID, ItipProductID)
 	cal.Props.SetText(ical.PropVersion, "2.0")
 	cal.Props.SetText(ical.PropMethod, method)
 
@@ -115,7 +115,7 @@ func sendScheduling(ctx *alborz.Context, event *ical.Event, attendees []string, 
 	}
 	summary, _ := event.Props.Text(ical.PropSummary)
 	subject := summary
-	if method == mail.MethodCancel {
+	if method == methodCancel {
 		subject = ctx.T("invite.cancelledsubject") + ": " + summary
 	}
 	return mail.SendCalendarMessage(ctx, to, subject, method, body)
@@ -124,7 +124,11 @@ func sendScheduling(ctx *alborz.Context, event *ical.Event, attendees []string, 
 func (p *plugin) registerScheduling(srv *alborz.Server) {
 	srv.OnMessage = append(srv.OnMessage, func(ctx *alborz.Context, _data alborz.RenderData) error {
 		data := _data.(*mail.MessageRenderData)
-		if data.Invitation == nil && !hasAttachment(data.Message, calendarTypes...) {
+		inv := messageInvitation(ctx, data.Message, data.Mailbox.Name(), data.Message.UID)
+		if inv != nil {
+			data.Invitation = inv
+		}
+		if inv == nil && !hasAttachment(data.Message, calendarTypes...) {
 			return nil
 		}
 		groups, err := p.writableGroups(ctx, supportsEvent)
@@ -132,14 +136,14 @@ func (p *plugin) registerScheduling(srv *alborz.Server) {
 			// No calendar to file it in is not an error on a mail page.
 			return nil
 		}
-		if data.Invitation == nil {
+		if inv == nil {
 			// A calendar with no METHOD is no invitation but still something to file.
 			data.ImportCalendars = groups
 			return nil
 		}
 		// For a withdrawal, offer to drop the kept copy rather than to file one.
-		if data.Invitation.Cancelled() {
-			if found := p.findByUID(ctx, groups, data.Invitation.UID); found != "" {
+		if inv.Cancelled() {
+			if found := p.findByUID(ctx, groups, inv.UID); found != "" {
 				data.InviteFiled = found
 			}
 			return nil
@@ -147,6 +151,8 @@ func (p *plugin) registerScheduling(srv *alborz.Server) {
 		data.InviteCalendars = groups
 		return nil
 	})
+
+	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
 
 	p.POST("/calendar/forget-invitation", func(ctx *alborz.Context) error {
 		objPath, err := pim.ParseObjectPath(ctx.FormValue("path"))
@@ -171,7 +177,7 @@ func (p *plugin) registerScheduling(srv *alborz.Server) {
 		if err != nil {
 			return err
 		}
-		inv, raw, err := mail.InvitationAt(ctx, mboxName, uid)
+		inv, raw, err := invitationAt(ctx, mboxName, uid)
 		if err != nil {
 			return err
 		}
@@ -185,7 +191,7 @@ func (p *plugin) registerScheduling(srv *alborz.Server) {
 			return fmt.Errorf("failed to read the invitation: %v", err)
 		}
 		cal.Props.Del(ical.PropMethod)
-		cal.Props.SetText(ical.PropProductID, mail.ItipProductID)
+		cal.Props.SetText(ical.PropProductID, ItipProductID)
 
 		dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
 		client, calendarPath, account := dest.Client, dest.Path, dest.Account
@@ -344,7 +350,7 @@ func objectsByUID(cal *ical.Calendar) map[string]*ical.Calendar {
 		obj, ok := out[uid]
 		if !ok {
 			obj = ical.NewCalendar()
-			obj.Props.SetText(ical.PropProductID, mail.ItipProductID)
+			obj.Props.SetText(ical.PropProductID, ItipProductID)
 			obj.Props.SetText(ical.PropVersion, "2.0")
 			obj.Children = append(obj.Children, zones...)
 			out[uid] = obj
@@ -405,7 +411,7 @@ func calendarComponents(ctx context.Context, client *caldav.Client, calendarPath
 
 func encodeCalendar(children []*ical.Component) ([]byte, error) {
 	out := ical.NewCalendar()
-	out.Props.SetText(ical.PropProductID, mail.ItipProductID)
+	out.Props.SetText(ical.PropProductID, ItipProductID)
 	out.Props.SetText(ical.PropVersion, "2.0")
 	zones := map[string]bool{}
 	for _, child := range children {

@@ -22,7 +22,6 @@ import (
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-message/textproto"
-	"github.com/emersion/go-smtp"
 	"github.com/labstack/echo/v4"
 	"jaytaylor.com/html2text"
 )
@@ -40,7 +39,7 @@ type MessageRenderData struct {
 	ContextURL     template.URL
 
 	// Invitation is the scheduling request this message carries, if any.
-	Invitation *Invitation
+	Invitation any
 
 	// AuthResults is what the receiving server said about the sender's domain.
 	AuthResults *AuthResults
@@ -103,50 +102,6 @@ const attachmentsShown = 5
 // AttachmentsOpen reports whether the card starts open.
 func (d *MessageRenderData) AttachmentsOpen() bool {
 	return len(d.Message.Attachments()) <= attachmentsShown
-}
-
-// The invitation is re-read from the message, so what is answered is what was sent.
-func handleInvitationReply(ctx *alborz.Context) error {
-	mboxName, uid, err := messageRef(ctx)
-	if err != nil {
-		return err
-	}
-
-	status := strings.ToUpper(ctx.FormValue("status"))
-	switch status {
-	case partAccepted, partDeclined, partTentative:
-	default:
-		return echo.NewHTTPError(http.StatusBadRequest, "unknown answer")
-	}
-
-	var msg *IMAPMessage
-	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
-		var err error
-		msg, _, err = getMessagePart(c, mboxName, uid, nil)
-		return err
-	}); err != nil {
-		return err
-	}
-	inv := messageInvitation(ctx, msg, mboxName, uid)
-	if inv == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "this message carries no invitation")
-	}
-
-	reply, err := invitationReply(ctx, inv, status)
-	if err != nil {
-		return err
-	}
-	reply.Mailer = mailerName(ctx)
-	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/message/%s/%v", url.PathEscape(mboxName), uid)))
-	if err := ctx.DoSMTP(func(c *smtp.Client) error {
-		return sendMessage(c, reply)
-	}); err != nil {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})
-		return ctx.Redirect(http.StatusFound, back)
-	}
-
-	ctx.PutNotice(ctx.T("invite.answered"))
-	return ctx.Redirect(http.StatusFound, back)
 }
 
 // With plain the bytes are shown rather than saved: the source view.
@@ -632,7 +587,6 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 			return ctx.Server.SieveEnabled(s.Domain())
 		}),
 	}
-	data.Invitation = messageInvitation(ctx, msg, mboxName, uid)
 	for _, add := range ctx.Server.OnMessage {
 		if err := add(ctx, data); err != nil {
 			return err
@@ -665,16 +619,6 @@ func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) 
 	return u.String()
 }
 
-// An unparsable invitation is not a page failure: the part is still an attachment.
-func messageInvitation(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) *Invitation {
-	inv, _, err := invitationAt(ctx, msg, mboxName, uid)
-	if err != nil {
-		ctx.Logger().Printf("failed to read the calendar part: %v", err)
-		return nil
-	}
-	return inv
-}
-
 // PartAt reads one part of a message as the bytes it was sent as, with its media type.
 func PartAt(ctx *alborz.Context, mboxName string, uid imap.UID, part string) ([]byte, string, error) {
 	partPath, err := parsePartPath(part)
@@ -695,23 +639,24 @@ func PartAt(ctx *alborz.Context, mboxName string, uid imap.UID, part string) ([]
 	return raw, mediaType, err
 }
 
-// InvitationAt reads the scheduling part of one message, and the bytes it was written as.
-func InvitationAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*Invitation, []byte, error) {
+// CalendarPartAt reads the scheduling part of one message, and the part it is.
+func CalendarPartAt(ctx *alborz.Context, mboxName string, uid imap.UID) ([]byte, string, error) {
 	var msg *IMAPMessage
 	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
 		var err error
 		msg, _, err = getMessagePart(c, mboxName, uid, nil)
 		return err
 	}); err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
-	return invitationAt(ctx, msg, mboxName, uid)
+	return CalendarPart(ctx, msg, mboxName, uid)
 }
 
-func invitationAt(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) (*Invitation, []byte, error) {
+// CalendarPart reads the scheduling part of a fetched message; nil for none.
+func CalendarPart(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) ([]byte, string, error) {
 	part := invitationPart(msg)
 	if part == nil {
-		return nil, nil, nil
+		return nil, "", nil
 	}
 	var raw []byte
 	err := ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -723,9 +668,9 @@ func invitationAt(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid im
 		return err
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
-	return readInvitation(raw, part.PathString(), ctx.Login.Username()), raw, nil
+	return raw, part.PathString(), nil
 }
 
 // The URI is re-read from the message, so a page cannot make us post anywhere (RFC 8058).

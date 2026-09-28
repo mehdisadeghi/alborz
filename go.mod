@@ -81,9 +81,10 @@ replace github.com/emersion/go-msgauth => github.com/alborzmail/go-msgauth v0.0.
 // does not have: a body line reading ">From " survives a round trip.
 replace github.com/emersion/go-mbox => github.com/alborzmail/go-mbox v0.0.0-20260921114627-f2df45e279df
 
-// Our fork of go-ical adds NewTimezone, the VTIMEZONE of a zone over a
-// span, which upstream leaves to every caller.
-replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-20260921115030-4aff18c21c48
+// Our fork of go-ical adds what upstream leaves to every caller:
+// NewTimezone, the VTIMEZONE of a zone over a span, the zones a calendar
+// refers to, alarm triggers, splitting by UID, dropping repeated zones.
+replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-20260928213756-d103982e72b1
 
 // Our fork of go-imap carries what upstream has open: ID with fields
 // RFC 2971 does not name, so Dovecot learns the reader's address

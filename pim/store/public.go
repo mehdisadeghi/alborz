@@ -98,7 +98,6 @@ func (s *Store) feed(c Collection) ([]byte, error) {
 	name.SetText(c.Name)
 	name.Params.Del(ical.ParamValue)
 	feed.Props.Set(name)
-	zones := map[string]bool{}
 	for _, o := range objects {
 		cal, err := ical.NewDecoder(bytes.NewReader(o.Data)).Decode()
 		if err != nil {
@@ -108,16 +107,10 @@ func (s *Store) feed(c Collection) ([]byte, error) {
 			continue
 		}
 		for _, child := range cal.Children {
-			if child.Name == ical.CompTimezone {
-				id, _ := child.Props.Text(ical.PropTimezoneID)
-				if zones[id] {
-					continue
-				}
-				zones[id] = true
-			}
 			feed.Children = append(feed.Children, anonymous(child))
 		}
 	}
+	feed.RemoveDuplicateTimezones()
 	var out bytes.Buffer
 	if len(feed.Children) == 0 {
 		// go-ical refuses an empty calendar, which a feed may be.

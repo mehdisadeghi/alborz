@@ -139,61 +139,21 @@ func (ao CalendarObject) Alarms() []Alarm {
 	if comp == nil {
 		return nil
 	}
-	start, _ := comp.Props.DateTime(ical.PropDateTimeStart, nil)
-	end := componentEnd(comp)
 
 	var out []Alarm
 	for _, child := range comp.Children {
 		if child.Name != ical.CompAlarm {
 			continue
 		}
-		prop := child.Props.Get(ical.PropTrigger)
-		if prop == nil {
+		// An alarm with no time to place it on is not shown.
+		at, err := comp.TriggerTime(child, nil)
+		if err != nil {
 			continue
 		}
 		action, _ := child.Props.Text(ical.PropAction)
-		var at time.Time
-		if prop.ValueType() == ical.ValueDateTime {
-			at, _ = prop.DateTime(nil)
-		} else if offset, err := prop.Duration(); err == nil {
-			base := start
-			if prop.Params.Get(ical.ParamRelated) == "END" && !end.IsZero() {
-				base = end
-			}
-			if !base.IsZero() {
-				at = base.Add(offset)
-			}
-		}
-		if at.IsZero() {
-			continue
-		}
 		out = append(out, Alarm{At: at, Action: action})
 	}
 	return out
-}
-
-func componentEnd(comp *ical.Component) time.Time {
-	switch comp.Name {
-	case ical.CompEvent:
-		event := ical.Event{Component: comp}
-		end, _ := event.DateTimeEnd(nil)
-		return end
-	case ical.CompToDo:
-		if due, _ := comp.Props.DateTime(ical.PropDue, nil); !due.IsZero() {
-			return due
-		}
-		start, _ := comp.Props.DateTime(ical.PropDateTimeStart, nil)
-		if start.IsZero() {
-			return time.Time{}
-		}
-		if durProp := comp.Props.Get(ical.PropDuration); durProp != nil {
-			if d, err := durProp.Duration(); err == nil {
-				return start.Add(d)
-			}
-		}
-		return start
-	}
-	return time.Time{}
 }
 
 // Occurrence is one instance of an event: a component and the moment it falls on.

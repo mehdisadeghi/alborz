@@ -127,7 +127,10 @@ END:VCALENDAR
 	if err != nil {
 		t.Fatal(err)
 	}
-	objects := objectsByUID(cal)
+	objects, err := objectsByUID(cal)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(objects) != 3 {
 		t.Fatalf("got %d objects, want the series, the review and the task", len(objects))
 	}

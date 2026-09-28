@@ -2,7 +2,6 @@ package alborzcaldav
 
 import (
 	"context"
-	"embed"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -11,9 +10,6 @@ import (
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-webdav/caldav"
 )
-
-//go:embed all:public
-var public embed.FS
 
 type plugin struct {
 	alborz.GoPlugin
@@ -48,7 +44,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	}
 
 	p := &plugin{
-		GoPlugin: alborz.GoPlugin{Name: "caldav", Files: public},
+		GoPlugin: alborz.GoPlugin{Name: "caldav"},
 		dav:      provider,
 		subs:     newSubCache(srv.Options.CacheFor(subRefreshAfter)),
 	}

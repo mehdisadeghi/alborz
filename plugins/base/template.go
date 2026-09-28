@@ -11,11 +11,6 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-const (
-	inputDateLayout = "2006-01-02"
-	inputTimeLayout = "15:04"
-)
-
 var templateFuncs = template.FuncMap{
 	// Here, not in carddav: the theme references it and it must exist at parse time.
 	"photodatauri": func(data string) template.URL {
@@ -148,16 +143,4 @@ var templateFuncs = template.FuncMap{
 		}
 	},
 	"join": strings.Join,
-	"formatinputdate": func(t time.Time) string {
-		if t.IsZero() {
-			return ""
-		}
-		return t.Format(inputDateLayout)
-	},
-	"formatinputtime": func(t time.Time) string {
-		if t.IsZero() {
-			return ""
-		}
-		return t.Format(inputTimeLayout)
-	},
 }

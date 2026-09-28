@@ -4,10 +4,7 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
-	"os"
-	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -55,23 +52,6 @@ func (p *goPlugin) SetRoutes(group *echo.Group) {
 			return h(ectx.(*Context))
 		})
 	}
-
-	// On-disk plugin assets override the embedded ones file by file, like templates.
-	group.GET("/plugins/"+p.p.Name+"/assets/*", func(ectx echo.Context) error {
-		name := strings.TrimPrefix(path.Clean("/"+ectx.Param("*")), "/")
-		if name == "" {
-			return echo.ErrNotFound
-		}
-		diskPath := filepath.Join(PluginDir, p.p.Name, "public", "assets", name)
-		if _, err := os.Stat(diskPath); err == nil {
-			return ectx.File(diskPath)
-		}
-		if p.p.Files == nil {
-			return echo.ErrNotFound
-		}
-		http.ServeFileFS(ectx.Response(), ectx.Request(), p.p.Files, path.Join("public/assets", name))
-		return nil
-	})
 }
 
 func (p *goPlugin) Inject(ctx *Context, name string, data RenderData) error {
@@ -109,8 +89,7 @@ type goPluginRoute struct {
 // GoPlugin is a helper to create Go plugins.
 type GoPlugin struct {
 	Name string
-	// Files is the embedded public directory (public/*.html, public/assets);
-	// plugins/<name>/public on disk overrides it file by file. Nil means none.
+	// Files embeds public/*.html; plugins/<name>/public on disk overrides it file by file. Nil means none.
 	Files fs.FS
 	// CloseFunc releases resources on server close; nil means none.
 	CloseFunc func() error

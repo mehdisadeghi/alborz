@@ -2,7 +2,6 @@ package alborzcarddav
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"net/http"
 	"net/mail"
@@ -17,9 +16,6 @@ import (
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
-
-//go:embed all:public
-var public embed.FS
 
 type plugin struct {
 	alborz.GoPlugin
@@ -84,7 +80,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	}
 
 	p := &plugin{
-		GoPlugin: alborz.GoPlugin{Name: "carddav", Files: public},
+		GoPlugin: alborz.GoPlugin{Name: "carddav"},
 		dav:      provider,
 	}
 	p.EnabledFunc = provider.Enabled

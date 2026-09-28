@@ -1,15 +1,11 @@
 package alborzbase
 
 import (
-	"embed"
 	"sync"
 	"time"
 
 	"git.mehdix.org/alborz"
 )
-
-//go:embed all:public
-var public embed.FS
 
 // UserLocation resolves the reader's timezone.
 func UserLocation(ctx *alborz.Context) *time.Location {
@@ -44,7 +40,7 @@ func newPlugin(o *alborz.Options) *plugin {
 	bodies := newBodyCache(o.CacheFor(bodyKeepFor))
 	sidebars := alborz.NewBackgroundMemo[sidebar](o.CacheFor(listingFreshFor))
 	p := &plugin{
-		GoPlugin:        alborz.GoPlugin{Name: "base", Files: public},
+		GoPlugin:        alborz.GoPlugin{Name: "base"},
 		listings:        newListingCache(o.CacheFor(listingKeepFor), sidebars, bodies),
 		bodies:          bodies,
 		accountSidebars: sidebars,

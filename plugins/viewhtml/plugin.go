@@ -1,7 +1,6 @@
 package alborzviewhtml
 
 import (
-	"embed"
 	"fmt"
 	"io"
 	"mime"
@@ -16,9 +15,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-//go:embed all:public
-var public embed.FS
-
 var (
 	proxyMaxSize = 5 * 1024 * 1024
 	// A sender's slow server must not hold our request open.
@@ -28,7 +24,7 @@ var (
 )
 
 func init() {
-	p := alborz.GoPlugin{Name: "viewhtml", Files: public}
+	p := alborz.GoPlugin{Name: "viewhtml"}
 
 	p.Inject("message.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
 		data := _data.(*alborzbase.MessageRenderData)

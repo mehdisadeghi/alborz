@@ -585,7 +585,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 			if !isactx {
 				return "/assets/" + name
 			}
-			return ctx.Server.assetURL(name)
+			return ctx.Server.AssetURL(name)
 		},
 
 		HavePlugin: func(name string) bool {

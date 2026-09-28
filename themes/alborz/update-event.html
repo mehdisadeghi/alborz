@@ -44,7 +44,6 @@
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" (.Event.Props.Text "DESCRIPTION") "dir" "auto") }}
         {{ template "field" (dict "label" ($.T "calendar.attendees") "name" "attendees" "value" .Attendees "rows" 3) }}
         {{ template "hint" (dict "text" ($.T "help.attendees")) }}
-        <input type="hidden" name="attendees_was" value="{{ .Attendees }}">
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/calendar%s" $acct)) "cancelLabel" ($.T "common.cancel")) }}
       </form>

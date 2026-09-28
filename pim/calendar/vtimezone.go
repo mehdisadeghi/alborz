@@ -39,6 +39,17 @@ func ensureTimezones(cal *ical.Calendar, around time.Time) {
 	}
 }
 
+// A scheduling message is zoned for the time of its first event, as a sender that wrote no VTIMEZONE meant it.
+func messageZones(msg *ical.Calendar) {
+	around := time.Now()
+	if events := msg.Events(); len(events) > 0 {
+		if start, err := events[0].DateTimeStart(time.UTC); err == nil && !start.IsZero() {
+			around = start
+		}
+	}
+	ensureTimezones(msg, around)
+}
+
 const localTime = "20060102T150405"
 
 // The newest onset each way gets a yearly rule inferred from its pattern, so the zone outlives the span.

@@ -47,12 +47,19 @@ const smokePass = "x"
 type sentMail struct {
 	mu   sync.Mutex
 	last string
+	all  []string
 }
 
 func (s *sentMail) Last() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.last
+}
+
+func (s *sentMail) All() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.all)
 }
 
 type smtpBackend struct{ got *sentMail }
@@ -91,6 +98,7 @@ func (s *smtpSession) Data(r io.Reader) error {
 	}
 	s.got.mu.Lock()
 	s.got.last = string(b)
+	s.got.all = append(s.got.all, string(b))
 	s.got.mu.Unlock()
 	return nil
 }

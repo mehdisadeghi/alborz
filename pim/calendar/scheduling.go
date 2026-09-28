@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	netmail "net/mail"
+	"net/url"
 	"path"
+	"slices"
 	"strings"
 	"time"
 	"uuid"
@@ -17,10 +19,14 @@ import (
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
 	"github.com/labstack/echo/v4"
 )
+
+// ItipProductID is the PRODID of the calendar objects Alborz writes.
+const ItipProductID = "-//mehdix.org//Alborz//EN"
 
 func parseAttendees(value string) []string {
 	var out []string
@@ -54,21 +60,23 @@ func attendeeLines(event *ical.Event) string {
 	return strings.Join(lines, "\n")
 }
 
+// Attendees already invited keep their answers; the new ones are asked for one.
 func setScheduling(event *ical.Event, organizer string, attendees []string) {
+	was := event.Props[ical.PropAttendee]
 	event.Props.Del(ical.PropAttendee)
 	if len(attendees) == 0 {
 		event.Props.Del(ical.PropOrganizer)
 		return
 	}
-	org := ical.NewProp(ical.PropOrganizer)
-	org.Value = "mailto:" + organizer
-	event.Props.Set(org)
+	event.Props.Set(mailto(ical.PropOrganizer, organizer))
 	for _, addr := range attendees {
-		prop := ical.NewProp(ical.PropAttendee)
-		prop.Value = "mailto:" + addr
-		// The organizer has agreed; everyone else is asked to answer.
+		if i := slices.IndexFunc(was, func(p ical.Prop) bool { return strings.EqualFold(itip.Address(&p), addr) }); i >= 0 {
+			event.Props.Add(&was[i])
+			continue
+		}
+		prop := mailto(ical.PropAttendee, addr)
 		if strings.EqualFold(addr, organizer) {
-			prop.Params.Set("PARTSTAT", "ACCEPTED")
+			prop.Params.Set("PARTSTAT", partAccepted)
 		} else {
 			prop.Params.Set("PARTSTAT", "NEEDS-ACTION")
 			prop.Params.Set("RSVP", "TRUE")
@@ -77,48 +85,107 @@ func setScheduling(event *ical.Event, organizer string, attendees []string) {
 	}
 }
 
-func schedulingMail(event *ical.Event, method string) (string, error) {
-	cal := ical.NewCalendar()
-	cal.Props.SetText(ical.PropProductID, ItipProductID)
-	cal.Props.SetText(ical.PropVersion, "2.0")
-	cal.Props.SetText(ical.PropMethod, method)
-
-	copied := ical.NewComponent(ical.CompEvent)
-	for name, props := range event.Props {
-		for i := range props {
-			copied.Props.Add(&event.Props[name][i])
+func others(addrs, ours []string) []string {
+	var out []string
+	for _, addr := range addrs {
+		if !holds(ours, addr) {
+			out = append(out, addr)
 		}
 	}
-	cal.Children = append(cal.Children, copied)
-
-	var buf bytes.Buffer
-	if err := ical.NewEncoder(&buf).Encode(cal); err != nil {
-		return "", fmt.Errorf("failed to write the scheduling object: %v", err)
-	}
-	return buf.String(), nil
+	return out
 }
 
-func sendScheduling(ctx *alborz.Context, event *ical.Event, attendees []string, method string) error {
-	organizer := ctx.Login.Username()
-	var to []string
-	for _, addr := range attendees {
-		if !strings.EqualFold(addr, organizer) {
-			to = append(to, addr)
+func holds(addrs []string, addr string) bool {
+	return slices.ContainsFunc(addrs, func(a string) bool { return strings.EqualFold(a, addr) })
+}
+
+func mailto(name, addr string) *ical.Prop {
+	prop := ical.NewProp(name)
+	prop.Value = "mailto:" + addr
+	return prop
+}
+
+func cloneCalendar(cal *ical.Calendar) *ical.Calendar {
+	return &ical.Calendar{Component: cloneComponent(cal.Component)}
+}
+
+func cloneComponent(comp *ical.Component) *ical.Component {
+	out := &ical.Component{Name: comp.Name, Props: make(ical.Props, len(comp.Props))}
+	for name, props := range comp.Props {
+		for _, prop := range props {
+			out.Props[name] = append(out.Props[name], cloneProp(prop))
 		}
 	}
+	for _, child := range comp.Children {
+		out.Children = append(out.Children, cloneComponent(child))
+	}
+	return out
+}
+
+func cloneProp(prop ical.Prop) ical.Prop {
+	params := make(ical.Params, len(prop.Params))
+	for key, values := range prop.Params {
+		params[key] = slices.Clone(values)
+	}
+	return ical.Prop{Name: prop.Name, Params: params, Value: prop.Value}
+}
+
+func sendScheduling(ctx *alborz.Context, msg *ical.Calendar, to []string) error {
 	if len(to) == 0 {
 		return nil
 	}
-	body, err := schedulingMail(event, method)
+	messageZones(msg)
+	var buf bytes.Buffer
+	if err := ical.NewEncoder(&buf).Encode(msg); err != nil {
+		return fmt.Errorf("failed to write the scheduling object: %v", err)
+	}
+	method := itip.Method(msg)
+	summary, _ := msg.Events()[0].Props.Text(ical.PropSummary)
+	subject := summary
+	if method == itip.MethodCancel {
+		subject = ctx.T("invite.cancelledsubject") + ": " + summary
+	}
+	return mail.SendCalendarMessage(ctx, to, subject, method, buf.String())
+}
+
+// A server that schedules (RFC 6638 2) tells the attendees itself; alborz telling them too sends everything twice.
+func (p *plugin) serverSchedules(ctx *alborz.Context, account, object string) (bool, error) {
+	login := ctx.LoginFor(account)
+	rctx := ctx.Request().Context()
+	coll := p.dav.URL(rctx, login).ResolveReference(&url.URL{Path: path.Dir(object) + "/"})
+	found, err := dav.Describe(rctx, p.dav.HTTPClient(rctx, login), coll)
+	return found.Has("calendar-auto-schedule"), err
+}
+
+// A meeting this account organizes is withdrawn from its attendees as it goes.
+func (p *plugin) deleteEvent(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) error {
+	co, err := getCalendarObject(ctx, ref.Client, ref.Path)
 	if err != nil {
 		return err
 	}
-	summary, _ := event.Props.Text(ical.PropSummary)
-	subject := summary
-	if method == methodCancel {
-		subject = ctx.T("invite.cancelledsubject") + ": " + summary
+	if err := ref.Client.RemoveAll(ctx.Request().Context(), ref.Path); err != nil {
+		return err
 	}
-	return mail.SendCalendarMessage(ctx, to, subject, method, body)
+	series := itip.Series(co.Data)
+	if series == nil || series.Props.Get(ical.PropOrganizer) == nil {
+		return nil
+	}
+	ours, err := mail.Addresses(ctx.Request().Context(), ctx.Login)
+	if err != nil {
+		return err
+	}
+	if !holds(ours, itip.Address(series.Props.Get(ical.PropOrganizer))) {
+		return nil
+	}
+	schedules, err := p.serverSchedules(ctx, ref.Account, ref.Path)
+	if err == nil && !schedules {
+		err = sendScheduling(ctx, itip.Cancel(co.Data, nil, time.Now()), others(itip.Attendees(series), ours))
+	}
+	if err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.cancelfailed")})
+		ctx.Logger().Printf("failed to send the cancellation: %v", err)
+	}
+	return nil
 }
 
 func (p *plugin) registerScheduling(srv *alborz.Server) {
@@ -141,85 +208,125 @@ func (p *plugin) registerScheduling(srv *alborz.Server) {
 			data.ImportCalendars = groups
 			return nil
 		}
-		// For a withdrawal, offer to drop the kept copy rather than to file one.
-		if inv.Cancelled() {
-			if found := p.findByUID(ctx, groups, inv.UID); found != "" {
-				data.InviteFiled = found
-			}
-			return nil
+		data.InviteFiled = p.findByUID(ctx, groups, inv.UID)
+		if data.InviteFiled == "" && !inv.Cancelled() && !inv.Answer() {
+			data.InviteCalendars = groups
 		}
-		data.InviteCalendars = groups
 		return nil
 	})
 
 	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
+	p.POST("/calendar/from-attachment", p.importCalendar)
+	p.POST("/calendar/from-message", p.applyInvitation)
+}
 
-	p.POST("/calendar/forget-invitation", func(ctx *alborz.Context) error {
-		objPath, err := pim.ParseObjectPath(ctx.FormValue("path"))
-		if err != nil {
+// The message is re-read and taken into the copy kept of its event, or filed as a new one.
+func (p *plugin) applyInvitation(ctx *alborz.Context) error {
+	mboxName, uid, err := mail.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
+	if err != nil {
+		return err
+	}
+	msg, err := invitationAt(ctx, mboxName, uid)
+	if err != nil {
+		return err
+	}
+	if msg == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "this message carries no invitation")
+	}
+	inv := readInvitation(msg, nil)
+	back := ctx.NextOr(ctx.AccountPath("/calendar"))
+
+	groups, err := p.writableGroups(ctx, supportsEvent)
+	if err != nil {
+		return err
+	}
+	c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+	if err != nil {
+		return err
+	}
+	var stored *caldav.CalendarObject
+	if at := p.findByUID(ctx, groups, inv.UID); at != "" {
+		if stored, err = getCalendarObject(ctx, c, at); err != nil {
 			return err
 		}
-		c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
-		if err != nil {
-			return err
-		}
-		if err := c.RemoveAll(ctx.Request().Context(), objPath); err != nil {
-			return fmt.Errorf("failed to remove the meeting: %v", err)
-		}
-		ctx.PutNotice(ctx.T("invite.forgotten"))
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
-	})
+	}
+	if stored == nil && (inv.Cancelled() || inv.Answer()) {
+		return echo.NewHTTPError(http.StatusBadRequest, "no calendar holds this event")
+	}
+	var held *ical.Calendar
+	if stored != nil {
+		held = stored.Data
+	}
+	out, err := itip.Apply(held, msg)
+	if key := itipRefusal(err); key != "" {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T(key)})
+		return ctx.Redirect(http.StatusFound, back)
+	} else if err != nil {
+		return err
+	}
 
-	p.POST("/calendar/from-message", p.importCalendar)
-
-	p.POST("/calendar/from-message", func(ctx *alborz.Context) error {
-		mboxName, uid, err := mail.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
-		if err != nil {
-			return err
+	if stored != nil {
+		if out == nil {
+			err = c.RemoveAll(ctx.Request().Context(), stored.Path)
+		} else {
+			ensureTimezones(out, time.Now())
+			_, err = c.PutCalendarObject(ctx.Request().Context(), stored.Path, out, nil)
 		}
-		inv, raw, err := invitationAt(ctx, mboxName, uid)
-		if err != nil {
-			return err
-		}
-		if inv == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "this message carries no invitation")
-		}
-
-		// The organizer's own object is filed, not one rebuilt from the page; only METHOD goes.
-		cal, err := ical.NewDecoder(bytes.NewReader(raw)).Decode()
-		if err != nil {
-			return fmt.Errorf("failed to read the invitation: %v", err)
-		}
-		cal.Props.Del(ical.PropMethod)
-		cal.Props.SetText(ical.PropProductID, ItipProductID)
-
-		dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
-		client, calendarPath, account := dest.Client, dest.Path, dest.Account
-		if errors.Is(err, pim.ErrNoDestination) {
-			return echo.NewHTTPError(http.StatusBadRequest, "no calendar to file it in")
-		} else if err != nil {
-			return err
-		}
-
-		name := inv.UID
-		if name == "" {
-			name = uuid.New().String()
-		}
-		ensureTimezones(cal, time.Now())
-		co, err := client.PutCalendarObject(ctx.Request().Context(),
-			path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), cal, nil)
 		if err != nil {
 			ctx.Notify(pim.Refused(ctx, err))
-			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
+			return ctx.Redirect(http.StatusFound, back)
 		}
+		switch {
+		case inv.Cancelled():
+			ctx.PutNotice(ctx.T("invite.forgotten"))
+		case inv.Answer():
+			ctx.PutNotice(ctx.T("invite.recorded"))
+		default:
+			ctx.PutNotice(ctx.T("invite.filed"))
+		}
+		return ctx.Redirect(http.StatusFound, back)
+	}
 
-		ctx.PutNotice(ctx.T("invite.filed"))
-		if account != "" {
-			return ctx.Redirect(http.StatusFound,
-				CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.QueryValue(account))
-		}
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(CalendarObject{CalendarObject: co}.URL()))
-	})
+	dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
+	client, calendarPath, account := dest.Client, dest.Path, dest.Account
+	if errors.Is(err, pim.ErrNoDestination) {
+		return echo.NewHTTPError(http.StatusBadRequest, "no calendar to file it in")
+	} else if err != nil {
+		return err
+	}
+	name := inv.UID
+	if name == "" {
+		name = uuid.New().String()
+	}
+	ensureTimezones(out, time.Now())
+	co, err := client.PutCalendarObject(ctx.Request().Context(),
+		path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), out, nil)
+	if err != nil {
+		ctx.Notify(pim.Refused(ctx, err))
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	ctx.PutNotice(ctx.T("invite.filed"))
+	if account != "" {
+		return ctx.Redirect(http.StatusFound,
+			CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.QueryValue(account))
+	}
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath(CalendarObject{CalendarObject: co}.URL()))
+}
+
+func itipRefusal(err error) string {
+	switch {
+	case errors.Is(err, itip.ErrOrganizer):
+		return "invite.notorganizer"
+	case errors.Is(err, itip.ErrOutdated):
+		return "invite.outdated"
+	case errors.Is(err, itip.ErrSuperseded):
+		return "invite.superseded"
+	case errors.Is(err, itip.ErrUninvited):
+		return "invite.uninvited"
+	case errors.Is(err, itip.ErrInstance):
+		return "invite.noinstance"
+	}
+	return ""
 }
 
 func (p *plugin) findByUID(ctx *alborz.Context, groups []dav.Group, uid string) string {

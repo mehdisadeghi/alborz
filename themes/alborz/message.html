@@ -338,13 +338,19 @@
                 </form>
                 {{ end }}
                 {{ if $.InviteFiled }}
-                <form method="post" action="/calendar/forget-invitation{{$aq}}" class="invitation-actions">
-                  <input type="hidden" name="path" value="{{ $.InviteFiled }}">
+                <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
+                  <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
+                  <input type="hidden" name="uid" value="{{$.Message.UID}}">
                   <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                  {{ if .Cancelled }}
                   <button type="submit" class="button-danger">{{$.T "invite.removefromcalendar"}}</button>
+                  {{ else if .Answer }}
+                  <button type="submit">{{$.T "invite.record"}}</button>
+                  {{ else }}
+                  <button type="submit">{{$.T "invite.updatecalendar"}}</button>
+                  {{ end }}
                 </form>
-                {{ end }}
-                {{ if and (not .Answer) $.InviteCalendars }}
+                {{ else if $.InviteCalendars }}
                 <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
                   <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                   <input type="hidden" name="uid" value="{{$.Message.UID}}">
@@ -397,7 +403,7 @@
               {{- end -}}
               </a> ({{.MIMEType}}, {{.SizeString}})
               {{ if and (or (eq .MIMEType "text/calendar") (eq .MIMEType "application/ics")) $.ImportCalendars }}
-              <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
+              <form method="post" action="/calendar/from-attachment{{$aq}}" class="invitation-actions">
                 <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                 <input type="hidden" name="uid" value="{{$.Message.UID}}">
                 <input type="hidden" name="part" value="{{.PathString}}">

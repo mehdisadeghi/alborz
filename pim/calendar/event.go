@@ -10,8 +10,10 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/caldav"
@@ -304,6 +306,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 	var groups []dav.Group
 	var co *caldav.CalendarObject
 	var event *ical.Event
+	var before *ical.Calendar
 	var currentCalendar *dav.Collection
 	if calendarObjectPath != "" {
 		c, calendars, err = p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
@@ -327,6 +330,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		if event == nil {
 			return fmt.Errorf("calendar object %q holds no event to edit", calendarObjectPath)
 		}
+		before = cloneCalendar(co.Data)
 		currentCalendar = dav.Holding(calendars, "", co.Path)
 	} else {
 		// Pooled, so creating does not fail when the active account lacks such a collection.
@@ -372,7 +376,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			return reject(ctx.T("form.summaryneeded"))
 		}
 
-		to := pim.Ref[*caldav.Client]{Client: c}
+		to := pim.Ref[*caldav.Client]{Client: c, Account: ctx.Login.Username()}
 		creating := co == nil
 		if creating {
 			to, err = p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
@@ -439,8 +443,15 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 
 		// Naming anybody makes this account the organizer; removing the last withdraws it.
 		attendees := parseAttendees(ctx.FormValue("attendees"))
-		had := attendeeLines(event) != ""
 		setScheduling(event, ctx.Login.Username(), attendees)
+		var was *ical.Component
+		if before != nil {
+			was = itip.Series(before)
+		}
+		dropped := itip.Dropped(was, event.Component)
+		if len(attendees) > 0 || len(dropped) > 0 {
+			itip.Revise(was, event.Component)
+		}
 
 		newID := uuid.New()
 		if prop := event.Props.Get(ical.PropUID); prop == nil {
@@ -458,15 +469,25 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		}
 
 		// Saved before sending: a failed send must not lose the event.
-		method := methodRequest
-		told := attendees
-		if len(attendees) == 0 && had {
-			method, told = methodCancel, parseAttendees(ctx.FormValue("attendees_was"))
+		ours, err := mail.Addresses(ctx.Request().Context(), ctx.Login)
+		if err != nil {
+			return err
 		}
-		if err := sendScheduling(ctx, event, told, method); err != nil {
+		told := others(attendees, ours)
+		schedules := false
+		if len(told) > 0 || len(dropped) > 0 {
+			schedules, err = p.serverSchedules(ctx, to.Account, co.Path)
+		}
+		if err == nil && !schedules {
+			err = sendScheduling(ctx, itip.Request(cal), told)
+		}
+		if len(dropped) > 0 && err == nil && !schedules {
+			err = sendScheduling(ctx, itip.Cancel(before, dropped, time.Now()), others(dropped, ours))
+		}
+		if err != nil {
 			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.sendfailed")})
 			ctx.Logger().Printf("failed to send the scheduling message: %v", err)
-		} else if len(told) > 0 {
+		} else if !schedules && (len(told) > 0 || len(dropped) > 0) {
 			ctx.PutNotice(ctx.T("invite.sent"))
 		}
 

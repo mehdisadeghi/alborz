@@ -1,4 +1,4 @@
-package alborzviewhtml
+package mail
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"git.mehdix.org/alborz/mail"
 	"github.com/aymerick/douceur/css"
 	cssparser "github.com/aymerick/douceur/parser"
 	"github.com/microcosm-cc/bluemonday"
@@ -96,7 +95,7 @@ var allowedStyles = map[string]bool{
 }
 
 type sanitizer struct {
-	msg                  *mail.IMAPMessage
+	msg                  *IMAPMessage
 	account              string
 	allowRemoteResources bool
 	hasRemoteResources   bool

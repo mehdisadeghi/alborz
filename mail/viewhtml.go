@@ -1,4 +1,4 @@
-package alborzviewhtml
+package mail
 
 import (
 	"bytes"
@@ -8,11 +8,10 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"github.com/emersion/go-message"
 )
 
-const tplSrc = `
+const htmlTplSrc = `
 <!-- allow-same-origin is required to resize the frame with its content -->
 <!-- allow-popups is required for target="_blank" links, and
      allow-popups-to-escape-sandbox for where they land: a popup
@@ -32,7 +31,7 @@ const tplSrc = `
 <link rel="stylesheet" href="{{.Style}}">
 `
 
-var tpl = template.Must(template.New("view-html.html").Parse(tplSrc))
+var htmlTpl = template.Must(template.New("view-html.html").Parse(htmlTplSrc))
 
 // An untitled iframe is announced only as "frame".
 type frameData struct {
@@ -42,23 +41,20 @@ type frameData struct {
 	Style  string
 }
 
-// Viewer shows an HTML part.
-type Viewer struct{}
-
-func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, _ []int, part *message.Entity) (mail.View, error) {
+func viewHTML(ctx *alborz.Context, msg *IMAPMessage, part *message.Entity) (View, error) {
 	allowRemoteResources := ctx.QueryParam("allow-remote-resources") == "1"
 
 	mimeType, _, err := part.Header.ContentType()
 	if err != nil {
-		return mail.View{}, err
+		return View{}, err
 	}
 	if !strings.EqualFold(mimeType, "text/html") {
-		return mail.View{}, mail.ErrViewUnsupported
+		return View{}, ErrViewUnsupported
 	}
 
 	body, err := io.ReadAll(part.Body)
 	if err != nil {
-		return mail.View{}, fmt.Errorf("failed to read part body: %v", err)
+		return View{}, fmt.Errorf("failed to read part body: %v", err)
 	}
 
 	san := sanitizer{
@@ -68,7 +64,7 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, _ []in
 	}
 	body, err = san.sanitizeHTML(body)
 	if err != nil {
-		return mail.View{}, fmt.Errorf("failed to sanitize HTML part: %v", err)
+		return View{}, fmt.Errorf("failed to sanitize HTML part: %v", err)
 	}
 
 	// Mail sizes images for its own layout; long pre lines wrap instead of widening the frame.
@@ -81,15 +77,15 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, _ []in
 	}
 
 	var buf bytes.Buffer
-	err = tpl.Execute(&buf, frameData{
+	err = htmlTpl.Execute(&buf, frameData{
 		Title:  ctx.T("a11y.body"),
 		Body:   string(body),
 		Script: ctx.Server.AssetURL("viewhtml.js"),
 		Style:  ctx.Server.AssetURL("viewhtml.css"),
 	})
 	if err != nil {
-		return mail.View{}, err
+		return View{}, err
 	}
 
-	return mail.View{Body: template.HTML(buf.String()), Remote: san.hasRemoteResources}, nil
+	return View{Body: template.HTML(buf.String()), Remote: san.hasRemoteResources}, nil
 }

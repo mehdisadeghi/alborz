@@ -1,4 +1,4 @@
-package alborzviewtext
+package mail
 
 import (
 	"bufio"
@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"github.com/emersion/go-message"
 	"gitlab.com/golang-commonmark/linkify"
 )
@@ -17,15 +16,15 @@ import (
 // TODO: dim quotes and "On xxx, xxx wrote:" lines
 
 const (
-	tplStr     = `<pre dir="auto">{{range .Tokens}}{{.}}{{end}}{{range .Images}}<img class="shown-image" src="{{.Src}}" alt="{{.Alt}}">{{end}}</pre>`
+	textTplStr = `<pre dir="auto">{{range .Tokens}}{{.}}{{end}}{{range .Images}}<img class="shown-image" src="{{.Src}}" alt="{{.Alt}}">{{end}}</pre>`
 	linkTplStr = `<a href="{{.Href}}" target="_blank" rel="nofollow noopener">{{.Text}}</a>`
 )
 
-var tpl *template.Template
+var textTpl *template.Template
 
 func init() {
-	tpl = template.Must(template.New("view-text.html").Parse(tplStr))
-	template.Must(tpl.New("view-text-link.html").Parse(linkTplStr))
+	textTpl = template.Must(template.New("view-text.html").Parse(textTplStr))
+	template.Must(textTpl.New("view-text-link.html").Parse(linkTplStr))
 }
 
 type textRenderData struct {
@@ -57,23 +56,20 @@ var allowedSchemes = map[string]bool{
 
 func executeTemplate(name string, data interface{}) (template.HTML, error) {
 	var sb strings.Builder
-	err := tpl.ExecuteTemplate(&sb, name, data)
+	err := textTpl.ExecuteTemplate(&sb, name, data)
 	if err != nil {
 		return "", err
 	}
 	return template.HTML(sb.String()), nil
 }
 
-// Viewer shows a text part.
-type Viewer struct{}
-
-func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, path []int, part *message.Entity) (mail.View, error) {
+func viewText(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.Entity) (View, error) {
 	mimeType, params, err := part.Header.ContentType()
 	if err != nil {
-		return mail.View{}, err
+		return View{}, err
 	}
 	if !strings.EqualFold(mimeType, "text/plain") {
-		return mail.View{}, mail.ErrViewUnsupported
+		return View{}, ErrViewUnsupported
 	}
 
 	// Language is decided per paragraph: per line the voice would stutter.
@@ -99,9 +95,9 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, path [
 	if strings.EqualFold(params["format"], "flowed") {
 		raw, err := io.ReadAll(part.Body)
 		if err != nil {
-			return mail.View{}, fmt.Errorf("failed to read part body: %v", err)
+			return View{}, fmt.Errorf("failed to read part body: %v", err)
 		}
-		body = strings.NewReader(mail.Unflow(string(raw), strings.EqualFold(params["delsp"], "yes")))
+		body = strings.NewReader(Unflow(string(raw), strings.EqualFold(params["delsp"], "yes")))
 	}
 	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
@@ -140,7 +136,7 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, path [
 				Text: l[link.Start:link.End],
 			})
 			if err != nil {
-				return mail.View{}, err
+				return View{}, err
 			}
 			para = append(para, tok)
 			i = link.End
@@ -153,7 +149,7 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, path [
 	}
 	flush()
 	if err := scanner.Err(); err != nil {
-		return mail.View{}, fmt.Errorf("failed to read part body: %v", err)
+		return View{}, fmt.Errorf("failed to read part body: %v", err)
 	}
 
 	data := textRenderData{Tokens: tokens}
@@ -161,5 +157,5 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, path [
 		data.Images = append(data.Images, imageRenderData{Src: image.URL(true, ctx.URLAccount()).String(), Alt: image.Filename})
 	}
 	html, err := executeTemplate("view-text.html", data)
-	return mail.View{Body: html}, err
+	return View{Body: html}, err
 }

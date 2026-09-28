@@ -89,13 +89,12 @@
         </div>
 
         <div class="action-group">
-          <label for="send_html" class="checkbox">
-            <input type="checkbox" name="send_html" id="send_html" value="1"{{if .Settings.SendHTML}} checked{{end}}>
-            {{$.T "settings.sendhtml"}}
+          <label for="direction_part" class="checkbox">
+            <input type="checkbox" name="direction_part" id="direction_part" value="1"{{if not .Settings.NoDirectionPart}} checked{{end}}>
+            {{$.T "settings.directionpart"}}
           </label>
-          {{ template "hint" (dict "text" ($.T "settings.sendhtmlhint")) }}
+          {{ template "hint" (dict "text" ($.T "settings.directionparthint")) }}
         </div>
-
 
         <div class="action-group">
           <label for="reply_position">{{$.T "settings.replyposition"}}</label>

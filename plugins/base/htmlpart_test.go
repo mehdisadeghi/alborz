@@ -90,8 +90,9 @@ func TestSendHTMLCarriesDirection(t *testing.T) {
 	}
 }
 
-// Off by default, and off means one part: a list that refuses
-// multipart/alternative sees exactly what it saw before.
+// Unset - left-to-right text, a reply to a list, a draft - means one
+// part: a list that refuses multipart/alternative sees exactly what it
+// saw before.
 func TestWithoutSendHTMLNothingChanges(t *testing.T) {
 	types, _, raw := parts(t, false)
 	if strings.Contains(raw, "multipart/alternative") || indexOf(types, "text/html") >= 0 {

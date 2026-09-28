@@ -415,12 +415,11 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			}
 			return render(http.StatusOK, sig.Name, "")
 		}
-		// Both halves of this are the server's to know: the account's
-		// setting, and whether the message being answered came from a
-		// list. Neither is asked of the page - a form field carrying a
-		// decision is one the reader's browser can lose or change, and
-		// it made the feature depend on when a tab happened to load.
-		msg.SendHTML = settings.SendHTML
+		// Plain text gets an HTML part only to carry right-to-left
+		// direction, unless the account turned it off, and not in a
+		// reply to a list. All are read at send, never from a flag on
+		// the page, which a tab opened earlier can lose.
+		msg.SendHTML = msg.HTML == "" && !settings.NoDirectionPart && alborz.HasRTL(msg.Text)
 		if msg.SendHTML && options.InReplyTo != nil {
 			toList := false
 			if err := ctx.DoIMAP(func(c *imapclient.Client) error {

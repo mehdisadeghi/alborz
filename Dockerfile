@@ -2,13 +2,14 @@
 # only the small runtime stage runs under emulation.
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETOS TARGETARCH TARGETVARIANT
-ARG VERSION=dev
+# The go tool reads the version from the checkout, through git.
+RUN apk add --no-cache git
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
-	go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o /alborz ./cmd/alborz
+	go build -trimpath -ldflags "-s -w" -o /alborz ./cmd/alborz
 
 FROM alpine:3
 # Calendars name their zones; Alpine ships none.

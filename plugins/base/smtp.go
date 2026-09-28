@@ -240,7 +240,7 @@ func newMessageID() string {
 
 // mailerName is what the User-Agent header says wrote the message.
 func mailerName(ctx *alborz.Context) string {
-	if v := ctx.Server.Options.Version; v != "" {
+	if v, _ := alborz.Build(); v != "" {
 		return alborz.BrandName + "/" + v
 	}
 	return alborz.BrandName

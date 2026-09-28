@@ -12,8 +12,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime/debug"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -55,90 +53,6 @@ func serveProfiles(addr string) {
 			os.Exit(1)
 		}
 	}()
-}
-
-// devVersion is what a build off main calls itself: it is not a
-// release, and saying so is more useful than a number nobody cut.
-const devVersion = "dev"
-
-// version is stamped at link time with the tag being built, or with
-// devVersion off main. It is empty for a local build, which has only
-// the VCS metadata below to go on.
-var version string
-
-// modified, when the build stamps it "true" or "false", replaces the go
-// tool's own word on whether the tree differed from the revision. The
-// go tool counts every file git does not know, so a note or a draft
-// lying in the checkout made every build dirty, which says nothing of
-// the binary; the Makefile asks only about what the build reads. A
-// build that does not pass it gets the go tool's answer, as before.
-var modified string
-
-// buildVersion is what the footer and the User-Agent report. A release
-// names itself and nothing else; anything else carries the revision,
-// since that is what identifies the build being run.
-func buildVersion() string {
-	revision, date := vcsStamp()
-	stamp := strings.TrimSpace(revision + " " + date)
-	switch {
-	case version == "":
-		return stamp
-	case version == devVersion:
-		return strings.TrimSpace(version + " " + stamp)
-	default:
-		return version
-	}
-}
-
-// buildName is what tells one build from another, for the rail's head
-// where a reader reporting a fault can see it: the revision, which
-// every build has, and the tag after it when the commit is one.
-func buildName() string {
-	revision, _ := vcsStamp()
-	if version == "" || version == devVersion {
-		return revision
-	}
-	if revision == "" {
-		return version
-	}
-	return revision + " @ " + version
-}
-
-// vcsStamp is the revision and date the go tool embeds into the binary;
-// empty for unstamped builds such as go run.
-func vcsStamp() (string, string) {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "", ""
-	}
-	var revision, date string
-	var dirty bool
-	for _, s := range info.Settings {
-		switch s.Key {
-		case "vcs.revision":
-			revision = s.Value
-		case "vcs.time":
-			date, _, _ = strings.Cut(s.Value, "T")
-		case "vcs.modified":
-			dirty = s.Value == "true"
-		}
-	}
-	if revision == "" {
-		return "", ""
-	}
-	if modified != "" {
-		var err error
-		if dirty, err = strconv.ParseBool(modified); err != nil {
-			panic(fmt.Sprintf("main.modified stamped as %q: %v", modified, err))
-		}
-	}
-	if len(revision) > 7 {
-		revision = revision[:7]
-	}
-	if dirty {
-		revision += "-dirty"
-	}
-	return revision, date
 }
 
 func defaultCacheDir() string {
@@ -244,9 +158,6 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		os.Exit(2)
 	}
 	options.ThemesPath = themesPath
-	options.Version = buildVersion()
-	options.Build = buildName()
-	options.Revision, _ = vcsStamp()
 
 	if loginKey != "" {
 		fernetKey, err := fernet.DecodeKey(loginKey)

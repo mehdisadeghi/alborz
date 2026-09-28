@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -32,6 +33,25 @@ const BrandName = "Alborz"
 // data and its cache in, under whichever root the system gives it. One
 // name, spelt once.
 const AppName = "alborz"
+
+// Build is the version the go tool stamps from the checkout: a
+// release's tag, else a pseudo-version naming the commit, "+dirty" when
+// the tree differed from it. Short is what the head has room for: the
+// tag, or the commit and its mark.
+var Build = sync.OnceValues(func() (full, short string) {
+	info, _ := debug.ReadBuildInfo()
+	full = info.Main.Version
+	for _, s := range info.Settings {
+		if s.Key != "vcs.revision" {
+			continue
+		}
+		// A pseudo-version ends in the commit's first twelve digits.
+		if _, mark, ok := strings.Cut(full, "-"+s.Value[:12]); ok {
+			return full, s.Value[:7] + mark
+		}
+	}
+	return full, full
+})
 
 // storeFile is alborz's own database inside the data directory: the
 // remembered logins and what each browser reads by. Named after the
@@ -204,7 +224,8 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		if err != nil {
 			return nil, err
 		}
-		if s.data, err = openData(dataDir, options.Build, e.Logger.Printf); err != nil {
+		version, _ := Build()
+		if s.data, err = openData(dataDir, version, e.Logger.Printf); err != nil {
 			return nil, err
 		}
 		if s.Collections, err = collections.New(s.data); err != nil {
@@ -812,11 +833,6 @@ type Options struct {
 	// PublicURL is where readers reach alborz, for the links it puts in
 	// mail and shows to other clients. Unset, each request's own address.
 	PublicURL *url.URL
-	Version   string
-	// Build is the revision and the tag it carries, for the rail's head;
-	// Revision is the first alone, which is all the header has room for.
-	Build    string
-	Revision string
 	// ProjectURL is where the footer's name links, for a deployment that
 	// wants to point somewhere. Empty by default: a deployment is not the
 	// author's, and no address of anyone's belongs in a shipped binary.

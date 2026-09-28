@@ -18,11 +18,11 @@ import (
 	"sync"
 	"time"
 
+	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/plugins/collections"
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	bolt "go.etcd.io/bbolt"
 )
 
 // BrandName is what a person reads: page titles, the User-Agent on a
@@ -133,7 +133,7 @@ type Server struct {
 	signInRefused *refusals
 	// data is the one file everything kept is in; nil without a data
 	// directory.
-	data *bolt.DB
+	data kv.DB
 
 	// loginFailures records, per username, when an automatic sign-in
 	// last failed, so the next request does not try again at once.
@@ -227,9 +227,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		if s.data, err = openData(dataDir, version, e.Logger.Printf); err != nil {
 			return nil, err
 		}
-		if s.Collections, err = collections.New(s.data); err != nil {
-			return nil, err
-		}
+		s.Collections = collections.New(s.data)
 		s.davPasswords = newDAVPasswords()
 	}
 	// Remembering a session means keeping a password, so it takes both a
@@ -237,11 +235,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	// a session lasts as long as the process, which is what a login
 	// always did.
 	if s.data != nil && options.LoginKey != nil {
-		records, err := OpenSessionRecords(s.data, options.LoginKey)
-		if err != nil {
-			return nil, err
-		}
-		s.Sessions.SetRecords(records)
+		s.Sessions.SetRecords(OpenSessionRecords(s.data, options.LoginKey))
 		s.Sessions.Sweep(time.Now().Add(-credentialCookieLife))
 	}
 

@@ -3,18 +3,18 @@
 package collections
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"uuid"
 
-	"git.mehdix.org/alborz/record"
-	bolt "go.etcd.io/bbolt"
+	"git.mehdix.org/alborz/internal/kv"
+	"git.mehdix.org/alborz/internal/record"
 )
 
 // ErrNotFound is what a collection, an object or a share that is not
@@ -84,7 +84,6 @@ type Object struct {
 	ETag     string
 	Modified time.Time
 	// Creator wrote the object first, at Created; Editor wrote it last.
-	// Empty for an object written before they were kept.
 	Creator string    `json:",omitempty"`
 	Created time.Time `json:",omitzero"`
 	Editor  string    `json:",omitempty"`
@@ -123,72 +122,64 @@ func (s Share) Ended() bool {
 	return !s.Expires.IsZero() && !time.Now().Before(s.Expires)
 }
 
-// root is this package's bucket in alborz's data file, and the rest are
-// the kinds of record inside it (ADR 26).
-var (
-	root              = []byte("collections")
-	collectionsBucket = []byte("list")
-	objectsBucket     = []byte("objects")
-	sharesBucket      = []byte("shares")
-	// uidsBucket maps a collection's UIDs to the objects holding them,
-	// so a write learns of a clash without reading every object.
-	uidsBucket = []byte("uids")
-	// publicBucket maps a published calendar's secret to its collection:
-	// a feed is asked for by anyone, and a wrong guess reads one key
-	// rather than every collection of every account.
-	publicBucket = []byte("public")
+// Name owns this package's keys in alborz's data file, and Format is
+// the format they are written in (ADR 26).
+const (
+	Name   = "alborz.pim"
+	Format = 1
 )
 
-func bucket(tx *bolt.Tx, name []byte) *bolt.Bucket { return tx.Bucket(root).Bucket(name) }
+func collectionKey(ref Ref) string { return collectionsOf(ref.Owner) + ref.ID }
 
-// Store is its bucket in the data file and nothing else; every method
-// is one transaction.
+func collectionsOf(owner string) string { return Name + "/collections/" + strings.ToLower(owner) + "/" }
+
+func objectKey(ref Ref, name string) string { return objectsOf(ref) + name }
+
+func objectsOf(ref Ref) string { return Name + "/objects/" + ref.key() + "/" }
+
+func shareKey(ref Ref, to string) string { return sharesOf(ref) + strings.ToLower(to) }
+
+func sharesOf(ref Ref) string { return Name + "/shares/" + ref.key() + "\x00" }
+
+// uidKey maps a collection's UID to the object holding it, so a write
+// learns of a clash without reading every object.
+func uidKey(ref Ref, uid string) string { return uidsOf(ref) + uid }
+
+func uidsOf(ref Ref) string { return Name + "/uids/" + ref.key() + "\x00" }
+
+// publicKey maps a published calendar's secret to its collection, so a
+// wrong guess reads one key.
+func publicKey(secret string) string { return Name + "/public/" + secret }
+
+// receivedKey indexes a share by its recipient.
+func receivedKey(to string, ref Ref) string { return receivedBy(to) + ref.key() }
+
+func receivedBy(to string) string { return Name + "/received/" + strings.ToLower(to) + "\x00" }
+
+// ctagKey counts ctags across collections: counted per collection, a
+// name deleted and made again would hand out values a client still
+// holds from the one before.
+const ctagKey = Name + "/ctag"
+
+// Store keeps collections in the data file; every method is one
+// transaction.
 type Store struct {
-	db *bolt.DB
+	db kv.DB
 }
 
-// New keeps collections in db, the data file the server opened, making
-// their buckets if they are not there.
-func New(db *bolt.DB) (*Store, error) {
-	err := db.Update(func(tx *bolt.Tx) error {
-		top, err := tx.CreateBucketIfNotExists(root)
-		if err != nil {
-			return err
-		}
-		unpublished := top.Bucket(publicBucket) == nil
-		for _, name := range [][]byte{collectionsBucket, objectsBucket, sharesBucket, uidsBucket, publicBucket} {
-			if _, err := top.CreateBucketIfNotExists(name); err != nil {
-				return err
-			}
-		}
-		if unpublished {
-			return indexPublic(tx)
-		}
-		return nil
-	})
-	return &Store{db: db}, err
-}
-
-// indexPublic fills the index from the calendars published before it
-// was kept.
-func indexPublic(tx *bolt.Tx) error {
-	return each(bucket(tx, collectionsBucket), nil, func(c Collection) error {
-		return publish(tx, "", c)
-	})
-}
+func New(db kv.DB) *Store { return &Store{db: db} }
 
 // publish keeps the index with a collection's secret, which was before.
-func publish(tx *bolt.Tx, before string, c Collection) error {
-	index := bucket(tx, publicBucket)
+func publish(tx kv.Tx, before string, c Collection) error {
 	if before != "" && before != c.Public {
-		if err := index.Delete([]byte(before)); err != nil {
+		if err := tx.Delete(publicKey(before)); err != nil {
 			return err
 		}
 	}
 	if c.Public == "" {
 		return nil
 	}
-	return index.Put([]byte(c.Public), []byte(c.Ref().key()))
+	return tx.Put(publicKey(c.Public), []byte(collectionKey(c.Ref())))
 }
 
 // ETagOf names the bytes, so the same object written twice is the same
@@ -198,14 +189,8 @@ func ETagOf(data []byte) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-func objectKey(ref Ref, name string) []byte { return []byte(ref.key() + "/" + name) }
-
-func uidKey(ref Ref, uid string) []byte { return []byte(ref.key() + "\x00" + uid) }
-
-func shareKey(ref Ref, to string) []byte { return []byte(ref.key() + "\x00" + strings.ToLower(to)) }
-
-func get[T any](b *bolt.Bucket, key []byte) (*T, error) {
-	raw := b.Get(key)
+func get[T any](tx kv.Tx, key string) (*T, error) {
+	raw := tx.Get(key)
 	if raw == nil {
 		return nil, ErrNotFound
 	}
@@ -216,61 +201,49 @@ func get[T any](b *bolt.Bucket, key []byte) (*T, error) {
 	return &v, nil
 }
 
-// each reads every record of b whose key begins with prefix.
-func each[T any](b *bolt.Bucket, prefix []byte, fn func(T) error) error {
-	cur := b.Cursor()
-	for k, raw := cur.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, raw = cur.Next() {
+func each[T any](tx kv.Tx, prefix string, fn func(T) error) error {
+	return tx.Scan(prefix, func(_ string, raw []byte) error {
 		var v T
 		if err := json.Unmarshal(raw, &v); err != nil {
 			return err
 		}
-		if err := fn(v); err != nil {
-			return err
-		}
-	}
-	return nil
+		return fn(v)
+	})
 }
 
 // put writes v over what is stored under key, keeping what a newer
 // version of alborz put there (ADR 26).
-func put(b *bolt.Bucket, key []byte, v any) error {
-	raw, err := record.Keep(b.Get(key), v)
+func put(tx kv.Tx, key string, v any) error {
+	raw, err := record.Keep(tx.Get(key), v)
 	if err != nil {
 		return err
 	}
-	return b.Put(key, raw)
+	return tx.Put(key, raw)
 }
 
-// stamp gives a collection a ctag none has had, from the bucket's own
-// sequence: counted per collection, a name deleted and made again went
-// back through the values a client still held from the one before.
-func stamp(b *bolt.Bucket, c *Collection) error {
-	next, err := b.NextSequence()
-	if err != nil {
-		return err
-	}
-	// A ctag counted before the sequence was kept may be ahead of it.
-	if next <= c.CTag {
-		next = c.CTag + 1
-		if err := b.SetSequence(next); err != nil {
+// stamp gives a collection a ctag none has had.
+func stamp(tx kv.Tx, c *Collection) error {
+	var last uint64
+	if raw := tx.Get(ctagKey); raw != nil {
+		var err error
+		if last, err = strconv.ParseUint(string(raw), 10, 64); err != nil {
 			return err
 		}
 	}
-	c.CTag = next
-	return nil
+	c.CTag = last + 1
+	return tx.Put(ctagKey, strconv.AppendUint(nil, c.CTag, 10))
 }
 
 // touch moves the collection's ctag on, inside a write's transaction.
-func touch(tx *bolt.Tx, ref Ref) error {
-	b := bucket(tx, collectionsBucket)
-	c, err := get[Collection](b, []byte(ref.key()))
+func touch(tx kv.Tx, ref Ref) error {
+	c, err := get[Collection](tx, collectionKey(ref))
 	if err != nil {
 		return err
 	}
-	if err := stamp(b, c); err != nil {
+	if err := stamp(tx, c); err != nil {
 		return err
 	}
-	return put(b, []byte(ref.key()), c)
+	return put(tx, collectionKey(ref), c)
 }
 
 // Create keeps a new collection under the name given, or one of its
@@ -280,16 +253,14 @@ func (s *Store) Create(c Collection) (*Collection, error) {
 		c.ID = uuid.New().String()
 	}
 	c.Owner = strings.ToLower(c.Owner)
-	c.CTag = 0
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := bucket(tx, collectionsBucket)
-		if b.Get([]byte(c.Ref().key())) != nil {
+	err := s.db.Update(func(tx kv.Tx) error {
+		if tx.Get(collectionKey(c.Ref())) != nil {
 			return ErrExists
 		}
-		if err := stamp(b, &c); err != nil {
+		if err := stamp(tx, &c); err != nil {
 			return err
 		}
-		if err := put(b, []byte(c.Ref().key()), &c); err != nil {
+		if err := put(tx, collectionKey(c.Ref()), &c); err != nil {
 			return err
 		}
 		return publish(tx, "", c)
@@ -299,9 +270,8 @@ func (s *Store) Create(c Collection) (*Collection, error) {
 
 func (s *Store) Collection(ref Ref) (*Collection, error) {
 	var c *Collection
-	err := s.db.View(func(tx *bolt.Tx) error {
-		var err error
-		c, err = get[Collection](bucket(tx, collectionsBucket), []byte(ref.key()))
+	err := s.db.View(func(tx kv.Tx) (err error) {
+		c, err = get[Collection](tx, collectionKey(ref))
 		return err
 	})
 	return c, err
@@ -309,18 +279,17 @@ func (s *Store) Collection(ref Ref) (*Collection, error) {
 
 // Update changes a collection's own properties.
 func (s *Store) Update(ref Ref, change func(*Collection)) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		b := bucket(tx, collectionsBucket)
-		c, err := get[Collection](b, []byte(ref.key()))
+	return s.db.Update(func(tx kv.Tx) error {
+		c, err := get[Collection](tx, collectionKey(ref))
 		if err != nil {
 			return err
 		}
 		before := c.Public
 		change(c)
-		if err := stamp(b, c); err != nil {
+		if err := stamp(tx, c); err != nil {
 			return err
 		}
-		if err := put(b, []byte(ref.key()), c); err != nil {
+		if err := put(tx, collectionKey(ref), c); err != nil {
 			return err
 		}
 		return publish(tx, before, *c)
@@ -329,43 +298,48 @@ func (s *Store) Update(ref Ref, change func(*Collection)) error {
 
 // Delete removes a collection with its objects and its shares.
 func (s *Store) Delete(ref Ref) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		c, err := get[Collection](bucket(tx, collectionsBucket), []byte(ref.key()))
+	return s.db.Update(func(tx kv.Tx) error {
+		c, err := get[Collection](tx, collectionKey(ref))
 		if err != nil {
 			return err
 		}
-		before := c.Public
-		c.Public = ""
-		if err := publish(tx, before, *c); err != nil {
+		if err := publish(tx, c.Public, Collection{}); err != nil {
 			return err
 		}
-		for bucket, prefix := range map[*bolt.Bucket][]byte{
-			bucket(tx, objectsBucket): []byte(ref.key() + "/"),
-			bucket(tx, sharesBucket):  []byte(ref.key() + "\x00"),
-			bucket(tx, uidsBucket):    []byte(ref.key() + "\x00"),
-		} {
-			cur := bucket.Cursor()
-			for k, _ := cur.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
-				if err := cur.Delete(); err != nil {
-					return err
-				}
+		var gone []string
+		collect := func(k string, _ []byte) error {
+			gone = append(gone, k)
+			return nil
+		}
+		for _, prefix := range []string{objectsOf(ref), uidsOf(ref)} {
+			if err := tx.Scan(prefix, collect); err != nil {
+				return err
 			}
 		}
-		return bucket(tx, collectionsBucket).Delete([]byte(ref.key()))
+		err = each(tx, sharesOf(ref), func(sh Share) error {
+			gone = append(gone, shareKey(ref, sh.To), receivedKey(sh.To, ref))
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		for _, k := range append(gone, collectionKey(ref)) {
+			if err := tx.Delete(k); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
 // Visible are the collections of one kind an account sees: its own, and
-// those shared with it that it accepted and that have not run out.
-// Each comes with what the account may do with it, read in the same
-// transaction: a share that runs out while a home is being listed is in
-// the listing or out of it, and never an error in the middle.
+// those shared with it that it accepted and that have not run out, each
+// with what the account may do with it.
 func (s *Store) Visible(account string, kind Kind, now time.Time) ([]Seen, error) {
 	account = strings.ToLower(account)
 	var out []Seen
-	err := s.db.View(func(tx *bolt.Tx) error {
-		collections := bucket(tx, collectionsBucket)
-		err := each(collections, []byte(account+"/"), func(c Collection) error {
+	err := s.db.View(func(tx kv.Tx) error {
+		err := each(tx, collectionsOf(account), func(c Collection) error {
 			if c.Kind == kind {
 				out = append(out, Seen{c, own})
 			}
@@ -374,16 +348,20 @@ func (s *Store) Visible(account string, kind Kind, now time.Time) ([]Seen, error
 		if err != nil {
 			return err
 		}
-		return each(bucket(tx, sharesBucket), nil, func(sh Share) error {
-			if !strings.EqualFold(sh.To, account) || !sh.Live(now) {
-				return nil
+		prefix := receivedBy(account)
+		return tx.Scan(prefix, func(k string, _ []byte) error {
+			owner, id, _ := strings.Cut(strings.TrimPrefix(k, prefix), "/")
+			ref := Ref{Owner: owner, ID: id}
+			sh, err := get[Share](tx, shareKey(ref, account))
+			if err != nil || !sh.Live(now) {
+				return err
 			}
-			c, err := get[Collection](collections, []byte(sh.Ref().key()))
+			c, err := get[Collection](tx, collectionKey(ref))
 			if err != nil {
 				return err
 			}
 			if c.Kind == kind {
-				out = append(out, Seen{*c, accessOf(sh)})
+				out = append(out, Seen{*c, accessOf(*sh)})
 			}
 			return nil
 		})
@@ -406,18 +384,17 @@ func accessOf(sh Share) access {
 }
 
 // allowed is what an account may do with a collection, read in the
-// transaction that acts on the answer: a share revoked a moment ago
-// gives nothing. A collection the account cannot see is not found,
-// which is what it is to that account.
-func allowed(tx *bolt.Tx, ref Ref, account string, now time.Time) (*Collection, access, error) {
-	c, err := get[Collection](bucket(tx, collectionsBucket), []byte(ref.key()))
+// transaction that acts on the answer. A collection the account cannot
+// see is not found.
+func allowed(tx kv.Tx, ref Ref, account string, now time.Time) (*Collection, access, error) {
+	c, err := get[Collection](tx, collectionKey(ref))
 	if err != nil {
 		return nil, none, err
 	}
 	if c.Owner == account {
 		return c, own, nil
 	}
-	sh, err := get[Share](bucket(tx, sharesBucket), shareKey(ref, account))
+	sh, err := get[Share](tx, shareKey(ref, account))
 	if err != nil {
 		return nil, none, err
 	}
@@ -427,6 +404,15 @@ func allowed(tx *bolt.Tx, ref Ref, account string, now time.Time) (*Collection, 
 	return c, accessOf(*sh), nil
 }
 
+// may is allowed in a transaction of its own.
+func (s *Store) may(ref Ref, account string, now time.Time) (c *Collection, may access, err error) {
+	err = s.db.View(func(tx kv.Tx) error {
+		c, may, err = allowed(tx, ref, account, now)
+		return err
+	})
+	return c, may, err
+}
+
 // ErrForbidden is a write by an account the collection is shared with
 // to read.
 var ErrForbidden = errors.New("collections: not yours to change")
@@ -434,12 +420,12 @@ var ErrForbidden = errors.New("collections: not yours to change")
 // ByPublic finds the collection a public URL's secret names.
 func (s *Store) ByPublic(secret string) (*Collection, error) {
 	var found *Collection
-	err := s.db.View(func(tx *bolt.Tx) (err error) {
-		key := bucket(tx, publicBucket).Get([]byte(secret))
+	err := s.db.View(func(tx kv.Tx) (err error) {
+		key := tx.Get(publicKey(secret))
 		if secret == "" || key == nil {
 			return ErrNotFound
 		}
-		found, err = get[Collection](bucket(tx, collectionsBucket), key)
+		found, err = get[Collection](tx, string(key))
 		return err
 	})
 	return found, err
@@ -447,8 +433,8 @@ func (s *Store) ByPublic(secret string) (*Collection, error) {
 
 func (s *Store) Objects(ref Ref) ([]Object, error) {
 	var out []Object
-	err := s.db.View(func(tx *bolt.Tx) error {
-		return each(bucket(tx, objectsBucket), []byte(ref.key()+"/"), func(o Object) error {
+	err := s.db.View(func(tx kv.Tx) error {
+		return each(tx, objectsOf(ref), func(o Object) error {
 			out = append(out, o)
 			return nil
 		})
@@ -458,9 +444,8 @@ func (s *Store) Objects(ref Ref) ([]Object, error) {
 
 func (s *Store) Object(ref Ref, name string) (*Object, error) {
 	var o *Object
-	err := s.db.View(func(tx *bolt.Tx) error {
-		var err error
-		o, err = get[Object](bucket(tx, objectsBucket), objectKey(ref, name))
+	err := s.db.View(func(tx kv.Tx) (err error) {
+		o, err = get[Object](tx, objectKey(ref, name))
 		return err
 	})
 	return o, err
@@ -475,20 +460,19 @@ var ErrPrecondition = errors.New("collections: precondition failed")
 var ErrUIDConflict = errors.New("collections: UID already in the collection")
 
 // Unless is a write's condition: given the ETag of the object held,
-// empty when none is, it says why the write is off, ErrPrecondition when
-// somebody else wrote first. Nil is a write that does not care.
+// empty when none is, it says why the write is off. Nil is a write that
+// does not care.
 type Unless func(held string) error
 
 // PutObject writes an object as the account by.
 func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless, by string) (*Object, error) {
 	now := time.Now().UTC()
 	o := &Object{Name: name, UID: uid, Data: data, ETag: ETagOf(data), Modified: now, Creator: by, Created: now, Editor: by}
-	err := s.db.Update(func(tx *bolt.Tx) error {
+	err := s.db.Update(func(tx kv.Tx) error {
 		if err := writable(tx, ref, by, now); err != nil {
 			return err
 		}
-		b := bucket(tx, objectsBucket)
-		old, err := get[Object](b, objectKey(ref, name))
+		old, err := get[Object](tx, objectKey(ref, name))
 		if err != nil && !errors.Is(err, ErrNotFound) {
 			return err
 		}
@@ -502,12 +486,11 @@ func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless,
 				return err
 			}
 		}
-		uids := bucket(tx, uidsBucket)
 		if uid != "" {
-			if holder := uids.Get(uidKey(ref, uid)); holder != nil && string(holder) != name {
+			if holder := tx.Get(uidKey(ref, uid)); holder != nil && string(holder) != name {
 				// The index is believed only where the object it names
 				// says the same: an entry left behind names nothing.
-				other, err := get[Object](b, objectKey(ref, string(holder)))
+				other, err := get[Object](tx, objectKey(ref, string(holder)))
 				if err != nil && !errors.Is(err, ErrNotFound) {
 					return err
 				}
@@ -515,16 +498,16 @@ func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless,
 					return ErrUIDConflict
 				}
 			}
-			if err := uids.Put(uidKey(ref, uid), []byte(name)); err != nil {
+			if err := tx.Put(uidKey(ref, uid), []byte(name)); err != nil {
 				return err
 			}
 		}
 		if old != nil && old.UID != "" && old.UID != uid {
-			if err := uids.Delete(uidKey(ref, old.UID)); err != nil {
+			if err := tx.Delete(uidKey(ref, old.UID)); err != nil {
 				return err
 			}
 		}
-		if err := put(b, objectKey(ref, name), o); err != nil {
+		if err := put(tx, objectKey(ref, name), o); err != nil {
 			return err
 		}
 		return touch(tx, ref)
@@ -533,7 +516,7 @@ func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless,
 }
 
 // writable refuses a write by an account that may not make it.
-func writable(tx *bolt.Tx, ref Ref, by string, now time.Time) error {
+func writable(tx kv.Tx, ref Ref, by string, now time.Time) error {
 	_, may, err := allowed(tx, ref, strings.ToLower(by), now)
 	if err == nil && may < write {
 		err = ErrForbidden
@@ -544,12 +527,11 @@ func writable(tx *bolt.Tx, ref Ref, by string, now time.Time) error {
 // RemoveObject deletes an object as the account by, unless its
 // condition says not to.
 func (s *Store) RemoveObject(ref Ref, name string, unless Unless, by string) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.db.Update(func(tx kv.Tx) error {
 		if err := writable(tx, ref, by, time.Now()); err != nil {
 			return err
 		}
-		b := bucket(tx, objectsBucket)
-		old, err := get[Object](b, objectKey(ref, name))
+		old, err := get[Object](tx, objectKey(ref, name))
 		if err != nil {
 			return err
 		}
@@ -559,11 +541,11 @@ func (s *Store) RemoveObject(ref Ref, name string, unless Unless, by string) err
 			}
 		}
 		if old.UID != "" {
-			if err := bucket(tx, uidsBucket).Delete(uidKey(ref, old.UID)); err != nil {
+			if err := tx.Delete(uidKey(ref, old.UID)); err != nil {
 				return err
 			}
 		}
-		if err := b.Delete(objectKey(ref, name)); err != nil {
+		if err := tx.Delete(objectKey(ref, name)); err != nil {
 			return err
 		}
 		return touch(tx, ref)
@@ -573,19 +555,21 @@ func (s *Store) RemoveObject(ref Ref, name string, unless Unless, by string) err
 // PutShare keeps a share, replacing one to the same address.
 func (s *Store) PutShare(sh Share) error {
 	sh.To = strings.ToLower(sh.To)
-	return s.db.Update(func(tx *bolt.Tx) error {
-		if bucket(tx, collectionsBucket).Get([]byte(sh.Ref().key())) == nil {
+	return s.db.Update(func(tx kv.Tx) error {
+		if tx.Get(collectionKey(sh.Ref())) == nil {
 			return ErrNotFound
 		}
-		return put(bucket(tx, sharesBucket), shareKey(sh.Ref(), sh.To), &sh)
+		if err := put(tx, shareKey(sh.Ref(), sh.To), &sh); err != nil {
+			return err
+		}
+		return tx.Put(receivedKey(sh.To, sh.Ref()), []byte{})
 	})
 }
 
 func (s *Store) Share(ref Ref, to string) (*Share, error) {
 	var sh *Share
-	err := s.db.View(func(tx *bolt.Tx) error {
-		var err error
-		sh, err = get[Share](bucket(tx, sharesBucket), shareKey(ref, to))
+	err := s.db.View(func(tx kv.Tx) (err error) {
+		sh, err = get[Share](tx, shareKey(ref, to))
 		return err
 	})
 	return sh, err
@@ -594,9 +578,8 @@ func (s *Store) Share(ref Ref, to string) (*Share, error) {
 // Answer is the invitee's yes or no to a share: a yes makes it live, a
 // no before one is Declined and a no after one is Left.
 func (s *Store) Answer(ref Ref, to string, yes bool) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		b := bucket(tx, sharesBucket)
-		sh, err := get[Share](b, shareKey(ref, to))
+	return s.db.Update(func(tx kv.Tx) error {
+		sh, err := get[Share](tx, shareKey(ref, to))
 		if err != nil {
 			return err
 		}
@@ -609,26 +592,28 @@ func (s *Store) Answer(ref Ref, to string, yes bool) error {
 		default:
 			sh.Declined = true
 		}
-		return put(b, shareKey(ref, to), sh)
+		return put(tx, shareKey(ref, to), sh)
 	})
 }
 
 // RemoveShare ends a share: the owner revoking it.
 func (s *Store) RemoveShare(ref Ref, to string) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		b := bucket(tx, sharesBucket)
-		if b.Get(shareKey(ref, to)) == nil {
+	return s.db.Update(func(tx kv.Tx) error {
+		if tx.Get(shareKey(ref, to)) == nil {
 			return ErrNotFound
 		}
-		return b.Delete(shareKey(ref, to))
+		if err := tx.Delete(receivedKey(to, ref)); err != nil {
+			return err
+		}
+		return tx.Delete(shareKey(ref, to))
 	})
 }
 
 // Shares are every share matching keep: a collection's, or an account's.
 func (s *Store) Shares(keep func(Share) bool) ([]Share, error) {
 	var out []Share
-	err := s.db.View(func(tx *bolt.Tx) error {
-		return each(bucket(tx, sharesBucket), nil, func(sh Share) error {
+	err := s.db.View(func(tx kv.Tx) error {
+		return each(tx, Name+"/shares/", func(sh Share) error {
 			if keep(sh) {
 				out = append(out, sh)
 			}

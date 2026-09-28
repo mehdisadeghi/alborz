@@ -8,7 +8,7 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"jaytaylor.com/html2text"
 
-	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/lang"
 )
 
 // Drops what the editor did not write, so a paste cannot carry styles or scripts.
@@ -45,7 +45,7 @@ func composedHTML(raw string) string {
 		m := composedBlock.FindStringSubmatch(block)
 		text := html.UnescapeString(composedTag.ReplaceAllString(m[3], ""))
 		attrs := composedDir.ReplaceAllString(m[2], "")
-		return "<" + m[1] + attrs + ` dir="` + alborz.ParagraphDir(text) + `">` + m[3] + "</" + m[1] + ">"
+		return "<" + m[1] + attrs + ` dir="` + lang.ParagraphDir(text) + `">` + m[3] + "</" + m[1] + ">"
 	})
 	clean = quoteTag.ReplaceAllString(clean, `<blockquote$1 type="cite">`)
 	return composedList.ReplaceAllStringFunc(clean, func(list string) string {
@@ -67,7 +67,7 @@ func withSignatureHTML(body, text string) string {
 		return body
 	}
 	lines := strings.Split(html.EscapeString(text), "\n")
-	return body + "\n<p dir=\"" + alborz.ParagraphDir(text) + "\">-- <br>" + strings.Join(lines, "<br>") + "</p>"
+	return body + "\n<p dir=\"" + lang.ParagraphDir(text) + "\">-- <br>" + strings.Join(lines, "<br>") + "</p>"
 }
 
 func composedText(htmlBody string) string {

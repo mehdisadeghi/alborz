@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/lang"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
@@ -369,7 +370,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 			return render(http.StatusOK, sig.Name, "")
 		}
 		// Read at send, never from a page flag, which a tab opened earlier can lose.
-		msg.SendHTML = msg.HTML == "" && !ctx.Profile().Writing.NoDirectionPart && alborz.HasRTL(msg.Text)
+		msg.SendHTML = msg.HTML == "" && !ctx.Profile().Writing.NoDirectionPart && lang.HasRTL(msg.Text)
 		if msg.SendHTML && options.InReplyTo != nil {
 			toList := false
 			if err := ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -874,7 +875,7 @@ func forwardHTML(ctx *alborz.Context, original *IMAPMessage, body string) templa
 	head := strings.TrimSpace(forwardBody(ctx, original, ""))
 	lines := strings.Split(html.EscapeString(head), "\n")
 	return template.HTML(`<p dir="auto"><br></p>` + "\n" +
-		`<p dir="` + alborz.ParagraphDir(head) + `">` + strings.Join(lines, "<br>") + "</p>\n<div>" + body + "</div>\n")
+		`<p dir="` + lang.ParagraphDir(head) + `">` + strings.Join(lines, "<br>") + "</p>\n<div>" + body + "</div>\n")
 }
 
 func quotedHTML(ctx *alborz.Context, path messagePath, msg *IMAPMessage) (string, error) {
@@ -938,7 +939,7 @@ func replyHTML(ctx *alborz.Context, original *IMAPMessage, quoted string, below 
 	}
 	when := alborz.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
 	attribution := ctx.Tf("message.wrote", when, who)
-	head := `<p dir="` + alborz.ParagraphDir(attribution) + `">` + html.EscapeString(attribution) + "</p>\n<blockquote>" + quoted + "</blockquote>\n"
+	head := `<p dir="` + lang.ParagraphDir(attribution) + `">` + html.EscapeString(attribution) + "</p>\n<blockquote>" + quoted + "</blockquote>\n"
 	if below {
 		return template.HTML(head + `<p dir="auto"><br></p>`)
 	}

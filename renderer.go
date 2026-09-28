@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/fs"
 	"net/url"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,9 +17,9 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 	"golang.org/x/text/number"
-	"golang.org/x/text/unicode/bidi"
 
 	"git.mehdix.org/alborz/internal/calsys"
+	"git.mehdix.org/alborz/internal/lang"
 )
 
 // GlobalRenderData contains data available in all templates.
@@ -256,47 +255,14 @@ func (g *GlobalRenderData) SecondaryCalendar() (calsys.System, bool) {
 	return calsys.Of(g.Secondary), true
 }
 
-var replyPrefix = regexp.MustCompile(`^\s*(?i:(re|aw|sv|antw|fw|fwd|rv|tr)\s*(\[\d+\])?\s*:|\[[^\]]{1,40}\])\s*`)
-
-// SubjectDir is the direction a subject reads in, ignoring reply prefixes that would lead with Latin letters.
-func SubjectDir(subject string) string {
-	stripped := subject
-	for {
-		trimmed := replyPrefix.ReplaceAllString(stripped, "")
-		if trimmed == stripped {
-			break
-		}
-		stripped = trimmed
-	}
-	if strings.TrimSpace(stripped) == "" {
-		stripped = subject
-	}
-	stripped = strings.TrimSpace(stripped)
-	if stripped == "" {
-		return "auto"
-	}
-	// x/text's Direction panics on a paragraph that has not been ordered.
-	var p bidi.Paragraph
-	if _, err := p.SetString(stripped); err != nil {
-		return "auto"
-	}
-	if _, err := p.Order(); err != nil {
-		return "auto"
-	}
-	if p.IsLeftToRight() {
-		return "ltr"
-	}
-	return "rtl"
-}
-
 // ContentLang names the language of interface text, empty where it matches the page.
 func (g *GlobalRenderData) ContentLang(s string) string {
-	return ContentLang(s, g.Lang)
+	return lang.OfContent(s, g.Lang)
 }
 
 // MessageLang is ContentLang for what a message itself says.
 func (g *GlobalRenderData) MessageLang(s string) string {
-	return MessageLang(s, g.Lang)
+	return lang.OfMessage(s, g.Lang)
 }
 
 // ShortAccount names an account by its domain unless two accounts share it.

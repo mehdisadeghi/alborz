@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/lang"
 	"github.com/emersion/go-message"
 	"gitlab.com/golang-commonmark/linkify"
 )
@@ -80,7 +81,7 @@ func viewText(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.E
 		if len(para) == 0 {
 			return
 		}
-		if lang := alborz.MessageLang(text.String(), page); lang != "" {
+		if lang := lang.OfMessage(text.String(), page); lang != "" {
 			tokens = append(tokens, template.HTML(`<span lang="`+template.HTMLEscapeString(lang)+`">`))
 			tokens = append(tokens, para...)
 			tokens = append(tokens, template.HTML(`</span>`))

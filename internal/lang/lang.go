@@ -1,4 +1,4 @@
-package alborz
+package lang
 
 import (
 	"strings"
@@ -37,13 +37,13 @@ var latinWords = map[string][]string{
 	"en": {"the", "and", "of", "to", "is", "for", "with", "you", "this", "that", "your", "from", "are"},
 }
 
-// ContentLang names the language of interface text, "" where it is the page's own; never Arabic, as alborz ships no Arabic interface.
-func ContentLang(s, page string) string {
+// OfContent names the language of interface text, "" where it is the page's own; never Arabic, as alborz ships no Arabic interface.
+func OfContent(s, page string) string {
 	return answer(classify(s, false), page)
 }
 
-// MessageLang is ContentLang for a message's own text, where Arabic is a real possibility.
-func MessageLang(s, page string) string {
+// OfMessage is OfContent for a message's own text, where Arabic is a real possibility.
+func OfMessage(s, page string) string {
 	return answer(classify(s, true), page)
 }
 

@@ -26,7 +26,7 @@ func handleLogin(ctx *alborz.Context) error {
 	}{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Username:       username,
-		CanRememberMe:  ctx.Server.Visits.Remembers(),
+		CanRememberMe:  ctx.Server.Sessions.Remembers(),
 		// The label says how long the box keeps you signed in, read
 		// from the lifetime the credential cookie is actually given.
 		RememberDays: int(alborz.CredentialCookieLife().Hours() / 24),
@@ -90,11 +90,11 @@ func loginRedirect(ctx *alborz.Context) error {
 }
 
 func handleLogout(ctx *alborz.Context) error {
-	username := ctx.Session.Username()
+	username := ctx.Login.Username()
 	if ctx.FormValue("account") != "" {
 		username = ctx.FormValue("account")
 	}
-	target := ctx.SessionFor(username)
+	target := ctx.LoginFor(username)
 	if target == nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 	}

@@ -1,7 +1,7 @@
 {{template "head.html" .}}
 {{ template "notices" (dict "g" $) }}
 
-{{/* A locked visit: the passkey opens it, and signing out is the way
+{{/* A locked session: the passkey opens it, and signing out is the way
      past a passkey that is gone. A page without a script can only
      offer the second. */}}
 <main id="main" tabindex="-1" class="login">

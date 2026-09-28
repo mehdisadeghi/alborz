@@ -58,12 +58,12 @@ type AccountIdentities struct {
 // to, and an option the dropdown lacks leaves the first one selected.
 func composeIdentities(ctx *alborz.Context, writtenAs string) []AccountIdentities {
 	var out []AccountIdentities
-	for _, s := range ctx.Sessions() {
+	for _, s := range ctx.Logins() {
 		entry := AccountIdentities{Account: s.Username()}
 		if settings, err := LoadSettings(s.Store()); err == nil {
 			entry.Addresses = settings.Identities
 		}
-		if s == ctx.Session && writtenAs != "" && !entry.offers(writtenAs) {
+		if s == ctx.Login && writtenAs != "" && !entry.offers(writtenAs) {
 			entry.Addresses = append(entry.Addresses, writtenAs)
 		}
 		out = append(out, entry)
@@ -224,7 +224,7 @@ func (err refused) Error() string { return err.cause.Error() }
 // answered. The sender is the account chosen in the From dropdown; the
 // draft and the message being answered belong to the request's own
 // account, whose mailbox and UID the URL named.
-func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMessage, options *composeOptions) error {
+func submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
 	err := sender.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, msg)
 	})
@@ -279,7 +279,7 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Session, msg *OutgoingMes
 		}
 	}
 
-	accountChanged(ctx.Session.Username())
+	accountChanged(ctx.Login.Username())
 	accountChanged(sender.Username())
 	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.sent")}
 	if sent != nil && sentUID != 0 {
@@ -301,14 +301,14 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 
 	// Both the sent copy and the saved draft carry it, so a message says
 	// what wrote it however it left here.
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
 	msg.Mailer = mailerName(ctx)
 
-	if msg.From == "" && strings.ContainsRune(ctx.Session.Username(), '@') {
-		msg.From = fromAddress(settings, ctx.Session.Username())
+	if msg.From == "" && strings.ContainsRune(ctx.Login.Username(), '@') {
+		msg.From = fromAddress(settings, ctx.Login.Username())
 	}
 
 	if ctx.Request().Method == http.MethodPost {
@@ -323,10 +323,10 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		// message is written under follow that account. Everything the
 		// URL and the form name - the draft, the message answered, the
 		// attachments - stays on the request's own account.
-		sender := ctx.Session
+		sender := ctx.Login
 		account, identity := splitIdentityChoice(ctx.FormValue("from_account"))
 		if account != "" && account != sender.Username() {
-			sender = ctx.SessionFor(account)
+			sender = ctx.LoginFor(account)
 			if sender == nil {
 				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 			}
@@ -352,7 +352,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 		// own words. Only a server that did not answer at all, or
 		// alborz itself failing, leaves the page.
 		//
-		// The uploads stay with the visit until the message has left,
+		// The uploads stay with the session until the message has left,
 		// so a refused send comes back with them.
 		var uploads []string
 		submit := func(f func() error) error {
@@ -594,7 +594,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				if err != nil {
 					return refused{"form.draftrefused", err}
 				}
-				accountChanged(ctx.Session.Username())
+				accountChanged(ctx.Login.Username())
 				ctx.PutNotice(ctx.T("notice.draftsaved"))
 				return ctx.Redirect(http.StatusFound, fmt.Sprintf(
 					"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
@@ -615,7 +615,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 	if data.Extra == nil {
 		data.Extra = make(map[string]interface{})
 	}
-	data.Extra["EmailSuggestions"] = gatherCorrespondents(ctx.Session)
+	data.Extra["EmailSuggestions"] = gatherCorrespondents(ctx.Login)
 	return ctx.Render(http.StatusOK, "compose.html", data)
 }
 
@@ -641,8 +641,8 @@ var correspondents = alborz.NewMemo[[]string](correspondentTTL)
 //
 // It never waits. Reading two folders is far too much to put in front of
 // a blank compose form, so the list is built in the background and the
-// form gets whatever is ready - on a cold session, nothing.
-func gatherCorrespondents(s *alborz.Session) []string {
+// form gets whatever is ready - on a cold login, nothing.
+func gatherCorrespondents(s *alborz.Login) []string {
 	return correspondents.Warm(s.Username(), func() ([]string, error) {
 		seen := make(map[string]string)
 		keep := func(addrs []imap.Address) {
@@ -737,7 +737,7 @@ func handleComposeNew(ctx *alborz.Context) error {
 	}
 
 	text := ctx.QueryParam("body")
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -750,7 +750,7 @@ func handleComposeNew(ctx *alborz.Context) error {
 
 	// These are common mailto URL query parameters
 	return handleCompose(ctx, &OutgoingMessage{
-		From:      ownIdentity(settings, newDeliveryTrust(ctx, settings, ctx.Session.Username()), ctx.QueryParam("from")),
+		From:      ownIdentity(settings, newDeliveryTrust(ctx, settings, ctx.Login.Username()), ctx.QueryParam("from")),
 		To:        strings.Split(ctx.QueryParam("to"), ","),
 		Subject:   ctx.QueryParam("subject"),
 		MessageID: newMessageID(),
@@ -907,7 +907,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 		return ret, err
 	}
 
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return ret, err
 	}
@@ -928,7 +928,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	// of ours: a mail to an identity is answered by that identity, not
 	// by the account behind it. Cc counts as well, since a list often
 	// puts the identity there.
-	ret.From = writeAs(settings, newDeliveryTrust(ctx, settings, ctx.Session.Username()),
+	ret.From = writeAs(settings, newDeliveryTrust(ctx, settings, ctx.Login.Username()),
 		inReplyTo, inReplyTo.Envelope.To, inReplyTo.Envelope.Cc)
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
@@ -941,7 +941,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	if ctx.QueryParam("list") != "" && inReplyTo.ListPost != "" {
 		ret.To = []string{inReplyTo.ListPost}
 	} else if ctx.QueryParam("all") != "" {
-		filtered := filterOutUsername(ctx.Session.Username(),
+		filtered := filterOutUsername(ctx.Login.Username(),
 			inReplyTo.Envelope.To)
 		ret.To = unwrapIMAPAddressList(append(replyTo, filtered...))
 		ret.Cc = unwrapIMAPAddressList(inReplyTo.Envelope.Cc)
@@ -1034,7 +1034,7 @@ func quotedHTML(ctx *alborz.Context, path messagePath, msg *IMAPMessage) (string
 	if err != nil {
 		return "", err
 	}
-	return composedHTML(localImages(string(raw), msg, ctx.Session.Username())), nil
+	return composedHTML(localImages(string(raw), msg, ctx.Login.Username())), nil
 }
 
 func addressLine(a imap.Address) string {

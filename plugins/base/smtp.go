@@ -182,7 +182,7 @@ type Attachment interface {
 }
 
 // formAttachment is a file the form carried; ID names an upload the
-// visit holds, which a refused send puts back on the form.
+// session holds, which a refused send puts back on the form.
 type formAttachment struct {
 	*multipart.FileHeader
 	ID string

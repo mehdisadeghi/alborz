@@ -220,7 +220,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		return err
 	}
 
-	c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+	c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -273,7 +273,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		}
 	}
 	return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
-		Authors:        p.dav.Authors(object.Path, ctx.Session.Username()),
+		Authors:        p.dav.Authors(object.Path, ctx.Login.Username()),
 		In:             in,
 		Groups:         rest,
 		Neighbours:     dav.Around(list.Items, path),
@@ -301,7 +301,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 
 	var currentAddressBook *dav.Collection
 	if addressObjectPath != "" {
-		c, addressBooks, err = p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+		c, addressBooks, err = p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			return err
 		}

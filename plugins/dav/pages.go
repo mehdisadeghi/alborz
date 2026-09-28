@@ -129,7 +129,7 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			Rail:           f.Rail,
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(f.Title),
 			Accounts:       ctx.Accounts(),
-			Account:        ctx.Session.Username(),
+			Account:        ctx.Login.Username(),
 			Scope:          ctx.URLAccount(),
 			Color:          DefaultColor,
 			Title:          f.Title,
@@ -159,11 +159,11 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			data.Refused(ctx.T("form.nameneeded"))
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
-		session := ctx.SessionFor(data.Account)
-		if session == nil {
+		login := ctx.LoginFor(data.Account)
+		if login == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
-		path, err := p.Create(ctx.Request().Context(), session, data.Name, data.Color, data.Place, held[data.Holds])
+		path, err := p.Create(ctx.Request().Context(), login, data.Name, data.Color, data.Place, held[data.Holds])
 		if err != nil {
 			data.Refused(err.Error())
 			if errors.Is(err, ErrNameTaken) {
@@ -173,11 +173,11 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
-		if err := pg.Show(session.Store(), path); err != nil {
+		if err := pg.Show(login.Store(), path); err != nil {
 			return fmt.Errorf("failed to save the %s settings: %w", p.kind.Label, err)
 		}
 		account := ""
-		if data.Account != ctx.Session.Username() {
+		if data.Account != ctx.Login.Username() {
 			account = data.Account
 		}
 		sentence, list := f.Made(data.Holds)
@@ -236,7 +236,7 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 			return err
 		}
 		collPath = CanonicalCollectionPath(collPath)
-		offer, err := pg.offer(ctx, p, collPath, ctx.Session.Username())
+		offer, err := pg.offer(ctx, p, collPath, ctx.Login.Username())
 		if err != nil {
 			return err
 		}
@@ -250,7 +250,7 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 			return ctx.Render(http.StatusOK, "collection.html", &CollectionRenderData{
 				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(offer.Name),
 				Rail:           rail, Name: offer.Name, Base: pg.Base, ListHref: pg.List,
-				Account: ctx.Session.Username(), Offer: offer,
+				Account: ctx.Login.Username(), Offer: offer,
 			})
 		}
 		data, err := pg.data(ctx, p, collPath)
@@ -270,14 +270,14 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 				data.Refused(ctx.T("form.nameneeded"))
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
 			}
-			base, _ := p.URL(ctx.Session)
+			base, _ := p.URL(ctx.Login)
 			target := base.ResolveReference(&url.URL{Path: collPath}).String()
-			if err := Proppatch(ctx.Request().Context(), p.HTTPClient(ctx.Session),
+			if err := Proppatch(ctx.Request().Context(), p.HTTPClient(ctx.Login),
 				target, name, ctx.FormValue("color"), pg.Color); err != nil {
 				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
 			}
-			pg.Forget(ctx.Session.Username())
+			pg.Forget(ctx.Login.Username())
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(list)))
 		}
 		return ctx.Render(http.StatusOK, "collection.html", data)
@@ -304,7 +304,7 @@ func (pg Page) data(ctx *alborz.Context, p *Provider, collPath string) (*Collect
 		Name:           info.Name,
 		Color:          info.Color,
 		Path:           info.Path,
-		Account:        ctx.Session.Username(),
+		Account:        ctx.Login.Username(),
 		Count:          count(),
 		Base:           pg.Base,
 		ListHref:       list,
@@ -501,7 +501,7 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 		}
 		objects += n
 	}
-	pg.Forget(ctx.Session.Username())
+	pg.Forget(ctx.Login.Username())
 	if !isNew {
 		collections = 1
 	}
@@ -539,7 +539,7 @@ func (pg Page) importRaw(ctx *alborz.Context, collPath string, raw []byte) error
 	} else {
 		ctx.PutNotice(ctx.Tf("import."+strings.TrimPrefix(pg.Ext, "."), n))
 	}
-	pg.Forget(ctx.Session.Username())
+	pg.Forget(ctx.Login.Username())
 	return nil
 }
 
@@ -580,7 +580,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 				continue
 			}
 			if account == "" {
-				account = ctx.Session.Username()
+				account = ctx.Login.Username()
 			}
 			i := len(groups) - 1
 			if i < 0 || groups[i].Account != account {
@@ -612,7 +612,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 			Ext:            pg.Ext,
 			Hint:           ctx.T(hint),
 			Groups:         groups,
-			Account:        ctx.Session.Username(),
+			Account:        ctx.Login.Username(),
 			Address:        address,
 			URL:            ctx.QueryParam("url"),
 		}
@@ -623,8 +623,8 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 			return ctx.Render(http.StatusOK, "dav-import.html", data)
 		}
 		acct, collPath, ok := strings.Cut(ctx.FormValue("collection"), "|")
-		session := ctx.SessionFor(acct)
-		if !ok || session == nil {
+		login := ctx.LoginFor(acct)
+		if !ok || login == nil {
 			data.Refused(ctx.T("form.destinationneeded"))
 			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
 		}
@@ -653,7 +653,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 		}
 		// The page's own hooks read the account off the context, so the
 		// chosen account is the context's for the write.
-		ctx.Session = session
+		ctx.Login = login
 		files, err := pg.importFiles(name, raw)
 		if err != nil {
 			data.Refused(err.Error())
@@ -737,7 +737,7 @@ func (pg Page) HandleExportAll(list, filename string) func(*alborz.Context) erro
 		taken := map[string]int{}
 		for _, coll := range rail.Items {
 			account := coll.Account
-			if coll.Address != "" || (account != "" && account != ctx.Session.Username()) {
+			if coll.Address != "" || (account != "" && account != ctx.Login.Username()) {
 				continue
 			}
 			body, err := pg.Export(ctx, coll.Path, time.Time{}, time.Time{})
@@ -785,14 +785,14 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 				return err
 			}
 		}
-		base, _ := p.URL(ctx.Session)
+		base, _ := p.URL(ctx.Login)
 		target := base.ResolveReference(&url.URL{Path: collPath}).String()
-		if err := DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Session), target); err != nil {
+		if err := DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Login), target); err != nil {
 			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectiondeletefailed"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
 		}
-		pg.Forget(ctx.Session.Username())
+		pg.Forget(ctx.Login.Username())
 		// A 2xx is not proof: some servers accept the DELETE and keep the
 		// collection. Listing again shows what the reader will see.
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err == nil {

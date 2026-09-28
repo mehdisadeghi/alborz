@@ -2154,7 +2154,7 @@ main.create-update > form > .allday-label::before {
 
 /* Entry names are identifiers, not prose: monospaced, so the shared
    prefix lines up and a stray character shows. */
-.kept-entries {
+.storage-entries {
   margin: var(--space-2) 0 0;
   padding-inline-start: var(--space-4);
   font-family: var(--font-mono);

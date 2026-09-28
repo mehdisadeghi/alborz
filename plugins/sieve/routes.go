@@ -67,19 +67,19 @@ type FilterRenderData struct {
 func registerRoutes(p *alborz.GoPlugin) {
 	requireAccount := func(h func(*alborz.Context) error) func(*alborz.Context) error {
 		return func(ctx *alborz.Context) error {
-			if ctx.URLAccount() != "" && ctx.Server.SieveEnabled(ctx.Session.Domain()) {
+			if ctx.URLAccount() != "" && ctx.Server.SieveEnabled(ctx.Login.Domain()) {
 				return h(ctx)
 			}
 			if ctx.Request().Method != http.MethodGet {
 				return echo.NewHTTPError(http.StatusBadRequest, "filters require an account")
 			}
-			if !ctx.Unified && ctx.Server.SieveEnabled(ctx.Session.Domain()) {
-				target := ctx.Request().URL.Path + "?account=" + alborz.QueryValue(ctx.Session.Username())
+			if !ctx.Unified && ctx.Server.SieveEnabled(ctx.Login.Domain()) {
+				target := ctx.Request().URL.Path + "?account=" + alborz.QueryValue(ctx.Login.Username())
 				return ctx.Redirect(http.StatusFound, target)
 			}
-			for _, session := range ctx.Sessions() {
-				if ctx.Server.SieveEnabled(session.Domain()) {
-					target := ctx.Request().URL.Path + "?account=" + alborz.QueryValue(session.Username())
+			for _, login := range ctx.Logins() {
+				if ctx.Server.SieveEnabled(login.Domain()) {
+					target := ctx.Request().URL.Path + "?account=" + alborz.QueryValue(login.Username())
 					return ctx.Redirect(http.StatusFound, target)
 				}
 			}
@@ -136,9 +136,9 @@ func handleListFilters(ctx *alborz.Context) error {
 		if ctx.URLAccount() != "" && account.Username != ctx.URLAccount() {
 			continue
 		}
-		session := ctx.SessionFor(account.Username)
-		group := AccountFilters{Account: account.Username, Server: ctx.Server.SieveHost(session.Domain())}
-		err := session.DoSieve(func(c alborz.SieveClient) error {
+		login := ctx.LoginFor(account.Username)
+		group := AccountFilters{Account: account.Username, Server: ctx.Server.SieveHost(login.Domain())}
+		err := login.DoSieve(func(c alborz.SieveClient) error {
 			var err error
 			group.Scripts, err = c.ListScripts()
 			group.Software = c.Implementation()
@@ -181,8 +181,8 @@ func handleListFilters(ctx *alborz.Context) error {
 func sieveAccounts(ctx *alborz.Context) []alborz.Account {
 	var accounts []alborz.Account
 	for _, account := range ctx.Accounts() {
-		session := ctx.SessionFor(account.Username)
-		if session != nil && ctx.Server.SieveEnabled(session.Domain()) {
+		login := ctx.LoginFor(account.Username)
+		if login != nil && ctx.Server.SieveEnabled(login.Domain()) {
 			accounts = append(accounts, account)
 		}
 	}
@@ -293,12 +293,12 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	// A new script names the account it belongs to, the way a new event
 	// or contact names its collection; the choice holds for this
 	// request only, like following an account-carrying link.
-	if account := ctx.FormValue("account"); account != "" && account != ctx.Session.Username() {
-		session := ctx.SessionFor(account)
-		if session == nil || !ctx.Server.SieveEnabled(session.Domain()) {
+	if account := ctx.FormValue("account"); account != "" && account != ctx.Login.Username() {
+		login := ctx.LoginFor(account)
+		if login == nil || !ctx.Server.SieveEnabled(login.Domain()) {
 			return echo.NewHTTPError(http.StatusBadRequest, "no filters for that account")
 		}
-		ctx.Session = session
+		ctx.Login = login
 	}
 
 	var warnings string
@@ -353,13 +353,13 @@ func handleSaveFilter(ctx *alborz.Context) error {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
 	case loaded == "":
 		// Nothing was loaded into the editor, so this script is new.
-		account := "?account=" + alborz.QueryValue(ctx.Session.Username())
+		account := "?account=" + alborz.QueryValue(ctx.Login.Username())
 		ctx.Made(ctx.T("notice.filtercreated"), name,
 			"/filters/"+url.PathEscape(name)+account, "/filters/create"+account)
 	default:
 		ctx.PutNotice(ctx.T("notice.filtersaved"))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr("/filters?account="+alborz.QueryValue(ctx.Session.Username())))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr("/filters?account="+alborz.QueryValue(ctx.Login.Username())))
 }
 
 func handleActivateFilter(ctx *alborz.Context) error {

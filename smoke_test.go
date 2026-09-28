@@ -475,10 +475,10 @@ func login(t *testing.T, base string) *http.Client {
 // page it was on. PrepareSearch skips a term it does not recognise, so a
 // query made only of those produced nil criteria and sortSeqNums
 // dereferenced it. Worse than the 500: the panic skipped the watchdog
-// that guards the session's IMAP connection, which was then closed but
-// still held, so every later request on that session waited out the
+// that guards the login's IMAP connection, which was then closed but
+// still held, so every later request on that login waited out the
 // round-trip timeout. Hence the second half of this test - answering the
-// bad query is not enough, the session has to still work afterwards.
+// bad query is not enough, the login has to still work afterwards.
 func TestUnknownSearchKeySurvives(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -487,7 +487,7 @@ func TestUnknownSearchKeySurvives(t *testing.T) {
 		t.Fatal("the unrecognised key produced no page")
 	}
 	if body := get(t, c, base+"/mailbox/INBOX"); !strings.Contains(body, "message-row") {
-		t.Fatal("the session stopped serving mail after an unrecognised search key")
+		t.Fatal("the login stopped serving mail after an unrecognised search key")
 	}
 }
 
@@ -497,7 +497,7 @@ func TestUnknownSearchKeySurvives(t *testing.T) {
 // stays held, and the page served from a held body read its sidebar
 // off the listing entry that was no longer there. The prefetch runs
 // behind the listing, so the sequence is tried more than once to be
-// sure of meeting a held body; and the session has to still serve
+// sure of meeting a held body; and the login has to still serve
 // mail afterwards, since a panic in a handler has cost the connection
 // before.
 func TestOpeningAHeldMessageAfterAFlagChange(t *testing.T) {
@@ -519,7 +519,7 @@ func TestOpeningAHeldMessageAfterAFlagChange(t *testing.T) {
 		}
 	}
 	if body := get(t, c, base+"/mailbox/INBOX"); !strings.Contains(body, "message-row") {
-		t.Fatal("the session stopped serving mail after the flag change")
+		t.Fatal("the login stopped serving mail after the flag change")
 	}
 }
 
@@ -895,7 +895,7 @@ func TestSendWithoutMessageIDStillSends(t *testing.T) {
 
 // TestRefusedSendKeepsItsUploads: a refused send comes back on the
 // form, and the next Send must still carry the file. The upload was
-// once taken from the visit before SMTP was tried, and the retry went
+// once taken from the session before SMTP was tried, and the retry went
 // out without it and said nothing.
 func TestRefusedSendKeepsItsUploads(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
@@ -1198,7 +1198,7 @@ func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
 		t.Fatal("no seeded messages")
 	}
 
-	// The session's connection dies with the server; the next command
+	// The login's connection dies with the server; the next command
 	// finds it logged out, dials again, and is refused. The reader's
 	// goroutine notices the loss a moment after Close returns.
 	srv.Close()
@@ -1900,29 +1900,29 @@ func TestNoticeReachesTheReaderFromAnyScope(t *testing.T) {
 	}
 }
 
-// TestAVisitOpensOnlyToItsOwnSecret: the visit's id is printed on the
+// TestASessionOpensOnlyToItsOwnSecret: the session's id is printed on the
 // page of browsers signed in, for every other browser of the account to
 // read, so the id alone must open nothing.
-func TestAVisitOpensOnlyToItsOwnSecret(t *testing.T) {
+func TestASessionOpensOnlyToItsOwnSecret(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
 
 	at, _ := url.Parse(base)
 	var id string
 	for _, ck := range c.Jar.Cookies(at) {
-		if ck.Name == "alborz_visit" {
+		if ck.Name == "alborz_session" {
 			id, _, _ = strings.Cut(ck.Value, ".")
 		}
 	}
 	if id == "" {
-		t.Fatal("signing in left no visit cookie")
+		t.Fatal("signing in left no session cookie")
 	}
 	if uids := messageUIDs(get(t, c, base+"/mailbox/INBOX")); len(uids) == 0 {
-		t.Fatal("the visit's own browser was not shown its inbox")
+		t.Fatal("the session's own browser was not shown its inbox")
 	}
 
 	req, _ := http.NewRequest(http.MethodGet, base+"/mailbox/INBOX", nil)
-	req.AddCookie(&http.Cookie{Name: "alborz_visit", Value: id + ".x"})
+	req.AddCookie(&http.Cookie{Name: "alborz_session", Value: id + ".x"})
 	other := &http.Client{Timeout: 20 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := other.Do(req)

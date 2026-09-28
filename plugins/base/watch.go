@@ -27,7 +27,7 @@ import (
 // cache is what goes stale, so the cache is what a notification touches.
 //
 // The connection is separate on purpose. DoIMAP serialises on the
-// session's own connection, and an IDLE there would hold the lock for as
+// login's own connection, and an IDLE there would hold the lock for as
 // long as it waited - which is to say until mail arrived - freezing
 // every other page of that account.
 const (
@@ -58,13 +58,13 @@ type watcherSet struct {
 // watchAccount follows the account from the moment it is signed in, so
 // mail that arrives while nobody is looking is noticed rather than
 // waited for.
-func watchAccount(ctx *alborz.Context, s *alborz.Session) {
+func watchAccount(ctx *alborz.Context, s *alborz.Login) {
 	Watch(s, ctx.Logger(), ctx.Server.Changes)
 }
 
 // warmAccount fetches the account's INBOX views and rail as it is
 // signed in, so the first click on mail finds them cached.
-func warmAccount(ctx *alborz.Context, s *alborz.Session) {
+func warmAccount(ctx *alborz.Context, s *alborz.Login) {
 	log := ctx.Logger()
 	senderBookFor(s)
 	SuggestAuthServ(ctx)
@@ -78,7 +78,7 @@ func warmAccount(ctx *alborz.Context, s *alborz.Session) {
 // Watch starts following an account's folders if nothing is following it
 // already. One watcher per account, however many browsers are signed in
 // to it: they all read the same cache.
-func Watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
+func Watch(s *alborz.Login, log echo.Logger, changes *alborz.Changes) {
 	user := s.Username()
 
 	watchers.mu.Lock()
@@ -99,9 +99,9 @@ func Watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
 	}()
 }
 
-// watch keeps one connection in IDLE for as long as the session lives,
+// watch keeps one connection in IDLE for as long as the login lives,
 // reconnecting when the connection or the server gives out.
-func watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
+func watch(s *alborz.Login, log echo.Logger, changes *alborz.Changes) {
 	backoff := idleRetry
 	reconnect := false
 	for {
@@ -134,7 +134,7 @@ func watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {
 // handshake, a TLS handshake and a LOGIN for every message that arrives
 // - which a provider counting connections and logins reads as abuse, and
 // answers by refusing the account.
-func follow(s *alborz.Session, changes *alborz.Changes, reconnect bool) error {
+func follow(s *alborz.Login, changes *alborz.Changes, reconnect bool) error {
 	user := s.Username()
 	changed := make(chan struct{}, 1)
 	var overflowed atomic.Bool
@@ -266,7 +266,7 @@ func folderSweep(user string, c *imapclient.Client, changes *alborz.Changes) fun
 }
 
 // On an IDLE change, keep serving the old listing until its replacement is ready.
-func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}, changes *alborz.Changes, length time.Duration) error {
+func idleOnce(s *alborz.Login, c *imapclient.Client, changed chan struct{}, changes *alborz.Changes, length time.Duration) error {
 	cmd, err := c.Idle()
 	if err != nil {
 		return fmt.Errorf("failed to idle: %w", err)
@@ -293,7 +293,7 @@ func idleOnce(s *alborz.Session, c *imapclient.Client, changed chan struct{}, ch
 }
 
 // warmInbox shares the first page fetch with login and foreground readers.
-func warmInbox(s *alborz.Session) error {
+func warmInbox(s *alborz.Login) error {
 	settings, err := LoadSettings(s.Store())
 	if err != nil {
 		return err

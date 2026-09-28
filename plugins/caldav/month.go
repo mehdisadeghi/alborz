@@ -159,7 +159,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 			return mv.on[mv.day(when)]
 		},
 
-		AddedBy:        p.dav.AddedBy(ctx.Session.Username()),
+		AddedBy:        p.dav.AddedBy(ctx.Login.Username()),
 		CollectionFor:  collection,
 		CollectionHref: href,
 

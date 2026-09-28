@@ -370,7 +370,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// The entry is checked behind the pages through the client of
 	// whoever read it last: one loaded from disk has none until then,
-	// and one read by a session since expired has one that cannot
+	// and one read by a login since expired has one that cannot
 	// sign the request any more.
 	u.mu.Lock()
 	if e, ok := u.entries[key]; ok {

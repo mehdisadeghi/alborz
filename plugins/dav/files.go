@@ -48,7 +48,7 @@ func ServeRaw(ctx *alborz.Context, name string, body io.Reader) error {
 }
 
 // Raw is ServeRaw for the object the route names.
-func Raw[C files](ctx *alborz.Context, client func(*alborz.Session) (C, error)) error {
+func Raw[C files](ctx *alborz.Context, client func(*alborz.Login) (C, error)) error {
 	refs, err := Selection(ctx, client)
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func Raw[C files](ctx *alborz.Context, client func(*alborz.Session) (C, error)) 
 // server stores it and join making the file of them: the rows name
 // their own account, so the selection can span accounts. An empty
 // selection lands on list.
-func HandleExport[C files](client func(*alborz.Session) (C, error), list string, name func(*alborz.Context) string, join func([][]byte) ([]byte, error)) func(*alborz.Context) error {
+func HandleExport[C files](client func(*alborz.Login) (C, error), list string, name func(*alborz.Context) string, join func([][]byte) ([]byte, error)) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		refs, err := Selection(ctx, client)
 		if err != nil {

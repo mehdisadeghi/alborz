@@ -190,7 +190,7 @@ func (s *Server) authenticateDAV(username, password, source string) error {
 	}
 	err := s.signInRefused.attempt(readerKey(source, username), func() error {
 		_, domain, _ := strings.Cut(username, "@")
-		c, err := s.Sessions.connectIMAP(domain, username, password, source)
+		c, err := s.Logins.connectIMAP(domain, username, password, source)
 		if err != nil {
 			return err
 		}
@@ -204,7 +204,7 @@ func (s *Server) authenticateDAV(username, password, source string) error {
 }
 
 // serveOwnDAV answers the calendars and address books kept here to a
-// DAV client, ahead of everything a page goes through: no visit, no
+// DAV client, ahead of everything a page goes through: no session, no
 // cookie, no login page, only the account's address and password on
 // each request.
 func (s *Server) serveOwnDAV() echo.MiddlewareFunc {

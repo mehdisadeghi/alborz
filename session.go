@@ -1,767 +1,646 @@
 package alborz
 
 import (
-	"context"
-	"errors"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	"github.com/fernet/fernet-go"
-	"html/template"
-	"io"
 	"mime/multipart"
-	"net"
-	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+	"uuid"
 
-	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/emersion/go-sasl"
-	"github.com/emersion/go-smtp"
-	"github.com/labstack/echo/v4"
-	"go.guido-berhoerster.org/managesieve"
+	"github.com/fernet/fernet-go"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
-// Every bound alborz puts on an upstream, written once and named for
-// what it bounds rather than for how long it is. Two numbers, because
-// there are two kinds of waiting.
-// TODO: make these configurable; how far away a server is belongs to
-// the deployment, not to the binary.
-const (
-	// dialTimeout bounds opening the connection and nothing else: a host
-	// that does not answer at all is wrong rather than far away, and the
-	// login page is the visible casualty of waiting on it.
-	dialTimeout = 3 * time.Second
-
-	// RoundTripTimeout bounds one exchange that legitimately does work -
-	// a step of a login handshake against a proxy that asks its own
-	// backend before answering, a sieve command, an attachment fetch, a
-	// body search with no server-side index. Spending one of these on
-	// four handshake steps at once is what made a distant server look
-	// like a broken one.
-	RoundTripTimeout = 10 * time.Second
-
-	// SignInTimeout bounds a sign-in made for a reader. A server that
-	// counts refusals by the reader's address answers a guessing one
-	// slower each time - Dovecot's auth penalty reaches 15 s on top of
-	// its 2 s failure delay - and that answer is a refusal to count, not
-	// a server that did not answer.
-	SignInTimeout = 20 * time.Second
-
-	// ScanTimeout bounds the one exchange the reader asked for knowing
-	// it is slow: a whole-message search on a server without an index,
-	// which reads every message of the folder.
-	ScanTimeout = 2 * time.Minute
-
-	// sessionDuration is how long a session outlives its last request.
-	sessionDuration = 30 * time.Minute
-)
-
-// MaxAttachmentSize bounds what one session holds in attachments not yet
-// sent, and what one upload may carry.
-const MaxAttachmentSize = 32 << 20
-
-var ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum file size")
-
-// UpstreamError is a server that did not answer, as distinct from
-// Alborz failing. A timeout is not a wrong password and must not read as
-// one, and it is not an internal error either: nothing here is broken,
-// the other end simply did not reply.
-type UpstreamError struct {
-	// Service is what did not answer, in the reader's terms: mail,
-	// filters, calendar.
-	Service string
-	// After is how long was waited before giving up. Zero means the
-	// connection was refused or the host could not be found, which is
-	// not a wait at all and must not be described as one.
-	After time.Duration
-	cause error
-}
-
-func (err UpstreamError) Error() string {
-	if err.After == 0 {
-		return fmt.Sprintf("could not reach the %s server: %v", err.Service, err.cause)
-	}
-	return fmt.Sprintf("%s server did not answer within %v: %v", err.Service, err.After, err.cause)
-}
-
-func (err UpstreamError) Unwrap() error { return err.cause }
-
-// BaselineError says the mail server lacks what everything here rests
-// on. Every extension is used only where advertised and missed without
-// harm; IMAP4rev1 or IMAP4rev2 is not an extension, and a server that
-// offers neither is refused at the door rather than failing on the
-// first page.
-type BaselineError struct {
-	Caps []string
-}
-
-func (err BaselineError) Error() string {
-	return fmt.Sprintf("the mail server speaks neither IMAP4rev1 nor IMAP4rev2, only: %s", strings.Join(err.Caps, " "))
-}
-
-// AuthError wraps an authentication error.
-type AuthError struct {
-	cause error
-}
-
-func (err AuthError) Error() string {
-	return fmt.Sprintf("authentication failed: %v", err.cause)
-}
-
-// Session is an active user session. It may also hold an IMAP connection.
+// A Session is one browser's stay: the accounts it has signed into and
+// what the reader is owed. It exists because a notice and an unsent
+// upload belong to the person at the screen and to no account, and
+// filing them under one account is how a notice raised on a page
+// scoped to it turns up later on something else.
 //
-// The session's password is not available to plugins. Plugins should use the
-// session helpers to authenticate outgoing connections, for instance DoSMTP.
+// The login holds what IMAP forces, a credential and a connection.
+// Everything the reader would recognise as theirs lives here.
 type Session struct {
-	manager            *SessionManager
-	username, password string
-	domain             string
-	closed             chan struct{}
-	pings              chan struct{}
-	store              Store
+	ID      string
+	Created time.Time
 
-	httpLocker   sync.Mutex
-	httpPassword string // protected by httpLocker
-	httpLoaded   bool   // protected by httpLocker
-	// services are the account's own HTTP servers; see Services.
-	services       Services // protected by httpLocker
-	servicesLoaded bool     // protected by httpLocker
-
-	imapLocker imapQueue
-	imapConn   *imapclient.Client // protected by imapLocker
-	workLocker imapQueue
-	workConn   *imapclient.Client // lazy connection for prefetches and scans
-
-	sieveLocker sync.Mutex
-	sieveConn   SieveClient // protected by locker, can be nil
+	mu          sync.Mutex
+	seen        time.Time
+	notice      *Notice
+	attachments map[string]*Attachment
+	// accounts is the bag: every account this browser has signed into,
+	// in one order wherever they are listed.
+	accounts []*Login
+	// proof is what the session keeps of the secret its browser carries:
+	// the id names the session, and only the secret opens it.
+	proof []byte
+	// remember holds each account's password sealed under the secret
+	// the browser carries, for a session the reader asked to keep.
+	remember map[string][]byte
+	// read is what the pages are read by, and anchor the account it is
+	// kept on. A nil read means the browser has chosen nothing yet and
+	// will take what the first account brings.
+	read   *Reading
+	anchor string
+	// said holds what this browser has been told and need not hear on
+	// every page: a standing condition is news once.
+	said map[string]bool
+	// lock is what stands in front of the session, active when the reader
+	// last did something, and ceremony the WebAuthn exchange under way.
+	lock     Lock
+	active   time.Time
+	locked   bool
+	ceremony *webauthn.SessionData
+	// device and address are what the browser last said about itself,
+	// for the account holder's list of browsers signed in.
+	device, address string
 }
 
-type Attachment struct {
-	File *multipart.FileHeader
-	Form *multipart.Form
-}
-
-// Done closes when the session ends, so work started for it can stop
-// with it.
-func (s *Session) Done() <-chan struct{} { return s.closed }
-
-// alive reports whether the session still holds its account: a reaped
-// or signed-out one does not, and the bag drops it.
-func (s *Session) alive() bool {
-	select {
-	case <-s.closed:
-		return false
-	default:
-		return true
+func (s *Session) reading() Reading {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.read == nil {
+		return Reading{}
 	}
+	return *s.read
 }
 
-// WatchIMAP opens a second connection to the account and hands it over.
-// It exists for one caller: the watcher that sits in IDLE waiting for
-// the server to say something arrived.
-//
-// A second connection rather than the session's own, because DoIMAP
-// serialises: an IDLE on the shared connection would hold the lock for
-// as long as it waited, which is to say forever, and every page of that
-// account would stop answering.
-//
-// onChange is for what reshapes a listing, arrivals and expunges;
-// onFlags for a flag set on one message, which a listing takes in
-// place rather than being fetched again for it. onFolder is another
-// folder moving, which a server says only under NOTIFY (RFC 5465), and
-// onOverflow the server giving up on saying it.
-func (s *Session) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []imap.Flag), onFolder func(mailbox string), onOverflow func()) (*imapclient.Client, error) {
-	c, err := s.manager.dialIMAPWatch(s.domain, &imapclient.UnilateralDataHandler{
-		Expunge: func(uint32) { onChange() },
-		Mailbox: func(*imapclient.UnilateralDataMailbox) { onChange() },
-		Status: func(data *imap.StatusData) {
-			if data != nil && data.Mailbox != "" {
-				onFolder(data.Mailbox)
-			}
-		},
-		NotificationOverflow: onOverflow,
-		// A flag set in another client arrives as an untagged FETCH, not
-		// as EXISTS: without this, reading a message on a phone changed
-		// nothing here. The message must be consumed or the connection's
-		// reader stalls behind it.
-		Fetch: func(msg *imapclient.FetchMessageData) {
-			buf, err := msg.Collect()
-			if err != nil || buf.Flags == nil {
-				onChange()
-				return
-			}
-			onFlags(buf.SeqNum, buf.Flags)
-		},
+func (s *Session) hasReading() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.read != nil
+}
+
+func (s *Session) setReading(r Reading) {
+	s.mu.Lock()
+	s.read = &r
+	s.mu.Unlock()
+}
+
+// Anchor is the account this browser's reading settings are kept on,
+// empty when they are kept nowhere.
+func (s *Session) Anchor() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.anchor
+}
+
+func (s *Session) setAnchor(account string) {
+	s.mu.Lock()
+	s.anchor = account
+	s.mu.Unlock()
+}
+
+// life is how long the session outlives its last request: as long as a
+// login when nobody asked to be remembered, and as long as the
+// credentials are worth keeping when they did.
+func (s *Session) life() time.Duration {
+	if s.remembered() {
+		return credentialCookieLife
+	}
+	return sessionDuration
+}
+
+// remembered reports whether the reader asked this browser to stay
+// signed in.
+func (s *Session) remembered() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.remember) > 0
+}
+
+// Remember keeps the account's password for this session, sealed under
+// the browser's own secret, so a restart costs a reconnection rather
+// than a login. Forgetting it is signing out.
+func (s *Session) Remember(address string, sealed []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.remember == nil {
+		s.remember = map[string][]byte{}
+	}
+	s.remember[address] = sealed
+}
+
+func (s *Session) forget(address string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.remember, address)
+}
+
+// record is the session as it is written down: no notice, no uploads,
+// nothing that would mean anything after a restart.
+func (s *Session) record() *SessionRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec := &SessionRecord{ID: s.ID, Created: s.Created, Seen: s.seen, Proof: s.proof,
+		Reading: s.read, Anchor: s.anchor, Lock: s.lock, Device: s.device, Address: s.address}
+	for address, sealed := range s.remember {
+		rec.Accounts = append(rec.Accounts, RememberedAccount{Address: address, Sealed: sealed})
+	}
+	slices.SortFunc(rec.Accounts, func(a, b RememberedAccount) int {
+		return strings.Compare(a.Address, b.Address)
 	})
-	if err != nil {
-		return nil, err
+	return rec
+}
+
+// sessionFromRecord rebuilds a remembered session, with no accounts open
+// yet: the logins are made when the first request needs them.
+func sessionFromRecord(rec *SessionRecord) *Session {
+	s := &Session{
+		ID:          rec.ID,
+		Created:     rec.Created,
+		proof:       rec.Proof,
+		seen:        time.Now(),
+		attachments: map[string]*Attachment{},
+		remember:    map[string][]byte{},
 	}
-	watchdog := time.AfterFunc(RoundTripTimeout, func() { c.Close() })
-	err = c.Login(s.username, s.password).Wait()
-	timedOut := !watchdog.Stop()
-	if err != nil || timedOut {
-		c.Close()
-		if timedOut {
-			return nil, UpstreamError{Service: "mail", After: RoundTripTimeout, cause: err}
+	for _, a := range rec.Accounts {
+		s.remember[a.Address] = a.Sealed
+	}
+	s.read, s.anchor, s.lock = rec.Reading, rec.Anchor, rec.Lock
+	s.device, s.address = rec.Device, rec.Address
+	return s
+}
+
+// Accounts is the bag, with the accounts whose login has ended left
+// out and named, so the page can say who was signed out rather than
+// pretending they are still here.
+func (s *Session) Accounts() (live []*Login, lost []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.accounts[:0]
+	for _, login := range s.accounts {
+		if login.alive() {
+			kept = append(kept, login)
+			continue
 		}
-		return nil, AuthError{err}
+		lost = append(lost, login.Username())
 	}
-	return c, nil
+	s.accounts = kept
+	return slices.Clone(s.accounts), lost
 }
 
-func (s *Session) ping() {
-	// Non-blocking: once the expiry goroutine is gone, a send would
-	// block its caller forever; a dropped ping is harmless.
-	select {
-	case s.pings <- struct{}{}:
-	default:
-	}
-}
-
-// Username returns the session's username.
-func (s *Session) Username() string {
-	return s.username
-}
-
-// Domain returns the domain part of the session's address, which selects the
-// upstream servers.
-func (s *Session) Domain() string {
-	return s.domain
-}
-
-// DoIMAP executes an IMAP operation on this session. The IMAP client can only
-// be used from inside f.
-func (s *Session) DoIMAP(f func(*imapclient.Client) error) error {
-	return s.DoIMAPWithin(RoundTripTimeout, f)
-}
-
-// DoIMAPWithin is DoIMAP with the bound named by the caller.
-func (s *Session) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
-	return s.DoIMAPContext(context.Background(), bound, f)
-}
-
-// DoIMAPBackground keeps speculative reads off the interactive connection.
-func (s *Session) DoIMAPBackground(f func(*imapclient.Client) error) error {
-	return s.DoIMAPWork(context.Background(), IMAPBackground, RoundTripTimeout, f)
-}
-
-func (s *Session) DoIMAPContext(ctx context.Context, bound time.Duration, f func(*imapclient.Client) error) error {
-	return s.DoIMAPWork(ctx, IMAPForeground, bound, f)
-}
-
-// IMAPClass separates scheduling from the operation's time budget.
-type IMAPClass int
-
-const (
-	IMAPForeground IMAPClass = iota
-	IMAPBackground           // speculative listings, bodies and ancillary facts
-	IMAPScan                 // explicitly requested long reads, ahead of background batches
-)
-
-// waitError is what an IMAP wait that ended early comes to: the bound
-// running out is the mail server's silence, and anything else - the
-// session closing on a sign-out, the reader gone - is a cancellation,
-// which says nothing about the server.
-func waitError(err error, bound time.Duration) error {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return UpstreamError{Service: "mail", After: bound, cause: err}
-	}
-	return context.Canceled
-}
-
-func (s *Session) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Duration, f func(*imapclient.Client) error) (err error) {
-	deadline := time.Now().Add(bound)
-	waiting, stopWaiting := context.WithDeadline(ctx, deadline)
-	defer stopWaiting()
-	queue, conn := &s.imapLocker, &s.imapConn
-	if class == IMAPBackground || class == IMAPScan {
-		queue, conn = &s.workLocker, &s.workConn
-	}
-	start := time.Now()
-	err = queue.acquire(waiting, s.Done(), class == IMAPBackground)
-	AddTiming(ctx, "imap_queue", start)
-	if err != nil {
-		return waitError(err, bound)
-	}
-	defer queue.release()
-	// The reader gone is theirs to hear; the bound run out in the queue
-	// is the mail server's, said below as every other wait is.
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if start, ok := ctx.Value(imapStartKey{}).(func() bool); ok && !start() {
-		return context.Canceled
-	}
-	// Once a command starts it must be drained before this connection can
-	// be reused. Browser cancellation only abandons the wait, not the wire.
-	ctx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
-	defer cancel()
-	go func() {
-		select {
-		case <-s.Done():
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-	if err := ctx.Err(); err != nil {
-		return waitError(err, bound)
-	}
-	start = time.Now()
-	defer func() { AddTiming(ctx, "imap_work", start) }()
-	if *conn != nil && (*conn).State() == imap.ConnStateLogout {
-		(*conn).Close()
-		*conn = nil
-	}
-	if *conn == nil {
-		*conn, err = s.manager.connectIMAPContext(ctx, s.domain, s.username, s.password, "")
-		if err != nil {
-			var refused AuthError
-			if errors.As(err, &refused) {
-				s.Close()
-			}
-			return err
+// Add puts an account in the bag, replacing an earlier login for the
+// same address, and keeps the bag in one order.
+func (s *Session) Add(login *Login) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, other := range s.accounts {
+		if other.username == login.username {
+			other.Close()
+			s.accounts[i] = login
+			byName(s.accounts)
+			return
 		}
 	}
-	c := *conn
-	stopped := make(chan struct{})
-	stop := context.AfterFunc(ctx, func() {
-		c.Close()
-		close(stopped)
-	})
-	defer func() {
-		if !stop() {
-			<-stopped
-			*conn = nil
-			err = waitError(ctx.Err(), bound)
-		}
-	}()
-	return f(c)
+	s.accounts = append(s.accounts, login)
+	byName(s.accounts)
 }
 
-// DoSMTP executes an SMTP operation on this session. The SMTP client can only
-// be used from inside f.
-func (s *Session) DoSMTP(f func(*smtp.Client) error) error {
-	c, err := s.manager.dialSMTP(s.domain)
-	if err != nil {
-		return err
+// Remove takes an account out of the bag and closes it.
+func (s *Session) Remove(username string) *Login {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, login := range s.accounts {
+		if login.username == username {
+			s.accounts = append(s.accounts[:i], s.accounts[i+1:]...)
+			return login
+		}
 	}
-	defer c.Close()
-
-	auth := sasl.NewPlainClient("", s.username, s.password)
-	if err := c.Auth(auth); err != nil {
-		return AuthError{err}
-	}
-
-	if err := f(c); err != nil {
-		return err
-	}
-
-	if err := c.Quit(); err != nil {
-		return fmt.Errorf("QUIT failed: %v", err)
-	}
-
 	return nil
 }
 
-// DoSieve executes a ManageSieve operation on this session. The client can
-// only be used from inside f. The connection is kept for later operations so
-// the server doesn't have to re-authenticate every time.
-func (s *Session) DoSieve(f func(SieveClient) error) error {
-	s.sieveLocker.Lock()
-	defer s.sieveLocker.Unlock()
+// sessionCookieName carries the id and the secret and nothing else: what
+// the session holds is the server's business, and the browser only has to
+// say which one it is and show that it is its own.
+const sessionCookieName = "alborz_session"
 
-	timedOut := false
-	run := func(c SieveClient) error {
-		watchdog := time.AfterFunc(RoundTripTimeout, func() { c.Close() })
-		err := f(c)
-		if !watchdog.Stop() {
-			timedOut = true
-			return fmt.Errorf("sieve command timed out after %v", RoundTripTimeout)
-		}
-		return err
-	}
-
-	if s.sieveConn != nil {
-		// The kept connection is used as is: probing it first would cost
-		// every page a round trip to guard against the rare case that the
-		// server dropped it, which the retry below handles anyway.
-		err := run(s.sieveConn)
-		if timedOut {
-			s.sieveConn = nil
-			return err
-		}
-		var serverErr *managesieve.ServerError
-		if err == nil || errors.As(err, &serverErr) {
-			// The server answered, so the connection is healthy.
-			return err
-		}
-		// Anything else leaves the connection dead or out of sync; drop
-		// it either way, but only a dropped connection warrants a silent
-		// retry. A garbled exchange must surface, or a write could be
-		// repeated on the server.
-		s.sieveConn.Close()
-		s.sieveConn = nil
-		if !isSieveConnClosed(err) {
-			return err
-		}
-	}
-
-	c, err := s.manager.dialSieve(s.domain, s.username, s.password)
-	if err != nil {
-		return err
-	}
-	s.sieveConn = c
-
-	err = run(s.sieveConn)
-	if timedOut {
-		s.sieveConn = nil
-	}
-	return err
+// SessionRecord is what a session is worth keeping across a restart: who
+// it has signed into, and the passwords to sign in again, each sealed
+// under a key only the browser's cookie carries.
+type SessionRecord struct {
+	ID       string
+	Created  time.Time
+	Seen     time.Time
+	Proof    []byte
+	Accounts []RememberedAccount
+	Reading  *Reading
+	Anchor   string
+	Lock     Lock
+	Device   string `json:",omitempty"`
+	Address  string `json:",omitempty"`
 }
 
-// isSieveConnClosed reports whether the operation failed because the server
-// had dropped the connection, the one error worth retrying on a fresh one. A
-// script the server rejects must not be silently sent twice.
-func isSieveConnClosed(err error) bool {
-	if err == nil {
+// RememberedAccount is one account of a remembered session.
+type RememberedAccount struct {
+	Address string
+	Sealed  []byte
+}
+
+// SessionRecords is where remembered sessions live. Nothing is written
+// until a reader asks to be remembered, and a deployment without a
+// store simply cannot offer it. A bbolt file implements this today; a
+// Redis or SQL one would implement the same four methods.
+type SessionRecords interface {
+	Load(id string) (*SessionRecord, bool)
+	Save(rec *SessionRecord) error
+	Delete(id string) error
+	Sweep(before time.Time) error
+	// Each hands over every session kept, for the list of browsers an
+	// account is signed into.
+	Each(func(*SessionRecord)) error
+	// LoadReading and SaveReading keep what a person reads by on the
+	// account they anchored it to, which is the only identity alborz
+	// has to hang it on.
+	LoadReading(account string) (*Reading, bool)
+	SaveReading(account string, r *Reading) error
+	DeleteReading(account string) error
+	// LoadSettings and SaveSettings hold what an account's own server will
+	// not: without METADATA there is nowhere on it to write, and the
+	// settings would otherwise last only as long as the process.
+	LoadSettings(account string) (map[string]json.RawMessage, bool)
+	SaveSettings(account string, entries map[string]json.RawMessage) error
+}
+
+// Sessions are the browsers signed in. The live ones are held here, and
+// the remembered ones are also written to the records, so a restart
+// costs a reconnection rather than a login.
+type Sessions struct {
+	mu      sync.Mutex
+	live    map[string]*Session
+	records SessionRecords
+}
+
+func newSessions() *Sessions {
+	return &Sessions{live: map[string]*Session{}}
+}
+
+// SetRecords makes remembering possible. Without one, a session lasts as
+// long as the process.
+func (ss *Sessions) SetRecords(r SessionRecords) { ss.records = r }
+
+// Remembers reports whether this deployment can remember a session.
+func (ss *Sessions) Remembers() bool { return ss.records != nil }
+
+// Records is where remembered sessions and the settings of an account
+// whose server has no METADATA are written, nil when this deployment
+// has nowhere of its own to write.
+func (ss *Sessions) Records() SessionRecords { return ss.records }
+
+func (ss *Sessions) Get(id string) *Session {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	s := ss.live[id]
+	if s == nil {
+		return nil
+	}
+	if time.Since(s.lastSeen()) > s.life() {
+		delete(ss.live, id)
+		return nil
+	}
+	return s
+}
+
+func (ss *Sessions) Put(s *Session) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	ss.live[s.ID] = s
+}
+
+func (ss *Sessions) Delete(id string) {
+	ss.mu.Lock()
+	s := ss.live[id]
+	delete(ss.live, id)
+	ss.mu.Unlock()
+	if s != nil {
+		s.close()
+	}
+	if ss.records != nil {
+		ss.records.Delete(id)
+	}
+}
+
+// Record is the remembered session of that id, when there is one.
+func (ss *Sessions) Record(id string) (*SessionRecord, bool) {
+	if ss.records == nil {
+		return nil, false
+	}
+	return ss.records.Load(id)
+}
+
+// Save writes what a remembered session is made of. A session nobody asked
+// to remember is never written.
+func (ss *Sessions) Save(s *Session) error {
+	if ss.records == nil || !s.remembered() {
+		return nil
+	}
+	return ss.records.Save(s.record())
+}
+
+// LoadReading and SaveReading are what an account keeps for whoever
+// anchored their reading settings to it.
+func (ss *Sessions) LoadReading(account string) (*Reading, bool) {
+	if ss.records == nil {
+		return nil, false
+	}
+	return ss.records.LoadReading(account)
+}
+
+// ForgetReading drops what is kept under an account, for a reader
+// taking back everything alborz wrote about them there.
+func (ss *Sessions) ForgetReading(account string) error {
+	if ss.records == nil {
+		return nil
+	}
+	return ss.records.DeleteReading(account)
+}
+
+func (ss *Sessions) SaveReading(account string, r Reading) error {
+	if ss.records == nil {
+		return nil
+	}
+	return ss.records.SaveReading(account, &r)
+}
+
+// Sweep drops the records nobody has come back to.
+func (ss *Sessions) Sweep(before time.Time) {
+	if ss.records != nil {
+		ss.records.Sweep(before)
+	}
+}
+
+// sessionDuration is how long a session outlives its last request. It
+// matches the login's, so nothing changes hands while a reader is
+// signed in; a persisted session will outlive both.
+const sessionDuration = loginDuration
+
+// newSession makes a session and the secret its browser keeps.
+func newSession() (*Session, string) {
+	b := make([]byte, 64)
+	if _, err := rand.Read(b); err != nil {
+		panic(err) // A machine that cannot make a random id cannot serve mail.
+	}
+	now := time.Now()
+	secret := base64.RawURLEncoding.EncodeToString(b[32:])
+	s := &Session{
+		ID:          base64.RawURLEncoding.EncodeToString(b[:32]),
+		Created:     now,
+		proof:       sessionProof(secret),
+		seen:        now,
+		active:      now,
+		attachments: map[string]*Attachment{},
+	}
+	return s, secret
+}
+
+func (s *Session) lastSeen() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.seen
+}
+
+func (s *Session) touch() {
+	s.mu.Lock()
+	s.seen = time.Now()
+	s.mu.Unlock()
+}
+
+// Once reports whether this is the first time the session hears of key.
+func (s *Session) Once(key string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.said[key] {
 		return false
 	}
-	var closed *managesieve.ConnClosedError
-	if errors.As(err, &closed) {
-		return true
+	if s.said == nil {
+		s.said = map[string]bool{}
 	}
-	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
-		errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.EPIPE) ||
-		errors.Is(err, syscall.ECONNRESET)
+	s.said[key] = true
+	return true
 }
 
-// SetHTTPBasicAuth adds an Authorization header field to the request
-// with this session's credentials for HTTP services.
-func (s *Session) SetHTTPBasicAuth(req *http.Request) error {
-	password, err := s.HTTPPassword()
-	if err != nil {
-		return err
-	}
-	services, err := s.Services()
-	if err != nil {
-		return err
-	}
-	username := s.username
-	if services.Username != "" {
-		username = services.Username
-	}
-	req.SetBasicAuth(username, password)
-	return nil
-}
-
-// SetMailBasicAuth signs a request with the mail login itself, for a
-// DAV server on the mail host (ADR 28), which knows the account by the
-// mail server's own name and password rather than the ones the account
-// gave for a server of its choosing.
-func (s *Session) SetMailBasicAuth(req *http.Request) {
-	req.SetBasicAuth(s.username, s.password)
-}
-
-// Close destroys the session. This can be used to log the user out.
-func (s *Session) Close() {
-	select {
-	case <-s.closed:
-		// This space is intentionally left blank
-	default:
-		close(s.closed)
-	}
-}
-
-// Notice is what the next page tells the reader about the request
-// that redirected to it: what happened, how it went, and what follows
-// from it, when something does.
-type Notice struct {
-	Kind string
-	Text string
-	// Markup is the text with a link in it, for a notice that names a
-	// place; the text is what the markup says, for the log.
-	Markup template.HTML
-	// Action is the one thing a reader may want next - to undo, to
-	// delete the rest, to see what was sent. Nil when nothing follows.
-	Action *NoticeAction
-}
-
-const (
-	NoticeDone    = "done"
-	NoticeWarning = "warning"
-	NoticeFailed  = "failed"
-)
-
-// NoticeAction is a link, or a POST when it changes state: an undo is
-// a request the page must not make by following a link.
-type NoticeAction struct {
-	Label  string
-	Path   string
-	Fields url.Values
-}
-
-// Undo is the action a notice carries when the handler knows the exact
-// inverse of what it just did: a POST back to itself with what that
-// needs, marked so the answer offers nothing further.
-func (ctx *Context) Undo(path string, fields url.Values) *NoticeAction {
-	fields.Set("undo", "1")
-	return &NoticeAction{Label: ctx.T("notice.undo"), Path: path, Fields: fields}
-}
-
-// Unreachable says on the page which accounts' servers did not answer,
-// so that a merged page can show what the others hold rather than
-// nothing. Nothing is said when every account answered.
-func (ctx *Context) Unreachable(accounts []string) {
-	if len(accounts) == 0 {
+// Notify records what the next page tells the reader.
+func (s *Session) Notify(n Notice) {
+	// A notice with nothing to say is a handler deciding this action
+	// speaks for itself; an empty bar would say the opposite.
+	if n.Text == "" && n.Markup == "" {
 		return
 	}
-	// Each name leads to the account's own servers, which is where the
-	// reader can do something about one that did not answer.
-	linked := make([]string, len(accounts))
-	for i, name := range accounts {
-		linked[i] = NoticeLink(name, "/settings/account?account="+QueryValue(name))
-	}
-	ctx.Notify(Notice{Kind: NoticeWarning,
-		Text:   ctx.Tf("notice.unreachable", len(accounts), strings.Join(accounts, ", ")),
-		Markup: template.HTML(ctx.Tf("notice.unreachable", len(accounts), strings.Join(linked, ", ")))})
+	s.mu.Lock()
+	s.notice = &n
+	s.mu.Unlock()
 }
 
-// NoticeName is a thing's own name inside a notice: quoted by the
-// sentence around it and cut by the page, since how much of a name
-// fits is the screen's business and not this side's.
-func NoticeName(name string) string {
-	return `<span class="notice-name">` + template.HTMLEscapeString(name) + `</span>`
+// HasNotice reports whether a notice waits for the next page.
+func (s *Session) HasNotice() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.notice != nil
 }
 
-// NoticeLink is the same name, leading to the thing it names.
-func NoticeLink(name, href string) string {
-	return `<a class="notice-name" href="` + template.HTMLEscapeString(href) + `">` +
-		template.HTMLEscapeString(name) + `</a>`
+// PopNotice takes what the reader is owed, once.
+func (s *Session) PopNotice() *Notice {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.notice
+	s.notice = nil
+	return n
 }
 
-// Made is what every section says after making something. The reader
-// lands on the list, which is where the new thing now lives, and the
-// banner holds the two things wanted next: the thing itself, named and
-// linked, and the offer to make another with the form as it was.
-// sentence takes the name; again is the form's own address.
-func (ctx *Context) Made(sentence, name, href, again string) {
-	// A folder is its own list, so the reader is already looking at
-	// what was made and there is nowhere for the name to lead.
-	marked := NoticeName(name)
-	if href != "" {
-		marked = NoticeLink(name, href)
+// PutAttachment keeps a file the compose form has taken but not sent.
+func (s *Session) PutAttachment(in *multipart.FileHeader, form *multipart.Form) (string, error) {
+	id := uuid.New()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var size int64
+	for _, a := range s.attachments {
+		size += a.File.Size
 	}
-	ctx.Notify(Notice{
-		Kind:   NoticeDone,
-		Text:   fmt.Sprintf(sentence, name),
-		Markup: template.HTML(fmt.Sprintf(sentence, marked)),
-		Action: &NoticeAction{Label: ctx.T("common.addanother"), Path: again},
-	})
+	if size+in.Size > MaxAttachmentSize {
+		return "", ErrAttachmentCacheSize
+	}
+	s.attachments[id.String()] = &Attachment{File: in, Form: form}
+	return id.String(), nil
 }
 
-// Store returns a store suitable for storing persistent user data.
-func (s *Session) Store() Store {
-	return s.store
+// PeekAttachment is one the form still holds, left in place: a send the
+// server refuses must find it again.
+func (s *Session) PeekAttachment(id string) *Attachment {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.attachments[id]
 }
 
-type (
-	// DialIMAPFunc connects to the domain's upstream IMAP server, for a
-	// reader at from, or for alborz itself when from is empty.
-	DialIMAPFunc func(domain, from string) (*imapclient.Client, error)
-	// DialIMAPWatchFunc dials with a handler for the updates a server
-	// sends unasked, which has to be given before the connection is
-	// made.
-	DialIMAPWatchFunc func(domain string, h *imapclient.UnilateralDataHandler) (*imapclient.Client, error)
-	// DialSMTPFunc connects to the domain's upstream SMTP server.
-	DialSMTPFunc func(domain string) (*smtp.Client, error)
-)
-
-// SessionManager keeps track of active sessions. It connects and re-connects
-// to the upstream IMAP server as necessary. It prunes expired sessions.
-type SessionManager struct {
-	dialIMAP      DialIMAPFunc
-	dialIMAPWatch DialIMAPWatchFunc
-	dialSMTP      DialSMTPFunc
-	dialSieve     DialSieveFunc
-	logger        echo.Logger
-	// loginKey seals what the store keeps for an account; nil leaves
-	// only the password wrap.
-	loginKey *fernet.Key
-	// kept is where an account's settings go when its server has no
-	// METADATA to hold them; nil where alborz keeps nothing itself.
-	kept VisitRecords
-
-	locker sync.Mutex
-	// sessions are the ones still open, for the shutdown that closes
-	// them. A session is reached through the visit that holds it, so
-	// nothing looks anything up here.
-	sessions map[*Session]struct{} // protected by locker
-	// warnedTransientStore says the METADATA warning has been printed;
-	// protected by locker, like the sessions it is set beside.
-	warnedTransientStore bool
+// PopAttachment takes one back, once.
+func (s *Session) PopAttachment(id string) *Attachment {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.attachments[id]
+	if !ok {
+		return nil
+	}
+	delete(s.attachments, id)
+	return a
 }
 
-func newSessionManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger, loginKey *fernet.Key, kept VisitRecords) *SessionManager {
-	return &SessionManager{
-		kept:          kept,
-		sessions:      make(map[*Session]struct{}),
-		dialIMAP:      dialIMAP,
-		dialIMAPWatch: dialWatch,
-		dialSMTP:      dialSMTP,
-		dialSieve:     dialSieve,
-		logger:        logger,
-		loginKey:      loginKey,
-	}
-}
-
-func (sm *SessionManager) Close() {
-	sm.locker.Lock()
-	defer sm.locker.Unlock()
-	for s := range sm.sessions {
-		s.Close()
-	}
-}
-
-// connectIMAP signs in for a reader at from: a password the mail server
-// has not seen accepted yet, whose refusal its lockout counts.
-func (sm *SessionManager) connectIMAP(domain, username, password, from string) (*imapclient.Client, error) {
-	return sm.connectIMAPContext(context.Background(), domain, username, password, from)
-}
-
-func (sm *SessionManager) connectIMAPContext(ctx context.Context, domain, username, password, from string) (*imapclient.Client, error) {
-	within := RoundTripTimeout
-	if from != "" {
-		within = SignInTimeout
-	}
-	ctx, cancel := context.WithTimeout(ctx, within)
-	defer cancel()
-	c, err := sm.dialIMAP(domain, from)
-	if err != nil {
-		// A refused connection, an unresolvable host, a dial that timed
-		// out: all of them are the server not answering, which is not
-		// this program failing. A misconfigured domain is ours and
-		// stays as it is.
-		var unknown UnknownDomainError
-		if errors.As(err, &unknown) {
-			return nil, err
-		}
-		return nil, UpstreamError{Service: "mail", cause: err}
-	}
-
-	stopped := make(chan struct{})
-	stop := context.AfterFunc(ctx, func() { c.Close(); close(stopped) })
-	err = c.Login(username, password).Wait()
-	if !stop() {
-		<-stopped
-		return nil, UpstreamError{Service: "mail", After: within, cause: ctx.Err()}
-	}
-	if err != nil {
-		c.Close()
-		var status *imap.Error
-		if errors.As(err, &status) {
-			return nil, AuthError{err}
-		}
-		return nil, UpstreamError{Service: "mail", cause: err}
-	}
-	if caps := c.Caps(); !caps.Has(imap.CapIMAP4rev1) && !caps.Has(imap.CapIMAP4rev2) {
-		c.Logout()
-		names := make([]string, 0, len(caps))
-		for cap := range caps {
-			names = append(names, string(cap))
-		}
-		slices.Sort(names)
-		return nil, BaselineError{Caps: names}
-	}
-
-	return c, nil
-}
-
-// Put connects to the IMAP server and creates a new session. If authentication
-// fails, the error will be of type AuthError. Addresses outside the served
-// domains are rejected with UnknownDomainError.
-func (sm *SessionManager) Put(username, password, from string) (*Session, error) {
-	_, domain, _ := strings.Cut(username, "@")
-	c, err := sm.connectIMAP(domain, username, password, from)
-	if err != nil {
-		return nil, err
-	}
-
-	sm.locker.Lock()
-	defer sm.locker.Unlock()
-
-	s := &Session{
-		manager:  sm,
-		closed:   make(chan struct{}),
-		pings:    make(chan struct{}, 5),
-		imapConn: c,
-		username: username,
-		password: password,
-		domain:   domain,
-	}
-
-	s.store, err = sm.newStore(s)
-	if err != nil {
-		return nil, err
-	}
-
-	sm.sessions[s] = struct{}{}
-
-	go sm.reap(s)
-
-	return s, nil
-}
-
-// reap waits out the session's life, keeping it alive on every ping,
-// then closes its connections and forgets it.
-func (sm *SessionManager) reap(s *Session) {
-	timer := time.NewTimer(sessionDuration)
-
-	alive := true
-	for alive {
-		select {
-		case <-s.pings:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			timer.Reset(sessionDuration)
-		case <-timer.C:
-			alive = false
-		case <-s.closed:
-			alive = false
+// close drops what the session was holding for a reader who is leaving.
+func (s *Session) close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, a := range s.attachments {
+		if a.Form != nil {
+			a.Form.RemoveAll()
 		}
 	}
+	s.attachments = map[string]*Attachment{}
+}
 
-	timer.Stop()
-	// Expired is ended: the bag drops it and the watchers stop, and a
-	// remembered visit signs in again. Left open it reconnected on the
-	// next request with nothing left to reap it.
-	s.Close()
-
-	s.imapLocker.acquire(context.Background(), nil, false)
-	if s.imapConn != nil {
-		s.imapConn.Close()
+// Session is this browser's stay, made on first use. A request that
+// stores nothing never makes one, so a crawler and the login page cost
+// nothing.
+func (ctx *Context) Session() *Session {
+	if s := ctx.lookupSession(); s != nil {
+		return s
 	}
-	s.imapLocker.release()
-	s.workLocker.acquire(context.Background(), nil, false)
-	if s.workConn != nil {
-		s.workConn.Close()
-	}
-	s.workLocker.release()
+	s, secret := newSession()
+	ctx.Server.Sessions.Put(s)
+	ctx.SetCookie(ctx.cookie(sessionCookieName, s.ID+"."+secret, credentialCookieLife))
+	ctx.session, ctx.sessionSecret = s, secret
+	return s
+}
 
-	s.sieveLocker.Lock()
-	if s.sieveConn != nil {
-		s.sieveConn.Close()
+// lookupSession finds this browser's stay without making one. The cookie
+// carries the id and a secret: the id says which session, and is shown to
+// every other browser of the same account, so it opens nothing; the
+// secret is what makes the session this browser's, and the only key to
+// the passwords a remembered session holds.
+func (ctx *Context) lookupSession() *Session {
+	if ctx.session != nil {
+		return ctx.session
 	}
-	s.sieveLocker.Unlock()
+	value, ok := ctx.cookieValue(sessionCookieName, func(string) bool { return true })
+	if !ok {
+		return nil
+	}
+	id, secret, _ := strings.Cut(value, ".")
+	s := ctx.Server.Sessions.Get(id)
+	stored := s == nil
+	if stored {
+		rec, found := ctx.Server.Sessions.Record(id)
+		if !found {
+			return nil
+		}
+		s = sessionFromRecord(rec)
+	}
+	if !s.opens(secret) {
+		return nil
+	}
+	if stored {
+		ctx.Server.Sessions.Put(s)
+	}
+	s.touch()
+	ctx.session, ctx.sessionSecret = s, secret
+	return s
+}
 
-	// An expired session is not an account gone: what the caches hold
-	// for it is what the next sign-in, or the cookie restoring it, is
-	// served from. Only signing out forgets, see Server.ForgetAccount.
-	sm.locker.Lock()
-	delete(sm.sessions, s)
-	sm.locker.Unlock()
+// sessionProofLabel keeps the proof apart from sessionKey, which is made of
+// the same secret: a proof that was the key would let the store open
+// the passwords it holds.
+const sessionProofLabel = "alborz session proof"
+
+// sessionProof is what a session keeps of its browser's secret: enough to
+// know the secret when it is shown, and nothing that opens a password.
+func sessionProof(secret string) []byte {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(sessionProofLabel))
+	return mac.Sum(nil)
+}
+
+// opens reports whether secret is this session's. A session with no proof
+// was written before sessions kept one, and nobody can show it is theirs.
+func (s *Session) opens(secret string) bool {
+	return len(s.proof) > 0 && hmac.Equal(s.proof, sessionProof(secret))
+}
+
+// sessionKey is the key the browser's secret stands for. The secret
+// never leaves the cookie, so a stolen store decrypts nothing.
+func sessionKey(secret string) *fernet.Key {
+	sum := sha256.Sum256([]byte(secret))
+	var key fernet.Key
+	copy(key[:], sum[:])
+	return &key
+}
+
+// seal locks a password to this browser, and unseal opens it again.
+func (ctx *Context) seal(password string) ([]byte, error) {
+	if ctx.sessionSecret == "" {
+		return nil, fmt.Errorf("alborz: this session carries no secret")
+	}
+	return fernet.EncryptAndSign([]byte(password), sessionKey(ctx.sessionSecret))
+}
+
+func (ctx *Context) unseal(sealed []byte) (string, bool) {
+	if ctx.sessionSecret == "" {
+		return "", false
+	}
+	raw := fernet.VerifyAndDecrypt(sealed, credentialCookieLife, []*fernet.Key{sessionKey(ctx.sessionSecret)})
+	if raw == nil {
+		return "", false
+	}
+	return string(raw), true
+}
+
+// Notify records what the next page tells the reader, and PutNotice
+// says a request did what it was asked.
+// Quiet says this action needs no notice: its result shows where the
+// reader is. Said rather than left out, so a handler that forgot to
+// speak is told apart from one that chose not to.
+func (ctx *Context) Quiet() { ctx.quiet = true }
+
+func (ctx *Context) Notify(n Notice) {
+	// An empty notice is a handler deciding the action speaks for
+	// itself, which is Quiet by another name.
+	if n.Text == "" && n.Markup == "" {
+		ctx.Quiet()
+		return
+	}
+	ctx.Session().Notify(n)
+}
+
+func (ctx *Context) PutNotice(text string) {
+	ctx.Notify(Notice{Kind: NoticeDone, Text: text})
+}
+
+func (ctx *Context) PopNotice() *Notice {
+	if s := ctx.lookupSession(); s != nil {
+		return s.PopNotice()
+	}
+	return nil
+}
+
+// PutAttachment, PeekAttachment and PopAttachment hold what the
+// compose form has taken and not yet sent.
+func (ctx *Context) PutAttachment(in *multipart.FileHeader, form *multipart.Form) (string, error) {
+	return ctx.Session().PutAttachment(in, form)
+}
+
+func (ctx *Context) PeekAttachment(id string) *Attachment {
+	if s := ctx.lookupSession(); s != nil {
+		return s.PeekAttachment(id)
+	}
+	return nil
+}
+
+func (ctx *Context) PopAttachment(id string) *Attachment {
+	if s := ctx.lookupSession(); s != nil {
+		return s.PopAttachment(id)
+	}
+	return nil
 }

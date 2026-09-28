@@ -10,17 +10,17 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// visitBucket holds one record per visit, sealed with the login key so
+// sessionBucket holds one record per session, sealed with the login key so
 // the file names nobody, the way the DAV cache seals its own.
-var visitBucket = []byte("visits")
+var sessionBucket = []byte("sessions")
 
 // readingBucket holds what a person reads by, under the account they
 // anchored it to, hashed so the file names nobody.
 var readingBucket = []byte("reading")
 
-// keptBucket holds what alborz keeps for an account whose server has no
+// settingsBucket holds the settings of an account whose server has no
 // METADATA: one sealed record per account, keyed the same hashed way.
-var keptBucket = []byte("kept")
+var settingsBucket = []byte("settings")
 
 func readingKey(account string) []byte {
 	sum := sha256.Sum256([]byte(account))
@@ -31,19 +31,19 @@ func readingKey(account string) []byte {
 // file wait in alborz is bounded and says how long it waited.
 const openTimeout = 5 * time.Second
 
-// boltVisits keeps visits across a restart. A reader who asked to be
+// boltSessions keeps sessions across a restart. A reader who asked to be
 // remembered is remembered by the server, so the browser carries an id
 // and a secret rather than a copy of their passwords.
-type boltVisits struct {
+type boltSessions struct {
 	db  *bolt.DB
 	key *fernet.Key
 }
 
-// OpenVisitRecords keeps visits in the data file, making their buckets
+// OpenSessionRecords keeps sessions in the data file, making their buckets
 // if they are not there.
-func OpenVisitRecords(db *bolt.DB, key *fernet.Key) (VisitRecords, error) {
+func OpenSessionRecords(db *bolt.DB, key *fernet.Key) (SessionRecords, error) {
 	err := db.Update(func(tx *bolt.Tx) error {
-		for _, name := range [][]byte{visitBucket, readingBucket, keptBucket} {
+		for _, name := range [][]byte{sessionBucket, readingBucket, settingsBucket} {
 			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
 				return err
 			}
@@ -53,13 +53,13 @@ func OpenVisitRecords(db *bolt.DB, key *fernet.Key) (VisitRecords, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &boltVisits{db: db, key: key}, nil
+	return &boltSessions{db: db, key: key}, nil
 }
 
-func (b *boltVisits) Load(id string) (*VisitRecord, bool) {
+func (b *boltSessions) Load(id string) (*SessionRecord, bool) {
 	var sealed []byte
 	err := b.db.View(func(tx *bolt.Tx) error {
-		if v := tx.Bucket(visitBucket).Get([]byte(id)); v != nil {
+		if v := tx.Bucket(sessionBucket).Get([]byte(id)); v != nil {
 			sealed = append([]byte(nil), v...)
 		}
 		return nil
@@ -73,23 +73,23 @@ func (b *boltVisits) Load(id string) (*VisitRecord, bool) {
 		// signs everyone out and loses nothing else.
 		return nil, false
 	}
-	var rec VisitRecord
+	var rec SessionRecord
 	if err := json.Unmarshal(raw, &rec); err != nil {
 		return nil, false
 	}
 	return &rec, true
 }
 
-func (b *boltVisits) Save(rec *VisitRecord) error {
+func (b *boltSessions) Save(rec *SessionRecord) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		return b.putSealed(tx.Bucket(visitBucket), []byte(rec.ID), rec)
+		return b.putSealed(tx.Bucket(sessionBucket), []byte(rec.ID), rec)
 	})
 }
 
 // putSealed writes v sealed, over what is stored under key and keeping
 // what a newer version put there (ADR 26). A record sealed with a key
 // that has since rotated is not read, and is replaced.
-func (b *boltVisits) putSealed(bucket *bolt.Bucket, key []byte, v any) error {
+func (b *boltSessions) putSealed(bucket *bolt.Bucket, key []byte, v any) error {
 	var old []byte
 	if sealed := bucket.Get(key); sealed != nil {
 		old = fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{b.key})
@@ -105,17 +105,17 @@ func (b *boltVisits) putSealed(bucket *bolt.Bucket, key []byte, v any) error {
 	return bucket.Put(key, sealed)
 }
 
-func (b *boltVisits) Delete(id string) error {
+func (b *boltSessions) Delete(id string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(visitBucket).Delete([]byte(id))
+		return tx.Bucket(sessionBucket).Delete([]byte(id))
 	})
 }
 
-func (b *boltVisits) Each(f func(*VisitRecord)) error {
+func (b *boltSessions) Each(f func(*SessionRecord)) error {
 	return b.db.View(func(tx *bolt.Tx) error {
-		return tx.Bucket(visitBucket).ForEach(func(_, sealed []byte) error {
+		return tx.Bucket(sessionBucket).ForEach(func(_, sealed []byte) error {
 			raw := fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{b.key})
-			var rec VisitRecord
+			var rec SessionRecord
 			if raw != nil && json.Unmarshal(raw, &rec) == nil {
 				f(&rec)
 			}
@@ -124,11 +124,11 @@ func (b *boltVisits) Each(f func(*VisitRecord)) error {
 	})
 }
 
-// Sweep drops the visits nobody has come back to. A record outlives the
+// Sweep drops the sessions nobody has come back to. A record outlives the
 // process, so without this the file only grows.
-func (b *boltVisits) Sweep(before time.Time) error {
+func (b *boltSessions) Sweep(before time.Time) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(visitBucket)
+		bucket := tx.Bucket(sessionBucket)
 		var stale [][]byte
 		err := bucket.ForEach(func(k, v []byte) error {
 			raw := fernet.VerifyAndDecrypt(v, 0, []*fernet.Key{b.key})
@@ -136,7 +136,7 @@ func (b *boltVisits) Sweep(before time.Time) error {
 				stale = append(stale, append([]byte(nil), k...))
 				return nil
 			}
-			var rec VisitRecord
+			var rec SessionRecord
 			if err := json.Unmarshal(raw, &rec); err != nil || rec.Seen.Before(before) {
 				stale = append(stale, append([]byte(nil), k...))
 			}
@@ -154,7 +154,7 @@ func (b *boltVisits) Sweep(before time.Time) error {
 	})
 }
 
-func (b *boltVisits) LoadReading(account string) (*Reading, bool) {
+func (b *boltSessions) LoadReading(account string) (*Reading, bool) {
 	var sealed []byte
 	err := b.db.View(func(tx *bolt.Tx) error {
 		if v := tx.Bucket(readingBucket).Get(readingKey(account)); v != nil {
@@ -176,16 +176,16 @@ func (b *boltVisits) LoadReading(account string) (*Reading, bool) {
 	return &r, true
 }
 
-func (b *boltVisits) SaveReading(account string, r *Reading) error {
+func (b *boltSessions) SaveReading(account string, r *Reading) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		return b.putSealed(tx.Bucket(readingBucket), readingKey(account), r)
 	})
 }
 
-func (b *boltVisits) LoadKept(account string) (map[string]json.RawMessage, bool) {
+func (b *boltSessions) LoadSettings(account string) (map[string]json.RawMessage, bool) {
 	var sealed []byte
 	err := b.db.View(func(tx *bolt.Tx) error {
-		if v := tx.Bucket(keptBucket).Get(readingKey(account)); v != nil {
+		if v := tx.Bucket(settingsBucket).Get(readingKey(account)); v != nil {
 			sealed = append([]byte(nil), v...)
 		}
 		return nil
@@ -204,13 +204,13 @@ func (b *boltVisits) LoadKept(account string) (map[string]json.RawMessage, bool)
 	return entries, true
 }
 
-func (b *boltVisits) SaveKept(account string, entries map[string]json.RawMessage) error {
+func (b *boltSessions) SaveSettings(account string, entries map[string]json.RawMessage) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		return b.putSealed(tx.Bucket(keptBucket), readingKey(account), entries)
+		return b.putSealed(tx.Bucket(settingsBucket), readingKey(account), entries)
 	})
 }
 
-func (b *boltVisits) DeleteReading(account string) error {
+func (b *boltSessions) DeleteReading(account string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(readingBucket).Delete(readingKey(account))
 	})

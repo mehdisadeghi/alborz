@@ -71,10 +71,10 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 func (p *Provider) InjectCard(title string, abilities func(Advertised) []alborzbase.Ability) alborz.InjectFunc {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
 		servers, ok := data.(*alborzbase.ServersRenderData)
-		if !ok || ctx.Session == nil {
+		if !ok || ctx.Login == nil {
 			return nil
 		}
-		for _, src := range p.Sources(ctx.Session) {
+		for _, src := range p.Sources(ctx.Login) {
 			servers.Cards = append(servers.Cards, p.card(ctx, servers, title, src, abilities))
 			servers.AddPlace(src.ID, src.URL.Host)
 		}
@@ -90,7 +90,7 @@ func (p *Provider) card(ctx *alborz.Context, servers *alborzbase.ServersRenderDa
 	card := alborzbase.ServerCard{Group: alborzbase.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
 	if servers.Showing == alborzbase.ServerDAV {
 		endpoint, _ := url.Parse(src.Endpoint())
-		found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Session), endpoint)
+		found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Login), endpoint)
 		// A server that did not answer is worth saying so about; the
 		// page is not the place to fail over it.
 		if err != nil {
@@ -116,14 +116,14 @@ func (p *Provider) card(ctx *alborz.Context, servers *alborzbase.ServersRenderDa
 func (p *Provider) InjectHere() alborz.InjectFunc {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
 		servers, ok := data.(*alborzbase.ServersRenderData)
-		if !ok || ctx.Session == nil || p.here == nil {
+		if !ok || ctx.Login == nil || p.here == nil {
 			return nil
 		}
 		servers.Cards = append(servers.Cards, alborzbase.ServerCard{
 			Group: alborzbase.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
 			Rows: []map[string]any{
 				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Origin() + collections.Prefix + "/"},
-				{"label": ctx.T("settings.davhereuser"), "value": ctx.Session.Username()},
+				{"label": ctx.T("settings.davhereuser"), "value": ctx.Login.Username()},
 			},
 		})
 		return nil

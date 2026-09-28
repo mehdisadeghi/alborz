@@ -29,7 +29,7 @@ const (
 )
 
 func init() {
-	alborz.KeepKey(settingsKey)
+	alborz.RegisterSetting(settingsKey)
 }
 
 // getCalendarObject fetches one event or task without go-webdav's
@@ -144,7 +144,7 @@ func (p *plugin) calendarRail(ctx *alborz.Context, kind func([]string) bool, cho
 // feeds the account follows beside the server's.
 func visibleCalendars(accounts []dav.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []dav.Site[*caldav.Client], error) {
 	return dav.Visible(accounts, scope, only, func(acc dav.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
-		settings, err := loadSettings(acc.Session.Store())
+		settings, err := loadSettings(acc.Login.Store())
 		if err != nil {
 			return nil, false, nil, fmt.Errorf("failed to load CalDAV settings: %w", err)
 		}
@@ -439,12 +439,12 @@ func joinCalendars(objects [][]byte) ([]byte, error) {
 // warm fetches what the calendar and task pages ask for first, as the
 // account is signed in, so the first click on either finds it cached:
 // the calendars, this month's events and the open tasks.
-func (p *plugin) warm(ctx *alborz.Context, s *alborz.Session) {
+func (p *plugin) warm(ctx *alborz.Context, s *alborz.Login) {
 	loc := alborzbase.UserLocation(ctx)
 	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s, loc) })
 }
 
-func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session, loc *time.Location) error {
+func (p *plugin) warmAccount(ctx context.Context, s *alborz.Login, loc *time.Location) error {
 	c, calendars, err := p.clientWithCalendars(ctx, s)
 	if err != nil {
 		return err

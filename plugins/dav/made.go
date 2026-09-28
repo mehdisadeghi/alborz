@@ -58,13 +58,13 @@ var ErrNoDestination = errors.New("dav: no such collection to write into")
 // Destination turns a create form's "account|path" choice into that
 // account's client and the bare path, refusing a collection keep does
 // not accept.
-func Destination[C any](ctx *alborz.Context, value string, open func(context.Context, *alborz.Session) (C, []Collection, error), keep func(Collection) bool) (Ref[C], error) {
+func Destination[C any](ctx *alborz.Context, value string, open func(context.Context, *alborz.Login) (C, []Collection, error), keep func(Collection) bool) (Ref[C], error) {
 	account, path, ok := strings.Cut(value, "|")
-	session := ctx.SessionFor(account)
-	if !ok || session == nil {
+	login := ctx.LoginFor(account)
+	if !ok || login == nil {
 		return Ref[C]{}, ErrNoDestination
 	}
-	c, colls, err := open(ctx.Request().Context(), session)
+	c, colls, err := open(ctx.Request().Context(), login)
 	if err != nil {
 		return Ref[C]{}, err
 	}

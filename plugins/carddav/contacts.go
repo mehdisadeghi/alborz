@@ -232,7 +232,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		AddressObjects: cards,
 		Pager:          pager,
 		HrefFor:        func(_, contactPath string) string { return hrefs[contactPath] },
-		AddedBy:        p.dav.AddedBy(ctx.Session.Username()),
+		AddedBy:        p.dav.AddedBy(ctx.Login.Username()),
 		Query:          list.Query,
 		View:           list.View,
 		Groups:         list.Groups,

@@ -19,7 +19,7 @@ var metaBucket = []byte("meta")
 // A format moves only when a bucket's records change beyond what the
 // rules of ADR 26 absorb, and then under a new bucket name as well.
 var formats = map[string]int{
-	string(visitBucket): 1, string(readingBucket): 1, string(keptBucket): 1,
+	string(sessionBucket): 1, string(readingBucket): 1, string(settingsBucket): 1,
 	// Named by the collections package, which does not export it.
 	"collections": 1,
 }

@@ -123,8 +123,8 @@ const page = async (event, ask) => {
 		tell("");
 		// Not the sign-in page: it is what a purge leaves behind, and
 		// offline it would answer for the page the reader asked for.
-		// Nor the pages of a visit that locks: what is saved is read
-		// offline with no server to ask for the passkey, so such a visit
+		// Nor the pages of a session that locks: what is saved is read
+		// offline with no server to ask for the passkey, so such a session
 		// keeps nothing, and what it kept before it had a lock goes.
 		if ((answer.headers.get("Cache-Control") || "").includes("no-store")) {
 			event.waitUntil(caches.delete(PAGES));

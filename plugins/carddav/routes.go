@@ -45,7 +45,7 @@ func choose(store alborz.Store, paths []string) error {
 }
 
 func init() {
-	alborz.KeepKey(settingsKey)
+	alborz.RegisterSetting(settingsKey)
 }
 
 // uidURN is how a UUID is written as a URN (RFC 9562 4), the form vCard
@@ -155,11 +155,11 @@ func joinCards(cards [][]byte) ([]byte, error) {
 // warm fetches what the contacts page asks for first, as the account
 // is signed in, so the first click finds it cached: the books and
 // every card the list shows.
-func (p *plugin) warm(ctx *alborz.Context, s *alborz.Session) {
+func (p *plugin) warm(ctx *alborz.Context, s *alborz.Login) {
 	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s) })
 }
 
-func (p *plugin) warmAccount(ctx context.Context, s *alborz.Session) error {
+func (p *plugin) warmAccount(ctx context.Context, s *alborz.Login) error {
 	c, books, err := p.clientWithAddressBooks(ctx, s)
 	if err != nil {
 		return err

@@ -17,17 +17,18 @@ var ErrNoStoreEntry = fmt.Errorf("alborz: no such entry in store")
 
 // Store allows storing per-user persistent data.
 //
-// Store shouldn't be used from inside Session.DoIMAP.
+// Store shouldn't be used from inside Login.DoIMAP.
 type Store interface {
 	Get(key string, out interface{}) error
 	Put(key string, v interface{}) error
 }
 
-// KeptStore is a store that can say what it holds and give it back.
-// Both stores that outlive a session are one: the account's own server
-// through METADATA, and alborz's database for a server without it. The
-// account holder is entitled to see either and to empty it.
-type KeptStore interface {
+// Settings is a store of an account's settings that can say what it
+// holds and give it back. Both stores that outlive a login are one: the
+// account's own server through METADATA, and alborz's database for a
+// server without it. The account holder is entitled to see either and
+// to empty it.
+type Settings interface {
 	Store
 	// Entries names what is held, so the page can say what emptying
 	// the store would remove.
@@ -43,8 +44,8 @@ type KeptStore interface {
 // it, alborz's own database otherwise, and memory only where alborz has
 // no database either. The warning is printed once, under the manager's
 // lock like every other call here.
-func (sm *SessionManager) newStore(session *Session) (Store, error) {
-	s, err := newIMAPStore(session)
+func (sm *LoginManager) newStore(login *Login) (Store, error) {
+	s, err := newIMAPMetadataStore(login)
 	if err == nil {
 		return s, nil
 	} else if err != errIMAPMetadataUnsupported {
@@ -54,10 +55,10 @@ func (sm *SessionManager) newStore(session *Session) (Store, error) {
 		sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, keeping account settings in alborz's own store")
 		sm.warnedTransientStore = true
 	}
-	if sm.kept == nil {
+	if sm.settings == nil {
 		return newMemoryStore(), nil
 	}
-	return newLocalStore(sm.kept, session.Username()), nil
+	return newLocalStore(sm.settings, login.Username()), nil
 }
 
 type memoryStore struct {
@@ -89,15 +90,15 @@ func (s *memoryStore) Put(key string, v interface{}) error {
 	return nil
 }
 
-type imapStore struct {
-	session *Session
-	cache   *memoryStore
+type imapMetadataStore struct {
+	login *Login
+	cache *memoryStore
 }
 
 var errIMAPMetadataUnsupported = fmt.Errorf("alborz: IMAP server doesn't support METADATA extension")
 
-func newIMAPStore(session *Session) (*imapStore, error) {
-	err := session.DoIMAP(func(c *imapclient.Client) error {
+func newIMAPMetadataStore(login *Login) (*imapMetadataStore, error) {
+	err := login.DoIMAP(func(c *imapclient.Client) error {
 		if caps := c.Caps(); !caps.Has(imap.CapMetadata) && !caps.Has(imap.CapMetadataServer) {
 			return errIMAPMetadataUnsupported
 		}
@@ -106,17 +107,17 @@ func newIMAPStore(session *Session) (*imapStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &imapStore{session: session, cache: newMemoryStore()}, nil
+	return &imapMetadataStore{login: login, cache: newMemoryStore()}, nil
 }
 
-func (s *imapStore) key(key string) string {
+func (s *imapMetadataStore) key(key string) string {
 	return vendorRoot + "/" + key
 }
 
 // fetch is the entry as the server holds it now, nil where it has none.
-func (s *imapStore) fetch(key string) ([]byte, error) {
+func (s *imapMetadataStore) fetch(key string) ([]byte, error) {
 	var entries map[string]*[]byte
-	err := s.session.DoIMAP(func(c *imapclient.Client) error {
+	err := s.login.DoIMAP(func(c *imapclient.Client) error {
 		data, err := c.GetMetadata("", []string{s.key(key)}, nil).Wait()
 		if err != nil {
 			return err
@@ -133,7 +134,7 @@ func (s *imapStore) fetch(key string) ([]byte, error) {
 	return nil, nil
 }
 
-func (s *imapStore) Get(key string, out interface{}) error {
+func (s *imapMetadataStore) Get(key string, out interface{}) error {
 	if err := s.cache.Get(key, out); err != ErrNoStoreEntry {
 		return err
 	}
@@ -151,11 +152,11 @@ func (s *imapStore) Get(key string, out interface{}) error {
 }
 
 // Put merges into the entry as the server holds it at the moment of
-// writing, not as this session first read it: another instance, of a
+// writing, not as this login first read it: another instance, of a
 // newer version, may have written fields since (ADR 26). METADATA has
 // no compare-and-set, so a write in between the two round trips is
 // still lost.
-func (s *imapStore) Put(key string, v interface{}) error {
+func (s *imapMetadataStore) Put(key string, v interface{}) error {
 	was, err := s.fetch(key)
 	if err != nil {
 		return err
@@ -165,7 +166,7 @@ func (s *imapStore) Put(key string, v interface{}) error {
 		return fmt.Errorf("alborz: failed to marshal IMAP store entry %q: %v", key, err)
 	}
 	entries := map[string]*[]byte{s.key(key): &b}
-	err = s.session.DoIMAP(func(c *imapclient.Client) error {
+	err = s.login.DoIMAP(func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()
 	})
 	if err != nil {
@@ -178,25 +179,25 @@ func (s *imapStore) Put(key string, v interface{}) error {
 // key alborz writes hangs off it, so one GETMETADATA names them all.
 const vendorRoot = "/private/vendor/alborz"
 
-// keptKeys is every key a plugin keeps in a store, named at start. The
+// settingKeys is every setting key a plugin stores, named at start. The
 // entries are asked for by name: the DEPTH walk of RFC 5464 needs the
 // options before the mailbox, and go-imap writes them after, which
 // Dovecot answers with BAD.
-var keptKeys = []string{httpPasswordKey, servicesKey}
+var settingKeys = []string{httpPasswordKey, servicesKey}
 
-// KeepKey names a key a plugin keeps in the store, so the account
+// RegisterSetting names a key a plugin stores, so the account
 // holder can see and empty what is held.
-func KeepKey(key string) {
-	keptKeys = append(keptKeys, key)
+func RegisterSetting(key string) {
+	settingKeys = append(settingKeys, key)
 }
 
-func (s *imapStore) Entries() ([]string, error) {
-	full := make([]string, len(keptKeys))
-	for i, key := range keptKeys {
+func (s *imapMetadataStore) Entries() ([]string, error) {
+	full := make([]string, len(settingKeys))
+	for i, key := range settingKeys {
 		full[i] = s.key(key)
 	}
 	var names []string
-	err := s.session.DoIMAP(func(c *imapclient.Client) error {
+	err := s.login.DoIMAP(func(c *imapclient.Client) error {
 		data, err := c.GetMetadata("", full, nil).Wait()
 		if err != nil {
 			return err
@@ -215,7 +216,7 @@ func (s *imapStore) Entries() ([]string, error) {
 	return names, nil
 }
 
-func (s *imapStore) Forget() error {
+func (s *imapMetadataStore) Forget() error {
 	names, err := s.Entries()
 	if err != nil {
 		return err
@@ -229,7 +230,7 @@ func (s *imapStore) Forget() error {
 	for _, name := range names {
 		entries[name] = nil
 	}
-	err = s.session.DoIMAP(func(c *imapclient.Client) error {
+	err = s.login.DoIMAP(func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()
 	})
 	if err != nil {
@@ -244,15 +245,15 @@ func (s *imapStore) Forget() error {
 // record: it is a handful of small values, and reading or writing it
 // whole is what makes listing and forgetting honest.
 type localStore struct {
-	records VisitRecords
+	records SessionRecords
 	account string
 
 	locker  sync.RWMutex
 	entries map[string]json.RawMessage
 }
 
-func newLocalStore(records VisitRecords, account string) *localStore {
-	entries, ok := records.LoadKept(account)
+func newLocalStore(records SessionRecords, account string) *localStore {
+	entries, ok := records.LoadSettings(account)
 	if !ok {
 		entries = map[string]json.RawMessage{}
 	}
@@ -280,7 +281,7 @@ func (s *localStore) Put(key string, v interface{}) error {
 		return fmt.Errorf("alborz: failed to marshal store entry %q: %v", key, err)
 	}
 	s.entries[key] = raw
-	return s.records.SaveKept(s.account, s.entries)
+	return s.records.SaveSettings(s.account, s.entries)
 }
 
 func (s *localStore) Entries() ([]string, error) {
@@ -298,9 +299,9 @@ func (s *localStore) Forget() error {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 	s.entries = map[string]json.RawMessage{}
-	return s.records.SaveKept(s.account, s.entries)
+	return s.records.SaveSettings(s.account, s.entries)
 }
 
 func (s *localStore) OnServer() bool { return false }
 
-func (s *imapStore) OnServer() bool { return true }
+func (s *imapMetadataStore) OnServer() bool { return true }

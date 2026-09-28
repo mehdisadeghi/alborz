@@ -79,14 +79,14 @@ func handleSearch(ctx *alborz.Context) error {
 	if spec.query == "" && spec.view == "" {
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 	}
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
 
-	sessions := []*alborz.Session{ctx.Session}
+	logins := []*alborz.Login{ctx.Login}
 	if ctx.Unified {
-		sessions = ctx.Sessions()
+		logins = ctx.Logins()
 	}
 	q := ParseQuery(spec.query)
 	class, bound := listingBudget(spec)
@@ -94,7 +94,7 @@ func handleSearch(ctx *alborz.Context) error {
 		mu   sync.Mutex
 		junk = map[rowRef]bool{}
 	)
-	merged, err := gather(ctx, sessions, spec, func(s *alborz.Session) (*listingEntry, error) {
+	merged, err := gather(ctx, logins, spec, func(s *alborz.Login) (*listingEntry, error) {
 		sb, err := sidebarFor(s)
 		if err != nil {
 			return nil, err
@@ -143,7 +143,7 @@ func handleSearch(ctx *alborz.Context) error {
 	if !ctx.Unified {
 		// One account's rail is its folder tree, which the merged rail
 		// builds for itself from the accounts.
-		sb, err := sidebarFor(ctx.Session)
+		sb, err := sidebarFor(ctx.Login)
 		if err != nil {
 			return err
 		}

@@ -12,18 +12,18 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
-// DefaultLockAfter is how long a reader may do nothing before a visit
+// DefaultLockAfter is how long a reader may do nothing before a session
 // with a passkey asks for it again: long enough to read a long message
 // and answer the door, short enough that a phone left behind is locked
-// before it is found. It is a session's life, so the two ask together.
-const DefaultLockAfter = sessionDuration
+// before it is found. It is a login's life, so the two ask together.
+const DefaultLockAfter = loginDuration
 
 // MinLockAfter keeps a typed lock time from locking between two clicks.
 const MinLockAfter = time.Minute
 
-// Passkey is a WebAuthn credential a browser registered for its visit.
+// Passkey is a WebAuthn credential a browser registered for its session.
 // WebAuthn lets a user hold several - the phone's own, a hardware key
-// kept for when the phone is gone - so a visit keeps a list.
+// kept for when the phone is gone - so a session keeps a list.
 type Passkey struct {
 	Name       string
 	Added      time.Time
@@ -37,30 +37,30 @@ func (p Passkey) ID() string {
 	return base64.RawURLEncoding.EncodeToString(p.Credential.ID)
 }
 
-// RemovePasskey takes one passkey off the visit; false when it has no
+// RemovePasskey takes one passkey off the session; false when it has no
 // passkey of that id. Removing the last one removes the lock.
-func (v *Visit) RemovePasskey(id string) bool {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	for i, p := range v.lock.Passkeys {
+func (s *Session) RemovePasskey(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, p := range s.lock.Passkeys {
 		if p.ID() == id {
-			v.lock.Passkeys = append(v.lock.Passkeys[:i:i], v.lock.Passkeys[i+1:]...)
+			s.lock.Passkeys = append(s.lock.Passkeys[:i:i], s.lock.Passkeys[i+1:]...)
 			return true
 		}
 	}
 	return false
 }
 
-// SetLockAfter changes how long the visit waits before it locks.
-func (v *Visit) SetLockAfter(d time.Duration) {
-	v.mu.Lock()
-	v.lock.After = d
-	v.mu.Unlock()
+// SetLockAfter changes how long the session waits before it locks.
+func (s *Session) SetLockAfter(d time.Duration) {
+	s.mu.Lock()
+	s.lock.After = d
+	s.mu.Unlock()
 }
 
-// Lock is what stands in front of a visit: the passkeys that open it,
+// Lock is what stands in front of a session: the passkeys that open it,
 // and how long the reader may be away before they are asked for. A
-// visit with no passkey has no lock.
+// session with no passkey has no lock.
 type Lock struct {
 	Passkeys []Passkey
 	After    time.Duration
@@ -74,83 +74,83 @@ func (l Lock) Wait() time.Duration {
 	return l.After
 }
 
-// Lock is the visit's lock as it stands.
-func (v *Visit) Lock() Lock {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	return Lock{Passkeys: append([]Passkey(nil), v.lock.Passkeys...), After: v.lock.After}
+// Lock is the session's lock as it stands.
+func (s *Session) Lock() Lock {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return Lock{Passkeys: append([]Passkey(nil), s.lock.Passkeys...), After: s.lock.After}
 }
 
-// locks reports whether the visit has a passkey to lock behind.
-func (v *Visit) locks() bool {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	return len(v.lock.Passkeys) > 0
+// locks reports whether the session has a passkey to lock behind.
+func (s *Session) locks() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.lock.Passkeys) > 0
 }
 
-// Locked reports whether the visit wants its passkey, deciding it when
-// the reader has been away too long. A visit rebuilt after a restart
+// Locked reports whether the session wants its passkey, deciding it when
+// the reader has been away too long. A session rebuilt after a restart
 // has no activity on record and starts locked.
-func (v *Visit) Locked(now time.Time) bool {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if len(v.lock.Passkeys) == 0 {
+func (s *Session) Locked(now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.lock.Passkeys) == 0 {
 		return false
 	}
-	if now.Sub(v.active) > v.lock.Wait() {
-		v.locked = true
+	if now.Sub(s.active) > s.lock.Wait() {
+		s.locked = true
 	}
-	return v.locked
+	return s.locked
 }
 
 // act notes that the reader did something.
-func (v *Visit) act(now time.Time) {
-	v.mu.Lock()
-	v.active = now
-	v.mu.Unlock()
+func (s *Session) act(now time.Time) {
+	s.mu.Lock()
+	s.active = now
+	s.mu.Unlock()
 }
 
-// LockNow locks the visit as if the lock time had run out.
-func (v *Visit) LockNow() {
-	v.mu.Lock()
-	v.locked = true
-	v.mu.Unlock()
+// LockNow locks the session as if the lock time had run out.
+func (s *Session) LockNow() {
+	s.mu.Lock()
+	s.locked = true
+	s.mu.Unlock()
 }
 
-func (v *Visit) unlock(now time.Time) {
-	v.mu.Lock()
-	v.locked, v.active = false, now
-	v.mu.Unlock()
+func (s *Session) unlock(now time.Time) {
+	s.mu.Lock()
+	s.locked, s.active = false, now
+	s.mu.Unlock()
 }
 
 // addPasskey keeps a new passkey; registering the first is the reader
 // being here, so it does not lock them out at once.
-func (v *Visit) addPasskey(p Passkey) {
-	v.mu.Lock()
-	v.lock.Passkeys, v.active = append(v.lock.Passkeys, p), time.Now()
-	v.mu.Unlock()
+func (s *Session) addPasskey(p Passkey) {
+	s.mu.Lock()
+	s.lock.Passkeys, s.active = append(s.lock.Passkeys, p), time.Now()
+	s.mu.Unlock()
 }
 
 // usedPasskey writes back the credential an unlock returned, whose
 // counter has moved.
-func (v *Visit) usedPasskey(credential webauthn.Credential, now time.Time) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	for i := range v.lock.Passkeys {
-		if bytes.Equal(v.lock.Passkeys[i].Credential.ID, credential.ID) {
-			v.lock.Passkeys[i].Credential = credential
-			v.lock.Passkeys[i].LastUsed = now.UTC()
+func (s *Session) usedPasskey(credential webauthn.Credential, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.lock.Passkeys {
+		if bytes.Equal(s.lock.Passkeys[i].Credential.ID, credential.ID) {
+			s.lock.Passkeys[i].Credential = credential
+			s.lock.Passkeys[i].LastUsed = now.UTC()
 		}
 	}
 }
 
-// lockOpen says which paths a locked visit still answers: what any
+// lockOpen says which paths a locked session still answers: what any
 // browser may fetch, and the way to unlock or leave.
 func lockOpen(path string) bool {
 	return isPublic(path) || path == unlockPath || strings.HasPrefix(path, unlockPath+"/")
 }
 
-// unlockPath is the page a locked visit is sent to.
+// unlockPath is the page a locked session is sent to.
 const unlockPath = "/unlock"
 
 // unaskedHeader is on what a page asks for by itself, as when mail
@@ -172,8 +172,8 @@ func redirectToUnlock(ctx *Context) error {
 	return ctx.Redirect(http.StatusSeeOther, to)
 }
 
-// passkeyUser is the visit as WebAuthn sees a user. The handle is the
-// visit's id: a passkey opens this browser's visit and nothing else.
+// passkeyUser is the session as WebAuthn sees a user. The handle is the
+// session's id: a passkey opens this browser's session and nothing else.
 type passkeyUser struct {
 	id   string
 	name string
@@ -194,7 +194,7 @@ func (u passkeyUser) WebAuthnCredentials() []webauthn.Credential {
 // passkeys is the relying party for this request: the host the reader
 // is on, which is the only one a passkey made here will answer to.
 func (ctx *Context) passkeys() (*webauthn.WebAuthn, passkeyUser, error) {
-	v := ctx.Visit()
+	s := ctx.Session()
 	host := ctx.Request().Host
 	id := host
 	if h, _, ok := strings.Cut(host, ":"); ok {
@@ -209,7 +209,7 @@ func (ctx *Context) passkeys() (*webauthn.WebAuthn, passkeyUser, error) {
 	if accounts := ctx.Accounts(); len(accounts) > 0 {
 		name = accounts[0].Username
 	}
-	return w, passkeyUser{id: v.ID, name: name, lock: v.Lock()}, err
+	return w, passkeyUser{id: s.ID, name: name, lock: s.Lock()}, err
 }
 
 // userVerified asks the authenticator for the reader, not only the
@@ -229,7 +229,7 @@ func (ctx *Context) BeginPasskey() (*protocol.CredentialCreation, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx.Visit().setCeremony(ceremony)
+	ctx.Session().setCeremony(ceremony)
 	return options, nil
 }
 
@@ -240,8 +240,8 @@ func (ctx *Context) FinishPasskey(name string) error {
 	if err != nil {
 		return err
 	}
-	v := ctx.Visit()
-	ceremony := v.takeCeremony()
+	s := ctx.Session()
+	ceremony := s.takeCeremony()
 	if ceremony == nil {
 		return protocol.ErrBadRequest.WithDetails("no registration was started")
 	}
@@ -249,11 +249,11 @@ func (ctx *Context) FinishPasskey(name string) error {
 	if err != nil {
 		return err
 	}
-	v.addPasskey(Passkey{Name: name, Added: time.Now().UTC(), Credential: *credential})
-	return ctx.Server.Visits.Save(v)
+	s.addPasskey(Passkey{Name: name, Added: time.Now().UTC(), Credential: *credential})
+	return ctx.Server.Sessions.Save(s)
 }
 
-// BeginUnlock starts an assertion by one of the visit's passkeys.
+// BeginUnlock starts an assertion by one of the session's passkeys.
 func (ctx *Context) BeginUnlock() (*protocol.CredentialAssertion, error) {
 	w, user, err := ctx.passkeys()
 	if err != nil {
@@ -263,11 +263,11 @@ func (ctx *Context) BeginUnlock() (*protocol.CredentialAssertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx.Visit().setCeremony(ceremony)
+	ctx.Session().setCeremony(ceremony)
 	return options, nil
 }
 
-// FinishUnlock checks the assertion and opens the visit. The passkey's
+// FinishUnlock checks the assertion and opens the session. The passkey's
 // counter moves with each use, which is how a cloned one is noticed, so
 // it is written back.
 func (ctx *Context) FinishUnlock() error {
@@ -275,8 +275,8 @@ func (ctx *Context) FinishUnlock() error {
 	if err != nil {
 		return err
 	}
-	v := ctx.Visit()
-	ceremony := v.takeCeremony()
+	s := ctx.Session()
+	ceremony := s.takeCeremony()
 	if ceremony == nil {
 		return protocol.ErrBadRequest.WithDetails("no unlock was started")
 	}
@@ -290,39 +290,39 @@ func (ctx *Context) FinishUnlock() error {
 		return fmt.Errorf("passkey %s: its counter did not advance, as a copied one's does not", base64.RawURLEncoding.EncodeToString(credential.ID))
 	}
 	now := time.Now()
-	v.usedPasskey(*credential, now)
-	v.unlock(now)
-	return ctx.Server.Visits.Save(v)
+	s.usedPasskey(*credential, now)
+	s.unlock(now)
+	return ctx.Server.Sessions.Save(s)
 }
 
-func (v *Visit) setCeremony(c *webauthn.SessionData) {
-	v.mu.Lock()
-	v.ceremony = c
-	v.mu.Unlock()
+func (s *Session) setCeremony(c *webauthn.SessionData) {
+	s.mu.Lock()
+	s.ceremony = c
+	s.mu.Unlock()
 }
 
-func (v *Visit) takeCeremony() *webauthn.SessionData {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	c := v.ceremony
-	v.ceremony = nil
+func (s *Session) takeCeremony() *webauthn.SessionData {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.ceremony
+	s.ceremony = nil
 	return c
 }
 
-// EndVisit signs every account out and forgets what the browser asked
+// EndSession signs every account out and forgets what the browser asked
 // to be remembered: the way out of a lock whose passkey is gone.
-func (ctx *Context) EndVisit() {
-	v := ctx.lookupVisit()
-	if v == nil {
+func (ctx *Context) EndSession() {
+	session := ctx.lookupSession()
+	if session == nil {
 		return
 	}
-	live, _ := v.Accounts()
+	live, _ := session.Accounts()
 	for _, s := range live {
 		ctx.Server.ForgetAccount(s.Username())
-		v.Remove(s.Username())
+		session.Remove(s.Username())
 		s.Close()
 	}
-	ctx.Server.Visits.Delete(v.ID)
-	ctx.SetCookie(ctx.cookie(visitCookieName, "", 0))
-	ctx.visit, ctx.Session, ctx.DefaultSession = nil, nil, nil
+	ctx.Server.Sessions.Delete(session.ID)
+	ctx.SetCookie(ctx.cookie(sessionCookieName, "", 0))
+	ctx.session, ctx.Login, ctx.DefaultLogin = nil, nil, nil
 }

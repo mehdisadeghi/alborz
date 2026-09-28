@@ -19,7 +19,7 @@ import (
 // The images a message written here shows in its HTML (ADR 40).
 
 // localImage is what an image in the editor may name: an upload the
-// visit holds, or a part of a message an account holds.
+// session holds, or a part of a message an account holds.
 var localImage = regexp.MustCompile(`^/compose/attachment/[0-9a-f-]+$|^/message/[^?]+/[0-9]+/raw\?(account=[^&]+&)?part=[0-9.]+$`)
 
 var imageSrc = regexp.MustCompile(`(?i)(<img\b[^>]*?\bsrc=")([^"]*)(")`)
@@ -74,7 +74,7 @@ func localImages(body string, msg *IMAPMessage, account string) string {
 }
 
 // inlineImages resolves every image the HTML shows into what the send
-// writes, and names the uploads among them, which the visit keeps until
+// writes, and names the uploads among them, which the session keeps until
 // the message has left.
 func inlineImages(ctx *alborz.Context, body, messageID string) ([]inlineImage, []string, error) {
 	var (
@@ -131,14 +131,14 @@ func fetchPartImage(ctx *alborz.Context, src string) (*partImage, error) {
 	if err != nil {
 		return nil, err
 	}
-	session := ctx.Session
+	login := ctx.Login
 	if account := u.Query().Get("account"); account != "" {
-		if session = ctx.SessionFor(account); session == nil {
+		if login = ctx.LoginFor(account); login == nil {
 			return nil, fmt.Errorf("not signed in to %s", account)
 		}
 	}
 	var image partImage
-	err = session.DoIMAP(func(c *imapclient.Client) error {
+	err = login.DoIMAP(func(c *imapclient.Client) error {
 		_, part, err := getMessagePart(c, mboxName, uid, path)
 		if err != nil {
 			return err
@@ -174,7 +174,7 @@ func cidImages(body string, images []inlineImage) string {
 	})
 }
 
-// handleGetAttachment shows an upload the visit holds, for the editor
+// handleGetAttachment shows an upload the session holds, for the editor
 // that placed it. Only a raster image is shown; anything else is
 // offered as a file, so no upload runs as a page of this site.
 func handleGetAttachment(ctx *alborz.Context) error {

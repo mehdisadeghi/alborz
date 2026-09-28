@@ -14,7 +14,7 @@ import (
 // Selection is what a route acts on: the one object its own path names,
 // in the URL's account, or the rows a list had checked. Acting on one
 // object is acting on a selection of one.
-func Selection[C any](ctx *alborz.Context, client func(*alborz.Session) (C, error)) ([]Ref[C], error) {
+func Selection[C any](ctx *alborz.Context, client func(*alborz.Login) (C, error)) ([]Ref[C], error) {
 	if ctx.Param("path") == "" {
 		params, err := ctx.FormParams()
 		if err != nil {
@@ -26,17 +26,17 @@ func Selection[C any](ctx *alborz.Context, client func(*alborz.Session) (C, erro
 	if err != nil {
 		return nil, err
 	}
-	c, err := client(ctx.Session)
+	c, err := client(ctx.Login)
 	if err != nil {
 		return nil, err
 	}
-	return []Ref[C]{{c, ctx.Session.Username(), path}}, nil
+	return []Ref[C]{{c, ctx.Login.Username(), path}}, nil
 }
 
 // Action is one thing a route does to the objects selected: whose
 // client, what to each, in which words, and where to land.
 type Action[C any] struct {
-	Client func(*alborz.Session) (C, error)
+	Client func(*alborz.Login) (C, error)
 	// Do acts on one object. An error is the server's no, and ends the
 	// run: it is said on the page, never answered as a failure of ours.
 	Do func(ctx *alborz.Context, ref Ref[C]) error
@@ -118,7 +118,7 @@ type StarRenderData struct {
 // asked for a piece of itself gets its star back and nothing moves; a
 // refused write leaves that star as it was, since the answer is the
 // server's state and never the click's.
-func Star[C any](ctx *alborz.Context, client func(*alborz.Session) (C, error), list string, mark func(ctx *alborz.Context, ref Ref[C], name string) (was string, err error)) error {
+func Star[C any](ctx *alborz.Context, client func(*alborz.Login) (C, error), list string, mark func(ctx *alborz.Context, ref Ref[C], name string) (was string, err error)) error {
 	name := ctx.FormValue("color")
 	if name != "" && !slices.Contains(alborzbase.FlagColors[:], name) {
 		return echo.NewHTTPError(http.StatusBadRequest, "no such colour")

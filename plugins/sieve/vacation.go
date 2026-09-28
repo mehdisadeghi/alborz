@@ -26,7 +26,7 @@ const (
 )
 
 func init() {
-	alborz.KeepKey(repliesKey)
+	alborz.RegisterSetting(repliesKey)
 }
 
 // A Reply is one automatic answer the reader has written. Sieve sends
@@ -215,11 +215,11 @@ type RepliesRenderData struct {
 }
 
 func repliesData(ctx *alborz.Context) (*RepliesRenderData, error) {
-	replies, err := loadReplies(ctx.Session.Store())
+	replies, err := loadReplies(ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
-	settings, err := alborzbase.LoadSettings(ctx.Session.Store())
+	settings, err := alborzbase.LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func repliesData(ctx *alborz.Context) (*RepliesRenderData, error) {
 		Active:         -1,
 		Index:          -1,
 		Script:         vacationScript,
-		Identities:     append([]string{ctx.Session.Username()}, settings.Identities...),
+		Identities:     append([]string{ctx.Login.Username()}, settings.Identities...),
 		Rail:           rail(ctx),
 	}
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
@@ -325,7 +325,7 @@ func handleReplySave(ctx *alborz.Context) error {
 		data.Refused(err.Error())
 		return ctx.Render(http.StatusUnprocessableEntity, "autoreply-edit.html", data)
 	}
-	replies, err := loadReplies(ctx.Session.Store())
+	replies, err := loadReplies(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -339,7 +339,7 @@ func handleReplySave(ctx *alborz.Context) error {
 		made = len(replies.Items)
 		replies.Items = append(replies.Items, v)
 	}
-	if err := ctx.Session.Store().Put(repliesKey, replies); err != nil {
+	if err := ctx.Login.Store().Put(repliesKey, replies); err != nil {
 		return err
 	}
 	// An edit to the reply being sent goes out at once; any other is
@@ -390,7 +390,7 @@ func handleReplyDelete(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	replies, err := loadReplies(ctx.Session.Store())
+	replies, err := loadReplies(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -399,7 +399,7 @@ func handleReplyDelete(ctx *alborz.Context) error {
 	}
 	gone := replies.Items[index]
 	replies.Items = append(replies.Items[:index], replies.Items[index+1:]...)
-	if err := ctx.Session.Store().Put(repliesKey, replies); err != nil {
+	if err := ctx.Login.Store().Put(repliesKey, replies); err != nil {
 		return err
 	}
 	// Deleting the reply being sent stops it.
@@ -420,7 +420,7 @@ func handleReplyDelete(ctx *alborz.Context) error {
 // handleReplyActivate composes the chosen reply into the script; an
 // empty index composes none, which deletes it.
 func handleReplyActivate(ctx *alborz.Context) error {
-	replies, err := loadReplies(ctx.Session.Store())
+	replies, err := loadReplies(ctx.Login.Store())
 	if err != nil {
 		return err
 	}

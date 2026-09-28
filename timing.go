@@ -126,12 +126,12 @@ func (ctx *Context) DoIMAP(f func(*imapclient.Client) error) error {
 }
 
 func (ctx *Context) DoIMAPScan(f func(*imapclient.Client) error) error {
-	return ctx.Session.DoIMAPWork(ctx.Request().Context(), IMAPScan, ScanTimeout, f)
+	return ctx.Login.DoIMAPWork(ctx.Request().Context(), IMAPScan, ScanTimeout, f)
 }
 
 func (ctx *Context) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
 	start := time.Now()
-	err := ctx.Session.DoIMAPContext(ctx.Request().Context(), bound, f)
+	err := ctx.Login.DoIMAPContext(ctx.Request().Context(), bound, f)
 	ctx.timing.add("imap", start, time.Now())
 	return err
 }
@@ -139,7 +139,7 @@ func (ctx *Context) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client)
 // DoSieve runs the ManageSieve operation and attributes its duration.
 func (ctx *Context) DoSieve(f func(SieveClient) error) error {
 	start := time.Now()
-	err := ctx.Session.DoSieve(f)
+	err := ctx.Login.DoSieve(f)
 	ctx.timing.add("sieve", start, time.Now())
 	return err
 }
@@ -147,7 +147,7 @@ func (ctx *Context) DoSieve(f func(SieveClient) error) error {
 // DoSMTP runs the SMTP operation and attributes its duration.
 func (ctx *Context) DoSMTP(f func(*smtp.Client) error) error {
 	start := time.Now()
-	err := ctx.Session.DoSMTP(f)
+	err := ctx.Login.DoSMTP(f)
 	ctx.timing.add("smtp", start, time.Now())
 	return err
 }

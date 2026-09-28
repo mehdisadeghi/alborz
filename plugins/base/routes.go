@@ -85,7 +85,7 @@ func registerRoutes(p *alborz.GoPlugin) {
 	scoped := func(h func(*alborz.Context) error) func(*alborz.Context) error {
 		return func(ctx *alborz.Context) error {
 			if ctx.Unified && ctx.Request().Method == http.MethodGet {
-				return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+accountQuery(ctx.Session.Username()))
+				return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+accountQuery(ctx.Login.Username()))
 			}
 			return h(ctx)
 		}

@@ -91,7 +91,7 @@ func folderSelection(ctx *alborz.Context) (mboxName string, form url.Values, uid
 
 // folderViewUIDs is everything a view of one folder holds.
 func folderViewUIDs(ctx *alborz.Context, mboxName, query, view string) ([]imap.UID, error) {
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
@@ -119,22 +119,22 @@ func mergedSelection(ctx *alborz.Context, role string, form url.Values) ([]rowRe
 		}
 		return refs, nil
 	}
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
 	next, _ := url.Parse(form.Get("next"))
 	spanning := strings.TrimSuffix(next.Path, "/") == "/search"
-	sessions := ctx.Sessions()
+	logins := ctx.Logins()
 	if account := next.Query().Get("account"); account != "" {
-		s := ctx.SessionFor(account)
+		s := ctx.LoginFor(account)
 		if s == nil {
 			return nil, echo.NewHTTPError(http.StatusBadRequest, "no such account")
 		}
-		sessions = []*alborz.Session{s}
+		logins = []*alborz.Login{s}
 	}
 	var refs []rowRef
-	for _, s := range sessions {
+	for _, s := range logins {
 		var folders []string
 		if spanning {
 			sb, err := sidebarFor(s)

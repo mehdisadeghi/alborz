@@ -29,22 +29,22 @@ const requestTimeout = 10 * time.Second
 // longer than this is a loop, not a move.
 const maxRedirects = 10
 
-func httpClient(p *Provider, session *alborz.Session) *http.Client {
+func httpClient(p *Provider, login *alborz.Login) *http.Client {
 	return &http.Client{
 		// A wedged DAV server fails the request instead of hanging it.
 		Timeout: requestTimeout,
 		Transport: hereTripper{
 			here:    p.here,
-			account: session.Username(),
-			remote: p.cache.Transport(session.Username(), sourceRouter{
-				sources: p.Sources(session),
+			account: login.Username(),
+			remote: p.cache.Transport(login.Username(), sourceRouter{
+				sources: p.Sources(login),
 				trusted: p.trusted,
 				named:   p.named,
 				sign: func(req *http.Request, src Source) error {
 					if src.Named {
-						return session.SetHTTPBasicAuth(req)
+						return login.SetHTTPBasicAuth(req)
 					}
-					session.SetMailBasicAuth(req)
+					login.SetMailBasicAuth(req)
 					return nil
 				},
 				debug: p.debug,
@@ -187,7 +187,7 @@ func markHref(href string, src Source) string {
 }
 
 // hereTripper answers a request for a collection kept here without it
-// leaving the process, as the session's account, and ahead of the
+// leaving the process, as the login's account, and ahead of the
 // cache: the store is as near as the cache is, and a share has to show
 // the moment it is made.
 type hereTripper struct {

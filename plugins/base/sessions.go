@@ -19,21 +19,21 @@ type SessionsRenderData struct {
 // one of them out of it, which a lost phone or a borrowed laptop needs
 // from somewhere else.
 func handleSessions(ctx *alborz.Context) error {
-	account := ctx.Session.Username()
+	account := ctx.Login.Username()
 	if ctx.Request().Method == http.MethodPost {
-		id := ctx.FormValue("visit")
+		id := ctx.FormValue("session")
 		// The browser asking signs out the way it always does, which
 		// also ends its stay when it was the last account.
-		if id == ctx.Visit().ID {
+		if id == ctx.Session().ID {
 			return handleLogout(ctx)
 		}
-		if err := ctx.Server.Visits.SignOut(id, account); err != nil {
+		if err := ctx.Server.Sessions.SignOut(id, account); err != nil {
 			return err
 		}
 		ctx.PutNotice(ctx.T("notice.signedout"))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/sessions"))
 	}
-	signed, err := ctx.Server.Visits.SignedIn(account, ctx.Visit().ID)
+	signed, err := ctx.Server.Sessions.SignedIn(account, ctx.Session().ID)
 	if err != nil {
 		return err
 	}

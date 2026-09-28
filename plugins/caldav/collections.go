@@ -29,7 +29,7 @@ func (p *plugin) collectionPage() dav.Page {
 			return p.eventRail(ctx)
 		},
 		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
-			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return 0, err
 			}
@@ -42,10 +42,10 @@ func (p *plugin) collectionPage() dav.Page {
 			if list == "/tasks" {
 				components = []string{"VTODO"}
 			}
-			return p.dav.Create(ctx.Request().Context(), ctx.Session, name, dav.DefaultColor, place, components)
+			return p.dav.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, components)
 		},
 		Export: func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error) {
-			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return nil, err
 			}
@@ -53,7 +53,7 @@ func (p *plugin) collectionPage() dav.Page {
 		},
 		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
 			if isSubscription(path) {
-				settings, err := loadSettings(ctx.Session.Store())
+				settings, err := loadSettings(ctx.Login.Store())
 				if err != nil {
 					return dav.Collection{}, nil, "", "", err
 				}
@@ -62,10 +62,10 @@ func (p *plugin) collectionPage() dav.Page {
 					return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
 				}
 				sub := settings.Subscriptions[i]
-				return sub.info(ctx.Session.Username()),
+				return sub.info(ctx.Login.Username()),
 					func() int { return subs.count(sub.URL) }, "/calendar", ctx.T("nav.calendar"), nil
 			}
-			_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+			_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return dav.Collection{}, nil, "", "", err
 			}
@@ -101,7 +101,7 @@ func (p *plugin) forSubscription(sub func(*alborz.Context, string) error, next f
 
 // updateSubscription saves the name and colour the page was given.
 func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
-	settings, err := loadSettings(ctx.Session.Store())
+	settings, err := loadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
 	}
 	settings.Subscriptions[i].Name = name
 	settings.Subscriptions[i].Color = ctx.FormValue("color")
-	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
 		return err
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
@@ -123,7 +123,7 @@ func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
 
 // unsubscribe drops the feed; nothing is deleted anywhere.
 func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
-	settings, err := loadSettings(ctx.Session.Store())
+	settings, err := loadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
 	}
 	name := settings.Subscriptions[i].Name
 	settings.Subscriptions = append(settings.Subscriptions[:i], settings.Subscriptions[i+1:]...)
-	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
 		return err
 	}
 	ctx.PutNotice(fmt.Sprintf(ctx.T("notice.unsubscribedcalendar"), name))
@@ -196,7 +196,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			Rail:           rail,
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.subscribe")),
 			Accounts:       ctx.Accounts(),
-			Account:        ctx.Session.Username(),
+			Account:        ctx.Login.Username(),
 			Next:           ctx.FormValue("next"),
 		}
 		if ctx.Request().Method != http.MethodPost {
@@ -210,12 +210,12 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			data.Refused(ctx.T("calendar.subscribeurlneeded"))
 			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
 		}
-		session := ctx.SessionFor(data.Account)
-		if session == nil {
+		login := ctx.LoginFor(data.Account)
+		if login == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
 		sub := Subscription{URL: normalizeFeedURL(data.Address), Color: dav.DefaultColor}
-		settings, err := loadSettings(session.Store())
+		settings, err := loadSettings(login.Store())
 		if err != nil {
 			return err
 		}
@@ -235,7 +235,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			sub.Name = feedHost(sub.URL)
 		}
 		settings.Subscriptions = append(settings.Subscriptions, sub)
-		if err := session.Store().Put(settingsKey, settings); err != nil {
+		if err := login.Store().Put(settingsKey, settings); err != nil {
 			return err
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))

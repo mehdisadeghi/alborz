@@ -14,11 +14,11 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	rows := map[string][]alborz.RailRow{}
 	var down []string
 	for _, account := range sieveAccounts(ctx) {
-		session := ctx.SessionFor(account.Username)
+		login := ctx.LoginFor(account.Username)
 		scoped := account.Username == ctx.URLAccount()
 		q := "?account=" + alborz.QueryValue(account.Username)
 		var include, vacation bool
-		err := session.DoSieve(func(c alborz.SieveClient) error {
+		err := login.DoSieve(func(c alborz.SieveClient) error {
 			include = hasExtension(c, "include")
 			vacation = hasExtension(c, "vacation")
 			return nil

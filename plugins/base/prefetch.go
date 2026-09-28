@@ -16,8 +16,8 @@ func listingBudget(spec listingSpec) (alborz.IMAPClass, time.Duration) {
 }
 
 // readOn is a listing's read as the cache's load takes it: one turn on
-// the session's connection, under the budget of its class.
-func readOn(s *alborz.Session, class alborz.IMAPClass, bound time.Duration, fetch func(*imapclient.Client) (*listingEntry, error)) func(context.Context) (*listingEntry, error) {
+// the login's connection, under the budget of its class.
+func readOn(s *alborz.Login, class alborz.IMAPClass, bound time.Duration, fetch func(*imapclient.Client) (*listingEntry, error)) func(context.Context) (*listingEntry, error) {
 	return func(work context.Context) (*listingEntry, error) {
 		var e *listingEntry
 		err := s.DoIMAPWork(work, class, bound, func(c *imapclient.Client) error {
@@ -32,7 +32,7 @@ func readOn(s *alborz.Session, class alborz.IMAPClass, bound time.Duration, fetc
 // cachedListing is a view as the cache holds it, a stale entry checked
 // behind the page, and read through the cache when it holds none.
 // Revalidation also covers gaps while the IDLE connection is down.
-func cachedListing(ctx *alborz.Context, s *alborz.Session, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
+func cachedListing(ctx *alborz.Context, s *alborz.Login, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
 	// A folder the watcher saw change is read again rather than shown:
 	// the reader was told mail arrived - the count beside the folder
 	// moved - and a page drawn from what the cache held says the
@@ -47,13 +47,13 @@ func cachedListing(ctx *alborz.Context, s *alborz.Session, view string, size int
 	return loadListing(ctx, s, view, size, spec, fetch)
 }
 
-func loadListing(ctx *alborz.Context, s *alborz.Session, view string, size int, spec listingSpec, fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
+func loadListing(ctx *alborz.Context, s *alborz.Login, view string, size int, spec listingSpec, fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
 	alborz.CacheTiming(ctx.Request().Context(), "listing", false)
 	class, bound := listingBudget(spec)
 	return listings.load(ctx.Request().Context(), s.Username(), view, size, false, readOn(s, class, bound, fetch))
 }
 
-func prefetchPage(s *alborz.Session, settings *Settings, spec listingSpec, page, perPage int) {
+func prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page, perPage int) {
 	key := listingPage(listingView(spec.mbox, spec.query, spec.view, spec.sortKey, spec.sortDir), page, perPage)
 	if e, _ := listings.lookup(s.Username(), key, perPage); e != nil {
 		return

@@ -85,7 +85,7 @@ func (p *plugin) groupContact(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}

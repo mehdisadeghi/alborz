@@ -39,13 +39,13 @@ var authServGuesses = alborz.NewMemo[string](authSampleTTL)
 // SuggestAuthServ names what this account's own server appears to call
 // itself, empty when nothing is clear enough to offer.
 func SuggestAuthServ(ctx *alborz.Context) string {
-	session := ctx.Session
-	return authServGuesses.Warm(session.Username(), func() (string, error) {
-		return sampleAuthServ(session)
+	login := ctx.Login
+	return authServGuesses.Warm(login.Username(), func() (string, error) {
+		return sampleAuthServ(login)
 	})
 }
 
-func sampleAuthServ(session *alborz.Session) (string, error) {
+func sampleAuthServ(login *alborz.Login) (string, error) {
 	// Both headers of the last messages: the verdict, and the hop that
 	// wrote it. Peeked, so reading them marks nothing.
 	section := &imap.FetchItemBodySection{
@@ -61,7 +61,7 @@ func sampleAuthServ(session *alborz.Session) (string, error) {
 	// also the hop that took delivery: that is the difference between
 	// "seen often" and "written by our own server".
 	counts := make(map[string]int)
-	err := session.DoIMAPBackground(func(c *imapclient.Client) error {
+	err := login.DoIMAPBackground(func(c *imapclient.Client) error {
 		// Read-write, though nothing is written: the client does not
 		// remember a read-only selection, and the next STORE on this
 		// connection would be refused with the folder still "selected".

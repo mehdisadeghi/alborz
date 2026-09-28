@@ -22,32 +22,32 @@ type Signed struct {
 
 // note keeps what a request says about where the browser is: shown to
 // the account holder, never used to decide anything. It reports a
-// change, which a remembered visit writes down.
-func (v *Visit) note(device, address string) bool {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if v.device == device && v.address == address {
+// change, which a remembered session writes down.
+func (s *Session) note(device, address string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.device == device && s.address == address {
 		return false
 	}
-	v.device, v.address = device, address
+	s.device, s.address = device, address
 	return true
 }
 
-// holds reports whether the visit is signed into the account, now or
+// holds reports whether the session is signed into the account, now or
 // by a remembered password.
-func (v *Visit) holds(account string) bool {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if _, ok := v.remember[account]; ok {
+func (s *Session) holds(account string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.remember[account]; ok {
 		return true
 	}
-	return slices.ContainsFunc(v.accounts, func(s *Session) bool { return s.username == account && s.alive() })
+	return slices.ContainsFunc(s.accounts, func(login *Login) bool { return login.username == account && login.alive() })
 }
 
-func (v *Visit) signed() Signed {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	return Signed{ID: v.ID, Device: v.device, Address: v.address, Created: v.Created, Seen: v.seen}
+func (s *Session) signed() Signed {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return Signed{ID: s.ID, Device: s.device, Address: s.address, Created: s.Created, Seen: s.seen}
 }
 
 // requestAddress is where a request came from, for the account holder
@@ -64,24 +64,24 @@ func requestAddress(from string) string {
 
 // SignedIn is every browser signed into the account: those in use now
 // and those remembered on disk, newest use first.
-func (vs *Visits) SignedIn(account, current string) ([]Signed, error) {
+func (ss *Sessions) SignedIn(account, current string) ([]Signed, error) {
 	seen := map[string]bool{}
 	var out []Signed
-	vs.mu.Lock()
-	for id, v := range vs.live {
-		// A visit past its life is dropped only when its browser comes
+	ss.mu.Lock()
+	for id, s := range ss.live {
+		// A session past its life is dropped only when its browser comes
 		// back, which one that was closed for good never does.
-		if time.Since(v.lastSeen()) > v.life() {
+		if time.Since(s.lastSeen()) > s.life() {
 			continue
 		}
-		if v.holds(account) {
+		if s.holds(account) {
 			seen[id] = true
-			out = append(out, v.signed())
+			out = append(out, s.signed())
 		}
 	}
-	vs.mu.Unlock()
-	if vs.records != nil {
-		err := vs.records.Each(func(rec *VisitRecord) {
+	ss.mu.Unlock()
+	if ss.records != nil {
+		err := ss.records.Each(func(rec *SessionRecord) {
 			if seen[rec.ID] || !slices.ContainsFunc(rec.Accounts, func(a RememberedAccount) bool { return a.Address == account }) {
 				return
 			}
@@ -100,33 +100,33 @@ func (vs *Visits) SignedIn(account, current string) ([]Signed, error) {
 
 // SignOut takes the account out of one browser, which keeps whatever
 // else it is signed into; a browser left with no account is forgotten.
-func (vs *Visits) SignOut(id, account string) error {
-	vs.mu.Lock()
-	v := vs.live[id]
-	vs.mu.Unlock()
-	if v != nil {
-		if s := v.Remove(account); s != nil {
+func (ss *Sessions) SignOut(id, account string) error {
+	ss.mu.Lock()
+	s := ss.live[id]
+	ss.mu.Unlock()
+	if s != nil {
+		if s := s.Remove(account); s != nil {
 			s.Close()
 		}
-		v.forget(account)
-		if live, _ := v.Accounts(); len(live) == 0 && !v.remembered() {
-			vs.Delete(id)
+		s.forget(account)
+		if live, _ := s.Accounts(); len(live) == 0 && !s.remembered() {
+			ss.Delete(id)
 			return nil
 		}
-		return vs.Save(v)
+		return ss.Save(s)
 	}
-	if vs.records == nil {
+	if ss.records == nil {
 		return nil
 	}
-	rec, ok := vs.records.Load(id)
+	rec, ok := ss.records.Load(id)
 	if !ok {
 		return nil
 	}
 	rec.Accounts = slices.DeleteFunc(rec.Accounts, func(a RememberedAccount) bool { return a.Address == account })
 	if len(rec.Accounts) == 0 {
-		return vs.records.Delete(id)
+		return ss.records.Delete(id)
 	}
-	return vs.records.Save(rec)
+	return ss.records.Save(rec)
 }
 
 // Device is a User-Agent said in two words, a browser and a system,

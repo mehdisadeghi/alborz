@@ -207,7 +207,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
+	return ctx.Render(http.StatusOK, "contacts/list", &AddressBookRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
 		AddressBooks:   addressBookInfos,
 		AddressObjects: cards,

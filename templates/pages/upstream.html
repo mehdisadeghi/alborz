@@ -1,5 +1,4 @@
-{{template "head.html" .}}
-
+{{ define "body" }}
 <div class="page-wrap">
   <div class="container error">
     <h1>{{$.T "upstream.title"}}</h1>
@@ -10,5 +9,4 @@
     </form>
   </div>
 </div>
-
-{{template "foot.html"}}
+{{ end }}

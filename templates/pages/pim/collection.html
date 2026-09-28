@@ -1,12 +1,10 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
-
-<div class="page-wrap">
+{{ define "rail" }}
   {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+{{ end }}
 
-  <div class="container">
-    <main id="main" tabindex="-1" class="create-update">
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
       {{ if and .Offer (ne .Offer.State "accepted") }}
       <h1 dir="auto">{{.Name}}</h1>
       {{ template "share-offer" (dict "g" $ "offer" .Offer) }}
@@ -14,7 +12,7 @@
       <form method="post">
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
         <h1 dir="auto">{{.Name}}</h1>
-        {{ template "dav-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref "field" "" "collection" "" "path" "") }}
+        {{ template "section-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref "field" "" "collection" "" "path" "") }}
 
         {{ if .SharedBy }}
         {{ template "share-offer" (dict "g" $ "offer" .Offer) }}
@@ -135,8 +133,4 @@
         {{ end }}
       </form>
       {{ end }}
-    </main>
-  </div>
-</div>
-
-{{template "foot.html"}}
+{{ end }}

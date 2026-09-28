@@ -1,0 +1,70 @@
+{{/* The keys are capitalised because the same block is rendered from Go,
+     where a field has to be exported to be read. */}}
+{{ define "row-star" }}
+<form method="POST" action="/message/{{.Mailbox | pathescape}}/flag{{.Account}}" class="row-star"
+      hx-post="/message/{{.Mailbox | pathescape}}/flag{{.Account}}" hx-target="this" hx-swap="outerHTML">
+  <input type="hidden" name="uids" value="{{.UID}}">
+  <input type="hidden" name="next" value="{{.Next}}">
+  <input type="hidden" name="was" value="{{.Color}}">
+  {{/* Both directions go through the colour, which clears the colour bits
+       as well as the flag. */}}
+  {{ $current := .Color }}{{ if and .Flagged (not $current) }}{{ $current = "flagged" }}{{ end }}
+  {{ template "flag-menu" (dict "toggle" true "row" true "current" $current
+       "title" (.G.T "mailbox.flagcolor") "clear" (.G.T "mailbox.flagnone")) }}
+</form>
+{{ end }}
+
+{{/* dict: Action Current Next Label. */}}
+{{ define "card-star" }}
+<form method="POST" action="{{.Action}}" class="row-star"
+      hx-post="{{.Action}}" hx-target="this" hx-swap="outerHTML">
+  <input type="hidden" name="next" value="{{.Next}}">
+  {{ template "flag-menu" (dict "toggle" true "row" true "current" .Current "title" .MenuLabel "clear" .Label) }}
+</form>
+{{ end }}
+
+{{/* dict: form action title clear colors [current class disabled toggle row]. */}}
+{{ define "flag-menu" }}
+{{ if .disabled }}
+<div class="overflow flag-menu{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+  <button type="button" class="icon-button" disabled title="{{.title}}" aria-label="{{.title}}">
+    <span class="flag-star">&#9734;</span>{{ template "icon" "down" }}<span class="label">{{.title}}</span>
+  </button>
+</div>
+{{ else if .toggle }}
+<div class="overflow flag-menu flag-split{{ with .class }} {{.}}{{ end }}" data-current="{{.current}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+  <button class="flag-button button-link{{ with .current }} flag-{{.}}{{ end }}"
+          {{ with .form }}form="{{.}}"{{ end }}{{ with .action }} formaction="{{.}}"{{ end }}
+          name="color" value="{{ if .current }}{{ else }}yellow{{ end }}"
+          title="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}"
+          aria-label="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}">
+    {{- if .current }}&#9733;{{ else }}&#9734;{{ end -}}
+  </button>
+  <button type="button" class="icon-button flag-more" title="{{.title}}" aria-label="{{.title}}" popovertarget="{{ if .row }}row-colors{{ else }}{{ or .id "menu-flag" }}{{ end }}"{{ if .row }} hidden data-row-colors{{ end }}>{{ template "icon" "down" }}</button>
+  {{ if not .row }}{{ template "flag-colors-menu" . }}{{ end }}
+</div>
+{{ else }}
+<div class="overflow flag-menu{{ with .class }} {{.}}{{ end }}" data-gated="{{.form}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+  <button type="button" class="icon-button" title="{{.clear}}" aria-label="{{.title}}" popovertarget="menu-flag">
+    <span class="flag-star{{ with .current }} flag-{{.}}{{ end }}">{{ if .current }}&#9733;{{ else }}&#9734;{{ end }}</span>{{ template "icon" "down" }}<span class="label">{{.title}}</span>
+  </button>
+  {{ template "flag-colors-menu" . }}
+</div>
+{{ end }}
+{{ end }}
+
+{{/* dict: colors clear [form action id row]. */}}
+{{ define "flag-colors-menu" }}
+<div class="overflow-menu flag-colors" popover id="{{ or .id "menu-flag" }}">
+  {{ $d := . }}
+  {{ range .colors }}
+  <button {{ if $d.row }}type="button"{{ else }}{{ with $d.form }}form="{{.}}"{{ end }}{{ with $d.action }} formaction="{{.}}"{{ end }}
+          name="color" value="{{.Name}}"{{ end }} data-color="{{.Name}}">
+    <span class="flag-star flag-{{.Name}}">&#9733;</span>{{.Label}}
+  </button>
+  {{ end }}
+  <button {{ if .row }}type="button"{{ else }}{{ with .form }}form="{{.}}"{{ end }}{{ with .action }} formaction="{{.}}"{{ end }} name="color" value=""{{ end }} data-color="">
+    <span class="flag-star">&#9734;</span>{{.clear}}
+  </button>
+</div>
+{{ end }}

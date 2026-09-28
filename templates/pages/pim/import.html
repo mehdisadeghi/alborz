@@ -1,0 +1,18 @@
+{{ define "rail" }}
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+{{ end }}
+
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
+      <form method="POST" enctype="multipart/form-data">
+        {{ template "section-crumb" (dict "g" $ "section" .Section "home" .Rail.Path "field" "" "collection" "" "path" "" "chooses" true) }}
+        <h1>{{ .Title }}</h1>
+        {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "collection" "key" .Key "groups" .Groups "account" .Account "path" .Path "multi" (gt (len .GlobalData.Accounts) 1)) }}
+        {{ if .Address }}
+        {{ template "field" (dict "label" ($.T "import.url") "name" "url" "type" "url" "value" .URL "hint" ($.T "import.urlhint") "autofocus" (ne .URL "")) }}
+        {{ end }}
+        {{ template "import-fields" (dict "g" $ "file" (printf ($.T "collection.importfile") .Ext) "accept" (printf "%s,.zip" .Ext) "hint" .Hint "go" ($.T "collection.importdo") "cancel" .Rail.Path "optional" .Address) }}
+      </form>
+      <p class="hint"><a href="{{ localhref (printf "%s/export-all" .Rail.Path) }}" download>{{ $.T "import.exportall" }}</a></p>
+{{ end }}

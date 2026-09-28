@@ -601,7 +601,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 			return err
 		}
 	}
-	return ctx.Render(http.StatusOK, "message.html", data)
+	return ctx.Render(http.StatusOK, "mail/message", data)
 }
 
 // UnsubscribeExternal reports whether the unsubscribe link leaves alborz.

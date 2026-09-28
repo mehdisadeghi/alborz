@@ -118,7 +118,7 @@ func handleForwarding(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "forwarding.html", data)
+	return ctx.Render(http.StatusOK, "filters/forwarding", data)
 }
 
 func handleForwardingCreate(ctx *alborz.Context) error {
@@ -126,7 +126,7 @@ func handleForwardingCreate(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "forwarding-create.html", data)
+	return ctx.Render(http.StatusOK, "filters/forwarding-create", data)
 }
 
 func changeForwarding(ctx *alborz.Context, change func(f *Forwarding)) error {
@@ -155,7 +155,7 @@ func handleForwardingAdd(ctx *alborz.Context) error {
 		}
 		data.Address = address
 		data.Refused(fmt.Sprintf(ctx.T("filters.notanaddress"), address))
-		return ctx.Render(http.StatusUnprocessableEntity, "forwarding-create.html", data)
+		return ctx.Render(http.StatusUnprocessableEntity, "filters/forwarding-create", data)
 	}
 	err := changeForwarding(ctx, func(f *Forwarding) {
 		for _, fw := range f.Forwards {

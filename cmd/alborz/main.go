@@ -30,8 +30,6 @@ import (
 	"git.mehdix.org/alborz/settings"
 )
 
-var themesPath = "./themes"
-
 // serveProfiles listens only locally: a heap profile holds passwords and mail.
 func serveProfiles(addr string) {
 	host, _, err := net.SplitHostPort(addr)
@@ -62,11 +60,10 @@ func main() {
 		publicURL   string
 		options     alborz.Options
 	)
-	flag.StringVar(&options.Theme, "theme", alborz.AppName, "theme directory name")
 	flag.StringVar(&addr, "addr", ":1323", "listening address")
 	flag.StringVar(&profileAddr, "pprof", "",
 		"loopback address serving Go's profiles, the goroutine leak profile among them; unset serves none")
-	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs")
+	flag.BoolVar(&options.Debug, "debug", false, "enable debug logs, and read templates and assets from ./templates")
 	flag.BoolVar(&options.PrivateServices, "private-services", false,
 		"let an account name a calendar or contacts server on plain HTTP or a private address")
 	flag.StringVar(&proxies, "trusted-proxy", "",
@@ -144,7 +141,6 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		flag.Usage()
 		os.Exit(2)
 	}
-	options.ThemesPath = themesPath
 
 	if options.Cache {
 		dir, err := os.UserCacheDir()

@@ -31,7 +31,7 @@ func registerPasskeyRoutes(p alborz.Router) {
 		if !ctx.Session().Locked(time.Now()) {
 			return ctx.Redirect(http.StatusFound, next)
 		}
-		return ctx.Render(http.StatusOK, "unlock.html", &UnlockRenderData{
+		return ctx.Render(http.StatusOK, "unlock", &UnlockRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("lock.title")),
 			Next:           next,
 		})

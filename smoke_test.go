@@ -302,12 +302,10 @@ func serveAlborz(t *testing.T, upstreams []string, cache bool) string {
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
 	newAlborz(t, e, &alborz.Options{
-		Upstreams:  upstreams,
-		Theme:      "alborz",
-		ThemesPath: "./themes",
-		LoginKey:   smokeKey,
-		DataDir:    t.TempDir(),
-		Cache:      cache,
+		Upstreams: upstreams,
+		LoginKey:  smokeKey,
+		DataDir:   t.TempDir(),
+		Cache:     cache,
 		// A handler that sends the reader elsewhere says what it did.
 		StrictNotices: true,
 	})

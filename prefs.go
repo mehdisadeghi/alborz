@@ -2,37 +2,19 @@ package alborz
 
 import (
 	"io/fs"
-	"os"
-	"path/filepath"
+	"path"
 	"slices"
 	"strings"
 )
 
 // The value lands in a stylesheet URL, so only listed themes are accepted.
-func readThemes(themesPath, theme string) []Theme {
-	found := map[string]Theme{}
-	add := func(name string, source []byte) {
-		short := strings.TrimSuffix(filepath.Base(name), ".css")
-		if short == "" {
-			return
-		}
-		found[short] = Theme{Name: short, Scheme: pinnedScheme(string(source))}
+func readThemes(files fs.FS) []Theme {
+	names, _ := fs.Glob(files, "assets/themes/*.css")
+	themes := make([]Theme, 0, len(names))
+	for _, name := range names {
+		source, _ := fs.ReadFile(files, name)
+		themes = append(themes, Theme{Name: strings.TrimSuffix(path.Base(name), ".css"), Scheme: pinnedScheme(string(source))})
 	}
-	built, _ := fs.Glob(embeddedTheme, "templates/assets/themes/*.css")
-	for _, name := range built {
-		source, _ := fs.ReadFile(embeddedTheme, name)
-		add(name, source)
-	}
-	onDisk, _ := filepath.Glob(filepath.Join(themesPath, theme, "assets", "themes", "*.css"))
-	for _, name := range onDisk {
-		source, _ := os.ReadFile(name)
-		add(name, source)
-	}
-	themes := make([]Theme, 0, len(found))
-	for _, t := range found {
-		themes = append(themes, t)
-	}
-	slices.SortFunc(themes, func(a, b Theme) int { return strings.Compare(a.Name, b.Name) })
 	return themes
 }
 

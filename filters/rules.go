@@ -252,7 +252,7 @@ func handleRules(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "rules.html", data)
+	return ctx.Render(http.StatusOK, "filters/rules", data)
 }
 
 func handleRuleForm(ctx *alborz.Context) error {
@@ -284,7 +284,7 @@ func handleRuleForm(ctx *alborz.Context) error {
 			data.Editing.Name = data.Editing.Conditions[0].Value
 		}
 	}
-	return ctx.Render(http.StatusOK, "rule-edit.html", data)
+	return ctx.Render(http.StatusOK, "filters/rule-edit", data)
 }
 
 func ruleFromForm(ctx *alborz.Context) (Rule, error) {
@@ -342,7 +342,7 @@ func handleRuleSave(ctx *alborz.Context) error {
 		}
 		data.Editing, data.Index = r, index
 		data.Refused(err.Error())
-		return ctx.Render(http.StatusUnprocessableEntity, "rule-edit.html", data)
+		return ctx.Render(http.StatusUnprocessableEntity, "filters/rule-edit", data)
 	}
 	made := -1
 	err = changeRules(ctx, func(rules []Rule) []Rule {

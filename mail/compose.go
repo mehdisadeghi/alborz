@@ -309,7 +309,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 		render := func(status int, signature, errText string) error {
 			ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
 			ibase.BaseRenderData.Refused(errText)
-			return ctx.Render(status, "compose.html", &ComposeRenderData{
+			return ctx.Render(status, "mail/compose", &ComposeRenderData{
 				IMAPBaseRenderData: *ibase,
 				Message:            msg,
 				Attached:           attachedList(msg),
@@ -553,7 +553,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 		Signature:          options.Signature,
 		Suggestions:        suggestions(ctx),
 	}
-	return ctx.Render(http.StatusOK, "compose.html", data)
+	return ctx.Render(http.StatusOK, "mail/compose", data)
 }
 
 // suggestions are what the features offer, each entry once, sorted.

@@ -12,26 +12,39 @@
 </form>
 {{ end }}
 
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
+      {{/* dict: addrs account mbox key. */}}
+      {{define "addr-list"}}
+        {{ $aamp := account "&" .account }}
+        {{ $folder := printf "/mailbox/%s" (.mbox | pathescape) }}
+        {{range $i, $addr := .addrs}}
+          {{if $i}},{{end}}
+          {{/* By name: the From a list wrote does not carry the author's address. */}}
+          {{ $term := $addr.Addr }}{{ if $.byname }}{{ $term = printf "%q" $addr.Name }}{{ end }}
+          {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $term | qv) $aamp) }}{{ end }}
+          {{ if .Name }}
+          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Name}}</a>{{ else }}<strong>{{.Name}}</strong>{{ end }}
+          &lt;<a href="{{ localhref (printf "/compose?to=%s%s" (.Addr | qv) $aamp) }}">{{.Addr}}</a>&gt;</bdi>
+          {{ else }}
+          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Addr}}</a>{{ else }}<a href="{{ localhref (printf "/compose?to=%s%s" ($addr.Addr | qv) $aamp) }}">{{$addr.Addr}}</a>{{ end }}</bdi>
+          {{ end }}
+        {{end}}
+      {{end}}
 
-<div class="page-wrap">
-  {{ $current := .Mailbox }}
+{{ define "rail" }}
+  {{ template "mail-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="message"{{ end }}
+
+{{ define "main" }}
   {{ $aq := "" }}{{ $aamp := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ $aamp = printf "&account=%s" . }}{{ end }}
   {{ $partq := $aq }}{{ $partallq := $aq }}{{ $partlistq := printf "?list=1%s" $aamp }}{{ with .Message.PreferredPart $.PreferHTML }}{{ $partq = printf "?part=%s%s" .PathString $aamp }}{{ $partallq = printf "?part=%s&all=true%s" .PathString $aamp }}{{ $partlistq = printf "?part=%s&list=1%s" .PathString $aamp }}{{ end }}
-  {{ $navq := $aq }}{{ if .ListView }}{{ $navq = printf "?view=%s%s" .ListView $aamp }}{{ else if .Query }}{{ $navq = printf "?query=%s%s" (.Query | qv) $aamp }}{{ end }}
-  {{ template "aside" . }}
-  <div class="container">
-    <main id="main" tabindex="-1" class="message">
       {{ $here := printf "%v%s" .Message.URL $partq }}
       <form id="message-flag-form" method="post" hx-boost="false">
         <input type="hidden" name="uids" value="{{.Message.UID}}">
         <input type="hidden" name="next" value="{{$here}}">
       </form>
-      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        <div class="actions-wrap">
-          <div class="actions-message">
+      {{ template "toolbar-head" (dict "g" $) }}
             {{$back := printf "%v?page=%v%s" .Mailbox.URL .MailboxPage $aamp}}{{ with .GlobalData.From }}{{ $back = . }}{{ end }}
             {{$common := .CategorizedMailboxes.Common}}
             {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
@@ -79,9 +92,7 @@
               {{ end }}
             </span>
 
-            <div class="overflow">
-              <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
-              <div class="overflow-menu" popover id="menu-more">
+            {{ template "more-open" $ }}
                 <a hx-boost="false" class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
                 {{ if $.Filters }}
                 {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
@@ -147,17 +158,10 @@
                   href="#"
                   style="display: none"
                 >{{$.T "message.print"}}</a>
-              </div>
-            </div>
-
-          </div>
-
-          <div class="actions-end">
+            {{ template "more-close" }}
+      {{ template "toolbar-end" }}
             {{ template "message-navigation" . }}
-
-            </div>
-        </div>
-      </section>
+      {{ template "toolbar-foot" }}
       {{ with .Contact }}
       <dialog id="add-contact" class="form-dialog" closedby="any" aria-labelledby="add-contact-title">
         <h2 id="add-contact-title">{{$.T "import.tocontacts"}}</h2>
@@ -429,24 +433,6 @@
         {{ end }}
       </div>
 
-      {{/* dict: addrs account mbox key. */}}
-      {{define "addr-list"}}
-        {{ $aamp := account "&" .account }}
-        {{ $folder := printf "/mailbox/%s" (.mbox | pathescape) }}
-        {{range $i, $addr := .addrs}}
-          {{if $i}},{{end}}
-          {{/* By name: the From a list wrote does not carry the author's address. */}}
-          {{ $term := $addr.Addr }}{{ if $.byname }}{{ $term = printf "%q" $addr.Name }}{{ end }}
-          {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $term | qv) $aamp) }}{{ end }}
-          {{ if .Name }}
-          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Name}}</a>{{ else }}<strong>{{.Name}}</strong>{{ end }}
-          &lt;<a href="{{ localhref (printf "/compose?to=%s%s" (.Addr | qv) $aamp) }}">{{.Addr}}</a>&gt;</bdi>
-          {{ else }}
-          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Addr}}</a>{{ else }}<a href="{{ localhref (printf "/compose?to=%s%s" ($addr.Addr | qv) $aamp) }}">{{$addr.Addr}}</a>{{ end }}</bdi>
-          {{ end }}
-        {{end}}
-      {{end}}
-
       {{ $html := .Message.HTMLPart }}
       {{ $text := .Message.TextPart }}
       <div class="tabs">
@@ -486,39 +472,8 @@
         <p>{{$.T "message.cantpreview"}}</p>
         <a hx-boost="false" href="{{.Message.URL}}/raw?part={{.Part.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.download"}}</a>
       {{end}}
-    </main>
-  </div>
-</div>
+{{ end }}
+
+{{ define "scripts" }}
 <script src="{{call .GlobalData.Asset "print.js"}}"></script>
-
-{{template "foot.html"}}
-
-{{ define "message-navigation" }}
-<span id="message-navigation" class="action-group"{{ if .ContextPending }} hx-get="{{.ContextURL}}" hx-trigger="load" hx-target="this" hx-swap="outerHTML"{{ end }}>
-              {{ if .Position }}
-              <span class="pagination-range" data-priority="1" data-yield="hide">{{$.GlobalData.Tf "common.position" .Position .Total}}</span>
-              {{ end }}
-              {{ if .NewerURL }}
-              <a class="icon-button" href="{{ localhref (from (printf "%v" .NewerURL) $.GlobalData.From) }}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}" data-key="k">{{ template "icon" "up" }}</a>
-              {{ end }}
-              {{ if .OlderURL }}
-              <a class="icon-button" href="{{ localhref (from (printf "%v" .OlderURL) $.GlobalData.From) }}" title="{{$.T "message.older"}}" aria-label="{{$.T "message.older"}}" data-key="j">{{ template "icon" "down" }}</a>
-              {{ end }}
-            </span>
-{{ end }}
-
-{{ define "message-conversation" }}
-          <tr id="message-conversation"{{ if not (or .InReplyTo .Answers .Message.ListID .ContextPending) }} hidden{{ end }}>
-            <th scope="row">{{ if .ThreadSupported }}<a href="{{ localhref (printf "%v?thread=%d%s" $.Mailbox.URL .Message.UID (account "&" $.GlobalData.URLAccount)) }}">{{$.T "list.conversation"}}</a>{{ else }}{{$.T "list.conversation"}}{{ end }}:</th>
-            <td class="conversation">
-              {{ with .InReplyTo }}<a href="{{.URL}}{{account "?" $.GlobalData.URLAccount}}">{{ printf ($.T "list.answering") (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}
-              {{ with .Answers }}<a href="{{ (index . 0).URL }}{{account "?" $.GlobalData.URLAccount}}">{{ if eq (len .) 1 }}{{ printf ($.T "list.answeredby") (or (index . 0).From ($.T "mailbox.nosender")) }}{{ else }}{{ printf ($.T "list.answeredbymore") (or (index . 0).From ($.T "mailbox.nosender")) (sub (len .) 1) }}{{ end }}</a>{{ end }}
-              {{ with .Message.ListID }}<a href="{{ localhref (printf "%v?query=list:%s%s" $.Mailbox.URL (. | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ printf ($.T "list.via") . }}</a>{{ end }}
-            </td>
-          </tr>
-{{ end }}
-
-{{ define "message-context" }}
-{{ template "message-navigation" . }}
-<template><tbody id="message-conversation-body" hx-swap-oob="outerHTML">{{ template "message-conversation" . }}</tbody></template>
 {{ end }}

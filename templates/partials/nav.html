@@ -1,3 +1,4 @@
+{{ define "nav" }}
 {{ if .GlobalData.LoggedIn }}
 <input type="checkbox" id="sidebar" class="sidebar-toggle" aria-label="{{$.T "nav.drawer"}}">
 {{ end }}
@@ -70,6 +71,7 @@
 {{ if .GlobalData.LoggedIn }}
 <label for="sidebar" class="sidebar-backdrop" aria-hidden="true"></label>
 {{ end }}
+{{ end }}
 
 {{/* dict: g page drawer. */}}
 {{ define "nav-menus" }}
@@ -132,4 +134,15 @@
           title="{{$.T "scheme.tosystem"}}" aria-label="{{$.T "scheme.tosystem"}}">{{ template "icon" "moon" }}</button>
 </span>
 {{ end }}
+{{ end }}
+
+{{/* dict: g build. */}}
+{{ define "brand" }}
+<a class="brand" href="/" title="{{.g.GlobalData.Brand}}">
+  <img class="brand-mark" src="{{call .g.GlobalData.Asset "brand.svg"}}" alt="" width="20" height="20">
+  <span class="brand-text">
+    <span class="brand-name">{{.g.GlobalData.Brand}}</span>
+    {{ with .build }}<span class="brand-build">{{ template "ltr" . }}</span>{{ end }}
+  </span>
+</a>
 {{ end }}

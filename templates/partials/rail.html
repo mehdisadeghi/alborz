@@ -1,0 +1,306 @@
+{{ define "scope-rail" }}
+  <div class="rail-brand">{{ template "brand" (dict "g" .g "build" .g.GlobalData.Revision) }}</div>
+  {{ with .homes }}{{ template "rail-rows" . }}{{ end }}
+  {{ $merged := not .urlaccount }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $merged = false }}{{ end }}{{ end }}{{ end }}
+  {{ if gt (len .accounts) 1 }}
+  {{ if eq .kind "mail" }}
+  {{ template "rail-mail-merged" .data }}
+  {{ else }}
+  {{ with .all }}<a class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}">{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
+  {{ end }}
+  {{ range .accounts }}
+  {{ $acct := .Username }}
+  {{ $has := eq $.kind "mail" }}
+  {{ if eq $.kind "rows" }}{{ $has = index $.data.rows $acct }}{{ end }}
+  {{ if eq $.kind "dav" }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ end }}{{ end }}{{ end }}
+  {{ if $has }}
+  <details class="acct-folders" data-rail-key="{{$acct}}"{{ if eq $acct $.urlaccount }} open{{ end }}>
+    <summary class="aside-account"><a href="{{$.path}}{{ account (qsep $.path) $acct }}">{{ template "ltr" $acct }}</a></summary>
+    {{ if eq $.kind "mail" }}
+    {{ template "rail-mail-account" (dict "account" $acct "data" $.data) }}
+    {{ else if eq $.kind "rows" }}
+    {{ template "rail-rows" (index $.data.rows $acct) }}
+    {{ else }}
+    {{ template "rail-dav-account" (dict "account" $acct "data" $.data "g" $.g "all" $.all "path" $.path "urlaccount" $.urlaccount) }}
+    {{ end }}
+  </details>
+  {{ end }}
+  {{ end }}
+  {{ else }}
+  {{ if eq .kind "mail" }}
+  {{ template "rail-mail-single" .data }}
+  {{ else if and (eq .kind "rows") .accounts }}
+  {{ template "rail-rows" (index .data.rows (index .accounts 0).Username) }}
+  {{ else if and (eq .kind "dav") .data.items }}
+  {{ with .all }}<a class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}">{{.}}</a>{{ end }}
+  {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true "g" .g) }}
+  {{ end }}
+  {{ end }}
+  {{ with .views }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" .view "account" .account) }}{{ end }}
+  {{ with .groups }}{{ template "rail-filter-list" . }}{{ end }}
+  {{ with .categories }}{{ template "rail-filter-list" . }}{{ end }}
+  {{ with .invitations }}
+  {{ $inv := . }}
+  <ul class="rail-views">
+    <li class="folder-li">
+      <details class="folder-branch" data-rail-key="invitations" open>
+        <summary>{{$.g.T "share.invitations"}}</summary>
+        <ul>
+          {{ range $inv.Items }}
+          {{ $item := . }}
+          <li class="rail-invitation">
+            <a href="{{$inv.Base}}{{$item.Path | pathescape}}{{ account "?" $item.Account }}" dir="auto">{{.Name}}</a>
+            <span class="hint">{{ template "ltr" .From }}</span>
+            <span class="rail-invitation-answer">
+              {{ range tuple (tuple "accept" "share.accept" "") (tuple "decline" "share.decline" "button-quiet") }}
+              <form method="post" action="{{$inv.Base}}{{$item.Path | pathescape}}/{{index . 0}}{{ account "?" $item.Account }}">
+                <input type="hidden" name="next" value="{{$.g.GlobalData.URL.RequestURI}}">
+                <button{{ with index . 2 }} class="{{.}}"{{ end }}>{{$.g.T (index . 1)}}</button>
+              </form>
+              {{ end }}
+            </span>
+          </li>
+          {{ end }}
+        </ul>
+      </details>
+    </li>
+  </ul>
+  {{ end }}
+  {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
+  {{ with .follow }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
+  {{ with .import }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
+{{ end }}
+
+{{ define "rail-rows" }}
+<ul>
+  {{ range . }}
+  <li{{ if .Active }} class="active"{{ end }}><a href="{{.Href}}">{{.Label}}</a></li>
+  {{ end }}
+</ul>
+{{ end }}
+
+{{/* dict: g path view q. */}}
+{{ define "rail-colors" }}
+{{ $base := printf "%s%v" .path (account (qsep .path) .account) }}
+<ul class="rail-views">
+  <li class="folder-li">
+    <details class="folder-branch" data-rail-key="colors:{{.account}}"{{ if .view }} open{{ end }}>
+      <summary{{ if eq .view "starred" }} class="active"{{ end }}><a href="{{$base}}{{qsep $base}}view=starred">{{.g.T "aside.starred"}}</a></summary>
+      <ul>
+        {{ range flagcolors .g }}
+        <li{{ if eq $.view .Name }} class="active"{{ end }}><a href="{{$base}}{{qsep $base}}view={{.Name}}"><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
+        {{ end }}
+      </ul>
+    </details>
+  </li>
+</ul>
+{{ end }}
+
+{{/* dict: key label open rows (each Label Href Active) [new]. */}}
+{{ define "rail-filter-list" }}
+{{ if or .rows .new }}
+<ul class="rail-views">
+  <li class="folder-li">
+    <details class="folder-branch" data-rail-key="{{.key}}"{{ if .open }} open{{ end }}>
+      <summary>{{.label}}</summary>
+      <ul>
+        {{ $d := . }}
+        {{ range .rows }}
+        <li{{ if .Active }} class="active"{{ end }}><a href="{{.Href}}" dir="auto">{{.Label}}</a>{{ with .Edit }}<a class="filter-edit" href="{{.}}" title="{{$d.editlabel}}">{{$d.editlabel}}</a>{{ end }}</li>
+        {{ end }}
+        {{ with .new }}<li><a class="aside-create" href="{{.href}}">{{.label}}</a></li>{{ end }}
+      </ul>
+    </details>
+  </li>
+</ul>
+{{ end }}
+{{ end }}
+
+{{ define "rail-dav-account" }}
+{{ $d := .data }}
+<form method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter">
+<input type="hidden" name="next" value="{{$d.next}}">
+{{ with .all }}
+{{ $narrowed := false }}{{ range $d.items }}{{ if .Only }}{{ $narrowed = true }}{{ end }}{{ end }}
+{{ $on := and (eq $.account $.urlaccount) (not $narrowed) }}
+<div class="filter-row nested{{ if $on }} active{{ end }}">
+  <a class="filter-name" href="{{ localhref (printf "%s%s" $.path (account (qsep $.path) $.account)) }}"{{ if $on }} aria-current="true"{{ end }}><span>{{.}}</span></a>
+</div>
+{{ end }}
+{{ range $d.items }}{{ if eq .Account $.account }}
+{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "onlylabel" $d.onlylabel "alllabel" $d.alllabel "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edithref" $d.edithref "editlabel" $d.editlabel "g" $.g) }}
+{{ end }}{{ end }}
+<button>{{$d.apply}}</button>
+</form>
+{{ end }}
+
+{{/* dict: item field itemclass action onlylabel shown kept nested
+     [edithref editlabel]. */}}
+{{ define "dav-filter-item" }}
+{{ $i := .item }}
+{{ $base := printf "%s?%s=%s" .action .field ($i.Path | qv) }}{{ with .keep }}{{ $base = printf "%s%s" $base . }}{{ end }}
+<div class="filter-row{{ if .nested }} nested{{ end }}{{ if $i.Only }} active{{ end }}">
+  <a class="filter-name {{.itemclass}}" href="{{ localhref (printf "%s%s" $base (account "&" $i.Account)) }}" title="{{$i.Name}}"{{ if $i.Only }} aria-current="true"{{ end }}>
+    <span>{{$i.Name}}</span>
+    {{ template "collection-mark" (dict "g" $.g "c" $i) }}
+  </a>
+  <a class="filter-edit" href="{{.edithref}}{{$i.Path | pathescape}}{{account "?" $i.Account}}" title="{{.editlabel}}" hx-boost="false">{{.editlabel}}</a>
+  <label class="filter-tick" title="{{.shown}}">
+    <input type="checkbox" name="{{.field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }} aria-label="{{.shown}}: {{$i.Name}}">
+  </label>
+</div>
+{{ end }}
+
+{{/* dict: g c. */}}
+{{ define "collection-mark" }}{{ $g := .g }}{{ with .c }}
+{{- if or .Address .Public }}{{ $what := $g.T "share.marksubscribed" }}{{ if .Public }}{{ $what = $g.T "share.markpublic" }}{{ end }}<span class="rail-mark" title="{{$what}}" aria-label="{{$what}}">{{ template "icon" "broadcast" }}</span>
+{{- else if .SharedBy }}{{ $who := printf "%s · %s" (printf ($g.T "share.marksharedby") .SharedBy) ($g.T (or (and .Writable "share.canedit") "share.canview")) }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>
+{{- else if .SharedWith }}{{ $who := $g.GlobalData.Tf "share.marksharedwith" .SharedWith }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>{{ end }}
+{{- end }}{{ end }}
+
+{{/* dict: g rail. */}}
+{{ define "dav-rail" }}
+{{ $g := .g }}{{ $r := .rail }}
+{{ template "pim-rail" (dict "g" $g "urlaccount" $g.GlobalData.Scope "path" $r.Path "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "edithref" $r.EditHref "invitations" $r.Invitations
+   "new" (dict "href" $r.NewHref "label" $r.NewLabel)
+   "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref))
+   "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref))
+   "groups" (dict "key" "groups" "label" ($g.T "aside.groups") "rows" $r.Groups "editlabel" ($g.T "common.edit"))
+   "categories" (dict "key" "categories" "label" ($g.T "aside.categories") "rows" $r.Categories)) }}
+{{ end }}
+
+{{ define "settings-rail" }}
+<aside>
+  {{ template "scope-rail" (dict "g" . "kind" "rows" "path" "/settings/account" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "homes" (index .Rail "")) }}
+</aside>
+{{ end }}
+
+{{ define "mail-rail" }}
+<aside data-mail-sidebar data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
+{{ template "scope-rail" (dict "g" $ "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.Scope "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
+</aside>
+{{ end }}
+
+{{ define "rail-mail-single" }}
+{{ $view := .ListView }}
+{{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
+<ul{{ template "list-swap" . }}>
+  {{ with .CategorizedMailboxes }}
+  {{ with .InboxTree }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
+  {{ template "rail-views" (dict "q" "" "view" $view "on" true "oninbox" (eq $active "INBOX") "g" $.GlobalData) }}
+  {{ range .CommonNodes }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
+  {{ if .Additional }}
+  <hr />
+  {{ range .AdditionalTree }}{{ template "mbox-node" (tuple . "" (not $view) $active $.GlobalData) }}{{ end }}
+  {{ end }}
+  {{ template "rail-more-folders" (dict "n" .Hidden "q" "" "g" $.GlobalData) }}
+  {{ end }}
+</ul>
+{{ end }}
+
+{{ define "rail-mail-merged" }}
+{{ $view := .ListView }}
+{{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
+{{ $all := $.GlobalData.Merged }}
+<details class="acct-folders aggregate-folders" data-rail-key="__merged" open>
+<summary class="aside-account"><a href="/mailbox/INBOX">{{$.T "nav.allaccounts"}}</a></summary>
+<ul class="merged-roles"{{ template "list-swap" . }}>
+  {{ range tuple (tuple "aside.inbox" "INBOX") (tuple "aside.drafts" "Drafts") (tuple "aside.sent" "Sent") (tuple "aside.junk" "Junk") (tuple "aside.trash" "Trash") (tuple "aside.archive" "Archive") }}
+  {{ $role := index . 1 }}
+  <li {{ if and $all (eq $active $role) (not $view) }}class="active"{{ end }}>
+    <a href="/mailbox/{{$role}}"{{ template "list-get" (dict "g" $.GlobalData "href" (printf "/mailbox/%s" $role)) }}>{{$.T (index . 0)}}</a>
+    {{ with $.AllUnseen $role }}<span class="unseen">{{$.GlobalData.Num .}}</span>{{ end }}
+  </li>
+  {{ if eq $role "INBOX" }}{{ template "rail-views" (dict "q" "" "view" $view "on" $all "oninbox" (eq $active "INBOX") "g" $.GlobalData) }}{{ end }}
+  {{ end }}
+</ul>
+</details>
+{{ end }}
+
+{{/* dict: account data. */}}
+{{ define "rail-mail-account" }}
+{{ $d := .data }}
+{{ $view := $d.ListView }}
+{{ $active := "" }}{{ with $d.Mailbox }}{{ $active = .Name }}{{ end }}
+{{ $q := printf "?account=%s" .account }}
+{{ range $d.SidebarAccounts }}{{ if eq .Account $.account }}
+<ul{{ template "list-swap" $d }}>
+  {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.Scope $.account) $view $active $d.GlobalData) }}
+</ul>
+{{ end }}{{ end }}
+{{ end }}
+
+{{/* dict: q view on g. */}}
+{{ define "rail-views" }}
+{{ $sep := "?" }}{{ if .q }}{{ $sep = "&" }}{{ end }}
+<li{{ if and .on .oninbox (eq .view "unread") }} class="active"{{ end }}>
+  <a href="/mailbox/INBOX{{.q}}{{$sep}}view=unread"{{ template "list-get" (dict "g" .g "href" (printf "/mailbox/INBOX%s%sview=unread" .q $sep)) }}>{{.g.T "aside.unread"}}</a>
+</li>
+<li class="folder-li">
+  <details class="folder-branch" data-rail-key="views:{{.q}}">
+    <summary{{ if and .on (eq .view "starred") }} class="active"{{ end }}><a data-go="s"{{ if .on }} data-go-here{{ end }} href="/search{{.q}}{{$sep}}view=starred"{{ template "list-get" (dict "g" .g "href" (printf "/search%s%sview=starred" .q $sep)) }}>{{.g.T "aside.starred"}}</a></summary>
+    <ul>
+      {{ range flagcolors .g }}
+      <li{{ if and $.on (eq $.view .Name) }} class="active"{{ end }}><a href="/search{{$.q}}{{$sep}}view={{.Name}}"{{ template "list-get" (dict "g" $.g "href" (printf "/search%s%sview=%s" $.q $sep .Name)) }}><span class="flag-star flag-{{.Name}}">&#9733;</span> {{.Label}}</a></li>
+      {{ end }}
+    </ul>
+  </details>
+</li>
+{{ end }}
+
+{{/* (Categorized, "?account=x" or "", highlight-allowed, starred,
+     active-name, global). */}}
+{{ define "mbox-list" }}
+{{ $cc := index . 0 }}{{ $q := index . 1 }}{{ $on := index . 2 }}{{ $view := index . 3 }}{{ $active := index . 4 }}{{ $g := index . 5 }}
+{{ with $cc.InboxTree }}{{ template "mbox-node" (tuple . $q (and $on (not $view)) $active $g) }}{{ end }}
+{{ template "rail-views" (dict "q" $q "view" $view "on" $on "oninbox" (eq $active "INBOX") "g" $g) }}
+{{ range $cc.CommonNodes }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
+{{ range $cc.AdditionalTree }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
+{{ template "rail-more-folders" (dict "n" $cc.Hidden "q" $q "g" $g) }}
+{{ end }}
+
+{{/* (node, "?account=x" or "", highlight-allowed, active-name, global). */}}
+{{ define "mbox-node" }}
+{{ $n := index . 0 }}{{ $q := index . 1 }}{{ $onacct := index . 2 }}{{ $active := index . 3 }}{{ $g := index . 4 }}
+{{ $on := and $n.Details $onacct (eq $active $n.Details.Info.Name) }}
+{{ if $n.Children }}
+<li class="folder-li">
+  <details class="folder-branch" data-rail-key="folder:{{$q}}:{{ with $n.Details }}{{ .Info.Name }}{{ end }}" open>
+    <summary{{ if $on }} class="active"{{ end }}>{{ template "mbox-node-label" (tuple $n $q $g) }}</summary>
+    <ul>{{ range $n.Children }}{{ template "mbox-node" (tuple . $q $onacct $active $g) }}{{ end }}</ul>
+  </details>
+</li>
+{{ else }}
+<li{{ if $on }} class="active"{{ end }}>
+  {{ template "mbox-node-label" (tuple $n $q $g) }}
+</li>
+{{ end }}
+{{ end }}
+
+{{ define "mbox-node-label" }}
+{{ $n := index . 0 }}{{ $q := index . 1 }}{{ $g := index . 2 }}
+{{ if and $n.Details (not ($n.Details.Info.HasAttr "\\Noselect")) }}
+<a href="{{$n.Details.Info.URL}}{{$q}}" data-folder="{{$n.Details.Info.URL}}{{$q}}"{{ template "list-get" (dict "g" $g "href" (printf "%v%s" $n.Details.Info.URL $q)) }}{{ if ge $n.Details.Info.Total 0 }} title="{{$n.Name}} · {{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ else }} title="{{$n.Name}}"{{ end }}>{{$n.Name}}</a>
+{{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$g.Num $n.Details.Info.Unseen}}</span>{{ end }}
+{{ else }}
+<span class="noselect">{{$n.Name}}</span>
+{{ end }}
+{{ end }}
+
+{{/* dict: n q g. */}}
+{{ define "rail-more-folders" }}
+{{ if .n }}<li><a class="aside-create" href="/settings/account{{.q}}#subscriptions">{{ .g.Tf "aside.morefolders" .n }}</a></li>{{ end }}
+{{ end }}
+
+{{ define "list-swap" }}{{ if eq (index .GlobalData.Path 0) "mailbox" }} hx-boost="false" hx-target="#main" hx-swap="innerHTML show:none" hx-push-url="true"{{ end }}{{ end }}
+
+{{/* Not boosted: a boosted link scrolls to the top. dict: g href. */}}
+{{ define "list-get" }}{{ if and (eq (index .g.Path 0) "mailbox") (eq (hrefaccount .href) .g.URLAccount) }} hx-get="{{.href}}"{{ end }}{{ end }}
+
+{{/* dict: g urlaccount path items field itemclass action edithref new
+     [keep follow import views groups categories invitations]. */}}
+{{ define "pim-rail" }}
+<aside>
+  {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "all" (.g.T "aside.all") "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "onlylabel" (.g.T "common.only") "alllabel" (.g.T "common.showall") "shown" (.g.T "common.shown") "edithref" .edithref "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
+</aside>
+{{ end }}

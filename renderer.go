@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"net/url"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"text/template/parse"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -185,10 +186,10 @@ func (g *GlobalRenderData) comma() string {
 
 // ShortDate is a bare date in the secondary calendar when one is chosen, without the current year.
 func (g *GlobalRenderData) ShortDate(t time.Time) string {
-	cal := g.primary()
+	cal := g.PrimaryCalendar()
 	year, m, day := cal.Date(g.InTimezone(t))
 	thisYear, _, _ := cal.Date(g.InTimezone(time.Now()))
-	month := g.shortMonth(cal, m)
+	month := g.ShortMonth(cal, m)
 	p := g.printer()
 	var s, yearSep string
 	switch g.Lang {
@@ -200,7 +201,7 @@ func (g *GlobalRenderData) ShortDate(t time.Time) string {
 		s, yearSep = p.Sprintf("%s %d", month, day), ", "
 	}
 	if year != thisYear {
-		s = s + yearSep + g.year(year)
+		s = s + yearSep + g.FormatYear(year)
 	}
 	return s
 }
@@ -222,62 +223,35 @@ func (g *GlobalRenderData) InTimezone(t time.Time) time.Time {
 // weekOne is a Sunday, so adding a weekday index names that weekday.
 var weekOne = time.Date(2023, time.January, 1, 12, 0, 0, 0, time.UTC)
 
-// Weekdays returns translated weekday names starting from FirstDayOfWeek.
-func (g *GlobalRenderData) Weekdays() []string {
-	result := make([]string, 7)
-	for i := range result {
-		result[i] = g.WeekdayName(weekOne.AddDate(0, 0, (g.FirstDayOfWeek+i)%7))
-	}
-	return result
-}
-
 // WeekdayName translates the weekday of t.
 func (g *GlobalRenderData) WeekdayName(t time.Time) string {
 	return g.T(fmt.Sprintf("calendar.weekday.%d", g.InTimezone(t).Weekday()))
 }
 
-// MonthYearShort is MonthYear abbreviated for a narrow toolbar.
-func (g *GlobalRenderData) MonthYearShort(t time.Time) string {
-	cal := g.primary()
-	y, m, _ := cal.Date(g.InTimezone(t))
-	return fmt.Sprintf("%s %s", g.shortMonth(cal, m), g.year(y))
-}
-
 // MonthName translates the month of t, in the primary calendar.
 func (g *GlobalRenderData) MonthName(t time.Time) string {
-	cal := g.primary()
+	cal := g.PrimaryCalendar()
 	_, m, _ := cal.Date(g.InTimezone(t))
 	return cal.MonthName(m, g.Lang)
 }
 
-func (g *GlobalRenderData) shortMonth(cal CalendarSystem, month int) string {
-	if cal.Name() != gregorianName {
+// ShortMonth names a month of cal as a narrow column does.
+func (g *GlobalRenderData) ShortMonth(cal CalendarSystem, month int) string {
+	if cal.Name() != GregorianName {
 		return cal.MonthName(month, g.Lang)
 	}
 	return g.T(fmt.Sprintf("calendar.gmonthshort.%d", month))
 }
 
-func (g *GlobalRenderData) primary() CalendarSystem { return Calendar(g.Primary) }
+// PrimaryCalendar is the calendar the page counts in.
+func (g *GlobalRenderData) PrimaryCalendar() CalendarSystem { return Calendar(g.Primary) }
 
-func (g *GlobalRenderData) secondary() (CalendarSystem, bool) {
-	if g.Secondary == "" || g.Secondary == g.primary().Name() {
+// SecondaryCalendar is the calendar glossed beside the primary one; false for none.
+func (g *GlobalRenderData) SecondaryCalendar() (CalendarSystem, bool) {
+	if g.Secondary == "" || g.Secondary == g.PrimaryCalendar().Name() {
 		return nil, false
 	}
 	return Calendar(g.Secondary), true
-}
-
-// Day is the day number of t in the primary calendar.
-func (g *GlobalRenderData) Day(t time.Time) string {
-	_, _, d := g.primary().Date(g.InTimezone(t))
-	return g.Num(d)
-}
-
-// SameMonth reports whether two instants fall in one month of the primary calendar.
-func (g *GlobalRenderData) SameMonth(a, b time.Time) bool {
-	cal := g.primary()
-	ay, am, _ := cal.Date(g.InTimezone(a))
-	by, bm, _ := cal.Date(g.InTimezone(b))
-	return ay == by && am == bm
 }
 
 var replyPrefix = regexp.MustCompile(`^\s*(?i:(re|aw|sv|antw|fw|fwd|rv|tr)\s*(\[\d+\])?\s*:|\[[^\]]{1,40}\])\s*`)
@@ -374,7 +348,8 @@ func (g GlobalRenderData) Num(n int) string {
 	return g.printer().Sprintf("%d", n)
 }
 
-func (g GlobalRenderData) year(n int) string {
+// FormatYear writes a year in the page's digits, never grouped.
+func (g GlobalRenderData) FormatYear(n int) string {
 	return g.printer().Sprint(number.Decimal(n, number.NoSeparator()))
 }
 
@@ -431,123 +406,36 @@ func isLatinLetter(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }
 
-// SecondaryDay is the day number in the secondary calendar, empty when none is chosen.
-func (g *GlobalRenderData) SecondaryDay(t time.Time) string {
-	cal, ok := g.secondary()
-	if !ok {
-		return ""
-	}
-	_, m, d := cal.Date(g.InTimezone(t))
-	if d == 1 {
-		return g.printer().Sprintf("%d %s", d, g.shortMonth(cal, m))
-	}
-	return g.Num(d)
-}
-
-// weekAnchor is the Thursday of the seven days from day, by which ISO 8601 numbers a week.
-func weekAnchor(rowStart time.Time) time.Time {
-	iso := (int(rowStart.Weekday())+6)%7 + 1
-	return rowStart.AddDate(0, 0, (4-iso+7)%7)
-}
-
-func weekOf(cal CalendarSystem, day time.Time) int {
-	if cal.Name() == gregorianName {
-		_, week := day.ISOWeek()
-		return week
-	}
-	y, _, _ := cal.Date(day)
-	newYear := cal.Time(y, 1, 1, day.Location())
-	offset := (int(newYear.Weekday()) - int(cal.WeekStarts()) + 7) % 7
-	return (cal.YearDay(day)-1+offset)/7 + 1
-}
-
-// WeekNumber is the week a grid row belongs to, in the primary calendar.
-func (g *GlobalRenderData) WeekNumber(rowStart time.Time) string {
-	return g.Num(weekOf(g.primary(), weekAnchor(g.InTimezone(rowStart))))
-}
-
-// WeekTitle names the week in words.
-func (g *GlobalRenderData) WeekTitle(rowStart time.Time) string {
-	return g.Tf("calendar.week", g.WeekNumber(rowStart))
-}
-
-// SecondaryWeek is the same week counted in the secondary calendar, empty when none is chosen.
-func (g *GlobalRenderData) SecondaryWeek(rowStart time.Time) string {
-	cal, ok := g.secondary()
-	if !ok {
-		return ""
-	}
-	return g.Num(weekOf(cal, weekAnchor(g.InTimezone(rowStart))))
-}
-
-// SecondaryMonthYear names the secondary months a primary month spans, empty when none is chosen.
-func (g *GlobalRenderData) SecondaryMonthYear(t time.Time) string {
-	cal, ok := g.secondary()
-	if !ok {
-		return ""
-	}
-	start := g.primary().MonthStart(g.InTimezone(t))
-	end := g.primary().AddMonths(start, 1).AddDate(0, 0, -1)
-	fy, fm, _ := cal.Date(start.Add(12 * time.Hour))
-	ly, lm, _ := cal.Date(end.Add(12 * time.Hour))
-	first, last := cal.MonthName(fm, g.Lang), cal.MonthName(lm, g.Lang)
-	if fm == lm && fy == ly {
-		return fmt.Sprintf("%s %s", first, g.year(fy))
-	}
-	if fy == ly {
-		return fmt.Sprintf("%s – %s %s", first, last, g.year(ly))
-	}
-	return fmt.Sprintf("%s %s – %s %s", first, g.year(fy), last, g.year(ly))
-}
-
 // SecondaryDate is the full secondary date of one day.
 func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
-	cal, ok := g.secondary()
+	cal, ok := g.SecondaryCalendar()
 	if !ok || t.IsZero() {
 		return ""
 	}
 	y, m, d := cal.Date(g.InTimezone(t))
-	return g.printer().Sprintf("%d %s %s", d, cal.MonthName(m, g.Lang), g.year(y))
-}
-
-// CalendarDayLabel is a day number, with a compact month name on the first of the month.
-func (g *GlobalRenderData) CalendarDayLabel(t time.Time) string {
-	cal := g.primary()
-	_, m, d := cal.Date(g.InTimezone(t))
-	if d != 1 {
-		return g.Num(d)
-	}
-	month := g.shortMonth(cal, m)
-	switch g.Lang {
-	case "de":
-		return g.printer().Sprintf("%d. %s", d, month)
-	case "es", "fa":
-		return g.printer().Sprintf("%d %s", d, month)
-	default:
-		return g.printer().Sprintf("%s %d", month, d)
-	}
+	return g.printer().Sprintf("%d %s %s", d, cal.MonthName(m, g.Lang), g.FormatYear(y))
 }
 
 // MonthYear renders the calendar heading for t's month.
 func (g *GlobalRenderData) MonthYear(t time.Time) string {
-	y, _, _ := g.primary().Date(g.InTimezone(t))
-	return fmt.Sprintf("%s %s", g.MonthName(t), g.year(y))
+	y, _, _ := g.PrimaryCalendar().Date(g.InTimezone(t))
+	return fmt.Sprintf("%s %s", g.MonthName(t), g.FormatYear(y))
 }
 
 // LongDate renders a translated day heading; time.Format knows only English names.
 func (g *GlobalRenderData) LongDate(t time.Time) string {
 	weekday := g.WeekdayName(t)
 	month := g.MonthName(t)
-	y, _, d := g.primary().Date(g.InTimezone(t))
+	y, _, d := g.PrimaryCalendar().Date(g.InTimezone(t))
 	switch g.Lang {
 	case "fa":
-		return g.printer().Sprintf("%s، %d %s %s", weekday, d, month, g.year(y))
+		return g.printer().Sprintf("%s، %d %s %s", weekday, d, month, g.FormatYear(y))
 	case "de":
-		return g.printer().Sprintf("%s, %d. %s %s", weekday, d, month, g.year(y))
+		return g.printer().Sprintf("%s, %d. %s %s", weekday, d, month, g.FormatYear(y))
 	case "es":
-		return g.printer().Sprintf("%s, %d de %s de %s", weekday, d, month, g.year(y))
+		return g.printer().Sprintf("%s, %d de %s de %s", weekday, d, month, g.FormatYear(y))
 	default:
-		return g.printer().Sprintf("%s, %s %d, %s", weekday, month, d, g.year(y))
+		return g.printer().Sprintf("%s, %s %d, %s", weekday, month, d, g.FormatYear(y))
 	}
 }
 
@@ -689,7 +577,7 @@ func RenderInfo(ctx *Context, code int, message string) error {
 		BaseRenderData
 		Message string
 	}{*NewBaseRenderData(ctx), message}
-	return ctx.Render(code, "info.html", &data)
+	return ctx.Render(code, "info", &data)
 }
 
 // WithTitle sets the page's own title.
@@ -739,12 +627,10 @@ func (g *GlobalRenderData) PageTitle() string {
 	return g.Title + " - " + brand
 }
 
+// renderer parses each page into its own clone of the layout and partials, so pages' blocks never collide.
 type renderer struct {
-	logger       echo.Logger
-	themesPath   string
-	defaultTheme string
-
-	theme *template.Template
+	partials *template.Template
+	pages    map[string]*template.Template
 }
 
 func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.Context) error {
@@ -768,57 +654,142 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 	}
 
 	start := time.Now()
-	err := r.theme.ExecuteTemplate(w, name, data)
+	var err error
+	if page, ok := r.pages[name]; ok {
+		err = page.ExecuteTemplate(w, "layout", data)
+	} else {
+		err = r.partials.ExecuteTemplate(w, name, data)
+	}
 	ctx.timing.add("render", start, time.Now())
 	return err
 }
 
-// templateGlobs reach every template under templates/.
-var templateGlobs = []string{"templates/*.html", "templates/*/*.html", "templates/*/*/*.html"}
-
-// Overlaying the disk theme lets it carry only the files it changes.
-func loadTheme(themesPath string, name string, base *template.Template) (*template.Template, int, error) {
-	theme, err := base.Clone()
+// loadTemplates reads layout.html and partials/ into one set, and each file under pages/ into a clone of it,
+// named by its path without pages/ and .html.
+func loadTemplates(files fs.FS, funcs template.FuncMap) (*renderer, error) {
+	partials := template.New("").Funcs(funcs)
+	owner := map[string]string{}
+	shared := []string{"layout.html"}
+	err := fs.WalkDir(files, "partials", func(name string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			shared = append(shared, name)
+		}
+		return err
+	})
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-
-	theme, err = theme.ParseFS(embeddedTheme, templateGlobs...)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	overlays, err := filepath.Glob(themesPath + "/" + name + "/*.html")
-	if err != nil {
-		return nil, 0, err
-	}
-	if len(overlays) > 0 {
-		if theme, err = theme.ParseFiles(overlays...); err != nil {
-			return nil, 0, err
+	for _, name := range shared {
+		src, defined, err := parseFile(files, name, funcs)
+		if err != nil {
+			return nil, err
+		}
+		// html/template lets a second definition replace the first without a word.
+		for _, t := range defined {
+			if first, ok := owner[t]; ok {
+				return nil, fmt.Errorf("%s: %q is defined in %s already", name, t, first)
+			}
+			owner[t] = name
+		}
+		if _, err := partials.New(name).Parse(src); err != nil {
+			return nil, err
 		}
 	}
 
-	return theme, len(overlays), nil
+	pages := map[string]*template.Template{}
+	err = fs.WalkDir(files, "pages", func(name string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		src, defined, err := parseFile(files, name, funcs)
+		if err != nil {
+			return err
+		}
+		// A page fills the layout's blocks, or a partial's empty one; replacing a partial would change it for this page alone.
+		for _, t := range defined {
+			if s := partials.Lookup(t); s != nil && owner[t] != "layout.html" && !parse.IsEmptyTree(s.Tree.Root) {
+				return fmt.Errorf("%s: %q is a partial in %s, not a block", name, t, owner[t])
+			}
+		}
+		page, err := partials.Clone()
+		if err != nil {
+			return err
+		}
+		if _, err := page.New(name).Parse(src); err != nil {
+			return err
+		}
+		pages[strings.TrimSuffix(strings.TrimPrefix(name, "pages/"), ".html")] = page
+		return resolved(page)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &renderer{partials: partials, pages: pages}, resolved(partials)
 }
 
-func (r *renderer) Load(funcs template.FuncMap) error {
-	base := template.New("").Funcs(funcs)
-	theme, overlays, err := loadTheme(r.themesPath, r.defaultTheme, base)
-	if err != nil {
-		return fmt.Errorf("failed to load theme %q: %v", r.defaultTheme, err)
+// resolved fails on a {{template}} naming nothing, which Go reports only when the call runs.
+func resolved(set *template.Template) error {
+	var tree *parse.Tree
+	var walk func(parse.Node) error
+	walk = func(n parse.Node) error {
+		var branch *parse.BranchNode
+		switch n := n.(type) {
+		case *parse.ListNode:
+			if n == nil {
+				return nil
+			}
+			for _, c := range n.Nodes {
+				if err := walk(c); err != nil {
+					return err
+				}
+			}
+		case *parse.IfNode:
+			branch = &n.BranchNode
+		case *parse.RangeNode:
+			branch = &n.BranchNode
+		case *parse.WithNode:
+			branch = &n.BranchNode
+		case *parse.TemplateNode:
+			if set.Lookup(n.Name) == nil {
+				at, _ := tree.ErrorContext(n)
+				return fmt.Errorf("%s: no template %q", at, n.Name)
+			}
+		}
+		if branch == nil {
+			return nil
+		}
+		if err := walk(branch.List); err != nil {
+			return err
+		}
+		return walk(branch.ElseList)
 	}
-	r.logger.Printf("Loaded theme %q, %d files overridden on disk", r.defaultTheme, overlays)
-
-	r.theme = theme
+	for _, t := range set.Templates() {
+		if tree = t.Tree; tree != nil {
+			if err := walk(tree.Root); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
-func newRenderer(logger echo.Logger, themesPath string, defaultTheme string) *renderer {
-	return &renderer{
-		logger:       logger,
-		defaultTheme: defaultTheme,
-		themesPath:   themesPath,
+// parseFile reads a template file and the names it defines.
+func parseFile(files fs.FS, name string, funcs template.FuncMap) (string, []string, error) {
+	src, err := fs.ReadFile(files, name)
+	if err != nil {
+		return "", nil, err
 	}
+	t, err := template.New(name).Funcs(funcs).Parse(string(src))
+	if err != nil {
+		return "", nil, err
+	}
+	var defined []string
+	for _, d := range t.Templates() {
+		if d.Name() != name {
+			defined = append(defined, d.Name())
+		}
+	}
+	return string(src), defined, nil
 }
 
 // Explained is one term and its meaning; a disclosure, since a phone has no hover.

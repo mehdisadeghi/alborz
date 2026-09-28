@@ -1,0 +1,39 @@
+{{ define "rail" }}
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+{{ end }}
+
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
+  {{ $acct := account "?" .GlobalData.URLAccount }}
+      <form method="post">
+        {{ template "object-form-head" (dict "g" $ "editing" .CalendarObject "collection" .Calendar "groups" .Groups "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal"
+           "title" (or (and .CalendarObject ($.T "calendar.edittitle")) ($.T "calendar.createtitle")) "name" "calendar" "key" "event") }}
+
+        {{ template "field" (dict "label" ($.T "calendar.eventname") "name" "summary" "value" (.Event.Props.Text "SUMMARY") "dir" "auto" "required" true) }}
+
+        <input type="checkbox" name="allday" value="1" id="allday" class="allday-toggle" {{if .AllDay}}checked{{end}}>
+        <label for="allday" class="allday-label">{{$.T "calendar.allday"}}</label>
+
+        {{ template "date-field" (dict "g" $ "class" "timed-field" "label" ($.T "calendar.startsat") "name" "start" "time" true "value" .StartTime "hint" true) }}
+        {{ template "date-field" (dict "g" $ "class" "timed-field" "label" ($.T "calendar.endsat") "name" "end" "time" true "value" .EndTime) }}
+        {{ template "date-field" (dict "g" $ "class" "allday-field" "label" ($.T "calendar.startdate") "name" "start_date" "value" .StartDate "hint" true) }}
+        {{ template "date-field" (dict "g" $ "class" "allday-field" "label" ($.T "calendar.lastday") "name" "end_date" "value" .EndDate) }}
+        <div class="field">
+          <label for="repeat">{{$.T "calendar.repeat"}}</label>
+          <select name="repeat" id="repeat">
+            <option value="" {{if eq .Repeat.Freq ""}}selected{{end}}>{{$.T "calendar.repeat.never"}}</option>
+            {{ range .RepeatFreqs }}
+            <option value="{{.}}" {{if eq . $.Repeat.Freq}}selected{{end}}>{{$.T (printf "calendar.repeat.%s" .)}}</option>
+            {{ end }}
+            {{ if eq .Repeat.Freq "custom" }}<option value="custom" selected>{{$.T "calendar.repeat.custom"}}</option>{{ end }}
+          </select>
+        </div>
+        {{ template "date-field" (dict "g" $ "label" ($.T "calendar.repeatuntil") "name" "until" "value" .Repeat.Until) }}
+        {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" (.Event.Props.Text "DESCRIPTION") "dir" "auto") }}
+        {{ template "field" (dict "label" ($.T "calendar.attendees") "name" "attendees" "value" .Attendees "rows" 3) }}
+        {{ template "hint" (dict "text" ($.T "help.attendees")) }}
+
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/calendar%s" $acct)) "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+{{ end }}

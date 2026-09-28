@@ -1,0 +1,62 @@
+{{ define "rail" }}
+  {{ $keep := printf "&month=%s" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+  {{ template "calendar-rail" (dict "g" $ "keep" $keep "path" (printf "/calendar?%s" (slice $keep 1)) "action" "/calendar" "views" (dict "path" (printf "/calendar?month=%s" .Page) "view" .StarView "account" .GlobalData.URLAccount)) }}
+{{ end }}
+
+{{ define "before-main" }}
+    {{ template "next-form" (dict "id" "refresh-form" "action" "/calendar/refresh" "next" $.GlobalData.URL.RequestURI) }}
+{{ end }}
+
+{{ define "main-class" }} class="calendar"{{ end }}
+
+{{ define "main" }}
+  {{ $keep := printf "&month=%s" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+        {{ template "calendar-toolbar" . }}
+
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal" "items" .Calendars "keep" $keep "collection" "" "path" "") }}
+
+      <section class="dates">
+        {{range .Weekdays}}
+        <h2 class="weekday">{{.}}</h2>
+        {{end}}
+
+        {{$base := .}}
+        {{range $i, $day := .Dates}}
+        <div class="date
+          {{if not ($base.SameMonth $base.Time .)}}extra{{end}}
+          {{if eq (.Format "2006-01-02") ($base.Now.Format "2006-01-02")}}active{{end}}
+          ">
+          <a href="/calendar/date?date={{.Format "2006-01-02"}}{{ account "&" $base.GlobalData.URLAccount }}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}"></a>
+          <h3>
+            {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.WeekTitle $day}}">{{$base.WeekNumber $day}}</span>{{ end }}
+            <span class="day-label">{{ $label := $base.CalendarDayLabel . }}{{ $num := $base.Day . }}{{ if eq $label $num }}{{ $num }}{{ else }}<span class="label-long">{{ $label }}</span><span class="label-short">{{ $num }}</span>{{ end }}</span>
+            {{ if eq (mod $i 7) 0 }}{{ with $base.SecondaryWeek $day }}<span class="weeknum-secondary">{{.}}</span>{{ end }}{{ end }}
+            {{ with $base.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}
+          </h3>
+          <div class="events">
+            {{$events := (call $base.EventsForDate .)}}
+            {{if $events}}
+            <ul>
+              {{$overflow := 0}}
+              {{if gt (len $events) 3}}
+              {{$overflow = call $base.Sub (len $events) 3}}
+              {{$events = slice $events 0 3}}
+              {{end}}
+
+              {{range $events}}
+              {{$color := or .Color (call $base.CollectionFor .Account .Path).Color}}
+              <li>
+                {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
+                {{.Summary}}
+              </li>
+              {{end}}
+              {{if ne $overflow 0}}
+              <li class="overflow">{{$base.GlobalData.Tf "calendar.more" $overflow}}</li>
+              {{end}}
+            </ul>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+      </section>
+{{ end }}

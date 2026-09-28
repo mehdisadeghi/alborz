@@ -154,7 +154,7 @@ func handleListFilters(ctx *alborz.Context) error {
 	if len(data.Groups) > 0 && unreachable == len(data.Groups) {
 		status = http.StatusServiceUnavailable
 	}
-	return ctx.Render(status, "filters.html", data)
+	return ctx.Render(status, "filters/list", data)
 }
 
 func sieveAccounts(ctx *alborz.Context) []alborz.Account {
@@ -177,7 +177,7 @@ func handleCreateFilter(ctx *alborz.Context) error {
 	if account == "" {
 		account = accounts[0].Username
 	}
-	return ctx.Render(http.StatusOK, "filter-edit.html", &FilterRenderData{
+	return ctx.Render(http.StatusOK, "filters/filter-edit", &FilterRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Rail:           rail(ctx),
 		Accounts:       accounts,
@@ -201,7 +201,7 @@ func handleImportFilter(ctx *alborz.Context) error {
 		Account:        account,
 	}
 	if ctx.Request().Method != http.MethodPost {
-		return ctx.Render(http.StatusOK, "filters-import.html", data)
+		return ctx.Render(http.StatusOK, "filters/import", data)
 	}
 	if picked := ctx.FormValue("account"); picked != "" {
 		data.Account = picked
@@ -209,7 +209,7 @@ func handleImportFilter(ctx *alborz.Context) error {
 	file, err := ctx.FormFile("file")
 	if err != nil {
 		data.Refused(ctx.T("form.fileneeded"))
-		return ctx.Render(http.StatusUnprocessableEntity, "filters-import.html", data)
+		return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
 	}
 	if file.Size > maxScriptSize {
 		return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the script is too large")
@@ -225,7 +225,7 @@ func handleImportFilter(ctx *alborz.Context) error {
 	}
 	data.Content = strings.ReplaceAll(string(raw), "\r\n", "\n")
 	data.Suggested = strings.TrimSuffix(file.Filename, path.Ext(file.Filename))
-	return ctx.Render(http.StatusOK, "filter-edit.html", data)
+	return ctx.Render(http.StatusOK, "filters/filter-edit", data)
 }
 
 func handleEditFilter(ctx *alborz.Context) error {
@@ -244,7 +244,7 @@ func handleEditFilter(ctx *alborz.Context) error {
 		return err
 	}
 
-	return ctx.Render(http.StatusOK, "filter-edit.html", &FilterRenderData{
+	return ctx.Render(http.StatusOK, "filters/filter-edit", &FilterRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Rail:           rail(ctx),
 		Name:           name,
@@ -257,7 +257,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	name := ctx.FormValue("name")
 	content := ctx.FormValue("content")
 	if strings.TrimSpace(name) == "" {
-		return ctx.Render(http.StatusUnprocessableEntity, "filter-edit.html", &FilterRenderData{
+		return ctx.Render(http.StatusUnprocessableEntity, "filters/filter-edit", &FilterRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(ctx.T("form.nameneeded")),
 			Rail:           rail(ctx),
 			Content:        content,
@@ -294,7 +294,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 		return err
 	})
 	if err == nil && changed {
-		return ctx.Render(http.StatusConflict, "filter-edit.html", &FilterRenderData{
+		return ctx.Render(http.StatusConflict, "filters/filter-edit", &FilterRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(ctx.T("filters.changed")),
 			Rail:           rail(ctx),
 			Name:           name,
@@ -306,7 +306,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	}
 	if err != nil {
 		// Show the server's rejection next to the script instead of an error page.
-		return ctx.Render(http.StatusUnprocessableEntity, "filter-edit.html", &FilterRenderData{
+		return ctx.Render(http.StatusUnprocessableEntity, "filters/filter-edit", &FilterRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(err.Error()),
 			Rail:           rail(ctx),
 			Name:           name,

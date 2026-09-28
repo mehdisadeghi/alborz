@@ -1,18 +1,13 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
 
-{{ $aq := account "?" .GlobalData.URLAccount }}
+{{ define "main-class" }} class="create-update"{{ end }}
 
-<div class="page-wrap">
-  <aside>
-  {{ template "settings-rail" (dict "g" $ "rail" .Rail) }}
-  </aside>
-
-  <div class="container">
-    <main id="main" tabindex="-1" class="create-update">
+{{ define "main" }}
+  {{ $aq := account "?" .GlobalData.URLAccount }}
       <form method="post" action="/signatures{{$aq}}">
-        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.signatures") "path" "/signatures") }}
+        {{ template "settings-crumb" (dict "g" $ "collection" ($.T "settings.signatures") "path" "/signatures") }}
         <h1>{{ if .Was }}{{$.T "settings.signatureedit"}}{{ else }}{{$.T "settings.signaturenew"}}{{ end }}</h1>
 
 
@@ -25,8 +20,4 @@
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/signatures%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
       </form>
-    </main>
-  </div>
-</div>
-
-{{template "foot.html" .}}
+{{ end }}

@@ -1,13 +1,12 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
+{{ define "rail" }}
+  {{ template "mail-rail" . }}
+{{ end }}
 
-<div class="page-wrap">
-  {{ template "aside" . }}
-  <div class="container">
-    <main id="main" tabindex="-1" class="create-update">
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
       <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/move{{ account "?" $.GlobalData.URLAccount }}" hx-boost="false">
-        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
+        {{ template "mail-crumb" $ }}
         <h1>{{$.T "folder.moveask"}}</h1>
         <p>{{ $.GlobalData.Tf "folder.movecount" (len .UIDs) }}</p>
         {{ range .UIDs }}<input type="hidden" name="uids" value="{{.}}">{{ end }}
@@ -24,8 +23,4 @@
         </div>
         {{ template "form-actions" (dict "save" ($.T "folder.movedo") "cancel" .Next "cancelLabel" ($.T "common.cancel")) }}
       </form>
-    </main>
-  </div>
-</div>
-
-{{template "foot.html"}}
+{{ end }}

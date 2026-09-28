@@ -1,18 +1,14 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
 
-<div class="page-wrap">
-  <aside>
-  {{ template "settings-rail" (dict "g" $ "rail" .Rail) }}
-  </aside>
+{{ define "main-class" }} class="create-update"{{ end }}
 
-  <div class="container">
-    <main id="main" tabindex="-1" class="create-update">
+{{ define "main" }}
       <form method="post" action="/settings/passkeys/create" id="passkey-form" hx-boost="false"
             data-begin="/settings/passkeys/begin" data-finish="/settings/passkeys/finish" data-next="/settings/passkeys"
             data-unsupported="{{$.T "passkeys.unsupported"}}" data-failed="{{$.T "passkeys.addrefused"}}">
-        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "passkeys.title") "path" "/settings/passkeys") }}
+        {{ template "settings-crumb" (dict "g" $ "collection" ($.T "passkeys.title") "path" "/settings/passkeys") }}
         <h1>{{$.T "passkeys.new"}}</h1>
 
         {{ template "field" (dict "label" ($.T "passkeys.name") "name" "name" "dir" "auto" "autofocus" true "hint" ($.T "passkeys.namehint")) }}
@@ -20,9 +16,8 @@
 
         {{ template "form-actions" (dict "save" ($.T "passkeys.add") "cancel" "/settings/passkeys" "cancelLabel" ($.T "common.cancel")) }}
       </form>
-    </main>
-  </div>
-</div>
-<script src="{{call .GlobalData.Asset "passkeys.js"}}"></script>
+{{ end }}
 
-{{template "foot.html" .}}
+{{ define "scripts" }}
+<script src="{{call .GlobalData.Asset "passkeys.js"}}"></script>
+{{ end }}

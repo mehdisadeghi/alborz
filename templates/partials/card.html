@@ -1,0 +1,73 @@
+{{ define "info-card" }}
+{{ if .collapsed }}
+<details class="info-card info-card-fold">
+  <summary>{{.title}}{{ with .account }}<span class="row-account">{{ template "ltr" . }}</span>{{ end }}</summary>
+  {{ template "info-card-body" . }}
+</details>
+{{ else }}
+<section class="info-card">
+  <h2>{{.title}}{{ with .account }}<span class="row-account">{{ template "ltr" . }}</span>{{ end }}</h2>
+  {{ template "info-card-body" . }}
+</section>
+{{ end }}
+{{ end }}
+
+{{ define "info-card-body" }}
+  <dl>
+    {{ range .rows }}{{ if .value }}
+    <dt>{{.label}}</dt>
+    <dd>{{ template "ltr" .value }}</dd>
+    {{ end }}{{ end }}
+  </dl>
+  {{ with .abilities }}
+  <p class="info-group-title">{{$.abilitiestitle}}</p>
+  <ul class="info-abilities">
+    {{ range . }}
+    <li class="{{ if .Have }}has{{ else }}has-not{{ end }}" title="{{$.page.T .Hint}}">{{$.page.T .Label}}{{ if .Stated }} ({{$.page.T "settings.abilitystated"}}){{ end }}</li>
+    {{ end }}
+  </ul>
+  {{ end }}
+  {{ with .tags }}
+  <p class="info-group-title">{{$.tagstitle}}</p>
+  <ul class="info-tags">
+    {{ range . }}<li title="{{ with .Hint }}{{$.page.T .}}{{ end }}">{{ template "ltr" .Name }}</li>{{ end }}
+  </ul>
+  {{ end }}
+  {{ template "info-explain" (dict "label" $.explainlabel "items" $.explained) }}
+{{ end }}
+
+{{ define "info-explain" }}
+{{ if .items }}
+<details class="info-explain">
+  <summary>{{.label}}</summary>
+  <dl>
+    {{ range .items }}
+    <dt>{{.Term}}</dt>
+    <dd>{{.Hint}}</dd>
+    {{ end }}
+  </dl>
+</details>
+{{ end }}
+{{ end }}
+
+{{/* dict: g offer. */}}
+{{ define "share-offer" }}{{ $g := .g }}{{ with .offer }}
+<div class="detail-card invitation">
+  <h2>{{$g.T "invite.title"}}</h2>
+  <dl>
+    <dt>{{$g.T .Kind}}</dt><dd dir="auto">{{.Name}}</dd>
+    <dt>{{$g.T "share.from"}}</dt><dd>{{ template "ltr" .From }}</dd>
+    <dt>{{$g.T "share.access"}}</dt><dd>{{$g.T (or (and .Write "share.canedit") "share.canview")}}</dd>
+    {{ if not .Expires.IsZero }}<dt>{{$g.T "share.lastday"}}</dt><dd>{{ $g.GlobalData.ShortDate (.Expires.AddDate 0 0 -1) }}</dd>{{ end }}
+    {{ if not .Offered.IsZero }}<dt>{{$g.T "share.offered"}}</dt><dd>{{ template "date-full" (dict "g" $g.Global "time" .Offered) }}</dd>{{ end }}
+    {{ if and (ne .State "pending") (not .Answered.IsZero) }}<dt>{{$g.T (printf "share.answered%s" .State)}}</dt><dd>{{ template "date-full" (dict "g" $g.Global "time" .Answered) }}</dd>{{ end }}
+  </dl>
+  {{ if ne .State "accepted" }}
+  <form method="post" class="invitation-actions">
+    <input type="hidden" name="next" value="{{.Next}}">
+    <button formaction="{{.Accept}}" class="button-primary"{{ if eq .Answer "accept" }} autofocus{{ end }}>{{$g.T "share.accept"}}</button>
+    {{ if eq .State "pending" }}<button formaction="{{.Decline}}" class="button-danger"{{ if eq .Answer "decline" }} autofocus{{ end }}>{{$g.T "share.decline"}}</button>{{ end }}
+  </form>
+  {{ end }}
+</div>
+{{ end }}{{ end }}

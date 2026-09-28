@@ -267,7 +267,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
+	return ctx.Render(http.StatusOK, "tasks/list", &TasksRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 		Quick:          quickListOf(ctx, list.Calendars),
 		View:           list.View,
@@ -411,7 +411,7 @@ func (p *plugin) move(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		return ctx.Render(http.StatusOK, "move-task.html", &MoveTasksRenderData{
+		return ctx.Render(http.StatusOK, "tasks/move", &MoveTasksRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("folder.moveask")),
 			Rail:           rail,
 			Calendars:      list.Calendars,

@@ -143,7 +143,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "task.html", &TaskRenderData{
+	return ctx.Render(http.StatusOK, "tasks/task", &TaskRenderData{
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       calendar,
@@ -219,7 +219,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			if err != nil {
 				return err
 			}
-			return ctx.Render(http.StatusUnprocessableEntity, "update-task.html", &UpdateTaskRenderData{
+			return ctx.Render(http.StatusUnprocessableEntity, "tasks/task-edit", &UpdateTaskRenderData{
 				Rail:           rail,
 				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("tasks.createtitle")).Refused(message),
 				Groups:         groups,
@@ -317,7 +317,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "update-task.html", &UpdateTaskRenderData{
+	return ctx.Render(http.StatusOK, "tasks/task-edit", &UpdateTaskRenderData{
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
 		Groups:         groups,

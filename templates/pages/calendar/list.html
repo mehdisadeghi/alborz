@@ -1,0 +1,42 @@
+{{ define "rail" }}
+  {{ $keep := printf "&month=%s&view=%s" .Page .View }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+  {{ template "calendar-rail" (dict "g" $ "keep" $keep "path" (printf "/calendar?%s" (slice $keep 1)) "action" "/calendar" "views" (dict "path" (printf "/calendar?month=%s" .Page) "view" .StarView "account" .GlobalData.URLAccount)) }}
+{{ end }}
+
+{{ define "before-main" }}
+    {{ template "next-form" (dict "id" "events-form" "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "next-form" (dict "id" "refresh-form" "action" (printf "/calendar/refresh%s" (account "?" $.GlobalData.URLAccount)) "next" $.GlobalData.URL.RequestURI) }}
+{{ end }}
+
+{{ define "main-class" }} class="list"{{ end }}
+
+{{ define "main" }}
+  {{ $keep := printf "&month=%s&view=%s" .Page .View }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+        {{ template "calendar-toolbar" . }}
+
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal" "items" .Calendars "keep" $keep "collection" "" "path" "") }}
+
+      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+
+      {{ $grouped := eq .Group "day" }}
+      <section class="events">
+        {{$base := .}}
+        {{$any := false}}
+        <div class="event-grid list-grid{{ if .SelectForm }} event-grid-select{{ end }}{{ if $grouped }} event-grid-grouped{{ end }}" role="table">
+          {{ template "event-grid-header" (dict "starred" ($.T "sort.starred") "form" .SelectForm "date" (and (not $grouped) ($.T "sort.date")) "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
+          {{range .Dates}}
+          {{if and ($base.SameMonth . $base.Time) (not (.Before $base.Since))}}
+          {{$events := call $base.EventsForDate .}}
+          {{if $events}}
+          {{$any = true}}
+          {{ if $grouped }}<h2 class="event-day-header" role="rowheader">{{ template "date-day" (dict "g" $base.Global "time" .) }}</h2>{{ end }}
+          {{ template "event-rows" (dict "events" $events "base" $base "dated" (not $grouped)) }}
+          {{end}}
+          {{end}}
+          {{end}}
+        </div>
+        {{if not $any}}
+        <p class="empty-list">{{$.T "calendar.noevents"}}</p>
+        {{end}}
+      </section>
+{{ end }}

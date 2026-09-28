@@ -2,10 +2,8 @@ package alborz
 
 import "embed"
 
-// embeddedTheme is overridden file by file by the theme directory on disk.
-//
-//go:embed all:templates
-var embeddedTheme embed.FS
+//go:embed templates
+var embedded embed.FS
 
 //go:embed prologue.txt
 var prologue string

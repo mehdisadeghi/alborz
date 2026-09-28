@@ -1,57 +1,34 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
-
-<div class="page-wrap">
-  {{$acct := ""}}{{with .GlobalData.URLAccount}}{{$acct = printf "?account=%s" .}}{{end}}
+{{ define "rail" }}
   {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+{{ end }}
 
-  <div class="container">
-    <main id="main" tabindex="-1" class="task">
+{{ define "object-actions" }}
+          {{ $todo := index .g.Task.Data.Children 0 }}
+          {{ $done := eq ($todo.Props.Text "STATUS") "COMPLETED" }}
+          {{ $mark := .g.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = .g.T "tasks.markincomplete" }}{{ end }}
+          <form action="{{.url}}/complete{{.acct}}" method="post" hx-boost="false">
+            <input type="hidden" name="next" value="{{.list}}">
+            {{ if $done }}<input type="hidden" name="reopen" value="1">{{ end }}
+            <button type="submit" class="icon-button" aria-pressed="{{$done}}" title="{{$mark}}" aria-label="{{$mark}}">{{ template "icon" "check" }}</button>
+          </form>
+{{ end }}
+
+{{ define "main-class" }} class="task"{{ end }}
+
+{{ define "main" }}
+      {{ $acct := account "?" .GlobalData.URLAccount }}
       {{$todo := index .Task.Data.Children 0}}
       {{$summary := $todo.Props.Text "SUMMARY"}}
       {{$desc := $todo.Props.Text "DESCRIPTION"}}
       {{$status := $todo.Props.Text "STATUS"}}
       {{$due := $todo.Props.Get "DUE"}}
 
-      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "toolbar-head" (dict "newhref" (printf "/tasks/create%s" $acct) "back" .List "newlabel" ($.T "tasks.new")) }}
-        <span class="icon-group">
-          {{ $done := eq $status "COMPLETED" }}
-          {{ $mark := $.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = $.T "tasks.markincomplete" }}{{ end }}
-          <form action="{{.Task.URL}}/complete{{$acct}}" method="post" hx-boost="false">
-            <input type="hidden" name="next" value="{{.List}}">
-            {{ if $done }}<input type="hidden" name="reopen" value="1">{{ end }}
-            <button type="submit" class="icon-button" aria-pressed="{{$done}}" title="{{$mark}}" aria-label="{{$mark}}">{{ template "icon" "check" }}</button>
-          </form>
-          <a class="icon-button" href="{{ localhref (from (printf "%s/edit%s" .Task.URL $acct) $.GlobalData.From) }}" title="{{$.T "common.edit"}}" aria-label="{{$.T "common.edit"}}">{{ template "icon" "edit" }}</a>
-          <a hx-boost="false" class="icon-button" href="{{.Task.URL}}/raw{{$acct}}" title="{{$.T "common.source"}}" aria-label="{{$.T "common.source"}}">{{ template "icon" "source" }}</a>
-          <a hx-boost="false" class="icon-button" href="{{.Task.URL}}/raw?save=1{{ account "&" $.GlobalData.URLAccount }}" title="{{ printf ($.T "common.saveas") ".ics" }}" aria-label="{{ printf ($.T "common.saveas") ".ics" }}">{{ template "icon" "download" }}</a>
-          <form action="{{.Task.URL}}/delete{{$acct}}" method="post">
-            <input type="hidden" name="next" value="{{.List}}">
-            <button type="submit" class="icon-button icon-danger" title="{{$.T "common.delete"}}" aria-label="{{$.T "common.delete"}}">{{ template "icon" "trash" }}</button>
-          </form>
-        </span>
-        {{ template "toolbar-end" }}
-        {{ template "object-nav" (dict "g" $ "n" .Neighbours) }}
-        {{ template "toolbar-foot" }}
-      </section>
+      {{ template "object-toolbar" (dict "g" $ "url" .Task.URL "acct" $acct "list" .List "new" "/tasks/create" "newlabel" ($.T "tasks.new") "edit" "edit" "rawq" "" "ext" ".ics" "readonly" false
+         "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
 
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
-
-      <form id="task-color-form" method="post" hx-boost="false">
-        <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
-      </form>
+      {{ template "next-form" (dict "id" "task-color-form" "next" $.GlobalData.URL.RequestURI) }}
       <section class="details">
-        <div class="subject-row">
-          <h1 class="{{if eq $status "COMPLETED"}}completed{{end}}">{{$summary}}</h1>
-          {{ template "flag-menu" (dict
-             "toggle" true
-             "form" "task-color-form"
-             "action" (printf "%s/color%s" .Task.URL $acct)
-             "current" .Star
-             "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
-        </div>
+        {{ template "object-title" (dict "g" $ "title" $summary "class" (and (eq $status "COMPLETED") "completed") "form" "task-color-form" "action" (printf "%s/color%s" .Task.URL $acct) "current" .Star) }}
         <dl>
           <dt>{{$.T "tasks.status"}}</dt>
           <dd>{{if eq $status "COMPLETED"}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</dd>
@@ -78,8 +55,4 @@
            "createdLabel" ($.T "common.created") "modifiedLabel" ($.T "common.modified")
            "authors" .Authors "bylabel" ($.T "common.by")) }}
       </section>
-    </main>
-  </div>
-</div>
-
-{{template "foot.html"}}
+{{ end }}

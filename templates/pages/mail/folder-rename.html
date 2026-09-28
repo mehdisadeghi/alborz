@@ -1,0 +1,14 @@
+{{ define "rail" }}
+  {{ template "mail-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
+      <form method="POST">
+        {{ template "mail-crumb" $ }}
+        <h1>{{printf ($.T "folder.renametitle") .Mailbox.Label}}</h1>
+        {{ template "field" (dict "label" ($.T "folder.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true "hint" ($.T "folder.renamehint")) }}
+        {{ template "form-actions" (dict "save" ($.T "folder.renamedo") "cancel" (localhref (printf "/mailbox/%s" (.Mailbox.Name | pathescape))) "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+{{ end }}

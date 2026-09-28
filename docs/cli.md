@@ -29,11 +29,10 @@ The following URL schemes are supported:
 
 # OPTIONS
 
-**-theme**: theme directory name under `./themes` (default: "alborz")
-
 **-addr**: listening address (default: ":1323")
 
-**-debug**: enable debug logs and print IMAP network activity
+**-debug**: enable debug logs, print IMAP network activity, and read
+templates and assets from `./templates`
 
 **-login-key**: supply a secret key to preserve logins over application restart.
 Can also be given as the `LBRZ_LOGIN_KEY` environment variable, which keeps

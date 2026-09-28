@@ -1,22 +1,17 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
+{{ define "rail" }}
+  {{ template "mail-rail" . }}
+{{ end }}
 
-<div class="page-wrap">
-  {{ template "aside" . }}
-  <div class="container">
-    <main id="main" tabindex="-1" class="create-update">
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
       {{/* The file is the last field: the form is read as a stream and the
            folder is settled before the file begins. */}}
       <form method="POST" enctype="multipart/form-data">
-        {{ $acct := "" }}{{ with .GlobalData.URLAccount }}{{ $acct = printf "?account=%s" . }}{{ end }}
-        {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}
+        {{ $acct := account "?" .GlobalData.URLAccount }}
+        {{ template "mail-crumb" $ }}
         <h1>{{$.T "folder.import"}}</h1>
         {{ template "folder-location" $ }}
         {{ template "import-fields" (dict "g" $ "name" ($.T "folder.name") "namevalue" .Name "namehint" ($.T "folder.importname") "file" ($.T "folder.importfile") "accept" ".mbox,.eml,application/mbox,message/rfc822" "hint" ($.T "folder.importhint") "go" ($.T "folder.importgo") "cancel" (printf "/mailbox/INBOX%s" $acct)) }}
       </form>
-    </main>
-  </div>
-</div>
-
-{{template "foot.html"}}
+{{ end }}

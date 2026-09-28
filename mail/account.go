@@ -39,7 +39,7 @@ func handleLogin(ctx *alborz.Context) error {
 
 	if ctx.Request().Method == http.MethodPost && (username == "" || password == "") {
 		renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.loginmissing")}
-		return ctx.Render(http.StatusUnprocessableEntity, "login.html", &renderData)
+		return ctx.Render(http.StatusUnprocessableEntity, "login", &renderData)
 	}
 
 	if username != "" && password != "" {
@@ -52,7 +52,7 @@ func handleLogin(ctx *alborz.Context) error {
 				return fmt.Errorf("failed to put connection in pool: %w", err)
 			}
 			renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: text}
-			return ctx.Render(status, "login.html", &renderData)
+			return ctx.Render(status, "login", &renderData)
 		}
 		ctx.AddAccount(s)
 
@@ -63,7 +63,7 @@ func handleLogin(ctx *alborz.Context) error {
 		return loginRedirect(ctx)
 	}
 
-	return ctx.Render(http.StatusOK, "login.html", &renderData)
+	return ctx.Render(http.StatusOK, "login", &renderData)
 }
 
 func loginRedirect(ctx *alborz.Context) error {

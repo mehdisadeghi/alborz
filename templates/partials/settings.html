@@ -1,0 +1,8 @@
+{{/* dict: g title path [collection object chooses newhref newlabel]; collection defaults to the title. */}}
+{{ define "settings-head" }}
+        {{ template "list-toolbar" (dict "g" .g "title" .title "newhref" .newhref "newlabel" .newlabel) }}
+      {{ template "settings-crumb" (dict "g" .g "collection" (or .collection .title) "path" .path "object" .object "chooses" .chooses) }}
+{{ end }}
+
+{{/* dict: g collection path [object chooses]. */}}
+{{ define "settings-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.settings") "home" "/settings" "noroot" true "chooses" .chooses "field" "" "collection" .collection "path" .path "object" .object) }}{{ end }}

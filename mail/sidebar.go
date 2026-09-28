@@ -42,7 +42,7 @@ func (p *plugin) handleSidebar(ctx *alborz.Context) error {
 	sb.active = sb.statuses[folder]
 	data := assembleIMAPBase(ctx, base, folder, sb, view)
 	data.SidebarAccounts = p.sidebarAccounts(ctx)
-	return ctx.Render(http.StatusOK, "aside", data)
+	return ctx.Render(http.StatusOK, "mail-rail", data)
 }
 
 type IMAPBaseRenderData struct {

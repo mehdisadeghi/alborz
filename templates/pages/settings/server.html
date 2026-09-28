@@ -1,19 +1,12 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
 
-<div class="page-wrap">
-  <aside>
-  {{ template "settings-rail" (dict "g" $ "rail" .Rail) }}
-  </aside>
+{{ define "main-class" }} class="settings"{{ end }}
 
-  <div class="container">
-    <main id="main" tabindex="-1" class="settings">
+{{ define "main" }}
       {{ $title := $.T (printf "servers.%s" .Showing) }}
-      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "list-toolbar" (dict "title" $title) }}
-      </section>
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.servers") "path" "/settings/servers" "object" $title) }}
+      {{ template "settings-head" (dict "g" $ "title" $title "collection" ($.T "settings.servers") "path" "/settings/servers" "object" $title) }}
 
       {{ range .Shown }}
       {{ template "info-card" (dict "title" .Title "page" $ "rows" .Rows
@@ -52,8 +45,4 @@
         </div>
       </form>
       {{ end }}
-    </main>
-  </div>
-</div>
-
-{{template "foot.html" .}}
+{{ end }}

@@ -33,7 +33,8 @@ type CalendarSystem interface {
 }
 
 const (
-	gregorianName = "gregorian"
+	// GregorianName is the Gregorian calendar, which numbers weeks by ISO 8601.
+	GregorianName = "gregorian"
 	// shcalName is the Solar Hijri (Jalali) calendar.
 	shcalName = "shcal"
 )
@@ -46,7 +47,7 @@ func CalendarNamed(name string) string {
 	return ""
 }
 
-var calendarSystems = []string{gregorianName, shcalName}
+var calendarSystems = []string{GregorianName, shcalName}
 
 // Calendar returns the named system, Gregorian for an unknown name.
 func Calendar(name string) CalendarSystem {
@@ -68,7 +69,7 @@ func CalendarOfRSCALE(scale string) (CalendarSystem, bool) {
 
 type gregorian struct{}
 
-func (gregorian) Name() string   { return gregorianName }
+func (gregorian) Name() string   { return GregorianName }
 func (gregorian) RSCALE() string { return "GREGORIAN" }
 func (gregorian) Date(t time.Time) (int, int, int) {
 	y, m, d := t.Date()
@@ -224,7 +225,7 @@ const (
 )
 
 // TypedDates reports whether forms take dates typed rather than picked.
-func (g *GlobalRenderData) TypedDates() bool { return g.primary().Name() != gregorianName }
+func (g *GlobalRenderData) TypedDates() bool { return g.PrimaryCalendar().Name() != GregorianName }
 
 // InputDate and InputDateTime are a date as its field holds it.
 func (g *GlobalRenderData) InputDate(t time.Time) string {
@@ -234,7 +235,7 @@ func (g *GlobalRenderData) InputDate(t time.Time) string {
 	if !g.TypedDates() {
 		return t.Format(isoDate)
 	}
-	y, m, d := g.primary().Date(t)
+	y, m, d := g.PrimaryCalendar().Date(t)
 	return g.shapeDigits(fmt.Sprintf(typedDate, y, m, d))
 }
 
@@ -273,7 +274,7 @@ func (ctx *Context) ReadDate(s string, loc *time.Location) (time.Time, error) {
 	if !g.TypedDates() {
 		return time.ParseInLocation(isoDate, s, loc)
 	}
-	day, rest, err := typedDay(g.primary(), s, loc)
+	day, rest, err := typedDay(g.PrimaryCalendar(), s, loc)
 	if err != nil || rest != "" {
 		return time.Time{}, fmt.Errorf("not a date: %q", s)
 	}
@@ -285,7 +286,7 @@ func (ctx *Context) ReadDateTime(s string, loc *time.Location) (time.Time, error
 	if !g.TypedDates() {
 		return time.ParseInLocation(isoDateTime, s, loc)
 	}
-	day, rest, err := typedDay(g.primary(), s, loc)
+	day, rest, err := typedDay(g.PrimaryCalendar(), s, loc)
 	var h, m int
 	if err != nil || rest == "" {
 		return time.Time{}, fmt.Errorf("not a date and time: %q", s)

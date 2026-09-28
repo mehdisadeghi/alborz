@@ -47,7 +47,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
+	return ctx.Render(http.StatusOK, "calendar/day", &CalendarDateRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(dv.start)),
 		// Named even when the URL omits it, so an opened event knows its list.

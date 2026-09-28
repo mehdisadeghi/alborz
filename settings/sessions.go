@@ -32,7 +32,7 @@ func handleSessions(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "sessions.html", &SessionsRenderData{
+	return ctx.Render(http.StatusOK, "settings/sessions", &SessionsRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("sessions.title")),
 		Rail:           mail.SettingsRail(ctx),
 		Signed:         signed,

@@ -230,7 +230,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		Authors:        p.dav.Authors(event.Path, ctx.Login.Username()),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborz.UserLocation(ctx))
-	return ctx.Render(http.StatusOK, "event.html", data)
+	return ctx.Render(http.StatusOK, "calendar/event", data)
 }
 
 func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
@@ -257,7 +257,7 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 		Neighbours:     pim.Around(items, eventKey(address, ctx.QueryParam("uid"), true)),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &event, alborz.UserLocation(ctx))
-	return ctx.Render(http.StatusOK, "event.html", data)
+	return ctx.Render(http.StatusOK, "calendar/event", data)
 }
 
 func (p *plugin) feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ical.Calendar, error) {
@@ -356,7 +356,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			if err != nil {
 				return err
 			}
-			return ctx.Render(http.StatusUnprocessableEntity, "update-event.html", &UpdateEventRenderData{
+			return ctx.Render(http.StatusUnprocessableEntity, "calendar/event-edit", &UpdateEventRenderData{
 				Rail:           rail,
 				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.createtitle")).Refused(message),
 				Groups:         groups,
@@ -509,7 +509,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		Event:          event,
 	}
 	fillEventForm(ctx, data, loc, newEventStart(ctx, loc))
-	return ctx.Render(http.StatusOK, "update-event.html", data)
+	return ctx.Render(http.StatusOK, "calendar/event-edit", data)
 }
 
 func eventList(ctx *alborz.Context) string {

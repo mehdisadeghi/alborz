@@ -1,0 +1,44 @@
+{{/* dict: G Row Next. */}}
+{{ define "task-row" }}
+{{ $g := .G }}{{ $next := .Next }}{{ with .Row }}
+<div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
+  <div class="task-list-checkbox list-checkbox list-cell" role="cell">
+    <input type="checkbox" name="paths" value="{{.Task.Account}}|{{.Task.Path}}" form="tasks-form" aria-label="{{$g.T "a11y.selecttask"}}{{with .Summary}}: {{.}}{{end}}">
+  </div>
+  <div class="list-star list-cell" role="cell">
+    {{ template "card-star" (dict
+       "Action" (printf "%s/color%s" .Task.URL (account "?" .Task.Account))
+       "Current" .Star
+       "Next" $next
+       "Label" (or (and .Star ($g.T "mailbox.flagnone")) ($g.T "mailbox.flagcolor"))
+       "MenuLabel" ($g.T "mailbox.flagcolor")) }}
+  </div>
+  <div class="task-list-status list-cell" role="cell" data-label="{{$g.T "tasks.status"}}">
+    {{ $mark := $g.T "tasks.markcomplete" }}{{ if .Completed }}{{ $mark = $g.T "tasks.markincomplete" }}{{ end }}
+    {{ with .Priority }}{{ $mark = printf "%s · %s" $mark ($g.T (printf "tasks.priority.%s" .)) }}{{ end }}
+    <form method="post" action="{{.Task.URL}}/complete{{account "?" .Task.Account}}" class="task-checkbox"
+          hx-post="{{.Task.URL}}/complete{{account "?" .Task.Account}}" hx-target="closest .task-row" hx-swap="outerHTML">
+      <input type="hidden" name="next" value="{{$next}}">
+      {{ if .Completed }}<input type="hidden" name="reopen" value="1">{{ end }}
+      <button type="submit" class="checkbox-button{{if .Completed}} checked{{end}}{{with .Priority}} prio-{{.}}{{end}}" aria-label="{{$mark}}" title="{{$mark}}">
+        {{if .Completed}}&#10003;{{end}}
+      </button>
+    </form>
+  </div>
+  <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "tasks.summary"}}">
+    <a href="{{.Href}}" dir="auto"{{ with .AddedBy }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.Summary}}</a>
+  </div>
+  {{ $cq := printf "%v" (account "?" (or .Task.Account $g.GlobalData.URLAccount)) }}
+  <div class="task-list-calendar list-cell" role="cell" data-label="{{$g.T "common.calendar"}}">
+    {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}<a href="/tasks{{$cq}}{{qsep $cq}}cal={{.Calendar.Path | qv}}">{{.Calendar.Name}}</a>{{ template "collection-mark" (dict "g" $g "c" .Calendar) }}{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
+  </div>
+  {{/* Built before the tag: the escaper cannot follow an attribute only some branches write. */}}
+  {{ $due := "" }}{{ $dueTitle := "" }}
+  {{ if not .Due.IsZero }}{{ $due = $g.GlobalData.ShortDate .Due }}{{ $dueTitle = $g.GlobalData.LongDate .Due }}{{ with $g.GlobalData.SecondaryDate .Due }}{{ $dueTitle = printf "%s (%s)" $dueTitle . }}{{ end }}{{ end }}
+  <div class="task-list-due list-cell" role="cell" data-label="{{$g.T "tasks.duedate"}}" title="{{$dueTitle}}">{{$due}}</div>
+  {{ $added := "" }}{{ $addedTitle := "" }}
+  {{ if not .Added.IsZero }}{{ $added = $g.GlobalData.Since .Added }}{{ $addedTitle = $g.GlobalData.FormatDate .Added }}{{ with $g.GlobalData.SecondaryDate .Added }}{{ $addedTitle = printf "%s (%s)" $addedTitle . }}{{ end }}{{ end }}
+  <div class="task-list-added list-cell" role="cell" data-label="{{$g.T "common.added"}}" title="{{$addedTitle}}">{{$added}}</div>
+</div>
+{{ end }}
+{{ end }}

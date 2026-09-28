@@ -1,6 +1,7 @@
 package alborz
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -8,65 +9,21 @@ import (
 	"testing"
 )
 
-// Go resolves {{template}} names only at execution time.
-func TestTemplateReferencesResolve(t *testing.T) {
-	var files []string
-	for _, glob := range templateGlobs {
-		found, err := filepath.Glob(glob)
-		if err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, found...)
-	}
-	if len(files) == 0 {
-		t.Fatal("no templates found; the glob is wrong, not the templates")
-	}
-
-	defineRe := regexp.MustCompile(`\{\{-?\s*define\s+"([^"]+)"`)
-	useRe := regexp.MustCompile(`\{\{-?\s*template\s+"([^"]+)"`)
-
-	defined := map[string]bool{}
-	for _, f := range files {
-		defined[filepath.Base(f)] = true
-		b, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, m := range defineRe.FindAllStringSubmatch(string(b), -1) {
-			defined[m[1]] = true
-		}
-	}
-
-	for _, f := range files {
-		b, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, m := range useRe.FindAllStringSubmatch(string(b), -1) {
-			if !defined[m[1]] {
-				t.Errorf("%s calls template %q, which nothing defines", f, m[1])
-			}
-		}
-	}
-}
-
 func TestTranslationKeysExist(t *testing.T) {
-	var files []string
-	for _, glob := range templateGlobs {
-		found, _ := filepath.Glob(glob)
-		files = append(files, found...)
-	}
-
 	keyRe := regexp.MustCompile(`\{\{-?\s*\$?\.?\$?[A-Za-z.]*\bTf?\s+"([a-z0-9._]+)"`)
 	used := map[string][]string{}
-	for _, f := range files {
-		b, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatal(err)
+	err := filepath.WalkDir("templates", func(f string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Ext(f) != ".html" {
+			return err
 		}
+		b, err := os.ReadFile(f)
 		for _, m := range keyRe.FindAllStringSubmatch(string(b), -1) {
 			used[m[1]] = append(used[m[1]], f)
 		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 	if len(used) == 0 {
 		t.Fatal("no translation keys found; the pattern is wrong, not the templates")

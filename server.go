@@ -812,10 +812,10 @@ type Options struct {
 	// without asking them again. Off, every page asks and nothing is
 	// kept: alborz is slower, and no less right.
 	Cache bool
-	// CacheDir is where a cache that keeps data between runs puts it,
-	// sealed under LoginKey; empty, or no key, keeps it in memory. Read
-	// only with Cache on. Nothing here is missed if it is deleted,
-	// which is what makes it a cache.
+	// CacheDir keeps the copies of remote calendars and address books,
+	// sealed under LoginKey; empty, or no key, keeps none, and every
+	// read of them asks the server. Read only with Cache on. Nothing
+	// here is missed if it is deleted, which is what makes it a cache.
 	CacheDir string
 	// DataDir keeps what a reader would miss: the sessions that remember
 	// an account, what they read by, and the settings of an account

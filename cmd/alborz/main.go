@@ -87,7 +87,7 @@ func main() {
 	flag.BoolVar(&options.Cache, "cache", true,
 		"keep what the servers answered, so pages open without asking again; false asks every time and keeps nothing")
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
-		"directory where caches that keep data between runs put it, sealed under the login key; empty keeps them in memory")
+		"directory keeping the copies of remote calendars and address books, sealed under the login key; empty keeps none")
 	// The working directory, the way a daemon told nothing keeps its
 	// state: the unit says where alborz runs and the file lands there.
 	flag.StringVar(&options.DataDir, "data-dir", ".",

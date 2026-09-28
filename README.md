@@ -58,6 +58,7 @@ In addition to the protocols above:
 | 5545, 7986, 7529 | iCalendar: VTIMEZONE generation, recurrence, alarms, COLOR, RSCALE |
 | 4791, 6352, 6764 | CalDAV and CardDAV server, `.well-known` discovery |
 | 4918, 7232 | WebDAV dead properties, conditional requests |
+| 6578 | WebDAV sync: remote calendars and address books kept in step |
 | 3676, 5322 | format=flowed, References, Reply-To, signature delimiter |
 | 6350, 6186 | vCard, SRV service discovery |
 | WebAuthn | Passkeys |

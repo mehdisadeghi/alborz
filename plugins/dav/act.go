@@ -1,7 +1,7 @@
 package dav
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 	"net/url"
 	"slices"
@@ -14,7 +14,7 @@ import (
 // Selection is what a route acts on: the one object its own path names,
 // in the URL's account, or the rows a list had checked. Acting on one
 // object is acting on a selection of one.
-func Selection[C any](ctx *alborz.Context, client func(*alborz.Login) (C, error)) ([]Ref[C], error) {
+func Selection[C any](ctx *alborz.Context, client func(context.Context, *alborz.Login) (C, error)) ([]Ref[C], error) {
 	if ctx.Param("path") == "" {
 		params, err := ctx.FormParams()
 		if err != nil {
@@ -26,7 +26,7 @@ func Selection[C any](ctx *alborz.Context, client func(*alborz.Login) (C, error)
 	if err != nil {
 		return nil, err
 	}
-	c, err := client(ctx.Login)
+	c, err := client(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func Selection[C any](ctx *alborz.Context, client func(*alborz.Login) (C, error)
 // Action is one thing a route does to the objects selected: whose
 // client, what to each, in which words, and where to land.
 type Action[C any] struct {
-	Client func(*alborz.Login) (C, error)
+	Client func(context.Context, *alborz.Login) (C, error)
 	// Do acts on one object. An error is the server's no, and ends the
 	// run: it is said on the page, never answered as a failure of ours.
 	Do func(ctx *alborz.Context, ref Ref[C]) error
@@ -98,7 +98,7 @@ func Delete[C files](ctx *alborz.Context, ref Ref[C]) error {
 // Refused carries a server's no back to the page a button returns to;
 // there is no form to show it on.
 func Refused(ctx *alborz.Context, err error) alborz.Notice {
-	return alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)}
+	return alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)}
 }
 
 // StarRenderData is one object's star, which is all that changes when
@@ -118,7 +118,7 @@ type StarRenderData struct {
 // asked for a piece of itself gets its star back and nothing moves; a
 // refused write leaves that star as it was, since the answer is the
 // server's state and never the click's.
-func Star[C any](ctx *alborz.Context, client func(*alborz.Login) (C, error), list string, mark func(ctx *alborz.Context, ref Ref[C], name string) (was string, err error)) error {
+func Star[C any](ctx *alborz.Context, client func(context.Context, *alborz.Login) (C, error), list string, mark func(ctx *alborz.Context, ref Ref[C], name string) (was string, err error)) error {
 	name := ctx.FormValue("color")
 	if name != "" && !slices.Contains(alborzbase.FlagColors[:], name) {
 		return echo.NewHTTPError(http.StatusBadRequest, "no such colour")

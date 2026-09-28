@@ -48,31 +48,31 @@ func getCalendarObject(ctx *alborz.Context, c *caldav.Client, path string) (*cal
 	return &caldav.CalendarObject{Path: path, Data: cal}, nil
 }
 
-func loadSettings(store alborz.Store) (*Settings, error) {
+func loadSettings(ctx context.Context, store alborz.Store) (*Settings, error) {
 	settings := &Settings{}
-	if err := store.Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
+	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
 	return settings, nil
 }
 
 // choose writes the collections the reader ticked into the settings.
-func choose(set func(*Settings, []string)) func(alborz.Store, []string) error {
-	return func(store alborz.Store, paths []string) error {
-		settings, err := loadSettings(store)
+func choose(set func(*Settings, []string)) func(context.Context, alborz.Store, []string) error {
+	return func(ctx context.Context, store alborz.Store, paths []string) error {
+		settings, err := loadSettings(ctx, store)
 		if err != nil {
 			return err
 		}
 		set(settings, paths)
-		return store.Put(settingsKey, settings)
+		return store.Put(ctx, settingsKey, settings)
 	}
 }
 
 // show ticks a collection the account just made or accepted in the
 // chosen sets in force: what to see was chosen before it existed, which
 // was not a choice to hide it.
-func show(store alborz.Store, path string) error {
-	settings, err := loadSettings(store)
+func show(ctx context.Context, store alborz.Store, path string) error {
+	settings, err := loadSettings(ctx, store)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func show(store alborz.Store, path string) error {
 	if settings.TaskFilter {
 		settings.VisibleTasks = append(settings.VisibleTasks, path)
 	}
-	return store.Put(settingsKey, settings)
+	return store.Put(ctx, settingsKey, settings)
 }
 
 func firstEvent(cal *ical.Calendar) *ical.Component {
@@ -135,16 +135,16 @@ func (p *plugin) calendarRail(ctx *alborz.Context, kind func([]string) bool, cho
 	if err != nil {
 		return rail, err
 	}
-	infos, _, err := visibleCalendars(accounts, ctx.URLAccount(), nil, kind, chosen)
+	infos, _, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), nil, kind, chosen)
 	rail.Items = infos
 	return rail, err
 }
 
 // visibleCalendars are dav.Visible's calendars of one kind, with the
 // feeds the account follows beside the server's.
-func visibleCalendars(accounts []dav.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []dav.Site[*caldav.Client], error) {
+func visibleCalendars(ctx context.Context, accounts []dav.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []dav.Site[*caldav.Client], error) {
 	return dav.Visible(accounts, scope, only, func(acc dav.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
-		settings, err := loadSettings(acc.Login.Store())
+		settings, err := loadSettings(ctx, acc.Login.Store())
 		if err != nil {
 			return nil, false, nil, fmt.Errorf("failed to load CalDAV settings: %w", err)
 		}
@@ -345,7 +345,7 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 	if err != nil {
 		return err
 	}
-	_, sites, err := visibleCalendars(accounts, ctx.URLAccount(), dav.Only(ctx, "cal"), kind, chosen)
+	_, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), dav.Only(ctx, "cal"), kind, chosen)
 	if err != nil {
 		return err
 	}

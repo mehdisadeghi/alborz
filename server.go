@@ -234,9 +234,18 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	// place to put it and the key that seals the record. Without either
 	// a session lasts as long as the process, which is what a login
 	// always did.
+	var settings *settingsRecords
 	if s.data != nil && options.LoginKey != nil {
+		err := CheckKey(s.data, filepath.Join(options.DataDir, storeFile), options.LoginKey,
+			sessionsOwner+"/", readingOwner+"/", settingsOwner+"/")
+		if err != nil {
+			return nil, err
+		}
 		s.Sessions.SetRecords(OpenSessionRecords(s.data, options.LoginKey))
-		s.Sessions.Sweep(time.Now().Add(-credentialCookieLife))
+		if err := s.Sessions.Sweep(time.Now().Add(-credentialCookieLife)); err != nil {
+			return nil, err
+		}
+		settings = openSettingsRecords(s.data, options.LoginKey)
 	}
 
 	s.domains = make(map[string]*domainUpstreams)
@@ -293,7 +302,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		return nil, fmt.Errorf("no usable domains left")
 	}
 
-	s.Logins = newLoginManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, s.Options.LoginKey, s.Sessions.Records())
+	s.Logins = newLoginManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, settings)
 	return s, nil
 }
 
@@ -968,6 +977,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			ctx := &Context{Context: ectx, Server: s}
 			ctx.Set("context", ctx)
 			ctx.installTiming()
+			ctx.SetRequest(ctx.Request().WithContext(withStoreMemo(ctx.Request().Context())))
 
 			// A language in the URL is a choice and is kept, so the
 			// next click does not fall back to the old one. Typing it

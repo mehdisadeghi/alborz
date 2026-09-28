@@ -289,6 +289,19 @@ func startAlborz(t *testing.T, imapAddr string, smtpAddr ...string) string {
 
 func startAlborzWith(t *testing.T, upstreams []string) string {
 	t.Helper()
+	return serveAlborz(t, upstreams, "")
+}
+
+// startAlborzKeeping has a data directory, for a test that saves
+// settings: the rig's IMAP server has no METADATA to keep them.
+func startAlborzKeeping(t *testing.T, imapAddr string, smtpAddr ...string) string {
+	t.Helper()
+	return serveAlborz(t, append([]string{"test.local=imap+insecure://" + imapAddr},
+		smtpUpstreams(smtpAddr)...), t.TempDir())
+}
+
+func serveAlborz(t *testing.T, upstreams []string, dataDir string) string {
+	t.Helper()
 	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
@@ -297,6 +310,7 @@ func startAlborzWith(t *testing.T, upstreams []string) string {
 		Theme:      "alborz",
 		ThemesPath: "./themes",
 		LoginKey:   key,
+		DataDir:    dataDir,
 		// A handler that sends the reader elsewhere says what it did.
 		StrictNotices: true,
 	})
@@ -734,6 +748,26 @@ func TestExportFailsAsAnError(t *testing.T) {
 	}
 }
 
+func TestSettingsWithNowhereToKeepThemAreRefusedOnTheForm(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	stay := *c
+	stay.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := stay.PostForm(base+"/settings/account", url.Values{"from": {smokeUser}, "reply_position": {"below"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(resp.Body)
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("saving with nowhere to keep it: %s, want the form again", resp.Status)
+	}
+	if !strings.Contains(buf.String(), "cannot keep settings") {
+		t.Fatalf("the form came back without saying the change was not kept:\n%s", firstLines(buf.String()))
+	}
+}
+
 // TestSendHTMLFollowsWhatWasWritten is about where a decision lives.
 // The HTML part was once chosen when the compose page was rendered and
 // carried back in a hidden field, so a page opened before the choice
@@ -746,7 +780,7 @@ func TestExportFailsAsAnError(t *testing.T) {
 // the only place the answer is visible.
 func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
-	base := startAlborz(t, startIMAP(t), smtpAddr)
+	base := startAlborzKeeping(t, startIMAP(t), smtpAddr)
 	c := login(t, base)
 
 	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))

@@ -1,6 +1,7 @@
 package alborzbase
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -312,7 +313,7 @@ func sidebarFor(s *alborz.Login) (sidebar, error) {
 	return accountSidebars.Get(s.Username(), func() (sidebar, error) {
 		// Loaded before DoIMAP: on a METADATA server the settings read
 		// is itself a DoIMAP, and the login lock is not reentrant.
-		settings, err := LoadSettings(s.Store())
+		settings, err := LoadSettings(context.Background(), s.Store())
 		if err != nil {
 			return sidebar{}, err
 		}
@@ -510,7 +511,7 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 		return nil, err
 	}
 
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load settings: %w", err)
 	}

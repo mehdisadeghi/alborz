@@ -102,7 +102,7 @@ func handleUnifiedMailbox(ctx *alborz.Context) error {
 	if to := searchInstead(ctx, ask); to != "" {
 		return ctx.Redirect(http.StatusFound, to)
 	}
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -442,7 +442,7 @@ func handleGetMailbox(ctx *alborz.Context) error {
 	if to := searchInstead(ctx, ask); to != "" {
 		return ctx.Redirect(http.StatusFound, to)
 	}
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}

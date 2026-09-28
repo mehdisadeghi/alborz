@@ -1,6 +1,7 @@
 package alborzcaldav
 
 import (
+	"context"
 	"embed"
 
 	"git.mehdix.org/alborz"
@@ -19,12 +20,12 @@ type plugin struct {
 	dav *dav.Provider
 }
 
-func (p *plugin) client(login *alborz.Login) (*caldav.Client, error) {
-	u, ok := p.dav.URL(login)
+func (p *plugin) client(ctx context.Context, login *alborz.Login) (*caldav.Client, error) {
+	u, ok := p.dav.URL(ctx, login)
 	if !ok {
 		return nil, errNoCalendar
 	}
-	return newClient(u, p.dav.HTTPClient(login))
+	return newClient(u, p.dav.HTTPClient(ctx, login))
 }
 
 func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {

@@ -298,7 +298,7 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 // own, kept in its settings beside the server's calendars rather than
 // among them.
 func feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ical.Calendar, error) {
-	settings, err := loadSettings(ctx.Login.Store())
+	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, nil, err
 	}

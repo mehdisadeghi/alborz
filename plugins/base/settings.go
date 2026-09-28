@@ -1,6 +1,7 @@
 package alborzbase
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -89,9 +90,9 @@ type Settings struct {
 	NoDirectionPart bool
 }
 
-func LoadSettings(s alborz.Store) (*Settings, error) {
+func LoadSettings(ctx context.Context, s alborz.Store) (*Settings, error) {
 	settings := &Settings{}
-	if err := s.Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
+	if err := s.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
 	if key, limit := settings.check(); key != "" {
@@ -176,7 +177,7 @@ func settingsStorage(ctx *alborz.Context) (SettingsStorage, error) {
 	if !ok {
 		return SettingsStorage{}, nil
 	}
-	entries, err := store.Entries()
+	entries, err := store.Entries(ctx.Request().Context())
 	if err != nil {
 		return SettingsStorage{}, err
 	}
@@ -504,7 +505,7 @@ func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 // exists and writes one at a time, because deleting is an action rather
 // than a box to tick and then save.
 func handleSignatures(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
@@ -518,7 +519,7 @@ func handleSignatures(ctx *alborz.Context) error {
 // handleSignatureForm opens a signature to write: a new one, or the one
 // the URL names.
 func handleSignatureForm(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
@@ -537,7 +538,7 @@ func handleSignatureForm(ctx *alborz.Context) error {
 }
 
 func handleSignatureSave(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
@@ -584,8 +585,8 @@ func handleSignatureSave(ctx *alborz.Context) error {
 	if key, limit := settings.check(); key != "" {
 		return render(fmt.Sprintf(ctx.T(key), limit))
 	}
-	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
-		return fmt.Errorf("failed to save settings: %w", err)
+	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+		return render(ctx.SaveRefusal(err))
 	}
 	if !replaced {
 		ctx.Made(ctx.T("notice.signaturecreated"), name,
@@ -599,7 +600,7 @@ func handleSignatureSave(ctx *alborz.Context) error {
 // deletion is an action taken on a thing, not a field of a form that
 // saves everything at once.
 func handleSignatureDelete(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -614,8 +615,8 @@ func handleSignatureDelete(ctx *alborz.Context) error {
 	if settings.DefaultSignature == name {
 		settings.DefaultSignature = ""
 	}
-	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
-		return fmt.Errorf("failed to save settings: %w", err)
+	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
@@ -624,7 +625,7 @@ func handleSignatureDelete(ctx *alborz.Context) error {
 // It is a preference and saves on its own, so choosing one never depends
 // on what the form below happens to hold.
 func handleSignatureDefault(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -634,14 +635,14 @@ func handleSignatureDefault(ctx *alborz.Context) error {
 		chosen = ""
 	}
 	settings.DefaultSignature = chosen
-	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
-		return fmt.Errorf("failed to save settings: %w", err)
+	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
 
 func handleSettings(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
@@ -696,8 +697,8 @@ func handleSettings(ctx *alborz.Context) error {
 		if key, limit := settings.check(); key != "" {
 			return reject(fmt.Sprintf(ctx.T(key), limit))
 		}
-		if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
-			return fmt.Errorf("failed to save settings: %w", err)
+		if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+			return reject(ctx.SaveRefusal(err))
 		}
 		accountChanged(ctx.Login.Username())
 		ctx.PutNotice(ctx.T("notice.settingssaved"))
@@ -735,8 +736,9 @@ func handleForget(ctx *alborz.Context) error {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("settings.forgotten")})
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
-	if err := store.Forget(); err != nil {
-		return err
+	if err := store.Forget(ctx.Request().Context()); err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
 	accountChanged(ctx.Login.Username())
 	ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("settings.forgotten")})
@@ -769,7 +771,7 @@ func mailCards(ctx *alborz.Context, showing string) ([]ServerCard, error) {
 	if showing != ServerMail {
 		return cards, nil
 	}
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
@@ -826,10 +828,10 @@ func handleServer(ctx *alborz.Context) error {
 	if showing != ServerDAV {
 		return ctx.Render(http.StatusOK, "server.html", data)
 	}
-	if data.HasHTTPPassword, err = ctx.Login.HasHTTPPassword(); err != nil {
+	if data.HasHTTPPassword, err = ctx.Login.HasHTTPPassword(ctx.Request().Context()); err != nil {
 		return err
 	}
-	if data.Services, err = ctx.Login.Services(); err != nil {
+	if data.Services, err = ctx.Login.Services(ctx.Request().Context()); err != nil {
 		return err
 	}
 	if ctx.Request().Method != http.MethodPost {
@@ -858,17 +860,22 @@ func handleServer(ctx *alborz.Context) error {
 	}
 	// An empty field leaves the kept password alone; the box is how it
 	// is let go of, so nobody loses it by saving the page.
+	refuse := func(err error) error {
+		data.Services = named
+		data.Refused(ctx.SaveRefusal(err))
+		return ctx.Render(http.StatusUnprocessableEntity, "server.html", data)
+	}
 	if ctx.FormValue("http_password_reset") != "" {
-		err = ctx.Login.SetHTTPPassword("")
+		err = ctx.Login.SetHTTPPassword(ctx.Request().Context(), "")
 	} else if p := ctx.FormValue("http_password"); p != "" {
-		err = ctx.Login.SetHTTPPassword(p)
+		err = ctx.Login.SetHTTPPassword(ctx.Request().Context(), p)
 	}
 	if err != nil {
-		return err
+		return refuse(err)
 	}
 	if named != data.Services {
-		if err := ctx.Login.SetServices(named); err != nil {
-			return err
+		if err := ctx.Login.SetServices(ctx.Request().Context(), named); err != nil {
+			return refuse(err)
 		}
 	}
 	// What is cached was read with the servers or the password just

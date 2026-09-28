@@ -5,6 +5,7 @@ package dav
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -29,7 +30,7 @@ const requestTimeout = 10 * time.Second
 // longer than this is a loop, not a move.
 const maxRedirects = 10
 
-func httpClient(p *Provider, login *alborz.Login) *http.Client {
+func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Client {
 	return &http.Client{
 		// A wedged DAV server fails the request instead of hanging it.
 		Timeout: requestTimeout,
@@ -37,12 +38,16 @@ func httpClient(p *Provider, login *alborz.Login) *http.Client {
 			here:    p.here,
 			account: login.Username(),
 			remote: p.cache.Transport(login.Username(), sourceRouter{
-				sources: p.Sources(login),
+				sources: p.Sources(ctx, login),
 				trusted: p.trusted,
 				named:   p.named,
 				sign: func(req *http.Request, src Source) error {
 					if src.Named {
-						return login.SetHTTPBasicAuth(req)
+						err := login.SetHTTPBasicAuth(req)
+						if errors.Is(err, alborz.ErrSealed) {
+							return &RefusedError{Host: req.URL.Host}
+						}
+						return err
 					}
 					login.SetMailBasicAuth(req)
 					return nil

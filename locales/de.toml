@@ -4,6 +4,7 @@
 "form.sendrefused" = "Die Nachricht wurde nicht gesendet. Der Server sagt: %s"
 "form.draftrefused" = "Der Entwurf wurde nicht gespeichert. Der Server sagt: %s"
 "form.saverefused" = "Die Änderung wurde nicht gespeichert. Der Server sagt: %s"
+"form.nostorage" = "Die Änderung wurde nicht gespeichert: Der Mailserver dieses Kontos kann keine Einstellungen speichern, und dieses Alborz speichert selbst keine."
 "form.summaryneeded" = "Ein Betreff ist erforderlich."
 "form.recipientneeded" = "Mindestens einen Empfänger angeben."
 "form.destinationneeded" = "Wählen Sie, wo es gespeichert wird."
@@ -940,8 +941,8 @@ one = "%[1]d weiterer Ordner"
 other = "%[1]d weitere Ordner"
 
 ["notice.davrefused"]
-one = "Der Kalender- und Kontakteserver für %[2]s hat das Passwort abgelehnt."
-other = "Die Kalender- und Kontakteserver für %[2]s haben die Passwörter abgelehnt."
+one = "Der Kalender- und Kontakteserver für %[2]s hat das Passwort abgelehnt. Bitte erneut eingeben."
+other = "Die Kalender- und Kontakteserver für %[2]s haben die Passwörter abgelehnt. Bitte erneut eingeben."
 
 ["notice.unreachable"]
 one = "Der Server für %[2]s hat nicht geantwortet."

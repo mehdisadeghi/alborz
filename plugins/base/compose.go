@@ -60,7 +60,7 @@ func composeIdentities(ctx *alborz.Context, writtenAs string) []AccountIdentitie
 	var out []AccountIdentities
 	for _, s := range ctx.Logins() {
 		entry := AccountIdentities{Account: s.Username()}
-		if settings, err := LoadSettings(s.Store()); err == nil {
+		if settings, err := LoadSettings(ctx.Request().Context(), s.Store()); err == nil {
 			entry.Addresses = settings.Identities
 		}
 		if s == ctx.Login && writtenAs != "" && !entry.offers(writtenAs) {
@@ -301,7 +301,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 
 	// Both the sent copy and the saved draft carry it, so a message says
 	// what wrote it however it left here.
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -331,7 +331,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 			}
 		}
-		settings, err := LoadSettings(sender.Store())
+		settings, err := LoadSettings(ctx.Request().Context(), sender.Store())
 		if err != nil {
 			return err
 		}
@@ -736,7 +736,7 @@ func handleComposeNew(ctx *alborz.Context) error {
 	}
 
 	text := ctx.QueryParam("body")
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -906,7 +906,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 		return ret, err
 	}
 
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return ret, err
 	}

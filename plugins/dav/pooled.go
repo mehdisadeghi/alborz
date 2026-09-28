@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"github.com/labstack/echo/v4"
 )
 
@@ -64,7 +65,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	}
 	var logins []*alborz.Login
 	for _, s := range ctx.Logins() {
-		if _, ok := p.URL(s); ok {
+		if _, ok := p.URL(ctx.Request().Context(), s); ok {
 			logins = append(logins, s)
 		}
 	}
@@ -130,7 +131,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	if len(refused) > 0 {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
 			Text:   ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
-			Action: &alborz.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.QueryValue(refused[0])}})
+			Action: &alborz.NoticeAction{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + alborzbase.ServerDAV + "?account=" + alborz.QueryValue(refused[0])}})
 	}
 	return accounts, nil
 }
@@ -221,7 +222,7 @@ type Ref[C any] struct {
 // Selected resolves a pooled list's checked rows, "account|path" each,
 // to the client that owns them, opened once per account: a selection
 // can span accounts, and each row names its own.
-func Selected[C any](ctx *alborz.Context, refs []string, client func(*alborz.Login) (C, error)) ([]Ref[C], error) {
+func Selected[C any](ctx *alborz.Context, refs []string, client func(context.Context, *alborz.Login) (C, error)) ([]Ref[C], error) {
 	clients := map[string]C{}
 	out := make([]Ref[C], 0, len(refs))
 	for _, ref := range refs {
@@ -236,7 +237,7 @@ func Selected[C any](ctx *alborz.Context, refs []string, client func(*alborz.Log
 				return nil, echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 			}
 			var err error
-			if c, err = client(login); err != nil {
+			if c, err = client(ctx.Request().Context(), login); err != nil {
 				return nil, err
 			}
 			clients[account] = c

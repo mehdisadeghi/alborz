@@ -322,7 +322,9 @@ func (ctx *Context) EndSession() {
 		session.Remove(s.Username())
 		s.Close()
 	}
-	ctx.Server.Sessions.Delete(session.ID)
+	if err := ctx.Server.Sessions.Delete(session.ID); err != nil {
+		ctx.Logger().Printf("failed to forget the session: %v", err)
+	}
 	ctx.SetCookie(ctx.cookie(sessionCookieName, "", 0))
 	ctx.session, ctx.Login, ctx.DefaultLogin = nil, nil, nil
 }

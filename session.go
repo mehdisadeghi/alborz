@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"slices"
@@ -243,26 +242,17 @@ type RememberedAccount struct {
 	Sealed  []byte
 }
 
-// SessionRecords keeps remembered sessions, reading and settings records.
+// SessionRecords keeps remembered sessions, and what a reader reads by
+// under the account they anchored it to.
 type SessionRecords interface {
 	Load(id string) (*SessionRecord, bool)
 	Save(rec *SessionRecord) error
 	Delete(id string) error
 	Sweep(before time.Time) error
-	// Each hands over every session kept, for the list of browsers an
-	// account is signed into.
 	Each(func(*SessionRecord)) error
-	// LoadReading and SaveReading keep what a person reads by on the
-	// account they anchored it to, which is the only identity alborz
-	// has to hang it on.
 	LoadReading(account string) (*Reading, bool)
 	SaveReading(account string, r *Reading) error
 	DeleteReading(account string) error
-	// LoadSettings and SaveSettings hold what an account's own server will
-	// not: without METADATA there is nowhere on it to write, and the
-	// settings would otherwise last only as long as the process.
-	LoadSettings(account string) (map[string]json.RawMessage, bool)
-	SaveSettings(account string, entries map[string]json.RawMessage) error
 }
 
 // Sessions are the browsers signed in. The live ones are held here, and
@@ -285,9 +275,8 @@ func (ss *Sessions) SetRecords(r SessionRecords) { ss.records = r }
 // Remembers reports whether this deployment can remember a session.
 func (ss *Sessions) Remembers() bool { return ss.records != nil }
 
-// Records is where remembered sessions and the settings of an account
-// whose server has no METADATA are written, nil when this deployment
-// has nowhere of its own to write.
+// Records is where remembered sessions are written, nil when this
+// deployment has nowhere of its own to write.
 func (ss *Sessions) Records() SessionRecords { return ss.records }
 
 func (ss *Sessions) Get(id string) *Session {
@@ -310,7 +299,7 @@ func (ss *Sessions) Put(s *Session) {
 	ss.live[s.ID] = s
 }
 
-func (ss *Sessions) Delete(id string) {
+func (ss *Sessions) Delete(id string) error {
 	ss.mu.Lock()
 	s := ss.live[id]
 	delete(ss.live, id)
@@ -318,9 +307,10 @@ func (ss *Sessions) Delete(id string) {
 	if s != nil {
 		s.close()
 	}
-	if ss.records != nil {
-		ss.records.Delete(id)
+	if ss.records == nil {
+		return nil
 	}
+	return ss.records.Delete(id)
 }
 
 // Record is the remembered session of that id, when there is one.
@@ -366,10 +356,11 @@ func (ss *Sessions) SaveReading(account string, r Reading) error {
 }
 
 // Sweep drops the records nobody has come back to.
-func (ss *Sessions) Sweep(before time.Time) {
-	if ss.records != nil {
-		ss.records.Sweep(before)
+func (ss *Sessions) Sweep(before time.Time) error {
+	if ss.records == nil {
+		return nil
 	}
+	return ss.records.Sweep(before)
 }
 
 // sessionDuration is how long a session outlives its last request. It

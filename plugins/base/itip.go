@@ -232,7 +232,7 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, cale
 	if len(to) == 0 {
 		return nil
 	}
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ const ShareHeader = "X-Alborz-Share"
 // a plugin has to tell somebody that is not the reader's own writing.
 // headers are set on it besides the usual ones.
 func SendText(ctx *alborz.Context, to []string, subject, text string, headers map[string]string) error {
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -306,7 +306,7 @@ func invitationReply(ctx *alborz.Context, inv *Invitation, status string) (*Outg
 	if inv.Organizer == "" {
 		return nil, fmt.Errorf("the invitation names no organizer to answer")
 	}
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}

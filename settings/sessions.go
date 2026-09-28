@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/auth"
 	"git.mehdix.org/alborz/mail"
 )
 
@@ -20,7 +21,7 @@ func handleSessions(ctx *alborz.Context) error {
 	if ctx.Request().Method == http.MethodPost {
 		id := ctx.FormValue("session")
 		if id == ctx.Session().ID {
-			return mail.HandleLogout(ctx)
+			return auth.HandleLogout(ctx)
 		}
 		if err := ctx.Server.Sessions.SignOut(id, account); err != nil {
 			return err

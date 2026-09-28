@@ -22,6 +22,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 
+	"git.mehdix.org/alborz/auth"
 	"git.mehdix.org/alborz/filters"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
@@ -173,6 +174,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	if err != nil {
 		e.Logger.Fatal(err)
 	}
+	auth.Mount(s)
 	mail.Mount(s)
 	settings.Mount(s)
 	kept, err := pim.Mount(s)

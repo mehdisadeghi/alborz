@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/auth"
 	"git.mehdix.org/alborz/filters"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
@@ -282,6 +283,7 @@ func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
+	auth.Mount(s)
 	mail.Mount(s)
 	settings.Mount(s)
 	kept, err := pim.Mount(s)

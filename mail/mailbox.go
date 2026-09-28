@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/labstack/echo/v4"
@@ -475,11 +476,11 @@ func everywhereQuery(query string) string {
 	if query == "" {
 		return ""
 	}
-	q := ParseQuery(query)
+	q := search.Parse(query)
 	if _, everywhere := q.Scope(); everywhere {
 		return ""
 	}
-	return strings.TrimSpace(q.Without(queryScope) + " " + queryScope + ":" + Everywhere)
+	return strings.TrimSpace(q.Without(search.In) + " " + search.In + ":" + search.Everywhere)
 }
 
 type listAsk struct {
@@ -509,7 +510,7 @@ func readListAsk(ctx *alborz.Context, also string) (listAsk, error) {
 }
 
 func searchInstead(ctx *alborz.Context, ask listAsk) string {
-	if folder, everywhere := ParseQuery(ask.spec.query).Scope(); folder != "" || everywhere {
+	if folder, everywhere := search.Parse(ask.spec.query).Scope(); folder != "" || everywhere {
 		return ctx.AccountPath("/search?query=" + alborz.QueryValue(ask.spec.query))
 	}
 	// A star is on the message, not in the folder, so its view is the search page's fan-out.
@@ -601,9 +602,9 @@ func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *
 		e.msgs, e.total, err = threadMessages(c, folder, e.threadAlgorithm, criteria, page, perPage)
 	case spec.query != "" || spec.view != "":
 		e.headersOnly = spec.query != "" && !SearchesIndex(c, settings)
-		e.msgs, e.total, err = searchMessages(c, folder, ParseQuery(spec.query), listCriteria(c, settings, spec.query, spec.view), page, perPage, sortKey, reverse, fields)
+		e.msgs, e.total, err = searchMessages(c, folder, search.Parse(spec.query), listCriteria(c, settings, spec.query, spec.view), page, perPage, sortKey, reverse, fields)
 	case spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != "") && e.sortSupported:
-		e.msgs, e.total, err = searchMessages(c, folder, Query{}, &imap.SearchCriteria{}, page, perPage, sortKey, reverse, fields)
+		e.msgs, e.total, err = searchMessages(c, folder, search.Query{}, &imap.SearchCriteria{}, page, perPage, sortKey, reverse, fields)
 	default:
 		e.msgs, e.total, err = listMessages(c, folder, page, perPage, fields)
 	}
@@ -1381,7 +1382,7 @@ func textQueryOffered(query string, headersOnly bool) string {
 	if !headersOnly {
 		return ""
 	}
-	return ParseQuery(query).Widened()
+	return search.Parse(query).Widened()
 }
 
 func outgoingFolder(mailboxes []MailboxInfo, name string) bool {

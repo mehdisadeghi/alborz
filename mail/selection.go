@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/labstack/echo/v4"
@@ -42,7 +43,7 @@ func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]i
 	}
 	uids := data.AllUIDs()
 	// The list drops what the envelope contradicts (carried), so the selection must too.
-	q := ParseQuery(query)
+	q := search.Parse(query)
 	if len(uids) == 0 || !q.Addressed() {
 		return uids, nil
 	}
@@ -124,7 +125,7 @@ func (p *plugin) mergedSelection(ctx *alborz.Context, role string, form url.Valu
 			if err != nil {
 				return nil, err
 			}
-			folders = searchFolders(sb.mailboxes, ParseQuery(query))
+			folders = searchFolders(sb.mailboxes, search.Parse(query))
 		}
 		err := s.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, alborz.ScanTimeout, func(c *imapclient.Client) error {
 			if !spanning {

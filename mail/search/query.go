@@ -1,4 +1,4 @@
-package mail
+package search
 
 import (
 	"bufio"
@@ -21,7 +21,8 @@ type queryTerm struct {
 	quoted bool
 }
 
-const queryScope = "in"
+// In is the key that names the folders a search covers.
+const In = "in"
 
 // Everywhere is the in: value that searches every folder.
 const Everywhere = "anywhere"
@@ -163,8 +164,8 @@ func querySize(value string) (int64, bool) {
 	return n * unit, true
 }
 
-// ParseQuery reads a query; an unknown or unreadable term is searched as text, not dropped.
-func ParseQuery(raw string) Query {
+// Parse reads a query; an unknown or unreadable term is searched as text, not dropped.
+func Parse(raw string) Query {
 	scanner := bufio.NewScanner(strings.NewReader(raw))
 	scanner.Split(splitSearchTokens)
 	var q Query
@@ -177,7 +178,7 @@ func ParseQuery(raw string) Query {
 		switch {
 		case phrased([]byte(token)) || !keyed:
 			q.terms = append(q.terms, bareTerms(token)...)
-		case value == "" || (key != queryScope && (!known || read(value, time.Time{}) == nil)):
+		case value == "" || (key != In && (!known || read(value, time.Time{}) == nil)):
 			q.terms = append(q.terms, queryTerm{value: token})
 		default:
 			q.terms = append(q.terms, queryTerm{key: key, value: value, not: not})
@@ -218,7 +219,7 @@ func (q Query) Criteria(indexed bool, now time.Time) *imap.SearchCriteria {
 	for _, term := range q.terms {
 		var one *imap.SearchCriteria
 		switch {
-		case term.key == queryScope:
+		case term.key == In:
 			continue
 		case term.key != "":
 			one = operators[term.key](term.value, now)
@@ -235,7 +236,7 @@ func (q Query) Criteria(indexed bool, now time.Time) *imap.SearchCriteria {
 		if term.not {
 			one = &imap.SearchCriteria{Not: []imap.SearchCriteria{*one}}
 		}
-		criteria = searchCriteriaAnd(criteria, one)
+		criteria = And(criteria, one)
 	}
 	if criteria == nil {
 		criteria = &imap.SearchCriteria{}
@@ -256,7 +257,7 @@ func (q Query) WantsText() bool {
 // Scope is the folder in: names, and whether it names all of them.
 func (q Query) Scope() (folder string, everywhere bool) {
 	for _, term := range q.terms {
-		if term.key != queryScope || term.not {
+		if term.key != In || term.not {
 			continue
 		}
 		if value := strings.ToLower(term.value); value == Everywhere || value == "all" {
@@ -271,7 +272,7 @@ func (q Query) Scope() (folder string, everywhere bool) {
 func (q Query) Excluded() []string {
 	var out []string
 	for _, term := range q.terms {
-		if term.key == queryScope && term.not {
+		if term.key == In && term.not {
 			out = append(out, term.value)
 		}
 	}

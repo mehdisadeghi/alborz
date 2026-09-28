@@ -59,7 +59,7 @@ func getAddressObject(ctx *alborz.Context, c *carddav.Client, path string) (*car
 
 func registerRoutes(p *plugin) {
 	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
-		return p.dav.Guarded(errNoAddressBook, "contacts.unconfigured", "/address-books/create", h)
+		return p.dav.Guarded(errNoAddressBook, "/address-books/create", h)
 	}
 	GET := func(path string, h func(*alborz.Context) error) { p.GoPlugin.GET(path, guard(h)) }
 	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }

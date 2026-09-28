@@ -63,9 +63,7 @@ func (p *Provider) InjectCard(title string, abilities func(Advertised) []alborzb
 			servers.Cards = append(servers.Cards, p.card(ctx, servers, title, src, abilities))
 			servers.AddPlace(src.ID, src.URL.Host)
 		}
-		if p.here != nil {
-			servers.AddPlace(SourceHere, originHost(ctx))
-		}
+		servers.AddPlace(SourceHere, originHost(ctx))
 		return nil
 	}
 }
@@ -99,7 +97,7 @@ func (p *Provider) card(ctx *alborz.Context, servers *alborzbase.ServersRenderDa
 func (p *Provider) InjectHere() alborz.InjectFunc {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
 		servers, ok := data.(*alborzbase.ServersRenderData)
-		if !ok || ctx.Login == nil || p.here == nil {
+		if !ok || ctx.Login == nil {
 			return nil
 		}
 		servers.Cards = append(servers.Cards, alborzbase.ServerCard{

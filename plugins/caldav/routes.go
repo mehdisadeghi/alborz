@@ -169,7 +169,7 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 
 func registerRoutes(p *plugin) {
 	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
-		return p.dav.Guarded(errNoCalendar, "calendar.unconfigured", "/calendars/create", h)
+		return p.dav.Guarded(errNoCalendar, "/calendars/create", h)
 	}
 	GET := func(path string, h func(*alborz.Context) error) { p.GoPlugin.GET(path, guard(h)) }
 	POST := func(path string, h func(*alborz.Context) error) { p.GoPlugin.POST(path, guard(h)) }

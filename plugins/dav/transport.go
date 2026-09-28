@@ -186,7 +186,7 @@ type hereTripper struct {
 }
 
 func (t hereTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.here == nil || !strings.HasPrefix(req.URL.Path, collections.Prefix+"/") {
+	if !strings.HasPrefix(req.URL.Path, collections.Prefix+"/") {
 		return t.remote.RoundTrip(req)
 	}
 	return respond(t.here, req.WithContext(collections.As(req.Context(), t.account))), nil

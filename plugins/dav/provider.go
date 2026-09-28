@@ -67,7 +67,7 @@ type Provider struct {
 	// trusted reaches the servers the deployment names or finds; named reaches the one an account names,
 	// which without -private-services stays on the public internet at every hop.
 	trusted, named http.RoundTripper
-	// here serves the collections kept in this alborz; nil without a data directory.
+	// here serves the collections kept in this alborz.
 	here  http.Handler
 	store *collections.Store
 	// troubles holds, per account, what its servers answered when last asked for homes, when not a home.
@@ -112,9 +112,7 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	if !srv.Options.PrivateServices {
 		p.named = srv.Outgoing.Guarded
 	}
-	if srv.Collections != nil {
-		p.here, p.store = srv.Collections.Handler(), srv.Collections
-	}
+	p.here, p.store = srv.Collections.Handler(), srv.Collections
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
@@ -147,14 +145,13 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 }
 
 // URL is where the login's client starts; the transport routes by path, not host, so hereBase serves an account without a server.
-func (p *Provider) URL(ctx context.Context, login *alborz.Login) (*url.URL, bool) {
-	sources := p.Sources(ctx, login)
-	for _, s := range sources {
+func (p *Provider) URL(ctx context.Context, login *alborz.Login) *url.URL {
+	for _, s := range p.Sources(ctx, login) {
 		if s.ID == SourceDomain {
-			return s.URL, true
+			return s.URL
 		}
 	}
-	return hereBase, len(sources) > 0 || p.here != nil
+	return hereBase
 }
 
 // The sources an account's collections come from (ADR 28).
@@ -246,7 +243,7 @@ type Home struct {
 }
 
 // homes are each source's home set and the one kept here; a source that does not answer is left out and said so.
-func (p *Provider) homes(ctx context.Context, login *alborz.Login) ([]Home, error) {
+func (p *Provider) homes(ctx context.Context, login *alborz.Login) []Home {
 	var homes []Home
 	var failed []error
 	for _, s := range p.Sources(ctx, login) {
@@ -257,24 +254,13 @@ func (p *Provider) homes(ctx context.Context, login *alborz.Login) ([]Home, erro
 		}
 		homes = append(homes, Home{Path: home, Source: s.ID})
 	}
-	if p.here != nil {
-		homes = append(homes, Home{Path: collections.HomePath(p.kind.Holds, login.Username()), Source: SourceHere})
-	}
-	if len(homes) == 0 && failed != nil {
-		// A refusal is the one the reader can end, so it wins when servers failed differently.
-		i := max(0, slices.IndexFunc(failed, func(err error) bool {
-			var no *RefusedError
-			return errors.As(err, &no)
-		}))
-		return nil, failed[i]
-	}
 	p.troubles.Store(login.Username(), failed)
-	return homes, nil
+	return append(homes, Home{Path: collections.HomePath(p.kind.Holds, login.Username()), Source: SourceHere})
 }
 
 // Collections is the account's list of the kind, found once per user; the load outlives the request that starts it.
 func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Collection, error) {
-	base, _ := p.URL(ctx, login)
+	base := p.URL(ctx, login)
 	// A listing missing a server is kept but asked again after the retry delay, or the failure would stay until restart.
 	defer func() {
 		if len(p.Troubles(login.Username())) > 0 {
@@ -285,10 +271,7 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), discoveryTimeout)
 		defer cancel()
 
-		homes, err := p.homes(ctx, login)
-		if err != nil {
-			return nil, err
-		}
+		homes := p.homes(ctx, login)
 		infos, failed := p.kind.List(ctx, p.HTTPClient(ctx, login), base, homes)
 		if err := p.Settle(login.Username(), homes, failed); err != nil {
 			return nil, fmt.Errorf("failed to list the %s collections: %v", p.kind.Label, err)
@@ -323,12 +306,8 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 	if NameTaken(name, place, infos) {
 		return "", ErrNameTaken
 	}
-	base, _ := p.URL(ctx, login)
-	homes, err := p.homes(ctx, login)
-	if err != nil {
-		return "", err
-	}
-	home, err := HomeFor(homes, place)
+	base := p.URL(ctx, login)
+	home, err := HomeFor(p.homes(ctx, login), place)
 	if err != nil {
 		return "", err
 	}
@@ -348,9 +327,6 @@ func originHost(ctx *alborz.Context) string {
 	return host
 }
 
-// KeepsHere says whether collections can be kept in this alborz.
-func (p *Provider) KeepsHere() bool { return p.here != nil }
-
 // PlaceLabel says what a place is rather than where: a host name alone tells the reader nothing.
 func PlaceLabel(ctx *alborz.Context, id, host string) string {
 	label := ctx.T("place." + id)
@@ -360,7 +336,7 @@ func PlaceLabel(ctx *alborz.Context, id, host string) string {
 	return label + " · " + host
 }
 
-// Places are where a new collection can go, grouped by account; an account with none has no group.
+// Places are where a new collection can go, grouped by account.
 func (p *Provider) Places(ctx *alborz.Context) []Group {
 	var groups []Group
 	for _, s := range ctx.Logins() {
@@ -368,12 +344,8 @@ func (p *Provider) Places(ctx *alborz.Context) []Group {
 		for _, src := range p.Sources(ctx.Request().Context(), s) {
 			places = append(places, Collection{Path: src.ID, Name: PlaceLabel(ctx, src.ID, src.URL.Host)})
 		}
-		if p.here != nil {
-			places = append(places, Collection{Path: SourceHere, Name: PlaceLabel(ctx, SourceHere, originHost(ctx))})
-		}
-		if len(places) > 0 {
-			groups = append(groups, Group{Account: s.Username(), Collections: places})
-		}
+		places = append(places, Collection{Path: SourceHere, Name: PlaceLabel(ctx, SourceHere, originHost(ctx))})
+		groups = append(groups, Group{Account: s.Username(), Collections: places})
 	}
 	return groups
 }
@@ -402,7 +374,7 @@ func (p *Provider) ReadPlace(ctx *alborz.Context, account string) (string, strin
 func (p *Provider) DefaultPlace(ctx context.Context, s *alborz.Login) string {
 	sources := p.Sources(ctx, s)
 	if services, err := s.Services(ctx); err == nil && services.Default != "" {
-		if services.Default == SourceHere && p.here != nil {
+		if services.Default == SourceHere {
 			return SourceHere
 		}
 		for _, src := range sources {
@@ -456,7 +428,7 @@ func (p *Provider) HTTPClient(ctx context.Context, login *alborz.Login) *http.Cl
 // CountObjects counts a collection's objects lazily; -1 means the server did not answer.
 func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
 	return func() int {
-		base, _ := p.URL(ctx.Request().Context(), ctx.Login)
+		base := p.URL(ctx.Request().Context(), ctx.Login)
 		n, err := CountObjects(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), base, coll)
 		if err != nil {
 			ctx.Logger().Printf("%s: failed to count %s: %v", p.kind.Name, coll, err)
@@ -466,17 +438,9 @@ func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
 	}
 }
 
-// Enabled reports whether any signed-in account has the service.
+// Enabled reports whether an account is signed in; each can keep collections here.
 func (p *Provider) Enabled(ctx *alborz.Context) bool {
-	if ctx.Login == nil {
-		return false
-	}
-	for _, s := range ctx.Logins() {
-		if _, ok := p.URL(ctx.Request().Context(), s); ok {
-			return true
-		}
-	}
-	return false
+	return ctx.Login != nil
 }
 
 // HandleRefresh asks every signed-in account's server again and lands on list.
@@ -509,17 +473,13 @@ func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Login, fetch func(context
 	}()
 }
 
-// Guarded explains an account with none of the kind instead of failing; one that can keep its first here gets create.
-func (p *Provider) Guarded(none error, words, create string, h func(*alborz.Context) error) func(*alborz.Context) error {
+// Guarded sends an account with none of the kind to create its first here instead of failing.
+func (p *Provider) Guarded(none error, create string, h func(*alborz.Context) error) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
-		err := h(ctx)
-		if errors.Is(err, none) && p.KeepsHere() {
-			return ctx.Redirect(http.StatusFound, ctx.AccountPath(create))
+		if err := h(ctx); !errors.Is(err, none) {
+			return err
 		}
-		if errors.Is(err, none) {
-			return alborz.RenderInfo(ctx, http.StatusOK, fmt.Sprintf(ctx.T(words), ctx.Login.Username()))
-		}
-		return err
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath(create))
 	}
 }
 

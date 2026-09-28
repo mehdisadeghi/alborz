@@ -54,13 +54,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 			refused = append(refused, username)
 		}
 	}
-	var logins []*alborz.Login
-	for _, s := range ctx.Logins() {
-		if _, ok := p.URL(ctx.Request().Context(), s); ok {
-			logins = append(logins, s)
-		}
-	}
-	results := Each(ctx.Request().Context(), logins, func(reqCtx context.Context, s *alborz.Login) (Account[C], error) {
+	results := Each(ctx.Request().Context(), ctx.Logins(), func(reqCtx context.Context, s *alborz.Login) (Account[C], error) {
 		reqCtx, cancel := context.WithTimeout(reqCtx, accountLoadBudget)
 		defer cancel()
 		c, infos, err := load(reqCtx, s)

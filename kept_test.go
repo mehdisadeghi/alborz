@@ -15,7 +15,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// startAlborzKept starts alborz with a data directory and no DAV server of the domain's.
+// startAlborzKept starts alborz with no DAV server of the domain's.
 func startAlborzKept(t *testing.T, imapAddr string) string {
 	t.Helper()
 	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]

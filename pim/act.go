@@ -1,4 +1,4 @@
-package dav
+package pim
 
 import (
 	"context"

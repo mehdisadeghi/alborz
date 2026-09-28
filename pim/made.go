@@ -1,4 +1,4 @@
-package dav
+package pim
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-webdav"
 )
 
@@ -45,7 +46,7 @@ func Saved(ctx *alborz.Context, made bool, sentence, name, object, list, account
 var ErrNoDestination = errors.New("dav: no such collection to write into")
 
 // Destination turns a create form's "account|path" into that account's client and path.
-func Destination[C any](ctx *alborz.Context, value string, open func(context.Context, *alborz.Login) (C, []Collection, error), keep func(Collection) bool) (Ref[C], error) {
+func Destination[C any](ctx *alborz.Context, value string, open func(context.Context, *alborz.Login) (C, []dav.Collection, error), keep func(dav.Collection) bool) (Ref[C], error) {
 	account, path, ok := strings.Cut(value, "|")
 	login := ctx.LoginFor(account)
 	if !ok || login == nil {
@@ -55,7 +56,7 @@ func Destination[C any](ctx *alborz.Context, value string, open func(context.Con
 	if err != nil {
 		return Ref[C]{}, err
 	}
-	if coll := At(colls, path); coll == nil || !keep(*coll) {
+	if coll := dav.At(colls, path); coll == nil || !keep(*coll) {
 		return Ref[C]{}, ErrNoDestination
 	}
 	return Ref[C]{c, account, path}, nil
@@ -64,7 +65,7 @@ func Destination[C any](ctx *alborz.Context, value string, open func(context.Con
 // Target is where a form's object is written: a new name only while free, a held one only while unchanged.
 func Target(collection, name, held, etag string) (at string, ifMatch, ifNoneMatch webdav.ConditionalMatch) {
 	if held == "" {
-		return path.Join(collection, name), "", IfNew
+		return path.Join(collection, name), "", dav.IfNew
 	}
-	return held, IfUnchanged(etag), ""
+	return held, dav.IfUnchanged(etag), ""
 }

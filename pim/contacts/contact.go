@@ -15,6 +15,7 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav"
@@ -24,7 +25,7 @@ import (
 
 type AddressObjectRenderData struct {
 	alborz.BaseRenderData
-	Rail dav.Rail
+	Rail pim.Rail
 	// Authors are who added and last changed the object, where another account.
 	Authors dav.Authors
 	// List is the list the page was opened from.
@@ -35,7 +36,7 @@ type AddressObjectRenderData struct {
 	AddressObject AddressObject
 	Birthday      string
 	BirthdayDate  time.Time
-	Neighbours    dav.Neighbours
+	Neighbours    pim.Neighbours
 	// In are the groups naming this contact, Groups the others.
 	In     []AddressObject
 	Groups []AddressObject
@@ -43,7 +44,7 @@ type AddressObjectRenderData struct {
 
 type UpdateAddressObjectRenderData struct {
 	alborz.BaseRenderData
-	Rail          dav.Rail
+	Rail          pim.Rail
 	Groups        []dav.Group
 	AddressBook   *dav.Collection
 	AddressObject *carddav.AddressObject
@@ -177,7 +178,7 @@ func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
 }
 
 func (p *plugin) contact(ctx *alborz.Context) error {
-	path, err := dav.ParseObjectPath(ctx.Param("path"))
+	path, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
@@ -233,8 +234,8 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		Authors:        p.dav.Authors(object.Path, ctx.Login.Username()),
 		In:             in,
 		Groups:         rest,
-		Neighbours:     dav.Around(list.Items, path),
-		List:           cmp.Or(ctx.From(), dav.ListURL("/contacts", dav.ListParams(ctx, contactListParams...))),
+		Neighbours:     pim.Around(list.Items, path),
+		List:           cmp.Or(ctx.From(), pim.ListURL("/contacts", pim.ListParams(ctx, contactListParams...))),
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()).WithItem(),
 		AddressBook:    addressBook,
@@ -245,7 +246,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 	})
 }
 func (p *plugin) updateContact(ctx *alborz.Context) error {
-	addressObjectPath, err := dav.ParseObjectPath(ctx.Param("path"))
+	addressObjectPath, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
@@ -309,11 +310,11 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 			return reject(ctx.T("form.nameneeded"))
 		}
 
-		to := dav.Ref[*carddav.Client]{Client: c}
+		to := pim.Ref[*carddav.Client]{Client: c}
 		creating := ao == nil
 		if creating {
-			to, err = dav.Destination(ctx, ctx.FormValue("addressbook"), p.clientWithAddressBooks, func(book dav.Collection) bool { return book.Writable })
-			if errors.Is(err, dav.ErrNoDestination) {
+			to, err = pim.Destination(ctx, ctx.FormValue("addressbook"), p.clientWithAddressBooks, func(book dav.Collection) bool { return book.Writable })
+			if errors.Is(err, pim.ErrNoDestination) {
 				return reject(ctx.T("form.destinationneeded"))
 			} else if err != nil {
 				return err
@@ -404,7 +405,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		if !creating {
 			held, etag = ao.Path, ao.ETag
 		}
-		at, ifMatch, ifNoneMatch := dav.Target(to.Path, id.String()+".vcf", held, etag)
+		at, ifMatch, ifNoneMatch := pim.Target(to.Path, id.String()+".vcf", held, etag)
 		ao, err = to.Client.PutAddressObject(ctx.Request().Context(), at, card,
 			&carddav.PutAddressObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
 		if err != nil {
@@ -412,7 +413,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		}
 		// The PUT answer carries only the path, so the card as written names the contact.
 		named := AddressObject{AddressObject: &carddav.AddressObject{Path: ao.Path, Card: card}}
-		return dav.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), named.URL(), "/contacts", to.Account)
+		return pim.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), named.URL(), "/contacts", to.Account)
 	}
 
 	// Map values evaluate eagerly; a missing object must not reach DisplayName.
@@ -439,8 +440,8 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 
 func (p *plugin) note(ctx *alborz.Context) error {
 	note := strings.TrimSpace(ctx.FormValue("note"))
-	return dav.Run(ctx, dav.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: dav.Quiet[*carddav.Client],
-		Do: func(ctx *alborz.Context, ref dav.Ref[*carddav.Client]) error {
+	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: pim.Quiet[*carddav.Client],
+		Do: func(ctx *alborz.Context, ref pim.Ref[*carddav.Client]) error {
 			if note == "" {
 				return nil
 			}
@@ -457,14 +458,14 @@ func (p *plugin) note(ctx *alborz.Context) error {
 
 // Its own request: Enter in a name field must not delete the photo.
 func (p *plugin) deletePhoto(ctx *alborz.Context) error {
-	return dav.Run(ctx, dav.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: dav.Quiet[*carddav.Client],
-		Do: func(ctx *alborz.Context, ref dav.Ref[*carddav.Client]) error {
+	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: pim.Quiet[*carddav.Client],
+		Do: func(ctx *alborz.Context, ref pim.Ref[*carddav.Client]) error {
 			return changeCard(ctx, ref, func(card vcard.Card) { delete(card, vcard.FieldPhoto) })
 		}})
 }
 
 func (p *plugin) color(ctx *alborz.Context) error {
-	return dav.Star(ctx, p.client, "/contacts", func(ctx *alborz.Context, ref dav.Ref[*carddav.Client], name string) (was string, err error) {
+	return pim.Star(ctx, p.client, "/contacts", func(ctx *alborz.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
 		err = changeCard(ctx, ref, func(card vcard.Card) {
 			was = CardColor(card)
 			SetColor(card, name)

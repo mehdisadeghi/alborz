@@ -1,4 +1,6 @@
-package dav
+package pim
+
+import "git.mehdix.org/alborz/pim/dav"
 
 // Rail is the section's rail on a page that is not its list.
 type Rail struct {
@@ -7,7 +9,7 @@ type Rail struct {
 	ItemClass string
 	Action    string
 	EditHref  string
-	Items     []Collection
+	Items     []dav.Collection
 	NewHref   string
 	NewLabel  string
 	// FollowHref is the calendar's second way of adding one; empty elsewhere.
@@ -19,7 +21,7 @@ type Rail struct {
 	Groups     []FilterRow
 	Categories []FilterRow
 	// Invitations are the section's open invitations, nil for none.
-	Invitations *RailInvitations
+	Invitations *dav.RailInvitations
 }
 
 // FilterRow is one narrowing beside the collections.

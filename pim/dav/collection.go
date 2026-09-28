@@ -140,7 +140,7 @@ func nameFromPath(p string) string {
 const DefaultColor = "#3366cc"
 
 // Past this many taken names, something other than a clash is going on.
-const maxCreateAttempts = 20
+const MaxCreateAttempts = 20
 
 // CountObjects counts a collection's children with a Depth 1 PROPFIND for resource types only.
 func CountObjects(ctx context.Context, client *http.Client, base *url.URL, coll string) (int, error) {
@@ -262,7 +262,7 @@ func CreateCollection(ctx context.Context, base *url.URL, homeSet, name, fallbac
 		if err == nil {
 			return path, nil
 		}
-		if !errors.Is(err, ErrCollectionExists) || attempt == maxCreateAttempts {
+		if !errors.Is(err, ErrCollectionExists) || attempt == MaxCreateAttempts {
 			return "", err
 		}
 	}

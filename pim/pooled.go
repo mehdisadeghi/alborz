@@ -1,4 +1,4 @@
-package dav
+package pim
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim/dav"
 	"github.com/labstack/echo/v4"
 )
 
@@ -23,24 +24,18 @@ type Account[C any] struct {
 	Name        string
 	Login       *alborz.Login
 	Client      C
-	Collections []Collection
-}
-
-// Group is one account's collections, for a form's destination.
-type Group struct {
-	Account     string
-	Collections []Collection
+	Collections []dav.Collection
 }
 
 // Pooled resolves every signed-in account with the service; a failing account is logged and skipped.
-func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, *alborz.Login) (C, []Collection, error), none error) ([]Account[C], error) {
+func Pooled[C any](ctx *alborz.Context, p *dav.Provider, load func(context.Context, *alborz.Login) (C, []dav.Collection, error), none error) ([]Account[C], error) {
 	var accounts []Account[C]
 	var lastErr error
 	var down, refused []string
 	// answered counts servers that refused other than over the password.
 	answered := map[string]int{}
 	fail := func(username string, err error) {
-		if code := Answered(err); code != 0 {
+		if code := dav.Answered(err); code != 0 {
 			answered[username] = code
 			return
 		}
@@ -50,11 +45,11 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	}
 	// A refusal stands until the reader changes something, so it is said once per browser.
 	refuse := func(username string) {
-		if ctx.Session().Once("davrefused:" + p.kind.Name + ":" + username) {
+		if ctx.Session().Once("davrefused:" + p.Kind.Name + ":" + username) {
 			refused = append(refused, username)
 		}
 	}
-	results := Each(ctx.Request().Context(), ctx.Logins(), func(reqCtx context.Context, s *alborz.Login) (Account[C], error) {
+	results := dav.Each(ctx.Request().Context(), ctx.Logins(), func(reqCtx context.Context, s *alborz.Login) (Account[C], error) {
 		reqCtx, cancel := context.WithTimeout(reqCtx, accountLoadBudget)
 		defer cancel()
 		c, infos, err := load(reqCtx, s)
@@ -69,7 +64,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 			continue
 		}
 		// A refused password keeps the account's place, empty, and tells the reader.
-		var no *RefusedError
+		var no *dav.RefusedError
 		if errors.As(err, &no) {
 			accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c})
 			refuse(s.Username())
@@ -78,7 +73,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 		if err != nil {
 			lastErr = err
 			fail(s.Username(), err)
-			ctx.Logger().Printf("%s: skipping %q in the pooled view: %v", p.kind.Name, s.Username(), err)
+			ctx.Logger().Printf("%s: skipping %q in the pooled view: %v", p.Kind.Name, s.Username(), err)
 			continue
 		}
 		owned := slices.Clone(infos)
@@ -87,7 +82,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 		}
 		accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c, Collections: owned})
 		for _, trouble := range p.Troubles(s.Username()) {
-			ctx.Logger().Printf("%s: %q in the pooled view without a source: %v", p.kind.Name, s.Username(), trouble)
+			ctx.Logger().Printf("%s: %q in the pooled view without a source: %v", p.Kind.Name, s.Username(), trouble)
 			if errors.As(trouble, &no) {
 				refuse(s.Username())
 			} else {
@@ -123,17 +118,17 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 }
 
 // WritableGroups keeps, per account, the collections keep accepts.
-func WritableGroups[C any](accounts []Account[C], keep func(Collection) bool) []Group {
-	var groups []Group
+func WritableGroups[C any](accounts []Account[C], keep func(dav.Collection) bool) []dav.Group {
+	var groups []dav.Group
 	for _, acc := range accounts {
-		var kept []Collection
+		var kept []dav.Collection
 		for _, c := range acc.Collections {
 			if keep(c) {
 				kept = append(kept, c)
 			}
 		}
 		if len(kept) > 0 {
-			groups = append(groups, Group{Account: acc.Name, Collections: kept})
+			groups = append(groups, dav.Group{Account: acc.Name, Collections: kept})
 		}
 	}
 	return groups
@@ -142,7 +137,7 @@ func WritableGroups[C any](accounts []Account[C], keep func(Collection) bool) []
 // Site is one collection to query, with its account's client.
 type Site[C any] struct {
 	Client     C
-	Collection Collection
+	Collection dav.Collection
 }
 
 // Only is the set a URL asks to see through field, overriding stored visibility for that request.
@@ -153,14 +148,14 @@ func Only(ctx *alborz.Context, field string) map[string]bool {
 	}
 	only := make(map[string]bool, len(values))
 	for _, v := range values {
-		only[CanonicalCollectionPath(v)] = true
+		only[dav.CanonicalCollectionPath(v)] = true
 	}
 	return only
 }
 
 // Visible returns every collection for the rail and the visible ones in scope as sites; feeds are never queried.
-func Visible[C any](accounts []Account[C], scope string, only map[string]bool, chosen func(Account[C]) (colls []Collection, filter bool, paths []string, err error)) ([]Collection, []Site[C], error) {
-	var infos []Collection
+func Visible[C any](accounts []Account[C], scope string, only map[string]bool, chosen func(Account[C]) (colls []dav.Collection, filter bool, paths []string, err error)) ([]dav.Collection, []Site[C], error) {
+	var infos []dav.Collection
 	var sites []Site[C]
 	for _, acc := range accounts {
 		colls, filter, paths, err := chosen(acc)
@@ -169,7 +164,7 @@ func Visible[C any](accounts []Account[C], scope string, only map[string]bool, c
 		}
 		visible := make(map[string]bool)
 		for _, path := range paths {
-			visible[CanonicalCollectionPath(path)] = true
+			visible[dav.CanonicalCollectionPath(path)] = true
 		}
 		for _, coll := range colls {
 			coll.Visible = !filter || visible[coll.Path]
@@ -185,6 +180,23 @@ func Visible[C any](accounts []Account[C], scope string, only map[string]bool, c
 		}
 	}
 	return infos, sites, nil
+}
+
+// HandleChoose keeps which collections of list the reader ticked and lands on the list, no longer narrowed.
+func HandleChoose(list, field string, keep func(ctx context.Context, store alborz.Store, paths []string) error) func(*alborz.Context) error {
+	return func(ctx *alborz.Context) error {
+		params, err := ctx.FormParams()
+		if err != nil {
+			return err
+		}
+		if err := keep(ctx.Request().Context(), ctx.Login.Store(), params[field]); err != nil {
+			ctx.Notify(Refused(ctx, err))
+		} else {
+			// The list comes back holding what was chosen.
+			ctx.Quiet()
+		}
+		return ctx.Redirect(http.StatusFound, Widened(ctx.NextOr(list), field))
+	}
 }
 
 // Ref is one object an action is about, with its account and that account's client.

@@ -12,6 +12,7 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
@@ -21,7 +22,7 @@ import (
 
 type TaskRenderData struct {
 	alborz.BaseRenderData
-	Rail     dav.Rail
+	Rail     pim.Rail
 	Calendar *dav.Collection
 	Task     TaskObject
 	// Authors are who added and last changed the object, where another account.
@@ -30,12 +31,12 @@ type TaskRenderData struct {
 	List       string
 	Star       string
 	Priority   string
-	Neighbours dav.Neighbours
+	Neighbours pim.Neighbours
 }
 
 type UpdateTaskRenderData struct {
 	alborz.BaseRenderData
-	Rail           dav.Rail
+	Rail           pim.Rail
 	Groups         []dav.Group
 	Calendar       *dav.Collection
 	CalendarObject *caldav.CalendarObject
@@ -90,7 +91,7 @@ func setPriorityBand(todo *ical.Component, band string) {
 }
 
 func (p *plugin) task(ctx *alborz.Context) error {
-	path, err := dav.ParseObjectPath(ctx.Param("path"))
+	path, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
@@ -147,15 +148,15 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
-		List:           cmp.Or(ctx.From(), dav.ListURL("/tasks", dav.ListParams(ctx, taskListParams...))),
+		List:           cmp.Or(ctx.From(), pim.ListURL("/tasks", pim.ListParams(ctx, taskListParams...))),
 		Star:           componentColor(getFirstTodo(task.Data)),
 		Priority:       priorityBand(getFirstTodo(task.Data)),
-		Neighbours:     dav.Around(list.Items, path),
+		Neighbours:     pim.Around(list.Items, path),
 		Authors:        p.dav.Authors(task.Path, ctx.Login.Username()),
 	})
 }
 func (p *plugin) updateTask(ctx *alborz.Context) error {
-	taskPath, err := dav.ParseObjectPath(ctx.Param("path"))
+	taskPath, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
@@ -234,11 +235,11 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			return reject(ctx.T("form.summaryneeded"))
 		}
 
-		to := dav.Ref[*caldav.Client]{Client: c}
+		to := pim.Ref[*caldav.Client]{Client: c}
 		creating := co == nil
 		if creating {
 			to, err = p.destination(ctx, ctx.FormValue("calendar"), supportsTodo)
-			if errors.Is(err, dav.ErrNoDestination) {
+			if errors.Is(err, pim.ErrNoDestination) {
 				return reject(ctx.T("form.destinationneeded"))
 			} else if err != nil {
 				return err
@@ -293,7 +294,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
-		return dav.Saved(ctx, creating, ctx.T("notice.taskcreated"), summary, TaskObject{CalendarObject: co}.URL(), "/tasks", to.Account)
+		return pim.Saved(ctx, creating, ctx.T("notice.taskcreated"), summary, TaskObject{CalendarObject: co}.URL(), "/tasks", to.Account)
 	}
 
 	summary, _ := todo.Props.Text("SUMMARY")

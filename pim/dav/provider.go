@@ -54,7 +54,7 @@ const WarmBudget = 30 * time.Second
 
 // Provider is one DAV service across the served domains.
 type Provider struct {
-	kind Kind
+	Kind Kind
 	urls map[string]*url.URL
 	// found is, per domain, the SRV record its endpoint came from; none where the deployment named it.
 	found map[string]string
@@ -69,7 +69,7 @@ type Provider struct {
 	trusted, named http.RoundTripper
 	// here serves the collections kept in this alborz.
 	here  http.Handler
-	store *store.Store
+	Store *store.Store
 	// troubles holds, per account, what its servers answered when last asked for homes, when not a home.
 	troubles sync.Map
 	// found per username; see Collections.
@@ -104,13 +104,13 @@ func NewProvider(srv *alborz.Server, kept *store.Store, kind Kind) (*Provider, e
 		}
 		mirror = m
 	}
-	p := &Provider{kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
+	p := &Provider{Kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
 		collections: alborz.NewBackgroundMemo[[]Collection](srv.Options.CacheFor(discoveryTTL))}
 	p.trusted, p.named = srv.Outgoing.Trusted, srv.Outgoing.Trusted
 	if !srv.Options.PrivateServices {
 		p.named = srv.Outgoing.Guarded
 	}
-	p.here, p.store = kept.Handler(), kept
+	p.here, p.Store = kept.Handler(), kept
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
@@ -186,7 +186,7 @@ func marker(id string) string { return "/@" + id }
 func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	var out []Source
 	if services, err := LoadServices(ctx, login.Store()); err == nil {
-		if own := p.kind.Own(services); own != "" {
+		if own := p.Kind.Own(services); own != "" {
 			if u, err := url.Parse(own); err == nil {
 				out = append(out, Source{ID: SourceOwn, URL: u, Origin: "servers.fromaccount", Named: true})
 			}
@@ -246,7 +246,7 @@ func (p *Provider) homes(ctx context.Context, login *alborz.Login) []Home {
 	var homes []Home
 	var failed []error
 	for _, s := range p.Sources(ctx, login) {
-		home, err := p.kind.FindHome(ctx, p.HTTPClient(ctx, login), s.Endpoint())
+		home, err := p.Kind.FindHome(ctx, p.HTTPClient(ctx, login), s.Endpoint())
 		if err != nil {
 			failed = append(failed, fmt.Errorf("%s: %w", s.URL.Host, err))
 			continue
@@ -254,7 +254,7 @@ func (p *Provider) homes(ctx context.Context, login *alborz.Login) []Home {
 		homes = append(homes, Home{Path: home, Source: s.ID})
 	}
 	p.troubles.Store(login.Username(), failed)
-	return append(homes, Home{Path: store.HomePath(p.kind.Holds, login.Username()), Source: SourceHere})
+	return append(homes, Home{Path: store.HomePath(p.Kind.Holds, login.Username()), Source: SourceHere})
 }
 
 // Collections is the account's list of the kind, found once per user; the load outlives the request that starts it.
@@ -271,9 +271,9 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 		defer cancel()
 
 		homes := p.homes(ctx, login)
-		infos, failed := p.kind.List(ctx, p.HTTPClient(ctx, login), base, homes)
+		infos, failed := p.Kind.List(ctx, p.HTTPClient(ctx, login), base, homes)
 		if err := p.Settle(login.Username(), homes, failed); err != nil {
-			return nil, fmt.Errorf("failed to list the %s collections: %v", p.kind.Label, err)
+			return nil, fmt.Errorf("failed to list the %s collections: %v", p.Kind.Label, err)
 		}
 		for i := range infos {
 			infos[i].Public = infos[i].Here && p.Published(infos[i].Path)
@@ -311,8 +311,8 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 		return "", err
 	}
 	client := p.HTTPClient(ctx, login)
-	path, err := CreateCollection(ctx, base, home, name, p.kind.Unnamed, func(ctx context.Context, target string) error {
-		return p.kind.Make(ctx, client, target, name, color, components)
+	path, err := CreateCollection(ctx, base, home, name, p.Kind.Unnamed, func(ctx context.Context, target string) error {
+		return p.Kind.Make(ctx, client, target, name, color, components)
 	})
 	if err != nil {
 		return "", err
@@ -333,6 +333,12 @@ func PlaceLabel(ctx *alborz.Context, id, host string) string {
 		return label
 	}
 	return label + " · " + host
+}
+
+// Group is one account's collections, for a form's destination.
+type Group struct {
+	Account     string
+	Collections []Collection
 }
 
 // Places are where a new collection can go, grouped by account.
@@ -430,7 +436,7 @@ func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
 		base := p.URL(ctx.Request().Context(), ctx.Login)
 		n, err := CountObjects(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), base, coll)
 		if err != nil {
-			ctx.Logger().Printf("%s: failed to count %s: %v", p.kind.Name, coll, err)
+			ctx.Logger().Printf("%s: failed to count %s: %v", p.Kind.Name, coll, err)
 			return -1
 		}
 		return n
@@ -443,7 +449,7 @@ func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 		for _, s := range ctx.Logins() {
 			rc := ctx.Request().Context()
 			if err := p.mirror.Refresh(rc, s.Username(), p.router(rc, s)); err != nil {
-				ctx.Logger().Printf("%s: refresh %s: %v", p.kind.Name, s.Username(), err)
+				ctx.Logger().Printf("%s: refresh %s: %v", p.Kind.Name, s.Username(), err)
 			}
 		}
 		// The list itself is what was asked for.
@@ -462,7 +468,7 @@ func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Login, fetch func(context
 		bg, cancel := context.WithTimeout(context.Background(), WarmBudget)
 		defer cancel()
 		if err := fetch(bg); err != nil {
-			log.Printf("%s: warm %s: %v", p.kind.Name, s.Username(), err)
+			log.Printf("%s: warm %s: %v", p.Kind.Name, s.Username(), err)
 		}
 	}()
 }
@@ -474,23 +480,6 @@ func (p *Provider) Guarded(none error, create string, h func(*alborz.Context) er
 			return err
 		}
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(create))
-	}
-}
-
-// HandleChoose keeps which collections of list the reader ticked and lands on the list, no longer narrowed.
-func HandleChoose(list, field string, keep func(ctx context.Context, store alborz.Store, paths []string) error) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
-		params, err := ctx.FormParams()
-		if err != nil {
-			return err
-		}
-		if err := keep(ctx.Request().Context(), ctx.Login.Store(), params[field]); err != nil {
-			ctx.Notify(Refused(ctx, err))
-		} else {
-			// The list comes back holding what was chosen.
-			ctx.Quiet()
-		}
-		return ctx.Redirect(http.StatusFound, Widened(ctx.NextOr(list), field))
 	}
 }
 

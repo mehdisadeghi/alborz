@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/labstack/echo/v4"
 )
@@ -95,7 +96,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	if mv.view != "" {
 		template = "calendar-list.html"
 	}
-	collection, href := dav.Labels(ctx, mv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
+	collection, href := pim.Labels(ctx, mv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)
 	if err != nil {
 		return err
@@ -118,7 +119,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		PrevTime:  mv.prevTime,
 		NextTime:  mv.nextTime,
 		ListQuery: monthQuery(ctx, mv),
-		Scope:     alborz.Query(dav.ListParams(ctx, "account", "cal")),
+		Scope:     alborz.Query(pim.ListParams(ctx, "account", "cal")),
 		SelectForm: func() string {
 			if mv.view != "" {
 				return "events-form"
@@ -204,7 +205,7 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	totalCells := offset + daysInMonth
 	rows := (totalCells + 6) / 7
 
-	only := dav.Only(ctx, "cal")
+	only := pim.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return monthView{}, err

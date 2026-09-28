@@ -13,6 +13,7 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
@@ -21,12 +22,12 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
+func (p *plugin) createForm(ctx *alborz.Context) (pim.CreateForm, error) {
 	rail, err := p.bookRail(ctx)
 	if err != nil && !errors.Is(err, errNoAddressBook) {
-		return dav.CreateForm{}, err
+		return pim.CreateForm{}, err
 	}
-	return dav.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: "/contacts",
+	return pim.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: "/contacts",
 		Made: func(string) (string, string) { return ctx.T("notice.bookcreated"), "/contacts" }}, nil
 }
 
@@ -34,15 +35,15 @@ func (p *plugin) invitations(ctx *alborz.Context) (*dav.RailInvitations, error) 
 	return p.dav.RailInvitations(ctx, p.collectionPage().Base)
 }
 
-func (p *plugin) collectionPage() dav.Page {
-	return dav.Page{
+func (p *plugin) collectionPage() pim.Page {
+	return pim.Page{
 		Base:   "/address-books/",
 		List:   "/contacts",
 		Color:  addressBookColor,
 		Ext:    ".vcf",
 		Forget: p.dav.Forget,
 		Show:   show,
-		Rail:   func(ctx *alborz.Context, _ string) (dav.Rail, error) { return p.bookRail(ctx) },
+		Rail:   func(ctx *alborz.Context, _ string) (pim.Rail, error) { return p.bookRail(ctx) },
 		Create: func(ctx *alborz.Context, _, name, place string) (string, error) {
 			return p.dav.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, nil)
 		},
@@ -74,8 +75,8 @@ func (p *plugin) collectionPage() dav.Page {
 	}
 }
 
-func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
-	rail := dav.Rail{Path: "/contacts", Field: "book", ItemClass: "addressbook-item", Action: "/contacts", EditHref: "/address-books/",
+func (p *plugin) bookRail(ctx *alborz.Context) (pim.Rail, error) {
+	rail := pim.Rail{Path: "/contacts", Field: "book", ItemClass: "addressbook-item", Action: "/contacts", EditHref: "/address-books/",
 		NewHref: "/address-books/create?next=" + alborz.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
 		ImportHref: "/contacts/import", ImportLabel: ctx.T("contacts.import")}
 	accounts, err := p.pooledBooks(ctx)
@@ -100,8 +101,8 @@ func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 	return rail, nil
 }
 
-func visibleBooks(ctx context.Context, accounts []dav.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []dav.Site[*carddav.Client], error) {
-	return dav.Visible(accounts, scope, only, func(acc dav.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
+func visibleBooks(ctx context.Context, accounts []pim.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []pim.Site[*carddav.Client], error) {
+	return pim.Visible(accounts, scope, only, func(acc pim.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings := &Settings{}
 		if err := acc.Login.Store().Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 			return nil, false, nil, fmt.Errorf("failed to load CardDAV settings: %w", err)

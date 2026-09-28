@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/labstack/echo/v4"
 )
@@ -41,7 +42,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	collection, href := dav.Labels(ctx, dv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
+	collection, href := pim.Labels(ctx, dv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)
 	if err != nil {
 		return err
@@ -79,7 +80,7 @@ func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
 	}
 	end := start.AddDate(0, 0, 1)
 
-	only := dav.Only(ctx, "cal")
+	only := pim.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return dayView{}, err

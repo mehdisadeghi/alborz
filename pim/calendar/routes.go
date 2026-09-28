@@ -10,6 +10,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -98,7 +99,7 @@ func getFirstTodo(cal *ical.Calendar) *ical.Component {
 func eventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
 func taskVisibility(s *Settings) (bool, []string)  { return s.TaskFilter, s.VisibleTasks }
 
-func (p *plugin) eventRail(ctx *alborz.Context) (dav.Rail, error) {
+func (p *plugin) eventRail(ctx *alborz.Context) (pim.Rail, error) {
 	rail, err := p.calendarRail(ctx, supportsEvent, eventVisibility)
 	next := alborz.QueryValue(ctx.Request().URL.RequestURI())
 	rail.Path, rail.Action = "/calendar", "/calendar"
@@ -108,7 +109,7 @@ func (p *plugin) eventRail(ctx *alborz.Context) (dav.Rail, error) {
 	return rail, err
 }
 
-func (p *plugin) taskRail(ctx *alborz.Context) (dav.Rail, error) {
+func (p *plugin) taskRail(ctx *alborz.Context) (pim.Rail, error) {
 	rail, err := p.calendarRail(ctx, supportsTodo, taskVisibility)
 	rail.Path, rail.Action = "/tasks", "/tasks"
 	rail.NewHref, rail.NewLabel = "/calendars/create?for=tasks&next="+alborz.QueryValue(ctx.Request().URL.RequestURI()), ctx.T("tasks.newlist")
@@ -116,8 +117,8 @@ func (p *plugin) taskRail(ctx *alborz.Context) (dav.Rail, error) {
 	return rail, err
 }
 
-func (p *plugin) calendarRail(ctx *alborz.Context, kind func([]string) bool, chosen func(*Settings) (bool, []string)) (dav.Rail, error) {
-	rail := dav.Rail{Field: "cal", ItemClass: "calendar-item", EditHref: "/calendars/"}
+func (p *plugin) calendarRail(ctx *alborz.Context, kind func([]string) bool, chosen func(*Settings) (bool, []string)) (pim.Rail, error) {
+	rail := pim.Rail{Field: "cal", ItemClass: "calendar-item", EditHref: "/calendars/"}
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return rail, err
@@ -130,8 +131,8 @@ func (p *plugin) calendarRail(ctx *alborz.Context, kind func([]string) bool, cho
 	return rail, err
 }
 
-func visibleCalendars(ctx context.Context, accounts []dav.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []dav.Site[*caldav.Client], error) {
-	return dav.Visible(accounts, scope, only, func(acc dav.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
+func visibleCalendars(ctx context.Context, accounts []pim.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []pim.Site[*caldav.Client], error) {
+	return pim.Visible(accounts, scope, only, func(acc pim.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings, err := loadSettings(ctx, acc.Login.Store())
 		if err != nil {
 			return nil, false, nil, fmt.Errorf("failed to load CalDAV settings: %w", err)
@@ -176,10 +177,10 @@ func registerRoutes(p *plugin) {
 	}
 	GET := func(path string, h func(*alborz.Context) error) { p.Router.GET(path, guard(h)) }
 	POST := func(path string, h func(*alborz.Context) error) { p.Router.POST(path, guard(h)) }
-	POST("/calendar", dav.HandleChoose("/calendar", "cal", choose(func(s *Settings, paths []string) {
+	POST("/calendar", pim.HandleChoose("/calendar", "cal", choose(func(s *Settings, paths []string) {
 		s.CalendarFilter, s.VisibleCalendars = true, paths
 	})))
-	POST("/tasks", dav.HandleChoose("/tasks", "cal", choose(func(s *Settings, paths []string) {
+	POST("/tasks", pim.HandleChoose("/tasks", "cal", choose(func(s *Settings, paths []string) {
 		s.TaskFilter, s.VisibleTasks = true, paths
 	})))
 	POST("/calendar/refresh", p.dav.HandleRefresh("/calendar"))
@@ -223,8 +224,8 @@ func registerRoutes(p *plugin) {
 		if list == "/tasks" {
 			key = "notice.tasksdeleted"
 		}
-		return dav.Handler(dav.Action[*caldav.Client]{Client: p.client, Do: dav.Delete[*caldav.Client], List: list,
-			Done: func(ctx *alborz.Context, done []dav.Ref[*caldav.Client], _ string) alborz.Notice {
+		return pim.Handler(pim.Action[*caldav.Client]{Client: p.client, Do: pim.Delete[*caldav.Client], List: list,
+			Done: func(ctx *alborz.Context, done []pim.Ref[*caldav.Client], _ string) alborz.Notice {
 				return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf(key, len(done))}
 			}})
 	}
@@ -241,7 +242,7 @@ func registerRoutes(p *plugin) {
 	POST("/tasks/delete", remove("/tasks"))
 	POST("/tasks/complete", p.complete)
 	POST("/tasks/move", p.move)
-	POST("/tasks/export", dav.HandleExport(p.client, "/tasks",
+	POST("/tasks/export", pim.HandleExport(p.client, "/tasks",
 		func(ctx *alborz.Context) string { return ctx.T("nav.tasks") + ".ics" }, joinCalendars))
 
 	POST("/tasks/:path/note", p.note(getFirstTodo, "/tasks"))
@@ -255,8 +256,8 @@ func registerRoutes(p *plugin) {
 func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		note := strings.TrimSpace(ctx.FormValue("note"))
-		return dav.Run(ctx, dav.Action[*caldav.Client]{Client: p.client, List: list, Done: dav.Quiet[*caldav.Client],
-			Do: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client]) error {
+		return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.client, List: list, Done: pim.Quiet[*caldav.Client],
+			Do: func(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) error {
 				if note == "" {
 					return nil
 				}
@@ -269,7 +270,7 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) fu
 	}
 }
 
-func changeComponent(ctx *alborz.Context, ref dav.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
+func changeComponent(ctx *alborz.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
 	co, err := getCalendarObject(ctx, ref.Client, ref.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object: %v", err)
@@ -315,12 +316,12 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 	if err != nil {
 		return err
 	}
-	_, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), dav.Only(ctx, "cal"), kind, chosen)
+	_, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), pim.Only(ctx, "cal"), kind, chosen)
 	if err != nil {
 		return err
 	}
 	var children []*ical.Component
-	for _, r := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site dav.Site[*caldav.Client]) ([]*ical.Component, error) {
+	for _, r := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]*ical.Component, error) {
 		return calendarComponents(ctx, site.Client, site.Collection.Path, comps, from, to)
 	}) {
 		if r.Err != nil {
@@ -332,16 +333,16 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 	if err != nil {
 		return err
 	}
-	return dav.Download(ctx, name+".ics", body)
+	return pim.Download(ctx, name+".ics", body)
 }
 
 func (p *plugin) rawObject(ctx *alborz.Context) error {
-	path, err := dav.ParseObjectPath(ctx.Param("path"))
+	path, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
 	if !strings.Contains(path, "://") {
-		return dav.Raw(ctx, p.client)
+		return pim.Raw(ctx, p.client)
 	}
 	// A feed's event has no object of its own; the page's calendar is handed over.
 	uid := ctx.QueryParam("uid")
@@ -353,7 +354,7 @@ func (p *plugin) rawObject(ctx *alborz.Context) error {
 	if err := ical.NewEncoder(&buf).Encode(cal); err != nil {
 		return err
 	}
-	return dav.ServeRaw(ctx, uid+".ics", &buf)
+	return pim.ServeRaw(ctx, uid+".ics", &buf)
 }
 
 func newCalendar(comp *ical.Component) *ical.Calendar {
@@ -364,19 +365,19 @@ func newCalendar(comp *ical.Component) *ical.Calendar {
 	return cal
 }
 
-func putObject(ctx *alborz.Context, to dav.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
+func putObject(ctx *alborz.Context, to pim.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
 	held, etag := "", ""
 	if was != nil {
 		held, etag = was.Path, was.ETag
 	}
-	at, ifMatch, ifNoneMatch := dav.Target(to.Path, name, held, etag)
+	at, ifMatch, ifNoneMatch := pim.Target(to.Path, name, held, etag)
 	return to.Client.PutCalendarObject(ctx.Request().Context(), at, cal,
 		&caldav.PutCalendarObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
 }
 
 func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
-		return dav.Star(ctx, p.client, list, func(ctx *alborz.Context, ref dav.Ref[*caldav.Client], name string) (was string, err error) {
+		return pim.Star(ctx, p.client, list, func(ctx *alborz.Context, ref pim.Ref[*caldav.Client], name string) (was string, err error) {
 			_, err = changeComponent(ctx, ref, comp, func(target *ical.Component) {
 				was = componentColor(target)
 				setComponentColor(target, name)

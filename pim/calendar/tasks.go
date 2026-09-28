@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -21,7 +22,7 @@ import (
 // MoveTasksRenderData is the chooser a move without a destination answers with.
 type MoveTasksRenderData struct {
 	alborz.BaseRenderData
-	Rail      dav.Rail
+	Rail      pim.Rail
 	Calendars []dav.Collection
 	Paths     []string
 	Next      string
@@ -37,8 +38,8 @@ type TasksRenderData struct {
 	Filters    []alborz.Filter
 	FilterRows []alborz.FilterRow
 	Query      string
-	Sorting    dav.Sorting
-	Pager      dav.Pager
+	Sorting    pim.Sorting
+	Pager      pim.Pager
 
 	Invitations *dav.RailInvitations
 }
@@ -140,16 +141,16 @@ type TaskList struct {
 	Rows      []TaskRow
 	Calendars []dav.Collection
 	// Items are the rows as a single task's neighbours, in the same order.
-	Items   []dav.Item
+	Items   []pim.Item
 	Query   string
 	View    string
-	Sorting dav.Sorting
+	Sorting pim.Sorting
 }
 
 func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	var rows []TaskRow
 	loc := alborz.UserLocation(ctx)
-	only := dav.Only(ctx, "cal")
+	only := pim.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return TaskList{}, err
@@ -170,11 +171,11 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	if withCompleted || view == viewHigh {
 		star = ""
 	}
-	params := dav.RowParams(ctx, "/tasks", dav.ListParams(ctx, taskListParams...))
+	params := pim.RowParams(ctx, "/tasks", pim.ListParams(ctx, taskListParams...))
 
 	query := taskQuery()
 
-	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site dav.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
+	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
 	}) {
 		if result.Err != nil {
@@ -210,15 +211,15 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 		}
 	}
 
-	sorting, err := dav.Sort(ctx, rows, taskColumns, func(row TaskRow) string {
+	sorting, err := pim.Sort(ctx, rows, taskColumns, func(row TaskRow) string {
 		return strings.ToLower(row.Task.Account + "\x00" + row.Calendar.Name + "\x00" + row.Summary)
 	}, taskListParams...)
 	if err != nil {
 		return TaskList{}, err
 	}
-	items := make([]dav.Item, len(rows))
+	items := make([]pim.Item, len(rows))
 	for i, row := range rows {
-		items[i] = dav.Item{Path: row.Task.Path, URL: row.Href}
+		items[i] = pim.Item{Path: row.Task.Path, URL: row.Href}
 	}
 	return TaskList{
 		Rows:      rows,
@@ -230,7 +231,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	}, nil
 }
 
-var taskColumns = []dav.Column[TaskRow]{
+var taskColumns = []pim.Column[TaskRow]{
 	{Key: "summary", Value: func(row TaskRow) string { return strings.ToLower(row.Summary) }},
 	{Key: "status", Value: func(row TaskRow) string {
 		if row.Completed {
@@ -245,11 +246,11 @@ var taskColumns = []dav.Column[TaskRow]{
 		}
 		return strconv.Itoa(len(priorityBands))
 	}},
-	{Key: alborz.ViewStarred, Value: func(row TaskRow) string { return dav.StarredFirst(row.Star) }},
+	{Key: alborz.ViewStarred, Value: func(row TaskRow) string { return pim.StarredFirst(row.Star) }},
 	{Key: "account", Value: func(row TaskRow) string { return strings.ToLower(row.Task.Account) }},
 	{Key: "calendar", Value: func(row TaskRow) string { return strings.ToLower(row.Calendar.Name) }},
-	{Key: "due", Value: func(row TaskRow) string { return dav.When(row.Due) }},
-	{Key: "added", Value: func(row TaskRow) string { return dav.When(row.Added) }},
+	{Key: "due", Value: func(row TaskRow) string { return pim.When(row.Due) }},
+	{Key: "added", Value: func(row TaskRow) string { return pim.When(row.Added) }},
 }
 
 func (p *plugin) tasks(ctx *alborz.Context) error {
@@ -257,7 +258,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	rows, pager := dav.Paginate(ctx, list.Rows)
+	rows, pager := pim.Paginate(ctx, list.Rows)
 	addedBy := p.dav.AddedBy(ctx.Login.Username())
 	for i := range rows {
 		rows[i].AddedBy = addedBy(rows[i].Calendar.Account, rows[i].Task.Path)
@@ -283,7 +284,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 
 func (p *plugin) complete(ctx *alborz.Context) error {
 	done := wantsDone(ctx)
-	words := func(ctx *alborz.Context, marked []dav.Ref[*caldav.Client], next string) alborz.Notice {
+	words := func(ctx *alborz.Context, marked []pim.Ref[*caldav.Client], next string) alborz.Notice {
 		if ctx.FormValue("undo") != "" {
 			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
 		}
@@ -294,19 +295,19 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 		return completedNotice(ctx, done, len(marked), "/tasks/complete", url.Values{"paths": paths, "next": {next}})
 	}
 	var marked *caldav.CalendarObject
-	return dav.Run(ctx, dav.Action[*caldav.Client]{
+	return pim.Run(ctx, pim.Action[*caldav.Client]{
 		Client: p.client,
 		List:   "/tasks",
-		Do: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client]) (err error) {
+		Do: func(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) (err error) {
 			marked, err = changeComponent(ctx, ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
 			return err
 		},
 		Done: words,
-		Piece: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client], next string) error {
+		Piece: func(ctx *alborz.Context, ref pim.Ref[*caldav.Client], next string) error {
 			// A task the list no longer shows leaves it, with a notice that brings it back.
-			view := dav.ListParamsIn(next, "view").Get("view")
+			view := pim.ListParamsIn(next, "view").Get("view")
 			if view != viewAll && done != (view == viewCompleted) {
-				ctx.Notify(words(ctx, []dav.Ref[*caldav.Client]{ref}, next))
+				ctx.Notify(words(ctx, []pim.Ref[*caldav.Client]{ref}, next))
 				return ctx.Relocate(next)
 			}
 			// The same button undoes it, so a marked task answers with its row and no notice.
@@ -322,7 +323,7 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			cal := *holder
 			cal.Account = ref.Account
 			// The list's shape is in the return address, not the write's own URL.
-			params := dav.ListParamsIn(next, taskListParams...)
+			params := pim.ListParamsIn(next, taskListParams...)
 			params.Set("from", next)
 			row := taskRow(marked, cal, alborz.UserLocation(ctx), params)
 			row.AddedBy = p.dav.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)
@@ -358,7 +359,7 @@ func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location
 	object := TaskObject{CalendarObject: task, Account: cal.Account}
 	return TaskRow{
 		Task:      object,
-		Href:      dav.ObjectURL("/tasks/", task.Path, object.Account, params),
+		Href:      pim.ObjectURL("/tasks/", task.Path, object.Account, params),
 		Calendar:  cal,
 		Summary:   summary,
 		Status:    status,
@@ -418,16 +419,16 @@ func (p *plugin) move(ctx *alborz.Context) error {
 			Next:           ctx.NextOr(ctx.AccountPath("/tasks")),
 		})
 	}
-	targets, err := dav.Selected(ctx, []string{to}, p.client)
+	targets, err := pim.Selected(ctx, []string{to}, p.client)
 	if err != nil {
 		return err
 	}
 	target := targets[0]
-	return dav.Run(ctx, dav.Action[*caldav.Client]{Client: p.client, List: "/tasks",
-		Done: func(ctx *alborz.Context, done []dav.Ref[*caldav.Client], _ string) alborz.Notice {
+	return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.client, List: "/tasks",
+		Done: func(ctx *alborz.Context, done []pim.Ref[*caldav.Client], _ string) alborz.Notice {
 			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.tasksmoved", len(done))}
 		},
-		Do: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client]) error {
+		Do: func(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) error {
 			if path.Dir(ref.Path)+"/" == target.Path {
 				return nil
 			}
@@ -439,7 +440,7 @@ func (p *plugin) move(ctx *alborz.Context) error {
 				&caldav.PutCalendarObjectOptions{IfNoneMatch: dav.IfNew}); err != nil {
 				return err
 			}
-			return dav.Delete(ctx, ref)
+			return pim.Delete(ctx, ref)
 		}})
 }
 

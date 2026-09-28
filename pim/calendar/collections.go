@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/labstack/echo/v4"
 )
@@ -16,15 +17,15 @@ func (p *plugin) invitations(ctx *alborz.Context) (*dav.RailInvitations, error) 
 	return p.dav.RailInvitations(ctx, p.collectionPage().Base)
 }
 
-func (p *plugin) collectionPage() dav.Page {
-	return dav.Page{
+func (p *plugin) collectionPage() pim.Page {
+	return pim.Page{
 		Base:   "/calendars/",
 		List:   "/calendar",
 		Color:  calendarColor,
 		Ext:    ".ics",
 		Forget: p.dav.Forget,
 		Show:   show,
-		Rail: func(ctx *alborz.Context, list string) (dav.Rail, error) {
+		Rail: func(ctx *alborz.Context, list string) (pim.Rail, error) {
 			if list == "/tasks" {
 				return p.taskRail(ctx)
 			}
@@ -86,7 +87,7 @@ func (p *plugin) collectionPage() dav.Page {
 
 func (p *plugin) forSubscription(sub func(*alborz.Context, string) error, next func(*alborz.Context) error) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
-		path, err := dav.ParseObjectPath(ctx.Param("path"))
+		path, err := pim.ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
@@ -114,7 +115,7 @@ func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
 	settings.Subscriptions[i].Name = name
 	settings.Subscriptions[i].Color = ctx.FormValue("color")
 	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
-		ctx.Notify(dav.Refused(ctx, err))
+		ctx.Notify(pim.Refused(ctx, err))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 }
@@ -131,7 +132,7 @@ func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
 	name := settings.Subscriptions[i].Name
 	settings.Subscriptions = append(settings.Subscriptions[:i], settings.Subscriptions[i+1:]...)
 	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
-		ctx.Notify(dav.Refused(ctx, err))
+		ctx.Notify(pim.Refused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/calendar"))
 	}
 	ctx.PutNotice(fmt.Sprintf(ctx.T("notice.unsubscribedcalendar"), name))
@@ -145,7 +146,7 @@ func collectionList(info dav.Collection) string {
 	return "/calendar"
 }
 
-func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
+func (p *plugin) createForm(ctx *alborz.Context) (pim.CreateForm, error) {
 	forTasks := ctx.QueryParam("for") == "tasks"
 	// Back to the rail that asked, when the new collection shows there.
 	made := func(holds string) (string, string) {
@@ -156,18 +157,18 @@ func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 	}
 	if forTasks {
 		rail, err := p.taskRail(ctx)
-		return dav.CreateForm{Rail: rail, Title: ctx.T("tasks.newlist"), Section: ctx.T("nav.tasks"), List: "/tasks",
+		return pim.CreateForm{Rail: rail, Title: ctx.T("tasks.newlist"), Section: ctx.T("nav.tasks"), List: "/tasks",
 			Holds: "tasks", Made: made}, err
 	}
 	rail, err := p.eventRail(ctx)
-	return dav.CreateForm{Rail: rail, Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: "/calendar",
+	return pim.CreateForm{Rail: rail, Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: "/calendar",
 		Holds: "both", OffersHolds: true, Made: made}, err
 }
 
 // SubscribeRenderData renders subscribe-calendar.html.
 type SubscribeRenderData struct {
 	alborz.BaseRenderData
-	Rail     dav.Rail
+	Rail     pim.Rail
 	Accounts []alborz.Account
 	Account  string
 	Address  string

@@ -190,8 +190,12 @@ upstreams are given as repeated domain=url arguments, e.g.:
 				return next(c)
 			}
 		})
-		e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-			Format: "${time_rfc3339} method=${method}, uri=${uri}, status=${status}\n",
+		e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+			LogMethod: true, LogURI: true, LogStatus: true,
+			LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+				e.Logger.Printf("method=%s, uri=%s, status=%d", v.Method, v.URI, v.Status)
+				return nil
+			},
 		}))
 		e.Logger.SetLevel(log.DEBUG)
 	}

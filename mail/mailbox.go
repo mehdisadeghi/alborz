@@ -759,7 +759,7 @@ func (l *NewMailboxLocation) folder(name string) string {
 func folderURL(ctx *alborz.Context, account, name string) string {
 	destination := fmt.Sprintf("/mailbox/%s", url.PathEscape(name))
 	if len(ctx.Logins()) > 1 {
-		destination += accountQuery(account)
+		destination += AccountQuery(account)
 	}
 	return destination
 }
@@ -1261,7 +1261,7 @@ func (p *plugin) handleSetFlags(ctx *alborz.Context) error {
 			star := &StarRenderData{
 				BaseRenderData: *alborz.NewBaseRenderData(ctx),
 				Mailbox:        mboxName,
-				Account:        template.URL(accountQuery(ctx.Login.Username())),
+				Account:        template.URL(AccountQuery(ctx.Login.Username())),
 				UID:            uids[0],
 				Flagged:        color[0] != "",
 				Color:          color[0],
@@ -1351,7 +1351,7 @@ func perPageOptions(chosen int) []int {
 	seen := map[int]bool{}
 	var out []int
 	for _, n := range append(append([]int{}, perPageLadder...), chosen) {
-		if n <= 0 || n > maxMessagesPerPage || seen[n] {
+		if n <= 0 || n > MaxMessagesPerPage || seen[n] {
 			continue
 		}
 		seen[n] = true
@@ -1370,11 +1370,11 @@ func PerPageChoices(ctx *alborz.Context) []int {
 func PerPage(ctx *alborz.Context) int {
 	if raw := ctx.QueryParam("ipp"); raw != "" {
 		if n, err := alborz.ReadInt(raw); err == nil &&
-			n > 0 && n <= maxMessagesPerPage {
+			n > 0 && n <= MaxMessagesPerPage {
 			return n
 		}
 	}
-	if n := ctx.Reading().MessagesPerPage; n > 0 && n <= maxMessagesPerPage {
+	if n := ctx.Reading().MessagesPerPage; n > 0 && n <= MaxMessagesPerPage {
 		return n
 	}
 	return defaultMessagesPerPage

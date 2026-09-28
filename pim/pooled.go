@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/settings"
 	"github.com/labstack/echo/v4"
 )
 
@@ -102,7 +102,7 @@ func Pooled[C any](ctx *alborz.Context, p *dav.Provider, load func(context.Conte
 		key, action := "notice.davanswered", &alborz.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.QueryValue(username)}
 		// A 403 stays a permission answer, with the way to the password beside it.
 		if code == http.StatusForbidden {
-			key, action = "notice.davforbidden", &alborz.NoticeAction{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + mail.ServerDAV + "?account=" + alborz.QueryValue(username)}
+			key, action = "notice.davforbidden", &alborz.NoticeAction{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + settings.ServerDAV + "?account=" + alborz.QueryValue(username)}
 		}
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
 			Text:    fmt.Sprintf(ctx.T(key), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
@@ -112,7 +112,7 @@ func Pooled[C any](ctx *alborz.Context, p *dav.Provider, load func(context.Conte
 	if len(refused) > 0 {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
 			Text:    ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
-			Actions: []*alborz.NoticeAction{{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + mail.ServerDAV + "?account=" + alborz.QueryValue(refused[0])}}})
+			Actions: []*alborz.NoticeAction{{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + settings.ServerDAV + "?account=" + alborz.QueryValue(refused[0])}}})
 	}
 	return accounts, nil
 }

@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/settings"
 )
 
 var serviceRefusals = map[error]string{
@@ -22,7 +22,7 @@ var placeIDs = []string{"domain", "host", "own", "here"}
 
 // ServerRenderData is the DAV servers' page, with the servers the account names for itself.
 type ServerRenderData struct {
-	*mail.ServersRenderData
+	*settings.ServersRenderData
 	Services        dav.Services
 	HasHTTPPassword bool
 }
@@ -41,13 +41,13 @@ func (d *ServerRenderData) DefaultPlace() string {
 }
 
 func handleServer(ctx *alborz.Context) error {
-	servers, err := mail.NewServersRenderData(ctx, mail.ServerDAV)
+	servers, err := settings.NewServersRenderData(ctx, settings.ServerDAV)
 	if err != nil {
 		return err
 	}
 	data := &ServerRenderData{ServersRenderData: servers}
 	render := func(status int) error {
-		return mail.RenderServers(ctx, status, "server.html", data, servers)
+		return settings.RenderServers(ctx, status, "server.html", data, servers)
 	}
 	if data.HasHTTPPassword, err = ctx.Login.HasHTTPPassword(ctx.Request().Context()); err != nil {
 		return err
@@ -100,5 +100,5 @@ func handleServer(ctx *alborz.Context) error {
 	// The cache was read with the servers or password just left.
 	ctx.Server.ForgetAccount(ctx.Login.Username())
 	ctx.PutNotice(ctx.T("notice.serverssaved"))
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/servers/"+mail.ServerDAV))
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/servers/"+settings.ServerDAV))
 }

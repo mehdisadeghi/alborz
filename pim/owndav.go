@@ -16,6 +16,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/settings"
 	"github.com/labstack/echo/v4"
 )
 
@@ -29,8 +30,8 @@ func Mount(srv *alborz.Server) (*store.Store, error) {
 	kept := store.New(db)
 	srv.Pre(serveOwn(srv, kept))
 	r := srv.Router()
-	r.GET("/settings/servers/"+mail.ServerDAV, mail.Scoped(handleServer))
-	r.POST("/settings/servers/"+mail.ServerDAV, mail.Scoped(handleServer))
+	r.GET("/settings/servers/"+settings.ServerDAV, mail.Scoped(handleServer))
+	r.POST("/settings/servers/"+settings.ServerDAV, mail.Scoped(handleServer))
 	return kept, nil
 }
 

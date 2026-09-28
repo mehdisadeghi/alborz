@@ -1,9 +1,10 @@
-package mail
+package settings
 
 import (
 	"net/http"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail"
 )
 
 // SessionsRenderData renders sessions.html.
@@ -19,7 +20,7 @@ func handleSessions(ctx *alborz.Context) error {
 	if ctx.Request().Method == http.MethodPost {
 		id := ctx.FormValue("session")
 		if id == ctx.Session().ID {
-			return handleLogout(ctx)
+			return mail.HandleLogout(ctx)
 		}
 		if err := ctx.Server.Sessions.SignOut(id, account); err != nil {
 			return err
@@ -33,7 +34,7 @@ func handleSessions(ctx *alborz.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "sessions.html", &SessionsRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("sessions.title")),
-		Rail:           settingsRail(ctx),
+		Rail:           mail.SettingsRail(ctx),
 		Signed:         signed,
 		Account:        account,
 	})

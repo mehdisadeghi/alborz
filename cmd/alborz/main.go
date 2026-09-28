@@ -27,6 +27,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/contacts"
+	"git.mehdix.org/alborz/settings"
 )
 
 var themesPath = "./themes"
@@ -177,6 +178,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		e.Logger.Fatal(err)
 	}
 	mail.Mount(s)
+	settings.Mount(s)
 	kept, err := pim.Mount(s)
 	if err != nil {
 		e.Logger.Fatal(err)

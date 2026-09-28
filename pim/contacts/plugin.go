@@ -12,6 +12,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/settings"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
@@ -158,8 +159,8 @@ func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]dav.Group, error) {
 	return pim.WritableGroups(accounts, func(ab dav.Collection) bool { return ab.Writable }), nil
 }
 
-func bookAbilities(found dav.Advertised) []mail.Ability {
-	return []mail.Ability{
+func bookAbilities(found dav.Advertised) []settings.Ability {
+	return []settings.Ability{
 		{Label: "settings.davability3", Hint: "settings.davability3hint", Have: found.Has("3")},
 		{Label: "settings.davabilityacl", Hint: "settings.davabilityaclhint", Have: found.Has("access-control")},
 		{Label: "settings.davabilitycards", Hint: "settings.davabilitycardshint", Have: found.Has("addressbook")},

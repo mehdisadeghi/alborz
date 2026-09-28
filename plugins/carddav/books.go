@@ -43,24 +43,24 @@ func (p *plugin) collectionPage() dav.Page {
 		Show:   show,
 		Rail:   func(ctx *alborz.Context, _ string) (dav.Rail, error) { return p.bookRail(ctx) },
 		Create: func(ctx *alborz.Context, _, name, place string) (string, error) {
-			return p.dav.Create(ctx.Request().Context(), ctx.Session, name, dav.DefaultColor, place, nil)
+			return p.dav.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, nil)
 		},
 		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
-			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return 0, err
 			}
 			return importBook(ctx.Request().Context(), c, path, raw)
 		},
 		Export: func(ctx *alborz.Context, path string, _, _ time.Time) ([]byte, error) {
-			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return nil, err
 			}
 			return exportBook(ctx.Request().Context(), c, path)
 		},
 		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
-			_, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+			_, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return dav.Collection{}, nil, "", "", err
 			}
@@ -104,7 +104,7 @@ func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 func visibleBooks(accounts []dav.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []dav.Site[*carddav.Client], error) {
 	return dav.Visible(accounts, scope, only, func(acc dav.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings := &Settings{}
-		if err := acc.Session.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
+		if err := acc.Login.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 			return nil, false, nil, fmt.Errorf("failed to load CardDAV settings: %w", err)
 		}
 		return acc.Collections, settings.AddressBookFilter, settings.VisibleAddressBooks, nil
@@ -136,11 +136,11 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 		return err
 	}
 	acct, bookPath, ok := strings.Cut(ctx.FormValue("addressbook"), "|")
-	session := ctx.SessionFor(acct)
-	if !ok || session == nil {
+	login := ctx.LoginFor(acct)
+	if !ok || login == nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "no address book to file it in")
 	}
-	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), session)
+	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), login)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 		ctx.PutNotice(ctx.Tf("import.vcf", n))
 	}
 	to := "/contacts"
-	if acct != ctx.Session.Username() {
+	if acct != ctx.Login.Username() {
 		to += "?account=" + alborz.QueryValue(acct)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))

@@ -46,7 +46,7 @@ const invitationsKey = "Invitations"
 func (p *Provider) invitations(ctx *alborz.Context) ([]Invitation, error) {
 	now := time.Now()
 	var out []Invitation
-	for _, s := range ctx.Sessions() {
+	for _, s := range ctx.Logins() {
 		account := strings.ToLower(s.Username())
 		shares, err := p.store.Shares(func(sh collections.Share) bool {
 			return sh.To == account && !sh.Accepted && !sh.Declined && !sh.Left && (sh.Expires.IsZero() || now.Before(sh.Expires))
@@ -78,7 +78,7 @@ func (p *Provider) invitations(ctx *alborz.Context) ([]Invitation, error) {
 // for a rail it does not draw.
 func (p *Provider) InjectInvitations(field, base string, sections ...string) alborz.InjectFunc {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
-		if p.store == nil || ctx.Session == nil {
+		if p.store == nil || ctx.Login == nil {
 			return nil
 		}
 		at := ctx.Request().URL.Path
@@ -240,14 +240,14 @@ func (pg Page) offer(ctx *alborz.Context, p *Provider, collPath, account string)
 func (pg Page) InjectOffer(p *Provider) alborz.InjectFunc {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
 		m, ok := data.(*alborzbase.MessageRenderData)
-		if !ok || m.Message == nil || ctx.Session == nil {
+		if !ok || m.Message == nil || ctx.Login == nil {
 			return nil
 		}
 		path := strings.TrimSpace(m.Message.HeaderField(alborzbase.ShareHeader))
 		if path == "" {
 			return nil
 		}
-		offer, err := pg.offer(ctx, p, CanonicalCollectionPath(path), ctx.Session.Username())
+		offer, err := pg.offer(ctx, p, CanonicalCollectionPath(path), ctx.Login.Username())
 		if err != nil || offer == nil {
 			return err
 		}
@@ -376,7 +376,7 @@ func invitee(ctx *alborz.Context, typed string) (string, error) {
 	if !slices.Contains(served, domain) && !slices.Contains(served, "") {
 		return "", errNotServed
 	}
-	if to == strings.ToLower(ctx.Session.Username()) {
+	if to == strings.ToLower(ctx.Login.Username()) {
 		return "", errOwnAddress
 	}
 	return to, nil
@@ -428,7 +428,7 @@ func (pg Page) HandleShare(p *Provider) func(*alborz.Context) error {
 		// What the invitee may do has changed, and the owner's count of
 		// shares; both lists are asked again.
 		pg.Forget(share.To)
-		pg.Forget(ctx.Session.Username())
+		pg.Forget(ctx.Login.Username())
 		// The invitation waits in the invitee's rail whether or not the
 		// mail saying so got through, so a refused mail is a warning and
 		// the share stands.
@@ -492,7 +492,7 @@ func (pg Page) HandleAccess(p *Provider) func(*alborz.Context) error {
 			return err
 		}
 		pg.Forget(sh.To)
-		pg.Forget(ctx.Session.Username())
+		pg.Forget(ctx.Login.Username())
 		key := "notice.sharecanview"
 		if sh.Write {
 			key = "notice.sharecanedit"
@@ -514,7 +514,7 @@ func (pg Page) HandleUnshare(p *Provider) func(*alborz.Context) error {
 			return err
 		}
 		pg.Forget(to)
-		pg.Forget(ctx.Session.Username())
+		pg.Forget(ctx.Login.Username())
 		ctx.PutNotice(fmt.Sprintf(ctx.T("notice.unshared"), info.Name, to))
 		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, info.Path))
 	}
@@ -529,7 +529,7 @@ func (pg Page) HandleAnswer(p *Provider, accept bool) func(*alborz.Context) erro
 			return err
 		}
 		ref, home, here := collections.Held(collPath)
-		account := strings.ToLower(ctx.Session.Username())
+		account := strings.ToLower(ctx.Login.Username())
 		if !here || home != account {
 			return echo.NewHTTPError(http.StatusNotFound, "no such invitation")
 		}
@@ -549,10 +549,10 @@ func (pg Page) HandleAnswer(p *Provider, accept bool) func(*alborz.Context) erro
 			ctx.PutNotice(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
 		}
-		if err := pg.Show(ctx.Session.Store(), CanonicalCollectionPath(collPath)); err != nil {
+		if err := pg.Show(ctx.Login.Store(), CanonicalCollectionPath(collPath)); err != nil {
 			return err
 		}
-		pg.Forget(ctx.Session.Username())
+		pg.Forget(ctx.Login.Username())
 		// The name leads to the collection the account just accepted.
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone,
 			Text:   fmt.Sprintf(ctx.T("notice.shareaccepted"), c.Name),
@@ -584,7 +584,7 @@ func (pg Page) HandlePublish(p *Provider, publish bool) func(*alborz.Context) er
 		if err := p.store.Update(ref, func(c *collections.Collection) { c.Public = secret }); err != nil {
 			return err
 		}
-		pg.Forget(ctx.Session.Username())
+		pg.Forget(ctx.Login.Username())
 		notice := "notice.unpublished"
 		if publish {
 			notice = "notice.published"

@@ -26,7 +26,7 @@ type Envelope struct {
 // again.
 var ErrSealed = errors.New("alborz: the stored secret cannot be read any more")
 
-// Argon2id parameters: the derivation runs once per session, so the
+// Argon2id parameters: the derivation runs once per login, so the
 // cost can sit at the RFC 9106 second recommendation (64 MiB, one
 // pass) rather than the interactive minimum.
 const (
@@ -58,7 +58,7 @@ func unwrap(tok string, k *fernet.Key) []byte {
 }
 
 // Seal wraps plain for this account under both of its keys.
-func (s *Session) Seal(plain string) (Envelope, error) {
+func (l *Login) Seal(plain string) (Envelope, error) {
 	var k fernet.Key
 	if err := k.Generate(); err != nil {
 		return Envelope{}, err
@@ -70,8 +70,8 @@ func (s *Session) Seal(plain string) (Envelope, error) {
 	return Envelope{
 		Secret:     wrap([]byte(plain), &k),
 		Salt:       base64.StdEncoding.EncodeToString(salt),
-		ByServer:   wrapServer(k[:], s.manager.loginKey),
-		ByPassword: wrap(k[:], passwordKey(s.password, salt)),
+		ByServer:   wrapServer(k[:], l.manager.loginKey),
+		ByPassword: wrap(k[:], passwordKey(l.password, salt)),
 	}, nil
 }
 
@@ -85,13 +85,13 @@ func wrapServer(secret []byte, k *fernet.Key) string {
 // Open reads the secret and re-wraps the key that no longer opened.
 // The envelope returned is the one to keep; it differs from e only when
 // a wrap was renewed.
-func (s *Session) Open(e Envelope) (string, Envelope, error) {
+func (l *Login) Open(e Envelope) (string, Envelope, error) {
 	salt, err := base64.StdEncoding.DecodeString(e.Salt)
 	if err != nil {
 		return "", e, err
 	}
-	pk := passwordKey(s.password, salt)
-	byServer := unwrap(e.ByServer, s.manager.loginKey)
+	pk := passwordKey(l.password, salt)
+	byServer := unwrap(e.ByServer, l.manager.loginKey)
 	byPassword := unwrap(e.ByPassword, pk)
 	raw := byServer
 	if raw == nil {
@@ -107,7 +107,7 @@ func (s *Session) Open(e Envelope) (string, Envelope, error) {
 		return "", e, ErrSealed
 	}
 	if byServer == nil {
-		e.ByServer = wrapServer(raw, s.manager.loginKey)
+		e.ByServer = wrapServer(raw, l.manager.loginKey)
 	}
 	if byPassword == nil {
 		e.ByPassword = wrap(raw, pk)
@@ -121,39 +121,39 @@ const httpPasswordKey = "http-password"
 
 // HTTPPassword is what the account's HTTP services are given: the one
 // kept for them when there is one, the login password otherwise. The
-// envelope is opened once per session; the derivation is not cheap.
-func (s *Session) HTTPPassword() (string, error) {
-	s.httpLocker.Lock()
-	defer s.httpLocker.Unlock()
-	if s.httpLoaded {
-		return s.httpPassword, nil
+// envelope is opened once per login; the derivation is not cheap.
+func (l *Login) HTTPPassword() (string, error) {
+	l.httpLocker.Lock()
+	defer l.httpLocker.Unlock()
+	if l.httpLoaded {
+		return l.httpPassword, nil
 	}
 	var e Envelope
-	err := s.store.Get(httpPasswordKey, &e)
+	err := l.store.Get(httpPasswordKey, &e)
 	if err == ErrNoStoreEntry || (err == nil && e.Secret == "") {
-		s.httpPassword, s.httpLoaded = s.password, true
-		return s.password, nil
+		l.httpPassword, l.httpLoaded = l.password, true
+		return l.password, nil
 	}
 	if err != nil {
 		return "", err
 	}
-	plain, fresh, err := s.Open(e)
+	plain, fresh, err := l.Open(e)
 	if err != nil {
 		return "", err
 	}
 	if fresh != e {
-		if err := s.store.Put(httpPasswordKey, &fresh); err != nil {
+		if err := l.store.Put(httpPasswordKey, &fresh); err != nil {
 			return "", err
 		}
 	}
-	s.httpPassword, s.httpLoaded = plain, true
+	l.httpPassword, l.httpLoaded = plain, true
 	return plain, nil
 }
 
 // HasHTTPPassword reports whether one is kept, without opening it.
-func (s *Session) HasHTTPPassword() (bool, error) {
+func (l *Login) HasHTTPPassword() (bool, error) {
 	var e Envelope
-	err := s.store.Get(httpPasswordKey, &e)
+	err := l.store.Get(httpPasswordKey, &e)
 	if err == ErrNoStoreEntry {
 		return false, nil
 	}
@@ -162,22 +162,22 @@ func (s *Session) HasHTTPPassword() (bool, error) {
 
 // SetHTTPPassword keeps password for the account's HTTP services; empty
 // goes back to the login password.
-func (s *Session) SetHTTPPassword(password string) error {
+func (l *Login) SetHTTPPassword(password string) error {
 	var e Envelope
 	if password != "" {
 		var err error
-		if e, err = s.Seal(password); err != nil {
+		if e, err = l.Seal(password); err != nil {
 			return err
 		}
 	}
-	if err := s.store.Put(httpPasswordKey, &e); err != nil {
+	if err := l.store.Put(httpPasswordKey, &e); err != nil {
 		return err
 	}
-	s.httpLocker.Lock()
-	s.httpPassword, s.httpLoaded = password, password != ""
+	l.httpLocker.Lock()
+	l.httpPassword, l.httpLoaded = password, password != ""
 	if password == "" {
-		s.httpPassword, s.httpLoaded = s.password, true
+		l.httpPassword, l.httpLoaded = l.password, true
 	}
-	s.httpLocker.Unlock()
+	l.httpLocker.Unlock()
 	return nil
 }

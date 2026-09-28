@@ -18,7 +18,7 @@
             <span class="list-detail">{{ printf ($.T "sessions.lastused") (printf "%s %s" ($.GlobalData.ShortDate .Seen) ($.GlobalData.FormatTime .Seen)) }} · {{ printf ($.T "sessions.since") ($.GlobalData.ShortDate .Created) }}{{ with .Address }} · {{ template "ltr" . }}{{ end }}{{ if .Current }} · {{$.T "sessions.current"}}{{ end }}</span>
           </div>
           <form method="post" action="/settings/sessions{{$aq}}">
-            <input type="hidden" name="visit" value="{{.ID}}">
+            <input type="hidden" name="session" value="{{.ID}}">
             <button class="button-danger">{{$.T "nav.signout"}}</button>
           </form>
         </div>

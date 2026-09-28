@@ -197,7 +197,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		return err
 	}
 
-	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -256,7 +256,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		Event:          CalendarObject{CalendarObject: event},
 		Star:           componentColor(vevents[0].Component),
 		Neighbours:     dav.Around(items, eventKey(path, "", false)),
-		Authors:        p.dav.Authors(event.Path, ctx.Session.Username()),
+		Authors:        p.dav.Authors(event.Path, ctx.Login.Username()),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborzbase.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "event.html", data)
@@ -298,14 +298,14 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 // own, kept in its settings beside the server's calendars rather than
 // among them.
 func feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ical.Calendar, error) {
-	settings, err := loadSettings(ctx.Session.Store())
+	settings, err := loadSettings(ctx.Login.Store())
 	if err != nil {
 		return nil, nil, err
 	}
 	var info *dav.Collection
 	for _, s := range settings.Subscriptions {
 		if s.URL == address {
-			i := s.info(ctx.Session.Username())
+			i := s.info(ctx.Login.Username())
 			info = &i
 		}
 	}
@@ -345,7 +345,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 	var event *ical.Event
 	var currentCalendar *dav.Collection
 	if calendarObjectPath != "" {
-		c, calendars, err = p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		c, calendars, err = p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			return err
 		}
@@ -489,7 +489,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		// (RFC 5546). Removing the last one withdraws it.
 		attendees := parseAttendees(ctx.FormValue("attendees"))
 		had := attendeeLines(event) != ""
-		setScheduling(event, ctx.Session.Username(), attendees)
+		setScheduling(event, ctx.Login.Username(), attendees)
 
 		newID := uuid.New()
 		if prop := event.Props.Get(ical.PropUID); prop == nil {

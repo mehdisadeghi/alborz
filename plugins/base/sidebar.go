@@ -33,7 +33,7 @@ func handleSidebar(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	sb, err := sidebarFor(ctx.Session)
+	sb, err := sidebarFor(ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -294,7 +294,7 @@ var accountSidebars = alborz.NewBackgroundMemo[sidebar](listingFreshFor)
 // railFor is the account's sidebar for a page on one folder: the tree
 // and counts as the memo holds them, with that folder marked active.
 // A folder the memo did not count keeps the status the page fetched.
-func railFor(s *alborz.Session, mboxName string, fetched sidebar) sidebar {
+func railFor(s *alborz.Login, mboxName string, fetched sidebar) sidebar {
 	sb, err := sidebarFor(s)
 	if err != nil {
 		return fetched
@@ -308,10 +308,10 @@ func railFor(s *alborz.Session, mboxName string, fetched sidebar) sidebar {
 	return sb
 }
 
-func sidebarFor(s *alborz.Session) (sidebar, error) {
+func sidebarFor(s *alborz.Login) (sidebar, error) {
 	return accountSidebars.Get(s.Username(), func() (sidebar, error) {
 		// Loaded before DoIMAP: on a METADATA server the settings read
-		// is itself a DoIMAP, and the session lock is not reentrant.
+		// is itself a DoIMAP, and the login lock is not reentrant.
 		settings, err := LoadSettings(s.Store())
 		if err != nil {
 			return sidebar{}, err
@@ -334,12 +334,12 @@ func sidebarFor(s *alborz.Session) (sidebar, error) {
 // failing account is skipped and its section reappears once its server
 // answers again.
 func sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
-	sessions := ctx.Sessions()
-	if len(sessions) < 2 {
+	logins := ctx.Logins()
+	if len(logins) < 2 {
 		return nil
 	}
 	var accounts []AccountSidebar
-	for _, s := range sessions {
+	for _, s := range logins {
 		sb, err := sidebarFor(s)
 		if err != nil {
 			ctx.Logger().Printf("sidebar for %q: %v", s.Username(), err)
@@ -510,7 +510,7 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 		return nil, err
 	}
 
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load settings: %w", err)
 	}

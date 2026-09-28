@@ -117,7 +117,7 @@ func schedulingMail(event *ical.Event, method string) (string, error) {
 // it. A send that fails must not lose the event: it is already saved, so
 // the failure is reported and the meeting stays.
 func sendScheduling(ctx *alborz.Context, event *ical.Event, attendees []string, method string) error {
-	organizer := ctx.Session.Username()
+	organizer := ctx.Login.Username()
 	var to []string
 	for _, addr := range attendees {
 		if !strings.EqualFold(addr, organizer) {
@@ -180,7 +180,7 @@ func (p *plugin) registerScheduling() {
 		if err != nil {
 			return err
 		}
-		c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			return err
 		}
@@ -252,7 +252,7 @@ func (p *plugin) findByUID(ctx *alborz.Context, groups []dav.Group, uid string) 
 	if uid == "" {
 		return ""
 	}
-	c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+	c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return ""
 	}

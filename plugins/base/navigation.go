@@ -26,7 +26,7 @@ type listPlace struct {
 // server has to say.
 func cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
 	sortKey, _ := listOrder(ctx)
-	return listings.message(ctx.Session.Username(), listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, PerPage(ctx))
+	return listings.message(ctx.Login.Username(), listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, PerPage(ctx))
 }
 
 // placeInList asks the server for the same. The order the list was in
@@ -69,14 +69,14 @@ func handleMessageNavigation(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	sb, err := sidebarFor(ctx.Session)
+	sb, err := sidebarFor(ctx.Login)
 	if err != nil {
 		return err
 	}
 	sb = sb.clone()
 	sb.active = sb.statuses[mailbox]
 	data := &MessageRenderData{Query: ctx.QueryParam("query")}
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}

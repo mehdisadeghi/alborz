@@ -47,7 +47,7 @@ type GlobalRenderData struct {
 	// Shell is the digest of what the head loads; see Server.shell.
 	Shell string
 	// LockSeconds is how long the page may sit untouched before the
-	// visit locks, zero for a visit with no passkey.
+	// session locks, zero for a session with no passkey.
 	LockSeconds int
 	// Revision names the running binary under the logo, in the
 	// rail and in the header: see Build.
@@ -698,7 +698,7 @@ func (g *GlobalRenderData) LongDate(t time.Time) string {
 }
 
 // pluginEnabled reports whether the plugin applies to the request's
-// session. The Enabled method is optional so that the Plugin interface
+// login. The Enabled method is optional so that the Plugin interface
 // stays unchanged for plugins serving every domain.
 func pluginEnabled(p Plugin, ctx *Context) bool {
 	e, ok := p.(interface{ Enabled(*Context) bool })
@@ -760,8 +760,8 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	if isactx {
 		global.Version, global.Revision = Build()
 		_, global.Shell = ctx.Server.shell()
-		if v := ctx.lookupVisit(); v != nil {
-			if lock := v.Lock(); len(lock.Passkeys) > 0 {
+		if s := ctx.lookupSession(); s != nil {
+			if lock := s.Lock(); len(lock.Passkeys) > 0 {
 				global.LockSeconds = int(lock.Wait() / time.Second)
 			}
 		}
@@ -800,16 +800,16 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		}
 		if u, err := url.Parse(global.From); err == nil && global.From != "" {
 			global.Scope = u.Query().Get("account")
-			global.Merged = global.Scope == "" && len(ctx.Sessions()) > 1
+			global.Merged = global.Scope == "" && len(ctx.Logins()) > 1
 		}
-		// A notice belongs to the visit, not to a session: a sign-in
+		// A notice belongs to the session, not to a login: a sign-in
 		// that failed has none, and the login page is where it is read.
 		global.Notice = ctx.PopNotice()
 	}
 
-	if isactx && ctx.Session != nil {
+	if isactx && ctx.Login != nil {
 		global.LoggedIn = true
-		global.Username = ctx.Session.username
+		global.Username = ctx.Login.username
 		global.Accounts = ctx.Accounts()
 	}
 

@@ -232,12 +232,12 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, cale
 	if len(to) == 0 {
 		return nil
 	}
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
 	msg := &OutgoingMessage{
-		From:           fromAddress(settings, ctx.Session.Username()),
+		From:           fromAddress(settings, ctx.Login.Username()),
 		To:             to,
 		Subject:        subject,
 		MessageID:      newMessageID(),
@@ -255,16 +255,16 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, cale
 // answers it in place when that account has such an invitation open.
 const ShareHeader = "X-Alborz-Share"
 
-// SendText posts a short plain message from the session's account: what
+// SendText posts a short plain message from the login's account: what
 // a plugin has to tell somebody that is not the reader's own writing.
 // headers are set on it besides the usual ones.
 func SendText(ctx *alborz.Context, to []string, subject, text string, headers map[string]string) error {
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
 	msg := &OutgoingMessage{
-		From:      fromAddress(settings, ctx.Session.Username()),
+		From:      fromAddress(settings, ctx.Login.Username()),
 		To:        to,
 		Subject:   subject,
 		MessageID: newMessageID(),
@@ -306,11 +306,11 @@ func invitationReply(ctx *alborz.Context, inv *Invitation, status string) (*Outg
 	if inv.Organizer == "" {
 		return nil, fmt.Errorf("the invitation names no organizer to answer")
 	}
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
-	me := ctx.Session.Username()
+	me := ctx.Login.Username()
 
 	var buf bytes.Buffer
 	if err := ical.NewEncoder(&buf).Encode(replyCalendar(inv, me, settings.From, status)); err != nil {

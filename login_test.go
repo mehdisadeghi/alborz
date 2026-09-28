@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-func TestExpiryUnlistsTheSession(t *testing.T) {
-	sm := newSessionManager(nil, nil, nil, nil, nil, nil, nil)
-	s := &Session{manager: sm, closed: make(chan struct{}), pings: make(chan struct{}, 5),
+func TestExpiryUnlistsTheLogin(t *testing.T) {
+	sm := newLoginManager(nil, nil, nil, nil, nil, nil, nil)
+	s := &Login{manager: sm, closed: make(chan struct{}), pings: make(chan struct{}, 5),
 		username: "a@test.local"}
-	sm.sessions[s] = struct{}{}
+	sm.logins[s] = struct{}{}
 	done := make(chan struct{})
 	go func() {
 		sm.reap(s)
@@ -25,13 +25,13 @@ func TestExpiryUnlistsTheSession(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("the reaper did not finish")
 	}
-	if _, listed := sm.sessions[s]; listed {
-		t.Error("the session is still listed")
+	if _, listed := sm.logins[s]; listed {
+		t.Error("the login is still listed")
 	}
 }
 
 func TestFullAttachmentCacheStaysUsable(t *testing.T) {
-	s, _ := newVisit()
+	s, _ := newSession()
 	big := &multipart.FileHeader{Size: MaxAttachmentSize}
 	if _, err := s.PutAttachment(big, nil); err != nil {
 		t.Fatal(err)
@@ -64,24 +64,24 @@ func TestEnvelopeOpensAfterEitherKeyChanges(t *testing.T) {
 		}
 		return &k
 	}
-	session := func(key *fernet.Key, password string) *Session {
-		return &Session{manager: &SessionManager{loginKey: key}, password: password}
+	login := func(key *fernet.Key, password string) *Login {
+		return &Login{manager: &LoginManager{loginKey: key}, password: password}
 	}
 	key1, key2 := newKey(), newKey()
-	e, err := session(key1, "first").Seal("app-password")
+	e, err := login(key1, "first").Seal("app-password")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	plain, e, err := session(key1, "second").Open(e)
+	plain, e, err := login(key1, "second").Open(e)
 	if err != nil || plain != "app-password" {
 		t.Fatalf("after a password change: %q, %v", plain, err)
 	}
-	plain, e, err = session(key2, "second").Open(e)
+	plain, e, err = login(key2, "second").Open(e)
 	if err != nil || plain != "app-password" {
 		t.Fatalf("after a key rotation on the renewed password wrap: %q, %v", plain, err)
 	}
-	if _, _, err := session(newKey(), "third").Open(e); err != ErrSealed {
+	if _, _, err := login(newKey(), "third").Open(e); err != ErrSealed {
 		t.Fatalf("both changed: %v, want ErrSealed", err)
 	}
 }

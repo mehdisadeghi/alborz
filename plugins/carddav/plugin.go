@@ -26,12 +26,12 @@ type plugin struct {
 	dav *dav.Provider
 }
 
-func (p *plugin) client(session *alborz.Session) (*carddav.Client, error) {
-	u, ok := p.dav.URL(session)
+func (p *plugin) client(login *alborz.Login) (*carddav.Client, error) {
+	u, ok := p.dav.URL(login)
 	if !ok {
 		return nil, errNoAddressBook
 	}
-	return newClient(u, p.dav.HTTPClient(session))
+	return newClient(u, p.dav.HTTPClient(login))
 }
 
 // findHome is where a source lists the account's address books.
@@ -53,8 +53,8 @@ func findHome(ctx context.Context, client *http.Client, endpoint string) (string
 
 // An account with no address book has no contacts section to show, and
 // says so rather than listing nothing.
-func (p *plugin) clientWithAddressBooks(ctx context.Context, session *alborz.Session) (*carddav.Client, []dav.Collection, error) {
-	c, infos, err := dav.Opened(ctx, p.dav, session, p.client)
+func (p *plugin) clientWithAddressBooks(ctx context.Context, login *alborz.Login) (*carddav.Client, []dav.Collection, error) {
+	c, infos, err := dav.Opened(ctx, p.dav, login, p.client)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -121,7 +121,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	p.Inject("compose.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
 		data := _data.(*alborzbase.ComposeRenderData)
 
-		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Session)
+		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			// Suggestions are a convenience of the compose page, not a
 			// condition of it: an address book that is missing or not

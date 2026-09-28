@@ -20,61 +20,61 @@ type Account struct {
 	Username string
 }
 
-// accountSessions is the visit's bag: every account this browser has
-// signed into. An account whose session has ended is dropped and named
+// accountLogins is the session's bag: every account this browser has
+// signed into. An account whose login has ended is dropped and named
 // for the page, rather than left in the list as if it were still here.
-func (ctx *Context) accountSessions() []*Session {
+func (ctx *Context) accountLogins() []*Login {
 	if ctx.accountsLoaded {
 		return ctx.accounts
 	}
-	v := ctx.lookupVisit()
-	if v == nil {
+	s := ctx.lookupSession()
+	if s == nil {
 		return nil
 	}
-	sessions, lost := v.Accounts()
+	logins, lost := s.Accounts()
 	ctx.lostAccounts = append(ctx.lostAccounts, lost...)
-	ctx.accounts = sessions
+	ctx.accounts = logins
 	ctx.accountsLoaded = true
-	return sessions
+	return logins
 }
 
 // byName puts accounts in one order wherever they are listed, the
 // rail and every picker alike. Sign-in order is a history, not an
 // order: an account signed in again moved to the end.
-func byName(sessions []*Session) {
-	slices.SortStableFunc(sessions, func(a, b *Session) int {
+func byName(logins []*Login) {
+	slices.SortStableFunc(logins, func(a, b *Login) int {
 		return strings.Compare(strings.ToLower(a.username), strings.ToLower(b.username))
 	})
 }
 
 // Accounts lists the signed-in accounts in rail order.
 func (ctx *Context) Accounts() []Account {
-	sessions := ctx.accountSessions()
-	accounts := make([]Account, len(sessions))
-	for i, s := range sessions {
+	logins := ctx.accountLogins()
+	accounts := make([]Account, len(logins))
+	for i, s := range logins {
 		accounts[i] = Account{Username: s.username}
 	}
 	return accounts
 }
 
-// Sessions lists the live sessions of every signed-in account.
-func (ctx *Context) Sessions() []*Session {
-	return ctx.accountSessions()
+// Logins lists the live logins of every signed-in account.
+func (ctx *Context) Logins() []*Login {
+	return ctx.accountLogins()
 }
 
 // AddAccount puts the account in this browser's bag and makes it the
-// request's own. A session for the same address is replaced.
-func (ctx *Context) AddAccount(s *Session) {
-	v := ctx.Visit()
-	v.Add(s)
+// request's own. A login for the same address is replaced.
+func (ctx *Context) AddAccount(s *Login) {
+	session := ctx.Session()
+	session.Add(s)
 	// A browser with no reading settings of its own takes what the
 	// account brings, whether it is the first to sign in or joins
 	// later. One that has been told what to do is never overruled.
 	// Silently: the page size it starts with is not news.
 	ctx.adoptReading(s.Username())
 	ctx.accountsLoaded = false
-	ctx.Session = s
-	ctx.DefaultSession = s
+	ctx.Login = s
+	ctx.DefaultLogin = s
 	for _, ready := range ctx.Server.OnAccountReady {
 		ready(ctx, s)
 	}
@@ -162,10 +162,10 @@ func localPath(raw string) string {
 	return u.String()
 }
 
-// SessionFor returns the listed account's live session, nil when the
+// LoginFor returns the listed account's live login, nil when the
 // account is not signed in.
-func (ctx *Context) SessionFor(username string) *Session {
-	for _, s := range ctx.accountSessions() {
+func (ctx *Context) LoginFor(username string) *Login {
+	for _, s := range ctx.accountLogins() {
 		if s.username == username {
 			return s
 		}
@@ -173,68 +173,68 @@ func (ctx *Context) SessionFor(username string) *Session {
 	return nil
 }
 
-// Logout closes the request's session, removes it from the account
-// list, and returns the first remaining account's session. A nil return
+// Logout closes the request's login, removes it from the account
+// list, and returns the first remaining account's login. A nil return
 // means no account is left and the cookies were cleared.
-func (ctx *Context) Logout() *Session {
-	return ctx.LogoutAccount(ctx.Session.username)
+func (ctx *Context) Logout() *Login {
+	return ctx.LogoutAccount(ctx.Login.username)
 }
 
 // LogoutAccount closes exactly the named account and takes it out of
 // the bag. A nil return means the bag is empty and nobody is signed in.
-func (ctx *Context) LogoutAccount(username string) *Session {
-	v := ctx.lookupVisit()
-	if v == nil {
+func (ctx *Context) LogoutAccount(username string) *Login {
+	s := ctx.lookupSession()
+	if s == nil {
 		return nil
 	}
-	target := v.Remove(username)
+	target := s.Remove(username)
 	if target == nil {
-		return ctx.DefaultSession
+		return ctx.DefaultLogin
 	}
 	target.Close()
 	ctx.accountsLoaded = false
 	ctx.forgetLoginToken(target.username)
-	remaining, _ := v.Accounts()
+	remaining, _ := s.Accounts()
 	if len(remaining) == 0 {
-		ctx.Session = nil
-		ctx.DefaultSession = nil
+		ctx.Login = nil
+		ctx.DefaultLogin = nil
 		return nil
 	}
-	ctx.DefaultSession = remaining[0]
-	ctx.Session = ctx.DefaultSession
-	return ctx.DefaultSession
+	ctx.DefaultLogin = remaining[0]
+	ctx.Login = ctx.DefaultLogin
+	return ctx.DefaultLogin
 }
 
-// SetLoginToken keeps the account's password with this visit, sealed
-// under the browser's own secret, so a session that ends or a restart
+// SetLoginToken keeps the account's password with this session, sealed
+// under the browser's own secret, so a login that ends or a restart
 // costs a reconnection rather than a login. What the browser holds is
 // an id and a key, never a password.
 func (ctx *Context) SetLoginToken(username, password string) {
-	v := ctx.Visit()
+	s := ctx.Session()
 	sealed, err := ctx.seal(password)
 	if err != nil {
 		ctx.Logger().Printf("failed to keep %q signed in: %v", username, err)
 		return
 	}
-	v.Remember(username, sealed)
-	if err := ctx.Server.Visits.Save(v); err != nil {
-		ctx.Logger().Printf("failed to write the visit: %v", err)
+	s.Remember(username, sealed)
+	if err := ctx.Server.Sessions.Save(s); err != nil {
+		ctx.Logger().Printf("failed to write the session: %v", err)
 	}
 }
 
 // forgetLoginToken drops the account's password, so signing out is
 // signing out.
 func (ctx *Context) forgetLoginToken(username string) {
-	v := ctx.lookupVisit()
-	if v == nil {
+	s := ctx.lookupSession()
+	if s == nil {
 		return
 	}
-	v.forget(username)
-	if v.remembered() {
-		ctx.Server.Visits.Save(v)
+	s.forget(username)
+	if s.remembered() {
+		ctx.Server.Sessions.Save(s)
 		return
 	}
-	ctx.Server.Visits.Delete(v.ID)
+	ctx.Server.Sessions.Delete(s.ID)
 }
 
 const (
@@ -263,17 +263,17 @@ func (e PausedError) Error() string {
 	return fmt.Sprintf("too many refused passwords; paused until %v", e.Until.Format(time.RFC3339))
 }
 
-// SignIn opens a session for username as the mail server says, for a
+// SignIn opens a login for username as the mail server says, for a
 // reader at from. Readers are counted by their address, or behind a
 // proxy not named as trusted, where every reader has the proxy's, by
 // address and account.
-func (s *Server) SignIn(username, password, from string) (*Session, error) {
-	var sess *Session
+func (s *Server) SignIn(username, password, from string) (*Login, error) {
+	var login *Login
 	err := s.signInRefused.attempt(readerKey(from, username), func() (err error) {
-		sess, err = s.Sessions.Put(username, password, from)
+		login, err = s.Logins.Put(username, password, from)
 		return err
 	})
-	return sess, err
+	return login, err
 }
 
 // readerKey is whom a refused password is counted against.
@@ -349,29 +349,29 @@ func (s *Server) loginFailed(username string) {
 	s.loginFailures.Store(username, now)
 }
 
-// RestoreRememberedAccounts signs every account this visit remembers
+// RestoreRememberedAccounts signs every account this session remembers
 // back in, and reports whether any came back. The passwords are the
-// visit's, opened with the secret the browser carries.
+// session's, opened with the secret the browser carries.
 func (ctx *Context) RestoreRememberedAccounts() bool {
-	v := ctx.lookupVisit()
-	if v == nil {
+	session := ctx.lookupSession()
+	if session == nil {
 		return false
 	}
 	type credential struct{ address, password string }
 	var want []credential
-	v.mu.Lock()
-	for address, sealed := range v.remember {
+	session.mu.Lock()
+	for address, sealed := range session.remember {
 		password, ok := ctx.unseal(sealed)
 		if !ok {
 			continue
 		}
 		want = append(want, credential{address, password})
 	}
-	v.mu.Unlock()
+	session.mu.Unlock()
 
 	// The accounts sign in concurrently: one unreachable upstream must
 	// not add its timeout to the others' wait.
-	sessions := make([]*Session, len(want))
+	logins := make([]*Login, len(want))
 	refused := make([]error, len(want))
 	var wg sync.WaitGroup
 	for i, c := range want {
@@ -381,7 +381,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s, err := ctx.Server.Sessions.Put(c.address, c.password, ctx.RealIP())
+			s, err := ctx.Server.Logins.Put(c.address, c.password, ctx.RealIP())
 			if err != nil {
 				ctx.Server.loginFailed(c.address)
 				ctx.Logger().Printf("Login failed for %q: %v", c.address, err)
@@ -389,7 +389,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 				return
 			}
 			ctx.Server.loginFailures.Delete(c.address)
-			sessions[i] = s
+			logins[i] = s
 		}()
 	}
 	wg.Wait()
@@ -406,7 +406,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		// retry is a failed login from the reader's own address, which
 		// a server counting them bans.
 		if errors.As(err, new(AuthError)) {
-			v.forget(want[i].address)
+			session.forget(want[i].address)
 			forgot = true
 		}
 		why, _ := ctx.SignInRefusal(err)
@@ -422,20 +422,20 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 			`<bdi>`+template.HTMLEscapeString(why)+`</bdi>`))
 	}
 	if forgot {
-		// The visit stays, for the notice it owes; only what was kept
+		// The session stays, for the notice it owes; only what was kept
 		// of it goes when no password is left.
 		var err error
-		if v.remembered() {
-			err = ctx.Server.Visits.Save(v)
-		} else if ctx.Server.Visits.Remembers() {
-			err = ctx.Server.Visits.Keeper().Delete(v.ID)
+		if session.remembered() {
+			err = ctx.Server.Sessions.Save(session)
+		} else if ctx.Server.Sessions.Remembers() {
+			err = ctx.Server.Sessions.Records().Delete(session.ID)
 		}
 		if err != nil {
-			ctx.Logger().Printf("failed to write the visit: %v", err)
+			ctx.Logger().Printf("failed to write the session: %v", err)
 		}
 	}
 	if len(lost) > 0 {
-		v.Notify(Notice{
+		session.Notify(Notice{
 			Kind:   NoticeFailed,
 			Text:   strings.Join(lost, " · "),
 			Markup: template.HTML(strings.Join(marked, " · ")),
@@ -443,22 +443,22 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	}
 
 	restored := false
-	for _, s := range sessions {
+	for _, s := range logins {
 		if s == nil {
 			continue
 		}
-		v.Add(s)
+		session.Add(s)
 		ctx.accountsLoaded = false
-		ctx.Session = s
-		ctx.DefaultSession = s
+		ctx.Login = s
+		ctx.DefaultLogin = s
 		for _, ready := range ctx.Server.OnAccountReady {
 			ready(ctx, s)
 		}
 		restored = true
 	}
 	if restored {
-		live, _ := v.Accounts()
-		ctx.Session, ctx.DefaultSession = live[0], live[0]
+		live, _ := session.Accounts()
+		ctx.Login, ctx.DefaultLogin = live[0], live[0]
 	}
 	return restored
 }

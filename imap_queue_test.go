@@ -47,7 +47,7 @@ func TestActiveIMAPSurvivesReaderCancellation(t *testing.T) {
 	if err := client.WaitGreeting(); err != nil {
 		t.Fatal(err)
 	}
-	s := &Session{imapConn: client, closed: make(chan struct{})}
+	s := &Login{imapConn: client, closed: make(chan struct{})}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	err := s.DoIMAPWork(ctx, IMAPForeground, time.Second, func(c *imapclient.Client) error {

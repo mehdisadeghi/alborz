@@ -99,13 +99,13 @@ const livePing = 25 * time.Second
 // what a change means where the reader is standing, and a reader with
 // no script never opens it at all.
 func handleEvents(ctx *Context) error {
-	v := ctx.Visit()
+	s := ctx.Session()
 	// The stream outlives the request that opened it, so who it may tell
-	// is asked each time: a visit that locked hears nothing more, and an
+	// is asked each time: a session that locked hears nothing more, and an
 	// account signed out from another browser is no longer this one's.
 	mine := func(account string) bool {
-		live, _ := v.Accounts()
-		return slices.ContainsFunc(live, func(s *Session) bool { return s.Username() == account })
+		live, _ := s.Accounts()
+		return slices.ContainsFunc(live, func(s *Login) bool { return s.Username() == account })
 	}
 	changes, stop := ctx.Server.Changes.Listen()
 	defer stop()
@@ -120,7 +120,7 @@ func handleEvents(ctx *Context) error {
 	ping := time.NewTicker(livePing)
 	defer ping.Stop()
 	for {
-		if v.Locked(time.Now()) {
+		if s.Locked(time.Now()) {
 			fmt.Fprint(res, "event: locked\ndata:\n\n")
 			res.Flush()
 			return nil

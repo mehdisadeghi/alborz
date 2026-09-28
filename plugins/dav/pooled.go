@@ -21,7 +21,7 @@ const accountLoadBudget = 30 * time.Second
 // pages that pool every account's.
 type Account[C any] struct {
 	Name        string
-	Session     *alborz.Session
+	Login       *alborz.Login
 	Client      C
 	Collections []Collection
 }
@@ -39,7 +39,7 @@ type Group struct {
 // answered. Each collection is marked with the account it belongs to,
 // which a pooled page has to say; none is the answer when no account
 // has the service at all.
-func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, *alborz.Session) (C, []Collection, error), none error) ([]Account[C], error) {
+func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, *alborz.Login) (C, []Collection, error), none error) ([]Account[C], error) {
 	var accounts []Account[C]
 	var lastErr error
 	var down, refused []string
@@ -58,17 +58,17 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	// A refusal stands until the reader changes something, so it is
 	// said once to a browser, not on every page of the section.
 	refuse := func(username string) {
-		if ctx.Visit().Once("davrefused:" + p.kind.Name + ":" + username) {
+		if ctx.Session().Once("davrefused:" + p.kind.Name + ":" + username) {
 			refused = append(refused, username)
 		}
 	}
-	var sessions []*alborz.Session
-	for _, s := range ctx.Sessions() {
+	var logins []*alborz.Login
+	for _, s := range ctx.Logins() {
 		if _, ok := p.URL(s); ok {
-			sessions = append(sessions, s)
+			logins = append(logins, s)
 		}
 	}
-	results := Each(ctx.Request().Context(), sessions, func(reqCtx context.Context, s *alborz.Session) (Account[C], error) {
+	results := Each(ctx.Request().Context(), logins, func(reqCtx context.Context, s *alborz.Login) (Account[C], error) {
 		reqCtx, cancel := context.WithTimeout(reqCtx, accountLoadBudget)
 		defer cancel()
 		c, infos, err := load(reqCtx, s)
@@ -81,14 +81,14 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 		// failed: it keeps its place with nothing in it, so a reader
 		// can see the account is there and make the first one.
 		if errors.Is(err, none) {
-			accounts = append(accounts, Account[C]{Name: s.Username(), Session: s, Client: c})
+			accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c})
 			continue
 		}
 		// A refused password is an answer the reader can act on, not a
 		// failed page: the account keeps its place, empty, and is told.
 		var no *RefusedError
 		if errors.As(err, &no) {
-			accounts = append(accounts, Account[C]{Name: s.Username(), Session: s, Client: c})
+			accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c})
 			refuse(s.Username())
 			continue
 		}
@@ -102,7 +102,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 		for i := range owned {
 			owned[i].Account = s.Username()
 		}
-		accounts = append(accounts, Account[C]{Name: s.Username(), Session: s, Client: c, Collections: owned})
+		accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c, Collections: owned})
 		for _, trouble := range p.Troubles(s.Username()) {
 			ctx.Logger().Printf("%s: %q in the pooled view without a source: %v", p.kind.Name, s.Username(), trouble)
 			if errors.As(trouble, &no) {
@@ -221,7 +221,7 @@ type Ref[C any] struct {
 // Selected resolves a pooled list's checked rows, "account|path" each,
 // to the client that owns them, opened once per account: a selection
 // can span accounts, and each row names its own.
-func Selected[C any](ctx *alborz.Context, refs []string, client func(*alborz.Session) (C, error)) ([]Ref[C], error) {
+func Selected[C any](ctx *alborz.Context, refs []string, client func(*alborz.Login) (C, error)) ([]Ref[C], error) {
 	clients := map[string]C{}
 	out := make([]Ref[C], 0, len(refs))
 	for _, ref := range refs {
@@ -231,12 +231,12 @@ func Selected[C any](ctx *alborz.Context, refs []string, client func(*alborz.Ses
 		}
 		c, ok := clients[account]
 		if !ok {
-			session := ctx.SessionFor(account)
-			if session == nil {
+			login := ctx.LoginFor(account)
+			if login == nil {
 				return nil, echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 			}
 			var err error
-			if c, err = client(session); err != nil {
+			if c, err = client(login); err != nil {
 				return nil, err
 			}
 			clients[account] = c

@@ -389,12 +389,12 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
 	// Read before the message's own IMAP work: the observed id may cost
-	// a sample of the inbox, and the session lock is not reentrant.
+	// a sample of the inbox, and the login lock is not reentrant.
 	trusted := TrustedAuthServ(ctx, settings)
 	messagesPerPage := PerPage(ctx)
 
@@ -432,7 +432,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 	// parts on the connection that holds the folder.
 	var held *cachedBody
 	if !raw {
-		held = bodies.current(ctx.Session.Username(), mboxName, uid, partPath)
+		held = bodies.current(ctx.Login.Username(), mboxName, uid, partPath)
 		if held != nil && len(partPath) == 0 {
 			partPath = held.part
 		}
@@ -463,7 +463,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		sb = cached.sb
 	}
 	if held != nil && cached == nil {
-		sb, err = sidebarFor(ctx.Session)
+		sb, err = sidebarFor(ctx.Login)
 		if err != nil {
 			return err
 		}
@@ -481,7 +481,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		// The peek left the message unread on the server; the page is
 		// what reads it, and nothing waits on the server saying so.
 		if !msg.HasFlag(imap.FlagSeen) {
-			markHeldSeen(ctx.Session, mboxName, uid, held.validity)
+			markHeldSeen(ctx.Login, mboxName, uid, held.validity)
 		}
 	}
 	sent := sentFolder(sb.mailboxes)
@@ -508,7 +508,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 				}
 				// The body fetch marked the message read; the cached listings say
 				// so too rather than being fetched again for one flag.
-				messageRead(ctx.Session.Username(), mboxName, uid)
+				messageRead(ctx.Login.Username(), mboxName, uid)
 				permanentFlags = c.Mailbox().PermanentFlags
 			}
 			if raw {
@@ -563,7 +563,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 			// Whom the reader knows does not stop at an account: mail
 			// from a host bills one address and its imitation reaches
 			// another, so every signed-in account's inbox is asked.
-			for _, s := range ctx.Sessions() {
+			for _, s := range ctx.Logins() {
 				if book := senderBookFor(s); book != nil && evidence.Named == nil {
 					evidence.Named = book.named(msg.Envelope.From[0].Name, evidence.From)
 				}
@@ -655,7 +655,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		flags[f] = msg.HasFlag(f)
 	}
 
-	trust := newDeliveryTrust(ctx, settings, ctx.Session.Username())
+	trust := newDeliveryTrust(ctx, settings, ctx.Login.Username())
 	// The row says where the mail went only where To and Cc do not
 	// already: an alias the sender wrote out is on the page once.
 	deliveredTo := trust.alias(msg)
@@ -690,7 +690,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		InReplyTo:          inReplyTo,
 		Answers:            answers,
 		ThreadSupported:    threadAlgorithm != "",
-		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Session.Username()),
+		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Login.Username()),
 		PreferHTML:         ctx.Reading().PreferHTML,
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        deliveredTo,
@@ -800,7 +800,7 @@ func invitationAt(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid im
 	if err != nil {
 		return nil, nil, err
 	}
-	return readInvitation(raw, part.PathString(), ctx.Session.Username()), raw, nil
+	return readInvitation(raw, part.PathString(), ctx.Login.Username()), raw, nil
 }
 
 // handleUnsubscribe takes a list at its word. RFC 8058 lets a sender

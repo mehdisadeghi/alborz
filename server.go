@@ -96,9 +96,9 @@ const (
 
 // Server holds all the alborz server state.
 type Server struct {
-	e        *echo.Echo
-	Sessions *SessionManager
-	Options  *Options
+	e       *echo.Echo
+	Logins  *LoginManager
+	Options *Options
 
 	mutex   sync.RWMutex // used for server reload
 	plugins []Plugin
@@ -121,9 +121,9 @@ type Server struct {
 	// Changes is what the watchers saw, for the streams to pass on.
 	Changes *Changes
 
-	// Visits are the browsers signed in, each holding its accounts and
+	// Sessions are the browsers signed in, each holding its accounts and
 	// what its reader is owed.
-	Visits *Visits
+	Sessions *Sessions
 
 	// Collections are the calendars, task lists and address books kept
 	// here rather than on a DAV server elsewhere; nil without a data
@@ -200,7 +200,7 @@ type domainUpstreams struct {
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
-		Visits: newVisits(), Changes: newChanges(), signInRefused: newRefusals(signInTries, signInWindow)}
+		Sessions: newSessions(), Changes: newChanges(), signInRefused: newRefusals(signInTries, signInWindow)}
 	e.IPExtractor = echo.ExtractIPDirect()
 	if len(options.TrustedProxies) > 0 {
 		// Only the proxies named: echo trusts every private address by
@@ -233,17 +233,17 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		}
 		s.davPasswords = newDAVPasswords()
 	}
-	// Remembering a visit means keeping a password, so it takes both a
+	// Remembering a session means keeping a password, so it takes both a
 	// place to put it and the key that seals the record. Without either
-	// a visit lasts as long as the process, which is what a session
+	// a session lasts as long as the process, which is what a login
 	// always did.
 	if s.data != nil && options.LoginKey != nil {
-		records, err := OpenVisitRecords(s.data, options.LoginKey)
+		records, err := OpenSessionRecords(s.data, options.LoginKey)
 		if err != nil {
 			return nil, err
 		}
-		s.Visits.Records(records)
-		s.Visits.Sweep(time.Now().Add(-credentialCookieLife))
+		s.Sessions.SetRecords(records)
+		s.Sessions.Sweep(time.Now().Add(-credentialCookieLife))
 	}
 
 	s.domains = make(map[string]*domainUpstreams)
@@ -300,7 +300,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		return nil, fmt.Errorf("no usable domains left")
 	}
 
-	s.Sessions = newSessionManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, s.Options.LoginKey, s.Visits.Keeper())
+	s.Logins = newLoginManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, s.Options.LoginKey, s.Sessions.Records())
 	return s, nil
 }
 
@@ -348,7 +348,7 @@ func (err UnknownDomainError) Error() string {
 }
 
 func (s *Server) Close() {
-	s.Sessions.Close()
+	s.Logins.Close()
 	if s.data != nil {
 		s.data.Close()
 	}
@@ -569,23 +569,23 @@ type Context struct {
 	Server *Server
 	// quiet marks an action that speaks for itself: what it did shows
 	// where the reader already is, so it writes no notice and says so.
-	quiet          bool
-	visit          *Visit   // this browser's stay, resolved on demand
-	visitSecret    string   // its browser's key to what it remembers
-	Session        *Session // request-scoped account; nil if not logged in
-	DefaultSession *Session // the first listed account, for a page that needs one and was given none
+	quiet         bool
+	session       *Session // this browser's stay, resolved on demand
+	sessionSecret string   // its browser's key to what it remembers
+	Login         *Login   // request-scoped account; nil if not logged in
+	DefaultLogin  *Login   // the first listed account, for a page that needs one and was given none
 
-	// Unified marks the merged all-accounts view; Session then anchors
+	// Unified marks the merged all-accounts view; Login then anchors
 	// to one of the accounts while handlers aware of the view iterate
-	// Sessions.
+	// Logins.
 	Unified bool
 
 	// Request-scoped account list. The accounts cookie only reflects
 	// the request, so consecutive account changes in one handler must
 	// read their own writes here.
-	accounts       []*Session
+	accounts       []*Login
 	accountsLoaded bool
-	// lostAccounts names the signed-in accounts whose session had
+	// lostAccounts names the signed-in accounts whose login had
 	// expired by this request, for the notice the app page shows.
 	lostAccounts []string
 
@@ -787,7 +787,7 @@ func handleUnauthenticated(next echo.HandlerFunc, ctx *Context) error {
 }
 
 // ForgetAccount tells every plugin that asked that an account has
-// signed out. It is called after the session is closed, so a plugin can
+// signed out. It is called after the login is closed, so a plugin can
 // drop what it was holding rather than keep it warm for nobody.
 func (s *Server) ForgetAccount(username string) {
 	for _, forget := range s.OnAccountGone {
@@ -799,7 +799,7 @@ func (s *Server) ForgetAccount(username string) {
 // restored from remembered credentials. The base plugin uses it to start
 // following the mailbox; the root package does not know what following
 // means, so it only makes the call.
-type AccountReadyFunc func(*Context, *Session)
+type AccountReadyFunc func(*Context, *Login)
 
 type Options struct {
 	Upstreams  []string
@@ -812,10 +812,10 @@ type Options struct {
 	// Nothing here is missed if it is deleted, which is what makes it
 	// a cache.
 	CacheDir string
-	// DataDir keeps what a reader would miss: the visits that remember
+	// DataDir keeps what a reader would miss: the sessions that remember
 	// an account, what they read by, and the settings of an account
 	// whose own server will not hold them. Sealed under LoginKey;
-	// empty, or no key, and a visit lasts as long as the process.
+	// empty, or no key, and a session lasts as long as the process.
 	DataDir string
 	// StrictNotices fails an action that sends the reader elsewhere
 	// with nothing to say, instead of only writing it to the log. The
@@ -962,7 +962,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			// reused, and the reader is shown a mailbox from before the
 			// mail arrived with nothing but a forced reload to clear it.
 			// The asset handler upgrades URLs stamped with the current
-			// content to immutable, and a visit that locks says no-store
+			// content to immutable, and a session that locks says no-store
 			// below; no-cache here keeps the pages the worker saves to
 			// read offline (ADR 19).
 			ectx.Response().Header().Set("Cache-Control", "no-cache")
@@ -984,67 +984,67 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				ctx.SetLanguage(lang)
 			}
 
-			// A locked visit answers nothing but the way to unlock or
+			// A locked session answers nothing but the way to unlock or
 			// leave, and does not sign its remembered accounts back in
 			// for whoever is holding the browser.
 			path, now := ctx.Request().URL.Path, time.Now()
 			// Pages saved for offline are read with no server to ask for
-			// the passkey, so a visit that locks has none saved.
-			v := ctx.lookupVisit()
-			if v != nil && v.locks() && !isPublic(path) {
+			// the passkey, so a session that locks has none saved.
+			session := ctx.lookupSession()
+			if session != nil && session.locks() && !isPublic(path) {
 				ctx.Response().Header().Set("Cache-Control", "no-store")
 			}
-			if v != nil && v.Locked(now) {
+			if session != nil && session.Locked(now) {
 				if lockOpen(path) {
 					return next(ctx)
 				}
 				return redirectToUnlock(ctx)
-			} else if v != nil && !isBackground(ctx.Request()) {
-				v.act(now)
-				if v.note(ctx.Request().UserAgent(), requestAddress(ctx.RealIP())) {
-					if err := s.Visits.Save(v); err != nil {
-						ctx.Logger().Printf("failed to write the visit: %v", err)
+			} else if session != nil && !isBackground(ctx.Request()) {
+				session.act(now)
+				if session.note(ctx.Request().UserAgent(), requestAddress(ctx.RealIP())) {
+					if err := s.Sessions.Save(session); err != nil {
+						ctx.Logger().Printf("failed to write the session: %v", err)
 					}
 				}
 			}
 
 			// Whether anyone is signed in is a question about the bag,
-			// not about any one account: the browser names its visit
-			// and the visit holds what it has signed into.
-			var session *Session
-			if live := ctx.accountSessions(); len(live) > 0 {
-				session = live[0]
+			// not about any one account: the browser names its session
+			// and the session holds what it has signed into.
+			var login *Login
+			if live := ctx.accountLogins(); len(live) > 0 {
+				login = live[0]
 			}
 
-			// A session lives 30 minutes past the last request; the
+			// A login lives 30 minutes past the last request; the
 			// remembered credentials live 30 days. Sending the reader to
 			// the login page while the browser holds a valid token reads
 			// as being logged out, and an intercepted POST - a message
 			// being sent - was lost outright, because only a GET can be
 			// resumed. Sign the accounts back in and carry on with the
 			// request that arrived.
-			if session == nil && !isPublic(ctx.Request().URL.Path) {
+			if login == nil && !isPublic(ctx.Request().URL.Path) {
 				if ctx.RestoreRememberedAccounts() {
-					session = ctx.Session
+					login = ctx.Login
 					// A restore brings every account back at once, as after
 					// a restart; that is not one timing out, so none is named.
 					ctx.lostAccounts = nil
 				}
 			}
-			if session == nil {
+			if login == nil {
 				return handleUnauthenticated(next, ctx)
 			}
-			ctx.Session = session
+			ctx.Login = login
 			// Every signed-in account is in use: the rail lists them
 			// all, so they all stay alive. The first listed is the one
 			// a page falls back on when the URL names none and the page
 			// cannot be merged.
-			sessions := ctx.accountSessions()
-			for _, session := range sessions {
-				session.ping()
+			logins := ctx.accountLogins()
+			for _, login := range logins {
+				login.ping()
 			}
-			ctx.Session = sessions[0]
-			ctx.DefaultSession = sessions[0]
+			ctx.Login = logins[0]
+			ctx.DefaultLogin = logins[0]
 			// An account that timed out while others stayed is said
 			// once, on the page, not by a bounce to the login form.
 			if len(ctx.lostAccounts) > 0 {
@@ -1057,13 +1057,13 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			// accounts is the merged view, a place rather than a mode,
 			// so nothing sticks between requests.
 			if acct := ctx.QueryParam("account"); acct != "" {
-				session := ctx.SessionFor(acct)
-				if session == nil {
+				login := ctx.LoginFor(acct)
+				if login == nil {
 					return RenderInfo(ctx, http.StatusOK, fmt.Sprintf(ctx.T("account.notsignedin"), acct))
 				}
-				ctx.Session = session
+				ctx.Login = login
 				ctx.urlAccount = acct
-			} else if len(sessions) > 1 {
+			} else if len(logins) > 1 {
 				ctx.Unified = true
 			}
 
@@ -1086,7 +1086,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			if ctx.quiet {
 				return err
 			}
-			if v := ctx.lookupVisit(); v != nil && v.HasNotice() {
+			if session := ctx.lookupSession(); session != nil && session.HasNotice() {
 				return err
 			}
 			ctx.Logger().Printf("POST %s answered %d with no notice", ctx.Request().URL.Path, status)

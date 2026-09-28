@@ -325,7 +325,7 @@ const (
 
 var senderBooks = alborz.NewMemo[*senderBook](senderBookTTL)
 
-func senderBookFor(s *alborz.Session) *senderBook {
+func senderBookFor(s *alborz.Login) *senderBook {
 	return senderBooks.Warm(s.Username(), func() (*senderBook, error) {
 		book := &senderBook{}
 		err := s.DoIMAPBackground(func(c *imapclient.Client) error {

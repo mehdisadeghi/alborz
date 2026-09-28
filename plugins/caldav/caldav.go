@@ -137,8 +137,8 @@ func findHome(ctx context.Context, client *http.Client, endpoint string) (string
 	return homeSet, nil
 }
 
-func (p *plugin) clientWithCalendars(ctx context.Context, session *alborz.Session) (*caldav.Client, []dav.Collection, error) {
-	return dav.Opened(ctx, p.dav, session, p.client)
+func (p *plugin) clientWithCalendars(ctx context.Context, login *alborz.Login) (*caldav.Client, []dav.Collection, error) {
+	return dav.Opened(ctx, p.dav, login, p.client)
 }
 
 type CalendarObject struct {

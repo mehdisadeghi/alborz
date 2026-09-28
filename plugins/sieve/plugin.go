@@ -28,11 +28,11 @@ func init() {
 			// remains reachable from merged mail. Its route redirects to one
 			// capable account before performing any operation.
 			EnabledFunc: func(ctx *alborz.Context) bool {
-				if ctx.Session == nil {
+				if ctx.Login == nil {
 					return false
 				}
-				for _, session := range ctx.Sessions() {
-					if ctx.Server.SieveEnabled(session.Domain()) {
+				for _, login := range ctx.Logins() {
+					if ctx.Server.SieveEnabled(login.Domain()) {
 						return true
 					}
 				}
@@ -48,7 +48,7 @@ func init() {
 // warm opens the account's ManageSieve connection as it is signed in,
 // so the first visit to the filters does not pay the dial and the
 // authentication on the click.
-func warm(ctx *alborz.Context, s *alborz.Session) {
+func warm(ctx *alborz.Context, s *alborz.Login) {
 	if !ctx.Server.SieveEnabled(s.Domain()) {
 		return
 	}

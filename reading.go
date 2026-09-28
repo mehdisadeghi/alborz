@@ -4,7 +4,7 @@ package alborz
 // account is: how many messages fit, which clock and calendar the dates
 // are in, whether HTML is preferred. Nobody can say which account these
 // belong to, which is why a merged page used to take them from
-// whichever address sorted first. They belong to the visit.
+// whichever address sorted first. They belong to the session.
 //
 // They are kept on one account, the anchor, so that signing in on
 // another machine brings them back. That account is the only writer,
@@ -25,16 +25,16 @@ type Reading struct {
 // means rather than a value in its own right.
 const DefaultMessagesPerPage = 50
 
-// Reading is what this browser reads by. It is the visit's own, seeded
+// Reading is what this browser reads by. It is the session's own, seeded
 // once from the first account that brought some. What was never chosen
 // comes back as the default rather than as a zero: a form renders what
 // is in force, and a page size of none is not in force anywhere.
 func (ctx *Context) Reading() Reading {
-	v := ctx.lookupVisit()
-	if v == nil {
+	s := ctx.lookupSession()
+	if s == nil {
 		return Reading{MessagesPerPage: DefaultMessagesPerPage}
 	}
-	r := v.reading()
+	r := s.reading()
 	if r.MessagesPerPage <= 0 {
 		r.MessagesPerPage = DefaultMessagesPerPage
 	}
@@ -43,18 +43,18 @@ func (ctx *Context) Reading() Reading {
 
 // SetReading records the choice and keeps it on the anchor account, so
 // the next browser signed into that account starts where this one left
-// off. An unanchored visit keeps it to itself.
+// off. An unanchored session keeps it to itself.
 func (ctx *Context) SetReading(r Reading) error {
-	v := ctx.Visit()
-	v.setReading(r)
-	if err := ctx.Server.Visits.Save(v); err != nil {
+	s := ctx.Session()
+	s.setReading(r)
+	if err := ctx.Server.Sessions.Save(s); err != nil {
 		return err
 	}
-	anchor := v.Anchor()
+	anchor := s.Anchor()
 	if anchor == "" {
 		return nil
 	}
-	return ctx.Server.Visits.SaveReading(anchor, r)
+	return ctx.Server.Sessions.SaveReading(anchor, r)
 }
 
 // SetAnchor names the account this browser's reading settings are kept
@@ -62,34 +62,34 @@ func (ctx *Context) SetReading(r Reading) error {
 // the anchor is written to, never read back, so nothing changes under
 // the reader at the moment they choose.
 func (ctx *Context) SetAnchor(account string) error {
-	v := ctx.Visit()
-	v.setAnchor(account)
-	if err := ctx.Server.Visits.Save(v); err != nil {
+	s := ctx.Session()
+	s.setAnchor(account)
+	if err := ctx.Server.Sessions.Save(s); err != nil {
 		return err
 	}
 	if account == "" {
 		return nil
 	}
-	return ctx.Server.Visits.SaveReading(account, v.reading())
+	return ctx.Server.Sessions.SaveReading(account, s.reading())
 }
 
 // adoptReading seeds a browser that has none of its own from an account
 // that brought some, and reports whether it did. A reader who has
 // already chosen in this browser is never overruled.
 func (ctx *Context) adoptReading(account string) bool {
-	v := ctx.lookupVisit()
-	if v == nil || v.hasReading() {
+	s := ctx.lookupSession()
+	if s == nil || s.hasReading() {
 		return false
 	}
-	r, ok := ctx.Server.Visits.LoadReading(account)
+	r, ok := ctx.Server.Sessions.LoadReading(account)
 	if !ok {
 		// Nothing stored: this account becomes the anchor anyway, so
 		// what the reader chooses next is kept somewhere.
-		v.setAnchor(account)
+		s.setAnchor(account)
 		return false
 	}
-	v.setReading(*r)
-	v.setAnchor(account)
-	ctx.Server.Visits.Save(v)
+	s.setReading(*r)
+	s.setAnchor(account)
+	ctx.Server.Sessions.Save(s)
 	return true
 }

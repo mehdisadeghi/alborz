@@ -40,30 +40,30 @@ type Services struct {
 
 const servicesKey = "services"
 
-// Services are the account's own, read once per session.
-func (s *Session) Services() (Services, error) {
-	s.httpLocker.Lock()
-	defer s.httpLocker.Unlock()
-	if s.servicesLoaded {
-		return s.services, nil
+// Services are the account's own, read once per login.
+func (l *Login) Services() (Services, error) {
+	l.httpLocker.Lock()
+	defer l.httpLocker.Unlock()
+	if l.servicesLoaded {
+		return l.services, nil
 	}
 	var v Services
-	if err := s.store.Get(servicesKey, &v); err != nil && err != ErrNoStoreEntry {
+	if err := l.store.Get(servicesKey, &v); err != nil && err != ErrNoStoreEntry {
 		return Services{}, err
 	}
-	s.services, s.servicesLoaded = v, true
+	l.services, l.servicesLoaded = v, true
 	return v, nil
 }
 
 // SetServices keeps them. The URLs are checked by the caller, which
 // knows what the deployment allows; see Server.CheckServiceURL.
-func (s *Session) SetServices(v Services) error {
-	if err := s.store.Put(servicesKey, &v); err != nil {
+func (l *Login) SetServices(v Services) error {
+	if err := l.store.Put(servicesKey, &v); err != nil {
 		return err
 	}
-	s.httpLocker.Lock()
-	s.services, s.servicesLoaded = v, true
-	s.httpLocker.Unlock()
+	l.httpLocker.Lock()
+	l.services, l.servicesLoaded = v, true
+	l.httpLocker.Unlock()
 	return nil
 }
 

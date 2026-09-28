@@ -291,7 +291,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		return err
 	}
 	rows, pager := dav.Paginate(ctx, list.Rows)
-	addedBy := p.dav.AddedBy(ctx.Session.Username())
+	addedBy := p.dav.AddedBy(ctx.Login.Username())
 	for i := range rows {
 		rows[i].AddedBy = addedBy(rows[i].Calendar.Account, rows[i].Task.Path)
 	}
@@ -346,7 +346,7 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			// the same button undoes it, so a marked task answers with its
 			// row and the list stays where it is - no notice, as a star's
 			// does not.
-			calendars, err := p.dav.Collections(ctx.Request().Context(), ctx.Session)
+			calendars, err := p.dav.Collections(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return err
 			}
@@ -363,7 +363,7 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			params := dav.ListParamsIn(next, taskListParams...)
 			params.Set("from", next)
 			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), params)
-			row.AddedBy = p.dav.AddedBy(ctx.Session.Username())(cal.Account, marked.Path)
+			row.AddedBy = p.dav.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)
 			data := &TaskRowRenderData{BaseRenderData: *alborz.NewBaseRenderData(ctx), Row: row, Next: next}
 			data.G = &data.BaseRenderData
 			return ctx.Render(http.StatusOK, "task-row", data)

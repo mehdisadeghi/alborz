@@ -76,7 +76,7 @@ func (s *Store) save(username string, u *user) error {
 	if err != nil {
 		return err
 	}
-	// The directory is not ours to make (see visits_bolt.go); a cache
+	// The directory is not ours to make (see sessions_bolt.go); a cache
 	// that cannot be written is a cache that is not kept, which is
 	// what a cache is allowed to be.
 	if info, err := os.Stat(s.dir); err != nil || !info.IsDir() {

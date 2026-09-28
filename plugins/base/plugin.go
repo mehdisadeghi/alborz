@@ -36,7 +36,7 @@ func init() {
 	// Every page counts in the reader's clock and starts the week where
 	// they do, whichever account the page is about.
 	p.Inject("*", func(ctx *alborz.Context, data alborz.RenderData) error {
-		if ctx.Session == nil {
+		if ctx.Login == nil {
 			return nil
 		}
 		// Unset means times keep their stored zones.

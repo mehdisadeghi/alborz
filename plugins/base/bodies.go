@@ -227,7 +227,7 @@ func samePath(a, b []int) bool {
 // prefetchBodies fetches the preferred part of each row not held yet,
 // a batch of messages per FETCH and a FETCH per part path, off the
 // reader's time. The fetch peeks, so nothing is marked read by it.
-func prefetchBodies(s *alborz.Session, preferHTML bool, mbox string, validity uint32, rows []IMAPMessage) error {
+func prefetchBodies(s *alborz.Login, preferHTML bool, mbox string, validity uint32, rows []IMAPMessage) error {
 	if validity == 0 {
 		return nil
 	}
@@ -383,7 +383,7 @@ func (bc *bodyCache) cancelSeen(user, mailbox string, uids []imap.UID) {
 	}
 }
 
-func markHeldSeen(s *alborz.Session, mailbox string, uid imap.UID, validity uint32) {
+func markHeldSeen(s *alborz.Login, mailbox string, uid imap.UID, validity uint32) {
 	k := bodyKey{s.Username(), mailbox, validity, uid}
 	bodies.mu.Lock()
 	if bodies.seen[k] != 0 {

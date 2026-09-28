@@ -68,7 +68,7 @@ func handleExportMbox(ctx *alborz.Context) error {
 	if strip {
 		name += " " + ctx.T("mailbox.textonly")
 	}
-	return streamMbox(ctx, folderRefs(ctx.Session.Username(), mboxName, uids), name, strip)
+	return streamMbox(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), name, strip)
 }
 
 // folderRefs names a folder's selection as a merged list names its
@@ -95,11 +95,11 @@ func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) err
 	defer archive.Close()
 	started := false
 	for _, r := range refs {
-		s := ctx.SessionFor(r.account)
+		s := ctx.LoginFor(r.account)
 		if s == nil {
 			continue
 		}
-		// One round trip per message, each with the session's own
+		// One round trip per message, each with the login's own
 		// budget. The whole export inside one call was cut off by the
 		// watchdog after ten seconds, with the file left short.
 		var raw []byte
@@ -329,7 +329,7 @@ func handleExportPage(ctx *alborz.Context) error {
 	if ibase.ListView != "" {
 		data.ViewName = viewTitle(ctx, ibase.ListView)
 	}
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -382,7 +382,7 @@ func handleImport(ctx *alborz.Context) error {
 		return err
 	}
 	ibase.BaseRenderData.WithTitle(ctx.T("folder.import"))
-	selectedAccount := ctx.Session.Username()
+	selectedAccount := ctx.Login.Username()
 	if ctx.URLAccount() != "" {
 		selectedAccount = ctx.URLAccount()
 	}
@@ -447,19 +447,19 @@ func handleImport(ctx *alborz.Context) error {
 	if name == "" {
 		return render(http.StatusUnprocessableEntity, ctx.T("form.nameneeded"))
 	}
-	session := ctx.SessionFor(selectedAccount)
-	if session == nil {
+	login := ctx.LoginFor(selectedAccount)
+	if login == nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 	}
 	fullName := location.folder(name)
-	if err := session.DoIMAP(func(c *imapclient.Client) error {
+	if err := login.DoIMAP(func(c *imapclient.Client) error {
 		return c.Create(fullName, nil).Wait()
 	}); err != nil {
 		return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.foldertaken"), fullName, err))
 	}
 
 	var count, held int
-	importErr := session.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
+	importErr := login.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
 		var err error
 		count, held, err = appendMessages(c, fullName, file, map[string]bool{})
 		return err
@@ -478,7 +478,7 @@ func handleImport(ctx *alborz.Context) error {
 }
 
 // appendMessages puts every message an mbox or a single file holds into
-// the folder, one APPEND each within the session's own bound. It
+// the folder, one APPEND each within the login's own bound. It
 // answers how many landed and how many were there already: an import
 // that stops leaves the first n where they are, which a notice can then
 // say rather than guess.
@@ -596,12 +596,12 @@ func handleDropImport(ctx *alborz.Context) error {
 	if err != nil {
 		return importBodyError(err)
 	}
-	account := ctx.Session.Username()
+	account := ctx.Login.Username()
 	if ctx.URLAccount() != "" {
 		account = ctx.URLAccount()
 	}
-	session := ctx.SessionFor(account)
-	if session == nil {
+	login := ctx.LoginFor(account)
+	if login == nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 	}
 	// The whole drop takes the connection once: every message behind
@@ -610,7 +610,7 @@ func handleDropImport(ctx *alborz.Context) error {
 	// appended rather than being held in memory first.
 	count, held := 0, 0
 	var bodyErr error
-	importErr := session.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
+	importErr := login.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}

@@ -102,7 +102,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		return err
 	}
 
-	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		Star:           componentColor(getFirstTodo(task.Data)),
 		Priority:       priorityBand(getFirstTodo(task.Data)),
 		Neighbours:     dav.Around(list.Items, path),
-		Authors:        p.dav.Authors(task.Path, ctx.Session.Username()),
+		Authors:        p.dav.Authors(task.Path, ctx.Login.Username()),
 	})
 }
 func (p *plugin) updateTask(ctx *alborz.Context) error {
@@ -180,7 +180,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 	var todo *ical.Component
 	var currentCalendar *dav.Collection
 	if taskPath != "" {
-		c, calendars, err = p.clientWithCalendars(ctx.Request().Context(), ctx.Session)
+		c, calendars, err = p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			return err
 		}

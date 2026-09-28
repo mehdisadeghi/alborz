@@ -144,7 +144,7 @@ func (lc *listingCache) load(ctx context.Context, user, view string, perPage int
 	f := lc.flights[k]
 	if f == nil {
 		f = &listingFlight{done: make(chan struct{}), queued: speculative}
-		// Only the shared deadline and the session lifetime own the fetch.
+		// Only the shared deadline and the login lifetime own the fetch.
 		work, cancel := context.WithTimeout(context.WithoutCancel(ctx), alborz.ScanTimeout)
 		f.withdraw = cancel
 		work = alborz.WithIMAPStart(work, func() bool {
@@ -605,7 +605,7 @@ func (lc *listingCache) stale(user, folder string) {
 // entry was taken, and reads the view again when it did. folder names
 // it on the connection, since a merged view's is found by role there;
 // fetch is the read that made the entry.
-func revalidate(s *alborz.Session, view string, e *listingEntry, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) {
+func revalidate(s *alborz.Login, view string, e *listingEntry, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) {
 	user := s.Username()
 	if !listings.claim(user, view) {
 		return

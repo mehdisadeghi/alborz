@@ -951,7 +951,7 @@ for (const event of ["htmx:afterRequest", "htmx:sendError", "htmx:timeout", "htm
 	});
 }
 
-// A visit with a passkey locks after a time away, and the server will
+// A session with a passkey locks after a time away, and the server will
 // answer nothing then. The page leaves with it, so what is on screen
 // does not outstay the lock: the time runs from the reader's last act
 // here, as the server's does from their last request.
@@ -964,7 +964,7 @@ if (lockAfter > 0 && location.pathname !== "/unlock") {
 	const tellEvery = 60;
 	let timer, told = Date.now();
 	const leave = () => location.assign("/unlock?next=" + encodeURIComponent(location.pathname + location.search));
-	// A locked visit answers everything with the way to the lock, and
+	// A locked session answers everything with the way to the lock, and
 	// fetch follows it without a word: where it ended up is the answer.
 	// The lock may have been taken in another tab, which this one's own
 	// timer knows nothing of.

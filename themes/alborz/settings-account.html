@@ -111,23 +111,23 @@
            server without METADATA has nowhere to keep them, so alborz
            does, and a reader who was never told cannot take them
            back. */}}
-      {{ if .Kept.Host }}
+      {{ if .Storage.Host }}
       <details class="list-card">
-        <summary>{{$.T "settings.keptwhere"}}</summary>
-        <p>{{ if .Kept.OnServer }}{{$.T "settings.keptserver"}}{{ else }}{{$.T "settings.keptalborz"}}{{ end }} {{ template "ltr" .Kept.Host }}</p>
-        {{ if .Kept.Entries }}
-        <ul class="kept-entries" dir="ltr">
-          {{ range .Kept.Entries }}<li>{{ . }}</li>{{ end }}
+        <summary>{{$.T "settings.storagewhere"}}</summary>
+        <p>{{ if .Storage.OnServer }}{{$.T "settings.storageserver"}}{{ else }}{{$.T "settings.storagealborz"}}{{ end }} {{ template "ltr" .Storage.Host }}</p>
+        {{ if .Storage.Entries }}
+        <ul class="storage-entries" dir="ltr">
+          {{ range .Storage.Entries }}<li>{{ . }}</li>{{ end }}
         </ul>
         {{ end }}
-        {{ if .Kept.Reading }}{{ template "hint" (dict "text" ($.T "settings.keptreading")) }}{{ end }}
-        {{ if or .Kept.Entries .Kept.Reading }}
+        {{ if .Storage.Reading }}{{ template "hint" (dict "text" ($.T "settings.storagereading")) }}{{ end }}
+        {{ if or .Storage.Entries .Storage.Reading }}
         <form method="post" action="/settings/account/forget{{$aq}}">
           <button class="button-danger">{{$.T "settings.forget"}}</button>
           {{ template "hint" (dict "text" ($.T "settings.forgethint")) }}
         </form>
         {{ else }}
-        {{ template "hint" (dict "text" ($.T "settings.keptnothing")) }}
+        {{ template "hint" (dict "text" ($.T "settings.storagenothing")) }}
         {{ end }}
       </details>
       {{ end }}

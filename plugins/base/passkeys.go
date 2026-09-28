@@ -33,7 +33,7 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 		return ctx.Render(http.StatusOK, "passkeys.html", &PasskeysRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.title")),
 			Rail:           settingsRail(ctx),
-			Passkeys:       ctx.Visit().Lock().Passkeys,
+			Passkeys:       ctx.Session().Lock().Passkeys,
 		})
 	})
 	passkeyForm := func(ctx *alborz.Context) error {
@@ -69,11 +69,11 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 		return ctx.NoContent(http.StatusNoContent)
 	})
 	p.POST("/settings/passkeys/remove", func(ctx *alborz.Context) error {
-		v := ctx.Visit()
-		if !v.RemovePasskey(ctx.FormValue("passkey")) {
+		s := ctx.Session()
+		if !s.RemovePasskey(ctx.FormValue("passkey")) {
 			return alborz.NotFound("notfound.passkey")
 		}
-		if err := ctx.Server.Visits.Save(v); err != nil {
+		if err := ctx.Server.Sessions.Save(s); err != nil {
 			return err
 		}
 		ctx.PutNotice(ctx.T("notice.passkeyremoved"))
@@ -81,9 +81,9 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 	})
 
 	p.POST("/lock", func(ctx *alborz.Context) error {
-		ctx.Visit().LockNow()
+		ctx.Session().LockNow()
 		// A change that is nobody's tells no page anything, and wakes
-		// this visit's streams in its other tabs to find the lock.
+		// this session's streams in its other tabs to find the lock.
 		ctx.Server.Changes.Publish(alborz.Change{})
 		ctx.Quiet()
 		return ctx.Redirect(http.StatusSeeOther, "/unlock")
@@ -97,7 +97,7 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 	p.GET("/unlock", func(ctx *alborz.Context) error {
 		next := ctx.NextOr("/")
 		// Not locked, nothing to do here.
-		if !ctx.Visit().Locked(time.Now()) {
+		if !ctx.Session().Locked(time.Now()) {
 			return ctx.Redirect(http.StatusFound, next)
 		}
 		return ctx.Render(http.StatusOK, "unlock.html", &UnlockRenderData{
@@ -120,7 +120,7 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 		return ctx.NoContent(http.StatusNoContent)
 	})
 	p.POST("/unlock/leave", func(ctx *alborz.Context) error {
-		ctx.EndVisit()
+		ctx.EndSession()
 		return ctx.Redirect(http.StatusFound, "/login")
 	})
 }

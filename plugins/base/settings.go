@@ -16,7 +16,7 @@ import (
 const settingsKey = "base.settings"
 
 func init() {
-	alborz.KeepKey(settingsKey)
+	alborz.RegisterSetting(settingsKey)
 }
 
 const (
@@ -41,7 +41,7 @@ type Signature struct {
 
 type Settings struct {
 	// MessagesPerPage, the timezone, the first day of the week and
-	// whether HTML is preferred moved to the visit: they are what a
+	// whether HTML is preferred moved to the session: they are what a
 	// person reads by, and a merged page cannot say which account they
 	// would belong to. See alborz.Reading.
 	// Signatures belong to the account rather than to an identity: which
@@ -153,18 +153,18 @@ type SettingsRenderData struct {
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
-	// Kept says where this account's settings are written and what is
+	// Storage says where this account's settings are written and what is
 	// written there.
-	Kept KeptInfo
-	Rail map[string][]alborz.RailRow
+	Storage SettingsStorage
+	Rail    map[string][]alborz.RailRow
 }
 
-// KeptInfo says where an account's settings live. A server with no
+// SettingsStorage says where an account's settings live. A server with no
 // METADATA cannot hold them, and then alborz does: the page says which,
 // names the host, and lists what is there, because settings written
 // somewhere the reader was never told about are settings they cannot
 // take back.
-type KeptInfo struct {
+type SettingsStorage struct {
 	OnServer bool
 	Host     string
 	Entries  []string
@@ -173,22 +173,22 @@ type KeptInfo struct {
 	Reading bool
 }
 
-func keptInfo(ctx *alborz.Context) (KeptInfo, error) {
-	store, ok := ctx.Session.Store().(alborz.KeptStore)
+func settingsStorage(ctx *alborz.Context) (SettingsStorage, error) {
+	store, ok := ctx.Login.Store().(alborz.Settings)
 	if !ok {
-		return KeptInfo{}, nil
+		return SettingsStorage{}, nil
 	}
 	entries, err := store.Entries()
 	if err != nil {
-		return KeptInfo{}, err
+		return SettingsStorage{}, err
 	}
 	_, host, _ := strings.Cut(ctx.Origin(), "://")
 	if store.OnServer() {
-		_, domain, _ := strings.Cut(ctx.Session.Username(), "@")
+		_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 		host = ctx.Server.UpstreamsFor(domain).IMAP
 	}
-	_, reading := ctx.Server.Visits.LoadReading(ctx.Session.Username())
-	return KeptInfo{OnServer: store.OnServer(), Host: host, Entries: entries, Reading: reading}, nil
+	_, reading := ctx.Server.Sessions.LoadReading(ctx.Login.Username())
+	return SettingsStorage{OnServer: store.OnServer(), Host: host, Entries: entries, Reading: reading}, nil
 }
 
 // ServerInfo is what alborz can say about the account's upstreams
@@ -297,7 +297,7 @@ func serverAgent(c *imapclient.Client) string {
 // serverInfo names where the account's mail lives. The hosts come from
 // the configuration or from SRV discovery; nothing is guessed.
 func serverInfo(ctx *alborz.Context, agent string, abilities []Ability) ServerInfo {
-	_, domain, _ := strings.Cut(ctx.Session.Username(), "@")
+	_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
 	explained := make([]alborz.Explained, 0, len(abilities))
 	for _, a := range abilities {
@@ -489,7 +489,7 @@ func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 		{Label: ctx.T("passkeys.title"), Href: "/settings/passkeys", Active: strings.HasPrefix(path, "/settings/passkeys")},
 	}}
 	for _, account := range ctx.Accounts() {
-		scoped := ctx.Session != nil && account.Username == ctx.Session.Username()
+		scoped := ctx.Login != nil && account.Username == ctx.Login.Username()
 		q := accountQuery(account.Username)
 		rows[account.Username] = []alborz.RailRow{
 			{Label: ctx.T("settings.account"), Href: "/settings/account" + q, Active: scoped && path == "/settings/account"},
@@ -506,7 +506,7 @@ func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 // exists and writes one at a time, because deleting is an action rather
 // than a box to tick and then save.
 func handleSignatures(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
@@ -520,7 +520,7 @@ func handleSignatures(ctx *alborz.Context) error {
 // handleSignatureForm opens a signature to write: a new one, or the one
 // the URL names.
 func handleSignatureForm(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
@@ -539,7 +539,7 @@ func handleSignatureForm(ctx *alborz.Context) error {
 }
 
 func handleSignatureSave(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
@@ -586,7 +586,7 @@ func handleSignatureSave(ctx *alborz.Context) error {
 	if key, limit := settings.check(); key != "" {
 		return render(fmt.Sprintf(ctx.T(key), limit))
 	}
-	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
 		return fmt.Errorf("failed to save settings: %w", err)
 	}
 	if !replaced {
@@ -601,7 +601,7 @@ func handleSignatureSave(ctx *alborz.Context) error {
 // deletion is an action taken on a thing, not a field of a form that
 // saves everything at once.
 func handleSignatureDelete(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -616,7 +616,7 @@ func handleSignatureDelete(ctx *alborz.Context) error {
 	if settings.DefaultSignature == name {
 		settings.DefaultSignature = ""
 	}
-	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
 		return fmt.Errorf("failed to save settings: %w", err)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
@@ -626,7 +626,7 @@ func handleSignatureDelete(ctx *alborz.Context) error {
 // It is a preference and saves on its own, so choosing one never depends
 // on what the form below happens to hold.
 func handleSignatureDefault(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -636,14 +636,14 @@ func handleSignatureDefault(ctx *alborz.Context) error {
 		chosen = ""
 	}
 	settings.DefaultSignature = chosen
-	if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
 		return fmt.Errorf("failed to save settings: %w", err)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
 
 func handleSettings(ctx *alborz.Context) error {
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
@@ -660,11 +660,11 @@ func handleSettings(ctx *alborz.Context) error {
 	// server that will not answer for it - METADATA refused, a depth it
 	// does not support - says so on the page; it is not a reason to
 	// refuse the settings.
-	kept, err := keptInfo(ctx)
+	storage, err := settingsStorage(ctx)
 	if err != nil {
-		ctx.Logger().Printf("settings: listing what %s keeps: %v", ctx.Session.Username(), err)
+		ctx.Logger().Printf("settings: listing what %s keeps: %v", ctx.Login.Username(), err)
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.noanswer")})
-		kept = KeptInfo{}
+		storage = SettingsStorage{}
 	}
 
 	// The form answers its own invalid input, on the page it was typed
@@ -676,7 +676,7 @@ func handleSettings(ctx *alborz.Context) error {
 			Settings:       settings,
 			Mailboxes:      mailboxes,
 			Subscriptions:  Subscriptions(settings.Subscriptions),
-			Kept:           kept,
+			Storage:        storage,
 			Rail:           settingsRail(ctx),
 		})
 	}
@@ -698,10 +698,10 @@ func handleSettings(ctx *alborz.Context) error {
 		if key, limit := settings.check(); key != "" {
 			return reject(fmt.Sprintf(ctx.T(key), limit))
 		}
-		if err := ctx.Session.Store().Put(settingsKey, settings); err != nil {
+		if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
 			return fmt.Errorf("failed to save settings: %w", err)
 		}
-		accountChanged(ctx.Session.Username())
+		accountChanged(ctx.Login.Username())
 		ctx.PutNotice(ctx.T("notice.settingssaved"))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
@@ -718,7 +718,7 @@ func handleSettings(ctx *alborz.Context) error {
 		Settings:       settings,
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),
-		Kept:           kept,
+		Storage:        storage,
 		Rail:           settingsRail(ctx),
 	})
 }
@@ -728,10 +728,10 @@ func handleSettings(ctx *alborz.Context) error {
 // not own, and on a server it is the reader's mailbox that is holding
 // them.
 func handleForget(ctx *alborz.Context) error {
-	if err := ctx.Server.Visits.ForgetReading(ctx.Session.Username()); err != nil {
+	if err := ctx.Server.Sessions.ForgetReading(ctx.Login.Username()); err != nil {
 		return err
 	}
-	store, ok := ctx.Session.Store().(alborz.KeptStore)
+	store, ok := ctx.Login.Store().(alborz.Settings)
 	if !ok {
 		// Nothing else outlives the process to forget.
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("settings.forgotten")})
@@ -740,7 +740,7 @@ func handleForget(ctx *alborz.Context) error {
 	if err := store.Forget(); err != nil {
 		return err
 	}
-	accountChanged(ctx.Session.Username())
+	accountChanged(ctx.Login.Username())
 	ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("settings.forgotten")})
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 }
@@ -748,7 +748,7 @@ func handleForget(ctx *alborz.Context) error {
 // mailCards are the servers the deployment names for the account's
 // domain; on its own page the mail server is asked what it is.
 func mailCards(ctx *alborz.Context, showing string) ([]ServerCard, error) {
-	_, domain, _ := strings.Cut(ctx.Session.Username(), "@")
+	_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
 	// Where each came from: an SRV record, or the deployment naming it.
 	source := func(record string) (string, string) {
@@ -771,7 +771,7 @@ func mailCards(ctx *alborz.Context, showing string) ([]ServerCard, error) {
 	if showing != ServerMail {
 		return cards, nil
 	}
-	settings, err := LoadSettings(ctx.Session.Store())
+	settings, err := LoadSettings(ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
@@ -828,10 +828,10 @@ func handleServer(ctx *alborz.Context) error {
 	if showing != ServerDAV {
 		return ctx.Render(http.StatusOK, "server.html", data)
 	}
-	if data.HasHTTPPassword, err = ctx.Session.HasHTTPPassword(); err != nil {
+	if data.HasHTTPPassword, err = ctx.Login.HasHTTPPassword(); err != nil {
 		return err
 	}
-	if data.Services, err = ctx.Session.Services(); err != nil {
+	if data.Services, err = ctx.Login.Services(); err != nil {
 		return err
 	}
 	if ctx.Request().Method != http.MethodPost {
@@ -861,21 +861,21 @@ func handleServer(ctx *alborz.Context) error {
 	// An empty field leaves the kept password alone; the box is how it
 	// is let go of, so nobody loses it by saving the page.
 	if ctx.FormValue("http_password_reset") != "" {
-		err = ctx.Session.SetHTTPPassword("")
+		err = ctx.Login.SetHTTPPassword("")
 	} else if p := ctx.FormValue("http_password"); p != "" {
-		err = ctx.Session.SetHTTPPassword(p)
+		err = ctx.Login.SetHTTPPassword(p)
 	}
 	if err != nil {
 		return err
 	}
 	if named != data.Services {
-		if err := ctx.Session.SetServices(named); err != nil {
+		if err := ctx.Login.SetServices(named); err != nil {
 			return err
 		}
 	}
 	// What is cached was read with the servers or the password just
 	// left, and a refusal said about them is no longer news.
-	ctx.Server.ForgetAccount(ctx.Session.Username())
+	ctx.Server.ForgetAccount(ctx.Login.Username())
 	ctx.PutNotice(ctx.T("notice.serverssaved"))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/servers/"+ServerDAV))
 }
@@ -917,9 +917,9 @@ func handleReadingSettings(ctx *alborz.Context) error {
 			TextSize:       ctx.TextSize(),
 			Reading:        ctx.Reading(),
 			MaxPerPage:     maxMessagesPerPage,
-			Anchor:         ctx.Visit().Anchor(),
+			Anchor:         ctx.Session().Anchor(),
 			Accounts:       ctx.Accounts(),
-			LockMinutes:    lockMinutes(ctx.Visit().Lock()),
+			LockMinutes:    lockMinutes(ctx.Session().Lock()),
 		})
 	}
 	if ctx.Request().Method != http.MethodPost {
@@ -972,7 +972,7 @@ func handleReadingSettings(ctx *alborz.Context) error {
 	// The anchor is chosen from the accounts signed in; anything else
 	// names nowhere, which is what a shared mailbox wants.
 	if anchor, ok := given("anchor"); ok {
-		if ctx.SessionFor(anchor) == nil {
+		if ctx.LoginFor(anchor) == nil {
 			anchor = ""
 		}
 		if err := ctx.SetAnchor(anchor); err != nil {
@@ -995,9 +995,9 @@ func handleReadingSettings(ctx *alborz.Context) error {
 		if err != nil || time.Duration(minutes)*time.Minute < alborz.MinLockAfter {
 			return render(http.StatusUnprocessableEntity, ctx.T("form.lockminutes"))
 		}
-		visit := ctx.Visit()
-		visit.SetLockAfter(time.Duration(minutes) * time.Minute)
-		if err := ctx.Server.Visits.Save(visit); err != nil {
+		session := ctx.Session()
+		session.SetLockAfter(time.Duration(minutes) * time.Minute)
+		if err := ctx.Server.Sessions.Save(session); err != nil {
 			return err
 		}
 	}

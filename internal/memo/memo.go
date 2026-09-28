@@ -1,4 +1,4 @@
-package alborz
+package memo
 
 import (
 	"sync"
@@ -49,13 +49,13 @@ func (e *memoEntry[T]) settle(version uint64, val T, err error) {
 	e.loading = nil
 }
 
-// NewMemo returns a memo that reloads synchronously when stale.
-func NewMemo[T any](ttl time.Duration) *Memo[T] {
+// New returns a memo that reloads synchronously when stale.
+func New[T any](ttl time.Duration) *Memo[T] {
 	return &Memo[T]{ttl: ttl, entries: make(map[string]*memoEntry[T])}
 }
 
-// NewBackgroundMemo returns a memo that serves stale values while reloading in the background; load must not depend on its caller's lifetime.
-func NewBackgroundMemo[T any](ttl time.Duration) *Memo[T] {
+// NewBackground returns a memo that serves stale values while reloading in the background; load must not depend on its caller's lifetime.
+func NewBackground[T any](ttl time.Duration) *Memo[T] {
 	return &Memo[T]{ttl: ttl, background: true, entries: make(map[string]*memoEntry[T])}
 }
 

@@ -1,4 +1,4 @@
-package alborz
+package memo
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestMemoRefreshCannotOverwriteConfirmedWrite(t *testing.T) {
-	m := NewBackgroundMemo[int](time.Hour)
+	m := NewBackground[int](time.Hour)
 	started, finish := make(chan struct{}), make(chan struct{})
 	m.Warm("u", func() (int, error) { close(started); <-finish; return 1, nil })
 	<-started
@@ -26,7 +26,7 @@ func TestMemoRefreshCannotOverwriteConfirmedWrite(t *testing.T) {
 }
 
 func TestMemoFirstLoadOvertakenByStaleAnswersWhatItRead(t *testing.T) {
-	m := NewBackgroundMemo[int](time.Hour)
+	m := NewBackground[int](time.Hour)
 	v, err := m.Get("u", func() (int, error) { m.Stale("u"); return 1, nil })
 	if err != nil || v != 1 {
 		t.Fatalf("first load answered %d, %v", v, err)

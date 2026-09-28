@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/memo"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -63,7 +64,7 @@ type listingEntry struct {
 
 type listingKey struct{ user, view string }
 
-func newListingCache(keepFor time.Duration, sidebars *alborz.Memo[sidebar], bodies *bodyCache) *listingCache {
+func newListingCache(keepFor time.Duration, sidebars *memo.Memo[sidebar], bodies *bodyCache) *listingCache {
 	return &listingCache{
 		keepFor: keepFor, accountSidebars: sidebars, bodies: bodies,
 		entries: make(map[listingKey]*listingEntry), refreshing: make(map[listingKey]bool),
@@ -73,7 +74,7 @@ func newListingCache(keepFor time.Duration, sidebars *alborz.Memo[sidebar], bodi
 
 type listingCache struct {
 	keepFor         time.Duration
-	accountSidebars *alborz.Memo[sidebar]
+	accountSidebars *memo.Memo[sidebar]
 	bodies          *bodyCache
 
 	mu         sync.Mutex

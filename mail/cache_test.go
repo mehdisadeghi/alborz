@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/memo"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -32,7 +32,7 @@ func TestStatusUnchangedNeedsEveryField(t *testing.T) {
 }
 
 func TestListingCacheStates(t *testing.T) {
-	lc := newListingCache(listingKeepFor, alborz.NewBackgroundMemo[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
+	lc := newListingCache(listingKeepFor, memo.NewBackground[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
 	lc.storeAt("u", "INBOX", &listingEntry{perPage: 25, total: 3}, lc.epoch("u"))
 	lc.storeAt("u", listingView("INBOX", "hello", "", "", ""), &listingEntry{perPage: 25}, lc.epoch("u"))
 	lc.storeAt("u", "Sent", &listingEntry{perPage: 25}, lc.epoch("u"))
@@ -71,7 +71,7 @@ func TestListingCacheStates(t *testing.T) {
 }
 
 func TestListingCacheStaysBounded(t *testing.T) {
-	lc := newListingCache(listingKeepFor, alborz.NewBackgroundMemo[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
+	lc := newListingCache(listingKeepFor, memo.NewBackground[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
 	for i := 0; i < maxListingEntries+10; i++ {
 		lc.storeAt("u", listingView("INBOX", fmt.Sprint("q", i), "", "", ""), &listingEntry{perPage: 25}, lc.epoch("u"))
 	}
@@ -81,7 +81,7 @@ func TestListingCacheStaysBounded(t *testing.T) {
 }
 
 func TestListingTakesFlagsInPlace(t *testing.T) {
-	lc := newListingCache(listingKeepFor, alborz.NewBackgroundMemo[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
+	lc := newListingCache(listingKeepFor, memo.NewBackground[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
 	unseen := uint32(2)
 	status := &MailboxStatus{StatusData: &imap.StatusData{Mailbox: "INBOX", NumUnseen: &unseen}}
 	sb := sidebar{statuses: map[string]*MailboxStatus{"INBOX": status}, active: status, inbox: status}

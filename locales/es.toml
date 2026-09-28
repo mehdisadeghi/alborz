@@ -696,6 +696,7 @@
 "folder.emptydo" = "Eliminar todo"
 "notice.loginfailed" = "Dirección o contraseña rechazadas."
 "notice.davanswered" = "El servidor de calendarios y contactos de %s respondió %s."
+"notice.davforbidden" = "El servidor de calendarios y contactos de %s respondió %s. Revisa la contraseña."
 "notice.loginerror" = "No se pudo iniciar sesión: %s"
 "notice.loginmissing" = "Falta la dirección o la contraseña."
 "notice.restorefailed" = "%s no ha iniciado sesión. %s"

@@ -685,6 +685,7 @@
 "folder.emptydo" = "حذف همه"
 "notice.loginfailed" = "نشانی یا رمز پذیرفته نشد."
 "notice.davanswered" = "سرور تقویم و مخاطبان %s پاسخ داد: %s"
+"notice.davforbidden" = "سرور تقویم و مخاطبان %s پاسخ داد: %s. گذرواژه را بررسی کنید."
 "notice.loginerror" = "ورود ناموفق بود: %s"
 "notice.loginmissing" = "نشانی یا رمز وارد نشده است."
 "notice.restorefailed" = "%s وارد نشده است. %s"

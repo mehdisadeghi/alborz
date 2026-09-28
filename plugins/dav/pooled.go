@@ -122,9 +122,15 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	ctx.Unreachable(down)
 	for _, username := range slices.Sorted(maps.Keys(answered)) {
 		code := answered[username]
+		key, action := "notice.davanswered", &alborz.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.QueryValue(username)}
+		// Some servers answer a wrong password with 403, not 401; it stays
+		// a permission answer, with the way to the password beside it.
+		if code == http.StatusForbidden {
+			key, action = "notice.davforbidden", &alborz.NoticeAction{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + alborzbase.ServerDAV + "?account=" + alborz.QueryValue(username)}
+		}
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
-			Text:    fmt.Sprintf(ctx.T("notice.davanswered"), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
-			Actions: []*alborz.NoticeAction{{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.QueryValue(username)}}})
+			Text:    fmt.Sprintf(ctx.T(key), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
+			Actions: []*alborz.NoticeAction{action}})
 	}
 	// A refusal is the one the reader can end, so it is the one said
 	// when both happened, with the way to the account's own settings.

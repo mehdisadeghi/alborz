@@ -692,6 +692,7 @@
 "folder.emptydo" = "Delete all"
 "notice.loginfailed" = "Address or password refused."
 "notice.davanswered" = "The calendar and contacts server for %s answered %s."
+"notice.davforbidden" = "The calendar and contacts server for %s answered %s. Check the password."
 "notice.loginerror" = "Failed to login: %s"
 "notice.loginmissing" = "Address or password missing."
 "notice.restorefailed" = "%s is not signed in. %s"

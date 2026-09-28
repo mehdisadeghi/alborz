@@ -96,10 +96,8 @@ func NewProvider(srv *alborz.Server, kept *collections.Store, kind Kind) (*Provi
 			found[domain] = record
 		}
 	}
-	// The copies are sealed under the login key, so without one there
-	// are none.
 	var mirror *Mirror
-	if srv.Options.Cache && srv.Options.CacheDir != "" && srv.Options.LoginKey != nil {
+	if srv.Options.Cache && srv.Options.CacheDir != "" {
 		m, err := OpenMirror(srv.Options.CacheDir, kind, srv.Options.LoginKey)
 		if err != nil {
 			return nil, err

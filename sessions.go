@@ -70,16 +70,14 @@ func (ss *Sessions) SignedIn(account, current string) ([]Signed, error) {
 		}
 	}
 	ss.mu.Unlock()
-	if ss.records != nil {
-		err := ss.records.Each(func(rec *SessionRecord) {
-			if seen[rec.ID] || !slices.ContainsFunc(rec.Accounts, func(a RememberedAccount) bool { return a.Address == account }) {
-				return
-			}
-			out = append(out, Signed{ID: rec.ID, Device: rec.Device, Address: rec.Address, Created: rec.Created, Seen: rec.Seen})
-		})
-		if err != nil {
-			return nil, err
+	err := ss.records.Each(func(rec *SessionRecord) {
+		if seen[rec.ID] || !slices.ContainsFunc(rec.Accounts, func(a RememberedAccount) bool { return a.Address == account }) {
+			return
 		}
+		out = append(out, Signed{ID: rec.ID, Device: rec.Device, Address: rec.Address, Created: rec.Created, Seen: rec.Seen})
+	})
+	if err != nil {
+		return nil, err
 	}
 	for i := range out {
 		out[i].Current = out[i].ID == current
@@ -103,9 +101,6 @@ func (ss *Sessions) SignOut(id, account string) error {
 			return nil
 		}
 		return ss.Save(s)
-	}
-	if ss.records == nil {
-		return nil
 	}
 	rec, ok := ss.records.Load(id)
 	if !ok {

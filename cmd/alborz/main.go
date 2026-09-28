@@ -82,7 +82,7 @@ func main() {
 		"comma-separated addresses or CIDR ranges of the proxies in front of alborz, whose X-Forwarded-For names the reader; unset takes the connection's address")
 	flag.StringVar(&publicURL, "public-url", "",
 		"where readers reach alborz, such as https://mail.example.org, for links in mail and addresses shown to other clients (or $LBRZ_PUBLIC_URL); unset uses each request's own")
-	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
+	flag.StringVar(&loginKey, "login-key", "", "Fernet key sealing what alborz keeps (or $LBRZ_LOGIN_KEY); required")
 	flag.BoolVar(&options.Cache, "cache", true,
 		"keep what the servers answered, so pages open without asking again; false asks every time and keeps nothing")
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
@@ -157,14 +157,17 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 	options.ThemesPath = themesPath
 
-	if loginKey != "" {
-		fernetKey, err := fernet.DecodeKey(loginKey)
-		if err != nil {
-			fmt.Fprintf(flag.CommandLine.Output(), "alborz: invalid -login-key: %v\n", err)
-			os.Exit(2)
-		}
-		options.LoginKey = fernetKey
+	if loginKey == "" {
+		fmt.Fprintln(flag.CommandLine.Output(),
+			"alborz: no login key: pass -login-key or set $LBRZ_LOGIN_KEY to one made by `go run github.com/fernet/fernet-go/cmd/fernet-keygen`")
+		os.Exit(2)
 	}
+	fernetKey, err := fernet.DecodeKey(loginKey)
+	if err != nil {
+		fmt.Fprintf(flag.CommandLine.Output(), "alborz: invalid -login-key: %v\n", err)
+		os.Exit(2)
+	}
+	options.LoginKey = fernetKey
 
 	e := echo.New()
 	e.HideBanner = true

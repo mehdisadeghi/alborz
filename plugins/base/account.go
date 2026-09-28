@@ -17,14 +17,12 @@ func handleLogin(ctx *alborz.Context) error {
 
 	renderData := struct {
 		alborz.BaseRenderData
-		CanRememberMe bool
-		RememberDays  int
-		Add           bool
-		Username      string
+		RememberDays int
+		Add          bool
+		Username     string
 	}{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Username:       username,
-		CanRememberMe:  ctx.Server.Sessions.Remembers(),
 		RememberDays:   int(alborz.CredentialCookieLife().Hours() / 24),
 		Add:            add,
 	}

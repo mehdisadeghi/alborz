@@ -22,6 +22,7 @@ unit for `/etc/systemd/system/alborz.service`:
     Group=alborz
     WorkingDirectory=/var/lib/alborz
     CacheDirectory=alborz
+    Environment=XDG_CACHE_HOME=/var/cache
     EnvironmentFile=/etc/default/alborz
     ExecStart=/usr/local/bin/alborz example.org
     Restart=on-failure
@@ -39,11 +40,10 @@ Generate the login key with
 from the environment, so it never appears in the unit or the process
 list.
 
-`CacheDirectory=alborz` gives the service `/var/cache/alborz`, where the
-calendar and contacts cache is kept between runs, sealed under the login
-key, so a restart starts warm. Without it, or without a login key, the
-cache lives in memory and every restart starts cold. `-cache-dir`
-overrides the location.
+`CacheDirectory=alborz` gives the service `/var/cache/alborz`, and
+`XDG_CACHE_HOME` points alborz's default cache there. Copies of remote calendars and
+address books are kept there between runs, sealed under the login key,
+so a restart starts warm. `-cache=false` keeps no cache.
 
 ## DNS
 
@@ -74,8 +74,8 @@ explicitly:
         example.com=imaps://imap.migadu.com example.com=smtps://smtp.migadu.com
 
 Domains may live on unrelated providers. Features follow the domain:
-users of a domain without sieve or DAV servers simply see no Filters,
-Contacts, or Calendar. Accounts across domains can be signed in
+without a sieve server Filters is empty, and without DAV servers
+calendars and contacts are kept in alborz. Accounts across domains can be signed in
 side by side and switched from the account menu. Plain URL arguments
 without a domain keep the upstream behavior instead: one provider,
 any login accepted; the two forms cannot be mixed.
@@ -89,14 +89,10 @@ database (e.g. Nextcloud) may want another password, such as an app
 password; a reader enters it once under Settings and alborz uses it
 from then on.
 
-That password is kept in the account's IMAP METADATA, encrypted under
-a random key that is itself wrapped twice: under the server's login key
-and under a key derived from the mail password. Either wrap opening
-renews the other, so rotating the login key or changing the mail
-password costs nothing; only both changing before the next sign-in
-loses it, and the reader enters it again. Without `-login-key` only the
-password wrap exists, so a mail password change then means entering the
-DAV password again. Without METADATA it lives in memory for the session.
+That password is kept in the account's IMAP METADATA, or in alborz.db
+where the server has none, encrypted under a key derived from the mail
+password. After a mail password change it no longer opens, and alborz
+asks for it again.
 
 ## Reverse proxy
 

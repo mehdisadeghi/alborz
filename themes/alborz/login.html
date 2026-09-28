@@ -17,14 +17,12 @@
         <input type="password" name="password" id="password" autocomplete="current-password" required />
       </div>
 
-      {{if .CanRememberMe}}
       <div class="action-group">
         <label for="remember-me" class="checkbox">
           <input type="checkbox" name="remember-me" id="remember-me" />
           {{ printf ($.T "login.remember") .RememberDays }}
         </label>
       </div>
-      {{end}}
 
       <div class="action-group">
         <button type="submit" class="button-primary">{{$.T "login.signin"}}</button>

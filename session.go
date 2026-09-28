@@ -202,17 +202,11 @@ type Sessions struct {
 	records SessionRecords
 }
 
-func newSessions() *Sessions {
-	return &Sessions{live: map[string]*Session{}}
+func newSessions(records SessionRecords) *Sessions {
+	return &Sessions{live: map[string]*Session{}, records: records}
 }
 
-// SetRecords makes remembering possible.
-func (ss *Sessions) SetRecords(r SessionRecords) { ss.records = r }
-
-// Remembers reports whether this deployment can remember a session.
-func (ss *Sessions) Remembers() bool { return ss.records != nil }
-
-// Records is where remembered sessions are written, or nil.
+// Records is where remembered sessions are written.
 func (ss *Sessions) Records() SessionRecords { return ss.records }
 
 func (ss *Sessions) Get(id string) *Session {
@@ -243,23 +237,17 @@ func (ss *Sessions) Delete(id string) error {
 	if s != nil {
 		s.close()
 	}
-	if ss.records == nil {
-		return nil
-	}
 	return ss.records.Delete(id)
 }
 
 // Record returns the remembered session of that id.
 func (ss *Sessions) Record(id string) (*SessionRecord, bool) {
-	if ss.records == nil {
-		return nil, false
-	}
 	return ss.records.Load(id)
 }
 
 // Save writes a remembered session; others are never written.
 func (ss *Sessions) Save(s *Session) error {
-	if ss.records == nil || !s.remembered() {
+	if !s.remembered() {
 		return nil
 	}
 	return ss.records.Save(s.record())
@@ -267,9 +255,6 @@ func (ss *Sessions) Save(s *Session) error {
 
 // Sweep drops the records nobody has come back to.
 func (ss *Sessions) Sweep(before time.Time) error {
-	if ss.records == nil {
-		return nil
-	}
 	return ss.records.Sweep(before)
 }
 

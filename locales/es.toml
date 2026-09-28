@@ -4,7 +4,6 @@
 "form.sendrefused" = "El mensaje no se envió. El servidor dijo: %s"
 "form.draftrefused" = "El borrador no se guardó. El servidor dijo: %s"
 "form.saverefused" = "El cambio no se guardó. El servidor dijo: %s"
-"form.nostorage" = "El cambio no se guardó: el servidor de correo de esta cuenta no puede guardar ajustes y este Alborz no guarda ninguno propio."
 "form.summaryneeded" = "Se requiere un asunto."
 "form.recipientneeded" = "Añada al menos un destinatario."
 "form.destinationneeded" = "Elija dónde guardarlo."

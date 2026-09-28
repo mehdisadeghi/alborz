@@ -20,6 +20,6 @@ RUN apk add --no-cache tzdata \
 COPY --from=build /alborz /usr/local/bin/alborz
 USER alborz
 EXPOSE 1323
-# Without a volume on /data and LBRZ_LOGIN_KEY the container still
-# starts; it forgets its sign-ins on a restart and keeps its data inside.
+# It refuses to start without LBRZ_LOGIN_KEY; without a volume on /data
+# it keeps its data inside the container.
 ENTRYPOINT ["alborz", "-data-dir", "/data", "-cache-dir", "/cache"]

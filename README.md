@@ -74,8 +74,8 @@ A container image is published at `ghcr.io/mehdisadeghi/alborz`, tagged
 
     docker run -p 1323:1323 -v alborz-data:/data -e LBRZ_LOGIN_KEY=<key> ghcr.io/mehdisadeghi/alborz example.org
 
-Without the volume and the key it still runs, but forgets sign-ins on a
-restart and keeps its data inside the container.
+The login key is required. Without the volume, alborz's data stays
+inside the container and goes with it.
 
 ## Usage
 

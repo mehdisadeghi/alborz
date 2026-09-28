@@ -168,7 +168,7 @@ type domainUpstreams struct {
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
-		Sessions: newSessions(), Changes: newChanges(), Outgoing: NewOutgoing(), signInRefused: newRefusals(signInTries, signInWindow)}
+		Changes: newChanges(), Outgoing: NewOutgoing(), signInRefused: newRefusals(signInTries, signInWindow)}
 	e.IPExtractor = echo.ExtractIPDirect()
 	if len(options.TrustedProxies) > 0 {
 		// echo trusts every private address by default, and anyone on such a network could write the header.
@@ -192,20 +192,14 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	if s.data, err = openData(dataDir, version, e.Logger.Printf); err != nil {
 		return nil, err
 	}
-	// Remembering a session keeps a password, so it needs a sealing key.
-	var settings *settingsRecords
-	if options.LoginKey != nil {
-		err := CheckKey(s.data, filepath.Join(dataDir, storeFile), options.LoginKey,
-			sessionsOwner+"/", settingsOwner+"/")
-		if err != nil {
-			return nil, err
-		}
-		s.Sessions.SetRecords(OpenSessionRecords(s.data, options.LoginKey))
-		if err := s.Sessions.Sweep(time.Now().Add(-credentialCookieLife)); err != nil {
-			return nil, err
-		}
-		settings = openSettingsRecords(s.data, options.LoginKey)
+	if err := CheckKey(s.data, s.dataPath, options.LoginKey, sessionsOwner+"/", settingsOwner+"/"); err != nil {
+		return nil, err
 	}
+	s.Sessions = newSessions(OpenSessionRecords(s.data, options.LoginKey))
+	if err := s.Sessions.Sweep(time.Now().Add(-credentialCookieLife)); err != nil {
+		return nil, err
+	}
+	settings := openSettingsRecords(s.data, options.LoginKey)
 
 	s.domains = make(map[string]*domainUpstreams)
 	for _, arg := range options.Upstreams {
@@ -674,11 +668,11 @@ type Options struct {
 	Theme      string
 	ThemesPath string
 	Debug      bool
-	// LoginKey seals remembered sessions and settings kept here; without it neither is kept.
+	// LoginKey seals remembered sessions, settings kept here and the cached copies.
 	LoginKey *fernet.Key
 	// Cache keeps what the servers answered.
 	Cache bool
-	// CacheDir keeps sealed copies of remote calendars and address books; empty, or no LoginKey, keeps none.
+	// CacheDir keeps sealed copies of remote calendars and address books; empty keeps none.
 	CacheDir string
 	// DataDir holds alborz.db; empty is the working directory.
 	DataDir string

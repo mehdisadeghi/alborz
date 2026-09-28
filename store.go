@@ -3,7 +3,6 @@ package alborz
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -17,7 +16,7 @@ import (
 // ErrNoStoreEntry is returned by Store.Get when the entry doesn't exist.
 var ErrNoStoreEntry = fmt.Errorf("alborz: no such entry in store")
 
-// Store keeps an account's settings; an unkeepable write is errors.ErrUnsupported.
+// Store keeps an account's settings.
 // It must not be used from inside Login.DoIMAP.
 type Store interface {
 	Get(ctx context.Context, key string, out any) error
@@ -48,31 +47,15 @@ func (sm *LoginManager) newStore(login *Login) (Store, error) {
 	}
 	if !sm.warnedNoMetadata {
 		sm.warnedNoMetadata = true
-		if sm.settings == nil {
-			sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension and alborz has no login key to seal them, account settings cannot be saved")
-		} else {
-			sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, keeping account settings in alborz's own store")
-		}
-	}
-	if sm.settings == nil {
-		return noStore{}, nil
+		sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, keeping account settings in alborz's own store")
 	}
 	return localStore{records: sm.settings, account: login.Username()}, nil
 }
 
 // SaveRefusal is the alert for a settings write the store did not keep.
 func (ctx *Context) SaveRefusal(err error) string {
-	if errors.Is(err, errors.ErrUnsupported) {
-		return ctx.T("form.nostorage")
-	}
 	return fmt.Sprintf(ctx.T("form.saverefused"), err)
 }
-
-// noStore reads defaults and refuses every write.
-type noStore struct{}
-
-func (noStore) Get(context.Context, string, any) error { return ErrNoStoreEntry }
-func (noStore) Put(context.Context, string, any) error { return errors.ErrUnsupported }
 
 type imapMetadataStore struct {
 	login *Login

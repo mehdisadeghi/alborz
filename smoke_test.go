@@ -263,7 +263,7 @@ func startAlborz(t *testing.T, imapAddr string, smtpAddr ...string) string {
 
 func startAlborzWith(t *testing.T, upstreams []string) string {
 	t.Helper()
-	return serveAlborz(t, upstreams, smokeKey, true)
+	return serveAlborz(t, upstreams, true)
 }
 
 var smokeKey = fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
@@ -290,7 +290,7 @@ func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
 	alborzviewhtml.Mount(s)
 }
 
-func serveAlborz(t *testing.T, upstreams []string, key *fernet.Key, cache bool) string {
+func serveAlborz(t *testing.T, upstreams []string, cache bool) string {
 	t.Helper()
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
@@ -298,7 +298,7 @@ func serveAlborz(t *testing.T, upstreams []string, key *fernet.Key, cache bool) 
 		Upstreams:  upstreams,
 		Theme:      "alborz",
 		ThemesPath: "./themes",
-		LoginKey:   key,
+		LoginKey:   smokeKey,
 		DataDir:    t.TempDir(),
 		Cache:      cache,
 		// A handler that sends the reader elsewhere says what it did.
@@ -682,27 +682,6 @@ func TestExportFailsAsAnError(t *testing.T) {
 	resp.Body.Close()
 	if page := buf.String(); !strings.Contains(page, `name="everything"`) || strings.Contains(page, `name="uids"`) {
 		t.Errorf("the export page of a whole list carries its messages, or not the list")
-	}
-}
-
-// Without a login key alborz.db cannot seal them, and the rig's IMAP has no METADATA.
-func TestSettingsWithNowhereToKeepThemAreRefusedOnTheForm(t *testing.T) {
-	base := serveAlborz(t, []string{"test.local=imap+insecure://" + startIMAP(t)}, nil, true)
-	c := login(t, base)
-	stay := *c
-	stay.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	resp, err := stay.PostForm(base+"/settings/account", url.Values{"from": {smokeUser}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	var buf bytes.Buffer
-	buf.ReadFrom(resp.Body)
-	if resp.StatusCode != http.StatusUnprocessableEntity {
-		t.Fatalf("saving with nowhere to keep it: %s, want the form again", resp.Status)
-	}
-	if !strings.Contains(buf.String(), "cannot keep settings") {
-		t.Fatalf("the form came back without saying the change was not kept:\n%s", firstLines(buf.String()))
 	}
 }
 
@@ -1891,7 +1870,7 @@ func TestCachingOffServesEveryPage(t *testing.T) {
 	base := serveAlborz(t, []string{
 		"test.local=imap+insecure://" + startIMAP(t),
 		"test.local=caldav+insecure://" + strings.TrimPrefix(dav.URL, "http://") + "/dav",
-	}, smokeKey, false)
+	}, false)
 	c := login(t, base)
 
 	if len(messageUIDs(get(t, c, base+"/mailbox/INBOX"))) == 0 {

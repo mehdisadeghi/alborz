@@ -472,7 +472,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		var err error
 		if session.remembered() {
 			err = ctx.Server.Sessions.Save(session)
-		} else if ctx.Server.Sessions.Remembers() {
+		} else {
 			err = ctx.Server.Sessions.Records().Delete(session.ID)
 		}
 		if err != nil {

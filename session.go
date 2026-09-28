@@ -243,10 +243,7 @@ type RememberedAccount struct {
 	Sealed  []byte
 }
 
-// SessionRecords is where remembered sessions live. Nothing is written
-// until a reader asks to be remembered, and a deployment without a
-// store simply cannot offer it. A bbolt file implements this today; a
-// Redis or SQL one would implement the same four methods.
+// SessionRecords keeps remembered sessions, reading and settings records.
 type SessionRecords interface {
 	Load(id string) (*SessionRecord, bool)
 	Save(rec *SessionRecord) error

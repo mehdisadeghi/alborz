@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	bolt "go.etcd.io/bbolt"
+	"git.mehdix.org/alborz/internal/kv/bolt"
 )
 
 const event = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:e1\r\n" +
@@ -18,16 +18,12 @@ const event = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEV
 // open is a store in a data file of its own.
 func open(t *testing.T) *Store {
 	t.Helper()
-	db, err := bolt.Open(filepath.Join(t.TempDir(), "alborz.db"), 0o600, nil)
+	db, err := bolt.Open(filepath.Join(t.TempDir(), "alborz.db"), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	store, err := New(db)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return store
+	return New(db)
 }
 
 // serve makes one request as an account and returns the status.

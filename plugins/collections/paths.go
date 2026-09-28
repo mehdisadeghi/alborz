@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/emersion/go-webdav"
-	bolt "go.etcd.io/bbolt"
 )
 
 // Prefix is where the server is mounted. Long enough that no DAV server
@@ -160,12 +159,7 @@ func (s *Store) reachAt(ctx context.Context, at place, kind Kind) (place, *Colle
 	if at.kind != kind || at.home != account {
 		return at, nil, none, errNotFound
 	}
-	var c *Collection
-	var may access
-	err := s.db.View(func(tx *bolt.Tx) (err error) {
-		c, may, err = allowed(tx, at.ref, account, time.Now())
-		return err
-	})
+	c, may, err := s.may(at.ref, account, time.Now())
 	if errors.Is(err, ErrNotFound) || (err == nil && c.Kind != kind) {
 		return at, nil, none, errNotFound
 	}

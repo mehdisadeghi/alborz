@@ -88,7 +88,7 @@ func sampleAuthServ(login *alborz.Login) (string, error) {
 func topAuthServ(header string) (id string, confirmed bool) {
 	h, _ := textproto.ReadHeader(bufio.NewReader(strings.NewReader(header)))
 	for _, v := range h.Values("Authentication-Results") {
-		if id, _, _ = parseAuthResults(v); id != "" {
+		if id, _, _ = parseAuthResults("Authentication-Results", v); id != "" {
 			break
 		}
 	}

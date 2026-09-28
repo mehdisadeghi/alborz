@@ -52,7 +52,7 @@ func readAuthResults(h textproto.Header, trusted string) *AuthResults {
 	for _, key := range []string{"Authentication-Results", "ARC-Authentication-Results"} {
 		fields := h.FieldsByKey(key)
 		for fields.Next() {
-			id, results, ok := parseAuthResults(fields.Value())
+			id, results, ok := parseAuthResults(key, fields.Value())
 			if !ok || !sameServerFamily(id, trusted) {
 				continue
 			}
@@ -66,12 +66,15 @@ func sameServerFamily(id, trusted string) bool {
 	return id == trusted || serverFamily(id) == serverFamily(trusted)
 }
 
-func parseAuthResults(value string) (string, *AuthResults, bool) {
-	// An ARC set puts its instance number first: "i=3; mail.example.org".
-	if first, rest, ok := strings.Cut(value, ";"); ok && strings.HasPrefix(strings.ToLower(strings.TrimSpace(first)), "i=") {
-		value = rest
+func parseAuthResults(key, value string) (string, *AuthResults, bool) {
+	var id string
+	var results []authres.Result
+	var err error
+	if key == "ARC-Authentication-Results" {
+		_, id, results, err = authres.ParseARC(value)
+	} else {
+		id, results, err = authres.Parse(value)
 	}
-	id, results, err := authres.Parse(value)
 	if err != nil || id == "" {
 		return "", nil, false
 	}

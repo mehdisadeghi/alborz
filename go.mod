@@ -92,5 +92,6 @@ replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-2026
 // RFC 2971 does not name, so Dovecot learns the reader's address
 // (emersion/go-imap#693); Dovecot's BODYSTRUCTURE for message/global
 // (#704); an error, not a clean end, for a body cut off mid-transfer
-// (#676); GETMETADATA options before the mailbox, as RFC 5464 orders.
-replace github.com/emersion/go-imap/v2 => github.com/alborzmail/go-imap/v2 v2.0.0-20260928174739-a9c192e07373
+// (#676); GETMETADATA options before the mailbox, as RFC 5464 orders;
+// LOGIN and AUTHENTICATE secrets redacted in the debug output.
+replace github.com/emersion/go-imap/v2 => github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26

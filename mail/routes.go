@@ -49,12 +49,6 @@ func (p *plugin) registerRoutes() {
 	p.GET("/message/:mbox/export", p.handleExportPage)
 	p.POST("/message/:mbox/export", p.handleExportMbox)
 
-	p.GET("/login", handleLogin)
-	p.POST("/login", handleLogin)
-
-	p.POST("/logout", HandleLogout)
-	registerPasskeyRoutes(p.Router)
-
 	p.GET("/compose", p.handleComposeNew)
 	p.POST("/compose", p.handleComposeNew)
 

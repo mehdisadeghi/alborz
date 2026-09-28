@@ -54,25 +54,6 @@ func (p *goPlugin) SetRoutes(group *echo.Group) {
 	}
 }
 
-func (p *goPlugin) Inject(ctx *Context, name string, data RenderData) error {
-	if f, ok := p.p.injectFuncs["*"]; ok {
-		if err := f(ctx, data); err != nil {
-			return err
-		}
-	}
-	if f, ok := p.p.injectFuncs[name]; ok {
-		return f(ctx, data)
-	}
-	return nil
-}
-
-func (p *goPlugin) Enabled(ctx *Context) bool {
-	if p.p.EnabledFunc == nil {
-		return true
-	}
-	return p.p.EnabledFunc(ctx)
-}
-
 func (p *goPlugin) Close() error {
 	if p.p.CloseFunc == nil {
 		return nil
@@ -93,13 +74,10 @@ type GoPlugin struct {
 	Files fs.FS
 	// CloseFunc releases resources on server close; nil means none.
 	CloseFunc func() error
-	// EnabledFunc reports per-request availability; nil means always.
-	EnabledFunc func(*Context) bool
 
 	routes []goPluginRoute
 
 	templateFuncs template.FuncMap
-	injectFuncs   map[string]InjectFunc
 }
 
 // HandlerFunc is a function serving HTTP requests.
@@ -135,27 +113,6 @@ func (p *GoPlugin) TemplateFuncs(funcs template.FuncMap) {
 	for k, f := range funcs {
 		p.templateFuncs[k] = f
 	}
-}
-
-// InjectFunc injects data prior to rendering a template.
-type InjectFunc func(ctx *Context, data RenderData) error
-
-// Inject registers f to run before rendering the named template; "*" matches
-// any. Several for one name run in registration order.
-func (p *GoPlugin) Inject(name string, f InjectFunc) {
-	if p.injectFuncs == nil {
-		p.injectFuncs = make(map[string]InjectFunc)
-	}
-	if prev, ok := p.injectFuncs[name]; ok {
-		p.injectFuncs[name] = func(ctx *Context, data RenderData) error {
-			if err := prev(ctx, data); err != nil {
-				return err
-			}
-			return f(ctx, data)
-		}
-		return
-	}
-	p.injectFuncs[name] = f
 }
 
 // Plugin returns an object implementing Plugin.

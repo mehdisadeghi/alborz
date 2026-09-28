@@ -66,13 +66,13 @@ func executeTemplate(name string, data interface{}) (template.HTML, error) {
 
 type viewer struct{}
 
-func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, path []int, part *message.Entity) (interface{}, error) {
+func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, path []int, part *message.Entity) (alborzbase.View, error) {
 	mimeType, params, err := part.Header.ContentType()
 	if err != nil {
-		return nil, err
+		return alborzbase.View{}, err
 	}
 	if !strings.EqualFold(mimeType, "text/plain") {
-		return nil, alborzbase.ErrViewUnsupported
+		return alborzbase.View{}, alborzbase.ErrViewUnsupported
 	}
 
 	// Language is decided per paragraph: per line the voice would stutter.
@@ -98,7 +98,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	if strings.EqualFold(params["format"], "flowed") {
 		raw, err := io.ReadAll(part.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read part body: %v", err)
+			return alborzbase.View{}, fmt.Errorf("failed to read part body: %v", err)
 		}
 		body = strings.NewReader(alborzbase.Unflow(string(raw), strings.EqualFold(params["delsp"], "yes")))
 	}
@@ -139,7 +139,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 				Text: l[link.Start:link.End],
 			})
 			if err != nil {
-				return nil, err
+				return alborzbase.View{}, err
 			}
 			para = append(para, tok)
 			i = link.End
@@ -152,14 +152,15 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	}
 	flush()
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read part body: %v", err)
+		return alborzbase.View{}, fmt.Errorf("failed to read part body: %v", err)
 	}
 
 	data := textRenderData{Tokens: tokens}
 	for _, image := range msg.ShownImages(path) {
 		data.Images = append(data.Images, imageRenderData{Src: image.URL(true, ctx.URLAccount()).String(), Alt: image.Filename})
 	}
-	return executeTemplate("view-text.html", data)
+	html, err := executeTemplate("view-text.html", data)
+	return alborzbase.View{Body: html}, err
 }
 
 func init() {

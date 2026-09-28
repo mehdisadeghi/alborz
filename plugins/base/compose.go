@@ -39,6 +39,8 @@ type ComposeRenderData struct {
 	// Signatures the account holds, and the one under the message now.
 	Signatures []Signature
 	Signature  string
+	// Suggestions are addresses the recipient fields offer.
+	Suggestions []string
 }
 
 // AccountIdentities lists the addresses an account may send as, the account itself implied.
@@ -303,6 +305,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 				Identities:         composeIdentities(ctx, msg.From),
 				Signatures:         settings.Signatures,
 				Signature:          signature,
+				Suggestions:        suggestions(ctx, p.gatherCorrespondents(ctx.Login)),
 			})
 		}
 		// A server's refusal comes back on the form; uploads stay with the session until the message has left.
@@ -537,12 +540,27 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 		Attached:           attachedList(msg),
 		Signatures:         settings.Signatures,
 		Signature:          options.Signature,
+		Suggestions:        suggestions(ctx, p.gatherCorrespondents(ctx.Login)),
 	}
-	if data.Extra == nil {
-		data.Extra = make(map[string]interface{})
-	}
-	data.Extra["EmailSuggestions"] = p.gatherCorrespondents(ctx.Login)
 	return ctx.Render(http.StatusOK, "compose.html", data)
+}
+
+// suggestions adds what other features offer to own, each entry once, sorted.
+func suggestions(ctx *alborz.Context, own []string) []string {
+	all := slices.Clone(own)
+	for _, suggest := range ctx.Server.Suggest {
+		all = append(all, suggest(ctx)...)
+	}
+	var out []string
+	seen := make(map[string]bool)
+	for _, entry := range all {
+		if key := strings.ToLower(entry); !seen[key] {
+			seen[key] = true
+			out = append(out, entry)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // correspondentTTL spares a two-folder read on every compose.

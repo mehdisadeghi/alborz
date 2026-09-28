@@ -17,8 +17,6 @@ type Plugin interface {
 	LoadTemplate(t *template.Template) error
 	// SetRoutes populates group with the plugin's routes.
 	SetRoutes(group *echo.Group)
-	// Inject is called prior to rendering a template; it may set items in data.Extra.
-	Inject(ctx *Context, name string, data RenderData) error
 	// Close is called when the plugin is unloaded.
 	Close() error
 }

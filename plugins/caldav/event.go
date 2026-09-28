@@ -227,7 +227,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		Neighbours:     dav.Around(items, eventKey(path, "", false)),
 		Authors:        p.dav.Authors(event.Path, ctx.Login.Username()),
 	}
-	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborzbase.UserLocation(ctx))
+	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborz.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "event.html", data)
 }
 
@@ -254,7 +254,7 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 		Event:          CalendarObject{CalendarObject: &caldav.CalendarObject{Path: address, Data: cal}, Color: info.Color, ReadOnly: true},
 		Neighbours:     dav.Around(items, eventKey(address, ctx.QueryParam("uid"), true)),
 	}
-	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &event, alborzbase.UserLocation(ctx))
+	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &event, alborz.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "event.html", data)
 }
 
@@ -297,7 +297,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		return err
 	}
 
-	loc := alborzbase.UserLocation(ctx)
+	loc := alborz.UserLocation(ctx)
 
 	var c *caldav.Client
 	var calendars []dav.Collection

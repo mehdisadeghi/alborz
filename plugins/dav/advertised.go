@@ -52,13 +52,10 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 	return a, nil
 }
 
-// InjectCard puts each of the kind's sources among the account's servers.
-func (p *Provider) InjectCard(title string, abilities func(Advertised) []alborzbase.Ability) alborz.InjectFunc {
+// Cards put each of the kind's sources among the account's servers.
+func (p *Provider) Cards(title string, abilities func(Advertised) []alborzbase.Ability) func(*alborz.Context, alborz.RenderData) error {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
-		servers, ok := data.(*alborzbase.ServersRenderData)
-		if !ok || ctx.Login == nil {
-			return nil
-		}
+		servers := data.(*alborzbase.ServersRenderData)
 		for _, src := range p.Sources(ctx.Request().Context(), ctx.Login) {
 			servers.Cards = append(servers.Cards, p.card(ctx, servers, title, src, abilities))
 			servers.AddPlace(src.ID, src.URL.Host)
@@ -93,13 +90,10 @@ func (p *Provider) card(ctx *alborz.Context, servers *alborzbase.ServersRenderDa
 	return card
 }
 
-// InjectHere puts the collections kept here among the account's servers.
-func (p *Provider) InjectHere() alborz.InjectFunc {
+// HereCard puts the collections kept here among the account's servers.
+func (p *Provider) HereCard() func(*alborz.Context, alborz.RenderData) error {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
-		servers, ok := data.(*alborzbase.ServersRenderData)
-		if !ok || ctx.Login == nil {
-			return nil
-		}
+		servers := data.(*alborzbase.ServersRenderData)
 		servers.Cards = append(servers.Cards, alborzbase.ServerCard{
 			Group: alborzbase.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
 			Rows: []map[string]any{

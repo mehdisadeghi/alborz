@@ -438,11 +438,6 @@ func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
 	}
 }
 
-// Enabled reports whether an account is signed in; each can keep collections here.
-func (p *Provider) Enabled(ctx *alborz.Context) bool {
-	return ctx.Login != nil
-}
-
 // HandleRefresh asks every signed-in account's server again and lands on list.
 func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {

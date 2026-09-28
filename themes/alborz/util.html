@@ -717,7 +717,7 @@
   {{ with .views }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" .view "account" .account) }}{{ end }}
   {{ with .groups }}{{ template "rail-filter-list" . }}{{ end }}
   {{ with .categories }}{{ template "rail-filter-list" . }}{{ end }}
-  {{ if eq .kind "dav" }}{{ with .g.GlobalData.Extra.Invitations }}{{ with index . $.data.field }}
+  {{ with .invitations }}
   {{ $inv := . }}
   <ul class="rail-views">
     <li class="folder-li">
@@ -743,7 +743,7 @@
       </details>
     </li>
   </ul>
-  {{ end }}{{ end }}{{ end }}
+  {{ end }}
   {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
   {{ with .follow }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
   {{ with .import }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
@@ -753,7 +753,7 @@
 {{ define "dav-rail" }}
 {{ $g := .g }}{{ $r := .rail }}
 <aside>
-  {{ template "scope-rail" (dict "g" $g "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.Scope "accounts" $g.GlobalData.Accounts "all" ($g.T "aside.all") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "shown" ($g.T "common.shown") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI) "groups" (dict "key" "groups" "label" ($g.T "aside.groups") "rows" $r.Groups "editlabel" ($g.T "common.edit")) "categories" (dict "key" "categories" "label" ($g.T "aside.categories") "rows" $r.Categories)) }}
+  {{ template "scope-rail" (dict "g" $g "kind" "dav" "path" $r.Path "urlaccount" $g.GlobalData.Scope "accounts" $g.GlobalData.Accounts "all" ($g.T "aside.all") "new" (dict "href" $r.NewHref "label" $r.NewLabel) "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref)) "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref)) "data" (dict "keep" "" "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "apply" ($g.T "common.apply") "onlylabel" ($g.T "common.only") "alllabel" ($g.T "common.showall") "shown" ($g.T "common.shown") "edithref" $r.EditHref "editlabel" ($g.T "common.edit") "next" $g.GlobalData.URL.RequestURI) "groups" (dict "key" "groups" "label" ($g.T "aside.groups") "rows" $r.Groups "editlabel" ($g.T "common.edit")) "categories" (dict "key" "categories" "label" ($g.T "aside.categories") "rows" $r.Categories) "invitations" $r.Invitations) }}
 </aside>
 {{ end }}
 

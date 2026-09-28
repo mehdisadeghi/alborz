@@ -120,8 +120,8 @@ func sendScheduling(ctx *alborz.Context, event *ical.Event, attendees []string, 
 	return alborzbase.SendCalendarMessage(ctx, to, subject, method, body)
 }
 
-func (p *plugin) registerScheduling() {
-	p.Inject("message.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
+func (p *plugin) registerScheduling(srv *alborz.Server) {
+	srv.OnMessage = append(srv.OnMessage, func(ctx *alborz.Context, _data alborz.RenderData) error {
 		data := _data.(*alborzbase.MessageRenderData)
 		if data.Invitation == nil && !hasAttachment(data.Message, calendarTypes...) {
 			return nil
@@ -131,22 +131,19 @@ func (p *plugin) registerScheduling() {
 			// No calendar to file it in is not an error on a mail page.
 			return nil
 		}
-		if data.Extra == nil {
-			data.Extra = make(map[string]interface{})
-		}
 		if data.Invitation == nil {
 			// A calendar with no METHOD is no invitation but still something to file.
-			data.Extra["ImportCalendars"] = groups
+			data.ImportCalendars = groups
 			return nil
 		}
 		// For a withdrawal, offer to drop the kept copy rather than to file one.
 		if data.Invitation.Cancelled() {
 			if found := p.findByUID(ctx, groups, data.Invitation.UID); found != "" {
-				data.Extra["InviteFiled"] = found
+				data.InviteFiled = found
 			}
 			return nil
 		}
-		data.Extra["InviteCalendars"] = groups
+		data.InviteCalendars = groups
 		return nil
 	})
 

@@ -42,6 +42,8 @@ type AddressBookRenderData struct {
 	Categories []string
 	Group      string
 	Category   string
+
+	Invitations *dav.RailInvitations
 }
 
 var contactListParams = []string{"account", "book", "query", "view", "group", "category", "sort", "dir", "page", "ipp"}
@@ -202,6 +204,10 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 	}
 	cards, pager := dav.Paginate(ctx, list.Cards)
 	collection, href := dav.Labels(ctx, addressBookInfos, "/contacts", "book", nil)
+	invitations, err := p.invitations(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "address-book.html", &AddressBookRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
 		AddressBooks:   addressBookInfos,
@@ -220,6 +226,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		Sorting:        list.Sorting,
 		CollectionFor:  collection,
 		CollectionHref: href,
+		Invitations:    invitations,
 	})
 }
 

@@ -44,20 +44,20 @@ type frameData struct {
 
 type viewer struct{}
 
-func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, _ []int, part *message.Entity) (interface{}, error) {
+func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, _ []int, part *message.Entity) (alborzbase.View, error) {
 	allowRemoteResources := ctx.QueryParam("allow-remote-resources") == "1"
 
 	mimeType, _, err := part.Header.ContentType()
 	if err != nil {
-		return nil, err
+		return alborzbase.View{}, err
 	}
 	if !strings.EqualFold(mimeType, "text/html") {
-		return nil, alborzbase.ErrViewUnsupported
+		return alborzbase.View{}, alborzbase.ErrViewUnsupported
 	}
 
 	body, err := io.ReadAll(part.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read part body: %v", err)
+		return alborzbase.View{}, fmt.Errorf("failed to read part body: %v", err)
 	}
 
 	san := sanitizer{
@@ -67,7 +67,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	}
 	body, err = san.sanitizeHTML(body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sanitize HTML part: %v", err)
+		return alborzbase.View{}, fmt.Errorf("failed to sanitize HTML part: %v", err)
 	}
 
 	// Mail sizes images for its own layout; long pre lines wrap instead of widening the frame.
@@ -79,8 +79,6 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		body = append(body, []byte(`</div>`)...)
 	}
 
-	ctx.Set("viewhtml.hasRemoteResources", san.hasRemoteResources)
-
 	var buf bytes.Buffer
 	err = tpl.Execute(&buf, frameData{
 		Title:  ctx.T("a11y.body"),
@@ -89,10 +87,10 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		Style:  ctx.Server.AssetURL("viewhtml.css"),
 	})
 	if err != nil {
-		return nil, err
+		return alborzbase.View{}, err
 	}
 
-	return template.HTML(buf.String()), nil
+	return alborzbase.View{Body: template.HTML(buf.String()), Remote: san.hasRemoteResources}, nil
 }
 
 func init() {

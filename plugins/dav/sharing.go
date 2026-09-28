@@ -36,8 +36,6 @@ type RailInvitations struct {
 	Items []Invitation
 }
 
-const invitationsKey = "Invitations"
-
 func (p *Provider) invitations(ctx *alborz.Context) ([]Invitation, error) {
 	now := time.Now()
 	var out []Invitation
@@ -66,30 +64,13 @@ func (p *Provider) invitations(ctx *alborz.Context) ([]Invitation, error) {
 	return out, nil
 }
 
-// InjectInvitations hands the section's pages their open invitations; sections spare mail pages a share read.
-func (p *Provider) InjectInvitations(field, base string, sections ...string) alborz.InjectFunc {
-	return func(ctx *alborz.Context, data alborz.RenderData) error {
-		if ctx.Login == nil {
-			return nil
-		}
-		at := ctx.Request().URL.Path
-		if !slices.ContainsFunc(sections, func(root string) bool { return at == root || strings.HasPrefix(at, root+"/") }) {
-			return nil
-		}
-		items, err := p.invitations(ctx)
-		if err != nil || len(items) == 0 {
-			return err
-		}
-		extra := data.Global().Extra
-		// Pointers, so a section with none is nothing to a template.
-		all, _ := extra[invitationsKey].(map[string]*RailInvitations)
-		if all == nil {
-			all = make(map[string]*RailInvitations)
-			extra[invitationsKey] = all
-		}
-		all[field] = &RailInvitations{Base: base, Items: items}
-		return nil
+// RailInvitations are the open invitations the section's rail offers, answered under base; nil for none.
+func (p *Provider) RailInvitations(ctx *alborz.Context, base string) (*RailInvitations, error) {
+	items, err := p.invitations(ctx)
+	if err != nil || len(items) == 0 {
+		return nil, err
 	}
+	return &RailInvitations{Base: base, Items: items}, nil
 }
 
 // Authors are who added and last changed an object kept here, omitted where that is the viewer.
@@ -205,13 +186,10 @@ func (pg Page) offer(ctx *alborz.Context, p *Provider, collPath, account string)
 	}, nil
 }
 
-// InjectOffer puts the invitation a mail announces beside it; the header only points, so a forged one shows nothing.
-func (pg Page) InjectOffer(p *Provider) alborz.InjectFunc {
+// ShowOffer puts the invitation a mail announces beside it; the header only points, so a forged one shows nothing.
+func (pg Page) ShowOffer(p *Provider) func(*alborz.Context, alborz.RenderData) error {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
-		m, ok := data.(*alborzbase.MessageRenderData)
-		if !ok || m.Message == nil || ctx.Login == nil {
-			return nil
-		}
+		m := data.(*alborzbase.MessageRenderData)
 		path := strings.TrimSpace(m.Message.HeaderField(alborzbase.ShareHeader))
 		if path == "" {
 			return nil
@@ -221,10 +199,7 @@ func (pg Page) InjectOffer(p *Provider) alborz.InjectFunc {
 			return err
 		}
 		offer.Next = m.GlobalData.URL.RequestURI()
-		if m.Extra == nil {
-			m.Extra = make(map[string]interface{})
-		}
-		m.Extra["ShareOffer"] = offer
+		m.ShareOffer = offer
 		return nil
 	}
 }
@@ -349,7 +324,7 @@ func (pg Page) HandleShare(p *Provider) func(*alborz.Context) error {
 		share.To, err = invitee(ctx, ctx.FormValue("to"))
 		if until := strings.TrimSpace(ctx.FormValue("until")); err == nil && until != "" {
 			var day time.Time
-			if day, err = ctx.ReadDate(until, alborzbase.UserLocation(ctx)); err == nil {
+			if day, err = ctx.ReadDate(until, alborz.UserLocation(ctx)); err == nil {
 				// The form names the last day; the share ends after it.
 				share.Expires = day.AddDate(0, 0, 1)
 				if !share.Expires.After(time.Now()) {

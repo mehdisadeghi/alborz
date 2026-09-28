@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/labstack/echo/v4"
 )
@@ -26,6 +25,8 @@ type CalendarDateRenderData struct {
 	CollectionHref func(account, path string) string
 	// AddedBy names who added an event, where not the row's own account.
 	AddedBy func(account, path string) string
+
+	Invitations *dav.RailInvitations
 }
 
 type dayView struct {
@@ -41,6 +42,10 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		return err
 	}
 	collection, href := dav.Labels(ctx, dv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
+	invitations, err := p.invitations(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(dv.start)),
@@ -54,11 +59,12 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		AddedBy:        p.dav.AddedBy(ctx.Login.Username()),
 		CollectionFor:  collection,
 		CollectionHref: href,
+		Invitations:    invitations,
 	})
 }
 
 func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
-	loc := alborzbase.UserLocation(ctx)
+	loc := alborz.UserLocation(ctx)
 
 	var start time.Time
 	if s := ctx.QueryParam("date"); s != "" {

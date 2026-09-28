@@ -12,7 +12,6 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
@@ -161,7 +160,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		return err
 	}
 
-	loc := alborzbase.UserLocation(ctx)
+	loc := alborz.UserLocation(ctx)
 
 	var c *caldav.Client
 	var calendars []dav.Collection

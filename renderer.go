@@ -32,8 +32,6 @@ type GlobalRenderData struct {
 
 	Title string
 
-	HavePlugin func(name string) bool
-
 	// Asset builds a theme asset's version-stamped URL.
 	Asset func(name string) string
 
@@ -91,8 +89,6 @@ type GlobalRenderData struct {
 	TextSize string
 
 	Lang string
-
-	Extra map[string]interface{}
 }
 
 // Dir is the writing direction of the UI language.
@@ -106,7 +102,6 @@ func (g *GlobalRenderData) Dir() string {
 // BaseRenderData is the base type for templates, embedded in template-specific ones.
 type BaseRenderData struct {
 	GlobalData GlobalRenderData
-	Extra      map[string]interface{}
 }
 
 // Global implements RenderData.
@@ -556,12 +551,6 @@ func (g *GlobalRenderData) LongDate(t time.Time) string {
 	}
 }
 
-// Enabled is optional so the Plugin interface stays unchanged for plugins serving every domain.
-func pluginEnabled(p Plugin, ctx *Context) bool {
-	e, ok := p.(interface{ Enabled(*Context) bool })
-	return !ok || e.Enabled(ctx)
-}
-
 // RenderData is implemented by template data structs.
 type RenderData interface {
 	// GlobalData returns a pointer to the global render data.
@@ -574,7 +563,6 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	lang := requestLanguage(ectx)
 	global := GlobalRenderData{
-		Extra:          make(map[string]interface{}),
 		Path:           strings.Split(ectx.Request().URL.Path, "/")[1:],
 		Title:          BrandName,
 		URL:            ectx.Request().URL,
@@ -586,18 +574,6 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 				return "/assets/" + name
 			}
 			return ctx.Server.AssetURL(name)
-		},
-
-		HavePlugin: func(name string) bool {
-			if !isactx {
-				return false
-			}
-			for _, plugin := range ctx.Server.plugins {
-				if plugin.Name() == name {
-					return pluginEnabled(plugin, ctx)
-				}
-			}
-			return false
 		},
 	}
 
@@ -649,12 +625,14 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.LoggedIn = true
 		global.Username = ctx.Login.username
 		global.Accounts = ctx.Accounts()
+		// Unset means times keep their stored zones.
+		if loc := UserLocation(ctx); loc != time.UTC {
+			global.Timezone = loc
+		}
+		global.FirstDayOfWeek = ctx.Reading().FirstDayOfWeek
 	}
 
-	return &BaseRenderData{
-		GlobalData: global,
-		Extra:      make(map[string]interface{}),
-	}
+	return &BaseRenderData{GlobalData: global}
 }
 
 // Tf is T with a count and arguments, in the plural form the count calls for.
@@ -781,15 +759,6 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 		renderData, ok = data.(RenderData)
 		if !ok {
 			return fmt.Errorf("data passed to template %q doesn't implement RenderData", name)
-		}
-	}
-
-	for _, plugin := range ctx.Server.plugins {
-		if !pluginEnabled(plugin, ctx) {
-			continue
-		}
-		if err := plugin.Inject(ctx, name, renderData); err != nil {
-			return fmt.Errorf("failed to run plugin %q: %v", plugin.Name(), err)
 		}
 	}
 

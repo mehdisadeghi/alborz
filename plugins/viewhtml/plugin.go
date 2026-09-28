@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"github.com/labstack/echo/v4"
 )
 
@@ -25,17 +24,6 @@ var (
 
 func init() {
 	p := alborz.GoPlugin{Name: "viewhtml"}
-
-	p.Inject("message.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
-		data := _data.(*alborzbase.MessageRenderData)
-		data.Extra["RemoteResourcesAllowed"] = ctx.QueryParam("allow-remote-resources") == "1"
-		hasRemoteResources := false
-		if v := ctx.Get("viewhtml.hasRemoteResources"); v != nil {
-			hasRemoteResources = v.(bool)
-		}
-		data.Extra["HasRemoteResources"] = hasRemoteResources
-		return nil
-	})
 
 	p.GET("/proxy", func(ctx *alborz.Context) error {
 		u, err := url.Parse(ctx.QueryParam("src"))

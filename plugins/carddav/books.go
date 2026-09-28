@@ -30,6 +30,10 @@ func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 		Made: func(string) (string, string) { return ctx.T("notice.bookcreated"), "/contacts" }}, nil
 }
 
+func (p *plugin) invitations(ctx *alborz.Context) (*dav.RailInvitations, error) {
+	return p.dav.RailInvitations(ctx, p.collectionPage().Base)
+}
+
 func (p *plugin) collectionPage() dav.Page {
 	return dav.Page{
 		Base:   "/address-books/",
@@ -76,6 +80,9 @@ func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 		ImportHref: "/contacts/import", ImportLabel: ctx.T("contacts.import")}
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
+		return rail, err
+	}
+	if rail.Invitations, err = p.invitations(ctx); err != nil {
 		return rail, err
 	}
 	infos, _, err := visibleBooks(ctx.Request().Context(), accounts, ctx.URLAccount(), nil)

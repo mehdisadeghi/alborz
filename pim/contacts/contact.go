@@ -119,44 +119,18 @@ func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
 }
 
 func cardModified(ao *carddav.AddressObject) time.Time {
-	if rev := cardRevision(ao.Card); !rev.IsZero() {
+	if rev, err := ao.Card.Revision(); err == nil && !rev.IsZero() {
 		return rev
 	}
 	return ao.ModTime
 }
 
-func cardRevision(card vcard.Card) time.Time {
-	v := card.PreferredValue(vcard.FieldRevision)
-	if v == "" {
-		return time.Time{}
-	}
-	for _, layout := range []string{
-		"20060102T150405Z", "20060102T150405-0700",
-		time.RFC3339, "2006-01-02T15:04:05Z",
-	} {
-		if t, err := time.Parse(layout, v); err == nil {
-			return t
-		}
-	}
-	return time.Time{}
-}
-
-// A birthday with no year (--0412) has no date to give.
-func birthdayDate(card vcard.Card) time.Time {
-	v := birthdayValue(card)
-	day, err := time.Parse("2006-01-02", v)
-	if err != nil {
-		return time.Time{}
-	}
-	return day
-}
-
+// A birthday with no year (--0412) is shown as written.
 func birthdayValue(card vcard.Card) string {
-	v := card.PreferredValue(vcard.FieldBirthday)
-	if len(v) == 8 {
-		return v[:4] + "-" + v[4:6] + "-" + v[6:]
+	if day, err := card.Birthday(); err == nil && !day.IsZero() {
+		return day.Format("2006-01-02")
 	}
-	return v
+	return card.Value(vcard.FieldBirthday)
 }
 
 // Matched by position, so a TYPE or PREF synced onto a field survives an edit that left it alone.
@@ -230,6 +204,8 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 			rest = append(rest, g)
 		}
 	}
+	// A birthday with no date stays zero and is shown as written.
+	birthday, _ := ao.Card.Birthday()
 	return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
 		Authors:        p.dav.Authors(object.Path, ctx.Login.Username()),
 		In:             in,
@@ -241,7 +217,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		AddressBook:    addressBook,
 		AddressObject:  AddressObject{AddressObject: ao},
 		Birthday:       birthdayValue(ao.Card),
-		BirthdayDate:   birthdayDate(ao.Card),
+		BirthdayDate:   birthday,
 		Modified:       cardModified(ao),
 	})
 }
@@ -371,7 +347,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 				words = append(words, word)
 			}
 		}
-		SetCategories(card, words)
+		card.SetCategories(words)
 
 		if err := applyPhoto(ctx, card); err != nil {
 			switch {

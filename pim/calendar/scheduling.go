@@ -420,7 +420,11 @@ func importObjects(ctx context.Context, client *caldav.Client, calendarPath stri
 		if err != nil {
 			return n, fmt.Errorf("failed to read the calendar: %v", err)
 		}
-		for uid, obj := range objectsByUID(cal) {
+		objects, err := objectsByUID(cal)
+		if err != nil {
+			return n, err
+		}
+		for uid, obj := range objects {
 			target := path.Join(calendarPath, dav.SafeObjectName(uid)+".ics")
 			if _, err := client.PutCalendarObject(ctx, target, obj, nil); err != nil {
 				// A server refusing a UID it holds under another path: find the object and write there.
@@ -437,34 +441,23 @@ func importObjects(ctx context.Context, client *caldav.Client, calendarPath stri
 	}
 }
 
-func objectsByUID(cal *ical.Calendar) map[string]*ical.Calendar {
-	var zones []*ical.Component
+// A stored object carries no METHOD (RFC 4791 4.1) and names alborz as the product that wrote it.
+func objectsByUID(cal *ical.Calendar) (map[string]*ical.Calendar, error) {
 	for _, child := range cal.Children {
-		if child.Name == ical.CompTimezone {
-			zones = append(zones, child)
+		if uid, _ := child.Props.Text(ical.PropUID); uid == "" && child.Name != ical.CompTimezone {
+			child.Props.SetText(ical.PropUID, uuid.New().String())
 		}
 	}
-	out := map[string]*ical.Calendar{}
-	for _, child := range cal.Children {
-		if child.Name == ical.CompTimezone {
-			continue
-		}
-		uid, _ := child.Props.Text(ical.PropUID)
-		if uid == "" {
-			uid = uuid.New().String()
-			child.Props.SetText(ical.PropUID, uid)
-		}
-		obj, ok := out[uid]
-		if !ok {
-			obj = ical.NewCalendar()
-			obj.Props.SetText(ical.PropProductID, ItipProductID)
-			obj.Props.SetText(ical.PropVersion, "2.0")
-			obj.Children = append(obj.Children, zones...)
-			out[uid] = obj
-		}
-		obj.Children = append(obj.Children, child)
+	objects, err := cal.SplitByUID()
+	if err != nil {
+		return nil, err
 	}
-	return out
+	for _, obj := range objects {
+		obj.Props.Del(ical.PropMethod)
+		obj.Props.SetText(ical.PropProductID, ItipProductID)
+		obj.Props.SetText(ical.PropVersion, "2.0")
+	}
+	return objects, nil
 }
 
 func objectPathByUID(ctx context.Context, client *caldav.Client, calendarPath, uid string) string {
@@ -520,15 +513,7 @@ func encodeCalendar(children []*ical.Component) ([]byte, error) {
 	out := ical.NewCalendar()
 	out.Props.SetText(ical.PropProductID, ItipProductID)
 	out.Props.SetText(ical.PropVersion, "2.0")
-	zones := map[string]bool{}
 	for _, child := range children {
-		if child.Name == ical.CompTimezone {
-			id, _ := child.Props.Text(ical.PropTimezoneID)
-			if zones[id] {
-				continue
-			}
-			zones[id] = true
-		}
 		// go-ical will not encode an event or task without DTSTAMP; the server's copy is untouched.
 		if (child.Name == ical.CompEvent || child.Name == ical.CompToDo) && child.Props.Get(ical.PropDateTimeStamp) == nil {
 			stamp := time.Now().UTC()
@@ -539,6 +524,7 @@ func encodeCalendar(children []*ical.Component) ([]byte, error) {
 		}
 		out.Children = append(out.Children, child)
 	}
+	out.RemoveDuplicateTimezones()
 	var buf bytes.Buffer
 	if err := ical.NewEncoder(&buf).Encode(out); err != nil {
 		return nil, fmt.Errorf("failed to write the calendar: %v", err)

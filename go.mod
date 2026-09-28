@@ -62,29 +62,29 @@ require (
 // Our fork of go-vcard carries what upstream has not merged: an escaped
 // \; kept through a save in N and ADR (emersion/go-vcard#40), and
 // unescaped in every other text value.
-replace github.com/emersion/go-vcard => github.com/mehdisadeghi/go-vcard v0.0.0-20260921114506-5470ed03a481
+replace github.com/emersion/go-vcard => github.com/alborzmail/go-vcard v0.0.0-20260921114506-5470ed03a481
 
 // Our fork of go-webdav carries the open upstream pull requests alborz
 // relies on (#147 #174 #179 #180 #181 #182 #194 #208 #209 #211) and our
 // own server patches: PROPPATCH, dead properties, octets kept as sent.
-replace github.com/emersion/go-webdav => github.com/mehdisadeghi/go-webdav v0.0.0-20260921101523-6a35b64d0a5f
+replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260921101523-6a35b64d0a5f
 
 // Our fork of go-msgauth carries the authres parser rework upstream has
 // not merged (emersion/go-msgauth#53): quoted values and comments, and
 // the fix for the method with no properties that rework dropped.
-replace github.com/emersion/go-msgauth => github.com/mehdisadeghi/go-msgauth v0.0.0-20260922210921-dc02bdf6079e
+replace github.com/emersion/go-msgauth => github.com/alborzmail/go-msgauth v0.0.0-20260922210921-dc02bdf6079e
 
 // Our fork of go-mbox adds the reversible mboxrd quoting, which upstream
 // does not have: a body line reading ">From " survives a round trip.
-replace github.com/emersion/go-mbox => github.com/mehdisadeghi/go-mbox v0.0.0-20260921114627-f2df45e279df
+replace github.com/emersion/go-mbox => github.com/alborzmail/go-mbox v0.0.0-20260921114627-f2df45e279df
 
 // Our fork of go-ical adds NewTimezone, the VTIMEZONE of a zone over a
 // span, which upstream leaves to every caller.
-replace github.com/emersion/go-ical => github.com/mehdisadeghi/go-ical v0.0.0-20260921115030-4aff18c21c48
+replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-20260921115030-4aff18c21c48
 
 // Our fork of go-imap carries what upstream has open: ID with fields
 // RFC 2971 does not name, so Dovecot learns the reader's address
 // (emersion/go-imap#693); Dovecot's BODYSTRUCTURE for message/global
 // (#704); an error, not a clean end, for a body cut off mid-transfer
 // (#676); GETMETADATA options before the mailbox, as RFC 5464 orders.
-replace github.com/emersion/go-imap/v2 => github.com/mehdisadeghi/go-imap/v2 v2.0.0-20260928174739-a9c192e07373
+replace github.com/emersion/go-imap/v2 => github.com/alborzmail/go-imap/v2 v2.0.0-20260928174739-a9c192e07373

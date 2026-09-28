@@ -916,6 +916,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 		return ret, err
 	} else if quoted != "" {
 		ret.QuoteHTML = replyHTML(ctx, inReplyTo, quoted, settings.ReplyBelowQuote)
+		ret.QuoteRich = true
 	}
 
 	ret.MessageID = newMessageID()

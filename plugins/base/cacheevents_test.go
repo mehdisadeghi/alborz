@@ -4,7 +4,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,17 +32,20 @@ var cachePatches = map[string]bool{"messagesFlagged": true, "messageRead": true}
 func parsePackage(t *testing.T) (*token.FileSet, []*ast.File) {
 	t.Helper()
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, ".", func(f fs.FileInfo) bool {
-		return !strings.HasSuffix(f.Name(), "_test.go")
-	}, 0)
+	names, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var files []*ast.File
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Files {
-			files = append(files, file)
+	for _, name := range names {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
 		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, file)
 	}
 	return fset, files
 }

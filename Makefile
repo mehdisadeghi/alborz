@@ -27,7 +27,7 @@ GOPLS ?= gopls
 lint:
 	@test -z "$$(gofmt -l .)" || { gofmt -l .; exit 1; }
 	$(GO) vet ./...
-	$(GOPLS) check $$(git ls-files '*.go')
+	@out=$$($(GOPLS) check -severity=hint $$(git ls-files '*.go') 2>&1) && test -z "$$out" || { echo "$$out"; exit 1; }
 
 # Templates, locales, and every page a signed-in reader can open, served
 # by an in-process IMAP server. No network, no rig, no credentials.

@@ -10,6 +10,7 @@ import (
 
 	"git.mehdix.org/alborz/record"
 	bolt "go.etcd.io/bbolt"
+	bolterrors "go.etcd.io/bbolt/errors"
 )
 
 // metaBucket says what the file holds and who has had it; see ADR 26.
@@ -56,7 +57,7 @@ func openData(dir, build string, log func(format string, args ...any)) (*bolt.DB
 		// waiting the whole timeout out is a second alborz on the same
 		// data directory, and a message that does not say so sends the
 		// reader looking at their disk.
-		if errors.Is(err, bolt.ErrTimeout) {
+		if errors.Is(err, bolterrors.ErrTimeout) {
 			return nil, fmt.Errorf("%s is locked: another alborz is running on this data directory (waited %v); "+
 				"stop it, or name another with -data-dir", path, openTimeout)
 		}

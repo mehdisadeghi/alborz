@@ -299,9 +299,8 @@ type OutgoingMessage struct {
 	// it is not passed on to the next reader.
 	HTML      string
 	QuoteHTML template.HTML
-	// QuoteRich opens the page in the editor on QuoteHTML: a forward of
-	// an HTML message, which as text would reach the next reader
-	// flattened.
+	// QuoteRich opens the editor on QuoteHTML: a reply or forward keeps
+	// the format of an HTML original.
 	QuoteRich bool
 	// Inline are the images the HTML shows, resolved for the send.
 	Inline []inlineImage

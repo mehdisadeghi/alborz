@@ -2,8 +2,6 @@ package alborzbase
 
 import (
 	"bytes"
-	"fmt"
-	"net/url"
 	"slices"
 	"time"
 
@@ -124,78 +122,22 @@ func unquoted(key, value []byte) []byte {
 	return append(token, value...)
 }
 
-// Views narrow a folder by a flag.
-const (
-	ViewStarred = "starred"
-	ViewUnread  = "unread"
-)
-
-// StarMatches says whether a mark answers a view.
-func StarMatches(star, view string) bool {
-	switch view {
-	case "":
-		return true
-	case ViewStarred:
-		return star != ""
-	}
-	return star == view
-}
-
-// StarLeaves says whether a row with this star leaves the list at next.
-func StarLeaves(next, star string) bool {
-	u, err := url.Parse(next)
-	if err != nil {
-		return false
-	}
-	view := u.Query().Get("view")
-	return (view == ViewStarred || slices.Contains(FlagColors[:], view)) && !StarMatches(star, view)
-}
-
-// StarNotice says what became of a row's star that left its list.
-func StarNotice(ctx *alborz.Context, star, action string, undo url.Values) alborz.Notice {
-	text := ctx.T("notice.starremoved")
-	if star != "" {
-		text = fmt.Sprintf(ctx.T("notice.starchanged"), ctx.T("color."+star))
-	}
-	return alborz.Notice{Kind: alborz.NoticeDone, Text: text, Actions: []*alborz.NoticeAction{ctx.Undo(action, undo)}}
-}
-
 // KnownView says whether a view name is one alborz offers.
 func KnownView(view string) bool {
-	return view == "" || view == ViewStarred || view == ViewUnread || slices.Contains(FlagColors[:], view)
+	return view == "" || view == alborz.ViewStarred || view == alborz.ViewUnread || slices.Contains(alborz.FlagColors[:], view)
 }
 
 // StarView says whether a view is a mark the reader put on a message.
 func StarView(view string) bool {
-	return view == ViewStarred || slices.Contains(FlagColors[:], view)
+	return view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
 }
 
 // ViewLabel names a view for a page heading.
 func ViewLabel(ctx *alborz.Context, view string) string {
-	if view == ViewStarred {
+	if view == alborz.ViewStarred {
 		return ctx.T("mailbox.starred")
 	}
 	return ctx.T("color." + view)
-}
-
-// ViewRows are the views a list's filter menu offers.
-func ViewRows(ctx *alborz.Context, current string, unread bool, clear string) []alborz.FilterRow {
-	row := func(label, view, star string) alborz.FilterRow {
-		href := ctx.WithParam("view", view)
-		if view == current {
-			href = clear
-		}
-		return alborz.FilterRow{Label: label, Href: href, Current: view == current, Star: star}
-	}
-	var rows []alborz.FilterRow
-	if unread {
-		rows = append(rows, row(ctx.T("mailbox.unread"), ViewUnread, ""))
-	}
-	rows = append(rows, row(ctx.T("mailbox.starred"), ViewStarred, ""))
-	for _, name := range FlagColors {
-		rows = append(rows, row(ctx.T("color."+name), name, name))
-	}
-	return rows
 }
 
 // ViewCriteria is the search a view is, nil for the whole folder.
@@ -203,9 +145,9 @@ func ViewCriteria(view string) *imap.SearchCriteria {
 	switch view {
 	case "":
 		return nil
-	case ViewStarred:
+	case alborz.ViewStarred:
 		return &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-	case ViewUnread:
+	case alborz.ViewUnread:
 		return &imap.SearchCriteria{NotFlag: []imap.Flag{imap.FlagSeen}}
 	}
 	add, del := FlagColorFlags(view)

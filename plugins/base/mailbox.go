@@ -223,7 +223,7 @@ func listPage(ctx *alborz.Context, ask listAsk, e *listingEntry, rows []IMAPMess
 		Query:          ask.spec.query,
 		Everywhere:     everywhereQuery(ask.spec.query),
 		Filters:        searchFilters(ctx),
-		FilterRows:     ViewRows(ctx, ask.spec.view, true, ctx.WithoutParam("view")),
+		FilterRows:     alborz.ViewRows(ctx, ask.spec.view, true, ctx.WithoutParam("view")),
 		TextQuery:      textQueryOffered(ask.spec.query, e.headersOnly),
 		PerPage:        ask.perPage,
 		PerPageOptions: perPageOptions(ctx.Reading().MessagesPerPage),
@@ -559,9 +559,9 @@ func readView(ctx *alborz.Context) (string, error) {
 
 func viewTitle(ctx *alborz.Context, view string) string {
 	switch view {
-	case ViewStarred:
+	case alborz.ViewStarred:
 		return ctx.T("mailbox.starred")
-	case ViewUnread:
+	case alborz.ViewUnread:
 		return ctx.T("mailbox.unread")
 	}
 	return fmt.Sprintf(ctx.T("mailbox.starcolor"), ctx.T("color."+view))
@@ -1243,13 +1243,13 @@ func (p *plugin) handleSetFlags(ctx *alborz.Context) error {
 		// A star the list is narrowed to, once changed, takes the row out of the list.
 		back := ctx.NextOr(mailboxURL(ctx, mboxName))
 		oneStar := ctx.Partial() && len(uids) == 1
-		leaves := oneStar && StarLeaves(ctx.FormValue("next"), color[0])
+		leaves := oneStar && alborz.StarLeaves(ctx.FormValue("next"), color[0])
 		return runAct(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), p.colourAct(add, del), func(int) alborz.Notice {
 			if !leaves {
 				return alborz.Notice{}
 			}
 			action := "/message/" + url.PathEscape(mboxName) + "/flag?account=" + alborz.QueryValue(ctx.Login.Username())
-			return StarNotice(ctx, color[0], action, url.Values{
+			return alborz.StarNotice(ctx, color[0], action, url.Values{
 				"uids": {fmt.Sprint(uids[0])}, "color": {ctx.FormValue("was")}, "next": {back}})
 		}, func(done bool) error {
 			switch {

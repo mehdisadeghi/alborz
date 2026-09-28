@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -247,7 +246,7 @@ func (o Occurrence) Star() string {
 
 func componentColor(comp *ical.Component) string {
 	name, _ := comp.Props.Text(ical.PropColor)
-	if !slices.Contains(alborzbase.FlagColors[:], name) {
+	if !slices.Contains(alborz.FlagColors[:], name) {
 		return ""
 	}
 	return name
@@ -262,7 +261,7 @@ func setComponentColor(comp *ical.Component, name string) {
 }
 
 func validStarView(view string) bool {
-	return view == "" || view == alborzbase.ViewStarred || slices.Contains(alborzbase.FlagColors[:], view)
+	return view == "" || view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
 }
 
 func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {

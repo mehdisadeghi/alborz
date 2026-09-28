@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/labstack/echo/v4"
 )
@@ -244,7 +243,7 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	eventMap := make(map[time.Time][]Occurrence)
 	for _, ev := range events {
 		for _, oc := range occurrences(ev, loc, queryStart, queryEnd) {
-			if view != "list" && !alborzbase.StarMatches(oc.Star(), view) {
+			if view != "list" && !alborz.StarMatches(oc.Star(), view) {
 				continue
 			}
 			var first, last time.Time
@@ -315,7 +314,7 @@ func agendaRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
 		star = ""
 	}
 	// Cleared of its star the agenda is still the agenda.
-	return append(rows, alborzbase.ViewRows(ctx, star, false, ctx.WithParam("view", "list"))...)
+	return append(rows, alborz.ViewRows(ctx, star, false, ctx.WithParam("view", "list"))...)
 }
 
 func groupRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {

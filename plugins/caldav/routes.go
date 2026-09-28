@@ -295,7 +295,7 @@ func calendarFilters(ctx *alborz.Context, calendars []dav.Collection) []alborz.F
 			f.Label, f.Value = ctx.T("tasks.status"), ctx.T("tasks.all")
 		case viewHigh:
 			f.Label, f.Value = ctx.T("tasks.priority"), ctx.T("tasks.priority.high")
-		case alborzbase.ViewStarred:
+		case alborz.ViewStarred:
 			f.Value = ctx.T("mailbox.starred")
 		default:
 			f.Value = ctx.T("color." + f.Value)

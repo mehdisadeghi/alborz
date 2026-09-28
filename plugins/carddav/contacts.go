@@ -8,8 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	alborzbase "git.mehdix.org/alborz/plugins/base"
-
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-vcard"
@@ -68,7 +66,7 @@ type ContactList struct {
 func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 	queryText := ctx.QueryParam("query")
 	view := ctx.QueryParam("view")
-	if view != "" && view != alborzbase.ViewStarred && !slices.Contains(alborzbase.FlagColors[:], view) {
+	if view != "" && view != alborz.ViewStarred && !slices.Contains(alborz.FlagColors[:], view) {
 		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
@@ -102,10 +100,10 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 				continue
 			}
 			// A colour is a view, as in the mail rail; starred is any colour.
-			if view == alborzbase.ViewStarred && ao.Color() == "" {
+			if view == alborz.ViewStarred && ao.Color() == "" {
 				continue
 			}
-			if view != "" && view != alborzbase.ViewStarred && ao.Color() != view {
+			if view != "" && view != alborz.ViewStarred && ao.Color() != view {
 				continue
 			}
 			aos = append(aos, ao)
@@ -178,7 +176,7 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 func contactColumns(books []dav.Collection) []dav.Column[AddressObject] {
 	return []dav.Column[AddressObject]{
 		{Key: "name", Value: func(ao AddressObject) string { return strings.ToLower(ao.DisplayName()) }},
-		{Key: alborzbase.ViewStarred, Value: func(ao AddressObject) string { return dav.StarredFirst(ao.Color()) }},
+		{Key: alborz.ViewStarred, Value: func(ao AddressObject) string { return dav.StarredFirst(ao.Color()) }},
 		{Key: "email", Value: func(ao AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("EMAIL")) }},
 		{Key: "phone", Value: func(ao AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("TEL")) }},
 		{Key: "account", Value: func(ao AddressObject) string { return strings.ToLower(ao.Account) }},
@@ -222,7 +220,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		Group:          list.Group,
 		Category:       list.Category,
 		Filters:        searchFilter(ctx, list),
-		FilterRows:     alborzbase.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
+		FilterRows:     alborz.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
 		Sorting:        list.Sorting,
 		CollectionFor:  collection,
 		CollectionHref: href,
@@ -269,7 +267,7 @@ func searchFilter(ctx *alborz.Context, list ContactList) []alborz.Filter {
 		out = append(out, f)
 	}
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok {
-		if f.Value == alborzbase.ViewStarred {
+		if f.Value == alborz.ViewStarred {
 			f.Value = ctx.T("mailbox.starred")
 		} else {
 			f.Value = ctx.T("color." + f.Value)

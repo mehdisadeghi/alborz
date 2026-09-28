@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -133,7 +132,7 @@ func taskRows(ctx *alborz.Context, view string) []alborz.FilterRow {
 		row(ctx.T("tasks.all"), viewAll),
 		row(ctx.T("tasks.priorityhigh"), viewHigh),
 	}
-	return append(rows, alborzbase.ViewRows(ctx, view, false, clear)...)
+	return append(rows, alborz.ViewRows(ctx, view, false, clear)...)
 }
 
 // TaskList is the list page's rows in order, their lists, and what shaped them.
@@ -193,7 +192,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 			if completed != (view == viewCompleted) && view != viewAll {
 				continue
 			}
-			if !alborzbase.StarMatches(componentColor(todo), star) {
+			if !alborz.StarMatches(componentColor(todo), star) {
 				continue
 			}
 			if view == viewHigh && priorityBand(todo) != priorityHigh {
@@ -246,7 +245,7 @@ var taskColumns = []dav.Column[TaskRow]{
 		}
 		return strconv.Itoa(len(priorityBands))
 	}},
-	{Key: alborzbase.ViewStarred, Value: func(row TaskRow) string { return dav.StarredFirst(row.Star) }},
+	{Key: alborz.ViewStarred, Value: func(row TaskRow) string { return dav.StarredFirst(row.Star) }},
 	{Key: "account", Value: func(row TaskRow) string { return strings.ToLower(row.Task.Account) }},
 	{Key: "calendar", Value: func(row TaskRow) string { return strings.ToLower(row.Calendar.Name) }},
 	{Key: "due", Value: func(row TaskRow) string { return dav.When(row.Due) }},

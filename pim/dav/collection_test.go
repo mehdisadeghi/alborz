@@ -13,20 +13,9 @@ import (
 	"testing"
 
 	"git.mehdix.org/alborz"
+	"github.com/emersion/go-webdav"
+	"github.com/emersion/go-webdav/caldav"
 )
-
-type testProps struct {
-	ResourceType struct {
-		Calendar *struct{} `xml:"urn:ietf:params:xml:ns:caldav calendar,omitempty"`
-	} `xml:"resourcetype"`
-	DisplayName  string     `xml:"displayname"`
-	PrivilegeSet Privileges `xml:"current-user-privilege-set>privilege"`
-}
-
-func (p testProps) Collection() (string, string, bool) {
-	return p.DisplayName, "", p.ResourceType.Calendar != nil
-}
-func (p testProps) Privileges() Privileges { return p.PrivilegeSet }
 
 type answer struct {
 	status int
@@ -56,21 +45,30 @@ const homeListing = `<?xml version="1.0"?>
 </D:multistatus>`
 
 func TestListCollectionsReadsWhatTheServerSaid(t *testing.T) {
-	client := &http.Client{Transport: answer{http.StatusMultiStatus, homeListing}}
-	base, _ := url.Parse("https://dav.example/")
-	listed, err := ListCollections[testProps](context.Background(), client, base, []Home{{Path: "/cal/u/"}}, "<propfind/>")
+	c, err := caldav.NewClient(&http.Client{Transport: answer{http.StatusMultiStatus, homeListing}}, "https://dav.example/")
 	if err != nil {
 		t.Fatal(err)
+	}
+	listed, failed := ListCollections(context.Background(), []Home{{Path: "/cal/u/"}}, func(ctx context.Context, home string) ([]Collection, error) {
+		cals, err := c.FindCalendars(ctx, home)
+		out := make([]Collection, len(cals))
+		for i, cal := range cals {
+			out[i] = Collection{Path: cal.Path, Name: cal.Name, Writable: !cal.ReadOnly}
+		}
+		return out, err
+	})
+	if failed != nil {
+		t.Fatal(failed)
 	}
 	if len(listed) != 2 {
 		t.Fatalf("the home set itself was listed as a collection: %d listed", len(listed))
 	}
 	// Sorted by name, canonical paths, writable only by a granted privilege or a silent server.
 	if listed[0].Name != "Family" || listed[0].Path != "/cal/u/Family Days/" || !listed[0].Writable {
-		t.Errorf("first: %+v", listed[0].Collection)
+		t.Errorf("first: %+v", listed[0])
 	}
 	if listed[1].Name != "Work" || listed[1].Writable {
-		t.Errorf("a read-only collection was offered for writing: %+v", listed[1].Collection)
+		t.Errorf("a read-only collection was offered for writing: %+v", listed[1])
 	}
 }
 
@@ -88,13 +86,12 @@ func TestCanonicalCollectionPath(t *testing.T) {
 }
 
 func TestCreateCollectionWalksToAFreeAddress(t *testing.T) {
-	base, _ := url.Parse("https://dav.example/")
 	var tried []string
-	made, err := CreateCollection(context.Background(), base, "/cal/u/", "Work Stuff", "calendar",
-		func(_ context.Context, target string) error {
-			tried = append(tried, target)
+	made, err := CreateCollection(context.Background(), "/cal/u/", "Work Stuff", "calendar",
+		func(_ context.Context, path string) error {
+			tried = append(tried, path)
 			if len(tried) < 3 {
-				return ErrCollectionExists
+				return webdav.NewHTTPError(http.StatusMethodNotAllowed, nil)
 			}
 			return nil
 		})
@@ -104,13 +101,13 @@ func TestCreateCollectionWalksToAFreeAddress(t *testing.T) {
 	if made != "/cal/u/work-stuff-3/" {
 		t.Errorf("the address it settled on: %q", made)
 	}
-	if strings.Join(tried, " ") != "https://dav.example/cal/u/work-stuff/ https://dav.example/cal/u/work-stuff-2/ https://dav.example/cal/u/work-stuff-3/" {
+	if strings.Join(tried, " ") != "/cal/u/work-stuff/ /cal/u/work-stuff-2/ /cal/u/work-stuff-3/" {
 		t.Errorf("addresses tried: %v", tried)
 	}
 
 	other := errors.New("server down")
-	if _, err := CreateCollection(context.Background(), base, "/cal/u/", "", "calendar",
-		func(_ context.Context, target string) error { return other }); !errors.Is(err, other) {
+	if _, err := CreateCollection(context.Background(), "/cal/u/", "", "calendar",
+		func(_ context.Context, path string) error { return other }); !errors.Is(err, other) {
 		t.Errorf("a failure that is not a taken address was retried: %v", err)
 	}
 }
@@ -118,9 +115,9 @@ func TestCreateCollectionWalksToAFreeAddress(t *testing.T) {
 func TestCountObjectsSkipsTheCollectionItself(t *testing.T) {
 	client := &http.Client{Transport: answer{http.StatusMultiStatus, `<?xml version="1.0"?>
 <D:multistatus xmlns:D="DAV:">
- <D:response><D:href>/cal/u/work/</D:href><D:propstat><D:prop/><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
- <D:response><D:href>/cal/u/work/a.ics</D:href><D:propstat><D:prop/><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
- <D:response><D:href>/cal/u/work/b.ics</D:href><D:propstat><D:prop/><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+ <D:response><D:href>/cal/u/work/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+ <D:response><D:href>/cal/u/work/a.ics</D:href><D:propstat><D:prop><D:resourcetype/></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
+ <D:response><D:href>/cal/u/work/b.ics</D:href><D:propstat><D:prop><D:resourcetype/></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>
 </D:multistatus>`}}
 	base, _ := url.Parse("https://dav.example/")
 	n, err := CountObjects(context.Background(), client, base, "/cal/u/work/")

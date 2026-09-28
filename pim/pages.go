@@ -17,6 +17,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
+	"github.com/emersion/go-webdav"
 	"github.com/labstack/echo/v4"
 )
 
@@ -177,7 +178,6 @@ type Page struct {
 	Base string
 	// List is the section's list, where an answered invitation lands.
 	List   string
-	Color  dav.Prop
 	Ext    string
 	Lookup func(ctx *alborz.Context, path string) (info dav.Collection, count func() int, list, label string, err error)
 	Forget func(username string)
@@ -233,10 +233,8 @@ func (pg Page) Handle(p *dav.Provider) func(*alborz.Context) error {
 				data.Refused(ctx.T("form.nameneeded"))
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
 			}
-			base := p.URL(ctx.Request().Context(), ctx.Login)
-			target := base.ResolveReference(&url.URL{Path: collPath}).String()
-			if err := dav.Proppatch(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login),
-				target, name, ctx.FormValue("color"), pg.Color); err != nil {
+			rc := ctx.Request().Context()
+			if err := p.Kind.Change(rc, p.HTTPClient(rc, ctx.Login), p.URL(rc, ctx.Login), collPath, name, ctx.FormValue("color")); err != nil {
 				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
 			}
@@ -706,9 +704,12 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*alborz.Context) error {
 				return err
 			}
 		}
-		base := p.URL(ctx.Request().Context(), ctx.Login)
-		target := base.ResolveReference(&url.URL{Path: collPath}).String()
-		if err := dav.DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), target); err != nil {
+		rc := ctx.Request().Context()
+		c, err := webdav.NewClient(p.HTTPClient(rc, ctx.Login), p.URL(rc, ctx.Login).String())
+		if err != nil {
+			return err
+		}
+		if err := c.RemoveAll(rc, collPath); err != nil {
 			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectiondeletefailed"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))

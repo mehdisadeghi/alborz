@@ -174,7 +174,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		co, err = getCalendarObject(ctx, c, taskPath)
+		co, err = c.GetCalendarObject(ctx.Request().Context(), taskPath)
 		if err != nil {
 			if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
 				return alborz.NotFound("notfound.task")

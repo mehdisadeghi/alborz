@@ -28,20 +28,6 @@ const (
 	settingsKey    = "caldav.settings"
 )
 
-// Bypasses go-webdav, whose strconv.Unquote rejects a weak ETag.
-func getCalendarObject(ctx *alborz.Context, c *caldav.Client, path string) (*caldav.CalendarObject, error) {
-	body, err := c.Open(ctx.Request().Context(), path)
-	if err != nil {
-		return nil, err
-	}
-	defer body.Close()
-	cal, err := ical.NewDecoder(body).Decode()
-	if err != nil {
-		return nil, err
-	}
-	return &caldav.CalendarObject{Path: path, Data: cal}, nil
-}
-
 func loadSettings(ctx context.Context, store alborz.Store) (*Settings, error) {
 	settings := &Settings{}
 	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
@@ -270,7 +256,7 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) fu
 }
 
 func changeComponent(ctx *alborz.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
-	co, err := getCalendarObject(ctx, ref.Client, ref.Path)
+	co, err := ref.Client.GetCalendarObject(ctx.Request().Context(), ref.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object: %v", err)
 	}

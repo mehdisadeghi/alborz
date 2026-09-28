@@ -10,14 +10,8 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz/pim/store"
+	"github.com/emersion/go-webdav"
 )
-
-// CollectionProps is a kind's property set as read from a PROPFIND.
-type CollectionProps interface {
-	// Collection names the resource when it is of the kind asked for.
-	Collection() (name, color string, ok bool)
-	Privileges() Privileges
-}
 
 // Collection is a WebDAV collection: a calendar, a task list or an address book.
 type Collection struct {
@@ -44,59 +38,31 @@ type Collection struct {
 	SharedWith int
 }
 
-// Listed is a collection with the properties it was read from.
-type Listed[P CollectionProps] struct {
-	Collection
-	Props P
-}
-
 // ListCollections reads every home's collections sorted by name; a failing home is its own error (ADR 28).
-func ListCollections[P CollectionProps](ctx context.Context, client *http.Client, base *url.URL, homes []Home, propfind string) ([]Listed[P], []error) {
-	var responses []Response[P]
+func ListCollections(ctx context.Context, homes []Home, list func(ctx context.Context, home string) ([]Collection, error)) ([]Collection, []error) {
+	var out []Collection
 	var failed []error
-	for _, r := range Each(ctx, homes, func(ctx context.Context, home Home) (*MultiStatus[P], error) {
-		return Propfind[P](ctx, client, base.ResolveReference(&url.URL{Path: home.Path}).String(), propfind)
+	for _, r := range Each(ctx, homes, func(ctx context.Context, home Home) ([]Collection, error) {
+		return list(ctx, home.Path)
 	}) {
 		if r.Err != nil {
 			failed = append(failed, fmt.Errorf("%s: %w", r.Site.Path, r.Err))
 			continue
 		}
-		responses = append(responses, r.Value.Responses...)
+		out = append(out, r.Value...)
 	}
-	var out []Listed[P]
-	for _, resp := range responses {
-		for _, ps := range resp.PropStat {
-			if !strings.Contains(ps.Status, "200") {
-				continue
+	for i := range out {
+		c := &out[i]
+		c.Path = CanonicalCollectionPath(c.Path)
+		// DAV:displayname is optional, but the rail needs a name.
+		if c.Name == "" {
+			c.Name = nameFromPath(c.Path)
+		}
+		if ref, home, here := store.Held(c.Path); here {
+			c.Here = true
+			if ref.Owner != home {
+				c.SharedBy = ref.Owner
 			}
-			name, color, ok := ps.Prop.Collection()
-			if !ok {
-				continue
-			}
-			writable, known := ps.Prop.Privileges().Writable()
-			listed := Listed[P]{
-				Collection: Collection{
-					Path:  CanonicalCollectionPath(resp.Href),
-					Name:  name,
-					Color: strings.TrimSpace(color),
-					// Servers that report no privileges get the benefit
-					// of the doubt.
-					Writable: writable || !known,
-				},
-				Props: ps.Prop,
-			}
-			// DAV:displayname is optional, but the rail needs a name.
-			if listed.Name == "" {
-				listed.Name = nameFromPath(listed.Path)
-			}
-			if ref, home, here := store.Held(listed.Path); here {
-				listed.Here = true
-				if ref.Owner != home {
-					listed.SharedBy = ref.Owner
-				}
-			}
-			out = append(out, listed)
-			break
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -119,16 +85,19 @@ func nameFromPath(p string) string {
 // DefaultColor is what a new collection's colour field opens on.
 const DefaultColor = "#3366cc"
 
-// CountObjects counts a collection's children with a Depth 1 PROPFIND for resource types only.
+// CountObjects counts a collection's objects with a Depth 1 PROPFIND.
 func CountObjects(ctx context.Context, client *http.Client, base *url.URL, coll string) (int, error) {
-	target := base.ResolveReference(&url.URL{Path: coll}).String()
-	ms, err := Propfind[struct{}](ctx, client, target, `<D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>`)
+	c, err := webdav.NewClient(client, base.String())
+	if err != nil {
+		return 0, err
+	}
+	files, err := c.ReadDir(ctx, coll, false)
 	if err != nil {
 		return 0, err
 	}
 	n := 0
-	for _, resp := range ms.Responses {
-		if CanonicalCollectionPath(resp.Href) != CanonicalCollectionPath(coll) {
+	for _, f := range files {
+		if !f.IsDir {
 			n++
 		}
 	}

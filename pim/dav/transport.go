@@ -9,10 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"reflect"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -66,11 +64,12 @@ func (p *Provider) router(ctx context.Context, login *alborz.Login) sourceRouter
 const IfNew webdav.ConditionalMatch = "*"
 
 // IfUnchanged is an If-Match that holds only while the object is the one read (RFC 7232 3.1).
+// It compares strongly, so a weak ETag, as a compressing proxy makes of Nextcloud's, never matches and is not sent.
 func IfUnchanged(etag string) webdav.ConditionalMatch {
-	if etag == "" {
+	if strings.HasPrefix(etag, "W/") {
 		return ""
 	}
-	return webdav.ConditionalMatch(strconv.Quote(etag))
+	return webdav.ConditionalMatch(etag)
 }
 
 // sourceRouter sends a path under a source's marker to that source and marks what comes back (ADR 28).
@@ -132,6 +131,8 @@ func (r sourceRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A client takes an object's path from the request its answer names.
+	resp.Request = req
 	if loc := resp.Header.Get("Location"); loc != "" {
 		resp.Header.Set("Location", markHref(loc, src))
 	}
@@ -270,20 +271,6 @@ type RefusedError struct {
 }
 
 func (e *RefusedError) Error() string { return e.Host + " refused the account's password" }
-
-// Answered is err's HTTP status, zero if unanswered; go-webdav's error type is internal, so Code is read by name.
-func Answered(err error) int {
-	for ; err != nil; err = errors.Unwrap(err) {
-		v := reflect.Indirect(reflect.ValueOf(err))
-		if v.Kind() != reflect.Struct {
-			continue
-		}
-		if code := v.FieldByName("Code"); code.IsValid() && code.CanInt() {
-			return int(code.Int())
-		}
-	}
-	return 0
-}
 
 // send follows redirects keeping the method, since Go's client turns a redirected PROPFIND into a GET.
 // The login goes to the source's host only, TLS is never left, and a 401 from any hop is a refusal.

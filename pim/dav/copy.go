@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"net/http"
+	"net/url"
 	"slices"
 
 	"git.mehdix.org/alborz/pim/store"
@@ -18,17 +19,109 @@ import (
 
 // wire is how a kind's objects travel and how its copy is served.
 type wire struct {
-	ns, data, query, multigetName string
-	handler                       func(coll string, objects []object) http.Handler
+	ns, query, multigetName string
+	handler                 func(coll string, objects []object) http.Handler
+	// sync, get and ctag ask the server with the kind's client.
+	sync func(ctx context.Context, client *http.Client, target *url.URL, token string) (synced, error)
+	get  func(ctx context.Context, client *http.Client, target *url.URL, paths []string) ([]sent, error)
+	ctag func(ctx context.Context, client *http.Client, target *url.URL) (string, error)
 }
 
 func wireFor(kind store.Kind) wire {
 	if kind == store.AddressBook {
-		return wire{ns: "urn:ietf:params:xml:ns:carddav", data: "address-data",
-			query: "addressbook-query", multigetName: "addressbook-multiget", handler: bookCopy}
+		return wire{ns: "urn:ietf:params:xml:ns:carddav", query: "addressbook-query", multigetName: "addressbook-multiget",
+			handler: bookCopy, sync: bookSync, get: bookGet, ctag: bookCTag}
 	}
-	return wire{ns: "urn:ietf:params:xml:ns:caldav", data: "calendar-data",
-		query: "calendar-query", multigetName: "calendar-multiget", handler: calendarCopy}
+	return wire{ns: "urn:ietf:params:xml:ns:caldav", query: "calendar-query", multigetName: "calendar-multiget",
+		handler: calendarCopy, sync: calendarSync, get: calendarGet, ctag: calendarCTag}
+}
+
+func calendarSync(ctx context.Context, client *http.Client, target *url.URL, token string) (synced, error) {
+	c, err := caldav.NewClient(client, target.String())
+	if err != nil {
+		return synced{}, err
+	}
+	resp, err := c.SyncCollection(ctx, target.Path, &caldav.SyncQuery{SyncToken: token})
+	if err != nil {
+		return synced{}, err
+	}
+	s := synced{token: resp.SyncToken, truncated: resp.Truncated, gone: resp.Deleted}
+	for _, o := range resp.Updated {
+		s.put = append(s.put, sent{path: o.Path, etag: o.ETag, data: o.Raw})
+	}
+	return s, nil
+}
+
+func calendarGet(ctx context.Context, client *http.Client, target *url.URL, paths []string) ([]sent, error) {
+	c, err := caldav.NewClient(client, target.String())
+	if err != nil {
+		return nil, err
+	}
+	objects, err := c.MultiGetCalendar(ctx, target.Path, &caldav.CalendarMultiGet{Paths: paths})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]sent, len(objects))
+	for i, o := range objects {
+		out[i] = sent{path: o.Path, etag: o.ETag, data: o.Raw}
+	}
+	return out, nil
+}
+
+func calendarCTag(ctx context.Context, client *http.Client, target *url.URL) (string, error) {
+	c, err := caldav.NewClient(client, target.String())
+	if err != nil {
+		return "", err
+	}
+	cal, err := c.FindCalendar(ctx, target.Path)
+	if err != nil {
+		return "", err
+	}
+	return cal.CTag, nil
+}
+
+func bookSync(ctx context.Context, client *http.Client, target *url.URL, token string) (synced, error) {
+	c, err := carddav.NewClient(client, target.String())
+	if err != nil {
+		return synced{}, err
+	}
+	resp, err := c.SyncCollection(ctx, target.Path, &carddav.SyncQuery{SyncToken: token})
+	if err != nil {
+		return synced{}, err
+	}
+	s := synced{token: resp.SyncToken, truncated: resp.Truncated, gone: resp.Deleted}
+	for _, o := range resp.Updated {
+		s.put = append(s.put, sent{path: o.Path, etag: o.ETag, data: o.Raw})
+	}
+	return s, nil
+}
+
+func bookGet(ctx context.Context, client *http.Client, target *url.URL, paths []string) ([]sent, error) {
+	c, err := carddav.NewClient(client, target.String())
+	if err != nil {
+		return nil, err
+	}
+	objects, err := c.MultiGetAddressBook(ctx, target.Path, &carddav.AddressBookMultiGet{Paths: paths})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]sent, len(objects))
+	for i, o := range objects {
+		out[i] = sent{path: o.Path, etag: o.ETag, data: o.Raw}
+	}
+	return out, nil
+}
+
+func bookCTag(ctx context.Context, client *http.Client, target *url.URL) (string, error) {
+	c, err := carddav.NewClient(client, target.String())
+	if err != nil {
+		return "", err
+	}
+	book, err := c.FindAddressBook(ctx, target.Path)
+	if err != nil {
+		return "", err
+	}
+	return book.CTag, nil
 }
 
 func (w wire) answers(body []byte) bool {

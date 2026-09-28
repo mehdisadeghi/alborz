@@ -34,8 +34,10 @@ type Kind struct {
 	FindHome func(ctx context.Context, client *http.Client, endpoint string) (string, error)
 	// List reads the kind's collections out of the homes.
 	List func(ctx context.Context, client *http.Client, base *url.URL, homes []Home) ([]Collection, []error)
-	// Make makes a collection at target; an address book gets no components.
-	Make func(ctx context.Context, client *http.Client, target, name, color string, components []string) error
+	// Make makes a collection at path; an address book gets no components.
+	Make func(ctx context.Context, client *http.Client, base *url.URL, path, name, color string, components []string) error
+	// Change renames and recolours the collection at path.
+	Change func(ctx context.Context, client *http.Client, base *url.URL, path, name, color string) error
 	// Unnamed is the address of a new collection whose name gives none.
 	Unnamed string
 }
@@ -311,8 +313,8 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 		return "", err
 	}
 	client := p.HTTPClient(ctx, login)
-	path, err := CreateCollection(ctx, base, home, name, p.Kind.Unnamed, func(ctx context.Context, target string) error {
-		return p.Kind.Make(ctx, client, target, name, color, components)
+	path, err := CreateCollection(ctx, home, name, p.Kind.Unnamed, func(ctx context.Context, path string) error {
+		return p.Kind.Make(ctx, client, base, path, name, color, components)
 	})
 	if err != nil {
 		return "", err

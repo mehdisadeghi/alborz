@@ -313,7 +313,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		co, err = getCalendarObject(ctx, c, calendarObjectPath)
+		co, err = c.GetCalendarObject(ctx.Request().Context(), calendarObjectPath)
 		if err != nil {
 			if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
 				return alborz.NotFound("notfound.event")

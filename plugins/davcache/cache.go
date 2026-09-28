@@ -1,8 +1,7 @@
 // Package davcache caches CalDAV and CardDAV traffic at the HTTP transport
-// level. Read responses are served from memory however old they are, and a
-// stale one is revalidated against the collection's ctag before it is
-// served, so a change another instance made is seen; writes evict
-// by URL prefix. The plugins above stay unaware of it.
+// level. Read responses are served from memory however old they are; a
+// stale one is checked against the collection's ctag behind the page.
+// Writes evict by URL prefix. The plugins above stay unaware of it.
 package davcache
 
 import (

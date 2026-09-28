@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"html/template"
+	"io"
 	"net/url"
 	"strings"
 
@@ -66,7 +67,7 @@ func executeTemplate(name string, data interface{}) (template.HTML, error) {
 type viewer struct{}
 
 func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, path []int, part *message.Entity) (interface{}, error) {
-	mimeType, _, err := part.Header.ContentType()
+	mimeType, params, err := part.Header.ContentType()
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +98,15 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		text.Reset()
 	}
 
-	scanner := bufio.NewScanner(part.Body)
+	body := io.Reader(part.Body)
+	if strings.EqualFold(params["format"], "flowed") {
+		raw, err := io.ReadAll(part.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read part body: %v", err)
+		}
+		body = strings.NewReader(alborzbase.Unflow(string(raw), strings.EqualFold(params["delsp"], "yes")))
+	}
+	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
 		l := scanner.Text()
 		if strings.TrimSpace(l) == "" {

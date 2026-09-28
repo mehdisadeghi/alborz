@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/signal"
@@ -140,19 +141,12 @@ func vcsStamp() (string, string) {
 	return revision, date
 }
 
-// defaultCacheDir is the XDG cache directory: $XDG_CACHE_HOME, or
-// ~/.cache. A deployment that keeps it elsewhere says so with
-// -cache-dir.
 func defaultCacheDir() string {
-	if dir := os.Getenv("XDG_CACHE_HOME"); dir != "" {
-		return filepath.Join(dir, alborz.AppName)
-	}
-	home, err := os.UserHomeDir()
+	dir, err := os.UserCacheDir()
 	if err != nil {
 		return ""
 	}
-	// The spec's own default for an unset XDG_CACHE_HOME.
-	return filepath.Join(home, ".cache", alborz.AppName)
+	return filepath.Join(dir, alborz.AppName)
 }
 
 func main() {
@@ -206,19 +200,22 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 
 	for _, p := range strings.FieldsFunc(proxies, func(r rune) bool { return r == ',' || r == ' ' }) {
-		if !strings.Contains(p, "/") {
-			if ip := net.ParseIP(p); ip != nil && ip.To4() != nil {
-				p += "/32"
-			} else {
-				p += "/128"
+		prefix, err := netip.ParsePrefix(p)
+		if err != nil {
+			var a netip.Addr
+			if a, err = netip.ParseAddr(p); err == nil {
+				prefix = netip.PrefixFrom(a, a.BitLen())
 			}
 		}
-		_, n, err := net.ParseCIDR(p)
 		if err != nil {
 			fmt.Fprintf(flag.CommandLine.Output(), "alborz: invalid -trusted-proxy %q: %v\n", p, err)
 			os.Exit(2)
 		}
-		options.TrustedProxies = append(options.TrustedProxies, n)
+		prefix = prefix.Masked()
+		options.TrustedProxies = append(options.TrustedProxies, &net.IPNet{
+			IP:   prefix.Addr().AsSlice(),
+			Mask: net.CIDRMask(prefix.Bits(), prefix.Addr().BitLen()),
+		})
 	}
 
 	if publicURL == "" {

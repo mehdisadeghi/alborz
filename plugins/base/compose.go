@@ -886,7 +886,11 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	var quoted string
 	switch mimeType {
 	case "text/plain":
-		quoted, err = quote(part.Body)
+		var text string
+		if text, err = readText(part); err != nil {
+			return ret, err
+		}
+		quoted, err = quote(strings.NewReader(text))
 	case "text/html":
 		var text string
 		text, err = html2text.FromReader(part.Body, html2text.Options{})
@@ -951,10 +955,18 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	return ret, nil
 }
 
-// readAll is the body of a part as it was written.
-func readAll(r io.Reader) (string, error) {
-	b, err := io.ReadAll(r)
-	return string(b), err
+// readText is the body of a part as it was written, joined again
+// when it was sent format=flowed.
+func readText(part *message.Entity) (string, error) {
+	b, err := io.ReadAll(part.Body)
+	if err != nil {
+		return "", err
+	}
+	_, params, err := part.Header.ContentType()
+	if err != nil || !strings.EqualFold(params["format"], "flowed") {
+		return string(b), err
+	}
+	return Unflow(string(b), strings.EqualFold(params["delsp"], "yes")), nil
 }
 
 // forwardBody is the message being passed on, whole: a separator, the
@@ -1169,7 +1181,7 @@ func handleForward(ctx *alborz.Context) error {
 		var body string
 		switch mimeType {
 		case "text/plain":
-			body, err = readAll(part.Body)
+			body, err = readText(part)
 		case "text/html":
 			// Lossy, and the only thing a plain-text composer can do
 			// with HTML. Attaching the message instead keeps it whole.

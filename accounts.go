@@ -328,7 +328,25 @@ func (s *Server) recentlyFailed(username string) bool {
 	if !ok {
 		return false
 	}
-	return time.Since(when.(time.Time)) < loginRetryAfter
+	if time.Since(when.(time.Time)) < loginRetryAfter {
+		return true
+	}
+	s.loginFailures.CompareAndDelete(username, when)
+	return false
+}
+
+// loginFailed records a failed automatic sign-in and lets go of every
+// failure past its retry window, so addresses that never sign in again
+// are not kept for good.
+func (s *Server) loginFailed(username string) {
+	now := time.Now()
+	s.loginFailures.Range(func(k, when any) bool {
+		if now.Sub(when.(time.Time)) >= loginRetryAfter {
+			s.loginFailures.CompareAndDelete(k, when)
+		}
+		return true
+	})
+	s.loginFailures.Store(username, now)
 }
 
 // RestoreRememberedAccounts signs every account this visit remembers
@@ -365,7 +383,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 			defer wg.Done()
 			s, err := ctx.Server.Sessions.Put(c.address, c.password, ctx.RealIP())
 			if err != nil {
-				ctx.Server.loginFailures.Store(c.address, time.Now())
+				ctx.Server.loginFailed(c.address)
 				ctx.Logger().Printf("Login failed for %q: %v", c.address, err)
 				refused[i] = err
 				return

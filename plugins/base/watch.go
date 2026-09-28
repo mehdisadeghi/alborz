@@ -75,7 +75,7 @@ func warmAccount(ctx *alborz.Context, s *alborz.Session) {
 	}()
 }
 
-// Watch starts following an account's INBOX if nothing is following it
+// Watch starts following an account's folders if nothing is following it
 // already. One watcher per account, however many browsers are signed in
 // to it: they all read the same cache.
 func Watch(s *alborz.Session, log echo.Logger, changes *alborz.Changes) {

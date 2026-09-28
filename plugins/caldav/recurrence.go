@@ -70,11 +70,11 @@ func parseRule(s string, loc *time.Location) rule {
 }
 
 func parseUntil(s string, loc *time.Location) time.Time {
-	for _, layout := range []string{"20060102T150405Z", "20060102T150405", "20060102"} {
+	if t, err := time.Parse("20060102T150405Z", s); err == nil {
+		return t
+	}
+	for _, layout := range []string{"20060102T150405", "20060102"} {
 		if t, err := time.ParseInLocation(layout, s, loc); err == nil {
-			if strings.HasSuffix(layout, "Z") {
-				return t.UTC()
-			}
 			return t
 		}
 	}

@@ -18,10 +18,9 @@ import (
 // served as it is, however old: a stale entry is checked behind the page
 // with one STATUS, and refetched only when the folder moved, so a change
 // made elsewhere shows one visit late and never costs the click. Every
-// write through alborz evicts, and the IDLE watcher marks INBOX stale
-// and refetches its first page on what the server announces, so a change
-// goes unnoticed only on a server without IDLE, bounded by
-// listingFreshFor.
+// write through alborz evicts, and the watcher marks a folder stale on
+// what the server announces or a folder sweep finds, so a change goes
+// unnoticed only on a server without IDLE, bounded by listingFreshFor.
 const (
 	// Served without asking the server at all.
 	listingFreshFor = 30 * time.Second

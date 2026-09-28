@@ -313,11 +313,16 @@ func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) [
 	// RECURRENCE-ID the start it stands in for. The rule still produces
 	// that start, so the slot is left to the override, which is listed
 	// as the plain event it is.
-	overridden := make(map[int64]bool)
+	type slot struct {
+		uid string
+		at  int64
+	}
+	overridden := make(map[slot]bool)
 	for i := range events {
 		if prop := events[i].Props.Get(ical.PropRecurrenceID); prop != nil {
 			if at, err := prop.DateTime(loc); err == nil {
-				overridden[at.Unix()] = true
+				uid, _ := events[i].Props.Text(ical.PropUID)
+				overridden[slot{uid, at.Unix()}] = true
 			}
 		}
 	}
@@ -346,8 +351,9 @@ func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) [
 			out = append(out, Occurrence{CalendarObject: obj, Event: event, Start: first, End: last})
 			continue
 		}
+		uid, _ := event.Props.Text(ical.PropUID)
 		for _, at := range instances {
-			if overridden[at.Unix()] {
+			if overridden[slot{uid, at.Unix()}] {
 				continue
 			}
 			out = append(out, Occurrence{

@@ -154,7 +154,11 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	p.cache.Start()
 	// Signing out is the only thing that ends the cache's authority to
 	// hold this account's collections; idleness no longer does.
-	srv.OnAccountGone = append(srv.OnAccountGone, p.cache.Forget)
+	srv.OnAccountGone = append(srv.OnAccountGone, func(username string) {
+		p.cache.Forget(username)
+		p.collections.Forget(username)
+		p.troubles.Delete(username)
+	})
 
 	// Asking whether a server answers may take seconds each; it runs
 	// after the port is open, and a request surfaces an unreachable one

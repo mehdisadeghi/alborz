@@ -1,14 +1,14 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
 // The zone the server formats dates in. This is the one cookie the page
-// writes rather than the server, so it cannot be HttpOnly; it carries the
-// same name, path, policy and lifetime as the rest either way.
+// writes rather than the server, so it cannot be HttpOnly; its path,
+// policy and lifetime are those of the preference cookies.
 try {
 	const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	if (tz && document.cookie.indexOf("alborz_tz=") === -1) {
 		const secure = location.protocol === "https:" ? ";Secure" : "";
 		document.cookie =
-			"alborz_tz=" + tz + ";path=/;max-age=31536000;SameSite=Strict" + secure;
+			"alborz_tz=" + tz + ";path=/;max-age=31536000;SameSite=Lax" + secure;
 	}
 } catch (e) {}
 

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
@@ -1400,7 +1401,7 @@ func envelopeName(from []imap.Address) string {
 
 // A full-text index matches addresses inside attached messages; only what the
 // envelope contradicts is dropped, over every answer so totals hold.
-func carried(c *imapclient.Client, q Query, answers imap.NumSet) (map[uint32]imap.UID, error) {
+func carried(c *imapclient.Client, q search.Query, answers imap.NumSet) (map[uint32]imap.UID, error) {
 	wanted := q.Addresses()
 	kept := map[uint32]imap.UID{}
 	cmd := c.Fetch(answers, &imap.FetchOptions{UID: true, Envelope: true})
@@ -1579,7 +1580,7 @@ func sortedUIDs(conn *imapclient.Client, criteria *imap.SearchCriteria, sort str
 }
 
 // q is the query the criteria came from, empty for a list no query narrowed.
-func searchMessages(conn *imapclient.Client, mboxName string, q Query, searchCriteria *imap.SearchCriteria, page, messagesPerPage int, sort string, reverse bool, fields rowFields) (msgs []IMAPMessage, total int, err error) {
+func searchMessages(conn *imapclient.Client, mboxName string, q search.Query, searchCriteria *imap.SearchCriteria, page, messagesPerPage int, sort string, reverse bool, fields rowFields) (msgs []IMAPMessage, total int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
 	}

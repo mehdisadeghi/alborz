@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -19,7 +20,7 @@ const searchRole = "INBOX"
 // folderTrackMax caps the folder column; long nested paths truncate.
 const folderTrackMax = 16
 
-func searchFolders(mailboxes []MailboxInfo, q Query) []string {
+func searchFolders(mailboxes []MailboxInfo, q search.Query) []string {
 	named, everywhere := q.Scope()
 	excluded := q.Excluded()
 	var out []string
@@ -71,7 +72,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 	if ctx.Unified {
 		logins = ctx.Logins()
 	}
-	q := ParseQuery(spec.query)
+	q := search.Parse(spec.query)
 	class, bound := listingBudget(spec)
 	var (
 		mu   sync.Mutex
@@ -133,7 +134,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = []CrumbLink{{Label: title}}
 	data.Merged, data.Spanning, data.Role = true, true, searchRole
-	data.FolderQuery = q.Without(queryScope)
+	data.FolderQuery = q.Without(search.In)
 	data.FolderTrack = template.CSS(fmt.Sprintf("%dch", min(track, folderTrackMax)))
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }

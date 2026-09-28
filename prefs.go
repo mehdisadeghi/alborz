@@ -95,42 +95,34 @@ func (ctx *Context) cookieValue(name string, valid func(string) bool) (string, b
 	return "", false
 }
 
-// setPref stores a per-user display preference in the browser; empty
-// clears it back to the default.
-func (ctx *Context) setPref(name, value string, valid bool) {
-	if !valid {
-		value = ""
-	}
-	ctx.keepPref(name, value)
-	ctx.SetCookie(ctx.cookie(name, value, preferenceCookieLife))
-}
-
-// keepPref remembers a choice for the rest of this request, so a
-// handler that answers with the thing it just changed shows the change
-// rather than what the browser sent.
-func (ctx *Context) keepPref(name, value string) {
-	if ctx.prefs == nil {
-		ctx.prefs = map[string]string{}
-	}
-	ctx.prefs[name] = value
-}
-
-func (ctx *Context) pref(name string, valid func(string) bool) string {
-	if v, ok := ctx.prefs[name]; ok {
-		if v == "" || valid(v) {
-			return v
-		}
-		return ""
-	}
-	if v, ok := ctx.cookieValue(name, valid); ok {
+// cookieProfile is the browser's own copy of the display, for a page
+// rendered with no account signed in; the rest is the default.
+func (ctx *Context) cookieProfile() Profile {
+	has := func(name string) string {
+		v, _ := ctx.cookieValue(name, func(v string) bool { return v != "" })
 		return v
 	}
-	return ""
+	return Profile{
+		Reading: Reading{MessagesPerPage: DefaultMessagesPerPage},
+		Display: Display{
+			Theme:         has(themeCookieName),
+			TextSize:      has(textSizeCookieName),
+			AlignByScript: has(alignCookieName) == "1",
+			Language:      has(langCookieName),
+		},
+	}
 }
 
-// SetTheme stores the theme variant choice per user.
-func (ctx *Context) SetTheme(theme string) {
-	ctx.setPref(themeCookieName, theme, ctx.Server.hasTheme(theme))
+// setProfileCookies keeps the browser's copy in step with the profile.
+func (ctx *Context) setProfileCookies(d Display) {
+	align := ""
+	if d.AlignByScript {
+		align = "1"
+	}
+	for name, value := range map[string]string{themeCookieName: d.Theme, textSizeCookieName: d.TextSize,
+		alignCookieName: align, langCookieName: d.Language} {
+		ctx.SetCookie(ctx.cookie(name, value, preferenceCookieLife))
+	}
 }
 
 // Themes are the overlays this deployment offers.
@@ -150,24 +142,19 @@ func (ctx *Context) ThemeScheme() string {
 	return ""
 }
 
-// Theme returns the user's theme variant, empty for the default.
+// Theme returns the user's theme variant, empty for the default or one
+// this deployment does not offer.
 func (ctx *Context) Theme() string {
-	return ctx.pref(themeCookieName, func(v string) bool { return ctx.Server.hasTheme(v) })
-}
-
-// SetAlignByScript stores whether a line aligns by its own script
-// rather than with the interface's edge.
-func (ctx *Context) SetAlignByScript(on bool) {
-	value := ""
-	if on {
-		value = "1"
+	if theme := ctx.Profile().Display.Theme; ctx.Server.hasTheme(theme) {
+		return theme
 	}
-	ctx.setPref(alignCookieName, value, on)
+	return ""
 }
 
-// AlignByScript reports whether lines align by their own script.
+// AlignByScript reports whether lines align by their own script
+// rather than with the interface's edge.
 func (ctx *Context) AlignByScript() bool {
-	return ctx.pref(alignCookieName, func(v string) bool { return v == "1" }) == "1"
+	return ctx.Profile().Display.AlignByScript
 }
 
 // textSizes are the reading sizes on offer beside the default. Every
@@ -175,22 +162,19 @@ func (ctx *Context) AlignByScript() bool {
 // on the root scales the whole interface.
 var textSizes = []string{"large", "larger"}
 
-// SetTextSize stores the reader's chosen text size. It is a property of
-// the eyes reading the page rather than of any account, so it lives in
-// the browser beside the theme and the language.
-func (ctx *Context) SetTextSize(size string) {
-	ctx.setPref(textSizeCookieName, size, slices.Contains(textSizes, size))
-}
+// TextSizes are the sizes on offer beside the default.
+func TextSizes() []string { return textSizes }
 
 // TextSize returns the chosen size, empty for the default.
 func (ctx *Context) TextSize() string {
-	return ctx.pref(textSizeCookieName, func(v string) bool { return slices.Contains(textSizes, v) })
+	if size := ctx.Profile().Display.TextSize; slices.Contains(textSizes, size) {
+		return size
+	}
+	return ""
 }
 
 // Calendars returns the chosen systems: the one counted in, empty for
-// Gregorian, and the one glossed, empty for none. They are the
-// reader's, not an account's: which calendar someone counts in is not
-// a property of any one mailbox.
+// Gregorian, and the one glossed, empty for none.
 func (ctx *Context) Calendars() (primary, secondary string) {
 	r := ctx.Reading()
 	return r.Primary, r.Secondary
@@ -201,19 +185,25 @@ func (ctx *Context) CalendarSystem() CalendarSystem {
 	return Calendar(ctx.Reading().Primary)
 }
 
-// SetLanguage stores the user's UI language choice in the browser,
-// per user rather than per account; empty follows Accept-Language
-// again.
-func (ctx *Context) SetLanguage(code string) {
+// SetLanguage puts a UI language in the profile; empty follows
+// Accept-Language again.
+func (ctx *Context) SetLanguage(code string) error {
 	if !IsLanguage(code) {
 		code = ""
 	}
-	ctx.keepPref(langCookieName, code)
-	ctx.SetCookie(ctx.cookie(langCookieName, code, preferenceCookieLife))
+	p := ctx.Profile()
+	if p.Display.Language == code {
+		return nil
+	}
+	p.Display.Language = code
+	return ctx.SetProfile(p)
 }
 
 // Language returns the user's explicit UI language choice, empty when
 // following the browser preference.
 func (ctx *Context) Language() string {
-	return ctx.pref(langCookieName, IsLanguage)
+	if code := ctx.Profile().Display.Language; IsLanguage(code) {
+		return code
+	}
+	return ""
 }

@@ -861,12 +861,16 @@ func queryLanguage(ectx echo.Context) string {
 }
 
 // requestLanguage resolves the request's UI language: a language in
-// the URL wins, then the cookie choice, else Accept-Language.
+// the URL wins, then the profile's, else Accept-Language.
 func requestLanguage(ectx echo.Context) string {
 	if v := queryLanguage(ectx); v != "" {
 		return v
 	}
-	if c, err := ectx.Cookie(langCookieName); err == nil && IsLanguage(c.Value) {
+	if ctx, ok := ectx.(*Context); ok {
+		if v := ctx.Language(); v != "" {
+			return v
+		}
+	} else if c, err := ectx.Cookie(langCookieName); err == nil && IsLanguage(c.Value) {
 		return c.Value
 	}
 	return MatchLanguage(ectx.Request().Header.Get("Accept-Language"))

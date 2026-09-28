@@ -88,21 +88,6 @@
           </select>
         </div>
 
-        <div class="action-group">
-          <label for="direction_part" class="checkbox">
-            <input type="checkbox" name="direction_part" id="direction_part" value="1"{{if not .Settings.NoDirectionPart}} checked{{end}}>
-            {{$.T "settings.directionpart"}}
-          </label>
-          {{ template "hint" (dict "text" ($.T "settings.directionparthint")) }}
-        </div>
-
-        <div class="action-group">
-          <label for="reply_position">{{$.T "settings.replyposition"}}</label>
-          <select name="reply_position" id="reply_position">
-            <option value="above" {{if not .Settings.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replytop"}}</option>
-            <option value="below" {{if .Settings.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replybottom"}}</option>
-          </select>
-        </div>
         <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
       </form>
 
@@ -119,8 +104,7 @@
           {{ range .Storage.Entries }}<li>{{ . }}</li>{{ end }}
         </ul>
         {{ end }}
-        {{ if .Storage.Reading }}{{ template "hint" (dict "text" ($.T "settings.storagereading")) }}{{ end }}
-        {{ if or .Storage.Entries .Storage.Reading }}
+        {{ if .Storage.Entries }}
         <form method="post" action="/settings/account/forget{{$aq}}">
           <button class="button-danger">{{$.T "settings.forget"}}</button>
           {{ template "hint" (dict "text" ($.T "settings.forgethint")) }}

@@ -39,22 +39,27 @@ type Settings interface {
 // METADATA, else alborz's own database, else nowhere. It runs under the
 // manager's lock.
 func (sm *LoginManager) newStore(login *Login) (Store, error) {
-	s, err := newIMAPMetadataStore(login)
-	if err == nil {
-		return s, nil
-	} else if err != errIMAPMetadataUnsupported {
+	var metadata bool
+	err := login.DoIMAP(func(c *imapclient.Client) error {
+		metadata = c.Caps().Has(imap.CapMetadata) || c.Caps().Has(imap.CapMetadataServer)
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
-	if sm.settings == nil {
-		if !sm.warnedNoMetadata {
-			sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension and alborz keeps no data, account settings cannot be saved")
-			sm.warnedNoMetadata = true
-		}
-		return noStore{}, nil
+	if metadata {
+		return &imapMetadataStore{login: login}, nil
 	}
 	if !sm.warnedNoMetadata {
-		sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, keeping account settings in alborz's own store")
 		sm.warnedNoMetadata = true
+		if sm.settings == nil {
+			sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension and alborz keeps no data, account settings cannot be saved")
+		} else {
+			sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, keeping account settings in alborz's own store")
+		}
+	}
+	if sm.settings == nil {
+		return noStore{}, nil
 	}
 	return localStore{records: sm.settings, account: login.Username()}, nil
 }
@@ -76,21 +81,6 @@ func (noStore) Put(context.Context, string, any) error { return errors.ErrUnsupp
 
 type imapMetadataStore struct {
 	login *Login
-}
-
-var errIMAPMetadataUnsupported = fmt.Errorf("alborz: IMAP server doesn't support METADATA extension")
-
-func newIMAPMetadataStore(login *Login) (*imapMetadataStore, error) {
-	err := login.DoIMAP(func(c *imapclient.Client) error {
-		if caps := c.Caps(); !caps.Has(imap.CapMetadata) && !caps.Has(imap.CapMetadataServer) {
-			return errIMAPMetadataUnsupported
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &imapMetadataStore{login: login}, nil
 }
 
 func (s *imapMetadataStore) key(key string) string {
@@ -207,7 +197,7 @@ const vendorRoot = "/private/vendor/alborz"
 // settingKeys is every setting key a plugin stores. The entries are
 // asked for by name: go-imap writes the DEPTH option after the mailbox,
 // which Dovecot answers with BAD.
-var settingKeys = []string{httpPasswordKey, servicesKey}
+var settingKeys = []string{httpPasswordKey, servicesKey, profileKey}
 
 // RegisterSetting names a key a plugin stores, so the account
 // holder can see and empty what is held.

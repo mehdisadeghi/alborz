@@ -16,7 +16,6 @@ import (
 // The owners of the records kept here, each the prefix of its keys (ADR 51).
 const (
 	sessionsOwner = "alborz.sessions"
-	readingOwner  = "alborz.reading"
 	settingsOwner = "alborz.settings"
 	recordsFormat = 1
 )
@@ -42,9 +41,6 @@ type vault struct {
 // open is nil for a record sealed with a key that has since rotated,
 // which signs everyone out and loses nothing else.
 func (v vault) open(sealed []byte) []byte {
-	if sealed == nil {
-		return nil
-	}
 	return fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{v.key})
 }
 
@@ -56,13 +52,18 @@ func (v vault) put(tx kv.Tx, k string, raw []byte) error {
 	return tx.Put(k, sealed)
 }
 
-func (v vault) load(k string, out any) bool {
-	var raw []byte
-	err := v.db.View(func(tx kv.Tx) error {
-		raw = v.open(tx.Get(k))
+// read opens a sealed record into out, false when it does not open.
+func (v vault) read(sealed []byte, out any) bool {
+	raw := v.open(sealed)
+	return raw != nil && json.Unmarshal(raw, out) == nil
+}
+
+func (v vault) load(k string, out any) (ok bool) {
+	v.db.View(func(tx kv.Tx) error {
+		ok = v.read(tx.Get(k), out)
 		return nil
 	})
-	return err == nil && raw != nil && json.Unmarshal(raw, out) == nil
+	return ok
 }
 
 // save writes rec over what is stored under k, keeping what a newer
@@ -117,8 +118,7 @@ func CheckKey(db kv.DB, path string, key *fernet.Key, sealed ...string) error {
 	})
 }
 
-// records keeps remembered sessions and what each account's reader
-// reads by.
+// records keeps remembered sessions.
 type records struct{ vault }
 
 // OpenSessionRecords keeps sessions in the data file.
@@ -142,7 +142,7 @@ func (r *records) Each(f func(*SessionRecord)) error {
 	return r.db.View(func(tx kv.Tx) error {
 		return tx.Scan(sessionsOwner+"/", func(_ string, sealed []byte) error {
 			var rec SessionRecord
-			if raw := r.open(sealed); raw != nil && json.Unmarshal(raw, &rec) == nil {
+			if r.read(sealed, &rec) {
 				f(&rec)
 			}
 			return nil
@@ -153,41 +153,11 @@ func (r *records) Each(f func(*SessionRecord)) error {
 // Sweep drops the sessions nobody has come back to.
 func (r *records) Sweep(before time.Time) error {
 	return r.db.Update(func(tx kv.Tx) error {
-		var stale []string
-		err := tx.Scan(sessionsOwner+"/", func(k string, sealed []byte) error {
+		return kv.DeleteUnder(tx, sessionsOwner+"/", func(sealed []byte) bool {
 			var rec SessionRecord
-			raw := r.open(sealed)
-			if raw == nil || json.Unmarshal(raw, &rec) != nil || rec.Seen.Before(before) {
-				stale = append(stale, k)
-			}
-			return nil
+			return !r.read(sealed, &rec) || rec.Seen.Before(before)
 		})
-		if err != nil {
-			return err
-		}
-		for _, k := range stale {
-			if err := tx.Delete(k); err != nil {
-				return err
-			}
-		}
-		return nil
 	})
-}
-
-func (r *records) LoadReading(account string) (*Reading, bool) {
-	var rd Reading
-	if !r.load(accountKey(readingOwner, account), &rd) {
-		return nil, false
-	}
-	return &rd, true
-}
-
-func (r *records) SaveReading(account string, rd *Reading) error {
-	return r.save(accountKey(readingOwner, account), rd)
-}
-
-func (r *records) DeleteReading(account string) error {
-	return r.remove(accountKey(readingOwner, account))
 }
 
 // settingsRecords keeps the settings of accounts whose server has no
@@ -200,9 +170,7 @@ func openSettingsRecords(db kv.DB, key *fernet.Key) *settingsRecords {
 
 func (r *settingsRecords) entries(tx kv.Tx, account string) map[string]json.RawMessage {
 	entries := map[string]json.RawMessage{}
-	if raw := r.open(tx.Get(accountKey(settingsOwner, account))); raw != nil {
-		json.Unmarshal(raw, &entries)
-	}
+	r.read(tx.Get(accountKey(settingsOwner, account)), &entries)
 	return entries
 }
 

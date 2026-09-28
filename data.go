@@ -20,7 +20,7 @@ const metaKey = "alborz.meta"
 // formats are the key owners this version writes, with the format of
 // each (ADR 26).
 var formats = map[string]int{
-	sessionsOwner: recordsFormat, readingOwner: recordsFormat, settingsOwner: recordsFormat,
+	sessionsOwner: recordsFormat, settingsOwner: recordsFormat,
 	collections.Name: collections.Format,
 }
 
@@ -45,7 +45,7 @@ func openData(dir, build string, log func(format string, args ...any)) (kv.DB, e
 	// The directory is the operator's to make, with the owner and mode
 	// they mean.
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		return nil, fmt.Errorf("%s is not there: it holds remembered logins, reading settings and the "+
+		return nil, fmt.Errorf("%s is not there: it holds remembered logins, settings and the "+
 			"calendars and address books kept here; make it, or name another with -data-dir", dir)
 	}
 	path := filepath.Join(dir, storeFile)

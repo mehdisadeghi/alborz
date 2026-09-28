@@ -287,7 +287,7 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessa
 		// the scope the reader is in, so the link names it.
 		view := messageURL(sent.Name(), sentUID)
 		view.RawQuery = "account=" + alborz.QueryValue(sender.Username())
-		notice.Action = &alborz.NoticeAction{Label: ctx.T("notice.view"), Path: view.String()}
+		notice.Actions = []*alborz.NoticeAction{{Label: ctx.T("notice.view"), Path: view.String()}}
 	}
 	ctx.Notify(notice)
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
@@ -416,10 +416,10 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 			return render(http.StatusOK, sig.Name, "")
 		}
 		// Plain text gets an HTML part only to carry right-to-left
-		// direction, unless the account turned it off, and not in a
+		// direction, unless the writer turned it off, and not in a
 		// reply to a list. All are read at send, never from a flag on
 		// the page, which a tab opened earlier can lose.
-		msg.SendHTML = msg.HTML == "" && !settings.NoDirectionPart && alborz.HasRTL(msg.Text)
+		msg.SendHTML = msg.HTML == "" && !ctx.Profile().Writing.NoDirectionPart && alborz.HasRTL(msg.Text)
 		if msg.SendHTML && options.InReplyTo != nil {
 			toList := false
 			if err := ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -910,12 +910,13 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	if err != nil {
 		return ret, err
 	}
-	ret.Text = replyBody(ctx, inReplyTo, quoted, settings.ReplyBelowQuote)
-	ret.QuoteBelow = !settings.ReplyBelowQuote
+	below := ctx.Profile().Writing.ReplyBelowQuote
+	ret.Text = replyBody(ctx, inReplyTo, quoted, below)
+	ret.QuoteBelow = !below
 	if quoted, err := quotedHTML(ctx, inReplyToPath, inReplyTo); err != nil {
 		return ret, err
 	} else if quoted != "" {
-		ret.QuoteHTML = replyHTML(ctx, inReplyTo, quoted, settings.ReplyBelowQuote)
+		ret.QuoteHTML = replyHTML(ctx, inReplyTo, quoted, below)
 		ret.QuoteRich = true
 	}
 

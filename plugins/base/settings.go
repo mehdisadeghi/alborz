@@ -12,6 +12,7 @@ import (
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/labstack/echo/v4"
 )
 
 const settingsKey = "base.settings"
@@ -22,9 +23,8 @@ func init() {
 
 const (
 	maxMessagesPerPage = 100
-	// defaultMessagesPerPage is what a reader who has chosen nothing
-	// gets; the reading settings define it, and it is named here so the
-	// warming code that has no context can use it too.
+	// defaultMessagesPerPage is named for the warming code, which has
+	// no context to read a profile from.
 	defaultMessagesPerPage = alborz.DefaultMessagesPerPage
 	maxSignature           = 2048
 	maxDownloadName        = 80
@@ -41,10 +41,6 @@ type Signature struct {
 }
 
 type Settings struct {
-	// MessagesPerPage, the timezone, the first day of the week and
-	// whether HTML is preferred moved to the session: they are what a
-	// person reads by, and a merged page cannot say which account they
-	// would belong to. See alborz.Reading.
 	// Signatures belong to the account rather than to an identity: which
 	// persona an address writes as is the writer's to decide per message,
 	// and a rule mapping the two would be wrong as often as it was right.
@@ -77,17 +73,6 @@ type Settings struct {
 	// unindexed one. An advertised capability counts on its own; this
 	// is the reader vouching where the server is silent.
 	IndexedSearch bool
-
-	// ReplyBelowQuote puts the reply after the quoted message, the way a
-	// mailing list expects it, instead of before. Stored positively:
-	// the zero value keeps the reply on top, which is what a mail client
-	// has always done here and what most correspondents expect.
-	ReplyBelowQuote bool
-
-	// NoDirectionPart stops plain text that runs right to left from
-	// gaining its HTML part. Stored negatively so the zero value, and
-	// every account saved before the choice existed, keeps the part.
-	NoDirectionPart bool
 }
 
 func LoadSettings(ctx context.Context, s alborz.Store) (*Settings, error) {
@@ -167,9 +152,6 @@ type SettingsStorage struct {
 	OnServer bool
 	Host     string
 	Entries  []string
-	// Reading says what the reader reads by is kept under this account
-	// too, which alborz holds itself whatever the server can do.
-	Reading bool
 }
 
 func settingsStorage(ctx *alborz.Context) (SettingsStorage, error) {
@@ -186,8 +168,7 @@ func settingsStorage(ctx *alborz.Context) (SettingsStorage, error) {
 		_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 		host = ctx.Server.UpstreamsFor(domain).IMAP
 	}
-	_, reading := ctx.Server.Sessions.LoadReading(ctx.Login.Username())
-	return SettingsStorage{OnServer: store.OnServer(), Host: host, Entries: entries, Reading: reading}, nil
+	return SettingsStorage{OnServer: store.OnServer(), Host: host, Entries: entries}, nil
 }
 
 // ServerInfo is what alborz can say about the account's upstreams
@@ -240,10 +221,9 @@ func abilities(c *imapclient.Client, settings *Settings) []Ability {
 	}
 }
 
-// ReadingRenderData is the settings page that belongs to nobody's
-// account: what this browser reads by, and the choices the browser
-// itself keeps.
-type ReadingRenderData struct {
+// ProfileRenderData is the settings page that belongs to nobody's
+// account: the profile, and how long this browser waits to lock.
+type ProfileRenderData struct {
 	alborz.BaseRenderData
 	Rail  map[string][]alborz.RailRow
 	Theme string
@@ -254,11 +234,8 @@ type ReadingRenderData struct {
 	TextSize      string
 
 	Reading    alborz.Reading
+	Writing    alborz.Writing
 	MaxPerPage int
-	// Anchor is the account these settings are kept on, empty for
-	// none, and Accounts are the ones that could hold them.
-	Anchor   string
-	Accounts []alborz.Account
 	// LockMinutes is how long this browser waits before it locks, zero
 	// when it has no passkey and does not lock.
 	LockMinutes int
@@ -685,8 +662,6 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
 		settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
-		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
-		settings.NoDirectionPart = ctx.FormValue("direction_part") == ""
 
 		params, err := ctx.FormParams()
 		if err != nil {
@@ -727,9 +702,6 @@ func handleSettings(ctx *alborz.Context) error {
 // not own, and on a server it is the reader's mailbox that is holding
 // them.
 func handleForget(ctx *alborz.Context) error {
-	if err := ctx.Server.Sessions.ForgetReading(ctx.Login.Username()); err != nil {
-		return err
-	}
 	store, ok := ctx.Login.Store().(alborz.Settings)
 	if !ok {
 		// Nothing else outlives the process to forget.
@@ -890,32 +862,36 @@ func handleServer(ctx *alborz.Context) error {
 // at once: a language behind a Save button is a language you have to
 // read in the wrong one to change.
 func handleLanguage(ctx *alborz.Context) error {
-	ctx.SetLanguage(ctx.FormValue("language"))
+	if err := ctx.SetLanguage(ctx.FormValue("language")); err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
+	} else {
+		ctx.Quiet()
+	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr("/"))
 }
 
-// handleReadingSettings serves what the person at the screen reads by,
-// which belongs to no account: the page size, the clock, the calendar
-// and the theme. It names no account, so a server that is down cannot
-// hold any of it hostage.
-func handleReadingSettings(ctx *alborz.Context) error {
-	render := func(status int, message string) error {
-		return ctx.Render(status, "settings.html", &ReadingRenderData{
+// handleProfile serves the reader's own choices, which belong to no
+// account.
+func handleProfile(ctx *alborz.Context) error {
+	render := func(status int, message string, p alborz.Profile) error {
+		return ctx.Render(status, "settings.html", &ProfileRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.general")).Refused(message),
 			Rail:           settingsRail(ctx),
-			Theme:          ctx.Theme(),
+			Theme:          p.Display.Theme,
 			Themes:         ctx.Themes(),
-			AlignByScript:  ctx.AlignByScript(),
-			TextSize:       ctx.TextSize(),
-			Reading:        ctx.Reading(),
+			AlignByScript:  p.Display.AlignByScript,
+			TextSize:       p.Display.TextSize,
+			Reading:        p.Reading,
+			Writing:        p.Writing,
 			MaxPerPage:     maxMessagesPerPage,
-			Anchor:         ctx.Session().Anchor(),
-			Accounts:       ctx.Accounts(),
 			LockMinutes:    lockMinutes(ctx.Session().Lock()),
 		})
 	}
+	shown := ctx.Profile()
+	shown.Reading = ctx.Reading()
+	shown.Display.Theme, shown.Display.TextSize = ctx.Theme(), ctx.TextSize()
 	if ctx.Request().Method != http.MethodPost {
-		return render(http.StatusOK, "")
+		return render(http.StatusOK, "", shown)
 	}
 
 	// A field the form did not carry is not a field set to nothing: it
@@ -935,11 +911,12 @@ func handleReadingSettings(ctx *alborz.Context) error {
 		return values[0], true
 	}
 
-	reading := ctx.Reading()
+	p := shown
+	reading := &p.Reading
 	if v, ok := given("messages_per_page"); ok {
 		reading.MessagesPerPage, err = alborz.ReadInt(v)
 		if err != nil || reading.MessagesPerPage <= 0 || reading.MessagesPerPage > maxMessagesPerPage {
-			return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage))
+			return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.perpage"), maxMessagesPerPage), shown)
 		}
 	}
 	if v, ok := given("timezone"); ok {
@@ -949,7 +926,7 @@ func handleReadingSettings(ctx *alborz.Context) error {
 	if fdow, ok := given("first_day_of_week"); ok && fdow != "" {
 		reading.FirstDayOfWeek, err = alborz.ReadInt(fdow)
 		if err != nil || reading.FirstDayOfWeek < 0 || reading.FirstDayOfWeek > 6 {
-			return render(http.StatusUnprocessableEntity, ctx.T("form.firstday"))
+			return render(http.StatusUnprocessableEntity, ctx.T("form.firstday"), shown)
 		}
 	}
 	if v, ok := given("calendar"); ok {
@@ -961,37 +938,66 @@ func handleReadingSettings(ctx *alborz.Context) error {
 	if reading.Secondary == reading.Primary {
 		reading.Secondary = ""
 	}
-	// The anchor is chosen from the accounts signed in; anything else
-	// names nowhere, which is what a shared mailbox wants.
-	if anchor, ok := given("anchor"); ok {
-		if ctx.LoginFor(anchor) == nil {
-			anchor = ""
-		}
-		if err := ctx.SetAnchor(anchor); err != nil {
-			return err
-		}
+	if v, ok := given("reply_position"); ok {
+		p.Writing.ReplyBelowQuote = v == "below"
 	}
-	if err := ctx.SetReading(reading); err != nil {
-		return err
-	}
-
+	p.Writing.NoDirectionPart = ctx.FormValue("direction_part") == ""
 	if v, ok := given("theme"); ok {
-		ctx.SetTheme(v)
+		p.Display.Theme = ""
+		if slices.ContainsFunc(ctx.Themes(), func(t alborz.Theme) bool { return t.Name == v }) {
+			p.Display.Theme = v
+		}
 	}
 	if v, ok := given("text_size"); ok {
-		ctx.SetTextSize(v)
+		p.Display.TextSize = ""
+		if slices.Contains(alborz.TextSizes(), v) {
+			p.Display.TextSize = v
+		}
 	}
-	ctx.SetAlignByScript(ctx.FormValue("align_script") != "")
+	p.Display.AlignByScript = ctx.FormValue("align_script") != ""
+	var lockAfter time.Duration
 	if v, ok := given("lock_minutes"); ok {
 		minutes, err := alborz.ReadInt(v)
-		if err != nil || time.Duration(minutes)*time.Minute < alborz.MinLockAfter {
-			return render(http.StatusUnprocessableEntity, ctx.T("form.lockminutes"))
+		lockAfter = time.Duration(minutes) * time.Minute
+		if err != nil || lockAfter < alborz.MinLockAfter {
+			return render(http.StatusUnprocessableEntity, ctx.T("form.lockminutes"), shown)
 		}
+	}
+	if err := ctx.SetProfile(p); err != nil {
+		return render(http.StatusUnprocessableEntity, ctx.SaveRefusal(err), p)
+	}
+	if lockAfter > 0 {
 		session := ctx.Session()
-		session.SetLockAfter(time.Duration(minutes) * time.Minute)
+		session.SetLockAfter(lockAfter)
 		if err := ctx.Server.Sessions.Save(session); err != nil {
 			return err
 		}
+	}
+	ctx.PutNotice(ctx.T("notice.settingssaved"))
+	return ctx.Redirect(http.StatusFound, "/settings")
+}
+
+// handleProfileTake answers the sign-in question with the account's own
+// profile, and handleProfileDiscard with the one in force. Both land
+// on the profile, which shows the answer.
+func handleProfileTake(ctx *alborz.Context) error {
+	return answerProfile(ctx, ctx.TakeProfile, "profile.taken")
+}
+
+func handleProfileDiscard(ctx *alborz.Context) error {
+	return answerProfile(ctx, ctx.KeepProfile, "profile.discarded")
+}
+
+func answerProfile(ctx *alborz.Context, answer func(*alborz.Login) error, done string) error {
+	account := ctx.FormValue("account")
+	login := ctx.LoginFor(account)
+	if login == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+	}
+	if err := answer(login); err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
+	} else {
+		ctx.PutNotice(fmt.Sprintf(ctx.T(done), account))
 	}
 	return ctx.Redirect(http.StatusFound, "/settings")
 }

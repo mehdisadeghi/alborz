@@ -181,7 +181,7 @@ func StarNotice(ctx *alborz.Context, star, action string, undo url.Values) albor
 	if star != "" {
 		text = fmt.Sprintf(ctx.T("notice.starchanged"), ctx.T("color."+star))
 	}
-	return alborz.Notice{Kind: alborz.NoticeDone, Text: text, Action: ctx.Undo(action, undo)}
+	return alborz.Notice{Kind: alborz.NoticeDone, Text: text, Actions: []*alborz.NoticeAction{ctx.Undo(action, undo)}}
 }
 
 // KnownView says whether a view name is one alborz offers; a colour

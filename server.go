@@ -237,7 +237,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	var settings *settingsRecords
 	if s.data != nil && options.LoginKey != nil {
 		err := CheckKey(s.data, filepath.Join(options.DataDir, storeFile), options.LoginKey,
-			sessionsOwner+"/", readingOwner+"/", settingsOwner+"/")
+			sessionsOwner+"/", settingsOwner+"/")
 		if err != nil {
 			return nil, err
 		}
@@ -984,7 +984,9 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			// mid-flow - on the login or add-account page, where there
 			// is no menu to reach for - is the whole point.
 			if lang := queryLanguage(ectx); lang != "" {
-				ctx.SetLanguage(lang)
+				if err := ctx.SetLanguage(lang); err != nil {
+					ctx.Logger().Printf("profile: keeping the language: %v", err)
+				}
 			}
 
 			// A locked session answers nothing but the way to unlock or

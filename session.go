@@ -42,11 +42,8 @@ type Session struct {
 	// remember holds each account's password sealed under the secret
 	// the browser carries, for a session the reader asked to keep.
 	remember map[string][]byte
-	// read is what the pages are read by, and anchor the account it is
-	// kept on. A nil read means the browser has chosen nothing yet and
-	// will take what the first account brings.
-	read   *Reading
-	anchor string
+	// profile is what the pages render by while an account is signed in.
+	profile *Profile
 	// said holds what this browser has been told and need not hear on
 	// every page: a standing condition is news once.
 	said map[string]bool
@@ -61,38 +58,18 @@ type Session struct {
 	device, address string
 }
 
-func (s *Session) reading() Reading {
+func (s *Session) Profile() (Profile, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.read == nil {
-		return Reading{}
+	if s.profile == nil {
+		return Profile{}, false
 	}
-	return *s.read
+	return *s.profile, true
 }
 
-func (s *Session) hasReading() bool {
+func (s *Session) setProfile(p Profile) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.read != nil
-}
-
-func (s *Session) setReading(r Reading) {
-	s.mu.Lock()
-	s.read = &r
-	s.mu.Unlock()
-}
-
-// Anchor is the account this browser's reading settings are kept on,
-// empty when they are kept nowhere.
-func (s *Session) Anchor() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.anchor
-}
-
-func (s *Session) setAnchor(account string) {
-	s.mu.Lock()
-	s.anchor = account
+	s.profile = &p
 	s.mu.Unlock()
 }
 
@@ -138,7 +115,7 @@ func (s *Session) record() *SessionRecord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec := &SessionRecord{ID: s.ID, Created: s.Created, Seen: s.seen, Proof: s.proof,
-		Reading: s.read, Anchor: s.anchor, Lock: s.lock, Device: s.device, Address: s.address}
+		Profile: s.profile, Lock: s.lock, Device: s.device, Address: s.address}
 	for address, sealed := range s.remember {
 		rec.Accounts = append(rec.Accounts, RememberedAccount{Address: address, Sealed: sealed})
 	}
@@ -162,7 +139,7 @@ func sessionFromRecord(rec *SessionRecord) *Session {
 	for _, a := range rec.Accounts {
 		s.remember[a.Address] = a.Sealed
 	}
-	s.read, s.anchor, s.lock = rec.Reading, rec.Anchor, rec.Lock
+	s.profile, s.lock = rec.Profile, rec.Lock
 	s.device, s.address = rec.Device, rec.Address
 	return s
 }
@@ -229,8 +206,7 @@ type SessionRecord struct {
 	Seen     time.Time
 	Proof    []byte
 	Accounts []RememberedAccount
-	Reading  *Reading
-	Anchor   string
+	Profile  *Profile
 	Lock     Lock
 	Device   string `json:",omitempty"`
 	Address  string `json:",omitempty"`
@@ -242,17 +218,13 @@ type RememberedAccount struct {
 	Sealed  []byte
 }
 
-// SessionRecords keeps remembered sessions, and what a reader reads by
-// under the account they anchored it to.
+// SessionRecords keeps remembered sessions.
 type SessionRecords interface {
 	Load(id string) (*SessionRecord, bool)
 	Save(rec *SessionRecord) error
 	Delete(id string) error
 	Sweep(before time.Time) error
 	Each(func(*SessionRecord)) error
-	LoadReading(account string) (*Reading, bool)
-	SaveReading(account string, r *Reading) error
-	DeleteReading(account string) error
 }
 
 // Sessions are the browsers signed in. The live ones are held here, and
@@ -328,31 +300,6 @@ func (ss *Sessions) Save(s *Session) error {
 		return nil
 	}
 	return ss.records.Save(s.record())
-}
-
-// LoadReading and SaveReading are what an account keeps for whoever
-// anchored their reading settings to it.
-func (ss *Sessions) LoadReading(account string) (*Reading, bool) {
-	if ss.records == nil {
-		return nil, false
-	}
-	return ss.records.LoadReading(account)
-}
-
-// ForgetReading drops what is kept under an account, for a reader
-// taking back everything alborz wrote about them there.
-func (ss *Sessions) ForgetReading(account string) error {
-	if ss.records == nil {
-		return nil
-	}
-	return ss.records.DeleteReading(account)
-}
-
-func (ss *Sessions) SaveReading(account string, r Reading) error {
-	if ss.records == nil {
-		return nil
-	}
-	return ss.records.SaveReading(account, &r)
 }
 
 // Sweep drops the records nobody has come back to.

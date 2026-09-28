@@ -46,16 +46,6 @@
           </label>
         </div>
         <div class="action-group">
-          <label for="anchor">{{$.T "settings.anchorlabel"}}</label>
-          <select name="anchor" id="anchor" dir="ltr">
-            <option value="" {{if eq .Anchor ""}}selected{{end}}>{{$.T "settings.anchornone"}}</option>
-            {{ range .Accounts }}
-            <option value="{{.Username}}" {{if eq $.Anchor .Username}}selected{{end}}>{{.Username}}</option>
-            {{ end }}
-          </select>
-          {{ template "hint" (dict "text" ($.T "settings.anchorhint")) }}
-        </div>
-        <div class="action-group">
           <label for="first_day_of_week">{{$.T "settings.firstday"}}</label>
           <select name="first_day_of_week" id="first_day_of_week">
             <option value="1" {{if eq .Reading.FirstDayOfWeek 1}}selected{{end}}>{{$.T "settings.monday"}}</option>
@@ -78,6 +68,22 @@
             <option value="shcal" {{if eq .Reading.Secondary "shcal"}}selected{{end}}>{{$.T "settings.shcal"}}</option>
           </select>
           {{ template "hint" (dict "text" ($.T "settings.secondaryhint")) }}
+        </div>
+
+        <div class="action-group">
+          <label for="direction_part" class="checkbox">
+            <input type="checkbox" name="direction_part" id="direction_part" value="1"{{if not .Writing.NoDirectionPart}} checked{{end}}>
+            {{$.T "settings.directionpart"}}
+          </label>
+          {{ template "hint" (dict "text" ($.T "settings.directionparthint")) }}
+        </div>
+
+        <div class="action-group">
+          <label for="reply_position">{{$.T "settings.replyposition"}}</label>
+          <select name="reply_position" id="reply_position">
+            <option value="above" {{if not .Writing.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replytop"}}</option>
+            <option value="below" {{if .Writing.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replybottom"}}</option>
+          </select>
         </div>
 
         <div class="action-group">

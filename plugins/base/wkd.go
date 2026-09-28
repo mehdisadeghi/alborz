@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
-
-	"git.mehdix.org/alborz"
 )
 
 // A Web Key Directory (draft-koch-openpgp-webkey-service) is the one
@@ -44,14 +42,13 @@ type wkdEntry struct {
 type wkdCache struct {
 	mu      sync.Mutex
 	entries map[string]wkdEntry
-	client  *http.Client
 }
 
-var wkd = &wkdCache{entries: map[string]wkdEntry{}, client: alborz.NewRemoteClient(wkdTimeout)}
+var wkd = &wkdCache{entries: map[string]wkdEntry{}}
 
 // keys returns what the address's domain publishes for it, an empty
 // list when nothing, from the cache when asked within the day.
-func (w *wkdCache) keys(address string) openpgp.EntityList {
+func (w *wkdCache) keys(client *http.Client, address string) openpgp.EntityList {
 	address = strings.ToLower(address)
 	w.mu.Lock()
 	e, ok := w.entries[address]
@@ -59,7 +56,7 @@ func (w *wkdCache) keys(address string) openpgp.EntityList {
 	if ok && time.Since(e.fetched) < wkdKeepFor {
 		return e.keys
 	}
-	keys := w.fetch(address)
+	keys := w.fetch(client, address)
 	w.mu.Lock()
 	w.entries[address] = wkdEntry{keys: keys, fetched: time.Now()}
 	w.mu.Unlock()
@@ -68,7 +65,7 @@ func (w *wkdCache) keys(address string) openpgp.EntityList {
 
 // fetch tries the advanced method, on a subdomain of its own, and then
 // the direct one, the order the draft gives; the first answer wins.
-func (w *wkdCache) fetch(address string) openpgp.EntityList {
+func (w *wkdCache) fetch(client *http.Client, address string) openpgp.EntityList {
 	local, domain, ok := strings.Cut(address, "@")
 	if !ok || local == "" || domain == "" {
 		return nil
@@ -79,7 +76,7 @@ func (w *wkdCache) fetch(address string) openpgp.EntityList {
 		fmt.Sprintf("https://openpgpkey.%s/.well-known/openpgpkey/%s/hu/%s%s", domain, domain, hash, query),
 		fmt.Sprintf("https://%s/.well-known/openpgpkey/hu/%s%s", domain, hash, query),
 	} {
-		resp, err := w.client.Get(u)
+		resp, err := client.Get(u)
 		if err != nil {
 			continue
 		}

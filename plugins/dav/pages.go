@@ -368,7 +368,7 @@ func readUpload(file *multipart.FileHeader) ([]byte, error) {
 // fetchAddress reads a calendar from an address once and forgets it: a
 // subscription that follows the address is a different thing. webcal:
 // is https: by another name.
-func fetchAddress(address string) ([]byte, error) {
+func fetchAddress(client *http.Client, address string) ([]byte, error) {
 	u, err := url.Parse(address)
 	if err != nil {
 		return nil, fmt.Errorf("not an address: %w", err)
@@ -376,7 +376,7 @@ func fetchAddress(address string) ([]byte, error) {
 	if u.Scheme == "webcal" {
 		u.Scheme = "https"
 	}
-	resp, err := alborz.NewRemoteClient(alborz.RoundTripTimeout).Get(u.String())
+	resp, err := client.Get(u.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the calendar: %w", err)
 	}
@@ -634,7 +634,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 		var raw []byte
 		name := ""
 		if data.URL = strings.TrimSpace(ctx.FormValue("url")); address && data.URL != "" {
-			raw, err = fetchAddress(data.URL)
+			raw, err = fetchAddress(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), data.URL)
 			if err != nil {
 				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)

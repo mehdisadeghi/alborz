@@ -3,12 +3,12 @@ package alborzcaldav
 import (
 	"context"
 	"embed"
+	"time"
 
 	"git.mehdix.org/alborz"
 	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"git.mehdix.org/alborz/plugins/collections"
 	"git.mehdix.org/alborz/plugins/dav"
-	"git.mehdix.org/alborz/plugins/davcache"
 	"github.com/emersion/go-webdav/caldav"
 )
 
@@ -34,7 +34,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		Schemes: [2]string{"caldavs", "caldav+insecure"},
 		// Invitations and tasks ticked on a phone should show within
 		// minutes.
-		Poll:     davcache.DefaultPoll,
+		Poll:     2 * time.Minute,
 		Discover: caldav.DiscoverContextURL,
 		Own:      func(s alborz.Services) string { return s.CalDAV },
 		Holds:    collections.Calendar,

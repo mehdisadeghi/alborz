@@ -23,11 +23,7 @@ import (
 )
 
 const (
-	// DefaultPoll is how often a collection is asked for its ctag when
-	// the service names no interval of its own. There is no push in
-	// CalDAV or CardDAV, so this is how soon a change made elsewhere
-	// shows up; the reader never waits on it, the loop asks ahead.
-	DefaultPoll = 2 * time.Minute
+	refreshWorkers = 4
 
 	// claimRetry is how long a forced refresh waits before asking again
 	// for a collection the loop is busy with.
@@ -104,7 +100,8 @@ type user struct {
 	// was, and must not put that over what the write has since changed.
 	writes     map[string]uint64
 	lastActive time.Time
-	// poll is the account's service interval, see DefaultPoll.
+	// poll is how often the account's collections are asked whether
+	// they changed.
 	poll time.Duration
 	// dirty says the store's copy is behind what is held.
 	dirty bool
@@ -122,24 +119,22 @@ func newUser(poll time.Duration) *user {
 }
 
 type Cache struct {
-	limits *hostLimits
-	mu     sync.Mutex
-	users  map[string]*user
-	store  *Store // nil keeps the cache in memory only
-	poll   time.Duration
-	stop   chan struct{}
-	wg     sync.WaitGroup
+	mu    sync.Mutex
+	users map[string]*user
+	store *Store // nil keeps the cache in memory only
+	poll  time.Duration
+	stop  chan struct{}
+	wg    sync.WaitGroup
 }
 
 // New makes a cache polling collections every poll, warm from store
 // when there is one. It reports how many accounts it starts with.
 func New(store *Store, poll time.Duration) (*Cache, int, error) {
 	c := &Cache{
-		users:  make(map[string]*user),
-		limits: &hostLimits{hosts: make(map[string]*hostLimit)},
-		store:  store,
-		poll:   poll,
-		stop:   make(chan struct{}),
+		users: make(map[string]*user),
+		store: store,
+		poll:  poll,
+		stop:  make(chan struct{}),
 	}
 	if store != nil {
 		users, err := store.load(poll)
@@ -158,7 +153,6 @@ func New(store *Store, poll time.Duration) (*Cache, int, error) {
 // get past.
 func (c *Cache) Refresh(ctx context.Context, username string) {
 	u := c.user(username)
-	ctx = context.WithValue(ctx, foregroundKey{}, true)
 	ctx, cancel := context.WithTimeout(ctx, refreshBudget)
 	defer cancel()
 	colls := make(map[string][]*entry)
@@ -253,7 +247,7 @@ func (c *Cache) Transport(username string, next http.RoundTripper) http.RoundTri
 		username: username,
 		next:     next,
 		replay: &http.Client{
-			Transport: replayed{next},
+			Transport: next,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -405,7 +399,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctag := ""
 	if u.ctagOf(coll) == "" {
 		ctx, cancel := context.WithTimeout(req.Context(), ctagTimeout)
-		ctag = fetchCtag(context.WithValue(ctx, foregroundKey{}, true), t.replay, req.URL, coll)
+		ctag = fetchCtag(ctx, t.replay, req.URL, coll)
 		cancel()
 	}
 
@@ -554,7 +548,7 @@ func (c *Cache) refresh() {
 		}
 		// A budget per account: one slow server must not spend the time
 		// every other account's refresh needed.
-		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
+		ctx, cancel := context.WithTimeout(alborz.Background(context.Background()), refreshBudget)
 		u.refresh(ctx)
 		cancel()
 	})
@@ -609,10 +603,27 @@ func (u *user) refreshBehind(coll string) {
 	u.mu.Unlock()
 	go func() {
 		defer u.release(coll)
-		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
+		ctx, cancel := context.WithTimeout(alborz.Background(context.Background()), refreshBudget)
 		defer cancel()
 		u.refreshCollection(ctx, coll, stale)
 	}()
+}
+
+func parallel[T any](values []T, f func(T)) {
+	jobs := make(chan T)
+	var wg sync.WaitGroup
+	for range min(refreshWorkers, len(values)) {
+		wg.Go(func() {
+			for v := range jobs {
+				f(v)
+			}
+		})
+	}
+	for _, v := range values {
+		jobs <- v
+	}
+	close(jobs)
+	wg.Wait()
 }
 
 // claim marks the collection as being revalidated; false means someone

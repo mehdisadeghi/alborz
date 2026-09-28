@@ -196,7 +196,7 @@ func TestAnAccountsServerIsNotDialledOnOurNetwork(t *testing.T) {
 	own := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true }))
 	defer own.Close()
 	req, _ := http.NewRequest("PROPFIND", "http://alborz.invalid/@own/dav/", nil)
-	if _, err := routerTo(own, alborz.NewRemoteTransport()).RoundTrip(req); err == nil || reached {
+	if _, err := routerTo(own, alborz.NewOutgoing().Guarded).RoundTrip(req); err == nil || reached {
 		t.Errorf("a loopback server was reached (%v), err %v", reached, err)
 	}
 }

@@ -23,7 +23,7 @@ func TestRefuseLocalKeepsToPublicAddresses(t *testing.T) {
 }
 
 func TestRemoteClientSpeaksOnlyHTTPS(t *testing.T) {
-	c := NewRemoteClient(time.Second)
+	c := NewOutgoing().Remote(time.Second)
 	_, err := c.Get("http://127.0.0.1:1/")
 	if err == nil || !strings.Contains(err.Error(), "not https") {
 		t.Errorf("plain http was attempted: %v", err)

@@ -26,8 +26,9 @@ type Kind struct {
 	Name, Label string
 	// Schemes are the explicit upstream schemes, secure and plain.
 	Schemes [2]string
-	// Poll is how often a collection is asked whether it changed; see
-	// davcache.DefaultPoll.
+	// Poll is how often a collection is asked whether it changed: CalDAV
+	// and CardDAV push nothing, so it is how soon a change made
+	// elsewhere shows.
 	Poll time.Duration
 	// Discover finds the service's URL for a domain by its SRV record.
 	Discover func(ctx context.Context, domain string) (string, error)
@@ -140,10 +141,9 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	}
 	p := &Provider{kind: kind, urls: urls, found: found, hosts: hosts, cache: cache,
 		collections: alborz.NewBackgroundMemo[[]Collection](discoveryTTL)}
-	p.trusted = cache.Limit(http.DefaultTransport)
-	p.named = p.trusted
+	p.trusted, p.named = srv.Outgoing.Trusted, srv.Outgoing.Trusted
 	if !srv.Options.PrivateServices {
-		p.named = cache.Limit(alborz.NewRemoteTransport())
+		p.named = srv.Outgoing.Guarded
 	}
 	if srv.Collections != nil {
 		p.here, p.store = srv.Collections.Handler(), srv.Collections
@@ -170,11 +170,11 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 			// SanityCheckURL is the domain's own probe, and OnMailHost the
 			// mail host's; either may be nil.
 			if p.urls[domain] != nil {
-				if err := SanityCheckURL(p.urls[domain]); err != nil {
+				if err := SanityCheckURL(srv.Outgoing.Trusted, p.urls[domain]); err != nil {
 					srv.Logger().Printf("Warning: %s: domain %q: %s server %q not reachable at startup: %v", kind.Name, domain, kind.Label, p.urls[domain], err)
 				}
 			}
-			if h, ok := OnMailHost(srv.UpstreamsFor(domain).IMAP, kind.Name); ok && (p.urls[domain] == nil || h.Host != p.urls[domain].Host) {
+			if h, ok := OnMailHost(srv.Outgoing.Trusted, srv.UpstreamsFor(domain).IMAP, kind.Name); ok && (p.urls[domain] == nil || h.Host != p.urls[domain].Host) {
 				srv.Logger().Printf("Domain %q: %s server on the mail host: %v", domain, kind.Label, h)
 				p.hostsMu.Lock()
 				p.hosts[domain] = h

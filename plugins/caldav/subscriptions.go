@@ -1,6 +1,7 @@
 package alborzcaldav
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
@@ -143,10 +144,9 @@ type subEntry struct {
 type subCache struct {
 	mu      sync.Mutex
 	entries map[string]*subEntry
-	client  *http.Client
 }
 
-var subs = &subCache{entries: map[string]*subEntry{}, client: alborz.NewRemoteClient(alborz.RoundTripTimeout)}
+var subs = &subCache{entries: map[string]*subEntry{}}
 
 // events returns the feed's events as one read-only object in the
 // subscription's colour, or nothing when the feed has not been fetched
@@ -198,7 +198,7 @@ func (c *subCache) fresh(url string) bool {
 
 // refresh fetches the feed and caches it. It honours the ETag so a feed
 // that has not changed costs one conditional GET and no parse.
-func (c *subCache) refresh(url string) error {
+func (c *subCache) refresh(client *http.Client, url string) error {
 	c.mu.Lock()
 	e := c.entries[url]
 	if e == nil {
@@ -213,7 +213,7 @@ func (c *subCache) refresh(url string) error {
 	etag := e.etag
 	c.mu.Unlock()
 
-	cal, newETag, notModified, err := c.get(url, etag)
+	cal, newETag, notModified, err := c.get(client, url, etag)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -231,15 +231,17 @@ func (c *subCache) refresh(url string) error {
 	return nil
 }
 
-func (c *subCache) get(url, etag string) (*ical.Calendar, string, bool, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func (c *subCache) get(client *http.Client, url, etag string) (*ical.Calendar, string, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), alborz.RoundTripTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, "", false, err
 	}
 	if etag != "" {
 		req.Header.Set("If-None-Match", etag)
 	}
-	resp, err := c.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -264,14 +266,14 @@ func (c *subCache) get(url, etag string) (*ical.Calendar, string, bool, error) {
 // among the rail's calendars, fetching a stale feed behind the page. A
 // feed never fetched contributes nothing this time and its events
 // appear once the refresh lands.
-func subscriptionObjects(infos []dav.Collection, scope string) []CalendarObject {
+func subscriptionObjects(client *http.Client, infos []dav.Collection, scope string) []CalendarObject {
 	var out []CalendarObject
 	for _, info := range infos {
 		if info.Address == "" || !info.Shown || (scope != "" && info.Account != scope) {
 			continue
 		}
 		if !subs.fresh(info.Address) {
-			go subs.refresh(info.Address)
+			go subs.refresh(client, info.Address)
 		}
 		if obj, ok := subs.events(info.Address, info.Color); ok {
 			// The link carries the account, as every object's does, so

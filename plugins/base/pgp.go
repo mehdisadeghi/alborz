@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/mail"
 	"strings"
 
@@ -162,7 +163,7 @@ func autocryptKey(h textproto.Header) (openpgp.EntityList, string, error) {
 // whole message is fetched once and the region is cut out of it by its
 // boundary, which is the one thing every server passes through
 // untouched.
-func verifySignature(conn *imapclient.Client, mboxName string, uid imap.UID,
+func verifySignature(client *http.Client, conn *imapclient.Client, mboxName string, uid imap.UID,
 	bs imap.BodyStructure, rootHeader textproto.Header, from string) Verification {
 
 	_, _, protocol, ok := signedPartsOf(bs)
@@ -183,7 +184,7 @@ func verifySignature(conn *imapclient.Client, mboxName string, uid imap.UID,
 	if smimeProtocols[protocol] {
 		return verifySMIME(signed, sig, authors)
 	}
-	domainKeys := domainKeys(authors)
+	domainKeys := domainKeys(client, authors)
 	messageKeys := senderKeys(rootHeader, raw, authors)
 	if len(domainKeys)+len(messageKeys) == 0 {
 		// Signed, and nothing says by whom. That is not a failed
@@ -227,10 +228,10 @@ func withDelivery(v Verification, a *AuthResults) Verification {
 
 // domainKeys asks each author's domain for the keys it publishes for
 // them, keeping those that name the author.
-func domainKeys(authors []string) openpgp.EntityList {
+func domainKeys(client *http.Client, authors []string) openpgp.EntityList {
 	var found openpgp.EntityList
 	for _, author := range authors {
-		for _, key := range wkd.keys(author) {
+		for _, key := range wkd.keys(client, author) {
 			if claimsAddress(key, "", authors) {
 				found = append(found, key)
 			}

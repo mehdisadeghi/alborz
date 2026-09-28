@@ -30,7 +30,7 @@ var davFeature = map[string]string{"caldav": "calendar-access", "carddav": "addr
 // is asked to sign in (RFC 6764 5 has it redirect). A web server that
 // sends every path to its home page, or asks for a password on every
 // one without a redirect, is neither.
-func OnMailHost(host, service string) (*url.URL, bool) {
+func OnMailHost(rt http.RoundTripper, host, service string) (*url.URL, bool) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
 		hostname = host
@@ -41,7 +41,7 @@ func OnMailHost(host, service string) (*url.URL, bool) {
 		return nil, false
 	}
 	redirected := false
-	client := &http.Client{Timeout: wellKnownWait, CheckRedirect: func(*http.Request, []*http.Request) error {
+	client := &http.Client{Transport: rt, Timeout: wellKnownWait, CheckRedirect: func(*http.Request, []*http.Request) error {
 		redirected = true
 		return nil
 	}}
@@ -70,13 +70,13 @@ func OnMailHost(host, service string) (*url.URL, bool) {
 }
 
 // SanityCheckURL asks the endpoint whether it is there at all.
-func SanityCheckURL(u *url.URL) error {
+func SanityCheckURL(rt http.RoundTripper, u *url.URL) error {
 	req, err := http.NewRequest(http.MethodOptions, u.String(), nil)
 	if err != nil {
 		return err
 	}
 
-	client := &http.Client{Timeout: alborz.RoundTripTimeout}
+	client := &http.Client{Transport: rt, Timeout: alborz.RoundTripTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

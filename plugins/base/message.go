@@ -529,7 +529,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 				// connection that has the mailbox open. A message nobody
 				// signed costs nothing here: signedParts walks a structure
 				// already in hand and finds nothing.
-				signature = verifySignature(c, mboxName, uid, msg.BodyStructure,
+				signature = verifySignature(ctx.Server.Outgoing.Remote(wkdTimeout), c, mboxName, uid, msg.BodyStructure,
 					messageRootHeader(msg), envelopeSender(msg.Envelope))
 				// What our own server made of SPF, DKIM and DMARC when
 				// it took delivery. Read from the same header set, and
@@ -836,8 +836,7 @@ func handleUnsubscribe(ctx *alborz.Context) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	client := alborz.NewRemoteClient(unsubscribeTimeout)
-	resp, err := client.Do(req)
+	resp, err := ctx.Server.Outgoing.Remote(unsubscribeTimeout).Do(req)
 	if err != nil {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
 		return ctx.Redirect(http.StatusFound, back)

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/lang"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
@@ -397,7 +398,7 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 			return err
 		}
 	case msg.SendHTML && msg.CalendarMethod == "":
-		if err := writeAlternative(mw, th, body, alborz.HTMLAlternative(msg.Text), nil); err != nil {
+		if err := writeAlternative(mw, th, body, lang.HTMLAlternative(msg.Text), nil); err != nil {
 			return err
 		}
 	default:

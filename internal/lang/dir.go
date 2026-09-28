@@ -1,8 +1,11 @@
-package alborz
+package lang
 
 import (
 	"html"
+	"regexp"
 	"strings"
+
+	"golang.org/x/text/unicode/bidi"
 )
 
 // ParagraphDir returns "ltr" or "rtl" for one paragraph, never "auto".
@@ -98,4 +101,37 @@ func paragraphs(lines []string) [][]string {
 		out = append(out, cur)
 	}
 	return out
+}
+
+var replyPrefix = regexp.MustCompile(`^\s*(?i:(re|aw|sv|antw|fw|fwd|rv|tr)\s*(\[\d+\])?\s*:|\[[^\]]{1,40}\])\s*`)
+
+// SubjectDir is the direction a subject reads in, ignoring reply prefixes that would lead with Latin letters.
+func SubjectDir(subject string) string {
+	stripped := subject
+	for {
+		trimmed := replyPrefix.ReplaceAllString(stripped, "")
+		if trimmed == stripped {
+			break
+		}
+		stripped = trimmed
+	}
+	if strings.TrimSpace(stripped) == "" {
+		stripped = subject
+	}
+	stripped = strings.TrimSpace(stripped)
+	if stripped == "" {
+		return "auto"
+	}
+	// x/text's Direction panics on a paragraph that has not been ordered.
+	var p bidi.Paragraph
+	if _, err := p.SetString(stripped); err != nil {
+		return "auto"
+	}
+	if _, err := p.Order(); err != nil {
+		return "auto"
+	}
+	if p.IsLeftToRight() {
+		return "ltr"
+	}
+	return "rtl"
 }

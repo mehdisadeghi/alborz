@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/lang"
 	"github.com/emersion/go-message"
 )
 
@@ -71,7 +72,7 @@ func viewHTML(ctx *alborz.Context, msg *IMAPMessage, part *message.Entity) (View
 	body = append([]byte(`<style>img { max-width: 100%; height: auto; } pre { white-space: pre-wrap; overflow-wrap: anywhere; }</style>`), body...)
 
 	// srcdoc is its own document, so lang on the iframe does not reach its text.
-	if lang := alborz.MessageLang(san.text.String(), ctx.PageLanguage()); lang != "" {
+	if lang := lang.OfMessage(san.text.String(), ctx.PageLanguage()); lang != "" {
 		body = append([]byte(`<div lang="`+template.HTMLEscapeString(lang)+`">`), body...)
 		body = append(body, []byte(`</div>`)...)
 	}

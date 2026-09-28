@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/lang"
 	"github.com/emersion/go-imap/v2"
 )
 
@@ -98,7 +99,7 @@ var TemplateFuncs = template.FuncMap{
 	"pathescape": url.PathEscape,
 	// template.URL, or the escaper would percent-encode what QueryValue left alone.
 	"qv":         func(v string) template.URL { return template.URL(alborz.QueryValue(v)) },
-	"subjectdir": alborz.SubjectDir,
+	"subjectdir": lang.SubjectDir,
 	// template.URL, so the escaper normalises rather than escapes the address.
 	"account": func(sep, username string) template.URL {
 		if username == "" {

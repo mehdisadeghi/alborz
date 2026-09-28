@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/lang"
 	"git.mehdix.org/alborz/mail"
 )
 
@@ -97,7 +98,7 @@ const replyBoundary = "=_alborz-reply"
 func replyEntity(text string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=%q\n\n", replyBoundary)
-	for _, part := range []struct{ kind, body string }{{"text/plain", text + "\n"}, {"text/html", alborz.HTMLAlternative(text)}} {
+	for _, part := range []struct{ kind, body string }{{"text/plain", text + "\n"}, {"text/html", lang.HTMLAlternative(text)}} {
 		fmt.Fprintf(&b, "--%s\nContent-Type: %s; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\n", replyBoundary, part.kind)
 		w := quotedprintable.NewWriter(&b)
 		w.Write([]byte(part.body))

@@ -1,0 +1,55 @@
+{{/* dict: g url acct list new newlabel edit rawq ext readonly section home field collection path.
+     An event's, task's or contact's toolbar and crumb; a page adds its own actions through the object-actions block. */}}
+{{ define "object-toolbar" }}
+{{ $g := .g }}
+        {{ template "toolbar-head" (dict "g" $g "newhref" (printf "%s%s" .new .acct) "back" .list "newlabel" .newlabel) }}
+        <span class="icon-group">
+          {{ block "object-actions" . }}{{ end }}
+          {{ if not .readonly }}
+          <a class="icon-button" href="{{ localhref (from (printf "%s/%s%s" .url .edit .acct) $g.GlobalData.From) }}" title="{{$g.T "common.edit"}}" aria-label="{{$g.T "common.edit"}}">{{ template "icon" "edit" }}</a>
+          {{ end }}
+          <a hx-boost="false" class="icon-button" href="{{.url}}/raw{{.rawq}}{{ account (qsep .rawq) $g.GlobalData.URLAccount }}" title="{{$g.T "common.source"}}" aria-label="{{$g.T "common.source"}}">{{ template "icon" "source" }}</a>
+          <a hx-boost="false" class="icon-button" href="{{.url}}/raw{{.rawq}}{{ qsep .rawq }}save=1{{ account "&" $g.GlobalData.URLAccount }}" title="{{ printf ($g.T "common.saveas") .ext }}" aria-label="{{ printf ($g.T "common.saveas") .ext }}">{{ template "icon" "download" }}</a>
+          {{ if not .readonly }}
+          <form action="{{.url}}/delete{{.acct}}" method="post">
+            <input type="hidden" name="next" value="{{.list}}">
+            <button type="submit" class="icon-button icon-danger" title="{{$g.T "common.delete"}}" aria-label="{{$g.T "common.delete"}}">{{ template "icon" "trash" }}</button>
+          </form>
+          {{ end }}
+        </span>
+        {{ template "toolbar-end" }}
+        {{ template "object-nav" (dict "g" $g "n" $g.Neighbours) }}
+        {{ template "toolbar-foot" }}
+
+      {{ template "section-crumb" (dict "g" $g "section" .section "home" .home "field" .field "collection" .collection "path" .path) }}
+{{ end }}
+
+{{/* dict: g title form action current [class readonly]. */}}
+{{ define "object-title" }}
+        <div class="subject-row">
+          <h1{{ with .class }} class="{{.}}"{{ end }}>{{.title}}</h1>
+          {{ if not .readonly }}
+          {{ template "flag-menu" (dict
+             "toggle" true
+             "form" .form
+             "action" .action
+             "current" .current
+             "title" (.g.T "mailbox.flagcolor") "clear" (.g.T "mailbox.flagnone") "colors" (flagcolors .g)) }}
+          {{ end }}
+        </div>
+{{ end }}
+
+{{/* dict: g editing collection groups section home field title name key.
+     A form's crumb and heading, and for a new object the collection it goes to. */}}
+{{ define "object-form-head" }}
+{{ $g := .g }}
+{{ $coll := "" }}{{ $path := "" }}{{ if .editing }}{{ $coll = .collection.Name }}{{ $path = .collection.Path }}{{ end }}
+        {{ template "section-crumb" (dict "g" $g "section" .section "home" .home "field" .field "collection" $coll "path" $path "chooses" (and (not .editing) (gt (len $g.GlobalData.Accounts) 1))) }}
+        <h1>
+          {{.title}}
+        </h1>
+        {{ if not .editing }}
+        {{ $cur := $g.GlobalData.Username }}{{ with $g.GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{ with .collection.Account }}{{ $cur = . }}{{ end }}
+        {{ template "collection-picker" (dict "label" ($g.T "common.saveto") "name" .name "key" .key "groups" .groups "account" $cur "path" .collection.Path "multi" (gt (len $g.GlobalData.Accounts) 1)) }}
+        {{ end }}
+{{ end }}

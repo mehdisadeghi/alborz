@@ -1,0 +1,25 @@
+{{ define "rail" }}
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+{{ end }}
+
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
+      <form method="POST" action="/tasks/move" hx-boost="false">
+        {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" "/tasks" "field" "" "collection" "" "path" "") }}
+        <h1>{{$.T "folder.moveask"}}</h1>
+        <p>{{ $.GlobalData.Tf "tasks.movecount" (len .Paths) }}</p>
+        {{ range .Paths }}<input type="hidden" name="paths" value="{{.}}">{{ end }}
+        <input type="hidden" name="next" value="{{.Next}}">
+        {{ $multi := gt (len .GlobalData.Accounts) 1 }}
+        <div class="field">
+          <label for="to">{{$.T "tasks.movelist"}}</label>
+          <select name="to" id="to" required>
+            {{ range .Calendars }}
+            <option value="{{.Account}}|{{.Path}}">{{.Name}}{{ if $multi }} ({{ $.GlobalData.AccountLabel .Account }}){{ end }}</option>
+            {{ end }}
+          </select>
+        </div>
+        {{ template "form-actions" (dict "save" ($.T "folder.movedo") "cancel" .Next "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+{{ end }}

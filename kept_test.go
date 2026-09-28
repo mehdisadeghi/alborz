@@ -23,12 +23,10 @@ func startAlborzKept(t *testing.T, imapAddr string) string {
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
 	newAlborz(t, e, &alborz.Options{
-		Upstreams:  []string{"test.local=imap+insecure://" + imapAddr},
-		Theme:      "alborz",
-		ThemesPath: "./themes",
-		LoginKey:   key,
-		DataDir:    t.TempDir(),
-		Cache:      true,
+		Upstreams: []string{"test.local=imap+insecure://" + imapAddr},
+		LoginKey:  key,
+		DataDir:   t.TempDir(),
+		Cache:     true,
 	})
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

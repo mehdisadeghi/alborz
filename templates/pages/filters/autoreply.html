@@ -1,20 +1,14 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
+{{ define "rail" }}
+  {{ template "filters-rail" (dict "g" $ "accounts" .GlobalData.Accounts) }}
+{{ end }}
 
-<div class="page-wrap">
+{{ define "main-class" }} class="list"{{ end }}
+
+{{ define "main" }}
   {{ $aq := account "?" .GlobalData.URLAccount }}
-  <aside>
-  {{ template "scope-rail" (dict "g" $ "kind" "rows" "path" "/filters" "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "all" ($.T "nav.allaccounts") "new" (dict "href" (printf "/filters/create%s" $aq) "label" ($.T "filters.new"))) }}
-  </aside>
+        {{ template "list-toolbar" (dict "g" $ "title" ($.T "filters.autoreply") "newhref" (printf "/filters/autoreply/create%s" $aq) "newlabel" ($.T "filters.replynew")) }}
 
-  <div class="container">
-    <main id="main" tabindex="-1" class="list">
-      <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{ template "list-toolbar" (dict "title" ($.T "filters.autoreply") "newhref" (printf "/filters/autoreply/create%s" $aq) "newlabel" ($.T "filters.replynew")) }}
-      </section>
-
-      {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" ($.T "filters.autoreply") "path" "/filters/autoreply") }}
+      {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.autoreply") "path" "/filters/autoreply") }}
 
       {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
       {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="/filters/{{.Script | pathescape}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
@@ -48,8 +42,4 @@
         <p class="empty-list">{{$.T "filters.repliesnone"}}</p>
         {{ end }}
       </section>
-    </main>
-  </div>
-</div>
-
-{{template "foot.html"}}
+{{ end }}

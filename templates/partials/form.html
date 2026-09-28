@@ -1,0 +1,105 @@
+{{ define "field" }}
+<div class="field{{ with .class }} {{.}}{{ end }}">
+  <label for="{{.name}}">{{.label}}</label>
+  {{ if .rows }}
+  <textarea name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} rows="{{.rows}}"{{ if .autofocus }} autofocus{{ end }}>{{.value}}</textarea>
+  {{ else }}
+  <input type="{{with .type}}{{.}}{{else}}text{{end}}" name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} value="{{.value}}"{{ if .placeholder }} placeholder="{{.placeholder}}"{{ end }}{{ if .required }} required{{ end }}{{ if .readonly }} readonly{{ end }}{{ if .autofocus }} autofocus{{ end }}>
+  {{ end }}
+  {{ with .hint }}<p class="hint">{{.}}{{ with $.example }} {{ template "ltr" . }}{{ end }}</p>{{ end }}
+</div>
+{{ end }}
+
+{{/* dict: g label name value [class time hint]. */}}
+{{ define "date-field" }}
+{{ $type := "date" }}{{ if .time }}{{ $type = "datetime-local" }}{{ end }}
+{{ $example := "" }}{{ $hint := "" }}
+{{ if .g.GlobalData.TypedDates }}
+  {{ $type = "text" }}
+  {{ if .time }}{{ $example = .g.GlobalData.DateTimeExample }}{{ else }}{{ $example = .g.GlobalData.DateExample }}{{ end }}
+  {{ if .hint }}{{ if .time }}{{ $hint = .g.T "form.datetimehint" }}{{ else }}{{ $hint = .g.T "form.datehint" }}{{ end }}{{ end }}
+{{ end }}
+{{ template "field" (dict "class" .class "label" .label "name" .name "type" $type "value" .value "placeholder" $example "hint" $hint "example" $example "dir" "ltr") }}
+{{ end }}
+
+{{/* dict: save [cancel cancelLabel]. */}}
+{{ define "form-actions" }}
+<div class="actions">
+  <button type="submit" class="button-primary">{{.save}}</button>
+  {{ if .cancel }}<a class="button-link button-quiet" href="{{.cancel}}">{{.cancelLabel}}</a>{{ end }}
+</div>
+{{ end }}
+
+{{/* dict: label accounts current [name]. */}}
+{{ define "account-picker" }}
+<label>
+  <span>{{.label}}</span>
+  <select name="{{ or .name "account" }}">
+    {{ range .accounts }}
+    <option value="{{.Username}}"{{ if eq .Username $.current }} selected{{ end }}>{{.Username}}</option>
+    {{ end }}
+  </select>
+</label>
+{{ end }}
+
+{{/* dict: label name key groups account path multi. */}}
+{{ define "collection-picker" }}
+<label{{ if .quiet }} class="picker-quiet"{{ end }}>
+  <span{{ if .quiet }} class="visually-hidden"{{ end }}>{{.label}}</span>
+  <select name="{{.name}}" data-destination-key="{{.key}}"{{ if .ask }} required{{ end }}>
+    {{ if .ask }}<option value="" selected>{{ .asklabel }}</option>{{ end }}
+    {{ range .groups }}
+    {{ $acct := .Account }}
+    {{ if $.multi }}<optgroup label="{{.Account}}">{{ end }}
+    {{ range .Collections }}
+    <option value="{{$acct}}|{{.Path}}"{{ if and (eq $acct $.account) (eq .Path $.path) }} selected{{ end }}>{{.Name}}</option>
+    {{ end }}
+    {{ if $.multi }}</optgroup>{{ end }}
+    {{ end }}
+  </select>
+</label>
+{{ end }}
+
+{{ define "folder-location" }}
+<label>
+  <span>{{$.T "folder.location"}}</span>
+  <select name="location" required>
+    {{range .LocationGroups}}
+    {{if gt (len $.GlobalData.Accounts) 1}}<optgroup label="{{.Account}}">{{end}}
+    {{range .Locations}}
+    <option value="{{.Key}}"{{if eq .Key $.SelectedLocation}} selected{{end}}>{{.Label}}</option>
+    {{end}}
+    {{if gt (len $.GlobalData.Accounts) 1}}</optgroup>{{end}}
+    {{end}}
+  </select>
+</label>
+{{ end }}
+
+{{/* dict: g file accept hint go cancel [name namehint namevalue
+     namerequired]. */}}
+{{ define "import-fields" }}
+{{ if .name }}{{ template "field" (dict "label" .name "name" "name" "value" .namevalue "dir" "auto" "hint" .namehint "required" .namerequired) }}{{ end }}
+<div class="field">
+  <label for="file">{{ .file }}</label>
+  <input type="file" name="file" id="file" accept="{{ .accept }}"{{ if not .optional }} required{{ end }}>
+  <p class="hint">{{ .hint }}</p>
+</div>
+{{ template "form-actions" (dict "save" .go "cancel" .cancel "cancelLabel" (.g.T "common.cancel")) }}
+{{ end }}
+
+{{/* dict: action next label add. */}}
+{{ define "note-box" }}
+<form class="note-box" method="post" action="{{.action}}">
+  <input type="hidden" name="next" value="{{.next}}">
+  <label for="note-add">{{.label}}</label>
+  <textarea name="note" id="note-add" rows="2" dir="auto"></textarea>
+  <button>{{.add}}</button>
+</form>
+{{ end }}
+
+{{/* dict: id next [action]. A form of its own, named by the buttons that submit it. */}}
+{{ define "next-form" }}
+<form id="{{.id}}" method="post"{{ with .action }} action="{{.}}"{{ end }} hx-boost="false">
+  <input type="hidden" name="next" value="{{.next}}">
+</form>
+{{ end }}

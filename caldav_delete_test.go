@@ -139,11 +139,9 @@ func startAlborzDav(t *testing.T, imapAddr, davURL string) string {
 			"test.local=imap+insecure://" + imapAddr,
 			"test.local=caldav+insecure://" + strings.TrimPrefix(davURL, "http://") + "/dav",
 		},
-		Theme:      "alborz",
-		ThemesPath: "./themes",
-		LoginKey:   key,
-		DataDir:    t.TempDir(),
-		Cache:      true,
+		LoginKey: key,
+		DataDir:  t.TempDir(),
+		Cache:    true,
 	})
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

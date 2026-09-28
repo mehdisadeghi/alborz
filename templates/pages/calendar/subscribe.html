@@ -1,0 +1,22 @@
+{{ define "rail" }}
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+{{ end }}
+
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
+      <form method="post">
+        <input type="hidden" name="next" value="{{.Next}}">
+        {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" "/calendar" "field" "" "collection" "" "path" "" "chooses" (gt (len .Accounts) 1)) }}
+        <h1>{{$.T "calendar.subscribe"}}</h1>
+
+
+        {{ if gt (len .Accounts) 1 }}
+        {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}
+        {{ end }}
+
+        {{ template "field" (dict "label" ($.T "calendar.address") "name" "address" "type" "url" "value" .Address "placeholder" "https://" "required" true "autofocus" true "hint" ($.T "calendar.addresshint")) }}
+
+        {{ template "form-actions" (dict "save" ($.T "calendar.subscribedo") "cancel" "/calendar" "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+{{ end }}

@@ -241,7 +241,7 @@ func handleServers(ctx *alborz.Context) error {
 		Rail:           mail.SettingsRail(ctx),
 		Cards:          cards,
 	}
-	return RenderServers(ctx, http.StatusOK, "servers.html", data, data)
+	return RenderServers(ctx, http.StatusOK, "settings/servers", data, data)
 }
 
 // RenderServers renders name with data, which shows servers. Other features' servers join as
@@ -264,7 +264,7 @@ func handleServer(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return RenderServers(ctx, http.StatusOK, "server.html", data, data)
+	return RenderServers(ctx, http.StatusOK, "settings/server", data, data)
 }
 
 // NewServersRenderData is the page about the servers of showing, with mail's among them.

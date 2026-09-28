@@ -1,5 +1,4 @@
-{{template "head.html" .}}
-
+{{ define "body" }}
 <div class="page-wrap">
   <div class="container error">
     {{/* Its own direction, or an RTL page reorders the code and its colon. */}}
@@ -9,5 +8,4 @@
     </p>
   </div>
 </div>
-
-{{template "foot.html"}}
+{{ end }}

@@ -1,4 +1,4 @@
-{{template "head.html" .}}
+{{ define "body" }}
 {{ template "notices" (dict "g" $) }}
 
 <main id="main" tabindex="-1" class="login">
@@ -17,5 +17,4 @@
   </section>
 </main>
 <script src="{{call .GlobalData.Asset "passkeys.js"}}"></script>
-
-{{template "foot.html"}}
+{{ end }}

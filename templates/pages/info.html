@@ -1,12 +1,3 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-
-<div class="page-wrap">
-  <div class="container">
-    <main id="main" tabindex="-1">
+{{ define "main" }}
       <h1 class="empty-list">{{.Message}}</h1>
-    </main>
-  </div>
-</div>
-
-{{template "foot.html"}}
+{{ end }}

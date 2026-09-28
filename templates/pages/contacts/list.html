@@ -1,0 +1,85 @@
+{{ define "rail" }}
+  {{ $q := account "?" .GlobalData.URLAccount }}{{ $sep := "?" }}{{ if $q }}{{ $sep = "&" }}{{ end }}
+  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" "/contacts" "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "edithref" "/address-books/" "invitations" .Invitations
+     "new" (dict "href" (printf "/address-books/create?next=%s" (.GlobalData.URL.RequestURI | qv)) "label" ($.T "contacts.newbook"))
+     "views" (dict "path" "/contacts" "view" .View "account" .GlobalData.URLAccount)
+     "groups" (dict "key" (printf "groups:%s" $q) "label" ($.T "aside.groups") "open" (ne .Group "") "rows" .GroupRows "editlabel" ($.T "common.edit") "new" (dict "href" (printf "/contacts/create%s%skind=group" $q $sep) "label" ($.T "contacts.newgroup")))
+     "categories" (dict "key" (printf "categories:%s" $q) "label" ($.T "aside.categories") "open" (ne .Category "") "rows" .CategoryRows)) }}
+{{ end }}
+
+{{ define "before-main" }}
+    {{ template "next-form" (dict "id" "address-book-form" "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "next-form" (dict "id" "refresh-form" "action" "/contacts/refresh" "next" $.GlobalData.URL.RequestURI) }}
+{{ end }}
+
+{{ define "main-class" }} class="contact-list"{{ end }}
+
+{{ define "main" }}
+        {{ template "contacts-toolbar" . }}
+
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" "/contacts" "field" "book" "items" .AddressBooks "collection" "" "path" "" "heading" true) }}
+
+      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+
+      <section class="contacts">
+        {{ $multi := gt (len .GlobalData.Accounts) 1 }}
+        <div class="contact-grid list-grid" role="table">
+          {{if .AddressObjects}}
+          <div class="list-row" role="row">
+          <div class="list-header list-checkbox" role="columnheader"></div>
+          {{ template "sort-col" (dict "s" .Sorting "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "list-star" "hidden" ($.T "sort.starred")) }}
+          <div class="list-header contact-list-photo" role="columnheader"></div>
+          {{ template "sort-col" (dict "s" .Sorting "key" "name" "label" ($.T "common.name") "cell" "list-primary contact-list-name") }}
+          {{ template "sort-col" (dict "s" .Sorting "key" "email" "label" ($.T "contacts.email") "cell" "contact-list-email") }}
+          {{ template "sort-col" (dict "s" .Sorting "key" "phone" "label" ($.T "contacts.phone") "cell" "contact-list-phone") }}
+          {{ template "sort-col" (dict "s" .Sorting "key" "changed" "label" ($.T "common.modified") "cell" "contact-list-changed") }}
+          {{ template "sort-col" (dict "s" .Sorting "key" "book" "label" ($.T "contacts.book") "cell" "contact-list-book") }}
+          </div>
+          {{end}}
+          {{range .AddressObjects}}
+          {{$book := call $.CollectionFor .Account .Path}}{{$color := $book.Color}}
+          {{$photo := .PhotoURL}}
+          <div class="contact-row list-row" role="row">
+            <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
+              <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form" aria-label="{{$.T "a11y.selectcontact"}}{{with .DisplayName}}: {{.}}{{end}}">
+            </div>
+            <div class="list-star list-cell" role="cell">
+              {{ template "card-star" (dict
+                 "Action" (printf "%s/color%s" .URL (account "?" .Account))
+                 "Current" .Color
+                 "Next" $.GlobalData.URL.RequestURI
+                 "Label" (or (and .Color ($.T "mailbox.flagnone")) ($.T "mailbox.flagcolor"))
+                 "MenuLabel" ($.T "mailbox.flagcolor")) }}
+            </div>
+            <div class="contact-list-photo list-cell" role="cell">
+              {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
+            </div>
+            <div class="contact-list-name list-primary list-cell" role="cell">
+              <a href="{{ call $.HrefFor .Account .Path }}" dir="auto"{{ with call $.AddedBy .Account .Path }} title="{{ printf ($.T "share.addedby") . }}"{{ end }}>
+                {{.DisplayName}}
+              </a>
+              {{if $.GlobalData.Unified}}<span class="row-account card-only" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+            </div>
+            <div class="contact-list-email list-cell" role="cell">
+              {{$email := .Card.PreferredValue "EMAIL"}}
+              {{if $email}}
+                <a href="{{ localhref (printf "/compose?to=%s" ($email | qv)) }}">{{ template "ltr" $email }}</a>
+              {{end}}
+            </div>
+            <div class="contact-list-phone list-cell" role="cell">
+              {{ template "ltr" (.Card.PreferredValue "TEL") }}
+            </div>
+            {{ $changed := "" }}{{ $changedTitle := "" }}
+            {{ $m := .Modified }}{{ if not $m.IsZero }}{{ $changed = $.GlobalData.Since $m }}{{ $changedTitle = $.GlobalData.FormatDate $m }}{{ end }}
+            <div class="contact-list-changed list-cell" role="cell" title="{{$changedTitle}}">{{$changed}}</div>
+            <div class="contact-list-book list-cell" role="cell">
+              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}<a href="{{ call $.CollectionHref .Account .Path }}">{{$book.Name}}</a>{{ template "collection-mark" (dict "g" $ "c" $book) }}{{if $.GlobalData.Unified}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+            </div>
+          </div>
+          {{end}}
+          {{if not .AddressObjects}}
+          <p class="empty-list">{{if .Query}}{{printf (.T "common.noresults") .Query}}{{else}}{{$.T "common.empty"}}{{end}}</p>
+          {{end}}
+        </div>
+      </section>
+{{ end }}

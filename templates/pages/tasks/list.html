@@ -1,0 +1,75 @@
+{{ define "rail" }}
+  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" "/tasks" "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "edithref" "/calendars/" "invitations" .Invitations
+     "new" (dict "href" (printf "/calendars/create?for=tasks&next=%s" (.GlobalData.URL.RequestURI | qv)) "label" ($.T "tasks.newlist"))
+     "views" (dict "path" "/tasks" "view" .View "account" .GlobalData.URLAccount)) }}
+{{ end }}
+
+{{ define "before-main" }}
+    {{ template "next-form" (dict "id" "tasks-form" "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "next-form" (dict "id" "refresh-form" "action" "/tasks/refresh" "next" $.GlobalData.URL.RequestURI) }}
+{{ end }}
+
+{{ define "main-class" }} class="task-list"{{ end }}
+
+{{ define "main" }}
+        {{ template "toolbar-head" (dict "g" . "selectall" true "newhref" "/tasks/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "tasks.new")) }}
+          <span class="icon-group">
+            {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "priority" 12 "form" "tasks-form" "formaction" "/tasks/complete") }}
+            {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" "/tasks/delete" "priority" 11) }}
+            {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" "/tasks/export" "priority" 10 "download" true) }}
+          </span>
+          {{ template "more-open" $ }}
+              <button form="tasks-form" formaction="/tasks/move">{{$.T "mailbox.moveto"}}</button>
+              <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
+          {{ template "more-close" }}
+        {{ template "toolbar-end" }}
+            {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
+            {{ template "list-pager" (dict "g" $ "pager" .Pager) }}
+            {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
+            {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .Tasks) "wide" true "rows" (tuple
+               (tuple ($.T "sort.starred") "starred") (tuple ($.T "tasks.status") "status") (tuple ($.T "tasks.priority") "priority")
+               (tuple ($.T "tasks.summary") "summary") (tuple ($.T "common.calendar") "calendar") (tuple ($.T "tasks.duedate") "due")
+               (tuple ($.T "common.added") "added"))) }}
+        {{ template "toolbar-foot" }}
+
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal" "items" .Calendars "collection" "" "path" "" "heading" true) }}
+
+      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+
+      {{ with .Quick }}
+      <form method="post" action="/tasks/create" class="quick-add" hx-boost="false">
+        <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}#quick">
+        {{ $one := .Only }}
+        {{ $list := .Name }}{{ if $.GlobalData.Unified }}{{ $list = printf "%s · %s" .Name ($.GlobalData.AccountLabel .Account) }}{{ end }}
+        <input type="text" id="quick" name="summary" required dir="auto" placeholder="{{ if $one }}{{ printf ($.T "tasks.quickadd") $list }}{{ else }}{{ $.T "tasks.quicknew" }}{{ end }}" aria-label="{{$.T "tasks.summary"}}">
+        {{ if $one }}
+        <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
+        {{ else }}
+        {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "calendar" "key" "quicktask" "groups" .Lists "account" .Account "path" .Path "multi" (gt (len .Lists) 1) "quiet" true) }}
+        {{ end }}
+        <button>{{$.T "common.add"}}</button>
+      </form>
+      {{ end }}
+
+      <section class="tasks">
+        <div class="task-grid list-grid{{if $.GlobalData.Unified}} multi{{end}}" role="table">
+          {{if .Tasks}}
+          <div class="task-header-row list-row" role="row">
+            <div class="list-header list-checkbox" role="columnheader"></div>
+            {{ template "sort-col" (dict "s" .Sorting "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "list-star" "hidden" ($.T "sort.starred")) }}
+            {{ template "sort-col" (dict "s" .Sorting "key" "status" "label" "✓" "class" "status-sort" "cell" "task-list-status" "hidden" ($.T "tasks.status")) }}
+            {{ template "sort-col" (dict "s" .Sorting "key" "summary" "label" ($.T "tasks.summary") "cell" "list-primary task-list-summary") }}
+            {{ template "sort-col" (dict "s" .Sorting "key" "calendar" "label" ($.T "common.calendar") "cell" "task-list-calendar") }}
+            {{ template "sort-col" (dict "s" .Sorting "key" "due" "label" ($.T "tasks.duedate") "cell" "task-list-due") }}
+            {{ template "sort-col" (dict "s" .Sorting "key" "added" "label" ($.T "common.added") "cell" "task-list-added") }}
+          </div>
+
+          {{range .Tasks}}
+          {{ template "task-row" (dict "G" $ "Row" . "Next" $.GlobalData.URL.RequestURI) }}
+          {{end}}
+          {{else}}
+          <p class="empty-list">{{if .Query}}{{printf ($.T "common.noresults") .Query}}{{else}}{{$.T "tasks.empty"}}{{end}}</p>
+          {{end}}
+        </div>
+      </section>
+{{ end }}

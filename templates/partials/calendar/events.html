@@ -1,0 +1,68 @@
+{{ define "event-grid-header" }}
+<div class="event-header-row list-row" role="row">
+  {{ with .form }}<div class="list-header event-select list-checkbox" role="columnheader"></div>{{ end }}
+  <div class="list-header list-star" role="columnheader"><span class="sort-header flag-sort" aria-hidden="true">&#9734;</span><span class="visually-hidden">{{.starred}}</span></div>
+  {{ with .date }}<div class="list-header event-date" role="columnheader">{{.}}</div>{{ end }}
+  <div class="list-header event-time" role="columnheader">{{.time}}</div>
+  <div class="list-header event-summary list-primary" role="columnheader">{{.event}}</div>
+  <div class="list-header event-owner" role="columnheader">{{.calendar}}</div>
+</div>
+{{ end }}
+
+{{/* dict: href when summary color owner timeLabel eventLabel calendarLabel. */}}
+{{ define "event-row" }}
+<div class="event-row list-row" role="row">
+  {{ with .form }}
+  <div class="event-select list-checkbox list-cell" role="cell">
+    <input type="checkbox" name="paths" value="{{$.ref}}" form="{{.}}" aria-label="{{$.selectLabel}}{{with $.summary}}: {{.}}{{end}}">
+  </div>
+  {{ end }}
+  <div class="list-star list-cell" role="cell">
+    {{ with .staraction }}{{ template "card-star" (dict "Action" . "Current" $.star "Next" $.next "Label" (or (and $.star $.clearLabel) $.starLabel) "MenuLabel" $.starLabel) }}{{ end }}
+  </div>
+  {{ with .date }}<div class="event-date list-cell" role="cell" data-label="{{$.dateLabel}}" title="{{$.dateTitle}}">{{.}}</div>{{ end }}
+  <div class="event-time list-cell" role="cell" data-label="{{.timeLabel}}">{{.when}}</div>
+  <div class="event-summary list-primary list-cell" role="cell" data-label="{{.eventLabel}}">
+    {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
+    {{ if .href }}<a href="{{.href}}" dir="auto"{{ with .addedby }} title="{{.}}"{{ end }}>{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
+  </div>
+  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}{{ template "collection-mark" (dict "g" .g "c" .collection) }}{{ with .account }}<span class="row-account" title="{{$.accountTitle}}">{{ template "ltr" . }}</span>{{ end }}</div>
+</div>
+{{ end }}
+
+{{/* dict: events base. */}}
+{{ define "event-rows" }}
+{{ $base := .base }}
+{{ range .events }}
+{{ $obj := . }}
+{{ $when := $base.T "calendar.allday" }}{{ if not .AllDay }}{{ $when = $base.GlobalData.FormatTime .Start }}{{ end }}
+{{ $href := $obj.URL }}{{ if $obj.ReadOnly }}{{ $href = printf "%s?uid=%s" $obj.URL (.UID | qv) }}{{ end }}
+{{ with $obj.Account }}{{ $href = printf "%s%s" $href (account (qsep $href) .) }}{{ end }}
+{{ with $base.ListQuery }}{{ $href = printf "%s%s%s" $href (qsep $href) . }}{{ end }}
+{{ $href = from $href $base.GlobalData.URL.RequestURI }}
+{{ $addedby := "" }}{{ with call $base.AddedBy .Account .Path }}{{ $addedby = printf ($base.T "share.addedby") . }}{{ end }}
+{{ $staraction := "" }}{{ if not $obj.ReadOnly }}{{ $staraction = printf "%s/color%s" $obj.URL (account "?" $obj.Account) }}{{ end }}
+{{ $date := "" }}{{ $dateTitle := "" }}{{ if $.dated }}{{ $date = $base.GlobalData.ShortDate .Start }}{{ $dateTitle = $base.GlobalData.LongDate .Start }}{{ with $base.GlobalData.SecondaryDate .Start }}{{ $dateTitle = printf "%s (%s)" $dateTitle . }}{{ end }}{{ end }}
+{{ $collection := call $base.CollectionFor .Account .Path }}
+{{ template "event-row" (dict
+   "href" $href
+   "date" $date "dateTitle" $dateTitle "dateLabel" ($base.T "sort.date")
+   "when" $when
+   "form" $base.SelectForm
+   "ref" (printf "%s|%s" $obj.Account $obj.Path)
+   "selectLabel" ($base.T "a11y.selectevent")
+   "summary" .Summary
+   "star" .Star
+   "staraction" $staraction
+   "next" $base.GlobalData.URL.RequestURI
+   "starLabel" ($base.T "mailbox.flagcolor") "clearLabel" ($base.T "mailbox.flagnone")
+   "color" (or .Color $collection.Color)
+   "owner" $collection.Name
+   "ownerhref" (call $base.CollectionHref .Account .Path)
+   "collection" $collection "g" $base
+   "addedby" $addedby
+   "account" (and $base.GlobalData.Unified ($base.GlobalData.AccountLabel .Account))
+   "accountTitle" .Account
+   "timeLabel" ($base.T "calendar.time") "eventLabel" ($base.T "calendar.event") "calendarLabel" ($base.T "common.calendar")) }}
+{{ end }}
+{{ end }}

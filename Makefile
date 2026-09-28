@@ -10,10 +10,10 @@ build:
 	$(GO) build -o alborz ./cmd/alborz
 
 run: build
-	./alborz -theme alborz -addr $(ADDR) $(ARGS)
+	./alborz -debug -addr $(ADDR) $(ARGS)
 
 # Rebuild and restart on Go changes; reload templates in the running
-# server (SIGUSR1, keeps sessions) on theme changes.
+# server (SIGUSR1, keeps sessions) on template changes.
 watch:
 	find templates -name '*.html' | entr -n pkill -USR1 -x alborz & \
 	find . -name '*.go' | entr -nr $(MAKE) run

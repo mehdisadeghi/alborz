@@ -1,0 +1,34 @@
+{{ define "icon" }}
+<svg class="icon icon-{{.}}" aria-hidden="true" focusable="false"><use href="#i-{{.}}"/></svg>
+{{ end }}
+
+{{ define "ltr" }}<bdi class="ltr">{{.}}</bdi>{{ end }}
+
+{{ define "user-text" }}<div class="user-text" dir="auto">{{.}}</div>{{ end }}
+
+{{/* dict: text [example]. */}}
+{{ define "hint" }}
+<p class="hint">{{.text}}{{ with .example }} <code>{{.}}</code>{{ end }}</p>
+{{ end }}
+
+{{/* dict: g time. */}}
+{{ define "date-full" }}{{ .g.FormatDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
+
+{{ define "date-day" }}{{ .g.LongDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
+
+{{/* dict: g [created createdLabel] [modified modifiedLabel] [authors bylabel]. */}}
+{{ define "object-dates" }}
+{{ $created := .created }}{{ if not $created }}{{ $created = zerotime }}{{ end }}
+{{ $modified := .modified }}{{ if not $modified }}{{ $modified = zerotime }}{{ end }}
+{{ $by := "" }}{{ $changedBy := "" }}{{ with .authors }}{{ $by = .Creator }}{{ $changedBy = .Editor }}{{ end }}
+{{ if or (not ($created.IsZero)) (not ($modified.IsZero)) $by $changedBy }}
+<div class="object-dates">
+  {{ if or (not ($created.IsZero)) $by }}
+  <span>{{.createdLabel}}{{ if not ($created.IsZero) }} {{ template "date-full" (dict "g" .g "time" $created) }}{{ end }}{{ with $by }} {{ $.bylabel }} {{ template "ltr" . }}{{ end }}</span>
+  {{ end }}
+  {{ if or (not ($modified.IsZero)) $changedBy }}
+  <span>{{.modifiedLabel}}{{ if not ($modified.IsZero) }} {{ template "date-full" (dict "g" .g "time" $modified) }}{{ end }}{{ with $changedBy }} {{ $.bylabel }} {{ template "ltr" . }}{{ end }}</span>
+  {{ end }}
+</div>
+{{ end }}
+{{ end }}

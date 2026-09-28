@@ -1,9 +1,11 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
 
-{{ template "settings-list-open" (dict "g" $ "title" ($.T "settings.servers") "path" "/settings/servers") }}
+{{ define "main-class" }} class="list"{{ end }}
 
+{{ define "main" }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.servers") "path" "/settings/servers") }}
       <section class="list-items">
         {{ range .Rows }}
         <div class="list-item">
@@ -14,6 +16,4 @@
         </div>
         {{ end }}
       </section>
-{{ template "settings-list-close" }}
-
-{{template "foot.html" .}}
+{{ end }}

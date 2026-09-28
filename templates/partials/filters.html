@@ -1,0 +1,12 @@
+{{/* dict: g accounts [nonew newactive import importactive]. */}}
+{{ define "filters-rail" }}
+{{ $aq := account "?" .g.GlobalData.URLAccount }}
+{{ $new := dict "href" (printf "/filters/create%s" $aq) "label" (.g.T "filters.new") "active" .newactive }}{{ if .nonew }}{{ $new = false }}{{ end }}
+{{ $import := false }}{{ if .import }}{{ $import = dict "href" (printf "/filters/import%s" $aq) "label" (.g.T "filters.import") "active" .importactive }}{{ end }}
+<aside>
+  {{ template "scope-rail" (dict "g" .g "kind" "rows" "path" "/filters" "urlaccount" .g.GlobalData.URLAccount "accounts" .accounts "data" (dict "rows" .g.Rail) "all" (.g.T "nav.allaccounts") "new" $new "import" $import) }}
+</aside>
+{{ end }}
+
+{{/* dict: g [collection path chooses heading]. */}}
+{{ define "filters-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.filters") "home" "/filters" "field" "" "collection" (or .collection "") "path" (or .path "") "chooses" .chooses "heading" .heading) }}{{ end }}

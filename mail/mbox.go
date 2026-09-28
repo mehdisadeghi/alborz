@@ -267,7 +267,7 @@ func (p *plugin) exportPage(ctx *alborz.Context, uids []imap.UID, form url.Value
 	if _, _, whole := wholeView(form); whole {
 		data.UIDs, data.Everything = nil, form.Get("next")
 	}
-	return ctx.Render(http.StatusOK, "export.html", data)
+	return ctx.Render(http.StatusOK, "mail/export", data)
 }
 
 func (p *plugin) handleExportPage(ctx *alborz.Context) error {
@@ -316,7 +316,7 @@ func (p *plugin) handleExportPage(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "export.html", data)
+	return ctx.Render(http.StatusOK, "mail/export", data)
 }
 
 // Nothing is stored: the bound is for the reader's patience and the connection, not disk.
@@ -344,7 +344,7 @@ func (p *plugin) handleImport(ctx *alborz.Context) error {
 	name := ""
 	render := func(status int, errText string) error {
 		ibase.BaseRenderData.Refused(errText)
-		return ctx.Render(status, "import.html", &NewMailboxRenderData{
+		return ctx.Render(status, "mail/import", &NewMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
 			Name:               name,
 			SelectedAccount:    selectedAccount,

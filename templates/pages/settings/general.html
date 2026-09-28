@@ -1,0 +1,127 @@
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="settings"{{ end }}
+
+{{ define "main" }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.general") "path" "/settings" "chooses" true) }}
+      {{/* A whole page: these are attributes of the root, which a swap keeps. */}}
+      <form method="post" hx-boost="false">
+        <div class="action-group">
+          <label for="messages_per_page">{{$.T "settings.perpage"}}</label>
+          <input
+            type="number"
+            name="messages_per_page"
+            id="messages_per_page"
+            value="{{.Reading.MessagesPerPage}}"
+            min="1"
+            max="{{.MaxPerPage}}"
+            required />
+        </div>
+        <div class="action-group">
+          <label for="timezone">{{$.T "settings.timezone"}}</label>
+          <input
+            type="text"
+            name="timezone"
+            id="timezone"
+            dir="ltr"
+            value="{{.Reading.Timezone}}"
+            placeholder="{{$.T "settings.tzauto"}}" />
+          {{ template "hint" (dict "text" ($.T "settings.tzhint")) }}
+        </div>
+        <div class="action-group">
+          <label for="prefer_html" class="checkbox">
+            <input type="checkbox" name="prefer_html" id="prefer_html" value="1"{{if .Reading.PreferHTML}} checked{{end}}>
+            {{$.T "settings.preferhtml"}}
+          </label>
+        </div>
+        <div class="action-group">
+          <label for="first_day_of_week">{{$.T "settings.firstday"}}</label>
+          <select name="first_day_of_week" id="first_day_of_week">
+            <option value="1" {{if eq .Reading.FirstDayOfWeek 1}}selected{{end}}>{{$.T "settings.monday"}}</option>
+            <option value="0" {{if eq .Reading.FirstDayOfWeek 0}}selected{{end}}>{{$.T "settings.sunday"}}</option>
+            <option value="6" {{if eq .Reading.FirstDayOfWeek 6}}selected{{end}}>{{$.T "settings.saturday"}}</option>
+          </select>
+        </div>
+        <div class="action-group">
+          <label for="calendar">{{$.T "settings.calendar"}}</label>
+          <select name="calendar" id="calendar">
+            <option value="gregorian" {{if ne .Reading.Primary "shcal"}}selected{{end}}>{{$.T "settings.gregorian"}}</option>
+            <option value="shcal" {{if eq .Reading.Primary "shcal"}}selected{{end}}>{{$.T "settings.shcal"}}</option>
+          </select>
+        </div>
+        <div class="action-group">
+          <label for="secondary">{{$.T "settings.secondary"}}</label>
+          <select name="secondary" id="secondary">
+            <option value="" {{if eq .Reading.Secondary ""}}selected{{end}}>{{$.T "settings.secondarynone"}}</option>
+            <option value="gregorian" {{if eq .Reading.Secondary "gregorian"}}selected{{end}}>{{$.T "settings.gregorian"}}</option>
+            <option value="shcal" {{if eq .Reading.Secondary "shcal"}}selected{{end}}>{{$.T "settings.shcal"}}</option>
+          </select>
+          {{ template "hint" (dict "text" ($.T "settings.secondaryhint")) }}
+        </div>
+
+        <div class="action-group">
+          <label for="direction_part" class="checkbox">
+            <input type="checkbox" name="direction_part" id="direction_part" value="1"{{if not .Writing.NoDirectionPart}} checked{{end}}>
+            {{$.T "settings.directionpart"}}
+          </label>
+          {{ template "hint" (dict "text" ($.T "settings.directionparthint")) }}
+        </div>
+
+        <div class="action-group">
+          <label for="reply_position">{{$.T "settings.replyposition"}}</label>
+          <select name="reply_position" id="reply_position">
+            <option value="above" {{if not .Writing.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replytop"}}</option>
+            <option value="below" {{if .Writing.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replybottom"}}</option>
+          </select>
+        </div>
+
+        <div class="action-group">
+          <label for="theme">{{$.T "settings.theme"}}</label>
+          <select name="theme" id="theme">
+            <option value="" {{if eq .Theme ""}}selected{{end}}>{{$.T "settings.themedefault"}}</option>
+            {{ range .Themes }}
+            <option value="{{.Name}}" {{if eq $.Theme .Name}}selected{{end}}>{{ themename .Name }}{{ with .Scheme }} · {{ if eq . "dark" }}{{$.T "settings.dark"}}{{ else }}{{$.T "settings.light"}}{{ end }}{{ end }}</option>
+            {{ end }}
+          </select>
+        </div>
+
+        <div class="action-group">
+          <label for="text_size">{{$.T "settings.textsize"}}</label>
+          <select name="text_size" id="text_size">
+            <option value="" {{if eq .TextSize ""}}selected{{end}}>{{$.T "settings.textdefault"}}</option>
+            <option value="large" {{if eq .TextSize "large"}}selected{{end}}>{{$.T "settings.textlarge"}}</option>
+            <option value="larger" {{if eq .TextSize "larger"}}selected{{end}}>{{$.T "settings.textlarger"}}</option>
+          </select>
+        </div>
+
+        <div class="action-group">
+          <label for="align_script" class="checkbox">
+            <input type="checkbox" name="align_script" id="align_script" value="1"{{if .AlignByScript}} checked{{end}}>
+            {{$.T "settings.alignscript"}}
+          </label>
+          {{ template "hint" (dict "text" ($.T "settings.alignscripthint")) }}
+        </div>
+
+        {{ with .LockMinutes }}
+        <div class="action-group">
+          <label for="lock_minutes">{{$.T "settings.lockminutes"}}</label>
+          <input type="number" name="lock_minutes" id="lock_minutes" value="{{.}}" min="1" required>
+          {{ template "hint" (dict "text" ($.T "settings.lockminuteshint")) }}
+        </div>
+        {{ end }}
+
+        <div class="action-group">
+          <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
+        </div>
+
+        <div class="action-group" id="handler-group" hidden>
+          <button type="button" data-protocol="mailto" data-handler="/compose?mailto=%s">{{$.T "settings.mailtohandler"}}</button>
+          <button type="button" data-protocol="webcal" data-handler="/calendar/import?url=%s">{{$.T "settings.webcalhandler"}}</button>
+          <p class="hint" id="register-mailto-asked" hidden>{{$.T "settings.mailtoasked"}}</p>
+          <p class="hint" id="register-mailto-before" hidden>{{$.T "settings.mailtobefore"}}</p>
+          <p class="hint" id="register-mailto-refused" hidden>{{$.T "settings.mailtorefused"}}</p>
+        </div>
+      </form>
+{{ end }}

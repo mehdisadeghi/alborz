@@ -1,0 +1,76 @@
+{{ define "rail" }}
+  {{ template "filters-rail" (dict "g" $ "accounts" .Accounts "nonew" (not .Accounts)) }}
+{{ end }}
+
+{{ define "main-class" }} class="list"{{ end }}
+
+{{ define "main" }}
+  {{ $aq := account "?" .GlobalData.URLAccount }}
+        {{ template "list-toolbar" (dict "g" $ "newhref" (and .Accounts (printf "/filters/create%s" $aq)) "newlabel" ($.T "filters.new")) }}
+
+      {{ template "filters-crumb" (dict "g" $ "heading" true) }}
+
+      {{ range .Groups }}
+      {{ $label := $.GlobalData.AccountLabel .Account }}
+      {{ with .Unreachable }}
+      <div class="alert" role="alert">
+        <strong>{{$.T "filters.unreachable"}}</strong>{{ if $.GlobalData.Unified }}<span class="row-account">{{ template "ltr" $label }}</span>{{ end }}
+        <p class="code">{{.}}</p>
+      </div>
+      {{ end }}
+      {{ end }}
+
+      <section class="list-items">
+        {{ $any := false }}
+        {{ range .Groups }}
+        {{ $gq := account "?" .Account }}
+        {{ $label := $.GlobalData.AccountLabel .Account }}
+        {{ range .Scripts }}
+        {{ $any = true }}
+        <div class="list-item">
+          <div class="list-content">
+            <a href="{{ localhref (from (printf "/filters/%s%s" (.Name | pathescape) $gq) $.GlobalData.URL.RequestURI) }}" class="list-summary">{{.Name}}{{ if $.GlobalData.Unified }}<span class="row-account">{{ template "ltr" $label }}</span>{{ end }}</a>
+            {{ if .Active }}
+            <span class="list-meta">{{$.T "filters.active"}}</span>
+            {{ end }}
+          </div>
+          {{ if .Active }}
+          <form method="post" action="/filters/deactivate{{$gq}}">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+            <button>{{$.T "filters.deactivate"}}</button>
+          </form>
+          {{ else }}
+          <form method="post" action="/filters/{{.Name | pathescape}}/activate{{$gq}}">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+            <button>{{$.T "filters.activate"}}</button>
+          </form>
+          {{ end }}
+          <form method="post" action="/filters/{{.Name | pathescape}}/delete{{$gq}}">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+            <button class="button-danger">{{$.T "common.delete"}}</button>
+          </form>
+        </div>
+        {{ end }}
+        {{ end }}
+        {{ if not .Accounts }}
+        <p class="empty-list">{{$.T "filters.noserver"}}</p>
+        {{ else if not $any }}
+        <p class="empty-list">{{$.T "filters.empty"}}</p>
+        {{ end }}
+      </section>
+
+      {{ range .Groups }}
+      {{ if not .Unreachable }}
+      {{ template "info-card" (dict "title" ($.T "filters.serverinfo")
+         "collapsed" true
+         "account" (and $.GlobalData.Unified ($.GlobalData.AccountLabel .Account))
+         "rows" (tuple
+           (dict "label" ($.T "settings.serversieve") "value" .Server)
+           (dict "label" ($.T "filters.software") "value" .Software))
+         "tags" .Extensions "tagstitle" ($.T "filters.extensions")
+         "page" $) }}
+      {{ end }}
+      {{ end }}
+
+      {{ template "info-explain" (dict "label" ($.T "filters.extensionsexplain") "items" .Explained) }}
+{{ end }}

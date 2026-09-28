@@ -188,7 +188,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			Next:           ctx.FormValue("next"),
 		}
 		if ctx.Request().Method != http.MethodPost {
-			return ctx.Render(http.StatusOK, "subscribe-calendar.html", data)
+			return ctx.Render(http.StatusOK, "calendar/subscribe", data)
 		}
 		data.Address = strings.TrimSpace(ctx.FormValue("address"))
 		if account := ctx.FormValue("account"); account != "" {
@@ -196,7 +196,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 		}
 		if data.Address == "" {
 			data.Refused(ctx.T("calendar.subscribeurlneeded"))
-			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
 		login := ctx.LoginFor(data.Account)
 		if login == nil {
@@ -209,7 +209,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 		}
 		if subscriptionAt(settings.Subscriptions, sub.path()) >= 0 {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL))
-			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
 		cal, err := p.feeds.refresh(ctx.Request().Context(), sub.URL)
 		if err != nil {
@@ -217,7 +217,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			if errors.Is(err, errNotFeed) {
 				data.Refused(fmt.Sprintf(ctx.T("calendar.notfeed"), sub.URL))
 			}
-			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
 		if cal != nil {
 			sub.Name = feedName(cal)
@@ -228,7 +228,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 		settings.Subscriptions = append(settings.Subscriptions, sub)
 		if err := login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
 			data.Refused(ctx.SaveRefusal(err))
-			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))
 	}

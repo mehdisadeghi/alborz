@@ -693,7 +693,7 @@ func (p *plugin) handleNewMailbox(ctx *alborz.Context) error {
 	name := ""
 	render := func(status int, errText string) error {
 		ibase.BaseRenderData.Refused(errText)
-		return ctx.Render(status, "new-mailbox.html", &NewMailboxRenderData{
+		return ctx.Render(status, "mail/folder-create", &NewMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
 			Name:               name,
 			SelectedAccount:    selectedAccount,
@@ -795,7 +795,7 @@ func (p *plugin) handleDeleteMailbox(ctx *alborz.Context) error {
 			return nil
 		}); err != nil {
 			ibase.BaseRenderData.Refused(err.Error())
-			return ctx.Render(http.StatusUnprocessableEntity, "delete-mailbox.html", &DeleteMailboxRenderData{
+			return ctx.Render(http.StatusUnprocessableEntity, "mail/folder-delete", &DeleteMailboxRenderData{
 				IMAPBaseRenderData: *ibase,
 			})
 		}
@@ -803,7 +803,7 @@ func (p *plugin) handleDeleteMailbox(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 	}
 
-	return ctx.Render(http.StatusOK, "delete-mailbox.html", &DeleteMailboxRenderData{
+	return ctx.Render(http.StatusOK, "mail/folder-delete", &DeleteMailboxRenderData{
 		IMAPBaseRenderData: *ibase,
 	})
 }
@@ -819,7 +819,7 @@ func (p *plugin) handleRenameMailbox(ctx *alborz.Context) error {
 	name := mbox.Label
 	render := func(status int, errText string) error {
 		ibase.BaseRenderData.Refused(errText)
-		return ctx.Render(status, "rename-mailbox.html", &RenameMailboxRenderData{
+		return ctx.Render(status, "mail/folder-rename", &RenameMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
 			Name:               name,
 		})
@@ -905,7 +905,7 @@ func (p *plugin) handleMove(ctx *alborz.Context) error {
 			return err
 		}
 		ibase.BaseRenderData.WithTitle(ctx.T("folder.moveask"))
-		return ctx.Render(http.StatusOK, "move.html", &MoveRenderData{
+		return ctx.Render(http.StatusOK, "mail/move", &MoveRenderData{
 			IMAPBaseRenderData: *ibase,
 			UIDs:               uids,
 			Next:               ctx.FormValue("next"),
@@ -1082,7 +1082,7 @@ func (p *plugin) handleEmptyMailbox(ctx *alborz.Context) error {
 		if ibase.Mailbox.NumMessages != nil {
 			count = int(*ibase.Mailbox.NumMessages)
 		}
-		return ctx.Render(http.StatusOK, "empty-mailbox.html", &EmptyMailboxRenderData{
+		return ctx.Render(http.StatusOK, "mail/folder-empty", &EmptyMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
 			Count:              count,
 		})
@@ -1206,7 +1206,7 @@ func listTemplate(ctx *alborz.Context) string {
 	if ctx.PartialFor("main") {
 		return "message-list"
 	}
-	return "mailbox.html"
+	return "mail/mailbox"
 }
 
 // StarRenderData is one message's star, re-rendered when a mark is set from a row.

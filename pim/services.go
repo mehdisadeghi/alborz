@@ -47,7 +47,7 @@ func handleServer(ctx *alborz.Context) error {
 	}
 	data := &ServerRenderData{ServersRenderData: servers}
 	render := func(status int) error {
-		return settings.RenderServers(ctx, status, "server.html", data, servers)
+		return settings.RenderServers(ctx, status, "settings/server", data, servers)
 	}
 	if data.HasHTTPPassword, err = ctx.Login.HasHTTPPassword(ctx.Request().Context()); err != nil {
 		return err

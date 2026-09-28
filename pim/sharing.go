@@ -229,7 +229,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 			data.Refused(ctx.T(err.Error()))
 			data.Sharing.To, data.Sharing.Until = ctx.FormValue("to"), ctx.FormValue("until")
 			data.Sharing.Write = share.Write
-			return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
 		}
 		// Changing a share keeps a yes already given; sharing again after a no is a new invitation.
 		if was, err := p.Store.Share(ref, share.To); err == nil && was.Accepted {

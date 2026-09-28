@@ -92,9 +92,9 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	template := "calendar.html"
+	template := "calendar/month"
 	if mv.view != "" {
-		template = "calendar-list.html"
+		template = "calendar/list"
 	}
 	collection, href := pim.Labels(ctx, mv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)

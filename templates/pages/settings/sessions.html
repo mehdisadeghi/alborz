@@ -1,11 +1,12 @@
-{{template "head.html" .}}
-{{template "nav.html" .}}
-{{template "util.html" .}}
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
 
-{{ $aq := account "?" .GlobalData.URLAccount }}
+{{ define "main-class" }} class="list"{{ end }}
 
-{{ template "settings-list-open" (dict "g" $ "title" ($.T "sessions.title") "path" "/settings/sessions") }}
-
+{{ define "main" }}
+  {{ $aq := account "?" .GlobalData.URLAccount }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "sessions.title") "path" "/settings/sessions") }}
       <section class="list-items">
         {{ range .Signed }}
         {{ $d := devicename .Device }}
@@ -21,6 +22,4 @@
         </div>
         {{ end }}
       </section>
-{{ template "settings-list-close" }}
-
-{{template "foot.html" .}}
+{{ end }}

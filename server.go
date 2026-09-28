@@ -127,6 +127,9 @@ type Server struct {
 
 	loginFailures sync.Map
 
+	// files is the templates tree: read from disk in debug mode, so an edit shows on reload, else embedded.
+	files fs.FS
+
 	themes []Theme
 
 	// custom is loaded last so a deployment can override the theme without forking it.
@@ -142,7 +145,11 @@ func (s *Server) hasTheme(name string) bool {
 	return false
 }
 
-const customCSS = "custom.css"
+const (
+	customCSS = "custom.css"
+	// templatesDir is the tree's place in the source, where debug mode reads it.
+	templatesDir = "templates"
+)
 
 type assetStamp struct {
 	key   string
@@ -185,8 +192,16 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		}
 		e.IPExtractor = echo.ExtractIPFromXFFHeader(trust...)
 	}
-	s.themes = readThemes(options.ThemesPath, options.Theme)
-	_, err := os.Stat(filepath.Join(options.ThemesPath, options.Theme, "assets", customCSS))
+	s.files = os.DirFS(templatesDir)
+	if !options.Debug {
+		files, err := fs.Sub(embedded, templatesDir)
+		if err != nil {
+			return nil, err
+		}
+		s.files = files
+	}
+	s.themes = readThemes(s.files)
+	_, err := fs.Stat(s.files, path.Join("assets", customCSS))
 	s.custom = err == nil
 
 	// Absolute, so messages name a path without guessing the working directory; empty is the working directory.
@@ -450,8 +465,8 @@ func (s *Server) parseSMTPUpstream(domain string) error {
 }
 
 func (s *Server) load() error {
-	renderer := newRenderer(s.e.Logger, s.Options.ThemesPath, s.Options.Theme)
-	if err := renderer.Load(s.funcs); err != nil {
+	renderer, err := loadTemplates(s.files, s.funcs)
+	if err != nil {
 		return fmt.Errorf("failed to load templates: %v", err)
 	}
 	s.mutex.Lock()
@@ -583,15 +598,14 @@ func (s *Server) shell() ([]string, string) {
 	return urls, hex.EncodeToString(version.Sum(nil))[:12]
 }
 
-// Disk overrides are re-read when their mtime or size changes, so local CSS edits show on reload.
+// A file is read again when its mtime or size changes, so a CSS edit in debug mode shows on reload.
 func (s *Server) assetStamp(name string) string {
-	key := "embedded"
-	diskPath := filepath.Join(s.Options.ThemesPath, s.Options.Theme, "assets", name)
-	onDisk := false
-	if info, err := os.Stat(diskPath); err == nil {
-		onDisk = true
-		key = fmt.Sprintf("%d.%d", info.ModTime().UnixNano(), info.Size())
+	file := path.Join("assets", name)
+	info, err := fs.Stat(s.files, file)
+	if err != nil {
+		return ""
 	}
+	key := fmt.Sprintf("%d.%d", info.ModTime().UnixNano(), info.Size())
 
 	s.assetsMu.Lock()
 	defer s.assetsMu.Unlock()
@@ -599,13 +613,7 @@ func (s *Server) assetStamp(name string) string {
 		return e.stamp
 	}
 
-	var content []byte
-	var err error
-	if onDisk {
-		content, err = os.ReadFile(diskPath)
-	} else {
-		content, err = fs.ReadFile(embeddedTheme, path.Join("templates/assets", name))
-	}
+	content, err := fs.ReadFile(s.files, file)
 	if err != nil {
 		return ""
 	}
@@ -650,7 +658,7 @@ func renderUpstreamDown(ctx *Context, cause UpstreamError) error {
 		Retry:          ctx.Request().URL.RequestURI(),
 	}
 	data.BaseRenderData.WithTitle(ctx.T("upstream.title"))
-	return ctx.Render(http.StatusBadGateway, "upstream.html", &data)
+	return ctx.Render(http.StatusBadGateway, "upstream", &data)
 }
 
 func handleUnauthenticated(next echo.HandlerFunc, ctx *Context) error {
@@ -672,10 +680,9 @@ func (s *Server) ForgetAccount(username string) {
 type AccountReadyFunc func(*Context, *Login)
 
 type Options struct {
-	Upstreams  []string
-	Theme      string
-	ThemesPath string
-	Debug      bool
+	Upstreams []string
+	// Debug logs more, and reads templates and assets from ./templates.
+	Debug bool
 	// LoginKey seals remembered sessions, settings kept here and the cached copies.
 	LoginKey *fernet.Key
 	// Cache keeps what the servers answered.
@@ -704,7 +711,7 @@ func (o *Options) CacheFor(d time.Duration) time.Duration {
 	return d
 }
 
-// New creates a new server; funcs are the template functions the theme calls.
+// New creates a new server; funcs are the functions the templates call.
 func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error) {
 	s, err := newServer(e, options)
 	if err != nil {
@@ -765,7 +772,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 			Status:         http.StatusText(code),
 		}
 
-		if err := ctx.Render(code, "error.html", &rdata); err != nil {
+		if err := ctx.Render(code, "error", &rdata); err != nil {
 			ctx.Logger().Error(fmt.Errorf(
 				"Error occured rendering error page: %w. How meta.", err))
 		}
@@ -958,8 +965,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 		return ectx.String(http.StatusOK, body)
 	})
 
-	// The theme directory on disk overrides the embedded theme file by file.
-	embeddedAssets, err := fs.Sub(embeddedTheme, "templates/assets")
+	assets, err := fs.Sub(s.files, "assets")
 	if err != nil {
 		return nil, err
 	}
@@ -971,11 +977,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 		if v := ectx.QueryParam("v"); v != "" && v == s.assetStamp(name) {
 			ectx.Response().Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
-		diskPath := filepath.Join(options.ThemesPath, options.Theme, "assets", name)
-		if _, err := os.Stat(diskPath); err == nil {
-			return ectx.File(diskPath)
-		}
-		http.ServeFileFS(ectx.Response(), ectx.Request(), embeddedAssets, name)
+		http.ServeFileFS(ectx.Response(), ectx.Request(), assets, name)
 		return nil
 	})
 

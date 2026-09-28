@@ -1,0 +1,29 @@
+{{/* dict: g kind [text markup action id closed slow]. */}}
+{{ define "notice" }}
+<dialog{{ if not .closed }} open{{ end }} class="notice notice-{{.kind}}"{{ with .id }} id="{{.}}"{{ end }}{{ with .slow }} data-offline="{{$.text}}" data-slow="{{.}}"{{ end }}>
+  <span class="notice-text" role="{{ if eq .kind "failed" }}alert{{ else }}status{{ end }}">{{ if .markup }}{{ .markup }}{{ else }}{{ .text }}{{ end }}</span>
+  {{ range .actions }}
+    {{ if .Fields }}
+    <form method="post" action="{{.Path}}" class="notice-action">
+      {{ range $name, $values := .Fields }}{{ range $values }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
+      <button class="button-link">{{.Label}}</button>
+    </form>
+    {{ else }}
+    <a class="notice-action" href="{{.Path}}">{{.Label}}</a>
+    {{ end }}
+  {{ end }}
+  <form method="dialog" class="notice-dismiss"><button title="{{.g.T "nav.dismiss"}}" aria-label="{{.g.T "nav.dismiss"}}">{{ template "icon" "x" }}</button></form>
+</dialog>
+{{ end }}
+
+{{/* dict: g. */}}
+{{ define "notices" }}
+<div class="notices">
+  {{ with .g.GlobalData.Notice }}{{ template "notice" (dict "g" $.g "kind" .Kind "text" .Text "markup" .Markup "actions" .Actions) }}{{ end }}
+  {{ template "notice" (dict "g" .g "kind" "failed" "id" "script-failed" "closed" true) }}
+  {{ if .g.GlobalData.LoggedIn }}
+  {{ template "notice" (dict "g" .g "kind" "failed" "text" (.g.T "notice.noanswer") "id" "request-failed" "closed" true) }}
+  {{ template "notice" (dict "g" .g "kind" "warning" "text" (.g.T "notice.offline") "slow" (.g.T "notice.slow") "id" "offline-notice" "closed" true) }}
+  {{ end }}
+</div>
+{{ end }}

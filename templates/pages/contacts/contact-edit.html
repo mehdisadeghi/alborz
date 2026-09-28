@@ -1,0 +1,45 @@
+{{ define "rail" }}
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+{{ end }}
+
+{{ define "before-main" }}
+    {{ if and .AddressObject .Photo }}
+    {{ template "next-form" (dict "id" "photo-remove-form" "action" (printf "/contacts/%s/photo/delete%s" (.AddressObject.Path | pathescape) (account "?" .GlobalData.URLAccount)) "next" .GlobalData.URL.RequestURI) }}
+    {{ end }}
+{{ end }}
+
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
+  {{ $acct := account "?" .GlobalData.URLAccount }}
+      <form method="post" enctype="multipart/form-data">
+        {{ template "object-form-head" (dict "g" $ "editing" .AddressObject "collection" .AddressBook "groups" .Groups "section" ($.T "nav.contacts") "home" "/contacts" "field" "book"
+           "title" (or (and .AddressObject ($.T "contacts.edittitle")) ($.T "contacts.createtitle")) "name" "addressbook" "key" "contact") }}
+
+
+        <div class="field photo-field">
+          <label for="photo">{{$.T "contacts.photo"}}</label>
+          {{ with .Photo }}
+          <div class="photo-shown">
+            <img class="photo-current" src="{{photodatauri .}}" alt="">
+            <button type="submit" form="photo-remove-form" class="button-danger photo-remove">{{$.T "contacts.photoremove"}}</button>
+          </div>
+          {{ end }}
+          <input type="file" name="photo" id="photo" accept="image/*">
+        </div>
+
+        {{ template "field" (dict "label" ($.T "common.name") "name" "fn" "value" .Name "dir" "auto" "required" true) }}
+        {{ template "field" (dict "label" ($.T "contacts.emails") "name" "emails" "type" "email" "value" (join (.Card.Values "EMAIL") ", ") "placeholder" "a@example.org, b@example.org") }}
+        {{ template "field" (dict "label" ($.T "contacts.phones") "name" "tels" "type" "tel" "value" (join (.Card.Values "TEL") ", ") "dir" "ltr" "placeholder" "+49 151 2345678, 030 123456") }}
+        {{ template "field" (dict "label" ($.T "contacts.organization") "name" "org" "value" (.Card.PreferredValue "ORG") "dir" "auto") }}
+        {{ template "field" (dict "label" ($.T "contacts.jobtitle") "name" "title" "value" (.Card.PreferredValue "TITLE") "dir" "auto") }}
+        {{ template "date-field" (dict "g" $ "label" ($.T "contacts.birthday") "name" "bday" "value" ($.GlobalData.InputDay .Birthday) "hint" true) }}
+        {{ template "field" (dict "label" ($.T "contacts.website") "name" "url" "type" "url" "value" (.Card.PreferredValue "URL") "placeholder" "https://example.org") }}
+        {{$adr := ""}}{{with .Card.Address}}{{$adr = .StreetAddress}}{{end}}
+        {{ template "field" (dict "label" ($.T "contacts.address") "name" "adr" "value" $adr "dir" "auto" "rows" "3" "placeholder" "1 Example Street\nCity 12345\nCountry") }}
+        {{ template "field" (dict "label" ($.T "contacts.categories") "name" "categories" "value" (.Card.Value "CATEGORIES") "dir" "auto" "hint" ($.T "contacts.categorieshint")) }}
+        {{ template "field" (dict "label" ($.T "contacts.notes") "name" "note" "value" (.Card.PreferredValue "NOTE") "dir" "auto" "rows" "3") }}
+
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/contacts%s" $acct)) "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+{{ end }}

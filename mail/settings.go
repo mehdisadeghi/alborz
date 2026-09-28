@@ -180,7 +180,7 @@ func handleSignatures(ctx *alborz.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
-	return ctx.Render(http.StatusOK, "signatures.html", &SignaturesRenderData{
+	return ctx.Render(http.StatusOK, "settings/signatures", &SignaturesRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
 		Settings:       settings,
 		Rail:           SettingsRail(ctx),
@@ -203,7 +203,7 @@ func handleSignatureForm(ctx *alborz.Context) error {
 		}
 		data.Editing, data.Was = found, found.Name
 	}
-	return ctx.Render(http.StatusOK, "signature-edit.html", data)
+	return ctx.Render(http.StatusOK, "settings/signature-edit", data)
 }
 
 func handleSignatureSave(ctx *alborz.Context) error {
@@ -216,7 +216,7 @@ func handleSignatureSave(ctx *alborz.Context) error {
 	was := ctx.FormValue("was")
 	editing := Signature{Name: name, Text: text}
 	render := func(message string) error {
-		return ctx.Render(http.StatusUnprocessableEntity, "signature-edit.html", &SignatureRenderData{
+		return ctx.Render(http.StatusUnprocessableEntity, "settings/signature-edit", &SignatureRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")).Refused(message),
 			Editing:        editing,
 			Was:            was,
@@ -326,7 +326,7 @@ func (p *plugin) handleSettings(ctx *alborz.Context) error {
 	}
 
 	reject := func(message string) error {
-		return ctx.Render(http.StatusUnprocessableEntity, "settings-account.html", &SettingsRenderData{
+		return ctx.Render(http.StatusUnprocessableEntity, "settings/account", &SettingsRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")).Refused(message),
 			Settings:       settings,
 			Mailboxes:      mailboxes,
@@ -364,7 +364,7 @@ func (p *plugin) handleSettings(ctx *alborz.Context) error {
 	if settings.TrustedAuthServ == "" {
 		guess = p.SuggestAuthServ(ctx)
 	}
-	return ctx.Render(http.StatusOK, "settings-account.html", &SettingsRenderData{
+	return ctx.Render(http.StatusOK, "settings/account", &SettingsRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
 		AuthServGuess:  guess,
 		Settings:       settings,

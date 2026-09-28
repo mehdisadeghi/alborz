@@ -1,0 +1,96 @@
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="settings"{{ end }}
+
+{{ define "main" }}
+  {{ $aq := account "?" .GlobalData.URLAccount }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.account") "path" "/settings/account") }}
+
+      <form method="post">
+        <div class="action-group">
+          <label for="from">{{$.T "settings.fullname"}}</label>
+          <input
+            type="text"
+            name="from"
+            id="from"
+            dir="auto"
+            value="{{.Settings.From}}"
+          />
+        </div>
+
+        <div class="action-group">
+          <label for="identities">{{$.T "settings.identities"}}</label>
+          <textarea
+            name="identities"
+            id="identities"
+            rows="3"
+            dir="auto"
+            placeholder="{{$.T "settings.identitiesph"}}"
+          >{{range .Settings.Identities}}{{.}}
+{{end}}</textarea>
+          {{ template "hint" (dict "text" ($.T "help.identities") "example" ($.T "help.identitiesexample")) }}
+        </div>
+
+        <div class="action-group">
+          <label for="trusted_authserv">{{$.T "settings.authserv"}}</label>
+          <input type="text" name="trusted_authserv" id="trusted_authserv"
+                 value="{{.Settings.TrustedAuthServ}}" dir="ltr" spellcheck="false"
+                 {{ with .AuthServGuess }}list="authserv-guess" placeholder="{{.}}"{{ end }}>
+          {{ with .AuthServGuess }}
+          <datalist id="authserv-guess"><option value="{{.}}"></datalist>
+          {{ template "hint" (dict "text" ($.GlobalData.Tf "help.authservguess" .)) }}
+          {{ else }}
+          {{ template "hint" (dict "text" ($.T "help.authserv") "example" "mail.example.org") }}
+          {{ end }}
+        </div>
+
+        <div class="action-group">
+          <label for="indexed_search" class="checkbox">
+            <input type="checkbox" name="indexed_search" id="indexed_search" value="1"{{if .Settings.IndexedSearch}} checked{{end}}>
+            {{$.T "settings.indexedsearch"}}
+          </label>
+          {{ template "hint" (dict "text" ($.T "settings.indexedsearchhint")) }}
+        </div>
+
+        <div class="action-group">
+          <label for="subscriptions">{{$.T "settings.subs"}}</label>
+          <select name="subscriptions" id="subscriptions" multiple>
+            {{ $subs := .Subscriptions }}
+            {{ range .Mailboxes }}
+            {{ if and (ne .Name "INBOX") (not .IsInternal) }}
+            <option
+              value="{{.Name}}"
+              {{ if $subs.Has .Name }}
+              selected
+              {{ end }}
+            >{{.Name}}</option>
+            {{ end }}
+            {{ end }}
+          </select>
+        </div>
+
+        <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
+      </form>
+
+      {{ if .Storage.Host }}
+      <details class="list-card">
+        <summary>{{$.T "settings.storagewhere"}}</summary>
+        <p>{{ if .Storage.OnServer }}{{$.T "settings.storageserver"}}{{ else }}{{$.T "settings.storagealborz"}}{{ end }} {{ template "ltr" .Storage.Host }}</p>
+        {{ if .Storage.Entries }}
+        <ul class="storage-entries" dir="ltr">
+          {{ range .Storage.Entries }}<li>{{ . }}</li>{{ end }}
+        </ul>
+        {{ end }}
+        {{ if .Storage.Entries }}
+        <form method="post" action="/settings/account/forget{{$aq}}">
+          <button class="button-danger">{{$.T "settings.forget"}}</button>
+          {{ template "hint" (dict "text" ($.T "settings.forgethint")) }}
+        </form>
+        {{ else }}
+        {{ template "hint" (dict "text" ($.T "settings.storagenothing")) }}
+        {{ end }}
+      </details>
+      {{ end }}
+{{ end }}

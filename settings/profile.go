@@ -39,7 +39,7 @@ func handleLanguage(ctx *alborz.Context) error {
 
 func handleProfile(ctx *alborz.Context) error {
 	render := func(status int, message string, p alborz.Profile) error {
-		return ctx.Render(status, "settings.html", &ProfileRenderData{
+		return ctx.Render(status, "settings/general", &ProfileRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.general")).Refused(message),
 			Rail:           mail.SettingsRail(ctx),
 			Theme:          p.Display.Theme,

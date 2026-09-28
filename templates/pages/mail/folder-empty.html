@@ -1,0 +1,19 @@
+{{ define "rail" }}
+  {{ template "mail-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
+      <form method="POST">
+        {{ template "mail-crumb" $ }}
+        <h1>{{printf ($.T "folder.emptyask") .Mailbox.Name}}</h1>
+        <div class="alert" role="alert">
+          {{$.GlobalData.Tf "folder.emptycount" .Count}}
+        </div>
+        <div class="actions">
+          <button type="submit" class="button-danger">{{$.T "folder.emptydo"}}</button>
+          <a class="button-link button-quiet" href="{{.Mailbox.URL}}">{{$.T "common.cancel"}}</a>
+        </div>
+      </form>
+{{ end }}

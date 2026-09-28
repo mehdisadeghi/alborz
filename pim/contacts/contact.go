@@ -206,7 +206,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 	}
 	// A birthday with no date stays zero and is shown as written.
 	birthday, _ := ao.Card.Birthday()
-	return ctx.Render(http.StatusOK, "address-object.html", &AddressObjectRenderData{
+	return ctx.Render(http.StatusOK, "contacts/contact", &AddressObjectRenderData{
 		Authors:        p.dav.Authors(object.Path, ctx.Login.Username()),
 		In:             in,
 		Groups:         rest,
@@ -270,7 +270,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 			if err != nil {
 				return err
 			}
-			return ctx.Render(http.StatusUnprocessableEntity, "update-address-object.html", &UpdateAddressObjectRenderData{
+			return ctx.Render(http.StatusUnprocessableEntity, "contacts/contact-edit", &UpdateAddressObjectRenderData{
 				Rail:           rail,
 				BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(message),
 				Groups:         groups,
@@ -401,7 +401,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "update-address-object.html", &UpdateAddressObjectRenderData{
+	return ctx.Render(http.StatusOK, "contacts/contact-edit", &UpdateAddressObjectRenderData{
 		Rail:           rail,
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Groups:         groups,

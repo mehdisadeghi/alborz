@@ -1,0 +1,125 @@
+{{ define "mail-toolbar" }}
+{{$aq := ""}}{{with .GlobalData.URLAccount}}{{$aq = printf "?account=%s" .}}{{end}}
+{{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
+{{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
+{{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
+{{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | qv) }}{{ end }}{{ with .ListView }}{{ $hparams = printf "%s&view=%s" $hparams . }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | qv) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ $ippbase := $hparams }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
+{{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | qv) }}{{ end }}{{ with .ListView }}{{ $hplain = printf "%s&view=%s" $hplain . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | qv) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hplain = printf "%s&ipp=%s" $hplain . }}{{ end }}
+{{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
+{{ $asked := or .Query .ListView }}
+{{ $empty := and .Mailbox.IsEmpty (not $asked) }}
+{{ template "toolbar-head" (dict "g" . "selectall" true "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
+    {{$common := .CategorizedMailboxes.Common}}
+    {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
+    {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
+    {{$trash := ""}}{{with $common.Trash}}{{$trash = .Info.Name}}{{end}}
+
+
+    {{ $archiveAction := "" }}{{ $junkAction := "" }}{{ $junkIcon := "junk" }}{{ $junkLabel := $.T "mailbox.spam" }}{{ $trashAction := "" }}{{ $trashLabel := "" }}{{ $trashFinal := false }}
+    {{ $role := "" }}{{ if .Merged }}{{ $role = .Role }}{{ end }}
+    {{ $act := printf "/mailbox/%s/all/act" ($role | pathescape) }}
+    {{ if .Merged }}
+      {{ if ne $role "Archive" }}{{ $archiveAction = printf "%s?action=move&to=Archive" $act }}{{ end }}
+      {{ if eq $role "Junk" }}
+        {{ $junkIcon = "notjunk" }}{{ $junkLabel = $.T "mailbox.notspam" }}{{ $junkAction = printf "%s?action=move&to=INBOX" $act }}
+      {{ else if and (ne $role "Sent") (ne $role "Drafts") }}
+        {{ $junkLabel = $.T "mailbox.spam" }}{{ $junkAction = printf "%s?action=move&to=Junk" $act }}
+      {{ end }}
+      {{ if ne $role "Trash" }}{{ $trashLabel = $.T "mailbox.delete" }}{{ $trashAction = printf "%s?action=move&to=Trash" $act }}{{ end }}
+    {{ else }}
+      {{ if and $archive (ne .Mailbox.Name $archive) }}
+        {{ $archiveAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($archive | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
+      {{ end }}
+      {{ if and $junk (eq .Mailbox.Name $junk) }}
+        {{ $junkIcon = "notjunk" }}{{ $junkLabel = $.T "mailbox.notspam" }}
+        {{ $junkAction = printf "/message/%s/move?to=INBOX%s" (.Mailbox.Name | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
+      {{ else if and $junk (not (eq .Mailbox.Name $common.Sent.Info.Name)) (not (eq .Mailbox.Name $common.Drafts.Info.Name)) }}
+        {{ $junkLabel = $.T "mailbox.spam" }}
+        {{ $junkAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($junk | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
+      {{ end }}
+      {{ if and $trash (ne .Mailbox.Name $trash) }}
+        {{ $trashLabel = $.T "mailbox.delete" }}
+        {{ $trashAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($trash | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
+      {{ else }}
+        {{ $trashLabel = $.T "mailbox.deleteperm" }}{{ $trashFinal = true }}
+        {{ $trashAction = printf "/message/%s/delete%s" (.Mailbox.Name | pathescape) $aq }}
+      {{ end }}
+    {{ end }}
+    <span class="icon-group">
+      {{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" $archiveAction "priority" 14) }}
+      {{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" $junkAction "priority" 13) }}
+      {{ with $trashAction }}{{ template "action-icon" (dict "icon" "trash" "label" $trashLabel "class" "icon-danger" "form" "messages-form" "formaction" . "priority" 11 "final" $trashFinal) }}{{ end }}
+    </span>
+    </span>
+
+    {{ $flagAction := printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount) }}{{ if .Merged }}{{ $flagAction = printf "%s?action=flag" $act }}{{ end }}
+    {{ template "flag-menu" (dict
+       "priority" 12
+       "form" "messages-form"
+       "action" $flagAction
+       "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $) "disabled" $empty) }}
+
+    {{ if not .Merged }}
+    {{ template "more-open" $ }}
+        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/forward{{$aq}}">{{$.T "message.forward"}}</button>
+        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/export{{ or $aq "?" }}{{ if $aq }}&{{ end }}ask=1">{{$.T "mailbox.export"}}</button>
+        {{ if not .Merged }}
+        {{ $exportall := printf "/message/%s/export%s" (.Mailbox.Name | pathescape) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | qv) }}{{ else }}{{ with .ListView }}{{ $exportall = printf "%s%sview=%s" $exportall (or (and $aq "&") "?") . }}{{ end }}{{ end }}
+        <a class="button-link" href="{{ localhref $exportall }}"{{ if $empty }} aria-disabled="true"{{ end }}>{{ if .Query }}{{$.T "mailbox.exportresults"}}{{ else }}{{$.T "mailbox.exportfolder"}}{{ end }}</a>
+        {{ end }}
+        <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
+        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
+        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
+        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">{{$.T "mailbox.moveto"}}</button>
+        {{ if or (and $junk (eq .Mailbox.Name $junk)) (and $trash (eq .Mailbox.Name $trash)) }}
+        <form method="post" action="/mailbox/{{.Mailbox.Name | pathescape}}/empty{{$aq}}">
+          <button class="button-danger"{{ if .Mailbox.IsEmpty }} disabled{{ end }}>{{$.T "mailbox.emptyfolder"}}</button>
+        </form>
+        {{ end }}
+        {{ if not (eq .Mailbox.Name "INBOX") }}
+        <a class="button-link" href="/rename-mailbox/{{.Mailbox.Name | pathescape}}{{$aq}}">{{$.T "mailbox.renamefolder"}}</a>
+        <a class="button-link button-danger" href="/delete-mailbox/{{.Mailbox.Name | pathescape}}{{$aq}}">{{$.T "mailbox.deletefolder"}}</a>
+        {{ end }}
+    {{ template "more-close" }}
+    {{ end }}
+
+    {{ if .Merged }}
+    {{ $path := $.GlobalData.URL.Path }}
+    {{ template "more-open" $ }}
+        <button form="messages-form" formaction="{{$act}}?action=export" data-download>{{$.T "mailbox.export"}}</button>
+        <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
+        <button form="messages-form" formaction="{{$act}}?action=read">{{$.T "mailbox.markread"}}</button>
+        <button form="messages-form" formaction="{{$act}}?action=unread">{{$.T "mailbox.markunread"}}</button>
+        {{ if or (eq $path "/mailbox/Junk") (eq $path "/mailbox/Trash") }}
+        <form method="post" action="{{$path}}/empty-all">
+          <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+          <button class="button-danger"{{ if eq .Total 0 }} disabled{{ end }}>{{$.T "mailbox.emptyfolder"}}</button>
+        </form>
+        {{ end }}
+    {{ template "more-close" }}
+    {{ end }}
+
+{{ template "toolbar-end" }}
+  {{/* What the URL says, not what the page settled on. */}}
+  {{ $q := $.GlobalData.URL.Query }}
+  {{ $keep := dict "sort" ($q.Get "sort") "dir" ($q.Get "dir") "view" ($q.Get "view") "ipp" ($q.Get "ipp") "all" ($q.Get "all") }}
+  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty "target" "main" "keep" $keep) }}
+
+  {{ $prev := "" }}{{if and (gt .RangeFrom 0) (ge .PrevPage 0)}}{{$prev = printf "?page=%d%s" .PrevPage $hparams}}{{end}}
+  {{ $next := "" }}{{if and (gt .RangeFrom 0) (ge .NextPage 0)}}{{$next = printf "?page=%d%s" .NextPage $hparams}}{{end}}
+  {{ $range := "" }}{{if gt .RangeFrom 0}}{{ $range = $.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total }}{{end}}
+  {{ template "pagination" (dict "range" $range "prev" (dict "href" $prev "title" ($.T "mailbox.prevpage")) "next" (dict "href" $next "title" ($.T "mailbox.nextpage")) "target" "main") }}
+
+  {{ template "ipp-menu" (dict "g" $.GlobalData "options" .PerPageOptions "current" .PerPage "base" $ippbase "label" ($.T "mailbox.perpage") "target" "main") }}
+
+  {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "target" "main" "priority" 25 "class" "filter-overflow") }}
+
+  {{ if .SortSupported }}
+  {{ $thread := "" }}{{ if .ThreadSupported }}{{ $thread = dict "label" ($.T "sort.thread") "href" (printf "?sort=%s%s" "thread" $hplain) "current" .Threaded }}{{ end }}
+  {{ template "sort-menu" (dict "g" $ "target" "main" "thread" $thread
+     "s" (dict "Key" $hsort "Dir" $.SortDir "Explicit" $hexp "DirExplicit" $hdirx "Params" $hplain "Reset" $hreset)
+     "rows" (tuple (tuple ($.T "sort.date") "date") (tuple ($.T "sort.starred") "starred") (tuple ($.T "sort.sender") "from") (tuple ($.T "sort.subject") "subject") (tuple ($.T "sort.size") "size"))) }}
+  {{ end }}
+
+{{ template "toolbar-foot" }}
+{{ end }}

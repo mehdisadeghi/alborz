@@ -1,0 +1,7 @@
+{{/* dict: g keep path action views. */}}
+{{ define "calendar-rail" }}
+{{ $g := .g }}
+{{ template "pim-rail" (dict "g" $g "urlaccount" $g.GlobalData.URLAccount "path" .path "keep" .keep "items" $g.Calendars "field" "cal" "itemclass" "calendar-item" "action" .action "edithref" "/calendars/" "invitations" $g.Invitations "views" .views
+   "new" (dict "href" (printf "/calendars/create?next=%s" ($g.GlobalData.URL.RequestURI | qv)) "label" ($g.T "calendar.newcalendar"))
+   "follow" (dict "href" (printf "/calendars/subscribe?next=%s" ($g.GlobalData.URL.RequestURI | qv)) "label" ($g.T "calendar.subscribe"))) }}
+{{ end }}

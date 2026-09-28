@@ -119,14 +119,14 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*alborz.Context) (CreateF
 		}
 		data.Account, data.Place = p.ReadPlace(ctx, data.Account)
 		if ctx.Request().Method != http.MethodPost {
-			return ctx.Render(http.StatusOK, "create-collection.html", data)
+			return ctx.Render(http.StatusOK, "pim/collection-create", data)
 		}
 
 		data.Name = strings.TrimSpace(ctx.FormValue("name"))
 		data.Color = ctx.FormValue("color")
 		if data.Asks() && ctx.FormValue("place") == "" {
 			data.Refused(ctx.T("form.destinationneeded"))
-			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "pim/collection-create", data)
 		}
 		// A form that offers no choice cannot be posted one.
 		if h := ctx.FormValue("holds"); f.OffersHolds && held[h] != nil {
@@ -134,7 +134,7 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*alborz.Context) (CreateF
 		}
 		if data.Name == "" {
 			data.Refused(ctx.T("form.nameneeded"))
-			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "pim/collection-create", data)
 		}
 		login := ctx.LoginFor(data.Account)
 		if login == nil {
@@ -148,7 +148,7 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*alborz.Context) (CreateF
 			} else if errors.Is(err, dav.ErrPlaceDown) {
 				data.Refused(ctx.T("form.placedown"))
 			}
-			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "pim/collection-create", data)
 		}
 		if err := pg.Show(ctx.Request().Context(), login.Store(), path); err != nil {
 			ctx.Notify(Refused(ctx, err))
@@ -210,7 +210,7 @@ func (pg Page) Handle(p *dav.Provider) func(*alborz.Context) error {
 			if err != nil {
 				return err
 			}
-			return ctx.Render(http.StatusOK, "collection.html", &CollectionRenderData{
+			return ctx.Render(http.StatusOK, "pim/collection", &CollectionRenderData{
 				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(offer.Name),
 				Rail:           rail, Name: offer.Name, Base: pg.Base, ListHref: pg.List,
 				Account: ctx.Login.Username(), Offer: offer,
@@ -231,17 +231,17 @@ func (pg Page) Handle(p *dav.Provider) func(*alborz.Context) error {
 			data.Name, data.Color = name, ctx.FormValue("color")
 			if name == "" {
 				data.Refused(ctx.T("form.nameneeded"))
-				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
+				return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
 			}
 			rc := ctx.Request().Context()
 			if err := p.Kind.Change(rc, p.HTTPClient(rc, ctx.Login), p.URL(rc, ctx.Login), collPath, name, ctx.FormValue("color")); err != nil {
 				data.Refused(err.Error())
-				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
+				return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
 			}
 			pg.Forget(ctx.Login.Username())
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(list)))
 		}
-		return ctx.Render(http.StatusOK, "collection.html", data)
+		return ctx.Render(http.StatusOK, "pim/collection", data)
 	}
 }
 
@@ -546,13 +546,13 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			data.Account = ctx.URLAccount()
 		}
 		if ctx.Request().Method != http.MethodPost {
-			return ctx.Render(http.StatusOK, "dav-import.html", data)
+			return ctx.Render(http.StatusOK, "pim/import", data)
 		}
 		acct, collPath, ok := strings.Cut(ctx.FormValue("collection"), "|")
 		login := ctx.LoginFor(acct)
 		if !ok || login == nil {
 			data.Refused(ctx.T("form.destinationneeded"))
-			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 		}
 		data.Account, data.Path = acct, collPath
 		var raw []byte
@@ -561,13 +561,13 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			raw, err = fetchAddress(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), data.URL)
 			if err != nil {
 				data.Refused(err.Error())
-				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
 		} else {
 			file, err := ctx.FormFile("file")
 			if err != nil {
 				data.Refused(ctx.T("form.fileneeded"))
-				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
 			if file.Size > maxImportSize {
 				return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the file is too large to import")
@@ -582,19 +582,19 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		files, err := pg.importFiles(name, raw)
 		if err != nil {
 			data.Refused(err.Error())
-			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 		}
 		if place, isNew := strings.CutPrefix(collPath, newPrefix); isNew || len(files) > 1 {
 			if err := pg.importMany(ctx, list, files, place, isNew, collPath); err != nil {
 				data.Refused(err.Error())
-				return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 		}
 		if err := pg.importRaw(ctx, collPath, raw); err != nil {
 			// A file that is not what it claims answers on the form, where another can be picked.
 			data.Refused(err.Error())
-			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 	}

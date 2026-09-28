@@ -231,7 +231,7 @@ func handleReplies(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "autoreply.html", data)
+	return ctx.Render(http.StatusOK, "filters/autoreply", data)
 }
 
 func handleReplyForm(ctx *alborz.Context) error {
@@ -247,7 +247,7 @@ func handleReplyForm(ctx *alborz.Context) error {
 		}
 		data.Editing, data.Index = data.Replies[i], i
 	}
-	return ctx.Render(http.StatusOK, "autoreply-edit.html", data)
+	return ctx.Render(http.StatusOK, "filters/autoreply-edit", data)
 }
 
 func replyFromForm(ctx *alborz.Context) (Reply, error) {
@@ -301,7 +301,7 @@ func handleReplySave(ctx *alborz.Context) error {
 		}
 		data.Editing, data.Index = v, index
 		data.Refused(message)
-		return ctx.Render(http.StatusUnprocessableEntity, "autoreply-edit.html", data)
+		return ctx.Render(http.StatusUnprocessableEntity, "filters/autoreply-edit", data)
 	}
 	if err != nil {
 		return refuse(err.Error())

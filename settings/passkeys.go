@@ -23,7 +23,7 @@ type PasskeyRenderData struct {
 
 func registerPasskeyRoutes(p alborz.Router) {
 	p.GET("/settings/passkeys", func(ctx *alborz.Context) error {
-		return ctx.Render(http.StatusOK, "passkeys.html", &PasskeysRenderData{
+		return ctx.Render(http.StatusOK, "settings/passkeys", &PasskeysRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.title")),
 			Rail:           mail.SettingsRail(ctx),
 			Passkeys:       ctx.Session().Lock().Passkeys,
@@ -37,9 +37,9 @@ func registerPasskeyRoutes(p alborz.Router) {
 		// Only a form without script posts here, and without script there is no passkey prompt.
 		if ctx.Request().Method == http.MethodPost {
 			data.Refused(ctx.T("passkeys.needsscript"))
-			return ctx.Render(http.StatusUnprocessableEntity, "passkey-create.html", data)
+			return ctx.Render(http.StatusUnprocessableEntity, "settings/passkey-create", data)
 		}
-		return ctx.Render(http.StatusOK, "passkey-create.html", data)
+		return ctx.Render(http.StatusOK, "settings/passkey-create", data)
 	}
 	p.GET("/settings/passkeys/create", passkeyForm)
 	p.POST("/settings/passkeys/create", passkeyForm)

@@ -24,8 +24,8 @@ type CalendarSystem interface {
 	// Page names a month in a URL, and ParsePage reads one back.
 	Page(t time.Time) string
 	ParsePage(s string, loc *time.Location) (time.Time, error)
-	// MonthName names a month in the page's language.
-	MonthName(month int, lang string) string
+	// MonthKey is the locale key naming a month.
+	MonthKey(month int) string
 	// YearDay is the ordinal day in the year, for counting weeks.
 	YearDay(t time.Time) int
 	// WeekStarts is the weekday the calendar's own weeks begin on.
@@ -93,8 +93,8 @@ func (gregorian) ParsePage(s string, loc *time.Location) (time.Time, error) {
 	}
 	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, loc), nil
 }
-func (gregorian) MonthName(month int, lang string) string {
-	return translate(lang, fmt.Sprintf("calendar.gmonth.%d", month))
+func (gregorian) MonthKey(month int) string {
+	return fmt.Sprintf("calendar.gmonth.%d", month)
 }
 func (gregorian) YearDay(t time.Time) int  { return t.YearDay() }
 func (gregorian) WeekStarts() time.Weekday { return time.Monday }
@@ -167,8 +167,8 @@ func (solarHijri) ParsePage(s string, loc *time.Location) (time.Time, error) {
 	}
 	return solarHijri{}.Time(y, m, 1, loc), nil
 }
-func (solarHijri) MonthName(month int, lang string) string {
-	return translate(lang, fmt.Sprintf("calendar.shmonth.%d", month))
+func (solarHijri) MonthKey(month int) string {
+	return fmt.Sprintf("calendar.shmonth.%d", month)
 }
 func (solarHijri) YearDay(t time.Time) int {
 	_, m, d := solarHijri{}.Date(t)

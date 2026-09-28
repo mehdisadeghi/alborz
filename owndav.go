@@ -17,22 +17,16 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// davPasswordLife is how long a password the mail server accepted is
-// taken again without asking it: a phone syncing sends one with every
-// request, and each check is an IMAP login.
+// Each check is an IMAP login, and a syncing phone sends its password with every request.
 const davPasswordLife = 5 * time.Minute
 
 // davRealm is what a DAV client shows beside its password prompt.
 const davRealm = AppName
 
-// wellKnown are where a client given only the host starts (RFC 6764 5).
+// wellKnown are where a client given only the host starts (RFC 6764).
 var wellKnown = []string{"/.well-known/caldav", "/.well-known/carddav"}
 
-// davPasswords remembers what the mail server last said of an address
-// and a password, under their salted digest: nothing in it signs anybody
-// in anywhere. A refusal is remembered as an acceptance is, because a
-// phone with a stale password sends it every few seconds, and asking
-// again each time would spend the reader's sign-in tries on one answer.
+// Refusals are cached too, so a phone's stale password does not spend the reader's sign-in tries.
 type davPasswords struct {
 	mu      sync.Mutex
 	salt    [32]byte
@@ -56,7 +50,6 @@ func (p *davPasswords) digest(username, password string) [sha256.Size]byte {
 	return sha256.Sum256(slices.Concat(p.salt[:], []byte(username), []byte{0}, []byte(password)))
 }
 
-// known is the verdict still held for this address and password.
 func (p *davPasswords) known(username, password string, now time.Time) (davVerdict, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -64,9 +57,6 @@ func (p *davPasswords) known(username, password string, now time.Time) (davVerdi
 	return was, ok && now.Sub(was.at) < davPasswordLife
 }
 
-// keep holds a verdict, and drops the ones past their life first. An
-// account has one password accepted and every refusal cost a counted
-// try, so the tries allowed bound what is held.
 func (p *davPasswords) keep(username, password string, refused error, now time.Time) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -76,22 +66,17 @@ func (p *davPasswords) keep(username, password string, refused error, now time.T
 	p.checked[p.digest(username, password)] = davVerdict{refused, now}
 }
 
-// refusalsHeld bounds the keys remembered: past it the expired ones are
-// dropped, and while none has expired a key not yet held is paused, so
-// a flood of addresses cannot grow the map for ever.
+// refusalsHeld bounds the keys remembered, so a flood of addresses cannot grow the map.
 const refusalsHeld = 4096
 
-// refusals remembers when a reader was refused a password, so that past
-// tries refusals within window alborz stops asking the mail server. Each
-// ask is an IMAP login, and a server's own lockout counts alborz's.
+// refusals stops asking the mail server after tries refusals within window, since each ask is an IMAP login.
 type refusals struct {
 	tries  int
 	window time.Duration
 
 	mu sync.Mutex
 	at map[string][]time.Time
-	// sweepAt is when the oldest refusal held runs out: a full map is
-	// not walked again before there is something to drop.
+	// A full map is not walked again before something can be dropped.
 	sweepAt time.Time
 }
 
@@ -99,7 +84,6 @@ func newRefusals(tries int, window time.Duration) *refusals {
 	return &refusals{tries: tries, window: window, at: make(map[string][]time.Time)}
 }
 
-// recent are key's refusals inside the window, oldest first.
 func (r *refusals) recent(key string, now time.Time) []time.Time {
 	var out []time.Time
 	for _, at := range r.at[key] {
@@ -110,7 +94,6 @@ func (r *refusals) recent(key string, now time.Time) []time.Time {
 	return out
 }
 
-// sweep drops the keys whose refusals have all run out.
 func (r *refusals) sweep(now time.Time) {
 	r.sweepAt = time.Time{}
 	for k := range r.at {
@@ -125,9 +108,7 @@ func (r *refusals) sweep(now time.Time) {
 	}
 }
 
-// reserve counts a try for key before it is made, and answers when key
-// may try again if it may not now. Tries made side by side would
-// otherwise all pass the count before any of them is refused.
+// Reserving before the try keeps concurrent tries from all passing the count.
 func (r *refusals) reserve(key string, now time.Time) time.Time {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -147,12 +128,10 @@ func (r *refusals) reserve(key string, now time.Time) time.Time {
 	return time.Time{}
 }
 
-// release takes back the try reserved at now, which was not refused.
 func (r *refusals) release(key string, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	// One try, not every try of that instant: two side by side may
-	// have been reserved on the same tick of the clock.
+	// Two concurrent tries may share a clock tick, so only one is released.
 	i := slices.IndexFunc(r.at[key], func(at time.Time) bool { return at.Equal(now) })
 	if i < 0 {
 		return
@@ -165,8 +144,6 @@ func (r *refusals) release(key string, now time.Time) {
 	r.at[key] = kept
 }
 
-// attempt asks the mail server on key's behalf, unless key has had its
-// refusals; only an answer that is a refusal stays counted.
 func (r *refusals) attempt(key string, ask func() error) error {
 	now := time.Now()
 	if until := r.reserve(key, now); !until.IsZero() {
@@ -179,9 +156,7 @@ func (r *refusals) attempt(key string, ask func() error) error {
 	return err
 }
 
-// authenticateDAV checks a DAV client's address and password the way
-// signing in does: the mail server of a served domain says, and the
-// tries are the same reader's as at the sign-in form.
+// authenticateDAV checks a DAV client's password the way signing in does, sharing its tries.
 func (s *Server) authenticateDAV(username, password, source string) error {
 	username = strings.ToLower(username)
 	now := time.Now()
@@ -203,10 +178,7 @@ func (s *Server) authenticateDAV(username, password, source string) error {
 	return err
 }
 
-// serveOwnDAV answers the calendars and address books kept here to a
-// DAV client, ahead of everything a page goes through: no session, no
-// cookie, no login page, only the account's address and password on
-// each request.
+// serveOwnDAV answers DAV clients ahead of sessions and cookies, by address and password on each request.
 func (s *Server) serveOwnDAV() echo.MiddlewareFunc {
 	dav := s.Collections.Handler()
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -218,8 +190,7 @@ func (s *Server) serveOwnDAV() echo.MiddlewareFunc {
 					return nil
 				}
 			}
-			// A published calendar has an address of its own, outside the
-			// DAV server's, which a subscribing client needs no more of.
+			// A published calendar needs no credentials.
 			if collections.IsPublic(r.URL.Path) {
 				s.Collections.ServePublic(w, r)
 				return nil
@@ -235,8 +206,7 @@ func (s *Server) serveOwnDAV() echo.MiddlewareFunc {
 					http.Error(w, err.Error(), http.StatusServiceUnavailable)
 					return nil
 				}
-				// A paused reader is not told the password is wrong: a
-				// client that hears 401 asks its owner for a new one.
+				// Not 401 for a paused reader: a client hearing 401 asks its owner for a new password.
 				var paused PausedError
 				if errors.As(err, &paused) {
 					w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(time.Until(paused.Until).Seconds()))))

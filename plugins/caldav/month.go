@@ -16,50 +16,35 @@ type CalendarRenderData struct {
 	alborz.BaseRenderData
 	Time time.Time
 	Now  time.Time
-	// Since is the first day the agenda lists: today when today falls in
-	// the month in front of you, the first of the month otherwise. The
-	// grid shows a month; the agenda answers what is next.
+	// Since is the first day the agenda lists: today in the current month, else the first.
 	Since time.Time
-	// Span is "month" when the agenda was asked for the whole of it, and
-	// ThisMonth says whether the choice exists at all - a month with no
-	// today in it has only one answer.
+	// Span is "month" when the agenda was asked for the whole month.
 	Span               string
 	ThisMonth          bool
 	Dates              []time.Time
 	Calendars          []dav.Collection
 	Events             []CalendarObject
-	Page               string // the shown month as a ?month= value
-	View               string // "" for the month grid, "list" for the agenda
+	Page               string
+	View               string
 	PrevPage, NextPage string
 	PrevTime, NextTime time.Time
-	// ListQuery is what the page's own URL says about which events it
-	// holds and in what order, carried on to an event's page so that
-	// page can name the events either side of it.
+	// ListQuery is carried to an event's page so it can name its neighbours.
 	ListQuery string
-	// Scope is the account and the calendars the page is narrowed to,
-	// which every link in its toolbar keeps: another month or the
-	// other view of the same calendars.
+	// Scope is the account and calendars the page is narrowed to.
 	Scope string
-	// SelectForm is the form a row's checkbox belongs to where the page
-	// has one; empty where it has none, and then no row offers a box
-	// and no column is kept for one. The agenda is a list like the
-	// others; the month grid is not a list at all.
+	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
 	SelectForm string
 
 	EventsForDate func(time.Time) []Occurrence
-	// CollectionFor is the calendar holding a row's event, and
-	// CollectionHref the agenda narrowed to it.
+	// CollectionFor is a row's calendar, CollectionHref the agenda narrowed to it.
 	CollectionFor  func(account, path string) dav.Collection
 	CollectionHref func(account, path string) string
-	// AddedBy names who added an event kept here, where not the row's
-	// own account.
+	// AddedBy names who added an event, where not the row's own account.
 	AddedBy func(account, path string) string
-	// StarView is the star the agenda is narrowed to, for the rail;
-	// empty for the grid and the plain agenda.
+	// StarView is the star the agenda is narrowed to.
 	StarView string
 	Filters  []alborz.Filter
-	// FilterRows is the agenda's filter menu and GroupRows its sort
-	// menu; both empty on the grid, which narrows and groups nothing.
+	// FilterRows and GroupRows are the agenda's filter and sort menus.
 	FilterRows []alborz.FilterRow
 	GroupRows  []alborz.FilterRow
 	// Group is "day" when the agenda is banded by day, else empty.
@@ -67,10 +52,6 @@ type CalendarRenderData struct {
 	Sub   func(a, b int) int
 }
 
-// monthView is the month page as its handler works it out: the window
-// it asked the server for, the days it draws and what falls on each of
-// them. A single event's page builds the same view, to know which
-// events stand either side of it in the one the reader came from.
 type monthView struct {
 	loc       *time.Location
 	start     time.Time
@@ -89,15 +70,10 @@ type monthView struct {
 	calendars []dav.Collection
 	events    []CalendarObject
 	dates     []time.Time
-	// on holds each drawn day's occurrences, in the order they are
-	// shown; day keys it, in the display timezone.
-	on  map[time.Time][]Occurrence
-	day func(time.Time) time.Time
+	on        map[time.Time][]Occurrence
+	day       func(time.Time) time.Time
 }
 
-// shown is the page's occurrences in the order a reader meets them: by
-// day across the drawn dates, and the agenda's days only where the
-// agenda is what is drawn.
 func (mv monthView) shown() []Occurrence {
 	var out []Occurrence
 	for _, date := range mv.dates {
@@ -164,7 +140,6 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		CollectionHref: href,
 
 		Sub: func(a, b int) int {
-			// Why isn't this built-in, come on Go
 			return a - b
 		},
 	})
@@ -173,8 +148,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	loc := alborzbase.UserLocation(ctx)
 
-	// The month is the reader's calendar's month: its bounds, its page
-	// name and its length come from the system they count in.
+	// The month counts in the reader's calendar system.
 	cal := ctx.CalendarSystem()
 	var start time.Time
 	if s := ctx.QueryParam("month"); s != "" {
@@ -188,27 +162,22 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	}
 	firstDayOfWeek := ctx.Reading().FirstDayOfWeek
 
-	// "list" is the agenda; a star view is the agenda narrowed to the
-	// events marked so, since a grid cannot be narrowed and stay a month.
+	// A star view narrows the agenda; a grid cannot be narrowed and stay a month.
 	view := ctx.QueryParam("view")
 	if view != "list" && !validStarView(view) {
 		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid view")
 	}
 
-	// Pad a week each way: the grid shows adjacent-month days, and a
-	// fixed window keeps the cache key stable.
+	// Pad a week each way for adjacent-month days; a fixed window keeps the cache key stable.
 	monthEnd := cal.AddMonths(start, 1)
 	queryStart := start.AddDate(0, 0, -7)
 	queryEnd := monthEnd.AddDate(0, 0, 7)
 
-	// The agenda answers "what is next", so in the month you are
-	// living in it starts at today; span=month asks for the whole of
-	// it, the same range the grid draws.
+	// In the current month the agenda starts today; span=month asks for all of it.
 	span := ctx.QueryParam("span")
 	if span != "" && span != "month" {
 		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid span")
 	}
-	// Rows by default; group=day bands them under the day they fall on.
 	group := ctx.QueryParam("group")
 	if group != "" && group != "day" {
 		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid group")
@@ -253,30 +222,13 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 		d = d.AddDate(0, 0, 1)
 	}
 
-	// Bucket by calendar day in the display timezone; both sides of
-	// the map must build keys with the same loc pointer, as time.Time
-	// map equality includes the location.
+	// Keys share one loc pointer, since time.Time equality includes the location.
 	day := func(t time.Time) time.Time {
 		t = t.In(loc)
 		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
 	}
-	// An event covers every day between its start and its end, and
-	// the grid has to show it on each of them: bucketing on the
-	// start alone put a two-day conference on the first day and
-	// nowhere else. DTEND is exclusive (RFC 5545 3.8.2.2) both for
-	// an all-day event, whose end is the day after its last, and for
-	// a timed one ending at midnight, which belongs to the day
-	// before - so the last day is the one the instant before the end
-	// falls in. The span is clipped to the grid, since an event may
-	// run for years and the map only holds what is drawn.
-	// A whole-day event is written as DATE (RFC 5545 3.3.4), which
-	// names a calendar day and carries neither a time nor a zone.
-	// Parsed it can only arrive as an instant - midnight UTC - and
-	// putting that instant through the display zone moves it: east
-	// of UTC the last day lands on the day after, which is why a
-	// one-day event was drawn on two while the day page, which asks
-	// the server, showed it on one. The written date is the answer,
-	// so it is read as digits rather than converted.
+	// An event is drawn on every day it covers; DTEND is exclusive.
+	// A DATE names a day, not an instant: its digits are read, not converted to the zone.
 	writtenDay := func(t time.Time) time.Time {
 		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
 	}
@@ -340,9 +292,6 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	}, nil
 }
 
-// agendaRows is the agenda's filter menu: the slice of the month in
-// front of you, where today falls in it, then the star views. The grid
-// offers none, having nothing to narrow.
 func agendaRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
 	if mv.view == "" {
 		return nil
@@ -361,8 +310,6 @@ func agendaRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
 	return append(rows, alborzbase.ViewRows(ctx, star, false, ctx.WithParam("view", "list"))...)
 }
 
-// groupRows is the agenda's sort menu, which for now holds the one
-// way to group it.
 func groupRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
 	if mv.view == "" {
 		return nil
@@ -374,10 +321,6 @@ func groupRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
 	return []alborz.FilterRow{{Label: ctx.T("calendar.groupday"), Href: href, Current: mv.group == "day"}}
 }
 
-// The object exactly as the server stores it. Nothing here parses
-// it: a raw view is only useful while it is verbatim.
-// exportMonth hands the visible calendars' events of the month shown
-// back as one file, named for the month.
 func (p *plugin) exportMonth(ctx *alborz.Context) error {
 	loc := alborzbase.UserLocation(ctx)
 	cal := ctx.CalendarSystem()

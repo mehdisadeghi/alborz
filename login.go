@@ -24,58 +24,33 @@ import (
 	"go.guido-berhoerster.org/managesieve"
 )
 
-// Every bound alborz puts on an upstream, written once and named for
-// what it bounds rather than for how long it is. Two numbers, because
-// there are two kinds of waiting.
-// TODO: make these configurable; how far away a server is belongs to
-// the deployment, not to the binary.
+// TODO: make these configurable per deployment.
 const (
-	// dialTimeout bounds opening the connection and nothing else: a host
-	// that does not answer at all is wrong rather than far away, and the
-	// login page is the visible casualty of waiting on it.
+	// dialTimeout is short: a host that does not answer at all is misconfigured, not far away.
 	dialTimeout = 3 * time.Second
 
-	// RoundTripTimeout bounds one exchange that legitimately does work -
-	// a step of a login handshake against a proxy that asks its own
-	// backend before answering, a sieve command, an attachment fetch, a
-	// body search with no server-side index. Spending one of these on
-	// four handshake steps at once is what made a distant server look
-	// like a broken one.
+	// RoundTripTimeout bounds one exchange that legitimately does work.
 	RoundTripTimeout = 10 * time.Second
 
-	// SignInTimeout bounds a sign-in made for a reader. A server that
-	// counts refusals by the reader's address answers a guessing one
-	// slower each time - Dovecot's auth penalty reaches 15 s on top of
-	// its 2 s failure delay - and that answer is a refusal to count, not
-	// a server that did not answer.
+	// SignInTimeout is longer because a server may slow its refusals to a guessing sign-in.
 	SignInTimeout = 20 * time.Second
 
-	// ScanTimeout bounds the one exchange the reader asked for knowing
-	// it is slow: a whole-message search on a server without an index,
-	// which reads every message of the folder.
+	// ScanTimeout bounds a whole-folder search on a server without an index.
 	ScanTimeout = 2 * time.Minute
 
 	// loginDuration is how long a login outlives its last request.
 	loginDuration = 30 * time.Minute
 )
 
-// MaxAttachmentSize bounds what one session holds in attachments not yet
-// sent, and what one upload may carry.
+// MaxAttachmentSize bounds unsent attachments per session and per upload.
 const MaxAttachmentSize = 32 << 20
 
 var ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum file size")
 
-// UpstreamError is a server that did not answer, as distinct from
-// Alborz failing. A timeout is not a wrong password and must not read as
-// one, and it is not an internal error either: nothing here is broken,
-// the other end simply did not reply.
+// UpstreamError is a server that did not answer, as distinct from alborz failing.
 type UpstreamError struct {
-	// Service is what did not answer, in the reader's terms: mail,
-	// filters, calendar.
 	Service string
-	// After is how long was waited before giving up. Zero means the
-	// connection was refused or the host could not be found, which is
-	// not a wait at all and must not be described as one.
+	// After zero means the connection was refused or the host not found.
 	After time.Duration
 	cause error
 }
@@ -89,11 +64,7 @@ func (err UpstreamError) Error() string {
 
 func (err UpstreamError) Unwrap() error { return err.cause }
 
-// BaselineError says the mail server lacks what everything here rests
-// on. Every extension is used only where advertised and missed without
-// harm; IMAP4rev1 or IMAP4rev2 is not an extension, and a server that
-// offers neither is refused at the door rather than failing on the
-// first page.
+// BaselineError says the mail server speaks neither IMAP4rev1 nor IMAP4rev2.
 type BaselineError struct {
 	Caps []string
 }
@@ -111,10 +82,7 @@ func (err AuthError) Error() string {
 	return fmt.Sprintf("authentication failed: %v", err.cause)
 }
 
-// Login is an account signed in. It may also hold an IMAP connection.
-//
-// The login's password is not available to plugins. Plugins should use the
-// login helpers to authenticate outgoing connections, for instance DoSMTP.
+// Login is an account signed in.
 type Login struct {
 	manager            *LoginManager
 	username, password string
@@ -123,8 +91,7 @@ type Login struct {
 	pings              chan struct{}
 	store              Store
 
-	// httpPassword is kept for the login because opening it costs an
-	// Argon2id derivation.
+	// httpPassword is cached because opening it costs an Argon2id derivation.
 	httpLocker   sync.Mutex
 	httpPassword string // protected by httpLocker
 	httpLoaded   bool   // protected by httpLocker
@@ -132,10 +99,10 @@ type Login struct {
 	imapLocker imapQueue
 	imapConn   *imapclient.Client // protected by imapLocker
 	workLocker imapQueue
-	workConn   *imapclient.Client // lazy connection for prefetches and scans
+	workConn   *imapclient.Client
 
 	sieveLocker sync.Mutex
-	sieveConn   SieveClient // protected by locker, can be nil
+	sieveConn   SieveClient // protected by sieveLocker, can be nil
 }
 
 type Attachment struct {
@@ -143,12 +110,9 @@ type Attachment struct {
 	Form *multipart.Form
 }
 
-// Done closes when the login ends, so work started for it can stop
-// with it.
+// Done closes when the login ends.
 func (l *Login) Done() <-chan struct{} { return l.closed }
 
-// alive reports whether the login still holds its account: a reaped
-// or signed-out one does not, and the bag drops it.
 func (l *Login) alive() bool {
 	select {
 	case <-l.closed:
@@ -158,20 +122,8 @@ func (l *Login) alive() bool {
 	}
 }
 
-// WatchIMAP opens a second connection to the account and hands it over.
-// It exists for one caller: the watcher that sits in IDLE waiting for
-// the server to say something arrived.
-//
-// A second connection rather than the login's own, because DoIMAP
-// serialises: an IDLE on the shared connection would hold the lock for
-// as long as it waited, which is to say forever, and every page of that
-// account would stop answering.
-//
-// onChange is for what reshapes a listing, arrivals and expunges;
-// onFlags for a flag set on one message, which a listing takes in
-// place rather than being fetched again for it. onFolder is another
-// folder moving, which a server says only under NOTIFY (RFC 5465), and
-// onOverflow the server giving up on saying it.
+// WatchIMAP opens a second connection for IDLE, since DoIMAP serialises and
+// an IDLE on the shared connection would block every page of the account.
 func (l *Login) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []imap.Flag), onFolder func(mailbox string), onOverflow func()) (*imapclient.Client, error) {
 	c, err := l.manager.dialIMAPWatch(l.domain, &imapclient.UnilateralDataHandler{
 		Expunge: func(uint32) { onChange() },
@@ -182,10 +134,8 @@ func (l *Login) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []i
 			}
 		},
 		NotificationOverflow: onOverflow,
-		// A flag set in another client arrives as an untagged FETCH, not
-		// as EXISTS: without this, reading a message on a phone changed
-		// nothing here. The message must be consumed or the connection's
-		// reader stalls behind it.
+		// A flag set in another client arrives as an untagged FETCH; it must be
+		// consumed or the connection's reader stalls.
 		Fetch: func(msg *imapclient.FetchMessageData) {
 			buf, err := msg.Collect()
 			if err != nil || buf.Flags == nil {
@@ -212,8 +162,7 @@ func (l *Login) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []i
 }
 
 func (l *Login) ping() {
-	// Non-blocking: once the expiry goroutine is gone, a send would
-	// block its caller forever; a dropped ping is harmless.
+	// Non-blocking: once the expiry goroutine is gone, a send would block forever.
 	select {
 	case l.pings <- struct{}{}:
 	default:
@@ -225,19 +174,17 @@ func (l *Login) Username() string {
 	return l.username
 }
 
-// Domain returns the domain part of the login's address, which selects the
-// upstream servers.
+// Domain returns the domain part of the login's address.
 func (l *Login) Domain() string {
 	return l.domain
 }
 
-// DoIMAP executes an IMAP operation on this login. The IMAP client can only
-// be used from inside f.
+// DoIMAP executes an IMAP operation on this login; the client is valid only inside f.
 func (l *Login) DoIMAP(f func(*imapclient.Client) error) error {
 	return l.DoIMAPWithin(RoundTripTimeout, f)
 }
 
-// DoIMAPWithin is DoIMAP with the bound named by the caller.
+// DoIMAPWithin is DoIMAP with the caller's bound.
 func (l *Login) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
 	return l.DoIMAPContext(context.Background(), bound, f)
 }
@@ -256,14 +203,10 @@ type IMAPClass int
 
 const (
 	IMAPForeground IMAPClass = iota
-	IMAPBackground           // speculative listings, bodies and ancillary facts
-	IMAPScan                 // explicitly requested long reads, ahead of background batches
+	IMAPBackground
+	IMAPScan
 )
 
-// waitError is what an IMAP wait that ended early comes to: the bound
-// running out is the mail server's silence, and anything else - the
-// login closing on a sign-out, the reader gone - is a cancellation,
-// which says nothing about the server.
 func waitError(err error, bound time.Duration) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return UpstreamError{Service: "mail", After: bound, cause: err}
@@ -286,16 +229,14 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 		return waitError(err, bound)
 	}
 	defer queue.release()
-	// The reader gone is theirs to hear; the bound run out in the queue
-	// is the mail server's, said below as every other wait is.
+	// A gone reader is a cancellation; a queue timeout is reported as the server's.
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if start, ok := ctx.Value(imapStartKey{}).(func() bool); ok && !start() {
 		return context.Canceled
 	}
-	// Once a command starts it must be drained before this connection can
-	// be reused. Browser cancellation only abandons the wait, not the wire.
+	// A started command must be drained before the connection is reused.
 	ctx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
 	defer cancel()
 	go func() {
@@ -340,8 +281,7 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 	return f(c)
 }
 
-// DoSMTP executes an SMTP operation on this login. The SMTP client can only
-// be used from inside f.
+// DoSMTP executes an SMTP operation on this login; the client is valid only inside f.
 func (l *Login) DoSMTP(f func(*smtp.Client) error) error {
 	c, err := l.manager.dialSMTP(l.domain)
 	if err != nil {
@@ -365,9 +305,7 @@ func (l *Login) DoSMTP(f func(*smtp.Client) error) error {
 	return nil
 }
 
-// DoSieve executes a ManageSieve operation on this login. The client can
-// only be used from inside f. The connection is kept for later operations so
-// the server doesn't have to re-authenticate every time.
+// DoSieve executes a ManageSieve operation on this login, reusing the connection.
 func (l *Login) DoSieve(f func(SieveClient) error) error {
 	l.sieveLocker.Lock()
 	defer l.sieveLocker.Unlock()
@@ -384,9 +322,7 @@ func (l *Login) DoSieve(f func(SieveClient) error) error {
 	}
 
 	if l.sieveConn != nil {
-		// The kept connection is used as is: probing it first would cost
-		// every page a round trip to guard against the rare case that the
-		// server dropped it, which the retry below handles anyway.
+		// Used without probing; a dropped connection is retried below.
 		err := run(l.sieveConn)
 		if timedOut {
 			l.sieveConn = nil
@@ -394,13 +330,9 @@ func (l *Login) DoSieve(f func(SieveClient) error) error {
 		}
 		var serverErr *managesieve.ServerError
 		if err == nil || errors.As(err, &serverErr) {
-			// The server answered, so the connection is healthy.
 			return err
 		}
-		// Anything else leaves the connection dead or out of sync; drop
-		// it either way, but only a dropped connection warrants a silent
-		// retry. A garbled exchange must surface, or a write could be
-		// repeated on the server.
+		// Only a dropped connection is retried silently, or a write could repeat.
 		l.sieveConn.Close()
 		l.sieveConn = nil
 		if !isSieveConnClosed(err) {
@@ -421,9 +353,8 @@ func (l *Login) DoSieve(f func(SieveClient) error) error {
 	return err
 }
 
-// isSieveConnClosed reports whether the operation failed because the server
-// had dropped the connection, the one error worth retrying on a fresh one. A
-// script the server rejects must not be silently sent twice.
+// isSieveConnClosed reports whether the server dropped the connection, the one
+// error safe to retry.
 func isSieveConnClosed(err error) bool {
 	if err == nil {
 		return false
@@ -437,8 +368,7 @@ func isSieveConnClosed(err error) bool {
 		errors.Is(err, syscall.ECONNRESET)
 }
 
-// SetHTTPBasicAuth adds an Authorization header field to the request
-// with this login's credentials for HTTP services.
+// SetHTTPBasicAuth sets the login's HTTP service credentials on req.
 func (l *Login) SetHTTPBasicAuth(req *http.Request) error {
 	password, err := l.HTTPPassword(req.Context())
 	if err != nil {
@@ -456,35 +386,28 @@ func (l *Login) SetHTTPBasicAuth(req *http.Request) error {
 	return nil
 }
 
-// SetMailBasicAuth signs a request with the mail login itself, for a
-// DAV server on the mail host (ADR 28), which knows the account by the
-// mail server's own name and password rather than the ones the account
-// gave for a server of its choosing.
+// SetMailBasicAuth sets the mail login's credentials on req, for a DAV server
+// on the mail host (ADR 28).
 func (l *Login) SetMailBasicAuth(req *http.Request) {
 	req.SetBasicAuth(l.username, l.password)
 }
 
-// Close destroys the login. This can be used to log the user out.
+// Close ends the login.
 func (l *Login) Close() {
 	select {
 	case <-l.closed:
-		// This space is intentionally left blank
 	default:
 		close(l.closed)
 	}
 }
 
-// Notice is what the next page tells the reader about the request
-// that redirected to it: what happened, how it went, and what follows
-// from it, when something does.
+// Notice is what the next page tells the reader about the request that
+// redirected to it.
 type Notice struct {
 	Kind string
 	Text string
-	// Markup is the text with a link in it, for a notice that names a
-	// place; the text is what the markup says, for the log.
-	Markup template.HTML
-	// Actions are what a reader may want next - to undo, to delete the
-	// rest, to see what was sent.
+	// Markup is Text with a link in it; Text is what goes to the log.
+	Markup  template.HTML
 	Actions []*NoticeAction
 }
 
@@ -494,31 +417,24 @@ const (
 	NoticeFailed  = "failed"
 )
 
-// NoticeAction is a link, or a POST when it changes state: an undo is
-// a request the page must not make by following a link.
+// NoticeAction is a link, or a POST when it changes state.
 type NoticeAction struct {
 	Label  string
 	Path   string
 	Fields url.Values
 }
 
-// Undo is the action a notice carries when the handler knows the exact
-// inverse of what it just did: a POST back to itself with what that
-// needs, marked so the answer offers nothing further.
+// Undo returns an action that POSTs the exact inverse back to path.
 func (ctx *Context) Undo(path string, fields url.Values) *NoticeAction {
 	fields.Set("undo", "1")
 	return &NoticeAction{Label: ctx.T("notice.undo"), Path: path, Fields: fields}
 }
 
-// Unreachable says on the page which accounts' servers did not answer,
-// so that a merged page can show what the others hold rather than
-// nothing. Nothing is said when every account answered.
+// Unreachable warns which accounts' servers did not answer.
 func (ctx *Context) Unreachable(accounts []string) {
 	if len(accounts) == 0 {
 		return
 	}
-	// Each name leads to the account's own servers, which is where the
-	// reader can do something about one that did not answer.
 	linked := make([]string, len(accounts))
 	for i, name := range accounts {
 		linked[i] = NoticeLink(name, "/settings/account?account="+QueryValue(name))
@@ -528,27 +444,20 @@ func (ctx *Context) Unreachable(accounts []string) {
 		Markup: template.HTML(ctx.Tf("notice.unreachable", len(accounts), strings.Join(linked, ", ")))})
 }
 
-// NoticeName is a thing's own name inside a notice: quoted by the
-// sentence around it and cut by the page, since how much of a name
-// fits is the screen's business and not this side's.
+// NoticeName marks a name inside a notice for the page to quote and truncate.
 func NoticeName(name string) string {
 	return `<span class="notice-name">` + template.HTMLEscapeString(name) + `</span>`
 }
 
-// NoticeLink is the same name, leading to the thing it names.
+// NoticeLink is NoticeName as a link to href.
 func NoticeLink(name, href string) string {
 	return `<a class="notice-name" href="` + template.HTMLEscapeString(href) + `">` +
 		template.HTMLEscapeString(name) + `</a>`
 }
 
-// Made is what every section says after making something. The reader
-// lands on the list, which is where the new thing now lives, and the
-// banner holds the two things wanted next: the thing itself, named and
-// linked, and the offer to make another with the form as it was.
-// sentence takes the name; again is the form's own address.
+// Made notifies that something was made, linking it and offering another.
 func (ctx *Context) Made(sentence, name, href, again string) {
-	// A folder is its own list, so the reader is already looking at
-	// what was made and there is nowhere for the name to lead.
+	// A folder is its own list, so there is nowhere for the name to lead.
 	marked := NoticeName(name)
 	if href != "" {
 		marked = NoticeLink(name, href)
@@ -561,39 +470,33 @@ func (ctx *Context) Made(sentence, name, href, again string) {
 	})
 }
 
-// Store is where the account's settings live.
+// Store returns the account's settings store.
 func (l *Login) Store() Store {
 	return l.store
 }
 
 type (
-	// DialIMAPFunc connects to the domain's upstream IMAP server, for a
-	// reader at from, or for alborz itself when from is empty.
+	// DialIMAPFunc connects to the domain's IMAP server, for a reader at from,
+	// or for alborz itself when from is empty.
 	DialIMAPFunc func(domain, from string) (*imapclient.Client, error)
-	// DialIMAPWatchFunc dials with a handler for the updates a server
-	// sends unasked, which has to be given before the connection is
-	// made.
+	// DialIMAPWatchFunc dials with a handler for unsolicited updates.
 	DialIMAPWatchFunc func(domain string, h *imapclient.UnilateralDataHandler) (*imapclient.Client, error)
 	// DialSMTPFunc connects to the domain's upstream SMTP server.
 	DialSMTPFunc func(domain string) (*smtp.Client, error)
 )
 
-// LoginManager keeps track of active logins. It connects and re-connects
-// to the upstream IMAP server as necessary. It prunes expired logins.
+// LoginManager keeps track of active logins and prunes expired ones.
 type LoginManager struct {
 	dialIMAP      DialIMAPFunc
 	dialIMAPWatch DialIMAPWatchFunc
 	dialSMTP      DialSMTPFunc
 	dialSieve     DialSieveFunc
 	logger        echo.Logger
-	// settings is where an account's settings go when its server has no
-	// METADATA; nil where alborz keeps nothing itself.
+	// settings holds settings for servers without METADATA; nil if alborz keeps none.
 	settings *settingsRecords
 
 	locker sync.Mutex
-	// logins are the ones still open, for the shutdown that closes
-	// them. A login is reached through the session that holds it, so
-	// nothing looks anything up here.
+	// logins are the open ones, for shutdown to close.
 	logins           map[*Login]struct{} // protected by locker
 	warnedNoMetadata bool                // protected by locker
 }
@@ -618,8 +521,6 @@ func (sm *LoginManager) Close() {
 	}
 }
 
-// connectIMAP signs in for a reader at from: a password the mail server
-// has not seen accepted yet, whose refusal its lockout counts.
 func (sm *LoginManager) connectIMAP(domain, username, password, from string) (*imapclient.Client, error) {
 	return sm.connectIMAPContext(context.Background(), domain, username, password, from)
 }
@@ -633,10 +534,7 @@ func (sm *LoginManager) connectIMAPContext(ctx context.Context, domain, username
 	defer cancel()
 	c, err := sm.dialIMAP(domain, from)
 	if err != nil {
-		// A refused connection, an unresolvable host, a dial that timed
-		// out: all of them are the server not answering, which is not
-		// this program failing. A misconfigured domain is ours and
-		// stays as it is.
+		// A misconfigured domain is ours; any other dial failure is the server's.
 		var unknown UnknownDomainError
 		if errors.As(err, &unknown) {
 			return nil, err
@@ -672,9 +570,8 @@ func (sm *LoginManager) connectIMAPContext(ctx context.Context, domain, username
 	return c, nil
 }
 
-// Put connects to the IMAP server and creates a new login. If authentication
-// fails, the error will be of type AuthError. Addresses outside the served
-// domains are rejected with UnknownDomainError.
+// Put connects to the IMAP server and creates a new login. It fails with
+// AuthError or UnknownDomainError.
 func (sm *LoginManager) Put(username, password, from string) (*Login, error) {
 	_, domain, _ := strings.Cut(username, "@")
 	c, err := sm.connectIMAP(domain, username, password, from)
@@ -707,8 +604,6 @@ func (sm *LoginManager) Put(username, password, from string) (*Login, error) {
 	return s, nil
 }
 
-// reap waits out the login's life, keeping it alive on every ping,
-// then closes its connections and forgets it.
 func (sm *LoginManager) reap(s *Login) {
 	timer := time.NewTimer(loginDuration)
 
@@ -728,9 +623,6 @@ func (sm *LoginManager) reap(s *Login) {
 	}
 
 	timer.Stop()
-	// Expired is ended: the bag drops it and the watchers stop, and a
-	// remembered session signs in again. Left open it reconnected on the
-	// next request with nothing left to reap it.
 	s.Close()
 
 	s.imapLocker.acquire(context.Background(), nil, false)
@@ -750,9 +642,7 @@ func (sm *LoginManager) reap(s *Login) {
 	}
 	s.sieveLocker.Unlock()
 
-	// An expired login is not an account gone: what the caches hold
-	// for it is what the next sign-in, or the cookie restoring it, is
-	// served from. Only signing out forgets, see Server.ForgetAccount.
+	// Caches outlive expiry; only signing out forgets (Server.ForgetAccount).
 	sm.locker.Lock()
 	delete(sm.logins, s)
 	sm.locker.Unlock()

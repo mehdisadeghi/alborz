@@ -6,8 +6,7 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// SessionsRenderData renders sessions.html: the browsers signed into
-// the account, the one asking among them.
+// SessionsRenderData renders sessions.html.
 type SessionsRenderData struct {
 	alborz.BaseRenderData
 	Rail    map[string][]alborz.RailRow
@@ -15,15 +14,10 @@ type SessionsRenderData struct {
 	Account string
 }
 
-// handleSessions lists the browsers signed into the account and signs
-// one of them out of it, which a lost phone or a borrowed laptop needs
-// from somewhere else.
 func handleSessions(ctx *alborz.Context) error {
 	account := ctx.Login.Username()
 	if ctx.Request().Method == http.MethodPost {
 		id := ctx.FormValue("session")
-		// The browser asking signs out the way it always does, which
-		// also ends its stay when it was the last account.
 		if id == ctx.Session().ID {
 			return handleLogout(ctx)
 		}

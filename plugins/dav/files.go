@@ -10,15 +10,12 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// files is what every go-webdav client can do with an object's path,
-// through the WebDAV client it embeds; the clients themselves share no
-// type to name it by.
+// files is what go-webdav clients share through their embedded WebDAV client; they have no common type.
 type files interface {
 	Open(ctx context.Context, name string) (io.ReadCloser, error)
 	RemoveAll(ctx context.Context, name string) error
 }
 
-// exportTypes are the media types the files handed over are sent as.
 var exportTypes = map[string]string{
 	".ics": "text/calendar; charset=utf-8",
 	".vcf": "text/vcard; charset=utf-8",
@@ -36,9 +33,7 @@ func Download(ctx *alborz.Context, name string, body []byte) error {
 	return ctx.Blob(http.StatusOK, exportTypes[path.Ext(name)], body)
 }
 
-// ServeRaw streams an object exactly as it is stored. Nothing parses
-// it: a raw view is only useful while it is verbatim. Saved, it is the
-// file other clients open; read, it is text.
+// ServeRaw streams an object verbatim; a raw view is only useful unparsed.
 func ServeRaw(ctx *alborz.Context, name string, body io.Reader) error {
 	if ctx.QueryParam("save") == "1" {
 		attach(ctx, name)
@@ -61,10 +56,7 @@ func Raw[C files](ctx *alborz.Context, client func(context.Context, *alborz.Logi
 	return ServeRaw(ctx, path.Base(refs[0].Path), body)
 }
 
-// HandleExport hands the selection back as one file, each object as its
-// server stores it and join making the file of them: the rows name
-// their own account, so the selection can span accounts. An empty
-// selection lands on list.
+// HandleExport joins the selection into one file; rows name their account, so it may span accounts.
 func HandleExport[C files](client func(context.Context, *alborz.Login) (C, error), list string, name func(*alborz.Context) string, join func([][]byte) ([]byte, error)) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		refs, err := Selection(ctx, client)

@@ -40,10 +40,7 @@ const smokeUser = "a@test.local"
 const smokeUser2 = "b@test.local"
 const smokePass = "x"
 
-// sentMail collects what the server actually put on the wire. The
-// message a reader receives is the only place some decisions are
-// visible - whether an HTML part was added, for one - and asserting on
-// the compose form instead is how that went unnoticed.
+// sentMail collects what the server actually put on the wire.
 type sentMail struct {
 	mu   sync.Mutex
 	last string
@@ -63,9 +60,7 @@ func (b *smtpBackend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
 
 type smtpSession struct{ got *sentMail }
 
-// The client authenticates before it will send, so the sink has to
-// offer a mechanism. Any credentials pass: this stands in for a server,
-// it does not test one.
+// Any credentials pass: this stands in for a server, it does not test one.
 func (s *smtpSession) AuthMechanisms() []string { return []string{sasl.Plain} }
 
 func (s *smtpSession) Auth(mech string) (sasl.Server, error) {
@@ -76,8 +71,7 @@ func (s *smtpSession) Auth(mech string) (sasl.Server, error) {
 
 func (s *smtpSession) Mail(string, *smtp.MailOptions) error { return nil }
 
-// A recipient at refused@ is turned away the way a real submission
-// server turns away an unknown user; every other one is taken.
+// A recipient at refused@ is turned away; every other one is taken.
 func (s *smtpSession) Rcpt(to string, _ *smtp.RcptOptions) error {
 	if strings.HasPrefix(to, "refused@") {
 		return &smtp.SMTPError{Code: 550, EnhancedCode: smtp.EnhancedCode{5, 1, 1}, Message: "Recipient address rejected: User unknown"}
@@ -98,7 +92,6 @@ func (s *smtpSession) Data(r io.Reader) error {
 	return nil
 }
 
-// startSMTP accepts everything and remembers the last message.
 func startSMTP(t *testing.T) (string, *sentMail) {
 	t.Helper()
 	got := &sentMail{}
@@ -114,20 +107,14 @@ func startSMTP(t *testing.T) (string, *sentMail) {
 	return ln.Addr().String(), got
 }
 
-// startIMAP serves two accounts in memory, on a port the OS picks: one
-// seeded with mail, and a second whose Drafts holds one message so a
-// draft deleted on the wrong account is a draft that goes missing.
+// The second account's draft makes one deleted on the wrong account go missing.
 func startIMAP(t *testing.T) string {
 	t.Helper()
 	addr, _ := startIMAPServer(t, rigCaps())
 	return addr
 }
 
-// rigCaps is what the in-memory server advertises by default. A test
-// that takes a capability away runs the branch that a server without
-// it takes. METADATA is not listed: go-imap's server does not implement
-// it, and advertising it made every test run under the transient store
-// while the log claimed otherwise.
+// METADATA is not listed: the in-memory server does not implement it.
 func rigCaps() imap.CapSet {
 	return imap.CapSet{
 		imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {},
@@ -135,8 +122,6 @@ func rigCaps() imap.CapSet {
 	}
 }
 
-// startIMAPServer also hands back the server, for a test that takes it
-// away again.
 func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server) {
 	t.Helper()
 	mem := imapmemserver.New()
@@ -149,8 +134,7 @@ func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server
 			{"INBOX", ""}, {"Drafts", imap.MailboxAttrDrafts}, {"Sent", imap.MailboxAttrSent},
 			{"Junk", imap.MailboxAttrJunk}, {"Trash", imap.MailboxAttrTrash},
 			{"Archive", imap.MailboxAttrArchive},
-			// A folder under another: its name carries the separator, and
-			// every URL that names it has to escape it.
+			// A nested folder's name carries the separator, which every URL must escape.
 			{"INBOX/Lists", ""},
 		} {
 			var opts *imap.CreateOptions
@@ -164,9 +148,7 @@ func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server
 		return user
 	}
 	user := newUser(smokeUser)
-	// A plain message, one from a list and one carrying an attachment:
-	// the three render different toolbars and different rows, and a
-	// branch nothing opens is a branch nothing checks.
+	// Each renders different toolbars and rows, so each branch gets opened.
 	for _, m := range []struct{ from, subj, extra, body string }{
 		{"Eve <eve@example.org>", "Ideas for the redesign",
 			"Content-Type: text/plain; charset=UTF-8\r\n", "Body.\r\n"},
@@ -175,17 +157,12 @@ func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server
 				"List-Post: <mailto:discuss@lists.example.org>\r\n" +
 				"List-Unsubscribe: <https://lists.example.org/u>\r\n" +
 				"Content-Type: text/plain; charset=UTF-8\r\n", "Body.\r\n"},
-		// A bulk sender names a list and a way to leave it and nothing
-		// else; the list card has no row to show for it.
 		{"Shop <news@shop.example>", "Our terms changed",
 			"List-Id: campaign <c.list-id.shop.example>\r\n" +
 				"List-Unsubscribe: <https://shop.example/u>, <mailto:leave@shop.example>\r\n" +
 				"List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n" +
 				"Content-Type: text/plain; charset=UTF-8\r\n", "Body.\r\n"},
-		// HTML with an inline image: the sanitizer rewrites cid: to the
-		// part's own raw URL, which is the one place that URL is built
-		// - and in a folder whose name holds a separator it has to
-		// escape it or the picture 404s.
+		// The sanitizer builds the part's raw URL, which must escape the folder's separator.
 		{"Hal <hal@example.org>", "Inline picture",
 			"Content-Type: multipart/related; boundary=r1\r\n",
 			"--r1\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n" +
@@ -197,9 +174,7 @@ func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server
 			"--b1\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nBody.\r\n" +
 				"--b1\r\nContent-Type: application/pdf\r\n" +
 				"Content-Disposition: attachment; filename=\"doc.pdf\"\r\n\r\n%PDF-\r\n" +
-				// One attachment with no filename: the row has to name
-				// it something, and that branch is the one a template
-				// conditional skips on every named attachment.
+				// An unnamed attachment exercises the branch named ones skip.
 				"--b1\r\nContent-Type: application/octet-stream\r\n" +
 				"Content-Disposition: attachment\r\n\r\nraw\r\n" +
 				"--b1--\r\n"},
@@ -223,9 +198,7 @@ func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server
 		&imap.AppendOptions{Flags: []imap.Flag{imap.FlagDraft}}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	// An INBOX message for the second account, to star while a page is
-	// scoped to it: the flag must reach the account the URL names, not
-	// the first-listed one.
+	// The flag must reach the account the URL names, not the first-listed one.
 	inbox := fmt.Sprintf("From: pat@example.org\r\nTo: %s\r\nSubject: for the second account\r\n"+
 		"Message-ID: <second-inbox@test>\r\nContent-Type: text/plain\r\n\r\nHello.\r\n", smokeUser2)
 	if _, err := other.Append("INBOX", literal{strings.NewReader(inbox), int64(len(inbox))}, &imap.AppendOptions{}); err != nil {
@@ -235,11 +208,8 @@ func startIMAPServer(t *testing.T, caps imap.CapSet) (string, *imapserver.Server
 	return serveIMAP(t, mem, caps)
 }
 
-// smokeElsewhere is an account of another domain, whose server a test
-// can take away while the first one keeps answering.
 const smokeElsewhere = "c@elsewhere.local"
 
-// startIMAPElsewhere is that domain's server: one account, one message.
 func startIMAPElsewhere(t *testing.T) (string, *imapserver.Server) {
 	t.Helper()
 	mem := imapmemserver.New()
@@ -281,7 +251,6 @@ type literal struct {
 
 func (l literal) Size() int64 { return l.n }
 
-// startAlborz brings the app up against that IMAP server.
 func startAlborz(t *testing.T, imapAddr string, smtpAddr ...string) string {
 	t.Helper()
 	return startAlborzWith(t, append([]string{"test.local=imap+insecure://" + imapAddr},
@@ -293,8 +262,7 @@ func startAlborzWith(t *testing.T, upstreams []string) string {
 	return serveAlborz(t, upstreams, "", true)
 }
 
-// startAlborzKeeping has a data directory, for a test that saves
-// settings: the rig's IMAP server has no METADATA to keep them.
+// The rig's IMAP server has no METADATA to keep settings.
 func startAlborzKeeping(t *testing.T, imapAddr string, smtpAddr ...string) string {
 	t.Helper()
 	return serveAlborz(t, append([]string{"test.local=imap+insecure://" + imapAddr},
@@ -328,10 +296,7 @@ func serveAlborz(t *testing.T, upstreams []string, dataDir string, cache bool) s
 	return "http://" + ln.Addr().String()
 }
 
-// TestPagesAnswer opens every page a signed-in reader can reach and
-// fails on anything the server could not render. A page that 500s is
-// invisible to a compiler and to every test that does not open it,
-// which is how a renamed template shipped.
+// A page that 500s is invisible to every test that does not open it.
 func TestPagesAnswer(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	jar, _ := cookiejar.New(nil)
@@ -353,16 +318,11 @@ func TestPagesAnswer(t *testing.T) {
 	if len(uids) < 4 {
 		t.Fatalf("expected the four seeded messages, found %d", len(uids))
 	}
-	// The attachment row is the one that exercises the part-less reply
-	// and the download links. A page that renders none of it grades
-	// every check below it as a pass without having run them.
+	// Without the attachment row, the checks below pass without having run.
 	if !strings.Contains(body, "mailbox.attachment") && !strings.Contains(body, "message-mark") {
 		t.Fatalf("the seeded attachment leaves no mark on its row; that row is unchecked")
 	}
 
-	// A part downloaded out of a folder whose name holds the hierarchy
-	// separator is the one URL that has to escape it. The links are on
-	// the message page, so the message has to be opened to reach them.
 	nested := get(t, c, base+"/mailbox/INBOX%2FLists")
 	nestedUIDs := messageUIDs(nested)
 	if len(nestedUIDs) == 0 {
@@ -372,9 +332,6 @@ func TestPagesAnswer(t *testing.T) {
 	for _, uid := range nestedUIDs {
 		page := get(t, c, base+"/message/INBOX%2FLists/"+uid)
 		nestedParts = append(nestedParts, rawPartHrefs(page)...)
-		// The sanitizer rewrites an inline cid: image to the part's own
-		// raw URL; that is the only place alborz builds one, so it is
-		// where the mailbox name's escaping is proved.
 		nestedParts = append(nestedParts, rawPartSrcs(page)...)
 	}
 	if len(nestedParts) == 0 {
@@ -404,8 +361,7 @@ func TestPagesAnswer(t *testing.T) {
 	}
 }
 
-// rawPartHrefs finds the download links a list row offers, as written
-// in the page - the escaping under test is the page's, not the test's.
+// The escaping under test is the page's, not the test's.
 func rawPartHrefs(body string) []string {
 	var out []string
 	for _, m := range regexp.MustCompile(
@@ -415,10 +371,7 @@ func rawPartHrefs(body string) []string {
 	return out
 }
 
-// rawPartSrcs finds the part URLs the HTML sanitizer wrote into a
-// rendered message - the inline images, whose src it rewrote. The
-// sanitized document is carried in an iframe's srcdoc, so it arrives
-// attribute-escaped and has to be unescaped before it reads as HTML.
+// The srcdoc arrives attribute-escaped.
 func rawPartSrcs(body string) []string {
 	var out []string
 	for _, m := range regexp.MustCompile(
@@ -487,14 +440,7 @@ func loginAs(t *testing.T, base, account string) *http.Client {
 	return c
 }
 
-// TestUnknownSearchKeySurvives covers a crash that cost more than the
-// page it was on. PrepareSearch skips a term it does not recognise, so a
-// query made only of those produced nil criteria and sortSeqNums
-// dereferenced it. Worse than the 500: the panic skipped the watchdog
-// that guards the login's IMAP connection, which was then closed but
-// still held, so every later request on that login waited out the
-// round-trip timeout. Hence the second half of this test - answering the
-// bad query is not enough, the login has to still work afterwards.
+// The login must still work after answering the bad query.
 func TestUnknownSearchKeySurvives(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -507,15 +453,7 @@ func TestUnknownSearchKeySurvives(t *testing.T) {
 	}
 }
 
-// TestOpeningAHeldMessageAfterAFlagChange covers a crash that followed
-// every star. A flag change evicts the mailbox's listing so the next
-// list is fetched fresh, but the body fetched ahead for the message
-// stays held, and the page served from a held body read its sidebar
-// off the listing entry that was no longer there. The prefetch runs
-// behind the listing, so the sequence is tried more than once to be
-// sure of meeting a held body; and the login has to still serve
-// mail afterwards, since a panic in a handler has cost the connection
-// before.
+// The prefetch runs behind the listing, so the sequence repeats to meet a held body.
 func TestOpeningAHeldMessageAfterAFlagChange(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -592,11 +530,6 @@ func TestCachedMessageAndSidebarWithoutUpstream(t *testing.T) {
 	}
 }
 
-// TestStarStickToTheScopedAccount stars a message on a page scoped to
-// the second account and reads it back: the flag must land on the
-// account the URL names, and the reloaded page must show it, not the
-// colour it had before. This is the star that "returned the same
-// colour" when the page belonged to a non-first account.
 func TestStarStickToTheScopedAccount(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -624,8 +557,6 @@ func TestStarStickToTheScopedAccount(t *testing.T) {
 	}
 }
 
-// flagButtonColor reads the colour the message page's star shows: the
-// flag-<colour> class on the flag button, or "" when it is unflagged.
 func flagButtonColor(t *testing.T, page string) string {
 	t.Helper()
 	i := strings.Index(page, `class="flag-button`)
@@ -643,11 +574,7 @@ func flagButtonColor(t *testing.T, page string) string {
 	return ""
 }
 
-// TestMailtoHandlerRefusesForeignURI guards a redirect. The browser is
-// invited to send mailto: links to /compose?mailto=%s, and
-// composeFromMailto hands back anything that is not a mailto URI
-// unchanged - so redirecting to whatever it returns would forward the
-// reader to any address an attacker put in the link.
+// Redirecting to whatever composeFromMailto returns would forward the reader anywhere.
 func TestMailtoHandlerRefusesForeignURI(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -667,8 +594,7 @@ func TestMailtoHandlerRefusesForeignURI(t *testing.T) {
 		}
 	}
 
-	// The handler still has to do its job, or the check above passes by
-	// refusing everything.
+	// Otherwise the check above passes by refusing everything.
 	resp, err := c.Get(base + "/compose?mailto=" + url.QueryEscape("mailto:a@b.example?subject=Hi"))
 	if err != nil {
 		t.Fatal(err)
@@ -681,11 +607,6 @@ func TestMailtoHandlerRefusesForeignURI(t *testing.T) {
 	}
 }
 
-// TestExportFailsAsAnError is about what a failure looks like from the
-// outside. The handler used to write the mbox headers and a 200 before
-// fetching anything, so a fetch that failed had the HTML error page
-// rendered into a body already claiming to be an mbox - the reader
-// saved a .mbox file containing "500: Internal Server Error".
 func TestExportFailsAsAnError(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -696,7 +617,6 @@ func TestExportFailsAsAnError(t *testing.T) {
 		t.Fatalf("need two seeded messages to export, found %d", len(uids))
 	}
 
-	// A message that is not there is the failure this reproduces.
 	resp, err := c.PostForm(base+"/message/INBOX/export",
 		url.Values{"uids": {"999999"}})
 	if err != nil {
@@ -716,8 +636,7 @@ func TestExportFailsAsAnError(t *testing.T) {
 		t.Errorf("an error was offered as a download: %q", cd)
 	}
 
-	// And the working case still produces an mbox, or the checks above
-	// pass by refusing everything.
+	// Otherwise the checks above pass by refusing everything.
 	resp, err = c.PostForm(base+"/message/INBOX/export", url.Values{"uids": uids[:2]})
 	if err != nil {
 		t.Fatal(err)
@@ -736,8 +655,7 @@ func TestExportFailsAsAnError(t *testing.T) {
 		t.Error("the export carries an HTML page inside it")
 	}
 
-	// A whole list asked about names the list again, never its messages:
-	// a field for each is a page of megabytes on a large folder.
+	// A field per message is megabytes on a large folder.
 	resp, err = c.PostForm(base+"/message/INBOX/export", url.Values{"everything": {"1"}, "next": {"/mailbox/INBOX"}, "ask": {"1"}})
 	if err != nil {
 		t.Fatal(err)
@@ -770,16 +688,7 @@ func TestSettingsWithNowhereToKeepThemAreRefusedOnTheForm(t *testing.T) {
 	}
 }
 
-// TestSendHTMLFollowsWhatWasWritten is about where a decision lives.
-// The HTML part was once chosen when the compose page was rendered and
-// carried back in a hidden field, so a page opened before the choice
-// changed sent the old one - and the form looked right the whole time.
-// It is read at send from what the form carries now: the editor's HTML
-// if it was used, else the text's direction, and for a reply to a list
-// from that message rather than the page.
-//
-// It asserts the bytes that went to the SMTP server, because that is
-// the only place the answer is visible.
+// It asserts the bytes sent to the SMTP server, the only place the answer is visible.
 func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
 	base := startAlborzKeeping(t, startIMAP(t), smtpAddr)
@@ -817,16 +726,13 @@ func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 		t.Errorf("right-to-left plain text was sent with no direction:\n%s", headOf(sent.Last()))
 	}
 
-	// A reply to a list stays plain whatever it says, and that is read
-	// from the message rather than from the form.
 	path := "/message/INBOX/" + listUID + "/reply?part=1"
 	sendFrom(t, c, base, path, get(t, c, base+path))
 	if strings.Contains(sent.Last(), "multipart/alternative") {
 		t.Errorf("a reply to list mail carried an HTML part:\n%s", headOf(sent.Last()))
 	}
 
-	// The writer can turn the part off, and that is saved by the
-	// settings form the way a browser sends it: an unticked box is absent.
+	// An unticked box is absent from the form.
 	const ticked = `name="direction_part" id="direction_part" value="1" checked`
 	if !strings.Contains(get(t, c, base+"/settings"), ticked) {
 		t.Fatal("the direction part is not on by default")
@@ -847,11 +753,7 @@ func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	}
 }
 
-// TestSendingAsAnotherAccountKeepsItsDraft opens a draft on one
-// account and sends it as the other. The draft is named by the URL, so
-// it is the first account's; the From choice only says who sends. The
-// mailbox and UID meant one account's message and were once applied to
-// the other's connection, which deleted whatever it held at that UID.
+// The draft is the URL's account's; From only says who sends.
 func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
 	base := startAlborz(t, startIMAP(t), smtpAddr)
@@ -892,8 +794,6 @@ func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 	}
 }
 
-// TestBadMessageReferenceIsTheCallersFault: a UID that is not a number
-// is a malformed link, which is a 400 and not a failure of ours.
 func TestBadMessageReferenceIsTheCallersFault(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -910,9 +810,6 @@ func TestBadMessageReferenceIsTheCallersFault(t *testing.T) {
 	}
 }
 
-// TestSendWithoutMessageIDStillSends: the id is a hidden field of the
-// page, and a form that lost it used to crash the handler instead of
-// getting an id of its own.
 func TestSendWithoutMessageIDStillSends(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
 	base := startAlborz(t, startIMAP(t), smtpAddr)
@@ -939,10 +836,6 @@ func TestSendWithoutMessageIDStillSends(t *testing.T) {
 	}
 }
 
-// TestRefusedSendKeepsItsUploads: a refused send comes back on the
-// form, and the next Send must still carry the file. The upload was
-// once taken from the session before SMTP was tried, and the retry went
-// out without it and said nothing.
 func TestRefusedSendKeepsItsUploads(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
 	base := startAlborz(t, startIMAP(t), smtpAddr)
@@ -974,7 +867,6 @@ func TestRefusedSendKeepsItsUploads(t *testing.T) {
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("a refused recipient was answered with %s", resp.Status)
 	}
-	// What the script reads back into the form's uploads.
 	kept := between(page.String(), `data-uuid="`, `"`)
 	if kept != ids[0] {
 		t.Fatalf("the refused form holds upload %q, want %q", kept, ids[0])
@@ -990,10 +882,6 @@ func TestRefusedSendKeepsItsUploads(t *testing.T) {
 	}
 }
 
-// TestPastedImageTravelsBesideTheHTML: an image pasted into the editor
-// is an upload the HTML names; it must leave as a part of the
-// multipart/related under the Content-ID the HTML then names, and not
-// as a file as well (ADR 40).
 func TestPastedImageTravelsBesideTheHTML(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
 	base := startAlborz(t, startIMAP(t), smtpAddr)
@@ -1067,9 +955,6 @@ func TestPastedImageTravelsBesideTheHTML(t *testing.T) {
 	}
 }
 
-// TestDoneNoticeClosesWithoutAScript: a notice floats over the page and
-// its cross closes it with no script, through the dialog's own form
-// (ADR 41); a done one is marked so that it leaves by itself.
 func TestDoneNoticeClosesWithoutAScript(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1087,11 +972,6 @@ func TestDoneNoticeClosesWithoutAScript(t *testing.T) {
 	}
 }
 
-// TestEverySenderShapeOfAFileIsListed: senders mark a file in more
-// ways than Content-Disposition: attachment, and a file marked another
-// way was shown nowhere - every file Apple Mail sends among them - while
-// an attached text file took the place of the message. The page and the
-// zip must agree on the files, and the body must stay the body.
 func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 	addr := startIMAP(t)
 	base := startAlborz(t, addr)
@@ -1105,8 +985,6 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 		top   string
 		files []string
 		body  string
-		// open is a part to open as well, and shows what it must show,
-		// hides what it must not.
 		open  string
 		shows []string
 		hides []string
@@ -1131,7 +1009,6 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 				"Content-Type: application/pdf; name=\"apple.pdf\"\r\nContent-Disposition: inline; filename=apple.pdf\r\n" + pdf +
 				"--inner\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Below.</p>\r\n--inner--\r\n"},
 			"alternative", []string{"apple.pdf"}, "Body text.",
-			// The pieces read as one, as they do in Apple Mail.
 			"2.3", []string{"Above.", "Below."}, nil},
 		{"an image the HTML shows by its Content-ID", []string{
 			"Content-Type: text/html; charset=utf-8\r\n\r\n<p>Body text. <img src=\"cid:pic\"></p>\r\n",
@@ -1147,13 +1024,11 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 			"Content-Type: multipart/related; boundary=\"rel\"\r\n\r\n--rel\r\n" +
 				"Content-Type: text/html; charset=utf-8\r\n\r\n<p>Body text. <img src=\"cid:logo\"></p>\r\n--rel\r\n" +
 				"Content-Type: image/png; name=\"logo.png\"\r\nContent-ID: <logo>\r\n" + pdf + "--rel--\r\n"},
-			// The image belongs to the HTML, which is the other version
-			// of this message; the text the reader chose is words alone.
+			// The image belongs to the HTML alternative, not the chosen text.
 			"alternative", nil, "Body text.", "1", nil, []string{`class="shown-image"`}},
 		{"text and the image it shows itself", []string{text,
 			"Content-Type: image/png; name=\"logo.png\"\r\nContent-ID: <logo>\r\n" + pdf},
-			// Beside the text and named by no file list, so the page
-			// shows it rather than losing it.
+			// Named by no file list, so the page shows it rather than losing it.
 			"related", nil, "Body text.", "1", []string{`class="shown-image" src="/message/Shapes/11/raw?part=2"`}, nil},
 	}
 
@@ -1231,10 +1106,7 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 	}
 }
 
-// TestUpstreamOutageIsNotOurFailure: a mail server that cannot be
-// reached is answered with the page that says so, not with a 500 that
-// sends the reader to check their password. The page depends on the
-// error keeping its type through every wrap on the way up.
+// The page depends on the error keeping its type through every wrap.
 func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
 	addr, srv := startIMAPServer(t, rigCaps())
 	base := startAlborz(t, addr)
@@ -1244,9 +1116,7 @@ func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
 		t.Fatal("no seeded messages")
 	}
 
-	// The login's connection dies with the server; the next command
-	// finds it logged out, dials again, and is refused. The reader's
-	// goroutine notices the loss a moment after Close returns.
+	// The reader's goroutine notices the loss a moment after Close returns.
 	srv.Close()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -1272,9 +1142,6 @@ func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
 	}
 }
 
-// TestNewestFirstWithoutSort: a server without the SORT extension
-// answers SEARCH oldest first, and the list once showed it that way,
-// with the oldest message on top and the neighbours swapped.
 func TestNewestFirstWithoutSort(t *testing.T) {
 	caps := rigCaps()
 	delete(caps, imap.CapSort)
@@ -1282,8 +1149,6 @@ func TestNewestFirstWithoutSort(t *testing.T) {
 	base := startAlborz(t, addr)
 	c := login(t, base)
 
-	// A search is what goes through SEARCH; the plain list is fetched
-	// by sequence range and was never wrong.
 	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX?query=example"))
 	if len(uids) < 2 {
 		t.Fatalf("need two seeded messages to match, found %d", len(uids))
@@ -1295,10 +1160,6 @@ func TestNewestFirstWithoutSort(t *testing.T) {
 	}
 }
 
-// TestComposeOpensFromTheAccountNamed: with two accounts signed in, a
-// compose page opened for one of them must offer that account in From.
-// The dropdown once selected nothing unless the message named an
-// identity verbatim, and a browser then showed the first account.
 func TestComposeOpensFromTheAccountNamed(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1315,14 +1176,11 @@ func TestComposeOpensFromTheAccountNamed(t *testing.T) {
 			t.Errorf("compose for %s does not select it in From", account)
 		}
 	}
-	// No account is "active": a bare compose opens on the first listed.
 	if page := get(t, c, base+"/compose"); !strings.Contains(page, `value="`+smokeUser+`" selected`) {
 		t.Errorf("compose without an account does not select the first listed one")
 	}
 }
 
-// postForm submits a form and hands back the answer without following
-// its redirect, which is where a handler says what it did.
 func postForm(t *testing.T, c *http.Client, u string, form url.Values) *http.Response {
 	t.Helper()
 	stay := *c
@@ -1335,8 +1193,6 @@ func postForm(t *testing.T, c *http.Client, u string, form url.Values) *http.Res
 	return resp
 }
 
-// TestMessagesMoveDeleteAndFlag drives the three actions the list
-// toolbar offers and reads the result back from the folders.
 func TestMessagesMoveDeleteAndFlag(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1395,8 +1251,6 @@ func TestStarViewKeepsItsQuery(t *testing.T) {
 	}
 }
 
-// TestFoldersAreMadeAndRemoved creates a top-level folder and deletes
-// it again, checking the sidebar between the two.
 func TestFoldersAreMadeAndRemoved(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1420,10 +1274,6 @@ func TestFoldersAreMadeAndRemoved(t *testing.T) {
 	}
 }
 
-// TestAccountsScopeAndSignOut: the URL is the scope (ADR 0001). A bare
-// mail URL over two accounts is the merged view, with both in the rail;
-// one naming an account is that account's, and says so in the nav.
-// Signing out of the last account ends the session.
 func TestAccountsScopeAndSignOut(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1483,8 +1333,6 @@ func TestZipHoldsTheAttachmentsTheCardCounts(t *testing.T) {
 	}
 }
 
-// TestListCardOnlyWhenItHasRows: a bulk sender's List-ID opens no card,
-// a list with a posting address does.
 func TestListCardOnlyWhenItHasRows(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1511,10 +1359,6 @@ func TestListCardOnlyWhenItHasRows(t *testing.T) {
 	}
 }
 
-// TestNextStaysOnTheSite covers the return address a form carries. It
-// is the page the action was taken from, and the handler comes back to
-// it; a value naming another host, or a path a browser reads as one,
-// must fall back to the handler's own landing page.
 func TestNextStaysOnTheSite(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1546,8 +1390,6 @@ func TestNextStaysOnTheSite(t *testing.T) {
 	}
 }
 
-// sendFrom submits the compose form exactly as the page presented it,
-// plus any fields given as name, value pairs.
 func sendFrom(t *testing.T, c *http.Client, base, path, page string, fields ...string) {
 	t.Helper()
 	resp := postCompose(t, c, base, path, page, fields...)
@@ -1557,8 +1399,6 @@ func sendFrom(t *testing.T, c *http.Client, base, path, page string, fields ...s
 	}
 }
 
-// postCompose submits the page's form as the browser would, the later
-// fields overriding the message it writes by default.
 func postCompose(t *testing.T, c *http.Client, base, path, page string, fields ...string) *http.Response {
 	t.Helper()
 	mid := strings.NewReplacer("&lt;", "<", "&gt;", ">").Replace(
@@ -1590,9 +1430,6 @@ func postCompose(t *testing.T, c *http.Client, base, path, page string, fields .
 	return resp
 }
 
-// A submission server that turns a recipient away has answered, and
-// the answer belongs on the form with the message still in it. It once
-// became an error page, the typed text gone with it.
 func TestRefusedRecipientComesBackOnTheForm(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
 	base := startAlborz(t, startIMAP(t), smtpAddr)
@@ -1648,9 +1485,6 @@ func smtpUpstreams(addrs []string) []string {
 	return out
 }
 
-// noticeAction reads what the header bar offers after a redirect: the
-// path and hidden fields of a form that posts, or the href of a link,
-// and nothing when the bar carries no action.
 func noticeAction(body string) (string, url.Values) {
 	m := regexp.MustCompile(`(?s)<div class="notice[^"]*"[^>]*>(.*?)</div>`).FindStringSubmatch(body)
 	if m == nil {
@@ -1670,9 +1504,7 @@ func noticeAction(body string) (string, url.Values) {
 	return "", nil
 }
 
-// TestMoveNoticeUndoes follows the undo a move's notice offers, reads
-// the folders back, and checks that the undo's own notice offers
-// nothing: an undo with an undo would loop.
+// An undo with an undo would loop.
 func TestMoveNoticeUndoes(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1756,9 +1588,6 @@ func TestDroppedTwiceIsImportedOnce(t *testing.T) {
 	}
 }
 
-// TestDeleteNoticeCountsTheRest deletes a whole page and expects the
-// notice to offer the rest of the folder by its count, through a page
-// that says the count again; a partial page must offer nothing.
 func TestDeleteNoticeCountsTheRest(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1793,8 +1622,6 @@ func alertText(body string) string {
 	return regexp.MustCompile(`(?s)<div class="alert"[^>]*>(.*?)</div>`).FindString(body)
 }
 
-// bothAccounts signs in twice, so the bag holds two, and returns the
-// client that carries them.
 func bothAccounts(t *testing.T, base string) *http.Client {
 	t.Helper()
 	c := login(t, base)
@@ -1812,7 +1639,6 @@ func addAccount(t *testing.T, c *http.Client, base, account string) {
 	resp.Body.Close()
 }
 
-// rowRefs names every row a merged listing shows, in the order shown.
 func rowRefs(body string) []string {
 	var out []string
 	for _, m := range regexp.MustCompile(`name="refs" value="([^"]+)"`).FindAllStringSubmatch(body, -1) {
@@ -1821,10 +1647,7 @@ func rowRefs(body string) []string {
 	return out
 }
 
-// TestMergedListsCutTheSamePage: the merged folder and the search
-// across folders both cut a page out of a merge. The second page is
-// where a cut that is off by one shows, or a total that is one
-// account's.
+// The second page is where an off-by-one cut or a one-account total shows.
 func TestMergedListsCutTheSamePage(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := bothAccounts(t, base)
@@ -1848,9 +1671,6 @@ func TestMergedListsCutTheSamePage(t *testing.T) {
 	}
 }
 
-// TestAServerDownCostsItsRowsNotThePage: with one account's server
-// gone, the merged folder and the search still show the other
-// account's rows, and say whose are missing.
 func TestAServerDownCostsItsRowsNotThePage(t *testing.T) {
 	elsewhere, srv := startIMAPElsewhere(t)
 	base := startAlborzWith(t, []string{
@@ -1864,8 +1684,7 @@ func TestAServerDownCostsItsRowsNotThePage(t *testing.T) {
 
 	srv.Close()
 	for _, list := range []string{"/mailbox/INBOX", "/search?query=example"} {
-		// The connection's loss is noticed a moment after Close returns,
-		// and until then the cache answers for the account.
+		// The loss is noticed a moment after Close returns; until then the cache answers.
 		var body string
 		for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
 			postForm(t, c, base+"/mailbox/INBOX/refresh", nil)
@@ -1886,8 +1705,6 @@ func TestAServerDownCostsItsRowsNotThePage(t *testing.T) {
 	}
 }
 
-// rowAccounts names the account of every row a listing shows, from the
-// reference its checkbox carries.
 func rowAccounts(body string) map[string]int {
 	out := map[string]int{}
 	for _, m := range regexp.MustCompile(`name="refs" value="([^|]+)\|`).FindAllStringSubmatch(body, -1) {
@@ -1896,10 +1713,6 @@ func rowAccounts(body string) map[string]int {
 	return out
 }
 
-// TestScopeSelectsAccounts pins what the URL means: no account named
-// is every account, and one named is that one alone. The scope is the
-// only thing that decides, so a page that quietly falls back to a
-// current account shows up here.
 func TestScopeSelectsAccounts(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := bothAccounts(t, base)
@@ -1926,10 +1739,7 @@ func other(account string) string {
 	return smokeUser
 }
 
-// TestNoticeReachesTheReaderFromAnyScope acts on the second account and
-// comes back to the merged view. A notice belongs to the person, not to
-// the account the action named, and one filed under an account waits
-// for a page scoped to it and turns up later on something unrelated.
+// A notice filed under an account would turn up later on something unrelated.
 func TestNoticeReachesTheReaderFromAnyScope(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := bothAccounts(t, base)
@@ -1946,9 +1756,7 @@ func TestNoticeReachesTheReaderFromAnyScope(t *testing.T) {
 	}
 }
 
-// TestASessionOpensOnlyToItsOwnSecret: the session's id is printed on the
-// page of browsers signed in, for every other browser of the account to
-// read, so the id alone must open nothing.
+// The session id is shown to the account's other browsers, so it alone must open nothing.
 func TestASessionOpensOnlyToItsOwnSecret(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
@@ -1981,7 +1789,6 @@ func TestASessionOpensOnlyToItsOwnSecret(t *testing.T) {
 	}
 }
 
-// perPage is the page size a browser's settings page shows.
 func perPage(t *testing.T, c *http.Client, base string) string {
 	t.Helper()
 	m := regexp.MustCompile(`id="messages_per_page"\s+value="(\d+)"`).FindStringSubmatch(get(t, c, base+"/settings"))
@@ -1991,9 +1798,6 @@ func perPage(t *testing.T, c *http.Client, base string) string {
 	return m[1]
 }
 
-// TestProfileReachesEveryAccount changes the profile with two accounts
-// signed in and reads it back through a fresh sign-in to each alone,
-// which takes what that account holds.
 func TestProfileReachesEveryAccount(t *testing.T) {
 	base := startAlborzKeeping(t, startIMAP(t))
 	c := bothAccounts(t, base)
@@ -2007,9 +1811,6 @@ func TestProfileReachesEveryAccount(t *testing.T) {
 	}
 }
 
-// TestSigningInAskedAboutAnotherProfile signs into a session an account
-// holding another page size, and answers the notice each way: both
-// accounts then hold the answer, and so does the session.
 func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 	for _, answer := range []struct{ path, want string }{
 		{"/settings/profile/take", "17"},
@@ -2064,9 +1865,6 @@ func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 	}
 }
 
-// With caching off every page asks the servers and nothing is kept. The
-// path a reader walks still answers, and opening a message still marks
-// it read, which with caching on rides the body fetched ahead.
 func TestCachingOffServesEveryPage(t *testing.T) {
 	stub := &davStub{cals: map[string]davCal{davHome + "personal/": {"Personal", "#3366cc"}},
 		refuse: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}}

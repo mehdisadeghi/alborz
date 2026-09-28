@@ -23,8 +23,7 @@ func init() {
 
 const (
 	maxMessagesPerPage = 100
-	// defaultMessagesPerPage is named for the warming code, which has
-	// no context to read a profile from.
+	// Named for the warming code, which has no context to read a profile from.
 	defaultMessagesPerPage = alborz.DefaultMessagesPerPage
 	maxSignature           = 2048
 	maxDownloadName        = 80
@@ -33,45 +32,26 @@ const (
 	maxFullName            = 512
 )
 
-// Signature is one of an account's sign-offs: a name to pick it by and
-// the text that goes under the "-- " delimiter (RFC 3676 4.3).
+// Signature is one of an account's sign-offs, written under the "-- " delimiter.
 type Signature struct {
 	Name string
 	Text string
 }
 
 type Settings struct {
-	// Signatures belong to the account rather than to an identity: which
-	// persona an address writes as is the writer's to decide per message,
-	// and a rule mapping the two would be wrong as often as it was right.
+	// Signatures belong to the account, not an identity: the writer picks the persona per message.
 	Signatures []Signature
-	// DefaultSignature names the one a new message starts with; empty
-	// means none.
+	// DefaultSignature names the one a new message starts with; empty means none.
 	DefaultSignature string
 	From             string
-	// Identities are the other addresses this mailbox may send as, one
-	// per line, each a bare address or a "Name <address>" pair. The
-	// account's own address is always offered and is not listed here.
+	// Identities are the other addresses this mailbox may send as, bare or "Name <address>".
 	Identities    []string
 	Subscriptions []string
 
-	// TrustedAuthServ is the authserv-id of the server that takes
-	// delivery for this account - what it calls itself in the
-	// Authentication-Results header it writes (RFC 8601). Only that
-	// server's verdict is read, because every other instance of the
-	// header was written by somebody upstream, possibly the sender.
-	// Empty means the id observed on the account's own recent
-	// deliveries is used (SuggestAuthServ), which is not a guess: it
-	// is what the delivering hop wrote on mail the sender had no hand
-	// in. Naming one here pins it.
+	// TrustedAuthServ is the authserv-id whose Authentication-Results verdict is read; empty uses SuggestAuthServ.
 	TrustedAuthServ string
 
-	// IndexedSearch states that the server keeps a full-text index it
-	// does not announce. Dovecot advertises SEARCH=FUZZY only for a
-	// backend that flags fuzzy matching, which Solr does and xapian
-	// and flatcurve do not, so an indexed server usually looks like an
-	// unindexed one. An advertised capability counts on its own; this
-	// is the reader vouching where the server is silent.
+	// IndexedSearch is the reader stating the server has a full-text index it does not announce.
 	IndexedSearch bool
 }
 
@@ -86,9 +66,6 @@ func LoadSettings(ctx context.Context, s alborz.Store) (*Settings, error) {
 	return settings, nil
 }
 
-// check reports the first rule the settings break as the key of the
-// message that says so and the limit that message names; the key is
-// empty when they hold.
 func (s *Settings) check() (string, int) {
 	switch {
 	case len(s.Signatures) > maxSignatures:
@@ -107,9 +84,6 @@ func (s *Settings) check() (string, int) {
 	return "", 0
 }
 
-// signatureNamed finds a signature by name; the second result is false
-// when nothing carries that name, which is what a stale choice looks
-// like after the signature it named was deleted.
 func (s *Settings) signatureNamed(name string) (Signature, bool) {
 	for _, sig := range s.Signatures {
 		if sig.Name == name {
@@ -119,7 +93,6 @@ func (s *Settings) signatureNamed(name string) (Signature, bool) {
 	return Signature{}, false
 }
 
-// serviceRefusals says in the reader's words why a server was refused.
 var serviceRefusals = map[error]string{
 	alborz.ErrServiceNotURL:   "settings.servernoturl",
 	alborz.ErrServiceNotHTTPS: "settings.servernothttps",
@@ -129,25 +102,17 @@ var serviceRefusals = map[error]string{
 
 type SettingsRenderData struct {
 	alborz.BaseRenderData
-	// AuthServGuess is what this account's server appears to call itself
-	// in the verdicts it writes, offered for confirmation. Empty when
-	// the mail seen does not agree on one, because a close race is a
-	// guess and a guess here is worse than nothing.
+	// AuthServGuess is the server's apparent authserv-id, empty when recent mail disagrees.
 	AuthServGuess string
 	Mailboxes     []MailboxInfo
 	Settings      *Settings
 	Subscriptions Subscriptions
-	// Storage says where this account's settings are written and what is
-	// written there.
+	// Storage says where this account's settings are written and what is written there.
 	Storage SettingsStorage
 	Rail    map[string][]alborz.RailRow
 }
 
-// SettingsStorage says where an account's settings live. A server with no
-// METADATA cannot hold them, and then alborz does: the page says which,
-// names the host, and lists what is there, because settings written
-// somewhere the reader was never told about are settings they cannot
-// take back.
+// SettingsStorage says where an account's settings live, so the reader can take them back.
 type SettingsStorage struct {
 	OnServer bool
 	Host     string
@@ -171,39 +136,28 @@ func settingsStorage(ctx *alborz.Context) (SettingsStorage, error) {
 	return SettingsStorage{OnServer: store.OnServer(), Host: host, Entries: entries}, nil
 }
 
-// ServerInfo is what alborz can say about the account's upstreams
-// without asking for anything it does not already have a connection to.
+// ServerInfo is what alborz can say about the account's upstreams.
 type ServerInfo struct {
 	IMAP  string
 	SMTP  string
 	Sieve string
-	// Agent is what the IMAP server calls itself (RFC 2971 ID). Empty
-	// where the server does not advertise the extension, which many do
-	// not; it is the server's own claim, not alborz's.
+	// Agent is what the IMAP server calls itself (RFC 2971 ID); empty without the extension.
 	Agent string
-	// Abilities are the capabilities that change what alborz does, so
-	// the page explains its own behaviour rather than listing a
-	// protocol.
+	// Abilities are the capabilities that change what alborz does.
 	Abilities []Ability
-	// Explained is the same list as prose, for the disclosure that
-	// works where a tooltip does not.
+	// Explained is the same list as prose.
 	Explained []alborz.Explained
 }
 
-// Ability is one capability named for what it means to the reader, with
-// a line saying what it changes: the name alone is protocol jargon.
+// Ability is one capability named for what it means to the reader.
 type Ability struct {
-	Label string // translation key
-	Hint  string // translation key
+	Label string
+	Hint  string
 	Have  bool
-	// Stated marks an ability the reader claimed in settings rather
-	// than one the server announced, so the page says which it was.
+	// Stated marks an ability the reader claimed in settings rather than the server announced.
 	Stated bool
 }
 
-// abilities reports the capabilities that decide how alborz behaves.
-// The raw CAPABILITY line is not shown: a reader wants to know whether
-// sorting happens on the server, not that SORT=DISPLAY exists.
 func abilities(c *imapclient.Client, settings *Settings) []Ability {
 	caps := c.Caps()
 	indexed := caps.Has(imap.CapSearchFuzzy)
@@ -221,14 +175,12 @@ func abilities(c *imapclient.Client, settings *Settings) []Ability {
 	}
 }
 
-// ProfileRenderData is the settings page that belongs to nobody's
-// account: the profile, and how long this browser waits to lock.
+// ProfileRenderData is the settings page that belongs to no account.
 type ProfileRenderData struct {
 	alborz.BaseRenderData
 	Rail  map[string][]alborz.RailRow
 	Theme string
-	// Themes are the overlays on offer, which a deployment adds to by
-	// dropping a stylesheet beside the built-in ones.
+	// Themes are the overlays on offer, built in or dropped in by a deployment.
 	Themes        []alborz.Theme
 	AlignByScript bool
 	TextSize      string
@@ -236,8 +188,7 @@ type ProfileRenderData struct {
 	Reading    alborz.Reading
 	Writing    alborz.Writing
 	MaxPerPage int
-	// LockMinutes is how long this browser waits before it locks, zero
-	// when it has no passkey and does not lock.
+	// LockMinutes is how long this browser waits before it locks; zero without a passkey.
 	LockMinutes int
 }
 
@@ -252,10 +203,6 @@ func (s Subscriptions) Has(sub string) bool {
 	return false
 }
 
-// serverAgent asks the IMAP server what it is (RFC 2971). A server
-// without the extension answers nothing, which is not an error: the
-// page simply has one fewer thing to say. The exchange is one round trip
-// on a connection already open.
 func serverAgent(c *imapclient.Client) string {
 	if !c.Caps().Has(imap.CapID) {
 		return ""
@@ -270,8 +217,6 @@ func serverAgent(c *imapclient.Client) string {
 	return data.Name + " " + data.Version
 }
 
-// serverInfo names where the account's mail lives. The hosts come from
-// the configuration or from SRV discovery; nothing is guessed.
 func serverInfo(ctx *alborz.Context, agent string, abilities []Ability) ServerInfo {
 	_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
@@ -284,8 +229,7 @@ func serverInfo(ctx *alborz.Context, agent string, abilities []Ability) ServerIn
 		Agent: agent, Abilities: abilities, Explained: explained}
 }
 
-// SignaturesRenderData is the signature list, marking the one a new
-// message starts with.
+// SignaturesRenderData is the signature list.
 type SignaturesRenderData struct {
 	alborz.BaseRenderData
 	Settings *Settings
@@ -296,40 +240,27 @@ type SignaturesRenderData struct {
 type SignatureRenderData struct {
 	alborz.BaseRenderData
 	Editing Signature
-	// Was is the name the form started with, so a rename replaces rather
-	// than duplicates; empty when adding.
+	// Was is the name the form started with, so a rename replaces; empty when adding.
 	Was  string
 	Rail map[string][]alborz.RailRow
 }
 
-// ServersRenderData is what answers for the account: where its mail
-// lives and what the software there can do. A deployment is not the
-// one the reader is used to, and it is the first thing a bug report
-// has to say.
+// ServersRenderData is where the account's mail lives and what the software there can do.
 type ServersRenderData struct {
 	alborz.BaseRenderData
 	Rail map[string][]alborz.RailRow
-	// Showing is the server the page is about, empty for the list: a
-	// card asks its server what it is only on its own page, so the list
-	// costs no round trip.
+	// Showing is the server the page is about, empty for the list, which costs no round trip.
 	Showing string
-	// Cards are every server this account talks to, filled in by
-	// whichever plugin answers for each. Mail is not the only thing
-	// with an upstream, and a calendar that behaves oddly is somebody
-	// else's deployment too.
+	// Cards are every server this account talks to, filled in by whichever plugin answers for each.
 	Cards []ServerCard
-	// The calendar and contacts servers the account names for itself,
-	// whether it keeps a password of their own, and what was refused.
+	// Services are the calendar and contacts servers the account names for itself.
 	Services        alborz.Services
 	HasHTTPPassword bool
-	// Places are where the account's new calendars and address books
-	// can go, filled in by the DAV plugins with their sources and Alborz
-	// (ADR 28); the account's default is one of them.
+	// Places are where the account's new calendars and address books can go (ADR 28).
 	Places []Place
 }
 
-// The servers an account has, in the order the list shows them. A
-// server with a page of its own is one with more to say than its host.
+// Server groups, in the order the list shows them.
 const (
 	ServerMail    = "mail"
 	ServerSending = "sending"
@@ -341,17 +272,12 @@ var serverOrder = []string{ServerMail, ServerSending, ServerFilters, ServerDAV}
 
 var serverPages = map[string]bool{ServerMail: true, ServerDAV: true}
 
-// ServerCard is one upstream's card. Rows carry the "label" and "value"
-// pairs the shared card renders, which is why they are maps rather than
-// a type of their own.
+// ServerCard is one upstream's card; Rows are the label/value maps the shared card renders.
 type ServerCard struct {
-	// Group is the list row the card belongs to; several cards can,
-	// as the calendar and the contacts server do.
+	// Group is the list row the card belongs to; several cards can share one.
 	Group string
 	Title string
-	// Host is where the server is, empty for the collections kept here;
-	// Source is how alborz came to it, a translation key, and Record
-	// the SRV record it names where the server was found by one.
+	// Host is empty for collections kept here; Source is a translation key; Record is the SRV record it was found by.
 	Host, Source, Record string
 	Rows                 []map[string]any
 	Abilities            []Ability
@@ -366,8 +292,7 @@ func (c ServerCard) SourceText(t func(string) string) string {
 	return t(c.Source)
 }
 
-// Place is one place new collections can go: a source's id and what
-// the reader knows it by.
+// Place is one place new collections can go.
 type Place struct {
 	ID, Label string
 }
@@ -382,8 +307,7 @@ func (d *ServersRenderData) AddPlace(id, label string) {
 	d.Places = append(d.Places, Place{ID: id, Label: label})
 }
 
-// DefaultPlace is the one the page shows chosen: the account's, else
-// the first offered.
+// DefaultPlace is the account's default place, else the first offered.
 func (d *ServersRenderData) DefaultPlace() string {
 	for _, p := range d.Places {
 		if p.ID == d.Services.Default {
@@ -396,7 +320,6 @@ func (d *ServersRenderData) DefaultPlace() string {
 	return ""
 }
 
-// placeIDs are the places an account's default can name (ADR 28).
 var placeIDs = []string{"domain", "host", "own", "here"}
 
 // ServerRow is one row of the list: a group of cards by its hosts.
@@ -453,13 +376,9 @@ func accountQuery(address string) string {
 	return "?account=" + alborz.QueryValue(address)
 }
 
-// settingsRail lists the places in this section. What the reader reads
-// by names no account and heads the rail; what an account is follows,
-// once per account, because those are per account by nature.
 func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	path := ctx.Request().URL.Path
-	// Under no account: what this browser keeps, whichever accounts it
-	// is signed into.
+	// Under no account: what this browser keeps.
 	rows := map[string][]alborz.RailRow{"": {
 		{Label: ctx.T("settings.general"), Href: "/settings", Active: path == "/settings"},
 		{Label: ctx.T("passkeys.title"), Href: "/settings/passkeys", Active: strings.HasPrefix(path, "/settings/passkeys")},
@@ -477,10 +396,6 @@ func settingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	return rows
 }
 
-// handleSignatures keeps signatures out of the settings pane: they are
-// prose a person writes, not a preference to be set. The page lists what
-// exists and writes one at a time, because deleting is an action rather
-// than a box to tick and then save.
 func handleSignatures(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
@@ -493,8 +408,6 @@ func handleSignatures(ctx *alborz.Context) error {
 	})
 }
 
-// handleSignatureForm opens a signature to write: a new one, or the one
-// the URL names.
 func handleSignatureForm(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
@@ -540,8 +453,7 @@ func handleSignatureSave(ctx *alborz.Context) error {
 		return render(fmt.Sprintf(ctx.T("form.signaturecount"), maxSignatures))
 	}
 
-	// A rename keeps the entry's place in the list, and keeps being the
-	// default if it was one.
+	// A rename keeps the entry's place in the list and its default status.
 	replaced := false
 	for i := range settings.Signatures {
 		if settings.Signatures[i].Name != was || was == "" {
@@ -573,9 +485,6 @@ func handleSignatureSave(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
 
-// handleSignatureDelete removes one. It is its own route because a
-// deletion is an action taken on a thing, not a field of a form that
-// saves everything at once.
 func handleSignatureDelete(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
@@ -598,15 +507,12 @@ func handleSignatureDelete(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
 
-// handleSignatureDefault sets which signature a new message starts with.
-// It is a preference and saves on its own, so choosing one never depends
-// on what the form below happens to hold.
 func handleSignatureDefault(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
-	// An empty name clears the default: a message then starts bare.
+	// An empty name clears the default.
 	chosen := ctx.FormValue("name")
 	if _, ok := settings.signatureNamed(chosen); !ok {
 		chosen = ""
@@ -632,10 +538,7 @@ func (p *plugin) handleSettings(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	// What the account keeps and where is one section of this page. A
-	// server that will not answer for it - METADATA refused, a depth it
-	// does not support - says so on the page; it is not a reason to
-	// refuse the settings.
+	// A server that will not answer for storage says so on the page; it does not refuse the settings.
 	storage, err := settingsStorage(ctx)
 	if err != nil {
 		ctx.Logger().Printf("settings: listing what %s keeps: %v", ctx.Login.Username(), err)
@@ -643,9 +546,6 @@ func (p *plugin) handleSettings(ctx *alborz.Context) error {
 		storage = SettingsStorage{}
 	}
 
-	// The form answers its own invalid input, on the page it was typed
-	// on. Digits are read as they were typed: a page that counts in
-	// Persian digits invites them back in its number fields.
 	reject := func(message string) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "settings-account.html", &SettingsRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")).Refused(message),
@@ -680,8 +580,7 @@ func (p *plugin) handleSettings(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
 
-	// Only when nothing is set: with a value in hand there is nothing to
-	// suggest, and the sample costs a fetch.
+	// The suggestion costs a fetch, so only when nothing is set.
 	guess := ""
 	if settings.TrustedAuthServ == "" {
 		guess = p.SuggestAuthServ(ctx)
@@ -697,10 +596,6 @@ func (p *plugin) handleSettings(ctx *alborz.Context) error {
 	})
 }
 
-// handleForget empties what alborz wrote for this account, wherever it
-// went. Written settings the reader cannot remove are settings they do
-// not own, and on a server it is the reader's mailbox that is holding
-// them.
 func (p *plugin) handleForget(ctx *alborz.Context) error {
 	store, ok := ctx.Login.Store().(alborz.Settings)
 	if !ok {
@@ -717,12 +612,9 @@ func (p *plugin) handleForget(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 }
 
-// mailCards are the servers the deployment names for the account's
-// domain; on its own page the mail server is asked what it is.
 func mailCards(ctx *alborz.Context, showing string) ([]ServerCard, error) {
 	_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
-	// Where each came from: an SRV record, or the deployment naming it.
 	source := func(record string) (string, string) {
 		if record != "" {
 			return "servers.fromsrv", record
@@ -780,8 +672,6 @@ func handleServers(ctx *alborz.Context) error {
 	})
 }
 
-// handleServer is one server's page: what it says about itself, and for
-// the calendar and contacts servers the ones the account names.
 func handleServer(ctx *alborz.Context) error {
 	showing := ctx.Param("server")
 	if !serverPages[showing] {
@@ -810,8 +700,7 @@ func handleServer(ctx *alborz.Context) error {
 		return ctx.Render(http.StatusOK, "server.html", data)
 	}
 
-	// The account's own servers. What was typed is what the form shows
-	// again when one is refused.
+	// What was typed is what the form shows again when one is refused.
 	named := alborz.Services{
 		CalDAV:   strings.TrimSpace(ctx.FormValue("caldav_url")),
 		CardDAV:  strings.TrimSpace(ctx.FormValue("carddav_url")),
@@ -830,8 +719,7 @@ func handleServer(ctx *alborz.Context) error {
 			return ctx.Render(http.StatusUnprocessableEntity, "server.html", data)
 		}
 	}
-	// An empty field leaves the kept password alone; the box is how it
-	// is let go of, so nobody loses it by saving the page.
+	// An empty field leaves the kept password alone; only the reset box lets it go.
 	refuse := func(err error) error {
 		data.Services = named
 		data.Refused(ctx.SaveRefusal(err))
@@ -850,17 +738,12 @@ func handleServer(ctx *alborz.Context) error {
 			return refuse(err)
 		}
 	}
-	// What is cached was read with the servers or the password just
-	// left, and a refusal said about them is no longer news.
+	// The cache was read with the servers or password just left.
 	ctx.Server.ForgetAccount(ctx.Login.Username())
 	ctx.PutNotice(ctx.T("notice.serverssaved"))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/servers/"+ServerDAV))
 }
 
-// handleLanguage sets the interface language and returns to the page it
-// was chosen from. It is its own route because the choice takes effect
-// at once: a language behind a Save button is a language you have to
-// read in the wrong one to change.
 func handleLanguage(ctx *alborz.Context) error {
 	if err := ctx.SetLanguage(ctx.FormValue("language")); err != nil {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
@@ -870,8 +753,6 @@ func handleLanguage(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr("/"))
 }
 
-// handleProfile serves the reader's own choices, which belong to no
-// account.
 func handleProfile(ctx *alborz.Context) error {
 	render := func(status int, message string, p alborz.Profile) error {
 		return ctx.Render(status, "settings.html", &ProfileRenderData{
@@ -894,11 +775,7 @@ func handleProfile(ctx *alborz.Context) error {
 		return render(http.StatusOK, "", shown)
 	}
 
-	// A field the form did not carry is not a field set to nothing: it
-	// was not on the page, and what it holds stays as it was. A field
-	// that is there and empty is a choice, and clears. The exception is
-	// a checkbox, where the browser sends nothing for "off" and absence
-	// is the only way it has to say so.
+	// An absent field keeps its value; a present empty one clears, except a checkbox, which sends nothing for off.
 	sent, err := ctx.FormParams()
 	if err != nil {
 		return err
@@ -977,9 +854,6 @@ func handleProfile(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, "/settings")
 }
 
-// handleProfileTake answers the sign-in question with the account's own
-// profile, and handleProfileDiscard with the one in force. Both land
-// on the profile, which shows the answer.
 func handleProfileTake(ctx *alborz.Context) error {
 	return answerProfile(ctx, ctx.TakeProfile, "profile.taken")
 }

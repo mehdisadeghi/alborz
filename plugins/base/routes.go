@@ -80,8 +80,7 @@ func (p *plugin) registerRoutes() {
 
 	p.POST("/message/:mbox/flag", p.handleSetFlags)
 
-	// Settings are one account's, so a bare URL with several signed in
-	// names the account it opened on, and the page is where it says.
+	// Settings are per account, so a unified GET redirects to name its account.
 	scoped := func(h func(*alborz.Context) error) func(*alborz.Context) error {
 		return func(ctx *alborz.Context) error {
 			if ctx.Unified && ctx.Request().Method == http.MethodGet {
@@ -90,9 +89,6 @@ func (p *plugin) registerRoutes() {
 			return h(ctx)
 		}
 	}
-	// Settings that belong to the reader need no account; an account's
-	// own do, and the scoped wrapper puts it in the URL rather than
-	// leaving the page to guess.
 	p.GET("/settings", handleProfile)
 	p.POST("/settings", handleProfile)
 	p.POST("/settings/profile/take", handleProfileTake)
@@ -114,14 +110,10 @@ func (p *plugin) registerRoutes() {
 	p.POST("/language", handleLanguage)
 }
 
-// mailboxURL is the page of a folder, under the account the request
-// named.
 func mailboxURL(ctx *alborz.Context, mboxName string) string {
 	return ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName))
 }
 
-// mailboxRef reads the folder a route names. A name that does not
-// unescape is a malformed link, which is the caller's fault.
 func mailboxRef(ctx *alborz.Context) (string, error) {
 	name, err := url.PathUnescape(ctx.Param("mbox"))
 	if err != nil {
@@ -130,8 +122,6 @@ func mailboxRef(ctx *alborz.Context) (string, error) {
 	return name, nil
 }
 
-// messageRef reads the folder and UID a route names, with the same
-// answer for a malformed one.
 func messageRef(ctx *alborz.Context) (string, imap.UID, error) {
 	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
 	if err != nil {

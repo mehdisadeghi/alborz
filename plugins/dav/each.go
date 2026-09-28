@@ -8,9 +8,7 @@ import (
 	alborzbase "git.mehdix.org/alborz/plugins/base"
 )
 
-// MaxConcurrency is how many collections are asked at once. A page
-// asks one query per collection: one after another would cost a round
-// trip each, and all at once is a burst a shared server may refuse.
+// MaxConcurrency bounds collections asked at once: serially costs a round trip each, all at once may be refused.
 const MaxConcurrency = 4
 
 // Result is one site's answer to a query run over many.
@@ -20,8 +18,7 @@ type Result[S, R any] struct {
 	Err   error
 }
 
-// Each runs query against every site, MaxConcurrency at a time, and
-// returns the answers in site order.
+// Each runs query against every site, MaxConcurrency at a time, answering in site order.
 func Each[S, R any](ctx context.Context, sites []S, query func(context.Context, S) (R, error)) []Result[S, R] {
 	results := make([]Result[S, R], len(sites))
 	var wg sync.WaitGroup
@@ -46,36 +43,28 @@ func Each[S, R any](ctx context.Context, sites []S, query func(context.Context, 
 	return results
 }
 
-// Pager is one page of a list that alborz holds whole: a DAV query has
-// no way to ask for the rows after the first n, so the list is read,
-// narrowed and sorted as it always was, and only a page of it is drawn.
-// Prev and Next are empty where there is no page that way.
+// Pager is one page of a list held whole, since a DAV query cannot ask for rows after the first n.
 type Pager struct {
 	From, To, Total int
 	Prev, Next      string
-	// Per is the page size in force and Options the sizes the list's
-	// menu offers; IppBase is the rest of the address a size keeps.
+
 	Per     int
 	Options []int
 	IppBase string
 }
 
-// Paginate is the page of items the request asks for, as many as the
-// reader reads by, and the pager that walks the rest.
+// Paginate returns the requested page of items and the pager for the rest.
 func Paginate[T any](ctx *alborz.Context, items []T) ([]T, Pager) {
 	per := alborzbase.PerPage(ctx)
 	page, err := alborz.ReadInt(ctx.QueryParam("page"))
 	if err != nil || page < 0 {
 		page = 0
 	}
-	// A page past the end is the last one: the list got shorter since
-	// the link was drawn, and an empty page says nothing true.
+	// A page past the end is the last one: the list may have shrunk since the link was drawn.
 	if last := max(0, (len(items)-1)/per); page > last {
 		page = last
 	}
 	from, to := page*per, min((page+1)*per, len(items))
-	// Another size starts from the first page, and keeps the rest of
-	// what the list was asked.
 	q := ctx.Request().URL.Query()
 	q.Del("ipp")
 	q.Del("page")

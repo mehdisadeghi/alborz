@@ -13,25 +13,18 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 )
 
-// A Web Key Directory (draft-koch-openpgp-webkey-service) is the one
-// key source that says more than the message does: the key is fetched
-// from the sender's own domain over https, so the domain vouches for
-// the address, the same trust delivery already rests on. A key server
-// would be anyone's upload and says nothing, and is not asked.
+// Only WKD is asked: the sender's own domain vouches for the key, where a key server holds anyone's upload.
 
 const (
-	// wkdTimeout bounds the whole lookup; a message page waits on it
-	// once per author and then the cache answers for a day.
+	// A message page waits on the lookup once per author.
 	wkdTimeout = 3 * time.Second
-	// wkdKeepFor is how long a lookup's answer holds, the miss too, so
-	// a domain without a directory costs one request a day.
+	// Misses are kept too, so a domain without a directory costs one request a day.
 	wkdKeepFor = 24 * time.Hour
-	// wkdMaxSize bounds what a directory may hand back; a key with a
-	// few certifications is a few kilobytes.
+	// A key with a few certifications is a few kilobytes.
 	wkdMaxSize = 256 << 10
 )
 
-// zbase32 is the alphabet the directory's file names use (RFC 6189 5.1.6).
+// zbase32 is the z-base-32 alphabet of WKD file names.
 const zbase32 = "ybndrfg8ejkmcpqxot1uwisza345h769"
 
 type wkdEntry struct {
@@ -40,7 +33,6 @@ type wkdEntry struct {
 }
 
 type wkdCache struct {
-	// keepFor is how long an answer holds; none keeps nothing.
 	keepFor time.Duration
 	mu      sync.Mutex
 	entries map[string]wkdEntry
@@ -50,8 +42,6 @@ func newWKDCache(keepFor time.Duration) *wkdCache {
 	return &wkdCache{keepFor: keepFor, entries: map[string]wkdEntry{}}
 }
 
-// keys returns what the address's domain publishes for it, an empty
-// list when nothing, from the cache when asked within the day.
 func (w *wkdCache) keys(client *http.Client, address string) openpgp.EntityList {
 	address = strings.ToLower(address)
 	w.mu.Lock()
@@ -70,8 +60,7 @@ func (w *wkdCache) keys(client *http.Client, address string) openpgp.EntityList 
 	return keys
 }
 
-// fetch tries the advanced method, on a subdomain of its own, and then
-// the direct one, the order the draft gives; the first answer wins.
+// Advanced method first, then direct, as the WKD draft orders them.
 func (w *wkdCache) fetch(client *http.Client, address string) openpgp.EntityList {
 	local, domain, ok := strings.Cut(address, "@")
 	if !ok || local == "" || domain == "" {
@@ -101,8 +90,6 @@ func (w *wkdCache) fetch(client *http.Client, address string) openpgp.EntityList
 	return nil
 }
 
-// wkdHash names the file for a local part: the SHA-1 of its lowercase
-// form in z-base-32, 32 characters for the 20 bytes.
 func wkdHash(local string) string {
 	sum := sha1.Sum([]byte(strings.ToLower(local)))
 	var out strings.Builder

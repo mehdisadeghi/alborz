@@ -1,12 +1,7 @@
 var emailFrame = document.getElementById("email-frame");
 if (emailFrame) {
-	// Size the frame to its content. A mail laid out wider than the
-	// screen is scaled down whole, the way mobile clients render it,
-	// instead of panning inside the frame.
-	//
-	// The frame arrives hidden and is shown once it has been sized: the
-	// browser paints the unsized box first, and a reader saw the mail
-	// scroll inside that box and then jump to its real size.
+	// Size the frame to its content, scaling a too-wide mail down whole.
+	// The frame arrives hidden and is shown once sized, so the unsized box never paints.
 	var shown = false;
 	var show = function() {
 		if (!shown) {
@@ -14,18 +9,12 @@ if (emailFrame) {
 			emailFrame.style.visibility = "";
 		}
 	};
-	// Mails often lack a doctype, and in quirks mode the content size
-	// lives on body instead of documentElement, differently per browser;
-	// the maximum over both is right everywhere. Only the scroll sizes
-	// are read: the offset sizes follow the frame, not the content.
+	// Without a doctype the size may live on body, so take the larger of both.
+	// Offset sizes follow the frame, not the content, so only scroll sizes are read.
 	var contentSize = function() {
 		var doc = emailFrame.contentWindow.document;
 		var root = doc.documentElement, body = doc.body;
-		// The body's own margins are outside its scroll width, so a
-		// frame made as wide as the content alone is narrower than the
-		// mail by those margins. The overflow that follows is hidden,
-		// but the engine still keeps a scrollbar's gutter at the foot
-		// of the frame, and the last line of the mail sits in it.
+		// Body margins are outside its scroll width; without them the frame is too narrow.
 		var sides = 0;
 		if (body) {
 			var style = emailFrame.contentWindow.getComputedStyle(body);
@@ -36,10 +25,7 @@ if (emailFrame) {
 			height: Math.max(root.scrollHeight, body ? body.scrollHeight : 0)
 		};
 	};
-	// How much of the mail the frame cannot show at the height it has.
-	// The document's own viewport is not the frame's box: the engine
-	// keeps a strip of it - a scrollbar's gutter, a chrome of its own -
-	// and what falls in that strip is the last line of the mail.
+	// How much of the mail the frame cannot show at its current height.
 	var unseen = function() {
 		var doc = emailFrame.contentWindow.document;
 		var root = doc.documentElement;
@@ -49,9 +35,7 @@ if (emailFrame) {
 		return Math.max(0, Math.ceil(contentSize().height) - root.clientHeight);
 	};
 
-	// The height the frame is given, grown until the document can show
-	// all of it. Two passes settle every mail seen so far; the third is
-	// there so a pathological one cannot spin.
+	// Grow the frame until the document shows all of it, in at most three passes.
 	var fitFrame = function(scale) {
 		for (var pass = 0; pass < 3; pass++) {
 			var height = Math.ceil(contentSize().height) +
@@ -70,8 +54,7 @@ if (emailFrame) {
 	};
 
 	var applied = { width: -1, height: -1, avail: -1 };
-	// The height this script last wrote. One written by anyone else -
-	// a reader in the developer tools - is theirs, and is left alone.
+	// The height this script last wrote; one set by anyone else is left alone.
 	var ours = "";
 	var resizeFrame = function(force) {
 		try {
@@ -80,10 +63,7 @@ if (emailFrame) {
 			}
 			var avail = emailFrame.parentNode.clientWidth;
 			var size = contentSize();
-			// Re-laying out on every observer tick collapses the frame
-			// for a moment, and the shrunken page yanks the scroll
-			// position to the top. Nothing is touched unless the
-			// content actually changed.
+			// A relayout collapses the frame and yanks the scroll to the top, so only act on change.
 			if (!force && avail === applied.avail &&
 				Math.abs(size.height - applied.height) <= 2 &&
 				Math.abs(size.width - applied.width) <= 2) {
@@ -92,15 +72,13 @@ if (emailFrame) {
 			emailFrame.style.width = "";
 			emailFrame.style.maxWidth = "";
 			emailFrame.style.transform = "";
-			// A scroll size is at least the viewport, so the frame is
-			// collapsed for the measure: what is read is the content's.
+			// A scroll size is at least the viewport, so collapse the frame to measure the content.
 			emailFrame.style.height = "0px";
 			avail = emailFrame.clientWidth;
 			var width = contentSize().width;
 			if (width > avail) {
 				var f = avail / width;
-				// The theme clamps the frame to its column; the widened,
-				// scaled-down frame must escape that.
+				// The theme clamps the frame to its column; the scaled-down frame must escape that.
 				emailFrame.style.maxWidth = "none";
 				emailFrame.style.width = width + "px";
 				emailFrame.style.transformOrigin = "0 0";
@@ -120,9 +98,7 @@ if (emailFrame) {
 			show();
 		}
 	};
-	// The frame must never scroll on its own: its scrollbar competes
-	// with the page's. The content document is clipped instead, and a
-	// ResizeObserver keeps the frame sized to it as layout settles.
+	// Keep the frame sized to its content, so its scrollbar never competes with the page's.
 	var lockFrame = function() {
 		try {
 			var win = emailFrame.contentWindow;
@@ -131,11 +107,6 @@ if (emailFrame) {
 				return;
 			}
 			doc.alborzLocked = true;
-			// The frame is sized to its content, so it has nothing to
-			// scroll and needs no clip. Hiding the overflow instead cost
-			// the mail its last line: Firefox clips the root's content a
-			// line short of the frame, and a hidden overflow makes that
-			// unreachable rather than merely scrollable.
 			win.addEventListener("resize", function() {
 				resizeFrame(false);
 			});
@@ -161,10 +132,7 @@ if (emailFrame) {
 	window.addEventListener("resize", function() {
 		resizeFrame(true);
 	});
-	// The srcdoc document appears at a different moment per engine, and
-	// the load event can fire before this script attaches; poll briefly
-	// until the real content is sized, and show the frame as it is
-	// rather than never if that moment does not come.
+	// load may fire before this script attaches; poll briefly, then show the frame regardless.
 	var bootTicks = 0;
 	var boot = setInterval(function() {
 		bootTicks++;

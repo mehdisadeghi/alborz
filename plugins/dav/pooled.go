@@ -18,8 +18,7 @@ import (
 // Discovery across an account may take several exchanges; bound the whole load.
 const accountLoadBudget = 30 * time.Second
 
-// Account is one signed-in account's client and collections, for the
-// pages that pool every account's.
+// Account is one signed-in account's client and collections.
 type Account[C any] struct {
 	Name        string
 	Login       *alborz.Login
@@ -27,25 +26,18 @@ type Account[C any] struct {
 	Collections []Collection
 }
 
-// Group is one account's collections, for a form asking which one to
-// write into.
+// Group is one account's collections, for a form's destination.
 type Group struct {
 	Account     string
 	Collections []Collection
 }
 
-// Pooled resolves every signed-in account that has the service. An
-// account that fails is logged and skipped, so one flaky server does
-// not take the page down; the error surfaces only when no account
-// answered. Each collection is marked with the account it belongs to,
-// which a pooled page has to say; none is the answer when no account
-// has the service at all.
+// Pooled resolves every signed-in account with the service; a failing account is logged and skipped.
 func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, *alborz.Login) (C, []Collection, error), none error) ([]Account[C], error) {
 	var accounts []Account[C]
 	var lastErr error
 	var down, refused []string
-	// answered are the servers that said no in some other way than to
-	// the password, with what they said.
+	// answered counts servers that refused other than over the password.
 	answered := map[string]int{}
 	fail := func(username string, err error) {
 		if code := Answered(err); code != 0 {
@@ -56,8 +48,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 			down = append(down, username)
 		}
 	}
-	// A refusal stands until the reader changes something, so it is
-	// said once to a browser, not on every page of the section.
+	// A refusal stands until the reader changes something, so it is said once per browser.
 	refuse := func(username string) {
 		if ctx.Session().Once("davrefused:" + p.kind.Name + ":" + username) {
 			refused = append(refused, username)
@@ -78,15 +69,12 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	for _, result := range results {
 		s, err := result.Site, result.Err
 		c, infos := result.Value.Client, result.Value.Collections
-		// An account with nothing of the kind is not one whose server
-		// failed: it keeps its place with nothing in it, so a reader
-		// can see the account is there and make the first one.
+		// An account with nothing of the kind keeps its place, empty, so the first one can be made.
 		if errors.Is(err, none) {
 			accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c})
 			continue
 		}
-		// A refused password is an answer the reader can act on, not a
-		// failed page: the account keeps its place, empty, and is told.
+		// A refused password keeps the account's place, empty, and tells the reader.
 		var no *RefusedError
 		if errors.As(err, &no) {
 			accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c})
@@ -123,8 +111,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 	for _, username := range slices.Sorted(maps.Keys(answered)) {
 		code := answered[username]
 		key, action := "notice.davanswered", &alborz.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.QueryValue(username)}
-		// Some servers answer a wrong password with 403, not 401; it stays
-		// a permission answer, with the way to the password beside it.
+		// A 403 stays a permission answer, with the way to the password beside it.
 		if code == http.StatusForbidden {
 			key, action = "notice.davforbidden", &alborz.NoticeAction{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + alborzbase.ServerDAV + "?account=" + alborz.QueryValue(username)}
 		}
@@ -132,8 +119,7 @@ func Pooled[C any](ctx *alborz.Context, p *Provider, load func(context.Context, 
 			Text:    fmt.Sprintf(ctx.T(key), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
 			Actions: []*alborz.NoticeAction{action}})
 	}
-	// A refusal is the one the reader can end, so it is the one said
-	// when both happened, with the way to the account's own settings.
+	// A refusal is the one the reader can end, so it wins when both happened.
 	if len(refused) > 0 {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
 			Text:    ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
@@ -165,10 +151,7 @@ type Site[C any] struct {
 	Collection Collection
 }
 
-// Only is the set a URL asks to see through field, which stands in for
-// the stored visibility for that request alone. The URL carries the
-// question and stored state carries the preference, so looking at one
-// collection is a link rather than a setting somebody has to put back.
+// Only is the set a URL asks to see through field, overriding stored visibility for that request.
 func Only(ctx *alborz.Context, field string) map[string]bool {
 	values := ctx.QueryParams()[field]
 	if len(values) == 0 {
@@ -181,14 +164,7 @@ func Only(ctx *alborz.Context, field string) map[string]bool {
 	return only
 }
 
-// Visible marks each account's collections with the account's own
-// visibility setting, or with the URL's narrowing when it names one.
-// Every collection comes back for the rail with its checkbox state,
-// whatever the scope: the rail is the reader's map of every account.
-// Only the visible ones in scope come back as sites to query, and never
-// a feed, which is read from its address and not queried on a server.
-// chosen is the kind's answer for one account: the collections the list
-// is about, whether the account chose among them, and which.
+// Visible returns every collection for the rail and the visible ones in scope as sites; feeds are never queried.
 func Visible[C any](accounts []Account[C], scope string, only map[string]bool, chosen func(Account[C]) (colls []Collection, filter bool, paths []string, err error)) ([]Collection, []Site[C], error) {
 	var infos []Collection
 	var sites []Site[C]
@@ -217,17 +193,14 @@ func Visible[C any](accounts []Account[C], scope string, only map[string]bool, c
 	return infos, sites, nil
 }
 
-// Ref is one object an action is about, with the account that owns it
-// and that account's client.
+// Ref is one object an action is about, with its account and that account's client.
 type Ref[C any] struct {
 	Client  C
 	Account string
 	Path    string
 }
 
-// Selected resolves a pooled list's checked rows, "account|path" each,
-// to the client that owns them, opened once per account: a selection
-// can span accounts, and each row names its own.
+// Selected resolves checked "account|path" rows to their accounts' clients; a selection can span accounts.
 func Selected[C any](ctx *alborz.Context, refs []string, client func(context.Context, *alborz.Login) (C, error)) ([]Ref[C], error) {
 	clients := map[string]C{}
 	out := make([]Ref[C], 0, len(refs))

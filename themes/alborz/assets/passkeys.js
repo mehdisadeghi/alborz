@@ -1,9 +1,6 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
-// A passkey ceremony is two posts with the browser's prompt between
-// them: the server says what to ask, the authenticator answers, the
-// server checks the answer. WebAuthn speaks in buffers and JSON speaks
-// in text, so both ways pass through base64url.
+// WebAuthn speaks in buffers and JSON in text, so both ways pass through base64url.
 {
 	const toBuffer = text => {
 		const padded = text.replace(/-/g, "+").replace(/_/g, "/");
@@ -47,8 +44,6 @@
 		body: body ? JSON.stringify(body) : null,
 	});
 
-	// source carries where to begin and finish and what to say: the
-	// unlock button, or the form that adds a passkey under a name.
 	const ceremony = async (source, create, name) => {
 		const says = document.getElementById("script-failed");
 		const fail = text => {

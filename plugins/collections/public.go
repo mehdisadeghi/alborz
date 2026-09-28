@@ -10,26 +10,21 @@ import (
 	"github.com/emersion/go-ical"
 )
 
-// publicPrefix is where published calendars are read, by anyone holding
-// the secret in the address; publicExt is what a client expects a feed's
-// address to end in.
+// publicExt is what a client expects a feed's address to end in.
 const (
 	publicPrefix = "/pub/"
 	publicExt    = ".ics"
 )
 
-// prodID names alborz as the writer of a feed it assembles.
 const prodID = "-//mehdix.org//Alborz//EN"
 
 // PublicPath is the address a secret publishes its calendar at.
 func PublicPath(secret string) string { return publicPrefix + secret + publicExt }
 
-// IsPublic says whether a path is a published calendar's, which is
-// answered without asking who is reading.
+// IsPublic says whether a path is a published calendar's, answered without asking who reads.
 func IsPublic(p string) bool { return strings.HasPrefix(p, publicPrefix) }
 
-// ServePublic answers a published calendar as one iCalendar stream, the
-// shape every client's "subscribe" reads.
+// ServePublic answers a published calendar as one iCalendar stream.
 func (s *Store) ServePublic(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
@@ -61,14 +56,10 @@ func (s *Store) ServePublic(w http.ResponseWriter, r *http.Request) {
 	w.Write(feed)
 }
 
-// classPublic is the access classification a component has when it
-// names none (RFC 5545 3.8.1.3).
+// A component naming no CLASS is PUBLIC (RFC 5545 3.8.1.3).
 const classPublic = "PUBLIC"
 
-// guarded says whether an object is not for anyone holding the address:
-// one whose writer classed any part of it as other than public. The
-// object goes whole, since an occurrence moved on its own tells of the
-// series it belongs to.
+// The object goes whole: a moved occurrence tells of its series.
 func guarded(cal *ical.Calendar) bool {
 	for _, child := range cal.Children {
 		if class := child.Props.Get(ical.PropClass); class != nil && !strings.EqualFold(class.Value, classPublic) {
@@ -78,8 +69,6 @@ func guarded(cal *ical.Calendar) bool {
 	return false
 }
 
-// anonymous is a component without what names other people or is the
-// writer's own: who was invited and by whom, and the alarms.
 func anonymous(comp *ical.Component) *ical.Component {
 	out := &ical.Component{Name: comp.Name, Props: ical.Props{}}
 	for name, props := range comp.Props {
@@ -95,8 +84,6 @@ func anonymous(comp *ical.Component) *ical.Component {
 	return out
 }
 
-// feed is the calendar's objects as one: every public component with
-// nobody named in it, and each timezone once.
 func (s *Store) feed(c Collection) ([]byte, error) {
 	objects, err := s.Objects(c.Ref())
 	if err != nil {
@@ -106,7 +93,7 @@ func (s *Store) feed(c Collection) ([]byte, error) {
 	feed.Props.SetText(ical.PropVersion, "2.0")
 	feed.Props.SetText(ical.PropProductID, prodID)
 	feed.Props.SetText(ical.PropName, c.Name)
-	// What clients older than RFC 7986's NAME read; they take it bare.
+	// X-WR-CALNAME for clients that predate RFC 7986 NAME.
 	name := ical.NewProp("X-WR-CALNAME")
 	name.SetText(c.Name)
 	name.Params.Del(ical.ParamValue)
@@ -133,8 +120,7 @@ func (s *Store) feed(c Collection) ([]byte, error) {
 	}
 	var out bytes.Buffer
 	if len(feed.Children) == 0 {
-		// go-ical refuses a calendar with nothing in it, which a feed
-		// may well be.
+		// go-ical refuses an empty calendar, which a feed may be.
 		out.WriteString("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:" + prodID + "\r\nEND:VCALENDAR\r\n")
 		return out.Bytes(), nil
 	}

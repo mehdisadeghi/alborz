@@ -13,27 +13,15 @@ import (
 	"github.com/emersion/go-smtp"
 )
 
-// Scheduling arrives as a text/calendar part carrying a METHOD (iMIP,
-// RFC 6047; iTIP, RFC 5546). A client that cannot read one shows a file
-// where every other client shows an invitation, and the sender is left
-// waiting for an answer that has no way to be given.
-//
-// Only the methods a reader can act on are recognised. PUBLISH is a
-// calendar somebody sent to be looked at and asks nothing; COUNTER and
-// DECLINECOUNTER are negotiation this does not do.
+// Scheduling mail (iMIP, RFC 6047; iTIP, RFC 5546): only methods a reader can act on.
 const (
 	methodRequest = "REQUEST"
 	methodCancel  = "CANCEL"
 	methodReply   = "REPLY"
-	// PUBLISH is what a client sends when it is not doing iTIP
-	// scheduling: Apple Mail attaches the event this way when the
-	// meeting is not being negotiated. It asks for no answer, but it is
-	// still an event the reader was sent and may want to keep.
+	// PUBLISH asks for no answer, but is still an event the reader may keep.
 	methodPublish = "PUBLISH"
 )
 
-// Participation is what an attendee has answered, in the PARTSTAT
-// spelling iTIP uses on the wire.
 const (
 	partAccepted  = "ACCEPTED"
 	partDeclined  = "DECLINED"
@@ -42,7 +30,6 @@ const (
 
 // Invitation is a scheduling request as a page can show it.
 type Invitation struct {
-	// Method is REQUEST for an invitation and CANCEL for its withdrawal.
 	Method    string
 	UID       string
 	Summary   string
@@ -52,30 +39,22 @@ type Invitation struct {
 	AllDay    bool
 	Organizer string
 	Attendees []Attendee
-	// Part is where the calendar lives in the message, so an answer can
-	// re-read the original rather than trust what a page posted back.
+	// Part lets an answer re-read the original rather than trust what a page posted back.
 	Part string
-	// Mine is this account's own answer so far, empty when the account
-	// is not on the attendee list - which happens on a list invitation
-	// or when the mail was forwarded.
+	// Mine is this account's own answer so far, empty when not an attendee.
 	Mine string
 }
 
-// Cancelled reports whether the organizer has withdrawn the meeting, in
-// which case there is nothing to answer.
+// Cancelled reports whether the organizer has withdrawn the meeting.
 func (inv *Invitation) Cancelled() bool { return inv.Method == methodCancel }
 
-// Published reports an event sent to be kept rather than answered. No
-// reply is expected, so none is offered - but it can still be filed.
+// Published reports an event sent to be kept rather than answered.
 func (inv *Invitation) Published() bool { return inv.Method == methodPublish }
 
 // Answer reports whether this is somebody's reply rather than a request.
-// An organizer receives these, and what they say is who answered and
-// how - there is nothing on one to accept.
 func (inv *Invitation) Answer() bool { return inv.Method == methodReply }
 
-// Answered is the attendee whose reply this is: a reply carries exactly
-// one (RFC 5546 3.2.3).
+// Answered is the attendee whose reply this is.
 func (inv *Invitation) Answered() Attendee {
 	if len(inv.Attendees) == 0 {
 		return Attendee{}
@@ -90,9 +69,6 @@ type Attendee struct {
 	Status string
 }
 
-// invitationPart finds the scheduling part of a message. A calendar
-// arrives as text/calendar, and the METHOD parameter on the content type
-// is what separates an invitation from a calendar sent to be read.
 func invitationPart(msg *IMAPMessage) *IMAPPartNode {
 	if msg.BodyStructure == nil {
 		return nil
@@ -114,9 +90,7 @@ func invitationPart(msg *IMAPMessage) *IMAPPartNode {
 	return found
 }
 
-// readInvitation parses a scheduling part. Anything it cannot make sense
-// of is not an invitation, which leaves the part shown as the attachment
-// it also is.
+// Anything unparsable is not an invitation and stays shown as an attachment.
 func readInvitation(raw []byte, part string, mine string) *Invitation {
 	cal, err := ical.NewDecoder(bytes.NewReader(raw)).Decode()
 	if err != nil {
@@ -127,7 +101,6 @@ func readInvitation(raw []byte, part string, mine string) *Invitation {
 	switch method {
 	case methodRequest, methodCancel, methodReply, methodPublish:
 	default:
-		// COUNTER and DECLINECOUNTER are a negotiation this does not do.
 		return nil
 	}
 	events := cal.Events()
@@ -164,8 +137,6 @@ func readInvitation(raw []byte, part string, mine string) *Invitation {
 	return inv
 }
 
-// calAddress reads the address out of a CAL-ADDRESS value, which is a
-// URI: "mailto:" in every case that reaches mail.
 func calAddress(prop *ical.Prop) string {
 	value := strings.TrimSpace(prop.Value)
 	if i := strings.Index(strings.ToLower(value), "mailto:"); i == 0 {
@@ -174,10 +145,7 @@ func calAddress(prop *ical.Prop) string {
 	return value
 }
 
-// replyCalendar builds the answer an organizer expects: the same event,
-// identified by its UID, carrying this one attendee and nothing else.
-// RFC 5546 3.2.3 asks for exactly that - the reply says what one person
-// answered, not what the meeting now looks like.
+// A reply says what one person answered, not what the meeting now looks like.
 func replyCalendar(inv *Invitation, me, name, status string) *ical.Calendar {
 	cal := ical.NewCalendar()
 	cal.Props.SetText(ical.PropProductID, ItipProductID)
@@ -190,10 +158,7 @@ func replyCalendar(inv *Invitation, me, name, status string) *ical.Calendar {
 	if inv.Summary != "" {
 		event.Props.SetText(ical.PropSummary, inv.Summary)
 	}
-	// DTSTART is optional in a reply (RFC 5546 3.2.3) and is carried only
-	// so the organizer's client can match on it. In UTC: a TZID would
-	// name a VTIMEZONE this object does not carry, which is the one thing
-	// a scheduling message must not do.
+	// In UTC: a TZID would name a VTIMEZONE this object does not carry.
 	if !inv.Start.IsZero() {
 		if inv.AllDay {
 			event.Props.SetDate(ical.PropDateTimeStart, inv.Start)
@@ -218,16 +183,10 @@ func replyCalendar(inv *Invitation, me, name, status string) *ical.Calendar {
 	return cal
 }
 
-// ItipProductID names what produced a calendar object or a scheduling
-// message, as PRODID
-// asks (RFC 5545 3.7.3).
+// ItipProductID is the PRODID of the calendar objects Alborz writes.
 const ItipProductID = "-//mehdix.org//Alborz//EN"
 
-// SendCalendarMessage posts an iCalendar object as mail, which is what
-// iMIP is (RFC 6047): the calendar is the body and the method rides the
-// content type. The calendar plugin sends invitations and cancellations
-// through it, so there is one place that knows how a scheduling message
-// is written.
+// SendCalendarMessage posts an iCalendar object as mail (iMIP).
 func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, calendar string) error {
 	if len(to) == 0 {
 		return nil
@@ -250,14 +209,10 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, cale
 	})
 }
 
-// ShareHeader names, in a share's invitation mail, the invitation the
-// mail stands for: the invitee's path to the collection. The mail page
-// answers it in place when that account has such an invitation open.
+// ShareHeader names the share invitation a mail stands for.
 const ShareHeader = "X-Alborz-Share"
 
-// SendText posts a short plain message from the login's account: what
-// a plugin has to tell somebody that is not the reader's own writing.
-// headers are set on it besides the usual ones.
+// SendText posts a short plain message from the login's account.
 func SendText(ctx *alborz.Context, to []string, subject, text string, headers map[string]string) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
@@ -277,16 +232,12 @@ func SendText(ctx *alborz.Context, to []string, subject, text string, headers ma
 	})
 }
 
-// MethodRequest and MethodCancel are what an organizer sends: an
-// invitation, and its withdrawal.
+// MethodRequest and MethodCancel are what an organizer sends.
 const (
 	MethodRequest = methodRequest
 	MethodCancel  = methodCancel
 )
 
-// replySubject is what the organizer sees in their list. Every client
-// writes the answer in front of the summary, and an organizer scanning
-// a folder of replies is reading exactly that word.
 func replySubject(status, summary string) string {
 	word := "Accepted"
 	switch status {
@@ -298,10 +249,7 @@ func replySubject(status, summary string) string {
 	return word + ": " + summary
 }
 
-// invitationReply is the mail that carries the answer. The calendar is
-// the message body rather than an attachment, with the method on the
-// content type, which is what RFC 6047 2.4 asks for and what makes a
-// receiving client act on it rather than file it.
+// The calendar is the body, not an attachment, so the receiving client acts on it.
 func invitationReply(ctx *alborz.Context, inv *Invitation, status string) (*OutgoingMessage, error) {
 	if inv.Organizer == "" {
 		return nil, fmt.Errorf("the invitation names no organizer to answer")
@@ -318,13 +266,11 @@ func invitationReply(ctx *alborz.Context, inv *Invitation, status string) (*Outg
 	}
 
 	return &OutgoingMessage{
-		From:      fromAddress(settings, me),
-		To:        []string{inv.Organizer},
-		Subject:   replySubject(status, inv.Summary),
-		MessageID: newMessageID(),
-		Text:      buf.String(),
-		// The part is the calendar itself; nothing else is said, because
-		// the organizer's client reads the calendar and not the prose.
+		From:           fromAddress(settings, me),
+		To:             []string{inv.Organizer},
+		Subject:        replySubject(status, inv.Summary),
+		MessageID:      newMessageID(),
+		Text:           buf.String(),
 		CalendarMethod: methodReply,
 	}, nil
 }

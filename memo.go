@@ -5,12 +5,9 @@ import (
 	"time"
 )
 
-// Memo holds one derived value per user, for upstream facts that cost
-// round trips yet barely change. Values live as long as the process; the
-// ttl decides when one is stale. A memo with no ttl holds nothing.
+// Memo holds one derived value per user for upstream facts that barely change.
 type Memo[T any] struct {
-	ttl time.Duration
-	// background serves a stale value while one reload runs behind.
+	ttl        time.Duration
 	background bool
 
 	mu      sync.Mutex
@@ -26,7 +23,6 @@ type memoEntry[T any] struct {
 	retryAfter time.Time
 }
 
-// entry is the user's, made when there is none.
 func (m *Memo[T]) entry(user string) *memoEntry[T] {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -44,8 +40,7 @@ func (m *Memo[T]) held(user string) *memoEntry[T] {
 	return m.entries[user]
 }
 
-// settle ends a load begun at version, keeping what it read unless the
-// value was set meanwhile; the caller holds e.mu.
+// The caller holds e.mu.
 func (e *memoEntry[T]) settle(version uint64, val T, err error) {
 	if err == nil && version == e.version {
 		e.val, e.fetched = val, time.Now()
@@ -59,17 +54,12 @@ func NewMemo[T any](ttl time.Duration) *Memo[T] {
 	return &Memo[T]{ttl: ttl, entries: make(map[string]*memoEntry[T])}
 }
 
-// NewBackgroundMemo returns a memo that serves stale values immediately and
-// reloads them in the background, one reload at a time. load must not
-// depend on its caller's lifetime.
+// NewBackgroundMemo returns a memo that serves stale values while reloading in the background; load must not depend on its caller's lifetime.
 func NewBackgroundMemo[T any](ttl time.Duration) *Memo[T] {
 	return &Memo[T]{ttl: ttl, background: true, entries: make(map[string]*memoEntry[T])}
 }
 
-// Get returns the user's value, calling load when none is cached yet.
-// Concurrent callers for one user wait for a single load instead of each
-// running their own. Failures are not remembered, so the next caller
-// retries; a failed background reload leaves the old value standing.
+// Get returns the user's value, loading it once for concurrent callers when none is cached.
 func (m *Memo[T]) Get(user string, load func() (T, error)) (T, error) {
 	if m.ttl == 0 {
 		return load()
@@ -98,8 +88,7 @@ func (m *Memo[T]) Get(user string, load func() (T, error)) (T, error) {
 		val, err := load()
 		e.mu.Lock()
 		e.settle(version, val, err)
-		// A first load overtaken by Stale has nothing held to give way
-		// to: what it read is answered, and not kept.
+		// A first load overtaken by Stale returns what it read without keeping it.
 		if err == nil && !e.fetched.IsZero() {
 			val = e.val
 		}
@@ -128,11 +117,7 @@ func (m *Memo[T]) start(e *memoEntry[T], load func() (T, error)) {
 	}()
 }
 
-// Warm returns whatever is cached for the user and starts a background
-// load when nothing is or the value has gone stale. It never waits: a
-// page that only wants the value as a convenience gets what is ready,
-// which on a first visit is the zero value. load must not depend on its
-// caller's lifetime.
+// Warm returns what is cached for the user without waiting, loading in the background when missing or stale.
 func (m *Memo[T]) Warm(user string, load func() (T, error)) T {
 	if m.ttl == 0 {
 		var zero T
@@ -149,8 +134,7 @@ func (m *Memo[T]) Warm(user string, load func() (T, error)) T {
 	return e.val
 }
 
-// Put sets the user's value from a load the caller already made, so a
-// fact fetched for another reason is not fetched again.
+// Put sets the user's value from a load the caller already made.
 func (m *Memo[T]) Put(user string, val T) {
 	if m.ttl == 0 {
 		return
@@ -162,8 +146,7 @@ func (m *Memo[T]) Put(user string, val T) {
 	e.mu.Unlock()
 }
 
-// Update rewrites the user's value in place, for a change the caller
-// already knows the effect of; nothing to do when none is held.
+// Update rewrites the user's value in place when one is held.
 func (m *Memo[T]) Update(user string, f func(T) T) {
 	e := m.held(user)
 	if e == nil {
@@ -177,16 +160,14 @@ func (m *Memo[T]) Update(user string, f func(T) T) {
 	e.mu.Unlock()
 }
 
-// Forget drops the user's value, for writes that invalidate it.
+// Forget drops the user's value.
 func (m *Memo[T]) Forget(user string) {
 	m.mu.Lock()
 	delete(m.entries, user)
 	m.mu.Unlock()
 }
 
-// Retry keeps the user's value but lets it go stale after the retry
-// delay, for a value only partly there - a listing a server was missing
-// from - so the next reader after that asks the missing part again.
+// Retry keeps the user's value but lets it go stale after the retry delay.
 func (m *Memo[T]) Retry(user string) {
 	e := m.held(user)
 	if e == nil {

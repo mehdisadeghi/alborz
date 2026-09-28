@@ -10,10 +10,7 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// The pages compose ordinary scripts under these names and read them
-// back; nothing marks them as ours on the server. The main script does
-// no more than include the composed ones and the script the reader had
-// active before, so a raw editor shows the whole arrangement.
+// Nothing marks these scripts as ours; the main script only includes them and the reader's own.
 const (
 	mainScript     = "alborz"
 	rulesScript    = "alborz-rules"
@@ -21,9 +18,7 @@ const (
 	vacationScript = "alborz-vacation"
 )
 
-// composed lists the scripts the pages know how to write, in the order
-// the main script runs them: rules first, since one may stop delivery
-// of what the rest would forward or answer.
+// Rules run first, since one may stop delivery of what the rest would forward or answer.
 var composed = []string{rulesScript, forwardScript, vacationScript}
 
 func isComposed(name string) bool {
@@ -35,9 +30,7 @@ func isComposed(name string) bool {
 	return false
 }
 
-// fingerprint names a script's content. ManageSieve keeps no version
-// or date for a script, so the content itself is what a save compares
-// against to notice an edit made elsewhere in the meantime.
+// ManageSieve keeps no script version, so a save compares content to notice edits made elsewhere.
 func fingerprint(content string) string {
 	sum := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(sum[:])
@@ -52,7 +45,6 @@ func unquote(s string) string {
 	return strings.NewReplacer(`\"`, `"`, `\\`, `\`).Replace(s)
 }
 
-// quoted matches one Sieve quoted string, escapes included.
 const quoted = `"((?:[^"\\]|\\.)*)"`
 
 func requireLine(extensions []string) string {
@@ -66,8 +58,6 @@ func requireLine(extensions []string) string {
 	return "require [" + strings.Join(q, ", ") + "];\n"
 }
 
-// mainScriptFor writes the main script: the composed scripts that
-// exist, then the reader's own, by name.
 func mainScriptFor(present []string, own string) string {
 	var b strings.Builder
 	b.WriteString("# Wiring, composed by Alborz: each line runs one script, the last is your own.\n")
@@ -83,8 +73,6 @@ func mainScriptFor(present []string, own string) string {
 
 var includeLine = regexp.MustCompile(`^include :personal ` + quoted + `;$`)
 
-// ownScriptIn names the reader's own script the main script includes:
-// the include that is not one of the composed ones.
 func ownScriptIn(content string) string {
 	for _, line := range strings.Split(content, "\n") {
 		m := includeLine.FindStringSubmatch(strings.TrimSpace(line))
@@ -95,9 +83,7 @@ func ownScriptIn(content string) string {
 	return ""
 }
 
-// wire puts the main script in front of the reader's own and activates
-// it, or takes it away again once nothing composed is left, so that
-// turning every page off leaves the account as it was found.
+// wire removes the main script once nothing composed is left, leaving the account as found.
 func wire(c alborz.SieveClient) error {
 	scripts, err := c.ListScripts()
 	if err != nil {
@@ -117,9 +103,7 @@ func wire(c alborz.SieveClient) error {
 			present = append(present, name)
 		}
 	}
-	// The reader's own script is whatever is active now, which is their
-	// latest choice; only when the main script is the active one does
-	// its include line remember it.
+	// Only while the main script is active does its include remember the reader's own.
 	own := ""
 	switch {
 	case active != "" && active != mainScript:
@@ -149,9 +133,7 @@ func wire(c alborz.SieveClient) error {
 	return nil
 }
 
-// scriptIfAny reads a script that may not be there. A missing script
-// is an answer, not a failure, and the listing is what tells the two
-// apart: the server says NO for both.
+// The server says NO for a missing script and a failure alike; the listing tells them apart.
 func scriptIfAny(c alborz.SieveClient, name string) (content string, exists bool, err error) {
 	scripts, err := c.ListScripts()
 	if err != nil {
@@ -175,16 +157,11 @@ func hasExtension(c alborz.SieveClient, name string) bool {
 	return false
 }
 
-// errChanged says the script the page read is not the one the server
-// holds now; the page reports it and the reader starts over.
 type errChanged struct{}
 
 func (errChanged) Error() string { return "script changed on the server" }
 
-// rewrite replaces a composed script with what change makes of the
-// current one, under the same check the raw editor makes: the script
-// the page read, named by loaded, must still be the one on the server.
-// An empty result deletes the script. Wiring follows either way.
+// rewrite fails with errChanged if the script differs from loaded; an empty result deletes it.
 func rewrite(c alborz.SieveClient, name, loaded string, change func(current string, exists bool) (string, error)) error {
 	current, exists, err := scriptIfAny(c, name)
 	if err != nil {

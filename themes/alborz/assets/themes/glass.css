@@ -1,5 +1,4 @@
-/* Frosted translucency over a soft gradient, the iOS glass look.
-   The doubled :root outweighs the scheme blocks in the base sheet. */
+/* The doubled :root ties the base sheet's scheme blocks, and this sheet loads later. */
 :root:root {
   color-scheme: light;
 
@@ -9,8 +8,7 @@
   --fg-faint: #6e6e76;
 
   --bg: rgba(255, 255, 255, 0.62);
-  /* The page surfaces are frosted on purpose; a menu is not. It floats
-     over the list it must not let through, so it stays opaque. */
+  /* A menu floats over the list it must not let through, so it stays opaque. */
   --surface-raised: #fff;
   --bg-well: rgba(255, 255, 255, 0.28);
   --bg-inset: rgba(255, 255, 255, 0.45);
@@ -26,19 +24,16 @@
   --link-read: #5a76b8;
   --link-unread: #0047d6;
 
-  /* The frosted background is translucent; accent labels need ink. */
   --on-accent: #fff;
 
-  /* iOS green, deepened until white reads on it at 4.5:1. */
+  /* Deepened until white reads on it at 4.5:1. */
   --green: #1d823b;
   --green-dark: #1a7c38;
   --bg-green: rgba(52, 199, 89, 0.12);
   --border-green: rgba(52, 199, 89, 0.35);
   --flag: #9a7400;
 
-  /* A notice floats over the page (ADR 41), so it is the one surface
-     this theme keeps opaque: at the translucency the rest of the glass
-     has, the toolbar under it reads through the words. */
+  /* A notice floats over the page (ADR 41), so it stays opaque. */
   --notice-fg: #0c5460;
   --notice-bg: #d1ecf1;
   --notice-border: #bee5eb;
@@ -53,9 +48,7 @@ body {
   background: linear-gradient(155deg, #c9d9ff 0%, #f3d9f0 45%, #d3f0e0 100%) fixed;
 }
 
-/* No backdrop-filter here: a filtered header would become the containing
-   block for the account panel it hosts, which docks to the drawer as a
-   fixed element on small screens. */
+/* No backdrop-filter: it would make the header the containing block of its fixed account panel. */
 header {
   background-color: var(--bg);
 }

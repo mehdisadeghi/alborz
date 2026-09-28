@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// A brand-new account has no calendars, so creating the first one must
-// not be refused for want of one already there.
 func TestCreateCalendarWithNoneYet(t *testing.T) {
 	stub := &davStub{
 		cals:   map[string]davCal{},
@@ -40,9 +38,7 @@ func TestCreateCalendarWithNoneYet(t *testing.T) {
 	t.Errorf("the created calendar never appeared in the rail")
 }
 
-// The feed is fetched before it is kept, so one that cannot be read is
-// refused on the form; here the guarded client refuses the loopback
-// test server, which is the refusal being shown.
+// The guarded client refuses the loopback stub, which is the refusal under test.
 func TestSubscribingToAnUnreadableFeedIsRefused(t *testing.T) {
 	stub := &davStub{cals: map[string]davCal{}, refuse: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}}
 	srv := httptest.NewServer(stub)

@@ -1,5 +1,4 @@
-// Package record writes a stored record back without losing what a newer
-// version of alborz put in it and this one does not know; see ADR 26.
+// Package record rewrites stored records keeping fields a newer version added (ADR 26).
 package record
 
 import (
@@ -8,10 +7,7 @@ import (
 	"reflect"
 )
 
-// Keep encodes v for storage over old, the record as it was stored.
-// What old has that v's type does not describe - a field a newer
-// version added - is carried over as it was, in every nested object; a
-// field v's type knows is v's to set or clear.
+// Keep encodes v over old, carrying over, at every depth, fields v's type does not know.
 func Keep(old []byte, v any) ([]byte, error) {
 	fresh, err := json.Marshal(v)
 	if err != nil || len(old) == 0 {
@@ -19,12 +15,9 @@ func Keep(old []byte, v any) ([]byte, error) {
 	}
 	stored, err := decode(old)
 	if err != nil {
-		// Not an object this version can read at all; it is replaced,
-		// as it would have been before this package existed.
+		// Not an object: replaced.
 		return fresh, nil
 	}
-	// What this version makes of the stored record: the fields its type
-	// knows, and nothing else. The difference is what it would drop.
 	t := reflect.TypeOf(v)
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -52,8 +45,7 @@ func Keep(old []byte, v any) ([]byte, error) {
 	return json.Marshal(graft(written, unknown, understood))
 }
 
-// decode reads JSON keeping numbers as they were written: a counter or
-// an id past 2^53 would not survive a float.
+// decode keeps numbers exact: an id past 2^53 would not survive a float.
 func decode(raw []byte) (any, error) {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.UseNumber()
@@ -61,9 +53,7 @@ func decode(raw []byte) (any, error) {
 	return v, d.Decode(&v)
 }
 
-// strip is what stored has that understood does not: whole fields the
-// type does not know, and inside fields it knows, what their objects
-// have that it does not. Nil when there is nothing.
+// strip returns what stored has that understood does not, or nil.
 func strip(stored, understood any) any {
 	s, ok := stored.(map[string]any)
 	if !ok {
@@ -87,11 +77,8 @@ func strip(stored, understood any) any {
 	return out
 }
 
-// graft puts unknown back into written, descending into objects both
-// have. What written lacks goes back only where this version did not
-// understand it at all: a name it understood and no longer writes - an
-// entry it deleted from a map - is its to drop, and what a newer
-// version kept inside goes with it.
+// graft puts unknown back into written. A name this version understood but no
+// longer writes, such as a deleted map entry, stays dropped.
 func graft(written, unknown, understood any) any {
 	w, ok := written.(map[string]any)
 	u, isObject := unknown.(map[string]any)

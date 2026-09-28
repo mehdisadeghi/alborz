@@ -12,26 +12,16 @@ import (
 	"github.com/emersion/go-message/textproto"
 )
 
-// listPlace is where a message stands in the list it was opened from:
-// the rows either side of it, its position and the list's total.
 type listPlace struct {
 	newer, older    imap.UID
 	position, total int
 }
 
-// cachedPlace is the cached page of the list the message was opened
-// from, nil when none is held, and the message's place in it. That
-// page is the list the reader came from, narrowing and order and all,
-// so its neighbours are the right ones; placed is false where the
-// server has to say.
 func (p *plugin) cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
 	sortKey, _ := listOrder(ctx)
 	return p.listings.message(ctx.Login.Username(), listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, PerPage(ctx))
 }
 
-// placeInList asks the server for the same. The order the list was in
-// is the order Newer and Older mean: the message was opened from that
-// list, and its links carry it on.
 func placeInList(ctx *alborz.Context, c *imapclient.Client, settings *Settings, mailbox string, uid imap.UID, query, view string) (place listPlace, err error) {
 	if err := ensureMailboxSelected(c, mailbox); err != nil {
 		return place, err
@@ -41,9 +31,6 @@ func placeInList(ctx *alborz.Context, c *imapclient.Client, settings *Settings, 
 	return place, err
 }
 
-// readThread is what the message answers and, for the reader's own in
-// Sent, where the useful direction is forward, what answered it. A
-// server that will not search headers simply shows the message alone.
 func readThread(ctx *alborz.Context, c *imapclient.Client, mailbox, sent string, msg *IMAPMessage) (*ThreadNeighbour, []ThreadNeighbour) {
 	parent, err := threadParent(c, mailbox, sent, msg)
 	if err != nil {
@@ -59,7 +46,6 @@ func readThread(ctx *alborz.Context, c *imapclient.Client, mailbox, sent string,
 	return parent, answers
 }
 
-// Navigation never downloads a body or changes the read state.
 func (p *plugin) handleMessageNavigation(ctx *alborz.Context) error {
 	mailbox, uid, err := messageRef(ctx)
 	if err != nil {

@@ -12,8 +12,6 @@
     <form id="events-form" method="post" hx-boost="false">
       <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
     </form>
-    {{/* Its own form: refreshing acts on the calendars, so it must not
-         carry the selection or be gated on one. */}}
     <form id="refresh-form" method="post" action="/calendar/refresh{{ account "?" $.GlobalData.URLAccount }}" hx-boost="false">
       <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
     </form>
@@ -26,9 +24,6 @@
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 
-      {{/* Rows with their date, or, asked for, banded under the day
-           they fall on with the date written the way every other date
-           on the page is. */}}
       {{ $grouped := eq .Group "day" }}
       <section class="events">
         {{$base := .}}

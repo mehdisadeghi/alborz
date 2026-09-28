@@ -21,8 +21,7 @@ func parseUid(s string) (imap.UID, error) {
 	return imap.UID(uid), nil
 }
 
-// ParseMessageRef reads the mailbox and uid a form names, for a plugin
-// that acts on a message it did not render.
+// ParseMessageRef reads the mailbox and uid a form names.
 func ParseMessageRef(mboxString, uidString string) (string, imap.UID, error) {
 	return parseMboxAndUid(mboxString, uidString)
 }
@@ -69,10 +68,7 @@ func parsePartPath(s string) ([]int, error) {
 	return path, nil
 }
 
-// parseAddressList reads one header field's worth of recipients.
-// Splitting on commas cannot do this: a display name is allowed to
-// contain one, and "Doe, John" <j@x.com> then becomes two broken
-// recipients. net/mail knows the grammar.
+// Uses net/mail, since a display name may contain a comma.
 func parseAddressList(s string) ([]string, error) {
 	if strings.TrimSpace(s) == "" {
 		return nil, nil

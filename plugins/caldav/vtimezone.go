@@ -7,15 +7,7 @@ import (
 	"github.com/emersion/go-ical"
 )
 
-// A TZID names a timezone that the calendar object itself has to define:
-// without the matching VTIMEZONE the reference points at nothing (RFC
-// 5545 3.2.19), and what a reader makes of it is then its own business.
-// Nextcloud and Migadu recognise the IANA names and let it pass; a
-// stricter consumer need not, and an .ics leaving here has no server to
-// be lenient on its behalf.
-//
-// The definition is generated from Go's own zone data rather than kept
-// as a table, so it cannot fall behind a zone that changes its rules.
+// Every TZID needs its VTIMEZONE in the object (RFC 5545 3.2.19); ours come from Go's zone data.
 func ensureTimezones(cal *ical.Calendar, around time.Time) {
 	defined := make(map[string]bool)
 	for _, child := range cal.Children {
@@ -34,9 +26,7 @@ func ensureTimezones(cal *ical.Calendar, around time.Time) {
 		for _, props := range child.Props {
 			for _, prop := range props {
 				id := prop.Params.Get(ical.PropTimezoneID)
-				// An object written elsewhere carries its own
-				// definitions; only what is missing is added, so a
-				// fuller one is never replaced by ours.
+				// Only missing definitions are added; one written elsewhere is never replaced.
 				if id == "" || defined[id] {
 					continue
 				}
@@ -49,20 +39,9 @@ func ensureTimezones(cal *ical.Calendar, around time.Time) {
 	}
 }
 
-// localTime is how an observance writes its onset: a wall clock with
-// neither a zone nor a Z (RFC 5545 3.6.5).
 const localTime = "20060102T150405"
 
-// timezoneComponent describes one zone by its changes in the years
-// either side of the given time, as go-ical reads them off Go's zone
-// data. nil means the zone is not one this build knows, which leaves
-// the object as it was rather than inventing a definition for it.
-//
-// A recurring event has no last year, and a list of changes does: so
-// the newest change in each direction also carries the yearly rule it
-// is an instance of. That is an inference from the pattern, not a fact
-// of the zone data, which Go does not expose; a zone that did not
-// change both ways in the span gets no rule.
+// The newest onset each way gets a yearly rule inferred from its pattern, so the zone outlives the span.
 func timezoneComponent(tzid string, around time.Time) *ical.Component {
 	loc, err := time.LoadLocation(tzid)
 	if err != nil {
@@ -73,8 +52,7 @@ func timezoneComponent(tzid string, around time.Time) *ical.Component {
 		time.Date(year-1, 1, 1, 0, 0, 0, 0, time.UTC),
 		time.Date(year+1, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	// The first observance is the one already in force when the span
-	// opens, not a change seen in it.
+	// The first observance is the one in force when the span opens.
 	newest := make(map[string]*ical.Component)
 	for _, observance := range tz.Children[1:] {
 		newest[observance.Name] = observance
@@ -87,8 +65,7 @@ func timezoneComponent(tzid string, around time.Time) *ical.Component {
 		if err != nil {
 			panic(err)
 		}
-		// Written, not set as text: a rule's semicolons escaped are a
-		// different rule.
+		// Written, not set as text: escaped semicolons are a different rule.
 		rule := ical.NewProp(ical.PropRecurrenceRule)
 		rule.Value = yearlyRule(onset)
 		observance.Props.Set(rule)
@@ -96,9 +73,7 @@ func timezoneComponent(tzid string, around time.Time) *ical.Component {
 	return tz
 }
 
-// yearlyRule expresses the onset as the rule it is an instance of - the
-// last Sunday in March rather than the 29th - so the definition holds
-// for every year after the one it was generated in.
+// yearlyRule gives the onset's rule: the last Sunday in March, not the 29th.
 func yearlyRule(onset time.Time) string {
 	days := [...]string{"SU", "MO", "TU", "WE", "TH", "FR", "SA"}
 	day := days[int(onset.Weekday())]

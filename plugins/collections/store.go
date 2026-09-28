@@ -1,5 +1,4 @@
-// Package collections keeps calendars, task lists and address books of
-// alborz's own, and serves them by CalDAV and CardDAV; see ADR 24.
+// Package collections keeps alborz's own calendars, task lists and address books; see ADR 24.
 package collections
 
 import (
@@ -17,8 +16,7 @@ import (
 	"git.mehdix.org/alborz/internal/record"
 )
 
-// ErrNotFound is what a collection, an object or a share that is not
-// there answers with.
+// ErrNotFound is a collection, object or share that is not there.
 var ErrNotFound = errors.New("collections: not found")
 
 // Kind is what a collection holds: iCalendar objects or vCards.
@@ -29,9 +27,7 @@ const (
 	AddressBook Kind = "addressbook"
 )
 
-// Ref names a collection: whose it is, and the name it has in the
-// owner's home. Names are the client's to choose when it makes one, so
-// they are unique per owner and not across them.
+// Ref names a collection; names are unique per owner, not across owners.
 type Ref struct {
 	Owner, ID string
 }
@@ -44,25 +40,20 @@ var ErrExists = errors.New("collections: already exists")
 // Collection is one calendar, task list or address book.
 type Collection struct {
 	ID    string
-	Owner string // the account's address
+	Owner string
 	Kind  Kind
 	// Components are what a calendar takes: VEVENT, VTODO or both.
 	Components  []string `json:",omitempty"`
 	Name        string
 	Color       string `json:",omitempty"`
 	Description string `json:",omitempty"`
-	// CTag changes with every write to the collection or an object in
-	// it: what a client asks to learn whether to look again.
+	// CTag changes with every write to the collection or its objects.
 	CTag uint64
-	// Public, when set, is the secret in the URL that answers the
-	// collection to anyone as one stream.
+	// Public is the secret in the URL that serves the collection to anyone.
 	Public string `json:",omitempty"`
-	// Timezone is a calendar's own, the iCalendar a client set it as
-	// (RFC 4791 5.2.2).
+	// Timezone is a calendar's own, as a client set it.
 	Timezone []byte `json:",omitempty"`
-	// Dead are the properties clients keep on a collection for
-	// themselves - an order, a colour of their own - which alborz hands
-	// back as they were sent and never reads (RFC 4918 3).
+	// Dead are properties clients keep on a collection, handed back unread.
 	Dead []Dead `json:",omitempty"`
 }
 
@@ -72,13 +63,10 @@ type Dead struct {
 	XML          []byte
 }
 
-// Object is one event, task or card as it was written, and by whom:
-// iCalendar and vCard have no field for who added an object, and in a
-// collection several accounts write to that is the thing to know.
+// Object is one event, task or card as written, and by whom.
 type Object struct {
 	Name string
-	// UID is the identity iCalendar and vCard both give an object (RFC
-	// 5545 3.8.4.7, RFC 6350 6.7.6), as its parser read it.
+	// UID is the object's UID as its parser read it.
 	UID      string `json:",omitempty"`
 	Data     []byte
 	ETag     string
@@ -101,8 +89,7 @@ type Share struct {
 	Expires  time.Time
 	Accepted bool
 	Created  time.Time
-	// Declined and Left are the invitee's no, before accepting and
-	// after: the owner sees which, rather than the share vanishing.
+	// Declined and Left are the invitee's no, before and after accepting.
 	Declined bool `json:",omitempty"`
 	Left     bool `json:",omitempty"`
 	// Answered is when the invitee last said yes or no.
@@ -116,14 +103,12 @@ func (s Share) Live(now time.Time) bool {
 	return s.Accepted && (s.Expires.IsZero() || now.Before(s.Expires))
 }
 
-// Ended reports a share past its last day: still the owner's to see
-// and remove, and nobody's to use.
+// Ended reports a share past its last day.
 func (s Share) Ended() bool {
 	return !s.Expires.IsZero() && !time.Now().Before(s.Expires)
 }
 
-// Name owns this package's keys in alborz's data file, and Format is
-// the format they are written in (ADR 26).
+// Name owns this package's keys in the data file; Format is their format (ADR 26).
 const (
 	Name   = "alborz.pim"
 	Format = 1
@@ -141,35 +126,28 @@ func shareKey(ref Ref, to string) string { return sharesOf(ref) + strings.ToLowe
 
 func sharesOf(ref Ref) string { return Name + "/shares/" + ref.key() + "\x00" }
 
-// uidKey maps a collection's UID to the object holding it, so a write
-// learns of a clash without reading every object.
+// Lets a write learn of a UID clash without reading every object.
 func uidKey(ref Ref, uid string) string { return uidsOf(ref) + uid }
 
 func uidsOf(ref Ref) string { return Name + "/uids/" + ref.key() + "\x00" }
 
-// publicKey maps a published calendar's secret to its collection, so a
-// wrong guess reads one key.
+// A wrong guess reads one key.
 func publicKey(secret string) string { return Name + "/public/" + secret }
 
-// receivedKey indexes a share by its recipient.
 func receivedKey(to string, ref Ref) string { return receivedBy(to) + ref.key() }
 
 func receivedBy(to string) string { return Name + "/received/" + strings.ToLower(to) + "\x00" }
 
-// ctagKey counts ctags across collections: counted per collection, a
-// name deleted and made again would hand out values a client still
-// holds from the one before.
+// Counted across collections, so a name made again cannot reuse ctags a client holds.
 const ctagKey = Name + "/ctag"
 
-// Store keeps collections in the data file; every method is one
-// transaction.
+// Store keeps collections in the data file; every method is one transaction.
 type Store struct {
 	db kv.DB
 }
 
 func New(db kv.DB) *Store { return &Store{db: db} }
 
-// publish keeps the index with a collection's secret, which was before.
 func publish(tx kv.Tx, before string, c Collection) error {
 	if before != "" && before != c.Public {
 		if err := tx.Delete(publicKey(before)); err != nil {
@@ -182,8 +160,7 @@ func publish(tx kv.Tx, before string, c Collection) error {
 	return tx.Put(publicKey(c.Public), []byte(collectionKey(c.Ref())))
 }
 
-// ETagOf names the bytes, so the same object written twice is the same
-// object to a client holding its tag.
+// ETagOf names the bytes, so the same object written twice keeps its tag.
 func ETagOf(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:8])
@@ -211,8 +188,7 @@ func each[T any](tx kv.Tx, prefix string, fn func(T) error) error {
 	})
 }
 
-// put writes v over what is stored under key, keeping what a newer
-// version of alborz put there (ADR 26).
+// Keeps what a newer alborz put there (ADR 26).
 func put(tx kv.Tx, key string, v any) error {
 	raw, err := record.Keep(tx.Get(key), v)
 	if err != nil {
@@ -221,7 +197,6 @@ func put(tx kv.Tx, key string, v any) error {
 	return tx.Put(key, raw)
 }
 
-// stamp gives a collection a ctag none has had.
 func stamp(tx kv.Tx, c *Collection) error {
 	var last uint64
 	if raw := tx.Get(ctagKey); raw != nil {
@@ -234,7 +209,6 @@ func stamp(tx kv.Tx, c *Collection) error {
 	return tx.Put(ctagKey, strconv.AppendUint(nil, c.CTag, 10))
 }
 
-// touch moves the collection's ctag on, inside a write's transaction.
 func touch(tx kv.Tx, ref Ref) error {
 	c, err := get[Collection](tx, collectionKey(ref))
 	if err != nil {
@@ -246,8 +220,7 @@ func touch(tx kv.Tx, ref Ref) error {
 	return put(tx, collectionKey(ref), c)
 }
 
-// Create keeps a new collection under the name given, or one of its
-// own when none is.
+// Create keeps a new collection under the name given, or one of its own.
 func (s *Store) Create(c Collection) (*Collection, error) {
 	if c.ID == "" {
 		c.ID = uuid.New().String()
@@ -332,9 +305,7 @@ func (s *Store) Delete(ref Ref) error {
 	})
 }
 
-// Visible are the collections of one kind an account sees: its own, and
-// those shared with it that it accepted and that have not run out, each
-// with what the account may do with it.
+// Visible are the collections of one kind an account sees, with what it may do.
 func (s *Store) Visible(account string, kind Kind, now time.Time) ([]Seen, error) {
 	account = strings.ToLower(account)
 	var out []Seen
@@ -383,9 +354,6 @@ func accessOf(sh Share) access {
 	return read
 }
 
-// allowed is what an account may do with a collection, read in the
-// transaction that acts on the answer. A collection the account cannot
-// see is not found.
 func allowed(tx kv.Tx, ref Ref, account string, now time.Time) (*Collection, access, error) {
 	c, err := get[Collection](tx, collectionKey(ref))
 	if err != nil {
@@ -404,7 +372,6 @@ func allowed(tx kv.Tx, ref Ref, account string, now time.Time) (*Collection, acc
 	return c, accessOf(*sh), nil
 }
 
-// may is allowed in a transaction of its own.
 func (s *Store) may(ref Ref, account string, now time.Time) (c *Collection, may access, err error) {
 	err = s.db.View(func(tx kv.Tx) error {
 		c, may, err = allowed(tx, ref, account, now)
@@ -413,8 +380,7 @@ func (s *Store) may(ref Ref, account string, now time.Time) (c *Collection, may 
 	return c, may, err
 }
 
-// ErrForbidden is a write by an account the collection is shared with
-// to read.
+// ErrForbidden is a write by an account with read-only access.
 var ErrForbidden = errors.New("collections: not yours to change")
 
 // ByPublic finds the collection a public URL's secret names.
@@ -451,17 +417,13 @@ func (s *Store) Object(ref Ref, name string) (*Object, error) {
 	return o, err
 }
 
-// ErrPrecondition is a write whose If-Match or If-None-Match did not
-// hold: somebody else wrote first.
+// ErrPrecondition is a write whose If-Match or If-None-Match did not hold.
 var ErrPrecondition = errors.New("collections: precondition failed")
 
-// ErrUIDConflict is a second object with a UID the collection already
-// holds (RFC 4791 5.3.2.1, RFC 6352 6.3.2.1).
+// ErrUIDConflict is a second object with a UID the collection already holds.
 var ErrUIDConflict = errors.New("collections: UID already in the collection")
 
-// Unless is a write's condition: given the ETag of the object held,
-// empty when none is, it says why the write is off. Nil is a write that
-// does not care.
+// Unless says why a write is off, given the held ETag or empty; nil does not care.
 type Unless func(held string) error
 
 // PutObject writes an object as the account by.
@@ -488,8 +450,7 @@ func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless,
 		}
 		if uid != "" {
 			if holder := tx.Get(uidKey(ref, uid)); holder != nil && string(holder) != name {
-				// The index is believed only where the object it names
-				// says the same: an entry left behind names nothing.
+				// An index entry is believed only where its object agrees.
 				other, err := get[Object](tx, objectKey(ref, string(holder)))
 				if err != nil && !errors.Is(err, ErrNotFound) {
 					return err
@@ -515,7 +476,6 @@ func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless,
 	return o, err
 }
 
-// writable refuses a write by an account that may not make it.
 func writable(tx kv.Tx, ref Ref, by string, now time.Time) error {
 	_, may, err := allowed(tx, ref, strings.ToLower(by), now)
 	if err == nil && may < write {
@@ -524,8 +484,7 @@ func writable(tx kv.Tx, ref Ref, by string, now time.Time) error {
 	return err
 }
 
-// RemoveObject deletes an object as the account by, unless its
-// condition says not to.
+// RemoveObject deletes an object as the account by, unless its condition says not to.
 func (s *Store) RemoveObject(ref Ref, name string, unless Unless, by string) error {
 	return s.db.Update(func(tx kv.Tx) error {
 		if err := writable(tx, ref, by, time.Now()); err != nil {
@@ -575,8 +534,7 @@ func (s *Store) Share(ref Ref, to string) (*Share, error) {
 	return sh, err
 }
 
-// Answer is the invitee's yes or no to a share: a yes makes it live, a
-// no before one is Declined and a no after one is Left.
+// Answer is the invitee's yes or no: yes makes it live, no is Declined before and Left after.
 func (s *Store) Answer(ref Ref, to string, yes bool) error {
 	return s.db.Update(func(tx kv.Tx) error {
 		sh, err := get[Share](tx, shareKey(ref, to))

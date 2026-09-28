@@ -52,18 +52,14 @@ type IMAPBaseRenderData struct {
 	Mailbox              *MailboxStatus
 	Inbox                *MailboxStatus
 	Subscriptions        map[string]*MailboxStatus
-	// ListView is the rail row the page answers to when it is not a
-	// folder: starred, unread, or a star colour. Not "View": the
-	// message page's own View is the rendered part.
+	// ListView is the rail row a non-folder page answers to; not "View", which the message page uses.
 	ListView string
 
-	// Every account's folder tree, for the multi-account aside; empty
-	// with a single account.
+	// SidebarAccounts is every account's folder tree; empty with a single account.
 	SidebarAccounts []AccountSidebar
 }
 
-// AllUnseen sums the accounts' unseen counts for one role of the
-// merged rail, from the trees the rail already holds.
+// AllUnseen sums the accounts' unseen counts for one role of the merged rail.
 func (d *IMAPBaseRenderData) AllUnseen(role string) int {
 	sum := 0
 	for _, acc := range d.SidebarAccounts {
@@ -90,7 +86,7 @@ func (d *IMAPBaseRenderData) AllUnseen(role string) int {
 	return sum
 }
 
-// Organizes mailboxes into common/uncommon categories
+// CategorizedMailboxes sorts mailboxes into common and additional ones.
 type CategorizedMailboxes struct {
 	Common struct {
 		Inbox   *MailboxDetails
@@ -101,20 +97,13 @@ type CategorizedMailboxes struct {
 		Archive *MailboxDetails
 	}
 	Additional []MailboxDetails
-	// Hidden is how many folders past railFolderLimit the rail leaves
-	// out for not being subscribed.
+	// Hidden counts folders past railFolderLimit left out for not being subscribed.
 	Hidden int
 }
 
-// railFolderLimit is how many folders beyond the standard ones the rail
-// lists unasked: past it the rail runs off a laptop's screen, and an
-// account with that many has chosen the few it reads by subscribing to
-// them.
+// railFolderLimit caps unsubscribed folders on the rail; more run off a laptop's screen.
 const railFolderLimit = 25
 
-// trim keeps the standard folders and, past railFolderLimit others,
-// only those the rail counts - the subscribed and the open one. A kept
-// folder's parents come with it: the tree draws them from its path.
 func (cc *CategorizedMailboxes) trim() {
 	if len(cc.Additional) <= railFolderLimit {
 		return
@@ -155,17 +144,14 @@ func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
 	}
 }
 
-// MailboxNode is one folder in the nested sidebar tree. Details is nil
-// for a parent that only exists as a path prefix.
+// MailboxNode is one folder in the nested sidebar tree; Details is nil for a path-only parent.
 type MailboxNode struct {
 	Name     string
 	Details  *MailboxDetails
 	Children []MailboxNode
 }
 
-// AdditionalTree nests the custom folders by their hierarchy delimiter,
-// the way desktop clients show them. Folders under INBOX belong to
-// InboxTree instead.
+// AdditionalTree nests the custom folders; those under INBOX belong to InboxTree.
 func (cc CategorizedMailboxes) AdditionalTree() []MailboxNode {
 	var out []MailboxNode
 	for _, n := range cc.additionalForest() {
@@ -176,8 +162,7 @@ func (cc CategorizedMailboxes) AdditionalTree() []MailboxNode {
 	return out
 }
 
-// InboxTree returns the inbox with any INBOX-nested folders as children,
-// so they hang under the real Inbox row like desktop clients show them.
+// InboxTree returns the inbox with its nested folders as children.
 func (cc CategorizedMailboxes) InboxTree() *MailboxNode {
 	inbox := cc.Common.Inbox
 	if inbox == nil {
@@ -192,8 +177,7 @@ func (cc CategorizedMailboxes) InboxTree() *MailboxNode {
 	return &node
 }
 
-// CommonNodes lists the special-use folders after the inbox as leaf
-// nodes, so the aside renders every folder kind through one template.
+// CommonNodes lists the special-use folders after the inbox as leaf nodes.
 func (cc CategorizedMailboxes) CommonNodes() []MailboxNode {
 	var nodes []MailboxNode
 	for _, d := range []*MailboxDetails{
@@ -237,19 +221,13 @@ func (cc CategorizedMailboxes) additionalForest() []MailboxNode {
 	return roots
 }
 
-// sidebar holds the mailbox listing and statuses shown in every IMAP page's
-// aside, before assembly into render data.
 type sidebar struct {
 	mailboxes     []MailboxInfo
 	statuses      map[string]*MailboxStatus
 	active, inbox *MailboxStatus
 }
 
-// clone copies the mutable layers, so an assembled or cached sidebar never
-// shares them with another request; the per-message wire data underneath is
-// read-only and stays shared.
-// adjustUnseen moves the folder's unseen count by delta. The status is
-// shared with copies of the sidebar, so the folder gets its own.
+// The status is shared with copies of the sidebar, so the folder gets its own.
 func (sb *sidebar) adjustUnseen(folder string, delta int) {
 	st := sb.statuses[folder]
 	if st == nil || st.StatusData == nil || st.NumUnseen == nil || int(*st.NumUnseen)+delta < 0 {
@@ -289,9 +267,6 @@ type AccountSidebar struct {
 	Categorized CategorizedMailboxes
 }
 
-// railFor is the account's sidebar for a page on one folder: the tree
-// and counts as the memo holds them, with that folder marked active.
-// A folder the memo did not count keeps the status the page fetched.
 func (p *plugin) railFor(s *alborz.Login, mboxName string, fetched sidebar) sidebar {
 	sb, err := p.sidebarFor(s)
 	if err != nil {
@@ -308,8 +283,7 @@ func (p *plugin) railFor(s *alborz.Login, mboxName string, fetched sidebar) side
 
 func (p *plugin) sidebarFor(s *alborz.Login) (sidebar, error) {
 	return p.accountSidebars.Get(s.Username(), func() (sidebar, error) {
-		// Loaded before DoIMAP: on a METADATA server the settings read
-		// is itself a DoIMAP, and the login lock is not reentrant.
+		// Loaded before DoIMAP: on a METADATA server the settings read is itself a DoIMAP, and the lock is not reentrant.
 		settings, err := LoadSettings(context.Background(), s.Store())
 		if err != nil {
 			return sidebar{}, err
@@ -327,10 +301,6 @@ func (p *plugin) sidebarFor(s *alborz.Login) (sidebar, error) {
 	})
 }
 
-// sidebarAccounts assembles every signed-in account's folder tree for the
-// aside; empty with a single account, whose aside needs no sections. A
-// failing account is skipped and its section reappears once its server
-// answers again.
 func (p *plugin) sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
 	logins := ctx.Logins()
 	if len(logins) < 2 {
@@ -352,10 +322,7 @@ func (p *plugin) sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
 	return accounts
 }
 
-// countedMailboxes names the folders the sidebar shows counts for: the
-// page's own, the inbox, the special-use folders, and whatever the user
-// subscribed to. Counting the rest would make the server walk every folder
-// on every page for numbers nothing displays.
+// Counting every folder would make the server walk them all on every page.
 func countedMailboxes(mailboxes []MailboxInfo, mboxName string, subs []string) []string {
 	var names []string
 	seen := make(map[string]bool)
@@ -380,8 +347,6 @@ func countedMailboxes(mailboxes []MailboxInfo, mboxName string, subs []string) [
 	return names
 }
 
-// sidebarLoad is a sidebar whose STATUS commands are still in flight;
-// finish drains them.
 type sidebarLoad struct {
 	sb       sidebar
 	names    []string
@@ -389,13 +354,7 @@ type sidebarLoad struct {
 	mboxName string
 }
 
-// startSidebar issues the mailbox LIST and, pipelined behind it on the same
-// connection, a SELECT of selectMbox (empty to skip); both are drained here,
-// so on return the connection has selectMbox selected. The STATUS commands
-// for the counted folders are then issued but not drained: the caller runs
-// the page's own commands next and calls finish after, so the statuses share
-// a round trip with the page work instead of costing their own. mboxName
-// names the page's mailbox for status lookup; it need not be selected.
+// STATUS commands stay in flight so they share a round trip with the page's own; finish drains them.
 func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []string) (*sidebarLoad, error) {
 	l := &sidebarLoad{mboxName: mboxName}
 	l.sb.statuses = make(map[string]*MailboxStatus)
@@ -438,7 +397,6 @@ func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []stri
 	return l, nil
 }
 
-// finish drains the STATUS commands and completes the sidebar.
 func (l *sidebarLoad) finish() (sidebar, error) {
 	for i, cmd := range l.cmds {
 		if cmd == nil {
@@ -446,8 +404,7 @@ func (l *sidebarLoad) finish() (sidebar, error) {
 		}
 		data, err := cmd.Wait()
 		if err != nil {
-			// A subscription naming a folder that no longer exists must
-			// not take the page down; only the page's own mailbox does.
+			// A subscription to a vanished folder must not take the page down.
 			if l.names[i] == l.mboxName {
 				return l.sb, alborz.NotFound("notfound.folder", l.mboxName)
 			}
@@ -460,8 +417,6 @@ func (l *sidebarLoad) finish() (sidebar, error) {
 	return l.sb, nil
 }
 
-// assembleIMAPBase builds the render data from a loaded sidebar, applying
-// labels, unseen counts, and the active highlight.
 func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName string, sb sidebar, view string) *IMAPBaseRenderData {
 	if mboxName != "" {
 		sb.statuses[mboxName] = sb.active
@@ -526,8 +481,6 @@ func (p *plugin) newIMAPBaseRenderData(ctx *alborz.Context,
 		return nil, err
 	}
 
-	// A view narrows the active mailbox; the rail highlights the view's
-	// row instead of the mailbox itself.
 	view, err := readView(ctx)
 	if err != nil {
 		return nil, err

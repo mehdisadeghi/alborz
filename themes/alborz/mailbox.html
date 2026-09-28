@@ -12,32 +12,18 @@
 </div>
 {{template "foot.html"}}
 
-{{/* Everything inside the list page that a narrowing changes: the
-     toolbar with its pager and its marks, what the page is narrowed
-     by, and the rows. Paging, sorting, the rows-per-page menu and a
-     search ask for this alone, so the rail and the header are not
-     sent again and the reader keeps their place in them (TODO 126). */}}
 {{ define "message-list" }}
       <form id="messages-form" method="POST" hx-boost="false">
         <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
       </form>
-      {{/* Its own form: refreshing acts on the folder, so it must not
-           carry the selection or be gated on one. */}}
       <form id="refresh-form" method="POST" action="/mailbox/{{.Mailbox.Name | pathescape}}/refresh{{ account "?" $.GlobalData.URLAccount }}" hx-boost="false">
         <input type="hidden" name="next" value="{{ .GlobalData.URL.RequestURI }}">
       </form>
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "messages-header.html" . }}
       </section>
-      {{/* Where you are, on every page that has a where. */}}
       <div class="crumb-slot">
       {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "heading" true "steps" .Crumb) }}
-      {{/* A page holds some of a list, and ticking the page's rows is
-           not what somebody emptying a folder means. Once every row of
-           the page is ticked the rest is on offer, in the crumb's own
-           box so that no row moves; the form then carries "everything"
-           and the server reads the whole view - the folder, the search,
-           the view - rather than the rows. */}}
       {{ if gt .Total (len .Messages) }}
       <div class="select-everything" data-form="messages-form" role="status" hidden>
         <span class="select-page">{{ $.GlobalData.Tf "select.page" (len .Messages) }}</span>
@@ -49,29 +35,13 @@
       {{ end }}
       </div>
 
-      {{/* What the list is narrowed by, which the crumb does not say:
-           a search, or the sender a reader clicked. Coming back to a
-           filtered page, this is the only thing that explains a short
-           list. */}}
-      {{/* The ways a search can be widened ride the row that says what
-           it is narrowed by. Bare terms reached the headers only, since
-           this server holds no index, and the whole message is a slower
-           search asked for by name; a folder's search box looks in that
-           folder, and the same question of every folder is one link
-           away. */}}
       {{ $whole := "" }}{{ with .TextQuery }}{{ $whole = printf "?query=%s%s%s" (. | qv) (account "&" $.GlobalData.URLAccount) (or (and $.GlobalData.Unified "&all=1") "") }}{{ end }}
       {{ $everywhere := "" }}{{ with .Everywhere }}{{ $everywhere = localhref (printf "/search?query=%s%s" (. | qv) (account "&" $.GlobalData.URLAccount)) }}{{ end }}
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove") "offers" (tuple (tuple $whole ($.T "mailbox.searchtext")) (tuple $everywhere ($.T "search.allfolders")))) }}
-      {{/* Files dropped on the list go into the folder the list shows.
-           The merged view names no one folder, so it names no target
-           and the script asks which account's. */}}
-      {{/* live-folder names what this list is showing, so mail arriving
-           elsewhere leaves it alone; merged means every account's folder
-           of that name. Both ride the part every swap renews: on main
-           they stayed those of the first folder loaded. */}}
+      {{/* On the part every swap renews: on main they stayed those of the first
+           folder loaded. */}}
       <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{.Mailbox.URL}}{{ account "?" $.GlobalData.URLAccount }}"{{ end }}>
         <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}>
-          {{/* Header row; the labels sort where the server can. */}}
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hreset := ne ($.GlobalData.URL.Query.Get "dir") "" }}
@@ -82,22 +52,14 @@
           {{ $s := dict "Key" $hsort "Dir" .SortDir "Explicit" $hexp "DirExplicit" $hreset "Params" $hparams "Reset" $hbase }}
           {{ $plain := not .SortSupported }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "target" "main" "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "message-list-flags" "hidden" ($.T "sort.starred")) }}
-          {{/* Sent and Drafts name whom the mail went to; the sort key
-               stays the server's, which orders these folders by the
-               recipient once told to sort by "to". */}}
           {{ $who := $.T "sort.sender" }}{{ $whokey := "from" }}{{ if .Outgoing }}{{ $who = $.T "sort.recipient" }}{{ $whokey = "to" }}{{ end }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "target" "main" "key" $whokey "label" $who "cell" "message-list-sender") }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "target" "main" "key" "subject" "label" ($.T "sort.subject") "cell" "list-primary message-list-subject") }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "target" "main" "key" "date" "label" ($.T "sort.date") "cell" "message-list-date") }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "target" "main" "key" "size" "label" ($.T "sort.size") "cell" "message-list-size") }}
           </div>
-          {{/* A link that starts a new query keeps the scope the page is
-               read under: a sender clicked in the merged view searches
-               every account, not whichever one the view is anchored to. */}}
           {{ $scope := "" }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | qv) }}{{ end }}
           {{range .Messages}}
-          {{/* The account a row's links keep: the page's, or in a merged
-               list the row's own. */}}
           {{ $owner := $.GlobalData.URLAccount }}{{ if $.Merged }}{{ $owner = .Account }}{{ end }}
           {{ $classes := "list-cell" }}
           {{ if not (.HasFlag "\\Seen") }}
@@ -108,11 +70,7 @@
           {{ end }}
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
-          {{/* A row earns a tint only for a fact that needs no argument;
-               the rest of the facts wait on the message page. */}}
           <div class="message-row list-row" role="row"{{ if $.Threaded }} style="--depth: {{.Depth}}"{{ end }}>
-          {{/* A merged row is named by its account and folder as well,
-               since the selection spans connections. */}}
           <div class="message-list-checkbox list-checkbox {{$classes}}" role="cell">
             {{ if $.Merged }}
             <input type="checkbox" name="refs" value="{{.Account}}|{{.Mailbox}}|{{.UID}}" form="messages-form" aria-label="{{$.T "a11y.selectrow"}}{{with .Envelope.Subject}}: {{.}}{{end}}">
@@ -129,9 +87,6 @@
             {{if .HasFlag "\\Answered"}}<span class="message-mark" title="{{$.T "mailbox.answered"}}"><span aria-hidden="true">↩︎</span><span class="visually-hidden">{{$.T "mailbox.answered"}}</span></span>{{end}}
             {{if .HasFlag "$Forwarded"}}<span class="message-mark" title="{{$.T "mailbox.forwarded"}}"><span aria-hidden="true">↪︎</span><span class="visually-hidden">{{$.T "mailbox.forwarded"}}</span></span>{{end}}
             {{if not (.HasFlag "\\Seen")}}<span class="visually-hidden">{{$.T "a11y.unread"}}</span>{{end}}
-            {{/* Mail to an alias lands in the account's inbox looking
-                 like any other. The mark is the only thing that says
-                 which address it was actually sent to. */}}
             {{ with .Alias }}<span class="message-mark alias-mark" title="{{ printf ($.T "message.aliasmark") . }}"><span aria-hidden="true">@</span><span class="visually-hidden">{{ printf ($.T "message.aliasmark") . }}</span></span>{{ end }}
           </div>
           <div class="message-list-sender {{$classes}}" role="cell">
@@ -146,13 +101,7 @@
             {{ end }}
             </a>
             {{ end }}
-            {{/* What the reader's own folders know about the author, as a
-                 small tag: a first message, or a sender already junked.
-                 Known correspondents get nothing, which is most rows. It
-                 opens the message's facts, so a thumb can ask. */}}
                         {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
-            {{/* A row found by a search across folders says which one it
-                 is in, and narrows the results to it. */}}
             {{ if $.Spanning }}<a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "/mailbox/%s?query=%s%s" (.Mailbox | pathescape) ($.FolderQuery | qv) (account "&" .Account)) }}">{{.Mailbox}}</a>{{ end }}
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
@@ -164,36 +113,23 @@
             {{$mlink = from $mlink $.GlobalData.URL.RequestURI}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $mlink}}">
             {{else}}
-            {{/* Built in one piece: the escaper cannot follow a URL whose
-                 query grows across branches. */}}
+            {{/* Built in one piece: the escaper cannot follow a URL whose query grows across branches. */}}
             {{$link := ""}}{{$sep := "?"}}
             {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%v" ($open.URL false "")}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
             {{if $.ListView}}{{$link = printf "%s%sview=%s" $link $sep $.ListView}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | qv)}}{{$sep = "&"}}{{end}}
-            {{/* The order the list is in travels with the row: what
-                 Newer and Older mean on the message is what they meant
-                 here. */}}
             {{with $.Sort}}{{$link = printf "%s%ssort=%s&dir=%s" $link $sep . $.SortDir}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | qv)}}{{end}}
             {{$link = from $link $.GlobalData.URL.RequestURI}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $link}}">
             {{end}}
-              {{/* No bdi here: it isolates, and an isolate reads to the
-                   link around it as one neutral object, so dir=auto
-                   found no strong character and called every subject
-                   LTR. The link is a block of its own and isolates by
-                   itself. */}}
+              {{/* No bdi: dir=auto skips isolates, so it would find no strong
+                   character. */}}
               {{if .Envelope.Subject}}
                 {{.Envelope.Subject}}
               {{else}}
                 {{$.T "mailbox.nosubject"}}
               {{end}}
             </a>
-            {{/* What is attached, named under the subject inside the
-                 subject's own cell: the row keeps its box, its hover and
-                 its hairline, and the names take a second line rather
-                 than the subject's width. Three are named and the rest
-                 counted; the count opens the message, where they all
-                 are. */}}
             {{ with .Attachments }}
             <span class="attach-line">
               {{ range $i, $a := . }}{{ if lt $i 3 }}

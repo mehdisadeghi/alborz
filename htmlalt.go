@@ -5,10 +5,7 @@ import (
 	"strings"
 )
 
-// ParagraphDir is the direction one paragraph runs, "ltr" or "rtl". It
-// is SubjectDir's question without the reply prefixes, and it never
-// answers "auto": the point of writing the direction down is that the
-// recipient's client will not work it out.
+// ParagraphDir returns "ltr" or "rtl" for one paragraph, never "auto".
 func ParagraphDir(text string) string {
 	if dir := SubjectDir(text); dir != "auto" {
 		return dir
@@ -16,21 +13,7 @@ func ParagraphDir(text string) string {
 	return "ltr"
 }
 
-// HTMLAlternative renders plain text as the least HTML that can carry
-// its direction.
-//
-// A plain-text part says nothing about which way it runs, and Gmail and
-// Outlook lay a received text/plain part out left to right whatever it
-// says - so a Persian paragraph arrives mangled and the format has no
-// way to correct them. HTML has dir, and it is the only thing those
-// clients obey.
-//
-// So this adds direction and nothing else: no styles, no fonts, no
-// divs for their own sake. Each paragraph is asked which way it runs by
-// the Unicode Bidi Algorithm's own rule - a paragraph runs the way its
-// first strong character runs - and a run of quoted lines becomes a
-// blockquote whose paragraphs are asked the same question, since a
-// quote often runs the other way from the reply around it.
+// HTMLAlternative renders plain text as the least HTML that carries each paragraph's direction.
 func HTMLAlternative(text string) string {
 	var out strings.Builder
 	out.WriteString("<html><body>\n")
@@ -51,9 +34,7 @@ func HTMLAlternative(text string) string {
 	return out.String()
 }
 
-// HasRTL says whether any paragraph of text, quoted or not, runs right
-// to left: the only case in which plain text needs HTMLAlternative,
-// since a client laying text out left to right gets the rest right.
+// HasRTL reports whether any paragraph of text, quoted or not, runs right to left.
 func HasRTL(text string) bool {
 	for _, block := range blocks(text) {
 		for _, p := range paragraphs(block.lines) {
@@ -72,8 +53,6 @@ func writeParagraph(out *strings.Builder, lines []string) {
 	out.WriteString(`">`)
 	for i, line := range lines {
 		if i > 0 {
-			// A hard break inside a paragraph is a break the writer
-			// typed, and it survives as one.
 			out.WriteString("<br>\n")
 		}
 		out.WriteString(html.EscapeString(line))
@@ -81,9 +60,6 @@ func writeParagraph(out *strings.Builder, lines []string) {
 	out.WriteString("</p>\n")
 }
 
-// block is a run of lines that are all quoted or all not. The quote
-// marks are stripped from a quoted run so its own paragraphs can be
-// read for direction rather than for the ">" in front of them.
 type block struct {
 	quoted bool
 	lines  []string
@@ -105,8 +81,6 @@ func blocks(text string) []block {
 	return out
 }
 
-// paragraphs splits on blank lines, which is what a blank line means in
-// plain text and the unit the bidi algorithm works in.
 func paragraphs(lines []string) [][]string {
 	var out [][]string
 	var cur []string

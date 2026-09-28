@@ -24,9 +24,7 @@ func init() {
 		p := alborz.GoPlugin{
 			Name:  "sieve",
 			Files: public,
-			// Sieve scripts are per-account administration, but the section
-			// remains reachable from merged mail. Its route redirects to one
-			// capable account before performing any operation.
+			// Filters stay reachable from merged mail; the route redirects to a capable account.
 			EnabledFunc: func(ctx *alborz.Context) bool {
 				if ctx.Login == nil {
 					return false
@@ -45,9 +43,7 @@ func init() {
 	})
 }
 
-// warm opens the account's ManageSieve connection as it is signed in,
-// so the first visit to the filters does not pay the dial and the
-// authentication on the click.
+// warm dials ManageSieve at sign-in so the first filters visit does not wait for it.
 func warm(ctx *alborz.Context, s *alborz.Login) {
 	if !ctx.Server.SieveEnabled(s.Domain()) {
 		return

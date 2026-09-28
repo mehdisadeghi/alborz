@@ -65,8 +65,7 @@ func TestListCollectionsReadsWhatTheServerSaid(t *testing.T) {
 	if len(listed) != 2 {
 		t.Fatalf("the home set itself was listed as a collection: %d listed", len(listed))
 	}
-	// Sorted by name, paths canonical, and only a granted write privilege
-	// or a silent server makes a collection writable.
+	// Sorted by name, canonical paths, writable only by a granted privilege or a silent server.
 	if listed[0].Name != "Family" || listed[0].Path != "/cal/u/Family Days/" || !listed[0].Writable {
 		t.Errorf("first: %+v", listed[0].Collection)
 	}

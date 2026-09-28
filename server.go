@@ -25,19 +25,13 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
-// BrandName is what a person reads: page titles, the User-Agent on a
-// message, the name given to an IMAP server.
+// BrandName is the name a person reads.
 const BrandName = "Alborz"
 
-// AppName is what the machine reads: the directory alborz keeps its
-// data and its cache in, under whichever root the system gives it. One
-// name, spelt once.
+// AppName is the name the machine reads, such as the data and cache directory.
 const AppName = "alborz"
 
-// Build is the version the go tool stamps from the checkout: a
-// release's tag, else a pseudo-version naming the commit, "+dirty" when
-// the tree differed from it. Short is what the head has room for: the
-// tag, or the commit and its mark.
+// Build returns the version the go tool stamped and a short form for the head.
 var Build = sync.OnceValues(func() (full, short string) {
 	info, _ := debug.ReadBuildInfo()
 	full = info.Main.Version
@@ -53,16 +47,9 @@ var Build = sync.OnceValues(func() (full, short string) {
 	return full, full
 })
 
-// storeFile is alborz's own database inside the data directory: the
-// remembered logins and what each browser reads by. Named after the
-// application, the way a bbolt file usually is, and spelt from AppName
-// so it follows the name rather than repeating it.
 const storeFile = AppName + ".db"
 
-// What a launcher paints before any stylesheet has loaded. The window
-// colour is the one head.html already declares for a light scheme, so
-// an installed window and a tab do not disagree; the splash behind the
-// icon is the same paper.
+// What a launcher paints before any stylesheet has loaded.
 const (
 	brandColor      = "#ffffff"
 	brandBackground = "#ffffff"
@@ -72,21 +59,15 @@ const (
 	themeCookieName    = "alborz_theme"
 	alignCookieName    = "alborz_align"
 	textSizeCookieName = "alborz_text"
-	// TimezoneCookieName is written by the page, not by us: the browser
-	// is the only party that knows its own zone.
+	// TimezoneCookieName is written by the page: only the browser knows its zone.
 	TimezoneCookieName = "alborz_tz"
 )
 
-// How long a cookie outlives the browser being closed. Two lives,
-// because a cookie carrying a credential and one carrying a preference
-// are not the same risk: the first is re-earned by signing in again,
-// the second is only an annoyance to lose.
 const (
 	credentialCookieLife = 30 * 24 * time.Hour
 )
 
-// CredentialCookieLife is how long a remembered account is kept: the
-// login label states it so the choice is not a mystery.
+// CredentialCookieLife is how long a remembered account is kept.
 func CredentialCookieLife() time.Duration { return credentialCookieLife }
 
 const (
@@ -99,60 +80,43 @@ type Server struct {
 	Logins  *LoginManager
 	Options *Options
 
-	mutex   sync.RWMutex // used for server reload
+	mutex   sync.RWMutex
 	plugins []Plugin
 
 	domains map[string]*domainUpstreams
 
-	// OnAccountReady is called when an account signs in. It is how the
-	// base plugin gets to start following the mailbox without the root
-	// package knowing what following is.
+	// OnAccountReady is called when an account signs in.
 	OnAccountReady []AccountReadyFunc
 
-	// OnAccountGone is called when an account signs out. Plugins holding
-	// anything on its behalf register here; the root package knows only
-	// that the account is gone.
+	// OnAccountGone is called when an account signs out.
 	OnAccountGone []func(username string)
 
 	assetsMu sync.Mutex
-	assets   map[string]assetStamp // theme asset content stamps by name
+	assets   map[string]assetStamp
 
-	// Changes is what the watchers saw, for the streams to pass on.
+	// Changes carries what the watchers saw to the open streams.
 	Changes *Changes
 
 	// Outgoing is how every request to another server leaves.
 	Outgoing Outgoing
 
-	// Sessions are the browsers signed in, each holding its accounts and
-	// what its reader is owed.
+	// Sessions are the browsers signed in.
 	Sessions *Sessions
 
-	// Collections are the calendars, task lists and address books kept
-	// here rather than on a DAV server elsewhere; nil without a data
-	// directory to keep them in.
-	Collections  *collections.Store
-	davPasswords *davPasswords
-	// signInRefused counts the sign-in form's refused passwords.
+	// Collections are the calendars, task lists and address books kept here; nil without a data directory.
+	Collections   *collections.Store
+	davPasswords  *davPasswords
 	signInRefused *refusals
-	// data is the one file everything kept is in; nil without a data
-	// directory.
-	data kv.DB
+	data          kv.DB
 
-	// loginFailures records, per username, when an automatic sign-in
-	// last failed, so the next request does not try again at once.
 	loginFailures sync.Map
 
-	// themes are the stylesheet overlays on offer, the ones built in and
-	// whatever the deployment dropped beside them.
 	themes []Theme
 
-	// custom says a deployment left a custom.css in the theme's assets.
-	// It is loaded last, after the theme, so it can change anything
-	// without anybody forking the stylesheet it changes.
+	// custom is loaded last so a deployment can override the theme without forking it.
 	custom bool
 }
 
-// hasTheme reports whether a name is one of the overlays on offer.
 func (s *Server) hasTheme(name string) bool {
 	for _, t := range s.themes {
 		if t.Name == name {
@@ -162,25 +126,18 @@ func (s *Server) hasTheme(name string) bool {
 	return false
 }
 
-// customCSS is a deployment's own stylesheet, loaded after everything
-// else when it is there. Nothing ships it; it is the seam for a local
-// change that is nobody else's business.
 const customCSS = "custom.css"
 
-// assetStamp is one cached content digest; key identifies the content the
-// stamp was computed from.
 type assetStamp struct {
 	key   string
 	stamp string
 }
 
-// domainUpstreams holds the upstream servers for one served mail domain.
 type domainUpstreams struct {
-	// maps protocols to URLs (protocol can be empty for auto-discovery)
+	// protocol can be empty for auto-discovery
 	upstreams map[string]*url.URL
 
-	// Each server's found is the SRV record it was found at, empty where
-	// the deployment named it.
+	// found is the SRV record a server was found at, empty where the deployment named it.
 	imap struct {
 		host     string
 		tls      bool
@@ -205,8 +162,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		Sessions: newSessions(), Changes: newChanges(), Outgoing: NewOutgoing(), signInRefused: newRefusals(signInTries, signInWindow)}
 	e.IPExtractor = echo.ExtractIPDirect()
 	if len(options.TrustedProxies) > 0 {
-		// Only the proxies named: echo trusts every private address by
-		// default, and anyone on such a network could write the header.
+		// echo trusts every private address by default, and anyone on such a network could write the header.
 		trust := []echo.TrustOption{echo.TrustLoopback(false), echo.TrustLinkLocal(false), echo.TrustPrivateNet(false)}
 		for _, n := range options.TrustedProxies {
 			trust = append(trust, echo.TrustIPRange(n))
@@ -217,11 +173,8 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	_, err := os.Stat(filepath.Join(options.ThemesPath, options.Theme, "assets", customCSS))
 	s.custom = err == nil
 
-	// One file holds what alborz keeps, whoever keeps it (ADR 26).
 	if options.DataDir != "" {
-		// Absolute, so every message about it names a path somebody can
-		// go and look at rather than one relative to a working
-		// directory they have to guess.
+		// Absolute, so messages name a path without guessing the working directory.
 		dataDir, err := filepath.Abs(options.DataDir)
 		if err != nil {
 			return nil, err
@@ -233,10 +186,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		s.Collections = collections.New(s.data)
 		s.davPasswords = newDAVPasswords()
 	}
-	// Remembering a session means keeping a password, so it takes both a
-	// place to put it and the key that seals the record. Without either
-	// a session lasts as long as the process, which is what a login
-	// always did.
+	// Remembering a session keeps a password, so it needs both a place and a sealing key.
 	var settings *settingsRecords
 	if s.data != nil && options.LoginKey != nil {
 		err := CheckKey(s.data, filepath.Join(options.DataDir, storeFile), options.LoginKey,
@@ -255,8 +205,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	for _, arg := range options.Upstreams {
 		name, spec, explicit := strings.Cut(arg, "=")
 		if !explicit && strings.Contains(arg, "://") {
-			// An upstream-style plain URL configures the unnamed
-			// provider, which accepts logins of any domain.
+			// A plain URL configures the unnamed provider, which accepts any domain.
 			name, spec = "", arg
 		} else if name == "" || strings.ContainsAny(name, ":/") {
 			return nil, fmt.Errorf("invalid upstream %q: expected url, domain or domain=url", arg)
@@ -285,8 +234,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	}
 
 	for _, name := range s.Domains() {
-		// A domain without a reachable IMAP or SMTP configuration (e.g.
-		// missing SRV records) must not take the whole server down with it.
+		// An unreachable domain must not take the whole server down.
 		if err := s.parseIMAPUpstream(name); err != nil {
 			s.e.Logger.Printf("Warning: dropping domain %q: %v", name, err)
 			delete(s.domains, name)
@@ -322,9 +270,6 @@ func (s *Server) Domains() []string {
 // ErrNotFound marks errors the HTTP layer answers with 404.
 var ErrNotFound = errors.New("not found")
 
-// notFoundError names what is missing by a locale key, so the page
-// says it in the reader's language; the log gets the key and its
-// arguments.
 type notFoundError struct {
 	key  string
 	args []interface{}
@@ -333,14 +278,12 @@ type notFoundError struct {
 func (e *notFoundError) Error() string { return fmt.Sprintf("%s %v", e.key, e.args) }
 func (e *notFoundError) Unwrap() error { return ErrNotFound }
 
-// NotFound builds a not-found error naming the missing subject by its
-// locale key, for the info page the HTTP layer renders.
+// NotFound builds a not-found error naming the missing subject by its locale key.
 func NotFound(key string, args ...interface{}) error {
 	return &notFoundError{key, args}
 }
 
-// UnknownDomainError is returned when a login address does not belong to a
-// served domain.
+// UnknownDomainError is returned when a login address does not belong to a served domain.
 type UnknownDomainError struct {
 	Domain string
 }
@@ -366,7 +309,6 @@ func (s *Server) Close() {
 
 func parseUpstream(s string) (*url.URL, error) {
 	if !strings.ContainsAny(s, ":/") {
-		// This is a raw domain name, make it an URL with an empty scheme
 		s = "//" + s
 	}
 	return url.Parse(s)
@@ -380,8 +322,6 @@ func (err *NoUpstreamError) Error() string {
 	return fmt.Sprintf("no upstream server configured for schemes %v", err.schemes)
 }
 
-// upstreamsFor resolves the domain's provider, falling back to the unnamed
-// provider, which accepts any domain.
 func (s *Server) upstreamsFor(domain string) (*domainUpstreams, bool) {
 	d, ok := s.domains[domain]
 	if !ok {
@@ -390,12 +330,7 @@ func (s *Server) upstreamsFor(domain string) (*domainUpstreams, bool) {
 	return d, ok
 }
 
-// Upstream retrieves the domain's upstream server URL for the provided
-// schemes. If no configured upstream server matches, a *NoUpstreamError is
-// returned. An empty URL.Scheme means that the caller needs to perform
-// auto-discovery with URL.Host. An explicit scheme wins over the bare
-// domain, so single protocols can be redirected, e.g. IMAP to loopback on
-// the mail host itself, while the rest keeps its SRV discovery.
+// Upstream returns the domain's upstream URL for schemes; an empty Scheme means auto-discover with Host.
 func (s *Server) Upstream(domain string, schemes ...string) (*url.URL, error) {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {
@@ -526,8 +461,6 @@ func (s *Server) load() error {
 		return fmt.Errorf("failed to load templates: %v", err)
 	}
 
-	// Once we've loaded plugins and templates from disk (which can take time),
-	// swap them in the Server struct
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -541,8 +474,7 @@ func (s *Server) load() error {
 	return nil
 }
 
-// Reload reads the templates from disk again. The plugins stay: they
-// hold the caches and the watchers that keep them true.
+// Reload reads the templates from disk again, keeping the plugins.
 func (s *Server) Reload() error {
 	s.e.Logger.Printf("Reloading templates")
 	renderer := newRenderer(s.e.Logger, s.Options.ThemesPath, s.Options.Theme)
@@ -568,55 +500,38 @@ func (s *Server) Logger() echo.Logger {
 type Context struct {
 	echo.Context
 	Server *Server
-	// quiet marks an action that speaks for itself: what it did shows
-	// where the reader already is, so it writes no notice and says so.
+	// quiet marks an action whose result shows in place, so it writes no notice.
 	quiet         bool
-	session       *Session // this browser's stay, resolved on demand
-	sessionSecret string   // its browser's key to what it remembers
-	Login         *Login   // request-scoped account; nil if not logged in
-	DefaultLogin  *Login   // the first listed account, for a page that needs one and was given none
+	session       *Session
+	sessionSecret string
+	Login         *Login
+	DefaultLogin  *Login // the first listed account, for a page that needs one and was given none
 
-	// Unified marks the merged all-accounts view; Login then anchors
-	// to one of the accounts while handlers aware of the view iterate
-	// Logins.
+	// Unified marks the merged all-accounts view; Login then anchors to one of its accounts.
 	Unified bool
 
-	// Request-scoped account list. The accounts cookie only reflects
-	// the request, so consecutive account changes in one handler must
-	// read their own writes here.
+	// The accounts cookie only reflects the request, so account changes within one handler read their own writes here.
 	accounts       []*Login
 	accountsLoaded bool
-	// lostAccounts names the signed-in accounts whose login had
-	// expired by this request, for the notice the app page shows.
-	lostAccounts []string
+	lostAccounts   []string
 
-	// Preferences set while answering this request. A cookie written to
-	// the answer is not in the request that carried it, so a handler
-	// that stores a choice and then renders it must read its own write
-	// here rather than the browser's last one.
+	// A cookie written to the answer is not in the request, so a handler reads its own writes here.
 	prefs map[string]string
 
-	// Per-request upstream and render durations, reported in Server-Timing.
 	timing *Timing
 
-	// Account named by the request's account parameter, selected for this
-	// request only; empty otherwise.
 	urlAccount string
 }
 
 var aLongTimeAgo = time.Unix(233431200, 0)
 
-// Relocate answers a page that asked for a piece of itself by loading
-// path whole instead: what it asked about no longer belongs where it
-// stands, as a row that stopped matching its list's filter.
+// Relocate makes the page load path whole instead of the piece it asked for.
 func (ctx *Context) Relocate(path string) error {
 	ctx.Response().Header().Set("HX-Redirect", path)
 	return ctx.NoContent(http.StatusOK)
 }
 
-// Origin is where alborz is reached from outside, for a link that
-// leaves the page - into a mail, into another client's settings: the
-// -public-url when one is given, else the address this request came to.
+// Origin is where alborz is reached from outside: -public-url, else this request's address.
 func (ctx *Context) Origin() string {
 	if u := ctx.Server.Options.PublicURL; u != nil {
 		return u.Scheme + "://" + u.Host
@@ -624,30 +539,18 @@ func (ctx *Context) Origin() string {
 	return ctx.Scheme() + "://" + ctx.Request().Host
 }
 
-// secureCookies reports whether cookies should be marked Secure. Behind a
-// TLS-terminating reverse proxy the request itself is plain HTTP, so the
-// forwarded protocol decides, which Scheme consults.
+// Behind a TLS-terminating proxy the request is plain HTTP; Scheme consults the forwarded protocol.
 func (ctx *Context) secureCookies() bool {
 	return ctx.Scheme() == "https"
 }
 
-// cookie is every cookie alborz sets: site-wide, kept from scripts,
-// sent to nobody else, and secure where the request was. A zero life
-// makes a session cookie; an empty value clears the cookie, by dating
-// its expiry long ago.
 func (ctx *Context) cookie(name, value string, life time.Duration) *http.Cookie {
 	c := &http.Cookie{
 		Name:     name,
 		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
-		// Lax, not Strict: an installed PWA launched from the home
-		// screen makes a top-level navigation that Strict treats as
-		// having no same-site initiator, so it withholds the cookie and
-		// the app opens signed out with nothing to restore from. Lax
-		// sends it on that navigation while still withholding it from
-		// cross-site POST, and every mutation here is a POST, so the
-		// CSRF cover Strict gave is kept.
+		// Lax, not Strict: Strict withholds the cookie from an installed PWA's cold launch, which then opens signed out.
 		SameSite: http.SameSiteLaxMode,
 		Secure:   ctx.secureCookies(),
 	}
@@ -660,10 +563,7 @@ func (ctx *Context) cookie(name, value string, life time.Duration) *http.Cookie 
 	return c
 }
 
-// assetURL stamps a theme asset's URL with a digest of its content so the
-// browser can keep it instead of revalidating it on every page; a changed
-// file changes its URL. Disk overrides win over the embedded copy, exactly
-// as serving does.
+// assetURL stamps a theme asset's URL with a digest of its content, so a changed file changes its URL.
 func (s *Server) assetURL(name string) string {
 	if stamp := s.assetStamp(name); stamp != "" {
 		return "/assets/" + name + "?v=" + stamp
@@ -671,16 +571,10 @@ func (s *Server) assetURL(name string) string {
 	return "/assets/" + name
 }
 
-// shellAssets is the part of alborz that outlives a page: what the head
-// loads once and a boosted navigation never loads again, and what the
-// worker keeps.
 var shellAssets = []string{"style.css", "scheme.js", "htmx.js", "helpers.js", "keys.js", "print.css",
 	"favicon-32x32.png", "icon-192.png", "icon-512.png"}
 
-// shell is the shell's URLs and a digest of them. The worker caches
-// under the digest; a page carries it so that a tab still running an
-// older shell can tell, and load the page whole instead of swapping it
-// in under a stylesheet and scripts it was not written for.
+// A page carries the digest so a tab on an older shell can tell and load the page whole.
 func (s *Server) shell() ([]string, string) {
 	urls := make([]string, 0, len(shellAssets)+1)
 	version := sha256.New()
@@ -692,10 +586,7 @@ func (s *Server) shell() ([]string, string) {
 	return urls, hex.EncodeToString(version.Sum(nil))[:12]
 }
 
-// assetStamp returns the asset's content digest. Digests are cached: an
-// embedded asset cannot change while the process runs, and a disk override
-// is re-read when its modification time or size changes, which is what
-// keeps local CSS edits showing up on browser reload.
+// Disk overrides are re-read when their mtime or size changes, so local CSS edits show on reload.
 func (s *Server) assetStamp(name string) string {
 	key := "embedded"
 	diskPath := filepath.Join(s.Options.ThemesPath, s.Options.Theme, "assets", name)
@@ -732,10 +623,7 @@ func isPublic(path string) bool {
 		parts := strings.Split(path, "/")
 		return len(parts) >= 4 && parts[3] == "assets"
 	}
-	// The manifest names the application, not anything in it, and a
-	// browser fetches it before anyone has signed in.
-	// The worker says nothing about any account, and a browser fetches
-	// it before anyone has signed in.
+	// The manifest and the worker say nothing about any account and are fetched before sign-in.
 	return path == "/login" || path == "/manifest.webmanifest" ||
 		path == "/sw.js" ||
 		strings.HasPrefix(path, "/assets/")
@@ -744,26 +632,20 @@ func isPublic(path string) bool {
 func redirectToLogin(ctx *Context) error {
 	path := ctx.Request().URL.Path
 	to := "/login"
-	// Only a GET can be resumed after login; an intercepted POST must
-	// not become a GET to its own, often POST-only, route.
+	// Only a GET can be resumed after login; a POST-only route must not be replayed as a GET.
 	if ctx.Request().Method == http.MethodGet && path != "/" && path != "/login" {
 		to += "?next=" + QueryValue(ctx.Request().URL.String())
 	}
 	return ctx.Redirect(http.StatusFound, to)
 }
 
-// renderUpstreamDown answers for a server that did not reply. It says
-// which one and how long was waited, because a reader who is told
-// "internal error" checks their password, and the password is not the
-// problem. Trying again is offered because it is the thing that works:
-// a timeout is usually a moment rather than a state.
+// A reader told "internal error" checks their password, so this names the server and the wait.
 func renderUpstreamDown(ctx *Context, cause UpstreamError) error {
 	type upstreamRenderData struct {
 		BaseRenderData
 		Service string
 		Seconds string
-		// Waited separates "asked and got no answer" from "could not
-		// get a connection at all"; only the first has a number.
+		// Waited separates "no answer" from "no connection"; only the first has a number.
 		Waited bool
 		Retry  string
 	}
@@ -779,7 +661,6 @@ func renderUpstreamDown(ctx *Context, cause UpstreamError) error {
 }
 
 func handleUnauthenticated(next echo.HandlerFunc, ctx *Context) error {
-	// Require auth for all requests except /login and assets
 	if isPublic(ctx.Request().URL.Path) {
 		return next(ctx)
 	} else {
@@ -787,19 +668,14 @@ func handleUnauthenticated(next echo.HandlerFunc, ctx *Context) error {
 	}
 }
 
-// ForgetAccount tells every plugin that asked that an account has
-// signed out. It is called after the login is closed, so a plugin can
-// drop what it was holding rather than keep it warm for nobody.
+// ForgetAccount tells every plugin that asked that an account has signed out.
 func (s *Server) ForgetAccount(username string) {
 	for _, forget := range s.OnAccountGone {
 		forget(username)
 	}
 }
 
-// OnAccountReady runs when an account is signed in, including one
-// restored from remembered credentials. The base plugin uses it to start
-// following the mailbox; the root package does not know what following
-// means, so it only makes the call.
+// OnAccountReady runs when an account is signed in, including one restored from remembered credentials.
 type AccountReadyFunc func(*Context, *Login)
 
 type Options struct {
@@ -808,44 +684,25 @@ type Options struct {
 	ThemesPath string
 	Debug      bool
 	LoginKey   *fernet.Key
-	// Cache keeps what the servers answered, so a page can be drawn
-	// without asking them again. Off, every page asks and nothing is
-	// kept: alborz is slower, and no less right.
+	// Cache keeps what the servers answered.
 	Cache bool
-	// CacheDir keeps the copies of remote calendars and address books,
-	// sealed under LoginKey; empty, or no key, keeps none, and every
-	// read of them asks the server. Read only with Cache on. Nothing
-	// here is missed if it is deleted, which is what makes it a cache.
+	// CacheDir keeps sealed copies of remote calendars and address books; empty, or no LoginKey, keeps none.
 	CacheDir string
-	// DataDir keeps what a reader would miss: the sessions that remember
-	// an account, what they read by, and the settings of an account
-	// whose own server will not hold them. Sealed under LoginKey;
-	// empty, or no key, and a session lasts as long as the process.
+	// DataDir keeps what a reader would miss, sealed under LoginKey; empty, or no key, and sessions last as long as the process.
 	DataDir string
-	// StrictNotices fails an action that sends the reader elsewhere
-	// with nothing to say, instead of only writing it to the log. The
-	// tests run under it, so a handler that forgets is a failure and
-	// not a line nobody reads.
+	// StrictNotices fails an action that redirects with no notice instead of only logging it.
 	StrictNotices bool
-	// PrivateServices lets an account name a calendar or contacts server
-	// on plain HTTP or on a private address: a rig's, or a deployment
-	// whose DAV server sits beside it. Off, only public HTTPS is taken.
+	// PrivateServices lets an account name a DAV server on plain HTTP or a private address.
 	PrivateServices bool
-	// TrustedProxies are the proxies in front of alborz whose
-	// X-Forwarded-For names the reader. Unset, the connection's own
-	// address is the reader's.
+	// TrustedProxies are the proxies whose X-Forwarded-For names the reader.
 	TrustedProxies []*net.IPNet
-	// PublicURL is where readers reach alborz, for the links it puts in
-	// mail and shows to other clients. Unset, each request's own address.
+	// PublicURL is where readers reach alborz, for links in mail and for other clients.
 	PublicURL *url.URL
-	// ProjectURL is where the footer's name links, for a deployment that
-	// wants to point somewhere. Empty by default: a deployment is not the
-	// author's, and no address of anyone's belongs in a shipped binary.
+	// ProjectURL is where the footer's name links; empty by default.
 	ProjectURL string
 }
 
-// CacheFor is how long a cache keeps what it holds: d, or nothing with
-// caching off.
+// CacheFor is how long a cache keeps what it holds: d, or zero with caching off.
 func (o *Options) CacheFor(d time.Duration) time.Duration {
 	if !o.Cache {
 		return 0
@@ -873,8 +730,6 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			code = http.StatusNotFound
 		}
 
-		// Not-found answers name what is missing instead of showing
-		// the generic error page.
 		if code == http.StatusNotFound {
 			if actx, ok := ctx.Get("context").(*Context); ok {
 				message := err.Error()
@@ -892,9 +747,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			}
 		}
 
-		// A server that did not answer is not this program failing, and a
-		// 500 says it is. It gets a page of its own that names what did
-		// not answer and offers the one thing that helps.
+		// An upstream that did not answer is not this program failing, so it gets its own page rather than a 500.
 		var upstream UpstreamError
 		if errors.As(err, &upstream) {
 			if actx, ok := ctx.Get("context").(*Context); ok {
@@ -922,7 +775,6 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				"Error occured rendering error page: %w. How meta.", err))
 		}
 
-		// The route, since a status alone names no request.
 		ctx.Logger().Errorf("%s %s: %v", ctx.Request().Method, ctx.Request().URL.Path, err)
 	}
 
@@ -939,10 +791,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		e.Pre(s.serveOwnDAV())
 	}
 
-	// HTML and stylesheets shrink several-fold over slow links; binary
-	// assets and raw message parts are left alone, and so is the event
-	// stream, which a compressor only holds back and which, cut off by
-	// the page leaving, it answered a second time.
+	// The event stream is skipped: a compressor holds it back.
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Skipper: func(c echo.Context) bool {
 			p := c.Request().URL.Path
@@ -951,34 +800,18 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		MinLength: 1024,
 	}))
 
-	// A browser's POST from another origin is refused: the cookies are
-	// Lax so that an installed app's cold launch, a navigation with no
-	// initiator, is still signed in, and Lax lets a sibling on the same
-	// site post with them.
+	// Lax cookies still let a same-site sibling post, so cross-origin POSTs are refused here.
 	e.Use(echo.WrapMiddleware(http.NewCrossOriginProtection().Handler))
 
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ectx echo.Context) error {
-			// `style-src 'unsafe-inline'` is required for e-mails with
-			// embedded stylesheets. Only alborz frames alborz, and a form
-			// or a base in a message cannot point elsewhere.
+			// `style-src 'unsafe-inline'` is required for e-mails with embedded stylesheets.
 			ectx.Response().Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'; form-action 'self'; base-uri 'none'")
-			// The same for browsers that read framing from this header
-			// alone, and no guessing an attachment into something else.
 			ectx.Response().Header().Set("X-Frame-Options", "SAMEORIGIN")
 			ectx.Response().Header().Set("X-Content-Type-Options", "nosniff")
 			// DNS prefetching has privacy implications
 			ectx.Response().Header().Set("X-DNS-Prefetch-Control", "off")
-			// Everything revalidates by default: assets so a theme or
-			// plugin edit is picked up, pages because a page is a folder
-			// at a moment and carries no validator a store could
-			// revalidate with - left to a browser's own heuristics it is
-			// reused, and the reader is shown a mailbox from before the
-			// mail arrived with nothing but a forced reload to clear it.
-			// The asset handler upgrades URLs stamped with the current
-			// content to immutable, and a session that locks says no-store
-			// below; no-cache here keeps the pages the worker saves to
-			// read offline (ADR 19).
+			// Pages carry no validator, so browsers would reuse stale ones; the asset handler upgrades stamped URLs to immutable.
 			ectx.Response().Header().Set("Cache-Control", "no-cache")
 			return next(ectx)
 		}
@@ -991,22 +824,16 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 			ctx.installTiming()
 			ctx.SetRequest(ctx.Request().WithContext(withStoreMemo(ctx.Request().Context())))
 
-			// A language in the URL is a choice and is kept, so the
-			// next click does not fall back to the old one. Typing it
-			// mid-flow - on the login or add-account page, where there
-			// is no menu to reach for - is the whole point.
+			// A language in the URL is kept, so the next click does not fall back to the old one.
 			if lang := queryLanguage(ectx); lang != "" {
 				if err := ctx.SetLanguage(lang); err != nil {
 					ctx.Logger().Printf("profile: keeping the language: %v", err)
 				}
 			}
 
-			// A locked session answers nothing but the way to unlock or
-			// leave, and does not sign its remembered accounts back in
-			// for whoever is holding the browser.
+			// A locked session does not sign its remembered accounts back in for whoever holds the browser.
 			path, now := ctx.Request().URL.Path, time.Now()
-			// Pages saved for offline are read with no server to ask for
-			// the passkey, so a session that locks has none saved.
+			// Pages saved offline are read with no server to ask for the passkey.
 			session := ctx.lookupSession()
 			if session != nil && session.locks() && !isPublic(path) {
 				ctx.Response().Header().Set("Cache-Control", "no-store")
@@ -1025,26 +852,16 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				}
 			}
 
-			// Whether anyone is signed in is a question about the bag,
-			// not about any one account: the browser names its session
-			// and the session holds what it has signed into.
 			var login *Login
 			if live := ctx.accountLogins(); len(live) > 0 {
 				login = live[0]
 			}
 
-			// A login lives 30 minutes past the last request; the
-			// remembered credentials live 30 days. Sending the reader to
-			// the login page while the browser holds a valid token reads
-			// as being logged out, and an intercepted POST - a message
-			// being sent - was lost outright, because only a GET can be
-			// resumed. Sign the accounts back in and carry on with the
-			// request that arrived.
+			// An intercepted POST cannot be resumed after login, so remembered accounts sign back in first.
 			if login == nil && !isPublic(ctx.Request().URL.Path) {
 				if ctx.RestoreRememberedAccounts() {
 					login = ctx.Login
-					// A restore brings every account back at once, as after
-					// a restart; that is not one timing out, so none is named.
+					// A restore is not one account timing out, so none is named.
 					ctx.lostAccounts = nil
 				}
 			}
@@ -1052,27 +869,20 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 				return handleUnauthenticated(next, ctx)
 			}
 			ctx.Login = login
-			// Every signed-in account is in use: the rail lists them
-			// all, so they all stay alive. The first listed is the one
-			// a page falls back on when the URL names none and the page
-			// cannot be merged.
+			// Every signed-in account stays alive: the rail lists them all.
 			logins := ctx.accountLogins()
 			for _, login := range logins {
 				login.ping()
 			}
 			ctx.Login = logins[0]
 			ctx.DefaultLogin = logins[0]
-			// An account that timed out while others stayed is said
-			// once, on the page, not by a bounce to the login form.
+			// An account that timed out while others stayed is said once, on the page.
 			if len(ctx.lostAccounts) > 0 {
 				ctx.Notify(Notice{Kind: NoticeWarning,
 					Text: ctx.Tf("notice.accountexpired", len(ctx.lostAccounts), strings.Join(ctx.lostAccounts, ", "))})
 			}
 
-			// The URL carries the account (ADR 0001): a link naming one
-			// scopes this request to it, and a bare URL over several
-			// accounts is the merged view, a place rather than a mode,
-			// so nothing sticks between requests.
+			// The URL carries the account (ADR 0001); nothing sticks between requests.
 			if acct := ctx.QueryParam("account"); acct != "" {
 				login := ctx.LoginFor(acct)
 				if login == nil {
@@ -1088,10 +898,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		}
 	})
 
-	// An action that sends the reader elsewhere says what it did: a POST
-	// answered with a redirect and no notice is a handler that forgot,
-	// and the log names it. What changes in place, and a form sent back
-	// with its refusal, answer without a redirect and are not asked.
+	// A POST answered with a redirect and no notice is a handler that forgot.
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ectx echo.Context) error {
 			err := next(ectx)
@@ -1115,11 +922,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		}
 	})
 
-	// The manifest is generated rather than a file, so the name a phone
-	// puts under the icon is BrandName and not a second copy of it that
-	// can drift. minimal-ui rather than standalone: sessions live in
-	// memory, and standalone takes the address bar away, so a restart
-	// would land on /login in a window with no way out.
+	// Generated so the name under the icon is BrandName.
 	e.GET("/manifest.webmanifest", func(ectx echo.Context) error {
 		icon := func(name, purpose string) map[string]string {
 			out := map[string]string{"src": s.assetURL(name), "sizes": "512x512", "type": "image/png"}
@@ -1148,15 +951,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		})
 	})
 
-	// One stream per browser, for the pages that want to know without
-	// asking again. It is answered by the same context every page is,
-	// so a reader who is not signed in gets the sign-in answer here as
-	// anywhere else.
-	//
-	// Every request holds the server's read lock, which a reload waits
-	// on; a stream that holds it for as long as a page is open would
-	// stall the reload and every request queued behind it. It was routed
-	// under the lock, and what it reads is nothing a reload swaps.
+	// A stream would hold the read lock a reload waits on for as long as a page is open; nothing it reads is swapped by a reload.
 	e.GET("/events", func(ectx echo.Context) error {
 		s.mutex.RUnlock()
 		defer s.mutex.RLock()
@@ -1164,11 +959,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 	})
 	e.Server.RegisterOnShutdown(s.Changes.Close)
 
-	// The worker is written here rather than served as an asset: its
-	// scope is the path it is served from, so a worker under /assets/
-	// could only ever see /assets/, and the version it caches under is
-	// the digest of the files it holds. What it keeps is the shell -
-	// stylesheet, scripts, icons - and the pages of ADR 19.
+	// Served here rather than under /assets/: a worker's scope is the path it is served from.
 	e.GET("/sw.js", func(ectx echo.Context) error {
 		urls, version := s.shell()
 		body := fmt.Sprintf(serviceWorker, version, mustJSON(urls))
@@ -1176,8 +967,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		return ectx.String(http.StatusOK, body)
 	})
 
-	// Assets are served from the embedded theme, with the theme directory
-	// on disk taking precedence file by file, like templates.
+	// The theme directory on disk overrides the embedded theme file by file.
 	embeddedAssets, err := fs.Sub(embeddedTheme, "themes/alborz/assets")
 	if err != nil {
 		return nil, err
@@ -1187,8 +977,6 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		if name == "" {
 			return echo.ErrNotFound
 		}
-		// The immutable flag is earned by naming the current content; a
-		// stale version string keeps the no-cache default.
 		if v := ectx.QueryParam("v"); v != "" && v == s.assetStamp(name) {
 			ectx.Response().Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}

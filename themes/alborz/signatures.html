@@ -17,9 +17,6 @@
 
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.signatures") "path" "/signatures") }}
 
-      {{/* The default is a choice made on the list, per row, the way a
-           filter is activated: a preference that saves on its own and
-           never depends on what a form below happens to hold. */}}
       <section class="list-items">
         {{ range .Settings.Signatures }}
         <div class="list-item">

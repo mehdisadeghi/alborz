@@ -19,9 +19,7 @@ type Settings struct {
 
 const settingsKey = "carddav.settings"
 
-// show ticks a book the account just made or accepted in the chosen set
-// in force: what to see was chosen before it existed, which was not a
-// choice to hide it.
+// A book made after the choice was not chosen to be hidden.
 func show(ctx context.Context, store alborz.Store, path string) error {
 	settings := &Settings{}
 	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
@@ -34,7 +32,6 @@ func show(ctx context.Context, store alborz.Store, path string) error {
 	return store.Put(ctx, settingsKey, settings)
 }
 
-// choose writes the books the reader ticked into the settings.
 func choose(ctx context.Context, store alborz.Store, paths []string) error {
 	settings := &Settings{}
 	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
@@ -48,16 +45,9 @@ func init() {
 	alborz.RegisterSetting(settingsKey)
 }
 
-// uidURN is how a UUID is written as a URN (RFC 9562 4), the form vCard
-// UIDs take by convention (RFC 6350 6.7.6).
 const uidURN = "urn:uuid:"
 
-// getAddressObject fetches one card without go-webdav's response
-// parsing. Its populateAddressObject runs the ETag through
-// strconv.Unquote, which rejects the weak form ("W/\"...\"") that
-// Nextcloud sends, and every edit of a contact there died with a bare
-// "invalid syntax". Nothing here needs the ETag: the PUT that saves the
-// card sends no If-Match.
+// Bypasses go-webdav, whose strconv.Unquote rejects a weak ETag.
 func getAddressObject(ctx *alborz.Context, c *carddav.Client, path string) (*carddav.AddressObject, error) {
 	body, err := c.Open(ctx.Request().Context(), path)
 	if err != nil {
@@ -127,9 +117,6 @@ func writeCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Car
 	return err
 }
 
-// changeCard reads one card, lets change rewrite it, and writes it back
-// with a fresh REV. The read is deliberately not go-webdav's: see
-// getAddressObject for the ETag it cannot parse.
 func changeCard(ctx *alborz.Context, ref dav.Ref[*carddav.Client], change func(vcard.Card)) error {
 	ao, err := getAddressObject(ctx, ref.Client, ref.Path)
 	if err != nil {
@@ -139,8 +126,6 @@ func changeCard(ctx *alborz.Context, ref dav.Ref[*carddav.Client], change func(v
 	return writeCard(ctx, ref.Client, ao.Path, ao.Card)
 }
 
-// joinCards writes the cards one after another, which is all a file of
-// vCards is.
 func joinCards(cards [][]byte) ([]byte, error) {
 	var buf bytes.Buffer
 	for _, card := range cards {
@@ -152,9 +137,6 @@ func joinCards(cards [][]byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// warm fetches what the contacts page asks for first, as the account
-// is signed in, so the first click finds it cached: the books and
-// every card the list shows.
 func (p *plugin) warm(ctx *alborz.Context, s *alborz.Login) {
 	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s) })
 }

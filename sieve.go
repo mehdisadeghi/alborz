@@ -15,29 +15,23 @@ type SieveScript struct {
 	Active bool
 }
 
-// SieveClient is the subset of the ManageSieve protocol used by alborz. It
-// hides the underlying library so that it can be replaced.
+// SieveClient is the subset of the ManageSieve protocol used by alborz.
 type SieveClient interface {
 	ListScripts() ([]SieveScript, error)
 	GetScript(name string) (string, error)
 	// PutScript stores or replaces a script and returns server warnings.
-	// The server validates the script and rejects invalid ones.
 	PutScript(name, content string) (warnings string, err error)
-	// ActivateScript makes the named script the only active one. An
-	// empty name deactivates all scripts.
+	// ActivateScript makes the named script the only active one; "" deactivates all.
 	ActivateScript(name string) error
 	DeleteScript(name string) error
-	// Implementation is what the server calls itself, and Extensions
-	// what it says it can do (RFC 5804 1.7). Both are the server's own
-	// claims, announced before anyone asks.
+	// Implementation and Extensions are what the server announces about itself.
 	Implementation() string
 	Extensions() []string
 	Logout() error
 	Close() error
 }
 
-// DialSieveFunc connects to the domain's upstream ManageSieve server and
-// authenticates with the given credentials.
+// DialSieveFunc connects and authenticates to the domain's ManageSieve server.
 type DialSieveFunc func(domain, username, password string) (SieveClient, error)
 
 func (s *Server) parseSieveUpstream(domain string) error {
@@ -56,7 +50,6 @@ func (s *Server) parseSieveUpstream(domain string) error {
 			return nil
 		}
 		if u == nil {
-			// sieve is optional
 			return nil
 		}
 	}
@@ -73,23 +66,17 @@ func (s *Server) parseSieveUpstream(domain string) error {
 	return nil
 }
 
-// Upstreams names the servers an account is actually talking to, for the
-// page that reports where its mail lives: a deployment is not the one
-// the reader is used to, and "which server is this" is the first
-// question a bug report needs answered.
+// Upstreams names the servers an account is talking to.
 type Upstreams struct {
 	IMAP  string
 	SMTP  string
 	Sieve string
-	// Found are the SRV records each was found at, empty where the
-	// deployment named it; Security is how each is reached: tls,
-	// starttls or none.
+	// Found is the SRV record each was found at, "" where configured; Security
+	// is tls, starttls or none.
 	IMAPFound, SMTPFound, SieveFound          string
 	IMAPSecurity, SMTPSecurity, SieveSecurity string
 }
 
-// security names how a connection is protected: TLS from the first
-// byte, TLS after STARTTLS, or nothing.
 func security(tls, insecure bool) string {
 	switch {
 	case tls:
@@ -100,8 +87,7 @@ func security(tls, insecure bool) string {
 	return "starttls"
 }
 
-// UpstreamsFor names the servers configured for a domain. Any of them
-// may be empty - a domain need not have a ManageSieve server at all.
+// UpstreamsFor names the servers configured for a domain; any may be empty.
 func (s *Server) UpstreamsFor(domain string) Upstreams {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {
@@ -115,9 +101,7 @@ func (s *Server) UpstreamsFor(domain string) Upstreams {
 	}
 }
 
-// SieveHost names the ManageSieve server a domain's filters live on,
-// empty when none is configured. A page that talks to somebody else's
-// machine should say which machine.
+// SieveHost names the domain's ManageSieve server, "" when none.
 func (s *Server) SieveHost(domain string) string {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {
@@ -126,8 +110,7 @@ func (s *Server) SieveHost(domain string) string {
 	return d.sieve.host
 }
 
-// SieveEnabled reports whether an upstream ManageSieve server is configured
-// for the domain.
+// SieveEnabled reports whether the domain has a ManageSieve server.
 func (s *Server) SieveEnabled(domain string) bool {
 	d, ok := s.upstreamsFor(domain)
 	return ok && d.sieve.host != ""
@@ -140,11 +123,8 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	}
 
 	host, _, _ := net.SplitHostPort(d.sieve.host)
-	// Dialing is bounded tightly: a host that does not answer at all is
-	// wrong, not far. Each step of the handshake then gets its own
-	// budget rather than sharing one, since the greeting, the TLS
-	// negotiation and the authentication cost wildly different amounts
-	// against a remote proxy. Cleared on success.
+	// Each handshake step gets its own budget, since greeting, TLS and auth
+	// cost very different amounts against a remote proxy.
 	conn, err := net.DialTimeout("tcp", d.sieve.host, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ManageSieve server: %v", err)

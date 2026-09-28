@@ -23,8 +23,7 @@ func TestStatusUnchangedNeedsEveryField(t *testing.T) {
 	if statusUnchanged(full(), moved) {
 		t.Error("a new message arriving went unnoticed")
 	}
-	// A snapshot taken without UIDNEXT can never match a live one, so
-	// whoever takes the snapshot has to ask for every field compared.
+	// Whoever takes the snapshot has to ask for every field compared.
 	partial := full()
 	partial.UIDNext = 0
 	if statusUnchanged(partial, full()) {
@@ -52,8 +51,6 @@ func TestListingCacheStates(t *testing.T) {
 	if _, state := lc.lookup("u", "INBOX", 25); state != listingFresh {
 		t.Errorf("a refreshed entry is not fresh again: %v", state)
 	}
-	// An entry nobody reads is let go of at the next store; one just
-	// read is not, however old what it holds.
 	lc.entries[listingKey{"u", "Sent"}].lastUse = time.Now().Add(-2 * listingKeepFor)
 	lc.storeAt("u", "Drafts", &listingEntry{perPage: 25}, lc.epoch("u"))
 	if _, state := lc.lookup("u", "Sent", 25); state != listingMiss {
@@ -64,8 +61,6 @@ func TestListingCacheStates(t *testing.T) {
 	}
 	lc.storeAt("u", "Sent", &listingEntry{perPage: 25}, lc.epoch("u"))
 
-	// A change to one folder drops its searches with it and leaves the
-	// other folders alone.
 	lc.evict("u", "INBOX")
 	if _, state := lc.lookup("u", listingView("INBOX", "hello", "", "", ""), 25); state != listingMiss {
 		t.Errorf("a search over the changed folder survived")
@@ -85,9 +80,6 @@ func TestListingCacheStaysBounded(t *testing.T) {
 	}
 }
 
-// TestListingTakesFlagsInPlace checks that a message read here, and a
-// flag the server announced, change the cached row and the folder's
-// unseen count without the listing being fetched again.
 func TestListingTakesFlagsInPlace(t *testing.T) {
 	lc := newListingCache(listingKeepFor, alborz.NewBackgroundMemo[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
 	unseen := uint32(2)
@@ -116,8 +108,7 @@ func TestListingTakesFlagsInPlace(t *testing.T) {
 		t.Errorf("unseen after the server read seq 2: %d", n)
 	}
 
-	// An expunge renumbers: seq 1 now names another message than the
-	// row this page read it for.
+	// An expunge renumbers: seq 1 may name another message now.
 	lc.stale("u", "INBOX")
 	lc.setFlags("u", "INBOX", 1, []imap.Flag{imap.FlagFlagged})
 	e, _ = lc.lookup("u", "INBOX", 25)

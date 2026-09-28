@@ -30,30 +30,18 @@ type MailboxInfo struct {
 	Total  int
 	Unseen int
 
-	// Display name: the special-use folders translate, custom folders
-	// keep their real names; the wire name stays in URLs and values.
+	// Label is the display name; the wire name stays in URLs and values.
 	Label string
 }
 
-// CrumbLink is one step of the path a page shows above itself: what it
-// is called and where it goes. A step with no URL is named but not
-// linked, which is what a folder that cannot be selected deserves.
+// CrumbLink is one step of the path a page shows above itself.
 type CrumbLink struct {
 	Label   string
 	URL     string
 	Address bool // reads left to right whatever the page does
 }
 
-// mailboxCrumb names the path to a folder, each step leading to it. The
-// account is the first step and leads to its inbox, because that is
-// where "back" means for mail.
-//
-// A step is named by its own path segment, not by the folder's Label:
-// a custom folder's label is its whole wire name, which would repeat
-// the path at every step. A special-use folder is the exception worth
-// making, so the first step reads Inbox rather than INBOX. A segment
-// the folder list does not hold, or holds as a parent that cannot be
-// selected, is named but not linked.
+// Steps are named by path segment: a custom folder's Label is its whole wire name.
 func mailboxCrumb(mailboxes []MailboxInfo, name, account string) []CrumbLink {
 	crumb := []CrumbLink{{Label: account, URL: "/mailbox/INBOX", Address: true}}
 	if name == "" {
@@ -89,8 +77,6 @@ func mailboxCrumb(mailboxes []MailboxInfo, name, account string) []CrumbLink {
 	return crumb
 }
 
-// role names the special-use category, empty for custom folders. It
-// checks the RFC 6154 attributes first, then the conventional names.
 func (mbox *MailboxInfo) role() string {
 	name := mbox.Mailbox
 	switch {
@@ -118,9 +104,7 @@ func (mbox *MailboxInfo) URL() *url.URL {
 	return mailboxPageURL(mbox.Name())
 }
 
-// mailboxPageURL holds the decoded name in Path and the escaping in
-// RawPath, so a folder with a slash in its name is not encoded twice
-// by String.
+// RawPath keeps a slash in a folder name from being encoded twice.
 func mailboxPageURL(name string) *url.URL {
 	return &url.URL{
 		Path:    "/mailbox/" + name,
@@ -144,13 +128,7 @@ func (mbox *MailboxInfo) IsInternal() bool {
 	return slices.Contains(mbox.Attrs, imap.MailboxAttrNoSelect)
 }
 
-// startListMailboxes issues the mailbox LIST without draining it, so the
-// caller can pipeline further commands behind it on the same connection and
-// pay one round trip for all of them. Counts come from a scoped STATUS pass
-// instead of LIST-STATUS, so the server is not asked to count every folder.
-// startListMailboxes issues the LIST, with each folder's counts riding
-// on it where the server offers that (LIST-STATUS, RFC 5819), so the
-// sidebar needs no STATUS of its own for those.
+// Counts ride on LIST-STATUS where offered, so the sidebar needs no STATUS for those.
 func startListMailboxes(conn *imapclient.Client) *imapclient.ListCommand {
 	var options *imap.ListOptions
 	if conn.Caps().Has(imap.CapListStatus) {
@@ -159,8 +137,6 @@ func startListMailboxes(conn *imapclient.Client) *imapclient.ListCommand {
 	return conn.List("", "*", options)
 }
 
-// finishListMailboxes drains a command from startListMailboxes into the
-// sorted mailbox list.
 func finishListMailboxes(list *imapclient.ListCommand) ([]MailboxInfo, error) {
 	var mailboxes []MailboxInfo
 	for {
@@ -195,8 +171,7 @@ func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
 	return finishListMailboxes(startListMailboxes(conn))
 }
 
-// RoleFolder names the account's folder for a role, empty when it has
-// none; for another plugin that files by role.
+// RoleFolder names the account's folder for a role, empty when it has none.
 func RoleFolder(ctx *alborz.Context, role string) (string, error) {
 	var name string
 	err := ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -210,8 +185,7 @@ func RoleFolder(ctx *alborz.Context, role string) (string, error) {
 	return name, err
 }
 
-// MailboxNames lists the account's folders that can hold a message, for
-// another plugin that files into them.
+// MailboxNames lists the account's selectable folders.
 func MailboxNames(ctx *alborz.Context) ([]string, error) {
 	var names []string
 	err := ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -237,10 +211,7 @@ func (mbox *MailboxStatus) Name() string {
 	return mbox.Mailbox
 }
 
-// IsEmpty reports a folder the server says holds nothing, so the
-// controls that would clear it can say so before they are pressed. An
-// absent count means the server did not answer it; the folder is then
-// treated as holding something rather than blocking the action.
+// IsEmpty reports a folder the server says holds nothing; an absent count is not empty.
 func (mbox *MailboxStatus) IsEmpty() bool {
 	return mbox.NumMessages != nil && *mbox.NumMessages == 0
 }
@@ -249,8 +220,6 @@ func (mbox *MailboxStatus) URL() *url.URL {
 	return mailboxPageURL(mbox.Name())
 }
 
-// getMailboxByRole finds the account's folder for a special-use role
-// through the same classifier the sidebar labels use.
 func getMailboxByRole(conn *imapclient.Client, role string) (*MailboxInfo, error) {
 	mailboxes, err := listMailboxes(conn)
 	if err != nil {
@@ -281,63 +250,34 @@ type IMAPMessage struct {
 	// Account owning the message, set only in the unified view
 	Account string
 
-	// Mailing-list addresses from the whole message's header, empty
-	// unless it was fetched: a part's own header does not carry them.
+	// ListPost is empty unless the whole message's header was fetched.
 	ListPost string
-	// ListUnsubscribe is where the page should send the reader: our own
-	// compose form when the list offers only a mailto, the list's own
-	// page otherwise.
+	// ListUnsubscribe is where the page sends the reader to leave the list.
 	ListUnsubscribe string
-	// OneClick is the https endpoint a list promises to honour on a bare
-	// POST (RFC 8058). It is posted by us, from the server: the browser
-	// cannot, and a GET is what link scanners fire by accident, which is
-	// the reason the POST exists.
-	OneClick string
-	// rootHeader is the whole message's header, kept because a part's
-	// own header does not carry Autocrypt any more than it carries
-	// List-Post. Empty unless the message was fetched with it.
+	// OneClick is the RFC 8058 endpoint, posted from the server.
+	OneClick   string
 	rootHeader textproto.Header
-	// References is the thread chain the message carries. ENVELOPE does
-	// not include it, so it comes from the header like the list ones.
+	// References is the thread chain; ENVELOPE does not carry it.
 	References string
-	// Author is who wrote a message whose From the list replaced with
-	// its own address, named by the headers the list wrote; nil when
-	// the From is the author's own. Via is then the list itself, under
-	// the name it gave itself in that From.
+	// Author wrote a message whose From the list Via replaced; nil otherwise.
 	Author *imap.Address
 	Via    *imap.Address
-	// ListID names the list, without the angle brackets and without the
-	// description some senders put before them. It is what says a
-	// message is list mail at all: List-Post can be absent from a list
-	// that refuses posts, and present on nothing else.
+	// ListID names the list; it, not List-Post, says a message is list mail.
 	ListID string
-	// ListHelp, ListSubscribe, ListOwner and ListArchive are the rest of
-	// RFC 2369. A list that offers them is saying where to ask, how to
-	// join, who runs it and where the past is kept.
+	// ListHelp, ListSubscribe, ListOwner and ListArchive are the rest of RFC 2369.
 	ListHelp      string
 	ListSubscribe string
 	ListOwner     string
 	ListArchive   string
-	// Depth is how deep in its thread a row sits, 0 for the message that
-	// started one. Only the threaded view sets it.
+	// Depth is a row's depth in its thread, set only by the threaded view.
 	Depth int
-	// Alias is the address this message was delivered to when that is
-	// not the account it landed in and the delivery path is worth
-	// believing. Set by the route, which knows the served domains and
-	// what the reader trusts; empty means show nothing.
+	// Alias is the trusted delivery address when it is not the account's.
 	Alias string
-	// DeliveredTo is every address the delivery path recorded, topmost
-	// header first. Mail to an alias often names the alias nowhere
-	// else: the envelope carried it, To and Cc hold the list or the
-	// original recipient, and only the delivering server writes it down.
+	// DeliveredTo is every address the delivery path recorded, topmost first.
 	DeliveredTo []string
 }
 
-// Date is when the message is shown to have arrived. A Date header is
-// written by the sender and is not always a date at all - SourceHut
-// sends a bare "2026-08-27", which parses to the zero time and once
-// rendered as "2025 years ago". The server's own INTERNALDATE stands in
-// then: every server keeps one, and no sender can break it.
+// Date is the sender's Date, or INTERNALDATE when that did not parse.
 func (msg *IMAPMessage) Date() time.Time {
 	if msg.Envelope != nil && !msg.Envelope.Date.IsZero() {
 		return msg.Envelope.Date
@@ -345,9 +285,6 @@ func (msg *IMAPMessage) Date() time.Time {
 	return msg.InternalDate
 }
 
-// firstListURI returns the first bracketed URI of an RFC 2369 header
-// whose scheme is wanted, or the first of any scheme when wanted is
-// empty. Such a header is a comma-separated list of <URI> entries.
 func firstListURI(value string, wanted ...string) string {
 	for _, field := range strings.Split(value, ",") {
 		field = strings.TrimSpace(field)
@@ -367,13 +304,7 @@ func firstListURI(value string, wanted ...string) string {
 	return ""
 }
 
-// composeFromMailto turns a mailto: URI into a link to our own compose
-// form. A webmail that hands the browser a mailto opens whatever mail
-// app the machine has - which is not the account the message arrived
-// in, and on a phone is not alborz at all. RFC 6068 puts the address
-// before the query and the rest in it; only the fields compose already
-// speaks are carried, and the person still reads the message before
-// sending it.
+// A mailto would open whatever mail app the machine has, not this account.
 func composeFromMailto(uri string) string {
 	if !strings.HasPrefix(strings.ToLower(uri), "mailto:") {
 		return uri
@@ -397,13 +328,7 @@ func composeFromMailto(uri string) string {
 	return "/compose?" + alborz.Query(q)
 }
 
-// deliveryHeaders are the ways an MTA writes down which address a
-// message was delivered to. There is no standard one: Postfix writes
-// X-Original-To for the address that was aliased and Delivered-To for
-// the mailbox it landed in, Exim writes Envelope-To, and others write
-// X-Envelope-To. All of them are collected rather than ranked, because
-// which one holds the alias depends on the server rather than on the
-// mail, and the caller is matching against a known set of identities.
+// Which header holds the alias depends on the server, so all are collected.
 var deliveryHeaders = []string{
 	"x-original-to",
 	"x-envelope-to",
@@ -414,22 +339,10 @@ var deliveryHeaders = []string{
 	"x-rcptto",
 }
 
-// receivedFor matches the "for <addr>" clause of a Received header,
-// which is the envelope recipient written by the receiving server. It
-// is the one place the address appears when no MTA on the path added a
-// header of its own.
 var receivedFor = regexp.MustCompile(`(?i)\bfor\s+<([^>]+)>`)
 
-// deliveryAddresses gathers the addresses the delivery path named, in
-// the order the header carries them: a hop prepends what it writes, so
-// the topmost entries are the most recent and the bottom ones were in
-// the message before anyone but the sender had touched it.
-//
-// cut is how many of them our own server is answerable for - those
-// above the Received naming authserv. It is len(addrs) when authserv is
-// empty, because without a name there is nothing to measure against,
-// and 0 when a name is given and no Received carries it: a message that
-// cannot be judged is not believed.
+// cut is how many addresses our own server answers for: all without authserv,
+// none when no Received names it.
 func deliveryAddresses(h textproto.Header, authserv string) (addrs []string, cut int) {
 	seen := map[string]bool{}
 	add := func(v string) {
@@ -453,13 +366,8 @@ func deliveryAddresses(h textproto.Header, authserv string) (addrs []string, cut
 	for fields := h.Fields(); fields.Next(); {
 		key := strings.ToLower(fields.Key())
 		if key == "received" {
-			// Our own server writes its delivery headers around its
-			// Received, not only above it, so the boundary is the first
-			// Received belonging to somebody else: from there down the
-			// message is as an earlier hop handed it over. That holds
-			// only if our server wrote a Received above the boundary at
-			// all; where it did not, the top of the message is somebody
-			// else's and nothing in it is ours to believe.
+			// Our server writes delivery headers around its Received, so the
+			// boundary is the first Received that is not ours.
 			hop := strings.ToLower(fields.Value())
 			if want != "" && !ended {
 				if strings.Contains(hop, want) {
@@ -486,10 +394,6 @@ func deliveryAddresses(h textproto.Header, authserv string) (addrs []string, cut
 	return addrs, cut
 }
 
-// listAction turns one of RFC 2369's action headers into somewhere the
-// page can send the reader: the list's own page when it offers one, and
-// our compose form when it offers only a mailto, for the same reason
-// unsubscribe does.
 func listAction(value string) string {
 	if uri := firstListURI(value, "https", "http"); uri != "" {
 		return uri
@@ -497,15 +401,9 @@ func listAction(value string) string {
 	return composeFromMailto(firstListURI(value, "mailto"))
 }
 
-// headerWords decodes the encoded-words (RFC 2047) in a header field.
-// They have no business in a structured field like List-Unsubscribe,
-// and SendGrid writes them there anyway, splitting one URI across two
-// words; a reader who cannot leave a list because of that is a reader
-// stuck with the mail.
+// Senders put encoded-words even in structured fields like List-Unsubscribe.
 var headerWords = &mime.WordDecoder{CharsetReader: charset.Reader}
 
-// decodedField is a header field with its encoded-words resolved, or
-// as written when they cannot be.
 func decodedField(h textproto.Header, key string) string {
 	value := h.Get(key)
 	if !strings.Contains(value, "=?") {
@@ -518,19 +416,10 @@ func decodedField(h textproto.Header, key string) string {
 	return decoded
 }
 
-// viaName splits a display name a list rewrote: Mailman puts the
-// author's name in front of "via" and its own after it, so that a
-// message signed by the list still reads as the author's (RFC 7960
-// calls this the From munging DMARC forces on lists).
+// A list that rewrites From names it "Author via List".
 var viaName = regexp.MustCompile(`^(.*\S)\s+via\s+(\S.*)$`)
 
-// authorBehindList names who wrote a message whose From the list
-// replaced with its own address. The list says so itself: Mailman 3
-// records the envelope sender it received in X-MailFrom, Mailman 2 and
-// Google Groups keep the original in X-Original-From, and a Reply-To
-// naming the same person is the third witness. Nothing is inferred
-// from absence: without one of those headers the From stands as
-// written.
+// Nothing is inferred from absence: without one of these headers the From stands.
 func authorBehindList(h textproto.Header, from *imap.Address, listID string) *imap.Address {
 	if listID == "" || from == nil {
 		return nil
@@ -548,8 +437,7 @@ func authorBehindList(h textproto.Header, from *imap.Address, listID string) *im
 		}
 		addr, err := mail.ParseAddress(value)
 		if err != nil {
-			// X-MailFrom is a bare address, which the parser refuses
-			// only when it carries no angle brackets and no name.
+			// X-MailFrom may be a bare address.
 			if !strings.Contains(value, "@") || strings.ContainsAny(value, " ,<") {
 				continue
 			}
@@ -558,9 +446,7 @@ func authorBehindList(h textproto.Header, from *imap.Address, listID string) *im
 		if strings.ToLower(addr.Address) == listed {
 			continue
 		}
-		// A Reply-To is the sender's to write, so it is believed only
-		// when it names the same person the From does; the two headers
-		// the list wrote itself are believed as they are.
+		// A Reply-To is the sender's to write, so it must name the From's person.
 		if key == "Reply-To" && !strings.EqualFold(strings.TrimSpace(addr.Name), name) {
 			continue
 		}
@@ -573,13 +459,11 @@ func authorBehindList(h textproto.Header, from *imap.Address, listID string) *im
 	return nil
 }
 
-// HeaderField is one field of the whole message's header, decoded, for
-// a plugin that answers a message by what its header says.
+// HeaderField is one decoded field of the whole message's header.
 func (msg *IMAPMessage) HeaderField(key string) string {
 	return decodedField(msg.rootHeader, key)
 }
 
-// setListHeaders records the mailing-list addresses a message carries.
 // List-Post: NO means the list refuses posts, which is not an address.
 func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 	msg.rootHeader = h
@@ -593,13 +477,9 @@ func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 		msg.ListPost = strings.TrimPrefix(post, "mailto:")
 	}
 	msg.ListID = listID(h)
-	// A one-click https endpoint is preferred; a mailto asks the user to
-	// send a message, which they can at least read before sending. Plain
-	// http is not offered: the POST is made from here, and only over a
-	// connection the list cannot be impersonated on.
+	// Plain http is not offered: the POST is made from here and must not be impersonated.
 	msg.ListUnsubscribe = firstListURI(decodedField(h, "List-Unsubscribe"), "https")
-	// RFC 8058: the promise is in a header of its own, and without it an
-	// https URI is a page to visit rather than an endpoint to post to.
+	// Without List-Unsubscribe-Post an https URI is a page to visit (RFC 8058).
 	if strings.Contains(strings.ToLower(decodedField(h, "List-Unsubscribe-Post")), "one-click") {
 		msg.OneClick = msg.ListUnsubscribe
 	}
@@ -615,9 +495,7 @@ func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 	}
 }
 
-// ListDetails reports whether the message names anything about its list
-// beyond leaving it: a bulk sender writes List-ID and List-Unsubscribe
-// and nothing else, and a card with no rows says nothing.
+// ListDetails reports whether the message names anything about its list beyond leaving it.
 func (msg *IMAPMessage) ListDetails() bool {
 	return msg.ListPost != "" || msg.ListHelp != "" || msg.ListSubscribe != "" ||
 		msg.ListOwner != "" || msg.ListArchive != ""
@@ -627,9 +505,7 @@ func (msg *IMAPMessage) URL() *url.URL {
 	return messageURL(msg.Mailbox, msg.UID)
 }
 
-// neighbourURL is where Newer and Older point: the message, and the
-// list it is being read in. Without the narrowing and the order, one
-// step sideways would land the reader in the plain folder.
+// Without the narrowing and order, one step sideways lands in the plain folder.
 func neighbourURL(ctx *alborz.Context, mboxName string, uid imap.UID) *url.URL {
 	next := messageURL(mboxName, uid)
 	if next == nil {
@@ -672,16 +548,13 @@ func newIMAPPartNode(msg *IMAPMessage, path []int, part imap.BodyStructure) *IMA
 	return node
 }
 
-// A base64 line is 76 characters and its CRLF, and carries 57 bytes
-// (RFC 2045 6.8).
+// A base64 line is 76 characters and its CRLF, carrying 57 bytes (RFC 2045 6.8).
 const (
 	base64LineOctets = 78
 	base64LineBytes  = 57
 )
 
-// decodedSize is what a part weighs once saved. The structure counts
-// the octets as transferred: an attachment said to be 12 MB arrived as
-// a file of 9.
+// The structure counts octets as transferred, not as saved.
 func decodedSize(part *imap.BodyStructureSinglePart) uint32 {
 	if strings.EqualFold(part.Encoding, "base64") {
 		return uint32(uint64(part.Size) * base64LineBytes / base64LineOctets)
@@ -722,9 +595,7 @@ func (msg *IMAPMessage) TextPart() *IMAPPartNode {
 	return best
 }
 
-// PreferredPart is the part a message opens at. Plain text unless the
-// account asked for the other order, and either way whatever the message
-// actually has.
+// PreferredPart is the part a message opens at.
 func (msg *IMAPMessage) PreferredPart(preferHTML bool) *IMAPPartNode {
 	if preferHTML {
 		if html := msg.HTMLPart(); html != nil {
@@ -782,15 +653,8 @@ func (msg *IMAPMessage) Attachments() []IMAPPartNode {
 	return attachments
 }
 
-// attached is the one rule for what is a file and what is the message
-// itself, read by the page, the list, the zip and the body alike.
-// Senders mark a file three ways: Content-Disposition attachment
-// (RFC 2183), inline with a filename, as Apple Mail places every file
-// inside the HTML, or only a name on the Content-Type, as older Outlook
-// does. The signature of a multipart/signed (RFC 1847), a part the HTML
-// shows by its Content-ID (multipart/related, RFC 2387) and unnamed text
-// are the message; anything else is a file. parent is the subtype of the
-// multipart the part sits in.
+// attached is the one rule for what is a file and what is the message itself.
+// parent is the subtype of the multipart the part sits in.
 func attached(mediaType, disposition, filename, contentID, parent string) bool {
 	switch {
 	case strings.EqualFold(parent, "signed") && signatureTypes[strings.ToLower(mediaType)]:
@@ -805,7 +669,6 @@ func attached(mediaType, disposition, filename, contentID, parent string) bool {
 	return !strings.HasPrefix(strings.ToLower(mediaType), "text/")
 }
 
-// signatureTypes are what a multipart/signed carries its signature as:
 // OpenPGP (RFC 3156) and S/MIME (RFC 8551, with the older x- name).
 var signatureTypes = map[string]bool{
 	"application/pgp-signature":     true,
@@ -813,7 +676,6 @@ var signatureTypes = map[string]bool{
 	"application/x-pkcs7-signature": true,
 }
 
-// fileParts is attached over a structure, keyed by part path.
 func fileParts(bs imap.BodyStructure) map[string]bool {
 	parents := map[string]string{}
 	files := map[string]bool{}
@@ -864,14 +726,7 @@ func (msg *IMAPMessage) PartByPath(path []int) *IMAPPartNode {
 	return result
 }
 
-// ShownImages are the images the HTML shows by their Content-ID, which
-// no file list names: read as text, the message shows them after it, or
-// they are nowhere at all (ADR 39).
-//
-// Only the ones beside the part being read. An image under an HTML
-// alternative belongs to that version of the message, and the reader
-// looking at the plain text chose the other one - where the sender put
-// words and nothing else.
+// ShownImages are the images beside the part at path that the HTML shows by Content-ID.
 func (msg *IMAPMessage) ShownImages(path []int) []IMAPPartNode {
 	if msg.BodyStructure == nil || len(path) == 0 {
 		return nil
@@ -890,10 +745,7 @@ func (msg *IMAPMessage) ShownImages(path []int) []IMAPPartNode {
 	return images
 }
 
-// HTMLPieces are the parts the HTML at path is one of, in order, when a
-// client split it around what sits between: Apple Mail writes its HTML
-// branch as a multipart/mixed of HTML, file, HTML, and a reader there
-// sees one message with the images in place. Nil when the HTML is whole.
+// HTMLPieces are the pieces of an HTML split around inline images, nil when whole.
 func (msg *IMAPMessage) HTMLPieces(path []int) []IMAPPartNode {
 	if msg.BodyStructure == nil || len(path) == 0 {
 		return nil
@@ -967,8 +819,7 @@ func (node IMAPPartNode) PathString() string {
 	return strings.Join(l, ".")
 }
 
-// AttachmentsSize is what the whole set of attachments weighs, the
-// figure a reader wants before deciding to take them.
+// AttachmentsSize is what the whole set of attachments weighs.
 func (msg *IMAPMessage) AttachmentsSize() string {
 	var total int64
 	for _, part := range msg.Attachments() {
@@ -981,8 +832,6 @@ func (node IMAPPartNode) SizeString() string {
 	return formatSize(int64(node.Size))
 }
 
-// formatSize writes a byte count the way every size on a page reads:
-// the list column and the attachment rows the same.
 func formatSize(n int64) string {
 	switch {
 	case n >= 1<<20:
@@ -994,16 +843,10 @@ func formatSize(n int64) string {
 	}
 }
 
-// URL is where a part is fetched from. The account belongs in it: a URL
-// that names none is served by the first account signed in (ADR 1), so
-// an image or a file in any other account's message was looked for in
-// the wrong mailbox and answered with a 404.
+// URL is where a part is fetched from; without the account the first signed-in one serves it.
 func (node IMAPPartNode) URL(raw bool, account string) *url.URL {
 	u := node.Message.URL()
-	// Both halves or neither: url.URL uses RawPath only while it is a
-	// valid encoding of Path, so appending to one alone silently drops
-	// the escaping and a mailbox named INBOX/Lists became two path
-	// segments. Every download of a part in a nested folder 404d.
+	// Both halves or neither: url.URL uses RawPath only while it encodes Path.
 	if raw {
 		u.Path += "/raw"
 		u.RawPath += "/raw"
@@ -1017,12 +860,7 @@ func (node IMAPPartNode) URL(raw bool, account string) *url.URL {
 	return u
 }
 
-// IsText reports a part the page itself can show. Not every text/* part
-// is one: a calendar, a card and a spreadsheet are text by MIME type and
-// data by intent, and sending them to the viewer means an attachment
-// that has no way to be saved - which is what an attachment is for.
-//
-// Only what the view plugins render belongs here.
+// IsText reports a part the page itself can show, which not every text/* part is.
 func (node IMAPPartNode) IsText() bool {
 	switch strings.ToLower(node.MIMEType) {
 	case "text/plain", "text/html":
@@ -1075,22 +913,13 @@ func (msg *IMAPMessage) PartTree() *IMAPPartNode {
 	return imapPartTree(msg, msg.BodyStructure, nil)
 }
 
-// flagColorBits are the three keywords Apple Mail and Outlook agree to
-// read as a bit field beside \Flagged, low bit first. A flag is only
-// coloured when \Flagged is set too; the bits alone mean nothing.
+// Low bit first; the bits mean nothing without \Flagged.
 var flagColorBits = [3]imap.Flag{"$MailFlagBit0", "$MailFlagBit1", "$MailFlagBit2"}
 
-// FlagColors names the seven colours those three bits address, in the
-// order the two clients number them. The index is the value of the bit
-// field, so FlagColors[0] is what a plain \Flagged shows as: the state
-// a plain click leaves and the state every other client sets. Apple's
-// names and Apple's order, so a message flagged in Apple Mail wears
-// the colour there that it wears here.
+// FlagColors names the colours the flag bits address, indexed by their value.
 var FlagColors = [7]string{"red", "orange", "yellow", "green", "blue", "purple", "grey"}
 
-// FlagColor is the colour this message is flagged in, empty when it
-// carries no flag at all. A bit field naming no colour we know (the one
-// unused value) reads as the plain flag rather than as nothing.
+// FlagColor is the colour this message is flagged in, empty when unflagged.
 func (msg *IMAPMessage) FlagColor() string {
 	if !msg.HasFlag(imap.FlagFlagged) {
 		return ""
@@ -1107,15 +936,13 @@ func (msg *IMAPMessage) FlagColor() string {
 	return FlagColors[n]
 }
 
-// FlagColorOption is one colour offered by a picker: what to post, and
-// what to call it in the page's language.
+// FlagColorOption is one colour offered by a picker.
 type FlagColorOption struct {
 	Name  string
 	Label string
 }
 
-// FlagColorFlags turns a colour name into the flags a message must
-// carry to wear it, and the ones it must not. An empty name unflags.
+// FlagColorFlags returns the flags to add and remove for a colour; "" unflags.
 func FlagColorFlags(color string) (add, del []imap.Flag) {
 	if color == "" {
 		return nil, append([]imap.Flag{imap.FlagFlagged}, flagColorBits[:]...)
@@ -1140,11 +967,7 @@ func FlagColorFlags(color string) (add, del []imap.Flag) {
 	return add, del
 }
 
-// HasFlag reports whether the message carries a flag. Flags are
-// case-insensitive (RFC 9051 2.3.2) and servers differ on what they
-// give back: Dovecot keeps the case a keyword was stored in, others
-// fold it, so an exact comparison finds $MailFlagBit0 on one server and
-// misses it on the next.
+// HasFlag reports whether the message carries a flag, ignoring case.
 func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 	for _, f := range msg.Flags {
 		if strings.EqualFold(string(f), string(flag)) {
@@ -1154,16 +977,7 @@ func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
 	return false
 }
 
-// listHeaderItem is the small header fetch a row needs on top of its
-// envelope: which address the message was delivered to, and whether it
-// came from a list. HEADER.FIELDS is a handful of short lines rather
-// than the whole header, and it rides the round trip the row already
-// costs.
-//
-// The scanner, authentication and Received lines are not asked for: a
-// row says nothing about them since the warnings live on the message
-// page, where the whole header is fetched anyway, and Received is long
-// and repeated - the one field that made this fetch expensive.
+// Warnings live on the message page, so a row fetches no scanner or Received lines.
 func listHeaderItem() *imap.FetchItemBodySection {
 	return &imap.FetchItemBodySection{
 		Peek:         true,
@@ -1172,11 +986,9 @@ func listHeaderItem() *imap.FetchItemBodySection {
 	}
 }
 
-// rowFields is what a list fetches of each row.
 type rowFields func(header *imap.FetchItemBodySection) *imap.FetchOptions
 
-// listFetchOptions is what every row in every list needs, in one place
-// so a column added to one list is not missing from the other.
+// One place, so a column added to one list is not missing from another.
 func listFetchOptions(header *imap.FetchItemBodySection) *imap.FetchOptions {
 	return &imap.FetchOptions{
 		Envelope:      true,
@@ -1189,8 +1001,7 @@ func listFetchOptions(header *imap.FetchItemBodySection) *imap.FetchOptions {
 	}
 }
 
-// mergeFetchOptions is what a merge compares and no more: a row deeper
-// than the page shown is read only to find the page.
+// A row deeper than the page shown is read only to find the page.
 func mergeFetchOptions(*imap.FetchItemBodySection) *imap.FetchOptions {
 	return &imap.FetchOptions{
 		Envelope:     true,
@@ -1201,7 +1012,6 @@ func mergeFetchOptions(*imap.FetchItemBodySection) *imap.FetchOptions {
 	}
 }
 
-// wholeRows reads the named rows of a folder as every list shows them.
 func wholeRows(conn *imapclient.Client, mboxName string, uids []imap.UID) ([]IMAPMessage, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, err
@@ -1219,9 +1029,7 @@ func wholeRows(conn *imapclient.Client, mboxName string, uids []imap.UID) ([]IMA
 	return rows, nil
 }
 
-// setRowHeaders fills in what the small header fetch answered. A server
-// that returned nothing leaves the row without its marks rather than
-// failing the listing.
+// A server that returned nothing leaves the row without its marks.
 func (msg *IMAPMessage) setRowHeaders(buf []byte) {
 	if len(buf) == 0 {
 		return
@@ -1230,17 +1038,13 @@ func (msg *IMAPMessage) setRowHeaders(buf []byte) {
 	if err != nil {
 		return
 	}
-	// The header is kept, not just read: deciding which delivery
-	// addresses to believe needs to know where each one sat.
+	// Kept: deciding which delivery addresses to believe needs where each sat.
 	msg.rootHeader = h
 	msg.DeliveredTo, _ = deliveryAddresses(h, "")
 	msg.ListID = listID(h)
 }
 
-// messageListID reads one message's List-Id and nothing else. It exists
-// so a decision that belongs to the server - whether a reply is going to
-// a list - is answered by asking the message, rather than by trusting a
-// field the page put in the form when it was rendered.
+// Whether a reply goes to a list is asked of the message, not of a form field.
 func messageListID(conn *imapclient.Client, mboxName string, uid imap.UID) (string, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return "", err
@@ -1266,10 +1070,7 @@ func messageListID(conn *imapclient.Client, mboxName string, uid imap.UID) (stri
 	return listID(h), nil
 }
 
-// listID is the identifier out of RFC 2919's List-Id: an optional
-// phrase, then the identifier in angle brackets. The phrase is the
-// sender's prose and not a name we can match on, so only the identifier
-// is kept.
+// The phrase before the bracketed identifier is prose, not a name to match on.
 func listID(h textproto.Header) string {
 	id := h.Get("List-Id")
 	if id == "" {
@@ -1282,8 +1083,7 @@ func listID(h textproto.Header) string {
 }
 
 func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPage int, fields rowFields) (msgs []IMAPMessage, total int, err error) {
-	// A fresh SELECT already reports the message count; only an already
-	// selected mailbox needs a NOOP to notice new mail.
+	// Only an already selected mailbox needs a NOOP to notice new mail.
 	if mbox := conn.Mailbox(); mbox != nil && mbox.Name == mboxName {
 		if err := conn.Noop().Wait(); err != nil {
 			return nil, 0, err
@@ -1292,9 +1092,7 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 		return nil, 0, fmt.Errorf("failed to select mailbox: %v", err)
 	}
 
-	// A selected mailbox can still be gone by the time it is read: a
-	// connection that dropped between the SELECT and here reports none,
-	// and a listing goroutine panicking takes the whole server down.
+	// A connection dropped since the SELECT reports no mailbox.
 	mbox := conn.Mailbox()
 	if mbox == nil {
 		return nil, 0, fmt.Errorf("mailbox %q is no longer selected", mboxName)
@@ -1324,7 +1122,6 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 		msgs = append(msgs, row)
 	}
 
-	// Reverse list of messages
 	for i := len(msgs)/2 - 1; i >= 0; i-- {
 		opp := len(msgs) - 1 - i
 		msgs[i], msgs[opp] = msgs[opp], msgs[i]
@@ -1333,11 +1130,7 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 	return msgs, total, nil
 }
 
-// recentEnvelopes fetches the envelopes of the last n messages in a
-// mailbox and nothing besides. The listing fetch carries flags, a body
-// structure and a header section as well, which is a great many bytes
-// over a couple of hundred messages for a caller that only reads
-// addresses off the envelope.
+// Envelopes only: the listing fetch is many bytes for a caller reading addresses.
 func recentEnvelopes(conn *imapclient.Client, mboxName string, n int) ([]*imapclient.FetchMessageBuffer, error) {
 	data, err := conn.Select(mboxName, nil).Wait()
 	if err != nil {
@@ -1356,10 +1149,7 @@ func recentEnvelopes(conn *imapclient.Client, mboxName string, n int) ([]*imapcl
 	return conn.Fetch(seqSet, &imap.FetchOptions{Envelope: true}).Collect()
 }
 
-// ThreadAlgorithm is the algorithm the server offers, or "" when it
-// offers none. REFERENCES follows the reply chain and is what a mailing
-// list needs; ORDEREDSUBJECT only groups by subject and is taken when
-// it is all there is.
+// ThreadAlgorithm is the algorithm the server offers, REFERENCES first, or "".
 func ThreadAlgorithm(conn *imapclient.Client) imap.ThreadAlgorithm {
 	have := conn.Caps().ThreadAlgorithms()
 	if slices.Contains(have, imap.ThreadReferences) {
@@ -1371,15 +1161,12 @@ func ThreadAlgorithm(conn *imapclient.Client) imap.ThreadAlgorithm {
 	return ""
 }
 
-// threadRow is one message's place in a thread: which message, and how
-// far in from the one that started it.
 type threadRow struct {
 	uid   imap.UID
 	depth int
 }
 
-// flattenThread walks one thread depth first, which is the order it
-// reads in: a reply sits under what it answers.
+// Depth first is the reading order: a reply sits under what it answers.
 func flattenThread(data imapclient.ThreadData, depth int, out []threadRow) []threadRow {
 	for _, num := range data.Chain {
 		out = append(out, threadRow{uid: imap.UID(num), depth: depth})
@@ -1391,12 +1178,7 @@ func flattenThread(data imapclient.ThreadData, depth int, out []threadRow) []thr
 	return out
 }
 
-// threadMessages returns one page of threads rather than one page of
-// messages: a conversation split across a page boundary is worse than a
-// page of uneven length, and the thread is the thing being read.
-//
-// The server is asked for the whole set because THREAD has no window of
-// its own; only the page's own messages are then fetched.
+// A page of threads, not messages; THREAD has no window, so the whole set is asked.
 func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAlgorithm, criteria *imap.SearchCriteria, page, threadsPerPage int) (msgs []IMAPMessage, totalThreads int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
@@ -1412,9 +1194,7 @@ func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.Thr
 		return nil, 0, fmt.Errorf("THREAD failed: %v", err)
 	}
 
-	// Newest conversation first, to match every other view. A thread's
-	// age is its newest message, so a long-running one stays at the top
-	// rather than sinking to where it started.
+	// A thread's age is its newest message, so a long-running one stays on top.
 	rows := make([][]threadRow, 0, len(threads))
 	for _, t := range threads {
 		if flat := flattenThread(t, 0, nil); len(flat) > 0 {
@@ -1452,8 +1232,7 @@ func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.Thr
 	return threadRows(fetched, want, mboxName, header), totalThreads, nil
 }
 
-// indexByUID lets fetched messages be put back in the order they were
-// asked for, which a FETCH does not promise.
+// FETCH does not promise the order asked for.
 func indexByUID(msgs []*imapclient.FetchMessageBuffer) map[imap.UID]*imapclient.FetchMessageBuffer {
 	byUID := make(map[imap.UID]*imapclient.FetchMessageBuffer, len(msgs))
 	for _, m := range msgs {
@@ -1462,9 +1241,7 @@ func indexByUID(msgs []*imapclient.FetchMessageBuffer) map[imap.UID]*imapclient.
 	return byUID
 }
 
-// threadRows turns the fetched messages into rows in the order want
-// lists them. A message expunged between the THREAD and the FETCH is
-// simply not shown; the rest of the page still is.
+// A message expunged between THREAD and FETCH is simply not shown.
 func threadRows(fetched []*imapclient.FetchMessageBuffer, want []threadRow, mboxName string, header *imap.FetchItemBodySection) []IMAPMessage {
 	byUID := indexByUID(fetched)
 	var msgs []IMAPMessage
@@ -1480,20 +1257,9 @@ func threadRows(fetched []*imapclient.FetchMessageBuffer, want []threadRow, mbox
 	return msgs
 }
 
-// answerLimit caps what one message's row will count. A message with
-// forty answers is a thread view's problem.
 const answerLimit = 12
 
-// threadAnswers finds what answered this message, for a message being
-// read in Sent. In-Reply-To names exactly one id, so this matches a
-// whole header value rather than searching inside a list, which is the
-// one direction of threading that does not depend on how well a server
-// searches headers. Only direct answers: a reply to a reply names its
-// own parent, not this message.
-//
-// INBOX is where ordinary correspondence lands, and it is the folder
-// RFC 3501 guarantees exists. A reply that was filed elsewhere - a
-// mailing list folder - is not found.
+// Only INBOX is searched: a reply filed elsewhere is not found.
 func threadAnswers(conn *imapclient.Client, mboxName string, msg *IMAPMessage) ([]ThreadNeighbour, error) {
 	if msg.Envelope == nil || msg.Envelope.MessageID == "" {
 		return nil, nil
@@ -1511,10 +1277,7 @@ func threadAnswers(conn *imapclient.Client, mboxName string, msg *IMAPMessage) (
 	return found, nil
 }
 
-// oneThread returns just the conversation holding uid, in reading
-// order. THREAD groups by message id rather than by matching header
-// text, so this is the one way of naming a conversation that does not
-// depend on how well a server searches headers.
+// THREAD groups by message id, so this does not depend on header search.
 func oneThread(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAlgorithm, uid imap.UID) (msgs []IMAPMessage, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, err
@@ -1551,8 +1314,7 @@ func oneThread(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAl
 	return threadRows(fetched, want, mboxName, header), nil
 }
 
-// newestUID stands in for a thread's age: UIDs rise with arrival, so the
-// highest one in a thread is its most recent message.
+// UIDs rise with arrival, so the highest is a thread's newest message.
 func newestUID(rows []threadRow) imap.UID {
 	var newest imap.UID
 	for _, r := range rows {
@@ -1563,25 +1325,15 @@ func newestUID(rows []threadRow) imap.UID {
 	return newest
 }
 
-// ThreadNeighbour is another message in the same conversation, named
-// well enough to link to.
+// ThreadNeighbour is another message in the same conversation.
 type ThreadNeighbour struct {
 	UID     imap.UID
 	Subject string
-	// From is who wrote it. On a list every message in a thread carries
-	// the same subject, so the name is what indicators them apart.
+	// From tells apart the messages of a list thread, which share one subject.
 	From string
 	URL  *url.URL
 }
 
-// threadParent finds what a message answers. It is one exact search:
-// In-Reply-To names a single Message-Id. Nothing indexes the other
-// direction, so counting the answers would mean scanning References
-// across the whole folder, which is a search the row links to rather
-// than one the page waits for.
-//
-// A failure here is not a failure of the page: a server that will not
-// search headers shows the message without its parent.
 func threadParent(conn *imapclient.Client, mboxName, sent string, msg *IMAPMessage) (*ThreadNeighbour, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, err
@@ -1590,9 +1342,7 @@ func threadParent(conn *imapclient.Client, mboxName, sent string, msg *IMAPMessa
 		return nil, nil
 	}
 
-	// In-Reply-To names the parent when the sender wrote one. Some do
-	// not, and then the last entry of References is the same answer:
-	// that chain ends at what this message answers.
+	// Without In-Reply-To, the last References entry is the parent.
 	parentID := ""
 	if len(msg.Envelope.InReplyTo) > 0 {
 		parentID = msg.Envelope.InReplyTo[0]
@@ -1606,13 +1356,9 @@ func threadParent(conn *imapclient.Client, mboxName, sent string, msg *IMAPMessa
 	if err != nil {
 		return nil, err
 	}
-	// A message answering one of yours has its parent in Sent, which is
-	// the case worth resolving most: it is your own half of the
-	// conversation. Only looked for when the folder being read does not
-	// hold it, so the ordinary reply still costs one search.
+	// Sent is searched only when this folder does not hold the parent.
 	if len(found) == 0 && sent != "" && sent != mboxName {
-		// findByHeader searches whatever is selected; the name it takes
-		// only labels the results.
+		// findByHeader searches what is selected; the name only labels results.
 		if err := ensureMailboxSelected(conn, sent); err != nil {
 			return nil, err
 		}
@@ -1632,10 +1378,7 @@ func threadParent(conn *imapclient.Client, mboxName, sent string, msg *IMAPMessa
 	return &parent, nil
 }
 
-// trimListVia drops the "via List" a list appends to the sender's
-// display name to survive DMARC. The row already names the list beside
-// the name, so the suffix would say it twice - but only that list's own
-// name is dropped, never a "via" the sender wrote.
+// Only the list's own name is dropped, never a "via" the sender wrote.
 func trimListVia(name, listID string) string {
 	label, _, _ := strings.Cut(listID, ".")
 	cut := strings.LastIndex(name, " via ")
@@ -1648,8 +1391,6 @@ func trimListVia(name, listID string) string {
 	return name[:cut]
 }
 
-// envelopeName is the display name of the first sender, falling back to
-// the address when a sender gave none.
 func envelopeName(from []imap.Address) string {
 	if len(from) == 0 {
 		return ""
@@ -1660,18 +1401,8 @@ func envelopeName(from []imap.Address) string {
 	return from[0].Addr()
 }
 
-// carried are the answers to an address search whose own headers
-// carry that address, UID by sequence number. A server that answers a
-// header search from a full-text index matches the address inside an
-// attached message - a forwarded .eml names its sender in its own From -
-// and mail carrying a message from somebody is not mail from them. Only
-// what the envelope contradicts is dropped; a server that answered
-// exactly keeps everything.
-//
-// It reads every answer and not a page of them: dropped from one page
-// only, the rows left a short page with Next still offered, a total
-// that changed from page to page, and a "select all" that named
-// neither.
+// A full-text index matches addresses inside attached messages; only what the
+// envelope contradicts is dropped, over every answer so totals hold.
 func carried(c *imapclient.Client, q Query, answers imap.NumSet) (map[uint32]imap.UID, error) {
 	wanted := q.Addresses()
 	kept := map[uint32]imap.UID{}
@@ -1689,9 +1420,7 @@ func carried(c *imapclient.Client, q Query, answers imap.NumSet) (map[uint32]ima
 	return kept, cmd.Close()
 }
 
-// envelopeCarries reports whether every address the query named is in
-// the field it named it for. The comparison is the one a header search
-// makes: the field's text, name and address together.
+// The comparison is the one a header search makes: name and address together.
 func envelopeCarries(envelope *imap.Envelope, wanted map[string][]string) bool {
 	if envelope == nil {
 		return true
@@ -1717,8 +1446,6 @@ func envelopeCarries(envelope *imap.Envelope, wanted map[string][]string) bool {
 	return true
 }
 
-// findByHeader returns up to limit messages whose header field contains
-// value, newest first.
 func findByHeader(conn *imapclient.Client, mboxName, key, value string, limit int) ([]ThreadNeighbour, error) {
 	criteria := imap.SearchCriteria{
 		Header: []imap.SearchCriteriaHeaderField{{Key: key, Value: value}},
@@ -1758,15 +1485,9 @@ func findByHeader(conn *imapclient.Client, mboxName, key, value string, limit in
 	return out, nil
 }
 
-// threadSort is the sort key that means "group this into conversations"
-// rather than "order it by a column". It travels in the same parameter
-// because it answers the same question - what order are these in - and
-// a reader picks one or the other, never both.
+// It shares the sort parameter: a reader picks threads or a column, never both.
 const threadSort = "thread"
 
-// sortKeys maps a sort key from the query string to the SORT key sent
-// to the server, along with the direction each defaults to; picking the
-// active key again reverses it. "" is the default newest-first view.
 var sortKeys = map[string]struct {
 	key      imapclient.SortKey
 	descends bool
@@ -1792,19 +1513,14 @@ func sortSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, crit im
 	return nums, nil
 }
 
-// searchSeqNums returns the sequence numbers matching criteria in display
-// order, using SORT when the server supports it. The SORT vocabulary has
-// no flag key, so the starred order concatenates two queries, each newest
-// first within its group.
+// SORT has no flag key, so the starred order concatenates two queries.
 func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, sort string, reverse bool) ([]uint32, error) {
 	if !conn.Caps().Has(imap.CapSort) {
 		data, err := conn.Search(criteria, nil).Wait()
 		if err != nil {
 			return nil, fmt.Errorf("SEARCH failed: %v", err)
 		}
-		// SEARCH answers oldest first, and sequence order is the one
-		// date order available without SORT; reverse still means
-		// newest first, as it does with it.
+		// Without SORT, sequence order is the only date order available.
 		nums := data.AllSeqNums()
 		if reverse {
 			slices.Reverse(nums)
@@ -1829,8 +1545,6 @@ func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, sort 
 	return sortSeqNums(conn, criteria, imapclient.SortCriterion{Key: sortKeys[sort].key, Reverse: reverse})
 }
 
-// starredHalves splits criteria into the flagged and the unflagged
-// messages, in the order the starred list shows them.
 func starredHalves(criteria *imap.SearchCriteria, reverse bool) (first, second *imap.SearchCriteria) {
 	flagged := *criteria
 	flagged.Flag = append(append([]imap.Flag{}, criteria.Flag...), imap.FlagFlagged)
@@ -1842,8 +1556,6 @@ func starredHalves(criteria *imap.SearchCriteria, reverse bool) (first, second *
 	return &flagged, &unflagged
 }
 
-// sortedUIDs is searchSeqNums for a server that sorts, in UIDs. The
-// starred order's two halves are asked together.
 func sortedUIDs(conn *imapclient.Client, criteria *imap.SearchCriteria, sort string, reverse bool) ([]imap.UID, error) {
 	var cmds []*imapclient.SortCommand
 	if sort == "starred" {
@@ -1869,8 +1581,7 @@ func sortedUIDs(conn *imapclient.Client, criteria *imap.SearchCriteria, sort str
 	return uids, nil
 }
 
-// searchMessages reads one page of what the criteria answer. q is the
-// query the criteria came from, empty for a list no query narrowed.
+// q is the query the criteria came from, empty for a list no query narrowed.
 func searchMessages(conn *imapclient.Client, mboxName string, q Query, searchCriteria *imap.SearchCriteria, page, messagesPerPage int, sort string, reverse bool, fields rowFields) (msgs []IMAPMessage, total int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
@@ -1925,17 +1636,8 @@ func searchMessages(conn *imapclient.Client, mboxName string, q Query, searchCri
 	return msgs, total, nil
 }
 
-// messageNeighbors locates the message in its view's display order and
-// returns the UIDs shown before (newer) and after (older) it, along with its
-// 1-based position and the view's total. criteria narrows the walk to the
-// filtered view the message was opened from; nil walks the whole mailbox.
-// sortKey is the order the list was in, so that Newer and Older mean what
-// the reader's own ordering means rather than what the mailbox's does.
-// A zero position means the message is not part of the filtered view.
-//
-// The question is asked in UIDs and in one round trip: a sequence number
-// a cached row or a held body remembers is from before whatever was
-// expunged since, and would place the message one off or nowhere.
+// A zero position means the message is not in the view. Asked in UIDs: a
+// remembered sequence number may predate an expunge.
 func messageNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.SearchCriteria, sortKey string, reverse bool) (newer, older imap.UID, pos, total int, err error) {
 	plain := criteria == nil && sortKey == ""
 	if criteria == nil {
@@ -1943,9 +1645,7 @@ func messageNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.Sear
 	}
 	var uids []imap.UID
 	if plain || !conn.Caps().Has(imap.CapSort) {
-		// The folder's own order, and any list a server without SORT
-		// answers, is UID order: newest first unless the reader turned
-		// a search around.
+		// The folder's own order, and any list without SORT, is UID order.
 		descending := plain || reverse
 		if conn.Caps().Has(imap.CapESearch) {
 			return uidNeighbors(conn, uid, criteria, descending)
@@ -1974,9 +1674,7 @@ func messageNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.Sear
 	return newer, older, i + 1, len(uids), nil
 }
 
-// uidNeighbors places the message in a list in UID order by counting
-// either side of it, so a folder of any size answers in a few numbers.
-// The searches are sent together and answered in one round trip.
+// Counting either side answers a folder of any size in a few numbers.
 func uidNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.SearchCriteria, descending bool) (newer, older imap.UID, pos, total int, err error) {
 	within := func(r imap.UIDRange) *imap.SearchCriteria {
 		c := *criteria
@@ -1984,8 +1682,7 @@ func uidNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.SearchCr
 		return &c
 	}
 	// A zero Stop is "*", and uid+1:* still holds the highest UID when
-	// that is below uid+1 (RFC 9051 6.4.9): what it answers at or below
-	// uid is not above it.
+	// that is below uid+1 (RFC 9051 6.4.9).
 	aboveCmd := conn.UIDSearch(within(imap.UIDRange{Start: uid + 1}), &imap.SearchOptions{ReturnMin: true, ReturnCount: true})
 	selfCmd := conn.UIDSearch(within(imap.UIDRange{Start: uid, Stop: uid}), &imap.SearchOptions{ReturnCount: true})
 	var belowCmd *imapclient.SearchCommand
@@ -2033,10 +1730,7 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 	return messagePart(msgs[0], mboxName, uid, partPath)
 }
 
-// partFetchOptions asks for a message with one part's content: the
-// structure and envelope, the part's own header and body, and the
-// message's header for what a part's does not carry, like List-Post.
-// peek leaves the message unread, for a fetch made ahead of a reader.
+// The message's header comes too, for what a part's does not carry, like List-Post.
 func partFetchOptions(partPath []int, peek bool) *imap.FetchOptions {
 	headerItem := &imap.FetchItemBodySection{Peek: true, Part: partPath}
 	if len(partPath) > 0 {
@@ -2064,8 +1758,6 @@ func partFetchOptions(partPath []int, peek bool) *imap.FetchOptions {
 	}
 }
 
-// messagePart assembles the page's message and part from a fetch made
-// with partFetchOptions, now or ahead of time.
 func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
 	options := partFetchOptions(partPath, true)
 	headerItem, bodyItem := options.BodySection[0], options.BodySection[1]
@@ -2077,8 +1769,7 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 	headerBuf := msg.FindBodySection(headerItem)
 	bodyBuf := msg.FindBodySection(bodyItem)
 	if headerBuf == nil || bodyBuf == nil {
-		// The server answers a part path the message doesn't have
-		// with a fetch result missing the asked-for sections.
+		// A part path the message lacks comes back without the sections.
 		if len(partPath) > 0 {
 			return nil, nil, alborz.NotFound("notfound.part", fmt.Sprint(uid))
 		}
@@ -2094,8 +1785,7 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 
 	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(headerBuf)))
 	if err != nil {
-		// Broken messages exist in the wild; show the part raw instead
-		// of failing the whole page.
+		// Show a broken header's part raw rather than fail the page.
 		h = textproto.Header{}
 		h.Set("Content-Type", "text/plain; charset=utf-8")
 		bodyBuf = append(headerBuf, bodyBuf...)
@@ -2114,10 +1804,7 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 	return out, part, nil
 }
 
-// fetchRawMessage returns a message exactly as the server holds it,
-// headers and all, beside the envelope that names it. BODY.PEEK[] with
-// no part is the whole thing, which is what attaching a message needs
-// and what quoting one can never reproduce.
+// Attaching a message needs its exact bytes, which quoting can never reproduce.
 func fetchRawMessage(conn *imapclient.Client, mboxName string, uid imap.UID) ([]byte, *imap.Envelope, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, nil, err
@@ -2141,10 +1828,7 @@ func fetchRawMessage(conn *imapclient.Client, mboxName string, uid imap.UID) ([]
 	return buf, msgs[0].Envelope, nil
 }
 
-// messageAttachment is a whole message carried inside another one, the
-// shape RFC 2046 5.2 gives a forward that must arrive intact: headers,
-// MIME structure, signatures and its own attachments, none of them
-// re-rendered by us.
+// A whole message carried inside another, arriving intact (RFC 2046 5.2).
 type messageAttachment struct {
 	Path messagePath
 	Name string
@@ -2159,9 +1843,6 @@ func (a *messageAttachment) MIMEType() string { return "message/rfc822" }
 
 func (a *messageAttachment) Filename() string { return a.Name }
 
-// attachmentName is a subject made into a file name: a forwarded
-// message arrives as a file and wants to be recognisable in a list of
-// them. Anything a file system or a header would argue about goes.
 func attachmentName(subject string) string {
 	name := strings.Map(func(r rune) rune {
 		switch r {
@@ -2183,9 +1864,7 @@ func markMessageAnswered(conn *imapclient.Client, mboxName string, uid imap.UID)
 	return addFlag(conn, mboxName, uid, imap.FlagAnswered)
 }
 
-// forwardedFlag is the keyword mail clients agree to mean "this one was
-// forwarded". It is a convention rather than a system flag, so a server
-// may refuse to keep it; the mail has still gone out either way.
+// A keyword, not a system flag, so a server may refuse to keep it.
 const forwardedFlag imap.Flag = "$Forwarded"
 
 func markMessageForwarded(conn *imapclient.Client, mboxName string, uid imap.UID) error {
@@ -2204,9 +1883,7 @@ func storeFlags(conn *imapclient.Client, mboxName string, set imap.NumSet, op im
 	return conn.Store(set, &imap.StoreFlags{Op: op, Silent: true, Flags: flags}, nil).Close()
 }
 
-// appendMessage files a message into the folder of a role and returns
-// the folder and the UID the server gave the message, which it names
-// only with UIDPLUS (RFC 4315, APPENDUID); zero says it did not.
+// The UID is named only with UIDPLUS (RFC 4315); zero says it was not.
 func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*MailboxInfo, imap.UID, error) {
 	mbox, err := getMailboxByRole(c, role)
 	if err != nil {
@@ -2216,8 +1893,7 @@ func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*Ma
 		return nil, 0, fmt.Errorf("Unable to resolve mailbox")
 	}
 
-	// IMAP needs to know in advance the final size of the message, so
-	// there's no way around storing it in a buffer here.
+	// IMAP needs the final size in advance.
 	var buf bytes.Buffer
 	if err := msg.WriteMessage(&buf); err != nil {
 		return nil, 0, err
@@ -2247,7 +1923,6 @@ func deleteMessage(conn *imapclient.Client, mboxName string, uid imap.UID) error
 	return deleteMessages(conn, mboxName, imap.UIDSetNum(uid))
 }
 
-// deleteMessages flags the set deleted and expunges the folder.
 func deleteMessages(conn *imapclient.Client, mboxName string, set imap.NumSet) error {
 	if err := storeFlags(conn, mboxName, set, imap.StoreFlagsAdd, []imap.Flag{imap.FlagDeleted}); err != nil {
 		return fmt.Errorf("failed to add deleted flag: %w", err)
@@ -2258,12 +1933,9 @@ func deleteMessages(conn *imapclient.Client, mboxName string, set imap.NumSet) e
 	return nil
 }
 
-// unifiedFoldersTTL is how long a role-to-folder answer stands; folders
-// are renamed rarely and the next merged page after that is soon enough.
+// Folders are renamed rarely.
 const unifiedFoldersTTL = 5 * time.Minute
 
-// resolveRole maps a unified role name to the account's folder carrying
-// that special use, or "" when the account has none.
 func (p *plugin) resolveRole(conn *imapclient.Client, username, role string) (string, error) {
 	folders, err := p.unifiedFolders.Get(username, func() (map[string]string, error) {
 		mailboxes, err := listMailboxes(conn)

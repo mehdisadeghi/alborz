@@ -9,24 +9,15 @@ import (
 	"testing"
 )
 
-// The caches a handler can reach, by the type that holds their methods.
 var cacheTypes = map[string]string{"listings": "listingCache", "bodies": "bodyCache"}
 
-// What a handler may call directly: reads, and the publication of a
-// fetch, which a generation or a token already checks against whatever
-// was written meanwhile. Everything else is denied without being named,
-// so a method added later is guarded from the day it is written, and
-// letting one through is a decision made here, in sight.
+// Everything unlisted is denied, so a method added later is guarded from the start.
 var cacheDirect = map[string][]string{
 	"listingCache": {"lookup", "message", "load", "claim", "release", "keeps", "epoch", "pageSize", "heldSize", "storeAt", "fill", "refresh"},
 	"bodyCache":    {"current", "claim", "put"},
 }
 
-// Patches write a particular claim into the cache, so they belong to
-// the connection turn that confirmed it: outside, another write can land
-// between the server's answer and the patch, and the cache ends up
-// asserting what is no longer true. Invalidations carry no claim and are
-// safe anywhere.
+// Patches assert a claim, so they belong on the connection turn that confirmed it.
 var cachePatches = map[string]bool{"messagesFlagged": true, "messageRead": true}
 
 func parsePackage(t *testing.T) (*token.FileSet, []*ast.File) {
@@ -64,11 +55,6 @@ func receiver(fn *ast.FuncDecl) string {
 	return ""
 }
 
-// The listing cache and the body cache hold the same facts twice, so
-// each change has to reach both. cacheevents.go keeps those pairs
-// together; a handler calling one half directly is how the other half
-// gets forgotten. This reads the package rather than trusting the next
-// author to have read cacheevents.go.
 func TestCacheWritesGoThroughEvents(t *testing.T) {
 	fset, files := parsePackage(t)
 
@@ -158,8 +144,7 @@ func TestCachePatchesStayOnTheConnectionTurn(t *testing.T) {
 		type span struct{ from, to token.Pos }
 		var turns []span
 		ast.Inspect(file, func(n ast.Node) bool {
-			// A function handed the connection runs on the turn that
-			// holds it: there is no other way to come by one.
+			// A function handed the connection runs on the turn that holds it.
 			if fn, ok := n.(*ast.FuncDecl); ok && takesConnection(fn.Type) {
 				turns = append(turns, span{fn.Pos(), fn.End()})
 			}

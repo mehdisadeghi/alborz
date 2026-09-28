@@ -13,21 +13,14 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// A page holds some of a list. A bulk form that carries "everything"
-// means the list the page was cut from - the folder, its search or its
-// view - and names it by the address it returns to, the one place a
-// form has the list's own parameters. The rows ticked are then beside
-// the point: the server asks the view again and acts on what it finds.
+// A bulk form's "everything" means the whole list its next URL names, asked again.
 
-// wholeView reports whether the form asks for more than its rows, and
-// the search that the view it came from is.
 func wholeView(form url.Values) (query, view string, whole bool) {
 	if form.Get("everything") == "" {
 		return "", "", false
 	}
 	next, err := url.Parse(form.Get("next"))
-	// A conversation is a list too, and one THREAD decides: asking it
-	// again here would be a second implementation of that page.
+	// A conversation is decided by THREAD; asking it again here would duplicate that page.
 	if err != nil || next.Query().Get("thread") != "" {
 		return "", "", false
 	}
@@ -38,7 +31,6 @@ func wholeView(form url.Values) (query, view string, whole bool) {
 	return next.Query().Get("query"), view, true
 }
 
-// viewUIDs asks a selected folder for everything a view of it holds.
 func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]imap.UID, error) {
 	criteria := listCriteria(c, settings, query, view)
 	if criteria == nil {
@@ -49,8 +41,7 @@ func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]i
 		return nil, err
 	}
 	uids := data.AllUIDs()
-	// The list drops what the envelope contradicts (carried), so
-	// everything in it cannot mean the rows it never showed.
+	// The list drops what the envelope contradicts (carried), so the selection must too.
 	q := ParseQuery(query)
 	if len(uids) == 0 || !q.Addressed() {
 		return uids, nil
@@ -62,8 +53,6 @@ func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]i
 	return slices.Collect(maps.Values(kept)), nil
 }
 
-// selection is what a bulk action on one folder applies to: the rows
-// ticked, or the whole view they were a page of.
 func selection(ctx *alborz.Context, mboxName string, form url.Values) ([]imap.UID, error) {
 	query, view, whole := wholeView(form)
 	if !whole {
@@ -76,8 +65,6 @@ func selection(ctx *alborz.Context, mboxName string, form url.Values) ([]imap.UI
 	return folderViewUIDs(ctx, mboxName, query, view)
 }
 
-// folderSelection reads what a folder's action route is posted: the
-// folder it names, the form, and the selection the form makes of it.
 func folderSelection(ctx *alborz.Context) (mboxName string, form url.Values, uids []imap.UID, err error) {
 	if mboxName, err = mailboxRef(ctx); err != nil {
 		return "", nil, nil, err
@@ -89,7 +76,6 @@ func folderSelection(ctx *alborz.Context) (mboxName string, form url.Values, uid
 	return mboxName, form, uids, err
 }
 
-// folderViewUIDs is everything a view of one folder holds.
 func folderViewUIDs(ctx *alborz.Context, mboxName, query, view string) ([]imap.UID, error) {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
@@ -107,9 +93,6 @@ func folderViewUIDs(ctx *alborz.Context, mboxName, query, view string) ([]imap.U
 	return uids, err
 }
 
-// mergedSelection is the same for a list whose rows are several
-// folders': the role's folder in every account, or for a search across
-// folders every folder the query reaches.
 func (p *plugin) mergedSelection(ctx *alborz.Context, role string, form url.Values) ([]rowRef, error) {
 	query, view, whole := wholeView(form)
 	if !whole {

@@ -12,9 +12,7 @@ import (
 	"github.com/emersion/go-smtp"
 )
 
-// Timing accumulates per-request upstream and render spans, reported back in
-// the Server-Timing response header so the browser's network panel
-// attributes a slow page to IMAP, ManageSieve, WebDAV, or rendering.
+// Timing accumulates per-request spans for the Server-Timing header.
 type Timing struct {
 	mu     sync.Mutex
 	spans  map[string][]span
@@ -29,9 +27,7 @@ func newTiming() *Timing {
 	return &Timing{spans: make(map[string][]span), counts: make(map[string]int)}
 }
 
-// add records one span of the named kind ("imap", "sieve", "smtp", "dav",
-// "render"). Concurrent callers are safe: DAV pages query collections in
-// parallel.
+// add records one span of the named kind; DAV pages call it concurrently.
 func (t *Timing) add(kind string, start, end time.Time) {
 	if t == nil {
 		return
@@ -41,10 +37,8 @@ func (t *Timing) add(kind string, start, end time.Time) {
 	t.mu.Unlock()
 }
 
-// Header renders the accumulated spans as a Server-Timing value, kinds in a
-// stable order. Overlapping spans of one kind count once, so concurrent
-// upstream requests report wall time, never more than the request took. It
-// returns "" when nothing was measured.
+// Header renders the spans as a Server-Timing value, kinds in a stable order,
+// overlaps of one kind counted once. It returns "" when nothing was measured.
 func (t *Timing) Header() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -71,7 +65,7 @@ func (t *Timing) Header() string {
 	return strings.Join(parts, ", ")
 }
 
-// CacheTiming reports cache outcomes alongside queue, upstream and render spans.
+// CacheTiming records a cache hit or miss.
 func CacheTiming(ctx context.Context, cache string, hit bool) {
 	t, ok := ctx.Value(timingKey).(*Timing)
 	if !ok {
@@ -86,7 +80,6 @@ func CacheTiming(ctx context.Context, cache string, hit bool) {
 	t.mu.Unlock()
 }
 
-// mergedDuration sums spans with overlaps counted once.
 func mergedDuration(spans []span) time.Duration {
 	sort.Slice(spans, func(i, j int) bool {
 		return spans[i].start.Before(spans[j].start)
@@ -110,17 +103,15 @@ type timingKeyType struct{}
 
 var timingKey timingKeyType
 
-// AddTiming records the span from start until now against kind on the Timing
-// carried by reqCtx, if any. It lets plugins measuring WebDAV requests
-// through the request context feed the same accumulator without importing
-// the request plumbing.
+// AddTiming records the span from start until now against kind, if reqCtx
+// carries a Timing.
 func AddTiming(reqCtx context.Context, kind string, start time.Time) {
 	if t, ok := reqCtx.Value(timingKey).(*Timing); ok {
 		t.add(kind, start, time.Now())
 	}
 }
 
-// DoIMAP runs the IMAP operation and attributes its duration to the request.
+// DoIMAP runs the IMAP operation and times it.
 func (ctx *Context) DoIMAP(f func(*imapclient.Client) error) error {
 	return ctx.DoIMAPWithin(RoundTripTimeout, f)
 }
@@ -136,7 +127,7 @@ func (ctx *Context) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client)
 	return err
 }
 
-// DoSieve runs the ManageSieve operation and attributes its duration.
+// DoSieve runs the ManageSieve operation and times it.
 func (ctx *Context) DoSieve(f func(SieveClient) error) error {
 	start := time.Now()
 	err := ctx.Login.DoSieve(f)
@@ -144,7 +135,7 @@ func (ctx *Context) DoSieve(f func(SieveClient) error) error {
 	return err
 }
 
-// DoSMTP runs the SMTP operation and attributes its duration.
+// DoSMTP runs the SMTP operation and times it.
 func (ctx *Context) DoSMTP(f func(*smtp.Client) error) error {
 	start := time.Now()
 	err := ctx.Login.DoSMTP(f)
@@ -152,9 +143,8 @@ func (ctx *Context) DoSMTP(f func(*smtp.Client) error) error {
 	return err
 }
 
-// installTiming attaches a fresh Timing to the context and to the request
-// context so plugin round-trippers reach it, and arranges the header to be
-// written just before the response.
+// installTiming also puts the Timing on the request context, so plugin
+// round-trippers reach it.
 func (ctx *Context) installTiming() {
 	ctx.timing = newTiming()
 	req := ctx.Request()

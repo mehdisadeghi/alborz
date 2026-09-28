@@ -7,22 +7,17 @@ import (
 	"time"
 )
 
-// Signed is one browser signed into an account, as the account's list
-// of them shows it.
+// Signed is one browser signed into an account.
 type Signed struct {
 	ID string
-	// Device is the browser's User-Agent, which the browser writes and
-	// can be told to write anything; Address is where it last came
-	// from, empty when that is a proxy's own address and says nothing.
+	// Device is the browser's own User-Agent claim; Address is "" when it was a
+	// proxy's address.
 	Device, Address string
 	Created, Seen   time.Time
-	// Current is the browser asking.
-	Current bool
+	Current         bool
 }
 
-// note keeps what a request says about where the browser is: shown to
-// the account holder, never used to decide anything. It reports a
-// change, which a remembered session writes down.
+// note records where the browser is, for display only, and reports a change.
 func (s *Session) note(device, address string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -33,8 +28,6 @@ func (s *Session) note(device, address string) bool {
 	return true
 }
 
-// holds reports whether the session is signed into the account, now or
-// by a remembered password.
 func (s *Session) holds(account string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -50,10 +43,8 @@ func (s *Session) signed() Signed {
 	return Signed{ID: s.ID, Device: s.device, Address: s.address, Created: s.Created, Seen: s.seen}
 }
 
-// requestAddress is where a request came from, for the account holder
-// to recognise, and nothing when that is a loopback or private address:
-// a proxy in front of alborz that was not named as trusted, which says
-// nothing about the reader.
+// requestAddress is "" for loopback and private addresses: an untrusted proxy
+// in front of alborz, which says nothing about the reader.
 func requestAddress(from string) string {
 	ip, err := netip.ParseAddr(from)
 	if err != nil || !publicAddr(ip) {
@@ -62,15 +53,14 @@ func requestAddress(from string) string {
 	return from
 }
 
-// SignedIn is every browser signed into the account: those in use now
-// and those remembered on disk, newest use first.
+// SignedIn lists every browser signed into the account, live and remembered,
+// newest use first.
 func (ss *Sessions) SignedIn(account, current string) ([]Signed, error) {
 	seen := map[string]bool{}
 	var out []Signed
 	ss.mu.Lock()
 	for id, s := range ss.live {
-		// A session past its life is dropped only when its browser comes
-		// back, which one that was closed for good never does.
+		// Expired sessions are only dropped when their browser returns.
 		if time.Since(s.lastSeen()) > s.life() {
 			continue
 		}
@@ -98,8 +88,7 @@ func (ss *Sessions) SignedIn(account, current string) ([]Signed, error) {
 	return out, nil
 }
 
-// SignOut takes the account out of one browser, which keeps whatever
-// else it is signed into; a browser left with no account is forgotten.
+// SignOut takes the account out of one browser; a browser left with none is forgotten.
 func (ss *Sessions) SignOut(id, account string) error {
 	ss.mu.Lock()
 	s := ss.live[id]
@@ -129,10 +118,7 @@ func (ss *Sessions) SignOut(id, account string) error {
 	return ss.records.Save(rec)
 }
 
-// Device is a User-Agent said in two words, a browser and a system,
-// each empty when it names none of the common ones. It is a reading of
-// what the browser claims, for recognising it, and the page keeps the
-// claim beside it.
+// Device is a User-Agent reduced to a browser and a system, each "" when unrecognised.
 type Device struct{ Browser, System string }
 
 func DeviceName(ua string) Device {

@@ -21,7 +21,6 @@ func TestASessionLocksOnlyWithAPasskeyAndOnlyAfterTimeAway(t *testing.T) {
 	if !s.Locked(now.Add(11 * time.Minute)) {
 		t.Fatal("still open past its lock time")
 	}
-	// Coming back does not open it: only the passkey does.
 	s.act(now.Add(12 * time.Minute))
 	if !s.Locked(now.Add(12 * time.Minute)) {
 		t.Fatal("a request unlocked a locked session")
@@ -31,7 +30,6 @@ func TestASessionLocksOnlyWithAPasskeyAndOnlyAfterTimeAway(t *testing.T) {
 		t.Fatal("locked right after unlocking")
 	}
 
-	// What a restart rebuilds has nobody at it yet.
 	if back := sessionFromRecord(s.record()); !back.Locked(time.Now()) {
 		t.Fatal("a session with a passkey came back from its record unlocked")
 	}

@@ -14,26 +14,18 @@ import (
 	"github.com/emersion/go-webdav"
 )
 
-// Prefix is where the server is mounted. Long enough that no DAV server
-// an account names elsewhere shares it: alborz tells its own collections
-// from a remote server's by the path alone.
+// Prefix is where the server is mounted; own collections are told from remote ones by it alone.
 const Prefix = "/alborz/dav"
 
-// homes is where each kind's collections are listed under an account.
 var homes = map[Kind]string{Calendar: "calendars", AddressBook: "addressbooks"}
 
-// aliasSep joins a shared collection's name to its owner in the path an
-// invitee reaches it by. A name cannot hold it, so the first one ends
-// the name, whatever an address may hold after it.
+// A name cannot hold aliasSep, so the first one ends the name.
 const aliasSep = "~"
 
-// nameRule is what a collection's or an object's name may be. Clients
-// choose them; they become keys and path segments.
+// Names become keys and path segments.
 var nameRule = regexp.MustCompile(`^[A-Za-z0-9._@-]{1,120}$`)
 
-// named says whether s may name a collection or an object. The rule
-// admits the two names a path reads as a step and not a name: joined
-// to its collection, ".." is the home.
+// The rule admits "." and "..", which a path reads as steps.
 func named(s string) bool { return nameRule.MatchString(s) && s != "." && s != ".." }
 
 type userKey struct{}
@@ -57,8 +49,7 @@ func HomePath(kind Kind, account string) string {
 	return Prefix + "/" + homes[kind] + "/" + url.PathEscape(account) + "/"
 }
 
-// PathOf is the collection's address as one account reaches it: by its
-// name in its owner's home, by name and owner in anyone else's.
+// PathOf is the collection's address as one account reaches it.
 func PathOf(viewer string, c Collection) string {
 	name := c.ID
 	if !strings.EqualFold(viewer, c.Owner) {
@@ -67,11 +58,9 @@ func PathOf(viewer string, c Collection) string {
 	return HomePath(c.Kind, strings.ToLower(viewer)) + url.PathEscape(name) + "/"
 }
 
-// place is what a path under the prefix names: a home, a collection in
-// it, or an object in that. A home's ref names no collection.
 type place struct {
 	kind   Kind
-	home   string // the account whose home the path is in
+	home   string
 	ref    Ref
 	object string
 }
@@ -111,23 +100,18 @@ func parsePath(p string) (place, error) {
 	return at, nil
 }
 
-// Held reads a path as the pages hold it: the collection it names when
-// it is one kept here, and the account whose home it is reached through,
-// which is not the owner's when it is shared.
+// Held reads a path as the pages hold it: the collection, and the home it is reached through.
 func Held(p string) (ref Ref, home string, ok bool) {
 	at, err := parsePath(p)
 	return at.ref, at.home, err == nil && at.ref.ID != ""
 }
 
-// HeldObject reads an object's path as the pages hold it: the
-// collection it is in and its name there.
+// HeldObject reads an object's path as its collection and name.
 func HeldObject(p string) (ref Ref, name string, ok bool) {
 	at, err := parsePath(p)
 	return at.ref, at.object, err == nil && at.object != ""
 }
 
-// access is what the account of the request may do with the collection
-// a path names: nothing, read it, write its objects, or own it.
 type access int
 
 const (
@@ -142,9 +126,7 @@ var (
 	errNotFound  = httpError(http.StatusNotFound, ErrNotFound)
 )
 
-// reach resolves a path for the request's account and says what it may
-// do there. A collection the account cannot see is not found, which is
-// what it is to that account.
+// A collection the account cannot see is not found.
 func (s *Store) reach(ctx context.Context, p string, kind Kind) (place, *Collection, access, error) {
 	at, err := parsePath(p)
 	if err != nil {
@@ -153,7 +135,6 @@ func (s *Store) reach(ctx context.Context, p string, kind Kind) (place, *Collect
 	return s.reachAt(ctx, at, kind)
 }
 
-// reachAt is reach for a path already read.
 func (s *Store) reachAt(ctx context.Context, at place, kind Kind) (place, *Collection, access, error) {
 	account := userOf(ctx)
 	if at.kind != kind || at.home != account {
@@ -166,7 +147,6 @@ func (s *Store) reachAt(ctx context.Context, at place, kind Kind) (place, *Colle
 	return at, c, may, err
 }
 
-// object is the object a path names, as the request's account reads it.
 func (s *Store) object(ctx context.Context, p string, kind Kind) (*Object, error) {
 	at, _, _, err := s.reach(ctx, p, kind)
 	if err != nil {
@@ -176,7 +156,6 @@ func (s *Store) object(ctx context.Context, p string, kind Kind) (*Object, error
 	return o, storeError(err)
 }
 
-// objects are those of the collection a path names.
 func (s *Store) objects(ctx context.Context, p string, kind Kind) ([]Object, error) {
 	at, _, _, err := s.reach(ctx, p, kind)
 	if err != nil {
@@ -185,11 +164,7 @@ func (s *Store) objects(ctx context.Context, p string, kind Kind) ([]Object, err
 	return s.Objects(at.ref)
 }
 
-// write keeps an object at a path, octet for octet as it was sent, so
-// the tag a PUT answers with names what the client holds (RFC 4791
-// 5.3.4, RFC 6352 6.3.2.3), under the UID its kind's parser read;
-// accepts is the collection's own say on what it takes. A UID conflict goes back as the store said it, for
-// each protocol to name in its own words.
+// Kept octet for octet, so the tag a PUT answers names what the client holds (RFC 4791 5.3.4).
 func (s *Store) write(ctx context.Context, p string, kind Kind, uid string, data []byte, ifMatch, ifNoneMatch webdav.ConditionalMatch, accepts func(Collection) error) (*Object, error) {
 	at, c, may, err := s.reach(ctx, p, kind)
 	if err != nil {
@@ -208,8 +183,6 @@ func (s *Store) write(ctx context.Context, p string, kind Kind, uid string, data
 	return o, storeError(err)
 }
 
-// create makes a collection in the account's own home, under a name of
-// its own.
 func (s *Store) create(ctx context.Context, p string, c Collection) error {
 	at, err := parsePath(p)
 	if err != nil {
@@ -226,7 +199,6 @@ func (s *Store) create(ctx context.Context, p string, c Collection) error {
 	return storeError(err)
 }
 
-// deadOf are a collection's dead properties as go-webdav reports them.
 func deadOf(c Collection) []webdav.DeadProperty {
 	out := make([]webdav.DeadProperty, len(c.Dead))
 	for i, d := range c.Dead {
@@ -235,8 +207,6 @@ func deadOf(c Collection) []webdav.DeadProperty {
 	return out
 }
 
-// keepDead drops the dead properties a PROPPATCH removes and keeps the
-// ones it sets, each in place of the one of its name.
 func keepDead(c *Collection, removed []xml.Name, set []webdav.DeadProperty) {
 	gone := slices.Clone(removed)
 	for _, d := range set {
@@ -250,16 +220,12 @@ func keepDead(c *Collection, removed []xml.Name, set []webdav.DeadProperty) {
 	}
 }
 
-// set changes a property a PROPPATCH names; one it does not name is nil
-// and stays.
 func set(to, from *string) {
 	if from != nil {
 		*to = *from
 	}
 }
 
-// update changes a collection's own properties, which is its owner's to
-// do.
 func (s *Store) update(ctx context.Context, p string, kind Kind, change func(*Collection)) error {
 	at, _, may, err := s.reach(ctx, p, kind)
 	if err != nil {
@@ -271,10 +237,7 @@ func (s *Store) update(ctx context.Context, p string, kind Kind, change func(*Co
 	return storeError(s.Update(at.ref, change))
 }
 
-// remove is DELETE: of an object, by whoever may write; of a collection,
-// by its owner, while an invitee stops seeing it, which is all a share
-// gives them the right to end. The share stays, marked, so its owner
-// sees who left.
+// An invitee's DELETE only stops seeing it; the share stays marked so the owner sees who left.
 func (s *Store) remove(ctx context.Context, p string, kind Kind, ifMatch webdav.ConditionalMatch) error {
 	at, _, may, err := s.reach(ctx, p, kind)
 	switch {
@@ -290,9 +253,7 @@ func (s *Store) remove(ctx context.Context, p string, kind Kind, ifMatch webdav.
 	return storeError(s.RemoveObject(at.ref, at.object, conditions(ifMatch, ""), userOf(ctx)))
 }
 
-// statusError is an answer with its HTTP status. go-webdav keeps the
-// type of its own to itself, so the one it made rides inside, where its
-// servers find it, and the status rides beside it for this one.
+// go-webdav keeps its error type internal, so its error rides inside with the status beside it.
 type statusError struct {
 	code int
 	err  error
@@ -305,7 +266,6 @@ func httpError(code int, cause error) error {
 	return statusError{code, webdav.NewHTTPError(code, cause)}
 }
 
-// storeError says a store's answer in HTTP.
 func storeError(err error) error {
 	switch {
 	case errors.Is(err, ErrNotFound):

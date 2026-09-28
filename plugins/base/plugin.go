@@ -11,8 +11,7 @@ import (
 //go:embed all:public
 var public embed.FS
 
-// UserLocation resolves the reader's timezone: what they chose first,
-// then the browser-set cookie, else UTC.
+// UserLocation resolves the reader's timezone.
 func UserLocation(ctx *alborz.Context) *time.Location {
 	tz := ctx.Reading().Timezone
 	if tz == "" {
@@ -28,8 +27,6 @@ func UserLocation(ctx *alborz.Context) *time.Location {
 	return time.UTC
 }
 
-// plugin is the base plugin of one server, with the caches its pages
-// are drawn from.
 type plugin struct {
 	alborz.GoPlugin
 	listings        *listingCache
@@ -40,12 +37,11 @@ type plugin struct {
 	senderBooks     *alborz.Memo[*senderBook]
 	authServGuesses *alborz.Memo[string]
 	wkd             *wkdCache
-	watchers        sync.Map // accounts followed
+	watchers        sync.Map
 }
 
 func newPlugin(o *alborz.Options) *plugin {
 	bodies := newBodyCache(o.CacheFor(bodyKeepFor))
-	// The rail serves its last counts while one refresh runs behind the page.
 	sidebars := alborz.NewBackgroundMemo[sidebar](o.CacheFor(listingFreshFor))
 	p := &plugin{
 		GoPlugin:        alborz.GoPlugin{Name: "base", Files: public},
@@ -53,8 +49,7 @@ func newPlugin(o *alborz.Options) *plugin {
 		bodies:          bodies,
 		accountSidebars: sidebars,
 		unifiedFolders:  alborz.NewMemo[map[string]string](o.CacheFor(unifiedFoldersTTL)),
-		// Indexes derived from the mailbox, not copies of an answer:
-		// features are built on them, so they stay with caching off.
+		// Indexes, not cached answers: they stay with caching off.
 		correspondents:  alborz.NewMemo[[]string](correspondentTTL),
 		senderBooks:     alborz.NewMemo[*senderBook](senderBookTTL),
 		authServGuesses: alborz.NewMemo[string](authSampleTTL),
@@ -64,8 +59,6 @@ func newPlugin(o *alborz.Options) *plugin {
 	p.TemplateFuncs(templateFuncs)
 	p.registerRoutes()
 
-	// Every page counts in the reader's clock and starts the week where
-	// they do, whichever account the page is about.
 	p.Inject("*", func(ctx *alborz.Context, data alborz.RenderData) error {
 		if ctx.Login == nil {
 			return nil
@@ -81,9 +74,7 @@ func newPlugin(o *alborz.Options) *plugin {
 }
 
 func init() {
-	// An account restored from remembered credentials is signed in
-	// without passing through the login handler, so the root package
-	// calls this to have it followed too.
+	// A restored account skips the login handler, so it is followed here too.
 	alborz.RegisterPluginLoader(func(s *alborz.Server) ([]alborz.Plugin, error) {
 		p := newPlugin(s.Options)
 		s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)

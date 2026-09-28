@@ -15,8 +15,7 @@ import (
 type CalendarDateRenderData struct {
 	alborz.BaseRenderData
 	ListQuery string
-	// SelectForm is empty here: a day is a page about a day, and the
-	// list it shows is the agenda's job to act on.
+	// SelectForm is empty: the agenda, not the day page, acts on the list.
 	SelectForm         string
 	Time               time.Time
 	Calendars          []dav.Collection
@@ -25,13 +24,10 @@ type CalendarDateRenderData struct {
 
 	CollectionFor  func(account, path string) dav.Collection
 	CollectionHref func(account, path string) string
-	// AddedBy names who added an event kept here, where not the row's
-	// own account.
+	// AddedBy names who added an event, where not the row's own account.
 	AddedBy func(account, path string) string
 }
 
-// dayView is the day page as its handler works it out: the day it
-// draws and what falls on it, in the order it is shown.
 type dayView struct {
 	start     time.Time
 	calendars []dav.Collection
@@ -48,8 +44,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "calendar-date.html", &CalendarDateRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(dv.start)),
-		// The day is named even where the URL left it out, or an event
-		// opened from today would not know which list it came from.
+		// Named even when the URL omits it, so an opened event knows its list.
 		ListQuery:      dayQuery(ctx, dv.start),
 		Time:           dv.start,
 		Calendars:      dv.calendars,
@@ -96,10 +91,7 @@ func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
 	}
 	events = append(events, p.subscriptionObjects(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), calendarInfos, ctx.URLAccount())...)
 
-	// The same two shapes as the month grid: expanded instances, or a
-	// master still carrying its rule. Only what falls in the day is
-	// kept, since a server that ignores the expand request filters
-	// on the object rather than on the instance.
+	// Keep only what falls in the day; an unexpanded master matched as a whole.
 	var shown []Occurrence
 	for _, ev := range events {
 		for _, oc := range occurrences(ev, loc, start, end) {

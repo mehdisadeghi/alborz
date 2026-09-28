@@ -13,35 +13,28 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// A Rule is what a mail client calls one: tests on a message and what
-// to do when they hold. It is written as one Sieve block and read back
-// from it; a rule that stops keeps the reader's own script, which runs
-// after the composed ones, from seeing the message.
+// Rule is one Sieve block; Stop also hides the message from the reader's own script, which runs after.
 type Rule struct {
 	Name       string
-	Any        bool // any condition suffices; otherwise all must hold
+	Any        bool
 	Conditions []Condition
-	Folder     string // fileinto
+	Folder     string
 	MarkRead   bool
 	Star       bool
 	Discard    bool
-	Forward    string // redirect :copy
+	Forward    string
 	Stop       bool
-	// Off keeps the rule in the script with a test that never holds,
-	// so it is read back whole and any client still shows it.
+	// Off keeps the rule in the script under a test that never holds.
 	Off bool
 }
 
-// Condition is one test: a field, how it is matched, and the value.
-// From, to and cc test the address part; subject and list, the header.
+// Condition is one test: from, to and cc test the address part, subject and list the header.
 type Condition struct {
-	Field string // from to cc subject list
-	Match string // is contains
+	Field string
+	Match string
 	Value string
 }
 
-// conditionFields and conditionMatches are what the form offers, in
-// order; a value outside them is not the page's own.
 var (
 	conditionFields  = []string{"from", "to", "cc", "subject", "list"}
 	conditionMatches = []string{"is", "contains", "domain"}
@@ -53,17 +46,13 @@ func (c Condition) test() string {
 	if c.Field == "subject" || c.Field == "list" {
 		kind = "header"
 	}
-	// "domain" is the address's domain part, matched whole (RFC 5228
-	// 2.7.4): what blocking a sender's domain is.
+	// "domain" matches the address's domain part whole (RFC 5228 2.7.4).
 	if c.Match == "domain" {
 		return fmt.Sprintf("address :domain :is %s %s", quote(headerOf[c.Field]), quote(c.Value))
 	}
 	return fmt.Sprintf("%s :%s %s %s", kind, c.Match, quote(headerOf[c.Field]), quote(c.Value))
 }
 
-// blockRule files everything from an address, or a whole domain, into
-// the junk folder: what a user agent can do about a sender, and what
-// trains the server's own filter where it learns from that folder.
 func blockRule(value string, domain bool, junk string) Rule {
 	match := "is"
 	if domain {
@@ -110,7 +99,6 @@ func (r Rule) block() string {
 	return b.String()
 }
 
-// rulesScriptFor writes the rules, requiring only what they use.
 func rulesScriptFor(rules []Rule) string {
 	if len(rules) == 0 {
 		return ""
@@ -145,8 +133,7 @@ func rulesScriptFor(rules []Rule) string {
 	return b.String()
 }
 
-// offPrefix opens a rule that is switched off: allof stops at the
-// first false (RFC 5228 5.2), so the rule keeps its tests unread.
+// offPrefix switches a rule off: allof(false, ...) never holds yet keeps its tests.
 const offPrefix = "if allof(false, "
 
 var (
@@ -156,9 +143,7 @@ var (
 	ruleAct  = regexp.MustCompile(`^    (fileinto ` + quoted + `|addflag "\\\\(Seen|Flagged)"|redirect :copy ` + quoted + `|discard|stop);$`)
 )
 
-// readRules reads the page's own shape back. ok is false for a script
-// written by someone else: whatever was read is re-emitted and must
-// come out byte for byte the same.
+// readRules returns ok false unless re-emitting what it read reproduces the script exactly.
 func readRules(content string) (rules []Rule, ok bool) {
 	lines := strings.Split(content, "\n")
 	for i := 0; i < len(lines); i++ {
@@ -225,11 +210,9 @@ type RulesRenderData struct {
 	Loaded string
 	ByHand bool
 	Script string
-	// What the server lets a rule do; an action it cannot take is not
-	// offered.
+
 	CanFile, CanFlag, CanCopy, CanWire bool
-	// The form: the rule it holds, its place in the list (-1 when new),
-	// the folders to file into, and what the form answers.
+
 	Editing Rule
 	Index   int
 	Folders []string
@@ -272,8 +255,6 @@ func handleRules(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "rules.html", data)
 }
 
-// handleRuleForm opens a rule to write: a new one, prefilled from the
-// message the link came from, or the one at the URL's place.
 func handleRuleForm(ctx *alborz.Context) error {
 	data, err := rulesData(ctx)
 	if err != nil {
@@ -306,8 +287,6 @@ func handleRuleForm(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "rule-edit.html", data)
 }
 
-// ruleFromForm reads the form; the conditions are three rows, a row
-// with no value being left out.
 func ruleFromForm(ctx *alborz.Context) (Rule, error) {
 	r := Rule{
 		Name:     strings.TrimSpace(ctx.FormValue("name")),
@@ -384,8 +363,6 @@ func handleRuleSave(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
 }
 
-// handleBlock appends a rule that junks a sender, or its domain, from
-// the message page. The junk folder is the account's own, by role.
 func handleBlock(ctx *alborz.Context) error {
 	value := strings.ToLower(strings.TrimSpace(ctx.FormValue("value")))
 	domain := ctx.FormValue("domain") != ""
@@ -400,8 +377,7 @@ func handleBlock(ctx *alborz.Context) error {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("filters.nojunk")})
 		return ctx.Redirect(http.StatusFound, ctx.FormValue("next"))
 	}
-	// No editing session preceded this, so the script as it stands is
-	// what is changed; appending a rule cannot undo anyone's edit.
+	// No editing session preceded this, and appending cannot undo anyone's edit.
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		current, exists, err := scriptIfAny(c, rulesScript)
 		if err != nil {
@@ -445,8 +421,7 @@ func handleRuleDelete(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/rules", ctx.T("notice.ruledeleted"))
 }
 
-// handleRuleMove swaps a rule with its neighbour: order is meaning, the
-// first rule that stops wins.
+// Order is meaning: the first rule that stops wins.
 func handleRuleMove(ctx *alborz.Context) error {
 	index, err := strconv.Atoi(ctx.FormValue("index"))
 	if err != nil {

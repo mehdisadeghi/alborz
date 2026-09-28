@@ -17,24 +17,16 @@ import (
 	"github.com/emersion/go-message/textproto"
 )
 
-// A signature verdict has two outcomes worth showing and one worth
-// staying quiet about. A message nobody signed says nothing, and so
-// does one signed by a key we have no way to know: a mark on every
-// message teaches people to ignore marks. Only "this is from who it
-// says" and "this is not" are worth a reader's attention.
+// SignatureState is a signature verdict; only good and bad are shown.
 type SignatureState string
 
 const (
-	SignatureNone SignatureState = ""     // nothing signed, or no key to check with
-	SignatureGood SignatureState = "good" // a signature that verifies, by a key that claims this sender
-	SignatureBad  SignatureState = "bad"  // a signature that is present and does not verify
+	SignatureNone SignatureState = "" // nothing signed, or no key to check with
+	SignatureGood SignatureState = "good"
+	SignatureBad  SignatureState = "bad"
 )
 
-// KeySource says where the verifying key came from, which is the whole
-// of what a good signature proves: a key the message carried proves
-// that whoever composed it holds that key, and no more, since anyone
-// can make a key naming any address; a key the sender's domain
-// publishes is the domain vouching for the address.
+// KeySource says where the verifying key came from.
 type KeySource string
 
 const (
@@ -43,51 +35,31 @@ const (
 	KeyFromCA      KeySource = "ca"      // an S/MIME certificate's issuer
 )
 
-// Verification is what the page says about a message's authenticity. It is
-// chrome, never body: the HTML sanitizer allows a style element, so a
-// message can draw a convincing green band inside its own frame, and
-// only a mark outside that frame means anything.
+// Verification is a message's authenticity verdict, drawn outside the frame the message controls.
 type Verification struct {
 	State SignatureState
-	// Signer is the address the verifying key claims, shown only when
-	// the signature is good. A key that verifies for an address other
-	// than the sender's is not a good signature; see verifySignature.
+	// Signer is the address the verifying key claims, set only for a good signature.
 	Signer string
-	// Reason names what went wrong, for a bad signature. It is a fixed
-	// key, translated by the page, never the library's own English.
+	// Reason is a locale key naming what went wrong, for a bad signature.
 	Reason string
 	// Source is where the key that verified came from.
 	Source KeySource
-	// Claim names exactly what was checked, for a good signature, as a
-	// locale key the page renders with the signer's address.
+	// Claim is a locale key naming what was checked, for a good signature.
 	Claim string
-	// Confirmed says the domain published the key and our own server
-	// saw the domain sign the delivery: two witnesses that agree. Only
-	// then is the mark green.
+	// Confirmed says the domain published the key and our server saw the domain sign the delivery.
 	Confirmed bool
 }
 
-// reasonUnverified is the one reason a signature is reported bad: the
-// bytes and the signature disagree. Every other outcome - no key, a key
-// that claims somebody else - is an absence of evidence rather than
-// evidence of forgery, and the page says nothing at all for those.
+// The only bad verdict: a missing or foreign key is absence of evidence, not forgery.
 const reasonUnverified = "pgp.reasonunverified"
 
-// pgpProtocol is the media type RFC 3156 3 gives the second part of a
-// signed message; the first part is what the signature covers.
 const pgpProtocol = "application/pgp-signature"
 
-// signedParts finds the two parts of a PGP/MIME signed message and
-// returns their IMAP part paths. A signed message is multipart/signed
-// at some level with exactly two parts, so the walk stops at the first
-// one it finds rather than guessing among several.
 func signedParts(bs imap.BodyStructure) (content, sig []int, ok bool) {
 	content, sig, _, ok = signedPartsOf(bs)
 	return content, sig, ok
 }
 
-// signedPartsOf is signedParts with the protocol the signature is in,
-// which decides who checks it: OpenPGP or S/MIME.
 func signedPartsOf(bs imap.BodyStructure) (content, sig []int, protocol string, ok bool) {
 	bs.Walk(func(path []int, part imap.BodyStructure) bool {
 		if ok {
@@ -114,11 +86,6 @@ func signedPartsOf(bs imap.BodyStructure) (content, sig []int, protocol string, 
 	return content, sig, protocol, ok
 }
 
-// autocryptKey reads the sender's own key out of the Autocrypt header
-// (Level 1, 2.1.1). It is the only key source that costs no storage and
-// no network: the sender put it there. A keyring, WKD and an attached
-// key would each be another source, and each is another decision about
-// what to trust.
 func autocryptKey(h textproto.Header) (openpgp.EntityList, string, error) {
 	value := h.Get("Autocrypt")
 	if value == "" {
@@ -152,17 +119,7 @@ func autocryptKey(h textproto.Header) (openpgp.EntityList, string, error) {
 	return keys, addr, nil
 }
 
-// verifySignature checks a PGP/MIME signature (RFC 3156 5) against the
-// exact bytes the server holds.
-//
-// The signature covers the first body part's transmitted octets - its
-// MIME headers, the blank line, and its body - so nothing here may
-// re-serialise them. BODY[n.MIME] would be the tidy way to ask for them
-// and is not safe: a server is free to rewrite a header it hands back
-// that way, and the in-memory server the tests run against does. So the
-// whole message is fetched once and the region is cut out of it by its
-// boundary, which is the one thing every server passes through
-// untouched.
+// The signed octets are cut from the raw message, never re-serialised, so they match byte for byte.
 func (p *plugin) verifySignature(client *http.Client, conn *imapclient.Client, mboxName string, uid imap.UID,
 	bs imap.BodyStructure, rootHeader textproto.Header, from string) Verification {
 
@@ -187,9 +144,7 @@ func (p *plugin) verifySignature(client *http.Client, conn *imapclient.Client, m
 	domainKeys := p.domainKeys(client, authors)
 	messageKeys := senderKeys(rootHeader, raw, authors)
 	if len(domainKeys)+len(messageKeys) == 0 {
-		// Signed, and nothing says by whom. That is not a failed
-		// signature and must not be shown as one: it is an absence of
-		// evidence, so the page says nothing at all.
+		// Signed, but by nobody named: absence of evidence, not a bad signature.
 		return Verification{}
 	}
 
@@ -215,8 +170,6 @@ func (p *plugin) verifySignature(client *http.Client, conn *imapclient.Client, m
 	return Verification{State: SignatureBad, Reason: reasonUnverified}
 }
 
-// withDelivery upgrades a signature by the domain's key to confirmed
-// once our own server's word on the delivery agrees with it.
 func withDelivery(v Verification, a *AuthResults) Verification {
 	_, domain, _ := strings.Cut(v.Signer, "@")
 	if v.State == SignatureGood && v.Source == KeyFromDomain && a != nil && a.Vouches(domain) {
@@ -226,8 +179,6 @@ func withDelivery(v Verification, a *AuthResults) Verification {
 	return v
 }
 
-// domainKeys asks each author's domain for the keys it publishes for
-// them, keeping those that name the author.
 func (p *plugin) domainKeys(client *http.Client, authors []string) openpgp.EntityList {
 	var found openpgp.EntityList
 	for _, author := range authors {
@@ -240,16 +191,7 @@ func (p *plugin) domainKeys(client *http.Client, authors []string) openpgp.Entit
 	return found
 }
 
-// senderKeys gathers the keys the message itself offers for its own
-// sender, and only those: a key that claims a different address says
-// nothing about this message, however valid its signature.
-//
-// Both sources are the sender's own doing - the Autocrypt header they
-// set, and the public key they attached, which is what aerc and mutt
-// send. Neither proves who they are; both prove that whoever composed
-// the message holds the key, and the verdict says so. The domain's own
-// word is domainKeys; a keyring or a key server would each be a further
-// decision about what to trust and is not made here.
+// Only keys claiming an author count: another address's key says nothing about this message.
 func senderKeys(h textproto.Header, raw []byte, authors []string) openpgp.EntityList {
 	var found openpgp.EntityList
 	if keys, addr, err := autocryptKey(h); err == nil {
@@ -267,15 +209,7 @@ func senderKeys(h textproto.Header, raw []byte, authors []string) openpgp.Entity
 	return found
 }
 
-// authorAddresses names who the message says wrote it. From alone is
-// not the answer: a mailing list rewrites From to its own address to
-// get past DMARC, so on every list message - which is where signed mail
-// mostly lives - the author is somewhere else.
-//
-// The strongest answer is inside the signature. A signed part may carry
-// the headers it protects (protected-headers="v1"), and a From there
-// cannot be rewritten by anyone downstream without breaking the
-// signature. Reply-To and the outer From follow it.
+// From alone is not enough, since mailing lists rewrite it: the signed protected From comes first.
 func authorAddresses(h textproto.Header, signed []byte) []string {
 	var out []string
 	add := func(value string) {
@@ -293,9 +227,6 @@ func authorAddresses(h textproto.Header, signed []byte) []string {
 	return out
 }
 
-// attachedKeys reads every public key the message carries as a part.
-// The parts are walked with go-message, which parses faithfully; it is
-// re-serialising that loses bytes, and nothing is re-serialised here.
 func attachedKeys(raw []byte) openpgp.EntityList {
 	entity, err := message.Read(bytes.NewReader(raw))
 	if err != nil {
@@ -321,8 +252,6 @@ func attachedKeys(raw []byte) openpgp.EntityList {
 			if err != nil || !strings.EqualFold(mediaType, "application/pgp-keys") {
 				continue
 			}
-			// The part reader decodes the transfer encoding, so this is
-			// the armoured key as the sender wrote it.
 			if k, err := openpgp.ReadArmoredKeyRing(part.Body); err == nil {
 				keys = append(keys, k...)
 			}
@@ -332,10 +261,6 @@ func attachedKeys(raw []byte) openpgp.EntityList {
 	return keys
 }
 
-// claimsAddress says whether a key belongs to one of the addresses the
-// message says wrote it. An Autocrypt header states its address itself;
-// an attached key states it in its identities. Compared
-// case-insensitively, because an address is.
 func claimsAddress(key *openpgp.Entity, stated string, authors []string) bool {
 	for _, author := range authors {
 		if author == "" {
@@ -353,38 +278,24 @@ func claimsAddress(key *openpgp.Entity, stated string, authors []string) bool {
 	return false
 }
 
-// signedRegion cuts the signed octets and the armoured signature out of
-// a raw message.
-//
-// The boundary is not guessed and not taken from a parsed structure: the
-// line that opens the signature part is a boundary delimiter by
-// construction (RFC 2046 5.1.1), so reading it off the bytes gives the
-// boundary this message actually used, whatever nesting it sits in and
-// whatever the headers claim.
 func signedRegion(raw []byte) (signed, sig []byte, ok bool) {
-	// Anchored on the armour, not on the media type: the media type is
-	// also written in the enclosing part's protocol parameter, above the
-	// body, and that copy is the one a forward search finds.
+	// Anchored on the armour: the media type also appears earlier, in the protocol parameter.
 	sigStart := bytes.Index(raw, []byte("-----BEGIN PGP SIGNATURE-----"))
 	if sigStart < 0 {
 		return nil, nil, false
 	}
-	// The last line beginning "--" before the armour is the delimiter
-	// that opens the signature part: a part's own headers never begin
-	// that way.
+	// A part's own headers never begin with "--", so the last such line opens the signature part.
 	close := bytes.LastIndex(raw[:sigStart], []byte("\n--"))
 	if close < 0 {
 		return nil, nil, false
 	}
-	close++ // past the newline, at the first dash
+	close++
 	eol := bytes.IndexByte(raw[close:], '\n')
 	if eol < 0 {
 		return nil, nil, false
 	}
 	boundary := bytes.TrimRight(raw[close:close+eol], "\r")
 
-	// The same delimiter, the first time it appears, opens the signed
-	// part. Everything between the two is what was signed.
 	open := bytes.Index(raw, append([]byte("\n"), boundary...))
 	if open < 0 || open >= close {
 		return nil, nil, false
@@ -399,8 +310,7 @@ func signedRegion(raw []byte) (signed, sig []byte, ok bool) {
 	if from > close {
 		return nil, nil, false
 	}
-	// The CRLF before a delimiter belongs to the delimiter, not to the
-	// part it closes (RFC 2046 5.1.1), so it is not signed.
+	// The CRLF before a delimiter belongs to the delimiter (RFC 2046 5.1.1).
 	body := bytes.TrimSuffix(bytes.TrimSuffix(raw[from:close], []byte("\n")), []byte("\r"))
 
 	sigEnd := bytes.Index(raw[sigStart:], []byte("-----END PGP SIGNATURE-----"))
@@ -412,8 +322,6 @@ func signedRegion(raw []byte) (signed, sig []byte, ok bool) {
 	return crlf(body), raw[sigStart:sigEnd], true
 }
 
-// crlf gives every line the ending the signature was made over, without
-// doubling one that is already there.
 func crlf(b []byte) []byte {
 	var out bytes.Buffer
 	out.Grow(len(b) + len(b)/16)
@@ -426,8 +334,6 @@ func crlf(b []byte) []byte {
 	return out.Bytes()
 }
 
-// identityOf names the signer for the page: the key's own identity when
-// it has one, and the address the Autocrypt header claimed otherwise.
 func identityOf(e *openpgp.Entity, fallback string) string {
 	if e != nil {
 		for _, id := range e.Identities {
@@ -439,14 +345,10 @@ func identityOf(e *openpgp.Entity, fallback string) string {
 	return fallback
 }
 
-// messageRootHeader is the whole message's header, where Autocrypt and
-// the list headers live; a part's own header has neither.
 func messageRootHeader(msg *IMAPMessage) textproto.Header {
 	return msg.rootHeader
 }
 
-// envelopeSender is the address the message claims to be from, which is
-// the address a signature has to belong to.
 func envelopeSender(env *imap.Envelope) string {
 	if env == nil || len(env.From) == 0 {
 		return ""

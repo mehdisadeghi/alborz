@@ -7,20 +7,10 @@ import (
 	"time"
 )
 
-// A CalendarSystem counts the same instants in its own months and
-// years. It exists so the reader may live in a calendar other than the
-// Gregorian one without the server knowing: an event stays an instant
-// or a date in iCalendar, and only what a page shows and asks for -
-// month bounds, page names, day numbers, month names, week numbers -
-// is counted in the system the reader chose. The renderer counts in
-// the primary system and glosses in the secondary; the month handler
-// asks it for the month's bounds. Two are known: the Gregorian one and
-// the Solar Hijri one that Iran and Afghanistan count in. Another is a
-// further implementation of this interface and a name in
-// calendarSystems; nothing else needs to change.
+// CalendarSystem counts instants in its own months and years, for display and input only.
 type CalendarSystem interface {
 	Name() string
-	// RSCALE is the calendar's name in a recurrence rule (RFC 7529 4.1).
+	// RSCALE is the calendar's name in a recurrence rule.
 	RSCALE() string
 	// Date reads t in this calendar, and Time is midnight on a date of it.
 	Date(t time.Time) (year, month, day int)
@@ -48,8 +38,7 @@ const (
 	shcalName = "shcal"
 )
 
-// CalendarNamed is the system that name stands for, empty for one we
-// do not have, so a form cannot store a calendar nothing can count in.
+// CalendarNamed returns name when it is a known system, else "", so a form cannot store an unknown calendar.
 func CalendarNamed(name string) string {
 	if slices.Contains(calendarSystems, name) {
 		return name
@@ -57,12 +46,9 @@ func CalendarNamed(name string) string {
 	return ""
 }
 
-// calendarSystems are the ones a reader may count in, in the order the
-// settings offer them.
 var calendarSystems = []string{gregorianName, shcalName}
 
-// Calendar returns the named system, the Gregorian one for any name
-// that is not known.
+// Calendar returns the named system, Gregorian for an unknown name.
 func Calendar(name string) CalendarSystem {
 	if name == shcalName {
 		return solarHijri{}
@@ -70,8 +56,7 @@ func Calendar(name string) CalendarSystem {
 	return gregorian{}
 }
 
-// CalendarOfRSCALE is the system a rule counts in; a scale nobody here
-// knows is reported, since its rule cannot be expanded.
+// CalendarOfRSCALE returns the system a rule counts in; false for an unknown scale.
 func CalendarOfRSCALE(scale string) (CalendarSystem, bool) {
 	for _, name := range calendarSystems {
 		if cal := Calendar(name); strings.EqualFold(cal.RSCALE(), scale) {
@@ -128,8 +113,7 @@ func (solarHijri) Date(t time.Time) (int, int, int) {
 		}
 		k -= 186
 	} else {
-		// Before Nowruz the day belongs to the year before, whose
-		// Esfand is a day longer when that year was the leap one.
+		// Before Nowruz the day belongs to the previous year, whose Esfand is a day longer in a leap year.
 		jy--
 		k += 179
 		if since == 1 {
@@ -194,13 +178,7 @@ func (solarHijri) YearDay(t time.Time) int {
 }
 func (solarHijri) WeekStarts() time.Weekday { return time.Saturday }
 
-// shYear says how many years a Solar Hijri year is past the last leap
-// year - none makes it one - and on which Gregorian day it begins. The
-// reckoning is Borkowski's (The Persian calendar for 3000 years, Earth,
-// Moon and Planets 74, 1996), which follows the astronomical rule Iran
-// keeps - Nowruz on the day of the March equinox, or the next when it
-// falls after noon in Tehran - from 1178 to 3177; the 2820-year cycle
-// some libraries use instead gets 1403 and 1404 wrong.
+// shYear returns the years since the last leap year (0 for a leap year) and the Gregorian day of Nowruz, per Borkowski (Earth, Moon and Planets 74, 1996).
 func shYear(jy int) (sinceLeap int, nowruz time.Time) {
 	breaks := [...]int{-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178}
 	if jy < breaks[0] || jy >= breaks[len(breaks)-1] {
@@ -233,16 +211,11 @@ func shYear(jy int) (sinceLeap int, nowruz time.Time) {
 	return since, time.Date(gy, time.March, march, 0, 0, 0, 0, time.UTC)
 }
 
-// daysBetween counts the midnights from a to b, both at midnight UTC.
 func daysBetween(a, b time.Time) int {
 	return int(b.Sub(a).Hours() / 24)
 }
 
-// A native date picker speaks only Gregorian, so under any other
-// primary calendar a date field is text and the date is typed in that
-// calendar: 1405/06/16, or 1405/06/16 10:30 with a time, in either
-// digit shape and with either separator, and shown in the page's
-// digits. The Gregorian fields keep the picker and its ISO value.
+// Non-Gregorian calendars take typed dates, since a native date picker speaks only Gregorian.
 const (
 	isoDate     = "2006-01-02"
 	isoDateTime = "2006-01-02T15:04"
@@ -250,7 +223,7 @@ const (
 	typedTime   = "%02d:%02d"
 )
 
-// TypedDates says whether the forms take dates typed rather than picked.
+// TypedDates reports whether forms take dates typed rather than picked.
 func (g *GlobalRenderData) TypedDates() bool { return g.primary().Name() != gregorianName }
 
 // InputDate and InputDateTime are a date as its field holds it.
@@ -275,16 +248,14 @@ func (g *GlobalRenderData) InputDateTime(t time.Time) string {
 	return g.InputDate(t) + " " + g.shapeDigits(fmt.Sprintf(typedTime, t.Hour(), t.Minute()))
 }
 
-// DateExample and DateTimeExample are today, as a typed field wants
-// it, for the field to show what it expects.
+// DateExample and DateTimeExample show today as a typed field expects it.
 func (g *GlobalRenderData) DateExample() string { return g.InputDate(g.InTimezone(time.Now())) }
 
 func (g *GlobalRenderData) DateTimeExample() string {
 	return g.InputDateTime(g.InTimezone(time.Now()))
 }
 
-// InputDay is InputDate for a day kept as an ISO string; one that is
-// not a day is what was typed, and goes back to the field as it came.
+// InputDay is InputDate for an ISO day string; anything else is returned as typed.
 func (g *GlobalRenderData) InputDay(iso string) string {
 	t, err := time.Parse(isoDate, iso)
 	if err != nil {
@@ -296,9 +267,7 @@ func (g *GlobalRenderData) InputDay(iso string) string {
 func (ctx *Context) InputDate(t time.Time) string     { return ctx.dates().InputDate(t) }
 func (ctx *Context) InputDateTime(t time.Time) string { return ctx.dates().InputDateTime(t) }
 
-// ReadDate and ReadDateTime read a field's date back in the reader's
-// calendar; the whole day is a time, which iCalendar wants when it is
-// a date.
+// ReadDate and ReadDateTime read a field's date back in the reader's calendar.
 func (ctx *Context) ReadDate(s string, loc *time.Location) (time.Time, error) {
 	g := ctx.dates()
 	if !g.TypedDates() {
@@ -327,8 +296,6 @@ func (ctx *Context) ReadDateTime(s string, loc *time.Location) (time.Time, error
 	return day.Add(time.Duration(h)*time.Hour + time.Duration(m)*time.Minute), nil
 }
 
-// typedDay reads the date at the front of a typed field and returns
-// what followed it.
 func typedDay(cal CalendarSystem, s string, loc *time.Location) (time.Time, string, error) {
 	s = strings.TrimSpace(LatinDigits(s))
 	date, rest, _ := strings.Cut(s, " ")

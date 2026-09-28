@@ -12,10 +12,6 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-// refusingIMAP advertises NOTIFY and answers it with BAD, and speaks
-// just enough else for the watcher's fallback to run. The fork's own
-// server will not advertise what it does not implement, so a server
-// that claims NOTIFY and refuses it has to be scripted.
 func refusingIMAP(t *testing.T) string {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -77,8 +73,6 @@ func refusingIMAP(t *testing.T) string {
 	return ln.Addr().String()
 }
 
-// A server that advertises NOTIFY and then refuses it is watched by
-// sweeping, on a connection the refusal did not break (ADR 45).
 func TestNotifyAdvertisedButRefused(t *testing.T) {
 	c, err := imapclient.DialInsecure(refusingIMAP(t), nil)
 	if err != nil {

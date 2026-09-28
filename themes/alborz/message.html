@@ -1,7 +1,4 @@
-{{/* One message move action: dict mbox aq uid next to label. */}}
-{{/* One move of the open message. With an icon it belongs in the
-     toolbar, with a label in the overflow menu. dict: mbox aq uid next
-     to label [icon] [class]. */}}
+{{/* dict: mbox aq uid next to label [icon] [class]. */}}
 {{ define "msg-move-form" }}
 <form class="action-group{{ with .formclass }} {{.}}{{ end }}" method="post" action="/message/{{.mbox | pathescape}}/move{{.aq}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <input type="hidden" name="uids" value="{{.uid}}">
@@ -22,7 +19,6 @@
 <div class="page-wrap">
   {{ $current := .Mailbox }}
   {{ $aq := "" }}{{ $aamp := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ $aamp = printf "&account=%s" . }}{{ end }}
-  {{/* The query strings every action shares, built once. */}}
   {{ $partq := $aq }}{{ $partallq := $aq }}{{ $partlistq := printf "?list=1%s" $aamp }}{{ with .Message.PreferredPart $.PreferHTML }}{{ $partq = printf "?part=%s%s" .PathString $aamp }}{{ $partallq = printf "?part=%s&all=true%s" .PathString $aamp }}{{ $partlistq = printf "?part=%s&list=1%s" .PathString $aamp }}{{ end }}
   {{ $navq := $aq }}{{ if .ListView }}{{ $navq = printf "?view=%s%s" .ListView $aamp }}{{ else if .Query }}{{ $navq = printf "?query=%s%s" (.Query | qv) $aamp }}{{ end }}
   {{ template "aside" . }}
@@ -49,13 +45,6 @@
               {{if .Message.HasFlag "\\Draft"}}
                 <a class="button-link" href="{{.Message.URL}}/edit{{$partq}}">{{$.T "message.editdraft"}}</a>
               {{else}}
-                {{/* Three marks either way, in the same three places:
-                     the reply this message wants, the other reply, then
-                     forward. On list mail the first is the list and the
-                     second is the author, because Reply on a list
-                     usually answers the wrong person - and reply-all,
-                     which answers the list and everyone on it at once,
-                     moves into the overflow where it has to be read. */}}
                 {{ if .Message.ListID }}
                 <a class="icon-button" href="{{.Message.URL}}/reply{{$partlistq}}" title="{{$.T "message.replylist"}} — {{.Message.ListID}}" aria-label="{{$.T "message.replylist"}}">{{ template "icon" "reply-list" }}</a>
                 <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.replyauthor"}}" aria-label="{{$.T "message.replyauthor"}}" data-key="r">{{ template "icon" "reply" }}</a>
@@ -63,15 +52,10 @@
                 <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.reply"}}" aria-label="{{$.T "message.reply"}}" data-key="r">{{ template "icon" "reply" }}</a>
                 <a class="icon-button" href="{{.Message.URL}}/reply{{$partallq}}" title="{{$.T "message.replyall"}}" aria-label="{{$.T "message.replyall"}}" data-key="a">{{ template "icon" "reply-all" }}</a>
                 {{ end }}
-                {{/* Forward is the one of the three that leaves the
-                     narrowest row, after archive. */}}
                 <a class="icon-button" href="{{.Message.URL}}/forward{{$partq}}" title="{{$.T "message.forward"}}" aria-label="{{$.T "message.forward"}}" data-key="f" data-priority="15">{{ template "icon" "forward" }}<span class="label">{{$.T "message.forward"}}</span></a>
               {{end}}
             </span>
 
-            {{/* Archive is the one that leaves a narrowing row, after
-                 the colours. Junk and delete are what a reader reaches
-                 for most, so they keep their marks at every width. */}}
             <span class="icon-group">
               {{ if and $archive (ne .Mailbox.Name $archive) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $sent) }}
               {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $archive "label" ($.T "mailbox.archive") "icon" "archive" "priority" 14) }}
@@ -98,19 +82,10 @@
             <div class="overflow">
               <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
               <div class="overflow-menu" popover id="menu-more">
-                {{/* The bytes the server holds, which is what makes the
-                     message filable and checkable elsewhere. */}}
                 <a hx-boost="false" class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
-                {{/* A rule starts from the message in hand: its sender,
-                     its list and its subject are offered as conditions on
-                     the account that received it. */}}
                 {{ if call $.GlobalData.HavePlugin "sieve" }}
                 {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
                 <a class="button-link" href="{{ localhref (printf "/filters/rules/create?from=%s&list=%s&subject=%s%v" ($from | qv) (.Message.ListID | qv) (.Message.Envelope.Subject | qv) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
-                {{/* Blocking is a rule that junks the sender, which is
-                     all a user agent can do about one, and what trains
-                     the server's filter where it learns from that
-                     folder. The address and its domain are two rules. */}}
                 {{ if $from }}
                 <form method="POST" action="/filters/rules/block{{$aq}}">
                   <input type="hidden" name="value" value="{{$from}}">
@@ -126,19 +101,10 @@
                 </form>
                 {{ end }}
                 {{ end }}
-                {{/* On list mail the dangerous reply is the one that
-                     answers the list and everyone on it at once, so it
-                     is here, spelled out, rather than a mark beside the
-                     two safe ones. */}}
                 {{ if .Message.ListID }}
                 <a class="button-link" href="{{localhref (printf "%v/reply%s" $.Message.URL $partallq)}}">{{$.T "message.replyall"}}</a>
                 {{ end }}
                 <a class="button-link" href="{{localhref (printf "/message/%s/forward?uids=%v%s" (.Mailbox.Name | pathescape) .Message.UID $aamp)}}">{{$.T "message.forwardattached"}}</a>
-                {{/* A list that promises one-click is taken at its
-                     word, from here, since the browser may not post
-                     across origins. Anything else is a page to visit or
-                     a message to write, both of which the reader sees
-                     before anything happens. */}}
                 {{ if .Message.OneClick }}
                 <form method="post" action="{{.Message.URL}}/unsubscribe{{$aq}}">
                   <input type="hidden" name="next" value="{{$here}}">
@@ -195,10 +161,6 @@
         <table>
           <tbody>
           <tr>
-            {{/* The star rides the subject line, at the end the subject
-                 does not start from: put beside the first character it
-                 sits where a subject's own leading emoji sits and the
-                 two read as one mark. */}}
             <th colspan="2">
               <div class="subject-row">
               <h1 dir="{{.Message.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Message.Envelope.Subject}} lang="{{.}}"{{end}}>
@@ -208,8 +170,6 @@
                   {{$.T "mailbox.nosubject"}}
                 {{end}}
               </h1>
-              {{/* One star for this message: it sets and clears, and the
-                   chevron beside it holds the colours. */}}
               {{ template "flag-menu" (dict
                  "toggle" true
                  "form" "message-flag-form"
@@ -222,10 +182,6 @@
           <tr>
             <th scope="row">{{$.T "compose.from"}}:</th>
             <td>
-              {{/* A list that rewrote the From says who wrote the message in
-                     headers of its own; both are shown, the author first,
-                     since the list's address is the one that will not find
-                     them again. */}}
                 {{ if .Message.Author }}
                 {{template "addr-list" (dict "addrs" (tuple .Message.Author) "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "byname" true "filterlabel" ($.T "message.filterfrom"))}}
                 {{$.T "message.via"}}
@@ -233,11 +189,8 @@
                 {{ else }}
                 {{template "addr-list" (dict "addrs" .Message.Envelope.From "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
                 {{ end }}
-              {{/* The verdict rides with the sender, because it is a
-                   claim about the sender - and it is chrome, outside
-                   the frame the message body draws in: the sanitizer
-                   allows a style element, so a message can paint a
-                   convincing green band of its own inside it. */}}
+              {{/* Outside the body frame: a message can style its own body to look
+                   like a verdict. */}}
                             {{ if .Signature.Confirmed }}
               <span class="sig sig-verified" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.verified"}}</span>
               {{ else if eq .Signature.State "good" }}
@@ -265,51 +218,26 @@
             <td>{{template "addr-list" (dict "addrs" .Message.Envelope.Bcc "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "")}}</td>
           </tr>
           {{ end }}
-          {{/* Mail to an alias arrives looking like mail to the account.
-               Only the delivery path recorded where it was really sent,
-               and it decides which identity answers or unsubscribes. */}}
           {{ with .DeliveredTo }}
           <tr>
             <th scope="row">{{$.T "message.deliveredto"}}:</th>
             <td>{{ template "ltr" . }}</td>
           </tr>
           {{ end }}
-          {{/* Mail that reached here through somebody else's mailbox.
-               Said only where our own server's SPF check proves it: the
-               headers a forwarder writes about itself are a stranger's
-               to write, and would put any address an attacker liked in
-               this row. */}}
+          {{/* Said only where our own server's SPF check proves it: a forwarder's
+               headers are anyone's to write. */}}
           {{ with .ForwardedBy }}
           <tr>
             <th scope="row">{{$.T "message.forwardedby"}}:</th>
             <td>{{ template "ltr" . }}</td>
           </tr>
           {{ end }}
-          {{/* What a list says about itself (RFC 2369). A reader who
-               wants out, or wants the archive, or wants to ask a person
-               rather than the list, should not have to open the source
-               to find the address. Only the entries the list actually
-               offered are shown. */}}
-          {{/* Where this message sits in its conversation. A fact
-               about the message like From and Date, so it belongs among
-               them rather than behind the list's summary: navigation is
-               the one thing nobody should open a disclosure to reach. */}}
-          {{/* One line for where this message sits: what it answers, the
-               list it came through, and how many answered it. Any mail
-               that is a reply gets it, not only list mail: the shape of
-               the fact is the same either way. */}}
           </tbody>
           <tbody id="message-conversation-body">{{ template "message-conversation" . }}</tbody>
           <tbody>
           {{ if .Message.ListDetails }}
           <tr>
             <td colspan="2">
-              {{/* Closed: where to unsubscribe, join or complain is
-                   reference, wanted twice a year, and the two things
-                   wanted often - reply to list, unsubscribe - are
-                   already in the toolbar and the overflow. The summary
-                   names the list only: the thread row above carries the
-                   identifier and links to the rest of its mail. */}}
               <details class="list-card">
                 <summary>{{$.T "list.title"}}</summary>
                 <dl>
@@ -338,14 +266,6 @@
             </td>
           </tr>
           {{ end }}
-          {{/* What our own server made of the sender's domain when it
-               took delivery (RFC 8601). Only failures are shown: a mark
-               on every message teaches people to ignore marks, and
-               "none" means the domain published no policy rather than
-               that this message failed one. */}}
-          {{/* Warning signs, only when there are any: the signs that need
-               no argument, in the words that say why. A clean message
-               gets no card; a message in Junk gets none either. */}}
           {{ with .Warnings }}
           <tr>
             <td colspan="2" class="warning-cell">
@@ -358,17 +278,11 @@
             </td>
           </tr>
           {{ end }}
-          {{/* A share of a calendar or an address book, answered here as a
-               meeting request is. */}}
           {{ with .Extra.ShareOffer }}
           <tr>
             <td colspan="2">{{ template "share-offer" (dict "g" $ "offer" .) }}</td>
           </tr>
           {{ end }}
-          {{/* A meeting request, answered here rather than in whatever
-               client the reader would otherwise have to open. The answer
-               goes to the organizer as mail (RFC 6047); nothing is
-               written to a calendar yet. */}}
           {{ with .Invitation }}
           <tr>
             <td colspan="2">
@@ -395,9 +309,6 @@
                   </dd>
                   {{ end }}
                 </dl>
-                {{/* Only a request asks for an answer. A published event
-                     is sent to be kept, a reply is somebody else's
-                     answer, and a cancellation has nothing to accept. */}}
                 {{ if and (not .Cancelled) (not .Answer) (not .Published) }}
                 <form method="post" action="/message/{{$.Mailbox.Name | pathescape}}/{{$.Message.UID}}/invite{{$aq}}" class="invitation-actions">
                   <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
@@ -407,9 +318,6 @@
                   {{ with .Mine }}<span class="invitation-mine">{{ $.T (printf "invite.part%s" (lower .)) }}</span>{{ end }}
                 </form>
                 {{ end }}
-                {{/* Answering is mail's half of the protocol; keeping the
-                     meeting is the calendar's, and needs somewhere to put
-                     it. */}}
                 {{ if $.Extra.InviteFiled }}
                 <form method="post" action="/calendar/forget-invitation{{$aq}}" class="invitation-actions">
                   <input type="hidden" name="path" value="{{ $.Extra.InviteFiled }}">
@@ -443,11 +351,6 @@
         </table>
         {{ $attachments := .Message.Attachments }}
         {{ if $attachments }}
-        {{/* The files are a card of their own under the header, never a
-             column beside it: fifty of them would otherwise set the
-             header's height and push the subject down the page. Folded
-             when there are many, and the whole lot is one click away
-             from the summary without opening it. */}}
         <details class="list-card parts"{{ if $.AttachmentsOpen }} open{{ end }}>
           <summary>
             <span class="parts-name">{{$.T "message.attachments"}}</span>
@@ -457,10 +360,8 @@
           <ul>
             {{ range .Message.Attachments }}
             <li>
-              {{/* A part the page can show is a page: boosted, like any
-                   other link. A part it cannot is bytes, and htmx would
-                   swap those into the document instead of letting the
-                   browser save them. */}}
+              {{/* A part the page cannot show is bytes, which htmx would swap into
+                   the document. */}}
               <a
                 class="nav-link"
                 {{if .IsText}}
@@ -476,9 +377,6 @@
                 {{$.T "message.unnamedfile"}}
               {{- end -}}
               </a> ({{.MIMEType}}, {{.SizeString}})
-              {{/* A calendar or a card attached to a mail is filed from its
-                   own row; the picker appears only where a writable collection
-                   of that kind exists. */}}
               {{ if and (or (eq .MIMEType "text/calendar") (eq .MIMEType "application/ics")) $.Extra.ImportCalendars }}
               <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
                 <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
@@ -506,21 +404,13 @@
         {{ end }}
       </div>
 
-      {{/* dict: addrs account mbox key. The name filters: it opens the
-           folder searched for mail from, or to, this address, the way
-           Apple Mail's "Search for" on an address does. The address
-           writes: compose on the account whose message it came from,
-           never on whichever account the browser holds as active. An
-           address without a name is shown once and filters; writing to
-           it is the reply beside it. */}}
+      {{/* dict: addrs account mbox key. */}}
       {{define "addr-list"}}
         {{ $aamp := account "&" .account }}
         {{ $folder := printf "/mailbox/%s" (.mbox | pathescape) }}
         {{range $i, $addr := .addrs}}
           {{if $i}},{{end}}
-          {{/* The author of list mail is filtered by name: their address
-               is not in the From header the list wrote, so a search for
-               it would find nothing. */}}
+          {{/* By name: the From a list wrote does not carry the author's address. */}}
           {{ $term := $addr.Addr }}{{ if $.byname }}{{ $term = printf "%q" $addr.Name }}{{ end }}
           {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $term | qv) $aamp) }}{{ end }}
           {{ if .Name }}
@@ -535,7 +425,6 @@
       {{ $html := .Message.HTMLPart }}
       {{ $text := .Message.TextPart }}
       <div class="tabs">
-        {{/* https://github.com/golang/go/issues/31103 */}}
         {{ if $text }}
         {{ if ne $text.MIMEType "text/html" }}
         <a
@@ -546,8 +435,6 @@
         >{{$.T "message.plaintext"}}</a>
         {{ end }}
         {{ end }}
-        {{/* A sender who wrote HTML alone left no words to read; the
-             message is offered as text as well, converted here. */}}
         {{ if and $html (or (not $text) (eq $text.MIMEType "text/html")) }}
         <a
           href="?part={{$html.PathString}}&amp;text=1{{account "&" $.GlobalData.URLAccount}}"
@@ -570,9 +457,6 @@
       {{if .View}}
         {{.View}}
       {{else if .Invitation}}
-        {{/* The card above is the message: a scheduling mail often
-             carries no text part at all, and saying it cannot be
-             previewed would be saying so of the thing just shown. */}}
       {{else}}
         <p>{{$.T "message.cantpreview"}}</p>
         <a hx-boost="false" href="{{.Message.URL}}/raw?part={{.Part.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.download"}}</a>
@@ -589,8 +473,6 @@
               {{ if .Position }}
               <span class="pagination-range" data-priority="1" data-yield="hide">{{$.GlobalData.Tf "common.position" .Position .Total}}</span>
               {{ end }}
-              {{/* Newer and older move along the list, not through
-                   pages: the marks point that way. */}}
               {{ if .NewerURL }}
               <a class="icon-button" href="{{ localhref (from (printf "%v" .NewerURL) $.GlobalData.From) }}" title="{{$.T "message.newer"}}" aria-label="{{$.T "message.newer"}}" data-key="k">{{ template "icon" "up" }}</a>
               {{ end }}
@@ -602,12 +484,6 @@
 
 {{ define "message-conversation" }}
           <tr id="message-conversation"{{ if not (or .InReplyTo .Answers .Message.ListID .ContextPending) }} hidden{{ end }}>
-            {{/* The label is the link to the folder read as
-                 conversations: it is already the words "this thread"
-                 and costs no width. It appears only where the server
-                 threads, because that is the one way of finding a
-                 conversation that does not depend on the quality of the
-                 server's header search. */}}
             <th scope="row">{{ if .ThreadSupported }}<a href="{{ localhref (printf "%v?thread=%d%s" $.Mailbox.URL .Message.UID (account "&" $.GlobalData.URLAccount)) }}">{{$.T "list.conversation"}}</a>{{ else }}{{$.T "list.conversation"}}{{ end }}:</th>
             <td class="conversation">
               {{ with .InReplyTo }}<a href="{{.URL}}{{account "?" $.GlobalData.URLAccount}}">{{ printf ($.T "list.answering") (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}

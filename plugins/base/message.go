@@ -30,8 +30,7 @@ type MessageRenderData struct {
 	IMAPBaseRenderData
 	Message *IMAPMessage
 	Part    *IMAPPartNode
-	// AsText is the HTML part being read as words (htmlAsText), which
-	// only a message with no plain part of its own offers.
+	// AsText is the HTML part read as words, offered only without a plain part.
 	AsText         bool
 	View           interface{}
 	MailboxPage    int
@@ -39,37 +38,25 @@ type MessageRenderData struct {
 	ContextPending bool
 	ContextURL     template.URL
 
-	// Invitation is the scheduling request this message carries, nil when
-	// it carries none.
+	// Invitation is the scheduling request this message carries, if any.
 	Invitation *Invitation
 
-	// AuthResults is what the receiving server said about the sender's
-	// domain, nil when no trusted server reported or none is named.
+	// AuthResults is what the receiving server said about the sender's domain.
 	AuthResults *AuthResults
-	// Warnings are the indicators that earned a colour, and Mark the
-	// colour: none, caution or alarm. Nothing is said about a message
-	// with nothing against it.
+	// Warnings are the indicators that earned a colour, and Mark the colour.
 	Warnings []Indicator
 	Mark     Grade
 
-	// Unsubscribe is where the unsubscribe control sends the reader. It
-	// is the list's own page when the list gave one, and otherwise our
-	// compose form with the identity the message was delivered to
-	// already chosen: a list keyed on an alias does not recognise a
-	// request from the account behind it.
+	// Unsubscribe is where the unsubscribe control sends the reader.
 	Unsubscribe string
 
-	// InReplyTo is the message this one answers, when it is in the same
-	// folder. It is nil when the server would not search headers.
+	// InReplyTo is the message this one answers, when it is in the same folder.
 	InReplyTo *ThreadNeighbour
 
-	// Answers are the messages answering this one, found only for mail
-	// being read in Sent: elsewhere the answer is already in the folder.
+	// Answers are the messages answering this one, found only in Sent.
 	Answers []ThreadNeighbour
 
-	// ThreadSupported says the server can group the folder into
-	// conversations, which is the only thing that makes the link to
-	// them worth offering.
+	// ThreadSupported says the server can group the folder into conversations.
 	ThreadSupported bool
 
 	// Crumb is the path to the folder this message is in, account first.
@@ -77,12 +64,10 @@ type MessageRenderData struct {
 	// PreferHTML is the account's choice of which part the tabs open.
 	PreferHTML bool
 
-	// DeliveredTo names the address the message was delivered to when
-	// that is not the account it landed in - the alias, in other words.
+	// DeliveredTo names the alias the message was delivered to, if not the account itself.
 	DeliveredTo string
 
-	// ForwardedBy names the mailbox that passed the message on, proved
-	// by the SPF check our own server made. Empty unless it is certain.
+	// ForwardedBy names the mailbox that passed the message on, proved by our server's SPF check.
 	ForwardedBy string
 
 	// Neighbors in the view the message was opened from; nil when absent.
@@ -92,15 +77,11 @@ type MessageRenderData struct {
 	Total    int
 	Query    string
 
-	// Signature is what the page says about the message's authenticity,
-	// as chrome outside the body frame. Its zero value says nothing,
-	// which is what an unsigned message deserves.
+	// Signature is what the page says about the message's authenticity; its zero value says nothing.
 	Signature Verification
 }
 
-// attachmentsShown is how many files the card shows without being
-// asked: enough for the mail that carries a few, while the mail that
-// carries fifty keeps the body in view.
+// Enough for mail with a few files, while mail with fifty keeps the body in view.
 const attachmentsShown = 5
 
 // AttachmentsOpen reports whether the card starts open.
@@ -108,10 +89,7 @@ func (d *MessageRenderData) AttachmentsOpen() bool {
 	return len(d.Message.Attachments()) <= attachmentsShown
 }
 
-// handleInvitationReply answers a meeting request by mail, which is
-// what the organizer's client is waiting for (RFC 6047). The invitation
-// is re-read from the message rather than taken from the form: what is
-// answered has to be what was sent.
+// The invitation is re-read from the message, so what is answered is what was sent.
 func handleInvitationReply(ctx *alborz.Context) error {
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
@@ -155,15 +133,7 @@ func handleInvitationReply(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, back)
 }
 
-// handleDownloadMessage hands over the bytes the server holds. It is
-// what makes a message filable, forwardable to somebody else's tooling,
-// and checkable against what was actually stored, none of which a
-// rendered page can do.
-// handleDownloadMessage sends the message as the server holds it, byte
-// for byte. With plain it is shown rather than saved: the source view.
-// Parsing the message and writing it out again is not the message, and
-// go-message will not write text in a charset other than UTF-8, so a
-// source view built that way answered 500 to every ISO-8859-1 mail.
+// With plain the bytes are shown rather than saved: the source view.
 func handleDownloadMessage(ctx *alborz.Context, plain bool) error {
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
@@ -180,9 +150,7 @@ func handleDownloadMessage(ctx *alborz.Context, plain bool) error {
 		return err
 	}
 	if plain {
-		// No charset can be right for a whole message, whose parts each
-		// name their own; UTF-8 is what 8-bit mail is written in, and a
-		// header is ASCII whatever is said here.
+		// No charset can be right for a whole message whose parts each name their own.
 		return ctx.Blob(http.StatusOK, "text/plain; charset=utf-8", raw)
 	}
 
@@ -195,10 +163,6 @@ func handleDownloadMessage(ctx *alborz.Context, plain bool) error {
 	return ctx.Blob(http.StatusOK, "message/rfc822", raw)
 }
 
-// handleDownloadAttachments sends every attachment of one message as a
-// zip, so a message holding fifty files is one click rather than fifty.
-// It writes as it walks: the parts are already in memory, the archive
-// need not be.
 func handleDownloadAttachments(ctx *alborz.Context) error {
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
@@ -228,17 +192,12 @@ func handleDownloadAttachments(ctx *alborz.Context) error {
 	archive := zip.NewWriter(ctx.Response())
 	taken := map[string]int{}
 	if err := writeAttachments(archive, entity, taken, ""); err != nil {
-		// The reader has bytes by now, so the file ends short rather
-		// than turning into an error page.
+		// The reader has bytes by now, so the file ends short rather than turning into an error page.
 		ctx.Logger().Printf("attachments %q uid %v: %v", mboxName, uid, err)
 	}
 	return archive.Close()
 }
 
-// htmlAsText reads an HTML part as words, for a message whose sender
-// wrote no plain part at all. It is alborz's rendering, not something
-// the sender sent, and the tab that opens it says so; the conversion is
-// the one a reply already makes of the mail it quotes.
 func htmlAsText(part *message.Entity) (*message.Entity, error) {
 	text, err := html2text.FromReader(part.Body, html2text.Options{})
 	if err != nil {
@@ -249,9 +208,6 @@ func htmlAsText(part *message.Entity) (*message.Entity, error) {
 	return message.New(message.Header{Header: header}, strings.NewReader(text))
 }
 
-// joinedHTML is one document of the pieces HTMLPieces names, fetched in
-// one exchange. An image is referred to by its path, which the viewer
-// resolves to the part as it does a Content-ID.
 func joinedHTML(c *imapclient.Client, mboxName string, uid imap.UID, pieces []IMAPPartNode) (*message.Entity, error) {
 	if err := ensureMailboxSelected(c, mboxName); err != nil {
 		return nil, err
@@ -299,11 +255,6 @@ func joinedHTML(c *imapclient.Client, mboxName string, uid imap.UID, pieces []IM
 	return message.New(h, &joined)
 }
 
-// writeAttachments puts every attached part into the archive, naming an
-// unnamed one after the extension its type gives. What is attached is
-// what the message's card counts (Attachments): a part that attached
-// calls a file, at any depth, and the message itself when it is
-// nothing else. parent is the subtype of the multipart e sits in.
 func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]int, parent string) error {
 	mediaType, typeParams, _ := e.Header.ContentType()
 	if mr := e.MultipartReader(); mr != nil {
@@ -348,8 +299,6 @@ func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]i
 	return err
 }
 
-// zipEntryName keeps the file's own name where it has one, and keeps
-// names apart: a message may attach the same name twice.
 func zipEntryName(filename, mediaType string, taken map[string]int) string {
 	name := strings.Map(func(r rune) rune {
 		switch {
@@ -393,8 +342,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 	if err != nil {
 		return err
 	}
-	// Read before the message's own IMAP work: the observed id may cost
-	// a sample of the inbox, and the login lock is not reentrant.
+	// Read before the message's IMAP work: it may sample the inbox, and the login lock is not reentrant.
 	trusted := p.TrustedAuthServ(ctx, settings)
 	messagesPerPage := PerPage(ctx)
 
@@ -404,11 +352,6 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		return err
 	}
 
-	// The rendered view needs the sidebar, and takes it from the cached
-	// listing the reader came from, with the message's place in the
-	// page. Without one its mailbox LIST is issued with the message's
-	// SELECT pipelined behind it, and its STATUS responses ride along
-	// with the message fetch. A raw download only selects to fetch.
 	var (
 		cached *listingEntry
 		place  listPlace
@@ -417,9 +360,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 	if !raw {
 		cached, place, placed = p.cachedPlace(ctx, mboxName, uid, query, railView)
 	}
-	// A link naming no part, like Newer and Older, opens the part the
-	// mailbox rows would link to. The cached row knows the structure,
-	// so the answer costs no fetch.
+	// A link naming no part opens the part the rows would link to; the cached row knows it without a fetch.
 	if !raw && ctx.QueryParam("part") == "" && cached != nil {
 		if row := cached.row(uid); row != nil {
 			if preferred := row.PreferredPart(ctx.Reading().PreferHTML); preferred != nil && len(preferred.Path) > 0 {
@@ -427,9 +368,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 			}
 		}
 	}
-	// A body fetched ahead of the click serves the page without the
-	// server, unless the message is signed: the check reads the signed
-	// parts on the connection that holds the folder.
+	// A body fetched ahead serves the page, unless signed: the check reads parts on the folder's connection.
 	var held *cachedBody
 	if !raw {
 		held = p.bodies.current(ctx.Login.Username(), mboxName, uid, partPath)
@@ -456,9 +395,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		answers         []ThreadNeighbour
 		threadAlgorithm imap.ThreadAlgorithm
 	)
-	// The sidebar comes with the listing when that is cached. A flag
-	// change evicts the listing while the body fetched ahead stays
-	// held, and the sidebar is then loaded on the connection below.
+	// A flag change evicts the listing but not the held body, so the sidebar may load below.
 	if cached != nil {
 		sb = cached.sb
 	}
@@ -475,19 +412,13 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 			return err
 		}
 		permanentFlags = held.permanent
-		// What our own server made of SPF, DKIM and DMARC when it took
-		// delivery, read from the header the fetch brought.
 		authResults = readAuthResults(messageRootHeader(msg), trusted)
-		// The peek left the message unread on the server; the page is
-		// what reads it, and nothing waits on the server saying so.
+		// The peek left it unread on the server; the page is what reads it.
 		if !msg.HasFlag(imap.FlagSeen) {
 			p.markHeldSeen(ctx.Login, mboxName, uid, held.validity)
 		}
 	}
 	sent := sentFolder(sb.mailboxes)
-	// The server is asked for what the cache cannot say: the message
-	// itself when it was not fetched ahead, its place at a page's edge,
-	// what it answers, and what answered it in Sent.
 	needsThread := !raw && msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && mboxName == sent))
 	deferContext := held != nil && sb.active != nil && ctx.Partial() && (!placed || needsThread)
 	if cached != nil {
@@ -506,8 +437,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 				if msg, part, err = getMessagePart(c, mboxName, uid, partPath); err != nil {
 					return err
 				}
-				// The body fetch marked the message read; the cached listings say
-				// so too rather than being fetched again for one flag.
+				// The cached listings are marked read rather than fetched again for one flag.
 				p.messageRead(ctx.Login.Username(), mboxName, uid)
 				permanentFlags = c.Mailbox().PermanentFlags
 			}
@@ -525,15 +455,8 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 			}
 			inReplyTo, answers = readThread(ctx, c, mboxName, sent, msg)
 			if held == nil && msg.BodyStructure != nil {
-				// Whether the message is from who it says, on the same
-				// connection that has the mailbox open. A message nobody
-				// signed costs nothing here: signedParts walks a structure
-				// already in hand and finds nothing.
 				signature = p.verifySignature(ctx.Server.Outgoing.Remote(wkdTimeout), c, mboxName, uid, msg.BodyStructure,
 					messageRootHeader(msg), envelopeSender(msg.Envelope))
-				// What our own server made of SPF, DKIM and DMARC when
-				// it took delivery. Read from the same header set, and
-				// only from the instance the trusted server wrote.
 				authResults = readAuthResults(messageRootHeader(msg), trusted)
 				signature = withDelivery(signature, authResults)
 			}
@@ -546,9 +469,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 			return err
 		}
 	}
-	// The warning signs beside the message, read from the header the
-	// fetch already brought. Not in Junk: a message filed as junk needs
-	// no telling.
+	// Not in Junk: a message filed as junk needs no telling.
 	var indicators []Indicator
 	if !raw && folderRole(sb.mailboxes, mboxName) != "junk" {
 		evidence := &Evidence{
@@ -560,9 +481,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 			MoneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
 		}
 		if evidence.From != "" {
-			// Whom the reader knows does not stop at an account: mail
-			// from a host bills one address and its imitation reaches
-			// another, so every signed-in account's inbox is asked.
+			// Every signed-in account's inbox is asked: an imitation may reach a different address.
 			for _, s := range ctx.Logins() {
 				if book := p.senderBookFor(s); book != nil && evidence.Named == nil {
 					evidence.Named = book.named(msg.Envelope.From[0].Name, evidence.From)
@@ -577,8 +496,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		warnings = Warnings(indicators)
 	}
 
-	// A link naming no part, like Newer and Older, opens the part the
-	// mailbox rows would link to; the bare envelope has no viewer.
+	// The bare envelope has no viewer.
 	if !raw && len(partPath) == 0 {
 		preferred := msg.PreferredPart(ctx.Reading().PreferHTML)
 		if preferred != nil && len(preferred.Path) > 0 {
@@ -603,11 +521,8 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 
 		disp, _, _ := part.Header.ContentDisposition()
 
-		// TODO: set Content-Length if possible
-
-		// Be careful not to serve types like text/html as inline
+		// Never serve text/html and the like inline.
 		if !strings.EqualFold(mimeType, "text/plain") || strings.EqualFold(disp, "attachment") {
-			// The name the page and the zip give it.
 			var filename string
 			if node := msg.PartByPath(partPath); node != nil {
 				filename = node.Filename
@@ -656,8 +571,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 
 	trust := p.newDeliveryTrust(ctx, settings, ctx.Login.Username())
-	// The row says where the mail went only where To and Cc do not
-	// already: an alias the sender wrote out is on the page once.
+	// The alias shows only where To and Cc do not already name it.
 	deliveredTo := trust.alias(msg)
 	if addressed(deliveredTo, msg.Envelope.To, msg.Envelope.Cc) {
 		deliveredTo = ""
@@ -700,17 +614,11 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 	return ctx.Render(http.StatusOK, "message.html", data)
 }
 
-// UnsubscribeExternal reports whether the unsubscribe link leaves
-// alborz. A list's own page opens in a tab of its own; our compose form
-// is this page going somewhere and should not.
+// UnsubscribeExternal reports whether the unsubscribe link leaves alborz.
 func (d *MessageRenderData) UnsubscribeExternal() bool {
 	return d.Unsubscribe != "" && !strings.HasPrefix(d.Unsubscribe, "/")
 }
 
-// unsubscribeHref is where the unsubscribe control should point. A list
-// that gave an https page keeps it. A list that asks for a message gets
-// one written from the identity it was addressed or delivered to, since
-// a list keyed on an alias will not recognise the account behind it.
 func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) string {
 	href := msg.ListUnsubscribe
 	if href == "" || !strings.HasPrefix(href, "/compose?") {
@@ -721,9 +629,7 @@ func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) 
 		return href
 	}
 	q := u.Query()
-	// The request has to leave from the account the list wrote to. The
-	// link names it, or compose would open on whichever account the
-	// browser happens to hold as active, with that account's address.
+	// The request leaves from the account the list wrote to, not the browser's active one.
 	q.Set("account", trust.owner(msg))
 	if from := writeAs(settings, trust, msg, msg.Envelope.To, msg.Envelope.Cc); from != "" {
 		q.Set("from", from)
@@ -732,10 +638,7 @@ func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) 
 	return u.String()
 }
 
-// messageInvitation reads the message's scheduling part, if it has one.
-// A failure here is not a failure of the page: the part is also an
-// attachment, and a message that will not parse as an invitation is
-// simply not shown as one.
+// An unparsable invitation is not a page failure: the part is still an attachment.
 func messageInvitation(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) *Invitation {
 	inv, _, err := invitationAt(ctx, msg, mboxName, uid)
 	if err != nil {
@@ -745,9 +648,7 @@ func messageInvitation(ctx *alborz.Context, msg *IMAPMessage, mboxName string, u
 	return inv
 }
 
-// PartAt reads one part of a message as the bytes it was sent as, with
-// its media type. A calendar or a contact attached to a mail is filed
-// from what the sender wrote, not from what a page displayed.
+// PartAt reads one part of a message as the bytes it was sent as, with its media type.
 func PartAt(ctx *alborz.Context, mboxName string, uid imap.UID, part string) ([]byte, string, error) {
 	partPath, err := parsePartPath(part)
 	if err != nil {
@@ -767,10 +668,7 @@ func PartAt(ctx *alborz.Context, mboxName string, uid imap.UID, part string) ([]
 	return raw, mediaType, err
 }
 
-// InvitationAt reads the scheduling part of one message, and the bytes
-// it was written as. The calendar plugin needs both: the fields to show
-// and the object to file, which is the organizer's own and not one
-// rebuilt from what a page displayed.
+// InvitationAt reads the scheduling part of one message, and the bytes it was written as.
 func InvitationAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*Invitation, []byte, error) {
 	var msg *IMAPMessage
 	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -803,12 +701,7 @@ func invitationAt(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid im
 	return readInvitation(raw, part.PathString(), ctx.Login.Username()), raw, nil
 }
 
-// handleUnsubscribe takes a list at its word. RFC 8058 lets a sender
-// promise that one POST to the URI in List-Unsubscribe removes the
-// reader, and the POST is made from here rather than from the page: the
-// browser may not post across origins, and the endpoint is the list's,
-// not ours. The URI is read from the message again rather than taken
-// from the form, so a page cannot ask us to post anywhere it likes.
+// The URI is re-read from the message, so a page cannot make us post anywhere (RFC 8058).
 func handleUnsubscribe(ctx *alborz.Context) error {
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
@@ -851,11 +744,8 @@ func handleUnsubscribe(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, back)
 }
 
-// unsubscribeTimeout bounds the one request we make to somebody else's
-// server on the reader's behalf.
 const unsubscribeTimeout = 15 * time.Second
 
-// sentFolder names the folder with the sent role, "" without one.
 func sentFolder(mailboxes []MailboxInfo) string {
 	for i := range mailboxes {
 		if mailboxes[i].role() == "sent" {

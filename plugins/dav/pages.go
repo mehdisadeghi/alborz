@@ -19,11 +19,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// CollectionRenderData renders collection.html, the page a collection
-// has of its own: its name, its colour, when it was made, and what it
-// holds - which is what a delete has to say out loud before it happens.
-// Calendars, task lists and address books share it: the fields are what
-// any of them has, so one page answers for all three.
+// CollectionRenderData renders collection.html, a calendar's, task list's or address book's own page.
 type CollectionRenderData struct {
 	alborz.BaseRenderData
 	Name      string
@@ -35,30 +31,20 @@ type CollectionRenderData struct {
 	ListHref  string
 	BackLabel string
 	Rail      Rail
-	// Ext is the file type the collection is exported as and imported
-	// from, ".ics" or ".vcf"; OffersRange says the export form takes a
-	// date range, which only a calendar has.
+	// Ext is the export and import file type; OffersRange says the export takes a date range.
 	Ext         string
 	OffersRange bool
-	// Address is the feed a subscribed calendar follows; it marks the
-	// page as one with nothing on the server to import into, export
-	// from, or delete - only a subscription to end.
+	// Address is a subscribed calendar's feed: nothing on the server to import, export or delete.
 	Address string
-	// SharedBy is the owner of a collection this account was invited
-	// to: not its to rename, and left rather than deleted. Sharing is
-	// the owner's view of the same, nil for a collection that is not
-	// kept here.
+	// SharedBy owns a collection this account was invited to; Sharing is the owner's view, nil elsewhere.
 	SharedBy string
 	Writable bool
 	Sharing  *Sharing
-	// Offer is the share this account holds of the collection, as its
-	// invitee: the whole page while it is unanswered, and a line of
-	// terms once it is accepted.
+	// Offer is this account's share as invitee: the whole page while unanswered, a line once accepted.
 	Offer *Offer
 }
 
-// NewCollectionRenderData renders create-collection.html. Only a
-// calendar has a component set to choose, so only it offers Holds.
+// NewCollectionRenderData renders create-collection.html; only a calendar offers Holds.
 type NewCollectionRenderData struct {
 	alborz.BaseRenderData
 	Accounts    []alborz.Account
@@ -70,20 +56,16 @@ type NewCollectionRenderData struct {
 	BackLabel   string
 	Rail        Rail
 	OffersHolds bool
-	Holds       string // "events", "tasks" or "both"
-	// Places are where the collection can go, and Place the one chosen:
-	// a source of the account's, or Alborz (ADR 28).
+	Holds       string
+	// Places are where the collection can go, and Place the chosen one (ADR 28).
 	Places []Group
 	Place  string
 	// Scope is the account the page was in, empty on a merged page.
 	Scope string
-	Next  string // the list it was opened from
+	Next  string
 }
 
-// Asks says the reader has to name the place rather than take one:
-// several accounts are signed in and the page they came from names
-// none, so any preselection would be alborz choosing an account for
-// them - which is how a collection landed in the first one.
+// Asks says the reader must name the place: with several accounts and none named, a preselection would choose for them.
 func (d *NewCollectionRenderData) Asks() bool {
 	return d.Chooses() && d.Scope == ""
 }
@@ -97,29 +79,21 @@ func (d *NewCollectionRenderData) Chooses() bool {
 	return n > 1
 }
 
-// CreateForm is what a kind says about its form for a new collection:
-// the rail it stands beside, its title, the section and list it goes
-// back to, and for a calendar the components it may hold.
+// CreateForm is what a kind says about its form for a new collection.
 type CreateForm struct {
 	Rail           Rail
 	Title, Section string
 	List           string
-	// Holds is "events", "tasks" or "both" as the form opens, empty for
-	// an address book; OffersHolds lets the reader change it.
+	// Holds is "events", "tasks" or "both" as the form opens, empty for an address book.
 	Holds       string
 	OffersHolds bool
-	// Made is the sentence for the collection made and the list it
-	// shows in, by what it came to hold.
+	// Made is the sentence and list for the collection made, by what it holds.
 	Made func(holds string) (sentence, list string)
 }
 
-// held are the components a calendar made to hold those takes.
 var held = map[string][]string{"events": {"VEVENT"}, "tasks": {"VTODO"}, "both": {"VEVENT", "VTODO"}}
 
-// HandleCreate is the form that adds a collection to the chosen
-// account and place. The component set is the one decision a calendar
-// cannot change later on most servers, so it is asked here rather than
-// assumed.
+// HandleCreate adds a collection to the chosen account and place, asking for the component set up front.
 func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm, error)) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		f, err := form(ctx)
@@ -197,11 +171,7 @@ func ParseObjectPath(s string) (string, error) {
 	return p, nil
 }
 
-// Page is what a collection's own page needs from its kind: the
-// collection as the account has it, how many objects it holds, the
-// list it belongs to and that list's label, and how to forget the
-// cached list once the collection changed. Base is the page's own path
-// prefix.
+// Page is what a collection's own page needs from its kind; Base is its path prefix.
 type Page struct {
 	Base string
 	// List is the section's list, where an answered invitation lands.
@@ -210,27 +180,18 @@ type Page struct {
 	Ext    string
 	Lookup func(ctx *alborz.Context, path string) (info Collection, count func() int, list, label string, err error)
 	Forget func(username string)
-	// Show ticks a collection the account just accepted among those it
-	// has chosen to see.
+	// Show ticks a just-accepted collection among those the account sees.
 	Show func(ctx context.Context, store alborz.Store, path string) error
-	// Import writes the objects of an uploaded file into the collection
-	// and says how many; Export renders the collection, or the range
-	// asked for, as one file. Range is nil where the kind has no dates.
+	// Import writes an uploaded file's objects and counts them; Export renders the collection, or Range, as one file.
 	Import func(ctx *alborz.Context, path string, raw []byte) (int, error)
-	// Create makes a collection of the kind for an import that asked for
-	// a new one: on the account's server, or here. list says which
-	// section's, a calendar or a task list.
+	// Create makes a collection of the kind for an import that asked for a new one.
 	Create func(ctx *alborz.Context, list, name, place string) (string, error)
 	Export func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error)
 	// Rail is the section's rail for the list the page returns to.
 	Rail func(ctx *alborz.Context, list string) (Rail, error)
 }
 
-// Handle is the collection's own page. Renaming and recolouring are a
-// PROPPATCH; the resource type and the component set are not offered,
-// because they are protected on every server in use and changing them
-// would mean copying every object into a new collection - a migration,
-// not an edit.
+// Handle is the collection's own page; renaming and recolouring are a PROPPATCH.
 func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
@@ -242,8 +203,7 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		// An invitation not taken up is not yet a collection the account
-		// has: its page is the invitation.
+		// An unanswered invitation is not yet a collection: its page is the invitation.
 		if offer != nil && offer.State != "accepted" {
 			rail, err := pg.Rail(ctx, pg.List)
 			if err != nil {
@@ -286,7 +246,6 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 	}
 }
 
-// data is the collection's page as it stands.
 func (pg Page) data(ctx *alborz.Context, p *Provider, collPath string) (*CollectionRenderData, error) {
 	info, count, list, label, err := pg.Lookup(ctx, collPath)
 	if err != nil {
@@ -320,13 +279,9 @@ func (pg Page) data(ctx *alborz.Context, p *Provider, collPath string) (*Collect
 	}, nil
 }
 
-// maxImportSize bounds an uploaded calendar or address book: a few
-// thousand entries fit in a few megabytes, and a file past this is
-// not one a person exported.
 const maxImportSize = 16 << 20
 
-// HandleImport writes an uploaded file into the collection and returns
-// to its page with what happened.
+// HandleImport writes an uploaded file into the collection.
 func (pg Page) HandleImport(p *Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
@@ -355,7 +310,6 @@ func (pg Page) HandleImport(p *Provider) func(*alborz.Context) error {
 	}
 }
 
-// readUpload is the uploaded file whole, which its form has bounded.
 func readUpload(file *multipart.FileHeader) ([]byte, error) {
 	f, err := file.Open()
 	if err != nil {
@@ -365,9 +319,7 @@ func readUpload(file *multipart.FileHeader) ([]byte, error) {
 	return io.ReadAll(f)
 }
 
-// fetchAddress reads a calendar from an address once and forgets it: a
-// subscription that follows the address is a different thing. webcal:
-// is https: by another name.
+// fetchAddress reads a calendar from an address once, unlike a subscription; webcal: is https:.
 func fetchAddress(client *http.Client, address string) ([]byte, error) {
 	u, err := url.Parse(address)
 	if err != nil {
@@ -394,34 +346,23 @@ func fetchAddress(client *http.Client, address string) ([]byte, error) {
 	return raw, nil
 }
 
-// ErrNothingToExport is a collection with nothing in it, which no
-// calendar file can be written for.
+// ErrNothingToExport is an empty collection, for which no file can be written.
 var ErrNothingToExport = errors.New("nothing to export")
 
-// newPrefix marks a destination that is a new collection per file, in
-// the place that follows it.
+// newPrefix marks a new collection per file as destination, in the place that follows.
 const newPrefix = "new:"
 
-// importFile is one calendar or address book to bring in: a file of
-// the kind, or one inside a bundle.
 type importFile struct {
 	name string
 	raw  []byte
 }
 
-// maxBundleFiles bounds the files a bundle may hold: an account's worth
-// of calendars and books is tens, not thousands.
 const maxBundleFiles = 200
 
-// maxBundleSize bounds what a bundle may unpack to, all files together:
-// an upload within maxImportSize can inflate a thousandfold, and every
-// file of it is held in memory until the last is imported. Four whole
-// uploads' worth is more than an account's export comes to.
+// An upload can inflate a thousandfold, and every file is held in memory until the last is imported.
 const maxBundleSize = 4 * maxImportSize
 
-// importFiles reads what was uploaded as the files it holds: a zip, as
-// a service's export of every calendar or book comes, is each file of
-// the kind inside it; anything else is itself.
+// importFiles reads a zip as each file of the kind inside it; anything else is itself.
 func (pg Page) importFiles(name string, raw []byte) ([]importFile, error) {
 	if !bytes.HasPrefix(raw, []byte("PK\x03\x04")) {
 		return []importFile{{name, raw}}, nil
@@ -433,8 +374,6 @@ func (pg Page) importFiles(name string, raw []byte) ([]importFile, error) {
 	var out []importFile
 	size := 0
 	for _, f := range z.File {
-		// An empty file holds nothing to bring in; an export writes one
-		// for an empty address book.
 		if f.FileInfo().IsDir() || f.UncompressedSize64 == 0 || !strings.EqualFold(path.Ext(f.Name), pg.Ext) {
 			continue
 		}
@@ -461,9 +400,7 @@ func (pg Page) importFiles(name string, raw []byte) ([]importFile, error) {
 	return out, nil
 }
 
-// collectionName is what a new collection for a file is called: the
-// name the file gives itself (X-WR-CALNAME, as every calendar export
-// writes it), else the file's own name.
+// collectionName is the file's X-WR-CALNAME, else its file name.
 func collectionName(f importFile) string {
 	for _, line := range strings.Split(string(f.raw), "\n") {
 		if v, ok := strings.CutPrefix(strings.TrimRight(line, "\r"), "X-WR-CALNAME:"); ok && strings.TrimSpace(v) != "" {
@@ -473,12 +410,9 @@ func collectionName(f importFile) string {
 	return strings.TrimSuffix(path.Base(f.name), path.Ext(f.name))
 }
 
-// importMany brings in several files, or one into a collection of its
-// own: each into a new collection in the chosen place, or all into the
-// chosen one. One notice says what came of all of them.
+// importMany brings each file into a new collection in place, or all into the chosen one, with one notice.
 func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, place string, isNew bool, collPath string) error {
-	// Every file is looked at before anything is made, so a bundle with
-	// one that is not what it claims leaves no empty collection behind.
+	// Every file is checked before anything is made, so a bad one leaves no empty collection behind.
 	begins := map[string]string{".ics": "BEGIN:VCALENDAR", ".vcf": "BEGIN:VCARD"}[pg.Ext]
 	for _, f := range files {
 		if !strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(string(f.raw), "\ufeff")), begins) {
@@ -512,9 +446,7 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 	return nil
 }
 
-// createFree makes a collection under the name, or under the first of
-// "name 2", "name 3" that is free: a service's export may hold two of
-// the same name, and a name already here is not a reason to stop.
+// createFree makes the collection under name, or the first free "name 2", "name 3".
 func (pg Page) createFree(ctx *alborz.Context, list, name, place string) (string, error) {
 	if name == "" {
 		name = ctx.T("import.untitled")
@@ -545,8 +477,7 @@ func (pg Page) importRaw(ctx *alborz.Context, collPath string, raw []byte) error
 	return nil
 }
 
-// ImportData is the section's import page: a collection to choose and
-// a file to bring into it.
+// ImportData is the section's import page.
 type ImportData struct {
 	alborz.BaseRenderData
 	Rail          Rail
@@ -557,17 +488,12 @@ type ImportData struct {
 	Hint          string
 	Groups        []Group
 	Account, Path string
-	// Address is the second source a calendar has - a webcal: link the
-	// browser handed over, or one typed - and URL what it holds.
+	// Address says a calendar can also import from a webcal: link; URL is what it holds.
 	Address bool
 	URL     string
 }
 
-// HandleImportPage is the section's import page, reached from its
-// rail: the file lands in the collection chosen on the page, which may
-// be any writable one of any account. section and list name the crumb
-// and the rail; title, hint and key are the section's words and its
-// picker memory.
+// HandleImportPage is the section's import page, reached from its rail; any writable collection may receive.
 func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key string, address bool) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		rail, err := pg.Rail(ctx, list)
@@ -591,8 +517,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 			}
 			groups[i].Collections = append(groups[i].Collections, coll)
 		}
-		// A new collection per file is a destination too, first in each
-		// account's group: in each place it can keep one.
+		// A new collection per file is a destination too, first in each account's group.
 		for _, place := range p.Places(ctx) {
 			var news []Collection
 			for _, at := range place.Collections {
@@ -653,8 +578,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 			}
 			name = file.Filename
 		}
-		// The page's own hooks read the account off the context, so the
-		// chosen account is the context's for the write.
+		// The page's hooks read the account off the context, so the chosen account becomes the context's.
 		ctx.Login = login
 		files, err := pg.importFiles(name, raw)
 		if err != nil {
@@ -669,8 +593,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 		}
 		if err := pg.importRaw(ctx, collPath, raw); err != nil {
-			// A file that is not what it claims answers on the form,
-			// which is where the reader can pick another.
+			// A file that is not what it claims answers on the form, where another can be picked.
 			data.Refused(err.Error())
 			return ctx.Render(http.StatusUnprocessableEntity, "dav-import.html", data)
 		}
@@ -678,8 +601,7 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 	}
 }
 
-// HandleExport sends the collection as one file to keep. A date range
-// narrows a calendar; an address book has no dates to narrow by.
+// HandleExport sends the collection as one file; a date range narrows a calendar.
 func (pg Page) HandleExport(p *Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
@@ -724,10 +646,7 @@ func (pg Page) HandleExport(p *Provider) func(*alborz.Context) error {
 	}
 }
 
-// HandleExportAll sends every collection of the section the account
-// can read, each a file in one zip: what a move to another service, or
-// a copy kept aside, takes. A feed followed from elsewhere is not the
-// account's to export and stays out.
+// HandleExportAll zips every readable collection of the section; followed feeds stay out.
 func (pg Page) HandleExportAll(list, filename string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		rail, err := pg.Rail(ctx, list)
@@ -769,8 +688,7 @@ func (pg Page) HandleExportAll(list, filename string) func(*alborz.Context) erro
 	}
 }
 
-// HandleDelete removes the collection and everything in it. The page
-// above says how much that is; this only refuses to do it blind.
+// HandleDelete removes the collection and everything in it; the page above states how much.
 func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
@@ -795,8 +713,7 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
 		}
 		pg.Forget(ctx.Login.Username())
-		// A 2xx is not proof: some servers accept the DELETE and keep the
-		// collection. Listing again shows what the reader will see.
+		// A 2xx is not taken as proof; listing again shows what the reader will see.
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err == nil {
 			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectionkept"), info.Name)})

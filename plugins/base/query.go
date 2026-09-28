@@ -9,40 +9,23 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-// A Query is a search as the reader typed it, parsed once. The language
-// is the part of Gmail's that IMAP can answer by itself: a bare run of
-// words, key:value terms with the value optionally quoted, and a minus
-// before a term for its opposite.
-//
-//	invoice from:hetzner -is:read after:2026-01-01 larger:1M in:archive
-//
-// Matching is the server's; what is alborz's is the question. What IMAP
-// has no criterion for is left out rather than guessed at: there is no
-// has:attachment, because SEARCH cannot see a message's structure and a
-// Content-Type test would call every signed mail an attachment.
+// Query is a search as the reader typed it, parsed once.
 type Query struct {
 	terms []queryTerm
 }
 
-// queryTerm is one term: a bare run of words when key is empty.
 type queryTerm struct {
 	key, value string
 	not        bool
-	// quoted keeps a bare phrase one term when the query is written
-	// out again, beside the bare words it stood among.
+	// quoted keeps a bare phrase one term when the query is written back.
 	quoted bool
 }
 
-// queryScope is where in: points, which is not a property of a message
-// and so no part of the criteria.
 const queryScope = "in"
 
-// Everywhere is the in: value that takes a search to the folders it
-// otherwise leaves out, Junk and Trash, as it does in Gmail.
+// Everywhere is the in: value that searches every folder.
 const Everywhere = "anywhere"
 
-// An operator turns a value into criteria, or into nothing when the
-// value is not one it understands.
 type operator func(value string, now time.Time) *imap.SearchCriteria
 
 func headerOperator(field string) operator {
@@ -74,8 +57,7 @@ var operators = map[string]operator{
 		}
 		return &imap.SearchCriteria{Flag: []imap.Flag{state.flag}}
 	},
-	// SINCE takes the day itself and BEFORE stops short of it (RFC 3501
-	// 6.4.4), which is how Gmail reads after: and before: too.
+	// SINCE includes the day and BEFORE excludes it (RFC 3501 6.4.4).
 	"after": func(value string, _ time.Time) *imap.SearchCriteria {
 		day, ok := queryDay(value)
 		if !ok {
@@ -120,7 +102,6 @@ var operators = map[string]operator{
 	},
 }
 
-// messageStates are what is: asks about, each a flag or its absence.
 var messageStates = map[string]struct {
 	flag imap.Flag
 	not  bool
@@ -135,8 +116,6 @@ var messageStates = map[string]struct {
 	"draft":     {imap.FlagDraft, false},
 }
 
-// queryDayLayouts are the two ways a day is written in a query: ISO, and
-// Gmail's own with slashes.
 var queryDayLayouts = []string{"2006-01-02", "2006/01/02"}
 
 func queryDay(value string) (time.Time, bool) {
@@ -148,7 +127,6 @@ func queryDay(value string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// queryAgo reads Gmail's spans - 3d, 2w, 6m, 1y - back from now.
 func queryAgo(value string, now time.Time) (time.Time, bool) {
 	if len(value) < 2 {
 		return time.Time{}, false
@@ -170,7 +148,6 @@ func queryAgo(value string, now time.Time) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// querySize reads a size in bytes, or with Gmail's K and M.
 func querySize(value string) (int64, bool) {
 	unit := int64(1)
 	switch {
@@ -186,11 +163,7 @@ func querySize(value string) (int64, bool) {
 	return n * unit, true
 }
 
-// ParseQuery reads a query. A key nobody knows is not an operator, and
-// neither is a known one with a value it cannot read: either is searched
-// for as the text it is, colon and all. Dropping such a term would
-// answer after:yesterday with every message in the folder, which reads
-// as a result.
+// ParseQuery reads a query; an unknown or unreadable term is searched as text, not dropped.
 func ParseQuery(raw string) Query {
 	scanner := bufio.NewScanner(strings.NewReader(raw))
 	scanner.Split(splitSearchTokens)
@@ -213,9 +186,6 @@ func ParseQuery(raw string) Query {
 	return q
 }
 
-// bareTerms reads a run of bare text: its words are one term, as they
-// were typed, and a quoted phrase or a word behind a minus is a term
-// of its own.
 func bareTerms(run string) []queryTerm {
 	var terms []queryTerm
 	var words []string
@@ -242,15 +212,7 @@ func bareTerms(run string) []queryTerm {
 	return terms
 }
 
-// Criteria is the search the server is asked. A bare term searches
-// From, To, Cc and Subject, and everything - TEXT, the whole message -
-// only on a server that says it holds an index: Dovecot advertises
-// SEARCH=FUZZY (RFC 6203) exactly when its full-text plugin is loaded,
-// and without an index TEXT over a large folder is a scan of minutes.
-// text: asks for the whole message regardless.
-//
-// Never nil: a query that narrows by nothing is empty criteria, and the
-// search path takes a pointer.
+// Criteria is the search the server is asked; never nil.
 func (q Query) Criteria(indexed bool, now time.Time) *imap.SearchCriteria {
 	var criteria *imap.SearchCriteria
 	for _, term := range q.terms {
@@ -281,8 +243,7 @@ func (q Query) Criteria(indexed bool, now time.Time) *imap.SearchCriteria {
 	return criteria
 }
 
-// WantsText says whether the query asks for the whole message whatever
-// the server indexes, which is the search that can take minutes.
+// WantsText reports whether the query asks for the whole message.
 func (q Query) WantsText() bool {
 	for _, term := range q.terms {
 		if term.key == "text" {
@@ -293,7 +254,6 @@ func (q Query) WantsText() bool {
 }
 
 // Scope is the folder in: names, and whether it names all of them.
-// Empty and false when the query leaves the scope to the page.
 func (q Query) Scope() (folder string, everywhere bool) {
 	for _, term := range q.terms {
 		if term.key != queryScope || term.not {
@@ -307,7 +267,7 @@ func (q Query) Scope() (folder string, everywhere bool) {
 	return folder, false
 }
 
-// Excluded are the folders -in: names: where not to look.
+// Excluded are the folders -in: names.
 func (q Query) Excluded() []string {
 	var out []string
 	for _, term := range q.terms {
@@ -318,12 +278,9 @@ func (q Query) Excluded() []string {
 	return out
 }
 
-// addressKeys are the terms that name a person, and so can be checked
-// against what the message itself says.
 var addressKeys = map[string]bool{"from": true, "to": true, "cc": true, "bcc": true}
 
-// Addressed reports whether the query names an address at all, which is
-// what makes checking the answers worth the trouble.
+// Addressed reports whether the query names an address.
 func (q Query) Addressed() bool {
 	for _, term := range q.terms {
 		if !term.not && addressKeys[term.key] {
@@ -344,9 +301,7 @@ func (q Query) Addresses() map[string][]string {
 	return out
 }
 
-// Widened is the query with every bare term asked of the whole message:
-// the link a results page offers when it searched headers. Empty when
-// there is no bare term to widen.
+// Widened is the query with every bare term asked of the whole message.
 func (q Query) Widened() string {
 	widened := false
 	out := make([]string, 0, len(q.terms))
@@ -362,8 +317,7 @@ func (q Query) Widened() string {
 	return strings.Join(out, " ")
 }
 
-// Without is the query less the terms of one key, for a link that
-// changes that part of it: in: when a search moves to every folder.
+// Without is the query less the terms of one key.
 func (q Query) Without(key string) string {
 	out := make([]string, 0, len(q.terms))
 	for _, term := range q.terms {
@@ -374,8 +328,6 @@ func (q Query) Without(key string) string {
 	return strings.Join(out, " ")
 }
 
-// String writes a term the way it is read back: a value with a space in
-// it is one phrase, and quoted it stays one.
 func (t queryTerm) String() string {
 	value := t.value
 	if t.quoted || (t.key != "" && strings.ContainsRune(value, ' ')) {

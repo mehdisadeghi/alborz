@@ -8,11 +8,7 @@ import (
 	"testing"
 )
 
-// Every {{ template "x" }} must name a template that exists. Go resolves
-// these at execution time, so a define renamed or removed compiles, and
-// tests that never render that page pass - the page just answers 500 to
-// whoever opens it. This is the cheapest check that would have caught
-// it, and it needs neither a server nor data.
+// Go resolves {{template}} names only at execution time.
 func TestTemplateReferencesResolve(t *testing.T) {
 	files, err := filepath.Glob("themes/*/*.html")
 	if err != nil {
@@ -32,7 +28,6 @@ func TestTemplateReferencesResolve(t *testing.T) {
 
 	defined := map[string]bool{}
 	for _, f := range files {
-		// A file is itself a template, named by its base.
 		defined[filepath.Base(f)] = true
 		b, err := os.ReadFile(f)
 		if err != nil {
@@ -56,9 +51,6 @@ func TestTemplateReferencesResolve(t *testing.T) {
 	}
 }
 
-// Every {{$.T "key"}} and {{.T "key"}} must name a string every locale
-// carries. A missing key renders as nothing, so a control silently
-// loses its label in one language and no page fails.
 func TestTranslationKeysExist(t *testing.T) {
 	files, _ := filepath.Glob("themes/*/*.html")
 	plugins, _ := filepath.Glob("plugins/*/public/*.html")

@@ -8,8 +8,7 @@ import (
 	"strings"
 )
 
-// Profile is the person's own choices, as against an account's. It is
-// kept on every account signed in (ADR 52).
+// Profile is the person's own choices, kept on every account signed in (ADR 52).
 type Profile struct {
 	Reading Reading
 	Writing Writing
@@ -21,8 +20,7 @@ type Reading struct {
 	Timezone        string
 	FirstDayOfWeek  int // 0 = Sunday
 	PreferHTML      bool
-	// Primary is the calendar the pages count in, Secondary the one
-	// glossed beside it; empty means Gregorian and none.
+	// Primary and Secondary are calendar systems; empty means Gregorian and none.
 	Primary   string
 	Secondary string
 }
@@ -46,8 +44,7 @@ const profileKey = "profile"
 // DefaultMessagesPerPage is the page size of a reader who never chose one.
 const DefaultMessagesPerPage = 50
 
-// Profile is what this browser renders by: the session's while an
-// account is signed in, else the browser's own copy in its cookies.
+// Profile returns the session's profile while signed in, else the browser's cookie copy.
 func (ctx *Context) Profile() Profile {
 	if s := ctx.lookupSession(); s != nil && len(ctx.accountLogins()) > 0 {
 		if p, ok := s.Profile(); ok {
@@ -57,8 +54,7 @@ func (ctx *Context) Profile() Profile {
 	return ctx.cookieProfile()
 }
 
-// Reading is what the pages are read by, a page size of none read as
-// the default.
+// Reading returns the reading settings, with defaults applied.
 func (ctx *Context) Reading() Reading {
 	r := ctx.Profile().Reading
 	if r.MessagesPerPage <= 0 {
@@ -67,9 +63,8 @@ func (ctx *Context) Reading() Reading {
 	return r
 }
 
-// SetProfile puts p in force and writes it to every account signed in.
-// It is refused only when every account refuses it; with none signed
-// in, the browser keeps it alone.
+// SetProfile applies p and writes it to every account signed in; it fails only
+// when every account refuses.
 func (ctx *Context) SetProfile(p Profile) error {
 	logins := ctx.accountLogins()
 	if len(logins) == 0 {
@@ -93,8 +88,7 @@ func (ctx *Context) SetProfile(p Profile) error {
 	return nil
 }
 
-// TakeProfile puts the profile the account holds in force, on every
-// account signed in.
+// TakeProfile applies the account's profile to every account signed in.
 func (ctx *Context) TakeProfile(login *Login) error {
 	theirs, err := loadProfile(ctx, login)
 	if err != nil {
@@ -111,7 +105,6 @@ func (ctx *Context) KeepProfile(login *Login) error {
 	return login.Store().Put(ctx.Request().Context(), profileKey, ctx.Profile())
 }
 
-// putProfile makes p the session's and the cookies' copy of it.
 func (ctx *Context) putProfile(p Profile) {
 	s := ctx.Session()
 	s.setProfile(p)
@@ -121,7 +114,7 @@ func (ctx *Context) putProfile(p Profile) {
 	}
 }
 
-// loadProfile is nil where the account holds none.
+// loadProfile returns nil where the account holds none.
 func loadProfile(ctx *Context, login *Login) (*Profile, error) {
 	var p Profile
 	err := login.Store().Get(ctx.Request().Context(), profileKey, &p)
@@ -134,10 +127,8 @@ func loadProfile(ctx *Context, login *Login) (*Profile, error) {
 	return &p, nil
 }
 
-// joinProfile settles the profile when an account signs in. The first
-// account of a session brings its own, or takes the browser's; a later
-// one that holds another is asked about, and until the reader answers
-// the profile in force stays.
+// joinProfile settles the profile when an account signs in; a later account
+// holding a different one is asked about.
 func (ctx *Context) joinProfile(login *Login, first bool) {
 	theirs, err := loadProfile(ctx, login)
 	if err != nil {
@@ -161,8 +152,6 @@ func (ctx *Context) joinProfile(login *Login, first bool) {
 	}
 }
 
-// askProfile names what the account holds that differs from the profile
-// in force, and offers to take it or overwrite it.
 func (ctx *Context) askProfile(account string, diff []profileChange) {
 	var plain, marked []string
 	say := ctx.T("profile.field")
@@ -187,8 +176,7 @@ func (ctx *Context) askProfile(account string, diff []profileChange) {
 
 type profileChange struct{ label, theirs, ours string }
 
-// profileDiff is every field that reads differently, in the reader's
-// words: two values that read the same are the same choice.
+// profileDiff compares rendered values: two that read the same are the same choice.
 func (ctx *Context) profileDiff(theirs, ours Profile) []profileChange {
 	g := GlobalRenderData{Lang: requestLanguage(ctx)}
 	var out []profileChange
@@ -251,7 +239,7 @@ func (ctx *Context) profileDiff(theirs, ours Profile) []profileChange {
 	return out
 }
 
-// ThemeName is a theme's file name as a reader reads it.
+// ThemeName returns a theme's file name as a reader reads it.
 func ThemeName(name string) string {
 	name = strings.ReplaceAll(name, "-", " ")
 	if name == "" {

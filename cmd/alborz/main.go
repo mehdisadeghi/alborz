@@ -32,9 +32,7 @@ import (
 
 var themesPath = "./themes"
 
-// serveProfiles answers Go's profiles on their own listener. A heap
-// profile is the process's memory - passwords, mail - so the address
-// must be one only this machine reaches.
+// serveProfiles listens only locally: a heap profile holds passwords and mail.
 func serveProfiles(addr string) {
 	host, _, err := net.SplitHostPort(addr)
 	if ip := net.ParseIP(host); err != nil || (host != "localhost" && (ip == nil || !ip.IsLoopback())) {
@@ -88,8 +86,6 @@ func main() {
 		"keep what the servers answered, so pages open without asking again; false asks every time and keeps nothing")
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
 		"directory keeping the copies of remote calendars and address books, sealed under the login key; empty keeps none")
-	// The working directory, the way a daemon told nothing keeps its
-	// state: the unit says where alborz runs and the file lands there.
 	flag.StringVar(&options.DataDir, "data-dir", ".",
 		"directory keeping alborz.db: remembered logins and settings, sealed under the login key, and the calendars and address books kept here; empty keeps none of them")
 	flag.StringVar(&options.ProjectURL, "project-url", "",
@@ -139,8 +135,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 	if publicURL != "" {
 		u, err := url.Parse(publicURL)
-		// alborz answers at the root of its host; a path would be a
-		// prefix it does not serve under.
+		// alborz answers at the root of its host only.
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || strings.Trim(u.Path, "/") != "" {
 			fmt.Fprintf(flag.CommandLine.Output(), "alborz: invalid -public-url %q: want scheme://host\n", publicURL)
 			os.Exit(2)
@@ -173,8 +168,6 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	e := echo.New()
 	e.HideBanner = true
 	if l, ok := e.Logger.(*log.Logger); ok {
-		// Logs are diagnostics; the useful startup line is the prologue
-		// on stdout, so the log stream never drowns it.
 		l.SetOutput(os.Stderr)
 		l.SetHeader("${time_rfc3339} ${level}")
 	}
@@ -184,8 +177,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 	e.Use(middleware.Recover())
 	if options.Debug {
-		// The completion logger above stays silent for a request that
-		// never finishes; log arrivals too, so a hang names its URI.
+		// Log arrivals too, so a request that never finishes names its URI.
 		e.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(c echo.Context) error {
 				e.Logger.Printf("-> %s %s", c.Request().Method, c.Request().RequestURI)
@@ -202,8 +194,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		e.Logger.SetLevel(log.DEBUG)
 	}
 
-	// Bind before announcing, so the prologue only says the server is up
-	// once the port is actually open.
+	// Bind before announcing, so the prologue is true.
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		e.Logger.Fatal(err)

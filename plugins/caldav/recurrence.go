@@ -11,25 +11,18 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// The form offers the rules a reader writes without thinking: every
-// day, week, month or year, with or without a last day. Written under
-// a Solar Hijri calendar, a monthly or yearly rule counts in it
-// (RFC 7529, RSCALE), so "every year on 1 Farvardin" is one rule and
-// not a list of events. Anything richer that arrived from elsewhere is
-// kept as it is.
+// Monthly and yearly rules count in the reader's calendar (RFC 7529 RSCALE).
 
 // Repeat is a rule as the form holds it.
 type Repeat struct {
-	Freq  string // daily, weekly, monthly, yearly, custom, or empty
-	Until string // the last day, as the field holds it
+	Freq  string
+	Until string
 }
 
 const repeatCustom = "custom"
 
-// repeatFreqs are the choices the form offers, in its order.
 var repeatFreqs = []string{"daily", "weekly", "monthly", "yearly"}
 
-// rule is an RRULE taken apart, only as far as this file reads one.
 type rule struct {
 	freq     string
 	interval int
@@ -37,7 +30,7 @@ type rule struct {
 	count    int
 	cal      alborz.CalendarSystem
 	skip     string
-	other    bool // a part this file does not read
+	other    bool
 }
 
 func parseRule(s string, loc *time.Location) rule {
@@ -81,17 +74,13 @@ func parseUntil(s string, loc *time.Location) time.Time {
 	return time.Time{}
 }
 
-// formRepeat reads an event's rule into the form; a rule the form
-// cannot write is shown as custom and kept as it is.
 func formRepeat(ctx *alborz.Context, event *ical.Event, loc *time.Location) Repeat {
 	prop := event.Props.Get(ical.PropRecurrenceRule)
 	if prop == nil {
 		return Repeat{}
 	}
 	r := parseRule(prop.Value, loc)
-	// A monthly or yearly rule counts in one calendar; shown as the
-	// form's own it would be written back in the reader's, and mean
-	// other days. Days and weeks are the same in every calendar.
+	// A monthly or yearly rule in another calendar would mean other days if rewritten.
 	neutral := r.freq == "daily" || r.freq == "weekly"
 	simple := !r.other && r.interval == 1 && r.count == 0 &&
 		(neutral || r.cal.Name() == ctx.CalendarSystem().Name())
@@ -105,9 +94,7 @@ func formRepeat(ctx *alborz.Context, event *ical.Event, loc *time.Location) Repe
 	return Repeat{Freq: r.freq, Until: until}
 }
 
-// setRepeat writes the form's rule onto the event. The last day is the
-// last day included, whichever the event's own value type, which 5545
-// 3.3.10 wants matched by UNTIL.
+// UNTIL takes DTSTART's value type (RFC 5545 3.3.10) and includes the last day.
 func setRepeat(ctx *alborz.Context, event *ical.Event, rep Repeat, start time.Time, allDay bool, loc *time.Location) error {
 	switch rep.Freq {
 	case "":
@@ -143,9 +130,6 @@ func setRepeat(ctx *alborz.Context, event *ical.Event, rep Repeat, start time.Ti
 	return nil
 }
 
-// repeatWords says a rule in words for the event page, or nothing
-// when the event does not repeat; the last day comes apart from the
-// words, since a date reads left to right whatever the page does.
 func repeatWords(ctx *alborz.Context, event *ical.Event, loc *time.Location) (words, until string) {
 	rep := formRepeat(ctx, event, loc)
 	switch rep.Freq {
@@ -161,10 +145,7 @@ func repeatWords(ctx *alborz.Context, event *ical.Event, loc *time.Location) (wo
 	return words, ""
 }
 
-// expandRule lists the instances of a rule rrule-go cannot read (one
-// with RSCALE) that begin before to and on or after from. A rule with a
-// part this file does not read yields nothing but its first instance:
-// a wrong instance is worse than a missing one.
+// A rule with a part not read here yields only its first instance: a wrong one is worse.
 func expandRule(s string, first, from, to time.Time) []time.Time {
 	r := parseRule(s, first.Location())
 	if r.other || r.interval < 1 {
@@ -177,8 +158,7 @@ func expandRule(s string, first, from, to time.Time) []time.Time {
 	at := func(day time.Time) time.Time {
 		return time.Date(day.Year(), day.Month(), day.Day(), h, mi, sec, 0, loc)
 	}
-	// The generation limit keeps a runaway rule from spinning; no view
-	// draws more instances than this.
+	// Bounded so a runaway rule cannot spin.
 	made := 0
 	for n := 0; n < 100000 && (r.count == 0 || made < r.count); n++ {
 		var t time.Time

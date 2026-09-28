@@ -18,27 +18,21 @@ import (
 
 // The images a message written here shows in its HTML (ADR 40).
 
-// localImage is what an image in the editor may name: an upload the
-// session holds, or a part of a message an account holds.
 var localImage = regexp.MustCompile(`^/compose/attachment/[0-9a-f-]+$|^/message/[^?]+/[0-9]+/raw\?(account=[^&]+&)?part=[0-9.]+$`)
 
 var imageSrc = regexp.MustCompile(`(?i)(<img\b[^>]*?\bsrc=")([^"]*)(")`)
 
-// shownTypes are the images the editor takes and an upload is shown as:
-// raster formats alone, since an SVG is a document that can script.
+// Raster formats alone: an SVG is a document that can script.
 var shownTypes = map[string]bool{
 	"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true,
 }
 
-// inlineImage is an image the HTML shows, sent in the multipart/related
-// under the Content-ID the HTML then names it by.
 type inlineImage struct {
 	Src       string
 	ContentID string
 	Attachment
 }
 
-// partImage is an image part of a message, fetched for the send.
 type partImage struct {
 	mimeType, filename string
 	body               []byte
@@ -50,9 +44,6 @@ func (p *partImage) Open() (io.ReadCloser, error) {
 	return io.NopCloser(bytes.NewReader(p.body)), nil
 }
 
-// localImages points the images a message's HTML shows at the parts
-// that hold them, so the editor can show them and a send can carry
-// them: cid: by Content-ID, part: by path (HTMLPieces).
 func localImages(body string, msg *IMAPMessage, account string) string {
 	return imageSrc.ReplaceAllStringFunc(body, func(tag string) string {
 		m := imageSrc.FindStringSubmatch(tag)
@@ -73,9 +64,7 @@ func localImages(body string, msg *IMAPMessage, account string) string {
 	})
 }
 
-// inlineImages resolves every image the HTML shows into what the send
-// writes, and names the uploads among them, which the session keeps until
-// the message has left.
+// The session keeps the named uploads until the message has left.
 func inlineImages(ctx *alborz.Context, body, messageID string) ([]inlineImage, []string, error) {
 	var (
 		images  []inlineImage
@@ -112,8 +101,6 @@ func inlineImages(ctx *alborz.Context, body, messageID string) ([]inlineImage, [
 	return images, uploads, nil
 }
 
-// fetchPartImage reads the image a part reference names, on the
-// account the reference names.
 func fetchPartImage(ctx *alborz.Context, src string) (*partImage, error) {
 	u, err := url.Parse(src)
 	if err != nil {
@@ -158,8 +145,6 @@ func fetchPartImage(ctx *alborz.Context, src string) (*partImage, error) {
 	return &image, nil
 }
 
-// cidImages is the HTML as it is sent: each local reference replaced by
-// the Content-ID of its part.
 func cidImages(body string, images []inlineImage) string {
 	cids := map[string]string{}
 	for _, im := range images {
@@ -174,9 +159,7 @@ func cidImages(body string, images []inlineImage) string {
 	})
 }
 
-// handleGetAttachment shows an upload the session holds, for the editor
-// that placed it. Only a raster image is shown; anything else is
-// offered as a file, so no upload runs as a page of this site.
+// Anything but a raster image is offered as a file, so no upload runs as a page here.
 func handleGetAttachment(ctx *alborz.Context) error {
 	held := ctx.PeekAttachment(ctx.Param("uuid"))
 	if held == nil {

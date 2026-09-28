@@ -1,11 +1,5 @@
-{{/* One sprite per page: the toolbars reference these by id, so an icon
-     is drawn once however many buttons use it. Stroked rather than
-     filled, so a single currentColor follows the theme.
-
-     The shapes are Lucide v1.35.0 (ISC), copied verbatim rather than
-     drawn here: optical alignment on a 24px grid is work someone else
-     maintains. The comment beside each id names the upstream icon, so a
-     later version can be pulled in without guessing. */}}
+{{/* The shapes are Lucide v1.35.0 (ISC), copied verbatim; each id is
+     commented with its upstream icon name. */}}
 <svg class="icon-sprite" aria-hidden="true" focusable="false">
   {{/* lucide radio */}}
   <symbol viewBox="0 0 24 24" id="i-broadcast">
@@ -44,8 +38,7 @@
   <symbol viewBox="0 0 24 24" id="i-filter">
     <path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"/>
   </symbol>
-  {{/* lucide list-filter: a list's own narrowing, apart from the
-       funnel the nav's Filters wear */}}
+  {{/* lucide list-filter */}}
   <symbol viewBox="0 0 24 24" id="i-list-filter">
     <path d="M3 6h18"/>
     <path d="M7 12h10"/>
@@ -95,8 +88,7 @@
     <path d="M22 18v-2a4 4 0 0 0-4-4H7"/>
     <path d="m7 17-5-5 5-5"/>
   </symbol>
-  {{/* lucide reply over lucide list: the reply that goes to the many,
-       told apart from the one that goes to the author at a glance. */}}
+  {{/* lucide reply over lucide list */}}
   <symbol viewBox="0 0 24 24" id="i-reply-list">
     <path d="m9 9-5 4 5 4"/>
     <path d="M4 13h6a4 4 0 0 1 4 4v2"/>
@@ -164,8 +156,7 @@
   <symbol viewBox="0 0 24 24" id="i-moon">
     <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
   </symbol>
-  {{/* lucide contrast: the half-lit circle every appearance control
-       uses for "whatever the system says". */}}
+  {{/* lucide contrast */}}
   <symbol viewBox="0 0 24 24" id="i-system">
     <circle cx="12" cy="12" r="10"/>
     <path d="M12 18a6 6 0 0 0 0-12v12z"/>

@@ -1,12 +1,10 @@
-/* Monokai, the Sublime Text look. Always dark, whatever the scheme.
-   The doubled :root outweighs the scheme blocks in the base sheet. */
+/* The doubled :root ties the base sheet's scheme blocks, and this sheet loads later. */
 :root:root {
   color-scheme: dark;
 
   --fg: #f8f8f2;
   --fg-dim: #c8c8bb;
-  /* Monokai's comment grey is below 3:1; the greys are lifted to the
-     4.5:1 floor and keep their step. */
+  /* Lifted to 4.5:1 on --bg; Monokai's own greys fall short. */
   --fg-muted: #b8b9b1;
   --fg-faint: #9a9784;
 

@@ -17,8 +17,6 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-// eventListParams are what decide which events a view holds: an event's
-// page is opened with them and returns to them.
 var eventListParams = []string{"account", "cal", "month", "date", "view", "span"}
 
 type EventRenderData struct {
@@ -26,15 +24,13 @@ type EventRenderData struct {
 	Rail     dav.Rail
 	Calendar *dav.Collection
 	Event    CalendarObject
-	// Authors are who added the object and changed it last, where it is
-	// kept here and that is another account.
+	// Authors are who added and last changed the object, where another account.
 	Authors dav.Authors
-	// List is the view the page was opened from; see TaskRenderData.
+	// List is the view the page was opened from.
 	List       string
 	Star       string
 	Neighbours dav.Neighbours
-	// Repeats says the event's rule in words, or nothing, and
-	// RepeatsUntil its last day, kept apart to be read left to right.
+	// Repeats says the rule in words; RepeatsUntil its last day.
 	Repeats, RepeatsUntil string
 }
 
@@ -43,27 +39,22 @@ type UpdateEventRenderData struct {
 	Rail           dav.Rail
 	Groups         []dav.Group
 	Calendar       *dav.Collection
-	CalendarObject *caldav.CalendarObject // nil if creating a new event
+	CalendarObject *caldav.CalendarObject
 	Event          *ical.Event
 
-	// The two shapes the form offers, filled whichever one applies so
-	// that ticking the box does not lose what was already typed.
+	// Both shapes are filled, so ticking the box loses nothing typed.
 	AllDay    bool
-	StartTime string // datetime-local
+	StartTime string
 	EndTime   string
-	StartDate string // date, and the last day rather than the day after
+	StartDate string
 	EndDate   string
-	// Attendees are the addresses invited, one per line. Naming anybody
-	// makes this account the organizer and sends an invitation on save.
+	// Attendees are the invited addresses, one per line.
 	Attendees string
 	Repeat    Repeat
 	// RepeatFreqs are the rules the form offers, in its order.
 	RepeatFreqs []string
 }
 
-// newEventStart reads the ?date= a create link carries and keeps the
-// current time of day on it, so a form opened from a day lands on that
-// day rather than on today.
 func newEventStart(ctx *alborz.Context, loc *time.Location) time.Time {
 	now := time.Now().In(loc)
 	d, err := time.ParseInLocation(datePageLayout, ctx.QueryParam("date"), loc)
@@ -73,14 +64,6 @@ func newEventStart(ctx *alborz.Context, loc *time.Location) time.Time {
 	return time.Date(d.Year(), d.Month(), d.Day(), now.Hour(), now.Minute(), 0, 0, loc)
 }
 
-// fillEventForm gives the form both shapes of the same event: the times
-// it has, and the days it covers. Ticking the box then costs nothing
-// that was already entered. The last day is shown, not the day after -
-// DTEND is exclusive in iCalendar and inclusive in every head.
-//
-// when is the day a new event starts on: the page that opened the form
-// knows which day the reader is looking at, and typing it again is the
-// only alternative. It is ignored once the event has a start of its own.
 func fillEventForm(ctx *alborz.Context, d *UpdateEventRenderData, loc *time.Location, when time.Time) {
 	d.RepeatFreqs = repeatFreqs
 	d.Repeat = formRepeat(ctx, d.Event, loc)
@@ -109,10 +92,6 @@ func fillEventForm(ctx *alborz.Context, d *UpdateEventRenderData, loc *time.Loca
 	d.Attendees = attendeeLines(d.Event)
 }
 
-// dayQuery and monthQuery are what an event's page is opened with: the
-// list it came from, named in full. The month and the day both have a
-// default the URL leaves out, and an event page cannot rebuild a list
-// it was not told about.
 func dayQuery(ctx *alborz.Context, start time.Time) string {
 	q := dav.ListParams(ctx, "account", "cal")
 	q.Set("date", start.Format(datePageLayout))
@@ -128,10 +107,7 @@ func monthQuery(ctx *alborz.Context, mv monthView) string {
 	return alborz.Query(q)
 }
 
-// eventKey names one row of an event list. An object's path is enough
-// for a calendar, where a recurring event is one object however many
-// times it is drawn; a subscribed feed is a single object holding every
-// event, so there the UID within it is what tells them apart.
+// A feed is one object holding every event, so there the UID tells rows apart.
 func eventKey(path, uid string, feed bool) string {
 	if feed {
 		return path + "#" + uid
@@ -139,10 +115,6 @@ func eventKey(path, uid string, feed bool) string {
 	return path
 }
 
-// eventItems are the events of the list the reader came from - the day
-// where the URL names one, the agenda where it names that - in the
-// order that list showed them. An event reached without a list has no
-// neighbours, and says so by having none.
 func (p *plugin) eventItems(ctx *alborz.Context) ([]dav.Item, error) {
 	var shown []Occurrence
 	switch {
@@ -181,8 +153,6 @@ func (p *plugin) eventItems(ctx *alborz.Context) ([]dav.Item, error) {
 	return items, nil
 }
 
-// withUID names the event within a subscribed feed, which is one object
-// holding all of them.
 func withUID(params url.Values, uid string) url.Values {
 	q := url.Values{"uid": {uid}}
 	for key, values := range params {
@@ -214,8 +184,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
-			// The whole event, alarms and attendees included: the page draws
-			// them, and a server returns only what is asked for.
+			// Everything, since the page draws alarms and attendees.
 			Comps: []caldav.CalendarCompRequest{{Name: "VEVENT", AllProps: true, AllComps: true}},
 		},
 	}
@@ -262,10 +231,6 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "event.html", data)
 }
 
-// feedEvent shows one event of a subscribed feed. The feed is one
-// object holding every event, so the URL names the event by UID and
-// the page is given a calendar holding that event alone, with the
-// zones it may refer to. Nothing on it can be edited.
 func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 	info, cal, err := p.feedObject(ctx, address, ctx.QueryParam("uid"))
 	if err != nil {
@@ -293,10 +258,6 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 	return ctx.Render(http.StatusOK, "event.html", data)
 }
 
-// feedObject is one event of a subscribed feed as a calendar of its
-// own, with the zones it may refer to. A subscription is the account's
-// own, kept in its settings beside the server's calendars rather than
-// among them.
 func (p *plugin) feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ical.Calendar, error) {
 	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
@@ -356,9 +317,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			}
 			return fmt.Errorf("failed to get CalDAV event: %v", err)
 		}
-		// A recurring event with rewritten instances holds several
-		// VEVENTs; the one without RECURRENCE-ID is the series, and
-		// the form edits that.
+		// The VEVENT without RECURRENCE-ID is the series; the form edits that.
 		events := co.Data.Events()
 		for i := range events {
 			if events[i].Props.Get(ical.PropRecurrenceID) == nil {
@@ -370,8 +329,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		}
 		currentCalendar = dav.Holding(calendars, "", co.Path)
 	} else {
-		// Creating is pooled: it must not fail merely because the active
-		// account has no CalDAV collection of this kind.
+		// Pooled, so creating does not fail when the active account lacks such a collection.
 		groups, err = p.writableGroups(ctx, supportsEvent)
 		if err != nil {
 			return err
@@ -388,8 +346,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		summary := ctx.FormValue("summary")
 		description := ctx.FormValue("description")
 
-		// The form answers its own invalid input: the same page with
-		// an alert, never a status page the browser writes.
+		// Invalid input re-renders the form with an alert, never a status page.
 		reject := func(message string) error {
 			rail, err := p.eventRail(ctx)
 			if err != nil {
@@ -426,9 +383,6 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			}
 		}
 
-		// An event that occupies whole days has no time of day to
-		// ask for, and asking anyway is what made a two-day
-		// conference impossible to enter.
 		allDay := ctx.FormValue("allday") != ""
 		var start, end time.Time
 		if allDay {
@@ -443,8 +397,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			if start.After(end) {
 				return reject(ctx.T("form.endbeforestart"))
 			}
-			// The form asks for the last day; iCalendar 3.8.2.2
-			// wants the day after it, since DTEND is exclusive.
+			// DTEND is exclusive; the form asks for the last day.
 			end = end.AddDate(0, 0, 1)
 		} else {
 			start, err = ctx.ReadDateTime(ctx.FormValue("start"), loc)
@@ -484,9 +437,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			event.Props.Del(ical.PropDescription)
 		}
 
-		// Naming anybody makes this an invitation: the account
-		// becomes the organizer and everyone listed is asked
-		// (RFC 5546). Removing the last one withdraws it.
+		// Naming anybody makes this account the organizer; removing the last withdraws it.
 		attendees := parseAttendees(ctx.FormValue("attendees"))
 		had := attendeeLines(event) != ""
 		setScheduling(event, ctx.Login.Username(), attendees)
@@ -506,9 +457,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
-		// The event is saved before anybody is told about it: a send
-		// that fails must not lose what was written, so the failure
-		// is reported and the meeting stays.
+		// Saved before sending: a failed send must not lose the event.
 		method := alborzbase.MethodRequest
 		told := attendees
 		if len(attendees) == 0 && had {
@@ -542,9 +491,6 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "update-event.html", data)
 }
 
-// eventList is the view an event's page came from: the list its row
-// named, or else the day when the request names one, the month
-// otherwise.
 func eventList(ctx *alborz.Context) string {
 	if from := ctx.From(); from != "" {
 		return from

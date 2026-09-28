@@ -23,8 +23,7 @@ import (
 	"jaytaylor.com/html2text"
 )
 
-// AttachedMessage names a whole message the form carries, for the
-// checkbox that keeps it across a round trip.
+// AttachedMessage names a whole message the form carries across a round trip.
 type AttachedMessage struct {
 	Ref  string
 	Name string
@@ -33,8 +32,7 @@ type AttachedMessage struct {
 type ComposeRenderData struct {
 	IMAPBaseRenderData
 	Message *OutgoingMessage
-	// Attached are whole messages carried as message/rfc822 parts,
-	// which have no part path in the message being written.
+	// Attached are whole messages carried as message/rfc822 parts.
 	Attached []AttachedMessage
 	// Identities offered in the From dropdown, one entry per account.
 	Identities []AccountIdentities
@@ -43,19 +41,13 @@ type ComposeRenderData struct {
 	Signature  string
 }
 
-// AccountIdentities lists the addresses an account may send as: the
-// account itself is implied and not repeated in Addresses.
+// AccountIdentities lists the addresses an account may send as, the account itself implied.
 type AccountIdentities struct {
 	Account   string
 	Addresses []string
 }
 
-// composeIdentities reads each signed-in account's stored identities. A
-// server that cannot be reached contributes its address alone rather
-// than failing the page. The address the message is written as is
-// offered even when the page's account has not written it down: an
-// alias a list was delivered to is the only sender the list answers
-// to, and an option the dropdown lacks leaves the first one selected.
+// The address written as is offered even when unlisted, so the dropdown can select it.
 func composeIdentities(ctx *alborz.Context, writtenAs string) []AccountIdentities {
 	var out []AccountIdentities
 	for _, s := range ctx.Logins() {
@@ -89,9 +81,7 @@ type messagePath struct {
 	Uid     imap.UID
 }
 
-// attachedMessages is the compose form's record of whole messages
-// carried as attachments: "mailbox/uid", one per entry, re-fetched when
-// the form comes back rather than held in memory between requests.
+// attachedField carries "mailbox/uid" refs, re-fetched when the form comes back.
 const attachedField = "attached_messages"
 
 func parseAttachedRef(s string) (messagePath, error) {
@@ -105,16 +95,7 @@ func parseAttachedRef(s string) (messagePath, error) {
 	return p, err
 }
 
-// PartAttachments are the attachments that came from a part of another
-// message, which is the only kind the form can carry back by path. A
-// whole message has no part path and rides in Attached instead.
-// SelectedFrom is the value of the From option the form opens on: the
-// identity the message is written as, matched by address, or the
-// account the page belongs to when the message names none. The options
-// are worth "account" or "account|identity", and only an exact value
-// selects one; comparing the message's From string against them left
-// nothing selected, and a browser then shows the first option, which
-// on a page for any account but the first was somebody else's.
+// SelectedFrom is the From option the form opens on; only an exact "account" or "account|identity" value selects one.
 func (d *ComposeRenderData) SelectedFrom() string {
 	fallback := d.GlobalData.Username
 	if d.GlobalData.URLAccount != "" {
@@ -158,9 +139,6 @@ func (d *ComposeRenderData) PartAttachments() []*imapAttachment {
 	return out
 }
 
-// attachedList names what the form should carry back, reading the
-// attachments already built rather than fetching or remembering
-// anything.
 func attachedList(msg *OutgoingMessage) []AttachedMessage {
 	var out []AttachedMessage
 	for _, att := range msg.Attachments {
@@ -175,8 +153,6 @@ func attachedRef(p messagePath) string {
 	return fmt.Sprintf("%s/%v", url.PathEscape(p.Mailbox), p.Uid)
 }
 
-// attachMessages fetches each named message whole and hangs it off the
-// outgoing one.
 func attachMessages(ctx *alborz.Context, msg *OutgoingMessage, paths []messagePath) error {
 	for _, p := range paths {
 		var body []byte
@@ -206,13 +182,10 @@ type composeOptions struct {
 	// Attached are whole messages carried as message/rfc822 parts.
 	Attached  []messagePath
 	InReplyTo *messagePath
-	// Signature names the one already under the body, so the page opens
-	// with the right entry chosen rather than with none.
+	// Signature names the one already under the body.
 	Signature string
 }
 
-// refused is a server's no to a message or a draft: key names the
-// sentence the form shows, cause is what the server said.
 type refused struct {
 	key   string
 	cause error
@@ -220,10 +193,7 @@ type refused struct {
 
 func (err refused) Error() string { return err.cause.Error() }
 
-// Send message, append it to the Sent mailbox, mark the original message as
-// answered. The sender is the account chosen in the From dropdown; the
-// draft and the message being answered belong to the request's own
-// account, whose mailbox and UID the URL named.
+// The sender is the From account; the draft and the answered message stay on the request's account.
 func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
 	err := sender.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, msg)
@@ -244,10 +214,7 @@ func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *O
 		}
 	}
 
-	// The row shows a forwarded mark that nothing here ever set. Unlike
-	// \Answered this is a keyword, which a server is free to refuse, and
-	// the message has already been sent: note the refusal, do not fail
-	// the send over it.
+	// A keyword the server may refuse after the send: note the refusal, do not fail the send.
 	if forward := options.Forward; forward != nil {
 		err = ctx.DoIMAP(func(c *imapclient.Client) error {
 			return markMessageForwarded(c, forward.Mailbox, forward.Uid)
@@ -257,8 +224,6 @@ func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *O
 		}
 	}
 
-	// The notice leads back to the copy just saved, so the mailbox and
-	// UID of the append are worth keeping.
 	var sent *MailboxInfo
 	var sentUID imap.UID
 	err = sender.DoIMAP(func(c *imapclient.Client) error {
@@ -283,8 +248,7 @@ func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *O
 	p.accountChanged(sender.Username())
 	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.sent")}
 	if sent != nil && sentUID != 0 {
-		// The copy is in the sending account's Sent, which need not be
-		// the scope the reader is in, so the link names it.
+		// The Sent copy may be outside the reader's scope, so the link names its account.
 		view := messageURL(sent.Name(), sentUID)
 		view.RawQuery = "account=" + alborz.QueryValue(sender.Username())
 		notice.Actions = []*alborz.NoticeAction{{Label: ctx.T("notice.view"), Path: view.String()}}
@@ -299,8 +263,6 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 		return err
 	}
 
-	// Both the sent copy and the saved draft carry it, so a message says
-	// what wrote it however it left here.
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
@@ -318,11 +280,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 		}
 		_, saveAsDraft := formParams["save_as_draft"]
 
-		// The From dropdown picks the sending account and, within it, the
-		// address to send as. SMTP, the Sent folder and the settings the
-		// message is written under follow that account. Everything the
-		// URL and the form name - the draft, the message answered, the
-		// attachments - stays on the request's own account.
+		// SMTP, Sent and settings follow the From account; the draft, the answered message and attachments stay on the request's.
 		sender := ctx.Login
 		account, identity := splitIdentityChoice(ctx.FormValue("from_account"))
 		if account != "" && account != sender.Username() {
@@ -347,13 +305,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 				Signature:          signature,
 			})
 		}
-		// A server's no to the message is an answer, not a breakage:
-		// it comes back on the form, the text kept, in the server's
-		// own words. Only a server that did not answer at all, or
-		// alborz itself failing, leaves the page.
-		//
-		// The uploads stay with the session until the message has left,
-		// so a refused send comes back with them.
+		// A server's refusal comes back on the form; uploads stay with the session until the message has left.
 		var uploads []string
 		submit := func(f func() error) error {
 			err := f()
@@ -371,17 +323,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 			return err
 		}
 		msg.From = fromAddress(settings, sender.Username())
-		// An identity replaces the address, and carries its own name when
-		// it names one. A stale choice falls back to the account itself.
-		//
-		// No Sender header. RFC 5322 3.6.2 asks for one when the author
-		// and the transmitter are different parties - a secretary
-		// sending for someone else - which an identity is not: it is
-		// the same person under another of their own addresses. Adding
-		// it prints the account address on every message and makes Mail
-		// and Outlook render "account on behalf of identity", which is
-		// the one thing the identity exists to avoid. DMARC aligns on
-		// From, so nothing is bought by it either.
+		// No Sender header: an identity is the same person, not a different transmitter (RFC 5322 3.6.2).
 		if identity != "" && slices.Contains(settings.Identities, identity) {
 			msg.From = identity
 		}
@@ -397,15 +339,12 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 		}
 		msg.Subject = ctx.FormValue("subject")
 		msg.Text = ctx.FormValue("text")
-		// A message written in the editor arrives as HTML; its text is
-		// derived here, so the plain part and the draft say the same.
+		// The text is derived from the HTML so the plain part and the draft agree.
 		if msg.HTML = composedHTML(ctx.FormValue("html")); msg.HTML != "" {
 			msg.Text = composedText(msg.HTML)
 		}
 
-		// Choosing a signature is a submit like any other, so it works
-		// with no script: the body comes back with the old one replaced
-		// and everything else as it was typed.
+		// Choosing a signature is a submit, so it works without script.
 		if _, ok := formParams["signature_apply"]; ok {
 			chosen := ctx.FormValue("signature")
 			sig, _ := settings.signatureNamed(chosen)
@@ -415,10 +354,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 			}
 			return render(http.StatusOK, sig.Name, "")
 		}
-		// Plain text gets an HTML part only to carry right-to-left
-		// direction, unless the writer turned it off, and not in a
-		// reply to a list. All are read at send, never from a flag on
-		// the page, which a tab opened earlier can lose.
+		// Read at send, never from a page flag, which a tab opened earlier can lose.
 		msg.SendHTML = msg.HTML == "" && !ctx.Profile().Writing.NoDirectionPart && alborz.HasRTL(msg.Text)
 		if msg.SendHTML && options.InReplyTo != nil {
 			toList := false
@@ -427,9 +363,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 				toList = id != ""
 				return err
 			}); err != nil {
-				// Unknown is treated as a list: sending plain text to a
-				// person is a smaller harm than sending an alternative
-				// part to a list that refuses it.
+				// Unknown counts as a list: plain text to a person is the smaller harm.
 				ctx.Logger().Printf("list check for reply: %v", err)
 				toList = true
 			}
@@ -438,8 +372,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 		msg.InReplyTo = ctx.FormValue("in_reply_to")
 		msg.MessageID = ctx.FormValue("message_id")
 		if msg.MessageID == "" {
-			// The page carries the id so a draft saved twice stays one
-			// message; a form that lost it is still a message to send.
+			// The page carries the id so a draft saved twice stays one message.
 			msg.MessageID = newMessageID()
 		}
 
@@ -461,7 +394,6 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 		}
 		options.Attached = attached
 
-		// Fetch previous attachments from original message
 		var original *messagePath
 		if options.Draft != nil {
 			original = options.Draft
@@ -536,18 +468,14 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 			uploads = append(uploads, held...)
 		}
 
-		// A message with nowhere to go is not sent, and is not reported
-		// as sent; a draft may of course be addressed later.
+		// A draft may be addressed later; a message with nowhere to go is not sent.
 		if !saveAsDraft && len(msg.To) == 0 && len(msg.Cc) == 0 && len(msg.Bcc) == 0 {
 			return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), ctx.T("form.recipientneeded"))
 		}
 
 		return submit(func() error {
 			if saveAsDraft {
-				// A draft is what was typed, and only that. The HTML part is
-				// a rendering made when the message is sent, so storing it
-				// here would put a multipart/alternative in front of the
-				// editor - which cannot open one - for no gain.
+				// A draft is what was typed; the editor cannot open a multipart/alternative.
 				msg.SendHTML = false
 				var (
 					drafts *MailboxInfo
@@ -569,8 +497,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 						return err
 					}
 
-					// Without UIDPLUS the server names no UID, and the
-					// draft is found again by the Message-ID it was given.
+					// Without UIDPLUS the server names no UID, so the draft is found by Message-ID.
 					if uid != 0 {
 						return nil
 					}
@@ -618,27 +545,13 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 	return ctx.Render(http.StatusOK, "compose.html", data)
 }
 
-// correspondentTTL decides when the gathered addresses count as stale
-// and a background pass goes to fetch them again. They change
-// only when mail is sent or arrives, and re-reading two folders on every
-// compose would put a fetch in front of a blank page.
+// correspondentTTL spares a two-folder read on every compose.
 const correspondentTTL = 10 * time.Minute
 
-// correspondentDepth is how far back the two folders are read. Recent is
-// the point - an address nobody has written to in a thousand messages is
-// not what the writer is reaching for.
+// Recent is the point: an old correspondent is not what the writer reaches for.
 const correspondentDepth = 200
 
-// gatherCorrespondents returns the addresses this account has written to
-// and heard from. A contact list holds the people you decided to keep;
-// this holds the people you actually exchange mail with, which is not
-// the same set and is the one a recipient field is usually reaching for.
-// Every client collects it - Apple Mail calls them Previous Recipients,
-// Thunderbird a Collected Addresses book, Gmail Other Contacts.
-//
-// It never waits. Reading two folders is far too much to put in front of
-// a blank compose form, so the list is built in the background and the
-// form gets whatever is ready - on a cold login, nothing.
+// It never waits: the list is built in the background and the form gets whatever is ready.
 func (p *plugin) gatherCorrespondents(s *alborz.Login) []string {
 	return p.correspondents.Warm(s.Username(), func() ([]string, error) {
 		seen := make(map[string]string)
@@ -669,7 +582,6 @@ func (p *plugin) gatherCorrespondents(s *alborz.Login) []string {
 			for i := range mailboxes {
 				categorized.Append(mailboxes[i], nil)
 			}
-			// Sent names who you write to, the inbox who writes to you.
 			read := func(name string, out bool) {
 				msgs, err := recentEnvelopes(c, name, correspondentDepth)
 				if err != nil {
@@ -706,10 +618,7 @@ func (p *plugin) gatherCorrespondents(s *alborz.Login) []string {
 	})
 }
 
-// withSignature replaces whatever sits under the last "-- " line with
-// the given text, or removes it when the text is empty. The delimiter is
-// RFC 3676 4.3 and must start a line, so a quoted "> -- " from the
-// message being answered is not mistaken for the writer's own.
+// The delimiter must start a line, so a quoted "> -- " is not mistaken for the writer's own.
 func withSignature(body, text string) string {
 	if i := strings.LastIndex(body, "\n-- \n"); i >= 0 {
 		body = body[:i]
@@ -717,15 +626,12 @@ func withSignature(body, text string) string {
 	if text == "" {
 		return body
 	}
-	// Room to write above it, which is the point of starting with one.
+	// Room to write above the signature.
 	return body + "\n\n\n-- \n" + text
 }
 
 func (p *plugin) handleComposeNew(ctx *alborz.Context) error {
-	// Where a mailto: link arrives when the browser has been told this
-	// application opens them. Only a mailto URI is followed:
-	// composeFromMailto hands anything else straight back, and
-	// redirecting to that would be an open redirect.
+	// Only a mailto URI is followed; redirecting to anything else would be an open redirect.
 	if uri := ctx.QueryParam("mailto"); uri != "" {
 		if to := composeFromMailto(uri); strings.HasPrefix(to, "/compose?") {
 			return ctx.Redirect(http.StatusFound, to)
@@ -745,7 +651,6 @@ func (p *plugin) handleComposeNew(ctx *alborz.Context) error {
 		chosen = ""
 	}
 
-	// These are common mailto URL query parameters
 	return p.handleCompose(ctx, &OutgoingMessage{
 		From:      ownIdentity(settings, p.newDeliveryTrust(ctx, settings, ctx.Login.Username()), ctx.QueryParam("from")),
 		To:        strings.Split(ctx.QueryParam("to"), ","),
@@ -827,10 +732,7 @@ func (p *plugin) handleReply(ctx *alborz.Context) error {
 	return p.handleCompose(ctx, &msg, &composeOptions{InReplyTo: &inReplyToPath})
 }
 
-// quotablePart fetches the part a reply or a forward should quote. A
-// bare link names no part and a multipart message's root is not text,
-// so the text part a reader was shown is fetched instead - without it,
-// answering any message that carries an attachment was a 400.
+// A bare link names no part and a multipart root is not text, so the text part shown is fetched instead.
 func quotablePart(ctx *alborz.Context, path messagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
 	var msg *IMAPMessage
 	var part *message.Entity
@@ -920,13 +822,8 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *alborz.Context, inReply
 
 	ret.MessageID = newMessageID()
 	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
-	// RFC 5322 3.6.4: the chain is what was there plus what is being
-	// answered, and it is the header threading actually runs on.
 	ret.References = strings.TrimSpace(inReplyTo.References + " " + ret.InReplyTo)
-	// Answer from the address it was sent to, when that address is one
-	// of ours: a mail to an identity is answered by that identity, not
-	// by the account behind it. Cc counts as well, since a list often
-	// puts the identity there.
+	// A mail to an identity is answered by that identity; Cc counts too.
 	ret.From = writeAs(settings, p.newDeliveryTrust(ctx, settings, ctx.Login.Username()),
 		inReplyTo, inReplyTo.Envelope.To, inReplyTo.Envelope.Cc)
 	replyTo := inReplyTo.Envelope.ReplyTo
@@ -935,8 +832,6 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *alborz.Context, inReply
 	}
 	ret.To = unwrapIMAPAddressList(replyTo)
 
-	// A reply to the list goes to the list and nowhere else, which is
-	// what List-Post names and what the convention expects.
 	if ctx.QueryParam("list") != "" && inReplyTo.ListPost != "" {
 		ret.To = []string{inReplyTo.ListPost}
 	} else if ctx.QueryParam("all") != "" {
@@ -954,8 +849,6 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *alborz.Context, inReply
 	return ret, nil
 }
 
-// readText is the body of a part as it was written, joined again
-// when it was sent format=flowed.
 func readText(part *message.Entity) (string, error) {
 	b, err := io.ReadAll(part.Body)
 	if err != nil {
@@ -968,18 +861,11 @@ func readText(part *message.Entity) (string, error) {
 	return Unflow(string(b), strings.EqualFold(params["delsp"], "yes")), nil
 }
 
-// forwardBody is the message being passed on, whole: a separator, the
-// headers that say where it came from, then the body exactly as it
-// arrived. It is not quoted - "> " in front of every line is reply
-// convention, and prefixing a forward is what turned a readable message
-// into a wall of chevrons. The person writes above it.
+// Not quoted: chevrons on every line are reply convention, not forward.
 func forwardBody(ctx *alborz.Context, original *IMAPMessage, body string) string {
 	g := alborz.NewBaseRenderData(ctx).GlobalData
 	var b strings.Builder
 	b.WriteString("\n\n")
-	// Not translated: nothing parses it, and the recipient may not read
-	// the sender's language. The header names below are RFC 5322's for
-	// the same reason.
 	b.WriteString(ctx.T("message.forwardedblock"))
 	b.WriteString("\n")
 	if from := original.Envelope.From; len(from) > 0 {
@@ -995,8 +881,6 @@ func forwardBody(ctx *alborz.Context, original *IMAPMessage, body string) string
 	return b.String()
 }
 
-// forwardHTML is forwardBody for the editor: the separator and the
-// headers, then the original as it was written.
 func forwardHTML(ctx *alborz.Context, original *IMAPMessage, body string) template.HTML {
 	head := strings.TrimSpace(forwardBody(ctx, original, ""))
 	lines := strings.Split(html.EscapeString(head), "\n")
@@ -1004,10 +888,6 @@ func forwardHTML(ctx *alborz.Context, original *IMAPMessage, body string) templa
 		`<p dir="` + alborz.ParagraphDir(head) + `">` + strings.Join(lines, "<br>") + "</p>\n<div>" + body + "</div>\n")
 }
 
-// quotedHTML is a message's HTML as the editor may quote, forward or
-// reopen it: Apple Mail's pieces joined, its images pointed at the
-// parts that hold them, and the policy applied (ADR 40). Empty when the
-// message has no HTML.
 func quotedHTML(ctx *alborz.Context, path messagePath, msg *IMAPMessage) (string, error) {
 	node := msg.HTMLPart()
 	if node == nil {
@@ -1043,11 +923,6 @@ func addressLine(a imap.Address) string {
 	return a.Addr()
 }
 
-// replyBody puts the quote where the person writing wants to stand
-// relative to it: above it, which is what most correspondents expect,
-// or below it, which is what a mailing list asks for. Either way the
-// quote is introduced, so a reader can see whose words they are without
-// scrolling to find out.
 func replyBody(ctx *alborz.Context, original *IMAPMessage, quoted string, below bool) string {
 	who := ""
 	if from := original.Envelope.From; len(from) > 0 {
@@ -1064,10 +939,6 @@ func replyBody(ctx *alborz.Context, original *IMAPMessage, quoted string, below 
 	return "\n\n" + attribution + "\n" + quoted
 }
 
-// replyHTML is replyBody for the editor: the same attribution, the
-// original as a quote block, and an empty paragraph where the writing
-// goes. The quote has already been through the policy, which keeps no
-// image, so nothing in it phones home when the answer is read.
 func replyHTML(ctx *alborz.Context, original *IMAPMessage, quoted string, below bool) template.HTML {
 	who := ""
 	if from := original.Envelope.From; len(from) > 0 {
@@ -1085,11 +956,6 @@ func replyHTML(ctx *alborz.Context, original *IMAPMessage, quoted string, below 
 	return template.HTML(`<p dir="auto"><br></p>` + "\n" + head)
 }
 
-// handleForwardSelection is the list toolbar's Forward: the selection
-// names the message, where the message page names it in the path.
-// Forwarding several at once means attaching each as message/rfc822,
-// which is not built yet, so it says so rather than silently forwarding
-// one of them.
 func handleForwardSelection(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
@@ -1107,10 +973,7 @@ func handleForwardSelection(ctx *alborz.Context) error {
 	if len(uids) == 0 {
 		return nothingSelected(ctx, back)
 	}
-	// One message is passed on inline, where the writer can trim it.
-	// Several cannot be: concatenating them means nothing, so each
-	// travels whole as an attachment, which is what every client that
-	// offers this does.
+	// One message is forwarded inline where it can be trimmed; several travel whole as attachments.
 	if len(uids) == 1 {
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(
 			fmt.Sprintf("/message/%v/%v/forward", url.PathEscape(mboxName), uids[0])))
@@ -1128,9 +991,7 @@ func handleForwardSelection(ctx *alborz.Context) error {
 		url.PathEscape(mboxName), alborz.Query(q)))
 }
 
-// handleForwardAttached composes one message carrying several whole
-// ones. It is a GET so the page can be reloaded and so compose sees the
-// request it expects; the selection arrives in the query.
+// A GET so the page can be reloaded; the selection arrives in the query.
 func (p *plugin) handleForwardAttached(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
@@ -1166,7 +1027,6 @@ func (p *plugin) handleForward(ctx *alborz.Context) error {
 
 	var msg OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		// Populate fields from original message
 		partPath, err := parsePartPath(ctx.QueryParam("part"))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -1182,8 +1042,7 @@ func (p *plugin) handleForward(ctx *alborz.Context) error {
 		case "text/plain":
 			body, err = readText(part)
 		case "text/html":
-			// Lossy, and the only thing a plain-text composer can do
-			// with HTML. Attaching the message instead keeps it whole.
+			// Lossy; attaching the message instead keeps it whole.
 			body, err = html2text.FromReader(part.Body, html2text.Options{})
 		default:
 			defErr := fmt.Errorf("cannot forward %q part", mimeType)
@@ -1207,16 +1066,11 @@ func (p *plugin) handleForward(ctx *alborz.Context) error {
 			!strings.HasPrefix(strings.ToLower(msg.Subject), "fw:") {
 			msg.Subject = "Fwd: " + msg.Subject
 		}
-		// A forward starts a thread of its own: it carried the original's
-		// In-Reply-To, which made it a sibling reply to whatever that
-		// message was answering, in a conversation the reader may not
-		// even be in.
+		// A forward starts a thread of its own rather than joining the original's.
 		msg.References = "<" + source.Envelope.MessageID + ">"
 
 		attachments := source.Attachments()
 		for i := range attachments {
-			// No need to populate attachment body here, we just need the
-			// metadata
 			msg.Attachments = append(msg.Attachments, &imapAttachment{
 				Mailbox: sourcePath.Mailbox,
 				Uid:     sourcePath.Uid,
@@ -1240,7 +1094,6 @@ func (p *plugin) handleEdit(ctx *alborz.Context) error {
 
 	var msg OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		// Populate fields from source message
 		partPath, err := parsePartPath(ctx.QueryParam("part"))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -1250,8 +1103,7 @@ func (p *plugin) handleEdit(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		// A draft with an HTML twin names the alternative as its part;
-		// the text inside it is what is edited.
+		// A draft with an HTML twin names the alternative; the text inside is what is edited.
 		if strings.HasPrefix(mimeType, "multipart/") && source.TextPart() != nil {
 			source, part, mimeType, err = quotablePart(ctx, sourcePath, source.TextPart().Path)
 			if err != nil {
@@ -1269,8 +1121,6 @@ func (p *plugin) handleEdit(ctx *alborz.Context) error {
 			return fmt.Errorf("failed to read part body: %v", err)
 		}
 		msg.Text = string(b)
-		// A draft written in the editor opens in it again, its images
-		// pointed at the draft's own parts.
 		if msg.HTML, err = quotedHTML(ctx, sourcePath, source); err != nil {
 			return fmt.Errorf("failed to read the draft's HTML: %v", err)
 		}
@@ -1285,8 +1135,6 @@ func (p *plugin) handleEdit(ctx *alborz.Context) error {
 
 		attachments := source.Attachments()
 		for i := range attachments {
-			// No need to populate attachment body here, we just need the
-			// metadata
 			msg.Attachments = append(msg.Attachments, &imapAttachment{
 				Mailbox: sourcePath.Mailbox,
 				Uid:     sourcePath.Uid,

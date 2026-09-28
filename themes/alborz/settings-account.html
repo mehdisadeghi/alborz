@@ -40,18 +40,11 @@
           {{ template "hint" (dict "text" ($.T "help.identities") "example" ($.T "help.identitiesexample")) }}
         </div>
 
-        {{/* Which server's verdict on a sender may be believed. It is
-             the name that server gives itself, and it cannot be guessed:
-             with none set no verdict is shown at all. */}}
         <div class="action-group">
           <label for="trusted_authserv">{{$.T "settings.authserv"}}</label>
           <input type="text" name="trusted_authserv" id="trusted_authserv"
                  value="{{.Settings.TrustedAuthServ}}" dir="ltr" spellcheck="false"
                  {{ with .AuthServGuess }}list="authserv-guess" placeholder="{{.}}"{{ end }}>
-          {{/* Observed, never assumed: the name is the one this
-               account's own server wrote on mail already delivered
-               here, offered in the field's own list so that accepting
-               it is a choice the reader makes. */}}
           {{ with .AuthServGuess }}
           <datalist id="authserv-guess"><option value="{{.}}"></datalist>
           {{ template "hint" (dict "text" ($.GlobalData.Tf "help.authservguess" .)) }}
@@ -60,9 +53,6 @@
           {{ end }}
         </div>
 
-        {{/* A full-text index the server keeps but does not announce.
-             Dovecot says SEARCH=FUZZY only for Solr; xapian and
-             flatcurve index just as well and say nothing. */}}
         <div class="action-group">
           <label for="indexed_search" class="checkbox">
             <input type="checkbox" name="indexed_search" id="indexed_search" value="1"{{if .Settings.IndexedSearch}} checked{{end}}>
@@ -91,10 +81,6 @@
         <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
       </form>
 
-      {{/* Where these settings are written, and the way back out. A
-           server without METADATA has nowhere to keep them, so alborz
-           does, and a reader who was never told cannot take them
-           back. */}}
       {{ if .Storage.Host }}
       <details class="list-card">
         <summary>{{$.T "settings.storagewhere"}}</summary>

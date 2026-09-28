@@ -8,11 +8,7 @@ import (
 	"github.com/emersion/go-message/textproto"
 )
 
-// The headers of a real forward: ING sent to a gmail mailbox, which
-// passed it on. Trimmed to what the decision reads, keeping the exact
-// shape of the clause - the quoted smtp.mailfrom, the comment before it
-// carrying the same address, and the ARC instance number in front of
-// the authserv-id, all of which the parser has to get past.
+// A real forward, trimmed; the clause keeps its exact shape for the parser.
 const forwardedHeader = `Return-Path: <msk1361+caf_=mehdi=mehdix.org@gmail.com>
 Delivered-To: mehdi@mehdix.org
 ARC-Authentication-Results: i=3;
@@ -46,24 +42,17 @@ func TestForwardedBy(t *testing.T) {
 		t.Fatalf("got %q, want msk1361@gmail.com", got)
 	}
 
-	// Nothing is claimed on a server whose verdicts we cannot pick out.
 	if got := ForwardedBy(h, "", ""); got != "" {
 		t.Errorf("with no trusted authserv: got %q", got)
 	}
-	// Another server's Authentication-Results is not ours to believe.
 	if got := ForwardedBy(h, "mx.google.com", ""); got != "" {
 		t.Errorf("with somebody else's authserv: got %q", got)
 	}
-	// A list is a relay too, and says so in its own row.
 	if got := ForwardedBy(h, "mail.mehdix.org", "tuhs.tuhs.org"); got != "" {
 		t.Errorf("on list mail: got %q", got)
 	}
 }
 
-// TestForwardedBySpoofed is the reason this reads the SPF result rather
-// than the forwarding headers: those are a stranger's to write. Here
-// they claim a forward that SPF did not pass, and the envelope is
-// aligned with From, so nothing is asserted.
 func TestForwardedBySpoofed(t *testing.T) {
 	raw := strings.Replace(forwardedHeader,
 		`spf=pass (mail.mehdix.org: domain of "msk1361+caf_=mehdi=mehdix.org@gmail.com" designates 209.85.160.180 as permitted sender) smtp.mailfrom="msk1361+caf_=mehdi=mehdix.org@gmail.com";`,
@@ -72,8 +61,6 @@ func TestForwardedBySpoofed(t *testing.T) {
 		t.Fatalf("an SPF failure was reported as a forward: %q", got)
 	}
 
-	// Ordinary direct mail: the envelope and From agree, so there is no
-	// forward to name even though SPF passed.
 	direct := strings.Replace(forwardedHeader,
 		`smtp.mailfrom="msk1361+caf_=mehdi=mehdix.org@gmail.com"`,
 		`smtp.mailfrom="bounce@info.ing.de"`, 1)

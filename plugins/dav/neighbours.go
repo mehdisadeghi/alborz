@@ -6,19 +6,13 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// Item is one object as a list holds it: its path on the server, and
-// where its own page is with the list carried along.
+// Item is one object as a list holds it: its server path and its page's URL.
 type Item struct {
 	Path string
 	URL  string
 }
 
-// Neighbours are the objects either side of the one on the page, in the
-// order the list showed them. It is how a reader walks a collection
-// without going back to the list, which the message page has always had
-// and the calendar, the tasks and the contacts had not. A page not
-// reached from a list, or an object no longer in it, gets a zero Total
-// and shows nothing.
+// Neighbours are the objects either side of the one on the page; Total is zero without a list.
 type Neighbours struct {
 	PrevURL  string
 	NextURL  string
@@ -26,8 +20,7 @@ type Neighbours struct {
 	Total    int
 }
 
-// Around places one object among the items a list holds, in that list's
-// own order.
+// Around places one object among a list's items, in its order.
 func Around(items []Item, path string) Neighbours {
 	at := -1
 	for i, it := range items {
@@ -49,16 +42,12 @@ func Around(items []Item, path string) Neighbours {
 	return n
 }
 
-// ListParams are the parameters of the request that decide which
-// objects a list holds and in what order. An object's page is opened
-// with them, and so are the links to its neighbours, so that walking a
-// list stays inside the list the reader was looking at.
+// ListParams are the request parameters that decide a list's objects and order.
 func ListParams(ctx *alborz.Context, keys ...string) url.Values {
 	return Keep(ctx.QueryParams(), keys...)
 }
 
-// ListParamsIn are the same, read from the URL a form returns to. A
-// fragment answering a write has the list's own address only there.
+// ListParamsIn reads them from a form's return URL, the only place a write's fragment has them.
 func ListParamsIn(next string, keys ...string) url.Values {
 	u, err := url.Parse(next)
 	if err != nil {
@@ -67,9 +56,7 @@ func ListParamsIn(next string, keys ...string) url.Values {
 	return Keep(u.Query(), keys...)
 }
 
-// Widened is next without the narrowing to single collections that
-// field names: ticking a collection says which ones the reader wants,
-// so the page they return to is no longer the one "only" narrowed.
+// Widened drops next's "only" narrowing through field, since ticking a collection supersedes it.
 func Widened(next, field string) string {
 	u, err := url.Parse(next)
 	if err != nil {
@@ -80,8 +67,7 @@ func Widened(next, field string) string {
 	return ListURL(u.Path, q)
 }
 
-// ListURL is the list those parameters name, for an object's page to
-// return to once the object is gone or a new one is made.
+// ListURL is the list those parameters name.
 func ListURL(path string, params url.Values) string {
 	if len(params) == 0 {
 		return path
@@ -102,9 +88,7 @@ func Keep(from url.Values, keys ...string) url.Values {
 	return kept
 }
 
-// RowParams are a row's list parameters with the list its page returns
-// to: this page, when it is the list at path, or the list this page was
-// itself opened from, which its neighbours pass on.
+// RowParams are a row's list parameters with the list its page returns to.
 func RowParams(ctx *alborz.Context, path string, params url.Values) url.Values {
 	from := ctx.From()
 	if ctx.Request().URL.Path == path {
@@ -121,8 +105,7 @@ func RowParams(ctx *alborz.Context, path string, params url.Values) url.Values {
 	return q
 }
 
-// ObjectURL is where one object's page is: the list's own parameters,
-// and the account holding the object where the list pools several.
+// ObjectURL is an object's page, with the list's parameters and, in a pooled list, its account.
 func ObjectURL(base, path, account string, params url.Values) string {
 	q := url.Values{}
 	for key, values := range params {
@@ -138,10 +121,7 @@ func ObjectURL(base, path, account string, params url.Values) string {
 	return href
 }
 
-// Labels are what a pooled list's row says about the collection holding
-// its object: the collection itself, the zero one when none holds it,
-// and the list narrowed to it through field, in the scope the row
-// belongs to. shape is what else the narrowed list's address says.
+// Labels name the collection a pooled row lies in and the list narrowed to it through field.
 func Labels(ctx *alborz.Context, colls []Collection, list, field string, shape url.Values) (collection func(account, path string) Collection, href func(account, path string) string) {
 	collection = func(account, path string) Collection {
 		if c := Holding(colls, account, path); c != nil {

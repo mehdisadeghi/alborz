@@ -12,9 +12,7 @@ import (
 	"github.com/emersion/go-message/textproto"
 )
 
-// signedFixture builds a PGP/MIME message and signs it with a key made
-// here, so the test proves the verifier agrees with an implementation
-// rather than with a stored blob nobody can regenerate.
+// signedFixture signs with a key made here, not a stored blob nobody can regenerate.
 func signedFixture(t *testing.T) (raw []byte, header textproto.Header) {
 	t.Helper()
 	entity, err := openpgp.NewEntity("Gil", "test", "gil@example.org", nil)
@@ -53,12 +51,6 @@ func signedFixture(t *testing.T) (raw []byte, header textproto.Header) {
 	return raw, header
 }
 
-// TestListRewrittenFrom is the case that matters most in practice:
-// a mailing list rewrote From to its own address to get past DMARC, so
-// the key claims an address the message no longer says it is from. The
-// author is in the protected headers inside the signature and in
-// Reply-To, and a rule that looks only at From drops every list message
-// - which is where signed mail mostly lives.
 func TestListRewrittenFrom(t *testing.T) {
 	raw, header := signedFixture(t)
 	rewritten := bytes.Replace(raw,
@@ -82,15 +74,11 @@ func TestListRewrittenFrom(t *testing.T) {
 		t.Fatalf("the sender's key was dropped; authors were %v", authors)
 	}
 
-	// A key that belongs to nobody the message names is still refused.
 	if keys := senderKeys(h, rewritten, []string{"someone@else.example"}); len(keys) != 0 {
 		t.Fatal("a key claiming another address was accepted")
 	}
 }
 
-// TestSignatureVerifies is the whole point: the signed octets have to
-// be reproduced byte for byte, and a single byte changed anywhere in
-// them has to be caught.
 func TestSignatureVerifies(t *testing.T) {
 	raw, header := signedFixture(t)
 
@@ -116,7 +104,6 @@ func TestSignatureVerifies(t *testing.T) {
 		t.Fatalf("a good signature did not verify: %v\nsigned region was %q", err, signed)
 	}
 
-	// One byte changed in the signed part, nothing else touched.
 	tampered := bytes.Replace(raw, []byte("One part, signed."), []byte("One part, sigued."), 1)
 	signed, sig, ok = signedRegion(tampered)
 	if !ok {

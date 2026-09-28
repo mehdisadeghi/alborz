@@ -14,16 +14,14 @@ import (
 	"git.mehdix.org/alborz/plugins/collections"
 )
 
-// Privileges is the DAV:current-user-privilege-set every listing asks
-// for: it is what says whether a collection can be written to.
+// Privileges is the DAV:current-user-privilege-set; it says whether a collection is writable.
 type Privileges []struct {
 	Write        *struct{} `xml:"DAV: write"`
 	WriteContent *struct{} `xml:"DAV: write-content"`
 	Bind         *struct{} `xml:"DAV: bind"`
 }
 
-// Writable reports whether any granted privilege allows writing, and
-// whether the server said anything at all.
+// Writable reports whether a granted privilege allows writing, and whether the server said at all.
 func (ps Privileges) Writable() (writable, known bool) {
 	for _, p := range ps {
 		known = true
@@ -41,56 +39,38 @@ type CollectionProps interface {
 	Privileges() Privileges
 }
 
-// Collection is a WebDAV collection as an account has it. A calendar,
-// a task list and an address book are each one: the RFCs give them no
-// types of their own, only what a collection may hold.
+// Collection is a WebDAV collection: a calendar, a task list or an address book.
 type Collection struct {
 	Path     string
 	Name     string
 	Color    string
 	Writable bool
-	// Components are the iCalendar components a calendar says it takes
-	// (RFC 4791 5.2.3); an address book has none.
+	// Components are the iCalendar components a calendar takes (RFC 4791 5.2.3).
 	Components []string
 	// Account owns the collection, set only where accounts are pooled.
 	Account string
-	// Visible is the reader's standing choice, which the rail's tick
-	// shows; Shown is what this page shows, which "only" narrows.
+	// Visible is the reader's standing choice; Shown is what this page shows, which "only" narrows.
 	Visible, Shown bool
-	// Only marks the collection a URL is currently narrowed to, and only
-	// when it is the sole one: pressing the same link again is how a
-	// reader gets back out of a view they pressed their way into.
+	// Only marks the sole collection a URL is narrowed to, so pressing its link again widens back.
 	Only bool
-	// Address is the feed a subscribed calendar is read from; empty for
-	// a collection held on the account's own server.
+	// Address is a subscribed calendar's feed; empty for a server-held collection.
 	Address string
-	// Here marks a collection kept in this alborz, which is what can be
-	// shared; SharedBy is its owner when that is another account.
+	// Here marks a collection kept in this alborz, which can be shared; SharedBy is its other owner.
 	Here     bool
 	SharedBy string
-	// Public marks a calendar kept here that answers at a public
-	// address.
+	// Public marks a calendar kept here that answers at a public address.
 	Public bool
-	// SharedWith counts the accounts an owner's collection is offered
-	// to and not refused by.
+	// SharedWith counts the accounts offered the collection that have not refused it.
 	SharedWith int
 }
 
-// Listed is one collection with the properties it was read from, for
-// what a kind keeps beyond the common fields.
+// Listed is a collection with the properties it was read from.
 type Listed[P CollectionProps] struct {
 	Collection
 	Props P
 }
 
-// ListCollections reads the collections of every home the account has,
-// one PROPFIND each, sorted by name: servers list them in storage
-// order, and a sidebar wants a stable one. Found and missing properties
-// come in separate propstats; the one naming the resource type carries
-// what was found.
-//
-// A home that does not answer is left out and returned as an error of
-// its own (ADR 28): the others stand.
+// ListCollections reads every home's collections sorted by name; a failing home is its own error (ADR 28).
 func ListCollections[P CollectionProps](ctx context.Context, client *http.Client, base *url.URL, homes []Home, propfind string) ([]Listed[P], []error) {
 	var responses []Response[P]
 	var failed []error
@@ -125,9 +105,7 @@ func ListCollections[P CollectionProps](ctx context.Context, client *http.Client
 				},
 				Props: ps.Prop,
 			}
-			// DAV:displayname is optional. A collection with no name still
-			// needs one in the rail, and its last path step is what the
-			// client itself calls it.
+			// DAV:displayname is optional, but the rail needs a name.
 			if listed.Name == "" {
 				listed.Name = nameFromPath(listed.Path)
 			}
@@ -147,8 +125,6 @@ func ListCollections[P CollectionProps](ctx context.Context, client *http.Client
 	return out, failed
 }
 
-// nameFromPath is the last step of a collection's canonical path,
-// unescaped, for a server that sent no displayname.
 func nameFromPath(p string) string {
 	p = strings.TrimSuffix(p, "/")
 	if at := strings.LastIndex(p, "/"); at >= 0 {
@@ -160,18 +136,13 @@ func nameFromPath(p string) string {
 	return p
 }
 
-// DefaultColor is what a new collection's colour field opens on, a
-// blue every client shows and none reserves for something else.
+// DefaultColor is what a new collection's colour field opens on.
 const DefaultColor = "#3366cc"
 
-// maxCreateAttempts bounds the walk to a free address: past this many
-// taken names something other than a clash is going on.
+// Past this many taken names, something other than a clash is going on.
 const maxCreateAttempts = 20
 
-// CountObjects says how many objects a collection holds, which is what
-// a delete has to state. A Depth 1 PROPFIND asking for nothing but the
-// resource type lists one response per child and is cached like any
-// other read, where a REPORT for every object's data was not cheap.
+// CountObjects counts a collection's children with a Depth 1 PROPFIND for resource types only.
 func CountObjects(ctx context.Context, client *http.Client, base *url.URL, coll string) (int, error) {
 	target := base.ResolveReference(&url.URL{Path: coll}).String()
 	ms, err := Propfind[struct{}](ctx, client, target, `<D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>`)
@@ -187,8 +158,7 @@ func CountObjects(ctx context.Context, client *http.Client, base *url.URL, coll 
 	return n, nil
 }
 
-// SafeObjectName makes a UID fit to be a path segment: what is not a
-// letter, a digit or one of the few marks servers accept becomes a dash.
+// SafeObjectName makes a UID a path segment: all but letters, digits and a few marks become dashes.
 func SafeObjectName(uid string) string {
 	return strings.Map(func(r rune) rune {
 		switch {
@@ -201,15 +171,10 @@ func SafeObjectName(uid string) string {
 	}, uid)
 }
 
-// ErrNameTaken refuses a second collection with a display name the
-// account already has. The protocol allows it, since only the address
-// must be unique, but two calendars called "Work" cannot be told apart
-// in any client, and the reader who asked twice, a double click on a
-// slow form, did not mean it.
+// ErrNameTaken refuses a display name the account already has; no client could tell the two apart.
 var ErrNameTaken = errors.New("a collection with that name is already there")
 
-// Source is the source the collection is on, which its path names
-// (ADR 28): the marker's, Alborz for one kept here, else the domain's.
+// Source is the source the collection is on, which its path names (ADR 28).
 func (c Collection) Source() string {
 	if rest, ok := strings.CutPrefix(c.Path, "/@"); ok {
 		id, _, _ := strings.Cut(rest, "/")
@@ -231,11 +196,7 @@ func At(colls []Collection, path string) *Collection {
 	return nil
 }
 
-// Holding is the account's collection an object lies in, or nil: an
-// object's path starts with its collection's. A feed's object is named
-// by the feed's address rather than by a path under a collection, so a
-// subscription matches on that. A list that pools no accounts names
-// none on its collections, and is asked with none.
+// Holding is the account's collection an object lies in, or nil; a feed's object matches by address.
 func Holding(colls []Collection, account, path string) *Collection {
 	for i := range colls {
 		if colls[i].Account != account {
@@ -248,9 +209,7 @@ func Holding(colls []Collection, account, path string) *Collection {
 	return nil
 }
 
-// NameTaken says whether name is, but for case and edges, the display
-// name of a collection the account has on the place. The same name on
-// another place is how a move between servers looks while it lasts.
+// NameTaken says whether name is, but for case and edges, a display name the account has on place.
 func NameTaken(name, place string, existing []Collection) bool {
 	for _, c := range existing {
 		if c.Source() == place && strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(name)) {
@@ -260,15 +219,10 @@ func NameTaken(name, place string, existing []Collection) bool {
 	return false
 }
 
-// ErrCollectionExists reports the address as taken: MKCALENDAR or MKCOL
-// on a resource that is already there is 405, which is what RFC 4918
-// asks and what SabreDAV answers. The form says so rather than
-// reporting a bare 405.
+// ErrCollectionExists is MKCALENDAR or MKCOL answered 405: the address is taken (RFC 4918 9.3.1).
 var ErrCollectionExists = errors.New("a collection of that name is already there")
 
-// MakeCollection sends the kind's own MKCALENDAR or MKCOL and reads the
-// answer. 201 is it; some servers report the created properties in a
-// 207 instead, which is equally a success.
+// MakeCollection sends MKCALENDAR or MKCOL; 201, or 207 from some servers, is success.
 func MakeCollection(ctx context.Context, client *http.Client, method, target string, body []byte) error {
 	req, err := http.NewRequestWithContext(ctx, method, target, bytes.NewReader(body))
 	if err != nil {
@@ -290,13 +244,7 @@ func MakeCollection(ctx context.Context, client *http.Client, method, target str
 	}
 }
 
-// CreateCollection puts a new collection under the home set at the
-// first free address, made by make. The display name is the user's;
-// the path segment only has to be unique and legal in a URL. Two
-// collections may share a display name but not an address, and a
-// server answers a taken one with 405, so this walks on rather than
-// making the reader rename what they meant. The path it settled on is
-// returned, since the page that follows names the new collection.
+// CreateCollection makes a collection at the first free address under homeSet, walking past taken ones.
 func CreateCollection(ctx context.Context, base *url.URL, homeSet, name, fallback string, make func(ctx context.Context, target string) error) (string, error) {
 	segment := url.PathEscape(strings.ToLower(strings.ReplaceAll(strings.TrimSpace(name), " ", "-")))
 	if segment == "" {
@@ -320,16 +268,12 @@ func CreateCollection(ctx context.Context, base *url.URL, homeSet, name, fallbac
 	}
 }
 
-// Prop names a property by its namespace and element, for the colour
-// each kind keeps under a vendor's name of its own.
+// Prop names a property by namespace and element, for each kind's vendor colour property.
 type Prop struct {
 	XMLNS, Name string
 }
 
-// Proppatch renames or recolours a collection: the two properties a
-// server lets anyone change. The resource type and the component set
-// are protected on every server in use, which is why the create form
-// asks for them once and this form does not offer them.
+// Proppatch renames or recolours a collection.
 func Proppatch(ctx context.Context, client *http.Client, target, name, color string, colorProp Prop) error {
 	var props bytes.Buffer
 	if name != "" {

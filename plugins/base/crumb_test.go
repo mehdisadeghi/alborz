@@ -6,11 +6,6 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-// TestMailboxCrumbNamesEachStep is about the two things that make a
-// breadcrumb a path rather than a label. A custom folder's Label is its
-// whole wire name, so using it at every step would read
-// "INBOX/Lists > INBOX/Lists"; and a parent that exists only to hold
-// children cannot be opened, so linking it offers a dead end.
 func TestMailboxCrumbNamesEachStep(t *testing.T) {
 	boxes := []MailboxInfo{
 		{ListData: &imap.ListData{Mailbox: "INBOX", Delim: '/'}, Label: "Inbox"},

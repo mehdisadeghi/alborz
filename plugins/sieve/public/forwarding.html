@@ -19,9 +19,6 @@
       {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
       {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="/filters/{{.Script | pathescape}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
 
-      {{/* Keeping is one choice for every rule, since one redirect
-           without a copy cancels the copy for the message; it saves on
-           its own, the way a filter is activated. */}}
       {{ if .CanKeep }}
       <form method="post" action="/filters/forwarding/keep{{$aq}}" class="aside-filter list-option">
         <input type="hidden" name="loaded" value="{{.Loaded}}">

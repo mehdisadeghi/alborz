@@ -34,8 +34,7 @@ const tplSrc = `
 
 var tpl = template.Must(template.New("view-html.html").Parse(tplSrc))
 
-// frameData names the frame as well as filling it: an untitled iframe is
-// announced as "frame", and this one holds the message itself.
+// An untitled iframe is announced only as "frame".
 type frameData struct {
 	Title string
 	Body  string
@@ -69,15 +68,10 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		return nil, fmt.Errorf("failed to sanitize HTML part: %v", err)
 	}
 
-	// E-mails size images for their own layout; cap them to the frame.
-	// Preformatted text is text, not layout: a long line wraps, the way
-	// a terminal wraps it, instead of widening the mail past the frame
-	// and having the whole of it scaled down to fit.
+	// Mail sizes images for its own layout; long pre lines wrap instead of widening the frame.
 	body = append([]byte(`<style>img { max-width: 100%; height: auto; } pre { white-space: pre-wrap; overflow-wrap: anywhere; }</style>`), body...)
 
-	// srcdoc is a document of its own, so lang on the iframe element does
-	// not reach the text inside it. A wrapper inside the document carries
-	// it, and only when the mail is not in the page's own language.
+	// srcdoc is its own document, so lang on the iframe does not reach its text.
 	if lang := alborz.MessageLang(san.text.String(), ctx.PageLanguage()); lang != "" {
 		body = append([]byte(`<div lang="`+template.HTMLEscapeString(lang)+`">`), body...)
 		body = append(body, []byte(`</div>`)...)

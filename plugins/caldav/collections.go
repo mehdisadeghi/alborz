@@ -12,8 +12,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// collectionPage is a calendar's own page: the list it belongs to is
-// the tasks rail when it holds no events.
 func (p *plugin) collectionPage() dav.Page {
 	return dav.Page{
 		Base:   "/calendars/",
@@ -36,8 +34,7 @@ func (p *plugin) collectionPage() dav.Page {
 			return importObjects(ctx.Request().Context(), c, path, raw)
 		},
 		Create: func(ctx *alborz.Context, list, name, place string) (string, error) {
-			// A task list takes tasks; a calendar brought in whole keeps
-			// what it held, events and tasks both.
+			// A task list takes tasks; an imported calendar keeps events and tasks both.
 			components := []string{"VEVENT", "VTODO"}
 			if list == "/tasks" {
 				components = []string{"VTODO"}
@@ -83,8 +80,6 @@ func (p *plugin) collectionPage() dav.Page {
 	}
 }
 
-// forSubscription routes a collection page's POST to the subscription
-// handler when the path names one; everything else goes to the server.
 func (p *plugin) forSubscription(sub func(*alborz.Context, string) error, next func(*alborz.Context) error) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		path, err := dav.ParseObjectPath(ctx.Param("path"))
@@ -99,7 +94,6 @@ func (p *plugin) forSubscription(sub func(*alborz.Context, string) error, next f
 	}
 }
 
-// updateSubscription saves the name and colour the page was given.
 func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
 	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
@@ -121,7 +115,6 @@ func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 }
 
-// unsubscribe drops the feed; nothing is deleted anywhere.
 func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
 	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
@@ -141,7 +134,6 @@ func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/calendar"))
 }
 
-// collectionList is the page a collection belongs to.
 func collectionList(info dav.Collection) string {
 	if !supportsEvent(info.Components) {
 		return "/tasks"
@@ -149,14 +141,9 @@ func collectionList(info dav.Collection) string {
 	return "/calendar"
 }
 
-// createForm is the form for a new calendar. A task list is a calendar
-// whose component set holds VTODO; RFC 4791 knows no other kind of
-// collection. One form makes both, entered from whichever rail wants
-// one, and the tasks entrance offers no choice of what it holds.
 func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 	forTasks := ctx.QueryParam("for") == "tasks"
-	// Back to the rail it was asked for, when the new collection shows
-	// there; a task list never appears under calendars.
+	// Back to the rail that asked, when the new collection shows there.
 	made := func(holds string) (string, string) {
 		if holds == "tasks" {
 			return ctx.T("notice.tasklistcreated"), "/tasks"
@@ -183,10 +170,6 @@ type SubscribeRenderData struct {
 	Next     string
 }
 
-// handleSubscribe follows a calendar by its address. The feed is fetched
-// once now, so a bad address is refused here and a good one shows on
-// the next view without waiting for the poll; the feed names itself,
-// and the colour is changed on the calendar's own page.
 func handleSubscribe(p *plugin) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		rail, err := p.eventRail(ctx)

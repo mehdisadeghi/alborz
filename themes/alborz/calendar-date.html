@@ -18,8 +18,6 @@
 
       <section class="events">
         {{$base := .}}
-        {{/* A day is one band: its date is the title's, so the rows
-             drop the column the agenda's bands drop. */}}
         <div class="event-grid list-grid event-grid-grouped" role="table">
           {{if .Events}}
           {{ template "event-grid-header" (dict "starred" ($.T "sort.starred") "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}

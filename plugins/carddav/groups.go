@@ -16,14 +16,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// FilterRow is one narrowing the rail offers: what it is called, where
-// it leads, and whether it is the one in force.
+// FilterRow is one narrowing the rail offers.
 type FilterRow = dav.FilterRow
 
-// GroupRows and CategoryRows are the two ways a contact belongs with
-// others, as rail rows. The URL keeps the account it is scoped to and
-// nothing else: a group and a colour narrow different things and one
-// question at a time is enough.
+// GroupRows and CategoryRows are the rail rows for groups and categories.
 func (d *AddressBookRenderData) GroupRows() []FilterRow {
 	return contactGroupRows(d.Groups, d.Group, d.GlobalData.URLAccount)
 }
@@ -32,9 +28,6 @@ func (d *AddressBookRenderData) CategoryRows() []FilterRow {
 	return contactCategoryRows(d.Categories, d.Category, d.GlobalData.URLAccount)
 }
 
-// contactGroupRows and contactCategoryRows build the rail's narrowings
-// the same way wherever they are drawn. The URL keeps the account it is
-// scoped to and nothing else.
 func contactGroupRows(groups []AddressObject, active, account string) []FilterRow {
 	rows := make([]FilterRow, 0, len(groups))
 	for _, g := range groups {
@@ -76,10 +69,7 @@ func filterHref(name, value, account string) string {
 	return "/contacts?" + alborz.Query(q)
 }
 
-// groupContact adds a contact to a group or takes it out of one. What
-// changes is the group's card - a group names its members (RFC 6350
-// 6.6.5), a contact says nothing about its groups - except that a card
-// with no UID is given one first, since a member is named by UID.
+// A group's card names its members, so that card changes; a card without a UID gets one first.
 func (p *plugin) groupContact(ctx *alborz.Context) error {
 	objPath, err := dav.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
@@ -132,8 +122,7 @@ func (p *plugin) groupContact(ctx *alborz.Context) error {
 		card.SetValue(vcard.FieldUID, memberPrefix+uuid.New().String())
 		card.SetKind(vcard.KindGroup)
 		SetMembers(card, []string{uid})
-		// The group is made where the contact is, which is the only
-		// book the page knows anything about.
+		// The group is made in the contact's book, the only one the page knows.
 		book := dav.Holding(books, "", ao.Path)
 		if book == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "the contact is in no address book")
@@ -157,8 +146,7 @@ func (p *plugin) groupContact(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, back)
 }
 
-// putCard writes a card with a fresh revision, and says on the page
-// where a server refused it rather than answering with an error page.
+// A server's refusal shows on the page, never as an error page.
 func (p *plugin) putCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Card) error {
 	if err := writeCard(ctx, c, at, card); err != nil {
 		ctx.Notify(dav.Refused(ctx, err))

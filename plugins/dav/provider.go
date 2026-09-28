@@ -16,101 +16,70 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Kind tells a CalDAV provider from a CardDAV one: the URL schemes it
-// is configured under and how its server is found from a bare domain.
+// Kind tells a CalDAV provider from a CardDAV one.
 type Kind struct {
-	// Name is the plugin's, for the log; Label is what a reader calls
-	// the service.
+	// Name is the plugin's, for the log; Label is what a reader calls the service.
 	Name, Label string
 	// Schemes are the explicit upstream schemes, secure and plain.
 	Schemes [2]string
-	// Poll is how often a collection is asked whether it changed: CalDAV
-	// and CardDAV push nothing, so it is how soon a change made
-	// elsewhere shows.
+	// Poll is how often a collection is asked whether it changed, since CalDAV and CardDAV push nothing.
 	Poll time.Duration
 	// Discover finds the service's URL for a domain by its SRV record.
 	Discover func(ctx context.Context, domain string) (string, error)
-	// Own is the server an account names for itself, empty when it
-	// names none.
+	// Own is the server an account names for itself, empty when none.
 	Own func(alborz.Services) string
 	// Holds is the kind's collections among those kept here.
 	Holds collections.Kind
-	// FindHome is the home set behind a source's endpoint. Principal
-	// and home set are two round trips, asked through the kind's own
-	// go-webdav client: the two share no interface to ask through.
+	// FindHome is the home set behind a source's endpoint, asked through the kind's own client.
 	FindHome func(ctx context.Context, client *http.Client, endpoint string) (string, error)
 	// List reads the kind's collections out of the homes.
 	List func(ctx context.Context, client *http.Client, base *url.URL, homes []Home) ([]Collection, []error)
-	// Make makes one at target, MKCALENDAR or extended MKCOL; an address
-	// book is given no components.
+	// Make makes a collection at target; an address book gets no components.
 	Make func(ctx context.Context, client *http.Client, target, name, color string, components []string) error
 	// Unnamed is the address of a new collection whose name gives none.
 	Unnamed string
 }
 
-// Age at which a discovered collection list is reloaded in the
-// background while still being served; one made or removed by another
-// client shows up one visit late at worst.
+// discoveryTTL is when a served collection list is reloaded in the background.
 const discoveryTTL = 5 * time.Minute
 
-// The discovery load is detached from its requester's context, so a
-// deadline of its own is all that keeps a hung server from wedging
-// every waiter behind the memo.
+// The load is detached from its requester, so only its own deadline stops a hung server wedging every waiter.
 const discoveryTimeout = 30 * time.Second
 
-// hereBase stands where a server's address would for an account whose
-// only collections are kept here. Nothing resolves it (RFC 2606 keeps
-// .invalid from ever existing): the transport answers every path under
-// collections.Prefix itself.
+// hereBase stands for an account whose collections are all kept here; .invalid never resolves (RFC 2606).
 var hereBase = &url.URL{Scheme: "http", Host: alborz.AppName + ".invalid", Path: collections.Prefix + "/"}
 
-// WarmBudget bounds what a sign-in may spend fetching an account's
-// first pages behind the scenes; a slow server leaves them cold.
+// WarmBudget bounds a sign-in's background fetch of an account's first pages.
 const WarmBudget = 30 * time.Second
 
-// Provider is one DAV service across the served domains: where each
-// domain's server is, the mirror in front of it, and the client that
-// talks to it on a login's behalf.
+// Provider is one DAV service across the served domains.
 type Provider struct {
 	kind Kind
-	urls map[string]*url.URL // endpoint per served mail domain
-	// found is, per domain, the SRV record its endpoint was found at;
-	// none where the deployment named it.
+	urls map[string]*url.URL
+	// found is, per domain, the SRV record its endpoint came from; none where the deployment named it.
 	found map[string]string
-	// hosts is, per domain, the DAV server on the mail host itself, where
-	// one answers and it is not the domain's own (ADR 28). Filled by
-	// startup probes after NewProvider returns; hostsMu guards the writes.
+	// hosts is, per domain, a DAV server on the mail host that is not the domain's own (ADR 28).
+	// Startup probes fill it after NewProvider returns; hostsMu guards the writes.
 	hosts   map[string]*url.URL
 	hostsMu sync.Mutex
 	// mirror is nil with caching off.
 	mirror *Mirror
-	// trusted reaches the servers the deployment names or finds; named
-	// reaches the one an account names, which without the operator's
-	// -private-services is out on the internet at every hop or is not
-	// reached.
+	// trusted reaches the servers the deployment names or finds; named reaches the one an account names,
+	// which without -private-services stays on the public internet at every hop.
 	trusted, named http.RoundTripper
-	// here serves the collections kept in this alborz; nil without a
-	// data directory.
+	// here serves the collections kept in this alborz; nil without a data directory.
 	here  http.Handler
 	store *collections.Store
-	// troubles holds, per account, what each of its servers answered the
-	// last time its homes were asked for, when that was not a home: the
-	// collections kept here are listed all the same, and the page says
-	// what became of the rest.
+	// troubles holds, per account, what its servers answered when last asked for homes, when not a home.
 	troubles sync.Map
 	// found per username; see Collections.
 	collections *alborz.Memo[[]Collection]
 
-	// Set in debug mode; logs upstream DAV traffic.
+	// debug logs upstream DAV traffic in debug mode.
 	debug echo.Logger
 }
 
-// NewProvider resolves the service for every served domain. A domain
-// without one still has accounts that may name their own, so the
-// provider stands either way and Enabled answers per request. The URL
-// of each domain's server is found by DNS alone, so startup never waits
-// on a DAV host; asking whether it answers is a probe run in the
-// background, and a request surfaces an unreachable one until it does.
+// NewProvider resolves the service for every served domain by DNS alone; probes run in the background.
 func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	urls := make(map[string]*url.URL)
 	found := make(map[string]string)
@@ -157,15 +126,10 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 		p.troubles.Delete(username)
 	})
 
-	// Asking whether a server answers may take seconds each; it runs
-	// after the port is open, and a request surfaces an unreachable one
-	// until it recovers. The mail host's answer becomes a source beside
-	// the domain's.
+	// Probes may take seconds each, so they run after the port is open.
 	for _, domain := range srv.Domains() {
 		domain := domain
 		go func() {
-			// SanityCheckURL is the domain's own probe, and OnMailHost the
-			// mail host's; either may be nil.
 			if p.urls[domain] != nil {
 				if err := SanityCheckURL(srv.Outgoing.Trusted, p.urls[domain]); err != nil {
 					srv.Logger().Printf("Warning: %s: domain %q: %s server %q not reachable at startup: %v", kind.Name, domain, kind.Label, p.urls[domain], err)
@@ -182,9 +146,7 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	return p, nil
 }
 
-// URL is where the login's client starts: the domain's server, or
-// for an account without one the address that stands for Alborz, since
-// the transport routes a path by what it begins with, not by host.
+// URL is where the login's client starts; the transport routes by path, not host, so hereBase serves an account without a server.
 func (p *Provider) URL(ctx context.Context, login *alborz.Login) (*url.URL, bool) {
 	sources := p.Sources(ctx, login)
 	for _, s := range sources {
@@ -195,9 +157,7 @@ func (p *Provider) URL(ctx context.Context, login *alborz.Login) (*url.URL, bool
 	return hereBase, len(sources) > 0 || p.here != nil
 }
 
-// The sources an account's collections come from (ADR 28): the server
-// its domain names, the one on its mail host, the one it names itself,
-// and Alborz.
+// The sources an account's collections come from (ADR 28).
 const (
 	SourceDomain = "domain"
 	SourceHost   = "host"
@@ -209,17 +169,13 @@ const (
 type Source struct {
 	ID  string
 	URL *url.URL
-	// Origin is how alborz came to it, a translation key, and Record
-	// the SRV record or the address that answered, where there is one.
+	// Origin is how alborz came to it, a translation key; Record the SRV record or answering address.
 	Origin, Record string
-	// Named is the source that takes the username and password the
-	// account keeps for its servers (ADR 5, 22): the server it names, or
-	// its domain's when it names none. The rest take the mail login.
+	// Named is the source that takes the account's own server credentials (ADR 5, 22); the rest take the mail login.
 	Named bool
 }
 
-// Endpoint is where a client for the source starts: the domain's server
-// as it is, the others under their marker, which the transport routes.
+// Endpoint is where a client for the source starts; sources other than the domain's sit under their marker.
 func (s Source) Endpoint() string {
 	if s.ID == SourceDomain {
 		return s.URL.String()
@@ -230,8 +186,7 @@ func (s Source) Endpoint() string {
 // marker begins every path on a source other than the domain's.
 func marker(id string) string { return "/@" + id }
 
-// Sources are the account's remote DAV servers, each once: the one it
-// names, its domain's, and its mail host's. None replaces another.
+// Sources are the account's remote DAV servers, each once: its own, its domain's and its mail host's.
 func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	var out []Source
 	if services, err := login.Services(ctx); err == nil {
@@ -260,10 +215,7 @@ func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	if ok {
 		out = append(out, Source{ID: SourceHost, URL: h, Origin: "servers.frommailhost", Record: h.String()})
 	}
-	// A server the account names that is the domain's or the mail
-	// host's is that source, not another. The domain's is an address to
-	// compare with, since one host can serve two servers under two
-	// paths; the mail host's is only where its well-known answered.
+	// A named server that is the domain's or mail host's is that source; one host may serve two servers under two paths.
 	same := func(own, other Source) bool {
 		if other.ID == SourceHost {
 			return own.URL.Host == other.URL.Host
@@ -293,10 +245,7 @@ type Home struct {
 	Source string
 }
 
-// homes are the places the account's collections are listed: each
-// source's home set, found from the source's endpoint, and the one kept
-// here. A source that does not answer is left out and said so; the
-// others stand.
+// homes are each source's home set and the one kept here; a source that does not answer is left out and said so.
 func (p *Provider) homes(ctx context.Context, login *alborz.Login) ([]Home, error) {
 	var homes []Home
 	var failed []error
@@ -312,8 +261,7 @@ func (p *Provider) homes(ctx context.Context, login *alborz.Login) ([]Home, erro
 		homes = append(homes, Home{Path: collections.HomePath(p.kind.Holds, login.Username()), Source: SourceHere})
 	}
 	if len(homes) == 0 && failed != nil {
-		// A refusal is the one the reader can end, so it is the one said
-		// when the servers failed in different ways.
+		// A refusal is the one the reader can end, so it wins when servers failed differently.
 		i := max(0, slices.IndexFunc(failed, func(err error) bool {
 			var no *RefusedError
 			return errors.As(err, &no)
@@ -324,17 +272,10 @@ func (p *Provider) homes(ctx context.Context, login *alborz.Login) ([]Home, erro
 	return homes, nil
 }
 
-// Collections is the account's list of the kind, empty when it has
-// none. Finding the homes and listing them is several round trips, so
-// they are found once per user rather than on every page. The load
-// outlives the request that starts it: a second page waiting on it must
-// not be failed by the first one's reader going away.
+// Collections is the account's list of the kind, found once per user; the load outlives the request that starts it.
 func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Collection, error) {
 	base, _ := p.URL(ctx, login)
-	// A listing a server was missing from is what the others hold, not
-	// the account's list: kept, but asked again once the retry delay is
-	// over, or the one failure would be told on every page until a
-	// restart.
+	// A listing missing a server is kept but asked again after the retry delay, or the failure would stay until restart.
 	defer func() {
 		if len(p.Troubles(login.Username())) > 0 {
 			p.collections.Retry(login.Username())
@@ -360,12 +301,10 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 	})
 }
 
-// Forget drops the account's found list, for a change the next page
-// has to show.
+// Forget drops the account's found list, for a change the next page has to show.
 func (p *Provider) Forget(username string) { p.collections.Forget(username) }
 
-// Opened is the login's client of the kind with the account's
-// collections: what a page about one account starts from.
+// Opened is the login's client of the kind with the account's collections.
 func Opened[C any](ctx context.Context, p *Provider, login *alborz.Login, client func(context.Context, *alborz.Login) (C, error)) (C, []Collection, error) {
 	c, err := client(ctx, login)
 	if err != nil {
@@ -375,9 +314,7 @@ func Opened[C any](ctx context.Context, p *Provider, login *alborz.Login, client
 	return c, infos, err
 }
 
-// Create adds a collection to the account's home on the place given -
-// a source of the account's, or Alborz - and forgets the found list,
-// so the new one appears at once.
+// Create adds a collection to the account's home on place and forgets the found list.
 func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color, place string, components []string) (string, error) {
 	infos, err := p.Collections(ctx, login)
 	if err != nil {
@@ -406,7 +343,6 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 	return path, nil
 }
 
-// originHost is the host part of where alborz is reached.
 func originHost(ctx *alborz.Context) string {
 	_, host, _ := strings.Cut(ctx.Origin(), "://")
 	return host
@@ -415,9 +351,7 @@ func originHost(ctx *alborz.Context) string {
 // KeepsHere says whether collections can be kept in this alborz.
 func (p *Provider) KeepsHere() bool { return p.here != nil }
 
-// PlaceLabel says what a place is rather than where it is: a host name
-// alone tells a reader nothing about which of their servers it is, and
-// alborz's own host tells them least of all.
+// PlaceLabel says what a place is rather than where: a host name alone tells the reader nothing.
 func PlaceLabel(ctx *alborz.Context, id, host string) string {
 	label := ctx.T("place." + id)
 	if host == "" {
@@ -426,9 +360,7 @@ func PlaceLabel(ctx *alborz.Context, id, host string) string {
 	return label + " · " + host
 }
 
-// Places are where a new collection can go, grouped by account: each of
-// the account's sources and Alborz, named by what it is. An account
-// with none has no group.
+// Places are where a new collection can go, grouped by account; an account with none has no group.
 func (p *Provider) Places(ctx *alborz.Context) []Group {
 	var groups []Group
 	for _, s := range ctx.Logins() {
@@ -446,22 +378,16 @@ func (p *Provider) Places(ctx *alborz.Context) []Group {
 	return groups
 }
 
-// ReadPlace is the place the create form chose, or where a collection
-// goes when it had no choice to offer: the account's default when it
-// has one it can still reach, else its first source, else Alborz.
+// ReadPlace is the form's chosen place, else the account's reachable default, its first source, or Alborz.
 func (p *Provider) ReadPlace(ctx *alborz.Context, account string) (string, string) {
-	// Two questions, two fields: whose collection it is, and which of
-	// that account's places keeps it. One field holding both read as a
-	// list of servers with accounts mixed through it.
+	// Account and place are two fields; one holding both read as servers with accounts mixed through.
 	if chosen := ctx.FormValue("account"); chosen != "" && ctx.LoginFor(chosen) != nil {
 		account = chosen
 	}
 	if place := ctx.FormValue("place"); place != "" {
 		return account, place
 	}
-	// The account in force is the one the reader is looking at; without
-	// it the form would offer the session's first account, and a
-	// collection made without touching the picker landed there.
+	// The account in view is in force; otherwise the session's first would be preselected.
 	if scoped := ctx.URLAccount(); scoped != "" {
 		account = scoped
 	}
@@ -472,8 +398,7 @@ func (p *Provider) ReadPlace(ctx *alborz.Context, account string) (string, strin
 	return account, p.DefaultPlace(ctx.Request().Context(), s)
 }
 
-// DefaultPlace is where the account's new collections go unless the
-// reader picks another.
+// DefaultPlace is where the account's new collections go unless the reader picks another.
 func (p *Provider) DefaultPlace(ctx context.Context, s *alborz.Login) string {
 	sources := p.Sources(ctx, s)
 	if services, err := s.Services(ctx); err == nil && services.Default != "" {
@@ -492,13 +417,10 @@ func (p *Provider) DefaultPlace(ctx context.Context, s *alborz.Login) string {
 	return SourceHere
 }
 
-// ErrPlaceDown refuses a new collection whose place has no home to
-// give: its server did not answer, or the account has no such place.
-// Any other home would put the collection where nobody asked for it.
+// ErrPlaceDown refuses a new collection whose place has no home; any other home would be unasked for.
 var ErrPlaceDown = errors.New("the place asked for has no home")
 
-// HomeFor is the home a new collection goes to: the one on the place
-// asked for.
+// HomeFor is the home on the place asked for.
 func HomeFor(homes []Home, place string) (string, error) {
 	for _, home := range homes {
 		if home.Source == place {
@@ -508,9 +430,7 @@ func HomeFor(homes []Home, place string) (string, error) {
 	return "", ErrPlaceDown
 }
 
-// Settle is what a listing of the account's homes came to: an error
-// when none of them answered, and otherwise nothing, with the ones that
-// failed kept beside what their servers said when the homes were found.
+// Settle errors when no home answered, and otherwise records the failed ones as troubles.
 func (p *Provider) Settle(username string, homes []Home, failed []error) error {
 	if len(failed) > 0 && len(failed) == len(homes) {
 		return failed[0]
@@ -521,23 +441,19 @@ func (p *Provider) Settle(username string, homes []Home, failed []error) error {
 	return nil
 }
 
-// Troubles are what kept each of the account's servers out of its last
-// listing, none when nothing did.
+// Troubles are what kept each of the account's servers out of its last listing.
 func (p *Provider) Troubles(username string) []error {
 	failed, _ := p.troubles.Load(username)
 	troubles, _ := failed.([]error)
 	return troubles
 }
 
-// HTTPClient talks to the login's server through the mirror, with the
-// account's credentials on every request.
+// HTTPClient talks to the login's server through the mirror, with the account's credentials.
 func (p *Provider) HTTPClient(ctx context.Context, login *alborz.Login) *http.Client {
 	return httpClient(ctx, p, login)
 }
 
-// CountObjects counts a collection's objects for the login, lazily:
-// -1 means the server did not answer, which the page states rather
-// than guessing at.
+// CountObjects counts a collection's objects lazily; -1 means the server did not answer.
 func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
 	return func() int {
 		base, _ := p.URL(ctx.Request().Context(), ctx.Login)
@@ -550,8 +466,7 @@ func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
 	}
 }
 
-// Enabled reports whether any signed-in account has the service: the
-// pooled pages exist when one does.
+// Enabled reports whether any signed-in account has the service.
 func (p *Provider) Enabled(ctx *alborz.Context) bool {
 	if ctx.Login == nil {
 		return false
@@ -564,9 +479,7 @@ func (p *Provider) Enabled(ctx *alborz.Context) bool {
 	return false
 }
 
-// HandleRefresh asks every signed-in account's server again, for a
-// change made elsewhere that the poll has not caught up with, and lands
-// on list.
+// HandleRefresh asks every signed-in account's server again and lands on list.
 func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		for _, s := range ctx.Logins() {
@@ -581,9 +494,7 @@ func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 	}
 }
 
-// Warm fetches an account's first pages behind a sign-in, so that they
-// open from the mirror; without one there is nothing to fill. It
-// outlives the request, within WarmBudget.
+// Warm fetches an account's first pages behind a sign-in so they open from the mirror, within WarmBudget.
 func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Login, fetch func(context.Context) error) {
 	if p.mirror == nil {
 		return
@@ -598,10 +509,7 @@ func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Login, fetch func(context
 	}()
 }
 
-// Guarded is a section's route for an account that may have none of
-// the kind, which is a state to explain and not an error: one that may
-// keep its first here is a form away from it, at create, and any other
-// is told in words that the account has no such service.
+// Guarded explains an account with none of the kind instead of failing; one that can keep its first here gets create.
 func (p *Provider) Guarded(none error, words, create string, h func(*alborz.Context) error) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		err := h(ctx)
@@ -615,8 +523,7 @@ func (p *Provider) Guarded(none error, words, create string, h func(*alborz.Cont
 	}
 }
 
-// HandleChoose keeps which collections of list the reader ticked, in
-// the kind's own settings, and lands on the list no longer narrowed.
+// HandleChoose keeps which collections of list the reader ticked and lands on the list, no longer narrowed.
 func HandleChoose(list, field string, keep func(ctx context.Context, store alborz.Store, paths []string) error) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		params, err := ctx.FormParams()
@@ -636,9 +543,7 @@ func HandleChoose(list, field string, keep func(ctx context.Context, store albor
 // Close stops the mirror's loop.
 func (p *Provider) Close() error { return p.mirror.Close() }
 
-// domainURL resolves the domain's endpoint; nil without error means the
-// domain has none. It reads DNS and config only, so startup never waits
-// on the server itself.
+// domainURL resolves the domain's endpoint from DNS and config only; nil without error means none.
 func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, error) {
 	secure, plain := kind.Schemes[0], kind.Schemes[1]
 	record := ""
@@ -669,8 +574,6 @@ func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, 
 		if err != nil {
 			return nil, "", fmt.Errorf("%s: Discover returned an invalid URL: %v", kind.Name, err)
 		}
-		// go-webdav asks the TLS record first (RFC 6764 3), and the
-		// scheme it answers says which one it found.
 		service := kind.Name
 		if u.Scheme == "https" {
 			service += "s"

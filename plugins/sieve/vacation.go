@@ -16,8 +16,7 @@ import (
 	alborzbase "git.mehdix.org/alborz/plugins/base"
 )
 
-// Days a sender waits between two automatic answers (RFC 5230 4.1);
-// the default is the extension's own.
+// Days between two automatic answers to one sender (RFC 5230 4.1).
 const (
 	vacationDaysDefault = 7
 	vacationDaysMax     = 30
@@ -30,12 +29,7 @@ func init() {
 	alborz.RegisterSetting(repliesKey)
 }
 
-// A Reply is one automatic answer the reader has written. Sieve sends
-// one per message, so one at a time is composed into the script; the
-// rest wait in the account's store, beside the signatures. Addresses
-// are the ones the reply answers for: the server replies only to mail
-// sent to one of them (RFC 5230 4.5). From and Until bound the days it
-// speaks on, through the date extension (RFC 5260); empty is open.
+// Reply is one automatic answer; Addresses limit it (RFC 5230 4.5), From and Until bound its days (RFC 5260).
 type Reply struct {
 	Name      string
 	Subject   string
@@ -100,15 +94,10 @@ func (v Reply) script() string {
 	return b.String()
 }
 
-// replyBoundary separates the two parts of a reply; quoted-printable
-// never writes "=_", so no encoded line can equal it.
+// Quoted-printable never writes "=_", so no encoded line can equal the delimiter (RFC 2046 5.1.1).
 const replyBoundary = "=_alborz-reply"
 
-// replyEntity is the reply as a MIME entity (RFC 5230 :mime): the text
-// as written, and the HTML alternative that carries its direction, the
-// same pair sent mail carries, since Gmail and Outlook lay a bare
-// text/plain part out left to right whatever it says. Quoted-printable
-// keeps the script readable in the raw editor.
+// replyEntity carries an HTML alternative for the text's direction; quoted-printable keeps the raw script readable.
 func replyEntity(text string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=%q\n\n", replyBoundary)
@@ -123,12 +112,10 @@ func replyEntity(text string) string {
 	return strings.ReplaceAll(b.String(), "\r\n", "\n")
 }
 
-// dotStuff and dotUnstuff are the multi-line string's own rule (RFC 5228
-// 2.4.2): a line that begins with a dot is written with two.
+// dotStuff and dotUnstuff apply the multi-line string rule of RFC 5228 2.4.2.
 func dotStuff(s string) string   { return strings.ReplaceAll("\n"+s, "\n.", "\n..")[1:] }
 func dotUnstuff(s string) string { return strings.ReplaceAll("\n"+s, "\n..", "\n.")[1:] }
 
-// replyText reads the text part of the entity back.
 func replyText(entity string) (string, bool) {
 	parts := strings.Split(entity, "--"+replyBoundary+"\n")
 	if len(parts) < 2 {
@@ -152,15 +139,12 @@ var (
 	vacationLine = regexp.MustCompile(`(?s)^\s*vacation :days (\d+)(?: :subject ` + quoted + `)?(?: :addresses \[(.*?)\])? :mime text:\n(.*)\n\.\n;$`)
 )
 
-// readReply reads the page's own shape back: the name it wrote, the
-// dates it guarded with, and the vacation command itself. ok is false
-// for a script written by someone else.
+// readReply returns ok false for a script the page did not write.
 func readReply(content string) (v Reply, ok bool) {
 	if m := replyName.FindStringSubmatch(content); m != nil {
 		v.Name = m[1]
 	}
-	// The command runs to the end of the script, its entity included,
-	// so only what comes before it is read line by line.
+	// The command runs to the script's end, entity included; only what precedes it is read by line.
 	at := strings.Index(content, "vacation :days")
 	if at < 0 {
 		return Reply{}, false
@@ -198,14 +182,11 @@ func readReply(content string) (v Reply, ok bool) {
 type RepliesRenderData struct {
 	alborz.BaseRenderData
 	Replies []Reply
-	// Active is the place in the list of the reply the script sends,
-	// -1 when none; ByHand says a script exists that the page did not
-	// write, and Script names it.
-	Active int
-	Loaded string
-	ByHand bool
-	Script string
-	// The form: the reply it holds and its place (-1 when new).
+	// Active is the index of the reply the script sends, -1 when none.
+	Active     int
+	Loaded     string
+	ByHand     bool
+	Script     string
 	Editing    Reply
 	Index      int
 	Identities []string
@@ -346,8 +327,7 @@ func handleReplySave(ctx *alborz.Context) error {
 	if err := ctx.Login.Store().Put(ctx.Request().Context(), repliesKey, replies); err != nil {
 		return refuse(ctx.SaveRefusal(err))
 	}
-	// An edit to the reply being sent goes out at once; any other is
-	// kept for activating, and the notice says which happened.
+	// An edit to the reply being sent goes out at once; any other waits for activating.
 	sent := false
 	loaded := ctx.FormValue("loaded")
 	if loaded != "" && index >= 0 {
@@ -374,8 +354,6 @@ func handleReplySave(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/autoreply", saved)
 }
 
-// activeIndex is the place of the reply the script sends, -1 when none
-// of the list.
 func activeIndex(items []Reply, content string) int {
 	sent, ok := readReply(content)
 	if !ok {
@@ -422,8 +400,7 @@ func handleReplyDelete(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/autoreply", ctx.T("notice.autoreplydeleted"))
 }
 
-// handleReplyActivate composes the chosen reply into the script; an
-// empty index composes none, which deletes it.
+// An empty index composes no reply, which deletes the script.
 func handleReplyActivate(ctx *alborz.Context) error {
 	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {

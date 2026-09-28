@@ -17,15 +17,12 @@ const (
 )
 
 var templateFuncs = template.FuncMap{
-	// Registered here rather than in the carddav plugin because the theme
-	// references it and a template function must exist at parse time even
-	// when that plugin is absent.
+	// Here, not in carddav: the theme references it and it must exist at parse time.
 	"photodatauri": func(data string) template.URL {
 		if data == "" {
 			return ""
 		}
-		// Remote photo URLs would leak the viewer's address and the
-		// CSP blocks them anyway; show nothing instead.
+		// Remote photo URLs would leak the viewer's address; show nothing.
 		if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
 			return ""
 		}
@@ -36,21 +33,15 @@ var templateFuncs = template.FuncMap{
 	},
 	"humansize": formatSize,
 	"sub":       func(a, b int) int { return a - b },
-	// themename is a stylesheet's file name read as a name: "solarized"
-	// is Solarized and "high-contrast" is High contrast. It is a proper
-	// noun either way, so it is not a string in the locale files, and a
-	// theme somebody drops in is named without asking anyone.
+	// A theme's name is a proper noun, so it is not a locale string.
 	"themename": alborz.ThemeName,
-	// qsep is what joins another parameter to a URL: a crumb step may
-	// already carry one, and "?" twice makes a link nothing answers.
+	// A crumb step may already carry a query.
 	"qsep": func(raw string) string {
 		if strings.Contains(raw, "?") {
 			return "&"
 		}
 		return "?"
 	},
-	// hrefaccount is the account a link names, empty for the merged
-	// view: whether following it changes the scope.
 	"hrefaccount": func(href string) string {
 		u, err := url.Parse(href)
 		if err != nil {
@@ -58,8 +49,6 @@ var templateFuncs = template.FuncMap{
 		}
 		return u.Query().Get("account")
 	},
-	// from names the list a row's link was followed from, so the page
-	// it opens returns to that list in its scope (see Context.From).
 	"from": func(href, list string) string {
 		if list == "" {
 			return href
@@ -70,22 +59,15 @@ var templateFuncs = template.FuncMap{
 		}
 		return href + sep + "from=" + alborz.QueryValue(list)
 	},
-	// A flat list of days is drawn as a grid, so the template needs to
-	// know where a row begins.
 	"mod": func(a, b int) int { return a % b },
-	// A locale key built from a wire value: PARTSTAT arrives upper case
-	// and the keys are not.
+	// PARTSTAT arrives upper case and the locale keys are not.
 	"lower": strings.ToLower,
-	// A date a page has no value for, so a template can ask whether
-	// it is set without the caller having to pass a zero time in.
+	// So a template can ask whether a date is set without the caller passing a zero time.
 	"zerotime": func() time.Time { return time.Time{} },
 	"tuple": func(values ...interface{}) []interface{} {
 		return values
 	},
-	// The flag colours, in the order the bit field numbers them, each
-	// with its name in the page's language, so a picker is written once
-	// and stays in step with the model. Takes the render data for its
-	// translator: a method value cannot be passed through a dict.
+	// Takes the render data for its translator: a method value cannot be passed through a dict.
 	"flagcolors": func(t interface{ T(string) string }) []FlagColorOption {
 		opts := make([]FlagColorOption, len(FlagColors))
 		for i, name := range FlagColors {
@@ -93,8 +75,6 @@ var templateFuncs = template.FuncMap{
 		}
 		return opts
 	},
-	// Named arguments for shared defines; positional tuples stop scaling
-	// past a few fields.
 	"devicename": alborz.DeviceName,
 	"dict": func(pairs ...interface{}) (map[string]interface{}, error) {
 		if len(pairs)%2 != 0 {
@@ -110,9 +90,6 @@ var templateFuncs = template.FuncMap{
 		}
 		return m, nil
 	},
-	// sortaria names a column's sort state for a reader who cannot see
-	// the arrow. The same three-state cycle sort-th draws, in one place
-	// rather than repeated at every header cell.
 	"sortaria": func(explicit bool, sort, key, dir string) string {
 		if !explicit || sort != key {
 			return "none"
@@ -123,24 +100,16 @@ var templateFuncs = template.FuncMap{
 		return "ascending"
 	},
 	"pathescape": url.PathEscape,
-	// qv writes a query value readably; see QueryValue. A template.URL,
-	// or the escaper would percent-encode what QueryValue left alone.
+	// template.URL, or the escaper would percent-encode what QueryValue left alone.
 	"qv":         func(v string) template.URL { return template.URL(alborz.QueryValue(v)) },
 	"subjectdir": alborz.SubjectDir,
-	// account renders the query fragment naming an account, or nothing
-	// when there is none. The template.URL return matters: the contextual
-	// escaper normalises those instead of escaping them, so the address
-	// keeps its at sign inside an href or an action.
+	// template.URL, so the escaper normalises rather than escapes the address.
 	"account": func(sep, username string) template.URL {
 		if username == "" {
 			return ""
 		}
 		return template.URL(sep + "account=" + alborz.QueryValue(username))
 	},
-	// localhref preserves the query separators in application-generated
-	// relative links. html/template otherwise treats a complete dynamic
-	// href as one query value and percent-escapes '&' and '='. Only local
-	// absolute paths, query strings, and fragments are accepted.
 	"localhref": func(raw string) template.URL {
 		if raw == "" {
 			return ""
@@ -156,9 +125,6 @@ var templateFuncs = template.FuncMap{
 	"formatdate": func(t time.Time) string {
 		return t.Format("Mon Jan 02 15:04")
 	},
-	// flagkey names the locale entry for a system flag, so the page can
-	// translate it; a keyword the server made up has no entry and is
-	// shown as it is.
 	"flagkey": func(flag imap.Flag) string {
 		switch flag {
 		case imap.FlagSeen:

@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// What a newer version stores, and what an older one knows of it.
 type newer struct {
 	Name    string
 	Count   uint64

@@ -27,7 +27,6 @@ type GlobalRenderData struct {
 
 	LoggedIn bool
 
-	// if logged in
 	Username string
 	Accounts []Account
 
@@ -35,93 +34,64 @@ type GlobalRenderData struct {
 
 	HavePlugin func(name string) bool
 
-	// Asset builds a theme asset's URL, version-stamped so the browser can
-	// cache it; see Server.assetURL.
+	// Asset builds a theme asset's version-stamped URL.
 	Asset func(name string) string
 
 	Notice *Notice
 
-	// Version names the build; see Build.
+	// Version names the build.
 	Version string
-	// Shell is the digest of what the head loads; see Server.shell.
+	// Shell is the digest of what the head loads.
 	Shell string
-	// LockSeconds is how long the page may sit untouched before the
-	// session locks, zero for a session with no passkey.
+	// LockSeconds is the idle time before the session locks, zero without a passkey.
 	LockSeconds int
-	// Revision names the running binary under the logo, in the
-	// rail and in the header: see Build.
+	// Revision names the running binary.
 	Revision string
-	// Brand is the product's name as a person reads it, so no page has
-	// to spell it and none can spell it differently.
+	// Brand is the product's name as a person reads it.
 	Brand string
-	// ProjectURL is where the footer's name links, when a deployment
-	// names one. Empty prints the name as text.
+	// ProjectURL is where the footer's name links; empty prints the name as text.
 	ProjectURL string
-	// Language is the explicit choice, empty while following the
-	// browser; LanguageChoices are what the menu offers.
+	// Language is the explicit choice, empty while following the browser.
 	Language        string
 	LanguageChoices []LanguageChoice
-	// Year the page is served in, for the footer's line
-	Year int
-	// Primary is the calendar system the page counts in, Secondary the
-	// one glossed beside it, empty for none.
+	Year            int
+	// Primary is the calendar the page counts in, Secondary the one glossed beside it, empty for none.
 	Primary   string
 	Secondary string
 
-	// User's timezone location for date formatting
 	Timezone *time.Location
 
-	// First day of week: 0=Sunday, 1=Monday (default), 6=Saturday
+	// 0=Sunday, 1=Monday (default), 6=Saturday
 	FirstDayOfWeek int
 
-	// Unified marks the merged all-accounts view
 	Unified bool
 
-	// AlignByScript lets each line align by its own writing direction
-	// instead of with the interface's edge
 	AlignByScript bool
 
-	// Account named by the request's account parameter, for links that
-	// must keep pointing into the same account; empty otherwise.
+	// URLAccount keeps links pointing into the request's account; empty otherwise.
 	URLAccount string
 
-	// From is the list the page was opened from; see Context.From.
 	From string
 
-	// Scope and Merged are the account the page is looked at under and
-	// whether that is all of them: the list it was opened from, when it
-	// names one, or else the URL's own. The nav, the account switcher
-	// and the rail follow them; the page's own links keep URLAccount,
-	// the account that holds what it shows.
+	// Scope and Merged are the account the nav, switcher and rail follow, and whether it is all of them.
 	Scope  string
 	Merged bool
-	// Item says the page shows one object - a message, an event, a
-	// task, a contact - and Own is the page's own URL without From.
-	// Choosing a scope the object is inside keeps the reader on it:
-	// its account, or all of them (ADR 37).
+	// Item says the page shows one object; Own is its URL without From (ADR 37).
 	Item bool
 	Own  string
 
-	// Theme variant stylesheet under assets/themes, empty for the default
 	Theme string
 
-	// SchemePinned says the chosen theme is written for one side of the
-	// day only, so the scheme toggle has nothing to do and is not shown.
+	// SchemePinned hides the scheme toggle for a theme written for one scheme only.
 	SchemePinned bool
 
-	// CustomCSS is the deployment's own stylesheet where it left one,
-	// loaded after the theme so it wins.
 	CustomCSS bool
 
-	// TextSize scales the whole interface for a reader who wants it
-	// larger, empty for the size everyone else gets
+	// TextSize is empty for the default size.
 	TextSize string
 
-	// UI language code: the user's cookie choice, else negotiated
-	// from Accept-Language
 	Lang string
 
-	// additional plugin-specific data
 	Extra map[string]interface{}
 }
 
@@ -133,17 +103,10 @@ func (g *GlobalRenderData) Dir() string {
 	return "ltr"
 }
 
-// BaseRenderData is the base type for templates. It should be extended with
-// additional template-specific fields:
-//
-//	type MyRenderData struct {
-//	    BaseRenderData
-//	    // add additional fields here
-//	}
+// BaseRenderData is the base type for templates, embedded in template-specific ones.
 type BaseRenderData struct {
 	GlobalData GlobalRenderData
-	// additional plugin-specific data
-	Extra map[string]interface{}
+	Extra      map[string]interface{}
 }
 
 // Global implements RenderData.
@@ -156,10 +119,7 @@ func (brd *BaseRenderData) T(key string) string {
 	return translate(brd.GlobalData.Lang, key)
 }
 
-// Since dates a message the way a list reads it, in the reader's
-// language and as short as the column: "5 min ago", "vor 3 Tagen",
-// "۸ ماه پیش". The exact date belongs in the row's tooltip, where
-// precision costs no width.
+// Since dates a message in the reader's language, as short as a list column.
 func (g *GlobalRenderData) Since(t time.Time) string {
 	unit, n := elapsed(g.InTimezone(t), g.InTimezone(time.Now()))
 	if unit == "" {
@@ -169,14 +129,11 @@ func (g *GlobalRenderData) Since(t time.Time) string {
 	if n < 0 {
 		key, n = "since.ahead", -n
 	}
-	// A count of years is never grouped: a date with no year reads
-	// "2025 yrs ago", not "2,025".
+	// A year count is never grouped: "2025 yrs ago", not "2,025".
 	span := g.printer().Sprintf(translateCount(g.Lang, "since."+unit, n), number.Decimal(n, number.NoSeparator()))
 	return g.Tf(key, span)
 }
 
-// secondsIn are the units elapsed counts by the clock rather than by
-// the calendar.
 var secondsIn = []struct {
 	unit string
 	n    int64
@@ -188,10 +145,6 @@ var secondsIn = []struct {
 	{"second", 1},
 }
 
-// elapsed is the largest whole unit from t to now and how many of it
-// passed, negative when t is still ahead and no unit at all within the
-// second. Years and months are counted on the calendar, so a month is
-// whatever the month was.
 func elapsed(t, now time.Time) (string, int) {
 	sign, s, e := 1, t, now
 	if e.Before(s) {
@@ -220,8 +173,7 @@ func elapsed(t, now time.Time) (string, int) {
 	return "", 0
 }
 
-// FormatDate states a full date and time: a message header and an event
-// page have the room to spell out what a list column abbreviates.
+// FormatDate states a full date and time.
 func (g *GlobalRenderData) FormatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
@@ -229,7 +181,6 @@ func (g *GlobalRenderData) FormatDate(t time.Time) string {
 	return fmt.Sprintf("%s%s %s", g.LongDate(t), g.comma(), g.FormatTime(t))
 }
 
-// comma is the list separator of the page's script.
 func (g *GlobalRenderData) comma() string {
 	if g.Lang == "fa" {
 		return "،"
@@ -237,9 +188,7 @@ func (g *GlobalRenderData) comma() string {
 	return ","
 }
 
-// ShortDate is a bare date, counted in the secondary calendar when one
-// is chosen: a reader who asked to count in Solar Hijri counts there
-// wherever a single date fits. The year is left off within this one.
+// ShortDate is a bare date in the secondary calendar when one is chosen, without the current year.
 func (g *GlobalRenderData) ShortDate(t time.Time) string {
 	cal := g.primary()
 	year, m, day := cal.Date(g.InTimezone(t))
@@ -253,7 +202,6 @@ func (g *GlobalRenderData) ShortDate(t time.Time) string {
 	case "es", "fa":
 		s, yearSep = p.Sprintf("%d %s", day, month), " "
 	default:
-		// Only English separates the day from the year with a comma.
 		s, yearSep = p.Sprintf("%s %d", month, day), ", "
 	}
 	if year != thisYear {
@@ -276,12 +224,10 @@ func (g *GlobalRenderData) InTimezone(t time.Time) time.Time {
 	return t
 }
 
-// weekOne is a Sunday, so that adding a weekday index to it names that
-// weekday. Any Sunday would do; this one is arbitrary.
+// weekOne is a Sunday, so adding a weekday index names that weekday.
 var weekOne = time.Date(2023, time.January, 1, 12, 0, 0, 0, time.UTC)
 
-// Weekdays returns translated weekday names starting from
-// FirstDayOfWeek.
+// Weekdays returns translated weekday names starting from FirstDayOfWeek.
 func (g *GlobalRenderData) Weekdays() []string {
 	result := make([]string, 7)
 	for i := range result {
@@ -295,8 +241,7 @@ func (g *GlobalRenderData) WeekdayName(t time.Time) string {
 	return g.T(fmt.Sprintf("calendar.weekday.%d", g.InTimezone(t).Weekday()))
 }
 
-// MonthYearShort is MonthYear abbreviated, for a toolbar too narrow to
-// carry the month's full name beside its controls.
+// MonthYearShort is MonthYear abbreviated for a narrow toolbar.
 func (g *GlobalRenderData) MonthYearShort(t time.Time) string {
 	cal := g.primary()
 	y, m, _ := cal.Date(g.InTimezone(t))
@@ -310,8 +255,6 @@ func (g *GlobalRenderData) MonthName(t time.Time) string {
 	return cal.MonthName(m, g.Lang)
 }
 
-// shortMonth abbreviates a Gregorian month the way the language does;
-// Solar Hijri months have no short form anyone would recognise.
 func (g *GlobalRenderData) shortMonth(cal CalendarSystem, month int) string {
 	if cal.Name() != gregorianName {
 		return cal.MonthName(month, g.Lang)
@@ -319,8 +262,6 @@ func (g *GlobalRenderData) shortMonth(cal CalendarSystem, month int) string {
 	return g.T(fmt.Sprintf("calendar.gmonthshort.%d", month))
 }
 
-// primary is the calendar system the page counts in, and secondary the
-// one glossed beside it.
 func (g *GlobalRenderData) primary() CalendarSystem { return Calendar(g.Primary) }
 
 func (g *GlobalRenderData) secondary() (CalendarSystem, bool) {
@@ -336,8 +277,7 @@ func (g *GlobalRenderData) Day(t time.Time) string {
 	return g.Num(d)
 }
 
-// SameMonth says whether two instants fall in one month of the primary
-// calendar, which is what the grid dims by and the agenda filters on.
+// SameMonth reports whether two instants fall in one month of the primary calendar.
 func (g *GlobalRenderData) SameMonth(a, b time.Time) bool {
 	cal := g.primary()
 	ay, am, _ := cal.Date(g.InTimezone(a))
@@ -345,19 +285,9 @@ func (g *GlobalRenderData) SameMonth(a, b time.Time) bool {
 	return ay == by && am == bm
 }
 
-// replyPrefix matches the marks a mail client puts in front of a
-// subject when it answers or forwards one, in the languages alborz
-// speaks plus the ones its lists carry, and a list's [tag].
 var replyPrefix = regexp.MustCompile(`^\s*(?i:(re|aw|sv|antw|fw|fwd|rv|tr)\s*(\[\d+\])?\s*:|\[[^\]]{1,40}\])\s*`)
 
-// SubjectDir is the writing direction a subject should be read in.
-//
-// dir=auto and the bidi algorithm both take the first strong character,
-// which a reply prefix supplies: "Re: درخواست راهنمایی" is a Persian
-// subject that renders left to right because two Latin letters happen
-// to lead it. The prefixes are stripped first, so the direction comes
-// from what the subject actually says; x/text then applies the same
-// rule to the remainder.
+// SubjectDir is the direction a subject reads in, ignoring reply prefixes that would lead with Latin letters.
 func SubjectDir(subject string) string {
 	stripped := subject
 	for {
@@ -374,10 +304,7 @@ func SubjectDir(subject string) string {
 	if stripped == "" {
 		return "auto"
 	}
-	// Order must run before the direction is asked for: x/text panics
-	// on a paragraph it has not ordered yet, and on one whose first
-	// character is a paragraph separator, since it reads no further
-	// and orders nothing; the trim above keeps a leading newline out.
+	// x/text's Direction panics on a paragraph that has not been ordered.
 	var p bidi.Paragraph
 	if _, err := p.SetString(stripped); err != nil {
 		return "auto"
@@ -391,9 +318,7 @@ func SubjectDir(subject string) string {
 	return "rtl"
 }
 
-// ContentLang names the language of text the interface shows, relative
-// to the page it is shown on: empty where the two agree, so the
-// attribute appears only where it changes the voice.
+// ContentLang names the language of interface text, empty where it matches the page.
 func (g *GlobalRenderData) ContentLang(s string) string {
 	return ContentLang(s, g.Lang)
 }
@@ -403,9 +328,7 @@ func (g *GlobalRenderData) MessageLang(s string) string {
 	return MessageLang(s, g.Lang)
 }
 
-// ShortAccount names an account as briefly as it can still be told
-// apart: the domain alone while it is the only account signed in there,
-// the whole address once two accounts share one domain.
+// ShortAccount names an account by its domain unless two accounts share it.
 func ShortAccount(account string, accounts []Account) string {
 	_, domain, ok := strings.Cut(account, "@")
 	if !ok {
@@ -424,10 +347,7 @@ func (g GlobalRenderData) AccountLabel(account string) string {
 	return ShortAccount(account, g.Accounts)
 }
 
-// AccountTrack is the width the account label's track holds: the widest
-// label of the accounts signed in. Sized to its own text the label
-// starts wherever a name happens to end, so a column of them is ragged
-// on the side that faces the sender.
+// AccountTrack is the width of the widest account label, so a column of them aligns.
 func (g GlobalRenderData) AccountTrack() template.CSS {
 	n := 0
 	for _, a := range g.Accounts {
@@ -438,9 +358,6 @@ func (g GlobalRenderData) AccountTrack() template.CSS {
 	return template.CSS(fmt.Sprintf("%dch", n))
 }
 
-// printers write numbers the way each language writes them - Persian
-// digits on a Persian page, each locale's own grouping - out of CLDR's
-// tables in x/text. Nothing here knows what a digit looks like.
 var printers = map[string]*message.Printer{}
 
 func init() {
@@ -449,9 +366,7 @@ func init() {
 	}
 }
 
-// The receivers below are values, not pointers: templates hand the
-// global to a define inside a tuple, which boxes it and leaves pointer
-// methods out of reach.
+// Value receivers: templates box the global in a tuple, leaving pointer methods out of reach.
 func (g GlobalRenderData) printer() *message.Printer {
 	if p, ok := printers[g.Lang]; ok {
 		return p
@@ -459,25 +374,21 @@ func (g GlobalRenderData) printer() *message.Printer {
 	return printers["en"]
 }
 
-// Num writes a count as the page's language writes one, grouped:
-// 12345 is "12,345", "12.345" or "۱۲٬۳۴۵".
+// Num writes a grouped count as the page's language writes one.
 func (g GlobalRenderData) Num(n int) string {
 	return g.printer().Sprintf("%d", n)
 }
 
-// year writes a year, which no language groups: 2026 is never "2,026".
 func (g GlobalRenderData) year(n int) string {
 	return g.printer().Sprint(number.Decimal(n, number.NoSeparator()))
 }
 
-// T translates a key in the page's language, for the defines that are
-// handed the global data rather than the page.
+// T translates a key in the page's language.
 func (g GlobalRenderData) T(key string) string {
 	return translate(g.Lang, key)
 }
 
-// Tf translates a format string and fills it in the page's language, so
-// the numbers inside a sentence are written like the sentence.
+// Tf translates a format string and fills it in the page's language.
 func (g GlobalRenderData) Tf(key string, args ...interface{}) string {
 	count := 1
 	if len(args) > 0 {
@@ -488,13 +399,9 @@ func (g GlobalRenderData) Tf(key string, args ...interface{}) string {
 	return g.printer().Sprintf(translateCount(g.Lang, key, count), args...)
 }
 
-// persianDigits shapes the digits of a string formatted without a
-// printer, such as a typed date.
 var persianDigits = [10]rune{'۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'}
 
-// LatinDigits rewrites the digit shapes someone may type - Persian
-// (U+06F0..) or Arabic (U+0660..) - into the Latin ones every parser
-// expects. A page that counts in Persian digits invites them back.
+// LatinDigits rewrites Persian and Arabic digits into Latin ones for parsing.
 func LatinDigits(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch {
@@ -507,15 +414,12 @@ func LatinDigits(s string) string {
 	}, s)
 }
 
-// ReadInt reads a whole number as typed: in either digit shape, and
-// with the thousands separator of the language left in.
+// ReadInt reads a typed whole number in either digit shape, with the language's thousands separator.
 func ReadInt(s string) (int, error) {
 	return strconv.Atoi(strings.NewReplacer("٬", "", ",", "").Replace(LatinDigits(strings.TrimSpace(s))))
 }
 
-// shapeDigits rewrites the digits of a string that came back from a
-// library, leaving one that still carries a Latin word alone: "399 B"
-// half-converted reads worse than either script does whole.
+// A string still carrying a Latin word is left alone: half-converted reads worse than either script.
 func (g GlobalRenderData) shapeDigits(s string) string {
 	if g.Lang != "fa" || strings.ContainsFunc(s, isLatinLetter) {
 		return s
@@ -532,9 +436,7 @@ func isLatinLetter(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }
 
-// SecondaryDay is the day number of the same date in the secondary
-// calendar, empty when none is chosen. The first day of a month carries
-// its month name, the way the primary labels do.
+// SecondaryDay is the day number in the secondary calendar, empty when none is chosen.
 func (g *GlobalRenderData) SecondaryDay(t time.Time) string {
 	cal, ok := g.secondary()
 	if !ok {
@@ -547,21 +449,12 @@ func (g *GlobalRenderData) SecondaryDay(t time.Time) string {
 	return g.Num(d)
 }
 
-// weekAnchor is the Thursday of the seven days beginning at the given
-// day. A grid row is labelled by the week that day falls in, which is
-// ISO 8601's own rule (the week owning the Thursday) and is therefore
-// right however the row is aligned: a row starting on Sunday spans two
-// ISO weeks, and this names the one the row mostly is.
+// weekAnchor is the Thursday of the seven days from day, by which ISO 8601 numbers a week.
 func weekAnchor(rowStart time.Time) time.Time {
-	iso := (int(rowStart.Weekday())+6)%7 + 1 // Monday 1 ... Sunday 7
+	iso := (int(rowStart.Weekday())+6)%7 + 1
 	return rowStart.AddDate(0, 0, (4-iso+7)%7)
 }
 
-// weekOf counts the week a day falls in, in the given calendar: ISO
-// 8601's for the Gregorian one, and for the Solar Hijri one the weeks
-// from Nowruz, beginning on Saturday, which is a different number from
-// a different origin, so glossing the ISO number would be a translation
-// of the wrong thing.
 func weekOf(cal CalendarSystem, day time.Time) int {
 	if cal.Name() == gregorianName {
 		_, week := day.ISOWeek()
@@ -578,14 +471,12 @@ func (g *GlobalRenderData) WeekNumber(rowStart time.Time) string {
 	return g.Num(weekOf(g.primary(), weekAnchor(g.InTimezone(rowStart))))
 }
 
-// WeekTitle names the week in words, since a bare number in a column of
-// its own says nothing about what it counts.
+// WeekTitle names the week in words.
 func (g *GlobalRenderData) WeekTitle(rowStart time.Time) string {
 	return g.Tf("calendar.week", g.WeekNumber(rowStart))
 }
 
-// SecondaryWeek is the same physical week counted in the secondary
-// calendar, empty when none is chosen.
+// SecondaryWeek is the same week counted in the secondary calendar, empty when none is chosen.
 func (g *GlobalRenderData) SecondaryWeek(rowStart time.Time) string {
 	cal, ok := g.secondary()
 	if !ok {
@@ -594,8 +485,7 @@ func (g *GlobalRenderData) SecondaryWeek(rowStart time.Time) string {
 	return g.Num(weekOf(cal, weekAnchor(g.InTimezone(rowStart))))
 }
 
-// SecondaryMonthYear names the secondary months a primary month spans,
-// empty when no secondary calendar is chosen.
+// SecondaryMonthYear names the secondary months a primary month spans, empty when none is chosen.
 func (g *GlobalRenderData) SecondaryMonthYear(t time.Time) string {
 	cal, ok := g.secondary()
 	if !ok {
@@ -625,8 +515,7 @@ func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
 	return g.printer().Sprintf("%d %s %s", d, cal.MonthName(m, g.Lang), g.year(y))
 }
 
-// CalendarDayLabel keeps ordinary cells to a bare day number and repeats a
-// compact month name only on the first day of each month.
+// CalendarDayLabel is a day number, with a compact month name on the first of the month.
 func (g *GlobalRenderData) CalendarDayLabel(t time.Time) string {
 	cal := g.primary()
 	_, m, d := cal.Date(g.InTimezone(t))
@@ -650,8 +539,7 @@ func (g *GlobalRenderData) MonthYear(t time.Time) string {
 	return fmt.Sprintf("%s %s", g.MonthName(t), g.year(y))
 }
 
-// LongDate renders a translated day heading without relying on the
-// process locale (time.Format only knows English names).
+// LongDate renders a translated day heading; time.Format knows only English names.
 func (g *GlobalRenderData) LongDate(t time.Time) string {
 	weekday := g.WeekdayName(t)
 	month := g.MonthName(t)
@@ -668,34 +556,19 @@ func (g *GlobalRenderData) LongDate(t time.Time) string {
 	}
 }
 
-// pluginEnabled reports whether the plugin applies to the request's
-// login. The Enabled method is optional so that the Plugin interface
-// stays unchanged for plugins serving every domain.
+// Enabled is optional so the Plugin interface stays unchanged for plugins serving every domain.
 func pluginEnabled(p Plugin, ctx *Context) bool {
 	e, ok := p.(interface{ Enabled(*Context) bool })
 	return !ok || e.Enabled(ctx)
 }
 
-// RenderData is implemented by template data structs. It can be used to inject
-// additional data to all templates.
+// RenderData is implemented by template data structs.
 type RenderData interface {
 	// GlobalData returns a pointer to the global render data.
 	Global() *GlobalRenderData
 }
 
 // NewBaseRenderData initializes a new BaseRenderData.
-//
-// It can be used by routes to pre-fill the base data:
-//
-//	type MyRenderData struct {
-//	    BaseRenderData
-//	    // add additional fields here
-//	}
-//
-//	data := &MyRenderData{
-//	    BaseRenderData: *alborz.NewBaseRenderData(ctx),
-//	    // other fields...
-//	}
 func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	ctx, isactx := ectx.(*Context)
 
@@ -705,7 +578,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		Path:           strings.Split(ectx.Request().URL.Path, "/")[1:],
 		Title:          BrandName,
 		URL:            ectx.Request().URL,
-		FirstDayOfWeek: 1, // Monday default
+		FirstDayOfWeek: 1,
 		Lang:           lang,
 
 		Asset: func(name string) string {
@@ -736,10 +609,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 				global.LockSeconds = int(lock.Wait() / time.Second)
 			}
 		}
-		// The name a person reads is in their own script: the range is
-		// البرز to a Persian reader, and the same word either way. What
-		// a machine reads - the User-Agent, the name given to an IMAP
-		// server - stays BrandName.
+		// A person reads the brand in their own script; what a machine reads stays BrandName.
 		global.Brand = translate(lang, "brand.name")
 		global.ProjectURL = ctx.Server.Options.ProjectURL
 		global.Language = ctx.Language()
@@ -758,8 +628,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.URLAccount = ctx.urlAccount
 		global.From = ctx.From()
 		global.Scope, global.Merged = ctx.urlAccount, ctx.Unified
-		// Cut from the raw query, which keeps the values as they were
-		// written; Values.Encode would escape them again.
+		// Values.Encode would escape the raw values again.
 		req := ctx.Request().URL
 		kept := slices.DeleteFunc(strings.Split(req.RawQuery, "&"), func(p string) bool {
 			return p == "" || strings.HasPrefix(p, "from=")
@@ -772,8 +641,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 			global.Scope = u.Query().Get("account")
 			global.Merged = global.Scope == "" && len(ctx.Logins()) > 1
 		}
-		// A notice belongs to the session, not to a login: a sign-in
-		// that failed has none, and the login page is where it is read.
+		// A notice belongs to the session, not to a login.
 		global.Notice = ctx.PopNotice()
 	}
 
@@ -789,28 +657,23 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	}
 }
 
-// Tf is T with a count and arguments: the plural form the count calls
-// for, filled in with numbers written the way that language writes them.
+// Tf is T with a count and arguments, in the plural form the count calls for.
 func (ctx *Context) Tf(key string, args ...interface{}) string {
 	g := GlobalRenderData{Lang: requestLanguage(ctx)}
 	return g.Tf(key, args...)
 }
 
-// T translates a namespaced string key into the request's UI
-// language, for strings built on the Go side.
+// T translates a namespaced string key into the request's UI language.
 func (ctx *Context) T(key string) string {
 	return translate(requestLanguage(ctx), key)
 }
 
-// PageLanguage is the UI language this request resolves to. A viewer
-// rendering part of a message needs it to say whether that part is
-// written in another one.
+// PageLanguage is the UI language this request resolves to.
 func (ctx *Context) PageLanguage() string {
 	return requestLanguage(ctx)
 }
 
-// LanguageName is the chosen language in its own name, empty while the
-// browser is being followed - the page says so in its own words.
+// LanguageName is the chosen language in its own name, empty while following the browser.
 func (g GlobalRenderData) LanguageName() string {
 	for _, c := range g.LanguageChoices {
 		if c.Code == g.Language {
@@ -820,13 +683,7 @@ func (g GlobalRenderData) LanguageName() string {
 	return ""
 }
 
-// queryLanguage is the language a URL names, empty when it names none
-// we have. It outranks the cookie and Accept-Language: it is how one
-// page is handed to somebody who reads another language, and how a
-// look at the Persian layout is an address rather than a settings
-// visit. One spelling only, "lang", which is what the html attribute,
-// Content-Language and Accept-Language all call it; a second would be
-// a second thing to keep right.
+// The URL's language outranks the cookie, so a page can be handed to a reader of another language.
 func queryLanguage(ectx echo.Context) string {
 	if v := ectx.QueryParam("lang"); IsLanguage(v) {
 		return v
@@ -834,8 +691,6 @@ func queryLanguage(ectx echo.Context) string {
 	return ""
 }
 
-// requestLanguage resolves the request's UI language: a language in
-// the URL wins, then the profile's, else Accept-Language.
 func requestLanguage(ectx echo.Context) string {
 	if v := queryLanguage(ectx); v != "" {
 		return v
@@ -850,9 +705,7 @@ func requestLanguage(ectx echo.Context) string {
 	return MatchLanguage(ectx.Request().Header.Get("Accept-Language"))
 }
 
-// RenderInfo renders a full page carrying one explanatory sentence,
-// for valid routes whose answer is a state, not content: an
-// unconfigured section, a message that does not exist.
+// RenderInfo renders a full page carrying one explanatory sentence.
 func RenderInfo(ctx *Context, code int, message string) error {
 	data := struct {
 		BaseRenderData
@@ -861,15 +714,13 @@ func RenderInfo(ctx *Context, code int, message string) error {
 	return ctx.Render(code, "info.html", &data)
 }
 
-// WithTitle sets the page's own title; the brand is appended when
-// the template renders it, so every page carries it.
+// WithTitle sets the page's own title.
 func (brd *BaseRenderData) WithTitle(title string) *BaseRenderData {
 	brd.GlobalData.Title = title
 	return brd
 }
 
-// Refused makes a form's refusal the page's notice (ADR 41). An empty
-// text is no refusal and leaves the notice as it was.
+// Refused makes a form's refusal the page's notice (ADR 41); empty text leaves it as it was.
 func (brd *BaseRenderData) Refused(text string) *BaseRenderData {
 	if text != "" {
 		brd.GlobalData.Notice = &Notice{Kind: NoticeFailed, Text: text}
@@ -877,14 +728,13 @@ func (brd *BaseRenderData) Refused(text string) *BaseRenderData {
 	return brd
 }
 
-// WithItem marks the page as showing one object; see GlobalData.Item.
+// WithItem marks the page as showing one object.
 func (brd *BaseRenderData) WithItem() *BaseRenderData {
 	brd.GlobalData.Item = true
 	return brd
 }
 
-// MonthYearIn and LongDateIn translate a heading for the request's
-// language and calendar, for titles built before the render data exists.
+// MonthYearIn and LongDateIn translate a heading before the render data exists.
 func (ctx *Context) MonthYearIn(t time.Time) string {
 	return ctx.dates().MonthYear(t)
 }
@@ -899,8 +749,7 @@ func (ctx *Context) dates() *GlobalRenderData {
 	return g
 }
 
-// PageTitle is the browser title: the page's subject and the brand,
-// or the brand alone on pages that name nothing.
+// PageTitle is the browser title: the page's subject and the brand, or the brand alone.
 func (g *GlobalRenderData) PageTitle() string {
 	brand := g.Brand
 	if brand == "" {
@@ -944,9 +793,7 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 		}
 	}
 
-	// A notice raised after the base data was built - by a rail or a
-	// pooled load that ran later in the same handler - belongs to this
-	// page, not to whichever the reader opens next.
+	// A notice raised after the base data was built belongs to this page, not the next.
 	if g := renderData.Global(); g.Notice == nil {
 		g.Notice = ctx.PopNotice()
 	}
@@ -957,8 +804,7 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 	return err
 }
 
-// loadTheme parses the embedded theme, then overlays the same-named theme
-// directory on disk, so a theme only carries the files it changes.
+// Overlaying the disk theme lets it carry only the files it changes.
 func loadTheme(themesPath string, name string, base *template.Template) (*template.Template, int, error) {
 	theme, err := base.Clone()
 	if err != nil {
@@ -1010,16 +856,13 @@ func newRenderer(logger echo.Logger, themesPath string, defaultTheme string) *re
 	}
 }
 
-// Explained is one term and what it means, for the disclosure a card
-// offers beside a row of names. A tooltip is a hover, and a phone has
-// none.
+// Explained is one term and its meaning; a disclosure, since a phone has no hover.
 type Explained struct {
 	Term string
 	Hint string
 }
 
-// RailRow is one place under an account in a section's rail: a page
-// the section offers per account, such as an account's signatures.
+// RailRow is one place under an account in a section's rail.
 type RailRow struct {
 	Label  string
 	Href   string

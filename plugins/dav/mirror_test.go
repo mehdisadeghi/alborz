@@ -21,9 +21,7 @@ import (
 	"github.com/fernet/fernet-go"
 )
 
-// fakeDAV is one calendar at /cal/ that speaks sync-collection, unless
-// noSync, with tokens that are the length of its change log; forget
-// refuses every token it gave.
+// fakeDAV is one calendar at /cal/; tokens are its change log's length, and forget refuses them all.
 type fakeDAV struct {
 	mu             sync.Mutex
 	objects        map[string]string
@@ -159,7 +157,7 @@ func through(t *testing.T, s *fakeDAV) (*Mirror, *caldav.Client) {
 func summaries(t *testing.T, c *caldav.Client) []string {
 	t.Helper()
 	objects, err := c.QueryCalendar(context.Background(), "/cal/", &caldav.CalendarQuery{
-		// Partial, as the pages ask: the server then re-encodes what it sends.
+		// Partial, as the pages ask, so the server re-encodes what it sends.
 		CompRequest: caldav.CalendarCompRequest{Name: "VCALENDAR", Props: []string{"VERSION"},
 			Comps: []caldav.CalendarCompRequest{{Name: "VEVENT", AllProps: true, AllComps: true}}},
 		CompFilter: caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{{Name: "VEVENT"}}},
@@ -187,7 +185,7 @@ func newFake() *fakeDAV {
 
 func TestMirrorAnswersFromItsCopy(t *testing.T) {
 	s := newFake()
-	// Servers accept a VEVENT without DTSTAMP; the copy serves it as sent.
+	// The copy serves a VEVENT without DTSTAMP as sent.
 	s.change("b.ics", strings.Replace(event("b"), "DTSTAMP:20260101T000000Z\r\n", "", 1))
 	_, c := through(t, s)
 	if got := summaries(t, c); !slices.Equal(got, []string{"a", "b"}) {
@@ -217,8 +215,7 @@ func TestMirrorFollowsTheServer(t *testing.T) {
 			if got := summaries(t, c); !slices.Equal(got, []string{"b"}) {
 				t.Errorf("after the server changed: %v", got)
 			}
-			// Asked once and refused, a server without sync is compared
-			// from then on; one with it is asked from the token it gave.
+			// Refused once, a server without sync is compared from then on; one with it resumes from its token.
 			want := []string{"", "1"}
 			if noSync {
 				want = []string{""}

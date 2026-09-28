@@ -12,9 +12,6 @@ import (
 
 const mixedBody = "سلام، این یک پیام فارسی است.\n\nAnd this paragraph is English."
 
-// parts walks the written message and returns each leaf's content type
-// in order, with its decoded body - which is the only way to read a
-// part that was quoted-printable encoded on the way out.
 func parts(t *testing.T, sendHTML bool) (types []string, bodies map[string]string, raw string) {
 	t.Helper()
 	msg := &OutgoingMessage{
@@ -53,9 +50,7 @@ func parts(t *testing.T, sendHTML bool) (types []string, bodies map[string]strin
 	return types, bodies, raw
 }
 
-// The plain part must survive exactly and come first: this is an
-// alternative to the text, not a replacement, and least-preferred goes
-// first (RFC 2046 5.1.4).
+// Least-preferred goes first (RFC 2046 5.1.4).
 func TestSendHTMLKeepsThePlainPartFirst(t *testing.T) {
 	types, bodies, raw := parts(t, true)
 
@@ -76,8 +71,6 @@ func TestSendHTMLKeepsThePlainPartFirst(t *testing.T) {
 	}
 }
 
-// The reason the part exists at all: each paragraph says which way it
-// runs, because the recipient's client will not work it out.
 func TestSendHTMLCarriesDirection(t *testing.T) {
 	_, bodies, _ := parts(t, true)
 	for _, want := range []string{`dir="rtl"`, `dir="ltr"`} {
@@ -90,9 +83,6 @@ func TestSendHTMLCarriesDirection(t *testing.T) {
 	}
 }
 
-// Unset - left-to-right text, a reply to a list, a draft - means one
-// part: a list that refuses multipart/alternative sees exactly what it
-// saw before.
 func TestWithoutSendHTMLNothingChanges(t *testing.T) {
 	types, _, raw := parts(t, false)
 	if strings.Contains(raw, "multipart/alternative") || indexOf(types, "text/html") >= 0 {

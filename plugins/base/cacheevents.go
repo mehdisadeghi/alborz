@@ -6,107 +6,73 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-// Every change the server has confirmed reaches the caches through this
-// file. Listings and bodies hold the same facts twice - a flag, a
-// message's presence, a mailbox's identity - and a path that corrects
-// one and forgets the other leaves a stale star or a message that comes
-// back unread, which nothing upstream contradicts. Keeping each pair in
-// one place is what stops the pairing from living in the memory of
-// whoever writes the next handler; cacheevents_test.go fails when a
-// caller goes around it.
+// Listings and bodies hold the same facts twice, so every confirmed change
+// reaches both through here.
 
-// A write the reader asked for supersedes the automatic read the page
-// started, so the pending mark is cancelled before the write is queued
-// and cannot land after it.
+// Cancelled before the write is queued, so the automatic read cannot land after it.
 func (p *plugin) flagWriteStarting(user, mailbox string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) {
 	if op == imap.StoreFlagsSet || slices.Contains(flags, imap.FlagSeen) {
 		p.bodies.cancelSeen(user, mailbox, uids)
 	}
 }
 
-// messagesLeaving is the same cancellation for a move or a delete: the
-// message is about to be gone, and marking it read afterwards would
-// write to a UID the folder no longer has.
+// Marking a leaving message read would write to a UID the folder no longer has.
 func (p *plugin) messagesLeaving(user, mailbox string, uids []imap.UID) {
 	p.bodies.cancelSeen(user, mailbox, uids)
 }
 
-// Plain pages take the new flags in place; the listings pass them on to
-// the bodies, which render the same star. Called on the connection
-// turn that stored them, for the reason messageRead is.
 func (p *plugin) messagesFlagged(user, mailbox string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) {
 	p.listings.flags(user, mailbox, uids, op, flags)
 }
 
-// messageRead is the page's own read of a message, confirmed by the
-// server. Called on the connection turn that read it, so a later write
-// the reader asked for cannot be patched over.
+// Called on the connection turn that read it, so a later write cannot be patched over.
 func (p *plugin) messageRead(user, mailbox string, uid imap.UID) {
 	p.listings.markSeen(user, mailbox, uid)
 	p.bodies.flags(user, mailbox, []imap.UID{uid}, imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen})
 }
 
-// A moved message is a different message where it lands, with a UID of
-// its own, so the body held here is of no use there.
+// A moved message has a new UID where it lands, so the held body is no use there.
 func (p *plugin) messagesMoved(user, from, to string, uids []imap.UID) {
 	p.bodies.discard(user, from, uids)
 	p.listings.evict(user, from)
 	p.listings.evict(user, to)
 }
 
-// An expunge also removes what was marked deleted elsewhere, so the
-// folder's bodies go entirely rather than by name.
+// An expunge also removes what was marked deleted elsewhere.
 func (p *plugin) messagesRemoved(user, mailbox string) {
 	p.bodies.discard(user, mailbox, nil)
 	p.listings.evict(user, mailbox)
 }
 
-// A deleted folder can be the one a merged view drew from, and its name
-// is free to be created again.
+// A merged view may have drawn from the deleted folder.
 func (p *plugin) mailboxDeleted(user, mailbox string) {
 	p.bodies.discard(user, mailbox, nil)
 	p.listings.evictAll(user)
 }
 
-// A SELECT said which incarnation of the folder this is. One that
-// differs from the last takes the bodies and the pending reads with it:
-// their UIDs name other messages now.
+// Under a new UIDVALIDITY the held UIDs name other messages.
 func (p *plugin) mailboxIdentified(user, mailbox string, validity uint32) {
 	p.bodies.observe(user, mailbox, validity)
 }
 
-// The watcher heard of a change nobody asked for. The pages stay
-// readable and renew behind whoever opens them next.
 func (p *plugin) mailboxStale(user, mailbox string) {
 	p.listings.stale(user, mailbox)
 }
 
-// What the watcher was told about one message's flags, which is less
-// than a refetch and enough for the row.
 func (p *plugin) mailboxFlagsAnnounced(user, mailbox string, seqNum uint32, flags []imap.Flag) {
 	p.listings.setFlags(user, mailbox, seqNum, flags)
 }
 
-// A reader who asks for a refresh means the cached view, whatever its
-// age says - and the counts beside it. Marking the aside stale is not
-// enough: a background memo serves the stale value and reloads behind
-// it, so the page that answers the refresh still carries the old unread
-// count, and only the click after that shows the new one.
+// Stale is not enough: a background memo would serve this refresh the old counts.
 func (p *plugin) viewForgotten(user, view string) {
 	p.listings.evict(user, view)
 	p.accountSidebars.Forget(user)
 }
 
-// Sending, importing, creating a folder, changing settings: each
-// changes what any view of the account would show.
 func (p *plugin) accountChanged(user string) {
 	p.listings.evictAll(user)
 }
 
-// forgetAccount drops everything held for an account once it is gone:
-// its listings and sidebar, the people it writes to, its folder roles
-// and what its server calls itself. A cache with nobody behind it is a
-// leak, and until now only the listings were let go.
 func (p *plugin) forgetAccount(user string) {
 	p.listings.evictAll(user)
 	p.accountSidebars.Forget(user)

@@ -15,19 +15,12 @@
       </section>
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "field" "" "collection" ($.T "settings.servers") "path" "/settings/servers" "object" $title) }}
 
-      {{/* What each server says about itself. The abilities are the ones
-           that change what alborz does; each is explained on hover and,
-           since a phone has none, once more under its card. */}}
       {{ range .Shown }}
       {{ template "info-card" (dict "title" .Title "page" $ "rows" .Rows
          "abilities" .Abilities "abilitiestitle" ($.T "settings.abilities")
          "explained" .Explained "explainlabel" ($.T "settings.explain")) }}
       {{ end }}
 
-      {{/* The servers the account names for itself, where its domain's
-           are not the ones its calendars and contacts are on. One name
-           and one password serve both, which is how every server in use
-           is set up; the protocols would allow two. */}}
       {{ if eq .Showing "dav" }}
       <form method="post">
         <h2>{{$.T "servers.named"}}</h2>
@@ -35,8 +28,6 @@
         {{ template "field" (dict "label" ($.T "settings.carddavurl") "name" "carddav_url" "type" "url" "value" .Services.CardDAV "dir" "ltr" "placeholder" ($.T "settings.serverdomain")) }}
         {{ template "field" (dict "label" ($.T "settings.davusername") "name" "dav_username" "value" .Services.Username "dir" "ltr" "placeholder" ($.T "settings.davusernamesame")) }}
         {{ with .Places }}
-        {{/* Every source stands; this is only where a new calendar or
-             address book goes unless the form is told otherwise. */}}
         <div class="action-group">
           <label for="dav_default">{{$.T "settings.davdefault"}}</label>
           <select name="dav_default" id="dav_default" dir="ltr">

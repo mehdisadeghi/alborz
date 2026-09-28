@@ -11,7 +11,8 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-var templateFuncs = template.FuncMap{
+// TemplateFuncs are the functions the theme calls.
+var TemplateFuncs = template.FuncMap{
 	// Here, not in carddav: the theme references it and it must exist at parse time.
 	"photodatauri": func(data string) template.URL {
 		if data == "" {

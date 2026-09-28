@@ -22,12 +22,12 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 
-	_ "git.mehdix.org/alborz/plugins/base"
-	_ "git.mehdix.org/alborz/plugins/caldav"
-	_ "git.mehdix.org/alborz/plugins/carddav"
-	_ "git.mehdix.org/alborz/plugins/sieve"
-	_ "git.mehdix.org/alborz/plugins/viewhtml"
-	_ "git.mehdix.org/alborz/plugins/viewtext"
+	alborzbase "git.mehdix.org/alborz/plugins/base"
+	alborzcaldav "git.mehdix.org/alborz/plugins/caldav"
+	alborzcarddav "git.mehdix.org/alborz/plugins/carddav"
+	alborzsieve "git.mehdix.org/alborz/plugins/sieve"
+	alborzviewhtml "git.mehdix.org/alborz/plugins/viewhtml"
+	alborzviewtext "git.mehdix.org/alborz/plugins/viewtext"
 )
 
 var themesPath = "./themes"
@@ -171,10 +171,20 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		l.SetOutput(os.Stderr)
 		l.SetHeader("${time_rfc3339} ${level}")
 	}
-	s, err := alborz.New(e, &options)
+	s, err := alborz.New(e, &options, alborzbase.TemplateFuncs)
 	if err != nil {
 		e.Logger.Fatal(err)
 	}
+	alborzbase.Mount(s, alborzviewhtml.Viewer{}, alborzviewtext.Viewer{})
+	// Calendar before contacts, so the servers page lists the kept collections last.
+	if err := alborzcaldav.Mount(s); err != nil {
+		e.Logger.Fatal(err)
+	}
+	if err := alborzcarddav.Mount(s); err != nil {
+		e.Logger.Fatal(err)
+	}
+	alborzsieve.Mount(s)
+	alborzviewhtml.Mount(s)
 	e.Use(middleware.Recover())
 	if options.Debug {
 		// Log arrivals too, so a request that never finishes names its URI.

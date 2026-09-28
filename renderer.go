@@ -798,15 +798,8 @@ func loadTheme(themesPath string, name string, base *template.Template) (*templa
 	return theme, len(overlays), nil
 }
 
-func (r *renderer) Load(plugins []Plugin) error {
-	base := template.New("")
-
-	for _, p := range plugins {
-		if err := p.LoadTemplate(base); err != nil {
-			return fmt.Errorf("failed to load template for plugin %q: %v", p.Name(), err)
-		}
-	}
-
+func (r *renderer) Load(funcs template.FuncMap) error {
+	base := template.New("").Funcs(funcs)
 	theme, overlays, err := loadTheme(r.themesPath, r.defaultTheme, base)
 	if err != nil {
 		return fmt.Errorf("failed to load theme %q: %v", r.defaultTheme, err)

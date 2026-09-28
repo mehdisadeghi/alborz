@@ -14,11 +14,6 @@ func TestTemplateReferencesResolve(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plugins, err := filepath.Glob("plugins/*/public/*.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	files = append(files, plugins...)
 	if len(files) == 0 {
 		t.Fatal("no templates found; the glob is wrong, not the templates")
 	}
@@ -53,8 +48,6 @@ func TestTemplateReferencesResolve(t *testing.T) {
 
 func TestTranslationKeysExist(t *testing.T) {
 	files, _ := filepath.Glob("themes/*/*.html")
-	plugins, _ := filepath.Glob("plugins/*/public/*.html")
-	files = append(files, plugins...)
 
 	keyRe := regexp.MustCompile(`\{\{-?\s*\$?\.?\$?[A-Za-z.]*\bTf?\s+"([a-z0-9._]+)"`)
 	used := map[string][]string{}

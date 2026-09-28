@@ -64,9 +64,10 @@ func executeTemplate(name string, data interface{}) (template.HTML, error) {
 	return template.HTML(sb.String()), nil
 }
 
-type viewer struct{}
+// Viewer shows a text part.
+type Viewer struct{}
 
-func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, path []int, part *message.Entity) (alborzbase.View, error) {
+func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, path []int, part *message.Entity) (alborzbase.View, error) {
 	mimeType, params, err := part.Header.ContentType()
 	if err != nil {
 		return alborzbase.View{}, err
@@ -161,8 +162,4 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	}
 	html, err := executeTemplate("view-text.html", data)
 	return alborzbase.View{Body: html}, err
-}
-
-func init() {
-	alborzbase.RegisterViewer(viewer{})
 }

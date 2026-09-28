@@ -7,7 +7,8 @@ import (
 )
 
 type plugin struct {
-	alborz.GoPlugin
+	alborz.Router
+	viewers         []Viewer
 	listings        *listingCache
 	bodies          *bodyCache
 	accountSidebars *alborz.Memo[sidebar]
@@ -23,7 +24,6 @@ func newPlugin(o *alborz.Options) *plugin {
 	bodies := newBodyCache(o.CacheFor(bodyKeepFor))
 	sidebars := alborz.NewBackgroundMemo[sidebar](o.CacheFor(listingFreshFor))
 	p := &plugin{
-		GoPlugin:        alborz.GoPlugin{Name: "base"},
 		listings:        newListingCache(o.CacheFor(listingKeepFor), sidebars, bodies),
 		bodies:          bodies,
 		accountSidebars: sidebars,
@@ -34,18 +34,15 @@ func newPlugin(o *alborz.Options) *plugin {
 		authServGuesses: alborz.NewMemo[string](authSampleTTL),
 		wkd:             newWKDCache(o.CacheFor(wkdKeepFor)),
 	}
-
-	p.TemplateFuncs(templateFuncs)
-	p.registerRoutes()
 	return p
 }
 
-func init() {
+// Mount serves mail, showing a message part with the first of viewers that takes it.
+func Mount(s *alborz.Server, viewers ...Viewer) {
+	p := newPlugin(s.Options)
+	p.Router, p.viewers = s.Router(), viewers
+	p.registerRoutes()
 	// A restored account skips the login handler, so it is followed here too.
-	alborz.RegisterPluginLoader(func(s *alborz.Server) ([]alborz.Plugin, error) {
-		p := newPlugin(s.Options)
-		s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)
-		s.OnAccountGone = append(s.OnAccountGone, p.forgetAccount)
-		return []alborz.Plugin{p.Plugin()}, nil
-	})
+	s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)
+	s.OnAccountGone = append(s.OnAccountGone, p.forgetAccount)
 }

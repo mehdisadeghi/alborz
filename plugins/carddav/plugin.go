@@ -16,7 +16,7 @@ import (
 )
 
 type plugin struct {
-	alborz.GoPlugin
+	alborz.Router
 	dav *dav.Provider
 }
 
@@ -55,7 +55,8 @@ func (p *plugin) pooledBooks(ctx *alborz.Context) ([]dav.Account[*carddav.Client
 	return dav.Pooled(ctx, p.dav, p.clientWithAddressBooks, errNoAddressBook)
 }
 
-func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
+// Mount serves contacts.
+func Mount(srv *alborz.Server) error {
 	provider, err := dav.NewProvider(srv, dav.Kind{
 		Name: "carddav", Label: "CardDAV",
 		Schemes: [2]string{"carddavs", "carddav+insecure"},
@@ -70,14 +71,13 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		Unnamed:  "contacts",
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	p := &plugin{
-		GoPlugin: alborz.GoPlugin{Name: "carddav"},
-		dav:      provider,
+		Router: srv.Router(),
+		dav:    provider,
 	}
-	p.CloseFunc = provider.Close
 
 	registerRoutes(p)
 	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.dav))
@@ -146,20 +146,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		return emails
 	})
 
-	return p.Plugin(), nil
-}
-
-func init() {
-	alborz.RegisterPluginLoader(func(s *alborz.Server) ([]alborz.Plugin, error) {
-		p, err := newPlugin(s)
-		if err != nil {
-			return nil, err
-		}
-		if p == nil {
-			return nil, nil
-		}
-		return []alborz.Plugin{p}, err
-	})
+	return nil
 }
 
 func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]dav.Group, error) {

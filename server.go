@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"net"
 	"net/http"
@@ -80,8 +81,8 @@ type Server struct {
 	Logins  *LoginManager
 	Options *Options
 
-	mutex   sync.RWMutex
-	plugins []Plugin
+	mutex sync.RWMutex
+	funcs template.FuncMap
 
 	domains map[string]*domainUpstreams
 
@@ -97,6 +98,9 @@ type Server struct {
 
 	// Suggest offers addresses to write to, beside mail's own correspondents.
 	Suggest []func(*Context) []string
+
+	// OnClose releases what a feature holds open.
+	OnClose []func() error
 
 	assetsMu sync.Mutex
 	assets   map[string]assetStamp
@@ -303,9 +307,9 @@ func (err UnknownDomainError) Error() string {
 func (s *Server) Close() {
 	s.Logins.Close()
 	s.data.Close()
-	for _, p := range s.plugins {
-		if err := p.Close(); err != nil {
-			s.e.Logger.Printf("Failed to close plugin %q: %v", p.Name(), err)
+	for _, release := range s.OnClose {
+		if err := release(); err != nil {
+			s.e.Logger.Printf("close: %v", err)
 		}
 	}
 }
@@ -447,47 +451,35 @@ func (s *Server) parseSMTPUpstream(domain string) error {
 }
 
 func (s *Server) load() error {
-	var plugins []Plugin
-	for _, load := range pluginLoaders {
-		l, err := load(s)
-		if err != nil {
-			return fmt.Errorf("failed to load plugins: %v", err)
-		}
-		for _, p := range l {
-			s.e.Logger.Printf("Loaded plugin %q", p.Name())
-		}
-		plugins = append(plugins, l...)
-	}
-
 	renderer := newRenderer(s.e.Logger, s.Options.ThemesPath, s.Options.Theme)
-	if err := renderer.Load(plugins); err != nil {
+	if err := renderer.Load(s.funcs); err != nil {
 		return fmt.Errorf("failed to load templates: %v", err)
 	}
-
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
-	s.plugins = plugins
 	s.e.Renderer = renderer
-
-	for _, p := range plugins {
-		p.SetRoutes(s.e.Group(""))
-	}
-
 	return nil
 }
 
-// Reload reads the templates from disk again, keeping the plugins.
+// Reload reads the templates from disk again.
 func (s *Server) Reload() error {
 	s.e.Logger.Printf("Reloading templates")
-	renderer := newRenderer(s.e.Logger, s.Options.ThemesPath, s.Options.Theme)
-	if err := renderer.Load(s.plugins); err != nil {
-		return fmt.Errorf("failed to load templates: %v", err)
-	}
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	s.e.Renderer = renderer
-	return nil
+	return s.load()
+}
+
+// HandlerFunc serves a request.
+type HandlerFunc func(*Context) error
+
+// Router adds a feature's routes to the server.
+type Router struct{ e *echo.Echo }
+
+func (s *Server) Router() Router { return Router{s.e} }
+
+func (r Router) GET(path string, h HandlerFunc)  { r.add(http.MethodGet, path, h) }
+func (r Router) POST(path string, h HandlerFunc) { r.add(http.MethodPost, path, h) }
+
+func (r Router) add(method, path string, h HandlerFunc) {
+	r.e.Add(method, path, func(ectx echo.Context) error { return h(ectx.(*Context)) })
 }
 
 // Logger returns this server's logger.
@@ -667,7 +659,7 @@ func handleUnauthenticated(next echo.HandlerFunc, ctx *Context) error {
 	}
 }
 
-// ForgetAccount tells every plugin that asked that an account has signed out.
+// ForgetAccount tells every feature that asked that an account has signed out.
 func (s *Server) ForgetAccount(username string) {
 	for _, forget := range s.OnAccountGone {
 		forget(username)
@@ -710,12 +702,13 @@ func (o *Options) CacheFor(d time.Duration) time.Duration {
 	return d
 }
 
-// New creates a new server.
-func New(e *echo.Echo, options *Options) (*Server, error) {
+// New creates a new server; funcs are the template functions the theme calls.
+func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error) {
 	s, err := newServer(e, options)
 	if err != nil {
 		return nil, err
 	}
+	s.funcs = funcs
 
 	if err := s.load(); err != nil {
 		return nil, err

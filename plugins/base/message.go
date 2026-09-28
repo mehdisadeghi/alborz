@@ -570,7 +570,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		}
 	}
 
-	view, err := viewMessagePart(ctx, msg, partPath, part)
+	view, err := p.viewMessagePart(ctx, msg, partPath, part)
 	if err != nil {
 		view = View{}
 		if err != ErrViewUnsupported {

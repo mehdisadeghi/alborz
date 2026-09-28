@@ -42,9 +42,10 @@ type frameData struct {
 	Style  string
 }
 
-type viewer struct{}
+// Viewer shows an HTML part.
+type Viewer struct{}
 
-func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, _ []int, part *message.Entity) (alborzbase.View, error) {
+func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, _ []int, part *message.Entity) (alborzbase.View, error) {
 	allowRemoteResources := ctx.QueryParam("allow-remote-resources") == "1"
 
 	mimeType, _, err := part.Header.ContentType()
@@ -91,8 +92,4 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	}
 
 	return alborzbase.View{Body: template.HTML(buf.String()), Remote: san.hasRemoteResources}, nil
-}
-
-func init() {
-	alborzbase.RegisterViewer(viewer{})
 }

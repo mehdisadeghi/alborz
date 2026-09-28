@@ -12,7 +12,7 @@ import (
 )
 
 type plugin struct {
-	alborz.GoPlugin
+	alborz.Router
 	dav  *dav.Provider
 	subs *subCache
 }
@@ -21,7 +21,8 @@ func (p *plugin) client(ctx context.Context, login *alborz.Login) (*caldav.Clien
 	return newClient(p.dav.URL(ctx, login), p.dav.HTTPClient(ctx, login))
 }
 
-func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
+// Mount serves calendars and tasks.
+func Mount(srv *alborz.Server) error {
 	provider, err := dav.NewProvider(srv, dav.Kind{
 		Name: "caldav", Label: "CalDAV",
 		Schemes: [2]string{"caldavs", "caldav+insecure"},
@@ -36,15 +37,14 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		Unnamed:  "calendar",
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	p := &plugin{
-		GoPlugin: alborz.GoPlugin{Name: "caldav"},
-		dav:      provider,
-		subs:     newSubCache(srv.Options.CacheFor(subRefreshAfter)),
+		Router: srv.Router(),
+		dav:    provider,
+		subs:   newSubCache(srv.Options.CacheFor(subRefreshAfter)),
 	}
-	p.CloseFunc = provider.Close
 
 	registerRoutes(p)
 	p.registerScheduling(srv)
@@ -52,20 +52,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	srv.OnServers = append(srv.OnServers, p.dav.Cards("settings.davcalendar", davAbilities))
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 
-	return p.Plugin(), nil
-}
-
-func init() {
-	alborz.RegisterPluginLoader(func(s *alborz.Server) ([]alborz.Plugin, error) {
-		p, err := newPlugin(s)
-		if err != nil {
-			return nil, err
-		}
-		if p == nil {
-			return nil, nil
-		}
-		return []alborz.Plugin{p}, err
-	})
+	return nil
 }
 
 func davAbilities(found dav.Advertised) []alborzbase.Ability {

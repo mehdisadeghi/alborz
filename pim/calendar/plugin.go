@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/settings"
 	"github.com/emersion/go-webdav/caldav"
 )
 
@@ -55,8 +55,8 @@ func Mount(srv *alborz.Server, kept *store.Store) error {
 	return nil
 }
 
-func davAbilities(found dav.Advertised) []mail.Ability {
-	return []mail.Ability{
+func davAbilities(found dav.Advertised) []settings.Ability {
+	return []settings.Ability{
 		{Label: "settings.davability3", Hint: "settings.davability3hint", Have: found.Has("3")},
 		{Label: "settings.davabilityacl", Hint: "settings.davabilityaclhint", Have: found.Has("access-control")},
 		{Label: "settings.davabilitysched", Hint: "settings.davabilityschedhint", Have: found.Has("calendar-auto-schedule")},

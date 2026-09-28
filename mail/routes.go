@@ -53,7 +53,7 @@ func (p *plugin) registerRoutes() {
 	p.GET("/login", handleLogin)
 	p.POST("/login", handleLogin)
 
-	p.POST("/logout", handleLogout)
+	p.POST("/logout", HandleLogout)
 	registerPasskeyRoutes(p.Router)
 
 	p.GET("/compose", p.handleComposeNew)
@@ -81,32 +81,22 @@ func (p *plugin) registerRoutes() {
 
 	p.POST("/message/:mbox/flag", p.handleSetFlags)
 
-	p.GET("/settings", handleProfile)
-	p.POST("/settings", handleProfile)
-	p.POST("/settings/profile/take", handleProfileTake)
-	p.POST("/settings/profile/discard", handleProfileDiscard)
 	p.GET("/signatures", Scoped(handleSignatures))
 	p.GET("/signatures/create", Scoped(handleSignatureForm))
 	p.GET("/signatures/:name", Scoped(handleSignatureForm))
 	p.POST("/signatures", handleSignatureSave)
 	p.POST("/signatures/delete", handleSignatureDelete)
 	p.POST("/signatures/default", handleSignatureDefault)
-	p.GET("/settings/sessions", Scoped(handleSessions))
-	p.POST("/settings/sessions", Scoped(handleSessions))
-	p.GET("/settings/servers", Scoped(handleServers))
-	p.GET("/settings/servers/:server", Scoped(handleServer))
-	p.POST("/settings/servers/:server", Scoped(handleServer))
 	p.GET("/settings/account", Scoped(p.handleSettings))
 	p.POST("/settings/account", p.handleSettings)
 	p.POST("/settings/account/forget", p.handleForget)
-	p.POST("/language", handleLanguage)
 }
 
 // Scoped serves h per account: settings are per account, so a unified GET redirects to name its account.
 func Scoped(h alborz.HandlerFunc) alborz.HandlerFunc {
 	return func(ctx *alborz.Context) error {
 		if ctx.Unified && ctx.Request().Method == http.MethodGet {
-			return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+accountQuery(ctx.Login.Username()))
+			return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+AccountQuery(ctx.Login.Username()))
 		}
 		return h(ctx)
 	}

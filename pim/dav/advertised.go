@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/settings"
 )
 
 // Advertised is what a DAV server claims about itself, nothing alborz inferred.
@@ -53,9 +53,9 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 }
 
 // Cards put each of the kind's sources among the account's servers.
-func (p *Provider) Cards(title string, abilities func(Advertised) []mail.Ability) func(*alborz.Context, alborz.RenderData) error {
+func (p *Provider) Cards(title string, abilities func(Advertised) []settings.Ability) func(*alborz.Context, alborz.RenderData) error {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
-		servers := data.(*mail.ServersRenderData)
+		servers := data.(*settings.ServersRenderData)
 		for _, src := range p.Sources(ctx.Request().Context(), ctx.Login) {
 			servers.Cards = append(servers.Cards, p.card(ctx, servers, title, src, abilities))
 			servers.AddPlace(src.ID, src.URL.Host)
@@ -65,10 +65,10 @@ func (p *Provider) Cards(title string, abilities func(Advertised) []mail.Ability
 	}
 }
 
-func (p *Provider) card(ctx *alborz.Context, servers *mail.ServersRenderData, title string, src Source, abilities func(Advertised) []mail.Ability) mail.ServerCard {
+func (p *Provider) card(ctx *alborz.Context, servers *settings.ServersRenderData, title string, src Source, abilities func(Advertised) []settings.Ability) settings.ServerCard {
 	host := src.URL.Host
-	card := mail.ServerCard{Group: mail.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
-	if servers.Showing == mail.ServerDAV {
+	card := settings.ServerCard{Group: settings.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
+	if servers.Showing == settings.ServerDAV {
 		endpoint, _ := url.Parse(src.Endpoint())
 		found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), endpoint)
 		// An unreachable server is said on the page, not failed over.
@@ -93,9 +93,9 @@ func (p *Provider) card(ctx *alborz.Context, servers *mail.ServersRenderData, ti
 // HereCard puts the collections kept here among the account's servers.
 func (p *Provider) HereCard() func(*alborz.Context, alborz.RenderData) error {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
-		servers := data.(*mail.ServersRenderData)
-		servers.Cards = append(servers.Cards, mail.ServerCard{
-			Group: mail.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
+		servers := data.(*settings.ServersRenderData)
+		servers.Cards = append(servers.Cards, settings.ServerCard{
+			Group: settings.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
 			Rows: []map[string]any{
 				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Origin() + store.Prefix + "/"},
 				{"label": ctx.T("settings.davhereuser"), "value": ctx.Login.Username()},

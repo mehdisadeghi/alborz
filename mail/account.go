@@ -76,7 +76,7 @@ func loginRedirect(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 }
 
-func handleLogout(ctx *alborz.Context) error {
+func HandleLogout(ctx *alborz.Context) error {
 	username := ctx.Login.Username()
 	if ctx.FormValue("account") != "" {
 		username = ctx.FormValue("account")

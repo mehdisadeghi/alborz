@@ -91,7 +91,7 @@ type Server struct {
 	// OnAccountGone is called when an account signs out.
 	OnAccountGone []func(username string)
 
-	// OnMessage and OnServers add another feature's part to mail's message and server pages, whose data is mail's.
+	// OnMessage and OnServers add another feature's part to the message and servers pages.
 	OnMessage []func(*Context, RenderData) error
 	OnServers []func(*Context, RenderData) error
 

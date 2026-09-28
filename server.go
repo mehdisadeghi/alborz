@@ -103,7 +103,7 @@ type Server struct {
 	// Sessions are the browsers signed in.
 	Sessions *Sessions
 
-	// Collections are the calendars, task lists and address books kept here; nil without a data directory.
+	// Collections are the calendars, task lists and address books kept here.
 	Collections   *collections.Store
 	davPasswords  *davPasswords
 	signInRefused *refusals
@@ -173,23 +173,21 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	_, err := os.Stat(filepath.Join(options.ThemesPath, options.Theme, "assets", customCSS))
 	s.custom = err == nil
 
-	if options.DataDir != "" {
-		// Absolute, so messages name a path without guessing the working directory.
-		dataDir, err := filepath.Abs(options.DataDir)
-		if err != nil {
-			return nil, err
-		}
-		version, _ := Build()
-		if s.data, err = openData(dataDir, version, e.Logger.Printf); err != nil {
-			return nil, err
-		}
-		s.Collections = collections.New(s.data)
-		s.davPasswords = newDAVPasswords()
+	// Absolute, so messages name a path without guessing the working directory; empty is the working directory.
+	dataDir, err := filepath.Abs(options.DataDir)
+	if err != nil {
+		return nil, err
 	}
-	// Remembering a session keeps a password, so it needs both a place and a sealing key.
+	version, _ := Build()
+	if s.data, err = openData(dataDir, version, e.Logger.Printf); err != nil {
+		return nil, err
+	}
+	s.Collections = collections.New(s.data)
+	s.davPasswords = newDAVPasswords()
+	// Remembering a session keeps a password, so it needs a sealing key.
 	var settings *settingsRecords
-	if s.data != nil && options.LoginKey != nil {
-		err := CheckKey(s.data, filepath.Join(options.DataDir, storeFile), options.LoginKey,
+	if options.LoginKey != nil {
+		err := CheckKey(s.data, filepath.Join(dataDir, storeFile), options.LoginKey,
 			sessionsOwner+"/", settingsOwner+"/")
 		if err != nil {
 			return nil, err
@@ -297,9 +295,7 @@ func (err UnknownDomainError) Error() string {
 
 func (s *Server) Close() {
 	s.Logins.Close()
-	if s.data != nil {
-		s.data.Close()
-	}
+	s.data.Close()
 	for _, p := range s.plugins {
 		if err := p.Close(); err != nil {
 			s.e.Logger.Printf("Failed to close plugin %q: %v", p.Name(), err)
@@ -679,12 +675,13 @@ type Options struct {
 	Theme      string
 	ThemesPath string
 	Debug      bool
-	LoginKey   *fernet.Key
+	// LoginKey seals remembered sessions and settings kept here; without it neither is kept.
+	LoginKey *fernet.Key
 	// Cache keeps what the servers answered.
 	Cache bool
 	// CacheDir keeps sealed copies of remote calendars and address books; empty, or no LoginKey, keeps none.
 	CacheDir string
-	// DataDir keeps what a reader would miss, sealed under LoginKey; empty, or no key, and sessions last as long as the process.
+	// DataDir holds alborz.db; empty is the working directory.
 	DataDir string
 	// StrictNotices fails an action that redirects with no notice instead of only logging it.
 	StrictNotices bool
@@ -783,9 +780,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 		}
 	})
 
-	if s.Collections != nil {
-		e.Pre(s.serveOwnDAV())
-	}
+	e.Pre(s.serveOwnDAV())
 
 	// The event stream is skipped: a compressor holds it back.
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{

@@ -23,11 +23,7 @@ type plugin struct {
 }
 
 func (p *plugin) client(ctx context.Context, login *alborz.Login) (*carddav.Client, error) {
-	u, ok := p.dav.URL(ctx, login)
-	if !ok {
-		return nil, errNoAddressBook
-	}
-	return newClient(u, p.dav.HTTPClient(ctx, login))
+	return newClient(p.dav.URL(ctx, login), p.dav.HTTPClient(ctx, login))
 }
 
 func findHome(ctx context.Context, client *http.Client, endpoint string) (string, error) {

@@ -87,7 +87,7 @@ func main() {
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
 		"directory keeping the copies of remote calendars and address books, sealed under the login key; empty keeps none")
 	flag.StringVar(&options.DataDir, "data-dir", ".",
-		"directory keeping alborz.db: remembered logins and settings, sealed under the login key, and the calendars and address books kept here; empty keeps none of them")
+		"directory keeping alborz.db: remembered logins and settings, sealed under the login key, and the calendars and address books kept here")
 	flag.StringVar(&options.ProjectURL, "project-url", "",
 		"where the footer's project name links; unset prints the name alone")
 

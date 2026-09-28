@@ -49,7 +49,7 @@ func (sm *LoginManager) newStore(login *Login) (Store, error) {
 	if !sm.warnedNoMetadata {
 		sm.warnedNoMetadata = true
 		if sm.settings == nil {
-			sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension and alborz keeps no data, account settings cannot be saved")
+			sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension and alborz has no login key to seal them, account settings cannot be saved")
 		} else {
 			sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, keeping account settings in alborz's own store")
 		}

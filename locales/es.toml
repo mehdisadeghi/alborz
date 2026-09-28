@@ -745,8 +745,6 @@
 "calendar.today" = "Hoy"
 "calendar.fromtoday" = "Desde hoy"
 "calendar.wholemonth" = "Mes completo"
-"calendar.unconfigured" = "%s no tiene ningún calendario configurado."
-"contacts.unconfigured" = "%s no tiene ninguna libreta de direcciones configurada."
 "mailbox.emptyfolder" = "Vaciar carpeta"
 "mailbox.nosender" = "Remitente desconocido"
 "mailbox.attachment" = "Tiene un archivo adjunto"

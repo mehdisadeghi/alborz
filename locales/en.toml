@@ -684,8 +684,6 @@
 "mailbox.textonly" = "text only"
 "folder.toplevel" = "Top level"
 "contacts.searchph" = "Search contacts..."
-"contacts.unconfigured" = "%s has no address book configured."
-"calendar.unconfigured" = "%s has no calendar configured."
 "folder.deleteask" = "Delete “%s”?"
 "folder.deletewarn" = "Warning! This will permanently delete all messages in “%s”."
 "folder.deletedo" = "Delete “%s”"

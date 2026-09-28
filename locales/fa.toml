@@ -745,8 +745,6 @@
 "mailbox.renamefolder" = "تغییر نام پوشه…"
 "title.tasks" = "کارها"
 "account.notsignedin" = "%s وارد نشده است."
-"calendar.unconfigured" = "%s تقویمی پیکربندی‌شده ندارد."
-"contacts.unconfigured" = "%s دفترچه نشانی پیکربندی‌شده ندارد."
 "mailbox.emptyfolder" = "خالی کردن پوشه"
 "mailbox.nosender" = "فرستنده ناشناس"
 "mailbox.attachment" = "دارای پیوست"

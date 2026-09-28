@@ -69,7 +69,7 @@ func (p *Provider) invitations(ctx *alborz.Context) ([]Invitation, error) {
 // InjectInvitations hands the section's pages their open invitations; sections spare mail pages a share read.
 func (p *Provider) InjectInvitations(field, base string, sections ...string) alborz.InjectFunc {
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
-		if p.store == nil || ctx.Login == nil {
+		if ctx.Login == nil {
 			return nil
 		}
 		at := ctx.Request().URL.Path
@@ -99,9 +99,6 @@ type Authors struct {
 
 // Authors of the object at path as viewer sees them; none for an object elsewhere.
 func (p *Provider) Authors(objPath, viewer string) Authors {
-	if p.store == nil {
-		return Authors{}
-	}
 	ref, name, ok := collections.HeldObject(objPath)
 	if !ok {
 		return Authors{}
@@ -132,9 +129,6 @@ func (p *Provider) AddedBy(viewer string) func(account, path string) string {
 
 // Published says whether a collection kept here answers at a public address.
 func (p *Provider) Published(collPath string) bool {
-	if p.store == nil {
-		return false
-	}
 	ref, _, ok := collections.Held(collPath)
 	if !ok {
 		return false
@@ -172,9 +166,6 @@ func (pg Page) kindKey(c *collections.Collection) string {
 
 // offer is the account's share of the collection at collPath in its own home, nil when none.
 func (pg Page) offer(ctx *alborz.Context, p *Provider, collPath, account string) (*Offer, error) {
-	if p.store == nil {
-		return nil, nil
-	}
 	ref, home, here := collections.Held(collPath)
 	account = strings.ToLower(account)
 	if !here || home != account || ref.Owner == account {
@@ -240,9 +231,6 @@ func (pg Page) InjectOffer(p *Provider) alborz.InjectFunc {
 
 // SharedWith counts the accounts a collection kept here is shared with or offered to, less refusals and ended shares.
 func (p *Provider) SharedWith(collPath string) int {
-	if p.store == nil {
-		return 0
-	}
 	ref, home, ok := collections.Held(collPath)
 	if !ok || ref.Owner != home {
 		return 0

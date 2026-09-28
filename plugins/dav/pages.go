@@ -232,7 +232,7 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 				data.Refused(ctx.T("form.nameneeded"))
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
 			}
-			base, _ := p.URL(ctx.Request().Context(), ctx.Login)
+			base := p.URL(ctx.Request().Context(), ctx.Login)
 			target := base.ResolveReference(&url.URL{Path: collPath}).String()
 			if err := Proppatch(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login),
 				target, name, ctx.FormValue("color"), pg.Color); err != nil {
@@ -705,7 +705,7 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 				return err
 			}
 		}
-		base, _ := p.URL(ctx.Request().Context(), ctx.Login)
+		base := p.URL(ctx.Request().Context(), ctx.Login)
 		target := base.ResolveReference(&url.URL{Path: collPath}).String()
 		if err := DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), target); err != nil {
 			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,

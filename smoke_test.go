@@ -259,19 +259,13 @@ func startAlborz(t *testing.T, imapAddr string, smtpAddr ...string) string {
 
 func startAlborzWith(t *testing.T, upstreams []string) string {
 	t.Helper()
-	return serveAlborz(t, upstreams, "", true)
+	return serveAlborz(t, upstreams, smokeKey, true)
 }
 
-// The rig's IMAP server has no METADATA to keep settings.
-func startAlborzKeeping(t *testing.T, imapAddr string, smtpAddr ...string) string {
-	t.Helper()
-	return serveAlborz(t, append([]string{"test.local=imap+insecure://" + imapAddr},
-		smtpUpstreams(smtpAddr)...), t.TempDir(), true)
-}
+var smokeKey = fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 
-func serveAlborz(t *testing.T, upstreams []string, dataDir string, cache bool) string {
+func serveAlborz(t *testing.T, upstreams []string, key *fernet.Key, cache bool) string {
 	t.Helper()
-	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
 	_, err := alborz.New(e, &alborz.Options{
@@ -279,7 +273,7 @@ func serveAlborz(t *testing.T, upstreams []string, dataDir string, cache bool) s
 		Theme:      "alborz",
 		ThemesPath: "./themes",
 		LoginKey:   key,
-		DataDir:    dataDir,
+		DataDir:    t.TempDir(),
 		Cache:      cache,
 		// A handler that sends the reader elsewhere says what it did.
 		StrictNotices: true,
@@ -668,8 +662,9 @@ func TestExportFailsAsAnError(t *testing.T) {
 	}
 }
 
+// Without a login key alborz.db cannot seal them, and the rig's IMAP has no METADATA.
 func TestSettingsWithNowhereToKeepThemAreRefusedOnTheForm(t *testing.T) {
-	base := startAlborz(t, startIMAP(t))
+	base := serveAlborz(t, []string{"test.local=imap+insecure://" + startIMAP(t)}, nil, true)
 	c := login(t, base)
 	stay := *c
 	stay.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -691,7 +686,7 @@ func TestSettingsWithNowhereToKeepThemAreRefusedOnTheForm(t *testing.T) {
 // It asserts the bytes sent to the SMTP server, the only place the answer is visible.
 func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
-	base := startAlborzKeeping(t, startIMAP(t), smtpAddr)
+	base := startAlborz(t, startIMAP(t), smtpAddr)
 	c := login(t, base)
 
 	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
@@ -1799,7 +1794,7 @@ func perPage(t *testing.T, c *http.Client, base string) string {
 }
 
 func TestProfileReachesEveryAccount(t *testing.T) {
-	base := startAlborzKeeping(t, startIMAP(t))
+	base := startAlborz(t, startIMAP(t))
 	c := bothAccounts(t, base)
 	if resp := postForm(t, c, base+"/settings", url.Values{"messages_per_page": {"17"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("saving the profile: %s", resp.Status)
@@ -1817,7 +1812,7 @@ func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 		{"/settings/profile/discard", "50"},
 	} {
 		t.Run(answer.path, func(t *testing.T) {
-			base := startAlborzKeeping(t, startIMAP(t))
+			base := startAlborz(t, startIMAP(t))
 			postForm(t, loginAs(t, base, smokeUser), base+"/settings", url.Values{"messages_per_page": {"17"}})
 
 			c := loginAs(t, base, smokeUser2)
@@ -1873,7 +1868,7 @@ func TestCachingOffServesEveryPage(t *testing.T) {
 	base := serveAlborz(t, []string{
 		"test.local=imap+insecure://" + startIMAP(t),
 		"test.local=caldav+insecure://" + strings.TrimPrefix(dav.URL, "http://") + "/dav",
-	}, "", false)
+	}, smokeKey, false)
 	c := login(t, base)
 
 	if len(messageUIDs(get(t, c, base+"/mailbox/INBOX"))) == 0 {

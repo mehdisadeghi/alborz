@@ -18,11 +18,7 @@ type plugin struct {
 }
 
 func (p *plugin) client(ctx context.Context, login *alborz.Login) (*caldav.Client, error) {
-	u, ok := p.dav.URL(ctx, login)
-	if !ok {
-		return nil, errNoCalendar
-	}
-	return newClient(u, p.dav.HTTPClient(ctx, login))
+	return newClient(p.dav.URL(ctx, login), p.dav.HTTPClient(ctx, login))
 }
 
 func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {

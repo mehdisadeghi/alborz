@@ -128,24 +128,6 @@ func (ctx *Context) pref(name string, valid func(string) bool) string {
 	return ""
 }
 
-// SetColorScheme forces light or dark, or follows the system when the
-// scheme is neither. It lasts as long as the browser is open and no
-// longer, and it is never written down anywhere but this browser: a
-// scheme forced against the system's is an answer to the light in the
-// room, and the light in the room changes.
-func (ctx *Context) SetColorScheme(scheme string) {
-	if scheme != "light" && scheme != "dark" {
-		scheme = ""
-	}
-	ctx.keepPref(schemeCookieName, scheme)
-	ctx.SetCookie(ctx.cookie(schemeCookieName, scheme, 0))
-}
-
-// ColorScheme returns the user's forced scheme, empty for the system.
-func (ctx *Context) ColorScheme() string {
-	return ctx.pref(schemeCookieName, func(v string) bool { return v == "light" || v == "dark" })
-}
-
 // SetTheme stores the theme variant choice per user.
 func (ctx *Context) SetTheme(theme string) {
 	ctx.setPref(themeCookieName, theme, ctx.Server.hasTheme(theme))

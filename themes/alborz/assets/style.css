@@ -635,6 +635,12 @@ header nav .scheme-toggle {
   align-items: center;
 }
 
+/* One button per scheme, and the root's scheme shows its own. With no
+   script the root names none, and none shows. */
+:root:not([data-theme="system"]) .scheme-toggle [data-scheme="system"],
+:root:not([data-theme="light"]) .scheme-toggle [data-scheme="light"],
+:root:not([data-theme="dark"]) .scheme-toggle [data-scheme="dark"] { display: none; }
+
 /* With the appearance button after it, the group is no longer the last
    child, so the push to the trailing side moves to whichever comes
    first. */

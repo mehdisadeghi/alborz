@@ -591,20 +591,23 @@ document.addEventListener("htmx:beforeRequest", () => {
 	}
 });
 
-// The appearance button posts and comes back as itself. What it cannot
-// bring with it is the root element's attribute, which is where the
-// scheme is actually applied, so that is read off the block the server
-// sent rather than worked out here.
-document.addEventListener("htmx:afterSwap", ev => {
-	const toggle = ev.target.closest ? ev.target.closest(".scheme-toggle") : null;
-	if (!toggle) {
+// The appearance button moves the root to the next scheme and keeps it
+// for this tab only (ADR 50). The button that now shows takes the focus
+// the pressed one had, so a keyboard stays on the control.
+document.addEventListener("click", ev => {
+	const button = ev.target.closest(".scheme-toggle button");
+	if (!button) {
 		return;
 	}
-	const scheme = toggle.dataset.scheme;
-	if (scheme) {
-		document.documentElement.dataset.theme = scheme;
+	const next = button.dataset.next;
+	document.documentElement.dataset.theme = next;
+	if (next === "system") {
+		sessionStorage.removeItem("scheme");
 	} else {
-		delete document.documentElement.dataset.theme;
+		sessionStorage.setItem("scheme", next);
+	}
+	if (document.activeElement === button) {
+		button.parentElement.querySelector(`[data-scheme="${next}"]`).focus();
 	}
 });
 

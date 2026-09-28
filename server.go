@@ -69,7 +69,6 @@ const (
 )
 
 const (
-	schemeCookieName   = "alborz_scheme"
 	themeCookieName    = "alborz_theme"
 	alignCookieName    = "alborz_align"
 	textSizeCookieName = "alborz_text"
@@ -673,7 +672,7 @@ func (s *Server) assetURL(name string) string {
 // shellAssets is the part of alborz that outlives a page: what the head
 // loads once and a boosted navigation never loads again, and what the
 // worker keeps.
-var shellAssets = []string{"style.css", "htmx.js", "helpers.js", "keys.js", "print.css",
+var shellAssets = []string{"style.css", "scheme.js", "htmx.js", "helpers.js", "keys.js", "print.css",
 	"favicon-32x32.png", "icon-192.png", "icon-512.png"}
 
 // shell is the shell's URLs and a digest of them. The worker caches

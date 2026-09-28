@@ -103,9 +103,6 @@ type GlobalRenderData struct {
 	Item bool
 	Own  string
 
-	// Forced color scheme: "light" or "dark", empty to follow the system
-	ColorScheme string
-
 	// Theme variant stylesheet under assets/themes, empty for the default
 	Theme string
 
@@ -775,7 +772,6 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		global.LanguageChoices = LanguageChoices()
 		global.Year = time.Now().Year()
 		global.Primary, global.Secondary = ctx.Calendars()
-		global.ColorScheme = ctx.ColorScheme()
 		global.Theme = ctx.Theme()
 		global.TextSize = ctx.TextSize()
 	}

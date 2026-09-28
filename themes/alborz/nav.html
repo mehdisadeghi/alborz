@@ -169,25 +169,23 @@
 {{ end }}
 
 {{/* Light, dark, or whatever the system says, as one button: it wears
-     the scheme in force and moves to the next on a click. With a script
-     the answer is this block again and the root element follows it;
-     without one the same form posts and the page comes back in the new
-     scheme. The choice is a cookie this browser carries for as long as
-     it is open, and alborz writes nothing down. */}}
+     the scheme in force and moves to the next on a click. All three are
+     here and the root's scheme shows one, so a scheme the tab kept is
+     right from the first paint. The choice lives in the tab and nowhere
+     else (ADR 50); without a script there is nothing to keep it in, and
+     no button. */}}
 {{ define "scheme-toggle" }}
 {{/* A theme written for one side of the day has no choice to offer, so
      it gets no control: a dead button that explains itself is worse
      than nothing. */}}
 {{ if not .GlobalData.SchemePinned }}
-{{ $scheme := .GlobalData.ColorScheme }}
-{{ $next := "light" }}{{ $icon := "system" }}{{ $label := $.T "scheme.tolight" }}
-{{ if eq $scheme "light" }}{{ $next = "dark" }}{{ $icon = "sun" }}{{ $label = $.T "scheme.todark" }}{{ end }}
-{{ if eq $scheme "dark" }}{{ $next = "" }}{{ $icon = "moon" }}{{ $label = $.T "scheme.tosystem" }}{{ end }}
-<form method="post" action="/scheme" class="scheme-toggle" data-scheme="{{$scheme}}"
-      hx-post="/scheme" hx-target="this" hx-swap="outerHTML">
-  <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
-  <button type="submit" name="scheme" value="{{$next}}" class="icon-button"
-          title="{{$label}}" aria-label="{{$label}}">{{ template "icon" $icon }}</button>
-</form>
+<span class="scheme-toggle">
+  <button type="button" class="icon-button" data-scheme="system" data-next="light"
+          title="{{$.T "scheme.tolight"}}" aria-label="{{$.T "scheme.tolight"}}">{{ template "icon" "system" }}</button>
+  <button type="button" class="icon-button" data-scheme="light" data-next="dark"
+          title="{{$.T "scheme.todark"}}" aria-label="{{$.T "scheme.todark"}}">{{ template "icon" "sun" }}</button>
+  <button type="button" class="icon-button" data-scheme="dark" data-next="system"
+          title="{{$.T "scheme.tosystem"}}" aria-label="{{$.T "scheme.tosystem"}}">{{ template "icon" "moon" }}</button>
+</span>
 {{ end }}
 {{ end }}

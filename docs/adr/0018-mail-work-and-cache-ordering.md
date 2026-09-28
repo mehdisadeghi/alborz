@@ -4,26 +4,57 @@ Status: accepted.
 
 ## Decision
 
-Each session has two ordinary IMAP connections, opened as needed, plus
-the existing IDLE watcher. Connection choice is explicit:
+Each login (an account signed in) has two ordinary IMAP connections,
+opened as needed, plus the IDLE watcher. Connection choice is explicit:
 
 - Foreground reads and all writes use the interactive connection.
 - Body warming, next-page metadata and long scans use the work connection.
 - A reader joining a speculative listing still queued withdraws it and
   fetches the page itself on the interactive connection; one already
   running is joined. An already-running command finishes before another starts.
-- Login shares its INBOX fetch with the first page on the interactive
-  connection. The merged INBOX reuses those rows.
+- Signing in shares its INBOX fetch with the first page on the
+  interactive connection. The merged INBOX reuses those rows.
 
 Speculative page loads fetch metadata only. Body prefetch starts when a
 page is visited; fetching unvisited pages' bodies increased traffic and
 evicted bodies the reader was still using. The next-page metadata stays
 off the interactive connection so opening a message cannot queue behind it.
 
-Cancellation removes queued callers. Once an IMAP operation has started,
-it drains under its own deadline, even if the browser leaves. Session
-closure and operation deadlines still close the connection. Shared listing
-fetches have a bounded lifetime independent of their first reader.
+Shared listing fetches have a bounded lifetime independent of their
+first reader.
+
+## Priority and cancellation
+
+Every call names a class (`IMAPClass`), which picks the connection and
+the place in its queue:
+
+| Class | Connection | Bound | Used for |
+|---|---|---|---|
+| `IMAPForeground` | interactive | 10 s | pages, writes |
+| `IMAPScan` | work | 2 min; 10 for an mbox import | searches of message text, selections, mbox export and import |
+| `IMAPBackground` | work | 10 s | body warming, next-page metadata, counts, samples |
+
+Each connection has one queue (`imap_queue.go`). A caller holds the
+connection for one callback; on release the first waiting call that
+is not background goes next, else the first background one. A scan
+goes ahead of queued body fetches but waits for the batch holding the
+connection. On the interactive connection every call is foreground and the
+queue is plain first come, first served. A queue holds at most 64
+waiters; the next caller is refused at once rather than waiting behind
+a slow server.
+
+The bound covers waiting and running together, from the call. A call
+still waiting when the bound runs out reports the server as slow
+(ADR 33); one whose reader left returns cancelled, and in both cases
+it leaves the queue without touching the connection. A speculative
+listing carries a start check (`WithIMAPStart`), asked once it holds
+the connection: if a reader took the page over meanwhile, it gives the
+connection back unused.
+
+Once a callback runs, the reader leaving no longer stops it: a command
+half sent would leave the connection unusable. It drains under the
+call's deadline. Only that deadline, or the login ending, stops it;
+then the connection is closed and the next call dials a new one.
 
 ## Write and invalidation rules
 

@@ -39,10 +39,9 @@ var ErrExists = errors.New("collections: already exists")
 
 // Collection is one calendar, task list or address book.
 type Collection struct {
-	ID    string
-	Owner string
-	Kind  Kind
-	// Components are what a calendar takes: VEVENT, VTODO or both.
+	ID          string
+	Owner       string
+	Kind        Kind
 	Components  []string `json:",omitempty"`
 	Name        string
 	Color       string `json:",omitempty"`

@@ -916,9 +916,6 @@ func (msg *IMAPMessage) PartTree() *IMAPPartNode {
 // Low bit first; the bits mean nothing without \Flagged.
 var flagColorBits = [3]imap.Flag{"$MailFlagBit0", "$MailFlagBit1", "$MailFlagBit2"}
 
-// FlagColors names the colours the flag bits address, indexed by their value.
-var FlagColors = [7]string{"red", "orange", "yellow", "green", "blue", "purple", "grey"}
-
 // FlagColor is the colour this message is flagged in, empty when unflagged.
 func (msg *IMAPMessage) FlagColor() string {
 	if !msg.HasFlag(imap.FlagFlagged) {
@@ -930,10 +927,10 @@ func (msg *IMAPMessage) FlagColor() string {
 			n |= 1 << i
 		}
 	}
-	if n >= len(FlagColors) {
+	if n >= len(alborz.FlagColors) {
 		n = 0
 	}
-	return FlagColors[n]
+	return alborz.FlagColors[n]
 }
 
 // FlagColorOption is one colour offered by a picker.
@@ -948,7 +945,7 @@ func FlagColorFlags(color string) (add, del []imap.Flag) {
 		return nil, append([]imap.Flag{imap.FlagFlagged}, flagColorBits[:]...)
 	}
 	n := -1
-	for i, c := range FlagColors {
+	for i, c := range alborz.FlagColors {
 		if c == color {
 			n = i
 		}

@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
 	"github.com/labstack/echo/v4"
 )
 
@@ -103,7 +102,7 @@ type StarRenderData struct {
 // Star marks the selection with the form's colour; a refused write leaves the star as the server holds it.
 func Star[C any](ctx *alborz.Context, client func(context.Context, *alborz.Login) (C, error), list string, mark func(ctx *alborz.Context, ref Ref[C], name string) (was string, err error)) error {
 	name := ctx.FormValue("color")
-	if name != "" && !slices.Contains(alborzbase.FlagColors[:], name) {
+	if name != "" && !slices.Contains(alborz.FlagColors[:], name) {
 		return echo.NewHTTPError(http.StatusBadRequest, "no such colour")
 	}
 	var was string
@@ -118,8 +117,8 @@ func Star[C any](ctx *alborz.Context, client func(context.Context, *alborz.Login
 		Piece: func(ctx *alborz.Context, ref Ref[C], next string) error {
 			action := ctx.AccountPath(ObjectURL(list+"/", ref.Path, "", nil) + "/color")
 			// Changing a star the list is narrowed to takes the row out of the list.
-			if alborzbase.StarLeaves(next, name) {
-				ctx.Notify(alborzbase.StarNotice(ctx, name, action, url.Values{"color": {was}, "next": {next}}))
+			if alborz.StarLeaves(next, name) {
+				ctx.Notify(alborz.StarNotice(ctx, name, action, url.Values{"color": {was}, "next": {next}}))
 				return ctx.Relocate(next)
 			}
 			label := ctx.T("mailbox.flagcolor")

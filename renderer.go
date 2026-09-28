@@ -232,13 +232,13 @@ func (g *GlobalRenderData) WeekdayName(t time.Time) string {
 func (g *GlobalRenderData) MonthName(t time.Time) string {
 	cal := g.PrimaryCalendar()
 	_, m, _ := cal.Date(g.InTimezone(t))
-	return cal.MonthName(m, g.Lang)
+	return g.T(cal.MonthKey(m))
 }
 
 // ShortMonth names a month of cal as a narrow column does.
 func (g *GlobalRenderData) ShortMonth(cal CalendarSystem, month int) string {
 	if cal.Name() != GregorianName {
-		return cal.MonthName(month, g.Lang)
+		return g.T(cal.MonthKey(month))
 	}
 	return g.T(fmt.Sprintf("calendar.gmonthshort.%d", month))
 }
@@ -413,7 +413,7 @@ func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
 		return ""
 	}
 	y, m, d := cal.Date(g.InTimezone(t))
-	return g.printer().Sprintf("%d %s %s", d, cal.MonthName(m, g.Lang), g.FormatYear(y))
+	return g.printer().Sprintf("%d %s %s", d, g.T(cal.MonthKey(m)), g.FormatYear(y))
 }
 
 // MonthYear renders the calendar heading for t's month.

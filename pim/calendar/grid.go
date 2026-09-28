@@ -109,7 +109,7 @@ func (d *CalendarRenderData) SecondaryMonthYear(t time.Time) string {
 	end := g.PrimaryCalendar().AddMonths(start, 1).AddDate(0, 0, -1)
 	fy, fm, _ := cal.Date(start.Add(12 * time.Hour))
 	ly, lm, _ := cal.Date(end.Add(12 * time.Hour))
-	first, last := cal.MonthName(fm, g.Lang), cal.MonthName(lm, g.Lang)
+	first, last := g.T(cal.MonthKey(fm)), g.T(cal.MonthKey(lm))
 	if fm == lm && fy == ly {
 		return fmt.Sprintf("%s %s", first, g.FormatYear(fy))
 	}

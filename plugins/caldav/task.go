@@ -191,12 +191,12 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		if len(groups) == 0 || len(groups[0].Collections) == 0 {
-			return alborz.RenderInfo(ctx, http.StatusOK, ctx.T("calendar.nowritable"))
-		}
 		todo = ical.NewComponent(ical.CompToDo)
 		todo.Props.SetDateTime(ical.PropCreated, time.Now().UTC())
-		currentCalendar = &groups[0].Collections[0]
+		currentCalendar = &dav.Collection{}
+		if len(groups) > 0 {
+			currentCalendar = &groups[0].Collections[0]
+		}
 	}
 
 	if ctx.Request().Method == "POST" {

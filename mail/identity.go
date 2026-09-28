@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -27,6 +28,19 @@ func ownIdentity(settings *Settings, trust deliveryTrust, want string) string {
 		return want
 	}
 	return ""
+}
+
+// Addresses are the login's own and its identities', bare.
+func Addresses(ctx context.Context, login *alborz.Login) ([]string, error) {
+	settings, err := LoadSettings(ctx, login.Store())
+	if err != nil {
+		return nil, err
+	}
+	out := []string{login.Username()}
+	for _, identity := range settings.Identities {
+		out = append(out, bareAddress(identity))
+	}
+	return out, nil
 }
 
 func matchIdentity(settings *Settings, address string) string {

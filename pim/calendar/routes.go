@@ -219,11 +219,11 @@ func registerRoutes(p *plugin) {
 	GET("/calendar/:path/update", p.updateEvent)
 	POST("/calendar/:path/update", p.updateEvent)
 	remove := func(list string) func(*alborz.Context) error {
-		key := "notice.eventsdeleted"
+		key, do := "notice.eventsdeleted", p.deleteEvent
 		if list == "/tasks" {
-			key = "notice.tasksdeleted"
+			key, do = "notice.tasksdeleted", pim.Delete[*caldav.Client]
 		}
-		return pim.Handler(pim.Action[*caldav.Client]{Client: p.client, Do: pim.Delete[*caldav.Client], List: list,
+		return pim.Handler(pim.Action[*caldav.Client]{Client: p.client, Do: do, List: list,
 			Done: func(ctx *alborz.Context, done []pim.Ref[*caldav.Client], _ string) alborz.Notice {
 				return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf(key, len(done))}
 			}})

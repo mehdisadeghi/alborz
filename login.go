@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/fernet/fernet-go"
 	"html/template"
 	"io"
 	"mime/multipart"
@@ -124,12 +123,11 @@ type Login struct {
 	pings              chan struct{}
 	store              Store
 
+	// httpPassword is kept for the login because opening it costs an
+	// Argon2id derivation.
 	httpLocker   sync.Mutex
 	httpPassword string // protected by httpLocker
 	httpLoaded   bool   // protected by httpLocker
-	// services are the account's own HTTP servers; see Services.
-	services       Services // protected by httpLocker
-	servicesLoaded bool     // protected by httpLocker
 
 	imapLocker imapQueue
 	imapConn   *imapclient.Client // protected by imapLocker
@@ -442,11 +440,11 @@ func isSieveConnClosed(err error) bool {
 // SetHTTPBasicAuth adds an Authorization header field to the request
 // with this login's credentials for HTTP services.
 func (l *Login) SetHTTPBasicAuth(req *http.Request) error {
-	password, err := l.HTTPPassword()
+	password, err := l.HTTPPassword(req.Context())
 	if err != nil {
 		return err
 	}
-	services, err := l.Services()
+	services, err := l.Services(req.Context())
 	if err != nil {
 		return err
 	}
@@ -563,7 +561,7 @@ func (ctx *Context) Made(sentence, name, href, again string) {
 	})
 }
 
-// Store returns a store suitable for storing persistent user data.
+// Store is where the account's settings live.
 func (l *Login) Store() Store {
 	return l.store
 }
@@ -588,24 +586,19 @@ type LoginManager struct {
 	dialSMTP      DialSMTPFunc
 	dialSieve     DialSieveFunc
 	logger        echo.Logger
-	// loginKey seals what the store keeps for an account; nil leaves
-	// only the password wrap.
-	loginKey *fernet.Key
 	// settings is where an account's settings go when its server has no
-	// METADATA to hold them; nil where alborz keeps nothing itself.
-	settings SessionRecords
+	// METADATA; nil where alborz keeps nothing itself.
+	settings *settingsRecords
 
 	locker sync.Mutex
 	// logins are the ones still open, for the shutdown that closes
 	// them. A login is reached through the session that holds it, so
 	// nothing looks anything up here.
-	logins map[*Login]struct{} // protected by locker
-	// warnedTransientStore says the METADATA warning has been printed;
-	// protected by locker, like the logins it is set beside.
-	warnedTransientStore bool
+	logins           map[*Login]struct{} // protected by locker
+	warnedNoMetadata bool                // protected by locker
 }
 
-func newLoginManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger, loginKey *fernet.Key, settings SessionRecords) *LoginManager {
+func newLoginManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger, settings *settingsRecords) *LoginManager {
 	return &LoginManager{
 		settings:      settings,
 		logins:        make(map[*Login]struct{}),
@@ -614,7 +607,6 @@ func newLoginManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMT
 		dialSMTP:      dialSMTP,
 		dialSieve:     dialSieve,
 		logger:        logger,
-		loginKey:      loginKey,
 	}
 }
 

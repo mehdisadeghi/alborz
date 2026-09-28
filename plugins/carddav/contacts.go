@@ -93,7 +93,7 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 		return ContactList{}, err
 	}
 
-	addressBookInfos, sites, err := visibleBooks(accounts, ctx.URLAccount(), only)
+	addressBookInfos, sites, err := visibleBooks(ctx.Request().Context(), accounts, ctx.URLAccount(), only)
 	if err != nil {
 		return ContactList{}, err
 	}

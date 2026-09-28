@@ -91,7 +91,7 @@ func folderSelection(ctx *alborz.Context) (mboxName string, form url.Values, uid
 
 // folderViewUIDs is everything a view of one folder holds.
 func folderViewUIDs(ctx *alborz.Context, mboxName, query, view string) ([]imap.UID, error) {
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func mergedSelection(ctx *alborz.Context, role string, form url.Values) ([]rowRe
 		}
 		return refs, nil
 	}
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}

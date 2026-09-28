@@ -22,26 +22,26 @@ const settingsKey = "carddav.settings"
 // show ticks a book the account just made or accepted in the chosen set
 // in force: what to see was chosen before it existed, which was not a
 // choice to hide it.
-func show(store alborz.Store, path string) error {
+func show(ctx context.Context, store alborz.Store, path string) error {
 	settings := &Settings{}
-	if err := store.Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
+	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return err
 	}
 	if !settings.AddressBookFilter {
 		return nil
 	}
 	settings.VisibleAddressBooks = append(settings.VisibleAddressBooks, path)
-	return store.Put(settingsKey, settings)
+	return store.Put(ctx, settingsKey, settings)
 }
 
 // choose writes the books the reader ticked into the settings.
-func choose(store alborz.Store, paths []string) error {
+func choose(ctx context.Context, store alborz.Store, paths []string) error {
 	settings := &Settings{}
-	if err := store.Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
+	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return err
 	}
 	settings.AddressBookFilter, settings.VisibleAddressBooks = true, paths
-	return store.Put(settingsKey, settings)
+	return store.Put(ctx, settingsKey, settings)
 }
 
 func init() {

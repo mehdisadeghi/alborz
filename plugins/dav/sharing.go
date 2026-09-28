@@ -549,8 +549,9 @@ func (pg Page) HandleAnswer(p *Provider, accept bool) func(*alborz.Context) erro
 			ctx.PutNotice(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
 		}
-		if err := pg.Show(ctx.Login.Store(), CanonicalCollectionPath(collPath)); err != nil {
-			return err
+		if err := pg.Show(ctx.Request().Context(), ctx.Login.Store(), CanonicalCollectionPath(collPath)); err != nil {
+			ctx.Notify(Refused(ctx, err))
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
 		}
 		pg.Forget(ctx.Login.Username())
 		// The name leads to the collection the account just accepted.

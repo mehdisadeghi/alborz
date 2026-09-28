@@ -79,7 +79,7 @@ func handleSearch(ctx *alborz.Context) error {
 	if spec.query == "" && spec.view == "" {
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 	}
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}

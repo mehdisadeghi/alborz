@@ -234,7 +234,7 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 		return monthView{}, err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
+	calendarInfos, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
 	if err != nil {
 		return monthView{}, err
 	}

@@ -26,12 +26,12 @@ type plugin struct {
 	dav *dav.Provider
 }
 
-func (p *plugin) client(login *alborz.Login) (*carddav.Client, error) {
-	u, ok := p.dav.URL(login)
+func (p *plugin) client(ctx context.Context, login *alborz.Login) (*carddav.Client, error) {
+	u, ok := p.dav.URL(ctx, login)
 	if !ok {
 		return nil, errNoAddressBook
 	}
-	return newClient(u, p.dav.HTTPClient(login))
+	return newClient(u, p.dav.HTTPClient(ctx, login))
 }
 
 // findHome is where a source lists the account's address books.

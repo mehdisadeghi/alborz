@@ -3,6 +3,7 @@ package dav
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -173,8 +174,9 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
 		}
-		if err := pg.Show(login.Store(), path); err != nil {
-			return fmt.Errorf("failed to save the %s settings: %w", p.kind.Label, err)
+		if err := pg.Show(ctx.Request().Context(), login.Store(), path); err != nil {
+			ctx.Notify(Refused(ctx, err))
+			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.List))
 		}
 		account := ""
 		if data.Account != ctx.Login.Username() {
@@ -210,7 +212,7 @@ type Page struct {
 	Forget func(username string)
 	// Show ticks a collection the account just accepted among those it
 	// has chosen to see.
-	Show func(store alborz.Store, path string) error
+	Show func(ctx context.Context, store alborz.Store, path string) error
 	// Import writes the objects of an uploaded file into the collection
 	// and says how many; Export renders the collection, or the range
 	// asked for, as one file. Range is nil where the kind has no dates.
@@ -270,9 +272,9 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 				data.Refused(ctx.T("form.nameneeded"))
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
 			}
-			base, _ := p.URL(ctx.Login)
+			base, _ := p.URL(ctx.Request().Context(), ctx.Login)
 			target := base.ResolveReference(&url.URL{Path: collPath}).String()
-			if err := Proppatch(ctx.Request().Context(), p.HTTPClient(ctx.Login),
+			if err := Proppatch(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login),
 				target, name, ctx.FormValue("color"), pg.Color); err != nil {
 				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
@@ -785,9 +787,9 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 				return err
 			}
 		}
-		base, _ := p.URL(ctx.Login)
+		base, _ := p.URL(ctx.Request().Context(), ctx.Login)
 		target := base.ResolveReference(&url.URL{Path: collPath}).String()
-		if err := DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Login), target); err != nil {
+		if err := DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), target); err != nil {
 			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectiondeletefailed"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))

@@ -83,7 +83,7 @@ func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 	if err != nil {
 		return rail, err
 	}
-	infos, _, err := visibleBooks(accounts, ctx.URLAccount(), nil)
+	infos, _, err := visibleBooks(ctx.Request().Context(), accounts, ctx.URLAccount(), nil)
 	rail.Items = infos
 	if err != nil {
 		return rail, err
@@ -101,10 +101,10 @@ func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 }
 
 // visibleBooks are dav.Visible's address books.
-func visibleBooks(accounts []dav.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []dav.Site[*carddav.Client], error) {
+func visibleBooks(ctx context.Context, accounts []dav.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []dav.Site[*carddav.Client], error) {
 	return dav.Visible(accounts, scope, only, func(acc dav.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings := &Settings{}
-		if err := acc.Login.Store().Get(settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
+		if err := acc.Login.Store().Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 			return nil, false, nil, fmt.Errorf("failed to load CardDAV settings: %w", err)
 		}
 		return acc.Collections, settings.AddressBookFilter, settings.VisibleAddressBooks, nil

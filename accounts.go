@@ -230,11 +230,15 @@ func (ctx *Context) forgetLoginToken(username string) {
 		return
 	}
 	s.forget(username)
+	var err error
 	if s.remembered() {
-		ctx.Server.Sessions.Save(s)
-		return
+		err = ctx.Server.Sessions.Save(s)
+	} else {
+		err = ctx.Server.Sessions.Delete(s.ID)
 	}
-	ctx.Server.Sessions.Delete(s.ID)
+	if err != nil {
+		ctx.Logger().Printf("failed to write the session: %v", err)
+	}
 }
 
 const (

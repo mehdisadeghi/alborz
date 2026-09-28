@@ -188,8 +188,8 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 // URL is where the login's client starts: the domain's server, or
 // for an account without one the address that stands for Alborz, since
 // the transport routes a path by what it begins with, not by host.
-func (p *Provider) URL(login *alborz.Login) (*url.URL, bool) {
-	sources := p.Sources(login)
+func (p *Provider) URL(ctx context.Context, login *alborz.Login) (*url.URL, bool) {
+	sources := p.Sources(ctx, login)
 	for _, s := range sources {
 		if s.ID == SourceDomain {
 			return s.URL, true
@@ -235,9 +235,9 @@ func marker(id string) string { return "/@" + id }
 
 // Sources are the account's remote DAV servers, each once: the one it
 // names, its domain's, and its mail host's. None replaces another.
-func (p *Provider) Sources(login *alborz.Login) []Source {
+func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	var out []Source
-	if services, err := login.Services(); err == nil {
+	if services, err := login.Services(ctx); err == nil {
 		if own := p.kind.Own(services); own != "" {
 			if u, err := url.Parse(own); err == nil {
 				out = append(out, Source{ID: SourceOwn, URL: u, Origin: "servers.fromaccount", Named: true})
@@ -303,8 +303,8 @@ type Home struct {
 func (p *Provider) homes(ctx context.Context, login *alborz.Login) ([]Home, error) {
 	var homes []Home
 	var failed []error
-	for _, s := range p.Sources(login) {
-		home, err := p.kind.FindHome(ctx, p.HTTPClient(login), s.Endpoint())
+	for _, s := range p.Sources(ctx, login) {
+		home, err := p.kind.FindHome(ctx, p.HTTPClient(ctx, login), s.Endpoint())
 		if err != nil {
 			failed = append(failed, fmt.Errorf("%s: %w", s.URL.Host, err))
 			continue
@@ -333,7 +333,7 @@ func (p *Provider) homes(ctx context.Context, login *alborz.Login) ([]Home, erro
 // outlives the request that starts it: a second page waiting on it must
 // not be failed by the first one's reader going away.
 func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Collection, error) {
-	base, _ := p.URL(login)
+	base, _ := p.URL(ctx, login)
 	// A listing a server was missing from is what the others hold, not
 	// the account's list: kept, but asked again once the retry delay is
 	// over, or the one failure would be told on every page until a
@@ -351,7 +351,7 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 		if err != nil {
 			return nil, err
 		}
-		infos, failed := p.kind.List(ctx, p.HTTPClient(login), base, homes)
+		infos, failed := p.kind.List(ctx, p.HTTPClient(ctx, login), base, homes)
 		if err := p.Settle(login.Username(), homes, failed); err != nil {
 			return nil, fmt.Errorf("failed to list the %s collections: %v", p.kind.Label, err)
 		}
@@ -369,8 +369,8 @@ func (p *Provider) Forget(username string) { p.collections.Forget(username) }
 
 // Opened is the login's client of the kind with the account's
 // collections: what a page about one account starts from.
-func Opened[C any](ctx context.Context, p *Provider, login *alborz.Login, client func(*alborz.Login) (C, error)) (C, []Collection, error) {
-	c, err := client(login)
+func Opened[C any](ctx context.Context, p *Provider, login *alborz.Login, client func(context.Context, *alborz.Login) (C, error)) (C, []Collection, error) {
+	c, err := client(ctx, login)
 	if err != nil {
 		return c, nil, err
 	}
@@ -389,7 +389,7 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 	if NameTaken(name, place, infos) {
 		return "", ErrNameTaken
 	}
-	base, _ := p.URL(login)
+	base, _ := p.URL(ctx, login)
 	homes, err := p.homes(ctx, login)
 	if err != nil {
 		return "", err
@@ -398,7 +398,7 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 	if err != nil {
 		return "", err
 	}
-	client := p.HTTPClient(login)
+	client := p.HTTPClient(ctx, login)
 	path, err := CreateCollection(ctx, base, home, name, p.kind.Unnamed, func(ctx context.Context, target string) error {
 		return p.kind.Make(ctx, client, target, name, color, components)
 	})
@@ -436,7 +436,7 @@ func (p *Provider) Places(ctx *alborz.Context) []Group {
 	var groups []Group
 	for _, s := range ctx.Logins() {
 		var places []Collection
-		for _, src := range p.Sources(s) {
+		for _, src := range p.Sources(ctx.Request().Context(), s) {
 			places = append(places, Collection{Path: src.ID, Name: PlaceLabel(ctx, src.ID, src.URL.Host)})
 		}
 		if p.here != nil {
@@ -472,14 +472,14 @@ func (p *Provider) ReadPlace(ctx *alborz.Context, account string) (string, strin
 	if s == nil {
 		return account, SourceHere
 	}
-	return account, p.DefaultPlace(s)
+	return account, p.DefaultPlace(ctx.Request().Context(), s)
 }
 
 // DefaultPlace is where the account's new collections go unless the
 // reader picks another.
-func (p *Provider) DefaultPlace(s *alborz.Login) string {
-	sources := p.Sources(s)
-	if services, err := s.Services(); err == nil && services.Default != "" {
+func (p *Provider) DefaultPlace(ctx context.Context, s *alborz.Login) string {
+	sources := p.Sources(ctx, s)
+	if services, err := s.Services(ctx); err == nil && services.Default != "" {
 		if services.Default == SourceHere && p.here != nil {
 			return SourceHere
 		}
@@ -534,8 +534,8 @@ func (p *Provider) Troubles(username string) []error {
 
 // HTTPClient talks to the login's server through the cache, with the
 // account's credentials on every request.
-func (p *Provider) HTTPClient(login *alborz.Login) *http.Client {
-	return httpClient(p, login)
+func (p *Provider) HTTPClient(ctx context.Context, login *alborz.Login) *http.Client {
+	return httpClient(ctx, p, login)
 }
 
 // CountObjects counts a collection's objects for the login, lazily:
@@ -543,8 +543,8 @@ func (p *Provider) HTTPClient(login *alborz.Login) *http.Client {
 // than guessing at.
 func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
 	return func() int {
-		base, _ := p.URL(ctx.Login)
-		n, err := CountObjects(ctx.Request().Context(), p.HTTPClient(ctx.Login), base, coll)
+		base, _ := p.URL(ctx.Request().Context(), ctx.Login)
+		n, err := CountObjects(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), base, coll)
 		if err != nil {
 			ctx.Logger().Printf("%s: failed to count %s: %v", p.kind.Name, coll, err)
 			return -1
@@ -560,7 +560,7 @@ func (p *Provider) Enabled(ctx *alborz.Context) bool {
 		return false
 	}
 	for _, s := range ctx.Logins() {
-		if _, ok := p.URL(s); ok {
+		if _, ok := p.URL(ctx.Request().Context(), s); ok {
 			return true
 		}
 	}
@@ -613,17 +613,18 @@ func (p *Provider) Guarded(none error, words, create string, h func(*alborz.Cont
 
 // HandleChoose keeps which collections of list the reader ticked, in
 // the kind's own settings, and lands on the list no longer narrowed.
-func HandleChoose(list, field string, keep func(store alborz.Store, paths []string) error) func(*alborz.Context) error {
+func HandleChoose(list, field string, keep func(ctx context.Context, store alborz.Store, paths []string) error) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		params, err := ctx.FormParams()
 		if err != nil {
 			return err
 		}
-		if err := keep(ctx.Login.Store(), params[field]); err != nil {
-			return fmt.Errorf("failed to save the chosen collections: %w", err)
+		if err := keep(ctx.Request().Context(), ctx.Login.Store(), params[field]); err != nil {
+			ctx.Notify(Refused(ctx, err))
+		} else {
+			// The list comes back holding what was chosen.
+			ctx.Quiet()
 		}
-		// The list comes back holding what was chosen.
-		ctx.Quiet()
 		return ctx.Redirect(http.StatusFound, Widened(ctx.NextOr(list), field))
 	}
 }

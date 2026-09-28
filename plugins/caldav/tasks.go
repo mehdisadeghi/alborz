@@ -182,7 +182,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 		return TaskList{}, err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsTodo, taskVisibility)
+	calendarInfos, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), only, supportsTodo, taskVisibility)
 	if err != nil {
 		return TaskList{}, err
 	}

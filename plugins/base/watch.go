@@ -294,7 +294,7 @@ func idleOnce(s *alborz.Login, c *imapclient.Client, changed chan struct{}, chan
 
 // warmInbox shares the first page fetch with login and foreground readers.
 func warmInbox(s *alborz.Login) error {
-	settings, err := LoadSettings(s.Store())
+	settings, err := LoadSettings(context.Background(), s.Store())
 	if err != nil {
 		return err
 	}

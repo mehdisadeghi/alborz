@@ -1,9 +1,10 @@
 package alborz
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 	"sync"
 
@@ -15,35 +16,28 @@ import (
 // ErrNoStoreEntry is returned by Store.Get when the entry doesn't exist.
 var ErrNoStoreEntry = fmt.Errorf("alborz: no such entry in store")
 
-// Store allows storing per-user persistent data.
+// Store keeps an account's settings. A write it cannot keep is
+// errors.ErrUnsupported.
 //
-// Store shouldn't be used from inside Login.DoIMAP.
+// Store must not be used from inside Login.DoIMAP.
 type Store interface {
-	Get(key string, out interface{}) error
-	Put(key string, v interface{}) error
+	Get(ctx context.Context, key string, out any) error
+	Put(ctx context.Context, key string, v any) error
 }
 
-// Settings is a store of an account's settings that can say what it
-// holds and give it back. Both stores that outlive a login are one: the
-// account's own server through METADATA, and alborz's database for a
-// server without it. The account holder is entitled to see either and
-// to empty it.
+// Settings is a store that holds what it is given past the login, and
+// can say what it holds and give it back.
 type Settings interface {
 	Store
-	// Entries names what is held, so the page can say what emptying
-	// the store would remove.
-	Entries() ([]string, error)
-	// Forget removes every one of them.
-	Forget() error
-	// OnServer says the account's own server holds them, which decides
-	// what the settings page has to warn about.
+	Entries(ctx context.Context) ([]string, error)
+	Forget(ctx context.Context) error
+	// OnServer says the account's own server holds them.
 	OnServer() bool
 }
 
-// newStore picks the account's store: the server's METADATA when it has
-// it, alborz's own database otherwise, and memory only where alborz has
-// no database either. The warning is printed once, under the manager's
-// lock like every other call here.
+// newStore picks where the account's settings live: its server's
+// METADATA, else alborz's own database, else nowhere. It runs under the
+// manager's lock.
 func (sm *LoginManager) newStore(login *Login) (Store, error) {
 	s, err := newIMAPMetadataStore(login)
 	if err == nil {
@@ -51,48 +45,37 @@ func (sm *LoginManager) newStore(login *Login) (Store, error) {
 	} else if err != errIMAPMetadataUnsupported {
 		return nil, err
 	}
-	if !sm.warnedTransientStore {
-		sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, keeping account settings in alborz's own store")
-		sm.warnedTransientStore = true
-	}
 	if sm.settings == nil {
-		return newMemoryStore(), nil
+		if !sm.warnedNoMetadata {
+			sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension and alborz keeps no data, account settings cannot be saved")
+			sm.warnedNoMetadata = true
+		}
+		return noStore{}, nil
 	}
-	return newLocalStore(sm.settings, login.Username()), nil
-}
-
-type memoryStore struct {
-	locker  sync.RWMutex
-	entries map[string]interface{}
-}
-
-func newMemoryStore() *memoryStore {
-	return &memoryStore{entries: make(map[string]interface{})}
-}
-
-func (s *memoryStore) Get(key string, out interface{}) error {
-	s.locker.RLock()
-	defer s.locker.RUnlock()
-
-	v, ok := s.entries[key]
-	if !ok {
-		return ErrNoStoreEntry
+	if !sm.warnedNoMetadata {
+		sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, keeping account settings in alborz's own store")
+		sm.warnedNoMetadata = true
 	}
-
-	reflect.ValueOf(out).Elem().Set(reflect.ValueOf(v).Elem())
-	return nil
+	return localStore{records: sm.settings, account: login.Username()}, nil
 }
 
-func (s *memoryStore) Put(key string, v interface{}) error {
-	s.locker.Lock()
-	s.entries[key] = v
-	s.locker.Unlock()
-	return nil
+// SaveRefusal is the alert for a settings write the store did not keep.
+func (ctx *Context) SaveRefusal(err error) string {
+	if errors.Is(err, errors.ErrUnsupported) {
+		return ctx.T("form.nostorage")
+	}
+	return fmt.Sprintf(ctx.T("form.saverefused"), err)
 }
+
+// noStore is an account with nowhere to keep settings: every read is the
+// default and every write is refused.
+type noStore struct{}
+
+func (noStore) Get(context.Context, string, any) error { return ErrNoStoreEntry }
+func (noStore) Put(context.Context, string, any) error { return errors.ErrUnsupported }
 
 type imapMetadataStore struct {
 	login *Login
-	cache *memoryStore
 }
 
 var errIMAPMetadataUnsupported = fmt.Errorf("alborz: IMAP server doesn't support METADATA extension")
@@ -107,17 +90,49 @@ func newIMAPMetadataStore(login *Login) (*imapMetadataStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &imapMetadataStore{login: login, cache: newMemoryStore()}, nil
+	return &imapMetadataStore{login: login}, nil
 }
 
 func (s *imapMetadataStore) key(key string) string {
 	return vendorRoot + "/" + key
 }
 
+// storeMemo holds one request's METADATA reads, so a page asking for an
+// entry twice asks the server once. It never outlives the request.
+type storeMemo struct {
+	mu      sync.Mutex
+	entries map[memoKey][]byte
+}
+
+type memoKey struct {
+	login *Login
+	key   string
+}
+
+type storeMemoKey struct{}
+
+func withStoreMemo(ctx context.Context) context.Context {
+	return context.WithValue(ctx, storeMemoKey{}, &storeMemo{entries: map[memoKey][]byte{}})
+}
+
+func memoOf(ctx context.Context) *storeMemo {
+	m, _ := ctx.Value(storeMemoKey{}).(*storeMemo)
+	return m
+}
+
+func (m *storeMemo) forget(login *Login, key string) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	delete(m.entries, memoKey{login, key})
+	m.mu.Unlock()
+}
+
 // fetch is the entry as the server holds it now, nil where it has none.
-func (s *imapMetadataStore) fetch(key string) ([]byte, error) {
+func (s *imapMetadataStore) fetch(ctx context.Context, key string) ([]byte, error) {
 	var entries map[string]*[]byte
-	err := s.login.DoIMAP(func(c *imapclient.Client) error {
+	err := s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		data, err := c.GetMetadata("", []string{s.key(key)}, nil).Wait()
 		if err != nil {
 			return err
@@ -134,13 +149,25 @@ func (s *imapMetadataStore) fetch(key string) ([]byte, error) {
 	return nil, nil
 }
 
-func (s *imapMetadataStore) Get(key string, out interface{}) error {
-	if err := s.cache.Get(key, out); err != ErrNoStoreEntry {
-		return err
+func (s *imapMetadataStore) Get(ctx context.Context, key string, out any) error {
+	m := memoOf(ctx)
+	var v []byte
+	var memoised bool
+	if m != nil {
+		m.mu.Lock()
+		v, memoised = m.entries[memoKey{s.login, key}]
+		m.mu.Unlock()
 	}
-	v, err := s.fetch(key)
-	if err != nil {
-		return err
+	if !memoised {
+		var err error
+		if v, err = s.fetch(ctx, key); err != nil {
+			return err
+		}
+		if m != nil {
+			m.mu.Lock()
+			m.entries[memoKey{s.login, key}] = v
+			m.mu.Unlock()
+		}
 	}
 	if v == nil {
 		return ErrNoStoreEntry
@@ -148,16 +175,15 @@ func (s *imapMetadataStore) Get(key string, out interface{}) error {
 	if err := json.Unmarshal(v, out); err != nil {
 		return fmt.Errorf("alborz: failed to unmarshal IMAP store entry %q: %v", key, err)
 	}
-	return s.cache.Put(key, out)
+	return nil
 }
 
 // Put merges into the entry as the server holds it at the moment of
-// writing, not as this login first read it: another instance, of a
-// newer version, may have written fields since (ADR 26). METADATA has
-// no compare-and-set, so a write in between the two round trips is
-// still lost.
-func (s *imapMetadataStore) Put(key string, v interface{}) error {
-	was, err := s.fetch(key)
+// writing. METADATA has no compare-and-set, so a write in between the
+// two round trips is still lost.
+func (s *imapMetadataStore) Put(ctx context.Context, key string, v any) error {
+	defer memoOf(ctx).forget(s.login, key)
+	was, err := s.fetch(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -166,23 +192,21 @@ func (s *imapMetadataStore) Put(key string, v interface{}) error {
 		return fmt.Errorf("alborz: failed to marshal IMAP store entry %q: %v", key, err)
 	}
 	entries := map[string]*[]byte{s.key(key): &b}
-	err = s.login.DoIMAP(func(c *imapclient.Client) error {
+	err = s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()
 	})
 	if err != nil {
 		return fmt.Errorf("alborz: failed to put IMAP store entry %q: %w", key, err)
 	}
-	return s.cache.Put(key, v)
+	return nil
 }
 
-// vendorRoot is where RFC 5464 puts a vendor's private entries. Every
-// key alborz writes hangs off it, so one GETMETADATA names them all.
+// vendorRoot is where RFC 5464 puts a vendor's private entries.
 const vendorRoot = "/private/vendor/alborz"
 
-// settingKeys is every setting key a plugin stores, named at start. The
-// entries are asked for by name: the DEPTH walk of RFC 5464 needs the
-// options before the mailbox, and go-imap writes them after, which
-// Dovecot answers with BAD.
+// settingKeys is every setting key a plugin stores. The entries are
+// asked for by name: go-imap writes the DEPTH option after the mailbox,
+// which Dovecot answers with BAD.
 var settingKeys = []string{httpPasswordKey, servicesKey}
 
 // RegisterSetting names a key a plugin stores, so the account
@@ -191,13 +215,13 @@ func RegisterSetting(key string) {
 	settingKeys = append(settingKeys, key)
 }
 
-func (s *imapMetadataStore) Entries() ([]string, error) {
+func (s *imapMetadataStore) Entries(ctx context.Context) ([]string, error) {
 	full := make([]string, len(settingKeys))
 	for i, key := range settingKeys {
 		full[i] = s.key(key)
 	}
 	var names []string
-	err := s.login.DoIMAP(func(c *imapclient.Client) error {
+	err := s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		data, err := c.GetMetadata("", full, nil).Wait()
 		if err != nil {
 			return err
@@ -216,92 +240,52 @@ func (s *imapMetadataStore) Entries() ([]string, error) {
 	return names, nil
 }
 
-func (s *imapMetadataStore) Forget() error {
-	names, err := s.Entries()
+func (s *imapMetadataStore) Forget(ctx context.Context) error {
+	names, err := s.Entries(ctx)
 	if err != nil {
 		return err
 	}
 	if len(names) == 0 {
 		return nil
 	}
-	// A nil value is how RFC 5464 spells removal; there is no other way
-	// to unset an entry.
+	// A nil value is how RFC 5464 spells removal.
 	entries := make(map[string]*[]byte, len(names))
 	for _, name := range names {
 		entries[name] = nil
 	}
-	err = s.login.DoIMAP(func(c *imapclient.Client) error {
+	defer func() {
+		for _, key := range settingKeys {
+			memoOf(ctx).forget(s.login, key)
+		}
+	}()
+	err = s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()
 	})
 	if err != nil {
 		return fmt.Errorf("alborz: failed to remove IMAP store entries: %w", err)
 	}
-	s.cache = newMemoryStore()
 	return nil
 }
-
-// localStore keeps an account's settings in alborz's own database, for
-// a server with no METADATA to keep them on. The whole set is one
-// record: it is a handful of small values, and reading or writing it
-// whole is what makes listing and forgetting honest.
-type localStore struct {
-	records SessionRecords
-	account string
-
-	locker  sync.RWMutex
-	entries map[string]json.RawMessage
-}
-
-func newLocalStore(records SessionRecords, account string) *localStore {
-	entries, ok := records.LoadSettings(account)
-	if !ok {
-		entries = map[string]json.RawMessage{}
-	}
-	return &localStore{records: records, account: account, entries: entries}
-}
-
-func (s *localStore) Get(key string, out interface{}) error {
-	s.locker.RLock()
-	raw, ok := s.entries[key]
-	s.locker.RUnlock()
-	if !ok {
-		return ErrNoStoreEntry
-	}
-	if err := json.Unmarshal(raw, out); err != nil {
-		return fmt.Errorf("alborz: failed to unmarshal store entry %q: %v", key, err)
-	}
-	return nil
-}
-
-func (s *localStore) Put(key string, v interface{}) error {
-	s.locker.Lock()
-	defer s.locker.Unlock()
-	raw, err := record.Keep(s.entries[key], v)
-	if err != nil {
-		return fmt.Errorf("alborz: failed to marshal store entry %q: %v", key, err)
-	}
-	s.entries[key] = raw
-	return s.records.SaveSettings(s.account, s.entries)
-}
-
-func (s *localStore) Entries() ([]string, error) {
-	s.locker.RLock()
-	defer s.locker.RUnlock()
-	names := make([]string, 0, len(s.entries))
-	for name := range s.entries {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	return names, nil
-}
-
-func (s *localStore) Forget() error {
-	s.locker.Lock()
-	defer s.locker.Unlock()
-	s.entries = map[string]json.RawMessage{}
-	return s.records.SaveSettings(s.account, s.entries)
-}
-
-func (s *localStore) OnServer() bool { return false }
 
 func (s *imapMetadataStore) OnServer() bool { return true }
+
+// localStore keeps an account's settings in alborz's own database, for
+// a server with no METADATA.
+type localStore struct {
+	records *settingsRecords
+	account string
+}
+
+func (s localStore) Get(_ context.Context, key string, out any) error {
+	return s.records.Get(s.account, key, out)
+}
+
+func (s localStore) Put(_ context.Context, key string, v any) error {
+	return s.records.Put(s.account, key, v)
+}
+
+func (s localStore) Entries(context.Context) ([]string, error) { return s.records.Entries(s.account) }
+
+func (s localStore) Forget(context.Context) error { return s.records.Forget(s.account) }
+
+func (s localStore) OnServer() bool { return false }

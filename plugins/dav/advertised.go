@@ -74,7 +74,7 @@ func (p *Provider) InjectCard(title string, abilities func(Advertised) []alborzb
 		if !ok || ctx.Login == nil {
 			return nil
 		}
-		for _, src := range p.Sources(ctx.Login) {
+		for _, src := range p.Sources(ctx.Request().Context(), ctx.Login) {
 			servers.Cards = append(servers.Cards, p.card(ctx, servers, title, src, abilities))
 			servers.AddPlace(src.ID, src.URL.Host)
 		}
@@ -90,7 +90,7 @@ func (p *Provider) card(ctx *alborz.Context, servers *alborzbase.ServersRenderDa
 	card := alborzbase.ServerCard{Group: alborzbase.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
 	if servers.Showing == alborzbase.ServerDAV {
 		endpoint, _ := url.Parse(src.Endpoint())
-		found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Login), endpoint)
+		found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), endpoint)
 		// A server that did not answer is worth saying so about; the
 		// page is not the place to fail over it.
 		if err != nil {

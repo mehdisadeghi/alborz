@@ -389,7 +389,7 @@ func handleGetPart(ctx *alborz.Context, raw bool) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}

@@ -17,16 +17,8 @@ var (
 )
 
 // Services are the calendar and contacts servers an account names for
-// itself, and what those servers know it as. A domain's servers come
-// from the operator or from its SRV records; most accounts need nothing
-// here. One whose domain publishes no record, or whose calendar lives
-// with another host than its mail, says so, and that wins for the
-// account. The password for them is the one HTTPPassword already keeps.
-//
-// They are kept in the account's own store - on its mail server where
-// that takes METADATA, under the address otherwise - so they follow the
-// account to any browser, and people who share an account share them, as
-// they share the mailbox.
+// itself, over its domain's, and what those servers know it as. They
+// live in the account's store, so they follow it to any browser.
 type Services struct {
 	// CalDAV and CardDAV are the servers' URLs; empty is the domain's.
 	CalDAV, CardDAV string
@@ -40,31 +32,19 @@ type Services struct {
 
 const servicesKey = "services"
 
-// Services are the account's own, read once per login.
-func (l *Login) Services() (Services, error) {
-	l.httpLocker.Lock()
-	defer l.httpLocker.Unlock()
-	if l.servicesLoaded {
-		return l.services, nil
-	}
+// Services are the account's own.
+func (l *Login) Services(ctx context.Context) (Services, error) {
 	var v Services
-	if err := l.store.Get(servicesKey, &v); err != nil && err != ErrNoStoreEntry {
+	if err := l.store.Get(ctx, servicesKey, &v); err != nil && err != ErrNoStoreEntry {
 		return Services{}, err
 	}
-	l.services, l.servicesLoaded = v, true
 	return v, nil
 }
 
 // SetServices keeps them. The URLs are checked by the caller, which
 // knows what the deployment allows; see Server.CheckServiceURL.
-func (l *Login) SetServices(v Services) error {
-	if err := l.store.Put(servicesKey, &v); err != nil {
-		return err
-	}
-	l.httpLocker.Lock()
-	l.services, l.servicesLoaded = v, true
-	l.httpLocker.Unlock()
-	return nil
+func (l *Login) SetServices(ctx context.Context, v Services) error {
+	return l.store.Put(ctx, servicesKey, &v)
 }
 
 // CheckServiceURL says whether an account may name this server. A URL

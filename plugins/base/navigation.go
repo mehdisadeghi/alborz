@@ -76,7 +76,7 @@ func handleMessageNavigation(ctx *alborz.Context) error {
 	sb = sb.clone()
 	sb.active = sb.statuses[mailbox]
 	data := &MessageRenderData{Query: ctx.QueryParam("query")}
-	settings, err := LoadSettings(ctx.Login.Store())
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}

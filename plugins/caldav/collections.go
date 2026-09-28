@@ -53,7 +53,7 @@ func (p *plugin) collectionPage() dav.Page {
 		},
 		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
 			if isSubscription(path) {
-				settings, err := loadSettings(ctx.Login.Store())
+				settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
 				if err != nil {
 					return dav.Collection{}, nil, "", "", err
 				}
@@ -101,7 +101,7 @@ func (p *plugin) forSubscription(sub func(*alborz.Context, string) error, next f
 
 // updateSubscription saves the name and colour the page was given.
 func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
-	settings, err := loadSettings(ctx.Login.Store())
+	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -115,15 +115,15 @@ func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
 	}
 	settings.Subscriptions[i].Name = name
 	settings.Subscriptions[i].Color = ctx.FormValue("color")
-	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
-		return err
+	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+		ctx.Notify(dav.Refused(ctx, err))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 }
 
 // unsubscribe drops the feed; nothing is deleted anywhere.
 func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
-	settings, err := loadSettings(ctx.Login.Store())
+	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -133,8 +133,9 @@ func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
 	}
 	name := settings.Subscriptions[i].Name
 	settings.Subscriptions = append(settings.Subscriptions[:i], settings.Subscriptions[i+1:]...)
-	if err := ctx.Login.Store().Put(settingsKey, settings); err != nil {
-		return err
+	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+		ctx.Notify(dav.Refused(ctx, err))
+		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/calendar"))
 	}
 	ctx.PutNotice(fmt.Sprintf(ctx.T("notice.unsubscribedcalendar"), name))
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/calendar"))
@@ -215,7 +216,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
 		sub := Subscription{URL: normalizeFeedURL(data.Address), Color: dav.DefaultColor}
-		settings, err := loadSettings(login.Store())
+		settings, err := loadSettings(ctx.Request().Context(), login.Store())
 		if err != nil {
 			return err
 		}
@@ -235,8 +236,9 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			sub.Name = feedHost(sub.URL)
 		}
 		settings.Subscriptions = append(settings.Subscriptions, sub)
-		if err := login.Store().Put(settingsKey, settings); err != nil {
-			return err
+		if err := login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+			data.Refused(ctx.SaveRefusal(err))
+			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))
 	}

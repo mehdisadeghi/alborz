@@ -84,7 +84,7 @@ func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
 		return dayView{}, err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
+	calendarInfos, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
 	if err != nil {
 		return dayView{}, err
 	}

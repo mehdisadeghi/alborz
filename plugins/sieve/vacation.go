@@ -1,6 +1,7 @@
 package alborzsieve
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -50,9 +51,9 @@ type Replies struct {
 	Items []Reply
 }
 
-func loadReplies(s alborz.Store) (*Replies, error) {
+func loadReplies(ctx context.Context, s alborz.Store) (*Replies, error) {
 	r := &Replies{}
-	if err := s.Get(repliesKey, r); err != nil && err != alborz.ErrNoStoreEntry {
+	if err := s.Get(ctx, repliesKey, r); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
 	return r, nil
@@ -215,11 +216,11 @@ type RepliesRenderData struct {
 }
 
 func repliesData(ctx *alborz.Context) (*RepliesRenderData, error) {
-	replies, err := loadReplies(ctx.Login.Store())
+	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
-	settings, err := alborzbase.LoadSettings(ctx.Login.Store())
+	settings, err := alborzbase.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
@@ -316,16 +317,19 @@ func handleReplySave(ctx *alborz.Context) error {
 	if at := ctx.FormValue("index"); at != "" {
 		index, _ = strconv.Atoi(at)
 	}
-	if err != nil {
-		data, derr := repliesData(ctx)
-		if derr != nil {
-			return derr
+	refuse := func(message string) error {
+		data, err := repliesData(ctx)
+		if err != nil {
+			return err
 		}
 		data.Editing, data.Index = v, index
-		data.Refused(err.Error())
+		data.Refused(message)
 		return ctx.Render(http.StatusUnprocessableEntity, "autoreply-edit.html", data)
 	}
-	replies, err := loadReplies(ctx.Login.Store())
+	if err != nil {
+		return refuse(err.Error())
+	}
+	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -339,8 +343,8 @@ func handleReplySave(ctx *alborz.Context) error {
 		made = len(replies.Items)
 		replies.Items = append(replies.Items, v)
 	}
-	if err := ctx.Login.Store().Put(repliesKey, replies); err != nil {
-		return err
+	if err := ctx.Login.Store().Put(ctx.Request().Context(), repliesKey, replies); err != nil {
+		return refuse(ctx.SaveRefusal(err))
 	}
 	// An edit to the reply being sent goes out at once; any other is
 	// kept for activating, and the notice says which happened.
@@ -390,7 +394,7 @@ func handleReplyDelete(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	replies, err := loadReplies(ctx.Login.Store())
+	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -399,8 +403,9 @@ func handleReplyDelete(ctx *alborz.Context) error {
 	}
 	gone := replies.Items[index]
 	replies.Items = append(replies.Items[:index], replies.Items[index+1:]...)
-	if err := ctx.Login.Store().Put(repliesKey, replies); err != nil {
-		return err
+	if err := ctx.Login.Store().Put(ctx.Request().Context(), repliesKey, replies); err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/filters/autoreply")))
 	}
 	// Deleting the reply being sent stops it.
 	loaded := ctx.FormValue("loaded")
@@ -420,7 +425,7 @@ func handleReplyDelete(ctx *alborz.Context) error {
 // handleReplyActivate composes the chosen reply into the script; an
 // empty index composes none, which deletes it.
 func handleReplyActivate(ctx *alborz.Context) error {
-	replies, err := loadReplies(ctx.Login.Store())
+	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}

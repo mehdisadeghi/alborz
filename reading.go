@@ -90,6 +90,8 @@ func (ctx *Context) adoptReading(account string) bool {
 	}
 	s.setReading(*r)
 	s.setAnchor(account)
-	ctx.Server.Sessions.Save(s)
+	if err := ctx.Server.Sessions.Save(s); err != nil {
+		ctx.Logger().Printf("failed to write the session: %v", err)
+	}
 	return true
 }

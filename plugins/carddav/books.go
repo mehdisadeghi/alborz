@@ -21,8 +21,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// createForm is the form for a new address book. The first book is made
-// from a rail that lists none.
 func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 	rail, err := p.bookRail(ctx)
 	if err != nil && !errors.Is(err, errNoAddressBook) {
@@ -32,7 +30,6 @@ func (p *plugin) createForm(ctx *alborz.Context) (dav.CreateForm, error) {
 		Made: func(string) (string, string) { return ctx.T("notice.bookcreated"), "/contacts" }}, nil
 }
 
-// collectionPage is an address book's own page.
 func (p *plugin) collectionPage() dav.Page {
 	return dav.Page{
 		Base:   "/address-books/",
@@ -73,8 +70,6 @@ func (p *plugin) collectionPage() dav.Page {
 	}
 }
 
-// bookRail is the section's rail for a page that is not its list,
-// listing every account's address books.
 func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 	rail := dav.Rail{Path: "/contacts", Field: "book", ItemClass: "addressbook-item", Action: "/contacts", EditHref: "/address-books/",
 		NewHref: "/address-books/create?next=" + alborz.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
@@ -88,9 +83,7 @@ func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 	if err != nil {
 		return rail, err
 	}
-	// Groups and categories are narrowings of the list, so the rail
-	// carries them wherever the list's pages are (the list itself, an
-	// object, its edit). The reads behind this are cached.
+	// Groups and categories narrow the list, so the rail carries them on every list page.
 	list, err := p.contactList(ctx)
 	if err != nil {
 		return rail, err
@@ -100,7 +93,6 @@ func (p *plugin) bookRail(ctx *alborz.Context) (dav.Rail, error) {
 	return rail, nil
 }
 
-// visibleBooks are dav.Visible's address books.
 func visibleBooks(ctx context.Context, accounts []dav.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []dav.Site[*carddav.Client], error) {
 	return dav.Visible(accounts, scope, only, func(acc dav.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings := &Settings{}
@@ -111,8 +103,6 @@ func visibleBooks(ctx context.Context, accounts []dav.Account[*carddav.Client], 
 	})
 }
 
-// hasAttachment reports whether the message carries a part of one of
-// the media types.
 func hasAttachment(msg *alborzbase.IMAPMessage, types ...string) bool {
 	for _, att := range msg.Attachments() {
 		for _, t := range types {
@@ -124,8 +114,6 @@ func hasAttachment(msg *alborzbase.IMAPMessage, types ...string) bool {
 	return false
 }
 
-// importFromMessage files the cards attached to a mail into the chosen
-// address book.
 func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 	mboxName, uid, err := alborzbase.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
 	if err != nil {
@@ -163,8 +151,6 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }
 
-// importBook writes every card of a vCard stream into the book and
-// reports how many. A UID the book already holds is written over.
 func importBook(ctx context.Context, client *carddav.Client, bookPath string, raw []byte) (int, error) {
 	dec := vcard.NewDecoder(bytes.NewReader(raw))
 	n := 0
@@ -198,8 +184,6 @@ func importBook(ctx context.Context, client *carddav.Client, bookPath string, ra
 	}
 }
 
-// cardPathByUID is where the book keeps the card with that UID, "" when
-// it has none.
 func cardPathByUID(ctx context.Context, client *carddav.Client, bookPath, uid string) string {
 	objects, err := client.QueryAddressBook(ctx, bookPath, &carddav.AddressBookQuery{
 		DataRequest: carddav.AddressDataRequest{Props: []string{vcard.FieldUID}},
@@ -211,7 +195,6 @@ func cardPathByUID(ctx context.Context, client *carddav.Client, bookPath, uid st
 	return objects[0].Path
 }
 
-// exportBook renders every card of the book as one vCard file.
 func exportBook(ctx context.Context, client *carddav.Client, bookPath string) ([]byte, error) {
 	objects, err := client.QueryAddressBook(ctx, bookPath, &carddav.AddressBookQuery{
 		DataRequest: carddav.AddressDataRequest{AllProp: true},

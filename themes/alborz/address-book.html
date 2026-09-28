@@ -35,8 +35,6 @@
           {{ template "sort-col" (dict "s" .Sorting "key" "name" "label" ($.T "common.name") "cell" "list-primary contact-list-name") }}
           {{ template "sort-col" (dict "s" .Sorting "key" "email" "label" ($.T "contacts.email") "cell" "contact-list-email") }}
           {{ template "sort-col" (dict "s" .Sorting "key" "phone" "label" ($.T "contacts.phone") "cell" "contact-list-phone") }}
-          {{/* Changed, not added: a vCard has no property for when it
-               was made, and REV is the last revision. */}}
           {{ template "sort-col" (dict "s" .Sorting "key" "changed" "label" ($.T "common.modified") "cell" "contact-list-changed") }}
           {{ template "sort-col" (dict "s" .Sorting "key" "book" "label" ($.T "contacts.book") "cell" "contact-list-book") }}
           </div>
@@ -48,8 +46,6 @@
             <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
               <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form" aria-label="{{$.T "a11y.selectcontact"}}{{with .DisplayName}}: {{.}}{{end}}">
             </div>
-            {{/* The star has a column of its own, as the mail list draws
-                 it: always here, lit or not. */}}
             <div class="list-star list-cell" role="cell">
               {{ template "card-star" (dict
                  "Action" (printf "%s/color%s" .URL (account "?" .Account))
@@ -65,8 +61,6 @@
               <a href="{{ call $.HrefFor .Account .Path }}" dir="auto"{{ with call $.AddedBy .Account .Path }} title="{{ printf ($.T "share.addedby") . }}"{{ end }}>
                 {{.DisplayName}}
               </a>
-              {{/* Desktop reads it in the Address book column; a card
-                   has no column, so it rides the name. */}}
               {{if $.GlobalData.Unified}}<span class="row-account card-only" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
             </div>
             <div class="contact-list-email list-cell" role="cell">

@@ -19,9 +19,6 @@
       {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
       {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="/filters/{{.Script | pathescape}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
 
-      {{/* One reply is sent at a time, so the rows work like the
-           scripts: one is active, and activating another takes its
-           place. */}}
       <section class="list-items">
         {{ range $i, $r := .Replies }}
         <div class="list-item">

@@ -24,8 +24,6 @@
           <p class="hint">{{$.T "filters.replydayshint"}}</p>
         </div>
 
-        {{/* The days it speaks on, through the date extension; a server
-             without it sends the reply whenever it is active. */}}
         {{ if .CanDate }}
         <div class="action-group">
           <div class="condition-row">
@@ -38,8 +36,6 @@
         <p class="hint">{{$.T "filters.replydatesunsupported"}}</p>
         {{ end }}
 
-        {{/* The server answers only mail sent to one of these (RFC 5230
-             4.5): the reply says whom it speaks for. */}}
         <fieldset class="action-group choices">
           <legend>{{$.T "filters.replyfor"}}</legend>
           {{ range $id := .Identities }}

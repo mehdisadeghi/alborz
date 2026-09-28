@@ -7,15 +7,12 @@ import (
 	"github.com/emersion/go-message"
 )
 
-// ErrViewUnsupported is returned by Viewer.ViewMessagePart when the message
-// part isn't supported.
+// ErrViewUnsupported is returned when a viewer does not support a message part.
 var ErrViewUnsupported = fmt.Errorf("cannot generate message view: unsupported part")
 
 // Viewer is a message part viewer.
 type Viewer interface {
-	// ViewMessagePart renders the message part at path. The returned value is
-	// displayed in a template. ErrViewUnsupported is returned if the message
-	// part isn't supported.
+	// ViewMessagePart renders the message part at path, or returns ErrViewUnsupported.
 	ViewMessagePart(*alborz.Context, *IMAPMessage, []int, *message.Entity) (interface{}, error)
 }
 

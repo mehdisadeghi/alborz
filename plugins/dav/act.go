@@ -11,9 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Selection is what a route acts on: the one object its own path names,
-// in the URL's account, or the rows a list had checked. Acting on one
-// object is acting on a selection of one.
+// Selection is the object the route's path names, or the rows a list had checked.
 func Selection[C any](ctx *alborz.Context, client func(context.Context, *alborz.Login) (C, error)) ([]Ref[C], error) {
 	if ctx.Param("path") == "" {
 		params, err := ctx.FormParams()
@@ -33,26 +31,20 @@ func Selection[C any](ctx *alborz.Context, client func(context.Context, *alborz.
 	return []Ref[C]{{c, ctx.Login.Username(), path}}, nil
 }
 
-// Action is one thing a route does to the objects selected: whose
-// client, what to each, in which words, and where to land.
+// Action is one thing a route does to the selected objects.
 type Action[C any] struct {
 	Client func(context.Context, *alborz.Login) (C, error)
-	// Do acts on one object. An error is the server's no, and ends the
-	// run: it is said on the page, never answered as a failure of ours.
+	// Do acts on one object; an error is the server's refusal, said on the page, and ends the run.
 	Do func(ctx *alborz.Context, ref Ref[C]) error
 	// List is where the action lands when the form names no page.
 	List string
-	// Done words what became of the objects acted on. Quiet is the
-	// answer where the action shows where the reader already is.
+	// Done words the result; Quiet where the action shows where the reader already is.
 	Done func(ctx *alborz.Context, done []Ref[C], next string) alborz.Notice
-	// Piece answers a page that asked for a piece of itself about the
-	// one object it named; nil lands as any other request does.
+	// Piece answers a request for a piece of the page; nil lands as a whole page.
 	Piece func(ctx *alborz.Context, ref Ref[C], next string) error
 }
 
-// Run does the action to the request's selection and lands. A refusal
-// is said on the page, never swallowed: it ends the run and lands whole,
-// so the notice renders whether the request asked for a page or a piece.
+// Run does the action to the request's selection and lands.
 func Run[C any](ctx *alborz.Context, a Action[C]) error {
 	refs, err := Selection(ctx, a.Client)
 	if err != nil {
@@ -67,8 +59,7 @@ func Run[C any](ctx *alborz.Context, a Action[C]) error {
 		}
 		done++
 	}
-	// A boosted form - the notice's Undo - asks for a page, not the row
-	// a row's own control swaps.
+	// A boosted form, the notice's Undo, asks for a page, not the row.
 	if a.Piece != nil && ctx.Partial() && ctx.Request().Header.Get("HX-Boosted") != "true" && len(refs) == 1 {
 		return a.Piece(ctx, refs[0], next)
 	}
@@ -83,8 +74,7 @@ func Handler[C any](a Action[C]) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error { return Run(ctx, a) }
 }
 
-// Quiet is Done for an action whose result shows where the reader
-// already is: a star on the row, a note on the object's own page.
+// Quiet is Done for an action whose result shows where the reader already is.
 func Quiet[C any](ctx *alborz.Context, _ []Ref[C], _ string) alborz.Notice {
 	ctx.Quiet()
 	return alborz.Notice{}
@@ -95,14 +85,12 @@ func Delete[C files](ctx *alborz.Context, ref Ref[C]) error {
 	return ref.Client.RemoveAll(ctx.Request().Context(), ref.Path)
 }
 
-// Refused carries a server's no back to the page a button returns to;
-// there is no form to show it on.
+// Refused carries a server's refusal back to the page a button returns to.
 func Refused(ctx *alborz.Context, err error) alborz.Notice {
 	return alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)}
 }
 
-// StarRenderData is one object's star, which is all that changes when
-// a row is marked.
+// StarRenderData is one object's star.
 type StarRenderData struct {
 	alborz.BaseRenderData
 	Action    string
@@ -112,12 +100,7 @@ type StarRenderData struct {
 	MenuLabel string
 }
 
-// Star marks the selection with the colour the form asks for: one of
-// the seven, or none to clear it. mark sets it on one object in the
-// kind's own way and answers the colour the object had. A row that
-// asked for a piece of itself gets its star back and nothing moves; a
-// refused write leaves that star as it was, since the answer is the
-// server's state and never the click's.
+// Star marks the selection with the form's colour; a refused write leaves the star as the server holds it.
 func Star[C any](ctx *alborz.Context, client func(context.Context, *alborz.Login) (C, error), list string, mark func(ctx *alborz.Context, ref Ref[C], name string) (was string, err error)) error {
 	name := ctx.FormValue("color")
 	if name != "" && !slices.Contains(alborzbase.FlagColors[:], name) {
@@ -134,8 +117,7 @@ func Star[C any](ctx *alborz.Context, client func(context.Context, *alborz.Login
 		},
 		Piece: func(ctx *alborz.Context, ref Ref[C], next string) error {
 			action := ctx.AccountPath(ObjectURL(list+"/", ref.Path, "", nil) + "/color")
-			// A star the list is narrowed to, taken off or changed, takes
-			// the row out of the list, as moving a message does.
+			// Changing a star the list is narrowed to takes the row out of the list.
 			if alborzbase.StarLeaves(next, name) {
 				ctx.Notify(alborzbase.StarNotice(ctx, name, action, url.Values{"color": {was}, "next": {next}}))
 				return ctx.Relocate(next)

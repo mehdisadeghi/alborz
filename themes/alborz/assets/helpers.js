@@ -1,8 +1,6 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
-// The zone the server formats dates in. This is the one cookie the page
-// writes rather than the server, so it cannot be HttpOnly; its path,
-// policy and lifetime are those of the preference cookies.
+// The zone the server formats dates in; the page writes it, so it cannot be HttpOnly.
 try {
 	const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	if (tz && document.cookie.indexOf("alborz_tz=") === -1) {
@@ -13,14 +11,7 @@ try {
 } catch (e) {}
 
 
-// The page is enhanced again whenever htmx puts new markup in place, so
-// everything below runs more than once against a document that is
-// partly new. A listener added twice acts twice, so each is claimed for
-// its element by name; the element is forgotten with the DOM node.
-// Whether a finger is doing the pointing, which decides what may take
-// focus: on a touch screen a focused field is a keyboard over half the
-// page and, where the field has a suggestion list, the browser's own
-// sheet over the rest.
+// On a touch screen a focused field puts a keyboard over half the page.
 const touch = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 if (touch) {
 	const opening = document.activeElement;
@@ -29,6 +20,7 @@ if (touch) {
 	}
 }
 
+// enhance runs again on every htmx swap, and a listener added twice acts twice.
 const claimed = new WeakMap();
 const once = (el, key) => {
 	let keys = claimed.get(el);
@@ -44,13 +36,11 @@ const once = (el, key) => {
 };
 
 const enhance = () => {
-	// The row stars' chevrons need the script that points the page's
-	// one colours menu at their row.
+	// The row stars' chevrons need this script to open the colours menu.
 	for (const chevron of document.querySelectorAll("[data-row-colors][hidden]")) {
 		chevron.hidden = false;
 	}
-	// An empty timezone field shows the browser's own zone as its placeholder.
-	// This lives here because the page CSP has no unsafe-inline for scripts.
+	// Set here because the page CSP allows no inline script.
 	const tz_input = document.getElementById("timezone");
 	if (tz_input && !tz_input.value) {
 		try {
@@ -58,13 +48,7 @@ const enhance = () => {
 		} catch (e) {}
 	}
 
-	// Bulk actions operate on the checked rows: the select-all box appears
-	// where there are rows, and every control bound to the bulk form is
-	// disabled while nothing is selected - the move destination as much as
-	// the buttons, and an empty list as much as an unselected one. A list
-	// is any form its rows' checkboxes name, so a new list joins the rule
-	// by binding its rows and its actions to one form, and nothing here
-	// has to learn its name.
+	// A list is any form its rows' checkboxes name; its controls are disabled while nothing is ticked.
 	const check_all = document.getElementById("action-checkbox-all");
 	const bulk_forms = new Set(Array.prototype.map.call(
 		document.querySelectorAll('input[type="checkbox"][form]'), box => box.getAttribute("form")));
@@ -76,12 +60,8 @@ const enhance = () => {
 			continue;
 		}
 		const boxes = document.querySelectorAll(`input[type="checkbox"][form="${formId}"]`);
-		// A menu's button is a real button: disabled with the rest, and its
-		// panel shut if it was open when the last row was unchecked.
 		const menus = document.querySelectorAll(`[data-gated="${formId}"]`);
-		// A page fully ticked may be widened to the whole list; see
-		// mailbox.html. Anything less than the full page is the rows
-		// again, so unticking one takes "everything" back.
+		// A fully ticked page may widen to the whole list; unticking one narrows it back.
 		const offer = document.querySelector(`.select-everything[data-form="${formId}"]`);
 		const everything = document.querySelector(`input[name="everything"][form="${formId}"]`);
 		const widen = on => {
@@ -129,9 +109,7 @@ const enhance = () => {
 			});
 		}
 		if (check_all) {
-			// The markup ships it disabled and says it needs a script; this
-			// is the script. From here it is disabled only for the reason
-			// every other bulk control is - an empty list.
+			// The markup ships it disabled for want of a script; from here only an empty list disables it.
 			check_all.title = check_all.dataset.title || "";
 			check_all.disabled = boxes.length === 0;
 			if (once(check_all, "bulk")) {
@@ -146,8 +124,6 @@ const enhance = () => {
 		update();
 	}
 
-	// Escape leaves the search: it clears the term and drops focus, which
-	// also collapses the overlay the small-screen magnifier opens.
 	for (const search of document.querySelectorAll(".actions-search input")) {
 		if (!once(search, "escape")) {
 			continue;
@@ -160,12 +136,7 @@ const enhance = () => {
 		});
 	}
 
-	// Creation has no fixed account context: remember one destination per
-	// object type in this browser, while the optgroups continue to show the
-	// account namespace only once when the menu is opened.
-	// Whose collection it is decides which places can keep it: the form
-	// lists every account's, grouped, and the account chosen leaves its
-	// own on the list. Without a script the groups say whose is whose.
+	// The chosen account narrows the places to its own; without a script the groups say whose is whose.
 	for (const account of document.querySelectorAll("select[data-place-account]")) {
 		const places = account.form && account.form.querySelector("select[data-place-of]");
 		if (!places || !once(account, "placeaccount")) {
@@ -178,8 +149,6 @@ const enhance = () => {
 			for (const option of places.querySelectorAll("option[data-account]")) {
 				option.hidden = account.value !== "" && option.dataset.account !== account.value;
 			}
-			// A place of another account is no longer on offer, so it is
-			// no longer the answer.
 			const chosen = places.selectedOptions[0];
 			if (chosen && chosen.hidden) {
 				places.value = "";
@@ -218,9 +187,7 @@ const enhance = () => {
 		}
 	}
 
-	// The cursor belongs where the reply is written, which is above the
-	// quote or below it. A browser focusing a textarea puts it at one end
-	// or the other depending on the browser; this says which end.
+	// The reply is written above the quote or below it; data-caret says which end.
 	const caret = document.querySelector("textarea[data-caret]");
 	if (caret && !touch && once(caret, "caret")) {
 		const at = caret.dataset.caret === "start" ? 0 : caret.value.length;
@@ -228,14 +195,7 @@ const enhance = () => {
 		caret.setSelectionRange(at, at);
 	}
 
-	// A recipient field holds a list, and a datalist matches the whole
-	// value: once "a@b.example, " is typed nothing matches any more, so the
-	// completion appears to stop working after the first address. Rewriting
-	// each option to "what is already typed" + candidate puts the browser's
-	// own matching back on the token being written.
-	//
-	// Purely additive: without this the first address still completes, and
-	// nothing here is the only way to reach an address.
+	// A datalist matches the whole value, so each option carries what is typed before the candidate.
 	const recipients = document.querySelectorAll('input[list="emails"]');
 	const suggestions = document.getElementById("emails");
 	if (suggestions && recipients.length) {
@@ -255,8 +215,6 @@ const enhance = () => {
 				const prefix = field.value.slice(0, cut + 1) + " ";
 				suggestions.replaceChildren(...all.map(v => {
 					const option = new Option(v, prefix + v);
-					// The label stays the address alone; only the value
-					// carries what is already in the field.
 					option.label = v;
 					return option;
 				}));
@@ -264,16 +222,10 @@ const enhance = () => {
 		}
 	}
 
-	// A browser can be told this application opens mail links, and calendar
-	// links. It asks only on a user gesture, so each hangs off a button,
-	// and the buttons appear only where the browser offers the ability at
-	// all.
 	const handler_group = document.getElementById("handler-group");
 	if (handler_group && navigator.registerProtocolHandler && once(handler_group, "handlers")) {
 		handler_group.hidden = false;
-		// No API says whether the browser agreed; the most the page can
-		// remember is that it asked, so a second visit does not invite a
-		// second press as if nothing had happened.
+		// No API says whether the browser agreed, so the page remembers only that it asked.
 		const asked = [...handler_group.querySelectorAll("button[data-protocol]")]
 			.some((b) => localStorage.getItem(b.dataset.protocol + "-asked"));
 		if (asked) {
@@ -290,21 +242,12 @@ const enhance = () => {
 				document.getElementById("register-mailto-before").hidden = true;
 				document.getElementById("register-mailto-asked").hidden = false;
 			} catch (e) {
-				// Refused for want of a secure context, which is worth
-				// saying rather than leaving the button looking broken.
 				document.getElementById("register-mailto-refused").hidden = false;
 			}
 		});
 	}
 
-	// The rail remembers which account groups the reader left open. Each
-	// keyed <details> restores its state on load and saves it on toggle;
-	// storage that is unavailable simply means the server default stands.
-	// A change made on the rail - a collection ticked, Apply pressed -
-	// reloads the page, and on a phone the drawer came back closed with
-	// the rail out of sight. A form submitted from the drawer opens it
-	// again on the page that follows; a link from the rail does not, since
-	// its page is the reason for the tap.
+	// A form submitted from the phone drawer reopens it on the next page; a rail link's page is the reason for the tap.
 	const drawer = document.getElementById("sidebar");
 	if (drawer) {
 		try {
@@ -345,10 +288,7 @@ const enhance = () => {
 		});
 	}
 
-	// The section links are words while the five fit the row and icons
-	// once they do not. Measured, not set at a width: the words are longer
-	// in German and Persian than in English, and a row that scrolls hides
-	// the last section.
+	// Measured, not set at a width: the words' length differs by language.
 	const primeNav = document.querySelector("header nav");
 	if (primeNav) {
 		const fitNav = () => {
@@ -363,14 +303,7 @@ const enhance = () => {
 		fitNav();
 	}
 
-	// Priority-plus toolbar. Every control sits in the row once; the ones
-	// that can give width back carry data-priority, and data-yield says
-	// how: "hide" drops it, "word" drops its word and keeps the mark, and
-	// by default it moves into the overflow menu. Steps are taken lowest
-	// priority first until the row holds everything at natural size, and
-	// given back as the row widens. The menu keeps its own items below
-	// whatever moved in, in row order. No control is duplicated for a
-	// width, and the toggle costs nothing while the menu is empty.
+	// Priority-plus toolbar: data-yield is "hide", "word", or by default a move into the overflow menu.
 	for (const wrap of document.querySelectorAll(".actions-wrap")) {
 		const details = wrap.querySelector("div.overflow:not(.flag-menu)");
 		const menu = details && details.querySelector(":scope > .overflow-menu");
@@ -384,11 +317,7 @@ const enhance = () => {
 		}
 		const leaving = items.slice().sort((a, b) => a.priority - b.priority);
 		const ownItems = menu.children.length;
-		// The title is what flex shrinks, and a shrunk half lets it spill
-		// under the other while scrollWidth says nothing. Both halves and the
-		// title are held at full size while the row is measured, so what does
-		// not fit overflows for real, and the title truncates only once every
-		// step has been taken.
+		// Held at full size while measuring: a flex-shrunk title spills unseen by scrollWidth.
 		const pinned = wrap.querySelectorAll(":scope > .actions-message, :scope > .actions-end, .actions-message h1");
 		const pin = on => { for (const el of pinned) { el.style.flexShrink = on ? "0" : ""; } };
 		let fitting = false;
@@ -434,10 +363,7 @@ const enhance = () => {
 	}
 
 
-	// A browser without anchor positioning would centre every popover in
-	// the viewport, which is where the UA sheet puts one. Until Safari and
-	// Firefox of last year are gone, the panel is placed under its button
-	// by hand when it opens, on the side the menu grows from.
+	// Without anchor positioning the UA sheet centres a popover in the viewport.
 	if (!CSS.supports("position-area", "block-end")) {
 		for (const panel of document.querySelectorAll("[popover].overflow-menu, [popover].accounts-menu")) {
 			if (!once(panel, "popoverplace")) {
@@ -462,22 +388,13 @@ const enhance = () => {
 };
 
 enhance();
-// A quick add lands back on its list at #quick, so the next line can be
-// typed straight away; that is the point of the quick add.
+// A quick add lands back at #quick so the next line can be typed straight away.
 if (location.hash === "#quick") {
 	document.getElementById("quick")?.focus();
 }
-// htmx settles new content into the page without a load event of its
-// own kind; this is that event.
 document.addEventListener("htmx:load", enhance);
 
-// A native suggestion list is the browser's own popup, and on a phone it
-// covers the page the moment its field takes focus. Two consequences,
-// both handled here rather than by giving up the datalist: a page that
-// autofocuses a field should not open a sheet over itself on a touch
-// screen, and a popup open when htmx replaces the document's body
-// outlives the element it belonged to and hangs there over the next
-// page.
+// A suggestion popup open when htmx swaps the body would outlive its field.
 document.addEventListener("htmx:beforeSwap", () => {
 	const focused = document.activeElement;
 	if (focused && focused !== document.body && focused.blur) {
@@ -485,11 +402,7 @@ document.addEventListener("htmx:beforeSwap", () => {
 	}
 });
 
-// htmx throws away anything that is not a 2xx, which is right for a
-// server that fell over and wrong for one that answered. A refusal is
-// an answer: the login page with its alert, a form with what was typed
-// still in it, an edit that met a newer copy. Swap those, and do not
-// raise the "no answer" notice for them.
+// A refusal is an answer, not a failure: swap it and raise no notice.
 document.addEventListener("htmx:beforeSwap", ev => {
 	const status = ev.detail && ev.detail.xhr && ev.detail.xhr.status;
 	if (status === 401 || status === 409 || status === 422) {
@@ -510,11 +423,7 @@ document.addEventListener("htmx:beforeSwap", ev => {
 	}
 });
 
-// A swap replaces the body and nothing above it, so the language and
-// the direction - which live on the root element - would stay whatever
-// the page before said. Signing in from a page asked for in Persian
-// left an English page running right to left. The answer the server
-// sent carries both; take them from it.
+// A swap replaces the body only, so lang and dir on the root come from the answer.
 document.addEventListener("htmx:beforeSwap", ev => {
 	const answer = ev.detail && ev.detail.xhr && ev.detail.xhr.responseText;
 	if (!answer) {
@@ -527,13 +436,8 @@ document.addEventListener("htmx:beforeSwap", ev => {
 	}
 });
 
-// A boosted navigation swaps the body and leaves the head, so a tab
-// keeps the stylesheet and the scripts it first loaded for as long as
-// it stays open - and an installed window stays open for days, across
-// every deploy, drawing new markup with an old stylesheet. Each page
-// names the shell it was written for; one written for another is loaded
-// whole. Only for a GET: a form that comes back refused carries what
-// was typed, and a reload would throw that away.
+// A boosted tab keeps its first head across deploys, so a page for another shell loads whole.
+// Only for a GET: a refused form carries what was typed.
 const loadedShell = (document.querySelector('meta[name="alborz-shell"]') || {}).content;
 document.addEventListener("htmx:beforeSwap", ev => {
 	const xhr = ev.detail && ev.detail.xhr;
@@ -548,32 +452,18 @@ document.addEventListener("htmx:beforeSwap", ev => {
 	}
 });
 
-// A request that does not come back must say so: htmx swaps nothing on
-// a failure and would otherwise leave a click looking like a click that
-// did nothing. The notice is the server's, written into every page and
-// hidden; this reveals it, and the next request that does come back
-// hides it again. The page itself is left exactly as it was - a POST
-// that timed out may still have reached the server, so nothing here
-// claims that nothing happened.
-// The element is looked up when something happens, not once at load: a
-// boosted navigation replaces the body, and a handler holding the first
-// page's notice would be pointing at a node no longer in the document -
-// which is exactly a failure that shows nothing.
-// The header a page puts on what it asks for by itself (lock.go).
 const unasked = "Alborz-Unasked";
+// Looked up per event: a boosted navigation replaces the body.
 const failedNotice = () => document.getElementById("request-failed");
-// Offline already says the server did not answer; the two are one
-// notice, not two stacked.
+// Offline already says the server did not answer.
 const offlineShown = () => {
 	const offline = document.getElementById("offline-notice");
 	return offline !== null && offline.open;
 };
+// htmx swaps nothing on a failure, so without the notice a click would look ignored.
 for (const event of ["htmx:sendError", "htmx:timeout", "htmx:responseError"]) {
 	document.addEventListener(event, ev => {
-		// What the page asked for by itself - the counts after mail
-		// arrived, a list renewing under nobody's hands - is not a click
-		// that did nothing, and its failure is not news. Saying so put a
-		// failure on the screen of a reader who had asked for nothing.
+		// What the page asked for by itself is not a click that did nothing.
 		if (ev.detail && ev.detail.requestConfig &&
 			ev.detail.requestConfig.headers[unasked]) {
 			return;
@@ -591,9 +481,7 @@ document.addEventListener("htmx:beforeRequest", () => {
 	}
 });
 
-// The appearance button moves the root to the next scheme and keeps it
-// for this tab only (ADR 50). The button that now shows takes the focus
-// the pressed one had, so a keyboard stays on the control.
+// The button now shown takes the focus, so a keyboard stays on the control (ADR 50).
 document.addEventListener("click", ev => {
 	const button = ev.target.closest(".scheme-toggle button");
 	if (!button) {
@@ -611,9 +499,7 @@ document.addEventListener("click", ev => {
 	}
 });
 
-// A folder opened into the list leaves the rail where it was, so only
-// the mark moves: to the row whose link names the place the page now
-// shows, by path, account and view, whatever else the URL carries.
+// The rail stays; only its mark moves, matched by path, account and view.
 const railPlace = href => {
 	const u = new URL(href, location.href);
 	return u.pathname + "|" + (u.searchParams.get("account") || "") + "|" + (u.searchParams.get("view") || "");
@@ -622,8 +508,7 @@ document.addEventListener("htmx:afterSwap", ev => {
 	if (!ev.target || ev.target.id !== "main") {
 		return;
 	}
-	// On a phone the list is under the drawer; a tap on a rail link is
-	// a tap for the page, and a reload used to close the drawer with it.
+	// On a phone the list is under the drawer; a rail link's tap is for the page.
 	const from = ev.detail && ev.detail.requestConfig && ev.detail.requestConfig.elt;
 	const drawer = document.getElementById("sidebar");
 	if (drawer && from && from.closest && from.closest("aside")) {
@@ -633,11 +518,7 @@ document.addEventListener("htmx:afterSwap", ev => {
 	for (const marked of document.querySelectorAll("aside li.active, aside summary.active")) {
 		marked.classList.remove("active");
 	}
-	// An account's name leads to its inbox, so the two share an address;
-	// the name is a scope and the inbox the place, and the place takes
-	// the mark. An inbox with folders under it is a branch, its row a
-	// summary like the account's heading, so it is the heading that is
-	// passed over rather than every summary; Starred is one too.
+	// An account's name and its inbox share an address; the inbox takes the mark.
 	const rows = [...document.querySelectorAll("aside a[href]")]
 		.filter(link => railPlace(link.href) === here)
 		.map(link => link.closest("summary, li"))
@@ -648,47 +529,29 @@ document.addEventListener("htmx:afterSwap", ev => {
 	}
 });
 
-// A watcher on the server sits in IDLE, so alborz learns that mail
-// arrived before anybody asks for a page. What that changes here is the
-// rail's count, which is the one place a number for a folder lives; the
-// list under the reader's hands is left exactly where it is, and the
-// folder they click is already fetched. A reader with no script loses
-// nothing they had.
-// What the page asks for by itself says so: mail arriving is not the
-// reader being here, and would otherwise hold the lock off for ever.
-
+// Mail arriving renews the rail; what the page asks for by itself says so, or it would hold the lock off for ever.
 const rail = document.querySelector("aside");
 if (rail && window.EventSource) {
 	let due = null;
 	const live = new EventSource("/events");
 
-	// The list the page is showing, when the page shows one: a folder of
-	// one account, or a role across them all.
 	const listing = () => document.querySelector("main.message-list [data-live-folder]");
 
-	// Whether the mail that arrived belongs to the list on screen. A
-	// merged list holds every account's folder of that name, so the
-	// account only has to match where the page names one.
+	// A merged list holds every account's folder of that name.
 	const shows = (here, account, folder) =>
 		here.dataset.liveFolder === folder &&
 		(here.dataset.liveMerged === "1" || here.dataset.liveAccount === "" || here.dataset.liveAccount === account);
 
-	// Mail arriving is not the reader acting, but the rows under their
-	// hands are theirs: the list renews itself only while nothing is
-	// picked, nothing is open and it is the first page at its top.
-	// Otherwise the bar says mail came and renews it when asked.
+	// The rows under the reader's hands are theirs; otherwise the bar offers the renewal.
 	const undisturbed = here =>
 		window.scrollY === 0 &&
-		// The row checkboxes belong to the selection form by name, not by
-		// nesting, so they are not inside it to be found.
+		// The row checkboxes belong to the form by name, not by nesting.
 		!document.querySelector("input[type=checkbox][form=messages-form]:checked") &&
 		!document.querySelector("[popover]:popover-open") &&
 		!new URL(location.href).searchParams.get("page") &&
 		// The search field sits in the toolbar, beside the rows.
 		!here.closest("main").querySelector("input:focus, textarea:focus");
 
-	// The list renews itself the way its own pager does: the server
-	// answers a request naming main with the list alone.
 	const renew = (here, headers) => {
 		if (!window.htmx) {
 			return;
@@ -707,20 +570,16 @@ if (rail && window.EventSource) {
 		bar.append(button);
 	};
 
-	// A lock taken in another tab: the server sends this page to the
-	// passkey, and back here after it.
+	// A lock taken in another tab.
 	live.addEventListener("locked", () => location.reload());
-	// A stream the server ended and will not reopen: a lock taken in
-	// another tab is one reason, and the lock's own script knows how to
-	// ask.
+	// A stream the server closed for good; the lock's script knows how to ask.
 	live.addEventListener("error", () => {
 		if (live.readyState === EventSource.CLOSED) {
 			document.dispatchEvent(new Event("alborz:streamclosed"));
 		}
 	});
 
-	// The bar goes along to calendar and contacts, where it is still news;
-	// back in mail, the page it lands on was fetched after the mail came.
+	// Back in mail, the page landed on was fetched after the mail came.
 	let away = false;
 	document.addEventListener("htmx:afterSwap", () => {
 		if (!document.querySelector("aside[data-mail-sidebar]")) {
@@ -736,8 +595,7 @@ if (rail && window.EventSource) {
 	live.addEventListener("mailbox", ev => {
 		const [account, ...rest] = String(ev.data || "").split(" ");
 		const folder = rest.join(" ");
-		// Mail arrives in bursts; the counts are fetched once for the
-		// burst rather than once for each message.
+		// Mail arrives in bursts; the counts are fetched once per burst.
 		clearTimeout(due);
 		due = setTimeout(() => {
 			const here = document.querySelector("aside[data-mail-sidebar]");
@@ -761,12 +619,7 @@ if (rail && window.EventSource) {
 	});
 }
 
-// The worker holds the stylesheet, the scripts and the icons, so the
-// application starts without waiting for them: see serviceworker.go.
-// The worker answers from what it saved when the server cannot be
-// reached, and says so; the notice follows what it says. A swap brings
-// a new notice, hidden as the server wrote it, so the state is applied
-// again to whatever the page now holds.
+// A swap brings a new notice, hidden as the server wrote it, so the state is applied again.
 if ("serviceWorker" in navigator) {
 	let offline = false;
 	let slow = false;
@@ -798,19 +651,12 @@ if ("serviceWorker" in navigator) {
 
 if ("serviceWorker" in navigator) {
 	window.addEventListener("load", () => {
-		// updateViaCache none: the worker's own script is revalidated on
-		// every registration rather than kept for a day, so a new shell
-		// is picked up on the next visit instead of the next week.
+		// Revalidate the worker's script on every registration, so a new shell arrives on the next visit.
 		navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
 	});
 }
 
-// A form is sent once. Nothing answers a click for the round trip's
-// length, so a reader clicks again and the server does the thing
-// twice. The form is marked busy on submit and a second submit is
-// refused; its buttons dim a tick later, after the browser has read
-// the clicked one's name and value into the form data. Coming back
-// through the history cache restores the form as it was.
+// A form is sent once. Its buttons dim a tick later, after the clicked one is read into the form data.
 const submitButtons = form => {
 	const inside = form.querySelectorAll('button:not([type="button"]), input[type="submit"]');
 	if (!form.id) {
@@ -818,8 +664,6 @@ const submitButtons = form => {
 	}
 	return [...inside, ...document.querySelectorAll(`button[form="${form.id}"]`)];
 };
-// Both paths end in the same two calls: a form that leaves the page is
-// released by the next page, and a boosted one by htmx's answer.
 const setBusy = form => {
 	form.dataset.busy = "1";
 	form.setAttribute("aria-busy", "true");
@@ -844,13 +688,11 @@ const clearBusy = form => {
 };
 document.addEventListener("submit", ev => {
 	const form = ev.target;
-	// A boosted form never leaves the page, so htmx's own events say
-	// when it is busy and when it is done.
+	// A boosted form never leaves the page; htmx's events handle it.
 	if (ev.defaultPrevented) {
 		return;
 	}
-	// A download answers without leaving the page, so it never ends the
-	// busy state and must not begin one.
+	// A download never leaves the page, so it would never end the busy state.
 	if ("download" in form.dataset || (ev.submitter && "download" in ev.submitter.dataset)) {
 		return;
 	}
@@ -886,18 +728,12 @@ window.addEventListener("pageshow", ev => {
 	}
 });
 
-// A request in flight says so. htmx marks the element it is acting on
-// with .htmx-request and nothing else; what a reader wants is one place
-// to look, so a thin bar crosses the top of the page and the region
-// being swapped is marked busy. Nothing appears for a request that
-// answers quickly - a flash on every click is noise - and the bar is a
-// script's own element, so a page without one costs nothing.
+// Nothing appears for a quick answer: a flash on every click is noise.
 const progressDelay = 150;
 let progressTimer = null;
 let inFlight = 0;
 
-// A boosted swap replaces the body and the bar with it, so the bar is
-// found or made at the moment it is needed rather than held onto.
+// A boosted swap replaces the body and the bar with it.
 const progressBar = () => {
 	let bar = document.querySelector(".progress");
 	if (!bar) {
@@ -912,9 +748,7 @@ const progressBar = () => {
 const showProgress = () => {
 	const progress = progressBar();
 	progress.hidden = false;
-	// The bar crawls while the request is out and finishes when it
-	// lands: a width that reached the end on its own would promise an
-	// arrival nobody has.
+	// A bar that reached the end on its own would promise an arrival nobody has.
 	requestAnimationFrame(() => progress.classList.add("progress-running"));
 };
 
@@ -954,23 +788,14 @@ for (const event of ["htmx:afterRequest", "htmx:sendError", "htmx:timeout", "htm
 	});
 }
 
-// A session with a passkey locks after a time away, and the server will
-// answer nothing then. The page leaves with it, so what is on screen
-// does not outstay the lock: the time runs from the reader's last act
-// here, as the server's does from their last request.
+// The page leaves with the lock, so what is on screen does not outstay it.
 const lockAfter = Number((document.querySelector('meta[name="alborz-lock"]') || {}).content);
 if (lockAfter > 0 && location.pathname !== "/unlock") {
-	// Writing a long message is being here without asking the server
-	// for anything, and a lock that fell in the meantime would take the
-	// message with it when sent. So the server is told, no more often
-	// than this many seconds.
+	// Writing a long message asks the server nothing, so it is told the reader is here.
 	const tellEvery = 60;
 	let timer, told = Date.now();
 	const leave = () => location.assign("/unlock?next=" + encodeURIComponent(location.pathname + location.search));
-	// A locked session answers everything with the way to the lock, and
-	// fetch follows it without a word: where it ended up is the answer.
-	// The lock may have been taken in another tab, which this one's own
-	// timer knows nothing of.
+	// The lock may have been taken in another tab; fetch follows its redirect silently.
 	const tell = () => fetch("/alive", {method: "POST"}).then(answer => {
 		if (answer.redirected && new URL(answer.url).pathname === "/unlock") {
 			leave();
@@ -994,8 +819,7 @@ if (lockAfter > 0 && location.pathname !== "/unlock") {
 		}
 	});
 	arm();
-	// Back and forward can show a page from memory without asking the
-	// server, which is the one that knows the browser was locked since.
+	// A page from the history cache never asked the server whether it locked since.
 	window.addEventListener("pageshow", event => {
 		if (event.persisted) {
 			location.reload();
@@ -1003,10 +827,7 @@ if (lockAfter > 0 && location.pathname !== "/unlock") {
 	});
 }
 
-// One colours menu serves every row's star (row-colors): the chevron
-// that opens it names the row, and a colour submits that row's own
-// form the way its star does. Without this the chevrons stay hidden and
-// the stars still set and clear.
+// One colours menu serves every row's star; the chevron that opens it names the row.
 let starForm = null;
 document.addEventListener("click", ev => {
 	const chevron = ev.target.closest("[data-row-colors]");
@@ -1027,10 +848,7 @@ document.addEventListener("click", ev => {
 	starForm.requestSubmit();
 });
 
-// A colour menu opens on the star it belongs to: the colour already
-// given is marked, and picking it again clears it, as pressing a lit
-// star does. The row's chevron stays while its menu is open, since the
-// menu hangs from it.
+// Picking the given colour again clears it, as pressing a lit star does.
 document.addEventListener("beforetoggle", ev => {
 	const menu = ev.target;
 	if (!menu.classList || !menu.classList.contains("flag-colors")) {
@@ -1053,18 +871,12 @@ document.addEventListener("beforetoggle", ev => {
 	}
 }, true);
 
-// What the browser has to say takes the same box, in the same place, as
-// what the server says: the notice bar. Written by hand because these
-// are the browser's own news - an upload's progress, mail that arrived -
-// and never come with a page. Each source of news has a bar of its own:
-// mail arriving during an upload must not take the upload's progress.
-// A notice nobody has to answer stays this long: one clause, read once,
-// and the six seconds a done notice from the server stays (ADR 41).
+// A bar per source of news: mail arriving must not take an upload's progress.
+// As long as a done notice from the server stays (ADR 41).
 const noticeLinger = 6000;
 const noticeBar = () => {
 	let bar = null;
 	let leaving = 0;
-	// In the page's notice layer, first, where the server's go (ADR 41).
 	const place = () => {
 		const layer = document.querySelector(".notices");
 		if (layer) {
@@ -1094,15 +906,11 @@ const noticeBar = () => {
 				bar = null;
 			}
 		},
-		// The timer is the bar's own: a later notice in the same bar
-		// takes it over, and another bar's never ends this one.
 		linger() {
 			clearTimeout(leaving);
 			leaving = setTimeout(() => this.hide(), noticeLinger);
 		},
-		// A page swapped under it takes the bar with it; what it reports
-		// is still going on, so it goes back on the new page, where it
-		// was.
+		// A swap takes the bar with it, though what it reports is still going on.
 		reattach() {
 			if (bar && !bar.isConnected) {
 				place();
@@ -1112,21 +920,12 @@ const noticeBar = () => {
 };
 const notices = { live: noticeBar(), upload: noticeBar() };
 
-// Files dropped on a folder go into that folder: the drop says where,
-// so nothing is asked. What it says while it works it says where every
-// other message to the reader appears, in the notice bar's own shape.
 (() => {
 	const rail = () => document.querySelector("aside");
-	// Only a row that is one folder of one account: a view's row names a
-	// search, and a merged role's row names a folder per account, so
-	// neither can say where a file should land.
+	// A view's or a merged role's row cannot say where a file should land.
 	const folderLink = node => node && node.closest && node.closest("aside a[data-folder]");
-	// Where a drop is a question rather than an answer: the mail rail,
-	// or a list that names no single folder.
 	const mailArea = node => node && node.closest && node.closest("aside[data-mail-sidebar], main.message-list");
-	// The list itself is the folder it shows: a drop on it lands there,
-	// which is where a hand with a file in it goes first. The folder is
-	// named inside the list, by the part every swap renews.
+	// The folder is named inside the list, by the part every swap renews.
 	const dropMbox = list => list.querySelector("[data-drop-mbox]");
 	const listArea = node => {
 		const list = node && node.closest && node.closest("main.message-list");
@@ -1134,8 +933,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 	};
 	const target = node => folderLink(node) || listArea(node);
 	const folderURL = el => el.dataset.folder || dropMbox(el).dataset.dropMbox;
-	// A file field takes a dropped file by itself, and refusing the drop
-	// for the page would refuse it for the field too.
+	// Refusing the drop for the page would refuse it for a file field too.
 	const ownField = node => node && node.closest && node.closest('input[type="file"]');
 	const carriesFiles = ev => ev.dataTransfer && [...ev.dataTransfer.types].includes("Files") && !ownField(ev.target);
 	const say = key => (rail() && rail().dataset[key]) || "";
@@ -1147,10 +945,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		notices.live.reattach();
 	});
 
-	// A file dropped anywhere on the page is the browser's to open
-	// otherwise: it leaves the page, or opens a tab per file. The page
-	// refuses the whole lot but a file field's, and a folder under the
-	// pointer takes them.
+	// Otherwise the browser opens a dropped file itself, leaving the page.
 	window.addEventListener("dragenter", ev => {
 		if (carriesFiles(ev)) {
 			ev.preventDefault();
@@ -1170,8 +965,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 
 	document.addEventListener("dragleave", ev => {
 		const into = target(ev.target);
-		// Crossing from one row to the next leaves a child, not the
-		// area: the outline stays until the pointer is really out.
+		// Crossing from one row to the next leaves a child, not the area.
 		if (into && !into.contains(ev.relatedTarget)) {
 			into.classList.remove("drop-into");
 		}
@@ -1186,9 +980,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		if (into) {
 			into.classList.remove("drop-into");
 		}
-		// A dropped directory carries no bytes of its own, and Apple
-		// Mail exports a mailbox as exactly that: a .mbox folder with
-		// the mbox file inside. The entries are walked for the files.
+		// A dropped directory carries no bytes; Apple Mail exports a mailbox as a .mbox folder.
 		const entries = [...ev.dataTransfer.items]
 			.map(item => item.webkitGetAsEntry && item.webkitGetAsEntry())
 			.filter(Boolean);
@@ -1198,9 +990,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 			send(new URL(folderURL(into), location.origin), waiting);
 			return;
 		}
-		// A merged list names the folder and not the account: every
-		// account has one. The rail knows which accounts hold this very
-		// folder, so the question is which of them, not where.
+		// A merged list names the folder, not the account; the rail knows which accounts hold it.
 		const accounts = holders();
 		if (accounts.length === 1) {
 			send(new URL(accounts[0].href, location.origin), waiting);
@@ -1216,14 +1006,10 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		}
 	});
 
-	// holders are the rail rows for the folder this page is showing,
-	// one per account that has it.
 	const holders = () => [...document.querySelectorAll("aside a[data-folder]")]
 		.map(row => ({href: row.dataset.folder, label: row.textContent.trim(), account: new URL(row.dataset.folder, location.origin).searchParams.get("account")}))
 		.filter(row => row.account && new URL(row.href, location.origin).pathname === location.pathname);
 
-	// ask puts the accounts in the notice bar, one button each: the
-	// files wait in the page until one is pressed.
 	const ask = (accounts, waiting) => {
 		const here = decodeURIComponent(location.pathname.split("/").pop());
 		const bar = notices.upload.show(say("importingWhich").replace("%s", here));
@@ -1243,14 +1029,9 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		}
 	};
 
-	// What holds mail: an mbox by name or extension, or a single
-	// message. An Apple .mbox folder also holds Info.plist, a table of
-	// contents and the same messages again as .emlx, and none of those
-	// is mail to import.
+	// An Apple .mbox folder also holds Info.plist, a table of contents and .emlx copies.
 	const mailLike = file => /^mbox$|\.(mbox|eml)$/i.test(file.name);
 
-	// collect walks what was dropped, a directory at a time, and answers
-	// the files inside it.
 	const collect = async entries => {
 		const files = [];
 		const pending = [...entries];
@@ -1272,15 +1053,11 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		return files;
 	};
 
-	// post sends one batch and answers the status; the fraction it
-	// reports is the whole drop's, not the batch's.
 	const post = (href, batch, before, total) => new Promise(resolve => {
 		const body = new FormData();
 		for (const file of batch) {
 			body.append("file", file);
 		}
-		// One file reads as its name; eighty read as eighty, never as
-		// eighty names.
 		const naming = batch.length === 1
 			? say("importing").replace("%s", batch[0].name)
 			: say("importingMany").replace("%s", new Intl.NumberFormat(document.documentElement.lang || "en").format(batch.length));
@@ -1292,9 +1069,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 				progress.value = Math.round(((before + (e.loaded / e.total) * batch.length) / total) * 100);
 			}
 		});
-		// Uploaded and not yet answered: the server is appending, and how
-		// long that takes is the server's to know. The bar says it is
-		// working rather than standing at the end.
+		// Uploaded, not yet answered: how long appending takes is the server's to know.
 		request.upload.addEventListener("load", () => {
 			progress.removeAttribute("value");
 			status(say("importingAdding"));
@@ -1307,23 +1082,16 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		const found = await waiting;
 		const files = found.filter(mailLike);
 		if (!files.length) {
-			// Something was dropped and none of it is mail: saying so is
-			// the only honest answer, and it clears itself.
 			if (found.length) {
 				status(say("importingNone"), "failed").hidden = true;
 				notices.upload.linger();
 			}
 			return;
 		}
-		// A reload takes the document down and the upload with it, and
-		// the folder keeps whatever arrived before that. The browser
-		// asks first while one is in flight.
+		// A reload would take the upload down midway.
 		const hold = ev => ev.preventDefault();
 		window.addEventListener("beforeunload", hold);
-		// A proxy in front of alborz has its own idea of how large a
-		// request may be, and answers 413 without saying what it is. A
-		// refused batch is halved and tried again, down to one file,
-		// so the reader never has to know the number.
+		// A proxy in front may answer 413 without naming its limit, so a refused batch is halved.
 		const pending = [files];
 		let landed = 0;
 		let refused = 0;
@@ -1345,14 +1113,11 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		}
 		window.removeEventListener("beforeunload", hold);
 		if (refused) {
-			// One file too large for the proxy, or a server that said
-			// no: what landed has landed, and the rest is named.
 			status(say("importingFailed").replace("%s", failure || "-"), "failed").hidden = true;
 			return;
 		}
 		done();
-		// The folder that took the files is where the reader wants to
-		// be: reloading the page they were on shows them nothing.
+		// Reloading the page they were on would show nothing new.
 		location.assign(href.href);
 	};
 })();

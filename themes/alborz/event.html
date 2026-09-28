@@ -10,9 +10,6 @@
     <main id="main" tabindex="-1" class="event">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "newhref" (printf "/calendar/create%s" $acct) "back" .List "newlabel" ($.T "calendar.new")) }}
-        {{/* An event of a subscribed feed is read where it is: it can be
-             looked at and saved, not changed. Its source is named by
-             the UID within the feed. */}}
         {{ $rawq := "" }}{{ if .Event.ReadOnly }}{{ $rawq = printf "?uid=%s" (((index .Event.Data.Events 0).Props.Text "UID") | qv) }}{{ end }}
         <span class="icon-group">
           {{ if not .Event.ReadOnly }}
@@ -43,8 +40,6 @@
         {{ if .Event.Data.Events }}{{$event := index .Event.Data.Events 0}}
         <div class="subject-row">
           <h1>{{$event.Props.Text "SUMMARY"}}</h1>
-          {{/* One star for this event, the same control the message page
-               has; a feed's event is read where it is and takes none. */}}
           {{ if not .Event.ReadOnly }}
           {{ template "flag-menu" (dict
              "toggle" true
@@ -70,9 +65,6 @@
           </tr>
           {{ end }}
           <!-- TODO: List of attendees, room -->
-          {{/* Reminders set in another client. Nothing here sends one -
-               Alborz has nothing that wakes up - so the row states when
-               the alarm asks to fire and says no more than that. */}}
           {{ with .Event.Alarms }}
           <tr>
             <th scope="row">{{$.T "calendar.reminders"}}</th>
@@ -88,8 +80,6 @@
           {{ end }}
         </table>
         {{ template "user-text" ($event.Props.Text "DESCRIPTION") }}
-        {{/* A note is written into the object, and a feed's objects are
-             the feed's to write. */}}
         {{ if not .Event.ReadOnly }}
         {{ template "note-box" (dict
            "action" (printf "%s/note%s" .Event.URL $acct)

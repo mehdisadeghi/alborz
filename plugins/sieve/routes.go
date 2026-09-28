@@ -14,51 +14,33 @@ import (
 
 type FiltersRenderData struct {
 	alborz.BaseRenderData
-	// Groups is one entry per account shown: every account that holds
-	// scripts on a bare URL, the one the URL names otherwise.
+	// Groups holds every account with scripts on a bare URL, else the one the URL names.
 	Groups   []AccountFilters
 	Accounts []alborz.Account
-	// Explained is the union of the groups' extension glossaries,
-	// shown once for the page rather than in every server card.
+	// Explained is shown once for the page rather than in every server card.
 	Explained []alborz.Explained
 	Rail      map[string][]alborz.RailRow
 }
 
 // AccountFilters is one account's scripts and the server they live on.
 type AccountFilters struct {
-	Account string
-	Scripts []alborz.SieveScript
-	// Server is what the account's filters are kept on, so the page says
-	// who it is talking to rather than leaving it to be guessed.
-	Server string
-	// Software and Extensions are what that server says it is and what
-	// it says it can do, which decides what a filter may use.
+	Account    string
+	Scripts    []alborz.SieveScript
+	Server     string
 	Software   string
 	Extensions []Extension
-	// Explained is what the named extensions let a filter do, for the
-	// disclosure that works where a tooltip does not.
-	Explained []alborz.Explained
-	// Unreachable is what the filter server said when it would not
-	// answer. A provider that is down is not an internal error, and the
-	// page says so itself instead of becoming a status page.
+	Explained  []alborz.Explained
+	// Unreachable is the filter server's refusal, shown on the page rather than as an error.
 	Unreachable string
 }
 
 type FilterRenderData struct {
 	alborz.BaseRenderData
-	Name    string
-	Content string
-	// Loaded fingerprints the script as the editor received it, so a
-	// save can tell whether the server still holds that version.
-	Loaded string
-	// Suggested is the name an imported script arrives with, for the
-	// reader to keep or change before the first save.
+	Name      string
+	Content   string
+	Loaded    string
 	Suggested string
 
-	// Accounts that can hold a script, for the create form's
-	// destination, and Account the one it opens on: the URL's, or the
-	// first that holds scripts. Empty when editing, where the script's
-	// own account is already settled.
 	Accounts []alborz.Account
 	Account  string
 	Rail     map[string][]alborz.RailRow
@@ -152,9 +134,7 @@ func handleListFilters(ctx *alborz.Context) error {
 			return err
 		})
 		if err != nil {
-			// The filters live on somebody else's machine, and it being
-			// unreachable is news about that machine rather than a fault
-			// here. The page says which machine and what it said.
+			// An unreachable filter server is news about that server, not a fault here.
 			ctx.Logger().Printf("failed to list sieve scripts on %s: %v", group.Server, err)
 			group.Unreachable = err.Error()
 			unreachable++
@@ -177,7 +157,6 @@ func handleListFilters(ctx *alborz.Context) error {
 	return ctx.Render(status, "filters.html", data)
 }
 
-// sieveAccounts lists the signed-in accounts whose server holds scripts.
 func sieveAccounts(ctx *alborz.Context) []alborz.Account {
 	var accounts []alborz.Account
 	for _, account := range ctx.Accounts() {
@@ -206,9 +185,6 @@ func handleCreateFilter(ctx *alborz.Context) error {
 	})
 }
 
-// handleImportFilter takes a script file and opens it in the editor,
-// named after the file: the reader reads it and saves it through the
-// same door every script goes through, with the server's own check.
 func handleImportFilter(ctx *alborz.Context) error {
 	accounts := sieveAccounts(ctx)
 	if len(accounts) == 0 {
@@ -290,9 +266,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 		})
 	}
 
-	// A new script names the account it belongs to, the way a new event
-	// or contact names its collection; the choice holds for this
-	// request only, like following an account-carrying link.
+	// The account choice holds for this request only, like an account-carrying link.
 	if account := ctx.FormValue("account"); account != "" && account != ctx.Login.Username() {
 		login := ctx.LoginFor(account)
 		if login == nil || !ctx.Server.SieveEnabled(login.Domain()) {
@@ -305,10 +279,6 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	changed := false
 	loaded := ctx.FormValue("loaded")
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
-		// An edit is checked against what the server holds now: a
-		// change made elsewhere since the editor opened is not
-		// overwritten but reported, and the reader starts over from
-		// the current script.
 		if loaded != "" {
 			current, err := c.GetScript(name)
 			if err != nil {
@@ -335,8 +305,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 		})
 	}
 	if err != nil {
-		// The server rejects invalid scripts; show the reason next to
-		// the script instead of an error page.
+		// Show the server's rejection next to the script instead of an error page.
 		return ctx.Render(http.StatusUnprocessableEntity, "filter-edit.html", &FilterRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(err.Error()),
 			Rail:           rail(ctx),
@@ -352,7 +321,6 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	case warnings != "":
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
 	case loaded == "":
-		// Nothing was loaded into the editor, so this script is new.
 		account := "?account=" + alborz.QueryValue(ctx.Login.Username())
 		ctx.Made(ctx.T("notice.filtercreated"), name,
 			"/filters/"+url.PathEscape(name)+account, "/filters/create"+account)
@@ -393,9 +361,7 @@ func handleDeleteFilter(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters", ctx.T("notice.filterdeleted"))
 }
 
-// extensionHints names the Sieve extensions worth explaining, by what
-// they let a filter do. An extension with no entry keeps its name and
-// no explanation: inventing one would be worse than saying nothing.
+// An extension with no entry keeps its bare name: an invented hint is worse than none.
 var extensionHints = map[string]string{
 	"fileinto":    "sieve.fileinto",
 	"reject":      "sieve.reject",
@@ -425,10 +391,9 @@ var extensionHints = map[string]string{
 // Extension is one thing the filter server says a script may use.
 type Extension struct {
 	Name string
-	Hint string // translation key, empty where alborz has nothing to add
+	Hint string
 }
 
-// describe pairs each advertised extension with what it means.
 func describe(names []string) []Extension {
 	out := make([]Extension, 0, len(names))
 	for _, n := range names {
@@ -437,6 +402,4 @@ func describe(names []string) []Extension {
 	return out
 }
 
-// maxScriptSize bounds an uploaded script; ManageSieve servers refuse
-// far smaller ones.
 const maxScriptSize = 1 << 20

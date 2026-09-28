@@ -18,7 +18,7 @@ import (
 )
 
 type AddressBookRenderData struct {
-	// Pager walks the pages of AddressObjects, which holds one of them.
+	// Pager walks the pages of AddressObjects.
 	Pager dav.Pager
 	alborz.BaseRenderData
 	AddressBooks   []dav.Collection
@@ -27,57 +27,42 @@ type AddressBookRenderData struct {
 	Query          string
 	// View is the colour the rail is filtering by, empty for all.
 	View string
-	// Filters are the narrowings in force that nothing else on the
-	// page states, and FilterRows the views the filter menu offers.
+	// Filters are the narrowings nothing else on the page states; FilterRows the filter menu.
 	Filters    []alborz.Filter
 	FilterRows []alborz.FilterRow
-	// CollectionFor is the address book a contact is in, so the list
-	// can carry ownership on the collection rather than beside the name;
-	// CollectionHref narrows the list to that book, in the row's own
-	// scope.
+	// CollectionFor is a contact's address book, CollectionHref the list narrowed to it.
 	CollectionFor  func(account, path string) dav.Collection
 	CollectionHref func(account, path string) string
-	// HrefFor is where a contact's own page is, with the list carried
-	// along so that page can name the contacts either side of it.
+	// HrefFor is a contact's page with the list carried along.
 	HrefFor func(account, path string) string
-	// AddedBy names who added a card kept here, where not the row's own
-	// account.
+	// AddedBy names who added a card, where not the row's own account.
 	AddedBy func(account, path string) string
-	// Groups are the group cards the accounts hold, and Categories the
-	// words in use; the rail filters by either (RFC 6350 6.1.4, 6.7.1).
+	// Groups are the accounts' group cards, Categories the words in use.
 	Groups     []AddressObject
 	Categories []string
 	Group      string
 	Category   string
 }
 
-// contactListParams are what decide which contacts a list holds and in
-// what order: a contact's page is opened with them and returns to them.
 var contactListParams = []string{"account", "book", "query", "view", "group", "category", "sort", "dir", "page", "ipp"}
 
-// ContactList is the list page in one value: the cards in the order
-// they are shown, the books they came from, and what shaped them.
+// ContactList is the list page's cards in order, their books, and what shaped them.
 type ContactList struct {
 	Cards []AddressObject
 	Books []dav.Collection
-	// Items are the cards as the neighbours of a single contact, in
-	// the same order.
+	// Items are the cards as a single contact's neighbours, in the same order.
 	Items []dav.Item
-	// Groups are the cards that are groups rather than people, which
-	// the list never shows as contacts and the rail offers as filters.
+	// Groups are the group cards, offered as filters and never listed as contacts.
 	Groups []AddressObject
 	// Categories are the words in use across what was read, sorted.
 	Categories []string
 	Query      string
-	View       string // a colour the rail is filtering by, or empty
-	Group      string // a group's UID, or empty
-	Category   string // a word from CATEGORIES, or empty
+	View       string
+	Group      string
+	Category   string
 	Sorting    dav.Sorting
 }
 
-// contactList is what the list page shows, in the order it shows it. A
-// single contact's page asks for it as well, to know what stands before
-// and after it in the list it was opened from.
 func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 	queryText := ctx.QueryParam("query")
 	view := ctx.QueryParam("view")
@@ -109,16 +94,12 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 		}
 		for i := range result.Value {
 			ao := AddressObject{AddressObject: &result.Value[i], Account: result.Site.Collection.Account}
-			// A group is a card, so it arrives with the contacts; it is
-			// not one of them, and the list would read it as a person
-			// with no address.
+			// A group is a card and arrives with the contacts, but is not a person.
 			if ao.IsGroup() {
 				groups = append(groups, ao)
 				continue
 			}
-			// A colour is a view, the way the mail rail's colours are:
-			// one parameter, and the list is the search it names;
-			// starred is any colour at all.
+			// A colour is a view, as in the mail rail; starred is any colour.
 			if view == alborzbase.ViewStarred && ao.Color() == "" {
 				continue
 			}
@@ -136,8 +117,7 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 		return ContactList{}, err
 	}
 
-	// A group names its members by UID, and the filter is the other way
-	// round: which cards this group holds.
+	// The group names its members by UID; the filter asks which cards it holds.
 	if group != "" {
 		members := map[string]bool{}
 		for _, g := range groups {
@@ -165,8 +145,6 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 		}
 		aos = kept
 	}
-	// The words in use are the ones the rail offers: a filing scheme
-	// nobody has written to has nothing to show.
 	var words []string
 	for _, ao := range aos {
 		words = append(words, ao.Categories()...)
@@ -195,8 +173,6 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 	}, nil
 }
 
-// contactColumns are the orders the contact list can be put in, by name
-// unless asked.
 func contactColumns(books []dav.Collection) []dav.Column[AddressObject] {
 	return []dav.Column[AddressObject]{
 		{Key: "name", Value: func(ao AddressObject) string { return strings.ToLower(ao.DisplayName()) }},
@@ -247,14 +223,8 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 	})
 }
 
-// refresh asks every signed-in account's server again, for a change
-// made elsewhere that the poll has not caught up with.
-// contactsQuery asks a book for what the list shows, narrowed to
-// queryText when there is one.
 func contactsQuery(queryText string) carddav.AddressBookQuery {
-	// Every property: a server that honours a narrower request (Nextcloud
-	// does) answers without the colour, the categories, the revision and
-	// a group's members, and the list showed a star that was not there.
+	// Every property: the list reads the colour, categories, revision and members.
 	query := carddav.AddressBookQuery{
 		DataRequest: carddav.AddressDataRequest{AllProp: true},
 	}
@@ -286,8 +256,6 @@ func contactsQuery(queryText string) carddav.AddressBookQuery {
 	return query
 }
 
-// searchFilter names the search a contact list was narrowed by, in the
-// one shape every list uses.
 func searchFilter(ctx *alborz.Context, list ContactList) []alborz.Filter {
 	var out []alborz.Filter
 	if f, ok := ctx.FilterOn("query", ctx.T("filter.search")); ok {
@@ -304,11 +272,9 @@ func searchFilter(ctx *alborz.Context, list ContactList) []alborz.Filter {
 	if f, ok := ctx.FilterOn("category", ctx.T("filter.category")); ok {
 		out = append(out, f)
 	}
-	// The book the page is in is a place, not a narrowing of one: the
-	// rail marks it and the crumb names it, as a mail folder is named.
+	// The book the page is in is a place, named by rail and crumb, not a chip.
 	if f, ok := ctx.FilterOn("group", ctx.T("filter.group")); ok {
-		// The URL names a group by UID; the chip names it the way the
-		// reader does.
+		// The chip names the group as the reader does, not by UID.
 		for _, g := range list.Groups {
 			if g.UID() == f.Value {
 				f.Value = g.DisplayName()

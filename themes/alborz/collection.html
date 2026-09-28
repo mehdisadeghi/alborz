@@ -16,8 +16,6 @@
         <h1 dir="auto">{{.Name}}</h1>
         {{ template "dav-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref "field" "" "collection" "" "path" "") }}
 
-        {{/* A collection somebody else shares is theirs to name and
-             colour; what the page can say is whose it is. */}}
         {{ if .SharedBy }}
         {{ template "share-offer" (dict "g" $ "offer" .Offer) }}
         {{ else }}
@@ -31,18 +29,12 @@
         </div>
         {{ end }}
 
-        {{/* What it holds is not offered: the component set is protected
-             on every server in use, and changing it would mean copying
-             every object into a new collection. */}}
         {{ if not .SharedBy }}
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" .ListHref "cancelLabel" ($.T "common.cancel")) }}
         {{ end }}
       </form>
 
       {{ with .Sharing }}
-      {{/* Who else reaches the collection: each address with what it may
-           do and until when, the way out beside it, and the form that
-           adds one. */}}
       <section class="collection-file" id="sharing">
         <h2>{{$.T "share.title"}}</h2>
         {{ if .Shares }}
@@ -51,8 +43,6 @@
           <div class="list-item">
             <div class="list-content">
               <span class="list-summary">{{ template "ltr" .To }}</span>
-              {{/* The state and when it came to be: the answer's time once
-                   there is one, the invitation's until then. */}}
               {{ $state := "share.offered" }}{{ $at := .Created }}
               {{ if .Ended }}{{ $state = "share.ended" }}{{ $at = .Expires }}
               {{ else if .Declined }}{{ $state = "share.answereddeclined" }}{{ $at = .Answered }}
@@ -105,8 +95,6 @@
       {{ end }}
 
       {{ if not .Address }}
-      {{/* In and out as one file: the shape every other client reads
-           and writes, and the only one a reader can keep. */}}
       {{ if .Writable }}
       <form method="post" enctype="multipart/form-data" action="{{.Base}}{{.Path | pathescape}}/import{{account "?" .Account}}" class="collection-file">
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
@@ -129,17 +117,11 @@
       </form>
       {{ end }}
 
-      {{/* What a delete would take, said before it can be asked for:
-           WebDAV knows only the recursive kind. An empty collection has
-           nothing to lose, so it is not warned over; an unknown count
-           is, since it might. Ending a subscription deletes nothing
-           anywhere, so it is not a delete at all. */}}
       <form class="danger-zone" method="post" action="{{.Base}}{{.Path | pathescape}}/delete{{account "?" .Account}}">
         {{ if .Address }}
         <h2>{{$.T "collection.unsubscribetitle"}}</h2>
         <button class="button-danger">{{ printf ($.T "collection.unsubscribedo") .Name }}</button>
         {{ else if .SharedBy }}
-        {{/* Leaving ends this account's access and deletes nothing. */}}
         <h2>{{$.T "share.leavetitle"}}</h2>
         <button class="button-danger">{{ printf ($.T "share.leavedo") .Name }}</button>
         {{ else }}

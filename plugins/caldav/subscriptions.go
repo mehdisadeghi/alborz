@@ -20,10 +20,7 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-// A subscription is a calendar the reader follows by URL rather than
-// through a CalDAV account: any public .ics address. It is read-only
-// and provider-neutral, stored per account beside the reader's other
-// calendar choices, and stands in the rail as a calendar of its own.
+// Subscription is a read-only calendar followed by its .ics address.
 type Subscription struct {
 	URL   string
 	Name  string
@@ -31,31 +28,20 @@ type Subscription struct {
 }
 
 const (
-	// subPrefix roots the pseudo-path a subscription is addressed by in
-	// the rail, the visibility setting and its own page: a feed URL
-	// cannot serve, since collection paths are canonicalised and would
-	// lose its host.
-	subPrefix = "/subscriptions/"
-	// subRefreshAfter is how old a feed may be before the next calendar
-	// view fetches it again behind the page.
+	// A feed URL cannot be the path: collection paths are canonicalised and would lose its host.
+	subPrefix       = "/subscriptions/"
 	subRefreshAfter = time.Hour
-	// subMaxSize bounds what a feed may hand back; a year of holidays
-	// is a few tens of kilobytes.
+	// A year of holidays is a few tens of kilobytes.
 	subMaxSize = 4 << 20
 
-	// feedNameProp is the calendar's own name, a de facto property every
-	// publisher writes.
 	feedNameProp = "X-WR-CALNAME"
 )
 
-// path is the subscription's stable pseudo-path, derived from its URL.
 func (s Subscription) path() string {
 	sum := sha1.Sum([]byte(s.URL))
 	return subPrefix + hex.EncodeToString(sum[:6]) + "/"
 }
 
-// info is the subscription as the rail and the collection page see it:
-// a read-only calendar of events whose Address names the feed.
 func (s Subscription) info(account string) dav.Collection {
 	return dav.Collection{Path: s.path(), Name: s.Name, Color: s.Color, Address: s.URL,
 		Components: []string{"VEVENT"}, Account: account}
@@ -63,7 +49,6 @@ func (s Subscription) info(account string) dav.Collection {
 
 func isSubscription(path string) bool { return strings.HasPrefix(path, subPrefix) }
 
-// subscriptionAt finds the subscription a pseudo-path names, or -1.
 func subscriptionAt(list []Subscription, path string) int {
 	for i, s := range list {
 		if s.path() == path {
@@ -73,9 +58,6 @@ func subscriptionAt(list []Subscription, path string) int {
 	return -1
 }
 
-// normalizeFeedURL accepts what people paste: a webcal:// link, a
-// scheme-less host, a plain https address, or the page link a service
-// hands out where its feed lives elsewhere.
 func normalizeFeedURL(raw string) string {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimPrefix(raw, "webcal://")
@@ -94,10 +76,7 @@ func normalizeFeedURL(raw string) string {
 	return raw
 }
 
-// Google's "add this calendar" link is the one page link people paste
-// that carries no feed at all: it opens the web calendar, signed in,
-// with the calendar id in its cid query. The public feed of that id is
-// at a fixed address, so the id is enough.
+// Google's "add this calendar" link holds no feed, only the calendar id in cid.
 const (
 	googleCalendarHost = "calendar.google.com"
 	googleFeedFormat   = "https://calendar.google.com/calendar/ical/%s/public/basic.ics"
@@ -113,13 +92,10 @@ func feedBehindPage(u *url.URL) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	// Spelled as Google's own "public address" spells it, with the @
-	// escaped, so the two ways of pasting one calendar meet as one.
+	// Escaped as Google's public address is, so both pastes meet as one.
 	return fmt.Sprintf(googleFeedFormat, url.QueryEscape(string(id))), true
 }
 
-// feedHost names a feed by where it lives, for a feed that does not
-// name itself.
 func feedHost(feed string) string {
 	u, err := url.Parse(feed)
 	if err != nil || u.Host == "" {
@@ -128,23 +104,18 @@ func feedHost(feed string) string {
 	return u.Host
 }
 
-// errNotFeed is an address that answered with a web page: a link to a
-// calendar's site rather than to the calendar.
 var errNotFeed = errors.New("caldav: the address answered with a web page, not a calendar")
 
 type subEntry struct {
 	cal     *ical.Calendar
 	fetched time.Time
 	etag    string
-	// fetching guards against two page loads refreshing the same feed
-	// at once; it is not an error state, only a flag.
+	// fetching keeps two page loads from refreshing one feed at once.
 	fetching bool
 }
 
 type subCache struct {
-	// keepFor is how old a feed may be before the next page fetches it
-	// again behind itself; none keeps nothing, and a page fetches the
-	// feeds it shows.
+	// keepFor is how old a feed may get before a refetch; zero keeps nothing.
 	keepFor time.Duration
 	mu      sync.Mutex
 	entries map[string]*subEntry
@@ -154,8 +125,6 @@ func newSubCache(keepFor time.Duration) *subCache {
 	return &subCache{keepFor: keepFor, entries: map[string]*subEntry{}}
 }
 
-// calendar is the feed as held, nil before the first fetch lands; with
-// nothing kept, it is fetched now.
 func (c *subCache) calendar(client *http.Client, url string) *ical.Calendar {
 	if c.keepFor == 0 {
 		cal, _ := c.refresh(client, url)
@@ -169,10 +138,6 @@ func (c *subCache) calendar(client *http.Client, url string) *ical.Calendar {
 	return nil
 }
 
-// events returns the feed's events as one read-only object in the
-// subscription's colour, or nothing when the feed has not been fetched
-// yet. The colour rides the object so the views need no colour map for
-// a source that is not a calendar.
 func (c *subCache) events(client *http.Client, url, color string) (CalendarObject, bool) {
 	cal := c.calendar(client, url)
 	if cal == nil {
@@ -185,7 +150,6 @@ func (c *subCache) events(client *http.Client, url, color string) (CalendarObjec
 	}, true
 }
 
-// feedName is what the feed calls itself, "" when it does not say.
 func feedName(cal *ical.Calendar) string {
 	if p := cal.Props.Get(feedNameProp); p != nil {
 		return strings.TrimSpace(p.Value)
@@ -193,7 +157,6 @@ func feedName(cal *ical.Calendar) string {
 	return ""
 }
 
-// count is how many events the fetched feed holds, 0 before a fetch.
 func (c *subCache) count(client *http.Client, url string) int {
 	if cal := c.calendar(client, url); cal != nil {
 		return len(cal.Events())
@@ -201,7 +164,6 @@ func (c *subCache) count(client *http.Client, url string) int {
 	return 0
 }
 
-// fresh reports whether the feed has a copy fetched within the window.
 func (c *subCache) fresh(url string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -209,17 +171,13 @@ func (c *subCache) fresh(url string) bool {
 	return e != nil && e.cal != nil && time.Since(e.fetched) < c.keepFor
 }
 
-// renew fetches a stale feed behind the page; with nothing kept there
-// is nothing to renew.
 func (c *subCache) renew(client *http.Client, url string) {
 	if c.keepFor > 0 && !c.fresh(url) {
 		go c.refresh(client, url)
 	}
 }
 
-// refresh fetches the feed and keeps it. It honours the ETag so a feed
-// that has not changed costs one conditional GET and no parse. A feed
-// being fetched already answers with what is held.
+// An unchanged feed costs one conditional GET and no parse.
 func (c *subCache) refresh(client *http.Client, url string) (*ical.Calendar, error) {
 	if c.keepFor == 0 {
 		cal, _, _, err := c.get(client, url, "")
@@ -289,10 +247,6 @@ func (c *subCache) get(client *http.Client, url, etag string) (*ical.Calendar, s
 	return cal, resp.Header.Get("ETag"), false, nil
 }
 
-// subscriptionObjects gathers the events of the visible subscriptions
-// among the rail's calendars, fetching a stale feed behind the page. A
-// feed never fetched contributes nothing this time and its events
-// appear once the refresh lands.
 func (p *plugin) subscriptionObjects(client *http.Client, infos []dav.Collection, scope string) []CalendarObject {
 	var out []CalendarObject
 	for _, info := range infos {
@@ -301,9 +255,7 @@ func (p *plugin) subscriptionObjects(client *http.Client, infos []dav.Collection
 		}
 		p.subs.renew(client, info.Address)
 		if obj, ok := p.subs.events(client, info.Address, info.Color); ok {
-			// The link carries the account, as every object's does, so
-			// the event page asks that account's subscriptions and no
-			// other's.
+			// The account rides the link, so the event page asks that account's subscriptions.
 			obj.Account = info.Account
 			out = append(out, obj)
 		}

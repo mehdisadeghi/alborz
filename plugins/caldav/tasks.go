@@ -19,8 +19,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// MoveTasksRenderData is the chooser a move without a destination
-// answers with: the selection it will act on, and the lists it may go to.
+// MoveTasksRenderData is the chooser a move without a destination answers with.
 type MoveTasksRenderData struct {
 	alborz.BaseRenderData
 	Rail      dav.Rail
@@ -33,8 +32,7 @@ type TasksRenderData struct {
 	alborz.BaseRenderData
 	Calendars []dav.Collection
 	Tasks     []TaskRow
-	// Quick is the list a task typed above the rows goes into; nil
-	// when no list takes tasks.
+	// Quick is where a task typed above the rows goes; nil when no list takes tasks.
 	Quick      *quickList
 	View       string
 	Filters    []alborz.Filter
@@ -44,58 +42,42 @@ type TasksRenderData struct {
 	Pager      dav.Pager
 }
 
-// TaskRow is the flat, table-shaped representation shared by the task
-// list and its sort controls. Calendar ownership stays explicit instead
-// of being encoded as nested visual groups.
+// TaskRow is one row of the task list.
 type TaskRow struct {
 	Task     TaskObject
 	Calendar dav.Collection
 	Summary  string
-	// AddedBy names who added a task kept here, where not the row's own
-	// account; set for the rows drawn, not every row of the list.
+	// AddedBy names who added a task, where not the row's own account.
 	AddedBy string
 	Status  string
 	Due     time.Time
-	// Added is DTSTAMP (RFC 5545 3.8.7.2), the one timestamp every
-	// writer must send, falling back to CREATED where a writer sent the
-	// optional one instead. Both are in the data the list already
-	// fetched; zero where the writer sent neither.
+	// Added is DTSTAMP, else CREATED; zero where the writer sent neither.
 	Added     time.Time
 	Completed bool
 	// Priority is the band the task's PRIORITY falls in, or empty.
 	Priority string
 	// Star is the colour the task is marked in, or empty.
 	Star string
-	// Href is the task's own page with the list carried along, so that
-	// page can name the tasks either side of it.
+	// Href is the task's page with the list carried along.
 	Href string
 }
 
-// taskListParams are what decide which tasks a list holds and in what
-// order: a task's page is opened with them and returns to them.
 var taskListParams = []string{"account", "cal", "query", "view", "sort", "dir", "page", "ipp"}
 
-// The task list's own views, beside the stars: open tasks are the
-// list itself and no view.
+// Open tasks are the list itself, not a view.
 const (
 	viewCompleted = "completed"
 	viewAll       = "all"
 	viewHigh      = "high"
 )
 
-// quickList is where a task typed above the list goes: the first list
-// the page shows that takes tasks, in the account the page is scoped
-// to. A page showing no such list has no line.
 type quickList struct {
 	Account string
 	Path    string
 	Name    string
-	// Lists are the task lists the line can write into, grouped by
-	// account: where a task goes is the reader's to say, on the line
-	// they are typing it on.
+	// Lists are the task lists the line can write into, by account.
 	Lists []dav.Group
-	// Only says the page shows one list, so where a task goes is
-	// already answered and the picker would ask it twice.
+	// Only says the page shows one list, so no picker is needed.
 	Only bool
 }
 
@@ -108,8 +90,7 @@ func quickListOf(ctx *alborz.Context, calendars []dav.Collection) *quickList {
 		if !cal.Writable || !supportsTodo(cal.Components) || (scope != "" && cal.Account != scope) {
 			continue
 		}
-		// The list in force is the one a task lands in; failing that,
-		// the first the page shows.
+		// The list in force, else the first shown.
 		if cal.Shown {
 			shown++
 			if quick == nil {
@@ -136,8 +117,6 @@ func quickListOf(ctx *alborz.Context, calendars []dav.Collection) *quickList {
 	return quick
 }
 
-// taskRows is the task list's filter menu: the completed tasks, every
-// task, then the star views.
 func taskRows(ctx *alborz.Context, view string) []alborz.FilterRow {
 	clear := ctx.WithoutParam("view")
 	row := func(label, name string) alborz.FilterRow {
@@ -155,24 +134,17 @@ func taskRows(ctx *alborz.Context, view string) []alborz.FilterRow {
 	return append(rows, alborzbase.ViewRows(ctx, view, false, clear)...)
 }
 
-// Tasks routes
-// TaskList is the list page in one value: its rows in the order they
-// are shown, the lists they came from, and what shaped them.
+// TaskList is the list page's rows in order, their lists, and what shaped them.
 type TaskList struct {
 	Rows      []TaskRow
 	Calendars []dav.Collection
-	// Items are the rows as the neighbours of a single task, in the
-	// same order.
+	// Items are the rows as a single task's neighbours, in the same order.
 	Items   []dav.Item
 	Query   string
 	View    string
 	Sorting dav.Sorting
 }
 
-// taskList is what the list page shows, in the order it shows it: the
-// same visible lists, the same search, the same hidden completed ones
-// and the same sort. A single task's page asks for it as well, to know
-// what stands before and after it in the list it was opened from.
 func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	var rows []TaskRow
 	loc := alborzbase.UserLocation(ctx)
@@ -187,10 +159,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 		return TaskList{}, err
 	}
 	search := ctx.QueryParam("query")
-	// A star is a view, the way the mail rail's colours are: one
-	// parameter, and the list is the search it names. Open tasks are
-	// the list with no view; the completed ones and all of them are
-	// views of their own.
+	// A star is a view, as in the mail rail; open tasks are the list with no view.
 	view := ctx.QueryParam("view")
 	if view != viewCompleted && view != viewAll && view != viewHigh && !validStarView(view) {
 		return TaskList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
@@ -217,8 +186,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 				continue
 			}
 			status, _ := todo.Props.Text("STATUS")
-			// A server that ignores the STATUS filter sends every task;
-			// the page hides what it was asked to hide either way.
+			// The page hides completed tasks even when a server ignores the STATUS filter.
 			completed := status == "COMPLETED"
 			if completed != (view == viewCompleted) && view != viewAll {
 				continue
@@ -261,8 +229,6 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	}, nil
 }
 
-// taskColumns are the orders the task list can be put in, by summary
-// unless asked.
 var taskColumns = []dav.Column[TaskRow]{
 	{Key: "summary", Value: func(row TaskRow) string { return strings.ToLower(row.Summary) }},
 	{Key: "status", Value: func(row TaskRow) string {
@@ -309,8 +275,6 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	})
 }
 
-// complete marks tasks done or open again: the one a row or a page
-// names, or the rows the list had checked.
 func (p *plugin) complete(ctx *alborz.Context) error {
 	done := wantsDone(ctx)
 	words := func(ctx *alborz.Context, marked []dav.Ref[*caldav.Client], next string) alborz.Notice {
@@ -333,19 +297,13 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 		},
 		Done: words,
 		Piece: func(ctx *alborz.Context, ref dav.Ref[*caldav.Client], next string) error {
-			// A task the list no longer shows - done where the done are
-			// hidden, reopened in the list of the done - leaves it, as a
-			// moved message leaves its folder, with the notice that brings
-			// it back.
+			// A task the list no longer shows leaves it, with a notice that brings it back.
 			view := dav.ListParamsIn(next, "view").Get("view")
 			if view != viewAll && done != (view == viewCompleted) {
 				ctx.Notify(words(ctx, []dav.Ref[*caldav.Client]{ref}, next))
 				return ctx.Relocate(next)
 			}
-			// The row the click was on is the whole of what changed, and
-			// the same button undoes it, so a marked task answers with its
-			// row and the list stays where it is - no notice, as a star's
-			// does not.
+			// The same button undoes it, so a marked task answers with its row and no notice.
 			calendars, err := p.dav.Collections(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return err
@@ -354,12 +312,10 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			if holder == nil {
 				return errNoCalendar
 			}
-			// Only the pooled listing names the account on a calendar, and
-			// the row's own links need it whichever page asked.
+			// Only the pooled listing names the calendar's account, and the row's links need it.
 			cal := *holder
 			cal.Account = ref.Account
-			// The list's shape is in the address the form returns to; the
-			// write's own URL says nothing about sort or search.
+			// The list's shape is in the return address, not the write's own URL.
 			params := dav.ListParamsIn(next, taskListParams...)
 			params.Set("from", next)
 			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), params)
@@ -371,30 +327,20 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 	})
 }
 
-// TaskRowRenderData is one task's row, which is all that changes when
-// it is marked from the list.
+// TaskRowRenderData is one task's row, re-rendered when it is marked.
 type TaskRowRenderData struct {
 	alborz.BaseRenderData
-	// G is what the row's own template asks the page for - the
-	// translations and the globals - which a fragment has to hand it
-	// by name, the list page being absent.
+	// G hands the row template the page's globals, the page being absent.
 	G    *alborz.BaseRenderData
 	Row  TaskRow
 	Next string
 }
 
-// taskRow is one task as a row of the list. The list builds every row
-// through it, and a write answers with the row it has just made rather
-// than reading the collection again.
 func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location, params url.Values) TaskRow {
 	todo := getFirstTodo(task.Data)
 	summary, _ := todo.Props.Text("SUMMARY")
 	status, _ := todo.Props.Text("STATUS")
-	// The raw property value is an iCal timestamp ("20260830T100000Z"),
-	// which is not a thing to show anyone; parse it and let the page
-	// write the date.
-	// RFC 5545 3.6.2 lets a to-do carry DUE or DTSTART, never both:
-	// a writer that has only the start is still saying when it is for.
+	// A writer with only DTSTART is still saying when the task is for.
 	due, _ := todo.Props.DateTime(ical.PropDue, loc)
 	if due.IsZero() {
 		due, _ = todo.Props.DateTime(ical.PropDateTimeStart, loc)
@@ -418,14 +364,10 @@ func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location
 	}
 }
 
-// wantsDone is the state a completion asks for: done, unless the form
-// says reopen. An undo asks for the other one.
 func wantsDone(ctx *alborz.Context) bool {
 	return (ctx.FormValue("reopen") == "") != (ctx.FormValue("undo") != "")
 }
 
-// completedNotice counts the tasks marked, with the way back: the same
-// form again, as an undo.
 func completedNotice(ctx *alborz.Context, done bool, n int, action string, form url.Values) alborz.Notice {
 	key := "notice.tasksdone"
 	if !done {
@@ -445,16 +387,13 @@ func markTodo(todo *ical.Component, done bool) {
 	}
 }
 
-// move copies each task into the chosen list and removes the original:
-// the lists may belong to different accounts, and CalDAV MOVE does not
-// cross servers.
+// Copy and delete, since the lists may live on different servers.
 func (p *plugin) move(ctx *alborz.Context) error {
 	params, err := ctx.FormParams()
 	if err != nil {
 		return err
 	}
-	// A menu holds actions, one per row; the destination is a choice
-	// the reader states on a page, which this same route answers with.
+	// A menu holds actions; the destination is chosen on a page this route answers with.
 	to := params.Get("to")
 	if to == "" {
 		list, err := p.taskList(ctx)
@@ -498,24 +437,12 @@ func (p *plugin) move(ctx *alborz.Context) error {
 		}})
 }
 
-// taskQuery is what the task list asks a list for: every task.
-//
-// The open tasks would be two queries, since an open task may carry no
-// STATUS and CalDAV filters have no OR: STATUS is-not-defined, and
-// STATUS not COMPLETED. go-webdav's client (v0.7.0) drops
-// is-not-defined as it encodes a filter, which turns the first into
-// "STATUS is defined" and loses every task without one - what phones
-// and other clients commonly write. Until it sends the element, the
-// open tasks are every task, and the page hides the completed.
 func taskQuery() caldav.CalendarQuery {
 	return caldav.CalendarQuery{
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
-			// A server returns only what is asked for, so ask for the whole
-			// to-do: every column reads a property of it, and naming them
-			// one by one is how a read for a property nobody requested came
-			// to be blank.
+			// The whole to-do: every column reads a property of it.
 			Comps: []caldav.CalendarCompRequest{{Name: "VTODO", AllProps: true, AllComps: true}},
 		},
 		CompFilter: caldav.CompFilter{

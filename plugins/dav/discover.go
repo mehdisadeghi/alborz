@@ -12,24 +12,13 @@ import (
 	"git.mehdix.org/alborz/plugins/collections"
 )
 
-// wellKnownWait bounds asking a mail host for a DAV server at startup:
-// a host with none may drop the connection rather than refuse it, and
-// every domain is asked in turn.
+// A host without DAV may drop the connection rather than refuse it, and every domain is asked in turn.
 const wellKnownWait = 3 * time.Second
 
-// davFeature is what a server's DAV header names when it serves the
-// service (RFC 4791 5.1, RFC 6352 6.1).
+// davFeature is the DAV header class naming the service (RFC 4791 5.1, RFC 6352 6.1).
 var davFeature = map[string]string{"caldav": "calendar-access", "carddav": "addressbook"}
 
-// OnMailHost finds a DAV server on the mail host itself, as Cyrus and
-// Stalwart serve one, for a domain with no SRV record for it: the
-// host's /.well-known/<service> (RFC 6764 5), over HTTPS only, since
-// the account's password goes there. Without the password a server may
-// not name itself, so either sign will do: a DAV header naming the
-// service, or the well-known address sending the client on to where it
-// is asked to sign in (RFC 6764 5 has it redirect). A web server that
-// sends every path to its home page, or asks for a password on every
-// one without a redirect, is neither.
+// OnMailHost finds DAV at the mail host's /.well-known/<service> (RFC 6764 5), HTTPS only since the password goes there.
 func OnMailHost(rt http.RoundTripper, host, service string) (*url.URL, bool) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
@@ -50,9 +39,7 @@ func OnMailHost(rt http.RoundTripper, host, service string) (*url.URL, bool) {
 		return nil, false
 	}
 	resp.Body.Close()
-	// Alborz on the mail host answers its own well-known address, and
-	// what it points at is alborz's own DAV: that is where collections
-	// are kept here, not a second server to offer beside it.
+	// A well-known address leading to alborz's own DAV is not a second server.
 	if landed := resp.Request.URL; landed != nil && strings.HasPrefix(landed.Path, collections.Prefix+"/") {
 		return nil, false
 	}

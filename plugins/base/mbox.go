@@ -24,14 +24,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// handleExportMbox writes messages as one mbox, which is the container
-// every mail client reads and the only one that holds more than a
-// single message without inventing a layout. The selection is the
-// usual ask; all=1 takes everything the view holds, a folder or a
-// search's results, and strip=1 leaves the attachments out.
-//
-// It streams: a folder does not fit in memory, and the reader should
-// see the file start rather than a spinner.
 func (p *plugin) handleExportMbox(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
@@ -58,8 +50,6 @@ func (p *plugin) handleExportMbox(ctx *alborz.Context) error {
 	if len(uids) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "no messages selected")
 	}
-	// Leaving the attachments out is a choice, and a choice gets the
-	// page rather than a menu row that decides for the reader.
 	if ctx.FormValue("ask") != "" {
 		return p.exportPage(ctx, uids, params)
 	}
@@ -71,8 +61,6 @@ func (p *plugin) handleExportMbox(ctx *alborz.Context) error {
 	return streamMbox(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), name, strip)
 }
 
-// folderRefs names a folder's selection as a merged list names its
-// rows, for what acts on either.
 func folderRefs(account, mailbox string, uids []imap.UID) []rowRef {
 	refs := make([]rowRef, len(uids))
 	for i, uid := range uids {
@@ -81,17 +69,11 @@ func folderRefs(account, mailbox string, uids []imap.UID) []rowRef {
 	return refs
 }
 
-// streamMbox writes a selection, of one folder or across accounts, as
-// one mbox named name.
 func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) error {
-	// The header is written only once a message is actually in hand.
-	// Committing the response first meant that a fetch which failed had
-	// the error page rendered into a body already claiming to be an
-	// mbox, and the reader was handed an .mbox file full of HTML.
+	// The header waits for the first message, so a failed fetch never renders into an .mbox body.
 	res := ctx.Response()
 	archive := mbox.NewWriter(res)
 	archive.Mboxrd = true
-	// The last message is only whole once the archive is closed.
 	defer archive.Close()
 	started := false
 	for _, r := range refs {
@@ -99,9 +81,7 @@ func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) err
 		if s == nil {
 			continue
 		}
-		// One round trip per message, each with the login's own
-		// budget. The whole export inside one call was cut off by the
-		// watchdog after ten seconds, with the file left short.
+		// One round trip per message, so no single call outlasts the login's budget.
 		var raw []byte
 		var env *imap.Envelope
 		err := s.DoIMAP(func(c *imapclient.Client) error {
@@ -111,9 +91,7 @@ func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) err
 		})
 		if err != nil {
 			if started {
-				// Too late to say so in the response: stop, leave
-				// the file short, and put the reason in the log
-				// rather than in the download.
+				// Too late for the response: stop, leave the file short, and log why.
 				ctx.Logger().Printf("export %s %q uid %v: %v", r.account, r.mailbox, r.uid, err)
 				return nil
 			}
@@ -121,8 +99,7 @@ func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) err
 		}
 		if strip {
 			if stripped, err := withoutAttachments(raw, ctx.T("mailbox.attachmentremoved")); err != nil {
-				// A message that cannot be taken apart goes out whole:
-				// the archive is then larger than asked, not wrong.
+				// A message that cannot be taken apart goes out whole: larger than asked, not wrong.
 				ctx.Logger().Printf("export %q uid %v: kept attachments: %v", r.mailbox, r.uid, err)
 			} else {
 				raw = stripped
@@ -143,12 +120,6 @@ func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) err
 	return nil
 }
 
-// withoutAttachments is the message with every part that is not text
-// replaced by a line saying what was there, the way Apple Mail's
-// Remove Attachments leaves a note. A signed or encrypted message is
-// left whole, since taking it apart would break what it proves. The
-// text parts are re-encoded in UTF-8, which is what they were decoded
-// into on the way through.
 func withoutAttachments(raw []byte, note string) ([]byte, error) {
 	entity, err := message.Read(bytes.NewReader(raw))
 	if err != nil && !message.IsUnknownCharset(err) {
@@ -225,9 +196,7 @@ func copyWithoutAttachments(w *message.Writer, e *message.Entity, note string) e
 	}
 }
 
-// writeMbox appends one message. The sender and the date of its
-// separator are the envelope's; nothing reads them, but a file without
-// them is not an mbox. The writer turns CRLF into an mbox's LF.
+// Nothing reads the separator's sender and date, but a file without them is not an mbox.
 func writeMbox(archive *mbox.Writer, raw []byte, env *imap.Envelope) error {
 	var from string
 	when := time.Now()
@@ -247,9 +216,6 @@ func writeMbox(archive *mbox.Writer, raw []byte, env *imap.Envelope) error {
 	return err
 }
 
-// downloadName offers a filename a reader will recognise, in both the
-// plain and the encoded form RFC 6266 asks for: the plain one is
-// stripped to ASCII for clients that read only that.
 func downloadName(name, fallback, ext string) string {
 	cleaned := strings.Map(func(r rune) rune {
 		switch {
@@ -276,29 +242,20 @@ func downloadName(name, fallback, ext string) string {
 		"; filename*=UTF-8''" + url.PathEscape(cleaned)
 }
 
-// ExportRenderData is the page before a whole folder, or a search's
-// results, is written out: what it holds, and the one choice.
+// ExportRenderData renders the page before a folder or a search's results are exported.
 type ExportRenderData struct {
 	IMAPBaseRenderData
 	Query string
-	// ViewName is the rail view being exported, named as the rail names
-	// it; empty for a whole folder or a search.
+	// ViewName is the rail view being exported; empty for a whole folder or a search.
 	ViewName string
 	Count    int
 	Size     int64 // zero when the server does not say (STATUS=SIZE)
-	// UIDs are the messages picked in the list, empty when the page is
-	// about the whole folder or a search's results.
+	// UIDs are the messages picked in the list; empty for a whole folder or a search.
 	UIDs []imap.UID
-	// Everything is the address of the list when the pick was all of
-	// it. The form names the list again, as the list's own form did: a
-	// hidden field for each of a hundred thousand messages is a page of
-	// megabytes, posted back.
+	// Everything is the list's address when all of it was picked: a hidden field per message would weigh megabytes.
 	Everything string
 }
 
-// exportPage asks about a selection the reader has already made: the
-// same page, counting what was picked rather than what the folder
-// holds.
 func (p *plugin) exportPage(ctx *alborz.Context, uids []imap.UID, form url.Values) error {
 	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
@@ -312,9 +269,6 @@ func (p *plugin) exportPage(ctx *alborz.Context, uids []imap.UID, form url.Value
 	return ctx.Render(http.StatusOK, "export.html", data)
 }
 
-// handleExportPage asks before a folder leaves: a whole folder is not
-// a casual click, and this is where the archive's size and the choice
-// to leave attachments out belong, rather than in a menu.
 func (p *plugin) handleExportPage(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
@@ -334,8 +288,6 @@ func (p *plugin) handleExportPage(ctx *alborz.Context) error {
 		return err
 	}
 	err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
-		// A search or a view is counted the way it is listed; the whole
-		// folder is a STATUS away.
 		if criteria := listCriteria(c, settings, data.Query, ibase.ListView); criteria != nil {
 			if err := ensureMailboxSelected(c, mboxName); err != nil {
 				return err
@@ -366,16 +318,10 @@ func (p *plugin) handleExportPage(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "export.html", data)
 }
 
-// importMaxSize bounds an upload. Nothing of it is stored: the file is
-// read as it arrives and each message handed to the server, so the
-// bound is for the reader's patience and the connection, not for disk.
-// A larger archive is split by whoever made it.
+// Nothing is stored: the bound is for the reader's patience and the connection, not disk.
 const importMaxSize = 1 << 30
 
-// handleImport reads an mbox or a single message into a folder made
-// for it. Never into one that exists: the form names the folder, the
-// file's own name as the default, and the server refuses a name taken,
-// which is what keeps an import from landing in somebody's inbox.
+// Always into a new folder, so an import never lands in an existing one.
 func (p *plugin) handleImport(ctx *alborz.Context) error {
 	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
@@ -409,9 +355,7 @@ func (p *plugin) handleImport(ctx *alborz.Context) error {
 		return render(http.StatusOK, "")
 	}
 
-	// The body is read as a stream, part by part, and never parsed
-	// whole: the file is the last field of the form, so the folder is
-	// settled before the first message arrives.
+	// Streamed part by part: the file is the last field, so the folder is settled first.
 	req := ctx.Request()
 	req.Body = http.MaxBytesReader(ctx.Response(), req.Body, importMaxSize)
 	form, err := req.MultipartReader()
@@ -477,16 +421,7 @@ func (p *plugin) handleImport(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
 }
 
-// appendMessages puts every message an mbox or a single file holds into
-// the folder, one APPEND each within the login's own bound. It
-// answers how many landed and how many were there already: an import
-// that stops leaves the first n where they are, which a notice can then
-// say rather than guess.
-//
-// A message the folder already holds is left alone, so the same file
-// dropped twice - or a drop repeated after a failure - adds nothing the
-// second time. Identity is the Message-ID (RFC 5322 3.6.4); a message
-// without one is taken at its word and appended.
+// A message whose Message-ID the folder already holds is skipped, so a repeated drop adds nothing.
 func appendMessages(c *imapclient.Client, folder string, r io.Reader, seen map[string]bool) (added, held int, err error) {
 	next := mboxMessages(r)
 	for {
@@ -520,21 +455,10 @@ func appendMessages(c *imapclient.Client, folder string, r io.Reader, seen map[s
 	}
 }
 
-// importBound is how long a whole import may hold its connection. One
-// turn per message put every message behind the page's own requests,
-// and an import of eighty stopped halfway when one of those waits ran
-// out; the import takes the connection once and keeps it.
+// The import takes its connection once, not a turn per message behind the page's requests.
 const importBound = 10 * time.Minute
 
-// folderMessageIDs reads what the selected folder already holds, by
-// identity. A header search would be the obvious way to ask, and it is
-// the wrong one: it matches a substring of the field (RFC 9051 6.4.4),
-// a server that cannot search headers may answer with everything, and
-// one that indexes in its own time does not find what was appended a
-// moment ago - which is how a retried batch became a second copy.
-// Reading the envelopes answers from the folder itself, one at a time:
-// a large inbox's envelopes all at once are its ids a hundred times
-// over, held for a drop of one file.
+// Envelopes, not a HEADER search: that matches substrings.
 func folderMessageIDs(c *imapclient.Client) (map[string]bool, error) {
 	held := map[string]bool{}
 	mbox := c.Mailbox()
@@ -560,8 +484,6 @@ func folderMessageIDs(c *imapclient.Client) (map[string]bool, error) {
 	return held, cmd.Close()
 }
 
-// messageID is what the message calls itself, empty when it says
-// nothing.
 func messageID(raw []byte) string {
 	header, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(raw)))
 	if err != nil {
@@ -570,10 +492,7 @@ func messageID(raw []byte) string {
 	return strings.Trim(strings.TrimSpace(header.Get("Message-Id")), "<>")
 }
 
-// importBodyError names what went wrong with the upload itself. A body
-// past the bound is 413, the answer a proxy in front of alborz gives
-// for the same reason, so a client that splits its batches on 413 does
-// the same here.
+// A body past the bound is 413, as a proxy in front would answer, so clients split alike.
 func importBodyError(err error) error {
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
@@ -582,9 +501,6 @@ func importBodyError(err error) error {
 	return echo.NewHTTPError(http.StatusBadRequest, err)
 }
 
-// handleDropImport takes files dropped on a folder and puts their
-// messages in that folder. The drop names the destination, so there is
-// nothing left to ask; the answer is the notice the page will show.
 func (p *plugin) handleDropImport(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
@@ -604,19 +520,14 @@ func (p *plugin) handleDropImport(ctx *alborz.Context) error {
 	if login == nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 	}
-	// The whole drop takes the connection once: every message behind
-	// the page's own requests is what stopped an import of eighty
-	// halfway. The body is read inside, so the files arrive as they are
-	// appended rather than being held in memory first.
+	// The drop takes the connection once and reads the body inside, so files are appended as they arrive.
 	count, held := 0, 0
 	var bodyErr error
 	importErr := login.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
-		// What the folder holds already, so a file dropped twice - or a
-		// batch the proxy refused and the browser sent again in halves -
-		// adds nothing the second time.
+		// So a file dropped twice, or a batch resent in halves, adds nothing the second time.
 		seen, err := folderMessageIDs(c)
 		if err != nil {
 			return err
@@ -659,15 +570,12 @@ func (p *plugin) handleDropImport(ctx *alborz.Context) error {
 	return ctx.NoContent(http.StatusOK)
 }
 
-// formField reads one small text field of a streamed form.
 func formField(part *multipart.Part) string {
 	b, _ := io.ReadAll(io.LimitReader(part, maxDownloadName*4))
 	return string(b)
 }
 
-// messageDate is the Date header of a message, for the server to keep
-// as the delivery time so the folder sorts as the archive did; now
-// when there is none it can read.
+// messageDate is kept as the delivery time, so the folder sorts as the archive did.
 func messageDate(raw []byte) time.Time {
 	header, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(raw)))
 	if err == nil {
@@ -678,13 +586,9 @@ func messageDate(raw []byte) time.Time {
 	return time.Now()
 }
 
-// mboxSeparator is what every message of an mbox opens with.
 const mboxSeparator = "From "
 
-// mboxMessages hands out the messages of an mbox one at a time, in the
-// CRLF form the server wants, which go-mbox's reader gives. A file that
-// does not open with a separator is one message, which is what a
-// dropped .eml is.
+// A file that does not open with a separator is one message, as a dropped .eml is.
 func mboxMessages(r io.Reader) func() ([]byte, error) {
 	buffered := bufio.NewReader(r)
 	if head, _ := buffered.Peek(len(mboxSeparator)); string(head) != mboxSeparator {

@@ -22,24 +22,20 @@ const (
 
 func sessionRecordKey(id string) string { return sessionsOwner + "/" + id }
 
-// accountKey keys an account's record under owner, hashed so the file
-// names nobody.
+// accountKey is hashed so the file names nobody.
 func accountKey(owner, account string) string {
 	sum := sha256.Sum256([]byte(account))
 	return owner + "/" + hex.EncodeToString(sum[:])
 }
 
-// openTimeout bounds the wait for the file's lock.
 const openTimeout = 5 * time.Second
 
-// vault reads and writes records sealed with the login key.
 type vault struct {
 	db  kv.DB
 	key *fernet.Key
 }
 
-// open is nil for a record sealed with a key that has since rotated,
-// which signs everyone out and loses nothing else.
+// open is nil for a record sealed with a rotated key.
 func (v vault) open(sealed []byte) []byte {
 	return fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{v.key})
 }
@@ -52,7 +48,6 @@ func (v vault) put(tx kv.Tx, k string, raw []byte) error {
 	return tx.Put(k, sealed)
 }
 
-// read opens a sealed record into out, false when it does not open.
 func (v vault) read(sealed []byte, out any) bool {
 	raw := v.open(sealed)
 	return raw != nil && json.Unmarshal(raw, out) == nil
@@ -66,8 +61,7 @@ func (v vault) load(k string, out any) (ok bool) {
 	return ok
 }
 
-// save writes rec over what is stored under k, keeping what a newer
-// version put there (ADR 26).
+// save keeps what a newer version put there (ADR 26).
 func (v vault) save(k string, rec any) error {
 	return v.db.Update(func(tx kv.Tx) error {
 		raw, err := record.Keep(v.open(tx.Get(k)), rec)
@@ -118,7 +112,6 @@ func CheckKey(db kv.DB, path string, key *fernet.Key, sealed ...string) error {
 	})
 }
 
-// records keeps remembered sessions.
 type records struct{ vault }
 
 // OpenSessionRecords keeps sessions in the data file.
@@ -150,7 +143,7 @@ func (r *records) Each(f func(*SessionRecord)) error {
 	})
 }
 
-// Sweep drops the sessions nobody has come back to.
+// Sweep drops the sessions not seen since before.
 func (r *records) Sweep(before time.Time) error {
 	return r.db.Update(func(tx kv.Tx) error {
 		return kv.DeleteUnder(tx, sessionsOwner+"/", func(sealed []byte) bool {
@@ -160,8 +153,7 @@ func (r *records) Sweep(before time.Time) error {
 	})
 }
 
-// settingsRecords keeps the settings of accounts whose server has no
-// METADATA, one record per account holding every key.
+// settingsRecords keeps settings for servers without METADATA, one record per account.
 type settingsRecords struct{ vault }
 
 func openSettingsRecords(db kv.DB, key *fernet.Key) *settingsRecords {
@@ -189,8 +181,7 @@ func (r *settingsRecords) Get(account, key string, out any) error {
 	return json.Unmarshal(raw, out)
 }
 
-// Put merges v into the entry as stored at the moment of writing, in
-// the one transaction that writes it.
+// Put merges v into the stored entry in one transaction.
 func (r *settingsRecords) Put(account, key string, v any) error {
 	return r.db.Update(func(tx kv.Tx) error {
 		entries := r.entries(tx, account)

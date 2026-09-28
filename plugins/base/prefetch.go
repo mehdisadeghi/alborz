@@ -15,8 +15,6 @@ func listingBudget(spec listingSpec) (alborz.IMAPClass, time.Duration) {
 	return alborz.IMAPForeground, alborz.RoundTripTimeout
 }
 
-// readOn is a listing's read as the cache's load takes it: one turn on
-// the login's connection, under the budget of its class.
 func readOn(s *alborz.Login, class alborz.IMAPClass, bound time.Duration, fetch func(*imapclient.Client) (*listingEntry, error)) func(context.Context) (*listingEntry, error) {
 	return func(work context.Context) (*listingEntry, error) {
 		var e *listingEntry
@@ -29,14 +27,8 @@ func readOn(s *alborz.Login, class alborz.IMAPClass, bound time.Duration, fetch 
 	}
 }
 
-// cachedListing is a view as the cache holds it, a stale entry checked
-// behind the page, and read through the cache when it holds none.
-// Revalidation also covers gaps while the IDLE connection is down.
 func (p *plugin) cachedListing(ctx *alborz.Context, s *alborz.Login, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
-	// A folder the watcher saw change is read again rather than shown:
-	// the reader was told mail arrived - the count beside the folder
-	// moved - and a page drawn from what the cache held says the
-	// opposite, however quickly it renders.
+	// A folder the watcher saw change is read again: its count beside the folder already moved.
 	if e, state := p.listings.lookup(s.Username(), view, size); e != nil && state != listingChanged {
 		alborz.CacheTiming(ctx.Request().Context(), "listing", true)
 		if state == listingStale {
@@ -66,7 +58,6 @@ func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingS
 		p.listings.load(context.Background(), s.Username(), key, perPage, true, readOn(s, alborz.IMAPBackground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
 			return fetchListing(c, s.Username(), spec, settings, page, perPage)
 		}))
-		// Bodies are fetched only for pages actually visited. Speculative
-		// bodies would evict the page the reader is still using.
+		// Only visited pages get bodies; speculative ones would evict the page in use.
 	}()
 }

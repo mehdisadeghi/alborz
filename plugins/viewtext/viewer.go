@@ -75,11 +75,7 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		return nil, alborzbase.ErrViewUnsupported
 	}
 
-	// Paragraphs, not lines: a voice that changes per line stutters, and
-	// a blank line is where mail already says one thought ended. Each
-	// paragraph is asked what language it is in and wrapped only when the
-	// answer differs from the page's. The span is inline inside a pre, so
-	// it occupies nothing and does not interrupt unicode-bidi: plaintext.
+	// Language is decided per paragraph: per line the voice would stutter.
 	page := ctx.PageLanguage()
 	var tokens, para []interface{}
 	var text strings.Builder

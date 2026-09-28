@@ -10,11 +10,6 @@ import (
 	"golang.org/x/text/language"
 )
 
-// The UI strings live in locales/, one file per language, so a
-// translator never opens a Go file. go-i18n carries the plural rules
-// CLDR defines for each language, which is why nothing here says
-// "%d message(s)" any more.
-//
 //go:embed locales/*.toml
 var localeFS embed.FS
 
@@ -32,15 +27,12 @@ func init() {
 	}
 }
 
-// langCookieName stores the user's explicit language choice; language
-// is per user, not per account, so it lives in the browser rather than
-// any one account's settings store.
+// langCookieName holds the language in the browser, since it is per person, not per account.
 const langCookieName = "alborz_lang"
 
 // languages are the supported UI languages, in fallback order.
 var languages = []string{"en", "fa", "de", "es"}
 
-// languageTags mirror languages, in the same order, for the matcher.
 var languageTags = func() []language.Tag {
 	tags := make([]language.Tag, len(languages))
 	for i, code := range languages {
@@ -52,8 +44,7 @@ var languageTags = func() []language.Tag {
 var languageMatcher = language.NewMatcher(languageTags)
 
 // MatchLanguage picks the language an Accept-Language header asks for,
-// falling back to English. x/text weighs the q values, which reading the
-// header in order does not: "de;q=0.1, fa;q=0.9" asks for Persian.
+// weighing q values, falling back to English.
 func MatchLanguage(header string) string {
 	wanted, _, err := language.ParseAcceptLanguage(header)
 	if err != nil {
@@ -71,21 +62,16 @@ func IsLanguage(code string) bool {
 	return slices.Contains(languages, code)
 }
 
-// translate returns a key's message in a language, falling back to
-// English and then to the key itself.
 func translate(lang, key string) string {
 	return translateCount(lang, key, 1)
 }
 
-// translateCount picks the plural form a count calls for in that
-// language, which is not always the two English has.
 func translateCount(lang, key string, count int) string {
 	loc, ok := localizers[lang]
 	if !ok {
 		loc = localizers["en"]
 	}
-	// Asking for a plural form of a message that has only one misses
-	// it, so a message without plurals is looked up without a count.
+	// A message without plural forms is missed when asked with a count.
 	if msg, err := loc.Localize(&i18n.LocalizeConfig{MessageID: key, PluralCount: count}); err == nil {
 		return msg
 	}
@@ -95,14 +81,12 @@ func translateCount(lang, key string, count int) string {
 	return key
 }
 
-// LanguageChoice is one interface language, named in itself: a reader
-// looking for their own language does not read the current one.
+// LanguageChoice is one interface language, named in itself.
 type LanguageChoice struct {
 	Code string
 	Name string
 }
 
-// languageNames are the endonyms, which is what a language menu shows.
 var languageNames = map[string]string{
 	"en": "English",
 	"fa": "فارسی",
@@ -110,8 +94,7 @@ var languageNames = map[string]string{
 	"es": "Español",
 }
 
-// LanguageChoices is the menu: following the browser first, then every
-// language alborz carries.
+// LanguageChoices lists following the browser first, then every language.
 func LanguageChoices() []LanguageChoice {
 	out := make([]LanguageChoice, 0, len(languages)+1)
 	for _, code := range languages {

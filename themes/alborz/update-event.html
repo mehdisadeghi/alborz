@@ -10,9 +10,6 @@
   <div class="container">
     <main id="main" tabindex="-1" class="create-update">
       <form method="post">
-        {{/* The path is shown whether the object exists yet or not: a
-             create form is somewhere too, and stopping at the section
-             is more use than showing nothing. */}}
         {{ $crumbColl := "" }}{{ $crumbPath := "" }}
         {{ if .CalendarObject }}{{ $crumbColl = .Calendar.Name }}{{ $crumbPath = .Calendar.Path }}{{ end }}
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal" "collection" $crumbColl "path" $crumbPath "chooses" (and (not .CalendarObject) (gt (len .GlobalData.Accounts) 1))) }}
@@ -26,11 +23,6 @@
 
         {{ template "field" (dict "label" ($.T "calendar.eventname") "name" "summary" "value" (.Event.Props.Text "SUMMARY") "dir" "auto" "required" true) }}
 
-        {{/* An event that occupies whole days has no time of day, so the
-             form stops asking for one. Both pairs of inputs are in the
-             page and the checkbox decides which the eye and the handler
-             see: a checkbox cannot change an input's type without a
-             script, but it can hide the pair that does not apply. */}}
         <input type="checkbox" name="allday" value="1" id="allday" class="allday-toggle" {{if .AllDay}}checked{{end}}>
         <label for="allday" class="allday-label">{{$.T "calendar.allday"}}</label>
 
@@ -45,16 +37,11 @@
             {{ range .RepeatFreqs }}
             <option value="{{.}}" {{if eq . $.Repeat.Freq}}selected{{end}}>{{$.T (printf "calendar.repeat.%s" .)}}</option>
             {{ end }}
-            {{/* A rule written elsewhere that the form cannot say is
-                 kept as it is rather than flattened into one it can. */}}
             {{ if eq .Repeat.Freq "custom" }}<option value="custom" selected>{{$.T "calendar.repeat.custom"}}</option>{{ end }}
           </select>
         </div>
         {{ template "date-field" (dict "g" $ "label" ($.T "calendar.repeatuntil") "name" "until" "value" .Repeat.Until) }}
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" (.Event.Props.Text "DESCRIPTION") "dir" "auto") }}
-        {{/* Naming anybody here makes this an invitation: on save the
-             account becomes the organizer and everyone listed is sent a
-             request. Emptying the list withdraws it. */}}
         {{ template "field" (dict "label" ($.T "calendar.attendees") "name" "attendees" "value" .Attendees "rows" 3) }}
         {{ template "hint" (dict "text" ($.T "help.attendees")) }}
         <input type="hidden" name="attendees_was" value="{{ .Attendees }}">

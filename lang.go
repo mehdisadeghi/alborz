@@ -5,38 +5,18 @@ import (
 	"unicode"
 )
 
-// The language a piece of mail is written in, which is not the same
-// question as which way it runs. dir tells a browser how to lay text
-// out; lang tells a screen reader which voice to read it in. Alborz
-// answered only the first, so on a Persian page every English subject
-// went to a Persian synthesiser, which reads Latin letters as noise.
-//
-// Script alone cannot answer it - Latin covers three of the four
-// languages here - but the set is closed, so the choice is among four
-// rather than among all, and that is small enough to decide by
-// counting.
-
-// contentMinRunes is how much text has to be there before the count is
-// believed. A three-word subject carries no evidence, and claiming the
-// wrong language is worse than leaving the page's own.
+// Shorter text is no evidence, and a wrong language is worse than none.
 const contentMinRunes = 10
 
-// Persian is often typed, or normalised on the way through some other
-// system, with the Arabic yeh and kaf rather than the Persian ones. The
-// same sentence then looks Arabic to anything counting codepoints, so
-// the two forms are folded together before any of it is read.
+// Persian is often typed with the Arabic yeh and kaf, so both forms are folded before counting.
 var arabicFolding = strings.NewReplacer("ي", "ی", "ك", "ک")
 
-// Four letters Arabic does not have at all, which no folding affects.
+// Letters Arabic does not have.
 var persianLetters = []rune{'گ', 'چ', 'پ', 'ژ'}
 
-// Teh marbuta ends an Arabic word and never a Persian one.
 var arabicLetters = []rune{'ة'}
 
-// What each language says constantly and the other does not, written in
-// the folded form. Words the two share - man, ma, bad - are left out
-// rather than guessed at, and so is ali, which is Arabic's "on" and one
-// of the commonest Persian names.
+// Words both languages use, and the name ali, are left out.
 var arabicScriptWords = map[string][]string{
 	"fa": {"است", "این", "که", "را", "برای", "به", "از", "در",
 		"باید", "دارد", "شد", "می", "شما", "خود", "هست", "اینکه",
@@ -46,10 +26,6 @@ var arabicScriptWords = map[string][]string{
 		"اللذین", "حتی", "أیضا", "ذلک"},
 }
 
-// The words each language repeats often enough to be counted, and the
-// letters only one of them spells with. Latin is the ambiguous script
-// here: German and Spanish both mark themselves, and English is what is
-// left when neither does.
 var latinMarks = map[string][]rune{
 	"de": {'ä', 'ö', 'ü', 'ß'},
 	"es": {'ñ', '¿', '¡'},
@@ -61,22 +37,12 @@ var latinWords = map[string][]string{
 	"en": {"the", "and", "of", "to", "is", "for", "with", "you", "this", "that", "your", "from", "are"},
 }
 
-// ContentLang names the language of text the interface shows - a name, a
-// label, a folder, a filename - or returns "" where that is the page's
-// own language and the attribute would say nothing.
-//
-// Arabic is never one of the answers here. Persian is full of Arabic
-// words and they are Persian words now; alborz ships no Arabic
-// interface, so on a Persian page there is nothing for an Arabic tag to
-// be right about, and calling a Persian label Arabic hands it to the
-// wrong voice for no gain.
+// ContentLang names the language of interface text, "" where it is the page's own; never Arabic, as alborz ships no Arabic interface.
 func ContentLang(s, page string) string {
 	return answer(classify(s, false), page)
 }
 
-// MessageLang is ContentLang for what a message itself says, where
-// Arabic is a real possibility rather than Persian wearing loanwords.
-// Mail is the one place the distinction can pay for itself.
+// MessageLang is ContentLang for a message's own text, where Arabic is a real possibility.
 func MessageLang(s, page string) string {
 	return answer(classify(s, true), page)
 }
@@ -88,7 +54,6 @@ func answer(lang, page string) string {
 	return lang
 }
 
-// classify answers with a language tag or "" when the text does not say.
 func classify(s string, mail bool) string {
 	stripped := stripReplyPrefix(s)
 	arab, latn := 0, 0
@@ -112,11 +77,7 @@ func classify(s string, mail bool) string {
 	return latinLang(stripped)
 }
 
-// arabicLang separates Persian from Arabic, words first and letters only
-// to settle it. Counting codepoints alone called Persian typed with the
-// Arabic yeh and kaf Arabic, which is how a great deal of Persian mail
-// arrives. Persian stays the default: this is a Persian mailbox, and a
-// Persian voice reading Arabic is a far smaller error than the reverse.
+// Persian stays the default: a Persian voice reading Arabic is a smaller error than the reverse.
 func arabicLang(s string) string {
 	folded := arabicFolding.Replace(s)
 
@@ -149,12 +110,7 @@ func arabicLang(s string) string {
 	return "fa"
 }
 
-// latinLang votes among the three Latin languages alborz speaks. Words
-// are asked first and letters only settle a tie: English borrows a
-// diacritic often enough - "Your Über account statement" - that a
-// single ü must not outvote the English words around it. A letter
-// still decides where no word is recognised, which is the ordinary case
-// for a short German or Spanish subject.
+// Letters only settle a tie, so one borrowed diacritic cannot outvote English words.
 func latinLang(s string) string {
 	lower := strings.ToLower(s)
 
@@ -187,8 +143,6 @@ func latinLang(s string) string {
 	return "en"
 }
 
-// soleMax names the one language with the highest score, or reports
-// that nothing scored or two tied.
 func soleMax(score map[string]int) (string, bool) {
 	best, top, tied := "", 0, false
 	for _, lang := range []string{"en", "de", "es"} {
@@ -211,9 +165,7 @@ func containsAny(s string, runes []rune) bool {
 	return false
 }
 
-// stripReplyPrefix drops the marks a client puts in front of a subject,
-// for the same reason SubjectDir does: "Re: " is two Latin letters in
-// front of whatever the subject actually says.
+// "Re: " would otherwise count as Latin text.
 func stripReplyPrefix(s string) string {
 	for {
 		trimmed := replyPrefix.ReplaceAllString(s, "")

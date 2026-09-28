@@ -6,9 +6,6 @@
 
 {{ template "settings-list-open" (dict "g" $ "title" ($.T "sessions.title") "path" "/settings/sessions") }}
 
-      {{/* Each browser as it says it is, where it last came from and
-           when, with the way to take the account out of it. The device
-           is the browser's own claim, so the claim is a hover away. */}}
       <section class="list-items">
         {{ range .Signed }}
         {{ $d := devicename .Device }}

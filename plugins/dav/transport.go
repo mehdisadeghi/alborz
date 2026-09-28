@@ -1,6 +1,4 @@
-// Package dav holds what the CalDAV and CardDAV plugins share: the
-// transport that authenticates and follows redirects, the PROPFIND
-// that lists collections, and the small requests that manage them.
+// Package dav holds what the CalDAV and CardDAV plugins share.
 package dav
 
 import (
@@ -26,8 +24,7 @@ import (
 
 const requestTimeout = 10 * time.Second
 
-// maxRedirects is how far a DAV server may send a request on; a chain
-// longer than this is a loop, not a move.
+// maxRedirects is where a redirect chain is taken for a loop.
 const maxRedirects = 10
 
 func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Client {
@@ -45,7 +42,6 @@ func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Cli
 	}
 }
 
-// router is the way from the login to its remote sources.
 func (p *Provider) router(ctx context.Context, login *alborz.Login) sourceRouter {
 	return sourceRouter{
 		sources: p.Sources(ctx, login),
@@ -66,13 +62,10 @@ func (p *Provider) router(ctx context.Context, login *alborz.Login) sourceRouter
 	}
 }
 
-// IfNew is a PUT's If-None-Match that holds only while nothing is at
-// the address (RFC 7232 3.2).
+// IfNew is an If-None-Match that holds only while nothing is at the address (RFC 7232 3.2).
 const IfNew webdav.ConditionalMatch = "*"
 
-// IfUnchanged is a PUT's If-Match that holds only while the object is
-// the one that was read (RFC 7232 3.1). A server that gave no ETag gets
-// no condition.
+// IfUnchanged is an If-Match that holds only while the object is the one read (RFC 7232 3.1).
 func IfUnchanged(etag string) webdav.ConditionalMatch {
 	if etag == "" {
 		return ""
@@ -80,16 +73,8 @@ func IfUnchanged(etag string) webdav.ConditionalMatch {
 	return webdav.ConditionalMatch(strconv.Quote(etag))
 }
 
-// sourceRouter sends a path under a source's marker to that source
-// (ADR 28): the host is the source's, the marker comes off on the way
-// out and goes back on every href and Location on the way in, so what
-// is above it - the mirror, the pages - sees paths that name the source.
-// It sits below the mirror, which keys by path, so two sources holding
-// the same path are two copies.
-//
-// The source decides everything about how a request leaves: the login
-// it carries, the transport that dials it, and where a redirect may
-// take it.
+// sourceRouter sends a path under a source's marker to that source and marks what comes back (ADR 28).
+// It sits below the mirror, which keys by path, so two sources holding one path are two copies.
 type sourceRouter struct {
 	sources []Source
 	// trusted dials the deployment's servers, named the account's own.
@@ -97,8 +82,7 @@ type sourceRouter struct {
 	// sign puts the source's login on a request.
 	sign func(*http.Request, Source) error
 
-	// Debug logger for upstream DAV traffic; nil keeps it silent.
-	// Queries and status lines only, never credentials.
+	// debug logs upstream DAV queries and status lines, never credentials; nil keeps it silent.
 	debug echo.Logger
 }
 
@@ -129,8 +113,7 @@ func (r sourceRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 	out := req.Clone(req.Context())
 	out.URL.Scheme, out.URL.Host, out.Host = src.URL.Scheme, src.URL.Host, ""
 	out.URL.Path, out.URL.RawPath = "/"+path, ""
-	// A multiget names its objects in the body, by the paths the pages
-	// know them by; the source knows them without the marker.
+	// A multiget names its objects in the body by marked paths; the source knows them unmarked.
 	if req.Body != nil {
 		body, err := io.ReadAll(req.Body)
 		req.Body.Close()
@@ -173,9 +156,7 @@ func (r sourceRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 // hrefPattern is a DAV href element in any prefix a server writes it.
 var hrefPattern = regexp.MustCompile(`(<(?:[A-Za-z0-9_.-]+:)?href(?:\s[^>]*)?>)\s*([^<]*?)\s*(</(?:[A-Za-z0-9_.-]+:)?href>)`)
 
-// markHref puts the source's marker on a path the source answered with:
-// an absolute path, or its own full address. Anything else - another
-// host, a relative reference - is left as the server wrote it.
+// markHref marks the source's absolute paths and full addresses; other hosts and relative references stay.
 func markHref(href string, src Source) string {
 	u, err := url.Parse(href)
 	if err != nil {
@@ -197,10 +178,7 @@ func markHref(href string, src Source) string {
 	return u.String()
 }
 
-// hereTripper answers a request for a collection kept here without it
-// leaving the process, as the login's account, and ahead of the
-// mirror: the store is as near as the mirror is, and a share has to
-// show the moment it is made.
+// hereTripper serves collections kept here in-process, ahead of the mirror, so a share shows the moment it is made.
 type hereTripper struct {
 	here    http.Handler
 	account string
@@ -214,7 +192,6 @@ func (t hereTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return respond(t.here, req.WithContext(collections.As(req.Context(), t.account))), nil
 }
 
-// respond is what h answers req with, as a response.
 func respond(h http.Handler, req *http.Request) *http.Response {
 	wrote := &written{header: make(http.Header), code: http.StatusOK}
 	body := req.Body
@@ -235,7 +212,6 @@ func respond(h http.Handler, req *http.Request) *http.Response {
 	}
 }
 
-// buffered is req with its body read, to be sent again.
 func buffered(req *http.Request) (*http.Request, []byte, error) {
 	if req.Body == nil {
 		return req, nil, nil
@@ -251,7 +227,6 @@ func buffered(req *http.Request) (*http.Request, []byte, error) {
 	return out, body, nil
 }
 
-// written is what the handler wrote, kept to be read as a response.
 type written struct {
 	header http.Header
 	code   int
@@ -262,9 +237,7 @@ func (a *written) Header() http.Header         { return a.header }
 func (a *written) WriteHeader(code int)        { a.code = code }
 func (a *written) Write(b []byte) (int, error) { return a.body.Write(b) }
 
-// logDAVExchange prints one upstream DAV round trip: the query for
-// REPORTs, the status, and what kind of payload came back. Response
-// bodies are re-wrapped so the caller still reads them.
+// logDAVExchange prints one upstream round trip, re-wrapping the body so the caller still reads it.
 func logDAVExchange(l echo.Logger, req *http.Request, resp *http.Response, err error) {
 	q := ""
 	if req.Method == "REPORT" && req.GetBody != nil {
@@ -291,21 +264,14 @@ func logDAVExchange(l echo.Logger, req *http.Request, resp *http.Response, err e
 		bytes.Count(b, []byte("BEGIN:VCARD")), q)
 }
 
-// RefusedError is a DAV server saying no to the account's credentials.
-// It is an answer, and a different one from no answer: a mail account
-// often has no DAV account behind it, or one with a password of its own,
-// and the reader can do something about that and nothing about a server
-// that is down.
+// RefusedError is a DAV server refusing the account's credentials: an answer the reader can act on.
 type RefusedError struct {
 	Host string
 }
 
 func (e *RefusedError) Error() string { return e.Host + " refused the account's password" }
 
-// Answered is the HTTP status a DAV server answered with, where err
-// carries one, and zero where the server did not answer at all.
-// go-webdav keeps its error type internal and its Code field exported,
-// so the field is read by name.
+// Answered is err's HTTP status, zero if unanswered; go-webdav's error type is internal, so Code is read by name.
 func Answered(err error) int {
 	for ; err != nil; err = errors.Unwrap(err) {
 		v := reflect.Indirect(reflect.ValueOf(err))
@@ -319,13 +285,8 @@ func Answered(err error) int {
 	return 0
 }
 
-// send signs a request for its source, sends it, and follows where the
-// server sends it on, keeping the method: Go's own client turns a
-// redirected PROPFIND into a GET, which breaks WebDAV. Each hop is
-// judged on its own. The login goes to the source's host and no other;
-// a source reached over TLS is not followed off it; and a 401 from any
-// hop is the server turning the login down, which past here would be
-// one more status in a string.
+// send follows redirects keeping the method, since Go's client turns a redirected PROPFIND into a GET.
+// The login goes to the source's host only, TLS is never left, and a 401 from any hop is a refusal.
 func (r sourceRouter) send(req *http.Request, src Source) (*http.Response, error) {
 	upstream := r.trusted
 	if src.ID == SourceOwn {

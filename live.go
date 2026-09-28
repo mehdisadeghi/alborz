@@ -9,19 +9,13 @@ import (
 	"time"
 )
 
-// Change is something that happened to an account without anyone asking:
-// mail arrived, or a folder moved under a reader who was looking
-// elsewhere. It carries the fact and nothing rendered, because the
-// language it is said in belongs to whoever is reading, not to the
-// watcher that noticed.
+// Change says a folder of an account changed; it stays unrendered for the reader's language.
 type Change struct {
 	Account string
 	Mailbox string
 }
 
-// Changes is who to tell. A watcher publishes to it and every stream
-// open on the account hears; a stream that nobody is reading is dropped
-// rather than waited for, since a change is worth nothing late.
+// Changes fans changes out to open streams without waiting on slow readers.
 type Changes struct {
 	mu     sync.Mutex
 	subs   map[chan Change]struct{}
@@ -33,8 +27,6 @@ func newChanges() *Changes {
 }
 
 // Listen returns a channel of changes and the function that closes it.
-// The buffer holds a few, so a reader that is mid-render does not miss
-// the one that follows.
 func (c *Changes) Listen() (<-chan Change, func()) {
 	ch := make(chan Change, 8)
 	c.mu.Lock()
@@ -54,9 +46,7 @@ func (c *Changes) Listen() (<-chan Change, func()) {
 	}
 }
 
-// Publish tells every listener. It never blocks: a full channel means a
-// browser that is not keeping up, and the change it misses is followed
-// by the next one.
+// Publish tells every listener, dropping the change for one whose buffer is full.
 func (c *Changes) Publish(ch Change) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -68,10 +58,7 @@ func (c *Changes) Publish(ch Change) {
 	}
 }
 
-// Close ends every stream, and every one opened after. A stream is a
-// request that never finishes on its own, and a shutdown that waits for
-// requests to finish would otherwise wait out its whole deadline for
-// each open tab, holding the port the next process wants.
+// Close ends every stream, and every one opened after, so shutdown does not wait on open tabs.
 func (c *Changes) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -82,27 +69,17 @@ func (c *Changes) Close() {
 	}
 }
 
-// Announce says a folder of an account is not what a page last showed.
-// The watcher that sits in IDLE calls it; it knows the account and the
-// folder and nothing about who is reading.
+// Announce publishes that a folder of an account changed.
 func (c *Changes) Announce(account, mailbox string) {
 	c.Publish(Change{Account: account, Mailbox: mailbox})
 }
 
-// livePing is how often the stream says nothing, so a proxy between the
-// reader and alborz does not decide the connection is dead. A comment
-// frame is legal SSE and costs two bytes.
+// livePing keeps proxies from dropping an idle stream.
 const livePing = 25 * time.Second
 
-// handleEvents streams what the watchers noticed to one browser, as
-// server-sent events. It renders nothing: the page it reaches decides
-// what a change means where the reader is standing, and a reader with
-// no script never opens it at all.
 func handleEvents(ctx *Context) error {
 	s := ctx.Session()
-	// The stream outlives the request that opened it, so who it may tell
-	// is asked each time: a session that locked hears nothing more, and an
-	// account signed out from another browser is no longer this one's.
+	// The stream outlives its request, so each change rechecks the session's accounts.
 	mine := func(account string) bool {
 		live, _ := s.Accounts()
 		return slices.ContainsFunc(live, func(s *Login) bool { return s.Username() == account })
@@ -140,9 +117,7 @@ func handleEvents(ctx *Context) error {
 			if !mine(change.Account) {
 				continue
 			}
-			// One line each, and no newline can reach them: an
-			// address and a folder name are the only values, and a
-			// folder name with a newline in it would end the frame.
+			// A newline in either value would end the frame.
 			_, err := fmt.Fprintf(res, "event: mailbox\ndata: %s %s\n\n",
 				oneLine(change.Account), oneLine(change.Mailbox))
 			if err != nil {

@@ -11,16 +11,11 @@
   <div class="container">
     <main id="main" tabindex="-1" class="list">
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
-        {{/* The plus sits where every other list has it: tasks,
-             contacts and calendars all offer their create from the
-             toolbar, and filters offered it only from the sidebar. */}}
         {{ template "list-toolbar" (dict "newhref" (and .Accounts (printf "/filters/create%s" $aq)) "newlabel" ($.T "filters.new")) }}
       </section>
 
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.filters") "home" "/filters" "field" "" "collection" "" "path" "" "heading" true) }}
 
-      {{/* An account whose server did not answer has nothing below;
-           the warning names it where the view shows several. */}}
       {{ range .Groups }}
       {{ $label := $.GlobalData.AccountLabel .Account }}
       {{ with .Unreachable }}
@@ -31,10 +26,6 @@
       {{ end }}
       {{ end }}
 
-      {{/* One list over every account shown; a row says whose it is
-           the way a task row does, and every link and form names the
-           account its script lives on, since a bare one would act on
-           the wrong server. */}}
       <section class="list-items">
         {{ $any := false }}
         {{ range .Groups }}
@@ -74,10 +65,6 @@
         {{ end }}
       </section>
 
-      {{/* Which server holds these filters, what it is, and which
-           extensions a filter here may use - the last being the one
-           thing that decides whether a script the reader writes will
-           be accepted. One card per account, after the list. */}}
       {{ range .Groups }}
       {{ if not .Unreachable }}
       {{ template "info-card" (dict "title" ($.T "filters.serverinfo")
@@ -91,9 +78,6 @@
       {{ end }}
       {{ end }}
 
-      {{/* What the extensions mean, once for the page: the same
-           servers offer the same names, so a card each would only
-           repeat it. */}}
       {{ template "info-explain" (dict "label" ($.T "filters.extensionsexplain") "items" .Explained) }}
 
     </main>

@@ -13,21 +13,12 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-// searchRole is the role a results page acts through. Its rows come
-// from many folders, and the actions of a merged list go by role -
-// archive, junk, trash - with each row's account resolving its own
-// folder, which is exactly what rows from anywhere need. The inbox's
-// set of actions is the one that offers all three.
+// The inbox's action set is the one offering archive, junk and trash.
 const searchRole = "INBOX"
 
-// folderTrackMax bounds the folder names' track: a nested folder's full
-// path can be longer than the sender it sits beside, and truncates.
+// folderTrackMax caps the folder column; long nested paths truncate.
 const folderTrackMax = 16
 
-// searchFolders are the folders of one account a query reaches. IMAP
-// has no search across folders, so each is asked in turn. in: names
-// one, by role or by name; without it Junk and Trash are left out, as
-// they are in Gmail, until in:anywhere asks for them.
 func searchFolders(mailboxes []MailboxInfo, q Query) []string {
 	named, everywhere := q.Scope()
 	excluded := q.Excluded()
@@ -51,8 +42,6 @@ func searchFolders(mailboxes []MailboxInfo, q Query) []string {
 	return out
 }
 
-// folderNamed says whether in: means this folder: its role, its full
-// name or the last step of it.
 func folderNamed(mbox *MailboxInfo, named string) bool {
 	role := mbox.role()
 	last := mbox.Name()[strings.LastIndex(mbox.Name(), string(mbox.Delim))+1:]
@@ -60,18 +49,12 @@ func folderNamed(mbox *MailboxInfo, named string) bool {
 		(role == "junk" && strings.EqualFold(named, "spam"))
 }
 
-// handleSearch answers a query over every folder of the accounts in
-// scope: the URL's account, or all of them. Each folder gives its own
-// newest window and the page is cut from the merge, the way the merged
-// view cuts its page from the accounts.
 func (p *plugin) handleSearch(ctx *alborz.Context) error {
 	ask, err := readListAsk(ctx, "account")
 	if err != nil {
 		return err
 	}
 	ask.spec.query = strings.TrimSpace(ask.spec.query)
-	// The page answers two asks with one fan-out: a query, and a star
-	// view, which is a query with a name and no words.
 	if !StarView(ask.spec.view) {
 		ask.spec.view = ""
 	}
@@ -99,11 +82,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 		if err != nil {
 			return nil, err
 		}
-		// A folder is a turn on the connection with the budget of
-		// one: the account's other pages are served between two, and
-		// an account of many folders is slow rather than cut off as
-		// unreachable. What an account that fails had found so far is
-		// left out whole, its count with its rows.
+		// One turn per folder, so the account's other pages are served between them.
 		found := &listingEntry{sortSupported: true}
 		for _, folder := range searchFolders(sb.mailboxes, q) {
 			e, err := readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
@@ -141,8 +120,6 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 	base := alborz.NewBaseRenderData(ctx).WithTitle(heading)
 	ibase := &IMAPBaseRenderData{BaseRenderData: *base, ListView: spec.view}
 	if !ctx.Unified {
-		// One account's rail is its folder tree, which the merged rail
-		// builds for itself from the accounts.
 		sb, err := p.sidebarFor(ctx.Login)
 		if err != nil {
 			return err
@@ -150,8 +127,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 		ibase = assembleIMAPBase(ctx, base, "", sb.clone(), spec.view)
 	}
 	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
-	// No name: the rail marks the folder the page shows, and this page
-	// shows none.
+	// No name, so the rail marks no folder.
 	ibase.Mailbox = &MailboxStatus{StatusData: &imap.StatusData{}, Label: title}
 	data := listPage(ctx, ask, merged, msgs)
 	data.IMAPBaseRenderData = *ibase

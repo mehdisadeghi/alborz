@@ -8,8 +8,7 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// PasskeysRenderData renders passkeys.html: the passkeys that unlock
-// this browser, each with the way to take it back.
+// PasskeysRenderData renders passkeys.html.
 type PasskeysRenderData struct {
 	alborz.BaseRenderData
 	Rail     map[string][]alborz.RailRow
@@ -41,8 +40,7 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.new")),
 			Rail:           settingsRail(ctx),
 		}
-		// The form posts only where no script took it over, and without
-		// one there is no prompt to make a passkey with.
+		// Only a form without script posts here, and without script there is no passkey prompt.
 		if ctx.Request().Method == http.MethodPost {
 			data.Refused(ctx.T("passkeys.needsscript"))
 			return ctx.Render(http.StatusUnprocessableEntity, "passkey-create.html", data)
@@ -51,8 +49,6 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 	}
 	p.GET("/settings/passkeys/create", passkeyForm)
 	p.POST("/settings/passkeys/create", passkeyForm)
-	// Registering is two posts with the authenticator between them; the
-	// script on the form makes them, and says on the form what failed.
 	p.POST("/settings/passkeys/begin", func(ctx *alborz.Context) error {
 		options, err := ctx.BeginPasskey()
 		if err != nil {
@@ -82,21 +78,18 @@ func registerPasskeyRoutes(p *alborz.GoPlugin) {
 
 	p.POST("/lock", func(ctx *alborz.Context) error {
 		ctx.Session().LockNow()
-		// A change that is nobody's tells no page anything, and wakes
-		// this session's streams in its other tabs to find the lock.
+		// An empty change wakes this session's other tabs to find the lock.
 		ctx.Server.Changes.Publish(alborz.Change{})
 		ctx.Quiet()
 		return ctx.Redirect(http.StatusSeeOther, "/unlock")
 	})
-	// The reader is at the keyboard with nothing to ask for: the request
-	// is the whole of what it does, since any request counts as being here.
+	// Any request counts as presence, so this one needs to do nothing.
 	p.POST("/alive", func(ctx *alborz.Context) error {
 		return ctx.NoContent(http.StatusNoContent)
 	})
 
 	p.GET("/unlock", func(ctx *alborz.Context) error {
 		next := ctx.NextOr("/")
-		// Not locked, nothing to do here.
 		if !ctx.Session().Locked(time.Now()) {
 			return ctx.Redirect(http.StatusFound, next)
 		}

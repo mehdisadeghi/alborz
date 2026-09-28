@@ -7,8 +7,6 @@ import (
 	"github.com/emersion/go-ical"
 )
 
-// zoned is a calendar holding one event whose start names a zone the
-// object does not define.
 func zoned(tzid string) *ical.Calendar {
 	cal := ical.NewCalendar()
 	event := ical.NewEvent()

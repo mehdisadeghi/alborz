@@ -1,15 +1,9 @@
-{{/* Any view is the agenda: the plain list, or the list narrowed to a
-     star; the pager and Today keep whichever it is. */}}
 {{$scope := ""}}{{with .Scope}}{{$scope = printf "&%s" .}}{{end}}
 {{$suffix := $scope}}
 {{with .View}}{{$suffix = printf "%s&view=%s" $suffix .}}{{end}}
 {{if and .View (eq .Span "month")}}{{$suffix = printf "%s&span=month" $suffix}}{{end}}
-{{/* The month names the page, in both views: the crumb is the scope
-     and the calendar it is narrowed to, as on every other page. */}}
 {{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.GlobalData.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" "/calendar/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
-  {{/* The agenda is a list like the others, so it acts on what is
-       checked; the grid has no rows to check. */}}
   {{ with .SelectForm }}
   {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" . "formaction" "/calendar/delete" "priority" 11) }}
   {{ end }}
@@ -22,24 +16,12 @@
   </div>
 </div>
 {{ template "toolbar-end" }}
-    {{/* The agenda's filters and its grouping; the grid has neither.
-         They come before the pager, so switching between the grid and
-         the agenda leaves the pager and the switch where they were. */}}
     {{ with .FilterRows }}{{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" . "priority" 25 "class" "filter-overflow") }}{{ end }}
-    {{/* An agenda is in the day's order and sorts by nothing else, so
-         the menu that holds its grouping is named for that. */}}
     {{ with .GroupRows }}{{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" . "priority" 30 "class" "group-overflow") }}{{ end }}
-    {{/* Back and forward flank Today, and carry the month they go to as
-         their tooltip rather than on the face: a name on one of them
-         and not the other is what made the row jump as it narrowed.
-         Today keeps its place on the month it would take you to, or
-         every control after it moves the moment you arrive there. */}}
     <div class="actions-pagination" data-priority="21">
       {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime)) "icon" "prev") }}
       {{if not .ThisMonth}}
-      {{/* localhref, or html/template escapes the whole query as one
-           value and "view=list" arrives as "view%3dlist" - which is how
-           Today dropped the reader back into the month grid. */}}
+      {{/* localhref, or html/template escapes the whole query as one value. */}}
       {{ $today := "/calendar" }}{{ if $suffix }}{{ $today = printf "/calendar?%s" (slice $suffix 1) }}{{ end }}
       <a href="{{ localhref $today }}" class="button-link">{{$.T "calendar.today"}}</a>
       {{else}}

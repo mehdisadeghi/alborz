@@ -14,13 +14,8 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-// The listing cache holds each account's folder views so a click renders
-// from memory. What it holds is served however old: a stale entry is
-// checked behind the page with one STATUS and refetched only when the
-// folder moved. Own writes evict, and the watcher marks what the server
-// announces stale.
+// A stale listing is served, then checked behind the page with one STATUS.
 const (
-	// listingFreshFor is served without asking the server at all.
 	listingFreshFor = 30 * time.Second
 	listingKeepFor  = 24 * time.Hour
 )
@@ -29,22 +24,18 @@ type listingState int
 
 const (
 	listingMiss listingState = iota
-	// listingChanged is an entry the watcher saw the folder move under:
-	// read in place, but no page is drawn from it.
+	// The watcher saw the folder move under it; no page is drawn from it.
 	listingChanged
 	listingStale
 	listingFresh
 )
 
-// listingSep joins a folder to what narrows it inside a cache key. It
-// cannot occur in a folder name, so a prefix finds every view of one.
+// It cannot occur in a folder name, so a prefix finds every view of one.
 const listingSep = "\x00"
 
-// maxListingEntries bounds a map whose keys include user input: every
-// search makes an entry.
+// Every search makes an entry.
 const maxListingEntries = 512
 
-// listingView names one cached view: the folder, and what narrows it.
 func listingView(folder, query, view, sortKey, sortDir string) string {
 	if query == "" && view == "" && sortKey == "" && sortDir == "" {
 		return folder
@@ -52,8 +43,7 @@ func listingView(folder, query, view, sortKey, sortDir string) string {
 	return strings.Join([]string{folder, query, view, sortKey, sortDir}, listingSep)
 }
 
-// listingEntry is one cached folder view. Merged entries, keyed by role
-// with a "#" prefix, carry no sidebar.
+// Merged entries are keyed by role with a "#" prefix.
 type listingEntry struct {
 	sb              sidebar
 	msgs            []IMAPMessage
@@ -62,19 +52,17 @@ type listingEntry struct {
 	page            int
 	sortSupported   bool
 	threadAlgorithm imap.ThreadAlgorithm
-	// headersOnly says a search's bare terms reached only the headers.
+	// A search's bare terms reached only the headers.
 	headersOnly bool
 	snap        *imap.StatusData
 	fetched     time.Time
 	lastUse     time.Time
-	// changed is known wrong, as against merely aged.
+	// Known wrong, as against merely aged.
 	changed bool
 }
 
 type listingKey struct{ user, view string }
 
-// newListingCache keeps what is read for keepFor after its last use;
-// with no keepFor it keeps nothing and every read goes to the server.
 func newListingCache(keepFor time.Duration, sidebars *alborz.Memo[sidebar], bodies *bodyCache) *listingCache {
 	return &listingCache{
 		keepFor: keepFor, accountSidebars: sidebars, bodies: bodies,
@@ -84,25 +72,21 @@ func newListingCache(keepFor time.Duration, sidebars *alborz.Memo[sidebar], bodi
 }
 
 type listingCache struct {
-	keepFor time.Duration
-	// The rail and the bodies are kept true with the listings.
+	keepFor         time.Duration
 	accountSidebars *alborz.Memo[sidebar]
 	bodies          *bodyCache
 
-	mu      sync.Mutex
-	entries map[listingKey]*listingEntry
-	// refreshing marks the views being checked behind a page.
+	mu         sync.Mutex
+	entries    map[listingKey]*listingEntry
 	refreshing map[listingKey]bool
 	flights    map[listingKey]*listingFlight
 	generation map[string]uint64
 }
 
 type listingFlight struct {
-	done  chan struct{}
-	entry *listingEntry
-	err   error
-	// queued is a speculative fetch not yet on the connection: a reader
-	// joining it withdraws it and fetches the view itself.
+	done     chan struct{}
+	entry    *listingEntry
+	err      error
 	queued   bool
 	withdraw context.CancelFunc
 	takeover func() (*listingEntry, error)
@@ -122,8 +106,7 @@ func (e *listingEntry) validity() uint32 {
 	return e.snap.UIDValidity
 }
 
-// load coalesces cold reads; each caller can leave on its own. A reader
-// never waits behind a speculative fetch not yet on the connection.
+// A reader never waits behind a speculative fetch not yet on the connection.
 func (lc *listingCache) load(ctx context.Context, user, view string, perPage int, speculative bool, fetch func(context.Context) (*listingEntry, error)) (*listingEntry, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -189,7 +172,6 @@ func (lc *listingCache) load(ctx context.Context, user, view string, perPage int
 	}
 }
 
-// keeps says the cache holds what is read, so reading ahead is worth it.
 func (lc *listingCache) keeps() bool {
 	return lc.keepFor > 0
 }
@@ -200,9 +182,6 @@ func (lc *listingCache) epoch(user string) uint64 {
 	return lc.generation[user]
 }
 
-// message finds a recently visited page containing this message, and
-// its place in the view: the page's rows either side of it, or across
-// the page's edge the rows of the held page next to it.
 func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) (*listingEntry, listPlace, bool) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -231,8 +210,7 @@ func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) (*
 	return found.snapshot(), place, placed
 }
 
-// listingSpec is what it takes to fetch a view again without the
-// request that first asked for it.
+// listingSpec refetches a view without the request that first asked for it.
 type listingSpec struct {
 	mbox, query, view, sortKey, sortDir string
 	thread                              imap.UID
@@ -245,7 +223,6 @@ func (spec listingSpec) reverse() bool {
 	return sortKeys[spec.sortKey].descends
 }
 
-// absorb adds what another folder or account answered to a merge.
 func (e *listingEntry) absorb(other *listingEntry) {
 	e.msgs = append(e.msgs, other.msgs...)
 	e.total += other.total
@@ -253,7 +230,6 @@ func (e *listingEntry) absorb(other *listingEntry) {
 	e.sortSupported = e.sortSupported && other.sortSupported
 }
 
-// snapshot is a private copy of the shared entry.
 func (e *listingEntry) snapshot() *listingEntry {
 	return &listingEntry{
 		sb:              e.sb.clone(),
@@ -285,8 +261,6 @@ func (lc *listingCache) lookup(user, view string, perPage int) (*listingEntry, l
 	return e.snapshot(), listingFresh
 }
 
-// pageSize is the size of the view's held page, or fallback when none
-// is held.
 func (lc *listingCache) pageSize(user, view string, fallback int) int {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -296,8 +270,7 @@ func (lc *listingCache) pageSize(user, view string, fallback int) int {
 	return fallback
 }
 
-// heldSize is the size of the view's entry while its rows stand, or 0:
-// a changed entry is read again at the size the page needs.
+// A changed entry is read again at the size the page needs.
 func (lc *listingCache) heldSize(user, view string) int {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -307,8 +280,7 @@ func (lc *listingCache) heldSize(user, view string) int {
 	return 0
 }
 
-// fill puts whole rows in place of the ones a merge window holds only
-// by what the merge compares.
+// A merge window holds rows only by what the merge compares.
 func (lc *listingCache) fill(user, view string, rows []IMAPMessage) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -359,7 +331,6 @@ func (lc *listingCache) storeAt(user, view string, e *listingEntry, generation u
 	}
 }
 
-// markSeen marks the message read in every cached view of the folder.
 func (lc *listingCache) markSeen(user, folder string, uid imap.UID) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -382,7 +353,6 @@ func (lc *listingCache) markSeen(user, folder string, uid imap.UID) {
 	}
 }
 
-// railUnseen moves a folder's count on the rail as on the listings.
 func (lc *listingCache) railUnseen(user, folder string, delta int) {
 	lc.accountSidebars.Update(user, func(sb sidebar) sidebar {
 		sb = sb.clone()
@@ -391,9 +361,7 @@ func (lc *listingCache) railUnseen(user, folder string, delta int) {
 	})
 }
 
-// setFlags takes a flag change the server announced into the cached
-// views of the folder. The server names the message by sequence number,
-// which an expunge renumbers, so a stale page is left to renew.
+// An expunge renumbers sequence numbers, so a stale page is left to renew.
 func (lc *listingCache) setFlags(user, folder string, seqNum uint32, flags []imap.Flag) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -418,8 +386,7 @@ func (lc *listingCache) setFlags(user, folder string, seqNum uint32, flags []ima
 	}
 }
 
-// A confirmed flag edit updates plain pages in place. Filtered views are
-// invalidated because their membership may have changed.
+// Filtered views are dropped: their membership may have changed.
 func (lc *listingCache) flags(user, folder string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) {
 	among := uidSet(uids)
 	lc.mu.Lock()
@@ -453,16 +420,14 @@ func (lc *listingCache) flags(user, folder string, uids []imap.UID, op imap.Stor
 	for _, delta := range deltas {
 		lc.railUnseen(user, folder, delta)
 	}
-	// A whole view marked read reaches messages no cached page shows,
-	// and what they did to the unseen count only the server knows.
+	// Messages no cached page shows moved the unseen count by an unknown amount.
 	if len(shown) < len(uids) && (op == imap.StoreFlagsSet || slices.Contains(flags, imap.FlagSeen)) {
 		lc.accountSidebars.Stale(user)
 	}
 	lc.bodies.flags(user, folder, uids, op, flags)
 }
 
-// uidSet is a selection to look messages up in: a whole view can be a
-// hundred thousand UIDs, walked under the caches' locks.
+// A whole view can be a hundred thousand UIDs, walked under the caches' locks.
 func uidSet(uids []imap.UID) map[imap.UID]bool {
 	set := make(map[imap.UID]bool, len(uids))
 	for _, uid := range uids {
@@ -471,8 +436,7 @@ func uidSet(uids []imap.UID) map[imap.UID]bool {
 	return set
 }
 
-// reflag gives the row flags on a copy of its buffer, which pages being
-// rendered share, and moves the entry's unseen count by what it returns.
+// The buffer is copied: pages being rendered share it.
 func (e *listingEntry) reflag(m *IMAPMessage, folder string, flags []imap.Flag) int {
 	was := m.HasFlag(imap.FlagSeen)
 	buf := *m.FetchMessageBuffer
@@ -490,7 +454,6 @@ func (e *listingEntry) reflag(m *IMAPMessage, folder string, flags []imap.Flag) 
 	return delta
 }
 
-// row is the cached row of the message, nil when off the page.
 func (e *listingEntry) row(uid imap.UID) *IMAPMessage {
 	for i := range e.msgs {
 		if e.msgs[i].UID == uid {
@@ -500,9 +463,6 @@ func (e *listingEntry) row(uid imap.UID) *IMAPMessage {
 	return nil
 }
 
-// neighbours places the message in the cached page; at the page's edge
-// the neighbour is the facing row of the page before or after. Not
-// found means the server has to say.
 func (e *listingEntry) neighbours(uid imap.UID, before, after *listingEntry) (newer, older imap.UID, pos, total int, found bool) {
 	i := slices.IndexFunc(e.msgs, func(m IMAPMessage) bool { return m.UID == uid })
 	if i < 0 {
@@ -529,14 +489,12 @@ func (e *listingEntry) neighbours(uid imap.UID, before, after *listingEntry) (ne
 	return newer, older, e.page*e.perPage + i + 1, e.total, true
 }
 
-// adjoins says the other page was cut from the same list as this one:
-// an arrival moves UIDNEXT, an expunge the total.
+// An arrival moves UIDNEXT, an expunge the total.
 func (e *listingEntry) adjoins(other *listingEntry) bool {
 	return e.snap != nil && other.snap != nil && e.total == other.total &&
 		e.snap.UIDValidity == other.snap.UIDValidity && e.snap.UIDNext == other.snap.UIDNext
 }
 
-// claim marks the view as being checked, false when it already is.
 func (lc *listingCache) claim(user, view string) bool {
 	if !lc.keeps() {
 		return false
@@ -568,9 +526,6 @@ func (lc *listingCache) stale(user, folder string) {
 	}
 }
 
-// revalidate asks, behind the page, whether the folder moved since the
-// entry was taken, and reads the view again when it did. folder names
-// it on the connection, where a merged view's is found by role.
 func (p *plugin) revalidate(s *alborz.Login, view string, e *listingEntry, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) {
 	user := s.Username()
 	if !p.listings.claim(user, view) {
@@ -602,7 +557,6 @@ func (p *plugin) revalidate(s *alborz.Login, view string, e *listingEntry, folde
 	}()
 }
 
-// refresh marks the entry good again after a revalidation found no change.
 func (lc *listingCache) refresh(user, view string) {
 	lc.mu.Lock()
 	if e, ok := lc.entries[listingKey{user, view}]; ok {
@@ -611,19 +565,15 @@ func (lc *listingCache) refresh(user, view string) {
 	lc.mu.Unlock()
 }
 
-// shows says the view draws from the folder: its own views, and the
-// merged ones, whose role names hide which folders they map to.
+// Merged views' role names hide which folders they map to.
 func shows(view, folder string) bool {
 	return view == folder || strings.HasPrefix(view, folder+listingSep) || strings.HasPrefix(view, "#")
 }
 
-// evict drops every cached view of one folder.
 func (lc *listingCache) evict(user, folder string) {
 	lc.drop(user, func(view string) bool { return shows(view, folder) })
 }
 
-// evictAll drops every view of the user, for changes that reshape them
-// all: sending, folder create or delete, settings, logout.
 func (lc *listingCache) evictAll(user string) {
 	lc.drop(user, func(string) bool { return true })
 }
@@ -636,8 +586,7 @@ func (lc *listingCache) drop(user string, match func(view string) bool) {
 	lc.accountSidebars.Stale(user)
 }
 
-// listingStatusOptions asks for the fields that betray a change to a
-// listing; HIGHESTMODSEQ also moves on flag changes, with CONDSTORE.
+// HIGHESTMODSEQ also moves on flag changes.
 func listingStatusOptions(c *imapclient.Client) *imap.StatusOptions {
 	opts := &imap.StatusOptions{
 		NumMessages: true,

@@ -4,10 +4,6 @@
 
 {{ template "settings-list-open" (dict "g" $ "title" ($.T "passkeys.title") "path" "/settings/passkeys" "newhref" "/settings/passkeys/create" "newlabel" ($.T "passkeys.new")) }}
 
-      {{/* A passkey has nothing to edit: the authenticator made it and
-           keeps it. A row says which one it is and when it was last
-           used, which is how a lost device's passkey is found, and
-           offers the one thing that can be done with it. */}}
       <section class="list-items">
         {{ range .Passkeys }}
         <div class="list-item">

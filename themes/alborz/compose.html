@@ -17,8 +17,6 @@
 
         <div class="headers no-js">
           <label for="from">{{$.T "compose.from"}}</label>
-          {{/* A reply names the identity it was addressed to; the
-               account is the choice only when nothing named one. */}}
           {{ $selected := .SelectedFrom }}
           {{ $multi := gt (len .Identities) 1 }}
           <select name="from_account" id="from">
@@ -64,11 +62,6 @@
             list="emails"
           />
 
-          {{/* Reply-To is rare and easy to get wrong - a mismatched one
-               confuses the recipient and trips spam heuristics - so it is
-               folded away, as Apple Mail and Thunderbird fold it. It
-               opens carrying a value, so a draft that has one never hides
-               it. */}}
           <details class="compose-more"{{ if .Message.ReplyTo }} open{{ end }}>
             <summary>{{$.T "compose.replyto"}}</summary>
             <input
@@ -102,8 +95,6 @@
             {{ end }}
           >
             <div class="help">{{$.T "compose.dragdrop"}}</div>
-            {{/* A whole message travels by name, not by part path: it
-                 has no part in the message being written. */}}
             {{range .Attached}}
             <div class="upload">
               <label class="filename">
@@ -112,8 +103,6 @@
               </label>
             </div>
             {{end}}
-            {{/* What a refused send held, back on the form: compose.js
-                 takes these as uploads already finished. */}}
             {{range .Uploads}}
             <div class="upload" data-uuid="{{.ID}}">
               <span class="progress"></span>
@@ -131,25 +120,12 @@
               </label>
             </div>
             {{end}}
-            <!--
-            <div class="upload">
-              <span class="progress"></span>
-              <span class="filename">foobar.pdf</span>
-              <span class="error"></span>
-              <span class="size">1234 KiB</span>
-              <button>&times;</button>
-            </div>
-            -->
           </div>
 
           <input type="hidden" id="attachment-uuids" name="attachment-uuids" value="" />
         </div>
 
         <div class="text">
-          {{/* Rich text is a choice made per message where a script runs:
-               the toggle and the toolbar wait hidden, the editor sits
-               beside the textarea, and what it wrote travels in html.
-               A draft written there carries its HTML back. */}}
           <div class="editor-toolbar" hidden role="toolbar" aria-label="{{$.T "editor.toolbar"}}">
             <button type="button" class="icon-button" data-editor-toggle title="{{$.T "editor.richtext"}}" aria-label="{{$.T "editor.richtext"}}" aria-pressed="false">{{ template "icon" "richtext" }}<span class="label">{{$.T "editor.richtext"}}</span></button>
             {{ range tuple (tuple "bold" "editor.bold") (tuple "italic" "editor.italic") (tuple "list" "editor.list") (tuple "quote" "editor.quote") (tuple "link" "editor.link") (tuple "rtl" "editor.rtl") (tuple "ltr" "editor.ltr") (tuple "clear" "editor.clear") }}
@@ -158,13 +134,7 @@
           </div>
           <div class="editor body" hidden></div>
           <input type="hidden" name="html" value="{{.Message.HTML}}">
-          {{/* What the editor quotes when it opens on an untouched reply:
-               the original's HTML with every image gone. */}}
           {{ with .Message.QuoteHTML }}<template id="quote-html"{{ if $.Message.QuoteRich }} data-open{{ end }}>{{.}}</template>{{ end }}
-          {{/* The reply is written above the quote or below it, and the
-               cursor belongs where the writing goes. Without scripts the
-               browser puts it wherever it likes, which is why the body
-               already opens with the blank lines the writer needs. */}}
           <textarea name="text" class="body" dir="auto" autofocus aria-label="{{$.T "a11y.body"}}"
                     data-caret="{{ if .Message.QuoteBelow }}start{{ else }}end{{ end }}">{{.Message.Text}}</textarea>
           <div id="send-progress" style="display: none">
@@ -183,11 +153,6 @@
           {{end}}
         </datalist>
 
-        {{/* Always here, even with nothing to choose: a control that
-             appears only once you own a signature cannot be how you
-             discover signatures exist. Choosing one is a submit, so no
-             script is needed - the body returns with the text under the
-             last "-- " replaced. */}}
         <div class="signature-pick">
           <label for="signature">{{$.T "compose.signature"}}</label>
           <select name="signature" id="signature">

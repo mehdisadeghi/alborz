@@ -10,21 +10,17 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// An Envelope keeps a secret under a random key, wrapped under a key
-// derived from the mail password: a password change leaves it sealed.
+// An Envelope keeps a secret under a random key, wrapped under a key derived
+// from the mail password.
 type Envelope struct {
 	Secret     string
 	Salt       string
 	ByPassword string
 }
 
-// ErrSealed says the envelope does not open: the secret has to be
-// entered again.
+// ErrSealed says the envelope no longer opens and the secret must be entered again.
 var ErrSealed = errors.New("alborz: the stored secret cannot be read any more")
 
-// Argon2id parameters: the derivation runs once per login, so the
-// cost can sit at the RFC 9106 second recommendation (64 MiB, one
-// pass) rather than the interactive minimum.
 const (
 	argonTime    = 1
 	argonMemory  = 64 * 1024
@@ -41,7 +37,7 @@ func passwordKey(password string, salt []byte) *fernet.Key {
 func wrap(secret []byte, k *fernet.Key) string {
 	tok, err := fernet.EncryptAndSign(secret, k)
 	if err != nil {
-		panic(err) // AES-CBC over a key-sized buffer cannot fail
+		panic(err)
 	}
 	return string(tok)
 }
@@ -89,13 +85,11 @@ func (l *Login) Open(e Envelope) (string, error) {
 	return string(plain), nil
 }
 
-// httpPasswordKey is where the store keeps the password the account's
-// HTTP services take, when it is not the mail password.
+// httpPasswordKey stores the HTTP services' password when it is not the mail password.
 const httpPasswordKey = "http-password"
 
-// HTTPPassword is what the account's HTTP services are given: the one
-// kept for them when there is one, the login password otherwise. One
-// the mail password no longer opens is dropped, and ErrSealed says so.
+// HTTPPassword returns the kept HTTP password, else the login password. One the
+// mail password no longer opens is dropped with ErrSealed.
 func (l *Login) HTTPPassword(ctx context.Context) (string, error) {
 	l.httpLocker.Lock()
 	defer l.httpLocker.Unlock()
@@ -135,8 +129,8 @@ func (l *Login) HasHTTPPassword(ctx context.Context) (bool, error) {
 	return err == nil && e.Secret != "", err
 }
 
-// SetHTTPPassword keeps password for the account's HTTP services; empty
-// or the mail password itself goes back to the mail password.
+// SetHTTPPassword keeps password for HTTP services; empty or the mail password
+// reverts to the mail password.
 func (l *Login) SetHTTPPassword(ctx context.Context, password string) error {
 	if password == l.password {
 		password = ""

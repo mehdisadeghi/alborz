@@ -1,24 +1,19 @@
-/* An author rule setting display beats the browser's own [hidden], so a
-   class like .hint stays visible however the attribute is set. Say it
-   once here rather than remembering it at every site that toggles. */
+/* An author display rule beats the browser's own [hidden], so it is said once here. */
 [hidden] {
   display: none !important;
 }
 
-/* Box sizing rules */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-/* Remove default padding */
 ul[class],
 ol[class] {
   padding: 0;
 }
 
-/* Remove default margin */
 body,
 h1,
 h2,
@@ -36,7 +31,6 @@ dd {
   margin: 0;
 }
 
-/* Set core body defaults */
 body {
   min-height: 100vh;
   scroll-behavior: smooth;
@@ -44,29 +38,24 @@ body {
   line-height: 1.5;
 }
 
-/* Remove list styles on ul, ol elements with a class attribute */
 ul[class],
 ol[class] {
   list-style: none;
 }
 
-/* A elements that don't have a class get default styles */
 a:not([class]) {
   text-decoration-skip-ink: auto;
 }
 
-/* Make images easier to work with */
 img {
   max-width: 100%;
   display: block;
 }
 
-/* Natural flow and rhythm in articles by default */
 article > * + * {
   margin-top: 1em;
 }
 
-/* Inherit fonts for inputs and buttons */
 input,
 button,
 textarea,
@@ -74,7 +63,6 @@ select {
   font: inherit;
 }
 
-/* Remove all animations and transitions for people that prefer not to see them */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;
@@ -85,25 +73,14 @@ select {
 }
 :root {
   color-scheme: light dark;
-  /* The scrollbar's track is always there, so a page tall enough to
-     scroll is no narrower than one that is not, and nothing anchored
-     to the far edge moves between them. Overlay scrollbars take no
-     room either way. */
+  /* Always there, so a page that scrolls is no narrower than one that does not. */
   overflow-y: scroll;
 
-  /* Product foundations. Theme stylesheets only need to replace the
-     palette below; spacing, type, shape, and component geometry stay
-     identical across every visual theme. */
-  /* Two halves and a join: --font-sans is composed of both rather than
-     written out twice, so a theme sets the Latin face it wants, the
-     Persian one, or both, and the rule that joins them is here and
-     nowhere else. */
+  /* A theme sets the Latin face, the Persian one, or both; the join is here only. */
   --font-latin: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-fa: Vazirmatn, Sahel, "IRANSans", "SF Arabic", "Geeza Pro", "Noto Naskh Arabic";
   --font-sans: var(--font-latin);
   --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-  /* One step under the smallest text, for a mark beside text and not
-     text to be read: the build under the logo. */
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
@@ -114,10 +91,7 @@ select {
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
-  /* Room under the last line of a page: breathing space in a browser,
-     and in an installed window the home indicator the system draws
-     over, which is where a message frame sized to its mail exactly
-     would otherwise end. */
+  /* In an installed window the home indicator draws over the last line. */
   --space-bottom: max(0.75rem, env(safe-area-inset-bottom));
   --space-4: 1rem;
   --space-6: 1.5rem;
@@ -128,17 +102,11 @@ select {
   --radius-lg: 9px;
   --control-height: 2rem;
   --toolbar-height: 2.75rem;
-  /* The least a toolbar title keeps before it truncates: a phone's
-     row holds its marks, its chevrons and this much of a name. */
   --title-floor: 3rem;
-  /* The room a toolbar title holds whatever it says, so the controls
-     after it stand still from folder to folder and month to month; a
-     longer name truncates, the whole of it in the title. */
+  /* A fixed track, so the controls after the title stand still from folder to folder. */
   --title-track: 12rem;
-  /* A list row's cell, its header, the chips above it and the crumb:
-     one box, so their text shares a baseline and an edge. */
+  /* One box for cell, header, chips and crumb, so their text shares a baseline and an edge. */
   --row-pad: 0.4rem var(--space-2);
-  /* A pager's month or day name, one width for every name. */
   --pager-label: 6rem;
   --sidebar-width: clamp(10rem, 15vw, 13rem);
   --drawer-width: 15rem;
@@ -150,11 +118,11 @@ select {
   --fg: #000;
   --fg-dim: #555;
   --fg-muted: #666;
-  /* The faintest grey that still reads at 4.5:1 on the well. */
+  /* Reads at 4.5:1 on the well. */
   --fg-faint: #707070;
 
-  --bg: #fff;          /* chrome and raised surfaces */
-  --bg-well: #f6f6f6;  /* content area behind surfaces */
+  --bg: #fff;
+  --bg-well: #f6f6f6;
   --bg-inset: #eee;
   --bg-button: #f5f5f5;
   --bg-active: #f8f8f8;
@@ -168,20 +136,14 @@ select {
   --link-read: #66b;
   --link-unread: #00c;
 
-  /* Both greens carry white text, so neither may be lighter than 4.5:1
-     under it. */
+  /* Both greens carry white text, so neither may fall under 4.5:1. */
   --green: #288528;
   --green-dark: #008040;
   --bg-green: #f6fff6;
   --border-green: #afa;
-  /* A star for nothing yet wears no colour of its own; every flag is
-     an icon, and 3:1 on the well is the floor for all of them. */
+  /* Every flag is an icon; 3:1 on the well is the floor for all of them. */
   --flag: #7a7a80;
-  /* The seven colours Apple Mail and Outlook address with three IMAP
-     keywords: their order and their hues, darkened here until each
-     clears the floor, so a message flagged red in Apple Mail is red
-     here. The closest pair is 22 dE apart, which is what keeps them
-     apart at a glance. */
+  /* Apple Mail's seven flag colours in its order, darkened to clear 3:1 on the well. */
   --flag-red: #f90d00;
   --flag-orange: #b86b00;
   --flag-yellow: #997a00;
@@ -189,8 +151,6 @@ select {
   --flag-blue: #0079fc;
   --flag-purple: #af52de;
   --flag-grey: #7d7d83;
-  /* A task's priority on its ring, in Tasks.org's colours: the flags'
-     own, so every theme and both schemes carry them. */
   --prio-high: var(--flag-red);
   --prio-medium: var(--flag-orange);
   --prio-low: var(--flag-blue);
@@ -207,42 +167,29 @@ select {
   --warn-bg: #fff3cd;
   --alert-border: #f5c6cb;
 
-  /* Semantic aliases consumed by components. */
-  /* The first column of the message and contact grids: the row's
-     checkbox and the toolbar's select-all stand in the same track. */
+  /* The row checkbox and the toolbar's select-all stand in the same track. */
   --check-track: 2.2rem;
-  /* The star column of the contact, task and event grids: the button's
-     box and the cell's padding either side. */
   --star-track: 3rem;
 
   --surface: var(--bg);
-  /* A menu floats over content it must not let through, which a page
-     surface is free to be translucent about. Every popover paints on
-     this one, so a theme states its opacity once. */
+  /* A menu must not let through what it floats over; every popover paints on this. */
   --surface-raised: var(--bg);
   --surface-subtle: var(--bg-well);
   --surface-inset: var(--bg-inset);
   --surface-selected: var(--bg-active);
   --surface-accent: var(--bg-green);
-  /* What dims the page under a dialog or the drawer. One value for both
-     schemes and every theme: it darkens whatever is under it, and a
-     theme's own surfaces show through it. */
+  /* One value for every theme: it darkens whatever is under it. */
   --scrim: rgb(0 0 0 / 0.4);
   --accent: var(--green-dark);
   --accent-strong: var(--green);
-  /* Label drawn on an accent fill; a theme whose background is
-     translucent overrides it with an opaque ink of its own. */
+  /* A theme with a translucent background overrides this with an opaque ink. */
   --on-accent: var(--bg);
   --danger: var(--alert-fg);
   --danger-surface: var(--alert-bg);
-  /* A verified signature, in the one green the theme already owns; a
-     theme that redefines the accent redefines this with it. */
   --sig-good: var(--green-dark);
   --focus-ring: color-mix(in srgb, var(--link) 68%, transparent);
 }
 
-/* The dark palette applies with the system preference unless the user
-   forced light in the settings, and always when they forced dark. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --fg: #ddd;
@@ -345,29 +292,17 @@ select {
   --alert-border: #58232b;
 }
 
-/* The system stack has no Persian face of its own, so Persian falls to
-   whatever the platform picks. Name the good ones first: any that is
-   installed is used, and nothing is downloaded when none is. The
-   theme's own Latin face follows them, so a theme that changes the
-   type does not have to know this rule exists. */
+/* The good Persian faces are named first; none is downloaded. */
 :root:lang(fa) {
   --font-sans: var(--font-fa), var(--font-latin);
 }
 
-/* Persian sits taller than Latin at the same size - the letters carry
-   dots above and below the line and run into the row under them at the
-   leading Latin is comfortable with. Prose only: on the chrome the same
-   change grows every row in the list and thins the page out, which is a
-   density decision rather than a reading one. */
+/* Persian dots run into the next line at Latin leading; prose only, to keep the chrome's density. */
 :root:lang(fa) .user-text,
 :root:lang(fa) main.message pre {
   line-height: 1.8;
 }
 
-/* A reader who wants the interface larger says so once. Every font size
-   in this stylesheet is already relative, so the whole of it follows
-   from the root: nothing else has to know. The default is the size
-   everyone had before the choice existed. */
 :root[data-text="large"] {
   font-size: 112.5%;
 }
@@ -376,9 +311,6 @@ select {
   font-size: 125%;
 }
 
-/* Someone who has asked their system for more contrast has asked this
-   page too. Only the quiet greys move: the text that was already at
-   full strength is already right. */
 @media (prefers-contrast: more) {
   :root {
     --fg-dim: #333;
@@ -397,10 +329,6 @@ select {
   }
 }
 
-/* Forced colours replace the palette wholesale, and what it cannot see
-   it drops: a focus ring mixed from a custom property becomes nothing,
-   and a colour flag becomes an unmarked shape. Both are named again in
-   the system's own colours, which is the only vocabulary left. */
 @media (forced-colors: active) {
   :root {
     --focus-ring: Highlight;
@@ -456,10 +384,7 @@ a { color: var(--link); }
 hr { border: 0; border-top: 1px solid var(--border); }
 button { font-size: inherit; }
 
-/* The skip link is the exception to visually-hidden: it exists to be
-   found by a keyboard, so focusing it has to undo every part of the
-   recipe that hid it. The main landmark takes tabindex="-1" so the jump
-   moves focus rather than only the viewport. */
+/* The main landmark takes tabindex="-1" so the jump moves focus, not only the viewport. */
 .skip-link:focus {
   position: fixed !important;
   inset-block-start: var(--space-2);
@@ -513,9 +438,7 @@ header nav {
   padding-inline: var(--space-2);
 }
 footer { padding: var(--space-2) var(--space-4); }
-/* The name and the mark: dim, because they say where you are rather
-   than ask to be read, and the mark keeps its own colours so that no
-   theme can wash it out. */
+/* Dim: the name says where you are rather than asks to be read. */
 .brand {
   display: inline-flex;
   align-items: center;
@@ -539,18 +462,14 @@ footer { padding: var(--space-2) var(--space-4); }
   text-transform: uppercase;
 }
 
-/* The build sits under the name on the name's own edge, in a line box
-   tight enough that the pair is no taller than the header's links: it
-   is for a fault report, not for reading. */
+/* No taller than the header's links: it is for a fault report, not for reading. */
 .brand-text {
   display: flex;
   flex-direction: column;
   line-height: 1.1;
 }
 
-/* Rigid, like the mark: a build that wrapped would grow the header,
-   and the row already has its way of yielding - the sections turn to
-   icons once they no longer fit. */
+/* Rigid: a wrapping build would grow the header; the sections turn to icons instead. */
 .brand-build {
   font-size: var(--text-2xs);
   font-variant-numeric: tabular-nums;
@@ -558,19 +477,15 @@ footer { padding: var(--space-2) var(--space-4); }
   white-space: nowrap;
 }
 
-/* A span, not a div: the trailing group is "header nav > div" and it
-   is pushed to the far side, which is not where a name belongs. */
+/* A span: "header nav > div" is the trailing group, pushed to the far side. */
 header nav .header-brand {
   display: flex;
   align-items: center;
   margin-inline-end: var(--space-2);
 }
 
-/* The drawer's head is the phone's; a wide screen keeps it in the row. */
 .rail-brand { display: none; }
 
-/* A section is its name in the text's colour: left to the browser, a
-   visited one turned purple and the rest stayed blue. */
 header nav > a,
 header nav > div > a {
   color: var(--fg);
@@ -582,11 +497,7 @@ header nav > div > a {
 }
 header nav > a:hover,
 header nav > div > a:hover { border-bottom-color: var(--border-strong); }
-/* A section link is its word for as long as the five words fit the
-   row, and its icon once they do not; the script measures and marks
-   the nav, so the switch lands where the words run out, in any
-   language, rather than at a width chosen for one. Without a script
-   the row scrolls, as it always did. */
+/* The script marks the nav where the words run out; without a script the row scrolls. */
 header nav > a > .icon { display: none; }
 header nav.is-icons > a > .icon { display: inline-block; }
 header nav.is-icons > a > .label { display: none; }
@@ -602,10 +513,7 @@ header nav > div {
   gap: var(--space-4);
 }
 
-/* The two menus sit in one row of the trailing group: as a flow box
-   they wrapped under each other before the row was short enough to
-   fold into the drawer. The account's name is the one entry that gives
-   way, and it truncates rather than wraps. */
+/* One row, or the menus wrap before the row folds into the drawer; the name truncates. */
 .nav-menus {
   display: flex;
   align-items: center;
@@ -622,30 +530,19 @@ header nav .accounts-button .label {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The menu buttons sit among the header's links and take their shape:
-   text, no box, a chevron saying there is more. A hover darkens the
-   text, as the old summary did; no underline, since they are not
-   links, and not the button box the generic rule paints, which has no
-   padding here to paint into. */
-/* The appearance button ends the row: it is there at every width and on
-   every page, so it keeps the one place a permanent control should. */
 header nav .scheme-toggle {
   margin-inline-start: auto;
   display: flex;
   align-items: center;
 }
 
-/* One button per scheme, and the root's scheme shows its own. With no
-   script the root names none, and none shows. */
+/* With no script the root names no scheme, and none shows. */
 :root:not([data-theme="system"]) .scheme-toggle [data-scheme="system"],
 :root:not([data-theme="light"]) .scheme-toggle [data-scheme="light"],
 :root:not([data-theme="dark"]) .scheme-toggle [data-scheme="dark"] { display: none; }
 
-/* With the appearance button after it, the group is no longer the last
-   child, so the push to the trailing side moves to whichever comes
-   first. */
+/* The group is no longer the last child, so the push moves to whichever comes first. */
 header nav > div { margin-inline-start: auto; }
-/* The gap the trailing group keeps between its own entries. */
 header nav > div ~ .scheme-toggle { margin-inline-start: var(--space-1); }
 
 header nav .accounts-button {
@@ -662,20 +559,14 @@ header nav .accounts-button {
   cursor: pointer;
   color: var(--fg-muted);
 }
-/* The guards repeat the generic button hover's, which would otherwise
-   outweigh this and paint its box on a padless text button. */
+/* The guards repeat the generic button hover's, which would otherwise outweigh this. */
 header nav .accounts-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
 header nav .accounts:has(> :popover-open) > .accounts-button {
   background: none;
   border: 0;
   color: var(--fg);
 }
-/* The switcher sits at the end of the header, so the panel hangs from
-   its trailing edge and grows inwards; anchored at the start it grows
-   towards the page edge and leaves the canvas once two accounts, or
-   one long address, make it wide. */
-/* The drawer's copy is a disclosure and its panel sits in the flow;
-   the header's is a popover and shows only while open. */
+/* Hangs from the trailing edge, or a wide panel leaves the canvas. */
 .nav-menus-drawer { display: none; }
 header nav .accounts summary { cursor: pointer; color: var(--fg-muted); }
 header nav .accounts-menu:not([popover]),
@@ -713,8 +604,7 @@ header nav .account-menu-row {
 }
 header nav .account-menu-row > form { margin: 0; }
 
-/* An address is the account's, and a long one would set the menu's
-   width; it yields instead. */
+/* A long address would set the menu's width; it yields instead. */
 header nav .account-menu-row > form a,
 header nav .account-menu-row > a {
   display: block;
@@ -737,13 +627,7 @@ header a.active {
   text-decoration: none;
 }
 
-/* The layer every notice is drawn in (ADR 41): out of the page's flow,
-   so nothing moves when a notice comes or goes. Fixed to the window
-   rather than the document, because a reader who has scrolled down a
-   list is exactly the one who is told mail arrived, and a bar pinned to
-   the top of the page says it where they cannot see it. The layer lets
-   the pointer through to the toolbar beside a notice; the notice itself
-   takes it. */
+/* Fixed to the window: a reader scrolled down a list is the one told mail arrived (ADR 41). */
 .notices {
   position: fixed;
   inset-block-start: var(--space-2);
@@ -757,15 +641,10 @@ header a.active {
   pointer-events: none;
 }
 
-/* Under the nav while the nav is there: the bar starts below it and
-   stays where it started as the page scrolls under it. */
 header .notices {
   inset-block-start: calc(var(--toolbar-height) + var(--space-2));
 }
 
-/* One notice for every outcome, coloured by how it went: the text,
-   then what follows from it, then the cross, one gap apart. Boxed like
-   a menu, since it floats over the page as a menu does. */
 .notice {
   position: relative;
   inset: auto;
@@ -786,18 +665,14 @@ header .notices {
   transition: opacity 120ms ease-in, transform 120ms ease-in, display 120ms allow-discrete;
 }
 
-/* A closed notice is gone: the cross closes it, and a script opens and
-   closes the ones it owns. The author rule is needed because the
-   one above outranks the browser's own for a closed dialog. */
+/* The rule above outranks the browser's own for a closed dialog. */
 dialog.notice:not([open]) {
   display: none;
   opacity: 0;
   transform: translateY(-0.25rem);
 }
 
-/* A done notice leaves by itself after six seconds, time to read one
-   clause and reach its Undo; resting on it, focusing into it or
-   pressing it holds it. A warning or a failure stays (ADR 41). */
+/* A done notice leaves after six seconds; a warning or a failure stays (ADR 41). */
 .notice-done {
   animation: notice-in 120ms ease-out, notice-out 120ms ease-in 6s forwards;
 }
@@ -836,8 +711,7 @@ dialog.notice:not([open]) {
   text-decoration: underline;
 }
 
-/* Two answers beside a sentence crush it on a phone: they drop under
-   the text, whole, where the line cannot hold both. */
+/* Two answers beside a sentence crush it on a phone. */
 dialog.notice:has(> .notice-action + .notice-action) {
   flex-wrap: wrap;
   justify-content: start;
@@ -851,10 +725,7 @@ dialog.notice:has(> .notice-action + .notice-action) .button-link {
   white-space: nowrap;
 }
 
-/* A thing's own name inside a notice: as much of it as the screen can
-   hold, cut with an ellipsis rather than pushing the Undo beside it
-   off the bar. The bound is the viewport's, since that is what
-   decides how much fits. */
+/* Bound by the viewport, which decides how much fits beside the Undo. */
 .notice-name {
   display: inline-block;
   max-width: min(45vw, 32ch);
@@ -864,8 +735,6 @@ dialog.notice:has(> .notice-action + .notice-action) .button-link {
   vertical-align: bottom;
 }
 
-/* The name leads to what was just made, and reads as the action it is;
-   the bar's own colour carries it, as the action beside it does. */
 a.notice-name {
   color: inherit;
   font-weight: 600;
@@ -885,11 +754,7 @@ a.notice-name {
   border: 0;
 }
 
-/* A request in flight, as one line across the top of the page. It
-   crawls while the request is out and finishes when the answer lands:
-   a width that reached the end on its own would promise an arrival
-   nobody has. Under the skip link, which must stay reachable, and over
-   everything else. */
+/* Under the skip link, which must stay reachable, and over everything else. */
 .progress {
   position: fixed;
   inset-block-start: 0;
@@ -925,10 +790,7 @@ footer { text-align: end; }
   padding: 1rem 0;
 }
 
-/* The rail is the width it is declared, on every page. A flex item's
-   min-width is auto, so any row that will not truncate makes the rail
-   as wide as its longest name - which is why the calendar and contact
-   rails were wider than mail's, whose folder rows do truncate. */
+/* A flex item's min-width is auto, so a row that will not truncate would widen the rail. */
 aside {
   flex: 0 0 var(--sidebar-width);
   min-width: 0;
@@ -936,8 +798,6 @@ aside {
   border-inline-end: 1px solid var(--border-light);
 }
 
-/* Every rail row truncates: the name is in the title, and a rail is a
-   list of places, not a place for a name to be read in full. */
 aside .filter-row,
 aside .filter-row > .filter-name,
 aside > a,
@@ -969,9 +829,6 @@ aside li a {
   flex-grow: 1;
 }
 
-/* A folder's name is the server's, and a long one used to take three
-   rail rows' worth of height. One line, cut with an ellipsis, as the
-   calendar and address-book rows beside it already are. */
 aside li a,
 aside details.folder-branch > summary > a {
   min-width: 0;
@@ -980,15 +837,12 @@ aside details.folder-branch > summary > a {
   white-space: nowrap;
 }
 
-/* An invitation says who sent it, and an address is not ours to cut:
-   it wraps inside the rail rather than running out of it. */
+/* An address is not ours to cut: it wraps inside the rail. */
 aside li .hint {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-/* A place in the rail reads as its name, as the folds and the create
-   rows beside it do: the text's colour, underlined under the pointer. */
 aside a { color: var(--fg); text-decoration: none; }
 aside a:hover { text-decoration: underline; }
 
@@ -1004,8 +858,6 @@ aside .new.active {
   border-inline-start: 2px solid var(--accent);
 }
 
-/* Detail and edit pages put bare links in the aside; give them the
-   same rhythm the list asides get from their li rows. */
 aside > a {
   display: block;
   min-height: 2rem;
@@ -1013,7 +865,6 @@ aside > a {
   border-inline-start: 2px solid transparent;
 }
 
-/* Unread counts read as quiet metadata on the right, not brackets. */
 aside .unseen {
   margin-inline-start: auto;
   color: var(--fg-muted);
@@ -1118,7 +969,6 @@ main.create-update > form > h1 {
   line-height: 1.25;
 }
 
-/* Compose email form - needs flex to fill space */
 main.create-update:has(.headers) {
   flex: 1 auto;
 }
@@ -1130,7 +980,6 @@ main.create-update:has(.headers) form {
   width: 100%;
 }
 
-/* Sieve filter editor - the script pane fills the remaining space */
 main.create-update form.filter {
   flex: 1 auto;
   display: flex;
@@ -1151,7 +1000,6 @@ main.create-update form.filter > label.script > textarea {
   resize: none;
 }
 
-/* Simple create forms (event, task, contact) */
 main.create-update form .field,
 main.settings form .field,
 main.create-update > form > label {
@@ -1161,9 +1009,6 @@ main.create-update > form > label {
   font-size: var(--text-sm);
 }
 
-/* The weight is the label's: a field's value and the hint under it
-   read like every other value and hint, which a bold wrapper made
-   them not. */
 main.create-update form .field > label,
 main.settings form .field > label,
 main.create-update > form > label > span {
@@ -1197,10 +1042,7 @@ main.create-update > form > label > input[readonly] {
   background: var(--surface-inset);
 }
 
-/* Compose form headers grid */
-/* A textarea is made taller when its text needs the room, and never
-   wider: widening one drags it out of whatever column it sits in and
-   the layout around it stops meaning anything. */
+/* Never wider: widening drags a textarea out of its column. */
 textarea {
   resize: vertical;
 }
@@ -1213,9 +1055,7 @@ main.create-update .headers {
   align-items: center;
 }
 
-/* minmax, as the narrow layouts have it: a plain 1fr keeps the fields'
-   own width, and on a phone without a script that was wider than the
-   window. */
+/* minmax: a plain 1fr keeps the fields' own width, wider than a phone. */
 main.create-update .headers.no-js {
   grid-template-columns: auto minmax(0, 1fr);
 }
@@ -1234,8 +1074,6 @@ main.create-update #attachment-list {
   grid-row-start: 1;
   grid-row-end: 7;
 
-  /* Fluid beside the fields; the fixed width forced the page to
-     scroll sideways on narrower desktops. */
   width: clamp(10rem, 28vw, 25rem);
   height: 100%;
   background: var(--bg-inset);
@@ -1309,10 +1147,6 @@ main.create-update .text textarea {
   height: 100%;
 }
 
-/* The editor is the textarea's twin: the same box, the same type,
-   scrolling inside itself. Its toolbar is the row of marks above it,
-   the toggle first; the marks show only while it is open, and the one
-   the caret sits in reads as pressed. */
 main.create-update .text {
   display: flex;
   flex-direction: column;
@@ -1405,35 +1239,23 @@ main.event th { width: 5%;}
 main.message h1,
 main.event h1 { font-size: 1.2rem; padding: 0.5rem 0; }
 
-/* Every header row starts on the content gutter; the label keeps its
-   trailing gap toward the value. */
 main.message th,
 main.event th { padding-inline: 0.5rem; }
 main.message td,
 main.event td { padding-inline-start: 0; }
 
-/* A plain-text mail is a column of prose, so it gets a measure. Without
-   one a long line runs the width of the window, and in a mixed-script
-   mailbox an LTR line then starts a screen away from where the RTL
-   lines start. 78ch is the width the format was written for. */
+/* 78ch is the line length plain-text mail is written for. */
 main.message pre {
   padding-inline: 0.5rem;
   max-width: 78ch;
 }
 
-/* The images the HTML version shows by Content-ID, in the text's card
-   after the text. */
 main.message .shown-image {
   height: auto;
   margin-block-start: var(--space-3);
 }
 
-/* First columns carry the ink inset; interior cells keep the tighter
-   rhythm between columns. The cell stretches like its neighbours, or
-   its bottom border draws above theirs and steps the row hairline;
-   the input stays centred by the cell's own flex. Rows nest their
-   cells in a display:contents wrapper, so this reaches past it - the
-   toolbar's select-all is not in the grid and stays centred. */
+/* The cell stretches like its neighbours, or its bottom border steps the row hairline. */
 .list-grid .list-checkbox {
   padding-inline-start: 0.5rem;
   align-self: stretch;
@@ -1501,18 +1323,12 @@ main.event pre {
   word-break: break-all;
 }
 
-/* The card takes the table's own left edge, so its box lines up with
-   the part tabs and its text with the header labels; its end matches
-   the gutter the header cells keep, or the download would sit flush
-   against the page. */
 main.message .message-header .parts {
   margin: var(--space-3) 0;
   padding-inline-end: var(--space-2);
 }
 
-/* The name, the figures and the download sit on one line, the download
-   at the end. A summary laid out as a flex box has no disclosure marker
-   of its own, so it takes the chevron the rail's folds use. */
+/* A flex summary has no disclosure marker of its own. */
 main.message .message-header .parts > summary {
   display: flex;
   flex-wrap: wrap;
@@ -1522,9 +1338,6 @@ main.message .message-header .parts > summary {
 
 main.message .message-header .parts > summary::-webkit-details-marker { display: none; }
 
-/* The disclosure chevron, once: the glyph, its turn when open, and its
-   mirror where the page reads right to left. A disclosure's own rule
-   keeps only the box the glyph stands in. */
 main.message .message-header .parts > summary::before,
 .info-explain > summary::before,
 details.info-card > summary::before,
@@ -1571,14 +1384,12 @@ main.message .message-header .parts ul {
   list-style: none;
 }
 
-/* A file name is the reader's, not ours: it wraps rather than widening
-   the card. */
+/* A file name is the reader's: it wraps rather than widening the card. */
 main.message .message-header .parts li {
   margin-inline-start: 0;
   overflow-wrap: anywhere;
 }
 
-/* View pages (contact, task, event) */
 main.contact .details,
 main.task .details,
 main.event .details {
@@ -1602,8 +1413,7 @@ main.event .details h1 {
 main.contact dl,
 main.task dl {
   display: grid;
-  /* minmax(0,...), or a long address or URL widens the track past the
-     card, the way every other card in the sheet already guards. */
+  /* minmax(0, ...), or a long address widens the track past the card. */
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-2) var(--space-4);
   margin: 0;
@@ -1626,9 +1436,6 @@ main.contact dl dd.contact-address {
   white-space: pre-line;
 }
 
-/* A group the contact is in, and the way out of it, in the attachment
-   chip's box: the form beside the name is part of the chip, not a
-   block of its own under it. */
 main.contact dl dd.contact-groups {
   display: flex;
   flex-wrap: wrap;
@@ -1712,16 +1519,13 @@ main.create-update .actions > *:not(:last-child) {
   justify-content: flex-start;
 }
 
-/* Star track: the row's button carries the hit area, so the track is
-   its width and the header's mark sits on the same centre. */
+/* The row's button carries the hit area, so the track is its width. */
 .message-list-flags > form {
   flex: 0 0 var(--control-height);
   display: flex;
   justify-content: center;
 }
 
-/* The header's star is the same mark as the rows', drawn at the same
-   size on the same centre; only its ink follows the header. */
 .list-header.message-list-flags .flag-sort,
 .list-header.list-star .flag-sort {
   width: var(--control-height);
@@ -1730,8 +1534,7 @@ main.create-update .actions > *:not(:last-child) {
   line-height: 1;
 }
 
-/* Sorted, the arrow trails outside the star's track: centring the pair
-   would slide the star out from under the ones in the rows. */
+/* Centring star and arrow would slide the star off the rows' centre. */
 .list-header.message-list-flags .flag-sort:has(.sort-arrow),
 .list-header.list-star .flag-sort:has(.sort-arrow) {
   width: auto;
@@ -1745,9 +1548,6 @@ main.create-update .actions > *:not(:last-child) {
   text-align: center;
 }
 
-/* The star column of every table: mail's carries the other marks too,
-   the rest hold the star alone, and all draw it the same way on the
-   same centre. */
 .message-list-flags .flag-button,
 .list-star .flag-button {
   margin: 0;
@@ -1762,11 +1562,7 @@ main.create-update .actions > *:not(:last-child) {
   background: transparent;
 }
 
-/* A row's star is the message page's split star with the chevron kept
-   out of the way: the star has the track to itself on the header's
-   centre, and the chevron hangs past its end, in no one's space, shown
-   where a pointer rests on the row or the keyboard is in it. A phone
-   has no pointer to rest; its colours are the toolbar's. */
+/* The chevron hangs past the track's end, shown on hover or keyboard focus. */
 .row-star .flag-split { position: relative; }
 
 .row-star .flag-split .flag-button.button-link {
@@ -1784,10 +1580,7 @@ main.create-update .actions > *:not(:last-child) {
 }
 .row-star .flag-split .flag-more[hidden] { display: none; }
 
-/* As specific as the rule that hides it: the menu hangs from the
-   chevron, and a menu whose anchor is hidden is hidden with it, so a
-   chevron that hid when the pointer left the row for its own menu took
-   the menu away under the pointer. */
+/* As specific as the rule that hides it: the menu hangs from the chevron. */
 @media (hover: hover) {
   .list-row:hover .row-star .flag-split .flag-more.icon-button { visibility: visible; }
 }
@@ -1795,8 +1588,7 @@ main.create-update .actions > *:not(:last-child) {
 .row-star:focus-within .flag-split .flag-more.icon-button,
 .row-star.star-open .flag-split .flag-more.icon-button { visibility: visible; }
 
-/* The star's chevron hangs past the cell's edge, and a cell that
-   clips its overflow cut it off and passed its clicks to the next. */
+/* The chevron hangs past the cell's edge; a clipping cell would cut it off. */
 .list-star { justify-content: center; }
 .list-cell.list-star { overflow: visible; }
 
@@ -1806,13 +1598,8 @@ main.create-update .actions > *:not(:last-child) {
   justify-content: center;
 }
 
-/* The star on the message page rides the subject line and stands at
-   its trailing end, which is the end the subject does not start from:
-   beside the first character it would sit where a subject's own leading
-   emoji sits, and the two would read as one mark. */
-/* The row lives inside the cell, not as the cell: a th told to be a
-   flex container stops being a table cell, and the subject collapsed to
-   the width of its longest word. */
+/* At the trailing end, so it does not read as the subject's own leading emoji. */
+/* Inside the cell: a flex th stops being a table cell. */
 .subject-row {
   display: flex;
   align-items: center;
@@ -1825,10 +1612,6 @@ main.create-update .actions > *:not(:last-child) {
   min-width: 0;
 }
 
-/* On a card the row takes the heading's margin, so the star centres on
-   the title rather than on the title plus the space under it. Its width
-   is left to the line: a box told to be the full width cannot sit
-   beside the floated photo and drops under it. */
 main .details > .subject-row {
   width: auto;
   margin: 0 0 var(--space-4);
@@ -1838,7 +1621,6 @@ main .details > .subject-row > h1 {
   margin: 0;
 }
 
-/* Beside a title the star is the title's size, not a row's. */
 .subject-row .flag-split .flag-button.button-link {
   width: 2rem;
   min-width: 2rem;
@@ -1858,13 +1640,7 @@ main .details > .subject-row > h1 {
   font-size: 13pt;
 }
 
-/* A star wears the colour it was flagged in, here or in whichever
-   client set it. The colour arrives as a custom property rather than as
-   a `color` of its own: the star and the swatches sit inside rules that
-   set their colour at two classes deep, and a one-class rule loses to
-   those - by specificity in the row, and by nothing but source order in
-   the menu, which is the worse way to lose. An inherited variable is
-   read by whichever rule wins, so there is no argument to have. */
+/* A custom property, not a color: an inherited variable is read by whichever rule wins. */
 .flag-red { --flag-set: var(--flag-red); }
 .flag-orange { --flag-set: var(--flag-orange); }
 .flag-yellow { --flag-set: var(--flag-yellow); }
@@ -1873,13 +1649,7 @@ main .details > .subject-row > h1 {
 .flag-purple { --flag-set: var(--flag-purple); }
 .flag-grey { --flag-set: var(--flag-grey); }
 
-/* A star and its chevron are one control, not two: no gap, no second
-   box, one rounded outline over both, and the chevron narrow enough to
-   read as the star's own handle. */
-/* The compound selectors are deliberate: .actions .icon-button and
-   .icon-group .flag-button are written later in this sheet and would
-   otherwise take back the width and the box that make these two read
-   as one control. */
+/* Compound on purpose: the later .actions .icon-button and .icon-group .flag-button would win. */
 .overflow.flag-split {
   display: inline-flex;
   align-items: center;
@@ -1896,9 +1666,7 @@ main .details > .subject-row > h1 {
   background: none;
 }
 
-/* A fixed box for the star: a filled star is wider than an empty one,
-   and a control that changes width when it is clicked moves the row
-   beside it. */
+/* A fixed box: a filled star is wider, and the row beside it would move. */
 .flag-split .flag-button.button-link {
   width: 1.5rem;
   min-width: 1.5rem;
@@ -1919,18 +1687,13 @@ main .details > .subject-row > h1 {
 
 .flag-split .flag-more.icon-button:hover { color: var(--fg); }
 
-/* The colour picker: one swatch per colour and one that clears, each a
-   submit of its own, so it needs no script and no select. */
 .flag-colors {
   flex-wrap: wrap;
   gap: 0.3rem;
   padding: 0.3rem;
 }
 
-/* The colour menu: one line per colour, the star in it beside its name.
-   The star carries the colour on a span of its own rather than on the
-   button, so it needs to win no argument with the menu's own button
-   rules - which it would lose, since they are written later. */
+/* The colour rides a span of its own, so it wins no argument with the menu's later button rules. */
 .flag-colors {
   min-width: 10rem;
 }
@@ -1948,9 +1711,6 @@ main .details > .subject-row > h1 {
   line-height: 1;
 }
 
-/* The toolbar's own entry: the star it is currently set to, and a
-   chevron saying there is more. Open, it lights up like the menu it
-   belongs to. */
 .flag-menu > button {
   width: auto;
   gap: 0.1rem;
@@ -1963,9 +1723,6 @@ main .details > .subject-row > h1 {
 
 .flag-menu > button .flag-star { font-size: 13pt; }
 
-/* A menu folded into the overflow - the colours, the sort - is a
-   submenu: it hangs off its own row, towards the start, and closes
-   with the menu it sits in. */
 .overflow-menu div.overflow { display: block; }
 .overflow-menu div.overflow > .overflow-menu {
   position-area: inline-start span-block-end;
@@ -1996,15 +1753,7 @@ main .details > .subject-row > h1 {
   text-align: start;
 }
 
-/* An identifier is one left-to-right island whatever the page runs:
-   an address, a domain, a host, a size with its unit, a phone number,
-   the version string. Isolated, it orders its own runs; left to the
-   paragraph, an RTL page prints "246 B" as "B 246" and "ex.org" as
-   "yt.43" - a number run and a Latin run with a neutral between them,
-   which the paragraph puts in its own order. Markup takes the "ltr"
-   define; the classes below are the sites that already had one.
-   Dates and the message header are not here: they are translated now
-   and follow the page like the rest of it. */
+/* An identifier is one LTR island: in an RTL paragraph "246 B" would print as "B 246". */
 .ltr,
 .colophon,
 .message-list-size,
@@ -2014,26 +1763,8 @@ main .details > .subject-row > h1 {
 }
 
 
-/* One pair of date fields at a time: the checkbox says whether the
-   event occupies whole days, and the pair that does not apply is not
-   shown. Both stay in the form - the handler reads the pair the
-   checkbox names - so no script is needed to swap them.
-
-   The checkbox is a sibling of the fields it governs rather than a
-   child of its own caption, so the plain sibling combinator reaches
-   them: :has() would read better and is one browser version away from
-   showing both pairs at once, which is exactly the failure this has to
-   not have. The drawer toggle is built the same way. */
-/* The box and its caption are one flex line, so their centres are level
-   by construction rather than by two inline-blocks agreeing about what
-   the middle of a line is - which they do not, and which left the
-   caption sitting a few pixels high whatever heights they were given.
-
-   The control stays a sibling of the fields it governs, since that is
-   what lets the sibling combinator reach them; it is the caption that
-   draws the box, from the control's own state. The real input keeps the
-   focus and the keyboard - it is placed under the box rather than
-   removed, so a reader who tabs to it still sees where they are. */
+/* A sibling, not a child of its caption, so the plain sibling combinator reaches the fields. */
+/* One flex line, so the box and caption centres are level by construction. */
 main.create-update > form > .allday-toggle {
   position: absolute;
   width: 1rem;
@@ -2079,9 +1810,6 @@ main.create-update > form > .allday-label::before {
   display: none;
 }
 
-/* An invitation is the message, not a note about it, so it is a card
-   rather than another row of headers: what it says has to be readable
-   before the decision it asks for. */
 .detail-card {
   margin: var(--space-3) 0;
   padding: var(--space-3);
@@ -2090,11 +1818,6 @@ main.create-update > form > .allday-label::before {
   background: var(--surface-raised);
 }
 
-/* A list says what it is in one line and keeps the rest folded. No box:
-   it is a note about the message, not a card competing with it. It
-   keeps the card's vertical rhythm so the row above and below sit where
-   they would either way, and starts on the same gutter as every header
-   label rather than on the table's edge. */
 .list-card {
   margin: var(--space-1) 0;
   padding-inline-start: var(--space-2);
@@ -2113,28 +1836,17 @@ main.create-update > form > .allday-label::before {
   margin: var(--space-2) 0 0;
 }
 
-/* A reply sits in from what it answers. Only the subject moves: the
-   sender, date and size stay in their columns so the eye can still run
-   down them. */
+/* Only the subject moves, so the eye can still run down the other columns. */
 .message-grid .message-row .message-list-subject {
   padding-inline-start: calc(var(--depth, 0) * var(--space-4));
 }
 
-/* One line whatever the thread's size: who it answers, and how many
-   answered it. The subjects are all the same on a list, and the one
-   that matters is already the heading. */
 .conversation > a + a::before {
   content: "·";
   color: var(--fg-faint);
   margin-inline: var(--space-2);
 }
 
-/* What the list is narrowed by, in the crumb's box: the same strip
-   over the same list, at the same height, on the same edge, with the
-   same rule under it. A page that says where you are and a page that
-   says what it is filtered to are one kind of thing, so they are one
-   shape, and the strip's own rule is the gap - no margin of its own to
-   choose by eye. */
 .filter-chips {
   display: flex;
   flex-wrap: wrap;
@@ -2146,9 +1858,6 @@ main.create-update > form > .allday-label::before {
   border-bottom: 1px solid var(--border-light);
 }
 
-/* The attachment chip's box, and only its width is different: a
-   filter's value is an address or a phrase, and both are longer than
-   a file name. */
 .filter-chip {
   display: inline-flex;
   align-items: center;
@@ -2173,8 +1882,7 @@ main.create-update > form > .allday-label::before {
 
 .filter-chip:hover .filter-chip-x { color: var(--fg); }
 
-/* Entry names are identifiers, not prose: monospaced, so the shared
-   prefix lines up and a stray character shows. */
+/* Monospaced, so a shared prefix lines up and a stray character shows. */
 .storage-entries {
   margin: var(--space-2) 0 0;
   padding-inline-start: var(--space-4);
@@ -2210,7 +1918,6 @@ main.create-update > form > .allday-label::before {
   font-size: var(--text-sm);
 }
 
-/* The three answers, and what this account has already said. */
 .invitation-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2221,10 +1928,7 @@ main.create-update > form > .allday-label::before {
 
 .invitation-mine { color: var(--fg-dim); font-size: var(--text-sm); }
 
-/* Who answered, and what they said. The separator is the element's own
-   mark rather than a character in the string: a literal dash between an
-   LTR address and a translated word lands wherever the bidi algorithm
-   puts it. */
+/* The separator is the element's own mark: a literal dash lands wherever bidi puts it. */
 .invitation-answer { margin: 0 0 var(--space-2); }
 
 .answer-status::before {
@@ -2239,15 +1943,7 @@ main.create-update > form > .allday-label::before {
   .detail-card dt { margin-top: var(--space-2); }
 }
 
-/* A field that most messages do not want. Closed it is one line in the
-   form's own type; open it is the field and its explanation, and it
-   opens itself whenever it already holds something. */
-/* The headers are a two-column grid of label and field. A disclosure is
-   neither, so it spans both: as a single item it took the label column
-   and pushed every field after it into the wrong one. */
-/* Reply to sits in the column its field belongs to, not across the
-   whole row: opened, its input lines up with To, Cc and Subject rather
-   than running the width of the form. */
+/* A disclosure spans both columns, or it takes the label column and shifts every field after it. */
 main.create-update .headers > .compose-more {
   grid-column: 2;
 }
@@ -2261,12 +1957,6 @@ main.create-update .headers > .compose-more {
 
 .compose-more > input { width: 100%; box-sizing: border-box; }
 
-/* What exists, one per row: the name, a taste of the text, and the two
-   things that can be done to it. */
-
-
-/* The chooser stands with the body it rewrites, above the row that
-   sends: it is not one of the actions that finish the message. */
 .signature-pick {
   display: flex;
   flex-wrap: wrap;
@@ -2275,8 +1965,6 @@ main.create-update .headers > .compose-more {
   margin-block: var(--space-2);
 }
 
-/* The way out to the page that owns them, at the end of the row: it is
-   a way out, not one of the choices. */
 .signature-edit {
   margin-inline-start: auto;
   color: var(--fg-dim);
@@ -2289,9 +1977,7 @@ main.create-update .headers > .compose-more {
   font-weight: 600;
 }
 
-/* Code is written left to right in every language: a sieve script, a
-   header, a URL. The field says so itself rather than following the
-   interface, and it is monospaced because alignment is part of it. */
+/* Code is written left to right in every language. */
 .code,
 textarea.code {
   direction: ltr;
@@ -2300,32 +1986,20 @@ textarea.code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* Text somebody typed keeps the breaks they typed, wraps a long line
-   rather than widening the page, and reads each paragraph in that
-   paragraph's own script. dir=auto resolves the block's alignment,
-   plaintext resolves each line's direction inside it. */
+/* dir=auto resolves the block's alignment, plaintext each line's direction. */
 .user-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   unicode-bidi: plaintext;
 }
 
-/* Text somebody else wrote is its own bidi paragraph: plaintext applies
-   the Unicode algorithm's own base-direction rules per paragraph, so a
-   trailing period, question mark or bracket lands on the end its
-   language puts it, whichever direction the page runs in. dir=auto
-   resolves the same direction for `direction`, which is what start
-   below aligns against. */
+/* plaintext puts trailing punctuation at the end its own language puts it. */
 main.message h1,
 main.message pre {
   unicode-bidi: plaintext;
 }
 
-/* User-written titles order their own script (dir=auto) but align with
-   the interface's edge by default, so Latin and Arabic rows cluster
-   cleanly. Said outright rather than through start/match-parent: those
-   resolve against a direction the row itself may have overridden, and
-   which edge a row clusters to is a property of the page, not the row. */
+/* Said outright: start and match-parent resolve against a direction the row may have overridden. */
 :root:dir(rtl) .list .list-summary,
 :root:dir(rtl) .message-list-subject a,
 :root:dir(rtl) .message-list-sender a,
@@ -2344,10 +2018,7 @@ main.message h1 {
   text-align: match-parent;
 }
 
-/* The other reading: each line sits on the edge its own script starts
-   from. :dir() matches the direction the browser calculated for the
-   element - what dir=auto resolved from the text - so the rule follows
-   the row's own script rather than the page's. */
+/* :dir() matches the direction dir=auto resolved, so the rule follows the row's own script. */
 :root[data-align="script"] .message-list-subject a:dir(ltr),
 :root[data-align="script"] .message-list-sender a:dir(ltr) {
   text-align: left;
@@ -2358,9 +2029,7 @@ main.message h1 {
   text-align: right;
 }
 
-/* dir=auto resolves LTR while a field is empty, pushing a translated
-   placeholder to the wrong edge; while only the placeholder shows,
-   follow the UI direction. */
+/* dir=auto resolves LTR while a field is empty, pushing a translated placeholder to the wrong edge. */
 [dir="rtl"] input[dir="auto"]:placeholder-shown,
 [dir="rtl"] textarea[dir="auto"]:placeholder-shown {
   direction: rtl;
@@ -2373,17 +2042,11 @@ main.message h1 {
   opacity: 1;
 }
 
-/* Every list row nests its cells in a display:contents wrapper: the
-   cells stay in the grid's tracks, while the row is one element to
-   style and, on a phone, a grid of its own. */
 .list-row {
   display: contents;
 }
 
-/* The keyboard's cursor is the focus on the row's link, and a link's
-   ring in one cell does not say "this row". The cells say it together,
-   in the surface a selected thing already has. Keyboard focus only: a
-   click on a row is not the cursor arriving. */
+/* Keyboard focus only: a click on a row is not the cursor arriving. */
 .list-row:has(a:focus-visible) > .list-cell {
   background: var(--bg-active);
 }
@@ -2399,12 +2062,9 @@ main.message h1 {
 aside .new {
   color: var(--green-dark);
   font-weight: bold;
-  /*background-color: #f5fcf2;*/
   text-decoration: none;
 }
 
-/* The create links of the DAV sections sit directly under the aside,
-   without the list rows' padding the mail sidebar gets. */
 aside > a.new {
   display: block;
   padding: 0.4rem 0.5rem;
@@ -2429,8 +2089,7 @@ main table tfoot {
   display: flex;
 }
 
-/* Rows stay scannable on wide monitors: the cap bounds the eye travel
-   from subject to date, as the reading view's 800px cap already does. */
+/* The cap bounds the eye's travel from subject to date on wide monitors. */
 .message-list section,
 .contact-list section,
 .list section {
@@ -2445,31 +2104,16 @@ main table tfoot {
   align-items: center;
   min-height: var(--toolbar-height);
   background-color: var(--surface);
-  /* Two lines rule the page: containers sit on the outer edge, ink
-     starts one step in - the same inset the tab captions use. */
   padding: var(--space-1) var(--space-2);
 }
 
-/* Spacing rides the checkbox itself rather than its cell: sizing the
-   cell to the grid's first track boxed the control into less room than
-   a checkbox takes in every engine, and it went missing. The leading
-   margin is the row checkbox's own default one, so the two line up. */
-/* The select-all commands the tick column and stands in it: one rule
-   for every list, because every list is the same grid. */
+/* Spacing rides the checkbox, not its cell: a cell sized to the track was smaller than a checkbox. */
 .actions #action-checkbox-all {
   margin-inline: 0.25rem 0.5rem;
 }
 
-/* What is attached, named under the subject inside the subject's own
-   cell. Not a row of its own: a row of its own is outside the row's box,
-   so it takes neither its hover nor its hairline and has to be stitched
-   back on with a border hack. A cell that holds two lines is simply a
-   taller row. */
-/* The column is the second line's layout, so it lives only on the rows
-   that have one: on a row showing no names the subject is the only item
-   and the shared ellipsis rule gives it flex: 1 1 auto - which in a
-   column grows it down the whole cell, leaving the text at the top of a
-   row that centres every other. */
+/* Inside the subject cell: a row of its own would take neither the row's hover nor its hairline. */
+/* Only on rows with a second line: in a column, flex: 1 1 auto grows a lone subject down the cell. */
 .message-list-subject.has-attach {
   flex-direction: column;
   align-items: flex-start;
@@ -2477,8 +2121,6 @@ main table tfoot {
   gap: 0.15rem;
 }
 
-/* The subject had the whole cell to itself and still does: the names
-   are under it, never beside it. */
 .message-list-subject.has-attach > a { max-width: 100%; }
 
 .attach-line {
@@ -2491,13 +2133,8 @@ main table tfoot {
   overflow: hidden;
 }
 
-/* A name wide enough to tell one file from another and no wider: past
-   that it is a snake across the row and says nothing more, so it
-   truncates and the whole name is in the tooltip. */
 .attach-chip {
   flex: 0 1 auto;
-  /* Never narrower than a name reads: a chip that cannot show one is
-     not shown. */
   min-width: 5rem;
   max-width: 8rem;
   overflow: hidden;
@@ -2508,7 +2145,6 @@ main table tfoot {
   line-height: 1.4;
 }
 
-/* A chip is the attachment chip: one box, wherever one stands. */
 .attach-chip,
 main.contact .chip {
   padding: 0.05rem 0.5rem;
@@ -2516,9 +2152,6 @@ main.contact .chip {
   border-radius: 1rem;
 }
 
-/* What did not fit, counted rather than named. A round box for one
-   digit and a pill for two: the number decides the width, so it always
-   fits inside it. */
 .attach-more {
   flex: none;
   min-width: 1.5rem;
@@ -2541,13 +2174,7 @@ main.contact .chip {
   text-decoration: none;
 }
 
-/* A control that acts on a selection and cannot carry the disabled
-   attribute - a menu, a form - says so the way a disabled button does:
-   dim, and the pointer does not reach it, so no hover state of any kind
-   can fire on it. Every hover rule on a control is guarded against the
-   three ways a control is off (:disabled, aria-disabled, .is-disabled);
-   an unguarded hover rule written below its own counter-rule is how the
-   trash icon came to redden while it was dead. */
+/* A control that cannot carry disabled says so the way a disabled button does. */
 .overflow > button:disabled,
 .actions-search.is-disabled {
   opacity: 0.45;
@@ -2555,8 +2182,6 @@ main.contact .chip {
   pointer-events: none;
 }
 
-/* A colour is a swatch, not a field: at full width it reads as a bar
-   the length of the form and says nothing more than the small one. */
 input[type="color"] {
   width: 4rem;
   min-width: 4rem;
@@ -2564,11 +2189,7 @@ input[type="color"] {
   cursor: pointer;
 }
 
-/* What a delete would take, stated under the form that edits the thing
-   and set apart from it: the button beside Save must not read as one
-   more way to save. */
-/* The file forms and the delete share one rhythm below the edit form:
-   a rule, a small heading, one row of controls. */
+/* Set apart: the button beside Save must not read as one more way to save. */
 .collection-file,
 .danger-zone {
   margin-top: var(--space-6);
@@ -2578,9 +2199,6 @@ input[type="color"] {
 
 .collection-file .list-items { margin-bottom: var(--space-3); }
 
-/* A share's row starts on the heading's edge, and its address is never
-   cut short: it is the one thing the row is for, so what it may do
-   moves under it when the line cannot hold both. */
 .collection-file .list-item { padding-inline: 0; }
 
 .collection-file .list-content {
@@ -2630,7 +2248,6 @@ input[type="color"] {
   font-size: var(--text-sm);
 }
 
-/* A line added where the object is read, not behind an edit form. */
 .note-box {
   margin-top: var(--space-4);
   display: flex;
@@ -2651,10 +2268,6 @@ input[type="color"] {
   resize: vertical;
 }
 
-/* One collection's row: the tick that remembers, and the link that
-   looks without remembering. The link keeps its place and shows on
-   hover or focus, so a rail of them is a list of names rather than a
-   list of names and verbs. */
 aside .filter-row {
   display: flex;
   align-items: center;
@@ -2665,8 +2278,6 @@ aside .filter-row {
   border-inline-start: 2px solid transparent;
 }
 
-/* The narrowed collection is marked like the mail folder in view: one
-   rhythm, one fill, one edge. */
 aside .filter-row.active {
   background-color: var(--surface-selected);
   border-inline-start: 2px solid var(--accent);
@@ -2680,9 +2291,6 @@ aside .filter-row.active .filter-name {
 
 aside .filter-row > .filter-name { flex: 1 1 auto; min-width: 0; }
 
-/* The tick is the standing choice - is this in the merged view - set
-   off the name so it never reads as the row's purpose; the name is the
-   link into the collection itself. */
 aside .filter-name {
   display: flex;
   align-items: center;
@@ -2700,9 +2308,6 @@ aside .filter-tick input {
   margin: 0;
 }
 
-/* The collection's own page, where it is renamed and deleted, is a
-   secondary affordance on the row: unseen until the row is hovered or
-   it takes focus. */
 aside .filter-edit {
   flex: none;
   padding-inline: var(--space-1);
@@ -2718,14 +2323,10 @@ aside .filter-edit:focus-visible { opacity: 1; }
   aside .filter-edit { opacity: 1; }
 }
 
-/* The same explanations a tooltip carries, on a tap. Quiet by default:
-   it is there when wanted and silent when not. */
 .info-explain {
   margin-top: var(--space-2);
 }
 
-/* Standing on the page rather than in a card, it keeps to the ink
-   line the rows above it start from. */
 main > .info-explain {
   padding-inline: var(--space-2);
 }
@@ -2753,11 +2354,8 @@ main > .info-explain {
 .info-explain dt { color: var(--fg-faint); }
 .info-explain dd { margin: 0; min-width: 0; }
 
-/* Carried on the row only where there is no column to carry it. */
 .card-only { display: none; }
 
-/* Facts about a server that nobody can change: a card, so they read as
-   a panel of their own rather than as a tail on the page. */
 .info-card {
   margin-top: var(--space-5);
   padding: var(--space-3) var(--space-4);
@@ -2805,8 +2403,6 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
 .info-card dt { color: var(--fg-faint); }
 .info-card dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
-/* What the server can do, ticked or not: the reason a page behaves the
-   way it does, in the same two-state grammar everywhere. */
 .info-abilities {
   list-style: none;
   margin: 0;
@@ -2829,8 +2425,7 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
 
 .info-abilities .has-not::before { content: "\2013"; }
 
-/* Each group inside the card is announced and set off, or the ticks
-   read as one more row of the list above them. */
+/* Set off, or the ticks read as one more row of the list above them. */
 .info-group-title {
   margin: var(--space-3) 0 var(--space-1);
   padding-top: var(--space-3);
@@ -2838,8 +2433,6 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   color: var(--fg-faint);
 }
 
-/* What a filter may use, as a wrap of quiet chips rather than a
-   paragraph of comma-separated protocol. */
 .info-tags {
   list-style: none;
   margin: 0;
@@ -2857,8 +2450,6 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   line-height: 1.5;
 }
 
-/* When a stored thing was written and last changed, said once, quietly,
-   under what it is about. */
 .object-dates {
   display: flex;
   flex-wrap: wrap;
@@ -2870,10 +2461,7 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   font-size: var(--text-sm);
 }
 
-/* What a signature says, beside the sender it is a claim about. Two
-   states only: good, and present-but-not. An unsigned message says
-   nothing here, because a mark on every message teaches people to
-   ignore marks. */
+/* An unsigned message says nothing: a mark on every message teaches people to ignore marks. */
 .sig {
   margin-inline-start: 0.4rem;
   padding: 0.05rem 0.4rem;
@@ -2884,9 +2472,7 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   cursor: help;
 }
 
-/* Green is for two witnesses that agree, the domain's published key
-   and its signed delivery; a key the message brought along proves
-   less and wears no colour. */
+/* Green only where the domain's key and its signed delivery agree; a key the message brought proves less. */
 .sig-verified {
   color: var(--sig-good);
   border-color: color-mix(in srgb, var(--sig-good) 40%, transparent);
@@ -2902,10 +2488,7 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 }
 
-/* A view chooser: every option the same box, the chosen one wearing a
-   border the others draw transparent, so choosing moves nothing. Bold
-   on the chosen one would change its width as it is chosen, which is
-   the same defect wearing a different hat. */
+/* Bold on the chosen one would change its width, so a transparent border holds the box. */
 .toggle {
   display: inline-flex;
   align-items: center;
@@ -2928,8 +2511,6 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   color: var(--fg);
 }
 
-/* The word is the wide form; the icon waits until the row asks for
-   the width back, and the word returns once the toggle is in a menu. */
 .toggle-option > .icon {
   display: none;
 }
@@ -2946,8 +2527,6 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
 .overflow-menu .toggle.no-word .toggle-option > .label { display: inline; }
 .overflow-menu .toggle.no-word .toggle-option > .icon { display: none; }
 
-/* A chip group that has moved into the menu is a row of it, not the
-   far end of one. */
 .overflow-menu .actions-pagination { margin-inline-start: 0; }
 
 .toggle-option:not(.is-current):hover {
@@ -2955,12 +2534,6 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   text-decoration: none;
 }
 
-/* What a field needs said, said under it in one voice: the page's
-   small type, the page's quiet ink, on its own line. No box, no rule,
-   no second type scale - a hint that looks like a quotation reads as
-   content rather than as guidance, and one that opens has to escape
-   whatever layout the form is, which in a two-column grid put it under
-   the next input. */
 .hint {
   display: block;
   margin-top: 0.15rem;
@@ -2969,23 +2542,19 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   line-height: 1.4;
 }
 
-/* The example is literal syntax: set as code, and isolated, or an RTL
-   paragraph reorders the address inside it. */
+/* Isolated, or an RTL paragraph reorders the address inside it. */
 .hint code {
   font-size: inherit;
   direction: ltr;
   unicode-bidi: isolate;
 }
 
-/* In a label/control grid the hint takes a row of its own under the
-   control's column: inside the control's cell it would grow the row
-   and pull the caption off the line it names. */
+/* Inside the control's cell it would grow the row and pull the caption off its line. */
 main.create-update .headers > .hint {
   grid-column: 2 / 3;
   margin-top: -0.25rem;
 }
 
-/* The picture the card has, beside the field that replaces it. */
 .photo-field .photo-current {
   display: block;
   width: 5rem;
@@ -2995,9 +2564,6 @@ main.create-update .headers > .hint {
   margin-bottom: var(--space-2);
 }
 
-/* The picture and the button that takes it away, side by side: the
-   button acts at once and belongs beside what it acts on, not among
-   the fields that wait for Save. */
 .photo-field .photo-shown {
   display: flex;
   align-items: center;
@@ -3011,10 +2577,6 @@ main.create-update .headers > .hint {
 }
 
 
-/* Disabled means disabled to the eye too: a checkbox the browser has
-   greyed is easy to miss beside a row of live marks, and this one is
-   disabled for a reason worth noticing - there is nothing to select, or
-   there is no script to select it with. */
 #action-checkbox-all:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -3033,8 +2595,7 @@ main.calendar .actions {
 }
 
 .actions input[type="text"] {
-  /* The explicit width shrinks the intrinsic size the toolbar wraps
-     on; flex-grow then widens the field when there is room. */
+  /* The explicit width shrinks the intrinsic size the toolbar wraps on. */
   flex: 1;
   width: 6rem;
   min-width: 3.5rem;
@@ -3051,9 +2612,7 @@ main.calendar .actions {
   border-end-end-radius: 0;
 }
 
-/* One toolbar, one line: a wrapping flex container breaks on the items'
-   full content width, so the title's ellipsis would never get a turn.
-   The narrow layout re-declares wrap and keeps its two rows. */
+/* A wrapping flex container breaks on the items' full width, so the title's ellipsis would never get a turn. */
 .actions-wrap {
   display: flex;
   flex-grow: 1;
@@ -3064,15 +2623,11 @@ main.calendar .actions {
   min-width: 0;
 }
 
-/* Buttons hold their label on one line; the title yields the width. */
 .actions button,
 .actions .button-link {
   white-space: nowrap;
 }
 
-/* Search asks for a comfortable width and gives it back before anything
-   else does: it is the widest thing on the row and the least harmed by
-   being narrow. */
 .actions-search {
   display: flex;
   flex-direction: row;
@@ -3105,11 +2660,7 @@ main.calendar .actions {
   gap: 0.5rem;
 }
 
-/* The chosen state of a toggle and the states beside it hold the same
-   box: same weight, same padding, one border drawn and the others
-   transparent. Bolding the chosen one instead changes its width as it
-   is chosen, which moves every control after it out from under the
-   pointer that just chose it. */
+/* Bolding the chosen state would change its width and move the controls after it. */
 .actions-pagination > strong,
 .actions-pagination > .button-link,
 .actions-pagination > span[aria-disabled] {
@@ -3143,8 +2694,6 @@ main.calendar .actions {
   font-weight: 500;
 }
 
-/* The count is secondary: it shrinks first and goes entirely before
-   anything that can be clicked. */
 .pagination-range {
   color: var(--fg-muted);
   white-space: nowrap;
@@ -3155,7 +2704,6 @@ main.calendar .actions {
   margin-bottom: 1rem;
 }
 
-/* Conditional action groups render empty; keep them out of the gaps. */
 .action-group:not(:has(*)) {
   display: none;
 }
@@ -3169,7 +2717,6 @@ main.calendar .actions {
   margin-inline-start: 0;
 }
 
-/* The group already spaces its members. */
 .followups .action-group {
   margin-inline-start: 0;
 }
@@ -3192,8 +2739,6 @@ main.calendar .actions {
   float: inline-start;
 }
 
-/* A set of exclusive choices: the legend reads as the field's label,
-   and the options stack under it like any other group's rows. */
 .action-group.choices {
   border: 0;
   padding: 0;
@@ -3209,14 +2754,10 @@ main.calendar .actions {
   font-weight: normal;
 }
 
-/* A field inside a group of choices keeps its own label above it. */
 .action-group.choices .field {
   margin-block: var(--space-2);
 }
 
-/* One condition is one line: what to look at, how, and for what. The
-   value takes the width the two choices leave; a phone puts it under
-   them. */
 .condition-row {
   display: flex;
   flex-wrap: wrap;
@@ -3227,15 +2768,11 @@ main.calendar .actions {
 .condition-row select { flex: 0 0 auto; }
 .condition-row input { flex: 1 1 12rem; min-width: 0; }
 
-/* A choice or a note that belongs to a list stands on the list's ink
-   line, above or below its rows. */
 .list-option {
   margin: var(--space-2) 0;
   padding-inline: var(--space-2);
 }
 
-/* The second column of a list row, one line of it: the preview of a
-   signature, a rule in words. It yields to the name beside it. */
 .list-detail {
   color: var(--fg-muted);
   font-size: var(--text-sm);
@@ -3250,9 +2787,7 @@ main.calendar .actions {
   height: 10rem;
 }
 
-/* The start half shrinks to its content and no further: what does not
-   fit overflows the row, where the script can see it, rather than
-   sliding under the end half. See ADR 8. */
+/* What does not fit overflows the row, where the script can see it (ADR 8). */
 .actions-message {
   display: flex;
   flex: 1 1 auto;
@@ -3260,19 +2795,12 @@ main.calendar .actions {
   align-items: center;
 }
 
-/* The title holds one track, so nothing after it moves when the name
-   changes: a folder's, a month's. The track still yields under
-   pressure - an unyielding one is how controls came to overlap on a
-   narrow window - down to one floor, and truncates past it; the script
-   has taken every other step before that happens. */
+/* The title holds one track, so nothing after it moves when the name changes. */
 .actions-message h1:not(:last-child) {
   flex: 0 1 var(--title-track);
   min-width: var(--title-floor);
 }
 
-/* A control never yields its size to the title: squeezing an icon
-   button is how the calendar's new-event mark came to sit on top of the
-   pager. */
 .actions-message > .icon-button,
 .actions-message > .toolbar-rule {
   flex-shrink: 0;
@@ -3302,30 +2830,14 @@ main.calendar .actions {
 
 .message-grid {
   display: grid;
-  /* Sender column tracks the longest name up to a cap instead of a fixed
-     share, so names are rarely truncated. */
-  /* Fixed tracks: sorting or paging must not shift the headers under
-     the pointer. */
-  /* Every column yields, not the subject alone. A track that cannot
-     shrink hands the whole loss to its neighbour, which is why the
-     subject was crushed to nothing between the widest desktop and the
-     phone layout while the sender kept fourteen rems it did not need.
-     The marks are the one exception: they are glyphs, not text. */
-  /* Every column yields, not the subject alone. A capped track hands
-     the whole loss to the flexible one beside it, which is how the
-     subject came to be crushed to nothing while the sender kept
-     fourteen rems it did not need. The marks are the one exception:
-     they are glyphs, not text. */
+  /* Fixed tracks: sorting or paging must not shift the headers under the pointer. */
+  /* A capped track hands its whole loss to the flexible one beside it. */
   grid-template-columns:
     var(--check-track) 4.4rem 14rem
     minmax(0, 1fr) 8rem 5.5rem;
   grid-template-rows: auto;
 }
 
-/* Between the widest desktop and the phone the sender takes a share of
-   what is left rather than a fixed slab, so the two text columns narrow
-   together; and the size steps aside first, being the column the design
-   already calls least important. */
 @media (width < 75rem) {
   .message-grid {
     grid-template-columns:
@@ -3335,9 +2847,6 @@ main.calendar .actions {
 
 }
 
-/* The attachment pane is a third column only where there is room for
-   one; below that it goes under the fields, as it already did on a
-   phone. Kept at 10rem it pushed the form past the window. */
 @media (width < 60rem) {
   main.create-update .headers { grid-template-columns: auto minmax(0, 1fr); }
 
@@ -3356,20 +2865,14 @@ main.calendar .actions {
       minmax(0, 1fr) minmax(5rem, 8rem);
   }
 
-  /* Scoped by the grid that owns it: .list-cell sets display on every
-     cell and is written below this, so a bare .message-list-size loses
-     the tie and the column kept its space while the row shifted. */
+  /* Scoped by the grid: .list-cell sets display on every cell and comes later. */
   .message-grid .message-list-size { display: none; }
 }
 
-/* One header style for every list table: muted bold labels on one
-   border, links inheriting ink, cells padded like their columns. */
 .list-header {
   font-weight: bold;
   color: var(--fg-muted);
   border-bottom: 1px solid var(--border-strong);
-  /* Match the row cells so labels align with their columns, and pin
-     the empty checkbox header's border to the same baseline. */
   min-height: 2rem;
   padding: var(--row-pad);
   align-self: stretch;
@@ -3377,8 +2880,6 @@ main.calendar .actions {
 
 .list-header a { color: inherit; }
 
-/* A sort direction is part of its label. It may overflow a narrow
-   column, but the arrow never detaches onto a second line. */
 .sort-header {
   display: inline-flex;
   align-items: baseline;
@@ -3392,14 +2893,6 @@ main.calendar .actions {
   white-space: nowrap;
 }
 
-/* Ownership follows the sender's name and yields before it does: the
-   sender cell already answers "who", and "which of mine" is the same
-   question. The subject would be the wrong host - it is the widest,
-   most-truncated cell in the row.
-
-   It cannot vanish, since min-width keeps a few characters, and a
-   domain truncates better than a name does: its tail is the part that
-   repeats. */
 .message-list-sender .row-account {
   flex: 0 4 auto;
   min-width: 3ch;
@@ -3408,21 +2901,16 @@ main.calendar .actions {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* Ownership is not part of what unread emphasises. */
   font-weight: 400;
 }
 
-/* A row found across folders names its folder too, in a track every
-   row shares: sized to its own text the column of them would start
-   wherever each name does. Both classes, to outrank the rule that lets
-   the cell's links grow. */
+/* Both classes, to outrank the rule that lets the cell's links grow. */
 .message-list-sender a.row-account.row-folder {
   flex: 0 0 var(--folder-track);
   text-decoration: none;
 }
 .message-list-sender a.row-account.row-folder:hover { text-decoration: underline; }
 
-/* The name has the first claim on the room and yields last. */
 .message-list-sender > a {
   flex: 0 1 auto;
   min-width: 0;
@@ -3431,9 +2919,7 @@ main.calendar .actions {
   white-space: nowrap;
 }
 
-/* A cut word is a defect; a cut sentence ending in an ellipsis is a
-   layout. The cells are flex containers, where text-overflow never
-   reaches the text, so the ellipsis rides the item that holds it. */
+/* The cells are flex containers, where text-overflow never reaches the text. */
 .message-list-sender a,
 .message-list-subject a,
 .contact-list-name a,
@@ -3448,20 +2934,10 @@ main.calendar .actions {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  /* Fills the cell rather than shrinking to its text: a flex item sized
-     to its content sits wherever the *cell's* direction starts, and
-     text-align then has no room to place anything. */
+  /* A flex item sized to its content leaves text-align no room to place anything. */
   flex: 1 1 auto;
 }
 
-/* Attachment, replied and forwarded share the star's track: the star
-   holds its leading edge, the marks the trailing one, so both read as
-   columns down the list instead of drifting with the row's contents. */
-/* A secondary calendar's date is a gloss on the primary one, not a
-   second fact: dimmer, and one piece. Where the line has no room it
-   moves whole to the next, under the primary's start, so the two
-   dates read as a column rather than a day left behind on the line
-   above its month. */
 .date-secondary {
   display: inline-block;
   color: var(--fg-muted);
@@ -3479,8 +2955,6 @@ main.calendar .actions {
   margin-inline-start: auto;
 }
 
-/* Nested folders indent their content, not their rows: every row spans
-   the sidebar, so the active highlight runs edge to edge. */
 aside li.folder-li { padding: 0; display: block; border-inline-start: 0; }
 aside details.folder-branch summary {
   list-style: none;
@@ -3492,9 +2966,6 @@ aside details.folder-branch summary {
   border-inline-start: 2px solid transparent;
 }
 aside details.folder-branch summary a { flex-grow: 1; }
-/* The chevron is the fold and the name is the link, the account
-   heading's shape. It takes the row's height as its hit area and sits
-   after the name, where a thumb finds it without landing on the link. */
 aside details.folder-branch summary::-webkit-details-marker { display: none; }
 aside details.folder-branch summary::after {
   flex: none;
@@ -3515,8 +2986,6 @@ aside details.folder-branch details.folder-branch > ul > li {
   padding-inline-start: 2.1rem;
 }
 
-/* The mail list's shape: the same checkbox track, then fixed tracks so
-   sorting cannot shift a header under the pointer. */
 .contact-grid {
   display: grid;
   grid-template-columns:
@@ -3525,14 +2994,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   grid-template-rows: auto;
 }
 
-/* The book column's floor holds its own heading: at 6rem the label
-   "Address book" was 7px wider than the track it names. */
-/* The contacts list drops the date first, then the address: a name and
-   a number are what the column is for. Written below the base rule it
-   overrides, since a media query adds no specificity and the later of
-   two equal rules wins. */
-/* The date goes first and the address second; the book stays, because
-   it is what says whose list a row is on. */
+/* Below the base rule it overrides: a media query adds no specificity. */
 @media (width < 60rem) {
   .contact-grid {
     grid-template-columns:
@@ -3553,21 +3015,15 @@ aside details.folder-branch details.folder-branch > ul > li {
   .contact-grid .contact-list-email { display: none; }
 }
 
-/* Event lists - a day, or a month's agenda - share the aligned grammar
-   of the mail, contacts and task tables: when, what, and whose, each in
-   its own track, so the owner never trails a summary of random length. */
 .event-grid {
   display: grid;
   grid-template-columns: var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
 
-/* The agenda is a list like the others, so where it offers selection it
-   keeps the same first column the mail and task lists do. */
 .event-grid-select {
   grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
 
-/* Banded by day, the date is the band's and the column goes. */
 .event-grid-grouped {
   grid-template-columns: var(--star-track) 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
@@ -3576,8 +3032,6 @@ aside details.folder-branch details.folder-branch > ul > li {
   grid-template-columns: var(--control-height) var(--star-track) 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
 }
 
-/* Half a laptop screen: the calendar track stops growing to its cap
-   before the summary is served, and the two share what is left. */
 @media (width < 60rem) {
   .event-grid { grid-template-columns: var(--star-track) 6.5rem 5rem minmax(0, 3fr) minmax(6rem, 1fr); }
   .event-grid-select { grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(0, 3fr) minmax(6rem, 1fr); }
@@ -3615,7 +3069,6 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .event-summary a:hover { text-decoration: underline; }
 
-/* Each day of the agenda opens a band across every track. */
 .event-grid .event-day-header {
   grid-column: 1 / -1;
   margin: 0;
@@ -3629,8 +3082,6 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .event-grid .empty-list { grid-column: 1 / -1; }
 
-/* Tasks use the same aligned, sortable table grammar as mail and contacts.
-   The first track is only the completion action, not a verbose status field. */
 .task-list {
   flex-grow: 1;
   display: flex;
@@ -3639,11 +3090,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .task-list .tasks { flex-grow: 1; }
 
-/* The summary is the column with something to read in it, so it holds a
-   floor and the metadata beside it takes shares of what is left. Capped
-   tracks take their maximum before a bare fr track gets anything, which
-   is how the summary came to be squeezed to nothing while the calendar
-   kept fourteen rems. */
+/* Capped tracks take their maximum before a bare fr track gets anything. */
 .task-grid {
   display: grid;
   grid-template-columns:
@@ -3651,7 +3098,6 @@ aside details.folder-branch details.folder-branch > ul > li {
     minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
-/* One line for the next task, in the rows' box. */
 .quick-add {
   display: flex;
   gap: var(--space-2);
@@ -3661,7 +3107,6 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .quick-add input { flex: 1; min-width: 0; }
 
-/* Metadata steps aside before the two columns a task list is for. */
 @media (width < 60rem) {
   .task-grid {
     grid-template-columns:
@@ -3671,9 +3116,6 @@ aside details.folder-branch details.folder-branch > ul > li {
   .task-grid .task-list-added { display: none; }
 }
 
-/* The due date goes before the calendar: most tasks carry no due date,
-   so the column is mostly empty, while the calendar says whose list a
-   row is on and is never empty. */
 @media (width < 52rem) {
   .task-grid {
     grid-template-columns: var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr);
@@ -3710,16 +3152,11 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .task-list-status { gap: var(--space-2); }
 
-/* The star's chevron hangs past its track into the cell beside it. On
-   the task grid that cell is the completion control, so the status
-   starts clear of the chevron instead of under it. The phone card,
-   where the star sits at the row's end, keeps the ordinary padding. */
+/* The star's chevron hangs past its track, so the status starts clear of it. */
 @media (width > 600px) {
   .task-grid .task-list-status { padding-inline-start: var(--space-3); }
 }
 
-/* The status column sorts through a glyph, like the mail flag column:
-   the track stays fixed so the arrow never widens it. */
 .task-grid .task-list-status .status-sort {
   width: 1rem;
   display: inline-flex;
@@ -3740,9 +3177,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   justify-content: center;
 }
 
-/* A flex item may shrink below its width, and this one did - 16 wide by
-   24 tall, a circle drawn as an ellipse. It keeps its square, and crops
-   rather than stretches whatever shape the card carries. */
+/* A flex item may shrink below its width; this one keeps its square. */
 .contact-list-photo img {
   flex: none;
   width: 1.5rem;
@@ -3752,8 +3187,6 @@ aside details.folder-branch details.folder-branch > ul > li {
   object-fit: cover;
 }
 
-/* Rows are not hyperlink soup: links show their nature on hover, as
-   the tables these grids replaced did. */
 .list-grid a {
   text-decoration: none;
 }
@@ -3762,8 +3195,6 @@ aside details.folder-branch details.folder-branch > ul > li {
   text-decoration: underline;
 }
 
-/* Every list shares the same row rhythm: a hairline between rows, as
-   the task and filter lists already do. */
 .list-cell {
   border-bottom: 1px solid var(--border-light);
 }
@@ -3800,9 +3231,7 @@ main.calendar .dates {
   flex-grow: 1;
   padding: 0;
   display: grid;
-  /* minmax(0, 1fr), not 1fr: a bare fr track is at least as wide as its
-     content, so one long event title pushed the month past the window
-     and the page scrolled sideways. */
+  /* minmax(0, 1fr): a bare fr track is at least as wide as its content. */
   grid-template-columns: repeat(7, minmax(0, 1fr));
   grid-template-rows: min-content;
   grid-auto-rows: 1fr;
@@ -3819,8 +3248,6 @@ main.calendar .dates .weekday {
   background: var(--surface);
 }
 
-/* A month cell is mostly event titles: the day label and the grid keep
-   the space they need, everything else is given back to the text. */
 main.calendar .date {
   border: 0;
   padding: var(--space-1);
@@ -3843,9 +3270,7 @@ main.calendar .date .date-link {
   inset: 0;
 }
 
-/* A day either side of the month is still a day, and what is on it is
-   what indicators you whether the month you are looking at is the one you
-   want. Dimmed rather than emptied, which is what every calendar does. */
+/* Dimmed rather than emptied: what is on a day either side still helps place the month. */
 main.calendar .date.extra {
   background: var(--surface-subtle);
   opacity: 0.58;
@@ -3881,26 +3306,18 @@ main.calendar .events .overflow {
   text-align: end;
 }
 
-/* The header of a cell is a two-by-two: the week and the day across, the
-   primary and the secondary calendar down. Both calendars therefore sit
-   on one row apiece and align against that row rather than against each
-   other, which is what stops a 16px week and a 13px day from drifting
-   apart - and gives both the same gap to the number underneath. */
+/* Two by two: each calendar aligns against its own row, so week and day do not drift apart. */
 main.calendar .date h3 {
   display: grid;
   grid-template-columns: auto 1fr;
-  /* A cell is a seventh of the width whatever the width is, and a
-     spelled-out month in it would run into its neighbour. */
+  /* A cell is a seventh of the width, and a spelled-out month would run into its neighbour. */
   overflow: hidden;
   align-items: start;
   row-gap: 0.15rem;
   column-gap: var(--space-1);
 }
 
-/* Each row is one line box whatever size the text in it is, so the two
-   calendars start at the same height and leave the same gap under
-   themselves. Sized by baseline instead, the larger number would sit
-   higher than the smaller and the gaps beneath them would differ. */
+/* One line box per row, so both calendars start at the same height. */
 main.calendar .date h3 .weeknum,
 main.calendar .date h3 .day-label {
   line-height: 1.4rem;
@@ -3911,10 +3328,7 @@ main.calendar .date h3 .day-secondary {
   line-height: 1rem;
 }
 
-/* The week is the coarsest thing here, so it is the largest and the
-   faintest: read once per row, never scanned. The Solar Hijri count
-   under it is a different reckoning - that year starts at Nowruz and its
-   weeks on Saturday - not the same number in other digits. */
+/* The Solar Hijri week is a different count: its year starts at Nowruz and its weeks on Saturday. */
 main.calendar .date h3 .weeknum {
   grid-area: 1 / 1;
   justify-self: start;
@@ -3944,8 +3358,6 @@ main.calendar .date h3 .label-short {
   display: none;
 }
 
-/* The secondary calendar is a gloss on the Gregorian date, never a
-   competitor: same line, quieter ink, smaller. */
 main.calendar .date h3 .day-secondary {
   grid-area: 2 / 2;
   justify-self: end;
@@ -3954,12 +3366,7 @@ main.calendar .date h3 .day-secondary {
   color: var(--fg-faint);
 }
 
-/* The month in the second calendar, under the first in small type: the
-   title is as wide as its first month, not as both side by side, which
-   took the room the view switch needed. Under the first it costs the
-   row nothing, so it no longer yields; it truncates on its own line.
-   Contained, it adds nothing to the title's width: a second month
-   longer than the first would otherwise widen the title again. */
+/* Contained, so a second month longer than the first does not widen the title. */
 .title-secondary {
   display: block;
   contain: inline-size;
@@ -3971,19 +3378,14 @@ main.calendar .date h3 .day-secondary {
   color: var(--fg-muted);
 }
 
-/* Today is a circle, not a pill: a rounded box sized by its own text is
-   taller than it is wide on a single digit and wider than tall on two.
-   The box is squared off the larger dimension instead, so one digit and
-   two both sit in the same circle and neither is clipped. */
+/* Squared off the larger dimension, so one digit and two sit in the same circle. */
 main.calendar .date.active h3 .day-label {
   display: inline-grid;
   place-items: center;
   aspect-ratio: 1;
   min-inline-size: 1.6em;
   padding: 0;
-  /* The cell's line-height makes the line box taller than the digits,
-     which centres the box but sits the number low inside it. At 1 the
-     line box is the text, so centring the box centres what is read. */
+  /* At line-height 1 the line box is the text, so centring the box centres the digits. */
   line-height: 1;
   border-radius: 50%;
   background: var(--green);
@@ -4001,8 +3403,6 @@ aside .aside-filter { display: flex; flex-direction: column; }
   vertical-align: middle;
 }
 
-/* A card of facts on a settings page stands in the form's box, so the
-   page has one left edge whatever it holds. */
 main.settings form,
 main.settings > .info-card {
   width: min(calc(100% - 2 * var(--space-4)), var(--content-form));
@@ -4014,9 +3414,7 @@ main.settings > .info-card {
   box-shadow: var(--shadow-raised);
 }
 
-/* The settings page flattens its own controls; the primary Save keeps
-   the accent it declares, which this rule would otherwise repaint in
-   the page background - the same color its label is drawn in. */
+/* Not the primary Save, which this rule would repaint in the page background. */
 main.settings button:not(.button-primary) {
   background-color: var(--bg);
 }
@@ -4060,8 +3458,6 @@ button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
   background: transparent;
 }
 
-/* A star is its colour wherever it stands - a row, a title, a toolbar,
-   a card - and never the link's ink. */
 .flag-button,
 .flag-button.button-link {
   color: var(--flag-set, var(--flag));
@@ -4099,18 +3495,12 @@ button[disabled] {
   cursor: default;
 }
 
-/* A form on its way to the server says so under the pointer. */
 form[aria-busy="true"],
 form[aria-busy="true"] button[disabled] {
   cursor: progress;
 }
 
-/* Overflow menus keep secondary actions behind a ⋮, in the same
-   dropdown shape as the account menu. Every menu is a popover: the
-   browser closes it on a click outside or Escape, one click on another
-   menu's button opens that one, and the page under it stays live. The
-   panel hangs from its button through the implicit anchor a
-   popovertarget gives it, so no name has to be shared. */
+/* Every menu is a popover, hung from its button through popovertarget's implicit anchor. */
 div.overflow {
   position: relative;
   display: inline-block;
@@ -4130,7 +3520,6 @@ header nav .accounts-menu[popover] {
   color: inherit;
 }
 
-/* The sprite is markup, not a picture: it draws nothing itself. */
 .icon-sprite {
   position: absolute;
   width: 0;
@@ -4149,26 +3538,16 @@ header nav .accounts-menu[popover] {
   pointer-events: none;
 }
 
-/* A step of a pager that carries a word: the mark sits against the word
-   rather than in a target of its own. The word holds a track wide
-   enough for the longest it can be, so the chevron you are about to
-   click does not move because next month has a longer name. */
 .pager-link {
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
 }
 
-/* No fixed track under the word: it held each month name in the middle
-   of a box wide enough for the longest one, which put a gap between the
-   two names and made them read as unrelated. The chevron shifts a little
-   as the names change length, which is the trade. Asked for the width
-   back, the pager keeps only its chevron, in a track of its own. */
 .pager-link.no-word > span { display: none; }
 .pager-link.no-word { min-width: var(--control-height); justify-content: center; }
 
-/* An arrow means "back towards the sender" or "on to someone else",
-   which swap sides with the script; a box or a bin does not. */
+/* An arrow's direction swaps sides with the script; a box or a bin does not. */
 [dir="rtl"] .icon-reply,
 [dir="rtl"] .icon-reply-list,
 [dir="rtl"] .icon-reply-all,
@@ -4178,10 +3557,7 @@ header nav .accounts-menu[popover] {
   transform: scaleX(-1);
 }
 
-/* An icon control is a square target with no border of its own: the
-   toolbar reads as marks on a surface rather than a row of boxes. Its
-   width does not follow any language, which is the point. The scoped
-   selector outweighs the shared button rule's frame. */
+/* The scoped selector outweighs the shared button rule's frame. */
 .actions .icon-button,
 .icon-button {
   display: inline-flex;
@@ -4205,8 +3581,6 @@ header nav .accounts-menu[popover] {
   color: var(--fg);
 }
 
-/* A control that is present but has nowhere to go: a button says so
-   with disabled, a link with aria-disabled, and both read the same. */
 .actions .icon-button:disabled,
 .icon-button:disabled,
 .actions [aria-disabled="true"],
@@ -4222,8 +3596,6 @@ header nav .accounts-menu[popover] {
   background: var(--danger-surface);
 }
 
-/* Actions of one kind sit together; the gap between groups is the only
-   thing that separates them. */
 .icon-group {
   display: inline-flex;
   align-items: center;
@@ -4231,15 +3603,11 @@ header nav .accounts-menu[popover] {
   margin-inline-end: var(--space-2);
 }
 
-/* A group whose marks have all moved to the overflow costs nothing. */
 .icon-group:not(:has(> *)),
 .actions-pagination:not(:has(> *)) {
   display: none;
 }
 
-/* A toolbar control is a mark in the row and a spelled-out row once it
-   has moved into the overflow menu: the same element, read by where it
-   is. The label is there for the menu and for assistive tech. */
 .icon-button > .label {
   display: none;
 }
@@ -4255,8 +3623,6 @@ header nav .accounts-menu[popover] {
   display: inline;
 }
 
-/* The rule after the title is the toolbar's fixed point: what follows it
-   begins in the same place whatever the title says. */
 .toolbar-rule {
   flex: none;
   width: 1px;
@@ -4265,10 +3631,7 @@ header nav .accounts-menu[popover] {
   background: var(--border);
 }
 
-/* Search is a mark like the others until it is asked for: a field wide
-   enough to type in would take a third of the row and push everything
-   else about as the window resizes. Focusing it lays the field over the
-   whole toolbar, which needs no script - focus is native. */
+/* A mark until asked for: a field wide enough to type in would take a third of the row. */
 .actions-search {
   margin-inline-start: auto;
   flex-grow: 0;
@@ -4296,9 +3659,6 @@ header nav .accounts-menu[popover] {
 .actions-search input::placeholder { color: transparent; }
 .actions-search button { display: none; }
 
-/* Asked for, the field grows where it stands, pushing the row leftwards
-   rather than covering it, so nothing appears to change places. It gives
-   width back before the marks do, and only the count steps aside. */
 .actions-search:focus-within {
   flex: 0 1 24rem;
   min-width: 7rem;
@@ -4323,9 +3683,7 @@ header nav .accounts-menu[popover] {
 .actions-search:focus-within input::placeholder { color: var(--fg-faint); }
 .actions-search:focus-within button { display: inline-block; }
 
-/* The trailing group holds its content at every width: its members
-   are targets, and a group squeezed below them spills them leftwards
-   over the title's half. The title is what yields. */
+/* Its members are targets; squeezed, they spill over the title's half. */
 .actions-end {
   display: flex;
   flex: 0 0 auto;
@@ -4335,25 +3693,13 @@ header nav .accounts-menu[popover] {
   margin-inline-start: auto;
 }
 
-/* The toolbar is one row at every width. Wrapping was the old answer to
-   a row that would not fit, but the break lands on the items' full
-   content width, so the title never gets to truncate and a control
-   appearing - the second pager chevron - moves the whole page down.
-   Nothing here needs a second row once the title yields and the marks
-   keep their fixed tracks. */
+/* One row at every width: wrapping breaks on the items' full width, so the title never truncates. */
 @media (width <= 52rem) {
-  /* A narrow row buys its width from the rule's gaps: they are
-     spacing, and everything else is a target that must not shrink. */
   .toolbar-rule {
     margin-inline: var(--space-1);
   }
 
-  /* Asked for on a narrow row, the search takes what the row has left
-     instead of the 24rem it asks for at width: a field that grows
-     inside a group which may not shrink pushes the row past the screen,
-     and the page scrolls sideways with half of it blank. The marks it
-     shares the group with step aside while it is open, the way the
-     count already does. */
+  /* A growing field in a group that may not shrink would push the row past the screen. */
   .actions-end:has(.actions-search:focus-within) {
     flex: 1 1 auto;
     min-width: 0;
@@ -4368,8 +3714,6 @@ header nav .accounts-menu[popover] {
     min-width: 0;
   }
 
-  /* Chips buy the last of the row's width back from their own padding
-     before the title is asked to give up any more of its floor. */
   .actions-pagination > strong,
   .actions-pagination > .button-link,
   .actions-pagination > span[aria-disabled] {
@@ -4381,9 +3725,7 @@ header nav .accounts-menu[popover] {
   margin-inline-start: 0;
 }
 
-/* Without a script nothing folds a row that does not fit - ADR 8's
-   folding is the script's - so the row wraps rather than push the page
-   past the window. */
+/* Without a script nothing folds the row (ADR 8), so it wraps. */
 @media (scripting: none) {
   .actions-wrap,
   .actions-message,
@@ -4396,13 +3738,10 @@ header nav .accounts-menu[popover] {
     min-width: 0;
   }
 
-  /* The nav turns to icons by script too. */
   header nav {
     flex-wrap: wrap;
   }
 
-  /* At rest the search is its icon: the 24rem it asks for when open
-     would take a wrapped line of its own and push past the window. */
   .actions-search {
     flex: 0 0 min-content;
   }
@@ -4411,8 +3750,6 @@ header nav .accounts-menu[popover] {
     flex: none;
   }
 
-  /* Opened, it takes a line of its own, the width of the row, and the
-     field shares it with its button. */
   .actions-end:has(.actions-search:focus-within),
   .actions-search:focus-within {
     flex: 1 1 100%;
@@ -4427,30 +3764,22 @@ header nav .accounts-menu[popover] {
   }
 }
 
-/* The message toolbar's trailing group hugs the right edge; the list
-   pages already get this from their growing search field. */
 main.message .actions-end {
   justify-content: flex-end;
 }
 
-/* The sort menu duplicates the column headers on desktop; it serves
-   the narrow layout, which has no headers. */
+/* It duplicates the column headers on desktop; the narrow layout has none. */
 .actions .sort-overflow {
   display: none;
 }
 
-/* Where the headers do not hold every order, the menu stays. */
 .actions .sort-overflow.sort-wide {
   display: inline-block;
 }
 
-/* The count of rows belongs beside the paging it changes. */
 .actions .ipp-overflow { display: inline-block; }
 
-/* The count in force is named rather than linked, and holds the same
-   box as the ones beside it: the same weight, one border drawn and the
-   rest transparent. Bolding it would change its width as it is chosen,
-   which is the defect this rule exists to prevent. */
+/* Named, not linked, in the same box: bolding it would change its width. */
 .overflow-menu .is-current {
   color: var(--fg);
   background: var(--surface-selected);
@@ -4487,18 +3816,11 @@ main.message .actions-end {
   text-align: start;
 }
 
-/* One menu, one treatment. The links in here are quiet already, so a
-   bare button keeping its box reads as a different kind of thing and
-   makes the links beside it look indented. The select keeps its own,
-   because it is a control to open rather than an action to press. */
 .overflow-menu button:not(.icon-button) {
   border-color: transparent;
   background: transparent;
 }
 
-/* The menu lives inside the toolbar, so the gap that separates groups
-   along that row was indenting every action wrapped in a form. In a
-   column they are rows, not groups. */
 .overflow-menu .action-group {
   margin-inline-start: 0;
   margin-bottom: 0;
@@ -4527,11 +3849,6 @@ button:active,
   max-width: 600px;
 }
 
-/* What the reader's own folders say about the sender, under the address
-   it is about, where the list's tag leads. A fact, in the ink facts
-   take; a sender already in Junk is the one worth a colour. */
-
-/* Grouped lists (tasks, calendar agenda, filters) */
 .list {
   flex-grow: 1;
   display: flex;
@@ -4558,16 +3875,13 @@ button:active,
   color: var(--fg-faint);
 }
 
-/* A rule or forward switched off stays in the list, dimmed. */
 .list-item.off .list-summary { color: var(--fg-faint); }
 
 .task-checkbox {
   margin-inline-end: 0.5rem;
 }
 
-/* A task's completion toggle sits beside the row's selection box and
-   must read as something else: round, where a selection is square,
-   and no larger than the checkboxes the rest of the app draws. */
+/* Round, where a selection is square, so it reads as something else. */
 .checkbox-button {
   width: 1rem;
   height: 1rem;
@@ -4585,10 +3899,6 @@ button:active,
   padding: 0;
 }
 
-/* Priority is the ring's colour, as Tasks.org draws it: no mark of its
-   own on a row that already carries a tick, a star and this circle.
-   The ring widens so the colour reads at this size; the words are the
-   label's. */
 .checkbox-button.prio-high,
 .checkbox-button.prio-medium,
 .checkbox-button.prio-low {
@@ -4613,8 +3923,6 @@ button:active,
   min-width: 0;
 }
 
-/* Every row's summary takes the same share of the row, not its own
-   width, so what follows it starts on one edge down the list. */
 .list-content .list-summary {
   flex: 1 1 0;
   overflow: hidden;
@@ -4642,7 +3950,6 @@ main.task .details h1.completed {
   color: var(--fg-faint);
 }
 
-/* Account headings in the asides. */
 aside .aside-account {
   color: var(--fg-muted);
   font-size: 0.85rem;
@@ -4660,21 +3967,15 @@ aside .filter-name > span {
   white-space: nowrap;
 }
 
-/* Account is the namespace; indent its collections instead of repeating
-   that namespace in every collection label. */
 aside .filter-row.nested {
   padding-inline-start: var(--space-2);
 }
 
-/* The indent is the account heading's, so it exists only where one
-   does: a single account has no namespace to nest under, and the
-   collections stood indented beneath nothing. The template says which,
-   since :has() is not answered by every browser alborz serves. */
+/* Set by the template: :has() is not in every browser alborz serves. */
 aside .filter-row.nested {
   padding-inline-start: calc(var(--space-2) + 1.25rem);
 }
 
-/* Per-account folder sections in the mail aside. */
 aside details.acct-folders > summary.aside-account {
   cursor: pointer;
   list-style: none;
@@ -4684,8 +3985,6 @@ aside details.acct-folders > summary.aside-account {
   gap: var(--space-1);
 }
 
-/* The heading is the way into the account's scope: a link that reads
-   like the heading it is, and the chevron beside it still folds. */
 aside details.acct-folders > summary.aside-account a,
 aside a.aside-account {
   color: inherit;
@@ -4702,10 +4001,6 @@ aside details.acct-folders > summary::-webkit-details-marker {
   display: none;
 }
 
-/* The chevron folds the account, and it sits after the name, where the
-   branch rows keep theirs. Before it, it pushed the account's own name
-   a chevron's width to the right of the folders under it, so the
-   heading of a group stood further in than the group. */
 aside details.acct-folders > summary::after {
   flex: none;
   width: 1.5rem;
@@ -4716,13 +4011,7 @@ aside details.acct-folders > summary::after {
   justify-content: center;
 }
 
-/* A touch target is the row, not the glyph. The heading takes the
-   height every folder row has, and the whole of it folds - so its
-   chevron keeps the width its negative margin was written for, and the
-   account's name stays on the same edge as the folders under it.
-   Widening it pushed the name a finger's width to the right of its own
-   contents. The branch chevron is the exception: it shares its row with
-   a link, so it needs a target of its own. */
+/* A touch target is the row; the branch chevron shares its row with a link, so it has its own. */
 @media (hover: none) {
   aside details.acct-folders > summary.aside-account { min-height: 2.75rem; }
   aside details.folder-branch summary::after { width: 2.5rem; }
@@ -4732,8 +4021,6 @@ aside details.acct-folders li {
   padding-inline-start: 1rem;
 }
 
-/* Branch rows inside a section line up with the leaves; the wrapper
-   stays flat and the summary carries the section indent. */
 aside details.acct-folders li.folder-li {
   padding: 0;
 }
@@ -4750,8 +4037,6 @@ aside details.acct-folders details.folder-branch details.folder-branch > ul > li
   padding-inline-start: 2.6rem;
 }
 
-/* The create entry closes the list it adds to, quiet where Compose is
-   the aside's one accent. */
 aside a.aside-create {
   color: var(--fg-muted);
   text-decoration: none;
@@ -4771,26 +4056,20 @@ aside ul.merged-roles {
   margin-inline-end: 0.35rem;
 }
 
-/* The separator is an element's own mark, not a glyph inside a string:
-   between two runs of different direction the bidi algorithm puts a
-   literal dash wherever it likes. Every column that carries a
-   collection and its owner reads the same. */
+/* The separator is the element's own mark: bidi puts a literal dash between runs wherever it likes. */
 .task-list-calendar .row-account::before,
 .event-owner .row-account::before,
 .contact-list-book .row-account::before,
 .info-card .row-account::before,
 .list-item .row-account::before,
 .alert .row-account::before {
-  /* A middle dot, not an em dash: a dash sets a clause apart, and these
-     are two facts of the same rank - the collection and whose it is. */
+  /* A middle dot, not a dash: the two facts are of the same rank. */
   content: "\00B7";
   margin-inline: 0.4rem;
   color: var(--fg-faint);
 }
 
-/* A row under a thumb. Sideways is the swipe's and up and down stays the
-   page's; the hint is what letting go would do, in the colour that
-   action has everywhere, lying where the row was. */
+/* Sideways is the swipe's; up and down stays the page's. */
 .message-row { touch-action: pan-y; }
 
 .message-grid { position: relative; }
@@ -4823,8 +4102,6 @@ aside ul.merged-roles {
   background: var(--warn-bg);
 }
 
-/* The list of keys: a dialog like any other would be, since this is the
-   first; two columns, the key and what it does, on one left edge each. */
 .keys-help {
   max-width: min(32rem, calc(100vw - 2 * var(--space-4)));
   padding: var(--space-4);
@@ -4861,9 +4138,7 @@ aside ul.merged-roles {
   border-radius: var(--radius-sm);
 }
 
-/* The offer to select more than the page takes the crumb's box while it
-   stands, rather than a line of its own: a bar arriving above the rows
-   would move every one of them under the hand that just ticked them. */
+/* In the crumb's box: a bar arriving above the rows would move them under the hand. */
 .crumb-slot { position: relative; }
 
 .select-everything {
@@ -4881,8 +4156,6 @@ aside ul.merged-roles {
   border-bottom: 1px solid var(--border-light);
 }
 
-/* The sentence gives way before the button does: on a phone the two
-   do not fit in German, and the button is the one that is pressed. */
 .select-everything span {
   flex: 0 1 auto;
   min-width: 0;
@@ -4890,8 +4163,6 @@ aside ul.merged-roles {
   text-overflow: ellipsis;
 }
 
-/* An offer to widen what the row above the list describes reads the
-   same whether it widens a selection or a search. */
 .filter-offer,
 .select-everything button {
   flex: 0 0 auto;
@@ -4905,8 +4176,6 @@ aside ul.merged-roles {
   cursor: pointer;
 }
 
-/* Page context, breadcrumb-weight: which account and container the
-   page acts on, between the toolbar and the content. */
 .context-crumb {
   color: var(--fg-muted);
   font-size: var(--text-sm);
@@ -4917,8 +4186,6 @@ aside ul.merged-roles {
   border-bottom: 1px solid var(--border-light);
 }
 
-/* A folder under the pointer with files over it, and the bar that
-   reports what is going into it. */
 main.drop-into {
   outline: 2px dashed var(--accent);
   outline-offset: -4px;
@@ -4930,9 +4197,7 @@ aside a.drop-into {
   outline-offset: -2px;
 }
 
-/* The import's own progress, inside the notice bar it borrows. Its
-   line is one line: what it names is the reader's own file, and a
-   hundred of them would otherwise push the page down. */
+/* One line: a hundred file names would otherwise push the page down. */
 .notice > progress {
   flex: none;
   width: 8rem;
@@ -4944,8 +4209,6 @@ aside a.drop-into {
   white-space: nowrap;
 }
 
-/* The step that names the page is the page's heading, and reads as the
-   crumb's last step rather than as a heading of its own. */
 .context-crumb h1 {
   display: inline;
   margin: 0;
@@ -4959,12 +4222,7 @@ aside a.drop-into {
   font-weight: 400;
 }
 
-/* An overflow menu is right-aligned to the control that opens it, and
-   grows leftwards from there - so on a phone a wide menu hanging off a
-   control near the left edge runs off the canvas, which is where the
-   message actions ended up. Narrow screens anchor it to the viewport
-   instead of the control: the toolbar is not sticky, so the static
-   vertical position still puts it directly under what opened it. */
+/* Anchored to the viewport: a wide menu off a control near the left edge runs off the canvas. */
 @media (width <= 600px) {
   .overflow-menu[popover] {
     position-area: block-end;
@@ -4974,8 +4232,6 @@ aside a.drop-into {
   }
 }
 
-/* A toolbar title that offers a short form shows one or the other,
-   never both: the abbreviation once the row has asked for the width. */
 .title-short {
   display: none;
 }
@@ -4988,12 +4244,7 @@ h1.no-word .title-short {
   display: inline;
 }
 
-/* Calendar groups indent under their account heading. */
-/* Folding is the native details element; the marker is hidden so the
-   headers look exactly as before, the pointer being the only hint. */
-/* Small screens: the desktop minimum width no longer applies and the
-   sidebar becomes an off-canvas drawer, driven by the checkbox in the
-   header so no script is involved. */
+/* The drawer is driven by the header's checkbox, so no script is involved. */
 .sidebar-toggle,
 .sidebar-button,
 .sidebar-backdrop {
@@ -5001,7 +4252,6 @@ h1.no-word .title-short {
 }
 
 @media (width <= 600px) {
-  /* A phone cell holds a day number and little else. */
   main.calendar .date h3 .weeknum { display: none; }
 
   body { min-width: 0; font-size: var(--text-md); }
@@ -5027,11 +4277,8 @@ h1.no-word .title-short {
     font-size: 1.2rem;
   }
 
-  /* Error pages have no sidebar, so no button to open one. */
   body:not(:has(aside)) .sidebar-button { display: none; }
 
-  /* The header is a single swipeable row; the account block leaves it
-     and docks at the bottom of the open drawer instead. */
   header nav {
     display: flex;
     align-items: center;
@@ -5046,28 +4293,18 @@ h1.no-word .title-short {
   header nav.is-icons { gap: var(--space-1); }
 
   header nav > div { float: none; display: none; }
-  /* The group that pushed the appearance button to the far side is out
-     of the row here, so the button pushes itself: between the widths
-     where the sections are icons, which fill the row, and the desktop
-     header it sat after the last word, mid-row. */
+  /* The trailing group is out of the row here, so the button pushes itself. */
   header nav > div ~ .scheme-toggle { margin-inline-start: auto; }
   .nav-menus { display: none; }
   .nav-menus-drawer { display: contents; }
   header nav .header-brand { display: none; }
 
-  /* The drawer's head, above the folders and clear of the edge. */
   .rail-brand {
     display: flex;
     padding: var(--space-1) var(--space-2) var(--space-3);
   }
 
-  /* The account block docks to the drawer as a fixed element, and says
-     so with a z-index of its own - which counted for nothing, because
-     the header's z-index makes a stacking context its children cannot
-     leave, and the backdrop and the drawer painted over it. Settings
-     was unreachable on a phone. Dropping the header out of the
-     stacking order while the drawer is open lets the dock rise on its
-     own, and leaves the header itself where it was, under both. */
+  /* The header's z-index makes a stacking context the dock cannot leave; dropping it lets the dock rise. */
   .sidebar-toggle:checked ~ header { z-index: auto; }
 
   .sidebar-toggle:checked ~ header nav > div {
@@ -5081,8 +4318,7 @@ h1.no-word .title-short {
     width: var(--drawer-width);
     z-index: 21;
     padding: 0.75rem;
-    /* Installed on a phone the dock sits on the home indicator, which
-       is a strip the system owns; the inset is zero in a browser. */
+    /* Installed, the dock would sit on the home indicator. */
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
     background-color: var(--surface-raised);
     border-top: 1px solid var(--border);
@@ -5098,8 +4334,7 @@ h1.no-word .title-short {
     box-shadow: none;
   }
 
-  /* The drawer and the dock float over the page, so they paint on the
-     raised surface a theme keeps opaque. */
+  /* They float over the page, so they paint on the opaque raised surface. */
   aside {
     position: fixed;
     inset-block: 0;
@@ -5107,9 +4342,7 @@ h1.no-word .title-short {
     width: var(--drawer-width);
     z-index: 20;
     overflow-y: auto;
-    /* The drawer is the whole height of the screen, so its first row
-       would otherwise sit against the top edge - and under the status
-       bar of an installed window. */
+    /* Full height, so the first row would sit under an installed window's status bar. */
     padding-top: max(var(--space-3), env(safe-area-inset-top));
     padding-bottom: 10rem; /* room for the docked account block */
     background-color: var(--surface-raised);
@@ -5130,22 +4363,14 @@ h1.no-word .title-short {
 
   .sidebar-toggle:checked ~ .sidebar-backdrop { display: block; }
 
-  /* Lists and toolbars run edge to edge; standalone forms keep an inset. */
   main { padding: 0 0 var(--space-bottom); }
   main.create-update { padding: var(--space-2); }
   main.settings { padding: 0; }
 
-  /* Task columns collapse into a compact two-line row. Completion stays
-     beside the title; list, account, and due metadata remain explicit. */
-  /* The event grid becomes a card per event: summary on top, when and
-     whose on the line below, the same shape the task rows take. */
   .event-grid { display: block; }
 
   .event-header-row { display: none; }
 
-  /* The tick keeps the card's leading edge across every line, as the
-     mail card's does; the text and the marks take the rest. Two lines:
-     the summary and its star, then date, time and calendar. */
   .event-row {
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr) auto;
@@ -5175,8 +4400,6 @@ h1.no-word .title-short {
     font-weight: 600;
   }
 
-  /* The star stands at the trailing edge of the first line, where the
-     mail card keeps its marks. */
   .event-row .list-star {
     grid-column: 4;
     grid-row: 1;
@@ -5184,8 +4407,6 @@ h1.no-word .title-short {
     align-self: center;
   }
 
-  /* Date, time and calendar share the second line, the calendar at the
-     trailing edge under the star; banded by day there is no date. */
   .event-row .event-date { grid-column: 2; grid-row: 2; }
 
   .event-row .event-time {
@@ -5224,8 +4445,7 @@ h1.no-word .title-short {
 
   .task-row:hover > * { background: transparent; }
 
-  /* Both marks centre on the summary line, not on the card: a box
-     that starts at the card's top edge sits above the text it is for. */
+  /* A box starting at the card's top edge would sit above the text it is for. */
   .task-row .task-list-checkbox {
     grid-column: 1;
     grid-row: 1;
@@ -5246,9 +4466,7 @@ h1.no-word .title-short {
     align-self: center;
   }
 
-  /* A card's star sits at its end, so the chevron hangs inwards: past
-     the end it lay beyond the window, hidden, and still widened the
-     page. */
+  /* At the card's end the chevron hangs inwards; past the end it widened the page. */
   .list-row .row-star .flag-split .flag-more.icon-button {
     inset-inline-start: auto;
     inset-inline-end: 100%;
@@ -5260,8 +4478,6 @@ h1.no-word .title-short {
     font-weight: 600;
   }
 
-  /* The card has a second line for it, whatever the narrow-desktop
-     step decided. */
   .task-row .task-list-calendar {
     display: flex;
     grid-column: 3;
@@ -5276,8 +4492,6 @@ h1.no-word .title-short {
     justify-self: end;
   }
 
-  /* A phone row has two lines for what matters; when a task was added
-     is on the task's own page. */
   .task-row .task-list-added { display: none; }
 
 
@@ -5299,21 +4513,10 @@ h1.no-word .title-short {
 
   main.login > section { width: 100%; }
 
-  /* The mailbox becomes two-line rows: sender and date on top, subject
-     and flags below. */
   .message-grid,
   .contact-grid { display: block; }
 
-  /* Date and star share the trailing column, the date above the star,
-     both flush to the same edge. The star used to sit inside the second
-     line beside the attachment mark, so a row carrying one pushed it
-     out of line; the marks now order to its left and it holds that
-     edge whatever else the row has.
-
-     The column is as wide as what it holds, not a fixed reserve: it is
-     the last one, so every date and every star keeps the card's edge
-     whatever its width, and what "1 hr ago" does not need is the
-     subject's, which is the line that truncates. */
+  /* The last column is as wide as what it holds; the subject is the line that truncates. */
   .message-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) max-content;
@@ -5328,13 +4531,9 @@ h1.no-word .title-short {
 
   .message-row:has(.message-list-unread) { background-color: var(--bg); }
 
-  /* The card is the row here: the frame an unread row's first cell
-     draws at the table's edge would land inside it, a bar between two
-     whites. */
+  /* The card is the row: an unread row's first-cell frame would land inside it. */
   .message-row > .message-list-unread { border-inline: 0; }
 
-  /* A contact is the same two-line card: name over phone, the photo
-     beside the tick and spanning both lines. */
   .contact-row {
     display: grid;
     grid-template-columns: auto 2.5rem minmax(0, 1fr) auto;
@@ -5355,15 +4554,11 @@ h1.no-word .title-short {
   .contact-row > .contact-list-name { grid-area: name; }
   .contact-row > .contact-list-phone { grid-area: phone; }
 
-  /* A phone row has the room for it, and an address is what a contact
-     is usually looked up for. */
   .contact-row > .contact-list-email {
     grid-area: email;
     display: flex;
   }
 
-  /* The book column is a desktop column; on a card the account rides
-     the name, opposite it, where a mail row puts the date. */
   .contact-row > .contact-list-changed,
   .contact-row > .contact-list-book { display: none; }
 
@@ -5376,10 +4571,7 @@ h1.no-word .title-short {
     gap: var(--space-2);
   }
 
-  /* The two-line row draws one separator on its wrapper. The desktop
-     min-height applies per cell, which on a two-line row bought two of
-     them: a third of the row's height was empty. The text's own line
-     box sets it here; the row, not the cell, is the tap target. */
+  /* One separator on the wrapper; a per-cell min-height would charge a two-line row twice. */
   .list-cell {
     padding: 0.1rem 0;
     min-height: 0;
@@ -5387,10 +4579,7 @@ h1.no-word .title-short {
     border-bottom: 0;
   }
 
-  /* The checkbox cell stretches with the two-line row. */
   .message-list-checkbox { grid-area: check; align-self: stretch; }
-  /* The sender is a from-search link, but the subject is the row's real
-     action; only it keeps the link color. */
   .message-list-sender { grid-area: sender; }
   .message-list-sender a { color: inherit; }
   .message-list-date {
@@ -5400,8 +4589,6 @@ h1.no-word .title-short {
   }
   .message-list-subject { grid-area: subject; }
 
-  /* Star first, marks after it, both pinned to the row's trailing edge
-     and centred over the two lines. */
   .message-list-flags {
     grid-area: flags;
     align-self: center;
@@ -5409,10 +4596,7 @@ h1.no-word .title-short {
     padding-inline-end: 0.15rem;
   }
 
-  /* The star sits on one line now rather than spanning both, so the
-     control height it carries would be charged to that line. The glyph
-     matches the text and the button widens instead, which keeps the row
-     short and the target easy to hit. */
+  /* The glyph matches the text and the button widens, keeping the row short and the target easy. */
   .message-list-flags .flag-button {
     min-height: 0;
     padding-inline: 0.35rem;
@@ -5420,14 +4604,10 @@ h1.no-word .title-short {
 
   .message-list-flags form { order: 2; }
   .message-mark { order: 1; margin-inline-start: 0.25rem; }
-  /* The two-line mobile rows keep the inline account label instead of
-     the header row and account column. */
   .list-header { display: none; }
   .message-list .messages .message-list-size { display: none; }
   .actions .sort-overflow { display: inline-block; }
 
-  /* Toolbars compact to two rows: the buttons and the count share the
-     first, the search gets the second. */
   .actions {
     flex-wrap: wrap;
     row-gap: 0.3rem;
@@ -5435,8 +4615,6 @@ h1.no-word .title-short {
     padding: 0.3rem 0.5rem;
   }
 
-  /* The select-all checkbox shares the first toolbar row, in the same
-     column as the row checkboxes below it. */
   .message-list .actions,
   .contact-list .actions,
   .task-list .actions,
@@ -5444,14 +4622,10 @@ h1.no-word .title-short {
   main.list .actions {
     flex-wrap: nowrap;
     align-items: flex-start;
-    /* Both edges keep a gutter. The start used to be given over to the
-       select-all checkbox, which left the folder's name against the
-       screen wherever there is no checkbox to stand there - every
-       merged view, and every list once the sidebar is gone. */
     padding-inline: 0.5rem 0.3rem;
   }
 
-  /* The drawer toggle stays focusable for the keyboard, just unseen. */
+  /* Stays focusable for the keyboard, just unseen. */
   .sidebar-toggle {
     display: block;
     position: absolute;
@@ -5468,9 +4642,6 @@ h1.no-word .title-short {
 
   .actions { position: relative; }
 
-  /* The card rows inset their tick by the row's own padding; the
-     toolbar's box takes the same inset so the two stand in one
-     column. */
   .actions #action-checkbox-all {
     margin-block: 0.4rem;
     margin-inline: 0.75rem 0.5rem;
@@ -5484,8 +4655,7 @@ h1.no-word .title-short {
 
   .actions-wrap { min-width: 0; }
   .actions-message { column-gap: 0.3rem; }
-  /* Too little width to reserve a track; the title takes what is left.
-     Named as the track rule is, or that rule, the more specific, wins. */
+  /* Named as the track rule is, or that more specific rule wins. */
   .actions-message h1,
   .actions-message h1:not(:last-child) { flex: 1 1 auto; max-width: none; }
 
@@ -5502,12 +4672,9 @@ h1.no-word .title-short {
 
   .list-item { min-height: 2.75rem; }
 
-  /* A mail row is two lines and is itself the tap target, so the touch
-     minimum belongs to the row. Applied per cell it was charged twice,
-     and a third of the row's height was empty. */
+  /* A mail row is itself the tap target, so the touch minimum is the row's. */
   .message-row { min-height: 2.75rem; }
 
-  /* Message view: header fields wrap and the parts pane stacks below. */
   main.message .message-header .parts { margin: var(--space-2) 0; }
   main.message th, main.event th { width: auto; }
   main.message td {
@@ -5516,7 +4683,6 @@ h1.no-word .title-short {
     overflow-wrap: anywhere;
   }
 
-  /* Compose: single header column, attachments below the fields. */
   main.create-update .headers { grid-template-columns: auto minmax(0, 1fr); }
   main.create-update #attachment-list {
     grid-column: 1 / -1;
@@ -5525,8 +4691,6 @@ h1.no-word .title-short {
     height: 8rem;
   }
 
-  /* Contacts: name and phone only; the e-mail column and the date wait
-     for the detail page. */
   .contact-row > .contact-list-changed { display: none; }
   .contact-list-name {
     flex-direction: column;
@@ -5540,8 +4704,6 @@ h1.no-word .title-short {
   }
   .contact-list-phone { font-size: 0.8rem; }
 
-  /* Calendar: a compact month with single-letter weekdays and events
-     reduced to their color dots; the day link opens the full list. */
   main.calendar .dates { grid-gap: 2px; padding: 0; }
   main.calendar .dates .weekday { font-size: 0; }
   main.calendar .dates .weekday::first-letter { font-size: 0.8rem; }
@@ -5550,11 +4712,8 @@ h1.no-word .title-short {
   main.calendar .date h3 .day-label { font-size: 0.75rem; min-height: 1.35rem; padding-inline: 2px; }
   main.calendar .date h3 .label-long { display: none; }
   main.calendar .date h3 .label-short { display: inline; }
-  /* The circle keeps its shape at this size too: min-height would make
-     it an oval again by setting a height the width does not follow. */
+  /* min-height would make the circle an oval. */
   main.calendar .date.active h3 .day-label { min-height: 0; padding: 0; line-height: 1; }
-  /* The cell is barely wider than its own number here; the secondary
-     shrinks with it and is clipped rather than pushing the grid out. */
   main.calendar .date h3 { overflow: hidden; white-space: nowrap; }
   main.calendar .date h3 .day-secondary { font-size: 0.6rem; }
   main.calendar .date ul { padding-inline-start: 0; }
@@ -5568,8 +4727,6 @@ h1.no-word .title-short {
 }
 
 
-/* The cell pads the card the way the header cells pad their words,
-   so the box sits inside the same edges as the lines above it. */
 main.message td.warning-cell {
   padding: var(--space-1) var(--space-2);
 }
@@ -5610,8 +4767,6 @@ main.message td.warning-cell {
 
 
 
-/* An invitation in the rail: what is offered, by whom, and the two
-   answers, stacked so a long name or address takes its own line. */
 aside li.rail-invitation {
   flex-direction: column;
   align-items: flex-start;
@@ -5625,8 +4780,6 @@ aside li.rail-invitation {
   gap: var(--space-1);
 }
 
-/* The rail's own buttons are bare, which suits a row of places; an
-   answer is an action and wears the button every form does. */
 aside .rail-invitation-answer button:not(.button-quiet) {
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--border);
@@ -5635,9 +4788,6 @@ aside .rail-invitation-answer button:not(.button-quiet) {
 
 aside .rail-invitation-answer button { padding: var(--space-1) var(--space-2); }
 
-/* A collection's kind beside its name in the rail: a feed, a published
-   calendar or someone else's. The ink of a hint, the size of the text,
-   and no room taken from the name it follows. */
 .rail-mark {
   display: inline-flex;
   flex: none;

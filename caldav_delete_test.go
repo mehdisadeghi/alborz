@@ -15,13 +15,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// davCal is one calendar the stub lists.
 type davCal struct{ name, color string }
 
-// davStub answers the CalDAV a collection's create and delete need:
-// principal and home-set discovery, a home-set listing, MKCALENDAR and
-// DELETE. A path in refuse answers DELETE with 403; one in keep answers
-// 204 but stays listed, as some servers do.
+// davStub answers the CalDAV a collection's create and delete need. A path in
+// refuse answers DELETE with 403; one in keep answers 204 but stays listed.
 type davStub struct {
 	cals   map[string]davCal
 	refuse map[string]bool
@@ -44,7 +41,6 @@ func (s *davStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "DELETE":
 		s.deleteColl(w, r)
 	case "REPORT":
-		// A calendar-query on a collection holding no objects.
 		writeMS(w)
 	default:
 		w.WriteHeader(http.StatusOK)
@@ -134,7 +130,6 @@ func (s *davStub) deleteColl(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// startAlborzDav starts alborz over the IMAP rig and a CalDAV stub.
 func startAlborzDav(t *testing.T, imapAddr, davURL string) string {
 	t.Helper()
 	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
@@ -164,9 +159,6 @@ func startAlborzDav(t *testing.T, imapAddr, davURL string) string {
 const personalDelete = "/calendars/%2Fdav%2Fcalendars%2Fu%2Fpersonal%2F/delete"
 const personalPage = "/calendars/%2Fdav%2Fcalendars%2Fu%2Fpersonal%2F"
 
-// A delete is reported by what the server did, not by its status line:
-// a refusal and a 2xx that kept the collection both leave it on its
-// page with a message; only a collection that is gone is confirmed.
 func TestCollectionDeleteReportsItsOutcome(t *testing.T) {
 	personal := davHome + "personal/"
 	stub := &davStub{

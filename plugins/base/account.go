@@ -20,17 +20,13 @@ func handleLogin(ctx *alborz.Context) error {
 		CanRememberMe bool
 		RememberDays  int
 		Add           bool
-		// Username is what was typed, kept when the form comes back
-		// refused: a rejected sign-in should not cost the address too.
-		Username string
+		Username      string
 	}{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx),
 		Username:       username,
 		CanRememberMe:  ctx.Server.Sessions.Remembers(),
-		// The label says how long the box keeps you signed in, read
-		// from the lifetime the credential cookie is actually given.
-		RememberDays: int(alborz.CredentialCookieLife().Hours() / 24),
-		Add:          add,
+		RememberDays:   int(alborz.CredentialCookieLife().Hours() / 24),
+		Add:            add,
 	}
 	if add {
 		renderData.BaseRenderData.WithTitle(ctx.T("login.add"))
@@ -38,14 +34,11 @@ func handleLogin(ctx *alborz.Context) error {
 		renderData.BaseRenderData.WithTitle(ctx.T("login.short"))
 	}
 
-	// The remembered credentials would re-login the accounts the user
-	// already has, not add a new one.
+	// Remembered credentials re-login existing accounts; they cannot add one.
 	if username == "" && password == "" && !add && ctx.RestoreRememberedAccounts() {
 		return loginRedirect(ctx)
 	}
 
-	// A form that comes back as it was left, saying nothing, reads as if
-	// nothing was sent.
 	if ctx.Request().Method == http.MethodPost && (username == "" || password == "") {
 		renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.loginmissing")}
 		return ctx.Render(http.StatusUnprocessableEntity, "login.html", &renderData)
@@ -54,8 +47,7 @@ func handleLogin(ctx *alborz.Context) error {
 	if username != "" && password != "" {
 		s, err := ctx.Server.SignIn(username, password, ctx.RealIP())
 		if err != nil {
-			// One line per refusal naming the reader's address, for a
-			// fail2ban filter on alborz's own log.
+			// One line per refusal with the client address, for fail2ban.
 			ctx.Logger().Printf("Login failed for %q from %s: %v", username, ctx.RealIP(), err)
 			text, status := ctx.SignInRefusal(err)
 			if text == "" {
@@ -76,15 +68,12 @@ func handleLogin(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "login.html", &renderData)
 }
 
-// loginRedirect honors the next parameter after a successful login.
 func loginRedirect(ctx *alborz.Context) error {
-	// A second leading slash or backslash would make the target
-	// scheme-relative, redirecting off-site.
+	// A second leading slash or backslash is scheme-relative: off-site.
 	if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != "/login" &&
 		!strings.HasPrefix(path, "//") && !strings.HasPrefix(path, "/\\") {
 		return ctx.Redirect(http.StatusFound, path)
 	}
-	// The inbox is the answer to signing in.
 	ctx.Quiet()
 	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 }
@@ -99,8 +88,6 @@ func handleLogout(ctx *alborz.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 	}
 	ctx.Server.ForgetAccount(username)
-	// Where signing out lands says it: another account's inbox, or the
-	// sign-in page.
 	ctx.Quiet()
 	if ctx.LogoutAccount(username) != nil {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")

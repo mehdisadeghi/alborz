@@ -18,17 +18,10 @@ import (
 	"github.com/emersion/go-smtp"
 )
 
-// wrapColumn is where a line is folded. RFC 5322 2.1.1 caps a line at
-// 998 octets and asks for 78; 72 leaves room for the chevrons a reply
-// will add without pushing the result past that.
+// 72 leaves room for reply chevrons under RFC 5322 2.1.1's 78-character line.
 const wrapColumn = 72
 
-// wrapText folds long lines so the message obeys 2.1.1 - a Persian
-// paragraph typed into a textarea is one line however long it runs - and
-// marks the folds as format=flowed (RFC 3676) so a client that
-// understands it can lay the paragraph out for its own window. A line
-// that is indented or already short is left exactly as it is:
-// preformatted text is the one thing rewrapping destroys.
+// Indented or short lines are left alone: rewrapping destroys preformatted text.
 func wrapText(text string) string {
 	var out strings.Builder
 	// A reader would take a leading space as stuffing and "From " is mangled in transit (RFC 3676 4.4).
@@ -69,9 +62,7 @@ func wrapText(text string) string {
 			case len(lead)+len(cur)+1+len(w) <= wrapColumn:
 				cur += " " + w
 			default:
-				// A flowed line ends in a space: that is what says the
-				// next line continues it, and what lets the reader's
-				// client fold it differently.
+				// A trailing space marks a flowed line (RFC 3676).
 				emit(lead+cur, " "+end)
 				cur = w
 			}
@@ -107,23 +98,15 @@ func Unflow(text string, delSp bool) string {
 	return strings.Join(out, "\n")
 }
 
-// quoteMaxDepth is how deep a quoted quote is carried. A reply to a
-// reply to a reply says nothing the two above it did not, and a thread
-// that keeps all of them grows a wall of chevrons nobody reads.
+// Deeper quotes are already in the thread.
 const quoteMaxDepth = 2
 
-// quote marks up the message being answered, trimmed the way a reply is
-// expected to be: the sender's signature goes, since it is not part of
-// what they said; quotes deeper than a couple of levels go, since they
-// are already in the thread; and the blank lines a trim leaves behind
-// collapse, so the quote reads as text rather than as a gap.
 func quote(r io.Reader) (string, error) {
 	scanner := bufio.NewScanner(r)
 	var lines []string
 	for scanner.Scan() {
 		line := scanner.Text()
-		// RFC 3676 4.3: a line of exactly "-- " starts the signature,
-		// and everything after it belongs to the sender, not the point.
+		// "-- " starts the signature (RFC 3676 4.3).
 		if strings.TrimRight(line, "\r") == "-- " {
 			break
 		}
@@ -160,7 +143,6 @@ func quote(r io.Reader) (string, error) {
 	return builder.String(), nil
 }
 
-// quoteDepth counts the chevrons a line already carries.
 func quoteDepth(line string) int {
 	n := 0
 	for _, r := range line {
@@ -181,8 +163,7 @@ type Attachment interface {
 	Open() (io.ReadCloser, error)
 }
 
-// formAttachment is a file the form carried; ID names an upload the
-// session holds, which a refused send puts back on the form.
+// ID names an upload the session holds, which a refused send puts back on the form.
 type formAttachment struct {
 	*multipart.FileHeader
 	ID string
@@ -229,8 +210,6 @@ func (att *imapAttachment) Filename() string {
 	return att.Node.Filename
 }
 
-// newMessageID mints the Message-ID a message leaves with, in the
-// angle-bracket form the header carries.
 func newMessageID() string {
 	var hdr mail.Header
 	hdr.GenerateMessageID()
@@ -238,7 +217,6 @@ func newMessageID() string {
 	return "<" + id + ">"
 }
 
-// mailerName is what the User-Agent header says wrote the message.
 func mailerName(ctx *alborz.Context) string {
 	if v, _ := alborz.Build(); v != "" {
 		return alborz.BrandName + "/" + v
@@ -246,8 +224,6 @@ func mailerName(ctx *alborz.Context) string {
 	return alborz.BrandName
 }
 
-// fromAddress writes the account's address under the name its settings
-// give it, bare when they give none.
 func fromAddress(settings *Settings, address string) string {
 	if settings.From == "" {
 		return address
@@ -262,51 +238,32 @@ type OutgoingMessage struct {
 	Bcc       []string
 	Subject   string
 	MessageID string
-	// Mailer names the software that wrote the message, for the
-	// conventional User-Agent header; empty leaves the header out.
+	// Mailer is the User-Agent header; empty leaves it out.
 	Mailer string
 	// Headers are set as they are, for what only a plugin knows to say.
 	Headers   map[string]string
 	InReplyTo string
-	// References is the thread this message belongs to, oldest first
-	// (RFC 5322 3.6.4). Gmail and Thunderbird thread on it before
-	// In-Reply-To, which is why a long thread scattered without it.
+	// References is the thread this message belongs to, oldest first.
 	References string
-	// CalendarMethod turns the body into a scheduling message: the text
-	// is an iCalendar object and the method rides the content type, which
-	// is what makes the receiving client act on it rather than file it
-	// as a document (RFC 6047 2.4). Empty for ordinary mail.
+	// CalendarMethod makes the body a scheduling message with this method (RFC 6047); empty for ordinary mail.
 	CalendarMethod string
-	// ReplyTo is where answers should go when that is not the From
-	// (RFC 5322 3.6.2): a personal address writing under a shared one,
-	// or a send from an identity whose mailbox is elsewhere.
+	// ReplyTo is where answers should go when that is not the From.
 	ReplyTo []string
-	// Sender is the mailbox transmitting for a different author
-	// (RFC 5322 3.6.2). Sending under one's own identity is not that
-	// case and sets nothing here; only a true on-behalf-of send would.
+	// Sender is the mailbox transmitting for a different author; empty for one's own identity.
 	Sender string
 	// Language is what the body is written in, for Content-Language.
 	Language string
 	Text     string
-	// QuoteBelow says the quoted message sits under the space the reply
-	// is written in, so the compose form can put the cursor there.
+	// QuoteBelow puts the quoted message under the reply, where the cursor goes.
 	QuoteBelow bool
-	// HTML is the message as written in the editor, sent as the writer
-	// left it beside the text a client that wants none reads. Empty for
-	// a message written as text. QuoteHTML is the message being
-	// answered as the editor may quote it, for the page alone: the
-	// original's HTML with every image and script gone, so a tracker in
-	// it is not passed on to the next reader.
+	// HTML is the editor's message; QuoteHTML is the answered message's HTML without images or scripts, for the page alone.
 	HTML      string
 	QuoteHTML template.HTML
-	// QuoteRich opens the editor on QuoteHTML: a reply or forward keeps
-	// the format of an HTML original.
+	// QuoteRich opens the editor on QuoteHTML.
 	QuoteRich bool
 	// Inline are the images the HTML shows, resolved for the send.
 	Inline []inlineImage
-	// SendHTML adds an alternative part carrying the direction each
-	// paragraph runs in. The plain part stays exactly what was typed,
-	// so a client preferring plain text sees no change at all.
+	// SendHTML adds an HTML alternative carrying each paragraph's direction.
 	SendHTML    bool
 	Attachments []Attachment
 }
@@ -359,10 +316,7 @@ func prepareAddressList(addresses []string) ([]*mail.Address, error) {
 	return l, nil
 }
 
-// WriteMessage writes the message as RFC 5322 bytes. Not WriteTo: that
-// name belongs to io.WriterTo, which returns the count written, and a
-// method that takes the name without the signature is one a caller can
-// hand to something expecting the interface.
+// WriteMessage writes the message as RFC 5322 bytes; not WriteTo, whose name belongs to io.WriterTo.
 func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	fromAddr, err := mail.ParseAddress(msg.From)
 	if err != nil {
@@ -406,8 +360,6 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	if msg.References != "" {
 		h.Set("References", msg.References)
 	}
-	// RFC 3282: the language the body is written in, which a mixed-script
-	// mailbox has reason to state and nobody can infer.
 	if msg.Language != "" {
 		h.Set("Content-Language", msg.Language)
 	}
@@ -430,22 +382,15 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	}
 
 	var th mail.InlineHeader
-	// format=flowed says the soft line breaks above may be undone, so a
-	// paragraph lays itself out in the reader's window instead of at our
-	// column (RFC 3676). A client that does not know it sees text
-	// wrapped at 72, which is what 5322 asks for anyway.
+	// format=flowed lets the reader's client undo the soft breaks (RFC 3676).
 	th.Set("Content-Type", "text/plain; charset=utf-8; format=flowed")
 	body := wrapText(msg.Text)
 	if msg.CalendarMethod != "" {
-		// An iCalendar body is not flowed text: its line breaks are the
-		// format, and rewrapping it would break the object.
+		// An iCalendar body's line breaks are its format; rewrapping would break it.
 		th.Set("Content-Type", "text/calendar; charset=utf-8; method="+msg.CalendarMethod)
 		body = msg.Text
 	}
 
-	// An iCalendar body is its own format and takes no alternative; and
-	// with nothing to say about direction there is no reason to send
-	// two parts where one will do.
 	switch {
 	case msg.HTML != "" && msg.CalendarMethod == "":
 		if err := writeAlternative(mw, th, body, msg.HTML, msg.Inline); err != nil {
@@ -520,13 +465,7 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
 	return nil
 }
 
-// writeAlternative sends the text alongside an HTML part: the message
-// as the editor left it, or one that adds nothing but which way each
-// paragraph runs. The plain part comes first, which is what
-// multipart/alternative means by least-preferred first (RFC 2046
-// 5.1.4): a client that wants plain text takes it. The images the HTML
-// shows go beside it in a multipart/related (RFC 2387), which the
-// plain part has no use for.
+// The plain part comes first: multipart/alternative orders least preferred first (RFC 2046 5.1.4).
 func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody string, images []inlineImage) error {
 	iw, err := mw.CreateInline()
 	if err != nil {
@@ -574,13 +513,10 @@ func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody stri
 	return iw.Close()
 }
 
-// writeRelated writes the HTML and the images it shows as one
-// multipart/related inside the alternative.
 func writeRelated(iw *mail.InlineWriter, htmlBody string, images []inlineImage) error {
 	var rh mail.InlineHeader
 	rh.Set("Content-Type", `multipart/related; type="text/html"`)
-	// A multipart is never encoded; left unset, the writer would pick
-	// quoted-printable for it.
+	// Left unset, the writer would pick base64 for a multipart, which is never encoded.
 	rh.Set("Content-Transfer-Encoding", "7bit")
 	part, err := iw.CreatePart(rh)
 	if err != nil {

@@ -16,28 +16,23 @@ import (
 // ErrNoStoreEntry is returned by Store.Get when the entry doesn't exist.
 var ErrNoStoreEntry = fmt.Errorf("alborz: no such entry in store")
 
-// Store keeps an account's settings. A write it cannot keep is
-// errors.ErrUnsupported.
-//
-// Store must not be used from inside Login.DoIMAP.
+// Store keeps an account's settings; an unkeepable write is errors.ErrUnsupported.
+// It must not be used from inside Login.DoIMAP.
 type Store interface {
 	Get(ctx context.Context, key string, out any) error
 	Put(ctx context.Context, key string, v any) error
 }
 
-// Settings is a store that holds what it is given past the login, and
-// can say what it holds and give it back.
+// Settings is a Store that can list and forget what it holds.
 type Settings interface {
 	Store
 	Entries(ctx context.Context) ([]string, error)
 	Forget(ctx context.Context) error
-	// OnServer says the account's own server holds them.
+	// OnServer reports whether the account's own server holds them.
 	OnServer() bool
 }
 
-// newStore picks where the account's settings live: its server's
-// METADATA, else alborz's own database, else nowhere. It runs under the
-// manager's lock.
+// newStore runs under the manager's lock.
 func (sm *LoginManager) newStore(login *Login) (Store, error) {
 	var metadata bool
 	err := login.DoIMAP(func(c *imapclient.Client) error {
@@ -72,8 +67,7 @@ func (ctx *Context) SaveRefusal(err error) string {
 	return fmt.Sprintf(ctx.T("form.saverefused"), err)
 }
 
-// noStore is an account with nowhere to keep settings: every read is the
-// default and every write is refused.
+// noStore reads defaults and refuses every write.
 type noStore struct{}
 
 func (noStore) Get(context.Context, string, any) error { return ErrNoStoreEntry }
@@ -87,8 +81,7 @@ func (s *imapMetadataStore) key(key string) string {
 	return vendorRoot + "/" + key
 }
 
-// storeMemo holds one request's METADATA reads, so a page asking for an
-// entry twice asks the server once. It never outlives the request.
+// storeMemo holds one request's METADATA reads, so an entry is fetched once.
 type storeMemo struct {
 	mu      sync.Mutex
 	entries map[memoKey][]byte
@@ -119,7 +112,6 @@ func (m *storeMemo) forget(login *Login, key string) {
 	m.mu.Unlock()
 }
 
-// fetch is the entry as the server holds it now, nil where it has none.
 func (s *imapMetadataStore) fetch(ctx context.Context, key string) ([]byte, error) {
 	var entries map[string]*[]byte
 	err := s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
@@ -168,9 +160,8 @@ func (s *imapMetadataStore) Get(ctx context.Context, key string, out any) error 
 	return nil
 }
 
-// Put merges into the entry as the server holds it at the moment of
-// writing. METADATA has no compare-and-set, so a write in between the
-// two round trips is still lost.
+// Put merges into the entry as the server holds it now. METADATA has no
+// compare-and-set, so a concurrent write may still be lost.
 func (s *imapMetadataStore) Put(ctx context.Context, key string, v any) error {
 	defer memoOf(ctx).forget(s.login, key)
 	was, err := s.fetch(ctx, key)
@@ -194,13 +185,11 @@ func (s *imapMetadataStore) Put(ctx context.Context, key string, v any) error {
 // vendorRoot is where RFC 5464 puts a vendor's private entries.
 const vendorRoot = "/private/vendor/alborz"
 
-// settingKeys is every setting key a plugin stores. The entries are
-// asked for by name: go-imap writes the DEPTH option after the mailbox,
-// which Dovecot answers with BAD.
+// settingKeys are asked for by name because go-imap writes the DEPTH option
+// after the mailbox, not before it as RFC 5464 requires.
 var settingKeys = []string{httpPasswordKey, servicesKey, profileKey}
 
-// RegisterSetting names a key a plugin stores, so the account
-// holder can see and empty what is held.
+// RegisterSetting names a key a plugin stores, so the account holder can see and empty it.
 func RegisterSetting(key string) {
 	settingKeys = append(settingKeys, key)
 }
@@ -259,8 +248,6 @@ func (s *imapMetadataStore) Forget(ctx context.Context) error {
 
 func (s *imapMetadataStore) OnServer() bool { return true }
 
-// localStore keeps an account's settings in alborz's own database, for
-// a server with no METADATA.
 type localStore struct {
 	records *settingsRecords
 	account string

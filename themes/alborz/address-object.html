@@ -36,9 +36,6 @@
         {{end}}
         <div class="subject-row">
           <h1>{{.AddressObject.DisplayName}}</h1>
-          {{/* One star for this contact, the same control the message
-               page has: a click sets and clears, the chevron holds the
-               seven. */}}
           {{ template "flag-menu" (dict
              "toggle" true
              "form" "contact-color-form"
@@ -83,10 +80,6 @@
           <dt>{{$.T "contacts.notes"}}</dt>
           <dd>{{ template "user-text" . }}</dd>
           {{end}}
-          {{/* The two ways a card says it belongs with others: the
-               words it carries (RFC 6350 6.7.1) and the groups that
-               name it (6.6.5). Both are lines of the same list, since
-               to a reader they are the same fact. */}}
           {{with .AddressObject.Categories}}
           <dt>{{$.T "contacts.categories"}}</dt>
           <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="/contacts?category={{$word | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>
@@ -107,9 +100,6 @@
           </dd>
           {{end}}
         </dl>
-        {{/* Joining a group is naming one that exists or writing a name
-             that does not; either way the group's own card is what
-             changes. */}}
         <form method="post" action="{{.AddressObject.URL}}/group{{$acct}}" class="group-form">
           <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
           <label for="group">{{$.T "contacts.addtogroup"}}</label>
@@ -126,8 +116,6 @@
            "action" (printf "/contacts/%s/note%s" (.AddressObject.Path | pathescape) $acct)
            "next" .GlobalData.URL.RequestURI
            "label" ($.T "common.addnote") "add" ($.T "common.add")) }}
-        {{/* No created date: a vCard has no property for one, and REV
-             is the last revision rather than the first. */}}
         {{ template "object-dates" (dict "g" $.Global
            "modified" .Modified
            "createdLabel" ($.T "common.added") "modifiedLabel" ($.T "common.modified")

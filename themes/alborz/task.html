@@ -16,14 +16,9 @@
 
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "newhref" (printf "/tasks/create%s" $acct) "back" .List "newlabel" ($.T "tasks.new")) }}
-        {{/* The same grammar the mail toolbar has: a pinned action,
-             then marks, in icons of one size. A word beside an icon
-             reads as two toolbars sharing a row. */}}
         <span class="icon-group">
           {{ $done := eq $status "COMPLETED" }}
           {{ $mark := $.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = $.T "tasks.markincomplete" }}{{ end }}
-          {{/* Marking a task settles it, as marking a message unread
-               does, so the page gives way to the list it came from. */}}
           <form action="{{.Task.URL}}/complete{{$acct}}" method="post" hx-boost="false">
             <input type="hidden" name="next" value="{{.List}}">
             {{ if $done }}<input type="hidden" name="reopen" value="1">{{ end }}
@@ -50,8 +45,6 @@
       <section class="details">
         <div class="subject-row">
           <h1 class="{{if eq $status "COMPLETED"}}completed{{end}}">{{$summary}}</h1>
-          {{/* One star for this task, the same control the message page
-               has: a click sets and clears, the chevron holds the seven. */}}
           {{ template "flag-menu" (dict
              "toggle" true
              "form" "task-color-form"

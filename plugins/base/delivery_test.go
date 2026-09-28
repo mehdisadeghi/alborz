@@ -8,9 +8,7 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-// The headers of list mail delivered straight to the account, not to an
-// alias: the list only offers a mailto to leave, and the message names
-// the list, not the reader, in To.
+// List mail delivered straight to the account, offering only a mailto to leave.
 const listHeader = `Return-Path: <lists@sr.ht>
 Delivered-To: mehdi@mehdix.org
 Received: from mail-a.sr.ht (mail-a.sr.ht [46.23.81.152])
@@ -56,15 +54,12 @@ func TestDeliveryHeadersAreBelievedOnlyBehindOurOwnReceived(t *testing.T) {
 	if _, cut := deliveryAddresses(h, ""); cut == 0 {
 		t.Errorf("with no server named there is nothing to measure against, so everything counts")
 	}
-	// A server the reader named as theirs that wrote no Received here
-	// did not deliver this message; whatever sits on top is a stranger's.
+	// A named server that wrote no Received here did not deliver this message.
 	if _, cut := deliveryAddresses(h, "mail.example.org"); cut != 0 {
 		t.Errorf("headers above a stranger's Received were believed: cut %d", cut)
 	}
 }
 
-// Alias mail the sender addressed to the alias itself: the delivery
-// path and the To header say the same thing.
 const aliasHeader = `Return-Path: <bounce@example.net>
 Delivered-To: mx@43.yt
 Received: from relay.example.net ([192.0.2.1])

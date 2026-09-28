@@ -24,20 +24,17 @@ import (
 )
 
 const (
-	// syncWait is how long a read waits for a collection's first copy
-	// before asking the server itself, well inside requestTimeout.
+	// syncWait is how long a read waits for a first copy before asking the server, well inside requestTimeout.
 	syncWait = 4 * time.Second
 	// syncBudget bounds one collection's sync, every round trip of it.
 	syncBudget = 30 * time.Second
-	// tick is the loop's pace; what would go stale before the next one
-	// is synced now.
+	// tick is the loop's pace; what would go stale before the next one is synced now.
 	tick        = 10 * time.Second
 	syncWorkers = 4
 	lockTimeout = 5 * time.Second
 )
 
-// Mirror keeps a copy of each remote collection an account reads, in
-// step with its server (ADR 53), and answers the pages' reads from it.
+// Mirror keeps a copy of each remote collection an account reads, in step with its server (ADR 53).
 // A nil Mirror keeps nothing: every read goes to the server.
 type Mirror struct {
 	db   kv.DB
@@ -45,8 +42,7 @@ type Mirror struct {
 	wire wire
 	poll time.Duration
 
-	// saving orders a sync's result against the own writes and
-	// sign-outs that landed while it ran.
+	// saving orders a sync's result against own writes and sign-outs made while it ran.
 	saving  sync.Mutex
 	mu      sync.Mutex
 	readers map[string]*reader
@@ -55,20 +51,16 @@ type Mirror struct {
 	work    sync.WaitGroup
 }
 
-// reader is what the process knows of one account between requests.
 type reader struct {
-	// out is the account's way to its servers, as its last request had
-	// it: syncs behind the pages go out the same way.
+	// out is the account's way to its servers as its last request had it; background syncs use it.
 	out   http.RoundTripper
 	colls map[string]*collection
 }
 
-// collection is what the process knows of one of the account's.
 type collection struct {
 	syncing chan struct{}
 	failed  time.Time
-	// writes counts own writes; a sync that began before one read the
-	// collection as it was.
+	// writes counts own writes; a sync that began before one read a stale collection.
 	writes uint64
 	// read says it was read since start, so the loop keeps it in step.
 	read bool
@@ -83,13 +75,9 @@ func (r *reader) coll(p string) *collection {
 	return c
 }
 
-// mirrored is a collection's copy as kept: where it is, and how far it is
-// in step.
 type mirrored struct {
 	URL string
-	// Token is the collection's DAV:sync-token; NoSync says the server
-	// answers none and the copy is compared by etag, skipped while CTag
-	// stands.
+	// NoSync says the server has no sync token; the copy is compared by etag, skipped while CTag stands.
 	Token, CTag string
 	NoSync      bool
 	Synced      time.Time
@@ -108,8 +96,7 @@ type object struct {
 	Data       []byte
 }
 
-// The keys: the last visit, each collection's record, and its objects,
-// every part hashed so the file names nobody.
+// Every key part is hashed so the file names nobody.
 const owner = "dav.mirror"
 
 func hashed(s string) string {
@@ -120,8 +107,7 @@ func hashed(s string) string {
 func heldKey(u, coll string) string    { return owner + "/held/" + u + "/" + hashed(coll) }
 func objectsKey(u, coll string) string { return owner + "/objects/" + u + "/" + hashed(coll) + "/" }
 
-// OpenMirror opens the kind's copies in dir and starts keeping them in
-// step. A cache directory is the app's to make (XDG Base Directory).
+// OpenMirror opens the kind's copies in dir and starts keeping them in step.
 func OpenMirror(dir string, kind Kind, key *fernet.Key) (*Mirror, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
@@ -174,7 +160,6 @@ func (m *Mirror) open(sealed []byte, v any) error {
 	return json.Unmarshal(fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{m.key}), v)
 }
 
-// scan opens every record under prefix.
 func scan[T any](m *Mirror, prefix string) ([]T, error) {
 	var out []T
 	err := m.db.View(func(tx kv.Tx) error {
@@ -221,7 +206,7 @@ func (m *Mirror) etags(u, coll string) (map[string]string, error) {
 	return tags, err
 }
 
-// reader is the account's; the caller holds mu.
+// The caller holds mu.
 func (m *Mirror) reader(u string) *reader {
 	r, ok := m.readers[u]
 	if !ok {
@@ -231,15 +216,13 @@ func (m *Mirror) reader(u string) *reader {
 	return r
 }
 
-// note records the account's way out.
 func (m *Mirror) note(u string, out http.RoundTripper) {
 	m.mu.Lock()
 	m.reader(u).out = out
 	m.mu.Unlock()
 }
 
-// Transport answers the reads of collections the mirror holds and
-// passes everything else to next, the way to the account's servers.
+// Transport answers reads of held collections and passes everything else to next.
 func (m *Mirror) Transport(username string, next http.RoundTripper) http.RoundTripper {
 	if m == nil {
 		return next
@@ -264,8 +247,7 @@ func (t tripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.next.RoundTrip(req)
 }
 
-// collectionOf is the collection a request reads: a query names it, an
-// object read names its parent.
+// collectionOf is the collection a request reads: a query names it, an object read its parent.
 func collectionOf(p string) string {
 	if strings.HasSuffix(p, "/") {
 		return p
@@ -298,9 +280,7 @@ func (t tripper) read(req *http.Request) (*http.Response, error) {
 	return respond(t.m.wire.handler(target.Path, objects), req), nil
 }
 
-// ready says whether the collection's copy can answer: one held is,
-// however old, and a stale one is synced behind the page; one not held
-// is synced first, for as long as a reader should wait.
+// ready says whether the copy can answer: a held one can, however old; one not held is synced first.
 func (m *Mirror) ready(ctx context.Context, u string, target *url.URL) (bool, error) {
 	h, ok, err := m.held(u, target.Path)
 	if err != nil {
@@ -330,8 +310,7 @@ func (m *Mirror) ready(ctx context.Context, u string, target *url.URL) (bool, er
 	return ok, err
 }
 
-// start syncs the collection unless a sync of it is under way, and
-// says when it is over; began is false for one already under way.
+// start syncs the collection unless a sync is under way, in which case began is false.
 func (m *Mirror) start(ctx context.Context, u string, target *url.URL) (done <-chan struct{}, began bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -427,10 +406,8 @@ func (t tripper) write(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// wrote applies an own write to the copy (ADR 20): the object as sent,
-// under the ETag the server gave it, since a server that names one
-// stored it octet for octet (RFC 4791 5.3.4, RFC 6352 6.3.2.3). Without
-// one, or refused, the copy is synced on its next read.
+// wrote applies an own write to the copy (ADR 20); an ETag means stored octet for octet
+// (RFC 4791 5.3.4, RFC 6352 6.3.2.3). Without one, or refused, the next read syncs.
 func (m *Mirror) wrote(u string, req *http.Request, body []byte, resp *http.Response) error {
 	p := req.URL.Path
 	if strings.HasSuffix(p, "/") || req.Method != http.MethodPut && req.Method != http.MethodDelete {
@@ -480,8 +457,7 @@ func (m *Mirror) drop(u, coll string) error {
 	})
 }
 
-// Forget drops everything kept for an account: signing out ends the
-// only authority the mirror had to keep it.
+// Forget drops everything kept for an account: signing out ends the mirror's authority to keep it.
 func (m *Mirror) Forget(username string) error {
 	if m == nil {
 		return nil
@@ -503,9 +479,7 @@ func (m *Mirror) forget(u string) error {
 	})
 }
 
-// Refresh syncs every collection the account holds now, on the caller's
-// time. A sync under way is followed by one of its own, since it may
-// have begun before the change the reader asked to see.
+// Refresh syncs every held collection now; a sync under way is followed by a new one, as it may predate the change.
 func (m *Mirror) Refresh(ctx context.Context, username string, next http.RoundTripper) error {
 	if m == nil {
 		return nil

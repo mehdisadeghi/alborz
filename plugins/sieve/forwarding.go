@@ -10,24 +10,19 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// Forwarding is what the forwarding page composes: where a message goes,
-// one address per rule, and whether one stays here as well. Keeping is
-// one choice for all of them: a single redirect without :copy cancels
-// the copy for the message, whatever the other rules say.
+// Forwarding keeps one Keep for all rules: one redirect without :copy cancels the copy.
 type Forwarding struct {
 	Forwards []Forward
 	Keep     bool
 }
 
-// A Forward that is off stays in the script under a test that never
-// holds, so it is read back whole and any client still shows it.
+// Forward is one address; one that is off stays in the script under a test that never holds.
 type Forward struct {
 	Address string
 	Off     bool
 }
 
-// forwardLine matches one line of a script the page wrote itself; a
-// script that holds anything else was edited by hand.
+// forwardLine matches only what the page writes; anything else was edited by hand.
 var forwardLine = regexp.MustCompile(`^redirect( :copy)? ` + quoted + `;$`)
 
 const forwardOff = "if false {"
@@ -54,9 +49,7 @@ func (f Forwarding) script() string {
 	return b.String()
 }
 
-// readForwarding reads the page's own shape back. ok is false for a
-// script written by someone else, which the page must not pretend to
-// understand.
+// readForwarding returns ok false for a script the page did not write.
 func readForwarding(content string) (f Forwarding, ok bool) {
 	f.Keep = true
 	off := false
@@ -87,19 +80,13 @@ func readForwarding(content string) (f Forwarding, ok bool) {
 type ForwardingRenderData struct {
 	alborz.BaseRenderData
 	Forwarding
-	// Loaded fingerprints the script as the page read it, empty when
-	// there was none; every write checks the server still holds that.
 	Loaded string
-	// ByHand says the script exists but is not the page's own shape;
-	// Script names it, for the link to the raw editor.
+	// ByHand says the script exists in a shape the page did not write.
 	ByHand bool
 	Script string
-	// CanKeep says the server can file a copy while forwarding, and
-	// CanWire that it can run one script from another, without which
-	// the page has no way to put its script in front of the reader's.
+	// CanKeep and CanWire say the server supports :copy and include.
 	CanKeep bool
 	CanWire bool
-	// Address is what the create form holds, and Error what it answers.
 	Address string
 	Rail    map[string][]alborz.RailRow
 }
@@ -142,8 +129,6 @@ func handleForwardingCreate(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "forwarding-create.html", data)
 }
 
-// changeForwarding rewrites the script with the change applied, and
-// refuses a script changed elsewhere or written by hand.
 func changeForwarding(ctx *alborz.Context, change func(f *Forwarding)) error {
 	loaded := ctx.FormValue("loaded")
 	return ctx.DoSieve(func(c alborz.SieveClient) error {
@@ -215,8 +200,6 @@ func handleForwardingKeep(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
 }
 
-// answer returns to a page - the one the form came from, or path -
-// saying what happened: a change made elsewhere, a refusal, or the save.
 func answer(ctx *alborz.Context, err error, path, saved string) error {
 	switch {
 	case errors.Is(err, errChanged{}):

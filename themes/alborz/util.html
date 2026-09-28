@@ -1,14 +1,8 @@
-{{/* One toolbar icon, named by sprite id. The label is the tooltip and
-     the accessible name at once: the button carries no text. */}}
 {{ define "icon" }}
 <svg class="icon icon-{{.}}" aria-hidden="true" focusable="false"><use href="#i-{{.}}"/></svg>
 {{ end }}
 
-{{/* A line added to what an object already says. Open on the page
-     rather than behind an edit form: adding a sentence to a task should
-     not mean entering a form, saving, and coming back. It appends,
-     dated, so the field reads as a record rather than as one sentence
-     somebody overwrote. dict: action next label add. */}}
+{{/* dict: action next label add. */}}
 {{ define "note-box" }}
 <form class="note-box" method="post" action="{{.action}}">
   <input type="hidden" name="next" value="{{.next}}">
@@ -18,17 +12,7 @@
 </form>
 {{ end }}
 
-{{/* When an object was written down and when it last changed. Every
-     store keeps both - iCalendar in CREATED and LAST-MODIFIED (3.8.7.1
-     and 3.8.7.3), vCard in REV (6.7.4), WebDAV in getlastmodified - and
-     alborz fetched them and dropped them. They are what tells two
-     similar entries apart. Either may be absent - a vCard has no
-     created date at all - so both are optional and the whole line
-     disappears when neither is known. By whom, too, where that is
-     another account: a collection several accounts write to has no
-     other place that says it.
-     dict: g [created createdLabel] [modified modifiedLabel] [authors
-     bylabel]. */}}
+{{/* dict: g [created createdLabel] [modified modifiedLabel] [authors bylabel]. */}}
 {{ define "object-dates" }}
 {{ $created := .created }}{{ if not $created }}{{ $created = zerotime }}{{ end }}
 {{ $modified := .modified }}{{ if not $modified }}{{ $modified = zerotime }}{{ end }}
@@ -45,51 +29,21 @@
 {{ end }}
 {{ end }}
 
-{{/* A field that needs teaching carries its own explanation: a mark
-     beside the caption that opens one line and one example. No script -
-     details and summary are enough - and no tooltip, since a tooltip is
-     invisible on a touch screen and unreadable by anyone reading with a
-     keyboard. dict: text [example]. */}}
-{{/* What a field needs said, said under it. A hint, not a disclosure:
-     a panel that opens has to escape whatever layout the form is - and
-     in a two-column grid it landed under the next input - while a line
-     under the control sits wherever the control sits, in every form,
-     at one size, with no state to get wrong. The example is the one
-     part set apart, because it is literal syntax.
-     dict: text [example]. */}}
+{{/* dict: text [example]. */}}
 {{ define "hint" }}
 <p class="hint">{{.text}}{{ with .example }} <code>{{.}}</code>{{ end }}</p>
 {{ end }}
 
-{{/* An identifier - an address, a domain, a host - printed inside a
-     paragraph that may run the other way. It reads left to right on
-     its own, so it is isolated from the text around it rather than
-     ordered by it. */}}
 {{ define "ltr" }}<bdi class="ltr">{{.}}</bdi>{{ end }}
 
-{{/* The path to what is on screen, each step leading to it. With more
-     than one account signed in the path starts at all of them, the
-     section's merged view, which the steps then narrow; every step
-     keeps the scope the URL carries. An address reads left to right
-     whatever the page does; a step with no URL is a folder that cannot
-     be opened, and is named without pretending to lead anywhere; a
-     step with no name is not on the path at all. A section with no
-     merged view, settings, starts at the account: noroot.
-     dict: g home steps class [noroot]. */}}
+{{/* dict: g home steps class [noroot]. */}}
 {{ define "crumb" }}
 {{ $account := .g.GlobalData.URLAccount }}
-{{/* With one account there is nothing to choose, so the account step
-     is dropped here the way the rail drops its heading. */}}
 {{ $several := gt (len .g.GlobalData.Accounts) 1 }}
 <div class="context-crumb">
   {{- $sep := false }}
   {{- if and $several (not .noroot) }}<a href="{{ .home }}">{{ .g.T "nav.allaccounts" }}</a>{{ $sep = true }}{{ end }}
-  {{- /* The last linked step is the way up from the page, which is
-          what u means on the keyboard; a step after it names the page
-          itself. */ -}}
   {{- $up := -1 }}{{ range $i, $s := .steps }}{{ if and $s.Label $s.URL (or $several (not $s.Address)) }}{{ $up = $i }}{{ end }}{{ end }}
-  {{- /* heading: the step that names the page is the page's heading,
-          so a list toolbar need not say it a second time. */ -}}
   {{- $last := -1 }}{{ range $i, $s := .steps }}{{ if and $s.Label (or $several (not $s.Address)) }}{{ $last = $i }}{{ end }}{{ end }}
   {{- range $i, $step := .steps }}{{ if and $step.Label (or $several (not $step.Address)) }}
     {{- if $sep }} › {{ end }}{{ $sep = true }}
@@ -100,24 +54,10 @@
 </div>
 {{ end }}
 
-{{/* The path above a calendar, task or contact page. It reads the same
-     way the mail one does - account, then section, then the collection
-     - so the two do not drift apart. The account is the one the URL
-     names; the merged view has none. A page with no
-     collection to name stops after the section, a create form among
-     them: it lands where the path says. A page of its own under the
-     section, such as an account's signatures, names no field: its
-     path is the step's URL. A form that offers a choice of account
-     names none: chooses. A list narrowed from its rail names the
-     collection it was narrowed to: items, with at and keep for the
-     view that step returns to when it is not home's.
-     dict: g section home field collection path [noroot chooses items at keep]. */}}
+{{/* dict: g section home field collection path [noroot chooses items at keep]. */}}
 {{ define "dav-crumb" }}
 {{ $account := .g.GlobalData.URLAccount }}
 {{ if .chooses }}{{ $account = "" }}{{ end }}
-{{/* A collection named like its section - the one book called
-     "Contacts" - would read "Contacts › Contacts"; its step says
-     nothing the section's does not, so it is left out. */}}
 {{ $collection := .collection }}{{ $path := .path }}
 {{ range .items }}{{ if .Only }}{{ $collection = .Name }}{{ $path = .Path }}{{ end }}{{ end }}
 {{ if eq $collection .section }}{{ $collection = "" }}{{ end }}
@@ -129,73 +69,39 @@
    (dict "Label" .object))) }}
 {{ end }}
 
-{{/* The flag colours, as swatches. Each is its own submit, so the
-     picker needs no script and no select; the clearing one carries the
-     empty colour, which unflags. dict: action form colors clear. */}}
-{{/* The colours as a menu rather than a row of swatches: a star in
-     each colour beside the name of it, one line each, the way a mail
-     client has always offered them. dict: form action colors clear
-     current [class]. */}}
-{{/* dict: form action title clear colors [current class disabled].
-     The colours act on the checked rows, so the menu is gated like
-     every other control that does: helpers.js disables it with the
-     selection, and a container with nothing in it renders it dim from
-     the start, since there is nothing there to check. */}}
-{{/* What a listing is narrowed by, above it, one chip each. A chip is
-     the attachment chip's box and its link removes that narrowing, so a
-     reader who came back to a filtered page can see why the list is
-     short and undo it in one click. Every list uses this one.
-     dict: filters clear. */}}
+{{/* dict: filters clear. */}}
 {{ define "filter-chips" }}
 {{ with .filters }}
 <div class="filter-chips">
   {{ range . }}
-  {{/* The whole value is in the tooltip, since the chip truncates it;
-       what the link does is said to a reader who cannot see the mark. */}}
   <a class="attach-chip filter-chip" href="{{ localhref .Href }}" title="{{.Label}}: {{.Value}}" aria-label="{{$.remove}}: {{.Label}} {{.Value}}">
     <span class="filter-chip-label">{{.Label}}</span>
     <span class="filter-chip-value" dir="auto">{{.Value}}</span>
     <span class="filter-chip-x" aria-hidden="true">&times;</span>
   </a>
   {{ end }}
-  {{/* What would widen the list again short of dropping a filter, each
-       (href label); one with no href is not on offer. */}}
   {{ range $.offers }}{{ if index . 0 }}<a class="filter-offer" href="{{ index . 0 }}">{{ index . 1 }}</a>{{ end }}{{ end }}
 </div>
 {{ end }}
 {{ end }}
 
-{{/* One message's star. The list row renders it, and so does the
-     answer to a mark, so a swap puts back exactly what the row had.
-     The keys are capitalised because the same block is rendered from
-     Go, where a field has to be exported to be read. ADR 13. */}}
+{{/* The keys are capitalised because the same block is rendered from Go,
+     where a field has to be exported to be read. */}}
 {{ define "row-star" }}
 <form method="POST" action="/message/{{.Mailbox | pathescape}}/flag{{.Account}}" class="row-star"
       hx-post="/message/{{.Mailbox | pathescape}}/flag{{.Account}}" hx-target="this" hx-swap="outerHTML">
   <input type="hidden" name="uids" value="{{.UID}}">
   <input type="hidden" name="next" value="{{.Next}}">
-  {{/* What the star was, for the notice that brings it back when the
-       row leaves a list narrowed to stars. */}}
   <input type="hidden" name="was" value="{{.Color}}">
-  {{/* The message page's star and chevron, the chevron shown where a
-       pointer rests on the row. Both directions go through the colour,
-       which clears the bits as well as the flag: removing \Flagged
-       alone left the colour bits behind, so a mail flagged green
-       elsewhere came back green the next time it was starred. A plain
-       \Flagged with no colour is a star with no colour of its own. */}}
+  {{/* Both directions go through the colour, which clears the colour bits
+       as well as the flag. */}}
   {{ $current := .Color }}{{ if and .Flagged (not $current) }}{{ $current = "flagged" }}{{ end }}
   {{ template "flag-menu" (dict "toggle" true "row" true "current" $current
        "title" (.G.T "mailbox.flagcolor") "clear" (.G.T "mailbox.flagnone")) }}
 </form>
 {{ end }}
 
-{{/* The seven colours and the one that clears, each a submit of its
-     own so the picker needs no script and no select. Shared by the
-     menu's two shapes. With row it is the one menu every row's chevron
-     opens: the colours are the same for every row, so the page holds
-     them once, and a script submits the row that opened it. Without
-     the script those chevrons stay hidden and a row's star still sets
-     and clears. dict: colors clear [form action id row]. */}}
+{{/* dict: colors clear [form action id row]. */}}
 {{ define "flag-colors-menu" }}
 <div class="overflow-menu flag-colors" popover id="{{ or .id "menu-flag" }}">
   {{ $d := . }}
@@ -211,17 +117,9 @@
 </div>
 {{ end }}
 
-{{/* dict: form action title clear colors [current class disabled toggle row].
-     Three shapes of one control. Dim, when nothing is selected to act
-     on. A star and a chevron - toggle - where the page is about one
-     message: the star sets and clears on a click, the chevron opens
-     the seven, because a colour is a rarer want than a star and should
-     not cost the same click. A single button otherwise, acting on the
-     rows that are checked, gated like every other control that does. */}}
+{{/* dict: form action title clear colors [current class disabled toggle row]. */}}
 {{ define "flag-menu" }}
 {{ if .disabled }}
-{{/* The live menu's element and box, inert: an empty folder's toolbar
-     is the same width as a full one's. */}}
 <div class="overflow flag-menu{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <button type="button" class="icon-button" disabled title="{{.title}}" aria-label="{{.title}}">
     <span class="flag-star">&#9734;</span>{{ template "icon" "down" }}<span class="label">{{.title}}</span>
@@ -236,8 +134,6 @@
           aria-label="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}">
     {{- if .current }}&#9733;{{ else }}&#9734;{{ end -}}
   </button>
-  {{/* A row's chevron opens the page's one colours menu, which a
-       script points at the row's form; it is shown by that script. */}}
   <button type="button" class="icon-button flag-more" title="{{.title}}" aria-label="{{.title}}" popovertarget="{{ if .row }}row-colors{{ else }}{{ or .id "menu-flag" }}{{ end }}"{{ if .row }} hidden data-row-colors{{ end }}>{{ template "icon" "down" }}</button>
   {{ if not .row }}{{ template "flag-colors-menu" . }}{{ end }}
 </div>
@@ -251,49 +147,21 @@
 {{ end }}
 {{ end }}
 
-{{/* Text somebody typed, shown as they typed it: the line breaks they
-     put in are kept, and each paragraph reads in its own script rather
-     than in the interface's. Every description, note and comment goes
-     through this - a bare {{.}} collapses their newlines into one line
-     and reads their Persian left to right. */}}
 {{ define "user-text" }}<div class="user-text" dir="auto">{{.}}</div>{{ end }}
 
-{{/* The sort control's mark, a word in the overflow menu. Takes the
-     page context for its string. */}}
 {{ define "sort-mark" }}{{ template "icon" "sort" }}<span class="label">{{.T "mailbox.sortby"}}</span>{{ end }}
 
-{{/* One toolbar button that acts on the checked rows. dict: icon label
-     form formaction [class priority]. A priority lets the row move it
-     into the overflow menu when it has no room, lowest first. */}}
-{{/* The key an action answers to, by what it does, which its icon
-     already says: Gmail's letters. keys.js presses whatever carries
-     data-key, so an action gains its key here and nowhere else. An
-     action marked final has no Undo and answers to no key and no
-     swipe: a slip of the hand must not be the end of a message. */}}
 {{ define "icon-key" }}{{ with index (dict "archive" "e" "trash" "#" "junk" "!" "notjunk" "!") . }} data-key="{{.}}"{{ end }}{{ end }}
 
-{{/* A mark with no action where it stands - archive in the Archive,
-     spam in Drafts - keeps its place, dim and inert, so the marks after
-     it do not move from one folder to the next. It names no form, which
-     is what keeps the selection script from waking it. */}}
 {{ define "action-icon" }}
 {{ if not .formaction }}<button type="button" class="icon-button{{with .class}} {{.}}{{end}}" disabled title="{{.label}}" aria-label="{{.label}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>{{ else }}
 <button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ if not .final }}{{ template "icon-key" .icon }}{{ end }}{{ with .priority }} data-priority="{{.}}"{{ end }}{{ if .download }} data-download{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>{{ end }}
 {{ end }}
 
-{{/* One sortable column header with the shared three-state cycle, read
-     from the list's one Sorting value. dict: label key s [idle class
-     target]. */}}
-{{/* What a control writes when its section can answer with a piece of
-     the page rather than the whole of it: the target, the swap and the
-     address bar. Without a target it writes nothing and the control
-     stays what it was - a link the browser follows, boosted or not.
-     dict: target href. */}}
+{{/* dict: target href. */}}
 {{ define "swaps" }}{{ with .target }} hx-get="{{$.href}}" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}{{ end }}
 
-{{/* A menu of narrowings or groupings, one row each, the one in force
-     marked: the sort menu's shape with the page's rows. dict: id icon
-     title rows [target priority class]. */}}
+{{/* dict: id icon title rows [target priority class]. */}}
 {{ define "filter-menu" }}
 <div class="overflow{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <button type="button" class="icon-button" title="{{.title}}" aria-label="{{.title}}" popovertarget="{{.id}}">{{ template "icon" .icon }}<span class="label">{{.title}}</span></button>
@@ -320,11 +188,7 @@
 
 {{ end }}
 
-{{/* A list's sort menu in its toolbar: one row per order, a tuple of
-     label and key each. A list with nothing in it keeps the control,
-     dim, so the toolbar does not change with the count. wide keeps it
-     on a desktop, where the headers do not hold every order. dict: g s
-     rows [disabled target thread wide]. */}}
+{{/* dict: g s rows [disabled target thread wide]. */}}
 {{ define "sort-menu" }}
 {{ if .disabled }}
 <span class="overflow sort-overflow{{ if .wide }} sort-wide{{ end }}" data-priority="30"><span class="icon-button" aria-disabled="true" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}">{{ template "sort-mark" .g }}</span></span>
@@ -336,8 +200,6 @@
     {{ template "sort-th" (dict "label" (index . 0) "key" (index . 1) "s" $.s "class" "button-link" "target" $.target) }}
     {{ end }}
     {{ with .thread }}
-    {{/* Not a column to order by but a shape to read in, so it sits at
-         the end of the same menu rather than among the columns. */}}
     <a class="button-link{{ if .current }} is-current{{ end }}"
        href="{{ localhref .href }}"
        {{ if .current }}aria-current="true"{{ end }}>{{.label}}</a>
@@ -347,10 +209,7 @@
 {{ end }}
 {{ end }}
 
-{{/* One sortable column's header cell. dict: s key label cell [idle
-     class hidden plain target]; hidden names a column whose label is a
-     mark, and plain is a list its server cannot sort, where a label is
-     only a label and a mark is not drawn. */}}
+{{/* dict: s key label cell [idle class hidden plain target]. */}}
 {{ define "sort-col" }}
 <div class="list-header {{.cell}}" role="columnheader" aria-sort="{{ sortaria .s.Explicit .s.Key .key .s.Dir }}">
   {{ if not .plain }}{{ template "sort-th" . }}{{ else if not .hidden }}{{.label}}{{ end }}
@@ -358,9 +217,7 @@
 </div>
 {{ end }}
 
-{{/* One folder node, nested or flat, any account: (node, "?account=x" or
-     "", highlight-allowed, active-name, global). Parents that are only path
-     prefixes render as plain names; branches stay open: no state. */}}
+{{/* (node, "?account=x" or "", highlight-allowed, active-name, global). */}}
 {{ define "mbox-node" }}
 {{ $n := index . 0 }}{{ $q := index . 1 }}{{ $onacct := index . 2 }}{{ $active := index . 3 }}{{ $g := index . 4 }}
 {{ $on := and $n.Details $onacct (eq $active $n.Details.Info.Name) }}
@@ -381,12 +238,6 @@
 {{ define "mbox-node-label" }}
 {{ $n := index . 0 }}{{ $q := index . 1 }}{{ $g := index . 2 }}
 {{ if and $n.Details (not ($n.Details.Info.HasAttr "\\Noselect")) }}
-{{/* The badge is the unread count and shows only when there is one;
-     what the folder holds in all is a hover away, since a bare name
-     otherwise reads as an empty folder. */}}
-{{/* data-folder marks a row that is one folder of one account, which
-     is what a dropped file can be imported into. A view's row - unread,
-     starred, a colour - and a merged role's row name no such thing. */}}
 <a href="{{$n.Details.Info.URL}}{{$q}}" data-folder="{{$n.Details.Info.URL}}{{$q}}"{{ template "list-get" (dict "g" $g "href" (printf "%v%s" $n.Details.Info.URL $q)) }}{{ if ge $n.Details.Info.Total 0 }} title="{{$n.Name}} · {{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ else }} title="{{$n.Name}}"{{ end }}>{{$n.Name}}</a>
 {{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$g.Num $n.Details.Info.Unseen}}</span>{{ end }}
 {{ else }}
@@ -394,40 +245,30 @@
 {{ end }}
 {{ end }}
 
-{{/* One account's folder list: (Categorized, "?account=x" or "",
-     highlight-allowed, starred, active-name, global). */}}
+{{/* (Categorized, "?account=x" or "", highlight-allowed, starred,
+     active-name, global). */}}
 {{ define "mbox-list" }}
 {{ $cc := index . 0 }}{{ $q := index . 1 }}{{ $on := index . 2 }}{{ $view := index . 3 }}{{ $active := index . 4 }}{{ $g := index . 5 }}
 {{ with $cc.InboxTree }}{{ template "mbox-node" (tuple . $q (and $on (not $view)) $active $g) }}{{ end }}
-{{/* A star view is no longer the inbox's: it looks in every folder,
-     so its row is marked wherever the page stands. Unread is still one
-     folder's state, and is marked only on the inbox. */}}
 {{ template "rail-views" (dict "q" $q "view" $view "on" $on "oninbox" (eq $active "INBOX") "g" $g) }}
 {{ range $cc.CommonNodes }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
 {{ range $cc.AdditionalTree }}{{ template "mbox-node" (tuple . $q $on $active $g) }}{{ end }}
 {{ template "rail-more-folders" (dict "n" $cc.Hidden "q" $q "g" $g) }}
 {{ end }}
 
-{{/* The folders the rail leaves out, as a count and the way to choose
-     which appear: the account's subscriptions. dict: n q g. */}}
+{{/* dict: n q g. */}}
 {{ define "rail-more-folders" }}
 {{ if .n }}<li><a class="aside-create" href="/settings/account{{.q}}#subscriptions">{{ .g.Tf "aside.morefolders" .n }}</a></li>{{ end }}
 {{ end }}
 
-{{/* The header row of the event grids; the order is the day's own, so
-     the labels do not sort. dict: time event calendar. */}}
-{{/* One date, spelled out and glossed with the secondary calendar when
-     one is chosen. dict: g (the global) and time. */}}
+{{/* dict: g time. */}}
 {{ define "date-full" }}{{ .g.FormatDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
 
-{{/* The same for a date with no time of day: a birthday, a due date. */}}
 {{ define "date-day" }}{{ .g.LongDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
 
 {{ define "event-grid-header" }}
 <div class="event-header-row list-row" role="row">
   {{ with .form }}<div class="list-header event-select list-checkbox" role="columnheader"></div>{{ end }}
-  {{/* The day's order is its own, so the star names the column and
-       does not sort it. */}}
   <div class="list-header list-star" role="columnheader"><span class="sort-header flag-sort" aria-hidden="true">&#9734;</span><span class="visually-hidden">{{.starred}}</span></div>
   {{ with .date }}<div class="list-header event-date" role="columnheader">{{.}}</div>{{ end }}
   <div class="list-header event-time" role="columnheader">{{.time}}</div>
@@ -436,21 +277,14 @@
 </div>
 {{ end }}
 
-{{/* One event of a day or agenda grid: when it happens, what it is, and
-     which calendar owns it, each in its own track. dict: href when
-     summary color owner timeLabel eventLabel calendarLabel. */}}
+{{/* dict: href when summary color owner timeLabel eventLabel calendarLabel. */}}
 {{ define "event-row" }}
 <div class="event-row list-row" role="row">
-  {{/* Where the page carries a form to check into, an event is
-       selectable like a task or a message; the day page has none and
-       the cell is not drawn at all, so no column is reserved for it. */}}
   {{ with .form }}
   <div class="event-select list-checkbox list-cell" role="cell">
     <input type="checkbox" name="paths" value="{{$.ref}}" form="{{.}}" aria-label="{{$.selectLabel}}{{with $.summary}}: {{.}}{{end}}">
   </div>
   {{ end }}
-  {{/* The star has a column of its own, as the mail list draws it; a
-       feed's event cannot be marked and its cell stays empty. */}}
   <div class="list-star list-cell" role="cell">
     {{ with .staraction }}{{ template "card-star" (dict "Action" . "Current" $.star "Next" $.next "Label" (or (and $.star $.clearLabel) $.starLabel) "MenuLabel" $.starLabel) }}{{ end }}
   </div>
@@ -460,36 +294,21 @@
     {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
     {{ if .href }}<a href="{{.href}}" dir="auto"{{ with .addedby }} title="{{.}}"{{ end }}>{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
   </div>
-  {{/* Whose calendar it is rides after the name, as the task and
-       contact rows write it, on the merged view alone. */}}
   <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}{{ template "collection-mark" (dict "g" .g "c" .collection) }}{{ with .account }}<span class="row-account" title="{{$.accountTitle}}">{{ template "ltr" . }}</span>{{ end }}</div>
 </div>
 {{ end }}
 
-{{/* The aside of the detail and edit pages.
-     dict: [newHref] newLabel [newActive] [backHref backLabel backActive]. */}}
-{{/* dict: placeholder button [account all query disabled]. A search
-     over a container the server says is empty has nothing to find, so
-     the field goes dim rather than inviting a query that cannot match.
-     A query already asked keeps it live whatever the count, or the
-     reader could not change what they asked. */}}
+{{/* dict: placeholder button [account all query disabled]. */}}
 {{ define "toolbar-search" }}
 <form method="get" class="actions-search{{ if .disabled }} is-disabled{{ end }}"{{ with .target }} hx-get="" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}>
   {{ with .account }}<input type="hidden" name="account" value="{{.}}">{{ end }}
-  {{/* What the list is already narrowed or ordered by travels with the
-       search, or asking a question would silently widen the page: a
-       search from the merged view would answer for one account, and a
-       sorted list would come back in the default order. */}}
   {{ range $name, $value := .keep }}{{ with $value }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
   <input type="text" name="query" dir="auto" value="{{.query}}" placeholder="{{.placeholder}}" aria-label="{{.placeholder}}"{{ if .disabled }} disabled{{ end }}>
   <button{{ if .disabled }} disabled{{ end }}>{{.button}}</button>
 </form>
 {{ end }}
 
-{{/* The pager of a list alborz holds whole and draws a page of, the
-     mail list's own pager over a dav.Pager. dict: g pager. */}}
-{{/* A list's pager and its page size, as mail's are: both stand on an
-     empty list too, dim, so the toolbar does not change with the count. */}}
+{{/* dict: g pager. */}}
 {{ define "list-pager" }}
 {{ with .pager }}
 {{ $range := "" }}{{ if .Total }}{{ $range = $.g.GlobalData.Tf "mailbox.range" .From .To .Total }}{{ end }}
@@ -498,8 +317,7 @@
 {{ end }}
 {{ end }}
 
-{{/* One pagination group: an optional range, then prev and next links.
-     dict: [range] [prev href label] [next href label]. */}}
+{{/* dict: [range] [prev href label] [next href label]. */}}
 {{ define "pagination" }}
 <div class="actions-pagination">
   {{ with .range }}<span class="pagination-range" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}
@@ -508,12 +326,7 @@
 </div>
 {{ end }}
 
-{{/* One step of a pager: a chevron alone where the direction is the
-     whole meaning, the chevron beside the word where the word carries
-     it - a month name, say. A step with nowhere to go keeps its place
-     and goes dim, so the toolbar does not change width, height or the
-     position of anything else between the first page and the second.
-     dict: step(href label) icon. */}}
+{{/* dict: step(href label) icon. */}}
 {{ define "pager-link" }}
 {{ with .step }}
 {{ if .label }}
@@ -528,21 +341,7 @@
 {{ end }}
 {{ end }}
 
-{{/* One list toolbar: the title on the gutter, search and pagination
-     docked right. dict: [title] [search] [pagination]. */}}
-{{/* Every list toolbar is one shape, so a fix to the shape is a fix to
-     every page: the select-all standing in the tick column, then what
-     you are looking at, a rule, the entry that creates one, then the
-     page's own actions; "toolbar-end" opens the trailing group that
-     holds search, paging and sort. A page fills the two slots and
-     shares the rest. dict: g title [subtitle] [selectall] [newhref
-     newlabel newicon]. */}}
-{{/* How many rows a page shows. Links, not a select: a select needs a
-     script to act on or a button beside it to submit, and this belongs
-     in the trailing group with the paging it changes - which is also
-     why every link drops the page number, since an offset counted in
-     the old size means nothing in the new one.
-     dict: options current base label. */}}
+{{/* dict: options current base label. */}}
 {{ define "ipp-menu" }}
 <div class="overflow ipp-overflow" data-priority="4" data-yield="hide">
   <button type="button" class="icon-button" title="{{.label}}" aria-label="{{.label}}" popovertarget="menu-ipp">{{ template "icon" "rows" }}</button>
@@ -559,19 +358,6 @@
 </div>
 {{ end }}
 
-{{/* A choice between views. The order never changes and the chosen one
-     holds the same box as the others - one border drawn, the rest
-     transparent, one weight throughout - so neither the options nor
-     anything beside them moves as the choice moves. dict: label items;
-     each item a dict of label, href, current. */}}
-{{/* Facts about a server that nobody can change, in a card of their
-     own so they read as a panel rather than as a tail on the page.
-     dict: title rows [abilities page] [tags tagstitle]. A row is a dict
-     of label and value; abilities are the Ability values themselves,
-     with page for the translator. */}}
-{{/* The same explanations a tooltip carries, on a tap: a title is a
-     hover and a phone has none. One disclosure for the group rather
-     than one per item, so the compact row stays compact. */}}
 {{ define "info-explain" }}
 {{ if .items }}
 <details class="info-explain">
@@ -586,12 +372,6 @@
 {{ end }}
 {{ end }}
 
-{{/* A card of server facts. "collapsed" folds it behind its title,
-     for a page that repeats it per account and does not want it
-     shouting; the glossary of what the tags mean is left to the
-     caller when "explained" is not passed, so a merged page shows it
-     once rather than in every card. "account" says whose server, on a
-     page that shows several. */}}
 {{ define "info-card" }}
 {{ if .collapsed }}
 <details class="info-card info-card-fold">
@@ -630,9 +410,7 @@
   {{ template "info-explain" (dict "label" $.explainlabel "items" $.explained) }}
 {{ end }}
 
-{{/* A choice between views. An item with an icon shows it instead of
-     its word once the row asks for the width back. dict: items [label];
-     item: label href current [icon]. */}}
+{{/* dict: items [label]; item: label href current [icon]. */}}
 {{ define "toggle" }}
 {{ $icons := false }}{{ range .items }}{{ if .icon }}{{ $icons = true }}{{ end }}{{ end }}
 <div class="toggle"{{ with .label }} role="group" aria-label="{{.}}"{{ end }}{{ if $icons }} data-priority="3" data-yield="word"{{ end }}>
@@ -650,17 +428,8 @@
 {{ if .selectall }}{{ template "toolbar-select-all" .g }}{{ end }}
 <div class="actions-wrap">
   <div class="actions-message">
-    {{/* A short title is offered where one exists, and only a phone
-         sees it: the full month name is what a wide toolbar should
-         say, and an abbreviation there would be a loss for nothing. */}}
-    {{/* The steps a narrowing row takes are numbered across every
-         toolbar; see ADR 8. The secondary month is the first thing to
-         go, the short title comes late, and New never leaves. */}}
     {{ with .title }}<h1 title="{{.}}"{{ if $.shorttitle }} data-priority="20" data-yield="word"{{ end }}>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>{{ end }}
     {{ if and .title .newhref }}<span class="toolbar-rule" aria-hidden="true"></span>{{ end }}
-    {{/* back is the list a new object returns to, filter and order
-         kept: the create forms post to their own address, so what the
-         link carries is what the save reads. */}}
     {{ with .newhref }}{{ $href := . }}{{ with $.back }}{{ $href = printf "%s%snext=%s" $href (qsep $href) (qv .) }}{{ end }}<a class="icon-button" href="{{ localhref $href }}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}" data-key="c">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
 {{ end }}
 
@@ -669,20 +438,13 @@
   <div class="actions-end">
 {{ end }}
 
-{{/* One task as the list shows it, and as the answer to marking it
-     done: the row is what changes, so the row is what comes back.
-     Next is the list to return to, which the row carries itself: the
-     answer to a write is served from the write's own address, and a
-     row that took that for the list would send the next click there.
-     dict: G Row Next. */}}
+{{/* dict: G Row Next. */}}
 {{ define "task-row" }}
 {{ $g := .G }}{{ $next := .Next }}{{ with .Row }}
 <div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
   <div class="task-list-checkbox list-checkbox list-cell" role="cell">
     <input type="checkbox" name="paths" value="{{.Task.Account}}|{{.Task.Path}}" form="tasks-form" aria-label="{{$g.T "a11y.selecttask"}}{{with .Summary}}: {{.}}{{end}}">
   </div>
-  {{/* The star has a column of its own, as the mail list draws it:
-       always here, lit or not. */}}
   <div class="list-star list-cell" role="cell">
     {{ template "card-star" (dict
        "Action" (printf "%s/color%s" .Task.URL (account "?" .Task.Account))
@@ -694,8 +456,6 @@
   <div class="task-list-status list-cell" role="cell" data-label="{{$g.T "tasks.status"}}">
     {{ $mark := $g.T "tasks.markcomplete" }}{{ if .Completed }}{{ $mark = $g.T "tasks.markincomplete" }}{{ end }}
     {{ with .Priority }}{{ $mark = printf "%s · %s" $mark ($g.T (printf "tasks.priority.%s" .)) }}{{ end }}
-    {{/* The row is the answer, so the row is the target: the page
-         around it neither reloads nor moves. */}}
     <form method="post" action="{{.Task.URL}}/complete{{account "?" .Task.Account}}" class="task-checkbox"
           hx-post="{{.Task.URL}}/complete{{account "?" .Task.Account}}" hx-target="closest .task-row" hx-swap="outerHTML">
       <input type="hidden" name="next" value="{{$next}}">
@@ -708,15 +468,11 @@
   <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "tasks.summary"}}">
     <a href="{{.Href}}" dir="auto"{{ with .AddedBy }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.Summary}}</a>
   </div>
-  {{/* Ownership rides the collection it already names, as the event
-       lists write it, rather than a column of its own; the name narrows
-       the list to that calendar, in the scope the row belongs to. */}}
   {{ $cq := printf "%v" (account "?" (or .Task.Account $g.GlobalData.URLAccount)) }}
   <div class="task-list-calendar list-cell" role="cell" data-label="{{$g.T "common.calendar"}}">
     {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}<a href="/tasks{{$cq}}{{qsep $cq}}cal={{.Calendar.Path | qv}}">{{.Calendar.Name}}</a>{{ template "collection-mark" (dict "g" $g "c" .Calendar) }}{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
   </div>
-  {{/* Built before the tag: the escaper cannot follow an attribute that
-       only some branches write. */}}
+  {{/* Built before the tag: the escaper cannot follow an attribute only some branches write. */}}
   {{ $due := "" }}{{ $dueTitle := "" }}
   {{ if not .Due.IsZero }}{{ $due = $g.GlobalData.ShortDate .Due }}{{ $dueTitle = $g.GlobalData.LongDate .Due }}{{ with $g.GlobalData.SecondaryDate .Due }}{{ $dueTitle = printf "%s (%s)" $dueTitle . }}{{ end }}{{ end }}
   <div class="task-list-due list-cell" role="cell" data-label="{{$g.T "tasks.duedate"}}" title="{{$dueTitle}}">{{$due}}</div>
@@ -727,10 +483,7 @@
 {{ end }}
 {{ end }}
 
-{{/* Where the object sits in the list it was opened from, and the
-     objects either side of it: the pair the message page has, in the
-     same place and the same marks. Nothing where the list is not
-     known. dict: g n. */}}
+{{/* dict: g n. */}}
 {{ define "object-nav" }}
 {{ with .n }}{{ if .Total }}
 <span class="action-group">
@@ -746,9 +499,7 @@
 </div>
 {{ end }}
 
-{{/* The frame of a settings page that is a list: the rail, the toolbar
-     with the page's name and its New, and the crumb. The page writes
-     its rows between the two. dict: g title path [newhref newlabel]. */}}
+{{/* dict: g title path [newhref newlabel]. */}}
 {{ define "settings-list-open" }}
 <div class="page-wrap">
   <aside>
@@ -778,14 +529,9 @@
 {{ template "toolbar-foot" }}
 {{ end }}
 
-{{/* The bulk-select-all checkbox cell; scripts reveal it and gate the
-     bulk buttons on a checked row. */}}
 {{ define "toolbar-select-all" }}
 <div class="list-checkbox">
-  {{/* Ticking every row needs a script to cascade the tick, so the box
-       arrives disabled and says why. helpers.js enables it at boot;
-       without one it stays, greyed and explained, rather than leaving a
-       gap where every other client has a control. */}}
+  {{/* Disabled until helpers.js enables it: cascading the tick needs a script. */}}
   <input type="checkbox" id="action-checkbox-all" disabled
          aria-label="{{$.T "mailbox.selectall"}}"
          title="{{$.T "mailbox.selectalljs"}}"
@@ -793,15 +539,7 @@
 </div>
 {{ end }}
 
-{{/* One stacked form field: a full-width caption over its control.
-     dict: label name [type] [value] [dir] [placeholder] [required]
-           [readonly] [rows] [autofocus]. */}}
-{{/* The caption points at the control rather than wrapping it. A label
-     that wraps its control forwards a click to it, and a date input
-     answers that second activation by closing the picker the first one
-     opened - so the calendar could be opened and never used. */}}
-{{/* Which account a form writes to, when more than one is signed in.
-     dict: label accounts current [name]. */}}
+{{/* dict: label accounts current [name]. */}}
 {{ define "account-picker" }}
 <label>
   <span>{{.label}}</span>
@@ -813,18 +551,11 @@
 </label>
 {{ end }}
 
-{{/* Which collection a form writes to: every account's, grouped under
-     its own name, the compose-From pattern. The value is "account|path"
-     so one select answers both questions. dict: label name key groups
-     account path multi. */}}
+{{/* dict: label name key groups account path multi. */}}
 {{ define "collection-picker" }}
-{{/* quiet: the label is for the screen reader only, where the row the
-     picker sits on already says what it is. */}}
 <label{{ if .quiet }} class="picker-quiet"{{ end }}>
   <span{{ if .quiet }} class="visually-hidden"{{ end }}>{{.label}}</span>
   <select name="{{.name}}" data-destination-key="{{.key}}"{{ if .ask }} required{{ end }}>
-    {{/* ask: nothing in force, so nothing is chosen until the reader
-         chooses; a select that opens on an answer gets that answer. */}}
     {{ if .ask }}<option value="" selected>{{ .asklabel }}</option>{{ end }}
     {{ range .groups }}
     {{ $acct := .Account }}
@@ -846,17 +577,11 @@
   {{ else }}
   <input type="{{with .type}}{{.}}{{else}}text{{end}}" name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} value="{{.value}}"{{ if .placeholder }} placeholder="{{.placeholder}}"{{ end }}{{ if .required }} required{{ end }}{{ if .readonly }} readonly{{ end }}{{ if .autofocus }} autofocus{{ end }}>
   {{ end }}
-  {{/* An example after the hint is a date or a code, read left to
-       right whatever the page does. */}}
   {{ with .hint }}<p class="hint">{{.}}{{ with $.example }} {{ template "ltr" . }}{{ end }}</p>{{ end }}
 </div>
 {{ end }}
 
-{{/* A date field, or one with a time: the browser's picker under the
-     Gregorian calendar, and under any other a text field that says what
-     it expects, since no picker speaks that calendar. dict: g label name
-     value [class time hint]; hint puts the expected form under the
-     field. */}}
+{{/* dict: g label name value [class time hint]. */}}
 {{ define "date-field" }}
 {{ $type := "date" }}{{ if .time }}{{ $type = "datetime-local" }}{{ end }}
 {{ $example := "" }}{{ $hint := "" }}
@@ -868,8 +593,7 @@
 {{ template "field" (dict "class" .class "label" .label "name" .name "type" $type "value" .value "placeholder" $example "hint" $hint "example" $example "dir" "ltr") }}
 {{ end }}
 
-{{/* Save/cancel footer of a create or update form.
-     dict: save [cancel cancelLabel]. */}}
+{{/* dict: save [cancel cancelLabel]. */}}
 {{ define "form-actions" }}
 <div class="actions">
   <button type="submit" class="button-primary">{{.save}}</button>
@@ -877,25 +601,16 @@
 </div>
 {{ end }}
 
-{{/* One collection's visibility checkbox: (item, field, itemclass). */}}
 {{/* dict: item field itemclass action onlylabel shown kept nested
-     [edithref editlabel]. The name links to the collection's own page;
-     the tick is its standing membership in the merged view. */}}
+     [edithref editlabel]. */}}
 {{ define "dav-filter-item" }}
 {{ $i := .item }}
 {{ $base := printf "%s?%s=%s" .action .field ($i.Path | qv) }}{{ with .keep }}{{ $base = printf "%s%s" $base . }}{{ end }}
 <div class="filter-row{{ if .nested }} nested{{ end }}{{ if $i.Only }} active{{ end }}">
   <a class="filter-name {{.itemclass}}" href="{{ localhref (printf "%s%s" $base (account "&" $i.Account)) }}" title="{{$i.Name}}"{{ if $i.Only }} aria-current="true"{{ end }}>
     <span>{{$i.Name}}</span>
-    {{/* What the collection is besides the account's own: a feed it
-         follows or an address it answers at - Apple's broadcast mark -
-         or someone else's, shared. The words are the mark's title and
-         what a screen reader hears. */}}
     {{ template "collection-mark" (dict "g" $.g "c" $i) }}
   </a>
-  {{/* The collection's own page, where it is renamed and deleted, and
-       the tick that says whether it is in the merged view: the two
-       non-navigation controls, off the name. */}}
   <a class="filter-edit" href="{{.edithref}}{{$i.Path | pathescape}}{{account "?" $i.Account}}" title="{{.editlabel}}" hx-boost="false">{{.editlabel}}</a>
   <label class="filter-tick" title="{{.shown}}">
     <input type="checkbox" name="{{.field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }} aria-label="{{.shown}}: {{$i.Name}}">
@@ -903,29 +618,14 @@
 </div>
 {{ end }}
 
-{{/* One account's collections in the rail: its visibility form, a
-     toggle for all of them when several accounts pool, the rows, and
-     Apply. dict: account data single. data is the page's rail dict:
-     items field itemclass action apply onlylabel alllabel keep edithref
-     editlabel next. "keep" is what the "only" link carries so that
-     looking at one collection does not also change which view you are
-     in. */}}
-{{/* What a collection is besides the account's own, wherever it is
-     named - the rail, a row's calendar or book: a feed it follows or an
-     address it answers at, Apple's broadcast mark; someone else's,
-     shared, with the access given; the account's own, shared with
-     others. The words are the mark's title and what a screen reader
-     hears. dict: g c (a collection). */}}
+{{/* dict: g c. */}}
 {{ define "collection-mark" }}{{ $g := .g }}{{ with .c }}
 {{- if or .Address .Public }}{{ $what := $g.T "share.marksubscribed" }}{{ if .Public }}{{ $what = $g.T "share.markpublic" }}{{ end }}<span class="rail-mark" title="{{$what}}" aria-label="{{$what}}">{{ template "icon" "broadcast" }}</span>
 {{- else if .SharedBy }}{{ $who := printf "%s · %s" (printf ($g.T "share.marksharedby") .SharedBy) ($g.T (or (and .Writable "share.canedit") "share.canview")) }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>
 {{- else if .SharedWith }}{{ $who := $g.GlobalData.Tf "share.marksharedwith" .SharedWith }}<span class="rail-mark" title="{{$who}}" aria-label="{{$who}}">{{ template "icon" "users" }}</span>{{ end }}
 {{- end }}{{ end }}
 
-{{/* A share as its invitee sees it, in the shape of a meeting
-     invitation: what, from whom, on what terms, and the answer or the
-     two ways to give one. The collection's page and the mail that
-     announced it show the same card. dict: g offer. */}}
+{{/* dict: g offer. */}}
 {{ define "share-offer" }}{{ $g := .g }}{{ with .offer }}
 <div class="detail-card invitation">
   <h2>{{$g.T "invite.title"}}</h2>
@@ -951,8 +651,6 @@
 {{ $d := .data }}
 <form method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter">
 <input type="hidden" name="next" value="{{$d.next}}">
-{{/* Under several accounts, each has its own All: the account's list
-     with no collection narrowing it, marked while that is the page. */}}
 {{ with .all }}
 {{ $narrowed := false }}{{ range $d.items }}{{ if .Only }}{{ $narrowed = true }}{{ end }}{{ end }}
 {{ $on := and (eq $.account $.urlaccount) (not $narrowed) }}
@@ -967,22 +665,7 @@
 </form>
 {{ end }}
 
-{{/* The rail every section shares (ADR 0001). With several accounts
-     signed in: the merged entry on top, then one group per account,
-     open when the URL names it, its heading a link into that account's
-     scope and the section's own rows under it. With one account the
-     rows stand alone. The rows differ by kind; the frame does not.
-     dict: kind ("mail" "dav" "rows") path urlaccount accounts
-     (usernames) all (the merged entry's label, none where the section
-     has no merged view) new (dict href label active) data (the kind's
-     own: for "rows", a map from account to its RailRow list) homes
-     (tuple of dict href label active: the section's pages outside every
-     account, on top in both counts). */}}
-{{/* The application's own name and mark. Its colours are its own -
-     the badge is a picture, not an icon, so no theme can wash it out -
-     and the word beside it is dim: it names the place you are in, it is
-     not something to read. dict: g, build (what names the running
-     binary under the name, as much of it as the place has room for). */}}
+{{/* dict: g build. */}}
 {{ define "brand" }}
 <a class="brand" href="/" title="{{.g.GlobalData.Brand}}">
   <img class="brand-mark" src="{{call .g.GlobalData.Asset "brand.svg"}}" alt="" width="20" height="20">
@@ -994,9 +677,6 @@
 {{ end }}
 
 {{ define "scope-rail" }}
-  {{/* On a phone the rail is the drawer, and the drawer's head is the
-       application's name; on a wide screen the header carries it and
-       this one stands down. */}}
   <div class="rail-brand">{{ template "brand" (dict "g" .g "build" .g.GlobalData.Revision) }}</div>
   {{ with .homes }}{{ template "rail-rows" . }}{{ end }}
   {{ $merged := not .urlaccount }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $merged = false }}{{ end }}{{ end }}{{ end }}
@@ -1004,14 +684,10 @@
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-merged" .data }}
   {{ else }}
-  {{/* Named for what it merges, as mail's is, so it is not taken for
-       the All inside each account below. */}}
   {{ with .all }}<a class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}">{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
   {{ end }}
   {{ range .accounts }}
   {{ $acct := .Username }}
-  {{/* An account with nothing of this kind has no entry: the rail
-       lists places, and the account has none here. */}}
   {{ $has := eq $.kind "mail" }}
   {{ if eq $.kind "rows" }}{{ $has = index $.data.rows $acct }}{{ end }}
   {{ if eq $.kind "dav" }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ end }}{{ end }}{{ end }}
@@ -1038,20 +714,9 @@
   {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true "g" .g) }}
   {{ end }}
   {{ end }}
-  {{/* Colours are views, the way the mail rail carries them: one list
-       of seven, under the collections they narrow, whichever accounts
-       are shown. */}}
   {{ with .views }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" .view "account" .account) }}{{ end }}
-  {{/* The two ways a contact belongs with others (RFC 6350): the
-       groups that name it, and the words it carries. Each is a filter
-       and neither is a place, so they sit with the views. */}}
   {{ with .groups }}{{ template "rail-filter-list" . }}{{ end }}
   {{ with .categories }}{{ template "rail-filter-list" . }}{{ end }}
-  {{/* A rail lists places and closes with the entry that adds one;
-       making an object is a toolbar action, beside the list it lands
-       in. */}}
-  {{/* What other accounts here have offered this one, answered where
-       the collection would be listed. */}}
   {{ if eq .kind "dav" }}{{ with .g.GlobalData.Extra.Invitations }}{{ with index . $.data.field }}
   {{ $inv := . }}
   <ul class="rail-views">
@@ -1084,9 +749,7 @@
   {{ with .import }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
 {{ end }}
 
-{{/* The section's rail on a page that is not its list, drawn from the
-     Rail the handler prepared, so a form or an object stands where its
-     list does. dict: g rail. */}}
+{{/* dict: g rail. */}}
 {{ define "dav-rail" }}
 {{ $g := .g }}{{ $r := .rail }}
 <aside>
@@ -1094,26 +757,18 @@
 </aside>
 {{ end }}
 
-{{/* The rows of an event list, one per occurrence, on the agenda and
-     the day page alike. An event of a subscribed feed links to its UID
-     within the feed, which is the one object holding every event.
-     dict: events base. */}}
+{{/* dict: events base. */}}
 {{ define "event-rows" }}
 {{ $base := .base }}
 {{ range .events }}
 {{ $obj := . }}
-{{/* The time is this occurrence's own: a recurring event is drawn once
-     per instance and the component names only the first. */}}
 {{ $when := $base.T "calendar.allday" }}{{ if not .AllDay }}{{ $when = $base.GlobalData.FormatTime .Start }}{{ end }}
 {{ $href := $obj.URL }}{{ if $obj.ReadOnly }}{{ $href = printf "%s?uid=%s" $obj.URL (.UID | qv) }}{{ end }}
 {{ with $obj.Account }}{{ $href = printf "%s%s" $href (account (qsep $href) .) }}{{ end }}
-{{/* The list the event was opened from rides along, so its page can
-     name the events either side of it. */}}
 {{ with $base.ListQuery }}{{ $href = printf "%s%s%s" $href (qsep $href) . }}{{ end }}
 {{ $href = from $href $base.GlobalData.URL.RequestURI }}
 {{ $addedby := "" }}{{ with call $base.AddedBy .Account .Path }}{{ $addedby = printf ($base.T "share.addedby") . }}{{ end }}
 {{ $staraction := "" }}{{ if not $obj.ReadOnly }}{{ $staraction = printf "%s/color%s" $obj.URL (account "?" $obj.Account) }}{{ end }}
-{{/* Rows carry their date unless the list is banded by day. */}}
 {{ $date := "" }}{{ $dateTitle := "" }}{{ if $.dated }}{{ $date = $base.GlobalData.ShortDate .Start }}{{ $dateTitle = $base.GlobalData.LongDate .Start }}{{ with $base.GlobalData.SecondaryDate .Start }}{{ $dateTitle = printf "%s (%s)" $dateTitle . }}{{ end }}{{ end }}
 {{ $collection := call $base.CollectionFor .Account .Path }}
 {{ template "event-row" (dict
@@ -1139,11 +794,7 @@
 {{ end }}
 {{ end }}
 
-{{/* A colour on one object that is not a message: the same star, the
-     same click to set and clear, and the same answer - the star alone -
-     where the page can swap it. The seven live in the menus; a row
-     offers the first, as a mail row does.
-     dict: Action Current Next Label. */}}
+{{/* dict: Action Current Next Label. */}}
 {{ define "card-star" }}
 <form method="POST" action="{{.Action}}" class="row-star"
       hx-post="{{.Action}}" hx-target="this" hx-swap="outerHTML">
@@ -1152,13 +803,8 @@
 </form>
 {{ end }}
 
-{{/* The starred view of a list that is not mail's, with the seven
-     colours as its branch: same rows, same stars, one parameter.
-     dict: g path view q. */}}
+{{/* dict: g path view q. */}}
 {{ define "rail-colors" }}
-{{/* The path may already carry a query - the calendar's month - so
-     the account and the view join it with whichever separator is
-     next. dict: g path view account. */}}
 {{ $base := printf "%s%v" .path (account (qsep .path) .account) }}
 <ul class="rail-views">
   <li class="folder-li">
@@ -1174,10 +820,7 @@
 </ul>
 {{ end }}
 
-{{/* One folded list of things a list can be narrowed to: the label,
-     the rows, and the one in force marked. Where a row can be made,
-     the last row makes one.
-     dict: key label open rows (each Label Href Active) [new]. */}}
+{{/* dict: key label open rows (each Label Href Active) [new]. */}}
 {{ define "rail-filter-list" }}
 {{ if or .rows .new }}
 <ul class="rail-views">
@@ -1197,16 +840,12 @@
 {{ end }}
 {{ end }}
 
-{{/* The settings rail on every settings page. What this browser keeps
-     - how it reads, the passkeys that unlock it - applies to every
-     account and heads the rail; each account's own pages follow.
-     dict: g rail. */}}
+{{/* dict: g rail. */}}
 {{ define "settings-rail" }}
 {{ $g := .g }}
 {{ template "scope-rail" (dict "g" $g "kind" "rows" "path" "/settings/account" "urlaccount" $g.GlobalData.URLAccount "accounts" $g.GlobalData.Accounts "data" (dict "rows" .rail) "homes" (index .rail "")) }}
 {{ end }}
 
-{{/* The places a section offers per account, one row each. */}}
 {{ define "rail-rows" }}
 <ul>
   {{ range . }}
@@ -1215,10 +854,6 @@
 </ul>
 {{ end }}
 
-{{/* The merged roles, in the mail rail: every mailbox is a place, the
-     merged roles on top under the "All accounts" heading; links select
-     scope per request only, and the rows name the bare role. The page
-     data is passed whole. */}}
 {{ define "rail-mail-merged" }}
 {{ $view := .ListView }}
 {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
@@ -1238,10 +873,7 @@
 </details>
 {{ end }}
 
-{{/* The views under an inbox: the unread, the starred, and the stars
-     by colour, each a search with a name. They sit where the folders
-     sit and take the folder rows' shape, the colours as a branch.
-     dict: q (the account query or "") view on g. */}}
+{{/* dict: q view on g. */}}
 {{ define "rail-views" }}
 {{ $sep := "?" }}{{ if .q }}{{ $sep = "&" }}{{ end }}
 <li{{ if and .on .oninbox (eq .view "unread") }} class="active"{{ end }}>
@@ -1259,7 +891,7 @@
 </li>
 {{ end }}
 
-{{/* One account's folder tree in the mail rail. dict: account data. */}}
+{{/* dict: account data. */}}
 {{ define "rail-mail-account" }}
 {{ $d := .data }}
 {{ $view := $d.ListView }}
@@ -1272,20 +904,10 @@
 {{ end }}{{ end }}
 {{ end }}
 
-{{/* On the list page a folder or a view opens into the list alone, and
-     the rail stays under the pointer; helpers.js moves the mark. Any
-     other page takes the whole page, as a boosted link does. The
-     attributes are inherited, so they sit once on the list of rows. */}}
 {{ define "list-swap" }}{{ if eq (index .GlobalData.Path 0) "mailbox" }} hx-boost="false" hx-target="#main" hx-swap="innerHTML show:none" hx-push-url="true"{{ end }}{{ end }}
-{{/* The request itself, on each row's link; a boosted link scrolls to
-     the top, which is the one thing this must not do. A link into
-     another scope - a merged folder from one account's, or the other
-     way - takes the whole page, since the header's switcher and nav
-     name the scope and a swap of the list alone leaves them behind.
-     dict: g href. */}}
+{{/* Not boosted: a boosted link scrolls to the top. dict: g href. */}}
 {{ define "list-get" }}{{ if and (eq (index .g.Path 0) "mailbox") (eq (hrefaccount .href) .g.URLAccount) }} hx-get="{{.href}}"{{ end }}{{ end }}
 
-{{/* The one account's folder tree, with no heading over it. */}}
 {{ define "rail-mail-single" }}
 {{ $view := .ListView }}
 {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
@@ -1303,18 +925,14 @@
 </ul>
 {{ end }}
 
-{{/* The mail pages' rail: the shared frame over the page's own data. */}}
 {{ define "aside" }}
 <aside data-mail-sidebar data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
 {{ template "scope-rail" (dict "g" $ "kind" "mail" "path" "/mailbox/INBOX" "urlaccount" .GlobalData.Scope "accounts" .GlobalData.Accounts "data" . "new" (dict "href" "/new-mailbox" "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path "/new-mailbox")) "import" (dict "href" "/import" "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path "/import"))) }}
 </aside>
 {{ end }}
 
-{{/* The import form's own fields, shared by every section that takes a
-     file: an optional name, the file, and what to expect. The choice of
-     where it lands - a folder location or a collection - is the
-     section's, given before. dict: g file accept hint go cancel
-     [name namehint namevalue namerequired]. */}}
+{{/* dict: g file accept hint go cancel [name namehint namevalue
+     namerequired]. */}}
 {{ define "import-fields" }}
 {{ if .name }}{{ template "field" (dict "label" .name "name" "name" "value" .namevalue "dir" "auto" "hint" .namehint "required" .namerequired) }}{{ end }}
 <div class="field">
@@ -1325,8 +943,6 @@
 {{ template "form-actions" (dict "save" .go "cancel" .cancel "cancelLabel" (.g.T "common.cancel")) }}
 {{ end }}
 
-{{/* Where a new folder goes: the account and the parent, from the
-     form's location groups. */}}
 {{ define "folder-location" }}
 <label>
   <span>{{$.T "folder.location"}}</span>
@@ -1342,17 +958,11 @@
 </label>
 {{ end }}
 
-{{/* Every notice, whoever has something to say (ADR 41): the text,
-     at most one action, and a cross that closes it without a script.
-     dict: g kind [text markup action id closed slow]. closed renders it
-     shut, for a script to open; slow is the offline notice's second
-     sentence, which its script swaps in. */}}
+{{/* dict: g kind [text markup action id closed slow]. */}}
 {{ define "notice" }}
 <dialog{{ if not .closed }} open{{ end }} class="notice notice-{{.kind}}"{{ with .id }} id="{{.}}"{{ end }}{{ with .slow }} data-offline="{{$.text}}" data-slow="{{.}}"{{ end }}>
   <span class="notice-text" role="{{ if eq .kind "failed" }}alert{{ else }}status{{ end }}">{{ if .markup }}{{ .markup }}{{ else }}{{ .text }}{{ end }}</span>
   {{ range .actions }}
-    {{/* Anything that changes state posts; a link is for going
-         somewhere. */}}
     {{ if .Fields }}
     <form method="post" action="{{.Path}}" class="notice-action">
       {{ range $name, $values := .Fields }}{{ range $values }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
@@ -1366,23 +976,13 @@
 </dialog>
 {{ end }}
 
-{{/* The layer every notice of a page is drawn in, over whatever sits
-     under it and out of the page's flow, so nothing moves when one
-     comes or goes. dict: g. */}}
+{{/* dict: g. */}}
 {{ define "notices" }}
 <div class="notices">
   {{ with .g.GlobalData.Notice }}{{ template "notice" (dict "g" $.g "kind" .Kind "text" .Text "markup" .Markup "actions" .Actions) }}{{ end }}
-  {{/* What a page's own script has to report as failed - a passkey
-       the browser refused - it writes into this one. */}}
   {{ template "notice" (dict "g" .g "kind" "failed" "id" "script-failed" "closed" true) }}
   {{ if .g.GlobalData.LoggedIn }}
-  {{/* A request that never came back leaves the page as it was, and
-       says so here; only the script that knows the request failed
-       opens it, and without a script nothing can fail this way. */}}
   {{ template "notice" (dict "g" .g "kind" "failed" "text" (.g.T "notice.noanswer") "id" "request-failed" "closed" true) }}
-  {{/* Opened by the worker's word, not the radio's: it is what knows
-       whether the page on screen came from the server or from what it
-       saved. */}}
   {{ template "notice" (dict "g" .g "kind" "warning" "text" (.g.T "notice.offline") "slow" (.g.T "notice.slow") "id" "offline-notice" "closed" true) }}
   {{ end }}
 </div>

@@ -20,12 +20,10 @@ import (
 var public embed.FS
 
 var (
-	proxyMaxSize = 5 * 1024 * 1024 // 5 MiB
-	// A sender's server is not ours and owes us nothing: a slow one
-	// must not hold a request of ours open.
+	proxyMaxSize = 5 * 1024 * 1024
+	// A sender's slow server must not hold our request open.
 	proxyTimeout = 10 * time.Second
-	// The browser may keep what it has already been shown, so scrolling
-	// back through a message does not fetch it again.
+	// Scrolling back through a message does not fetch its images again.
 	proxyCacheControl = "private, max-age=86400"
 )
 
@@ -77,8 +75,7 @@ func init() {
 		}
 
 		ctx.Response().Header().Set("Cache-Control", proxyCacheControl)
-		// The body is whatever the sender's server sent under an image
-		// type; the browser is told to take it as one and only as one.
+		// The body is the sender's; the browser must not sniff it into another type.
 		ctx.Response().Header().Set("X-Content-Type-Options", "nosniff")
 		ctx.Response().Header().Set("Content-Disposition", "inline")
 

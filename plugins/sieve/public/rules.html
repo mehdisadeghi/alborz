@@ -19,8 +19,6 @@
       {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
       {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="/filters/{{.Script | pathescape}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
 
-      {{/* Order is meaning: rules run top to bottom, and the first that
-           stops ends delivery there, before the reader's own script. */}}
       <section class="list-items">
         {{ $n := len .Rules }}
         {{ range $i, $r := .Rules }}
@@ -59,8 +57,7 @@
 
 {{template "foot.html"}}
 
-{{/* One rule in words, for the row: what it looks for and what it
-     does. dict: r g. */}}
+{{/* dict: r g. */}}
 {{ define "rule-words" }}
 {{- $g := .g -}}
 {{- range $i, $c := .r.Conditions }}{{ if $i }}{{ if $.r.Any }} {{ $g.T "filters.or" }} {{ else }} {{ $g.T "filters.and" }} {{ end }}{{ end }}{{ $g.T (printf "filters.field.%s" .Field) }} {{ $g.T (printf "filters.match.%s" .Match) }} “{{ .Value }}”{{ end }} →

@@ -17,14 +17,8 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
-// A Session is one browser's stay: the accounts it has signed into and
-// what the reader is owed. It exists because a notice and an unsent
-// upload belong to the person at the screen and to no account, and
-// filing them under one account is how a notice raised on a page
-// scoped to it turns up later on something else.
-//
-// The login holds what IMAP forces, a credential and a connection.
-// Everything the reader would recognise as theirs lives here.
+// A Session is one browser's stay, holding what belongs to the person at the
+// screen rather than to any one account.
 type Session struct {
 	ID      string
 	Created time.Time
@@ -33,28 +27,19 @@ type Session struct {
 	seen        time.Time
 	notice      *Notice
 	attachments map[string]*Attachment
-	// accounts is the bag: every account this browser has signed into,
-	// in one order wherever they are listed.
+	// accounts is every account this browser has signed into, in display order.
 	accounts []*Login
-	// proof is what the session keeps of the secret its browser carries:
-	// the id names the session, and only the secret opens it.
+	// proof verifies the browser's secret; only the secret opens the session.
 	proof []byte
-	// remember holds each account's password sealed under the secret
-	// the browser carries, for a session the reader asked to keep.
+	// remember holds each password sealed under the browser's secret.
 	remember map[string][]byte
-	// profile is what the pages render by while an account is signed in.
-	profile *Profile
-	// said holds what this browser has been told and need not hear on
-	// every page: a standing condition is news once.
-	said map[string]bool
-	// lock is what stands in front of the session, active when the reader
-	// last did something, and ceremony the WebAuthn exchange under way.
-	lock     Lock
-	active   time.Time
-	locked   bool
-	ceremony *webauthn.SessionData
-	// device and address are what the browser last said about itself,
-	// for the account holder's list of browsers signed in.
+	profile  *Profile
+	// said holds conditions already told once.
+	said            map[string]bool
+	lock            Lock
+	active          time.Time
+	locked          bool
+	ceremony        *webauthn.SessionData
 	device, address string
 }
 
@@ -73,9 +58,6 @@ func (s *Session) setProfile(p Profile) {
 	s.mu.Unlock()
 }
 
-// life is how long the session outlives its last request: as long as a
-// login when nobody asked to be remembered, and as long as the
-// credentials are worth keeping when they did.
 func (s *Session) life() time.Duration {
 	if s.remembered() {
 		return credentialCookieLife
@@ -83,17 +65,13 @@ func (s *Session) life() time.Duration {
 	return sessionDuration
 }
 
-// remembered reports whether the reader asked this browser to stay
-// signed in.
 func (s *Session) remembered() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.remember) > 0
 }
 
-// Remember keeps the account's password for this session, sealed under
-// the browser's own secret, so a restart costs a reconnection rather
-// than a login. Forgetting it is signing out.
+// Remember keeps the account's password sealed under the browser's secret.
 func (s *Session) Remember(address string, sealed []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -109,8 +87,7 @@ func (s *Session) forget(address string) {
 	delete(s.remember, address)
 }
 
-// record is the session as it is written down: no notice, no uploads,
-// nothing that would mean anything after a restart.
+// record keeps only what means something after a restart.
 func (s *Session) record() *SessionRecord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -125,8 +102,6 @@ func (s *Session) record() *SessionRecord {
 	return rec
 }
 
-// sessionFromRecord rebuilds a remembered session, with no accounts open
-// yet: the logins are made when the first request needs them.
 func sessionFromRecord(rec *SessionRecord) *Session {
 	s := &Session{
 		ID:          rec.ID,
@@ -144,9 +119,7 @@ func sessionFromRecord(rec *SessionRecord) *Session {
 	return s
 }
 
-// Accounts is the bag, with the accounts whose login has ended left
-// out and named, so the page can say who was signed out rather than
-// pretending they are still here.
+// Accounts returns the live logins and the addresses of ended ones.
 func (s *Session) Accounts() (live []*Login, lost []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -162,8 +135,7 @@ func (s *Session) Accounts() (live []*Login, lost []string) {
 	return slices.Clone(s.accounts), lost
 }
 
-// Add puts an account in the bag, replacing an earlier login for the
-// same address, and keeps the bag in one order.
+// Add puts an account in the session, replacing an earlier login for it.
 func (s *Session) Add(login *Login) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -179,7 +151,7 @@ func (s *Session) Add(login *Login) {
 	byName(s.accounts)
 }
 
-// Remove takes an account out of the bag and closes it.
+// Remove takes an account out of the session and closes it.
 func (s *Session) Remove(username string) *Login {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -192,14 +164,10 @@ func (s *Session) Remove(username string) *Login {
 	return nil
 }
 
-// sessionCookieName carries the id and the secret and nothing else: what
-// the session holds is the server's business, and the browser only has to
-// say which one it is and show that it is its own.
+// sessionCookieName carries only the id and the secret; the state stays on the server.
 const sessionCookieName = "alborz_session"
 
-// SessionRecord is what a session is worth keeping across a restart: who
-// it has signed into, and the passwords to sign in again, each sealed
-// under a key only the browser's cookie carries.
+// SessionRecord is a session kept across a restart.
 type SessionRecord struct {
 	ID       string
 	Created  time.Time
@@ -227,9 +195,7 @@ type SessionRecords interface {
 	Each(func(*SessionRecord)) error
 }
 
-// Sessions are the browsers signed in. The live ones are held here, and
-// the remembered ones are also written to the records, so a restart
-// costs a reconnection rather than a login.
+// Sessions are the browsers signed in.
 type Sessions struct {
 	mu      sync.Mutex
 	live    map[string]*Session
@@ -240,15 +206,13 @@ func newSessions() *Sessions {
 	return &Sessions{live: map[string]*Session{}}
 }
 
-// SetRecords makes remembering possible. Without one, a session lasts as
-// long as the process.
+// SetRecords makes remembering possible.
 func (ss *Sessions) SetRecords(r SessionRecords) { ss.records = r }
 
 // Remembers reports whether this deployment can remember a session.
 func (ss *Sessions) Remembers() bool { return ss.records != nil }
 
-// Records is where remembered sessions are written, nil when this
-// deployment has nowhere of its own to write.
+// Records is where remembered sessions are written, or nil.
 func (ss *Sessions) Records() SessionRecords { return ss.records }
 
 func (ss *Sessions) Get(id string) *Session {
@@ -285,7 +249,7 @@ func (ss *Sessions) Delete(id string) error {
 	return ss.records.Delete(id)
 }
 
-// Record is the remembered session of that id, when there is one.
+// Record returns the remembered session of that id.
 func (ss *Sessions) Record(id string) (*SessionRecord, bool) {
 	if ss.records == nil {
 		return nil, false
@@ -293,8 +257,7 @@ func (ss *Sessions) Record(id string) (*SessionRecord, bool) {
 	return ss.records.Load(id)
 }
 
-// Save writes what a remembered session is made of. A session nobody asked
-// to remember is never written.
+// Save writes a remembered session; others are never written.
 func (ss *Sessions) Save(s *Session) error {
 	if ss.records == nil || !s.remembered() {
 		return nil
@@ -310,16 +273,13 @@ func (ss *Sessions) Sweep(before time.Time) error {
 	return ss.records.Sweep(before)
 }
 
-// sessionDuration is how long a session outlives its last request. It
-// matches the login's, so nothing changes hands while a reader is
-// signed in; a persisted session will outlive both.
+// sessionDuration matches the login's so nothing changes hands while signed in.
 const sessionDuration = loginDuration
 
-// newSession makes a session and the secret its browser keeps.
 func newSession() (*Session, string) {
 	b := make([]byte, 64)
 	if _, err := rand.Read(b); err != nil {
-		panic(err) // A machine that cannot make a random id cannot serve mail.
+		panic(err)
 	}
 	now := time.Now()
 	secret := base64.RawURLEncoding.EncodeToString(b[32:])
@@ -362,8 +322,7 @@ func (s *Session) Once(key string) bool {
 
 // Notify records what the next page tells the reader.
 func (s *Session) Notify(n Notice) {
-	// A notice with nothing to say is a handler deciding this action
-	// speaks for itself; an empty bar would say the opposite.
+	// An empty notice means the action speaks for itself.
 	if n.Text == "" && n.Markup == "" {
 		return
 	}
@@ -379,7 +338,7 @@ func (s *Session) HasNotice() bool {
 	return s.notice != nil
 }
 
-// PopNotice takes what the reader is owed, once.
+// PopNotice takes the pending notice, once.
 func (s *Session) PopNotice() *Notice {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -405,15 +364,14 @@ func (s *Session) PutAttachment(in *multipart.FileHeader, form *multipart.Form) 
 	return id.String(), nil
 }
 
-// PeekAttachment is one the form still holds, left in place: a send the
-// server refuses must find it again.
+// PeekAttachment leaves the attachment in place, so a refused send finds it again.
 func (s *Session) PeekAttachment(id string) *Attachment {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.attachments[id]
 }
 
-// PopAttachment takes one back, once.
+// PopAttachment takes an attachment back, once.
 func (s *Session) PopAttachment(id string) *Attachment {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -425,7 +383,6 @@ func (s *Session) PopAttachment(id string) *Attachment {
 	return a
 }
 
-// close drops what the session was holding for a reader who is leaving.
 func (s *Session) close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -437,9 +394,7 @@ func (s *Session) close() {
 	s.attachments = map[string]*Attachment{}
 }
 
-// Session is this browser's stay, made on first use. A request that
-// stores nothing never makes one, so a crawler and the login page cost
-// nothing.
+// Session returns this browser's session, made on first use.
 func (ctx *Context) Session() *Session {
 	if s := ctx.lookupSession(); s != nil {
 		return s
@@ -451,11 +406,8 @@ func (ctx *Context) Session() *Session {
 	return s
 }
 
-// lookupSession finds this browser's stay without making one. The cookie
-// carries the id and a secret: the id says which session, and is shown to
-// every other browser of the same account, so it opens nothing; the
-// secret is what makes the session this browser's, and the only key to
-// the passwords a remembered session holds.
+// lookupSession finds this browser's session without making one. The id is
+// shown to other browsers of the account, so only the secret opens it.
 func (ctx *Context) lookupSession() *Session {
 	if ctx.session != nil {
 		return ctx.session
@@ -485,27 +437,23 @@ func (ctx *Context) lookupSession() *Session {
 	return s
 }
 
-// sessionProofLabel keeps the proof apart from sessionKey, which is made of
-// the same secret: a proof that was the key would let the store open
-// the passwords it holds.
+// sessionProofLabel keeps the proof apart from sessionKey, or the store could
+// open the passwords it holds.
 const sessionProofLabel = "alborz session proof"
 
-// sessionProof is what a session keeps of its browser's secret: enough to
-// know the secret when it is shown, and nothing that opens a password.
 func sessionProof(secret string) []byte {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(sessionProofLabel))
 	return mac.Sum(nil)
 }
 
-// opens reports whether secret is this session's. A session with no proof
-// was written before sessions kept one, and nobody can show it is theirs.
+// opens reports whether secret is this session's.
 func (s *Session) opens(secret string) bool {
 	return len(s.proof) > 0 && hmac.Equal(s.proof, sessionProof(secret))
 }
 
-// sessionKey is the key the browser's secret stands for. The secret
-// never leaves the cookie, so a stolen store decrypts nothing.
+// sessionKey derives the sealing key; the secret never leaves the cookie, so a
+// stolen store decrypts nothing.
 func sessionKey(secret string) *fernet.Key {
 	sum := sha256.Sum256([]byte(secret))
 	var key fernet.Key
@@ -513,7 +461,6 @@ func sessionKey(secret string) *fernet.Key {
 	return &key
 }
 
-// seal locks a password to this browser, and unseal opens it again.
 func (ctx *Context) seal(password string) ([]byte, error) {
 	if ctx.sessionSecret == "" {
 		return nil, fmt.Errorf("alborz: this session carries no secret")
@@ -532,16 +479,13 @@ func (ctx *Context) unseal(sealed []byte) (string, bool) {
 	return string(raw), true
 }
 
-// Notify records what the next page tells the reader, and PutNotice
-// says a request did what it was asked.
-// Quiet says this action needs no notice: its result shows where the
-// reader is. Said rather than left out, so a handler that forgot to
-// speak is told apart from one that chose not to.
+// Quiet says this action needs no notice. Said explicitly, so a forgotten
+// notice is told apart from a chosen silence.
 func (ctx *Context) Quiet() { ctx.quiet = true }
 
+// Notify records what the next page tells the reader.
 func (ctx *Context) Notify(n Notice) {
-	// An empty notice is a handler deciding the action speaks for
-	// itself, which is Quiet by another name.
+	// An empty notice is Quiet by another name.
 	if n.Text == "" && n.Markup == "" {
 		ctx.Quiet()
 		return
@@ -549,6 +493,7 @@ func (ctx *Context) Notify(n Notice) {
 	ctx.Session().Notify(n)
 }
 
+// PutNotice says a request did what it was asked.
 func (ctx *Context) PutNotice(text string) {
 	ctx.Notify(Notice{Kind: NoticeDone, Text: text})
 }
@@ -560,8 +505,7 @@ func (ctx *Context) PopNotice() *Notice {
 	return nil
 }
 
-// PutAttachment, PeekAttachment and PopAttachment hold what the
-// compose form has taken and not yet sent.
+// PutAttachment holds a file the compose form has taken but not sent.
 func (ctx *Context) PutAttachment(in *multipart.FileHeader, form *multipart.Form) (string, error) {
 	return ctx.Session().PutAttachment(in, form)
 }

@@ -15,7 +15,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-// TODO: this doesn't accomodate for quoting
+// TODO: the url( and expression( patterns ignore CSS quoting.
 var (
 	cssURLRegexp  = regexp.MustCompile(`url\([^)]*\)`)
 	cssExprRegexp = regexp.MustCompile(`expression\([^)]*\)`)
@@ -100,19 +100,13 @@ type sanitizer struct {
 	account              string
 	allowRemoteResources bool
 	hasRemoteResources   bool
-	// text is what the mail says, gathered while the tree is already
-	// being walked, so the language it is written in can be named
-	// without parsing it a second time.
+	// text is sampled during the walk so the language needs no second parse.
 	text strings.Builder
 }
 
-// textCap bounds what is kept for the language decision. A few hundred
-// runes settle it, and a newsletter is not worth copying whole.
+// A few hundred runes settle the language; a newsletter is not worth copying whole.
 const textCap = 2000
 
-// hiddenText reports whether a text node holds something other than
-// what the mail says: a stylesheet, a script, the document title. None
-// of it belongs in the sample the language is decided from.
 func hiddenText(parent *html.Node) bool {
 	if parent == nil || parent.Type != html.ElementNode {
 		return false
@@ -131,8 +125,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 	}
 
 	switch strings.ToLower(u.Scheme) {
-	// An image among the pieces of a split HTML body, by path; see
-	// HTMLPieces. Like a Content-ID it reaches only this message's images.
+	// Like a Content-ID, a part path reaches only this message's images.
 	case "part":
 		if san.msg == nil {
 			return "about:blank"
@@ -198,7 +191,6 @@ func (san *sanitizer) sanitizeCSSDecls(decls []*css.Declaration) []*css.Declarat
 }
 
 func (san *sanitizer) sanitizeCSSRule(rule *css.Rule) {
-	// Disallow @import
 	if rule.Kind == css.AtRule && strings.EqualFold(rule.Name, "@import") {
 		rule.Prelude = "url(about:blank)"
 	}
@@ -258,10 +250,7 @@ func (san *sanitizer) sanitizeNode(n *html.Node) {
 			attr := &n.Attr[i]
 
 			if strings.EqualFold(attr.Key, "style") {
-				// douceur reads the last declaration's value as empty
-				// unless something terminates it, and style="color:red"
-				// is how mail is written. A second semicolon is an error
-				// there, so one is added only where it is missing.
+				// douceur reads an unterminated last value as empty and rejects ";;".
 				value := strings.TrimSpace(attr.Val)
 				if value != "" && !strings.HasSuffix(value, ";") {
 					value += ";"
@@ -304,27 +293,16 @@ func (san *sanitizer) sanitizeHTML(b []byte) ([]byte, error) {
 	// bluemonday must always be run last
 	p := bluemonday.UGCPolicy()
 
-	// bluemonday gates style elements behind AllowUnsafe since 1.0.17;
-	// scripts stay disallowed, and the stylesheet content was already
-	// filtered above. Classes and ids stay so the rules have something
-	// to match.
+	// Style elements need AllowUnsafe; their content was already filtered above.
 	p.AllowUnsafe(true)
 	p.AllowElements("style")
 	p.AllowElementsContent("style")
 	p.AllowAttrs("style", "class", "id").Globally()
-	// A policy for comment boxes knows the HTML people write today.
-	// Mail is written by mailers, and they still centre a logo and a
-	// button the way they did in 1999; dropping the element left every
-	// such message ragged against the left edge. It takes no attribute
-	// and names no URL, so there is nothing in it to sanitise.
+	// Mailers still centre logos and buttons with <center>; it takes no attributes.
 	p.AllowElements("center")
 
 	p.AddTargetBlankToFullyQualifiedLinks(true)
 	p.RequireNoFollowOnLinks(true)
-	// The opened page learns nothing about where it was opened from,
-	// and holds no handle on the frame it was opened from: every
-	// current browser implies noopener with a target of its own, and
-	// noreferrer says so to the ones that do not.
 	p.RequireNoReferrerOnLinks(true)
 
 	return p.SanitizeBytes(b), nil

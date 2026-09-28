@@ -1,12 +1,6 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 "use strict";
 
-// The rich text editor on the compose page: Squire on a div beside the
-// textarea, chosen per message. The textarea stays the baseline; a
-// message written here goes out as HTML, and the direction of each
-// paragraph is decided by the server from the text, since the browser's
-// dir=auto is not something every receiving client understands.
-
 // A block of its own: compose.js shares the page and its names.
 {
 const form = document.getElementById("compose-form");
@@ -19,11 +13,9 @@ const toggle = form && form.querySelector("[data-editor-toggle]");
 if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squire) {
 	let editor = null;
 
-	// What the editor may hold: the tags the server will keep. Anything
-	// pasted from elsewhere is reduced to these before it enters.
+	// The tags the server keeps; pasted markup is reduced to these.
 	const allowed = { P: 1, DIV: 1, BR: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, UL: 1, OL: 1, LI: 1, BLOCKQUOTE: 1, A: 1, IMG: 1 };
-	// An image names an upload or a part alborz holds, as the server's
-	// policy has it (ADR 40); a pasted image from the web is dropped.
+	// Only images alborz holds survive (ADR 40).
 	const localImage = /^\/compose\/attachment\/[0-9a-f-]+$|^\/message\/[^?]+\/[0-9]+\/raw\?part=[0-9.]+(&account=[^&]+)?$/;
 	const shownTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 	const sanitize = html => {
@@ -69,9 +61,6 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 
 	const escape = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-	// Plain text to the editor's HTML: a blank line ends a paragraph and
-	// a run of quoted lines is a quote, the same reading the server gives
-	// text when it adds direction.
 	const fromText = text => {
 		const out = [];
 		let para = [], quoted = false, inQuote = false;
@@ -108,8 +97,6 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		return out.join("\n");
 	};
 
-	// The editor's HTML back to text, for the textarea when the editor is
-	// put away: paragraphs by blank lines, quotes by their mark.
 	const toText = root => {
 		const lines = [];
 		const walk = (node, prefix) => {
@@ -162,8 +149,6 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		toggle.setAttribute("aria-pressed", "false");
 	};
 
-	// The buttons say which state the caret is in, so bold reads as on
-	// inside bold text, the way every editor since Word does it.
 	const reflect = () => {
 		if (!editor) {
 			return;
@@ -181,9 +166,7 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		}
 	};
 
-	// Squire writes a direction on the block, which for a list item
-	// leaves the list itself in the page's direction: the marker and the
-	// indent then sit on the wrong side. The list follows its items.
+	// Squire sets direction on the item, leaving the list's marker and indent on the wrong side.
 	const listOfCaret = () => {
 		const range = editor.getSelection();
 		let node = range && range.startContainer;
@@ -236,9 +219,7 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		reflect();
 	});
 
-	// An image pasted or dropped on the editor is uploaded as a file is
-	// and placed where the caret is; anything else dropped there is left
-	// to the page, which attaches it.
+	// Anything but images falls through to the page, which attaches it.
 	const placeImages = (files, ev) => {
 		const images = [...files].filter(f => shownTypes.includes(f.type));
 		if (!editor || images.length === 0 || images.length !== files.length) {
@@ -264,8 +245,7 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 	holder.addEventListener("paste", ev => placeImages(ev.clipboardData.files, ev), true);
 	holder.addEventListener("drop", ev => placeImages(ev.dataTransfer.files, ev), true);
 
-	// An untouched reply opens on the original's HTML, quoted; one the
-	// writer has already typed into keeps what was typed.
+	// An untouched reply opens on the original's HTML; a typed-in one keeps what was typed.
 	const quoteHTML = document.getElementById("quote-html");
 	toolbar.hidden = false;
 	toggle.addEventListener("click", ev => {
@@ -279,9 +259,7 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		}
 	});
 
-	// Before any submit listener sends the form: the editor's HTML into
-	// its field, and its text into the textarea so a client without HTML
-	// and a reopened draft read the same words.
+	// Capture phase: filled before any other submit listener; the text serves clients without HTML and reopened drafts.
 	form.addEventListener("submit", () => {
 		if (editor) {
 			htmlInput.value = editor.getHTML();
@@ -289,8 +267,7 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		}
 	}, true);
 
-	// A draft written here opens here, and so does a forward of HTML,
-	// which as text would reach the next reader flattened.
+	// A forward of HTML opens here; as text it would reach the next reader flattened.
 	if (htmlInput.value) {
 		open(htmlInput.value);
 	} else if (quoteHTML && "open" in quoteHTML.dataset && textarea.value === textarea.defaultValue) {

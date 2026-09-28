@@ -33,8 +33,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	provider, err := dav.NewProvider(srv, dav.Kind{
 		Name: "caldav", Label: "CalDAV",
 		Schemes: [2]string{"caldavs", "caldav+insecure"},
-		// Invitations and tasks ticked on a phone should show within
-		// minutes.
+		// Invitations and tasks ticked on a phone should show within minutes.
 		Poll:     2 * time.Minute,
 		Discover: caldav.DiscoverContextURL,
 		Own:      func(s alborz.Services) string { return s.CalDAV },
@@ -77,17 +76,12 @@ func init() {
 	})
 }
 
-// registerServerCard puts the calendar server among the account's
-// servers.
 func (p *plugin) registerServerCard() {
 	card := p.dav.InjectCard("settings.davcalendar", davAbilities)
 	p.Inject("servers.html", card)
 	p.Inject("server.html", card)
 }
 
-// davAbilities names the classes that change what alborz can offer,
-// each with a line saying what it changes; the rest of the DAV header
-// is shown as the server wrote it and explained by nobody.
 func davAbilities(found dav.Advertised) []alborzbase.Ability {
 	return []alborzbase.Ability{
 		{Label: "settings.davability3", Hint: "settings.davability3hint", Have: found.Has("3")},

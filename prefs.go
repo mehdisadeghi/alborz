@@ -8,11 +8,7 @@ import (
 	"strings"
 )
 
-// readThemes are the stylesheet overlays on offer: the ones built into
-// the binary and any a deployment dropped into the theme's assets
-// beside them, which is how somebody's own palette becomes a choice in
-// the settings without a rebuild. The value lands in a stylesheet URL,
-// so what is not in this list is not accepted.
+// The value lands in a stylesheet URL, so only listed themes are accepted.
 func readThemes(themesPath, theme string) []Theme {
 	found := map[string]Theme{}
 	add := func(name string, source []byte) {
@@ -40,18 +36,12 @@ func readThemes(themesPath, theme string) []Theme {
 	return themes
 }
 
-// Theme is one overlay on offer. Scheme is the one it pins - a theme
-// may be written for the light side only, or the dark - and empty where
-// it answers to both, which is what decides whether the scheme toggle
-// has anything to do on it.
+// Theme is one overlay on offer; Scheme is the scheme it pins, empty when it answers to both.
 type Theme struct {
 	Name   string
 	Scheme string
 }
 
-// pinnedScheme reads a theme's stylesheet for the scheme it is written
-// in. A sheet with a dark block answers to both sides; one without is
-// the scheme it declares, whatever the system says.
 func pinnedScheme(source string) string {
 	if strings.Contains(source, "prefers-color-scheme: dark") || strings.Contains(source, `[data-theme="dark"]`) {
 		return ""
@@ -66,14 +56,7 @@ func pinnedScheme(source string) string {
 	return ""
 }
 
-// cookieValues returns every value the request carries for a name.
-// A browser may hold more than one cookie of the same name - an older
-// deploy's, set on a narrower path, outranks ours and is sent first -
-// and http.Request.Cookie only ever returns that first one. Reading one
-// value made a stale cookie shadow the live one for good: the session
-// looked expired, the login page restored it, the redirect came back,
-// and the stale cookie shadowed it again. We cannot delete a cookie
-// whose path we do not know, so we tolerate it instead.
+// A browser may send several cookies of one name, and http.Request.Cookie returns only the first.
 func (ctx *Context) cookieValues(name string) []string {
 	var values []string
 	for _, c := range ctx.Request().Cookies() {
@@ -84,8 +67,7 @@ func (ctx *Context) cookieValues(name string) []string {
 	return values
 }
 
-// cookieValue returns the first value for a name that passes valid,
-// so a stale duplicate cannot mask a usable one.
+// Skipping invalid values keeps a stale duplicate from masking a usable one.
 func (ctx *Context) cookieValue(name string, valid func(string) bool) (string, bool) {
 	for _, v := range ctx.cookieValues(name) {
 		if valid(v) {
@@ -95,8 +77,7 @@ func (ctx *Context) cookieValue(name string, valid func(string) bool) (string, b
 	return "", false
 }
 
-// cookieProfile is the browser's own copy of the display, for a page
-// rendered with no account signed in; the rest is the default.
+// cookieProfile serves pages rendered with no account signed in.
 func (ctx *Context) cookieProfile() Profile {
 	has := func(name string) string {
 		v, _ := ctx.cookieValue(name, func(v string) bool { return v != "" })
@@ -113,7 +94,6 @@ func (ctx *Context) cookieProfile() Profile {
 	}
 }
 
-// setProfileCookies keeps the browser's copy in step with the profile.
 func (ctx *Context) setProfileCookies(d Display) {
 	align := ""
 	if d.AlignByScript {
@@ -130,8 +110,7 @@ func (ctx *Context) Themes() []Theme {
 	return ctx.Server.themes
 }
 
-// ThemeScheme is the scheme the chosen theme pins, empty where it
-// follows the reader's own choice.
+// ThemeScheme is the scheme the chosen theme pins, empty when it follows the reader.
 func (ctx *Context) ThemeScheme() string {
 	name := ctx.Theme()
 	for _, t := range ctx.Server.themes {
@@ -142,8 +121,7 @@ func (ctx *Context) ThemeScheme() string {
 	return ""
 }
 
-// Theme returns the user's theme variant, empty for the default or one
-// this deployment does not offer.
+// Theme returns the user's theme, empty for the default or one not offered.
 func (ctx *Context) Theme() string {
 	if theme := ctx.Profile().Display.Theme; ctx.Server.hasTheme(theme) {
 		return theme
@@ -151,15 +129,11 @@ func (ctx *Context) Theme() string {
 	return ""
 }
 
-// AlignByScript reports whether lines align by their own script
-// rather than with the interface's edge.
+// AlignByScript reports whether lines align by their own script rather than the interface's edge.
 func (ctx *Context) AlignByScript() bool {
 	return ctx.Profile().Display.AlignByScript
 }
 
-// textSizes are the reading sizes on offer beside the default. Every
-// font size in the stylesheet is already relative, so one declaration
-// on the root scales the whole interface.
 var textSizes = []string{"large", "larger"}
 
 // TextSizes are the sizes on offer beside the default.
@@ -173,8 +147,7 @@ func (ctx *Context) TextSize() string {
 	return ""
 }
 
-// Calendars returns the chosen systems: the one counted in, empty for
-// Gregorian, and the one glossed, empty for none.
+// Calendars returns the primary system, empty for Gregorian, and the secondary, empty for none.
 func (ctx *Context) Calendars() (primary, secondary string) {
 	r := ctx.Reading()
 	return r.Primary, r.Secondary
@@ -185,8 +158,7 @@ func (ctx *Context) CalendarSystem() CalendarSystem {
 	return Calendar(ctx.Reading().Primary)
 }
 
-// SetLanguage puts a UI language in the profile; empty follows
-// Accept-Language again.
+// SetLanguage sets the UI language; empty follows Accept-Language.
 func (ctx *Context) SetLanguage(code string) error {
 	if !IsLanguage(code) {
 		code = ""
@@ -199,8 +171,7 @@ func (ctx *Context) SetLanguage(code string) error {
 	return ctx.SetProfile(p)
 }
 
-// Language returns the user's explicit UI language choice, empty when
-// following the browser preference.
+// Language returns the explicit UI language, empty when following the browser.
 func (ctx *Context) Language() string {
 	if code := ctx.Profile().Display.Language; IsLanguage(code) {
 		return code

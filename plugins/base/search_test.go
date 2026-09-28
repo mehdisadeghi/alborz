@@ -41,8 +41,6 @@ func TestSplitSearchTokens(t *testing.T) {
 		want []string
 	}{
 		{`hello world foo:bar baz trains:"are cool"`, []string{"hello world", "foo:bar", "baz", "trains:are cool"}},
-		// The shape that once spun forever inside the IMAP lock: a
-		// single unquoted term with nothing after it.
 		{"from:a@b.com", []string{"from:a@b.com"}},
 		{`subject:"left open`, []string{"subject:left open"}},
 		{"  spaced   out  ", []string{"spaced   out"}},

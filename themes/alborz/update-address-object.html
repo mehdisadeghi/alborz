@@ -16,9 +16,6 @@
     {{ end }}
     <main id="main" tabindex="-1" class="create-update">
       <form method="post" enctype="multipart/form-data">
-        {{/* The path is shown whether the object exists yet or not: a
-             create form is somewhere too, and stopping at the section
-             is more use than showing nothing. */}}
         {{ $crumbColl := "" }}{{ $crumbPath := "" }}
         {{ if .AddressObject }}{{ $crumbColl = .AddressBook.Name }}{{ $crumbPath = .AddressBook.Path }}{{ end }}
         {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" "/contacts" "field" "book" "collection" $crumbColl "path" $crumbPath "chooses" (and (not .AddressObject) (gt (len .GlobalData.Accounts) 1))) }}
@@ -31,9 +28,6 @@
         {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "addressbook" "key" "contact" "groups" .Groups "account" $cur "path" .AddressBook.Path "multi" (gt (len .GlobalData.Accounts) 1)) }}
         {{end}}
 
-        {{/* The card carries the picture inline, so what is uploaded is
-             not what is stored: it is decoded, capped and re-encoded
-             before it goes anywhere near the server. */}}
         <div class="field photo-field">
           <label for="photo">{{$.T "contacts.photo"}}</label>
           {{ with .Photo }}

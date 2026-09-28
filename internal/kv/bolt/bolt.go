@@ -12,8 +12,7 @@ import (
 	bbolterrors "go.etcd.io/bbolt/errors"
 )
 
-// bucket holds every key; bbolt's nesting and sequences are not used.
-// Buckets of other names in the file are not read.
+// bucket holds every key.
 var bucket = []byte("kv")
 
 // DB is a bbolt file.
@@ -21,8 +20,7 @@ type DB struct {
 	db *bbolt.DB
 }
 
-// Open opens the file at path, making it if it is not there, and waits
-// at most timeout for its lock.
+// Open opens or creates the file at path, waiting at most timeout for its lock.
 func Open(path string, timeout time.Duration) (*DB, error) {
 	db, err := bbolt.Open(path, 0o600, &bbolt.Options{Timeout: timeout})
 	if errors.Is(err, bbolterrors.ErrTimeout) {

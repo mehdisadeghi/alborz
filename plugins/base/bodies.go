@@ -11,18 +11,14 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-// The body cache holds, for each row of a listing, the part the message
-// page would open, fetched behind the page so opening it asks the server
-// nothing.
+// Bodies are fetched behind the listing so opening a message asks the server nothing.
 const (
-	// bodyKeepPerUser is two pages' worth.
 	bodyKeepPerUser = 100
-	// bodyMaxPartSize is the largest part fetched ahead of a click that
-	// may never come.
+	// Larger parts are not worth fetching for a click that may never come.
 	bodyMaxPartSize = 512 << 10
-	// bodyFetchBatch bounds the round trip a click can wait behind.
+	// Bounds the round trip a click can wait behind.
 	bodyFetchBatch = 10
-	// bodyMaxBytes keeps many idle accounts from exhausting memory.
+	// Keeps many idle accounts from exhausting memory.
 	bodyMaxBytes = 64 << 20
 	bodyKeepFor  = listingKeepFor
 )
@@ -34,18 +30,15 @@ type bodyKey struct {
 }
 
 type cachedBody struct {
-	validity uint32
-	buf      *imapclient.FetchMessageBuffer
-	part     []int
-	// permanent is the folder's PERMANENTFLAGS on the fetching connection.
+	validity  uint32
+	buf       *imapclient.FetchMessageBuffer
+	part      []int
 	permanent []imap.Flag
 	lastUse   time.Time
 }
 
 type mailboxKey struct{ user, mailbox string }
 
-// newBodyCache keeps a body for keepFor after its last use; with none it
-// keeps nothing and only tracks the pending automatic reads.
 func newBodyCache(keepFor time.Duration) *bodyCache {
 	return &bodyCache{keepFor: keepFor, entries: make(map[bodyKey]*cachedBody), fetching: make(map[bodyKey]uint64),
 		validity: make(map[mailboxKey]uint32), seen: make(map[bodyKey]uint64)}
@@ -112,16 +105,14 @@ func (bc *bodyCache) put(user, mbox string, validity uint32, token uint64, b *ca
 	}
 }
 
-// drop removes the matching bodies with their pending fetches and
-// automatic reads; the caller holds mu.
+// The caller holds bc.mu.
 func (bc *bodyCache) drop(match func(bodyKey) bool) {
 	maps.DeleteFunc(bc.entries, func(k bodyKey, _ *cachedBody) bool { return match(k) })
 	maps.DeleteFunc(bc.fetching, func(k bodyKey, _ uint64) bool { return match(k) })
 	maps.DeleteFunc(bc.seen, func(k bodyKey, _ uint64) bool { return match(k) })
 }
 
-// discard removes messages after a move or deletion; nil uids is the
-// whole mailbox.
+// Nil uids is the whole mailbox.
 func (bc *bodyCache) discard(user, mailbox string, uids []imap.UID) {
 	among := uidSet(uids)
 	bc.mu.Lock()
@@ -136,7 +127,7 @@ func (bc *bodyCache) forget(user string) {
 	bc.drop(func(k bodyKey) bool { return k.user == user })
 }
 
-// Flag changes retain body bytes and cancel prefetches taken before the write.
+// Prefetches taken before the write would carry the old flags.
 func (bc *bodyCache) flags(user, mbox string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) {
 	among := uidSet(uids)
 	bc.mu.Lock()
@@ -162,9 +153,6 @@ func (b *cachedBody) size() int {
 	return n
 }
 
-// prefetchBodies fetches the preferred part of each row not held yet,
-// a batch of messages per FETCH and a FETCH per part path, off the
-// reader's time. The fetch peeks, so nothing is marked read by it.
 func (p *plugin) prefetchBodies(s *alborz.Login, preferHTML bool, mbox string, validity uint32, rows []IMAPMessage) {
 	if validity == 0 {
 		return
@@ -267,8 +255,6 @@ func changedFlags(current []imap.Flag, op imap.StoreFlagsOp, flags []imap.Flag) 
 	return current
 }
 
-// observe records the mailbox's UIDVALIDITY; a new one voids what is
-// held and pending under the old.
 func (bc *bodyCache) observe(user, mailbox string, validity uint32) {
 	if validity == 0 {
 		return
@@ -330,7 +316,6 @@ func (p *plugin) markHeldSeen(s *alborz.Login, mailbox string, uid imap.UID, val
 			if err := storeFlags(c, mailbox, imap.UIDSetNum(uid), imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen}); err != nil {
 				return err
 			}
-			// Confirmed on the same connection turn as the STORE.
 			p.messageRead(s.Username(), mailbox, uid)
 			return nil
 		})

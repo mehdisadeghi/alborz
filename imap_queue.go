@@ -17,7 +17,6 @@ type imapWaiter struct {
 }
 
 // imapQueue gives interactive work priority between background batches.
-// Each connection still has exactly one owner, including its SELECT state.
 type imapQueue struct {
 	mu      sync.Mutex
 	busy    bool
@@ -90,8 +89,8 @@ func (q *imapQueue) release() {
 	close(w.ready)
 }
 
-// WithIMAPStart lets shared speculative work be withdrawn until it holds
-// the connection: start then says whether it may still run.
+// WithIMAPStart lets speculative work be withdrawn until it holds the
+// connection; start reports whether it may still run.
 func WithIMAPStart(ctx context.Context, start func() bool) context.Context {
 	return context.WithValue(ctx, imapStartKey{}, start)
 }

@@ -34,7 +34,6 @@ func (p *plugin) client(ctx context.Context, login *alborz.Login) (*carddav.Clie
 	return newClient(u, p.dav.HTTPClient(ctx, login))
 }
 
-// findHome is where a source lists the account's address books.
 func findHome(ctx context.Context, client *http.Client, endpoint string) (string, error) {
 	c, err := carddav.NewClient(client, endpoint)
 	if err != nil {
@@ -51,8 +50,6 @@ func findHome(ctx context.Context, client *http.Client, endpoint string) (string
 	return homeSet, nil
 }
 
-// An account with no address book has no contacts section to show, and
-// says so rather than listing nothing.
 func (p *plugin) clientWithAddressBooks(ctx context.Context, login *alborz.Login) (*carddav.Client, []dav.Collection, error) {
 	c, infos, err := dav.Opened(ctx, p.dav, login, p.client)
 	if err != nil {
@@ -64,8 +61,6 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, login *alborz.Login
 	return c, infos, nil
 }
 
-// pooledBooks resolves every signed-in account that has CardDAV: the
-// contacts page is always pooled across accounts.
 func (p *plugin) pooledBooks(ctx *alborz.Context) ([]dav.Account[*carddav.Client], error) {
 	return dav.Pooled(ctx, p.dav, p.clientWithAddressBooks, errNoAddressBook)
 }
@@ -74,8 +69,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	provider, err := dav.NewProvider(srv, dav.Kind{
 		Name: "carddav", Label: "CardDAV",
 		Schemes: [2]string{"carddavs", "carddav+insecure"},
-		// Address books change rarely; asking every few minutes is
-		// asking for nothing.
+		// Address books change rarely.
 		Poll:     10 * time.Minute,
 		Discover: carddav.DiscoverContextURL,
 		Own:      func(s alborz.Services) string { return s.CardDAV },
@@ -100,8 +94,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 	p.registerServerCard()
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 
-	// A card attached to a mail is filed from its own row, into a book
-	// the reader chooses.
+	// A card attached to a mail is filed from its own row.
 	p.Inject("message.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
 		data := _data.(*alborzbase.MessageRenderData)
 		if !hasAttachment(data.Message, "text/vcard", "text/x-vcard", "text/directory") {
@@ -123,9 +116,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 
 		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 		if err != nil {
-			// Suggestions are a convenience of the compose page, not a
-			// condition of it: an address book that is missing or not
-			// answering must not keep a message from being written.
+			// Suggestions are a convenience: a missing or silent address book must not block compose.
 			if err != errNoAddressBook {
 				ctx.Logger().Printf("carddav: no suggestions for compose: %v", err)
 			}
@@ -140,22 +131,13 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 				Name: vcard.FieldEmail,
 			}},
 		}
-		// One query per book, run together like the contacts page does;
-		// sequentially they would delay the compose form by a round trip
-		// each.
+		// One query per book, run together so compose waits one round trip.
 		results := dav.Each(ctx.Request().Context(), addressBooks, func(ctx context.Context, ab dav.Collection) ([]carddav.AddressObject, error) {
 			return c.QueryAddressBook(ctx, ab.Path, &query)
 		})
 
-		// A suggestion is inserted verbatim into the field, so it is
-		// written the way a recipient is written (RFC 5322 3.4): the name
-		// in front of the address. A bare address makes the reader type
-		// the name back in, and a card with several addresses would
-		// otherwise offer them with nothing to tell them apart.
-		// The base plugin has already put the people this account
-		// exchanges mail with here; the address books add the ones it
-		// was told to keep. Replacing rather than adding would drop the
-		// larger half.
+		// Written as a recipient is, name before address, since it is inserted verbatim.
+		// Added to the correspondents the base plugin put here, not replacing them.
 		var emails []string
 		seen := make(map[string]bool)
 		if existing, ok := data.Extra["EmailSuggestions"].([]string); ok {
@@ -218,8 +200,6 @@ func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]dav.Group, error) {
 	return dav.WritableGroups(accounts, func(ab dav.Collection) bool { return ab.Writable }), nil
 }
 
-// registerServerCard puts the contacts server among the account's
-// servers, beside mail's and the calendar's.
 func (p *plugin) registerServerCard() {
 	card := p.dav.InjectCard("settings.davcontacts", func(found dav.Advertised) []alborzbase.Ability {
 		return []alborzbase.Ability{
@@ -229,8 +209,7 @@ func (p *plugin) registerServerCard() {
 			{Label: "settings.davabilitymkcol", Hint: "settings.davabilitymkcolhint", Have: found.Has("extended-mkcol")},
 		}
 	})
-	// The collections kept here follow the servers they stand beside:
-	// the plugins load calendar first, so this is the last card.
+	// Calendar registers first, so the kept collections come last.
 	here := p.dav.InjectHere()
 	both := func(ctx *alborz.Context, data alborz.RenderData) error {
 		if err := card(ctx, data); err != nil {

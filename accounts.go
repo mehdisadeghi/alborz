@@ -20,9 +20,6 @@ type Account struct {
 	Username string
 }
 
-// accountLogins is the session's bag: every account this browser has
-// signed into. An account whose login has ended is dropped and named
-// for the page, rather than left in the list as if it were still here.
 func (ctx *Context) accountLogins() []*Login {
 	if ctx.accountsLoaded {
 		return ctx.accounts
@@ -38,9 +35,7 @@ func (ctx *Context) accountLogins() []*Login {
 	return logins
 }
 
-// byName puts accounts in one order wherever they are listed, the
-// rail and every picker alike. Sign-in order is a history, not an
-// order: an account signed in again moved to the end.
+// byName gives accounts one order everywhere; sign-in order is history, not order.
 func byName(logins []*Login) {
 	slices.SortStableFunc(logins, func(a, b *Login) int {
 		return strings.Compare(strings.ToLower(a.username), strings.ToLower(b.username))
@@ -62,8 +57,7 @@ func (ctx *Context) Logins() []*Login {
 	return ctx.accountLogins()
 }
 
-// AddAccount puts the account in this browser's bag and makes it the
-// request's own. A login for the same address is replaced.
+// AddAccount adds the account to this browser's session and makes it the request's own.
 func (ctx *Context) AddAccount(s *Login) {
 	session := ctx.Session()
 	first := !slices.ContainsFunc(ctx.accountLogins(), func(l *Login) bool { return l.username != s.username })
@@ -77,25 +71,20 @@ func (ctx *Context) AddAccount(s *Login) {
 	}
 }
 
-// URLAccount returns the account selected by the request's account
-// parameter, "" when none.
+// URLAccount returns the request's account parameter, "" when none.
 func (ctx *Context) URLAccount() string {
 	return ctx.urlAccount
 }
 
-// readable undoes the escapes a query value does not need: RFC 3986
-// allows ":", "@", "/", "?" and "," in a query, and addresses, paths
-// and alborz's own URLs are most of what its links carry there.
+// readable undoes escapes RFC 3986 does not require in a query.
 var readable = strings.NewReplacer("%40", "@", "%2F", "/", "%3A", ":", "%3F", "?", "%2C", ",")
 
-// QueryValue writes a value into a URL query the way a reader would
-// type it, escaping only what would end or split it.
+// QueryValue escapes v for a URL query, leaving readable what RFC 3986 allows.
 func QueryValue(v string) string {
 	return readable.Replace(url.QueryEscape(v))
 }
 
-// Query encodes a whole query, keys in order, each value as
-// QueryValue writes it.
+// Query encodes q, keys in order, each value as QueryValue writes it.
 func Query(q url.Values) string {
 	var b strings.Builder
 	for _, k := range slices.Sorted(maps.Keys(q)) {
@@ -109,14 +98,11 @@ func Query(q url.Values) string {
 	return b.String()
 }
 
-// AccountPath appends the request's account parameter to path, so a flow
-// started under one account redirects back into it.
+// AccountPath appends the request's account parameter to path.
 func (ctx *Context) AccountPath(path string) string {
 	if ctx.urlAccount == "" {
 		return path
 	}
-	// The path may already carry a query - a redirect to a search, say -
-	// and a second "?" makes the account part of the last value.
 	sep := "?"
 	if strings.Contains(path, "?") {
 		sep = "&"
@@ -124,11 +110,7 @@ func (ctx *Context) AccountPath(path string) string {
 	return path + sep + "account=" + QueryValue(ctx.urlAccount)
 }
 
-// NextOr returns the local page a form asked to return to, or fallback
-// when the request names none, names another host, or names something
-// that is not an absolute path. A setting written from a page belongs
-// to that page: the form carries where it was submitted from, and the
-// handler comes back to it instead of a fixed landing page.
+// NextOr returns the local page the form asked to return to, or fallback.
 func (ctx *Context) NextOr(fallback string) string {
 	if next := localPath(ctx.FormValue("next")); next != "" {
 		return next
@@ -136,21 +118,16 @@ func (ctx *Context) NextOr(fallback string) string {
 	return fallback
 }
 
-// From is the list an object's page was opened from, when its row said
-// so; empty otherwise. The object's own account is in the URL too, so
-// the list's scope - merged or one account - cannot be read back from
-// it, and the page returns here instead.
+// From returns the list an object's page was opened from, or "".
 func (ctx *Context) From() string {
 	return localPath(ctx.QueryParam("from"))
 }
 
-// localPath is raw when it is a path on this site, empty otherwise.
 func localPath(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	// A backslash is read as a slash by browsers, so "/\\host" would
-	// leave the site the way "//host" does.
+	// Browsers read a backslash as a slash, so "/\\host" leaves the site like "//host".
 	u, err := url.Parse(raw)
 	if err != nil || u.Host != "" || !strings.HasPrefix(u.Path, "/") ||
 		strings.ContainsRune(raw, '\\') {
@@ -159,8 +136,7 @@ func localPath(raw string) string {
 	return u.String()
 }
 
-// LoginFor returns the listed account's live login, nil when the
-// account is not signed in.
+// LoginFor returns the account's live login, or nil.
 func (ctx *Context) LoginFor(username string) *Login {
 	for _, s := range ctx.accountLogins() {
 		if s.username == username {
@@ -170,15 +146,12 @@ func (ctx *Context) LoginFor(username string) *Login {
 	return nil
 }
 
-// Logout closes the request's login, removes it from the account
-// list, and returns the first remaining account's login. A nil return
-// means no account is left and the cookies were cleared.
+// Logout signs out the request's login and returns the next remaining one, or nil.
 func (ctx *Context) Logout() *Login {
 	return ctx.LogoutAccount(ctx.Login.username)
 }
 
-// LogoutAccount closes exactly the named account and takes it out of
-// the bag. A nil return means the bag is empty and nobody is signed in.
+// LogoutAccount signs out the named account and returns the next remaining one, or nil.
 func (ctx *Context) LogoutAccount(username string) *Login {
 	s := ctx.lookupSession()
 	if s == nil {
@@ -202,10 +175,7 @@ func (ctx *Context) LogoutAccount(username string) *Login {
 	return ctx.DefaultLogin
 }
 
-// SetLoginToken keeps the account's password with this session, sealed
-// under the browser's own secret, so a login that ends or a restart
-// costs a reconnection rather than a login. What the browser holds is
-// an id and a key, never a password.
+// SetLoginToken keeps the account's password sealed under the browser's secret.
 func (ctx *Context) SetLoginToken(username, password string) {
 	s := ctx.Session()
 	sealed, err := ctx.seal(password)
@@ -219,8 +189,6 @@ func (ctx *Context) SetLoginToken(username, password string) {
 	}
 }
 
-// forgetLoginToken drops the account's password, so signing out is
-// signing out.
 func (ctx *Context) forgetLoginToken(username string) {
 	s := ctx.lookupSession()
 	if s == nil {
@@ -239,35 +207,26 @@ func (ctx *Context) forgetLoginToken(username string) {
 }
 
 const (
-	// loginRetryAfter is how long a failed automatic sign-in is left
-	// alone. Without it every request retries every remembered account,
-	// so one unreachable server turns a browser reload - or a page's own
-	// assets - into a burst of logins, which is what a provider counting
-	// them refuses the account for.
+	// loginRetryAfter keeps one unreachable server from turning every request
+	// into a burst of logins that a provider may count against the account.
 	loginRetryAfter = 2 * time.Minute
 )
 
-// signInTries refusals within signInWindow pause the sign-in form for
-// one reader: fail2ban's defaults (maxretry, findtime), so a mail server
-// that trusts alborz to name the reader is asked no more than its own
-// lockout would allow.
+// signInTries within signInWindow pause the sign-in form for one reader:
+// fail2ban's defaults for maxretry and findtime.
 const (
 	signInTries  = 5
 	signInWindow = 10 * time.Minute
 )
 
-// PausedError is a sign-in not asked of the mail server: the reader has
-// had signInTries refusals, and may try again at Until.
+// PausedError is a sign-in withheld until Until after signInTries refusals.
 type PausedError struct{ Until time.Time }
 
 func (e PausedError) Error() string {
 	return fmt.Sprintf("too many refused passwords; paused until %v", e.Until.Format(time.RFC3339))
 }
 
-// SignIn opens a login for username as the mail server says, for a
-// reader at from. Readers are counted by their address, or behind a
-// proxy not named as trusted, where every reader has the proxy's, by
-// address and account.
+// SignIn opens a login for username, counting refusals per reader at from.
 func (s *Server) SignIn(username, password, from string) (*Login, error) {
 	var login *Login
 	err := s.signInRefused.attempt(readerKey(from, username), func() (err error) {
@@ -277,7 +236,6 @@ func (s *Server) SignIn(username, password, from string) (*Login, error) {
 	return login, err
 }
 
-// readerKey is whom a refused password is counted against.
 func readerKey(from, username string) string {
 	if requestAddress(from) == "" {
 		return from + "\x00" + strings.ToLower(username)
@@ -285,9 +243,8 @@ func readerKey(from, username string) string {
 	return from
 }
 
-// SignInRefusal says why a sign-in failed, in the reader's language,
-// and with what status a form is answered. An empty text is alborz
-// itself failing, which is the caller's to raise as an error.
+// SignInRefusal returns the reader's message and status for a failed sign-in;
+// an empty message means alborz itself failed.
 func (ctx *Context) SignInRefusal(err error) (string, int) {
 	var paused PausedError
 	if errors.As(err, &paused) {
@@ -300,8 +257,6 @@ func (ctx *Context) SignInRefusal(err error) (string, int) {
 	}
 	var domain UnknownDomainError
 	if errors.As(err, &domain) {
-		// Which domain, and in the reader's own language: the error's
-		// own words are English and are for the log.
 		if domain.Domain == "" {
 			return ctx.T("login.needsdomain"), http.StatusUnauthorized
 		}
@@ -322,8 +277,6 @@ func (ctx *Context) SignInRefusal(err error) (string, int) {
 	return "", http.StatusInternalServerError
 }
 
-// recentlyFailed reports whether signing this account in was tried and
-// failed too recently to be worth trying again.
 func (s *Server) recentlyFailed(username string) bool {
 	when, ok := s.loginFailures.Load(username)
 	if !ok {
@@ -336,9 +289,7 @@ func (s *Server) recentlyFailed(username string) bool {
 	return false
 }
 
-// loginFailed records a failed automatic sign-in and lets go of every
-// failure past its retry window, so addresses that never sign in again
-// are not kept for good.
+// loginFailed also drops expired failures, so the map does not grow for good.
 func (s *Server) loginFailed(username string) {
 	now := time.Now()
 	s.loginFailures.Range(func(k, when any) bool {
@@ -350,9 +301,8 @@ func (s *Server) loginFailed(username string) {
 	s.loginFailures.Store(username, now)
 }
 
-// RestoreRememberedAccounts signs every account this session remembers
-// back in, and reports whether any came back. The passwords are the
-// session's, opened with the secret the browser carries.
+// RestoreRememberedAccounts signs the session's remembered accounts back in
+// and reports whether any came back.
 func (ctx *Context) RestoreRememberedAccounts() bool {
 	session := ctx.lookupSession()
 	if session == nil {
@@ -370,8 +320,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	}
 	session.mu.Unlock()
 
-	// The accounts sign in concurrently: one unreachable upstream must
-	// not add its timeout to the others' wait.
+	// Concurrent, so one unreachable upstream does not delay the others.
 	logins := make([]*Login, len(want))
 	refused := make([]error, len(want))
 	var wg sync.WaitGroup
@@ -395,17 +344,13 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	}
 	wg.Wait()
 
-	// An account missing from the rail is otherwise a silent loss: the
-	// reader is owed its name and the reason it did not come back.
 	var lost, marked []string
 	forgot := false
 	for i, err := range refused {
 		if err == nil {
 			continue
 		}
-		// A password the mail server refuses is not tried again: every
-		// retry is a failed login from the reader's own address, which
-		// a server counting them bans.
+		// A refused password is not retried: each retry is a failed login a server may ban.
 		if errors.As(err, new(AuthError)) {
 			session.forget(want[i].address)
 			forgot = true
@@ -416,15 +361,11 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		}
 		say := ctx.T("notice.restorefailed")
 		lost = append(lost, fmt.Sprintf(say, want[i].address, why))
-		// The address reads left to right wherever the sentence runs,
-		// and the server's own words carry their own direction.
 		marked = append(marked, fmt.Sprintf(say,
 			`<bdi class="ltr">`+template.HTMLEscapeString(want[i].address)+`</bdi>`,
 			`<bdi>`+template.HTMLEscapeString(why)+`</bdi>`))
 	}
 	if forgot {
-		// The session stays, for the notice it owes; only what was kept
-		// of it goes when no password is left.
 		var err error
 		if session.remembered() {
 			err = ctx.Server.Sessions.Save(session)

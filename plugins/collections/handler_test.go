@@ -15,7 +15,6 @@ import (
 const event = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:e1\r\n" +
 	"DTSTAMP:20260101T100000Z\r\nDTSTART:20260102T100000Z\r\nSUMMARY:Lunch\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 
-// open is a store in a data file of its own.
 func open(t *testing.T) *Store {
 	t.Helper()
 	db, err := bolt.Open(filepath.Join(t.TempDir(), "alborz.db"), time.Second)
@@ -26,7 +25,6 @@ func open(t *testing.T) *Store {
 	return New(db)
 }
 
-// serve makes one request as an account and returns the status.
 func serve(t *testing.T, h http.Handler, account, method, path, body string) int {
 	t.Helper()
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -90,8 +88,7 @@ func TestAShareGivesWhatItSaysAndNoMore(t *testing.T) {
 			t.Fatalf("%s: %s %s as %s: got %d, want %d", step.name, step.method, step.path, step.account, got, step.want)
 		}
 	}
-	// The store asks again inside its own transaction, which is what
-	// holds when a share ends between the handler's look and the write.
+	// The store checks again in its own transaction, for a share ending in between.
 	if _, err := store.PutObject(ref, "e3.ics", "e3", []byte(event), nil, guest); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("a write by one who left: got %v, want %v", err, ErrNotFound)
 	}
@@ -219,8 +216,7 @@ func TestAPutKeepsTheOctetsItWasSentAndNamesThem(t *testing.T) {
 	if tag, want := w.Header().Get("ETag"), `"`+ETagOf([]byte(event))+`"`; tag != want {
 		t.Fatalf("the PUT answered ETag %q, want %q, the tag of what was sent", tag, want)
 	}
-	// The event names VERSION before PRODID, which an encoder would
-	// turn round: what a read answers is what the tag names.
+	// VERSION before PRODID, which an encoder would reorder: a read answers the bytes the tag names.
 	read := httptest.NewRecorder()
 	get := httptest.NewRequest(http.MethodGet, HomePath(Calendar, owner)+"work/e1.ics", nil)
 	h.ServeHTTP(read, get.WithContext(As(get.Context(), owner)))

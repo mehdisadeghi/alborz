@@ -8,10 +8,7 @@ import (
 	"git.mehdix.org/alborz/plugins/dav"
 )
 
-// A subscription's feed is fetched, parsed, and served as read-only,
-// coloured events; a second fetch with the server's ETag costs no
-// re-parse. The production client refuses loopback, so the test injects
-// a plain one to exercise the fetch and parse against real ICS bytes.
+// The production client refuses loopback, so the test injects a plain one.
 func TestSubscriptionFetchParseAndServe(t *testing.T) {
 	const ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n" +
 		"BEGIN:VEVENT\r\nUID:h1\r\nDTSTART;VALUE=DATE:20260101\r\nSUMMARY:New Year\r\nEND:VEVENT\r\n" +
@@ -46,8 +43,6 @@ func TestSubscriptionFetchParseAndServe(t *testing.T) {
 	if !c.fresh(srv.URL) {
 		t.Fatal("a just-fetched feed is not fresh")
 	}
-	// A second refresh sends the ETag; the server answers 304 and the
-	// events survive.
 	if _, err := c.refresh(srv.Client(), srv.URL); err != nil {
 		t.Fatalf("second refresh: %v", err)
 	}
@@ -59,9 +54,6 @@ func TestSubscriptionFetchParseAndServe(t *testing.T) {
 	}
 }
 
-// A subscription stands in the rail as a read-only calendar of events
-// under a stable pseudo-path, and its events follow that entry's
-// checkbox: hidden means not drawn.
 func TestSubscriptionIsACalendarInTheRail(t *testing.T) {
 	const ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n" +
 		"BEGIN:VEVENT\r\nUID:h1\r\nDTSTART;VALUE=DATE:20260101\r\nSUMMARY:New Year\r\nEND:VEVENT\r\n" +

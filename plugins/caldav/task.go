@@ -25,11 +25,9 @@ type TaskRenderData struct {
 	Rail     dav.Rail
 	Calendar *dav.Collection
 	Task     TaskObject
-	// Authors are who added the object and changed it last, where it is
-	// kept here and that is another account.
+	// Authors are who added and last changed the object, where another account.
 	Authors dav.Authors
-	// List is the list the page was opened from, filter and order kept,
-	// for what leaves the page with nothing to come back to.
+	// List is the list the page was opened from.
 	List       string
 	Star       string
 	Priority   string
@@ -43,17 +41,14 @@ type UpdateTaskRenderData struct {
 	Calendar       *dav.Collection
 	CalendarObject *caldav.CalendarObject
 	Todo           *ical.Component
-	// Due is the due date as the field holds it: what was typed, or
-	// what the task has.
+	// Due is the due date as the field holds it.
 	Due string
-	// Priority is the band the select holds, and PriorityBands the
-	// bands it offers, in order.
+	// Priority is the band the select holds; PriorityBands the bands offered.
 	Priority      string
 	PriorityBands []string
 }
 
-// The bands RFC 5545 3.8.1.9 draws over PRIORITY: 1 to 4 high, 5
-// medium, 6 to 9 low, 0 or absent none. Apple writes 1, 5 and 9.
+// PRIORITY bands (RFC 5545 3.8.1.9): 1-4 high, 5 medium, 6-9 low, 0 none.
 const (
 	priorityHigh   = "high"
 	priorityMedium = "medium"
@@ -80,8 +75,7 @@ func priorityBand(todo *ical.Component) string {
 	}
 }
 
-// setPriorityBand writes a band as Apple does, and leaves a number
-// another client wrote alone while it still falls in the band chosen.
+// A number another client wrote stays while it falls in the chosen band.
 func setPriorityBand(todo *ical.Component, band string) {
 	if band == priorityBand(todo) {
 		return
@@ -116,8 +110,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
-			// The whole to-do: the form reads its priority and its dates,
-			// and a server returns only what is asked for.
+			// The whole to-do: the form reads its priority and dates.
 			Comps: []caldav.CalendarCompRequest{{Name: "VTODO", AllProps: true, AllComps: true}},
 		},
 	}
@@ -146,9 +139,6 @@ func (p *plugin) task(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	// The list the page was opened from is rebuilt to find what stands
-	// either side; the DAV reads behind it are cached, so the cost is
-	// the sorting, not another round trip.
 	list, err := p.taskList(ctx)
 	if err != nil {
 		return err
@@ -217,8 +207,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		// A form without the select, the line above the list, says
-		// nothing about priority and changes nothing.
+		// A form without the select changes no priority.
 		_, prioritySent := params["priority"]
 		band := ctx.FormValue("priority")
 		if band != "" && !slices.Contains(priorityBands, band) {
@@ -257,8 +246,6 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			}
 		}
 
-		// DTSTAMP is the instance's creation (RFC 5545 3.8.7.2), which the
-		// Added column reads; an edit moves LAST-MODIFIED instead.
 		if creating {
 			todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 		} else {
@@ -273,8 +260,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			todo.Props.Del(ical.PropDescription)
 		}
 
-		// The zone definition has to cover the date it qualifies,
-		// so a dated task is bracketed by its own due date.
+		// The zone definition must cover the date it qualifies, so it brackets the due date.
 		due := time.Now().In(loc)
 		if dueDate != "" {
 			at, err := ctx.ReadDate(dueDate, loc)
@@ -286,8 +272,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		} else {
 			todo.Props.Del(ical.PropDue)
 		}
-		// DUE and DTSTART must not stand together (RFC 5545 3.6.2);
-		// alborz keeps the date in DUE, as the form shows it there.
+		// alborz keeps the date in DUE, where the form shows it.
 		todo.Props.Del(ical.PropDateTimeStart)
 		if prioritySent {
 			setPriorityBand(todo, band)
@@ -313,8 +298,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 	}
 
 	summary, _ := todo.Props.Text("SUMMARY")
-	// The form shows the date the list shows, from DUE or, for a writer
-	// that sent only the start, DTSTART.
+	// DUE, or DTSTART from a writer that sent only the start.
 	var due string
 	at, err := todo.Props.DateTime(ical.PropDue, loc)
 	if err != nil {

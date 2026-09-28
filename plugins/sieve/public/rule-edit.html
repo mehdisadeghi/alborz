@@ -18,8 +18,6 @@
 
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Editing.Name "dir" "auto" "required" true "autofocus" true) }}
 
-        {{/* Three rows of conditions; a row left empty is not one. The
-             join is a choice between two words, so it is two radios. */}}
         <fieldset class="action-group choices">
           <legend>{{$.T "filters.when"}}</legend>
           <label class="checkbox"><input type="radio" name="join" value="all"{{ if not .Editing.Any }} checked{{ end }}> {{$.T "filters.all"}}</label>

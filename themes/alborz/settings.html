@@ -13,9 +13,7 @@
         {{ template "list-toolbar" (dict "title" ($.T "settings.general")) }}
       </section>
       {{ template "dav-crumb" (dict "g" $ "section" ($.T "nav.settings") "home" "/settings" "noroot" true "chooses" true "field" "" "collection" ($.T "settings.general") "path" "/settings") }}
-      {{/* The language, the scheme, the text size and the reading
-           direction are attributes of the root element, which a swapped
-           body does not carry, so saving here asks for a whole page. */}}
+      {{/* A whole page: these are attributes of the root, which a swap keeps. */}}
       <form method="post" hx-boost="false">
         <div class="action-group">
           <label for="messages_per_page">{{$.T "settings.perpage"}}</label>
@@ -90,12 +88,6 @@
           <label for="theme">{{$.T "settings.theme"}}</label>
           <select name="theme" id="theme">
             <option value="" {{if eq .Theme ""}}selected{{end}}>{{$.T "settings.themedefault"}}</option>
-            {{/* A theme's name is the stylesheet's, so one dropped into
-                 the theme's assets is offered here without a rebuild
-                 and without a string of its own: a proper noun is the
-                 same in every language. */}}
-            {{/* A theme written for one side of the day says so: the
-                 scheme toggle has nothing to do while it is on. */}}
             {{ range .Themes }}
             <option value="{{.Name}}" {{if eq $.Theme .Name}}selected{{end}}>{{ themename .Name }}{{ with .Scheme }} · {{ if eq . "dark" }}{{$.T "settings.dark"}}{{ else }}{{$.T "settings.light"}}{{ end }}{{ end }}</option>
             {{ end }}
@@ -119,9 +111,6 @@
           {{ template "hint" (dict "text" ($.T "settings.alignscripthint")) }}
         </div>
 
-        {{/* Only a browser with a passkey locks, so only one has a
-             time to set; the passkeys themselves are a list of their
-             own, on the rail. */}}
         {{ with .LockMinutes }}
         <div class="action-group">
           <label for="lock_minutes">{{$.T "settings.lockminutes"}}</label>
@@ -134,11 +123,6 @@
           <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
         </div>
 
-        {{/* The browser decides, and it only asks on a gesture - so this
-             is a button rather than something the page does on load. It
-             stays hidden where the browser cannot offer it at all, and
-             it sits in the card so it shares the one left edge every
-             other control on this page is aligned to. */}}
         <div class="action-group" id="handler-group" hidden>
           <button type="button" data-protocol="mailto" data-handler="/compose?mailto=%s">{{$.T "settings.mailtohandler"}}</button>
           <button type="button" data-protocol="webcal" data-handler="/calendar/import?url=%s">{{$.T "settings.webcalhandler"}}</button>

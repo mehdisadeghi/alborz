@@ -15,8 +15,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// startAlborzKept starts alborz with a data directory and no DAV server
-// of the domain's: every calendar and book is one kept here.
+// startAlborzKept starts alborz with a data directory and no DAV server of the domain's.
 func startAlborzKept(t *testing.T, imapAddr string) string {
 	t.Helper()
 	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
@@ -41,8 +40,6 @@ func startAlborzKept(t *testing.T, imapAddr string) string {
 	return "http://" + ln.Addr().String()
 }
 
-// put writes one object through alborz's own DAV server, as a phone
-// syncing the collection does.
 func put(t *testing.T, base, path, contentType, body string) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPut, base+path, strings.NewReader(body))
@@ -61,8 +58,6 @@ func put(t *testing.T, base, path, contentType, body string) {
 	}
 }
 
-// dav makes one request to alborz's own DAV server as the account, and
-// returns what came back, body and all.
 func dav(t *testing.T, method, url string, header map[string]string, body string) (*http.Response, string) {
 	t.Helper()
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
@@ -85,14 +80,12 @@ func dav(t *testing.T, method, url string, header map[string]string, body string
 	return resp, string(answer)
 }
 
-// event is one calendar object, named by its UID.
 func event(uid, summary string) string {
 	return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:" + uid +
 		"\r\nDTSTAMP:20260901T080000Z\r\nDTSTART:20260915T100000Z\r\nDTEND:20260915T110000Z\r\nSUMMARY:" +
 		summary + "\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 }
 
-// keptCalendar makes a calendar of alborz's own and answers its path.
 func keptCalendar(t *testing.T, base string, c *http.Client, name, id string) string {
 	t.Helper()
 	form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {name}, "color": {"#22aa55"}}
@@ -102,9 +95,7 @@ func keptCalendar(t *testing.T, base string, c *http.Client, name, id string) st
 	return base + "/alborz/dav/calendars/" + smokeUser + "/" + id + "/"
 }
 
-// A DELETE carries If-Match when a client deletes what it believes it
-// has (RFC 9110 13.1.1); go-webdav's server hands the backend the path
-// alone, and the object went whatever tag was sent.
+// A DELETE carrying If-Match must match the object's tag (RFC 9110 13.1.1).
 func TestADeleteWithAStaleTagKeepsTheObject(t *testing.T) {
 	base := startAlborzKept(t, startIMAP(t))
 	c := login(t, base)
@@ -126,8 +117,7 @@ func TestADeleteWithAStaleTagKeepsTheObject(t *testing.T) {
 	}
 }
 
-// One UID per calendar (RFC 4791 5.3.2.1): a second object holding it
-// is refused, and a rewrite of the object that holds it is not.
+// One UID per calendar (RFC 4791 5.3.2.1).
 func TestASecondObjectWithATakenUIDIsRefused(t *testing.T) {
 	base := startAlborzKept(t, startIMAP(t))
 	c := login(t, base)
@@ -149,10 +139,6 @@ func TestASecondObjectWithATakenUIDIsRefused(t *testing.T) {
 	}
 }
 
-// A task with no STATUS is open (RFC 5545 3.8.1.11), and phones write
-// them so. go-webdav's client drops is-not-defined from a filter, which
-// once turned "tasks without a STATUS" into "tasks with one", and such a
-// task vanished from the list whenever the done ones were hidden.
 func TestAnOpenTaskWithoutStatusIsListed(t *testing.T) {
 	base := startAlborzKept(t, startIMAP(t))
 	c := login(t, base)
@@ -168,10 +154,7 @@ func TestAnOpenTaskWithoutStatusIsListed(t *testing.T) {
 	}
 }
 
-// An address book query with no filter asks for every card (RFC 6352
-// 10.5). go-webdav's server matched none under its default anyof, which
-// once left the list of a book kept here, and any client asking the
-// same, empty.
+// An address book query with no filter asks for every card (RFC 6352 10.5).
 func TestABookKeptHereListsItsCards(t *testing.T) {
 	base := startAlborzKept(t, startIMAP(t))
 	c := login(t, base)
@@ -186,28 +169,23 @@ func TestABookKeptHereListsItsCards(t *testing.T) {
 	}
 }
 
-// walked is one kind of DAV object as the route walk drives it: where
-// its list and its objects answer, the collection its fixtures go into,
-// and what its forms ask for.
 type walked struct {
 	name          string
 	list, objects string
-	// views are the other pages listing the same objects.
-	views []string
-	// sorts are the orders the list can be put in, the first by title.
-	sorts      []string
-	edit       string
-	collField  string
-	collection string
-	collName   string
-	ext, mime  string
-	object     func(uid, title string) string
-	titleField string
-	destField  string
-	form       url.Values
-	bulkExport string
-	listExport string
-	exported   string
+	views         []string
+	sorts         []string
+	edit          string
+	collField     string
+	collection    string
+	collName      string
+	ext, mime     string
+	object        func(uid, title string) string
+	titleField    string
+	destField     string
+	form          url.Values
+	bulkExport    string
+	listExport    string
+	exported      string
 }
 
 func todo(uid, summary string) string {
@@ -219,7 +197,6 @@ func card(uid, name string) string {
 	return "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:" + uid + "\r\nFN:" + name + "\r\nN:" + name + ";;;;\r\nEND:VCARD\r\n"
 }
 
-// eventToday is an event of this month, the one the calendar opens on.
 func eventToday(uid, summary string) string {
 	day := time.Now().UTC().Format("20060102")
 	return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:" + uid +
@@ -248,7 +225,6 @@ func walkedKinds() []walked {
 	}
 }
 
-// withQuery adds to an address that may carry a query already.
 func withQuery(address, query string) string {
 	if strings.Contains(address, "?") {
 		return address + "&" + query
@@ -256,8 +232,6 @@ func withQuery(address, query string) string {
 	return address + "?" + query
 }
 
-// postBody submits a form and hands back the answer with its body, for
-// the routes that answer with a page, a piece of one or a file.
 func postBody(t *testing.T, c *http.Client, u string, form url.Values, header map[string]string) (*http.Response, string) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, u, strings.NewReader(form.Encode()))
@@ -282,10 +256,7 @@ func postBody(t *testing.T, c *http.Client, u string, form url.Values, header ma
 	return resp, string(body)
 }
 
-// Every route an event, a task and a contact has, from a list scoped to
-// one account and from the merged one. A template reads its fields only
-// as it renders, so a page is asked for and a marker looked for in it:
-// a status alone says nothing about a field that is no longer there.
+// A template reads fields only as it renders, so a status alone proves nothing; a marker is looked for.
 func TestEveryDAVObjectRouteAnswers(t *testing.T) {
 	for _, scope := range []string{"", "?account=" + smokeUser} {
 		t.Run("scope="+scope, func(t *testing.T) {
@@ -346,8 +317,6 @@ func walk(t *testing.T, base string, c *http.Client, k walked, scope string) {
 	for i, key := range k.sorts {
 		sorted := get(t, c, withQuery(list, "sort="+key+"&dir=desc"))
 		found("the list by "+key, sorted, "Walked first")
-		// Every row ties under a column the fixtures say nothing in, and
-		// ties fall back to the title, in the direction asked for.
 		if first, third := strings.Index(sorted, "Walked first"), strings.Index(sorted, "Walked third"); third > first {
 			t.Errorf("sorted by %s, descending, the list still reads first to third", key)
 		}

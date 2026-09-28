@@ -2,10 +2,6 @@
 
 <div class="page-wrap">
   <div class="container error">
-    {{/* Not "internal error": nothing here is broken. The mail server
-         did not reply, which is a different fact and points at a
-         different remedy - so the page names the server, says how long
-         it waited, and offers the one thing that helps. */}}
     <h1>{{$.T "upstream.title"}}</h1>
     <p>{{ if .Waited }}{{ $.GlobalData.Tf "upstream.explain" .Seconds .Service }}{{ else }}{{ $.GlobalData.Tf "upstream.unreachable" .Service }}{{ end }}</p>
     <form method="post" action="/logout" class="upstream-actions">

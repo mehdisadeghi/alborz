@@ -12,18 +12,13 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
-// DefaultLockAfter is how long a reader may do nothing before a session
-// with a passkey asks for it again: long enough to read a long message
-// and answer the door, short enough that a phone left behind is locked
-// before it is found. It is a login's life, so the two ask together.
+// DefaultLockAfter is how long a session with a passkey may idle before it locks.
 const DefaultLockAfter = loginDuration
 
 // MinLockAfter keeps a typed lock time from locking between two clicks.
 const MinLockAfter = time.Minute
 
 // Passkey is a WebAuthn credential a browser registered for its session.
-// WebAuthn lets a user hold several - the phone's own, a hardware key
-// kept for when the phone is gone - so a session keeps a list.
 type Passkey struct {
 	Name       string
 	Added      time.Time
@@ -31,14 +26,12 @@ type Passkey struct {
 	Credential webauthn.Credential
 }
 
-// ID names the passkey in a form: the credential's own id, which the
-// authenticator chose and which stays put while others come and go.
+// ID names the passkey in a form by its credential id.
 func (p Passkey) ID() string {
 	return base64.RawURLEncoding.EncodeToString(p.Credential.ID)
 }
 
-// RemovePasskey takes one passkey off the session; false when it has no
-// passkey of that id. Removing the last one removes the lock.
+// RemovePasskey removes one passkey from the session; false when none has that id.
 func (s *Session) RemovePasskey(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -58,9 +51,7 @@ func (s *Session) SetLockAfter(d time.Duration) {
 	s.mu.Unlock()
 }
 
-// Lock is what stands in front of a session: the passkeys that open it,
-// and how long the reader may be away before they are asked for. A
-// session with no passkey has no lock.
+// Lock holds a session's passkeys and how long it may idle before they are asked for.
 type Lock struct {
 	Passkeys []Passkey
 	After    time.Duration
@@ -81,16 +72,13 @@ func (s *Session) Lock() Lock {
 	return Lock{Passkeys: append([]Passkey(nil), s.lock.Passkeys...), After: s.lock.After}
 }
 
-// locks reports whether the session has a passkey to lock behind.
 func (s *Session) locks() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.lock.Passkeys) > 0
 }
 
-// Locked reports whether the session wants its passkey, deciding it when
-// the reader has been away too long. A session rebuilt after a restart
-// has no activity on record and starts locked.
+// Locked reports whether the session wants its passkey; a session rebuilt after a restart starts locked.
 func (s *Session) Locked(now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,7 +91,6 @@ func (s *Session) Locked(now time.Time) bool {
 	return s.locked
 }
 
-// act notes that the reader did something.
 func (s *Session) act(now time.Time) {
 	s.mu.Lock()
 	s.active = now
@@ -123,16 +110,13 @@ func (s *Session) unlock(now time.Time) {
 	s.mu.Unlock()
 }
 
-// addPasskey keeps a new passkey; registering the first is the reader
-// being here, so it does not lock them out at once.
+// Registering the first passkey counts as activity so it does not lock at once.
 func (s *Session) addPasskey(p Passkey) {
 	s.mu.Lock()
 	s.lock.Passkeys, s.active = append(s.lock.Passkeys, p), time.Now()
 	s.mu.Unlock()
 }
 
-// usedPasskey writes back the credential an unlock returned, whose
-// counter has moved.
 func (s *Session) usedPasskey(credential webauthn.Credential, now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -144,22 +128,16 @@ func (s *Session) usedPasskey(credential webauthn.Credential, now time.Time) {
 	}
 }
 
-// lockOpen says which paths a locked session still answers: what any
-// browser may fetch, and the way to unlock or leave.
 func lockOpen(path string) bool {
 	return isPublic(path) || path == unlockPath || strings.HasPrefix(path, unlockPath+"/")
 }
 
-// unlockPath is the page a locked session is sent to.
 const unlockPath = "/unlock"
 
-// unaskedHeader is on what a page asks for by itself, as when mail
-// arrives. Only the reader's own browser sends it, and all it can do is
-// bring the lock nearer.
+// unaskedHeader marks a request a page makes by itself; sending it can only bring the lock nearer.
 const unaskedHeader = "Alborz-Unasked"
 
-// isBackground says which requests a page makes by itself. They are not
-// the reader doing something, or an open tab would never lock.
+// Background requests are not the reader acting, or an open tab would never lock.
 func isBackground(r *http.Request) bool {
 	return r.URL.Path == "/events" || isPublic(r.URL.Path) || r.Header.Get(unaskedHeader) != ""
 }
@@ -172,8 +150,7 @@ func redirectToUnlock(ctx *Context) error {
 	return ctx.Redirect(http.StatusSeeOther, to)
 }
 
-// passkeyUser is the session as WebAuthn sees a user. The handle is the
-// session's id: a passkey opens this browser's session and nothing else.
+// The user handle is the session id, so a passkey opens only this browser's session.
 type passkeyUser struct {
 	id   string
 	name string
@@ -191,8 +168,6 @@ func (u passkeyUser) WebAuthnCredentials() []webauthn.Credential {
 	return out
 }
 
-// passkeys is the relying party for this request: the host the reader
-// is on, which is the only one a passkey made here will answer to.
 func (ctx *Context) passkeys() (*webauthn.WebAuthn, passkeyUser, error) {
 	s := ctx.Session()
 	host := ctx.Request().Host
@@ -212,12 +187,10 @@ func (ctx *Context) passkeys() (*webauthn.WebAuthn, passkeyUser, error) {
 	return w, passkeyUser{id: s.ID, name: name, lock: s.Lock()}, err
 }
 
-// userVerified asks the authenticator for the reader, not only the
-// device: a fingerprint, a face or a PIN is the whole of the lock.
+// User verification is required: the authenticator is the whole lock.
 var userVerified = protocol.VerificationRequired
 
-// BeginPasskey starts registering a passkey and returns what the
-// browser is to be asked.
+// BeginPasskey starts registering a passkey.
 func (ctx *Context) BeginPasskey() (*protocol.CredentialCreation, error) {
 	w, user, err := ctx.passkeys()
 	if err != nil {
@@ -233,8 +206,7 @@ func (ctx *Context) BeginPasskey() (*protocol.CredentialCreation, error) {
 	return options, nil
 }
 
-// FinishPasskey reads the browser's answer and keeps the new passkey
-// under the name given.
+// FinishPasskey keeps the passkey the browser registered under the given name.
 func (ctx *Context) FinishPasskey(name string) error {
 	w, user, err := ctx.passkeys()
 	if err != nil {
@@ -267,9 +239,7 @@ func (ctx *Context) BeginUnlock() (*protocol.CredentialAssertion, error) {
 	return options, nil
 }
 
-// FinishUnlock checks the assertion and opens the session. The passkey's
-// counter moves with each use, which is how a cloned one is noticed, so
-// it is written back.
+// FinishUnlock checks the assertion, opens the session and stores the moved counter.
 func (ctx *Context) FinishUnlock() error {
 	w, user, err := ctx.passkeys()
 	if err != nil {
@@ -284,8 +254,7 @@ func (ctx *Context) FinishUnlock() error {
 	if err != nil {
 		return err
 	}
-	// A counter that did not move past the one kept is a second copy of
-	// the passkey in use, which the library marks and lets through.
+	// The library only flags a counter that did not advance; refuse it here.
 	if credential.Authenticator.CloneWarning {
 		return fmt.Errorf("passkey %s: its counter did not advance, as a copied one's does not", base64.RawURLEncoding.EncodeToString(credential.ID))
 	}
@@ -309,8 +278,7 @@ func (s *Session) takeCeremony() *webauthn.SessionData {
 	return c
 }
 
-// EndSession signs every account out and forgets what the browser asked
-// to be remembered: the way out of a lock whose passkey is gone.
+// EndSession signs every account out and forgets what the browser asked to be remembered.
 func (ctx *Context) EndSession() {
 	session := ctx.lookupSession()
 	if session == nil {

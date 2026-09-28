@@ -25,28 +25,18 @@ import (
 type AddressObjectRenderData struct {
 	alborz.BaseRenderData
 	Rail dav.Rail
-	// Authors are who added the object and changed it last, where it is
-	// kept here and that is another account.
+	// Authors are who added and last changed the object, where another account.
 	Authors dav.Authors
-	// List is the list the page was opened from, filter and order kept,
-	// for what leaves the page with nothing to come back to.
+	// List is the list the page was opened from.
 	List string
-	// Modified is when the card last changed: REV if the card carries
-	// one (vCard 6.7.4), and the server's own last-modified otherwise.
-	//
-	// There is no Created. A vCard has no property for it - REV is the
-	// last revision, not the first - and the only universal answer is
-	// WebDAV's DAV:creationdate, which the object REPORT does not ask
-	// for. Showing REV as "created" was wrong and said so on every
-	// contact page.
+	// Modified is REV, else the server's last-modified; vCard has no property for creation.
 	Modified      time.Time
 	AddressBook   *dav.Collection
 	AddressObject AddressObject
-	Birthday      string    // the input format, for the edit form
-	BirthdayDate  time.Time // the same day, for the page to write out
+	Birthday      string
+	BirthdayDate  time.Time
 	Neighbours    dav.Neighbours
-	// In are the groups naming this contact and Groups the ones that do
-	// not, for the form that puts it in one.
+	// In are the groups naming this contact, Groups the others.
 	In     []AddressObject
 	Groups []AddressObject
 }
@@ -56,45 +46,32 @@ type UpdateAddressObjectRenderData struct {
 	Rail          dav.Rail
 	Groups        []dav.Group
 	AddressBook   *dav.Collection
-	AddressObject *carddav.AddressObject // nil if creating a new contact
+	AddressObject *carddav.AddressObject
 	Card          vcard.Card
 	Name          string
 	Birthday      string
-	// Photo is the card's picture as it stands, so the form can show
-	// what it is about to replace.
+	// Photo is the card's current picture, shown beside its replacement.
 	Photo string
 }
 
-// photoLongestSide is what a contact picture is reduced to. The card
-// carries it inline and base64 costs another third, so every fetch of
-// the contact pays for whatever was uploaded - and a face in a list is
-// shown at a few dozen pixels. The server's own limit is not the one
-// that matters; ours is smaller on purpose.
+// Small on purpose: the card carries the picture inline, fetched on every visit.
 const photoLongestSide = 320
 
-// photoMaxUpload is what we are willing to decode at all. Beyond it the
-// answer is no rather than a slow yes.
-const photoMaxUpload = 12 << 20 // 12 MiB
+// Beyond this the answer is no rather than a slow yes.
+const photoMaxUpload = 12 << 20
 
-// applyPhoto replaces or leaves the card's picture; removing it is its
-// own request, since it is an act rather than a pending edit. What is
-// uploaded is never what is stored: it is decoded, reduced to a size a
-// contact list can use, and re-encoded as JPEG, so a card stays small
-// enough to fetch on every visit.
-// What applyPhoto can refuse; the form says it in the reader's language.
 var (
 	errPhotoTooLarge   = errors.New("carddav: photo over the upload limit")
 	errPhotoUnreadable = errors.New("carddav: photo is not an image")
 )
 
-// photoQuality is the JPEG setting a card's picture is stored at: past
-// it the bytes grow faster than a thumbnail-sized picture improves.
+// Past this the bytes grow faster than a thumbnail improves.
 const photoQuality = 82
 
 func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
 	file, err := ctx.FormFile("photo")
 	if err != nil || file == nil || file.Size == 0 {
-		return nil // nothing offered; whatever the card has, it keeps
+		return nil
 	}
 	if file.Size > photoMaxUpload {
 		return errPhotoTooLarge
@@ -127,9 +104,7 @@ func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
 	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: photoQuality}); err != nil {
 		return errPhotoUnreadable
 	}
-	// vCard 4.0 carries the picture as a data URI; 3.0 as an encoded
-	// property. The version is set to 4.0 above for anything we create,
-	// and a synced 3.0 card keeps the shape its server gave it.
+	// vCard 4.0 carries the picture as a data URI, 3.0 as an encoded property.
 	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
 	if card.Value(vcard.FieldVersion) == "3.0" {
 		card.Set(vcard.FieldPhoto, &vcard.Field{
@@ -142,8 +117,6 @@ func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
 	return nil
 }
 
-// cardModified is when the card last changed: the card's own REV where
-// it has one, and the server's last-modified where it has not.
 func cardModified(ao *carddav.AddressObject) time.Time {
 	if rev := cardRevision(ao.Card); !rev.IsZero() {
 		return rev
@@ -151,8 +124,6 @@ func cardModified(ao *carddav.AddressObject) time.Time {
 	return ao.ModTime
 }
 
-// cardRevision reads REV (vCard 6.7.4), the moment the card itself says
-// it last changed.
 func cardRevision(card vcard.Card) time.Time {
 	v := card.PreferredValue(vcard.FieldRevision)
 	if v == "" {
@@ -169,10 +140,7 @@ func cardRevision(card vcard.Card) time.Time {
 	return time.Time{}
 }
 
-// birthdayDate parses BDAY into a day, so the page can spell it out in
-// the reader's language and calendar instead of printing the stored
-// digits. A vCard may carry a birthday with no year (--0412); that one
-// has no date to give.
+// A birthday with no year (--0412) has no date to give.
 func birthdayDate(card vcard.Card) time.Time {
 	v := birthdayValue(card)
 	day, err := time.Parse("2006-01-02", v)
@@ -182,8 +150,6 @@ func birthdayDate(card vcard.Card) time.Time {
 	return day
 }
 
-// birthdayValue renders BDAY in the HTML date-input format, accepting both
-// the vCard 4.0 basic format (19850412) and the dashed 3.0 form.
 func birthdayValue(card vcard.Card) string {
 	v := card.PreferredValue(vcard.FieldBirthday)
 	if len(v) == 8 {
@@ -192,11 +158,7 @@ func birthdayValue(card vcard.Card) string {
 	return v
 }
 
-// withValues rewrites a property's fields from the form, in order, on
-// top of the fields the card already has, so a TYPE=work or a PREF a
-// phone synced onto an address survives an edit here that did not
-// touch it. The form lists the fields in the card's order, which is
-// what makes the match by position right.
+// Matched by position, so a TYPE or PREF synced onto a field survives an edit that left it alone.
 func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
 	var out []*vcard.Field
 	for _, value := range values {
@@ -224,7 +186,6 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	// The object's path starts with its address book's.
 	addressBook := dav.Holding(addressBooks, "", path)
 	if addressBook == nil {
 		return alborz.NotFound("notfound.contact")
@@ -254,15 +215,11 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	// The list the page was opened from is rebuilt to find what stands
-	// either side; the DAV reads behind it are cached, so the cost is
-	// the sorting, not another round trip.
 	list, err := p.contactList(ctx)
 	if err != nil {
 		return err
 	}
-	// A group names its members; a contact says nothing about the
-	// groups it is in, so the answer comes from reading them.
+	// A contact says nothing about its groups; the groups are read to find them.
 	object := AddressObject{AddressObject: ao}
 	var in, rest []AddressObject
 	for _, g := range list.Groups {
@@ -315,8 +272,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		card = ao.Card
 		currentAddressBook = dav.Holding(addressBooks, "", ao.Path)
 	} else {
-		// Creation is a pooled operation. The active account may quite
-		// legitimately have no address book while another account does.
+		// Pooled: the active account may have no address book while another does.
 		groups, err = p.writableBookGroups(ctx)
 		if err != nil {
 			return err
@@ -365,7 +321,6 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		}
 
 		if _, ok := card[vcard.FieldVersion]; !ok {
-			// Default to vCard 4.0
 			card.SetValue(vcard.FieldVersion, "4.0")
 		}
 
@@ -374,8 +329,6 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		} else {
 			card.Add(vcard.FieldFormattedName, &vcard.Field{Value: fn})
 		}
-
-		// TODO: Google wants a "N" field, fails with a 400 otherwise
 
 		if fields := withValues(card[vcard.FieldEmail], emails); len(fields) > 0 {
 			card[vcard.FieldEmail] = fields
@@ -388,7 +341,6 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 			delete(card, vcard.FieldTelephone)
 		}
 
-		// An empty form value removes the property.
 		setValue := func(key, value string) {
 			if value == "" {
 				delete(card, key)
@@ -411,8 +363,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		setValue(vcard.FieldBirthday, birthday)
 		setValue(vcard.FieldURL, strings.TrimSpace(ctx.FormValue("url")))
 		setValue(vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
-		// CATEGORIES is a comma list (RFC 6350 6.7.1), which is what the
-		// field asks for and what every other client shows.
+		// CATEGORIES is a comma list (RFC 6350 6.7.1).
 		var words []string
 		for _, word := range strings.Split(ctx.FormValue("categories"), ",") {
 			if word = strings.TrimSpace(word); word != "" {
@@ -431,8 +382,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 			return err
 		}
 
-		// Free-form address lives in the street component; other
-		// structured components from synced cards are preserved.
+		// Free-form address goes in the street component; the others are kept.
 		street := strings.TrimSpace(ctx.FormValue("adr"))
 		if adr := card.Address(); adr != nil {
 			if street == "" {
@@ -460,14 +410,12 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
-		// The card as written names the contact; what a PUT answers
-		// carries the path and no data at all.
+		// The PUT answer carries only the path, so the card as written names the contact.
 		named := AddressObject{AddressObject: &carddav.AddressObject{Path: ao.Path, Card: card}}
 		return dav.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), named.URL(), "/contacts", to.Account)
 	}
 
-	// Both map values would be evaluated eagerly; a missing object
-	// must not reach DisplayName.
+	// Map values evaluate eagerly; a missing object must not reach DisplayName.
 	name := ""
 	if ao != nil {
 		name = AddressObject{AddressObject: ao}.DisplayName()
@@ -489,7 +437,6 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 	})
 }
 
-// A line added where the contact is read, not behind the edit form.
 func (p *plugin) note(ctx *alborz.Context) error {
 	note := strings.TrimSpace(ctx.FormValue("note"))
 	return dav.Run(ctx, dav.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: dav.Quiet[*carddav.Client],
@@ -508,11 +455,7 @@ func (p *plugin) note(ctx *alborz.Context) error {
 		}})
 }
 
-// Removing the picture is its own request, not a tick the edit form
-// carries: a submit button inside that form would be the one Enter
-// reaches from any field, and pressing Enter in a name is not a
-// request to delete a photo. Idempotent - a contact with no picture
-// is what it leaves either way.
+// Its own request: Enter in a name field must not delete the photo.
 func (p *plugin) deletePhoto(ctx *alborz.Context) error {
 	return dav.Run(ctx, dav.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: dav.Quiet[*carddav.Client],
 		Do: func(ctx *alborz.Context, ref dav.Ref[*carddav.Client]) error {
@@ -520,8 +463,6 @@ func (p *plugin) deletePhoto(ctx *alborz.Context) error {
 		}})
 }
 
-// color marks contacts, from their own page, their row or the list's
-// toolbar.
 func (p *plugin) color(ctx *alborz.Context) error {
 	return dav.Star(ctx, p.client, "/contacts", func(ctx *alborz.Context, ref dav.Ref[*carddav.Client], name string) (was string, err error) {
 		err = changeCard(ctx, ref, func(card vcard.Card) {

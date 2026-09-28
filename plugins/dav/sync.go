@@ -18,14 +18,12 @@ import (
 type delta struct {
 	token, ctag string
 	noSync      bool
-	// whole says put is every object there is.
+	// whole says put holds every object there is.
 	whole bool
 	put   []object
 	gone  []string
 }
 
-// multistatus is a 207 as a sync reads it; an object's data is under
-// the one element of its kind.
 type multistatus struct {
 	Token     string `xml:"DAV: sync-token"`
 	Responses []struct {
@@ -43,9 +41,7 @@ type multistatus struct {
 	} `xml:"DAV: response"`
 }
 
-// pull brings a collection's copy in step: by RFC 6578 sync from the
-// token held, from scratch when the server no longer takes the token,
-// and by comparing etags when the server does not sync at all.
+// pull syncs from the held token (RFC 6578), from scratch when refused, or by etags without sync.
 func (w wire) pull(ctx context.Context, client *http.Client, target *url.URL, h mirrored, have func() (map[string]string, error)) (delta, error) {
 	if !h.NoSync {
 		d, err := w.syncCollection(ctx, client, target, h.Token)
@@ -59,9 +55,7 @@ func (w wire) pull(ctx context.Context, client *http.Client, target *url.URL, h 
 	return w.compare(ctx, client, target, h, have)
 }
 
-// refused is a server declining the request, rather than failing at
-// it: a token it no longer takes (RFC 6578 3.2), or a report it does
-// not know.
+// refused is a server declining rather than failing: a stale token (RFC 6578 3.2) or an unknown report.
 func refused(err error) bool {
 	code := Answered(err)
 	return code >= 400 && code < 500 || code == http.StatusNotImplemented
@@ -80,9 +74,7 @@ func (w wire) syncCollection(ctx context.Context, client *http.Client, target *u
 		if ms.Token == "" {
 			return delta{}, webdav.NewHTTPError(http.StatusNotImplemented, errors.New("dav: a sync answered with no sync-token"))
 		}
-		// A server that answers in parts says so with a 507 on the
-		// collection itself, and the token goes on from there (RFC 6578
-		// 3.6).
+		// A 507 on the collection marks a truncated answer the token continues (RFC 6578 3.6).
 		truncated := false
 		for _, r := range ms.Responses {
 			name := nameIn(r.Href, target.Path)
@@ -116,8 +108,7 @@ func (w wire) syncCollection(ctx context.Context, client *http.Client, target *u
 	return d, err
 }
 
-// compare lists the collection's etags and fetches what differs from
-// the copy; nothing, while the collection's ctag stands.
+// compare fetches what differs by etag; nothing while the ctag stands.
 func (w wire) compare(ctx context.Context, client *http.Client, target *url.URL, h mirrored, have func() (map[string]string, error)) (delta, error) {
 	ms, err := call(ctx, client, "PROPFIND", target, "1",
 		`<D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop><D:getetag/><CS:getctag/></D:prop></D:propfind>`)
@@ -208,8 +199,6 @@ func call(ctx context.Context, client *http.Client, method string, target *url.U
 	return &ms, nil
 }
 
-// nameIn is the name of the object href names in coll, empty for
-// anything else.
 func nameIn(href, coll string) string {
 	u, err := url.Parse(strings.TrimSpace(href))
 	if err != nil {
@@ -222,7 +211,6 @@ func nameIn(href, coll string) string {
 	return name
 }
 
-// unquote is an entity tag as go-webdav hands it out: without quotes.
 func unquote(etag string) string {
 	if s, err := strconv.Unquote(etag); err == nil {
 		return s

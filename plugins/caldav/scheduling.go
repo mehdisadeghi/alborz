@@ -21,14 +21,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Scheduling is two halves of one protocol. Answering an invitation is
-// mail's half and lives in the base plugin; putting the meeting in a
-// calendar, and sending one of your own, are this plugin's, because both
-// need a CalDAV collection to write to.
-
-// parseAttendees reads the addresses a form lists, one per line, the way
-// the identity field does. An organizer is not one of them: the account
-// sending is the organizer and is written as such.
 func parseAttendees(value string) []string {
 	var out []string
 	seen := make(map[string]bool)
@@ -49,7 +41,6 @@ func parseAttendees(value string) []string {
 	return out
 }
 
-// attendeeLines writes an event's attendees back into the form's shape.
 func attendeeLines(event *ical.Event) string {
 	var lines []string
 	for i := range event.Props[ical.PropAttendee] {
@@ -62,10 +53,6 @@ func attendeeLines(event *ical.Event) string {
 	return strings.Join(lines, "\n")
 }
 
-// setScheduling puts the organizer and the attendees on an event. The
-// organizer is the account doing the sending: iTIP identifies the one
-// party who owns the meeting by that property, and a request from
-// anybody else is not one the recipients can answer.
 func setScheduling(event *ical.Event, organizer string, attendees []string) {
 	event.Props.Del(ical.PropAttendee)
 	if len(attendees) == 0 {
@@ -78,8 +65,7 @@ func setScheduling(event *ical.Event, organizer string, attendees []string) {
 	for _, addr := range attendees {
 		prop := ical.NewProp(ical.PropAttendee)
 		prop.Value = "mailto:" + addr
-		// The organizer has agreed by definition; everyone else is being
-		// asked, and RSVP says an answer is wanted (RFC 5545 3.2.17).
+		// The organizer has agreed; everyone else is asked to answer.
 		if strings.EqualFold(addr, organizer) {
 			prop.Params.Set("PARTSTAT", "ACCEPTED")
 		} else {
@@ -90,8 +76,6 @@ func setScheduling(event *ical.Event, organizer string, attendees []string) {
 	}
 }
 
-// schedulingMail is the iTIP object sent to the attendees: the event as
-// stored, with the method on the calendar (RFC 5546 3.2.1).
 func schedulingMail(event *ical.Event, method string) (string, error) {
 	cal := ical.NewCalendar()
 	cal.Props.SetText(ical.PropProductID, alborzbase.ItipProductID)
@@ -113,9 +97,6 @@ func schedulingMail(event *ical.Event, method string) (string, error) {
 	return buf.String(), nil
 }
 
-// sendScheduling mails the invitation, or its withdrawal, to everyone on
-// it. A send that fails must not lose the event: it is already saved, so
-// the failure is reported and the meeting stays.
 func sendScheduling(ctx *alborz.Context, event *ical.Event, attendees []string, method string) error {
 	organizer := ctx.Login.Username()
 	var to []string
@@ -139,8 +120,6 @@ func sendScheduling(ctx *alborz.Context, event *ical.Event, attendees []string, 
 	return alborzbase.SendCalendarMessage(ctx, to, subject, method, body)
 }
 
-// registerScheduling adds what belongs to the calendar: filing an
-// invitation that arrived by mail into a collection the reader chooses.
 func (p *plugin) registerScheduling() {
 	p.Inject("message.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
 		data := _data.(*alborzbase.MessageRenderData)
@@ -156,15 +135,11 @@ func (p *plugin) registerScheduling() {
 			data.Extra = make(map[string]interface{})
 		}
 		if data.Invitation == nil {
-			// A calendar attached with no METHOD is not an invitation,
-			// but it is still something to file, from its own row.
+			// A calendar with no METHOD is no invitation but still something to file.
 			data.Extra["ImportCalendars"] = groups
 			return nil
 		}
-		// A withdrawal asks the opposite question. Offering to file a
-		// meeting the organizer has just called off is the wrong verb,
-		// so the page looks for the copy already kept and offers to
-		// drop that instead.
+		// For a withdrawal, offer to drop the kept copy rather than to file one.
 		if data.Invitation.Cancelled() {
 			if found := p.findByUID(ctx, groups, data.Invitation.UID); found != "" {
 				data.Extra["InviteFiled"] = found
@@ -206,9 +181,7 @@ func (p *plugin) registerScheduling() {
 			return echo.NewHTTPError(http.StatusBadRequest, "this message carries no invitation")
 		}
 
-		// The organizer's own object is filed, not one rebuilt from what
-		// a page displayed: its UID, its recurrence, its alarms. Only
-		// METHOD goes, because a stored event is not a message about one.
+		// The organizer's own object is filed, not one rebuilt from the page; only METHOD goes.
 		cal, err := ical.NewDecoder(bytes.NewReader(raw)).Decode()
 		if err != nil {
 			return fmt.Errorf("failed to read the invitation: %v", err)
@@ -245,9 +218,6 @@ func (p *plugin) registerScheduling() {
 	})
 }
 
-// findByUID looks for a stored copy of one event across the calendars
-// that can be written to. A UID is unique within a collection (RFC 4791
-// 4.1), which is what makes this a lookup rather than a guess.
 func (p *plugin) findByUID(ctx *alborz.Context, groups []dav.Group, uid string) string {
 	if uid == "" {
 		return ""
@@ -283,11 +253,8 @@ func (p *plugin) findByUID(ctx *alborz.Context, groups []dav.Group, uid string) 
 	return ""
 }
 
-// calendarTypes are the media types a calendar file arrives under.
 var calendarTypes = []string{"text/calendar", "application/ics"}
 
-// hasAttachment reports whether the message carries a part of one of
-// the media types.
 func hasAttachment(msg *alborzbase.IMAPMessage, types ...string) bool {
 	for _, att := range msg.Attachments() {
 		for _, t := range types {
@@ -299,11 +266,6 @@ func hasAttachment(msg *alborzbase.IMAPMessage, types ...string) bool {
 	return false
 }
 
-// ImportRenderData drives calendar-import.html: an address to fetch,
-// handed over by the browser or typed, and the calendars to file into.
-// importCalendar files a mail's attached calendar into the chosen one,
-// every object it holds; a file or an address goes through the
-// section's import page.
 func (p *plugin) importCalendar(ctx *alborz.Context) error {
 	mboxName, uid, err := alborzbase.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
 	if err != nil {
@@ -336,9 +298,6 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }
 
-// importObjects writes every object of an iCalendar stream into the
-// calendar, one object per UID as CalDAV wants it, and reports how many.
-// A UID the calendar already holds is written over in place.
 func importObjects(ctx context.Context, client *caldav.Client, calendarPath string, raw []byte) (int, error) {
 	dec := ical.NewDecoder(bytes.NewReader(raw))
 	n := 0
@@ -353,8 +312,7 @@ func importObjects(ctx context.Context, client *caldav.Client, calendarPath stri
 		for uid, obj := range objectsByUID(cal) {
 			target := path.Join(calendarPath, dav.SafeObjectName(uid)+".ics")
 			if _, err := client.PutCalendarObject(ctx, target, obj, nil); err != nil {
-				// A server that refuses a UID it holds under another
-				// path names the object; find it and write there.
+				// A server refusing a UID it holds under another path: find the object and write there.
 				existing := objectPathByUID(ctx, client, calendarPath, uid)
 				if existing == "" {
 					return n, fmt.Errorf("failed to write %s: %v", uid, err)
@@ -368,10 +326,6 @@ func importObjects(ctx context.Context, client *caldav.Client, calendarPath stri
 	}
 }
 
-// objectsByUID splits one calendar into the objects a server stores:
-// every component sharing a UID, a series and its overrides included,
-// goes together with the timezones the file defines. METHOD does not
-// travel: a stored object is not a message about one.
 func objectsByUID(cal *ical.Calendar) map[string]*ical.Calendar {
 	var zones []*ical.Component
 	for _, child := range cal.Children {
@@ -402,8 +356,6 @@ func objectsByUID(cal *ical.Calendar) map[string]*ical.Calendar {
 	return out
 }
 
-// objectPathByUID is where the calendar keeps the object with that UID,
-// "" when it has none.
 func objectPathByUID(ctx context.Context, client *caldav.Client, calendarPath, uid string) string {
 	for _, comp := range []string{"VEVENT", "VTODO"} {
 		objects, err := client.QueryCalendar(ctx, calendarPath, &caldav.CalendarQuery{
@@ -420,8 +372,6 @@ func objectPathByUID(ctx context.Context, client *caldav.Client, calendarPath, u
 	return ""
 }
 
-// exportCalendar renders every object of the calendar, or those whose
-// events fall in the range, as one iCalendar file.
 func exportCalendar(ctx context.Context, client *caldav.Client, calendarPath string, from, to time.Time) ([]byte, error) {
 	children, err := calendarComponents(ctx, client, calendarPath, []string{"VEVENT", "VTODO"}, from, to)
 	if err != nil {
@@ -434,9 +384,6 @@ func exportCalendar(ctx context.Context, client *caldav.Client, calendarPath str
 	return encodeCalendar(children)
 }
 
-// calendarComponents reads the calendar's objects of the given kinds,
-// events narrowed to the range when one is given, and returns every
-// component they hold.
 func calendarComponents(ctx context.Context, client *caldav.Client, calendarPath string, comps []string, from, to time.Time) ([]*ical.Component, error) {
 	var out []*ical.Component
 	for _, comp := range comps {
@@ -458,8 +405,6 @@ func calendarComponents(ctx context.Context, client *caldav.Client, calendarPath
 	return out, nil
 }
 
-// encodeCalendar writes components as one file: the objects' components
-// under one VCALENDAR, each timezone defined once.
 func encodeCalendar(children []*ical.Component) ([]byte, error) {
 	out := ical.NewCalendar()
 	out.Props.SetText(ical.PropProductID, alborzbase.ItipProductID)
@@ -473,11 +418,7 @@ func encodeCalendar(children []*ical.Component) ([]byte, error) {
 			}
 			zones[id] = true
 		}
-		// An event or task without DTSTAMP, as some clients write them,
-		// is not one RFC 5545 3.6.1 allows in a file, and one of them
-		// would keep the whole file from being written. The file gets
-		// the object's own last change, or now; the server's copy is
-		// not touched.
+		// go-ical will not encode an event or task without DTSTAMP; the server's copy is untouched.
 		if (child.Name == ical.CompEvent || child.Name == ical.CompToDo) && child.Props.Get(ical.PropDateTimeStamp) == nil {
 			stamp := time.Now().UTC()
 			if t, err := child.Props.DateTime(ical.PropLastModified, time.UTC); err == nil && !t.IsZero() {

@@ -14,29 +14,21 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// One watcher per signed-in account holds a connection in IDLE (RFC
-// 2177) and marks stale what the server announces. The connection is its
-// own: an IDLE on the login's would hold DoIMAP's lock until mail came.
+// The watcher's connection is its own: an IDLE on the login's would hold DoIMAP's lock until mail came.
 const (
-	// idleWindow renews IDLE inside RFC 2177's 29 minutes, before
-	// middleboxes drop a silent connection.
+	// Renews IDLE inside RFC 2177's 29 minutes.
 	idleWindow = 20 * time.Minute
-	// idleRetry doubles up to idleMaxRetry, so an outage does not become
-	// a login storm.
+	// Doubles up to idleMaxRetry, so an outage does not become a login storm.
 	idleRetry    = 30 * time.Second
 	idleMaxRetry = 15 * time.Minute
-	// sweepWindow is how often a server without NOTIFY is asked about
-	// every other folder (ADR 45).
+	// sweepWindow paces the folder sweep on a server without NOTIFY (ADR 45).
 	sweepWindow = 2 * time.Minute
 )
 
-// watchAccount follows the account from the moment it is signed in.
 func (p *plugin) watchAccount(ctx *alborz.Context, s *alborz.Login) {
 	p.Watch(s, ctx.Logger(), ctx.Server.Changes)
 }
 
-// warmAccount fetches the account's INBOX views and rail as it is
-// signed in, so the first click on mail finds them cached.
 func (p *plugin) warmAccount(ctx *alborz.Context, s *alborz.Login) {
 	p.senderBookFor(s)
 	p.SuggestAuthServ(ctx)
@@ -51,8 +43,7 @@ func (p *plugin) warmAccount(ctx *alborz.Context, s *alborz.Login) {
 	}()
 }
 
-// Watch starts following an account's folders unless something already
-// is: however many browsers are signed in, they read one cache.
+// Watch starts following an account's folders unless a watcher already is.
 func (p *plugin) Watch(s *alborz.Login, log echo.Logger, changes *alborz.Changes) {
 	user := s.Username()
 	if _, running := p.watchers.LoadOrStore(user, true); running {
@@ -64,8 +55,6 @@ func (p *plugin) Watch(s *alborz.Login, log echo.Logger, changes *alborz.Changes
 	}()
 }
 
-// watch keeps one connection in IDLE for as long as the login lives,
-// reconnecting when the connection or the server gives out.
 func (p *plugin) watch(s *alborz.Login, log echo.Logger, changes *alborz.Changes) {
 	backoff := idleRetry
 	reconnect := false
@@ -92,22 +81,18 @@ func (p *plugin) watch(s *alborz.Login, log echo.Logger, changes *alborz.Changes
 	}
 }
 
-// follow keeps one connection and re-enters IDLE on it: a login per
-// arrival is what a provider reads as abuse.
 func (p *plugin) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool) error {
 	user := s.Username()
 	changed := make(chan struct{}, 1)
 	var overflowed atomic.Bool
-	// The pages go stale on the connection's own reader: a FETCH after an
-	// EXPUNGE in one read already names its message by the new numbers.
+	// Handled on the connection's reader, since sequence numbers shift with each EXPUNGE.
 	c, err := s.WatchIMAP(func() {
 		p.mailboxStale(user, "INBOX")
 		notify(changed)
 	}, func(seqNum uint32, flags []imap.Flag) {
 		p.mailboxFlagsAnnounced(user, "INBOX", seqNum, flags)
 	}, func(mailbox string) {
-		// INBOX speaks as the selected mailbox; this is every other
-		// folder, under NOTIFY.
+		// INBOX is reported as the selected mailbox.
 		if mailbox != "INBOX" {
 			p.mailboxStale(user, mailbox)
 			changes.Announce(user, mailbox)
@@ -122,7 +107,7 @@ func (p *plugin) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool
 	defer c.Close()
 
 	if !c.Caps().Has(imap.CapIdle) {
-		// Nothing to wait on; sleeping keeps the loop from spinning.
+		// Sleeping keeps the loop from spinning.
 		select {
 		case <-s.Done():
 		case <-time.After(idleWindow):
@@ -144,8 +129,7 @@ func (p *plugin) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool
 	window, sweep := idleWindow, (func() error)(nil)
 	if !armNotify(c) {
 		window, sweep = sweepWindow, p.folderSweep(user, c, changes)
-		// The baseline is taken now, or what a rule files before the
-		// first wake would never be announced.
+		// Baseline now, or what a rule files before the first wake is never announced.
 		if err := sweep(); err != nil {
 			return err
 		}
@@ -159,8 +143,7 @@ func (p *plugin) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool
 		if err := p.idleOnce(s, c, changed, changes, window); err != nil {
 			return err
 		}
-		// What the server stopped saying is unknown; reconnecting arms
-		// NOTIFY again.
+		// What the server stopped saying is unknown; reconnecting arms NOTIFY again.
 		if overflowed.Load() {
 			p.accountChanged(user)
 			return errors.New("the server stopped notifying")
@@ -173,8 +156,6 @@ func (p *plugin) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool
 	}
 }
 
-// armNotify asks the server for news of every folder (RFC 5465); false
-// when it does not offer or refuses it, and the watcher sweeps instead.
 func armNotify(c *imapclient.Client) bool {
 	if !c.Caps().Has(imap.CapNotify) {
 		return false
@@ -187,8 +168,6 @@ func armNotify(c *imapclient.Client) bool {
 	return err == nil && cmd.Wait() == nil
 }
 
-// folderSweep asks every folder but INBOX for its UIDNEXT and announces
-// the ones that moved since the last sweep.
 func (p *plugin) folderSweep(user string, c *imapclient.Client, changes *alborz.Changes) func() error {
 	seen := map[string]imap.UID{}
 	return func() error {
@@ -203,7 +182,7 @@ func (p *plugin) folderSweep(user string, c *imapclient.Client, changes *alborz.
 			}
 			status, err := c.Status(f.Mailbox, &imap.StatusOptions{UIDNext: true}).Wait()
 			if err != nil {
-				continue // gone since the LIST
+				continue
 			}
 			last, known := seen[f.Mailbox]
 			seen[f.Mailbox] = status.UIDNext
@@ -230,8 +209,7 @@ func (p *plugin) idleOnce(s *alborz.Login, c *imapclient.Client, changed chan st
 		if err := p.warmInbox(s); err != nil {
 			return fmt.Errorf("failed to refetch INBOX: %w", err)
 		}
-		// Told after the listing is back, so a browser acting on it finds
-		// it ready.
+		// Told after the listing is back, so a browser acting on it finds it ready.
 		changes.Announce(s.Username(), "INBOX")
 	case <-window.C:
 	case <-s.Done():
@@ -243,7 +221,6 @@ func (p *plugin) idleOnce(s *alborz.Login, c *imapclient.Client, changed chan st
 	return nil
 }
 
-// warmInbox shares the first page fetch with login and foreground readers.
 func (p *plugin) warmInbox(s *alborz.Login) error {
 	if !p.listings.keeps() {
 		return nil
@@ -262,7 +239,6 @@ func (p *plugin) warmInbox(s *alborz.Login) error {
 	if err != nil {
 		return err
 	}
-	// The default merged window is the same INBOX rows, qualified by account.
 	merged := own.snapshot()
 	merged.sb = sidebar{}
 	for i := range merged.msgs {

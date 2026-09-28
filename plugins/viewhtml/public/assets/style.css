@@ -1,22 +1,14 @@
-/* The wrapper clips the layout box of a scaled-down frame, whose
-   transform shrinks it visually but not in layout. It lays out left to
-   right whatever the page does: a too-wide frame in an RTL page would
-   overflow to the left, where the script's top-left scale origin sends
-   the shrunken mail out of view. The mail keeps its own direction. */
+/* Clips the scaled frame's layout box; LTR so an RTL page does not push
+   the top-left-scaled mail out of view. */
 #email-frame-wrap {
   overflow: hidden;
   direction: ltr;
-  /* A mail with little or nothing in it leaves the frame short, and
-     the page showed through under it while the same mail read as text
-     filled the reading area. The wrapper carries the frame's own
-     canvas, so both look the same whatever the message holds. */
+  /* The frame's canvas, so a short mail fills the area as its text view does. */
   flex: 1 0 auto;
   background-color: white;
 }
 
-/* Without a script the frame cannot follow its content; it is a
-   window of most of the viewport that the mail scrolls inside. The
-   script replaces the height with the content's. */
+/* Without script the mail scrolls inside this window; the script sets the content's height. */
 iframe {
   width: 100%;
   height: 70vh;

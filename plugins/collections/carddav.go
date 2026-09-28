@@ -13,7 +13,6 @@ import (
 	"github.com/emersion/go-webdav/carddav"
 )
 
-// books is the store as go-webdav's CardDAV server asks for it.
 type books struct{ *Store }
 
 func (b books) CurrentUserPrincipal(ctx context.Context) (string, error) {
@@ -70,7 +69,6 @@ func (b books) DeleteAddressBook(ctx context.Context, p string) error {
 	return b.remove(ctx, p, AddressBook, "")
 }
 
-// addressObject is calendarObject for a card.
 func addressObject(p string, o Object, req *carddav.AddressDataRequest) carddav.AddressObject {
 	ao := carddav.AddressObject{Path: p, ModTime: o.Modified, ContentLength: int64(len(o.Data)), ETag: o.ETag}
 	if !req.IsEmpty() {
@@ -100,8 +98,7 @@ func (b books) ListAddressObjects(ctx context.Context, p string, req *carddav.Ad
 	return out, nil
 }
 
-// QueryAddressObjects parses where the query has a filter to run; the
-// whole book, which is what alborz's own list asks for, parses nothing.
+// QueryAddressObjects parses only when the query has a filter to run.
 func (b books) QueryAddressObjects(ctx context.Context, p string, query *carddav.AddressBookQuery) ([]carddav.AddressObject, error) {
 	objects, err := b.objects(ctx, p, AddressBook)
 	if err != nil {

@@ -32,9 +32,7 @@ func init() {
 	alborz.RegisterSetting(settingsKey)
 }
 
-// getCalendarObject fetches one event or task without go-webdav's
-// response parsing; see getAddressObject in the carddav plugin for why
-// the ETag makes that fail against Nextcloud.
+// Bypasses go-webdav, whose strconv.Unquote rejects a weak ETag.
 func getCalendarObject(ctx *alborz.Context, c *caldav.Client, path string) (*caldav.CalendarObject, error) {
 	body, err := c.Open(ctx.Request().Context(), path)
 	if err != nil {
@@ -56,7 +54,6 @@ func loadSettings(ctx context.Context, store alborz.Store) (*Settings, error) {
 	return settings, nil
 }
 
-// choose writes the collections the reader ticked into the settings.
 func choose(set func(*Settings, []string)) func(context.Context, alborz.Store, []string) error {
 	return func(ctx context.Context, store alborz.Store, paths []string) error {
 		settings, err := loadSettings(ctx, store)
@@ -68,9 +65,7 @@ func choose(set func(*Settings, []string)) func(context.Context, alborz.Store, [
 	}
 }
 
-// show ticks a collection the account just made or accepted in the
-// chosen sets in force: what to see was chosen before it existed, which
-// was not a choice to hide it.
+// A collection made after the choice was not chosen to be hidden.
 func show(ctx context.Context, store alborz.Store, path string) error {
 	settings, err := loadSettings(ctx, store)
 	if err != nil {
@@ -104,13 +99,9 @@ func getFirstTodo(cal *ical.Calendar) *ical.Component {
 	return nil
 }
 
-// eventVisibility is the calendar pages' answer to visibleCalendars:
-// which calendars the account chose to see.
 func eventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
 func taskVisibility(s *Settings) (bool, []string)  { return s.TaskFilter, s.VisibleTasks }
 
-// eventRail and taskRail are the section's rail for a page that is not
-// its list, listing every account's calendars of the kind.
 func (p *plugin) eventRail(ctx *alborz.Context) (dav.Rail, error) {
 	rail, err := p.calendarRail(ctx, supportsEvent, eventVisibility)
 	next := alborz.QueryValue(ctx.Request().URL.RequestURI())
@@ -140,8 +131,6 @@ func (p *plugin) calendarRail(ctx *alborz.Context, kind func([]string) bool, cho
 	return rail, err
 }
 
-// visibleCalendars are dav.Visible's calendars of one kind, with the
-// feeds the account follows beside the server's.
 func visibleCalendars(ctx context.Context, accounts []dav.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []dav.Site[*caldav.Client], error) {
 	return dav.Visible(accounts, scope, only, func(acc dav.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings, err := loadSettings(ctx, acc.Login.Store())
@@ -164,15 +153,12 @@ func visibleCalendars(ctx context.Context, accounts []dav.Account[*caldav.Client
 	})
 }
 
-// eventQuery asks for the events between two instants, expanded by the
-// server where it can.
 func eventQuery(start, end time.Time) caldav.CalendarQuery {
 	return caldav.CalendarQuery{
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
-			// The whole event: a server that cannot expand a rule still has
-			// to send the rule, or the list draws only the first instance.
+			// The whole event: an unexpanded rule must arrive, or only the first instance is drawn.
 			Comps: []caldav.CalendarCompRequest{{
 				Name: "VEVENT", AllProps: true, AllComps: true,
 			}},
@@ -268,10 +254,7 @@ func registerRoutes(p *plugin) {
 	POST("/calendar/:path/color", p.color(firstEvent, "/calendar"))
 }
 
-// A line added to what the object already says, from its own page.
-// The addition is appended and dated rather than replacing what is
-// there: a note field people actually use is a record, and the edit
-// form remains the way to rewrite one.
+// Appended and dated rather than replacing: a note people use is a record.
 func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		note := strings.TrimSpace(ctx.FormValue("note"))
@@ -289,8 +272,6 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) fu
 	}
 }
 
-// changeComponent reads one object, lets change rewrite the component
-// comp finds in it, stamps that and writes the object back.
 func changeComponent(ctx *alborz.Context, ref dav.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
 	co, err := getCalendarObject(ctx, ref.Client, ref.Path)
 	if err != nil {
@@ -307,8 +288,6 @@ func changeComponent(ctx *alborz.Context, ref dav.Ref[*caldav.Client], comp func
 	return co, err
 }
 
-// calendarFilters is what an agenda or a task list is narrowed by, as
-// chips above the rows: the star and the calendar the URL names.
 func calendarFilters(ctx *alborz.Context, calendars []dav.Collection) []alborz.Filter {
 	var out []alborz.Filter
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok && f.Value != "list" {
@@ -324,22 +303,16 @@ func calendarFilters(ctx *alborz.Context, calendars []dav.Collection) []alborz.F
 		default:
 			f.Value = ctx.T("color." + f.Value)
 		}
-		// Cleared of its star the agenda is still the agenda, not the
-		// grid; a task list has no such second self.
+		// Cleared of its star the agenda is still the agenda, not the grid.
 		if ctx.Request().URL.Path == "/calendar" {
 			f.Href = ctx.WithParam("view", "list")
 		}
 		out = append(out, f)
 	}
-	// The calendar the page is in is a place, not a narrowing of one:
-	// the rail marks it and the crumb names it, as a mail folder is
-	// named. A chip would say it a third time, and its cross would
-	// navigate rather than widen.
+	// The calendar the page is in is a place, named by rail and crumb, not a chip.
 	return out
 }
 
-// exportVisible is the download a list page offers: what the rail shows
-// as visible, across accounts, as one file.
 func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, chosen func(*Settings) (bool, []string), comps []string, from, to time.Time, name string) error {
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
@@ -373,8 +346,7 @@ func (p *plugin) rawObject(ctx *alborz.Context) error {
 	if !strings.Contains(path, "://") {
 		return dav.Raw(ctx, p.client)
 	}
-	// An event of a feed has no object of its own on any server; it is
-	// handed over as the calendar the page shows.
+	// A feed's event has no object of its own; the page's calendar is handed over.
 	uid := ctx.QueryParam("uid")
 	_, cal, err := p.feedObject(ctx, path, uid)
 	if err != nil {
@@ -387,7 +359,6 @@ func (p *plugin) rawObject(ctx *alborz.Context) error {
 	return dav.ServeRaw(ctx, uid+".ics", &buf)
 }
 
-// newCalendar is the object a new event or task is written as.
 func newCalendar(comp *ical.Component) *ical.Calendar {
 	cal := ical.NewCalendar()
 	cal.Props.SetText(ical.PropProductID, alborzbase.ItipProductID)
@@ -396,8 +367,6 @@ func newCalendar(comp *ical.Component) *ical.Calendar {
 	return cal
 }
 
-// putObject writes a form's object where dav.Target says, on the
-// condition it says.
 func putObject(ctx *alborz.Context, to dav.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
 	held, etag := "", ""
 	if was != nil {
@@ -408,9 +377,6 @@ func putObject(ctx *alborz.Context, to dav.Ref[*caldav.Client], name string, was
 		&caldav.PutCalendarObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
 }
 
-// color marks events or tasks, from their own page or from their row:
-// the star the mail and contact pages have, kept as COLOR (RFC 7986
-// 5.9) on the component itself.
 func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		return dav.Star(ctx, p.client, list, func(ctx *alborz.Context, ref dav.Ref[*caldav.Client], name string) (was string, err error) {
@@ -423,7 +389,6 @@ func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, list string) f
 	}
 }
 
-// joinCalendars makes one calendar of the objects' components.
 func joinCalendars(objects [][]byte) ([]byte, error) {
 	var children []*ical.Component
 	for _, object := range objects {
@@ -436,9 +401,6 @@ func joinCalendars(objects [][]byte) ([]byte, error) {
 	return encodeCalendar(children)
 }
 
-// warm fetches what the calendar and task pages ask for first, as the
-// account is signed in, so the first click on either finds it cached:
-// the calendars, this month's events and the open tasks.
 func (p *plugin) warm(ctx *alborz.Context, s *alborz.Login) {
 	loc := alborzbase.UserLocation(ctx)
 	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s, loc) })
@@ -449,7 +411,6 @@ func (p *plugin) warmAccount(ctx context.Context, s *alborz.Login, loc *time.Loc
 	if err != nil {
 		return err
 	}
-	// The month page's range for the month the reader is in.
 	now := time.Now().In(loc)
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 	events := eventQuery(start.AddDate(0, 0, -7), start.AddDate(0, 1, 0).AddDate(0, 0, 7))

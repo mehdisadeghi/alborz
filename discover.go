@@ -7,8 +7,7 @@ import (
 	"strings"
 )
 
-// srvName is the record a service is looked up at (RFC 2782), which the
-// Servers page names as where a server was found.
+// srvName is the SRV record (RFC 2782) a service is looked up at.
 func srvName(service, domain string) string {
 	return "_" + service + "._tcp." + domain
 }
@@ -36,8 +35,7 @@ func discoverTCP(service, name string) (string, error) {
 	return fmt.Sprintf("%v:%v", target, addr.Port), nil
 }
 
-// discoverIMAP performs a DNS-based IMAP service discovery, as defined in
-// RFC 6186 section 3.2.
+// discoverIMAP discovers the IMAP server via DNS (RFC 6186 section 3.2).
 func discoverIMAP(domain string) (*url.URL, string, error) {
 	imapsHost, err := discoverTCP("imaps", domain)
 	if err != nil {
@@ -58,9 +56,8 @@ func discoverIMAP(domain string) (*url.URL, string, error) {
 	return nil, "", fmt.Errorf("IMAP service discovery not configured for domain %q", domain)
 }
 
-// discoverSieve performs a DNS-based ManageSieve service discovery, as
-// defined in RFC 5804. Sieve is optional: a missing record reports no URL
-// and no error.
+// discoverSieve discovers the ManageSieve server via DNS (RFC 5804); a missing
+// record is no URL and no error.
 func discoverSieve(domain string) (*url.URL, string, error) {
 	host, err := discoverTCP("sieve", domain)
 	if err != nil {
@@ -72,9 +69,8 @@ func discoverSieve(domain string) (*url.URL, string, error) {
 	return &url.URL{Scheme: "sieve", Host: host}, srvName("sieve", domain), nil
 }
 
-// discoverSMTP performs a DNS-based SMTP submission service discovery, as
-// defined in RFC 6186 section 3.1. RFC 8314 section 5.1 adds a new service for
-// SMTP submission with implicit TLS.
+// discoverSMTP discovers the submission server via DNS (RFC 6186 section 3.1),
+// including the implicit-TLS submissions service of RFC 8314.
 func discoverSMTP(domain string) (*url.URL, string, error) {
 	smtpsHost, err := discoverTCP("submissions", domain)
 	if err != nil {

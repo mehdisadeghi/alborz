@@ -11,9 +11,7 @@ import (
 	"strings"
 )
 
-// MultiStatus is a 207 answer; P is the property set the request asked
-// for, which is the one thing a calendar and an address book listing
-// do not share.
+// MultiStatus is a 207 answer carrying property set P.
 type MultiStatus[P any] struct {
 	Responses []Response[P] `xml:"response"`
 }
@@ -28,8 +26,7 @@ type PropStat[P any] struct {
 	Prop   P      `xml:"prop"`
 }
 
-// Propfind lists a collection's children with the properties body asks
-// for.
+// Propfind lists a collection's children with the properties body asks for.
 func Propfind[P any](ctx context.Context, client *http.Client, path string, body string) (*MultiStatus[P], error) {
 	var buf bytes.Buffer
 	buf.WriteString(xml.Header)
@@ -59,9 +56,7 @@ func Propfind[P any](ctx context.Context, client *http.Client, path string, body
 	return &ms, nil
 }
 
-// DeleteCollection removes a collection and everything in it. WebDAV
-// 9.6 knows no other kind of delete: Depth is infinity and there is no
-// asking. Whatever guard there is belongs on the page before this.
+// DeleteCollection removes a collection and all it holds (RFC 4918 9.6).
 func DeleteCollection(ctx context.Context, client *http.Client, target string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, target, nil)
 	if err != nil {
@@ -84,9 +79,7 @@ func XMLEscape(s string) string {
 	return buf.String()
 }
 
-// CanonicalCollectionPath normalizes a collection href or stored path so
-// identities compare stably regardless of server formatting. The trailing
-// slash keeps requests redirect-free and prefix matches collision-safe.
+// CanonicalCollectionPath normalizes a collection href; the trailing slash avoids redirects and prefix collisions.
 func CanonicalCollectionPath(href string) string {
 	href = strings.TrimSpace(href)
 	if u, err := url.Parse(href); err == nil {

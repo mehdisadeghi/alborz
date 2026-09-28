@@ -5,9 +5,6 @@
 {{ $hparams := "" }}{{ with .Query }}{{ $hparams = printf "&query=%s" (. | qv) }}{{ end }}{{ with .ListView }}{{ $hparams = printf "%s&view=%s" $hparams . }}{{ end }}{{ with .Sort }}{{ $hparams = printf "%s&sort=%s&dir=%s" $hparams . $.SortDir }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | qv) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ $ippbase := $hparams }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
 {{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | qv) }}{{ end }}{{ with .ListView }}{{ $hplain = printf "%s&view=%s" $hplain . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | qv) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hplain = printf "%s&ipp=%s" $hplain . }}{{ end }}
 {{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
-{{/* A folder the server says holds nothing has nothing to select and
-     nothing to search. A question already asked keeps its field live,
-     or the reader could not take it back. */}}
 {{ $asked := or .Query .ListView }}
 {{ $empty := and .Mailbox.IsEmpty (not $asked) }}
 {{ template "toolbar-head" (dict "g" . "selectall" true "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
@@ -17,14 +14,7 @@
     {{$trash := ""}}{{with $common.Trash}}{{$trash = .Info.Name}}{{end}}
 
 
-    {{/* Archive, spam and delete are one set of actions rendered twice:
-         as marks in the toolbar, and as words in the overflow, where
-         the narrow layout keeps them so the toolbar stays one row. The
-         action strings are built once and shared between the two. */}}
     {{ $archiveAction := "" }}{{ $junkAction := "" }}{{ $junkIcon := "junk" }}{{ $junkLabel := $.T "mailbox.spam" }}{{ $trashAction := "" }}{{ $trashLabel := "" }}{{ $trashFinal := false }}
-    {{/* The merged view acts by role, each account resolving its own
-         folder; a merged Junk offers the way back, a merged Trash only
-         the end. */}}
     {{ $role := "" }}{{ if .Merged }}{{ $role = .Role }}{{ end }}
     {{ $act := printf "/mailbox/%s/all/act" ($role | pathescape) }}
     {{ if .Merged }}
@@ -54,9 +44,6 @@
         {{ $trashAction = printf "/message/%s/delete%s" (.Mailbox.Name | pathescape) $aq }}
       {{ end }}
     {{ end }}
-    {{/* Delete leaves first of the marks, then the colours, junk, and
-         archive last: archive is the disposal reached for most. The
-         numbers are the toolbar-wide order of ADR 8. */}}
     <span class="icon-group">
       {{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" $archiveAction "priority" 14) }}
       {{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" $junkAction "priority" 13) }}
@@ -64,8 +51,6 @@
     </span>
     </span>
 
-    {{/* The colours are a menu of their own beside the marks, and the
-         same menu folds into the overflow when the row has no room. */}}
     {{ $flagAction := printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount) }}{{ if .Merged }}{{ $flagAction = printf "%s?action=flag" $act }}{{ end }}
     {{ template "flag-menu" (dict
        "priority" 12
@@ -78,27 +63,14 @@
       <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
       <div class="overflow-menu" popover id="menu-more">
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/forward{{$aq}}">{{$.T "message.forward"}}</button>
-        {{/* One file holding the selection, which is what a person means
-             by "give me these messages". Rare, so it is spelled out here
-             rather than given a mark on the toolbar. */}}
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/export{{ or $aq "?" }}{{ if $aq }}&{{ end }}ask=1">{{$.T "mailbox.export"}}</button>
-        {{/* The whole view - the folder, or what the search found -
-             goes through a page of its own, since it is not a casual
-             click; the merged view has no one folder to name. Not bound
-             to the selection form, so it stays live with nothing
-             selected. */}}
         {{ if not .Merged }}
         {{ $exportall := printf "/message/%s/export%s" (.Mailbox.Name | pathescape) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | qv) }}{{ else }}{{ with .ListView }}{{ $exportall = printf "%s%sview=%s" $exportall (or (and $aq "&") "?") . }}{{ end }}{{ end }}
         <a class="button-link" href="{{ localhref $exportall }}"{{ if $empty }} aria-disabled="true"{{ end }}>{{ if .Query }}{{$.T "mailbox.exportresults"}}{{ else }}{{$.T "mailbox.exportfolder"}}{{ end }}</a>
         {{ end }}
-        {{/* Alborz hears about new mail only when a page is loaded, and
-             serves a recent listing without asking; this says "ask now".
-             Not gated on the selection: it acts on the folder. */}}
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
-        {{/* The destination is chosen on a page of its own, which the
-             move route answers with when none is named. */}}
         <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">{{$.T "mailbox.moveto"}}</button>
         {{ if or (and $junk (eq .Mailbox.Name $junk)) (and $trash (eq .Mailbox.Name $trash)) }}
         <form method="post" action="/mailbox/{{.Mailbox.Name | pathescape}}/empty{{$aq}}">
@@ -133,14 +105,11 @@
     {{ end }}
 
 {{ template "toolbar-end" }}
-  {{/* What the URL says, not what the page settled on: a direction
-       nobody chose is not a direction to carry into the next request. */}}
+  {{/* What the URL says, not what the page settled on. */}}
   {{ $q := $.GlobalData.URL.Query }}
   {{ $keep := dict "sort" ($q.Get "sort") "dir" ($q.Get "dir") "view" ($q.Get "view") "ipp" ($q.Get "ipp") "all" ($q.Get "all") }}
   {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty "target" "main" "keep" $keep) }}
 
-  {{/* The pager and the page size stand in an empty folder too, dim,
-       so the toolbar does not change between one folder and the next. */}}
   {{ $prev := "" }}{{if and (gt .RangeFrom 0) (ge .PrevPage 0)}}{{$prev = printf "?page=%d%s" .PrevPage $hparams}}{{end}}
   {{ $next := "" }}{{if and (gt .RangeFrom 0) (ge .NextPage 0)}}{{$next = printf "?page=%d%s" .NextPage $hparams}}{{end}}
   {{ $range := "" }}{{if gt .RangeFrom 0}}{{ $range = $.GlobalData.Tf "mailbox.range" .RangeFrom .RangeTo .Total }}{{end}}

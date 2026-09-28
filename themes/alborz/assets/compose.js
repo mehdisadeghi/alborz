@@ -1,14 +1,9 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
-// A block of its own, as editor.js has: a boosted visit runs the script
-// again in the page it was first run in, and a const declared twice at
-// the top of two runs is a SyntaxError that stops the whole of the
-// second - the compose page then stayed in its no-script layout every
-// time but the first.
+// A block of its own: a boosted visit reruns this script, and a top-level const declared twice is a SyntaxError.
 {
 const textarea = document.querySelector("textarea.body");
 if (window.location.pathname.endsWith("/reply")) {
-	// Auto-focus body and scroll to bottom
 	textarea.focus();
 	textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 	textarea.scrollTop = textarea.scrollHeight;
@@ -47,12 +42,9 @@ attachmentsInput.addEventListener("input", ev => {
 	}
 });
 
-// The page takes the drop, not the window: the window outlives a boosted
-// page, and a listener left on it held the form of every earlier visit.
-// helpers.js already keeps the browser from opening a dropped file.
+// The page takes the drop, not the window: the window outlives a boosted page.
 composeForm.closest(".page-wrap").addEventListener("drop", ev => {
-	// A drop on a folder is an import into it, not an attachment, and
-	// one on the file field is the field's own, which attaches it.
+	// A drop on a folder imports into it; one on the file field is the field's own.
 	if (ev.target.closest("aside a[href*='/mailbox/'], input[type='file']")) {
 		return;
 	}
@@ -209,7 +201,7 @@ function formatSI(num) {
   if (num === 0) {
     return '0';
   }
-  let sig = Math.abs(num); // significand
+  let sig = Math.abs(num);
   let exponent = 0;
   while (sig >= 1000 && exponent < 24) {
     sig /= 1000;

@@ -11,14 +11,7 @@ import (
 	"github.com/emersion/go-webdav"
 )
 
-// Made ends a create: the reader lands on the list the new thing now
-// belongs to, with a banner naming it - a link to the thing itself -
-// and the offer to make another from the form as it stood. Editing an
-// object goes back to the object, which is where the reader was; only
-// making one lands here.
-//
-// account names the owner where the form chose one, since a create in
-// the merged view can land in any of them.
+// Made lands a create on the new object's list with a banner naming it; account is the form's chosen owner.
 func Made(ctx *alborz.Context, sentence, name, object, list, account string) error {
 	if account != "" {
 		q := "?account=" + alborz.QueryValue(account)
@@ -30,9 +23,7 @@ func Made(ctx *alborz.Context, sentence, name, object, list, account string) err
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(list))
 }
 
-// Saved lands a form that wrote an object: a new one on its list, with
-// the banner naming it; an edited one back on the object, which is
-// where the reader was.
+// Saved lands a new object on its list and an edited one back on the object.
 func Saved(ctx *alborz.Context, made bool, sentence, name, object, list, account string) error {
 	if made {
 		return Made(ctx, sentence, name, object, list, account)
@@ -50,14 +41,10 @@ func Saved(ctx *alborz.Context, made bool, sentence, name, object, list, account
 	return ctx.Redirect(http.StatusFound, object)
 }
 
-// ErrNoDestination is a create form naming a collection the account
-// does not have, or one that will not take what is being made. The
-// handler decides what to tell the form.
+// ErrNoDestination is a create form naming a collection the account lacks or that refuses the object.
 var ErrNoDestination = errors.New("dav: no such collection to write into")
 
-// Destination turns a create form's "account|path" choice into that
-// account's client and the bare path, refusing a collection keep does
-// not accept.
+// Destination turns a create form's "account|path" into that account's client and path.
 func Destination[C any](ctx *alborz.Context, value string, open func(context.Context, *alborz.Login) (C, []Collection, error), keep func(Collection) bool) (Ref[C], error) {
 	account, path, ok := strings.Cut(value, "|")
 	login := ctx.LoginFor(account)
@@ -74,10 +61,7 @@ func Destination[C any](ctx *alborz.Context, value string, open func(context.Con
 	return Ref[C]{c, account, path}, nil
 }
 
-// Target is where a form's object is written and on what condition: a
-// new one at a name of its own in the collection, and only while
-// nothing is there; a held one where it is, and only while it is the
-// object that was read.
+// Target is where a form's object is written: a new name only while free, a held one only while unchanged.
 func Target(collection, name, held, etag string) (at string, ifMatch, ifNoneMatch webdav.ConditionalMatch) {
 	if held == "" {
 		return path.Join(collection, name), "", IfNew

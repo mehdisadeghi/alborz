@@ -6,9 +6,7 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// rail lists each account's places in this section: its scripts, and
-// the pages its server can carry. The extensions come from the greeting
-// the warmed connection already holds, so this costs no round trip.
+// rail reads extensions from the warmed connection's greeting: no round trip.
 func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	path := ctx.Request().URL.Path
 	rows := map[string][]alborz.RailRow{}
@@ -37,8 +35,7 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 				pages = append(pages, row("filters.autoreply", "/filters/autoreply"))
 			}
 		}
-		// The scripts are the section's own page: whatever the others
-		// do not claim is theirs.
+		// The scripts page is active for whatever the other pages do not claim.
 		scripts := alborz.RailRow{Label: ctx.T("filters.title"), Href: "/filters" + q, Active: scoped}
 		for _, p := range pages {
 			if p.Active {

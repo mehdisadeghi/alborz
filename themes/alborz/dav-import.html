@@ -11,15 +11,10 @@
         <h1>{{ .Title }}</h1>
         {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "collection" "key" .Key "groups" .Groups "account" .Account "path" .Path "multi" (gt (len .GlobalData.Accounts) 1)) }}
         {{ if .Address }}
-        {{/* A webcal: link the browser handed over, or one typed in: the
-             address is fetched once and its objects filed. What the file
-             says afterwards is not followed; that is a subscription. */}}
         {{ template "field" (dict "label" ($.T "import.url") "name" "url" "type" "url" "value" .URL "hint" ($.T "import.urlhint") "autofocus" (ne .URL "")) }}
         {{ end }}
         {{ template "import-fields" (dict "g" $ "file" (printf ($.T "collection.importfile") .Ext) "accept" (printf "%s,.zip" .Ext) "hint" .Hint "go" ($.T "collection.importdo") "cancel" .Rail.Path "optional" .Address) }}
       </form>
-      {{/* The way out is the way in: every collection of the section, one
-           file each, in one zip this page takes back. */}}
       <p class="hint"><a href="{{ localhref (printf "%s/export-all" .Rail.Path) }}" download>{{ $.T "import.exportall" }}</a></p>
     </main>
   </div>

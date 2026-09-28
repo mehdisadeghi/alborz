@@ -1,6 +1,4 @@
-/* Monochrome like e-ink: black on paper, inverted in the dark, serif
-   type and square corners. The doubled :root outweighs the scheme
-   blocks in the base sheet. */
+/* The doubled :root ties the base sheet's scheme blocks, and this sheet loads later. */
 :root:root {
   color-scheme: light;
 
@@ -21,8 +19,7 @@
   --border-strong: #000;
 
   --link: #000;
-  /* Read and unread are the whole of what a list says at a glance, and
-     a monochrome theme has only the grey between them: widen it. */
+  /* Grey is all that tells read from unread here: widen it. */
   --link-read: #5c5c5c;
   --link-unread: #000;
 
@@ -122,11 +119,7 @@
   --alert-border: #fff;
 }
 
-/* Both halves of the stack: --font-sans is composed of the Persian list
-   and the Latin one, and a serif theme should read as a serif in
-   Persian too - naskh is the answer there, not Georgia, which has no
-   Persian at all. Whichever of these is installed is used; the sans
-   list closes it so a machine with none still shows Persian. */
+/* A serif theme reads as naskh in Persian; Georgia has no Persian glyphs. */
 :root:root {
   --font-latin: Georgia, "Times New Roman", serif;
   --font-fa: "Noto Naskh Arabic", Amiri, "Scheherazade New", "Geeza Pro",

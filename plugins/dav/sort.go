@@ -10,15 +10,13 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Column is one order a list can be put in: the key its URL names the
-// order by, and what a row sorts under in it.
+// Column is one order a list can take: its URL key and a row's sort value.
 type Column[T any] struct {
 	Key   string
 	Value func(T) string
 }
 
-// Last sorts after every value a row can have, for a row that has none:
-// an undated task belongs after the dated ones in ascending order.
+// Last sorts after every value, for a row that has none.
 const Last = "\uffff"
 
 // When is a time as a column sorts it; a row without one sorts Last.
@@ -29,8 +27,7 @@ func When(t time.Time) string {
 	return t.Format(time.RFC3339)
 }
 
-// StarredFirst is a star as a column sorts it: the marked rows first,
-// as the mail list orders by its flag.
+// StarredFirst sorts marked rows first, as the mail list does by flag.
 func StarredFirst(star string) string {
 	if star != "" {
 		return "0"
@@ -38,29 +35,18 @@ func StarredFirst(star string) string {
 	return "1"
 }
 
-// Sorting is a list's order as its sort menu and its column headers
-// draw it. Key and Dir are the order in force; Explicit and DirExplicit
-// say whether the URL asked for them, since a default order marks no
-// column and a direction asked for is one press from the default again.
+// Sorting is a list's order; Explicit and DirExplicit say whether the URL asked for it.
 type Sorting struct {
 	Key, Dir              string
 	Explicit, DirExplicit bool
-	// Params is what a sort link keeps of the list's address, written
-	// after the link's own sort, and Reset the list in its default order.
+	// Params is what a sort link keeps of the list's address; Reset is the default order.
 	Params, Reset string
 }
 
-// sortDrops are the parameters a sort link never carries: the order it
-// replaces and the page it was on, since a new order starts at the
-// first page. Every other parameter the list declares in its own slice
-// rides along, so a new filter needs no second place to be named.
+// A new order starts at the first page, so sort links drop these.
 var sortDrops = []string{"sort", "dir", "page"}
 
-// Sort puts rows in the order the URL asks for, the first column's when
-// it asks for none, and says what the sort controls draw. tie orders
-// the rows a column holds equal, and turns with the direction as the
-// column does. keep names the parameters a sort link carries on, less
-// sortDrops.
+// Sort orders rows as the URL asks, by the first column by default; tie breaks equal rows.
 func Sort[T any](ctx *alborz.Context, rows []T, columns []Column[T], tie func(T) string, keep ...string) (Sorting, error) {
 	key, dir := ctx.QueryParam("sort"), ctx.QueryParam("dir")
 	s := Sorting{Key: key, Dir: dir, Explicit: key != "", DirExplicit: dir != "", Reset: "?"}

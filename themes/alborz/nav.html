@@ -3,19 +3,13 @@
 {{ end }}
 <header>
   {{$page := (index .GlobalData.Path 0)}}
-  {{/* Mail's pages sit at the root beside its lists: a message, a
-       search (the starred views are one), and the folder forms. */}}
   {{ $section := $page }}
   {{ range tuple "message" "compose" "search" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $section = "mailbox" }}{{ end }}{{ end }}
   <nav>
     {{ if .GlobalData.LoggedIn }}
     <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>
-    {{/* Top left, before the sections: on a phone the drawer's head
-         carries it instead and this one stands down. */}}
     <span class="header-brand">{{ template "brand" (dict "g" $ "build" .GlobalData.Revision) }}</span>
     {{ end }}
-    {{/* Every section keeps the scope the URL carries: the account
-         it names, or the merged view when it names none. */}}
     {{$q := account "?" .GlobalData.Scope}}
     <a href="/mailbox/INBOX{{$q}}" data-go="m"
       {{ if eq $section "mailbox" }}
@@ -60,22 +54,12 @@
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" true) }}
       <a href="/settings"{{ if or (eq $page "settings") (eq $page "signatures") }} class="active" aria-current="page"{{ end }}>{{$.T "nav.settings"}}</a>
     </div>
-    {{/* Last in the row, and in the row itself rather than in the group
-         that folds into the drawer: it is one icon, it is wanted at any
-         width, and on a phone it is the only thing left in the corner. */}}
     {{ template "scheme-toggle" $ }}
     {{ end }}
   </nav>
-  {{/* One colours menu for every row's star on the page; see
-       row-colors. It hangs from whichever chevron opens it, and stays
-       out of the nav, whose menus a wide screen lays open. */}}
   {{ if .GlobalData.LoggedIn }}{{ template "flag-colors-menu" (dict "id" "row-colors" "row" true "colors" (flagcolors $) "clear" ($.T "mailbox.flagnone")) }}{{ end }}
   {{ template "notices" (dict "g" $) }}
   {{ if .GlobalData.LoggedIn }}
-  {{/* What the keyboard does, opened by ? or from the account menu.
-       The keys every list has are written here; the ones this page's
-       own controls answer to are read off the page when it opens, in
-       the words the controls already carry. */}}
   <dialog id="keys-help" class="keys-help" closedby="any" aria-labelledby="keys-help-title">
     <h2 id="keys-help-title">{{$.T "keys.title"}}</h2>
     <dl>
@@ -95,29 +79,18 @@
 <label for="sidebar" class="sidebar-backdrop" aria-hidden="true"></label>
 {{ end }}
 
-{{/* The account and language menus, once as popovers for the header
-     and once as disclosures for the drawer's dock, where a menu opens
-     in place under its own row as it always did. One body each, so
-     the two never drift. dict: g page drawer. */}}
+{{/* dict: g page drawer. */}}
 {{ define "nav-menus" }}
 {{ $g := .g }}{{ $page := .page }}
 <div class="{{ if .drawer }}nav-menus-drawer{{ else }}nav-menus{{ end }}">
-  {{/* The menu says which scope the page is in and offers the
-       others: each account's entry opens this section on that
-       account, and the merged entry opens it over all. There is
-       no active account to switch; the URL is the scope. */}}
   {{ if .drawer }}<details class="accounts"><summary>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</summary>{{ else }}<div class="accounts"><button type="button" class="accounts-button" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
   <div class="accounts-menu"{{ if not .drawer }} popover id="menu-accounts"{{ end }}>
-    {{/* Where this section keeps one account's page. Mail's is the
-         inbox; settings' is the account's own page, and its merged
-         page is the reader's settings, which apply to every account. */}}
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
     {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = "/mailbox/INBOX" }}{{ $merged = $section }}{{ end }}
     {{ if or (eq $page "settings") (eq $page "signatures") }}{{ $section = "/settings/account" }}{{ $merged = "/settings" }}{{ end }}
     {{ range $g.GlobalData.Accounts }}
     <div class="account-menu-row">
-    {{/* The account that holds the object in view keeps the object. */}}
     {{ $to := printf "%s%s" $section (account "?" .Username) }}{{ if and $g.GlobalData.Item (eq .Username $g.GlobalData.URLAccount) }}{{ $to = $g.GlobalData.Own }}{{ end }}
     <a href="{{ localhref $to }}"{{ if eq .Username $g.GlobalData.Scope }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
     <form method="post" action="/logout" class="account-signout">
@@ -126,17 +99,11 @@
     </div>
     {{ end }}
     {{ if gt (len $g.GlobalData.Accounts) 1 }}
-    {{/* Every object is inside all accounts: from one, the object stays
-         and the merged list becomes the one it returns to. */}}
     {{ $all := $merged }}{{ if $g.GlobalData.Item }}{{ $all = from $g.GlobalData.Own $merged }}{{ end }}
     <a href="{{ localhref $all }}"{{ if $g.GlobalData.Merged }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
     {{ end }}
     <a href="/login?add=1">{{$g.T "nav.addaccount"}}</a>
-    {{/* The keys are found by pressing ?, which nobody does who has
-         not been told; this is where they are told. */}}
     <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$g.T "keys.title"}}</button>
-    {{/* A browser with a passkey can be locked on purpose, as a screen
-         is before stepping away. */}}
     {{ if $g.GlobalData.LockSeconds }}
     <form method="post" action="/lock" hx-boost="false">
       <button type="submit">{{$g.T "lock.now"}}</button>
@@ -144,15 +111,9 @@
     {{ end }}
   </div>
   {{ if .drawer }}</details>{{ else }}</div>{{ end }}
-  {{/* The language takes effect on the click, so it is a menu of
-     choices rather than a field with a Save button: a language
-     you must read in the wrong one to change is no choice. */}}
   {{ if .drawer }}<details class="accounts lang-menu"><summary>{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</summary>{{ else }}<div class="accounts lang-menu"><button type="button" class="accounts-button" popovertarget="menu-language"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
   <div class="accounts-menu"{{ if not .drawer }} popover id="menu-language"{{ end }}>
-    {{/* Following the browser is a choice too, and the only way
-         back to it once one was made. The language sets the document's
-         own lang and dir, which live on the root element that a swap
-         does not replace, so this one asks for a whole page. */}}
+    {{/* A whole page: lang and dir live on the root, which a swap keeps. */}}
     <form method="post" action="/language" hx-boost="false">
       <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
       <button type="submit" name="language" value=""{{ if eq $g.GlobalData.Language "" }} class="active" disabled{{ end }}>{{$g.T "settings.langauto"}}</button>
@@ -168,16 +129,7 @@
 </div>
 {{ end }}
 
-{{/* Light, dark, or whatever the system says, as one button: it wears
-     the scheme in force and moves to the next on a click. All three are
-     here and the root's scheme shows one, so a scheme the tab kept is
-     right from the first paint. The choice lives in the tab and nowhere
-     else (ADR 50); without a script there is nothing to keep it in, and
-     no button. */}}
 {{ define "scheme-toggle" }}
-{{/* A theme written for one side of the day has no choice to offer, so
-     it gets no control: a dead button that explains itself is worse
-     than nothing. */}}
 {{ if not .GlobalData.SchemePinned }}
 <span class="scheme-toggle">
   <button type="button" class="icon-button" data-scheme="system" data-next="light"

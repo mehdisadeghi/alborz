@@ -56,8 +56,7 @@ func (p *goPlugin) SetRoutes(group *echo.Group) {
 		})
 	}
 
-	// Assets are served from the embedded files, with the plugin directory
-	// on disk taking precedence file by file, like templates.
+	// On-disk plugin assets override the embedded ones file by file, like templates.
 	group.GET("/plugins/"+p.p.Name+"/assets/*", func(ectx echo.Context) error {
 		name := strings.TrimPrefix(path.Clean("/"+ectx.Param("*")), "/")
 		if name == "" {
@@ -108,24 +107,14 @@ type goPluginRoute struct {
 }
 
 // GoPlugin is a helper to create Go plugins.
-//
-// Use this struct to define your plugin, then call RegisterPluginLoader:
-//
-//	p := GoPlugin{Name: "my-plugin"}
-//	// Define routes, template functions, etc
-//	alborz.RegisterPluginLoader(p.Loader())
 type GoPlugin struct {
 	Name string
-	// Files is the plugin's embedded public directory: templates in
-	// public/*.html and assets in public/assets. A file with the same
-	// name in plugins/<name>/public on disk overrides its embedded
-	// counterpart. Nil means the plugin ships no templates or assets.
+	// Files is the embedded public directory (public/*.html, public/assets);
+	// plugins/<name>/public on disk overrides it file by file. Nil means none.
 	Files fs.FS
-	// CloseFunc releases plugin resources on server close;
-	// nil means nothing to release.
+	// CloseFunc releases resources on server close; nil means none.
 	CloseFunc func() error
-	// EnabledFunc reports per-request availability; nil means always
-	// enabled.
+	// EnabledFunc reports per-request availability; nil means always.
 	EnabledFunc func(*Context) bool
 
 	routes []goPluginRoute
@@ -169,13 +158,11 @@ func (p *GoPlugin) TemplateFuncs(funcs template.FuncMap) {
 	}
 }
 
-// InjectFunc is a function that injects data prior to rendering a template.
+// InjectFunc injects data prior to rendering a template.
 type InjectFunc func(ctx *Context, data RenderData) error
 
-// Inject registers a function to execute prior to rendering a template. The
-// special name "*" matches any template. Two registered for one name
-// both run, in the order they were registered: parts of one plugin ask
-// for the same page without knowing of each other.
+// Inject registers f to run before rendering the named template; "*" matches
+// any. Several for one name run in registration order.
 func (p *GoPlugin) Inject(name string, f InjectFunc) {
 	if p.injectFuncs == nil {
 		p.injectFuncs = make(map[string]InjectFunc)

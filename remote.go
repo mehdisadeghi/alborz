@@ -13,8 +13,7 @@ import (
 	"time"
 )
 
-// maxRemoteRedirects is how far a remote server may send us on: enough
-// for a CDN's hop or two, too few to be worth abusing.
+// maxRemoteRedirects allows a CDN's hop or two, too few to be worth abusing.
 const maxRemoteRedirects = 3
 
 // Half the per-host capacity is kept for requests someone waits on.
@@ -23,12 +22,9 @@ const (
 	backgroundPerHost  = 2
 )
 
-// Outgoing is every request alborz sends over HTTP. Trusted dials the
-// servers the deployment names or finds; Guarded dials a server
-// somebody outside the deployment names, and only at a public address,
-// checked at the socket, so neither a redirect nor a name that resolves
-// anew gets further than the first address did. Both share one limit
-// per host.
+// Outgoing is every request alborz sends over HTTP. Trusted dials servers the
+// deployment names or finds; Guarded dials outsider-named servers, public
+// addresses only, checked at the socket so redirects and re-resolution cannot escape.
 type Outgoing struct {
 	Trusted, Guarded http.RoundTripper
 }
@@ -46,10 +42,8 @@ func NewOutgoing() Outgoing {
 	}
 }
 
-// Remote makes a client for a request to somebody else's server on a
-// reader's behalf: an unsubscribe endpoint, an image in a message.
-// Those addresses are the sender's to choose, and a sender must not get
-// to choose a machine on our own network, nor plain http at any hop.
+// Remote makes a client for a request to a sender-chosen server, which must
+// not reach our own network nor use plain http at any hop.
 func (o Outgoing) Remote(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,
@@ -65,8 +59,7 @@ func (o Outgoing) Remote(timeout time.Duration) *http.Client {
 
 type backgroundKey struct{}
 
-// Background marks work nobody is waiting on, which the per-host limit
-// holds to its background share.
+// Background marks work nobody waits on, limited to the background share.
 func Background(ctx context.Context) context.Context {
 	return context.WithValue(ctx, backgroundKey{}, true)
 }
@@ -89,9 +82,8 @@ func (p *hostLimits) host(name string) *hostLimit {
 	return h
 }
 
-// limitedTransport goes below whatever decides the host a request
-// leaves for: above it, every server behind one routed address would
-// share that address's share.
+// limitedTransport sits below host routing, or every server behind one routed
+// address would share its limit.
 type limitedTransport struct {
 	next   http.RoundTripper
 	limits *hostLimits
@@ -147,9 +139,7 @@ func (t httpsOnly) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.rt.RoundTrip(req)
 }
 
-// refuseLocal is the dialer's last look at where it is about to
-// connect: loopback, link-local and private ranges are ours, not the
-// sender's to name.
+// refuseLocal refuses loopback, link-local and private addresses at dial time.
 func refuseLocal(network, address string, _ syscall.RawConn) error {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
@@ -165,13 +155,9 @@ func refuseLocal(network, address string, _ syscall.RawConn) error {
 	return nil
 }
 
-// sharedAddressSpace is a carrier's NAT (RFC 6598): as private as the
-// ranges of RFC 1918, which are all netip's IsPrivate knows.
+// sharedAddressSpace is carrier-grade NAT (RFC 6598), which netip's IsPrivate omits.
 var sharedAddressSpace = netip.MustParsePrefix("100.64.0.0/10")
 
-// publicAddr says whether an address is a machine out on the internet
-// rather than one of ours: not loopback, link-local, unspecified,
-// private or behind a carrier's NAT.
 func publicAddr(ip netip.Addr) bool {
 	ip = ip.Unmap()
 	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !sharedAddressSpace.Contains(ip)

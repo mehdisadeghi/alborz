@@ -13,8 +13,6 @@ import (
 	"github.com/smallstep/pkcs7"
 )
 
-// signer mints a certificate for an address, issued by a CA of its
-// own, and the detached signature it writes over some bytes.
 func signer(t testing.TB, address string) (root *x509.Certificate, sign func([]byte) []byte) {
 	t.Helper()
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -78,10 +76,6 @@ func signer(t testing.TB, address string) (root *x509.Certificate, sign func([]b
 	}
 }
 
-// What an S/MIME signature is allowed to claim: that these bytes come
-// from the address its certificate names, and only where the issuer is
-// one this server trusts. Everything else says nothing rather than
-// showing a mark the reader cannot check (ADR 43).
 func TestSMIMESaysOnlyWhatItChecked(t *testing.T) {
 	const body = "Content-Type: text/plain\r\n\r\nThe signed words.\r\n"
 	ca, sign := signer(t, "gil@example.org")
@@ -98,8 +92,6 @@ func TestSMIMESaysOnlyWhatItChecked(t *testing.T) {
 		t.Errorf("a signature by a trusted issuer for the sender reads %+v", v)
 	}
 
-	// The part travels base64 in the message, and a server may hand it
-	// over as it stands.
 	if v := verifySMIME([]byte(body), []byte(wrapped(sig)), authors); v.State != SignatureGood {
 		t.Errorf("the same signature in base64 reads %+v", v)
 	}
@@ -119,7 +111,6 @@ func TestSMIMESaysOnlyWhatItChecked(t *testing.T) {
 	}
 }
 
-// wrapped is the signature as a message carries it: base64 in lines.
 func wrapped(der []byte) string {
 	const line = 76
 	encoded := base64.StdEncoding.EncodeToString(der)
@@ -131,9 +122,6 @@ func wrapped(der []byte) string {
 	return out + encoded + "\r\n"
 }
 
-// The signature comes from whoever sent the message, so the parser
-// reads bytes nobody vouches for. Any verdict is acceptable; a panic
-// is not.
 func FuzzSMIME(f *testing.F) {
 	_, sign := signer(f, "gil@example.org")
 	sig := sign([]byte("body"))

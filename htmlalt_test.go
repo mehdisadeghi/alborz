@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// The whole point: a Persian paragraph has to carry dir="rtl" and an
-// English one dir="ltr", in the same message, because the recipient's
-// client works neither out for itself.
 func TestHTMLAlternativeDirectionPerParagraph(t *testing.T) {
 	out := HTMLAlternative("سلام، این یک پیام فارسی است.\n\nAnd this paragraph is English.")
 	rtl := strings.Index(out, `<p dir="rtl">`)
@@ -23,8 +20,6 @@ func TestHTMLAlternativeDirectionPerParagraph(t *testing.T) {
 	}
 }
 
-// A quote often runs the other way from the reply around it, so it is
-// asked separately rather than inheriting.
 func TestHTMLAlternativeQuoteAsksItself(t *testing.T) {
 	out := HTMLAlternative("My answer in English.\n\n> سلام، این نقل قول فارسی است.")
 	if !strings.Contains(out, "<blockquote>") {
@@ -39,9 +34,6 @@ func TestHTMLAlternativeQuoteAsksItself(t *testing.T) {
 	}
 }
 
-// It is an alternative to the text part, not a rewrite of it: the words
-// have to survive intact, and anything that looks like markup in them
-// must not become markup.
 func TestHTMLAlternativeEscapesAndKeepsBreaks(t *testing.T) {
 	out := HTMLAlternative("a <b>bold</b> claim & more\nsecond line")
 	if strings.Contains(out, "<b>") {
@@ -53,7 +45,6 @@ func TestHTMLAlternativeEscapesAndKeepsBreaks(t *testing.T) {
 	if !strings.Contains(out, "<br>") {
 		t.Errorf("a typed line break was lost:\n%s", out)
 	}
-	// No styling of any kind: this must not read as "HTML mail".
 	for _, banned := range []string{"style=", "<div", "<font", "class="} {
 		if strings.Contains(out, banned) {
 			t.Errorf("generated %q, which is more than direction:\n%s", banned, out)
@@ -61,10 +52,6 @@ func TestHTMLAlternativeEscapesAndKeepsBreaks(t *testing.T) {
 	}
 }
 
-// A paragraph that opens with a line break is a normal thing for an
-// editor to hand over. x/text reads a paragraph up to its first
-// separator, so a leading one gives it nothing to order and it used
-// to panic when asked the direction.
 func TestParagraphDirSurvivesLeadingBreak(t *testing.T) {
 	for in, want := range map[string]string{
 		"\nfoobar":   "ltr",
@@ -77,8 +64,6 @@ func TestParagraphDirSurvivesLeadingBreak(t *testing.T) {
 	}
 }
 
-// Plain text needs the HTML part only where something runs right to
-// left, and a Persian quote under an English reply is such a place.
 func TestHasRTL(t *testing.T) {
 	for text, want := range map[string]bool{
 		"":                                false,

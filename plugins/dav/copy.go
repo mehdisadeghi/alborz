@@ -31,8 +31,6 @@ func wireFor(kind collections.Kind) wire {
 		query: "calendar-query", multigetName: "calendar-multiget", handler: calendarCopy}
 }
 
-// answers says whether a REPORT is one the copy serves: a query or a
-// multiget of the kind.
 func (w wire) answers(body []byte) bool {
 	d := xml.NewDecoder(bytes.NewReader(body))
 	for {
@@ -48,8 +46,7 @@ func (w wire) answers(body []byte) bool {
 
 var errNotHeld = webdav.NewHTTPError(http.StatusNotFound, errors.New("dav: no such object in the copy"))
 
-// calendars answers go-webdav's CalDAV server from one collection's
-// copy. Only reads reach it, so the rest of the Backend is never asked.
+// calendars serves go-webdav's CalDAV server from a collection's copy; only reads reach it.
 type calendars struct {
 	caldav.Backend
 	objects []caldav.CalendarObject
@@ -82,8 +79,7 @@ func (b calendars) QueryCalendarObjects(_ context.Context, _ string, query *cald
 	if err != nil {
 		return nil, err
 	}
-	// Served as the server sent it: go-ical refuses to re-encode what
-	// servers accept, such as a VEVENT without DTSTAMP.
+	// go-ical refuses to encode what servers accept, such as a VEVENT without DTSTAMP.
 	for i := range found {
 		found[i].Data = nil
 	}

@@ -1,22 +1,7 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
-// The keyboard and the thumb, which press the same controls.
-//
-// The keyboard, in the scheme webmail settled on and Gmail wrote down,
-// which is vi's where the two overlap: j and k walk a list, x ticks a
-// row, / searches, g and a letter goes somewhere, ? lists them all.
-//
-// Nothing here knows a page. The markup says what a key does - an
-// element carries data-key, a place carries data-go - and a key presses
-// the element, so an action has one implementation, the button's, and a
-// page gains a shortcut by naming it. The cursor is the browser's own
-// focus, on the row's link: Enter opens it and the focus ring shows it
-// with no state kept here, and a reader who never touches these keys
-// meets none of it.
-
 (() => {
-	// A field that takes text owns its letters. A ticked checkbox keeps
-	// the focus and takes none, so the keys go on working under it.
+	// A text field owns its letters; a checkbox keeps the focus but takes none.
 	const untyped = /^(checkbox|radio|button|submit|reset|image|file|range|color)$/;
 	const typing = el => el && (el.isContentEditable || /^(TEXTAREA|SELECT)$/.test(el.tagName) ||
 		(el.tagName === "INPUT" && !untyped.test(el.type)));
@@ -34,9 +19,7 @@
 		linkOf(rows[to]).focus();
 	};
 
-	// A list's action works on the ticked rows and is disabled with none.
-	// With none ticked the key means the row under the cursor, so it is
-	// ticked first - which is what a hand would do.
+	// A list action is disabled with nothing ticked, so the cursor's row is ticked first.
 	const press = el => {
 		const row = rowOf(document.activeElement);
 		if (el.disabled && row) {
@@ -72,18 +55,13 @@
 		}
 	};
 
-	// The dialog says what this page's own controls answer to, in their
-	// own words, and it reads them as it opens, whoever opens it: the
-	// key here, or the menu's button, which the browser answers without
-	// a script. The event does not bubble, so it is caught on the way
-	// down, and a swapped-in header needs no listener of its own.
+	// beforetoggle does not bubble, so capture catches it for any opener, swapped-in headers included.
 	document.addEventListener("beforetoggle", event => {
 		const dialog = event.target;
 		if (dialog.id !== "keys-help" || event.newState !== "open") {
 			return;
 		}
-		// A place this page does not hold - a section with no plugin
-		// behind it, the starred view outside mail - has no letter.
+		// A place this page does not hold has no letter.
 		for (const kbd of dialog.querySelectorAll("[data-go-key]")) {
 			kbd.hidden = !document.querySelector(`[data-go="${CSS.escape(kbd.dataset.goKey)}"]`);
 		}
@@ -107,15 +85,10 @@
 		}
 	}, true);
 
-	// The thumb presses the same controls. On a phone a row dragged
-	// sideways past a third of its width is the row and one action: away
-	// from the reading edge deletes, toward it junks, as Apple Mail has
-	// it and mirrored where the page is. The action is the toolbar's
-	// own - its form, its notice, its Undo - pressed for this row alone.
-	// Rows that are not boxes of their own (a wide screen's are cells of
-	// one grid) cannot be moved and are left alone.
-	const SWIPE_START = 12; // px of sideways travel before a drag is a swipe
-	const SWIPE_ACT = 1 / 3; // of the row's width, past which letting go acts
+	// A swipe presses the toolbar's own control, so it gets its notice and Undo.
+	// Rows laid out as grid cells (display: contents) cannot move.
+	const SWIPE_START = 12;
+	const SWIPE_ACT = 1 / 3;
 	let swipe = null;
 	const hintFor = (row, control, side) => {
 		const hint = document.createElement("div");
@@ -147,8 +120,7 @@
 		}
 	};
 	document.addEventListener("pointerdown", ev => {
-		// A second finger is a pinch or a scroll, never a swipe: the row
-		// goes back, and nothing acts until a finger has lifted.
+		// A second finger is a pinch or a scroll, never a swipe.
 		if (swipe) {
 			if (swipe.row) {
 				endSwipe(false);
@@ -208,9 +180,7 @@
 			const { row, live } = swipe;
 			endSwipe(far);
 			if (live) {
-				// The finger lifting over the row's link must not open it;
-				// the click comes at once or not at all. After the action,
-				// whose own clicks are this row's too.
+				// The finger lifting over the row's link must not open it.
 				const spent = new AbortController();
 				row.addEventListener("click", click => click.preventDefault(), { capture: true, signal: spent.signal });
 				setTimeout(() => spent.abort(), 400);
@@ -220,8 +190,7 @@
 
 	let going = 0;
 	document.addEventListener("keydown", ev => {
-		// A key pressed while an input method composes is part of a
-		// character, not a command.
+		// A key pressed while an input method composes is part of a character.
 		if (ev.defaultPrevented || ev.isComposing || ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target)) {
 			return;
 		}
@@ -233,8 +202,7 @@
 		if (going) {
 			clearTimeout(going);
 			going = 0;
-			// A rail lists the place once per account; the one in the
-			// page's own scope is the one meant.
+			// A rail lists the place once per account; the one in this page's scope is meant.
 			const places = `[data-go="${CSS.escape(key)}"]`;
 			const place = document.querySelector(places + "[data-go-here]") || document.querySelector(places);
 			if (place) {
@@ -244,7 +212,6 @@
 			return;
 		}
 		if (key === "g") {
-			// The second letter is awaited for as long as a hand takes.
 			going = setTimeout(() => { going = 0; }, 1500);
 			return;
 		}

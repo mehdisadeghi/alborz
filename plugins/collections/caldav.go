@@ -17,7 +17,6 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-// calendars is the store as go-webdav's CalDAV server asks for it.
 type calendars struct{ *Store }
 
 func (b calendars) CurrentUserPrincipal(ctx context.Context) (string, error) {
@@ -71,8 +70,7 @@ func (b calendars) GetCalendar(ctx context.Context, p string) (*caldav.Calendar,
 	return calendarOf(userOf(ctx), *c, may)
 }
 
-// zoneOf is a calendar's timezone as it is kept. A calendar with
-// nothing in it is how go-webdav says the timezone was removed.
+// go-webdav says a timezone was removed with an empty calendar.
 func zoneOf(zone *ical.Calendar) ([]byte, error) {
 	if zone == nil || len(zone.Children) == 0 {
 		return nil, nil
@@ -82,12 +80,9 @@ func zoneOf(zone *ical.Calendar) ([]byte, error) {
 	return out.Bytes(), err
 }
 
-// defaultComponents is what a calendar made without saying takes.
 var defaultComponents = []string{ical.CompEvent, ical.CompToDo}
 
-// storedComponents are what a calendar may be made to take: the
-// components a calendar object resource holds (RFC 4791 4.1), less
-// VFREEBUSY, which nothing here reads.
+// VFREEBUSY is left out: nothing here reads it.
 var storedComponents = []string{ical.CompEvent, ical.CompToDo, ical.CompJournal}
 
 func (b calendars) CreateCalendar(ctx context.Context, cal *caldav.Calendar) error {
@@ -128,10 +123,7 @@ func (b calendars) UpdateCalendar(ctx context.Context, p string, update *caldav.
 	})
 }
 
-// calendarObject is an object as go-webdav asks for it: with its octets
-// as they are kept when any of it is wanted, so the tag names what a
-// read answers, and with nothing when only the tag is - listing a
-// calendar's tags parses no object.
+// Octets as kept, so the tag names what a read answers; tags alone parse nothing.
 func calendarObject(p string, o Object, req *caldav.CalendarCompRequest) caldav.CalendarObject {
 	co := caldav.CalendarObject{Path: p, ModTime: o.Modified, ContentLength: int64(len(o.Data)), ETag: o.ETag}
 	if !req.IsEmpty() {
@@ -194,15 +186,10 @@ func (b calendars) PutCalendarObject(ctx context.Context, p string, cal *ical.Ca
 	if err != nil {
 		return nil, err
 	}
-	// What a PUT answers with is the tag, the time and the path.
 	return &caldav.CalendarObject{Path: p, ModTime: o.Modified, ContentLength: int64(len(o.Data)), ETag: o.ETag}, nil
 }
 
-// conditions reads a write's If-Match and If-None-Match (RFC 7232 3.1,
-// 3.2): the versions the writer means to replace, and those it will
-// not. "*" is any version at all, so If-Match: * is off when nothing is
-// held: an edit of what another device deleted does not bring it back.
-// If-Match compares strongly and If-None-Match weakly (RFC 7232 2.3.2).
+// If-Match compares strongly, If-None-Match weakly (RFC 7232 2.3.2).
 func conditions(ifMatch, ifNoneMatch webdav.ConditionalMatch) Unless {
 	return func(held string) error {
 		must, matched, err := ifMatch.MatchETag(held)

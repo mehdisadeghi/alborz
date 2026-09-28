@@ -18,18 +18,13 @@
       <section class="actions" aria-label="{{$.T "a11y.toolbar"}}">
         {{ template "toolbar-head" (dict "g" . "selectall" true "newhref" "/tasks/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "tasks.new")) }}
           <span class="icon-group">
-            {{/* Download leaves a narrowing row first, then delete. */}}
             {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "priority" 12 "form" "tasks-form" "formaction" "/tasks/complete") }}
             {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" "/tasks/delete" "priority" 11) }}
             {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" "/tasks/export" "priority" 10 "download" true) }}
           </span>
-          {{/* Not gated on the selection: the check acts on the lists,
-               and the controls that need rows are disabled one by one. */}}
           <div class="overflow">
             <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
             <div class="overflow-menu" popover id="menu-more">
-              {{/* The destination is chosen on a page of its own, which
-                   the move route answers with when none is named. */}}
               <button form="tasks-form" formaction="/tasks/move">{{$.T "mailbox.moveto"}}</button>
               <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
             </div>
@@ -38,8 +33,6 @@
             {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
             {{ template "list-pager" (dict "g" $ "pager" .Pager) }}
             {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
-            {{/* Priority has no column to sort by since it became the
-                 circle's ring, so the menu stays on a desktop too. */}}
             {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .Tasks) "wide" true "rows" (tuple
                (tuple ($.T "sort.starred") "starred") (tuple ($.T "tasks.status") "status") (tuple ($.T "tasks.priority") "priority")
                (tuple ($.T "tasks.summary") "summary") (tuple ($.T "common.calendar") "calendar") (tuple ($.T "tasks.duedate") "due")
@@ -51,10 +44,6 @@
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 
-      {{/* One line for the next task: what it says, which list it goes
-           into, and the button - the destination is the reader's to
-           change without leaving the line. A single list is named in
-           the field instead, since a picker of one asks nothing. */}}
       {{ with .Quick }}
       <form method="post" action="/tasks/create" class="quick-add" hx-boost="false">
         <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}#quick">

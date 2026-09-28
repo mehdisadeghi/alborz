@@ -1,10 +1,4 @@
-/* Solarized, both halves. Schoonover's palette holds one set of hues
-   against two backgrounds, so the light and dark sides are the same
-   theme rather than two. The accents are darkened in light and lifted
-   in dark: the originals sit near 3:1 on their own background, which
-   is under the floor for text: 4.5:1 against every surface here, the
-   raised one included, which the rail's own row is painted in. The doubled :root outweighs the scheme
-   blocks in the base sheet. */
+/* The doubled :root ties the base sheet's scheme blocks, and this sheet loads later. */
 :root:root {
   color-scheme: light;
 
@@ -13,8 +7,8 @@
   --fg-muted: #4a6169;
   --fg-faint: #516870;
 
-  --bg: #fdf6e3;      /* base3, chrome and raised surfaces */
-  --bg-well: #f4eeda; /* content area behind them */
+  --bg: #fdf6e3;      /* base3 */
+  --bg-well: #f4eeda;
   --bg-inset: #eee8d5; /* base2 */
   --bg-button: #f7f1de;
   --bg-active: #eee8d5;
@@ -64,8 +58,8 @@
     --fg-muted: #b0bdbc;
     --fg-faint: #a3b0b0;
 
-    --bg: #073642;      /* base02, chrome and raised surfaces */
-    --bg-well: #002b36; /* base03, the page behind them */
+    --bg: #073642;      /* base02 */
+    --bg-well: #002b36; /* base03 */
     --bg-inset: #0a3d4a;
     --bg-button: #0a3d4a;
     --bg-active: #0d4655;

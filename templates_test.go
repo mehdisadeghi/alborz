@@ -10,9 +10,13 @@ import (
 
 // Go resolves {{template}} names only at execution time.
 func TestTemplateReferencesResolve(t *testing.T) {
-	files, err := filepath.Glob("themes/*/*.html")
-	if err != nil {
-		t.Fatal(err)
+	var files []string
+	for _, glob := range templateGlobs {
+		found, err := filepath.Glob(glob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, found...)
 	}
 	if len(files) == 0 {
 		t.Fatal("no templates found; the glob is wrong, not the templates")
@@ -47,7 +51,11 @@ func TestTemplateReferencesResolve(t *testing.T) {
 }
 
 func TestTranslationKeysExist(t *testing.T) {
-	files, _ := filepath.Glob("themes/*/*.html")
+	var files []string
+	for _, glob := range templateGlobs {
+		found, _ := filepath.Glob(glob)
+		files = append(files, found...)
+	}
 
 	keyRe := regexp.MustCompile(`\{\{-?\s*\$?\.?\$?[A-Za-z.]*\bTf?\s+"([a-z0-9._]+)"`)
 	used := map[string][]string{}

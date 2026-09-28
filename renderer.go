@@ -773,6 +773,9 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 	return err
 }
 
+// templateGlobs reach every template under templates/.
+var templateGlobs = []string{"templates/*.html", "templates/*/*.html", "templates/*/*/*.html"}
+
 // Overlaying the disk theme lets it carry only the files it changes.
 func loadTheme(themesPath string, name string, base *template.Template) (*template.Template, int, error) {
 	theme, err := base.Clone()
@@ -780,7 +783,7 @@ func loadTheme(themesPath string, name string, base *template.Template) (*templa
 		return nil, 0, err
 	}
 
-	theme, err = theme.ParseFS(embeddedTheme, "themes/alborz/*.html")
+	theme, err = theme.ParseFS(embeddedTheme, templateGlobs...)
 	if err != nil {
 		return nil, 0, err
 	}

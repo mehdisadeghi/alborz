@@ -15,7 +15,7 @@ run: build
 # Rebuild and restart on Go changes; reload templates in the running
 # server (SIGUSR1, keeps sessions) on theme changes.
 watch:
-	find themes -name '*.html' | entr -n pkill -USR1 -x alborz & \
+	find templates -name '*.html' | entr -n pkill -USR1 -x alborz & \
 	find . -name '*.go' | entr -nr $(MAKE) run
 
 fmt:

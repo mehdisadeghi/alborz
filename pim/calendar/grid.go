@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/calsys"
 )
 
 // The month grid's labels, in the reader's primary and secondary calendars.
@@ -66,8 +66,8 @@ func weekAnchor(rowStart time.Time) time.Time {
 	return rowStart.AddDate(0, 0, (4-iso+7)%7)
 }
 
-func weekOf(cal alborz.CalendarSystem, day time.Time) int {
-	if cal.Name() == alborz.GregorianName {
+func weekOf(cal calsys.System, day time.Time) int {
+	if cal.Name() == calsys.Gregorian {
 		_, week := day.ISOWeek()
 		return week
 	}

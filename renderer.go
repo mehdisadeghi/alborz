@@ -19,6 +19,8 @@ import (
 	"golang.org/x/text/message"
 	"golang.org/x/text/number"
 	"golang.org/x/text/unicode/bidi"
+
+	"git.mehdix.org/alborz/internal/calsys"
 )
 
 // GlobalRenderData contains data available in all templates.
@@ -236,22 +238,22 @@ func (g *GlobalRenderData) MonthName(t time.Time) string {
 }
 
 // ShortMonth names a month of cal as a narrow column does.
-func (g *GlobalRenderData) ShortMonth(cal CalendarSystem, month int) string {
-	if cal.Name() != GregorianName {
+func (g *GlobalRenderData) ShortMonth(cal calsys.System, month int) string {
+	if cal.Name() != calsys.Gregorian {
 		return g.T(cal.MonthKey(month))
 	}
 	return g.T(fmt.Sprintf("calendar.gmonthshort.%d", month))
 }
 
 // PrimaryCalendar is the calendar the page counts in.
-func (g *GlobalRenderData) PrimaryCalendar() CalendarSystem { return Calendar(g.Primary) }
+func (g *GlobalRenderData) PrimaryCalendar() calsys.System { return calsys.Of(g.Primary) }
 
 // SecondaryCalendar is the calendar glossed beside the primary one; false for none.
-func (g *GlobalRenderData) SecondaryCalendar() (CalendarSystem, bool) {
+func (g *GlobalRenderData) SecondaryCalendar() (calsys.System, bool) {
 	if g.Secondary == "" || g.Secondary == g.PrimaryCalendar().Name() {
 		return nil, false
 	}
-	return Calendar(g.Secondary), true
+	return calsys.Of(g.Secondary), true
 }
 
 var replyPrefix = regexp.MustCompile(`^\s*(?i:(re|aw|sv|antw|fw|fwd|rv|tr)\s*(\[\d+\])?\s*:|\[[^\]]{1,40}\])\s*`)

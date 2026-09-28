@@ -2,14 +2,10 @@ package dav
 
 import (
 	"context"
-	"encoding/xml"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"path"
-	"strconv"
-	"strings"
 
 	"github.com/emersion/go-webdav"
 )
@@ -24,21 +20,18 @@ type delta struct {
 	gone  []string
 }
 
-type multistatus struct {
-	Token     string `xml:"DAV: sync-token"`
-	Responses []struct {
-		Href     string `xml:"DAV: href"`
-		Status   string `xml:"DAV: status"`
-		PropStat []struct {
-			Status string `xml:"DAV: status"`
-			Prop   struct {
-				ETag     string `xml:"DAV: getetag"`
-				CTag     string `xml:"http://calendarserver.org/ns/ getctag"`
-				Calendar string `xml:"urn:ietf:params:xml:ns:caldav calendar-data"`
-				Card     string `xml:"urn:ietf:params:xml:ns:carddav address-data"`
-			} `xml:"DAV: prop"`
-		} `xml:"DAV: propstat"`
-	} `xml:"DAV: response"`
+// sent is an object at path as the server sent it; data is nil where the server left it out.
+type sent struct {
+	path, etag string
+	data       []byte
+}
+
+// synced is one sync-collection answer; truncated says the token continues it (RFC 6578 3.6).
+type synced struct {
+	token     string
+	truncated bool
+	put       []sent
+	gone      []string
 }
 
 // pull syncs from the held token (RFC 6578), from scratch when refused, or by etags without sync.
@@ -57,7 +50,7 @@ func (w wire) pull(ctx context.Context, client *http.Client, target *url.URL, h 
 
 // refused is a server declining rather than failing: a stale token (RFC 6578 3.2) or an unknown report.
 func refused(err error) bool {
-	code := Answered(err)
+	code, _ := webdav.HTTPErrorCode(err)
 	return code >= 400 && code < 500 || code == http.StatusNotImplemented
 }
 
@@ -65,40 +58,29 @@ func (w wire) syncCollection(ctx context.Context, client *http.Client, target *u
 	d := delta{whole: token == ""}
 	var missing []string
 	for {
-		ms, err := call(ctx, client, "REPORT", target, "0", fmt.Sprintf(
-			`<D:sync-collection xmlns:D="DAV:" xmlns:K="%s"><D:sync-token>%s</D:sync-token><D:sync-level>1</D:sync-level><D:prop><D:getetag/><K:%s/></D:prop></D:sync-collection>`,
-			w.ns, XMLEscape(token), w.data))
+		s, err := w.sync(ctx, client, target, token)
 		if err != nil {
 			return delta{}, err
 		}
-		if ms.Token == "" {
+		if s.token == "" {
 			return delta{}, webdav.NewHTTPError(http.StatusNotImplemented, errors.New("dav: a sync answered with no sync-token"))
 		}
-		// A 507 on the collection marks a truncated answer the token continues (RFC 6578 3.6).
-		truncated := false
-		for _, r := range ms.Responses {
-			name := nameIn(r.Href, target.Path)
-			switch {
-			case name == "":
-				truncated = truncated || strings.Contains(r.Status, " 507") && CanonicalCollectionPath(r.Href) == target.Path
-			case strings.Contains(r.Status, " 404"):
+		for _, p := range s.gone {
+			if name := nameIn(p, target.Path); name != "" {
 				d.gone = append(d.gone, name)
-			default:
-				for _, ps := range r.PropStat {
-					if !strings.Contains(ps.Status, " 200") {
-						continue
-					}
-					data := ps.Prop.Calendar + ps.Prop.Card
-					if data == "" {
-						missing = append(missing, name)
-						continue
-					}
-					d.put = append(d.put, object{Name: name, ETag: unquote(ps.Prop.ETag), Data: []byte(data)})
-				}
 			}
 		}
-		token = ms.Token
-		if !truncated {
+		for _, o := range s.put {
+			switch name := nameIn(o.path, target.Path); {
+			case name == "":
+			case o.data == nil:
+				missing = append(missing, o.path)
+			default:
+				d.put = append(d.put, object{Name: name, ETag: o.etag, Data: o.data})
+			}
+		}
+		token = s.token
+		if !s.truncated {
 			break
 		}
 	}
@@ -110,27 +92,27 @@ func (w wire) syncCollection(ctx context.Context, client *http.Client, target *u
 
 // compare fetches what differs by etag; nothing while the ctag stands.
 func (w wire) compare(ctx context.Context, client *http.Client, target *url.URL, h mirrored, have func() (map[string]string, error)) (delta, error) {
-	ms, err := call(ctx, client, "PROPFIND", target, "1",
-		`<D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop><D:getetag/><CS:getctag/></D:prop></D:propfind>`)
+	ctag, err := w.ctag(ctx, client, target)
 	if err != nil {
 		return delta{}, err
 	}
-	d := delta{noSync: true}
-	listed := map[string]string{}
-	for _, r := range ms.Responses {
-		for _, ps := range r.PropStat {
-			if !strings.Contains(ps.Status, " 200") {
-				continue
-			}
-			if name := nameIn(r.Href, target.Path); name != "" {
-				listed[name] = unquote(ps.Prop.ETag)
-			} else if CanonicalCollectionPath(r.Href) == target.Path {
-				d.ctag = ps.Prop.CTag
-			}
-		}
-	}
-	if d.ctag != "" && d.ctag == h.CTag {
+	d := delta{noSync: true, ctag: ctag}
+	if ctag != "" && ctag == h.CTag {
 		return d, nil
+	}
+	c, err := webdav.NewClient(client, target.String())
+	if err != nil {
+		return delta{}, err
+	}
+	files, err := c.ReadDir(ctx, target.Path, false)
+	if err != nil {
+		return delta{}, err
+	}
+	listed := map[string]string{}
+	for _, f := range files {
+		if name := nameIn(f.Path, target.Path); name != "" && !f.IsDir {
+			listed[name] = f.ETag
+		}
 	}
 	mine, err := have()
 	if err != nil {
@@ -139,7 +121,7 @@ func (w wire) compare(ctx context.Context, client *http.Client, target *url.URL,
 	var changed []string
 	for name, etag := range listed {
 		if etag == "" || mine[name] != etag {
-			changed = append(changed, name)
+			changed = append(changed, target.Path+name)
 		}
 	}
 	for name := range mine {
@@ -151,69 +133,27 @@ func (w wire) compare(ctx context.Context, client *http.Client, target *url.URL,
 	return d, err
 }
 
-func (w wire) multiget(ctx context.Context, client *http.Client, target *url.URL, names []string) ([]object, error) {
-	if len(names) == 0 {
+func (w wire) multiget(ctx context.Context, client *http.Client, target *url.URL, paths []string) ([]object, error) {
+	if len(paths) == 0 {
 		return nil, nil
 	}
-	var hrefs strings.Builder
-	for _, name := range names {
-		hrefs.WriteString("<D:href>" + XMLEscape((&url.URL{Path: target.Path + name}).EscapedPath()) + "</D:href>")
-	}
-	ms, err := call(ctx, client, "REPORT", target, "1", fmt.Sprintf(
-		`<K:%s xmlns:D="DAV:" xmlns:K="%s"><D:prop><D:getetag/><K:%s/></D:prop>%s</K:%s>`,
-		w.multigetName, w.ns, w.data, hrefs.String(), w.multigetName))
+	got, err := w.get(ctx, client, target, paths)
 	if err != nil {
 		return nil, err
 	}
 	var out []object
-	for _, r := range ms.Responses {
-		name := nameIn(r.Href, target.Path)
-		for _, ps := range r.PropStat {
-			if data := ps.Prop.Calendar + ps.Prop.Card; name != "" && strings.Contains(ps.Status, " 200") && data != "" {
-				out = append(out, object{Name: name, ETag: unquote(ps.Prop.ETag), Data: []byte(data)})
-			}
+	for _, o := range got {
+		if name := nameIn(o.path, target.Path); name != "" && o.data != nil {
+			out = append(out, object{Name: name, ETag: o.etag, Data: o.data})
 		}
 	}
 	return out, nil
 }
 
-func call(ctx context.Context, client *http.Client, method string, target *url.URL, depth, body string) (*multistatus, error) {
-	req, err := http.NewRequestWithContext(ctx, method, target.String(), strings.NewReader(xml.Header+body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Depth", depth)
-	req.Header.Set("Content-Type", `text/xml; charset="utf-8"`)
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusMultiStatus {
-		return nil, webdav.NewHTTPError(resp.StatusCode, fmt.Errorf("dav: %s %s: %s", method, target.Path, resp.Status))
-	}
-	var ms multistatus
-	if err := xml.NewDecoder(resp.Body).Decode(&ms); err != nil {
-		return nil, err
-	}
-	return &ms, nil
-}
-
-func nameIn(href, coll string) string {
-	u, err := url.Parse(strings.TrimSpace(href))
-	if err != nil {
-		return ""
-	}
-	dir, name := path.Split(u.Path)
+func nameIn(p, coll string) string {
+	dir, name := path.Split(p)
 	if dir != coll {
 		return ""
 	}
 	return name
-}
-
-func unquote(etag string) string {
-	if s, err := strconv.Unquote(etag); err == nil {
-		return s
-	}
-	return etag
 }

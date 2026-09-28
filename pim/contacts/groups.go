@@ -80,7 +80,7 @@ func (p *plugin) groupContact(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	ao, err := getAddressObject(ctx, c, objPath)
+	ao, err := c.GetAddressObject(ctx.Request().Context(), objPath)
 	if err != nil {
 		return fmt.Errorf("failed to read the contact: %v", err)
 	}

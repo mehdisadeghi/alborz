@@ -432,7 +432,7 @@ func (p *plugin) move(ctx *alborz.Context) error {
 			if path.Dir(ref.Path)+"/" == target.Path {
 				return nil
 			}
-			co, err := getCalendarObject(ctx, ref.Client, ref.Path)
+			co, err := ref.Client.GetCalendarObject(ctx.Request().Context(), ref.Path)
 			if err != nil {
 				return fmt.Errorf("failed to get task: %v", err)
 			}

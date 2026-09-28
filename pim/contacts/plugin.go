@@ -72,7 +72,8 @@ func Mount(srv *alborz.Server, kept *store.Store) error {
 		Holds:    store.AddressBook,
 		FindHome: findHome,
 		List:     listAddressBooks,
-		Make:     doMkcol,
+		Make:     makeBook,
+		Change:   changeBook,
 		Unnamed:  "contacts",
 	})
 	if err != nil {

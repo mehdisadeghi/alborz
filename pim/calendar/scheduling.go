@@ -159,7 +159,7 @@ func (p *plugin) serverSchedules(ctx *alborz.Context, account, object string) (b
 
 // A meeting this account organizes is withdrawn from its attendees as it goes.
 func (p *plugin) deleteEvent(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) error {
-	co, err := getCalendarObject(ctx, ref.Client, ref.Path)
+	co, err := ref.Client.GetCalendarObject(ctx.Request().Context(), ref.Path)
 	if err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func (p *plugin) applyInvitation(ctx *alborz.Context) error {
 	}
 	var stored *caldav.CalendarObject
 	if at := p.findByUID(ctx, groups, inv.UID); at != "" {
-		if stored, err = getCalendarObject(ctx, c, at); err != nil {
+		if stored, err = c.GetCalendarObject(ctx.Request().Context(), at); err != nil {
 			return err
 		}
 	}

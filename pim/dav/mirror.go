@@ -20,6 +20,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/internal/kv/bolt"
+	"github.com/emersion/go-webdav"
 	"github.com/fernet/fernet-go"
 )
 
@@ -353,7 +354,7 @@ func (m *Mirror) sync(ctx context.Context, r *reader, u string, target *url.URL,
 	}
 	h.URL = target.String()
 	d, err := m.wire.pull(ctx, client, target, h, func() (map[string]string, error) { return m.etags(u, target.Path) })
-	if Answered(err) == http.StatusNotFound {
+	if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
 		return errors.Join(err, m.drop(u, target.Path))
 	}
 	if err != nil {
@@ -426,7 +427,7 @@ func (m *Mirror) wrote(u string, req *http.Request, body []byte, resp *http.Resp
 	if err != nil || !ok {
 		return err
 	}
-	etag := unquote(resp.Header.Get("ETag"))
+	etag := resp.Header.Get("ETag")
 	return m.db.Update(func(tx kv.Tx) error {
 		k := objectsKey(u, coll) + hashed(name)
 		var err error

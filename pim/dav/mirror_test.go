@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -61,7 +62,7 @@ func (s *fakeDAV) member(name string, data bool) string {
 		b.WriteString(`<D:status>HTTP/1.1 404 Not Found</D:status></D:response>`)
 		return b.String()
 	}
-	fmt.Fprintf(&b, `<D:propstat><D:prop><D:getetag>"%s"</D:getetag>`, s.etags[name])
+	fmt.Fprintf(&b, `<D:propstat><D:prop><D:resourcetype/><D:getetag>"%s"</D:getetag>`, s.etags[name])
 	if data {
 		b.WriteString("<C:calendar-data>")
 		xml.EscapeText(&b, []byte(s.objects[name]))
@@ -70,6 +71,9 @@ func (s *fakeDAV) member(name string, data bool) string {
 	b.WriteString(`</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`)
 	return b.String()
 }
+
+// element is a sync-token or href in any prefix a client writes it.
+var element = regexp.MustCompile(`<(?:\w+:)?(sync-token|href)(?:\s[^>]*)?>([^<]*)<`)
 
 func (s *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
@@ -85,13 +89,14 @@ func (s *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		return
 	case r.Method == "PROPFIND":
-		out = append(out, fmt.Sprintf(`<D:response><D:href>/cal/</D:href><D:propstat><D:prop><CS:getctag>c%d</CS:getctag></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`, len(s.log)))
+		out = append(out, fmt.Sprintf(`<D:response><D:href>/cal/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/><C:calendar/></D:resourcetype><CS:getctag>c%d</CS:getctag></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`, len(s.log)))
 		for name := range s.objects {
-			out = append(out, s.member(name, false))
+			if r.Header.Get("Depth") == "1" {
+				out = append(out, s.member(name, false))
+			}
 		}
 	case strings.Contains(body, "sync-collection"):
-		_, rest, _ := strings.Cut(body, "<D:sync-token>")
-		token, _, _ = strings.Cut(rest, "</D:sync-token>")
+		token = element.FindStringSubmatch(body)[2]
 		s.tokens = append(s.tokens, token)
 		if s.noSync || token != "" && s.forget {
 			w.WriteHeader(http.StatusForbidden)
@@ -111,9 +116,10 @@ func (s *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		token = strconv.Itoa(len(s.log))
 	case strings.Contains(body, "calendar-multiget"):
-		for _, part := range strings.Split(body, "<D:href>")[1:] {
-			href, _, _ := strings.Cut(part, "</D:href>")
-			out = append(out, s.member(path.Base(href), true))
+		for _, m := range element.FindAllStringSubmatch(body, -1) {
+			if m[1] == "href" {
+				out = append(out, s.member(path.Base(m[2]), true))
+			}
 		}
 	default:
 		w.WriteHeader(http.StatusBadRequest)

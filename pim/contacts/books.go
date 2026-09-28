@@ -42,7 +42,6 @@ func (p *plugin) collectionPage() pim.Page {
 	return pim.Page{
 		Base:   "/address-books/",
 		List:   "/contacts",
-		Color:  addressBookColor,
 		Ext:    ".vcf",
 		Forget: p.dav.Forget,
 		Show:   show,

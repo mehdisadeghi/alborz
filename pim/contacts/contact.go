@@ -263,7 +263,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		ao, err = getAddressObject(ctx, c, addressObjectPath)
+		ao, err = c.GetAddressObject(ctx.Request().Context(), addressObjectPath)
 		if err != nil {
 			if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
 				return alborz.NotFound("notfound.contact")

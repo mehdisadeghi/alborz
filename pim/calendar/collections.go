@@ -21,7 +21,6 @@ func (p *plugin) collectionPage() pim.Page {
 	return pim.Page{
 		Base:   "/calendars/",
 		List:   "/calendar",
-		Color:  calendarColor,
 		Ext:    ".ics",
 		Forget: p.dav.Forget,
 		Show:   show,

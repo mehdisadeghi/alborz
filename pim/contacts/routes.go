@@ -44,20 +44,6 @@ func choose(ctx context.Context, store alborz.Store, paths []string) error {
 
 const uidURN = "urn:uuid:"
 
-// Bypasses go-webdav, whose strconv.Unquote rejects a weak ETag.
-func getAddressObject(ctx *alborz.Context, c *carddav.Client, path string) (*carddav.AddressObject, error) {
-	body, err := c.Open(ctx.Request().Context(), path)
-	if err != nil {
-		return nil, err
-	}
-	defer body.Close()
-	card, err := vcard.NewDecoder(body).Decode()
-	if err != nil {
-		return nil, err
-	}
-	return &carddav.AddressObject{Path: path, Card: card}, nil
-}
-
 func registerRoutes(p *plugin) {
 	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
 		return p.dav.Guarded(errNoAddressBook, "/address-books/create", h)
@@ -114,7 +100,7 @@ func writeCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Car
 }
 
 func changeCard(ctx *alborz.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
-	ao, err := getAddressObject(ctx, ref.Client, ref.Path)
+	ao, err := ref.Client.GetAddressObject(ctx.Request().Context(), ref.Path)
 	if err != nil {
 		return fmt.Errorf("failed to read the contact: %v", err)
 	}

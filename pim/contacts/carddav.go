@@ -1,10 +1,8 @@
 package contacts
 
 import (
-	"bytes"
 	"context"
 	"encoding/xml"
-	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -14,50 +12,76 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-vcard"
+	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/carddav"
 )
 
 var errNoAddressBook = alborz.NotFound("notfound.addressbook")
 
-type davCollectionProps struct {
-	ResourceType struct {
-		AddressBook *struct{} `xml:"urn:ietf:params:xml:ns:carddav addressbook,omitempty"`
-	} `xml:"resourcetype"`
-	DisplayName      string         `xml:"displayname"`
-	AddressBookColor string         `xml:"http://inf-it.com/ns/ab/ addressbook-color"`
-	PrivilegeSet     dav.Privileges `xml:"current-user-privilege-set>privilege"`
+// The colour is InfCloud's, which the server keeps as a dead property.
+var colorName = xml.Name{Space: "http://inf-it.com/ns/ab/", Local: "addressbook-color"}
+
+type bookColor struct {
+	XMLName xml.Name `xml:"http://inf-it.com/ns/ab/ addressbook-color"`
+	Color   string   `xml:",chardata"`
 }
-
-func (p davCollectionProps) Collection() (name, color string, ok bool) {
-	return p.DisplayName, p.AddressBookColor, p.ResourceType.AddressBook != nil
-}
-
-func (p davCollectionProps) Privileges() dav.Privileges { return p.PrivilegeSet }
-
-var addressBookColor = dav.Prop{XMLNS: "http://inf-it.com/ns/ab/", Name: "addressbook-color"}
 
 func listAddressBooks(ctx context.Context, client *http.Client, baseURL *url.URL, homes []dav.Home) ([]dav.Collection, []error) {
-	listed, failed := dav.ListCollections[davCollectionProps](ctx, client, baseURL, homes, `<D:propfind xmlns:D="DAV:" xmlns:I="http://inf-it.com/ns/ab/"><D:prop><D:resourcetype/><D:displayname/><I:addressbook-color/><D:current-user-privilege-set/></D:prop></D:propfind>`)
-	infos := make([]dav.Collection, len(listed))
-	for i, l := range listed {
-		infos[i] = l.Collection
+	c, err := carddav.NewClient(client, baseURL.String())
+	if err != nil {
+		return nil, []error{err}
 	}
-	return infos, failed
+	return dav.ListCollections(ctx, homes, func(ctx context.Context, home string) ([]dav.Collection, error) {
+		books, err := c.FindAddressBooks(ctx, home, colorName)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]dav.Collection, len(books))
+		for i, b := range books {
+			out[i] = dav.Collection{Path: b.Path, Name: b.Name, Writable: !b.ReadOnly}
+			for _, d := range b.DeadProperties {
+				var color bookColor
+				if err := xml.Unmarshal(d.XML, &color); err != nil {
+					return nil, err
+				}
+				out[i].Color = strings.TrimSpace(color.Color)
+			}
+		}
+		return out, nil
+	})
+}
+
+func colorProperty(color string) ([]webdav.DeadProperty, error) {
+	if color == "" {
+		return nil, nil
+	}
+	b, err := xml.Marshal(bookColor{Color: color})
+	return []webdav.DeadProperty{{Name: colorName, XML: b}}, err
 }
 
 // Extended MKCOL (RFC 5689) sets the properties in the same round trip.
-func doMkcol(ctx context.Context, client *http.Client, target, name, color string, _ []string) error {
-	var props bytes.Buffer
-	props.WriteString(`<D:resourcetype><D:collection/><A:addressbook/></D:resourcetype>`)
-	fmt.Fprintf(&props, "<D:displayname>%s</D:displayname>", dav.XMLEscape(name))
-	if color != "" {
-		fmt.Fprintf(&props, "<I:addressbook-color>%s</I:addressbook-color>", dav.XMLEscape(color))
+func makeBook(ctx context.Context, client *http.Client, base *url.URL, path, name, color string, _ []string) error {
+	c, err := carddav.NewClient(client, base.String())
+	if err != nil {
+		return err
 	}
-	var buf bytes.Buffer
-	buf.WriteString(xml.Header)
-	fmt.Fprintf(&buf, `<D:mkcol xmlns:D="DAV:" xmlns:A="urn:ietf:params:xml:ns:carddav" xmlns:I="http://inf-it.com/ns/ab/"><D:set><D:prop>%s</D:prop></D:set></D:mkcol>`, props.String())
+	dead, err := colorProperty(color)
+	if err != nil {
+		return err
+	}
+	return c.CreateAddressBook(ctx, &carddav.AddressBook{Path: path, Name: name, DeadProperties: dead})
+}
 
-	return dav.MakeCollection(ctx, client, "MKCOL", target, buf.Bytes())
+func changeBook(ctx context.Context, client *http.Client, base *url.URL, path, name, color string) error {
+	c, err := carddav.NewClient(client, base.String())
+	if err != nil {
+		return err
+	}
+	dead, err := colorProperty(color)
+	if err != nil {
+		return err
+	}
+	return c.UpdateAddressBook(ctx, path, &carddav.AddressBookUpdate{Name: &name, DeadProperties: dead})
 }
 
 func newClient(u *url.URL, httpClient *http.Client) (*carddav.Client, error) {

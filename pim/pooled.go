@@ -13,6 +13,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/settings"
+	"github.com/emersion/go-webdav"
 	"github.com/labstack/echo/v4"
 )
 
@@ -35,7 +36,7 @@ func Pooled[C any](ctx *alborz.Context, p *dav.Provider, load func(context.Conte
 	// answered counts servers that refused other than over the password.
 	answered := map[string]int{}
 	fail := func(username string, err error) {
-		if code := dav.Answered(err); code != 0 {
+		if code, ok := webdav.HTTPErrorCode(err); ok {
 			answered[username] = code
 			return
 		}

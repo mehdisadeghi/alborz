@@ -72,7 +72,7 @@ func (s *davStub) propfind(w http.ResponseWriter, r *http.Request, body string) 
 	case strings.Contains(body, "calendar-home-set"):
 		writeMS(w, propResponse(r.URL.Path,
 			"<C:calendar-home-set><href>"+davHome+"</href></C:calendar-home-set>"))
-	case strings.Contains(body, "getctag"):
+	case r.Header.Get("Depth") == "0" && strings.Contains(body, "getctag"):
 		writeMS(w, propResponse(r.URL.Path, "<CS:getctag>v1</CS:getctag>"))
 	default:
 		var resps []string

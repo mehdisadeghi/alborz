@@ -33,7 +33,8 @@ func Mount(srv *alborz.Server, kept *store.Store) error {
 		Holds:    store.Calendar,
 		FindHome: findHome,
 		List:     listCalendars,
-		Make:     doMkcalendar,
+		Make:     makeCalendar,
+		Change:   changeCalendar,
 		Unnamed:  "calendar",
 	})
 	if err != nil {

@@ -1,9 +1,7 @@
 package calendar
 
 import (
-	"bytes"
 	"context"
-	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -46,58 +44,42 @@ func supportsEvent(components []string) bool {
 	return false
 }
 
-type davCollectionProps struct {
-	ResourceType struct {
-		Calendar *struct{} `xml:"urn:ietf:params:xml:ns:caldav calendar,omitempty"`
-	} `xml:"resourcetype"`
-	DisplayName   string `xml:"displayname"`
-	CalendarColor string `xml:"http://apple.com/ns/ical/ calendar-color"`
-	ComponentSet  struct {
-		Comps []struct {
-			Name string `xml:"name,attr"`
-		} `xml:"urn:ietf:params:xml:ns:caldav comp"`
-	} `xml:"urn:ietf:params:xml:ns:caldav supported-calendar-component-set"`
-	PrivilegeSet dav.Privileges `xml:"current-user-privilege-set>privilege"`
-}
-
-func (p davCollectionProps) Collection() (name, color string, ok bool) {
-	return p.DisplayName, p.CalendarColor, p.ResourceType.Calendar != nil
-}
-
-func (p davCollectionProps) Privileges() dav.Privileges { return p.PrivilegeSet }
-
-var calendarColor = dav.Prop{XMLNS: "http://apple.com/ns/ical/", Name: "calendar-color"}
-
-// go-webdav's client has no MKCALENDAR.
-func doMkcalendar(ctx context.Context, client *http.Client, path, name, color string, components []string) error {
-	var props bytes.Buffer
-	fmt.Fprintf(&props, "<D:displayname>%s</D:displayname>", dav.XMLEscape(name))
-	props.WriteString(`<C:supported-calendar-component-set>`)
-	for _, c := range components {
-		fmt.Fprintf(&props, `<C:comp name="%s"/>`, dav.XMLEscape(c))
+func makeCalendar(ctx context.Context, client *http.Client, base *url.URL, path, name, color string, components []string) error {
+	c, err := caldav.NewClient(client, base.String())
+	if err != nil {
+		return err
 	}
-	props.WriteString(`</C:supported-calendar-component-set>`)
+	return c.CreateCalendar(ctx, &caldav.Calendar{Path: path, Name: name, Color: color, SupportedComponentSet: components})
+}
+
+func changeCalendar(ctx context.Context, client *http.Client, base *url.URL, path, name, color string) error {
+	c, err := caldav.NewClient(client, base.String())
+	if err != nil {
+		return err
+	}
+	update := &caldav.CalendarUpdate{Name: &name}
 	if color != "" {
-		fmt.Fprintf(&props, "<A:calendar-color>%s</A:calendar-color>", dav.XMLEscape(color))
+		update.Color = &color
 	}
-
-	var buf bytes.Buffer
-	buf.WriteString(xml.Header)
-	fmt.Fprintf(&buf, `<C:mkcalendar xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:A="http://apple.com/ns/ical/"><D:set><D:prop>%s</D:prop></D:set></C:mkcalendar>`, props.String())
-
-	return dav.MakeCollection(ctx, client, "MKCALENDAR", path, buf.Bytes())
+	return c.UpdateCalendar(ctx, path, update)
 }
 
 func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, homes []dav.Home) ([]dav.Collection, []error) {
-	listed, failed := dav.ListCollections[davCollectionProps](ctx, client, baseURL, homes, `<D:propfind xmlns:D="DAV:" xmlns:A="http://apple.com/ns/ical/" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:resourcetype/><D:displayname/><C:supported-calendar-component-set/><D:current-user-privilege-set/><A:calendar-color/></D:prop></D:propfind>`)
-	infos := make([]dav.Collection, len(listed))
-	for i, l := range listed {
-		infos[i] = l.Collection
-		for _, comp := range l.Props.ComponentSet.Comps {
-			infos[i].Components = append(infos[i].Components, comp.Name)
-		}
+	c, err := caldav.NewClient(client, baseURL.String())
+	if err != nil {
+		return nil, []error{err}
 	}
-	return infos, failed
+	return dav.ListCollections(ctx, homes, func(ctx context.Context, home string) ([]dav.Collection, error) {
+		cals, err := c.FindCalendars(ctx, home)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]dav.Collection, len(cals))
+		for i, cal := range cals {
+			out[i] = dav.Collection{Path: cal.Path, Name: cal.Name, Color: cal.Color, Writable: !cal.ReadOnly, Components: cal.SupportedComponentSet}
+		}
+		return out, nil
+	})
 }
 
 func newClient(u *url.URL, httpClient *http.Client) (*caldav.Client, error) {

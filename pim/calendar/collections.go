@@ -64,7 +64,7 @@ func (p *plugin) collectionPage() pim.Page {
 				}
 				sub := settings.Subscriptions[i]
 				return sub.info(ctx.Login.Username()),
-					func() int { return p.subs.count(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), sub.URL) }, "/calendar", ctx.T("nav.calendar"), nil
+					func() int { return p.feeds.count(sub.URL) }, "/calendar", ctx.T("nav.calendar"), nil
 			}
 			_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 			if err != nil {
@@ -211,7 +211,7 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL))
 			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
 		}
-		cal, err := p.subs.refresh(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), sub.URL)
+		cal, err := p.feeds.refresh(ctx.Request().Context(), sub.URL)
 		if err != nil {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.feedfailed"), sub.URL, err))
 			if errors.Is(err, errNotFeed) {

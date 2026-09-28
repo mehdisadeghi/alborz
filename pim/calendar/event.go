@@ -275,7 +275,7 @@ func (p *plugin) feedObject(ctx *alborz.Context, address, uid string) (*dav.Coll
 	if info == nil {
 		return nil, nil, alborz.NotFound("notfound.subscription", address)
 	}
-	feed, ok := p.subs.events(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), address, info.Color)
+	feed, ok := p.feeds.events(address, info.Color)
 	if !ok {
 		return nil, nil, alborz.NotFound("notfound.feed", address)
 	}

@@ -560,7 +560,6 @@
 "sessions.lastused" = "Zuletzt benutzt am %s"
 "sessions.since" = "Angemeldet seit %s"
 "sessions.current" = "Dieser Browser"
-"sessions.hint" = "Browser und System, wie jeder Browser sie meldet. Abmelden beendet nur die Sitzung dieses Kontos."
 "notice.signedout" = "Abgemeldet."
 "lock.title" = "Gesperrt"
 "lock.unlock" = "Mit Passkey entsperren"

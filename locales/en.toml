@@ -558,7 +558,6 @@
 "sessions.lastused" = "Last used %s"
 "sessions.since" = "Signed in %s"
 "sessions.current" = "This browser"
-"sessions.hint" = "Browser and system as each browser reports them. Signing out ends this account's session only."
 "notice.signedout" = "Signed out."
 "lock.title" = "Locked"
 "lock.unlock" = "Unlock with a passkey"

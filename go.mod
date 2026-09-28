@@ -75,8 +75,9 @@ replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-
 
 // Our fork of go-msgauth carries the authres parser rework upstream has
 // not merged (emersion/go-msgauth#53): quoted values and comments, and
-// the fix for the method with no properties that rework dropped.
-replace github.com/emersion/go-msgauth => github.com/alborzmail/go-msgauth v0.0.0-20260922210921-dc02bdf6079e
+// the fix for the method with no properties that rework dropped; and
+// ParseARC, the instance an ARC-Authentication-Results field carries.
+replace github.com/emersion/go-msgauth => github.com/alborzmail/go-msgauth v0.0.0-20260928213517-dae367b5cecf
 
 // Our fork of go-mbox adds the reversible mboxrd quoting, which upstream
 // does not have: a body line reading ">From " survives a round trip.

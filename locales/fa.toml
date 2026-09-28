@@ -555,7 +555,6 @@
 "sessions.lastused" = "آخرین استفاده در %s"
 "sessions.since" = "ورود در %s"
 "sessions.current" = "همین مرورگر"
-"sessions.hint" = "مرورگر و سیستم، همان‌طور که هر مرورگر گزارش می‌دهد. خروج فقط نشست این حساب را می‌بندد."
 "notice.signedout" = "خارج شد."
 "lock.title" = "قفل"
 "lock.unlock" = "باز کردن با پس‌کی"

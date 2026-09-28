@@ -135,8 +135,7 @@ const (
 
 // IsGroup reports whether the card is a group of contacts.
 func (ao AddressObject) IsGroup() bool {
-	return strings.EqualFold(ao.Card.Value(vcard.FieldKind), string(vcard.KindGroup)) ||
-		strings.EqualFold(ao.Card.Value(appleKindField), string(vcard.KindGroup))
+	return ao.Card.Kind() == vcard.KindGroup || strings.EqualFold(ao.Card.Value(appleKindField), string(vcard.KindGroup))
 }
 
 // UID is the card's UID without the URN wrapper.
@@ -147,11 +146,9 @@ func (ao AddressObject) UID() string {
 // Members are the UIDs a group names, in the order the card lists them.
 func (ao AddressObject) Members() []string {
 	var out []string
-	for _, field := range []string{vcard.FieldMember, appleMemberField} {
-		for _, f := range ao.Card[field] {
-			if uid := strings.TrimPrefix(f.Value, memberPrefix); uid != "" {
-				out = append(out, uid)
-			}
+	for _, member := range append(ao.Card.Members(), ao.Card.Values(appleMemberField)...) {
+		if uid := strings.TrimPrefix(member, memberPrefix); uid != "" {
+			out = append(out, uid)
 		}
 	}
 	return out
@@ -159,34 +156,19 @@ func (ao AddressObject) Members() []string {
 
 // Categories are the words the contact is filed under (RFC 6350 6.7.1).
 func (ao AddressObject) Categories() []string {
-	var out []string
-	for _, f := range ao.Card[vcard.FieldCategories] {
-		for _, word := range strings.Split(f.Value, ",") {
-			if word = strings.TrimSpace(word); word != "" {
-				out = append(out, word)
-			}
-		}
-	}
-	slices.Sort(out)
-	return slices.Compact(out)
+	words := ao.Card.Categories()
+	slices.Sort(words)
+	return slices.Compact(words)
 }
 
 // SetMembers writes a group's membership, replacing what was there.
 func SetMembers(card vcard.Card, uids []string) {
 	delete(card, appleMemberField)
-	delete(card, vcard.FieldMember)
-	for _, uid := range uids {
-		card.Add(vcard.FieldMember, &vcard.Field{Value: memberPrefix + uid})
+	members := make([]string, len(uids))
+	for i, uid := range uids {
+		members[i] = memberPrefix + uid
 	}
-}
-
-// SetCategories writes the words a contact is filed under.
-func SetCategories(card vcard.Card, words []string) {
-	if len(words) == 0 {
-		delete(card, vcard.FieldCategories)
-		return
-	}
-	card.SetValue(vcard.FieldCategories, strings.Join(words, ","))
+	card.SetMembers(members)
 }
 
 // The colour is on the card, so it travels with it (ADR 17).

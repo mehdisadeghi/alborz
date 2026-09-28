@@ -94,7 +94,7 @@ func registerRoutes(p *plugin) {
 }
 
 func writeCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Card) error {
-	card.SetValue(vcard.FieldRevision, time.Now().UTC().Format("20060102T150405Z"))
+	card.SetRevision(time.Now())
 	_, err := c.PutAddressObject(ctx.Request().Context(), at, card, nil)
 	return err
 }

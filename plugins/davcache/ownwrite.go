@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"git.mehdix.org/alborz"
 )
 
 // A write used to evict its collection, so the page that followed it
@@ -255,7 +257,7 @@ func (u *user) settleBehind(coll string) {
 	u.mu.Unlock()
 	go func() {
 		defer u.release(coll)
-		ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
+		ctx, cancel := context.WithTimeout(alborz.Background(context.Background()), refreshBudget)
 		defer cancel()
 		u.refreshCollection(ctx, coll, held)
 	}()

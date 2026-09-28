@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const poll = 2 * time.Minute
+
 // server stands in for a DAV server holding one collection whose path
 // needs escaping, which is where a cache keyed two ways came apart.
 type server struct {
@@ -47,13 +49,13 @@ func (u *user) age() {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	for _, e := range u.entries {
-		e.fetched = time.Now().Add(-2 * DefaultPoll)
+		e.fetched = time.Now().Add(-2 * poll)
 	}
 }
 
 func TestCacheKeysOnTheDecodedPath(t *testing.T) {
 	srv := &server{calls: map[string]int{}, ctag: "1"}
-	c, _, _ := New(nil, DefaultPoll)
+	c, _, _ := New(nil, poll)
 	rt := c.Transport("u", srv)
 	report := func() {
 		t.Helper()
@@ -125,7 +127,7 @@ func TestCacheKeysOnTheDecodedPath(t *testing.T) {
 
 func TestFlightsLandAfterTheFetch(t *testing.T) {
 	srv := &server{calls: map[string]int{}}
-	c, _, _ := New(nil, DefaultPoll)
+	c, _, _ := New(nil, poll)
 	rt := c.Transport("u", srv)
 	for _, p := range []string{"/c/a/", "/c/b/", "/c/c/1.ics"} {
 		req, _ := http.NewRequest("PROPFIND", "https://dav.example"+p, strings.NewReader("<q/>"))
@@ -155,7 +157,7 @@ func TestStoreStartsWarm(t *testing.T) {
 	}
 	store := NewStore(t.TempDir(), &key)
 	srv := &server{calls: map[string]int{}, ctag: "1"}
-	c, warm, err := New(store, DefaultPoll)
+	c, warm, err := New(store, poll)
 	if err != nil || warm != 0 {
 		t.Fatalf("a new store: %d accounts, %v", warm, err)
 	}
@@ -172,7 +174,7 @@ func TestStoreStartsWarm(t *testing.T) {
 	report(c.Transport("u", srv))
 	c.Stop()
 
-	again, warm, err := New(store, DefaultPoll)
+	again, warm, err := New(store, poll)
 	if err != nil || warm != 1 {
 		t.Fatalf("after a restart: %d accounts, %v", warm, err)
 	}
@@ -187,7 +189,7 @@ func TestStoreStartsWarm(t *testing.T) {
 
 func TestAWriteRefusedAsStaleDropsWhatIsHeld(t *testing.T) {
 	srv := &server{calls: map[string]int{}, ctag: "1"}
-	c, _, _ := New(nil, DefaultPoll)
+	c, _, _ := New(nil, poll)
 	rt := c.Transport("u", srv)
 	send := func(method, target string) {
 		t.Helper()

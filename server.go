@@ -120,6 +120,9 @@ type Server struct {
 	// Changes is what the watchers saw, for the streams to pass on.
 	Changes *Changes
 
+	// Outgoing is how every request to another server leaves.
+	Outgoing Outgoing
+
 	// Sessions are the browsers signed in, each holding its accounts and
 	// what its reader is owed.
 	Sessions *Sessions
@@ -199,7 +202,7 @@ type domainUpstreams struct {
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
-		Sessions: newSessions(), Changes: newChanges(), signInRefused: newRefusals(signInTries, signInWindow)}
+		Sessions: newSessions(), Changes: newChanges(), Outgoing: NewOutgoing(), signInRefused: newRefusals(signInTries, signInWindow)}
 	e.IPExtractor = echo.ExtractIPDirect()
 	if len(options.TrustedProxies) > 0 {
 		// Only the proxies named: echo trusts every private address by

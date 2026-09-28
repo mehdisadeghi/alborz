@@ -27,7 +27,6 @@ var (
 	// The browser may keep what it has already been shown, so scrolling
 	// back through a message does not fetch it again.
 	proxyCacheControl = "private, max-age=86400"
-	proxyClient       = alborz.NewRemoteClient(proxyTimeout)
 )
 
 func init() {
@@ -58,7 +57,7 @@ func init() {
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid URL")
 		}
-		resp, err := proxyClient.Do(req)
+		resp, err := ctx.Server.Outgoing.Remote(proxyTimeout).Do(req)
 		if err != nil {
 			return fmt.Errorf("failed to fetch remote resource within %v: %v", proxyTimeout, err)
 		}

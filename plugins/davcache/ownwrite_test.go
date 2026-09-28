@@ -94,7 +94,7 @@ BEGIN:VTODO
 SUMMARY:one
 END:VTODO
 END:VCALENDAR</cal:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>`
-	u := newUser(DefaultPoll)
+	u := newUser(poll)
 	key := cacheKey("REPORT", path, "1", []byte(taskQuery))
 	u.entries[key] = &entry{status: http.StatusMultiStatus, body: []byte(own), reqBody: []byte(taskQuery), method: "REPORT", depth: "1", url: at}
 

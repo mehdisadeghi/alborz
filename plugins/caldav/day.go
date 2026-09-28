@@ -94,7 +94,7 @@ func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
 	if err != nil {
 		return dayView{}, err
 	}
-	events = append(events, subscriptionObjects(calendarInfos, ctx.URLAccount())...)
+	events = append(events, subscriptionObjects(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), calendarInfos, ctx.URLAccount())...)
 
 	// The same two shapes as the month grid: expanded instances, or a
 	// master still carrying its rule. Only what falls in the day is

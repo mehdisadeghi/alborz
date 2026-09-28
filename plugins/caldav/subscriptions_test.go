@@ -29,8 +29,8 @@ func TestSubscriptionFetchParseAndServe(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &subCache{entries: map[string]*subEntry{}, client: srv.Client()}
-	if err := c.refresh(srv.URL); err != nil {
+	c := &subCache{entries: map[string]*subEntry{}}
+	if err := c.refresh(srv.Client(), srv.URL); err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
 	obj, ok := c.events(srv.URL, "#123456")
@@ -48,7 +48,7 @@ func TestSubscriptionFetchParseAndServe(t *testing.T) {
 	}
 	// A second refresh sends the ETag; the server answers 304 and the
 	// events survive.
-	if err := c.refresh(srv.URL); err != nil {
+	if err := c.refresh(srv.Client(), srv.URL); err != nil {
 		t.Fatalf("second refresh: %v", err)
 	}
 	if hits != 2 {
@@ -61,8 +61,7 @@ func TestSubscriptionFetchParseAndServe(t *testing.T) {
 
 // A subscription stands in the rail as a read-only calendar of events
 // under a stable pseudo-path, and its events follow that entry's
-// checkbox: hidden means not drawn. The production client refuses a
-// loopback feed, so the cache is pointed at the test server for this.
+// checkbox: hidden means not drawn.
 func TestSubscriptionIsACalendarInTheRail(t *testing.T) {
 	const ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n" +
 		"BEGIN:VEVENT\r\nUID:h1\r\nDTSTART;VALUE=DATE:20260101\r\nSUMMARY:New Year\r\nEND:VEVENT\r\n" +
@@ -72,9 +71,6 @@ func TestSubscriptionIsACalendarInTheRail(t *testing.T) {
 		w.Write([]byte(ics))
 	}))
 	defer srv.Close()
-	saved := subs.client
-	subs.client = srv.Client()
-	defer func() { subs.client = saved }()
 
 	sub := Subscription{URL: srv.URL, Name: "Holidays", Color: "#123456"}
 	if !isSubscription(sub.path()) || sub.path() == (Subscription{URL: srv.URL + "/other"}).path() {
@@ -88,15 +84,15 @@ func TestSubscriptionIsACalendarInTheRail(t *testing.T) {
 	if info.Address != srv.URL || info.Writable || !supportsEvent(info.Components) || supportsTodo(info.Components) {
 		t.Fatalf("rail entry: %+v", info)
 	}
-	if err := subs.refresh(srv.URL); err != nil {
+	if err := subs.refresh(srv.Client(), srv.URL); err != nil {
 		t.Fatal(err)
 	}
 	info.Shown = false
-	if got := subscriptionObjects([]dav.Collection{info}, ""); len(got) != 0 {
+	if got := subscriptionObjects(srv.Client(), []dav.Collection{info}, ""); len(got) != 0 {
 		t.Errorf("a hidden subscription drew %d objects", len(got))
 	}
 	info.Shown = true
-	got := subscriptionObjects([]dav.Collection{info}, "")
+	got := subscriptionObjects(srv.Client(), []dav.Collection{info}, "")
 	if len(got) != 1 || !got[0].ReadOnly || got[0].Color != "#123456" {
 		t.Fatalf("a visible subscription drew %+v", got)
 	}

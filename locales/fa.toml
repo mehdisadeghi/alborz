@@ -402,6 +402,40 @@
 "calendar.shmonth.10" = "دی"
 "calendar.shmonth.11" = "بهمن"
 "calendar.shmonth.12" = "اسفند"
+"calendar.gmonth.1" = "ژانویه"
+"calendar.gmonth.2" = "فوریه"
+"calendar.gmonth.3" = "مارس"
+"calendar.gmonth.4" = "آوریل"
+"calendar.gmonth.5" = "مه"
+"calendar.gmonth.6" = "ژوئن"
+"calendar.gmonth.7" = "ژوئیه"
+"calendar.gmonth.8" = "اوت"
+"calendar.gmonth.9" = "سپتامبر"
+"calendar.gmonth.10" = "اکتبر"
+"calendar.gmonth.11" = "نوامبر"
+"calendar.gmonth.12" = "دسامبر"
+"calendar.gmonthshort.1" = "ژانویه"
+"calendar.gmonthshort.2" = "فوریه"
+"calendar.gmonthshort.3" = "مارس"
+"calendar.gmonthshort.4" = "آوریل"
+"calendar.gmonthshort.5" = "مه"
+"calendar.gmonthshort.6" = "ژوئن"
+"calendar.gmonthshort.7" = "ژوئیه"
+"calendar.gmonthshort.8" = "اوت"
+"calendar.gmonthshort.9" = "سپتامبر"
+"calendar.gmonthshort.10" = "اکتبر"
+"calendar.gmonthshort.11" = "نوامبر"
+"calendar.gmonthshort.12" = "دسامبر"
+"calendar.weekday.0" = "یکشنبه"
+"calendar.weekday.1" = "دوشنبه"
+"calendar.weekday.2" = "سه‌شنبه"
+"calendar.weekday.3" = "چهارشنبه"
+"calendar.weekday.4" = "پنجشنبه"
+"calendar.weekday.5" = "جمعه"
+"calendar.weekday.6" = "شنبه"
+"since.now" = "همین الان"
+"since.ago" = "%s پیش"
+"since.ahead" = "در %s"
 "calendar.repeat.never" = "هرگز"
 "calendar.repeat.daily" = "هر روز"
 "calendar.repeat.weekly" = "هر هفته"
@@ -1066,3 +1100,31 @@ other = "%d کار حذف شد."
 ["notice.tasksmoved"]
 one = "یک کار جابه‌جا شد."
 other = "%d کار جابه‌جا شد."
+
+["since.second"]
+one = "%d ثانیه"
+other = "%d ثانیه"
+
+["since.minute"]
+one = "%d دقیقه"
+other = "%d دقیقه"
+
+["since.hour"]
+one = "%d ساعت"
+other = "%d ساعت"
+
+["since.day"]
+one = "%d روز"
+other = "%d روز"
+
+["since.week"]
+one = "%d هفته"
+other = "%d هفته"
+
+["since.month"]
+one = "%d ماه"
+other = "%d ماه"
+
+["since.year"]
+one = "%d سال"
+other = "%d سال"

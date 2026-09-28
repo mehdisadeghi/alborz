@@ -405,6 +405,40 @@
 "calendar.shmonth.10" = "Dey"
 "calendar.shmonth.11" = "Bahman"
 "calendar.shmonth.12" = "Esfand"
+"calendar.gmonth.1" = "January"
+"calendar.gmonth.2" = "February"
+"calendar.gmonth.3" = "March"
+"calendar.gmonth.4" = "April"
+"calendar.gmonth.5" = "May"
+"calendar.gmonth.6" = "June"
+"calendar.gmonth.7" = "July"
+"calendar.gmonth.8" = "August"
+"calendar.gmonth.9" = "September"
+"calendar.gmonth.10" = "October"
+"calendar.gmonth.11" = "November"
+"calendar.gmonth.12" = "December"
+"calendar.gmonthshort.1" = "Jan"
+"calendar.gmonthshort.2" = "Feb"
+"calendar.gmonthshort.3" = "Mar"
+"calendar.gmonthshort.4" = "Apr"
+"calendar.gmonthshort.5" = "May"
+"calendar.gmonthshort.6" = "Jun"
+"calendar.gmonthshort.7" = "Jul"
+"calendar.gmonthshort.8" = "Aug"
+"calendar.gmonthshort.9" = "Sep"
+"calendar.gmonthshort.10" = "Oct"
+"calendar.gmonthshort.11" = "Nov"
+"calendar.gmonthshort.12" = "Dec"
+"calendar.weekday.0" = "Sunday"
+"calendar.weekday.1" = "Monday"
+"calendar.weekday.2" = "Tuesday"
+"calendar.weekday.3" = "Wednesday"
+"calendar.weekday.4" = "Thursday"
+"calendar.weekday.5" = "Friday"
+"calendar.weekday.6" = "Saturday"
+"since.now" = "now"
+"since.ago" = "%s ago"
+"since.ahead" = "%s from now"
 "calendar.repeat.never" = "Never"
 "calendar.repeat.daily" = "Every day"
 "calendar.repeat.weekly" = "Every week"
@@ -1066,3 +1100,31 @@ other = "%d tasks deleted."
 ["notice.tasksmoved"]
 one = "One task moved."
 other = "%d tasks moved."
+
+["since.second"]
+one = "%d sec"
+other = "%d sec"
+
+["since.minute"]
+one = "%d min"
+other = "%d min"
+
+["since.hour"]
+one = "%d hr"
+other = "%d hr"
+
+["since.day"]
+one = "%d day"
+other = "%d days"
+
+["since.week"]
+one = "%d wk"
+other = "%d wks"
+
+["since.month"]
+one = "%d mo"
+other = "%d mo"
+
+["since.year"]
+one = "%d yr"
+other = "%d yrs"

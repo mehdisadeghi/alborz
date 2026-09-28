@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	netmail "net/mail"
+	"slices"
+	"sync"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -13,13 +15,14 @@ import (
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/settings"
-	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
 
 type plugin struct {
 	alborz.Router
 	dav *dav.Provider
+	// remembering keeps two writers from making the account's Previous recipients twice.
+	remembering sync.Mutex
 }
 
 func (p *plugin) client(ctx context.Context, login *alborz.Login) (*carddav.Client, error) {
@@ -85,7 +88,7 @@ func Mount(srv *alborz.Server, kept *store.Store) error {
 	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.dav))
 	// Calendar registers first, so the kept collections come last.
 	srv.OnServers = append(srv.OnServers, p.dav.Cards("settings.davcontacts", bookAbilities), p.dav.HereCard())
-	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
+	srv.OnAccountReady = append(srv.OnAccountReady, p.warm, p.seed)
 
 	// A card attached to a mail is filed from its own row.
 	srv.OnMessage = append(srv.OnMessage, func(ctx *alborz.Context, _data alborz.RenderData) error {
@@ -101,6 +104,25 @@ func Mount(srv *alborz.Server, kept *store.Store) error {
 		return nil
 	})
 
+	srv.OnMessage = append(srv.OnMessage, func(ctx *alborz.Context, _data alborz.RenderData) error {
+		data := _data.(*mail.MessageRenderData)
+		groups, err := p.writableBookGroups(ctx)
+		if err != nil || len(groups) == 0 {
+			return nil
+		}
+		var addrs []*netmail.Address
+		env := data.Message.Envelope
+		for _, a := range slices.Concat(env.From, env.To, env.Cc) {
+			addrs = append(addrs, &netmail.Address{Name: a.Name, Address: a.Addr()})
+		}
+		data.Contact = &mail.ContactOffer{Addresses: distinct(addrs), Books: groups}
+		return nil
+	})
+
+	srv.OnSent = append(srv.OnSent, func(ctx *alborz.Context, sender *alborz.Login, to []*netmail.Address) error {
+		return p.remember(ctx.Request().Context(), sender, ctx.T("contacts.previous"), to, false)
+	})
+
 	srv.Suggest = append(srv.Suggest, func(ctx *alborz.Context) []string {
 		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 		if err != nil {
@@ -110,42 +132,19 @@ func Mount(srv *alborz.Server, kept *store.Store) error {
 			}
 			return nil
 		}
-
-		query := carddav.AddressBookQuery{
-			DataRequest: carddav.AddressDataRequest{
-				Props: []string{vcard.FieldFormattedName, vcard.FieldEmail},
-			},
-			PropFilters: []carddav.PropFilter{{
-				Name: vcard.FieldEmail,
-			}},
+		addrs, err := emails(ctx.Request().Context(), c, addressBooks)
+		if err != nil {
+			ctx.Logger().Printf("carddav: no suggestions from one book: %v", err)
 		}
-		// One query per book, run together so compose waits one round trip.
-		results := dav.Each(ctx.Request().Context(), addressBooks, func(ctx context.Context, ab dav.Collection) ([]carddav.AddressObject, error) {
-			return c.QueryAddressBook(ctx, ab.Path, &query)
-		})
-
 		// Written as a recipient is, name before address, since it is inserted verbatim.
-		var emails []string
-		for _, result := range results {
-			if result.Err != nil {
-				ctx.Logger().Printf("carddav: no suggestions from one book: %v", result.Err)
-				continue
-			}
-			for _, addr := range result.Value {
-				name := addr.Card.Value(vcard.FieldFormattedName)
-				for _, email := range addr.Card.Values(vcard.FieldEmail) {
-					if email == "" {
-						continue
-					}
-					entry := email
-					if name != "" {
-						entry = (&netmail.Address{Name: name, Address: email}).String()
-					}
-					emails = append(emails, entry)
-				}
+		entries := make([]string, len(addrs))
+		for i, a := range addrs {
+			entries[i] = a.Address
+			if a.Name != "" {
+				entries[i] = a.String()
 			}
 		}
-		return emails
+		return entries
 	})
 
 	return nil

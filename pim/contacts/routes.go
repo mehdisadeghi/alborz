@@ -104,6 +104,7 @@ func registerRoutes(p *plugin) {
 	POST("/contacts/:path/delete", remove)
 	POST("/contacts/delete", remove)
 	POST("/contacts/from-message", p.importFromMessage)
+	POST("/contacts/add", p.addAddress)
 }
 
 func writeCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Card) error {

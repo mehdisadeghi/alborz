@@ -373,9 +373,6 @@ func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listing
 }
 
 func (p *plugin) handleGetMailbox(ctx *alborz.Context) error {
-	// Reading precedes writing, so recipient suggestions warm here.
-	p.gatherCorrespondents(ctx.Login)
-
 	if ctx.Unified {
 		return p.handleUnifiedMailbox(ctx)
 	}

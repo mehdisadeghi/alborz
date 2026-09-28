@@ -5,9 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
+	netmail "net/mail"
 	"path"
+	"slices"
 	"strings"
 	"time"
 	"uuid"
@@ -218,4 +221,216 @@ func exportBook(ctx context.Context, client *carddav.Client, bookPath string) ([
 		}
 	}
 	return buf.Bytes(), nil
+}
+
+// distinct are the addresses each once, a named form kept over a bare one.
+func distinct(addrs []*netmail.Address) []*netmail.Address {
+	var out []*netmail.Address
+	at := make(map[string]int)
+	for _, a := range addrs {
+		// A group's start and end carry no address.
+		if !strings.ContainsRune(a.Address, '@') {
+			continue
+		}
+		key := strings.ToLower(a.Address)
+		if i, ok := at[key]; ok {
+			if out[i].Name == "" {
+				out[i].Name = a.Name
+			}
+			continue
+		}
+		at[key] = len(out)
+		out = append(out, &netmail.Address{Name: a.Name, Address: a.Address})
+	}
+	return out
+}
+
+// emails are the addresses the books hold, each with its card's name; a book that did not answer is in the error.
+func emails(ctx context.Context, c *carddav.Client, books []dav.Collection) ([]*netmail.Address, error) {
+	query := carddav.AddressBookQuery{
+		DataRequest: carddav.AddressDataRequest{Props: []string{vcard.FieldFormattedName, vcard.FieldEmail}},
+		PropFilters: []carddav.PropFilter{{Name: vcard.FieldEmail}},
+	}
+	// One query per book, run together so the caller waits one round trip.
+	results := dav.Each(ctx, books, func(ctx context.Context, book dav.Collection) ([]carddav.AddressObject, error) {
+		return c.QueryAddressBook(ctx, book.Path, &query)
+	})
+	var out []*netmail.Address
+	var errs []error
+	for _, result := range results {
+		errs = append(errs, result.Err)
+		for _, ao := range result.Value {
+			name := ao.Card.Value(vcard.FieldFormattedName)
+			for _, email := range ao.Card.Values(vcard.FieldEmail) {
+				if email != "" {
+					out = append(out, &netmail.Address{Name: name, Address: email})
+				}
+			}
+		}
+	}
+	return out, errors.Join(errs...)
+}
+
+// addCard writes a new card for one address into book.
+func addCard(ctx context.Context, c *carddav.Client, book string, addr *netmail.Address) (*carddav.AddressObject, error) {
+	id := uuid.New().String()
+	name := addr.Name
+	if name == "" {
+		name = addr.Address
+	}
+	card := vcard.Card{}
+	card.SetValue(vcard.FieldVersion, "4.0")
+	card.SetValue(vcard.FieldUID, uidURN+id)
+	card.SetValue(vcard.FieldFormattedName, name)
+	card.SetValue(vcard.FieldEmail, addr.Address)
+	at, _, ifNoneMatch := pim.Target(book, id+".vcf", "", "")
+	ao, err := c.PutAddressObject(ctx, at, card, &carddav.PutAddressObjectOptions{IfNoneMatch: ifNoneMatch})
+	if err != nil {
+		return nil, err
+	}
+	ao.Card = card
+	return ao, nil
+}
+
+// addAddress adds one of a message's addresses to the address book chosen.
+func (p *plugin) addAddress(ctx *alborz.Context) error {
+	addr, err := netmail.ParseAddress(ctx.FormValue("address"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	to, err := pim.Destination(ctx, ctx.FormValue("addressbook"), p.clientWithAddressBooks, func(book dav.Collection) bool { return book.Writable })
+	if errors.Is(err, pim.ErrNoDestination) {
+		return echo.NewHTTPError(http.StatusBadRequest, "no address book to add it to")
+	} else if err != nil {
+		return err
+	}
+	books, err := p.dav.Collections(ctx.Request().Context(), ctx.LoginFor(to.Account))
+	if err != nil {
+		return err
+	}
+	book := dav.At(books, to.Path)
+	back := ctx.NextOr(ctx.AccountPath("/contacts"))
+	held, err := emails(ctx.Request().Context(), to.Client, []dav.Collection{*book})
+	if err != nil {
+		return err
+	}
+	if slices.ContainsFunc(held, func(a *netmail.Address) bool { return strings.EqualFold(a.Address, addr.Address) }) {
+		sentence := ctx.T("notice.contactknown")
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone,
+			Text:   fmt.Sprintf(sentence, addr.Address, book.Name),
+			Markup: template.HTML(fmt.Sprintf(sentence, alborz.NoticeName(addr.Address), alborz.NoticeName(book.Name)))})
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	ao, err := addCard(ctx.Request().Context(), to.Client, to.Path, addr)
+	if err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	named := AddressObject{AddressObject: ao}
+	sentence := ctx.T("notice.contactcreated")
+	href := named.URL() + "?account=" + alborz.QueryValue(to.Account)
+	ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone,
+		Text:   fmt.Sprintf(sentence, named.DisplayName()),
+		Markup: template.HTML(fmt.Sprintf(sentence, alborz.NoticeLink(named.DisplayName(), href)))})
+	return ctx.Redirect(http.StatusFound, back)
+}
+
+// previousKey keeps, per account, what became of its Previous recipients.
+const previousKey = "carddav.previous"
+
+type previous struct {
+	// Book is the one made for them, empty until the first address; one the reader deleted is not made again.
+	Book string
+	// Seeded is Sent read for them once.
+	Seeded bool
+}
+
+func loadPrevious(ctx context.Context, s *alborz.Login) (previous, error) {
+	var was previous
+	if err := s.Store().Get(ctx, previousKey, &was); err != nil && err != alborz.ErrNoStoreEntry {
+		return was, err
+	}
+	return was, nil
+}
+
+// Recent is the point: an old recipient is not who the writer reaches for.
+const seedDepth = 200
+
+// seed fills Previous recipients from Sent, once per account.
+func (p *plugin) seed(ctx *alborz.Context, s *alborz.Login) {
+	name, log := ctx.T("contacts.previous"), ctx.Logger()
+	go func() {
+		bg, cancel := context.WithTimeout(context.Background(), dav.WarmBudget)
+		defer cancel()
+		was, err := loadPrevious(bg, s)
+		if err == nil && was.Seeded {
+			return
+		}
+		var addrs []*netmail.Address
+		if err == nil {
+			addrs, err = mail.SentRecipients(s, seedDepth)
+		}
+		if err == nil {
+			err = p.remember(bg, s, name, addrs, true)
+		}
+		if err != nil {
+			log.Printf("carddav: previous recipients of %s: %v", s.Username(), err)
+		}
+	}()
+}
+
+// remember adds to Previous recipients the addresses no address book of the account holds.
+func (p *plugin) remember(ctx context.Context, s *alborz.Login, name string, addrs []*netmail.Address, seeding bool) error {
+	p.remembering.Lock()
+	defer p.remembering.Unlock()
+	was, err := loadPrevious(ctx, s)
+	if err != nil {
+		return err
+	}
+	if seeding && was.Seeded {
+		return nil
+	}
+	now := was
+	now.Seeded = was.Seeded || seeding
+	c, err := p.client(ctx, s)
+	if err != nil {
+		return err
+	}
+	books, err := p.dav.Collections(ctx, s)
+	if err != nil {
+		return err
+	}
+	if now.Book == "" || dav.At(books, now.Book) != nil {
+		held, err := emails(ctx, c, books)
+		if err != nil {
+			return err
+		}
+		known := make(map[string]bool)
+		for _, a := range held {
+			known[strings.ToLower(a.Address)] = true
+		}
+		var fresh []*netmail.Address
+		for _, a := range distinct(addrs) {
+			if !known[strings.ToLower(a.Address)] {
+				fresh = append(fresh, a)
+			}
+		}
+		if len(fresh) > 0 && now.Book == "" {
+			if now.Book, err = p.dav.Create(ctx, s, name, dav.DefaultColor, dav.SourceHere, nil); err != nil {
+				return err
+			}
+			if err := s.Store().Put(ctx, previousKey, &now); err != nil {
+				return err
+			}
+		}
+		for _, a := range fresh {
+			if _, err := addCard(ctx, c, now.Book, a); err != nil {
+				return err
+			}
+		}
+	}
+	if now == was {
+		return nil
+	}
+	return s.Store().Put(ctx, previousKey, &now)
 }

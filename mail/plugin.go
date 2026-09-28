@@ -12,7 +12,6 @@ type plugin struct {
 	bodies          *bodyCache
 	accountSidebars *alborz.Memo[sidebar]
 	unifiedFolders  *alborz.Memo[map[string]string]
-	correspondents  *alborz.Memo[[]string]
 	senderBooks     *alborz.Memo[*senderBook]
 	authServGuesses *alborz.Memo[string]
 	wkd             *wkdCache
@@ -28,7 +27,6 @@ func newPlugin(o *alborz.Options) *plugin {
 		accountSidebars: sidebars,
 		unifiedFolders:  alborz.NewMemo[map[string]string](o.CacheFor(unifiedFoldersTTL)),
 		// Indexes, not cached answers: they stay with caching off.
-		correspondents:  alborz.NewMemo[[]string](correspondentTTL),
 		senderBooks:     alborz.NewMemo[*senderBook](senderBookTTL),
 		authServGuesses: alborz.NewMemo[string](authSampleTTL),
 		wkd:             newWKDCache(o.CacheFor(wkdKeepFor)),

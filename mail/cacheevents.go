@@ -78,7 +78,6 @@ func (p *plugin) forgetAccount(user string) {
 	p.accountSidebars.Forget(user)
 	p.bodies.forget(user)
 	p.senderBooks.Forget(user)
-	p.correspondents.Forget(user)
 	p.unifiedFolders.Forget(user)
 	p.authServGuesses.Forget(user)
 }

@@ -1,9 +1,10 @@
-package dav
+package pim
 
 import (
 	"net/url"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim/dav"
 )
 
 // Item is one object as a list holds it: its server path and its page's URL.
@@ -122,15 +123,15 @@ func ObjectURL(base, path, account string, params url.Values) string {
 }
 
 // Labels name the collection a pooled row lies in and the list narrowed to it through field.
-func Labels(ctx *alborz.Context, colls []Collection, list, field string, shape url.Values) (collection func(account, path string) Collection, href func(account, path string) string) {
-	collection = func(account, path string) Collection {
-		if c := Holding(colls, account, path); c != nil {
+func Labels(ctx *alborz.Context, colls []dav.Collection, list, field string, shape url.Values) (collection func(account, path string) dav.Collection, href func(account, path string) string) {
+	collection = func(account, path string) dav.Collection {
+		if c := dav.Holding(colls, account, path); c != nil {
 			return *c
 		}
-		return Collection{}
+		return dav.Collection{}
 	}
 	href = func(account, path string) string {
-		c := Holding(colls, account, path)
+		c := dav.Holding(colls, account, path)
 		if c == nil {
 			return ""
 		}

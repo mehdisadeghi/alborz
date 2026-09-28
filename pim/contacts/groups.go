@@ -10,6 +10,7 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
@@ -17,7 +18,7 @@ import (
 )
 
 // FilterRow is one narrowing the rail offers.
-type FilterRow = dav.FilterRow
+type FilterRow = pim.FilterRow
 
 // GroupRows and CategoryRows are the rail rows for groups and categories.
 func (d *AddressBookRenderData) GroupRows() []FilterRow {
@@ -71,7 +72,7 @@ func filterHref(name, value, account string) string {
 
 // A group's card names its members, so that card changes; a card without a UID gets one first.
 func (p *plugin) groupContact(ctx *alborz.Context) error {
-	objPath, err := dav.ParseObjectPath(ctx.Param("path"))
+	objPath, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,7 @@ func (p *plugin) groupContact(ctx *alborz.Context) error {
 		uid = uuid.New().String()
 		ao.Card.SetValue(vcard.FieldUID, memberPrefix+uid)
 		if err := writeCard(ctx, c, ao.Path, ao.Card); err != nil {
-			ctx.Notify(dav.Refused(ctx, err))
+			ctx.Notify(pim.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(contact.URL()))
 		}
 	}
@@ -149,7 +150,7 @@ func (p *plugin) groupContact(ctx *alborz.Context) error {
 // A server's refusal shows on the page, never as an error page.
 func (p *plugin) putCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Card) error {
 	if err := writeCard(ctx, c, at, card); err != nil {
-		ctx.Notify(dav.Refused(ctx, err))
+		ctx.Notify(pim.Refused(ctx, err))
 	}
 	return nil
 }

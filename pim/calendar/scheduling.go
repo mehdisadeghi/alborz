@@ -15,6 +15,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -148,7 +149,7 @@ func (p *plugin) registerScheduling(srv *alborz.Server) {
 	})
 
 	p.POST("/calendar/forget-invitation", func(ctx *alborz.Context) error {
-		objPath, err := dav.ParseObjectPath(ctx.FormValue("path"))
+		objPath, err := pim.ParseObjectPath(ctx.FormValue("path"))
 		if err != nil {
 			return err
 		}
@@ -188,7 +189,7 @@ func (p *plugin) registerScheduling(srv *alborz.Server) {
 
 		dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
 		client, calendarPath, account := dest.Client, dest.Path, dest.Account
-		if errors.Is(err, dav.ErrNoDestination) {
+		if errors.Is(err, pim.ErrNoDestination) {
 			return echo.NewHTTPError(http.StatusBadRequest, "no calendar to file it in")
 		} else if err != nil {
 			return err
@@ -202,7 +203,7 @@ func (p *plugin) registerScheduling(srv *alborz.Server) {
 		co, err := client.PutCalendarObject(ctx.Request().Context(),
 			path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), cal, nil)
 		if err != nil {
-			ctx.Notify(dav.Refused(ctx, err))
+			ctx.Notify(pim.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 		}
 
@@ -274,7 +275,7 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 	}
 	dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
 	client, calendarPath, account := dest.Client, dest.Path, dest.Account
-	if errors.Is(err, dav.ErrNoDestination) {
+	if errors.Is(err, pim.ErrNoDestination) {
 		return echo.NewHTTPError(http.StatusBadRequest, "no calendar to file it in")
 	} else if err != nil {
 		return err
@@ -376,7 +377,7 @@ func exportCalendar(ctx context.Context, client *caldav.Client, calendarPath str
 	}
 	// A VCALENDAR holds one component at least (RFC 5545 3.6).
 	if len(children) == 0 {
-		return nil, dav.ErrNothingToExport
+		return nil, pim.ErrNothingToExport
 	}
 	return encodeCalendar(children)
 }

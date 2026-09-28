@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
@@ -63,14 +64,14 @@ func registerRoutes(p *plugin) {
 	}
 	GET := func(path string, h func(*alborz.Context) error) { p.Router.GET(path, guard(h)) }
 	POST := func(path string, h func(*alborz.Context) error) { p.Router.POST(path, guard(h)) }
-	POST("/contacts", dav.HandleChoose("/contacts", "book", choose))
+	POST("/contacts", pim.HandleChoose("/contacts", "book", choose))
 	GET("/contacts", p.contacts)
-	POST("/contacts/export", dav.HandleExport(p.client, "/contacts",
+	POST("/contacts/export", pim.HandleExport(p.client, "/contacts",
 		func(ctx *alborz.Context) string { return ctx.T("nav.contacts") + ".vcf" }, joinCards))
 	POST("/contacts/refresh", p.dav.HandleRefresh("/contacts"))
 	GET("/contacts/:path", p.contact)
 
-	GET("/contacts/:path/raw", func(ctx *alborz.Context) error { return dav.Raw(ctx, p.client) })
+	GET("/contacts/:path/raw", func(ctx *alborz.Context) error { return pim.Raw(ctx, p.client) })
 	page := p.collectionPage()
 	GET("/address-books/create", page.HandleCreate(p.dav, p.createForm))
 	POST("/address-books/create", page.HandleCreate(p.dav, p.createForm))
@@ -96,8 +97,8 @@ func registerRoutes(p *plugin) {
 	POST("/contacts/:path/color", p.color)
 	POST("/contacts/:path/note", p.note)
 	POST("/contacts/:path/photo/delete", p.deletePhoto)
-	remove := dav.Handler(dav.Action[*carddav.Client]{Client: p.client, Do: dav.Delete[*carddav.Client], List: "/contacts",
-		Done: func(ctx *alborz.Context, done []dav.Ref[*carddav.Client], _ string) alborz.Notice {
+	remove := pim.Handler(pim.Action[*carddav.Client]{Client: p.client, Do: pim.Delete[*carddav.Client], List: "/contacts",
+		Done: func(ctx *alborz.Context, done []pim.Ref[*carddav.Client], _ string) alborz.Notice {
 			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.contactsdeleted", len(done))}
 		}})
 	POST("/contacts/:path/delete", remove)
@@ -111,7 +112,7 @@ func writeCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Car
 	return err
 }
 
-func changeCard(ctx *alborz.Context, ref dav.Ref[*carddav.Client], change func(vcard.Card)) error {
+func changeCard(ctx *alborz.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
 	ao, err := getAddressObject(ctx, ref.Client, ref.Path)
 	if err != nil {
 		return fmt.Errorf("failed to read the contact: %v", err)

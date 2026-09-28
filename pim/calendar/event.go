@@ -11,6 +11,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
@@ -21,7 +22,7 @@ var eventListParams = []string{"account", "cal", "month", "date", "view", "span"
 
 type EventRenderData struct {
 	alborz.BaseRenderData
-	Rail     dav.Rail
+	Rail     pim.Rail
 	Calendar *dav.Collection
 	Event    CalendarObject
 	// Authors are who added and last changed the object, where another account.
@@ -29,14 +30,14 @@ type EventRenderData struct {
 	// List is the view the page was opened from.
 	List       string
 	Star       string
-	Neighbours dav.Neighbours
+	Neighbours pim.Neighbours
 	// Repeats says the rule in words; RepeatsUntil its last day.
 	Repeats, RepeatsUntil string
 }
 
 type UpdateEventRenderData struct {
 	alborz.BaseRenderData
-	Rail           dav.Rail
+	Rail           pim.Rail
 	Groups         []dav.Group
 	Calendar       *dav.Collection
 	CalendarObject *caldav.CalendarObject
@@ -93,13 +94,13 @@ func fillEventForm(ctx *alborz.Context, d *UpdateEventRenderData, loc *time.Loca
 }
 
 func dayQuery(ctx *alborz.Context, start time.Time) string {
-	q := dav.ListParams(ctx, "account", "cal")
+	q := pim.ListParams(ctx, "account", "cal")
 	q.Set("date", start.Format(datePageLayout))
 	return alborz.Query(q)
 }
 
 func monthQuery(ctx *alborz.Context, mv monthView) string {
-	q := dav.ListParams(ctx, "account", "cal", "span", "group")
+	q := pim.ListParams(ctx, "account", "cal", "span", "group")
 	q.Set("month", mv.page)
 	if mv.view != "" {
 		q.Set("view", mv.view)
@@ -115,7 +116,7 @@ func eventKey(path, uid string, feed bool) string {
 	return path
 }
 
-func (p *plugin) eventItems(ctx *alborz.Context) ([]dav.Item, error) {
+func (p *plugin) eventItems(ctx *alborz.Context) ([]pim.Item, error) {
 	var shown []Occurrence
 	switch {
 	case ctx.QueryParam("date") != "":
@@ -134,8 +135,8 @@ func (p *plugin) eventItems(ctx *alborz.Context) ([]dav.Item, error) {
 		return nil, nil
 	}
 
-	params := dav.RowParams(ctx, "", dav.ListParams(ctx, eventListParams...))
-	var items []dav.Item
+	params := pim.RowParams(ctx, "", pim.ListParams(ctx, eventListParams...))
+	var items []pim.Item
 	seen := map[string]bool{}
 	for _, oc := range shown {
 		uid, _ := oc.Event.Props.Text("UID")
@@ -144,11 +145,11 @@ func (p *plugin) eventItems(ctx *alborz.Context) ([]dav.Item, error) {
 			continue
 		}
 		seen[key] = true
-		href := dav.ObjectURL("/calendar/", oc.Path, oc.Account, params)
+		href := pim.ObjectURL("/calendar/", oc.Path, oc.Account, params)
 		if oc.ReadOnly {
-			href = dav.ObjectURL("/calendar/", oc.Path, oc.Account, withUID(params, uid))
+			href = pim.ObjectURL("/calendar/", oc.Path, oc.Account, withUID(params, uid))
 		}
-		items = append(items, dav.Item{Path: key, URL: href})
+		items = append(items, pim.Item{Path: key, URL: href})
 	}
 	return items, nil
 }
@@ -162,7 +163,7 @@ func withUID(params url.Values, uid string) url.Values {
 }
 
 func (p *plugin) event(ctx *alborz.Context) error {
-	path, err := dav.ParseObjectPath(ctx.Param("path"))
+	path, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
@@ -224,7 +225,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		Calendar:       calendar,
 		Event:          CalendarObject{CalendarObject: event},
 		Star:           componentColor(vevents[0].Component),
-		Neighbours:     dav.Around(items, eventKey(path, "", false)),
+		Neighbours:     pim.Around(items, eventKey(path, "", false)),
 		Authors:        p.dav.Authors(event.Path, ctx.Login.Username()),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborz.UserLocation(ctx))
@@ -252,7 +253,7 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       info,
 		Event:          CalendarObject{CalendarObject: &caldav.CalendarObject{Path: address, Data: cal}, Color: info.Color, ReadOnly: true},
-		Neighbours:     dav.Around(items, eventKey(address, ctx.QueryParam("uid"), true)),
+		Neighbours:     pim.Around(items, eventKey(address, ctx.QueryParam("uid"), true)),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &event, alborz.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "event.html", data)
@@ -292,7 +293,7 @@ func (p *plugin) feedObject(ctx *alborz.Context, address, uid string) (*dav.Coll
 }
 
 func (p *plugin) updateEvent(ctx *alborz.Context) error {
-	calendarObjectPath, err := dav.ParseObjectPath(ctx.Param("path"))
+	calendarObjectPath, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
@@ -372,11 +373,11 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			return reject(ctx.T("form.summaryneeded"))
 		}
 
-		to := dav.Ref[*caldav.Client]{Client: c}
+		to := pim.Ref[*caldav.Client]{Client: c}
 		creating := co == nil
 		if creating {
 			to, err = p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
-			if errors.Is(err, dav.ErrNoDestination) {
+			if errors.Is(err, pim.ErrNoDestination) {
 				return reject(ctx.T("form.destinationneeded"))
 			} else if err != nil {
 				return err
@@ -470,7 +471,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			ctx.PutNotice(ctx.T("invite.sent"))
 		}
 
-		return dav.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, CalendarObject{CalendarObject: co}.URL(), "/calendar", to.Account)
+		return pim.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, CalendarObject{CalendarObject: co}.URL(), "/calendar", to.Account)
 	}
 
 	summary, _ := event.Props.Text("SUMMARY")
@@ -495,9 +496,9 @@ func eventList(ctx *alborz.Context) string {
 	if from := ctx.From(); from != "" {
 		return from
 	}
-	params := dav.ListParams(ctx, eventListParams...)
+	params := pim.ListParams(ctx, eventListParams...)
 	if params.Get("date") != "" {
-		return dav.ListURL("/calendar/date", params)
+		return pim.ListURL("/calendar/date", params)
 	}
-	return dav.ListURL("/calendar", params)
+	return pim.ListURL("/calendar", params)
 }

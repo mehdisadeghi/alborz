@@ -1,4 +1,4 @@
-package dav
+package pim
 
 import (
 	"archive/zip"
@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim/dav"
 	"github.com/labstack/echo/v4"
 )
 
@@ -58,7 +59,7 @@ type NewCollectionRenderData struct {
 	OffersHolds bool
 	Holds       string
 	// Places are where the collection can go, and Place the chosen one (ADR 28).
-	Places []Group
+	Places []dav.Group
 	Place  string
 	// Scope is the account the page was in, empty on a merged page.
 	Scope string
@@ -94,7 +95,7 @@ type CreateForm struct {
 var held = map[string][]string{"events": {"VEVENT"}, "tasks": {"VTODO"}, "both": {"VEVENT", "VTODO"}}
 
 // HandleCreate adds a collection to the chosen account and place, asking for the component set up front.
-func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm, error)) func(*alborz.Context) error {
+func (pg Page) HandleCreate(p *dav.Provider, form func(*alborz.Context) (CreateForm, error)) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		f, err := form(ctx)
 		if err != nil {
@@ -106,7 +107,7 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Login.Username(),
 			Scope:          ctx.URLAccount(),
-			Color:          DefaultColor,
+			Color:          dav.DefaultColor,
 			Title:          f.Title,
 			ListHref:       f.List,
 			BackLabel:      f.Section,
@@ -141,9 +142,9 @@ func (pg Page) HandleCreate(p *Provider, form func(*alborz.Context) (CreateForm,
 		path, err := p.Create(ctx.Request().Context(), login, data.Name, data.Color, data.Place, held[data.Holds])
 		if err != nil {
 			data.Refused(err.Error())
-			if errors.Is(err, ErrNameTaken) {
+			if errors.Is(err, dav.ErrNameTaken) {
 				data.Refused(fmt.Sprintf(ctx.T("form.nametaken"), data.Name))
-			} else if errors.Is(err, ErrPlaceDown) {
+			} else if errors.Is(err, dav.ErrPlaceDown) {
 				data.Refused(ctx.T("form.placedown"))
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "create-collection.html", data)
@@ -176,9 +177,9 @@ type Page struct {
 	Base string
 	// List is the section's list, where an answered invitation lands.
 	List   string
-	Color  Prop
+	Color  dav.Prop
 	Ext    string
-	Lookup func(ctx *alborz.Context, path string) (info Collection, count func() int, list, label string, err error)
+	Lookup func(ctx *alborz.Context, path string) (info dav.Collection, count func() int, list, label string, err error)
 	Forget func(username string)
 	// Show ticks a just-accepted collection among those the account sees.
 	Show func(ctx context.Context, store alborz.Store, path string) error
@@ -192,13 +193,13 @@ type Page struct {
 }
 
 // Handle is the collection's own page; renaming and recolouring are a PROPPATCH.
-func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
+func (pg Page) Handle(p *dav.Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
-		collPath = CanonicalCollectionPath(collPath)
+		collPath = dav.CanonicalCollectionPath(collPath)
 		offer, err := pg.offer(ctx, p, collPath, ctx.Login.Username())
 		if err != nil {
 			return err
@@ -234,7 +235,7 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 			}
 			base := p.URL(ctx.Request().Context(), ctx.Login)
 			target := base.ResolveReference(&url.URL{Path: collPath}).String()
-			if err := Proppatch(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login),
+			if err := dav.Proppatch(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login),
 				target, name, ctx.FormValue("color"), pg.Color); err != nil {
 				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "collection.html", data)
@@ -246,7 +247,7 @@ func (pg Page) Handle(p *Provider) func(*alborz.Context) error {
 	}
 }
 
-func (pg Page) data(ctx *alborz.Context, p *Provider, collPath string) (*CollectionRenderData, error) {
+func (pg Page) data(ctx *alborz.Context, p *dav.Provider, collPath string) (*CollectionRenderData, error) {
 	info, count, list, label, err := pg.Lookup(ctx, collPath)
 	if err != nil {
 		return nil, err
@@ -282,13 +283,13 @@ func (pg Page) data(ctx *alborz.Context, p *Provider, collPath string) (*Collect
 const maxImportSize = 16 << 20
 
 // HandleImport writes an uploaded file into the collection.
-func (pg Page) HandleImport(p *Provider) func(*alborz.Context) error {
+func (pg Page) HandleImport(p *dav.Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
-		collPath = CanonicalCollectionPath(collPath)
+		collPath = dav.CanonicalCollectionPath(collPath)
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err != nil {
 			return err
 		}
@@ -424,7 +425,7 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 		target := collPath
 		if isNew {
 			var err error
-			if target, err = pg.createFree(ctx, list, collectionName(f), place); errors.Is(err, ErrPlaceDown) {
+			if target, err = pg.createFree(ctx, list, collectionName(f), place); errors.Is(err, dav.ErrPlaceDown) {
 				return errors.New(ctx.T("form.placedown"))
 			} else if err != nil {
 				return err
@@ -457,7 +458,7 @@ func (pg Page) createFree(ctx *alborz.Context, list, name, place string) (string
 			try = fmt.Sprintf("%s %d", name, i)
 		}
 		p, err := pg.Create(ctx, list, try, place)
-		if !errors.Is(err, ErrNameTaken) || i == maxCreateAttempts {
+		if !errors.Is(err, dav.ErrNameTaken) || i == dav.MaxCreateAttempts {
 			return p, err
 		}
 	}
@@ -486,7 +487,7 @@ type ImportData struct {
 	Key           string
 	Ext           string
 	Hint          string
-	Groups        []Group
+	Groups        []dav.Group
 	Account, Path string
 	// Address says a calendar can also import from a webcal: link; URL is what it holds.
 	Address bool
@@ -494,14 +495,14 @@ type ImportData struct {
 }
 
 // HandleImportPage is the section's import page, reached from its rail; any writable collection may receive.
-func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key string, address bool) func(*alborz.Context) error {
+func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key string, address bool) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		rail, err := pg.Rail(ctx, list)
 		if err != nil {
 			return err
 		}
 		rail.ImportHref = list + "/import"
-		var groups []Group
+		var groups []dav.Group
 		for _, coll := range rail.Items {
 			account := coll.Account
 			if !coll.Writable || coll.Address != "" {
@@ -512,20 +513,20 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 			}
 			i := len(groups) - 1
 			if i < 0 || groups[i].Account != account {
-				groups = append(groups, Group{Account: account})
+				groups = append(groups, dav.Group{Account: account})
 				i++
 			}
 			groups[i].Collections = append(groups[i].Collections, coll)
 		}
 		// A new collection per file is a destination too, first in each account's group.
 		for _, place := range p.Places(ctx) {
-			var news []Collection
+			var news []dav.Collection
 			for _, at := range place.Collections {
-				news = append(news, Collection{Path: newPrefix + at.Path, Name: fmt.Sprintf(ctx.T("import.newon"), at.Name)})
+				news = append(news, dav.Collection{Path: newPrefix + at.Path, Name: fmt.Sprintf(ctx.T("import.newon"), at.Name)})
 			}
-			i := slices.IndexFunc(groups, func(g Group) bool { return g.Account == place.Account })
+			i := slices.IndexFunc(groups, func(g dav.Group) bool { return g.Account == place.Account })
 			if i < 0 {
-				groups = append(groups, Group{Account: place.Account})
+				groups = append(groups, dav.Group{Account: place.Account})
 				i = len(groups) - 1
 			}
 			groups[i].Collections = append(news, groups[i].Collections...)
@@ -602,13 +603,13 @@ func (pg Page) HandleImportPage(p *Provider, list, section, title, hint, key str
 }
 
 // HandleExport sends the collection as one file; a date range narrows a calendar.
-func (pg Page) HandleExport(p *Provider) func(*alborz.Context) error {
+func (pg Page) HandleExport(p *dav.Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
-		collPath = CanonicalCollectionPath(collPath)
+		collPath = dav.CanonicalCollectionPath(collPath)
 		info, _, _, _, err := pg.Lookup(ctx, collPath)
 		if err != nil {
 			return err
@@ -689,13 +690,13 @@ func (pg Page) HandleExportAll(list, filename string) func(*alborz.Context) erro
 }
 
 // HandleDelete removes the collection and everything in it; the page above states how much.
-func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
+func (pg Page) HandleDelete(p *dav.Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
 		}
-		collPath = CanonicalCollectionPath(collPath)
+		collPath = dav.CanonicalCollectionPath(collPath)
 		info, _, list, _, err := pg.Lookup(ctx, collPath)
 		if err != nil {
 			return err
@@ -707,7 +708,7 @@ func (pg Page) HandleDelete(p *Provider) func(*alborz.Context) error {
 		}
 		base := p.URL(ctx.Request().Context(), ctx.Login)
 		target := base.ResolveReference(&url.URL{Path: collPath}).String()
-		if err := DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), target); err != nil {
+		if err := dav.DeleteCollection(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), target); err != nil {
 			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectiondeletefailed"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))

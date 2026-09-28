@@ -9,6 +9,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-vcard"
@@ -51,8 +52,8 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, login *alborz.Login
 	return c, infos, nil
 }
 
-func (p *plugin) pooledBooks(ctx *alborz.Context) ([]dav.Account[*carddav.Client], error) {
-	return dav.Pooled(ctx, p.dav, p.clientWithAddressBooks, errNoAddressBook)
+func (p *plugin) pooledBooks(ctx *alborz.Context) ([]pim.Account[*carddav.Client], error) {
+	return pim.Pooled(ctx, p.dav, p.clientWithAddressBooks, errNoAddressBook)
 }
 
 // Mount serves contacts.
@@ -154,7 +155,7 @@ func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]dav.Group, error) {
 	if err != nil {
 		return nil, err
 	}
-	return dav.WritableGroups(accounts, func(ab dav.Collection) bool { return ab.Writable }), nil
+	return pim.WritableGroups(accounts, func(ab dav.Collection) bool { return ab.Writable }), nil
 }
 
 func bookAbilities(found dav.Advertised) []mail.Ability {

@@ -26,9 +26,9 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/filters"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/contacts"
-	alborzdav "git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-imap/v2/imapserver"
@@ -274,7 +274,7 @@ func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
 		t.Fatalf("start alborz: %v", err)
 	}
 	mail.Mount(s)
-	kept, err := alborzdav.Mount(s)
+	kept, err := pim.Mount(s)
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}

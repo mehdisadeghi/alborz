@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -341,13 +342,13 @@ func (t TaskObject) URL() string {
 	return "/tasks/" + url.PathEscape(t.Path)
 }
 
-func (p *plugin) pooledCalendars(ctx *alborz.Context) ([]dav.Account[*caldav.Client], error) {
-	return dav.Pooled(ctx, p.dav, p.clientWithCalendars, errNoCalendar)
+func (p *plugin) pooledCalendars(ctx *alborz.Context) ([]pim.Account[*caldav.Client], error) {
+	return pim.Pooled(ctx, p.dav, p.clientWithCalendars, errNoCalendar)
 }
 
-func querySites(ctx *alborz.Context, sites []dav.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
+func querySites(ctx *alborz.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
 	var events []CalendarObject
-	for _, r := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site dav.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
+	for _, r := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, query)
 	}) {
 		if r.Err != nil {
@@ -365,11 +366,11 @@ func (p *plugin) writableGroups(ctx *alborz.Context, supports func([]string) boo
 	if err != nil {
 		return nil, err
 	}
-	return dav.WritableGroups(accounts, func(cal dav.Collection) bool { return cal.Writable && supports(cal.Components) }), nil
+	return pim.WritableGroups(accounts, func(cal dav.Collection) bool { return cal.Writable && supports(cal.Components) }), nil
 }
 
-func (p *plugin) destination(ctx *alborz.Context, value string, supports func([]string) bool) (dav.Ref[*caldav.Client], error) {
-	return dav.Destination(ctx, value, p.clientWithCalendars, func(cal dav.Collection) bool {
+func (p *plugin) destination(ctx *alborz.Context, value string, supports func([]string) bool) (pim.Ref[*caldav.Client], error) {
+	return pim.Destination(ctx, value, p.clientWithCalendars, func(cal dav.Collection) bool {
 		return cal.Writable && supports(cal.Components)
 	})
 }

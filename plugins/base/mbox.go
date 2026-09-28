@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/pgp"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-mbox"
@@ -602,7 +603,7 @@ func mboxMessages(r io.Reader) func() ([]byte, error) {
 			if err == nil && len(raw) == 0 {
 				return nil, io.EOF
 			}
-			return crlf(raw), err
+			return pgp.CRLF(raw), err
 		}
 	}
 	archive := mbox.NewReader(buffered)

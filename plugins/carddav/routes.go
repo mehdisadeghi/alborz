@@ -41,10 +41,6 @@ func choose(ctx context.Context, store alborz.Store, paths []string) error {
 	return store.Put(ctx, settingsKey, settings)
 }
 
-func init() {
-	alborz.RegisterSetting(settingsKey)
-}
-
 const uidURN = "urn:uuid:"
 
 // Bypasses go-webdav, whose strconv.Unquote rejects a weak ETag.

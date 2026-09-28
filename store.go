@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"git.mehdix.org/alborz/internal/record"
@@ -185,23 +186,11 @@ func (s *imapMetadataStore) Put(ctx context.Context, key string, v any) error {
 // vendorRoot is where RFC 5464 puts a vendor's private entries.
 const vendorRoot = "/private/vendor/alborz"
 
-// settingKeys are asked for by name because go-imap writes the DEPTH option
-// after the mailbox, not before it as RFC 5464 requires.
-var settingKeys = []string{httpPasswordKey, servicesKey, profileKey}
-
-// RegisterSetting names a key a plugin stores, so the account holder can see and empty it.
-func RegisterSetting(key string) {
-	settingKeys = append(settingKeys, key)
-}
-
 func (s *imapMetadataStore) Entries(ctx context.Context) ([]string, error) {
-	full := make([]string, len(settingKeys))
-	for i, key := range settingKeys {
-		full[i] = s.key(key)
-	}
 	var names []string
 	err := s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
-		data, err := c.GetMetadata("", full, nil).Wait()
+		options := &imapclient.GetMetadataOptions{Depth: imapclient.GetMetadataDepthInfinity}
+		data, err := c.GetMetadata("", []string{vendorRoot}, options).Wait()
 		if err != nil {
 			return err
 		}
@@ -233,8 +222,8 @@ func (s *imapMetadataStore) Forget(ctx context.Context) error {
 		entries[name] = nil
 	}
 	defer func() {
-		for _, key := range settingKeys {
-			memoOf(ctx).forget(s.login, key)
+		for _, name := range names {
+			memoOf(ctx).forget(s.login, strings.TrimPrefix(name, vendorRoot+"/"))
 		}
 	}()
 	err = s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {

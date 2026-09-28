@@ -25,10 +25,6 @@ const (
 	dateLayout          = "2006-01-02"
 )
 
-func init() {
-	alborz.RegisterSetting(repliesKey)
-}
-
 // Reply is one automatic answer; Addresses limit it (RFC 5230 4.5), From and Until bound its days (RFC 5260).
 type Reply struct {
 	Name      string

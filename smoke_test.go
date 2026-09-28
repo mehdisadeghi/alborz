@@ -734,16 +734,17 @@ func TestExportFailsAsAnError(t *testing.T) {
 	}
 }
 
-// TestSendHTMLIsDecidedByTheAccount is about where a decision lives.
-// The HTML part used to be chosen when the compose page was rendered and
-// carried back in a hidden field, so a page opened before the setting
-// was turned on sent no direction at all - and the form looked right
-// the whole time. The account's setting decides at send now, and a
-// reply to a list is refused by asking that message, not the page.
+// TestSendHTMLFollowsWhatWasWritten is about where a decision lives.
+// The HTML part was once chosen when the compose page was rendered and
+// carried back in a hidden field, so a page opened before the choice
+// changed sent the old one - and the form looked right the whole time.
+// It is read at send from what the form carries now: the editor's HTML
+// if it was used, else the text's direction, and for a reply to a list
+// from that message rather than the page.
 //
 // It asserts the bytes that went to the SMTP server, because that is
 // the only place the answer is visible.
-func TestSendHTMLIsDecidedByTheAccount(t *testing.T) {
+func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	smtpAddr, sent := startSMTP(t)
 	base := startAlborz(t, startIMAP(t), smtpAddr)
 	c := login(t, base)
@@ -763,41 +764,50 @@ func TestSendHTMLIsDecidedByTheAccount(t *testing.T) {
 		t.Fatal("the seeded list message is missing; the list case would go unchecked")
 	}
 
-	set := func(on bool) {
-		form := url.Values{}
-		if on {
-			form.Set("send_html", "1")
-		}
-		resp, err := c.PostForm(base+"/settings/account", form)
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
+	compose := func() string { return get(t, c, base+"/compose") }
+
+	sendFrom(t, c, base, "/compose", compose(), "text", "Hello.", "html", "<p>Hello.</p>")
+	if !strings.Contains(sent.Last(), "text/html") {
+		t.Errorf("a message written in the editor went out without its HTML:\n%s", headOf(sent.Last()))
 	}
 
-	// The page is fetched once, before the setting is touched. Under the
-	// old design everything sent from it was plain whatever came later.
-	stale := get(t, c, base+"/compose")
-
-	set(true)
-	sendFrom(t, c, base, "/compose", stale)
-	if !strings.Contains(sent.Last(), "multipart/alternative") {
-		t.Errorf("a page rendered before the setting sent no HTML part:\n%s", headOf(sent.Last()))
-	}
-
-	set(false)
-	sendFrom(t, c, base, "/compose", get(t, c, base+"/compose"))
+	sendFrom(t, c, base, "/compose", compose(), "text", "Hello.\n\nEnglish only.")
 	if strings.Contains(sent.Last(), "multipart/alternative") {
-		t.Errorf("an HTML part was sent though the account did not ask:\n%s", headOf(sent.Last()))
+		t.Errorf("left-to-right plain text was sent with an HTML part:\n%s", headOf(sent.Last()))
 	}
 
-	// A reply to a list refuses it however the account is set, and that
-	// is read from the message rather than from the form.
-	set(true)
+	sendFrom(t, c, base, "/compose", compose())
+	if !strings.Contains(sent.Last(), "multipart/alternative") {
+		t.Errorf("right-to-left plain text was sent with no direction:\n%s", headOf(sent.Last()))
+	}
+
+	// A reply to a list stays plain whatever it says, and that is read
+	// from the message rather than from the form.
 	path := "/message/INBOX/" + listUID + "/reply?part=1"
 	sendFrom(t, c, base, path, get(t, c, base+path))
 	if strings.Contains(sent.Last(), "multipart/alternative") {
 		t.Errorf("a reply to list mail carried an HTML part:\n%s", headOf(sent.Last()))
+	}
+
+	// The account can turn the part off, and that is saved by the
+	// settings form the way a browser sends it: an unticked box is absent.
+	const ticked = `name="direction_part" id="direction_part" value="1" checked`
+	if !strings.Contains(get(t, c, base+"/settings/account"), ticked) {
+		t.Fatal("the direction part is not on by default")
+	}
+	resp := postForm(t, c, base+"/settings/account", url.Values{"from": {smokeUser}, "reply_position": {"above"}})
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving account settings: %s", resp.Status)
+	}
+	if strings.Contains(get(t, c, base+"/settings/account"), ticked) {
+		t.Fatal("the settings page still shows the direction part on")
+	}
+	sendFrom(t, c, base, "/compose", compose(), "subject", "turned off")
+	if !strings.Contains(sent.Last(), "Subject: turned off") {
+		t.Fatalf("the message sent with the part turned off never arrived:\n%s", headOf(sent.Last()))
+	}
+	if strings.Contains(sent.Last(), "text/html") {
+		t.Errorf("right-to-left plain text carried an HTML part the account turned off:\n%s", headOf(sent.Last()))
 	}
 }
 

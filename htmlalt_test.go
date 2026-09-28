@@ -76,3 +76,18 @@ func TestParagraphDirSurvivesLeadingBreak(t *testing.T) {
 		}
 	}
 }
+
+// Plain text needs the HTML part only where something runs right to
+// left, and a Persian quote under an English reply is such a place.
+func TestHasRTL(t *testing.T) {
+	for text, want := range map[string]bool{
+		"":                                false,
+		"Only English here.\n\nAnd more.": false,
+		"سلام\n\nEnglish.":                true,
+		"My answer in English.\n\n> سلام، این": true,
+	} {
+		if got := HasRTL(text); got != want {
+			t.Errorf("HasRTL(%q) = %v, want %v", text, got, want)
+		}
+	}
+}

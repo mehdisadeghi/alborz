@@ -83,12 +83,10 @@ type Settings struct {
 	// has always done here and what most correspondents expect.
 	ReplyBelowQuote bool
 
-	// SendHTML adds an HTML part to outgoing mail that says nothing but
-	// which way each paragraph runs. Off by default: mailing lists ask
-	// for plain text and some refuse multipart/alternative outright, so
-	// an account that talks to lists wants it off and one that writes
-	// Persian to Gmail wants it on.
-	SendHTML bool
+	// NoDirectionPart stops plain text that runs right to left from
+	// gaining its HTML part. Stored negatively so the zero value, and
+	// every account saved before the choice existed, keeps the part.
+	NoDirectionPart bool
 }
 
 func LoadSettings(s alborz.Store) (*Settings, error) {
@@ -687,7 +685,7 @@ func handleSettings(ctx *alborz.Context) error {
 		settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
 		settings.Identities = parseIdentities(ctx.FormValue("identities"))
 		settings.ReplyBelowQuote = ctx.FormValue("reply_position") == "below"
-		settings.SendHTML = ctx.FormValue("send_html") != ""
+		settings.NoDirectionPart = ctx.FormValue("direction_part") == ""
 
 		params, err := ctx.FormParams()
 		if err != nil {

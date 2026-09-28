@@ -51,6 +51,20 @@ func HTMLAlternative(text string) string {
 	return out.String()
 }
 
+// HasRTL says whether any paragraph of text, quoted or not, runs right
+// to left: the only case in which plain text needs HTMLAlternative,
+// since a client laying text out left to right gets the rest right.
+func HasRTL(text string) bool {
+	for _, block := range blocks(text) {
+		for _, p := range paragraphs(block.lines) {
+			if ParagraphDir(strings.Join(p, "\n")) == "rtl" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func writeParagraph(out *strings.Builder, lines []string) {
 	joined := strings.Join(lines, "\n")
 	out.WriteString(`<p dir="`)

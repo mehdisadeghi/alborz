@@ -11,6 +11,8 @@ SummitPost.*
 Multi-account, RTL-ready mail user agent with calendars, contacts,
 tasks and sieve filters in a single binary.
 
+**Status: alpha.** Expect breaking changes before 1.0, and back up alborz.db.
+
 It works with your existing IMAP, SMTP, ManageSieve, CalDAV and
 CardDAV servers. Settings are stored on those servers where the
 protocol allows it; a local database holds remembered sign-ins and

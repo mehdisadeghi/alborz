@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"path"
@@ -95,8 +96,11 @@ type Server struct {
 	OnMessage []func(*Context, RenderData) error
 	OnServers []func(*Context, RenderData) error
 
-	// Suggest offers addresses to write to, beside mail's own correspondents.
+	// Suggest offers addresses to write to.
 	Suggest []func(*Context) []string
+
+	// OnSent hears of a message that left, from the account that sent it, with everyone it went to.
+	OnSent []func(*Context, *Login, []*mail.Address) error
 
 	// OnClose releases what a feature holds open.
 	OnClose []func() error

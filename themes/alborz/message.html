@@ -101,6 +101,9 @@
                 </form>
                 {{ end }}
                 {{ end }}
+                {{ if .Contact }}
+                <button type="button" commandfor="add-contact" command="show-modal">{{$.T "message.addcontact"}}</button>
+                {{ end }}
                 {{ if .Message.ListID }}
                 <a class="button-link" href="{{localhref (printf "%v/reply%s" $.Message.URL $partallq)}}">{{$.T "message.replyall"}}</a>
                 {{ end }}
@@ -155,6 +158,22 @@
             </div>
         </div>
       </section>
+      {{ with .Contact }}
+      <dialog id="add-contact" class="form-dialog" closedby="any" aria-labelledby="add-contact-title">
+        <h2 id="add-contact-title">{{$.T "import.tocontacts"}}</h2>
+        <form method="post" action="/contacts/add{{$aq}}">
+          <input type="hidden" name="next" value="{{$here}}">
+          <label>
+            <span>{{$.T "contacts.email"}}</span>
+            <select name="address">
+              {{ range .Addresses }}<option value="{{.String}}" dir="auto">{{ if .Name }}{{.Name}} &lt;{{.Address}}&gt;{{ else }}{{.Address}}{{ end }}</option>{{ end }}
+            </select>
+          </label>
+          {{ template "collection-picker" (dict "groups" .Books "name" "addressbook" "label" ($.T "contacts.book") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
+          <button type="submit" class="button-primary">{{$.T "import.tocontacts"}}</button>
+        </form>
+      </dialog>
+      {{ end }}
 
       {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb) }}
       <div class="message-header">

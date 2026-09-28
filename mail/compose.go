@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
@@ -248,6 +247,18 @@ func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *O
 
 	p.accountChanged(ctx.Login.Username())
 	p.accountChanged(sender.Username())
+
+	to, err := prepareAddressList(slices.Concat(msg.To, msg.Cc, msg.Bcc))
+	if err != nil {
+		return err
+	}
+	// The message has left: what a feature does with that is not the send's to fail.
+	for _, sent := range ctx.Server.OnSent {
+		if err := sent(ctx, sender, to); err != nil {
+			ctx.Logger().Printf("after sending: %v", err)
+		}
+	}
+
 	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.sent")}
 	if sent != nil && sentUID != 0 {
 		// The Sent copy may be outside the reader's scope, so the link names its account.
@@ -305,7 +316,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 				Identities:         composeIdentities(ctx, msg.From),
 				Signatures:         settings.Signatures,
 				Signature:          signature,
-				Suggestions:        suggestions(ctx, p.gatherCorrespondents(ctx.Login)),
+				Suggestions:        suggestions(ctx),
 			})
 		}
 		// A server's refusal comes back on the form; uploads stay with the session until the message has left.
@@ -540,14 +551,14 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 		Attached:           attachedList(msg),
 		Signatures:         settings.Signatures,
 		Signature:          options.Signature,
-		Suggestions:        suggestions(ctx, p.gatherCorrespondents(ctx.Login)),
+		Suggestions:        suggestions(ctx),
 	}
 	return ctx.Render(http.StatusOK, "compose.html", data)
 }
 
-// suggestions adds what other features offer to own, each entry once, sorted.
-func suggestions(ctx *alborz.Context, own []string) []string {
-	all := slices.Clone(own)
+// suggestions are what the features offer, each entry once, sorted.
+func suggestions(ctx *alborz.Context) []string {
+	var all []string
 	for _, suggest := range ctx.Server.Suggest {
 		all = append(all, suggest(ctx)...)
 	}
@@ -563,77 +574,37 @@ func suggestions(ctx *alborz.Context, own []string) []string {
 	return out
 }
 
-// correspondentTTL spares a two-folder read on every compose.
-const correspondentTTL = 10 * time.Minute
-
-// Recent is the point: an old correspondent is not what the writer reaches for.
-const correspondentDepth = 200
-
-// It never waits: the list is built in the background and the form gets whatever is ready.
-func (p *plugin) gatherCorrespondents(s *alborz.Login) []string {
-	return p.correspondents.Warm(s.Username(), func() ([]string, error) {
-		seen := make(map[string]string)
-		keep := func(addrs []imap.Address) {
-			for _, a := range addrs {
-				addr := a.Addr()
-				if addr == "" || !strings.ContainsRune(addr, '@') {
-					continue
-				}
-				entry := addr
-				if a.Name != "" {
-					entry = (&mail.Address{Name: a.Name, Address: addr}).String()
-				}
-				// A named form wins over a bare one for the same address.
-				key := strings.ToLower(addr)
-				if old, ok := seen[key]; !ok || len(entry) > len(old) {
-					seen[key] = entry
-				}
-			}
-		}
-
-		err := s.DoIMAPBackground(func(c *imapclient.Client) error {
-			mailboxes, err := listMailboxes(c)
-			if err != nil {
-				return err
-			}
-			var categorized CategorizedMailboxes
-			for i := range mailboxes {
-				categorized.Append(mailboxes[i], nil)
-			}
-			read := func(name string, out bool) {
-				msgs, err := recentEnvelopes(c, name, correspondentDepth)
-				if err != nil {
-					return
-				}
-				for _, msg := range msgs {
-					if msg.Envelope == nil {
-						continue
-					}
-					if out {
-						keep(msg.Envelope.To)
-						keep(msg.Envelope.Cc)
-					} else {
-						keep(msg.Envelope.From)
-					}
-				}
-			}
-			if sent := categorized.Common.Sent; sent != nil {
-				read(sent.Info.Name(), true)
-			}
-			read("INBOX", false)
-			return nil
-		})
+// SentRecipients are who the account wrote to in its last n sent messages.
+func SentRecipients(s *alborz.Login, n int) ([]*mail.Address, error) {
+	var out []*mail.Address
+	err := s.DoIMAPBackground(func(c *imapclient.Client) error {
+		mailboxes, err := listMailboxes(c)
 		if err != nil {
-			return nil, err
+			return err
 		}
-
-		out := make([]string, 0, len(seen))
-		for _, entry := range seen {
-			out = append(out, entry)
+		var categorized CategorizedMailboxes
+		for i := range mailboxes {
+			categorized.Append(mailboxes[i], nil)
 		}
-		slices.Sort(out)
-		return out, nil
+		sent := categorized.Common.Sent
+		if sent == nil {
+			return nil
+		}
+		msgs, err := recentEnvelopes(c, sent.Info.Name(), n)
+		if err != nil {
+			return err
+		}
+		for _, msg := range msgs {
+			if msg.Envelope == nil {
+				continue
+			}
+			for _, a := range slices.Concat(msg.Envelope.To, msg.Envelope.Cc, msg.Envelope.Bcc) {
+				out = append(out, &mail.Address{Name: a.Name, Address: a.Addr()})
+			}
+		}
+		return nil
 	})
+	return out, err
 }
 
 // The delimiter must start a line, so a quoted "> -- " is not mistaken for the writer's own.

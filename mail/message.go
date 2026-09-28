@@ -94,6 +94,15 @@ type MessageRenderData struct {
 	ImportCalendars any
 	ImportBooks     any
 	InviteFiled     string
+
+	// Contact is what "Add to contacts" offers; nil where no address book takes a card.
+	Contact *ContactOffer
+}
+
+// ContactOffer is the message's addresses and the address books one can be added to.
+type ContactOffer struct {
+	Addresses []*mail.Address
+	Books     any
 }
 
 // Enough for mail with a few files, while mail with fifty keeps the body in view.

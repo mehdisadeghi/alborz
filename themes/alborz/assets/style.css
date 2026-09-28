@@ -4102,7 +4102,8 @@ aside ul.merged-roles {
   background: var(--warn-bg);
 }
 
-.keys-help {
+.keys-help,
+.form-dialog {
   max-width: min(32rem, calc(100vw - 2 * var(--space-4)));
   padding: var(--space-4);
   color: var(--fg);
@@ -4112,8 +4113,14 @@ aside ul.merged-roles {
   box-shadow: var(--shadow-raised);
 }
 
-.keys-help::backdrop { background: var(--scrim); }
-.keys-help h2 { margin: 0 0 var(--space-3); font-size: var(--text-lg); }
+.keys-help::backdrop,
+.form-dialog::backdrop { background: var(--scrim); }
+.keys-help h2,
+.form-dialog h2 { margin: 0 0 var(--space-3); font-size: var(--text-lg); }
+
+.form-dialog form { display: grid; gap: var(--space-3); }
+.form-dialog label { display: grid; gap: var(--space-1); }
+.form-dialog button { justify-self: start; }
 
 .keys-help dl {
   display: grid;

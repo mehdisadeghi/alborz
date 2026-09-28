@@ -1,9 +1,11 @@
 package alborz_test
 
 import (
+	"html"
 	"io"
 	"net"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"strings"
 	"testing"
@@ -457,5 +459,96 @@ func walk(t *testing.T, base string, c *http.Client, k walked, scope string) {
 	moved("deleting the last", outside)
 	if got := outside.Header.Get("Location"); strings.Contains(got, "elsewhere") {
 		t.Errorf("a delete followed a next that leaves the site: %q", got)
+	}
+}
+
+// keptCards are the cards of the account's book kept here under name, as a DAV client reads them.
+func keptCards(t *testing.T, base, name string) string {
+	t.Helper()
+	_, list := dav(t, "PROPFIND", base+"/alborz/dav/addressbooks/"+smokeUser+"/", map[string]string{"Depth": "1", "Content-Type": "application/xml"},
+		`<propfind xmlns="DAV:"><prop><displayname/></prop></propfind>`)
+	href := ""
+	for _, r := range strings.Split(list, "response>") {
+		if strings.Contains(r, ">"+name+"<") {
+			href = between(r, "href>", "<")
+		}
+	}
+	if href == "" {
+		t.Fatalf("no book named %q:\n%s", name, list)
+	}
+	_, cards := dav(t, "REPORT", base+href, map[string]string{"Depth": "1", "Content-Type": "application/xml"},
+		`<C:addressbook-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav"><D:prop><C:address-data/></D:prop></C:addressbook-query>`)
+	return cards
+}
+
+func keptBook(t *testing.T, base string, c *http.Client, name string) {
+	t.Helper()
+	form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {name}}
+	if resp := postForm(t, c, base+"/address-books/create", form); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the address book answered %s", resp.Status)
+	}
+}
+
+func TestSendingKeepsNewRecipientsInPreviousRecipients(t *testing.T) {
+	smtpAddr, _ := startSMTP(t)
+	base := startAlborz(t, startIMAP(t), smtpAddr)
+	c := login(t, base)
+	keptBook(t, base, c, "People")
+	put(t, base, "/alborz/dav/addressbooks/"+smokeUser+"/people/known.vcf", "text/vcard",
+		"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:known\r\nFN:Known\r\nEMAIL:known@example.org\r\nEND:VCARD\r\n")
+
+	sendFrom(t, c, base, "/compose", get(t, c, base+"/compose"),
+		"to", "Parvin Etesami <parvin@example.org>", "cc", "known@example.org")
+
+	cards := keptCards(t, base, "Previous recipients")
+	if !strings.Contains(cards, "EMAIL:parvin@example.org") || !strings.Contains(cards, "FN:Parvin Etesami") {
+		t.Errorf("the new recipient is not in Previous recipients:\n%s", cards)
+	}
+	if strings.Contains(cards, "known@example.org") {
+		t.Errorf("a recipient another book holds was kept again:\n%s", cards)
+	}
+	if !strings.Contains(get(t, c, base+"/compose"), "parvin@example.org") {
+		t.Errorf("compose does not suggest the previous recipient")
+	}
+}
+
+func TestAddToContactsWritesTheChosenBook(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	keptBook(t, base, c, "People")
+	keptBook(t, base, c, "Work")
+
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) == 0 {
+		t.Fatal("no seeded messages")
+	}
+	page := get(t, c, base+"/message/INBOX/"+uids[0])
+	dialog := between(page, `<dialog id="add-contact"`, "</dialog>")
+	address := html.UnescapeString(between(dialog, `<option value="`, `"`))
+	book := ""
+	for _, v := range strings.Split(dialog, `<option value="`)[1:] {
+		if v = html.UnescapeString(v[:strings.IndexByte(v, '"')]); strings.HasSuffix(v, "/work/") {
+			book = v
+		}
+	}
+	if address == "" || book == "" {
+		t.Fatalf("the message page offers no address or no Work book:\n%s", dialog)
+	}
+
+	form := url.Values{"address": {address}, "addressbook": {book}, "next": {"/message/INBOX/" + uids[0]}}
+	for range 2 {
+		if resp := postForm(t, c, base+"/contacts/add", form); resp.StatusCode != http.StatusFound {
+			t.Fatalf("adding the address answered %s", resp.Status)
+		}
+	}
+	parsed, err := mail.ParseAddress(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cards := keptCards(t, base, "Work"); strings.Count(cards, "EMAIL:"+parsed.Address) != 1 {
+		t.Errorf("Work does not hold %s once:\n%s", parsed.Address, cards)
+	}
+	if cards := keptCards(t, base, "People"); strings.Contains(cards, parsed.Address) {
+		t.Errorf("a book not chosen got the card:\n%s", cards)
 	}
 }

@@ -997,7 +997,7 @@
   {{/* On a phone the rail is the drawer, and the drawer's head is the
        application's name; on a wide screen the header carries it and
        this one stands down. */}}
-  <div class="rail-brand">{{ template "brand" (dict "g" .g "build" .g.GlobalData.Build) }}</div>
+  <div class="rail-brand">{{ template "brand" (dict "g" .g "build" .g.GlobalData.Revision) }}</div>
   {{ with .homes }}{{ template "rail-rows" . }}{{ end }}
   {{ $merged := not .urlaccount }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $merged = false }}{{ end }}{{ end }}{{ end }}
   {{ if gt (len .accounts) 1 }}

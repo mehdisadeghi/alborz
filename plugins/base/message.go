@@ -376,7 +376,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 			partPath = held.part
 		}
 		if held != nil && held.buf.BodyStructure != nil {
-			if _, _, signed := signedParts(held.buf.BodyStructure); signed {
+			if isSigned(held.buf.BodyStructure) {
 				held = nil
 			}
 		}
@@ -455,7 +455,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 			}
 			inReplyTo, answers = readThread(ctx, c, mboxName, sent, msg)
 			if held == nil && msg.BodyStructure != nil {
-				signature = p.verifySignature(ctx.Server.Outgoing.Remote(wkdTimeout), c, mboxName, uid, msg.BodyStructure,
+				signature = p.verifySignature(ctx.Request().Context(), ctx.Server.Outgoing.Remote(wkdTimeout), c, mboxName, uid, msg.BodyStructure,
 					messageRootHeader(msg), envelopeSender(msg.Envelope))
 				authResults = readAuthResults(messageRootHeader(msg), trusted)
 				signature = withDelivery(signature, authResults)

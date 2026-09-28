@@ -3,14 +3,15 @@ package alborzbase
 import (
 	"bufio"
 	"bytes"
-	"encoding/base64"
+	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/mail"
 	"strings"
 
+	"git.mehdix.org/alborz/internal/pgp"
 	"github.com/ProtonMail/go-crypto/openpgp"
+	pgperrors "github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
@@ -55,119 +56,78 @@ const reasonUnverified = "pgp.reasonunverified"
 
 const pgpProtocol = "application/pgp-signature"
 
-func signedParts(bs imap.BodyStructure) (content, sig []int, ok bool) {
-	content, sig, _, ok = signedPartsOf(bs)
-	return content, sig, ok
-}
-
-func signedPartsOf(bs imap.BodyStructure) (content, sig []int, protocol string, ok bool) {
-	bs.Walk(func(path []int, part imap.BodyStructure) bool {
-		if ok {
-			return false
-		}
-		multi, isMulti := part.(*imap.BodyStructureMultiPart)
-		if !isMulti || !strings.EqualFold(multi.Subtype, "signed") || len(multi.Children) != 2 {
-			return true
-		}
-		second, isSingle := multi.Children[1].(*imap.BodyStructureSinglePart)
-		if !isSingle {
-			return true
-		}
-		media := strings.ToLower(second.MediaType())
-		if media != pgpProtocol && !smimeProtocols[media] {
-			return true
-		}
-		protocol = media
-		content = append(append([]int{}, path...), 1)
-		sig = append(append([]int{}, path...), 2)
-		ok = true
+// Only the root counts: a signed part nested in unsigned mail says nothing about the message around it.
+func isSigned(bs imap.BodyStructure) bool {
+	multi, ok := bs.(*imap.BodyStructureMultiPart)
+	if !ok || !strings.EqualFold(multi.Subtype, "signed") || len(multi.Children) != 2 {
 		return false
-	})
-	return content, sig, protocol, ok
+	}
+	second, ok := multi.Children[1].(*imap.BodyStructureSinglePart)
+	if !ok {
+		return false
+	}
+	media := strings.ToLower(second.MediaType())
+	return media == pgpProtocol || smimeProtocols[media]
 }
 
-func autocryptKey(h textproto.Header) (openpgp.EntityList, string, error) {
-	value := h.Get("Autocrypt")
-	if value == "" {
-		return nil, "", nil
-	}
-	var addr, keydata string
-	for _, attr := range strings.Split(value, ";") {
-		name, val, found := strings.Cut(strings.TrimSpace(attr), "=")
-		if !found {
-			continue
-		}
-		switch strings.ToLower(strings.TrimSpace(name)) {
-		case "addr":
-			addr = strings.TrimSpace(val)
-		case "keydata":
-			// The header is folded; the base64 carries no spaces.
-			keydata = strings.Join(strings.Fields(val), "")
-		}
-	}
-	if keydata == "" {
-		return nil, "", nil
-	}
-	der, err := base64.StdEncoding.DecodeString(keydata)
-	if err != nil {
-		return nil, "", fmt.Errorf("autocrypt keydata is not base64: %v", err)
-	}
-	keys, err := openpgp.ReadKeyRing(bytes.NewReader(der))
-	if err != nil {
-		return nil, "", fmt.Errorf("autocrypt keydata is not a key: %v", err)
-	}
-	return keys, addr, nil
-}
-
-// The signed octets are cut from the raw message, never re-serialised, so they match byte for byte.
-func (p *plugin) verifySignature(client *http.Client, conn *imapclient.Client, mboxName string, uid imap.UID,
+func (p *plugin) verifySignature(ctx context.Context, client *http.Client, conn *imapclient.Client, mboxName string, uid imap.UID,
 	bs imap.BodyStructure, rootHeader textproto.Header, from string) Verification {
 
-	_, _, protocol, ok := signedPartsOf(bs)
-	if !ok {
+	if !isSigned(bs) {
 		return Verification{}
 	}
-
 	raw, _, err := fetchRawMessage(conn, mboxName, uid)
 	if err != nil {
 		return Verification{}
 	}
-	signed, sig, ok := signedRegion(raw)
-	if !ok {
+	return p.verify(ctx, client, raw, rootHeader, from)
+}
+
+func (p *plugin) verify(ctx context.Context, client *http.Client, raw []byte, rootHeader textproto.Header, from string) Verification {
+	signed, sig, protocol, err := pgp.Signed(raw)
+	if err != nil {
 		return Verification{}
 	}
-
 	authors := authorAddresses(rootHeader, signed)
 	if smimeProtocols[protocol] {
 		return verifySMIME(signed, sig, authors)
 	}
-	domainKeys := p.domainKeys(client, authors)
-	messageKeys := senderKeys(rootHeader, raw, authors)
-	if len(domainKeys)+len(messageKeys) == 0 {
-		// Signed, but by nobody named: absence of evidence, not a bad signature.
+	if protocol != pgpProtocol {
 		return Verification{}
 	}
+	domainKeys := p.domainKeys(ctx, client, authors)
+	messageKeys := senderKeys(rootHeader, raw, from, authors)
+	claim := "pgp.claimmessage"
+	if len(domainKeys) > 0 {
+		claim = "pgp.claimmessageother"
+	}
 
-	check := func(keys openpgp.EntityList) (*openpgp.Entity, error) {
-		if len(keys) == 0 {
-			return nil, errors.New("no key")
+	bad := false
+	for _, try := range []struct {
+		keys   openpgp.EntityList
+		source KeySource
+		claim  string
+	}{
+		{domainKeys, KeyFromDomain, "pgp.claimdomain"},
+		{messageKeys, KeyFromMessage, claim},
+	} {
+		if len(try.keys) == 0 {
+			continue
 		}
-		return openpgp.CheckArmoredDetachedSignature(
-			keys, bytes.NewReader(signed), bytes.NewReader(sig), nil)
-	}
-	if signer, err := check(domainKeys); err == nil {
-		return Verification{State: SignatureGood, Signer: identityOf(signer, from),
-			Source: KeyFromDomain, Claim: "pgp.claimdomain"}
-	}
-	if signer, err := check(messageKeys); err == nil {
-		claim := "pgp.claimmessage"
-		if len(domainKeys) > 0 {
-			claim = "pgp.claimmessageother"
+		signer, err := openpgp.CheckArmoredDetachedSignature(try.keys, bytes.NewReader(signed), bytes.NewReader(sig), nil)
+		if err == nil {
+			return Verification{State: SignatureGood, Signer: identityOf(signer, authors, from),
+				Source: try.source, Claim: try.claim}
 		}
-		return Verification{State: SignatureGood, Signer: identityOf(signer, from),
-			Source: KeyFromMessage, Claim: claim}
+		// A signer comes back only when the bytes matched; an expired or revoked key, or another key, is silence.
+		if signer == nil && !errors.Is(err, pgperrors.ErrUnknownIssuer) {
+			bad = true
+		}
 	}
-	return Verification{State: SignatureBad, Reason: reasonUnverified}
+	if bad {
+		return Verification{State: SignatureBad, Reason: reasonUnverified}
+	}
+	return Verification{}
 }
 
 func withDelivery(v Verification, a *AuthResults) Verification {
@@ -179,11 +139,11 @@ func withDelivery(v Verification, a *AuthResults) Verification {
 	return v
 }
 
-func (p *plugin) domainKeys(client *http.Client, authors []string) openpgp.EntityList {
+func (p *plugin) domainKeys(ctx context.Context, client *http.Client, authors []string) openpgp.EntityList {
 	var found openpgp.EntityList
 	for _, author := range authors {
-		for _, key := range p.wkd.keys(client, author) {
-			if claimsAddress(key, "", authors) {
+		for _, key := range p.wkd.keys(ctx, client, author) {
+			if claimsAddress(key, authors) {
 				found = append(found, key)
 			}
 		}
@@ -192,17 +152,10 @@ func (p *plugin) domainKeys(client *http.Client, authors []string) openpgp.Entit
 }
 
 // Only keys claiming an author count: another address's key says nothing about this message.
-func senderKeys(h textproto.Header, raw []byte, authors []string) openpgp.EntityList {
-	var found openpgp.EntityList
-	if keys, addr, err := autocryptKey(h); err == nil {
-		for _, key := range keys {
-			if claimsAddress(key, addr, authors) {
-				found = append(found, key)
-			}
-		}
-	}
+func senderKeys(h textproto.Header, raw []byte, from string, authors []string) openpgp.EntityList {
+	found, _ := pgp.Autocrypt(h, from)
 	for _, key := range attachedKeys(raw) {
-		if claimsAddress(key, "", authors) {
+		if claimsAddress(key, authors) {
 			found = append(found, key)
 		}
 	}
@@ -261,13 +214,10 @@ func attachedKeys(raw []byte) openpgp.EntityList {
 	return keys
 }
 
-func claimsAddress(key *openpgp.Entity, stated string, authors []string) bool {
+func claimsAddress(key *openpgp.Entity, authors []string) bool {
 	for _, author := range authors {
 		if author == "" {
 			continue
-		}
-		if stated != "" && strings.EqualFold(stated, author) {
-			return true
 		}
 		for _, id := range key.Identities {
 			if id.UserId != nil && strings.EqualFold(id.UserId.Email, author) {
@@ -278,68 +228,10 @@ func claimsAddress(key *openpgp.Entity, stated string, authors []string) bool {
 	return false
 }
 
-func signedRegion(raw []byte) (signed, sig []byte, ok bool) {
-	// Anchored on the armour: the media type also appears earlier, in the protocol parameter.
-	sigStart := bytes.Index(raw, []byte("-----BEGIN PGP SIGNATURE-----"))
-	if sigStart < 0 {
-		return nil, nil, false
-	}
-	// A part's own headers never begin with "--", so the last such line opens the signature part.
-	close := bytes.LastIndex(raw[:sigStart], []byte("\n--"))
-	if close < 0 {
-		return nil, nil, false
-	}
-	close++
-	eol := bytes.IndexByte(raw[close:], '\n')
-	if eol < 0 {
-		return nil, nil, false
-	}
-	boundary := bytes.TrimRight(raw[close:close+eol], "\r")
-
-	open := bytes.Index(raw, append([]byte("\n"), boundary...))
-	if open < 0 || open >= close {
-		return nil, nil, false
-	}
-	from := open + 1 + len(boundary)
-	for from < len(raw) && (raw[from] == '\r' || raw[from] == '\n') {
-		from++
-		if raw[from-1] == '\n' {
-			break
-		}
-	}
-	if from > close {
-		return nil, nil, false
-	}
-	// The CRLF before a delimiter belongs to the delimiter (RFC 2046 5.1.1).
-	body := bytes.TrimSuffix(bytes.TrimSuffix(raw[from:close], []byte("\n")), []byte("\r"))
-
-	sigEnd := bytes.Index(raw[sigStart:], []byte("-----END PGP SIGNATURE-----"))
-	if sigEnd < 0 {
-		return nil, nil, false
-	}
-	sigEnd += sigStart + len("-----END PGP SIGNATURE-----")
-
-	return crlf(body), raw[sigStart:sigEnd], true
-}
-
-func crlf(b []byte) []byte {
-	var out bytes.Buffer
-	out.Grow(len(b) + len(b)/16)
-	for i := 0; i < len(b); i++ {
-		if b[i] == '\n' && (i == 0 || b[i-1] != '\r') {
-			out.WriteByte('\r')
-		}
-		out.WriteByte(b[i])
-	}
-	return out.Bytes()
-}
-
-func identityOf(e *openpgp.Entity, fallback string) string {
-	if e != nil {
-		for _, id := range e.Identities {
-			if id.UserId != nil && id.UserId.Email != "" {
-				return id.UserId.Email
-			}
+func identityOf(e *openpgp.Entity, authors []string, fallback string) string {
+	for _, author := range authors {
+		if claimsAddress(e, []string{author}) {
+			return author
 		}
 	}
 	return fallback

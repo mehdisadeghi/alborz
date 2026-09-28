@@ -32,7 +32,7 @@ import (
 //
 // It streams: a folder does not fit in memory, and the reader should
 // see the file start rather than a spinner.
-func handleExportMbox(ctx *alborz.Context) error {
+func (p *plugin) handleExportMbox(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
@@ -61,7 +61,7 @@ func handleExportMbox(ctx *alborz.Context) error {
 	// Leaving the attachments out is a choice, and a choice gets the
 	// page rather than a menu row that decides for the reader.
 	if ctx.FormValue("ask") != "" {
-		return exportPage(ctx, uids, params)
+		return p.exportPage(ctx, uids, params)
 	}
 
 	name := mboxName
@@ -227,7 +227,7 @@ func copyWithoutAttachments(w *message.Writer, e *message.Entity, note string) e
 
 // writeMbox appends one message. The sender and the date of its
 // separator are the envelope's; nothing reads them, but a file without
-// them is not an mbox. Lines end as an mbox's do, in LF.
+// them is not an mbox. The writer turns CRLF into an mbox's LF.
 func writeMbox(archive *mbox.Writer, raw []byte, env *imap.Envelope) error {
 	var from string
 	when := time.Now()
@@ -243,7 +243,7 @@ func writeMbox(archive *mbox.Writer, raw []byte, env *imap.Envelope) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(bytes.ReplaceAll(raw, []byte("\r\n"), []byte("\n")))
+	_, err = w.Write(raw)
 	return err
 }
 
@@ -299,8 +299,8 @@ type ExportRenderData struct {
 // exportPage asks about a selection the reader has already made: the
 // same page, counting what was picked rather than what the folder
 // holds.
-func exportPage(ctx *alborz.Context, uids []imap.UID, form url.Values) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+func (p *plugin) exportPage(ctx *alborz.Context, uids []imap.UID, form url.Values) error {
+	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -315,12 +315,12 @@ func exportPage(ctx *alborz.Context, uids []imap.UID, form url.Values) error {
 // handleExportPage asks before a folder leaves: a whole folder is not
 // a casual click, and this is where the archive's size and the choice
 // to leave attachments out belong, rather than in a menu.
-func handleExportPage(ctx *alborz.Context) error {
+func (p *plugin) handleExportPage(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
 	}
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -376,8 +376,8 @@ const importMaxSize = 1 << 30
 // for it. Never into one that exists: the form names the folder, the
 // file's own name as the default, and the server refuses a name taken,
 // which is what keeps an import from landing in somebody's inbox.
-func handleImport(ctx *alborz.Context) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+func (p *plugin) handleImport(ctx *alborz.Context) error {
+	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -386,7 +386,7 @@ func handleImport(ctx *alborz.Context) error {
 	if ctx.URLAccount() != "" {
 		selectedAccount = ctx.URLAccount()
 	}
-	locationGroups := newMailboxLocationGroups(ctx)
+	locationGroups := p.newMailboxLocationGroups(ctx)
 	selectedLocation := ""
 	for _, group := range locationGroups {
 		if group.Account == selectedAccount && len(group.Locations) > 0 {
@@ -464,7 +464,7 @@ func handleImport(ctx *alborz.Context) error {
 		count, held, err = appendMessages(c, fullName, file, map[string]bool{})
 		return err
 	})
-	accountChanged(selectedAccount)
+	p.accountChanged(selectedAccount)
 	if importErr != nil {
 		ctx.Logger().Printf("import into %q stopped after %d: %v", fullName, count, importErr)
 		ctx.PutNotice(ctx.Tf("notice.importstopped", count, fullName))
@@ -585,7 +585,7 @@ func importBodyError(err error) error {
 // handleDropImport takes files dropped on a folder and puts their
 // messages in that folder. The drop names the destination, so there is
 // nothing left to ask; the answer is the notice the page will show.
-func handleDropImport(ctx *alborz.Context) error {
+func (p *plugin) handleDropImport(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
@@ -642,16 +642,16 @@ func handleDropImport(ctx *alborz.Context) error {
 		}
 	})
 	if bodyErr != nil {
-		accountChanged(account)
+		p.accountChanged(account)
 		return importBodyError(bodyErr)
 	}
 	if importErr != nil {
-		accountChanged(account)
+		p.accountChanged(account)
 		ctx.Logger().Printf("drop into %q stopped after %d: %v", mboxName, count, importErr)
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.Tf("notice.importstopped", count, mboxName)})
 		return ctx.NoContent(http.StatusOK)
 	}
-	accountChanged(account)
+	p.accountChanged(account)
 	ctx.Notify(alborz.Notice{Text: ctx.Tf("notice.imported", count, mboxName)})
 	if held > 0 {
 		ctx.Notify(alborz.Notice{Text: ctx.Tf("notice.importheld", held)})
@@ -682,8 +682,9 @@ func messageDate(raw []byte) time.Time {
 const mboxSeparator = "From "
 
 // mboxMessages hands out the messages of an mbox one at a time, in the
-// CRLF form the server wants. A file that does not open with a
-// separator is one message, which is what a dropped .eml is.
+// CRLF form the server wants, which go-mbox's reader gives. A file that
+// does not open with a separator is one message, which is what a
+// dropped .eml is.
 func mboxMessages(r io.Reader) func() ([]byte, error) {
 	buffered := bufio.NewReader(r)
 	if head, _ := buffered.Peek(len(mboxSeparator)); string(head) != mboxSeparator {
@@ -707,7 +708,6 @@ func mboxMessages(r io.Reader) func() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		raw, err := io.ReadAll(message)
-		return crlf(raw), err
+		return io.ReadAll(message)
 	}
 }

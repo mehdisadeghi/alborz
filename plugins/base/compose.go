@@ -224,7 +224,7 @@ func (err refused) Error() string { return err.cause.Error() }
 // answered. The sender is the account chosen in the From dropdown; the
 // draft and the message being answered belong to the request's own
 // account, whose mailbox and UID the URL named.
-func submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
+func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
 	err := sender.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, msg)
 	})
@@ -279,8 +279,8 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessa
 		}
 	}
 
-	accountChanged(ctx.Login.Username())
-	accountChanged(sender.Username())
+	p.accountChanged(ctx.Login.Username())
+	p.accountChanged(sender.Username())
 	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.sent")}
 	if sent != nil && sentUID != 0 {
 		// The copy is in the sending account's Sent, which need not be
@@ -293,8 +293,8 @@ func submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessa
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 }
 
-func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOptions) error {
-	ibase, err := newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOptions) error {
+	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -593,12 +593,12 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 				if err != nil {
 					return refused{"form.draftrefused", err}
 				}
-				accountChanged(ctx.Login.Username())
+				p.accountChanged(ctx.Login.Username())
 				ctx.PutNotice(ctx.T("notice.draftsaved"))
 				return ctx.Redirect(http.StatusFound, fmt.Sprintf(
 					"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
 			}
-			return submitCompose(ctx, sender, msg, options)
+			return p.submitCompose(ctx, sender, msg, options)
 		})
 	}
 
@@ -614,7 +614,7 @@ func handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOp
 	if data.Extra == nil {
 		data.Extra = make(map[string]interface{})
 	}
-	data.Extra["EmailSuggestions"] = gatherCorrespondents(ctx.Login)
+	data.Extra["EmailSuggestions"] = p.gatherCorrespondents(ctx.Login)
 	return ctx.Render(http.StatusOK, "compose.html", data)
 }
 
@@ -629,8 +629,6 @@ const correspondentTTL = 10 * time.Minute
 // not what the writer is reaching for.
 const correspondentDepth = 200
 
-var correspondents = alborz.NewMemo[[]string](correspondentTTL)
-
 // gatherCorrespondents returns the addresses this account has written to
 // and heard from. A contact list holds the people you decided to keep;
 // this holds the people you actually exchange mail with, which is not
@@ -641,8 +639,8 @@ var correspondents = alborz.NewMemo[[]string](correspondentTTL)
 // It never waits. Reading two folders is far too much to put in front of
 // a blank compose form, so the list is built in the background and the
 // form gets whatever is ready - on a cold login, nothing.
-func gatherCorrespondents(s *alborz.Login) []string {
-	return correspondents.Warm(s.Username(), func() ([]string, error) {
+func (p *plugin) gatherCorrespondents(s *alborz.Login) []string {
+	return p.correspondents.Warm(s.Username(), func() ([]string, error) {
 		seen := make(map[string]string)
 		keep := func(addrs []imap.Address) {
 			for _, a := range addrs {
@@ -723,7 +721,7 @@ func withSignature(body, text string) string {
 	return body + "\n\n\n-- \n" + text
 }
 
-func handleComposeNew(ctx *alborz.Context) error {
+func (p *plugin) handleComposeNew(ctx *alborz.Context) error {
 	// Where a mailto: link arrives when the browser has been told this
 	// application opens them. Only a mailto URI is followed:
 	// composeFromMailto hands anything else straight back, and
@@ -748,8 +746,8 @@ func handleComposeNew(ctx *alborz.Context) error {
 	}
 
 	// These are common mailto URL query parameters
-	return handleCompose(ctx, &OutgoingMessage{
-		From:      ownIdentity(settings, newDeliveryTrust(ctx, settings, ctx.Login.Username()), ctx.QueryParam("from")),
+	return p.handleCompose(ctx, &OutgoingMessage{
+		From:      ownIdentity(settings, p.newDeliveryTrust(ctx, settings, ctx.Login.Username()), ctx.QueryParam("from")),
 		To:        strings.Split(ctx.QueryParam("to"), ","),
 		Subject:   ctx.QueryParam("subject"),
 		MessageID: newMessageID(),
@@ -810,7 +808,7 @@ func unwrapIMAPAddress(addr imap.Address) string {
 	return address
 }
 
-func handleReply(ctx *alborz.Context) error {
+func (p *plugin) handleReply(ctx *alborz.Context) error {
 	var inReplyToPath messagePath
 	var err error
 	inReplyToPath.Mailbox, inReplyToPath.Uid, err = messageRef(ctx)
@@ -820,13 +818,13 @@ func handleReply(ctx *alborz.Context) error {
 
 	var msg OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		msg, err = populateMessageFromOriginalMessage(ctx, inReplyToPath)
+		msg, err = p.populateMessageFromOriginalMessage(ctx, inReplyToPath)
 		if err != nil {
 			return err
 		}
 	}
 
-	return handleCompose(ctx, &msg, &composeOptions{InReplyTo: &inReplyToPath})
+	return p.handleCompose(ctx, &msg, &composeOptions{InReplyTo: &inReplyToPath})
 }
 
 // quotablePart fetches the part a reply or a forward should quote. A
@@ -869,7 +867,7 @@ func quotablePart(ctx *alborz.Context, path messagePath, partPath []int) (*IMAPM
 	return msg, part, mimeType, nil
 }
 
-func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
+func (p *plugin) populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
 	var ret OutgoingMessage
 
 	partPath, err := parsePartPath(ctx.QueryParam("part"))
@@ -929,7 +927,7 @@ func populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messa
 	// of ours: a mail to an identity is answered by that identity, not
 	// by the account behind it. Cc counts as well, since a list often
 	// puts the identity there.
-	ret.From = writeAs(settings, newDeliveryTrust(ctx, settings, ctx.Login.Username()),
+	ret.From = writeAs(settings, p.newDeliveryTrust(ctx, settings, ctx.Login.Username()),
 		inReplyTo, inReplyTo.Envelope.To, inReplyTo.Envelope.Cc)
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
@@ -1133,7 +1131,7 @@ func handleForwardSelection(ctx *alborz.Context) error {
 // handleForwardAttached composes one message carrying several whole
 // ones. It is a GET so the page can be reloaded and so compose sees the
 // request it expects; the selection arrives in the query.
-func handleForwardAttached(ctx *alborz.Context) error {
+func (p *plugin) handleForwardAttached(ctx *alborz.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
@@ -1155,10 +1153,10 @@ func handleForwardAttached(ctx *alborz.Context) error {
 		msg.Subject = ctx.Tf("message.forwardcount", len(uids))
 		msg.QuoteBelow = true
 	}
-	return handleCompose(ctx, &msg, &composeOptions{Attached: paths})
+	return p.handleCompose(ctx, &msg, &composeOptions{Attached: paths})
 }
 
-func handleForward(ctx *alborz.Context) error {
+func (p *plugin) handleForward(ctx *alborz.Context) error {
 	var sourcePath messagePath
 	var err error
 	sourcePath.Mailbox, sourcePath.Uid, err = messageRef(ctx)
@@ -1227,10 +1225,10 @@ func handleForward(ctx *alborz.Context) error {
 		}
 	}
 
-	return handleCompose(ctx, &msg, &composeOptions{Forward: &sourcePath})
+	return p.handleCompose(ctx, &msg, &composeOptions{Forward: &sourcePath})
 }
 
-func handleEdit(ctx *alborz.Context) error {
+func (p *plugin) handleEdit(ctx *alborz.Context) error {
 	var sourcePath messagePath
 	var err error
 	sourcePath.Mailbox, sourcePath.Uid, err = messageRef(ctx)
@@ -1297,7 +1295,7 @@ func handleEdit(ctx *alborz.Context) error {
 		}
 	}
 
-	return handleCompose(ctx, &msg, &composeOptions{Draft: &sourcePath})
+	return p.handleCompose(ctx, &msg, &composeOptions{Draft: &sourcePath})
 }
 
 func formatMsgIDList(l []string) string {

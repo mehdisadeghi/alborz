@@ -29,11 +29,11 @@ func TestSubscriptionFetchParseAndServe(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &subCache{entries: map[string]*subEntry{}}
-	if err := c.refresh(srv.Client(), srv.URL); err != nil {
+	c := newSubCache(subRefreshAfter)
+	if _, err := c.refresh(srv.Client(), srv.URL); err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
-	obj, ok := c.events(srv.URL, "#123456")
+	obj, ok := c.events(srv.Client(), srv.URL, "#123456")
 	if !ok {
 		t.Fatal("the fetched feed served no events")
 	}
@@ -48,13 +48,13 @@ func TestSubscriptionFetchParseAndServe(t *testing.T) {
 	}
 	// A second refresh sends the ETag; the server answers 304 and the
 	// events survive.
-	if err := c.refresh(srv.Client(), srv.URL); err != nil {
+	if _, err := c.refresh(srv.Client(), srv.URL); err != nil {
 		t.Fatalf("second refresh: %v", err)
 	}
 	if hits != 2 {
 		t.Fatalf("server saw %d requests, want 2", hits)
 	}
-	if _, ok := c.events(srv.URL, "#123456"); !ok {
+	if _, ok := c.events(srv.Client(), srv.URL, "#123456"); !ok {
 		t.Fatal("the feed lost its events after a not-modified refresh")
 	}
 }
@@ -84,15 +84,16 @@ func TestSubscriptionIsACalendarInTheRail(t *testing.T) {
 	if info.Address != srv.URL || info.Writable || !supportsEvent(info.Components) || supportsTodo(info.Components) {
 		t.Fatalf("rail entry: %+v", info)
 	}
-	if err := subs.refresh(srv.Client(), srv.URL); err != nil {
+	p := &plugin{subs: newSubCache(subRefreshAfter)}
+	if _, err := p.subs.refresh(srv.Client(), srv.URL); err != nil {
 		t.Fatal(err)
 	}
 	info.Shown = false
-	if got := subscriptionObjects(srv.Client(), []dav.Collection{info}, ""); len(got) != 0 {
+	if got := p.subscriptionObjects(srv.Client(), []dav.Collection{info}, ""); len(got) != 0 {
 		t.Errorf("a hidden subscription drew %d objects", len(got))
 	}
 	info.Shown = true
-	got := subscriptionObjects(srv.Client(), []dav.Collection{info}, "")
+	got := p.subscriptionObjects(srv.Client(), []dav.Collection{info}, "")
 	if len(got) != 1 || !got[0].ReadOnly || got[0].Color != "#123456" {
 		t.Fatalf("a visible subscription drew %+v", got)
 	}

@@ -84,8 +84,10 @@ func main() {
 	flag.StringVar(&publicURL, "public-url", "",
 		"where readers reach alborz, such as https://mail.example.org, for links in mail and addresses shown to other clients (or $LBRZ_PUBLIC_URL); unset uses each request's own")
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key for login persistence (or $LBRZ_LOGIN_KEY)")
+	flag.BoolVar(&options.Cache, "cache", true,
+		"keep what the servers answered, so pages open without asking again; false asks every time and keeps nothing")
 	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
-		"directory keeping the calendar and contacts cache between runs, sealed under the login key; empty keeps it in memory")
+		"directory where caches that keep data between runs put it, sealed under the login key; empty keeps them in memory")
 	// The working directory, the way a daemon told nothing keeps its
 	// state: the unit says where alborz runs and the file lands there.
 	flag.StringVar(&options.DataDir, "data-dir", ".",

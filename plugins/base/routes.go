@@ -9,76 +9,76 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func registerRoutes(p *alborz.GoPlugin) {
+func (p *plugin) registerRoutes() {
 	p.GET("/", func(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	})
 
-	p.GET("/mailbox/:mbox", handleGetMailbox)
-	p.GET("/mail/sidebar", handleSidebar)
-	p.GET("/search", handleSearch)
-	p.GET("/mailbox/:mbox/empty", handleEmptyMailbox)
-	p.POST("/mailbox/:mbox/empty", handleEmptyMailbox)
-	p.POST("/mailbox/:role/empty-all", handleEmptyAllMailbox)
-	p.POST("/mailbox/:role/all/act", handleUnifiedAct)
-	p.POST("/mailbox/:mbox", handleGetMailbox)
+	p.GET("/mailbox/:mbox", p.handleGetMailbox)
+	p.GET("/mail/sidebar", p.handleSidebar)
+	p.GET("/search", p.handleSearch)
+	p.GET("/mailbox/:mbox/empty", p.handleEmptyMailbox)
+	p.POST("/mailbox/:mbox/empty", p.handleEmptyMailbox)
+	p.POST("/mailbox/:role/empty-all", p.handleEmptyAllMailbox)
+	p.POST("/mailbox/:role/all/act", p.handleUnifiedAct)
+	p.POST("/mailbox/:mbox", p.handleGetMailbox)
 
-	p.GET("/new-mailbox", handleNewMailbox)
-	p.POST("/new-mailbox", handleNewMailbox)
-	p.GET("/import", handleImport)
-	p.POST("/import", handleImport)
+	p.GET("/new-mailbox", p.handleNewMailbox)
+	p.POST("/new-mailbox", p.handleNewMailbox)
+	p.GET("/import", p.handleImport)
+	p.POST("/import", p.handleImport)
 
-	p.GET("/rename-mailbox/:mbox", handleRenameMailbox)
-	p.POST("/rename-mailbox/:mbox", handleRenameMailbox)
-	p.GET("/delete-mailbox/:mbox", handleDeleteMailbox)
-	p.POST("/delete-mailbox/:mbox", handleDeleteMailbox)
+	p.GET("/rename-mailbox/:mbox", p.handleRenameMailbox)
+	p.POST("/rename-mailbox/:mbox", p.handleRenameMailbox)
+	p.GET("/delete-mailbox/:mbox", p.handleDeleteMailbox)
+	p.POST("/delete-mailbox/:mbox", p.handleDeleteMailbox)
 
 	p.GET("/message/:mbox/:uid", func(ctx *alborz.Context) error {
-		return handleGetPart(ctx, false)
+		return p.handleGetPart(ctx, false)
 	})
 	p.GET("/message/:mbox/:uid/raw", func(ctx *alborz.Context) error {
-		return handleGetPart(ctx, true)
+		return p.handleGetPart(ctx, true)
 	})
 	p.GET("/message/:mbox/:uid/attachments.zip", handleDownloadAttachments)
 	p.GET("/message/:mbox/:uid/eml", func(ctx *alborz.Context) error {
 		return handleDownloadMessage(ctx, false)
 	})
 	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
-	p.POST("/mailbox/:mbox/refresh", handleRefreshMailbox)
-	p.POST("/mailbox/:mbox/import", handleDropImport)
-	p.GET("/message/:mbox/export", handleExportPage)
-	p.POST("/message/:mbox/export", handleExportMbox)
+	p.POST("/mailbox/:mbox/refresh", p.handleRefreshMailbox)
+	p.POST("/mailbox/:mbox/import", p.handleDropImport)
+	p.GET("/message/:mbox/export", p.handleExportPage)
+	p.POST("/message/:mbox/export", p.handleExportMbox)
 
 	p.GET("/login", handleLogin)
 	p.POST("/login", handleLogin)
 
 	p.POST("/logout", handleLogout)
-	registerPasskeyRoutes(p)
+	registerPasskeyRoutes(&p.GoPlugin)
 
-	p.GET("/compose", handleComposeNew)
-	p.POST("/compose", handleComposeNew)
+	p.GET("/compose", p.handleComposeNew)
+	p.POST("/compose", p.handleComposeNew)
 
 	p.POST("/compose/attachment", handleComposeAttachment)
 	p.GET("/compose/attachment/:uuid", handleGetAttachment)
 	p.POST("/compose/attachment/:uuid/remove", handleCancelAttachment)
 
-	p.GET("/message/:mbox/:uid/reply", handleReply)
-	p.POST("/message/:mbox/:uid/reply", handleReply)
+	p.GET("/message/:mbox/:uid/reply", p.handleReply)
+	p.POST("/message/:mbox/:uid/reply", p.handleReply)
 
-	p.GET("/message/:mbox/:uid/forward", handleForward)
-	p.POST("/message/:mbox/:uid/forward", handleForward)
+	p.GET("/message/:mbox/:uid/forward", p.handleForward)
+	p.POST("/message/:mbox/:uid/forward", p.handleForward)
 	p.POST("/message/:mbox/forward", handleForwardSelection)
 	p.POST("/message/:mbox/:uid/unsubscribe", handleUnsubscribe)
-	p.GET("/message/:mbox/forward", handleForwardAttached)
+	p.GET("/message/:mbox/forward", p.handleForwardAttached)
 
-	p.GET("/message/:mbox/:uid/edit", handleEdit)
-	p.POST("/message/:mbox/:uid/edit", handleEdit)
+	p.GET("/message/:mbox/:uid/edit", p.handleEdit)
+	p.POST("/message/:mbox/:uid/edit", p.handleEdit)
 
-	p.POST("/message/:mbox/move", handleMove)
+	p.POST("/message/:mbox/move", p.handleMove)
 
-	p.POST("/message/:mbox/delete", handleDelete)
+	p.POST("/message/:mbox/delete", p.handleDelete)
 
-	p.POST("/message/:mbox/flag", handleSetFlags)
+	p.POST("/message/:mbox/flag", p.handleSetFlags)
 
 	// Settings are one account's, so a bare URL with several signed in
 	// names the account it opened on, and the page is where it says.
@@ -108,9 +108,9 @@ func registerRoutes(p *alborz.GoPlugin) {
 	p.GET("/settings/servers", scoped(handleServers))
 	p.GET("/settings/servers/:server", scoped(handleServer))
 	p.POST("/settings/servers/:server", scoped(handleServer))
-	p.GET("/settings/account", scoped(handleSettings))
-	p.POST("/settings/account", handleSettings)
-	p.POST("/settings/account/forget", handleForget)
+	p.GET("/settings/account", scoped(p.handleSettings))
+	p.POST("/settings/account", p.handleSettings)
+	p.POST("/settings/account/forget", p.handleForget)
 	p.POST("/language", handleLanguage)
 }
 

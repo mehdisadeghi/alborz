@@ -1,6 +1,7 @@
 package alborzbase
 
 import (
+	"bufio"
 	"sort"
 	"strings"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-message/textproto"
 )
 
 // Which server may be believed about a sender cannot be guessed from the
@@ -34,13 +36,11 @@ const (
 	authSampleTTL = time.Hour
 )
 
-var authServGuesses = alborz.NewMemo[string](authSampleTTL)
-
 // SuggestAuthServ names what this account's own server appears to call
 // itself, empty when nothing is clear enough to offer.
-func SuggestAuthServ(ctx *alborz.Context) string {
+func (p *plugin) SuggestAuthServ(ctx *alborz.Context) string {
 	login := ctx.Login
-	return authServGuesses.Warm(login.Username(), func() (string, error) {
+	return p.authServGuesses.Warm(login.Username(), func() (string, error) {
 		return sampleAuthServ(login)
 	})
 }
@@ -112,23 +112,15 @@ func sampleAuthServ(login *alborz.Login) (string, error) {
 // the one that took delivery. Header order is newest first, so the first
 // of each is the last hop - our own server.
 func topAuthServ(header string) (id string, confirmed bool) {
+	h, _ := textproto.ReadHeader(bufio.NewReader(strings.NewReader(header)))
+	for _, v := range h.Values("Authentication-Results") {
+		if id, _, _ = parseAuthResults(v); id != "" {
+			break
+		}
+	}
 	var by string
-	for _, line := range unfold(header) {
-		name, value, ok := strings.Cut(line, ":")
-		if !ok {
-			continue
-		}
-		switch strings.ToLower(strings.TrimSpace(name)) {
-		case "authentication-results":
-			if id == "" {
-				id, _, _ = parseAuthResults(value)
-			}
-		case "received":
-			if by == "" {
-				by = receivedBy(value)
-			}
-		}
-		if id != "" && by != "" {
+	for _, v := range h.Values("Received") {
+		if by = receivedBy(v); by != "" {
 			break
 		}
 	}
@@ -158,24 +150,6 @@ func sameHost(a, b string) bool {
 	return a == b ||
 		strings.HasSuffix(a, "."+b) ||
 		strings.HasSuffix(b, "."+a)
-}
-
-// unfold joins the continuation lines a header may be wrapped over
-// (RFC 5322 2.2.3), so a value split across lines is read whole.
-func unfold(header string) []string {
-	var lines []string
-	for _, line := range strings.Split(header, "\n") {
-		line = strings.TrimRight(line, "\r")
-		if line == "" {
-			continue
-		}
-		if (strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")) && len(lines) > 0 {
-			lines[len(lines)-1] += " " + strings.TrimSpace(line)
-			continue
-		}
-		lines = append(lines, line)
-	}
-	return lines
 }
 
 // dominant returns the id worth offering: the most common, and only when
@@ -218,9 +192,9 @@ func serverFamily(id string) string {
 // TrustedAuthServ is the id whose verdicts are believed for this
 // account: the one the reader confirmed, or else the one observed on
 // the account's own deliveries.
-func TrustedAuthServ(ctx *alborz.Context, settings *Settings) string {
+func (p *plugin) TrustedAuthServ(ctx *alborz.Context, settings *Settings) string {
 	if settings.TrustedAuthServ != "" {
 		return settings.TrustedAuthServ
 	}
-	return SuggestAuthServ(ctx)
+	return p.SuggestAuthServ(ctx)
 }

@@ -28,6 +28,7 @@ func startAlborzKept(t *testing.T, imapAddr string) string {
 		ThemesPath: "./themes",
 		LoginKey:   key,
 		DataDir:    t.TempDir(),
+		Cache:      true,
 	}); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}

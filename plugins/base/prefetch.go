@@ -32,38 +32,38 @@ func readOn(s *alborz.Login, class alborz.IMAPClass, bound time.Duration, fetch 
 // cachedListing is a view as the cache holds it, a stale entry checked
 // behind the page, and read through the cache when it holds none.
 // Revalidation also covers gaps while the IDLE connection is down.
-func cachedListing(ctx *alborz.Context, s *alborz.Login, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
+func (p *plugin) cachedListing(ctx *alborz.Context, s *alborz.Login, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
 	// A folder the watcher saw change is read again rather than shown:
 	// the reader was told mail arrived - the count beside the folder
 	// moved - and a page drawn from what the cache held says the
 	// opposite, however quickly it renders.
-	if e, state := listings.lookup(s.Username(), view, size); e != nil && state != listingChanged {
+	if e, state := p.listings.lookup(s.Username(), view, size); e != nil && state != listingChanged {
 		alborz.CacheTiming(ctx.Request().Context(), "listing", true)
 		if state == listingStale {
-			revalidate(s, view, e, folder, fetch)
+			p.revalidate(s, view, e, folder, fetch)
 		}
 		return e, nil
 	}
-	return loadListing(ctx, s, view, size, spec, fetch)
+	return p.loadListing(ctx, s, view, size, spec, fetch)
 }
 
-func loadListing(ctx *alborz.Context, s *alborz.Login, view string, size int, spec listingSpec, fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
+func (p *plugin) loadListing(ctx *alborz.Context, s *alborz.Login, view string, size int, spec listingSpec, fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
 	alborz.CacheTiming(ctx.Request().Context(), "listing", false)
 	class, bound := listingBudget(spec)
-	return listings.load(ctx.Request().Context(), s.Username(), view, size, false, readOn(s, class, bound, fetch))
+	return p.listings.load(ctx.Request().Context(), s.Username(), view, size, false, readOn(s, class, bound, fetch))
 }
 
-func prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page, perPage int) {
+func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page, perPage int) {
 	key := listingPage(listingView(spec.mbox, spec.query, spec.view, spec.sortKey, spec.sortDir), page, perPage)
-	if e, _ := listings.lookup(s.Username(), key, perPage); e != nil {
+	if e, _ := p.listings.lookup(s.Username(), key, perPage); e != nil {
 		return
 	}
-	if !listings.claim(s.Username(), key) {
+	if !p.listings.claim(s.Username(), key) {
 		return
 	}
 	go func() {
-		defer listings.release(s.Username(), key)
-		listings.load(context.Background(), s.Username(), key, perPage, true, readOn(s, alborz.IMAPBackground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
+		defer p.listings.release(s.Username(), key)
+		p.listings.load(context.Background(), s.Username(), key, perPage, true, readOn(s, alborz.IMAPBackground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
 			return fetchListing(c, s.Username(), spec, settings, page, perPage)
 		}))
 		// Bodies are fetched only for pages actually visited. Speculative

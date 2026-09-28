@@ -118,6 +118,9 @@ func newUser(poll time.Duration) *user {
 	}
 }
 
+// Cache is one kind's cache across accounts. A nil Cache holds nothing:
+// its transport is the one it wraps, and there is nothing to refresh,
+// forget or stop.
 type Cache struct {
 	mu    sync.Mutex
 	users map[string]*user
@@ -152,6 +155,9 @@ func New(store *Store, poll time.Duration) (*Cache, int, error) {
 // the page after the click would still show what the reader asked to
 // get past.
 func (c *Cache) Refresh(ctx context.Context, username string) {
+	if c == nil {
+		return
+	}
 	u := c.user(username)
 	ctx, cancel := context.WithTimeout(ctx, refreshBudget)
 	defer cancel()
@@ -180,11 +186,17 @@ func (c *Cache) Refresh(ctx context.Context, username string) {
 }
 
 func (c *Cache) Start() {
+	if c == nil {
+		return
+	}
 	c.wg.Add(1)
 	go c.refreshLoop()
 }
 
 func (c *Cache) Stop() {
+	if c == nil {
+		return
+	}
 	close(c.stop)
 	c.wg.Wait()
 	c.flush()
@@ -231,6 +243,9 @@ func (c *Cache) user(username string) *user {
 // Forget drops everything held for a user, on disk too. Signing out
 // ends the only authority the cache had to hold it.
 func (c *Cache) Forget(username string) {
+	if c == nil {
+		return
+	}
 	c.mu.Lock()
 	delete(c.users, username)
 	c.mu.Unlock()
@@ -242,6 +257,9 @@ func (c *Cache) Forget(username string) {
 // Transport wraps next with the cache for one user. The jar authenticates
 // background replays the same way foreground requests are.
 func (c *Cache) Transport(username string, next http.RoundTripper) http.RoundTripper {
+	if c == nil {
+		return next
+	}
 	return &transport{
 		cache:    c,
 		username: username,

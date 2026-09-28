@@ -63,7 +63,7 @@ func (p *plugin) collectionPage() dav.Page {
 				}
 				sub := settings.Subscriptions[i]
 				return sub.info(ctx.Login.Username()),
-					func() int { return subs.count(sub.URL) }, "/calendar", ctx.T("nav.calendar"), nil
+					func() int { return p.subs.count(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), sub.URL) }, "/calendar", ctx.T("nav.calendar"), nil
 			}
 			_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 			if err != nil {
@@ -224,14 +224,17 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL))
 			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
 		}
-		if err := subs.refresh(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), sub.URL); err != nil {
+		cal, err := p.subs.refresh(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), sub.URL)
+		if err != nil {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.feedfailed"), sub.URL, err))
 			if errors.Is(err, errNotFeed) {
 				data.Refused(fmt.Sprintf(ctx.T("calendar.notfeed"), sub.URL))
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "subscribe-calendar.html", data)
 		}
-		sub.Name = subs.name(sub.URL)
+		if cal != nil {
+			sub.Name = feedName(cal)
+		}
 		if sub.Name == "" {
 			sub.Name = feedHost(sub.URL)
 		}

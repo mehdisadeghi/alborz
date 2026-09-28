@@ -110,7 +110,7 @@ func folderViewUIDs(ctx *alborz.Context, mboxName, query, view string) ([]imap.U
 // mergedSelection is the same for a list whose rows are several
 // folders': the role's folder in every account, or for a search across
 // folders every folder the query reaches.
-func mergedSelection(ctx *alborz.Context, role string, form url.Values) ([]rowRef, error) {
+func (p *plugin) mergedSelection(ctx *alborz.Context, role string, form url.Values) ([]rowRef, error) {
 	query, view, whole := wholeView(form)
 	if !whole {
 		refs, err := parseRefs(form["refs"])
@@ -137,7 +137,7 @@ func mergedSelection(ctx *alborz.Context, role string, form url.Values) ([]rowRe
 	for _, s := range logins {
 		var folders []string
 		if spanning {
-			sb, err := sidebarFor(s)
+			sb, err := p.sidebarFor(s)
 			if err != nil {
 				return nil, err
 			}
@@ -145,7 +145,7 @@ func mergedSelection(ctx *alborz.Context, role string, form url.Values) ([]rowRe
 		}
 		err := s.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, alborz.ScanTimeout, func(c *imapclient.Client) error {
 			if !spanning {
-				folder, err := resolveRole(c, s.Username(), role)
+				folder, err := p.resolveRole(c, s.Username(), role)
 				if err != nil || folder == "" {
 					return err
 				}

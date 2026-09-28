@@ -323,10 +323,8 @@ const (
 	senderBookSpan = 2000
 )
 
-var senderBooks = alborz.NewMemo[*senderBook](senderBookTTL)
-
-func senderBookFor(s *alborz.Login) *senderBook {
-	return senderBooks.Warm(s.Username(), func() (*senderBook, error) {
+func (p *plugin) senderBookFor(s *alborz.Login) *senderBook {
+	return p.senderBooks.Warm(s.Username(), func() (*senderBook, error) {
 		book := &senderBook{}
 		err := s.DoIMAPBackground(func(c *imapclient.Client) error {
 			authors, _, err := addressesIn(c, "inbox", func(env *imap.Envelope) []imap.Address { return env.From })

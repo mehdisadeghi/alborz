@@ -121,7 +121,7 @@ type GoPlugin struct {
 	// name in plugins/<name>/public on disk overrides its embedded
 	// counterpart. Nil means the plugin ships no templates or assets.
 	Files fs.FS
-	// CloseFunc releases plugin resources on server close or reload;
+	// CloseFunc releases plugin resources on server close;
 	// nil means nothing to release.
 	CloseFunc func() error
 	// EnabledFunc reports per-request availability; nil means always

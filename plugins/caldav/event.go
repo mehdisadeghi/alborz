@@ -267,7 +267,7 @@ func (p *plugin) event(ctx *alborz.Context) error {
 // the page is given a calendar holding that event alone, with the
 // zones it may refer to. Nothing on it can be edited.
 func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
-	info, cal, err := feedObject(ctx, address, ctx.QueryParam("uid"))
+	info, cal, err := p.feedObject(ctx, address, ctx.QueryParam("uid"))
 	if err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 // own, with the zones it may refer to. A subscription is the account's
 // own, kept in its settings beside the server's calendars rather than
 // among them.
-func feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ical.Calendar, error) {
+func (p *plugin) feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ical.Calendar, error) {
 	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, nil, err
@@ -312,7 +312,7 @@ func feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ica
 	if info == nil {
 		return nil, nil, alborz.NotFound("notfound.subscription", address)
 	}
-	feed, ok := subs.events(address, info.Color)
+	feed, ok := p.subs.events(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), address, info.Color)
 	if !ok {
 		return nil, nil, alborz.NotFound("notfound.feed", address)
 	}

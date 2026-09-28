@@ -509,11 +509,6 @@ func (s *Server) parseSMTPUpstream(domain string) error {
 }
 
 func (s *Server) load() error {
-	// Reload runs the loaders again, and a plugin that registered a
-	// callback last time is about to register it again. Start empty so
-	// the list does not grow a stale entry per reload.
-	s.OnAccountGone = nil
-	s.OnAccountReady = nil
 	var plugins []Plugin
 	for _, load := range pluginLoaders {
 		l, err := load(s)
@@ -536,13 +531,6 @@ func (s *Server) load() error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Close previous plugins
-	for _, p := range s.plugins {
-		if err := p.Close(); err != nil {
-			s.e.Logger.Printf("Failed to unload plugin %q: %v", p.Name(), err)
-		}
-	}
-
 	s.plugins = plugins
 	s.e.Renderer = renderer
 
@@ -553,10 +541,18 @@ func (s *Server) load() error {
 	return nil
 }
 
-// Reload loads plugins and templates from disk.
+// Reload reads the templates from disk again. The plugins stay: they
+// hold the caches and the watchers that keep them true.
 func (s *Server) Reload() error {
-	s.e.Logger.Printf("Reloading server")
-	return s.load()
+	s.e.Logger.Printf("Reloading templates")
+	renderer := newRenderer(s.e.Logger, s.Options.ThemesPath, s.Options.Theme)
+	if err := renderer.Load(s.plugins); err != nil {
+		return fmt.Errorf("failed to load templates: %v", err)
+	}
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.e.Renderer = renderer
+	return nil
 }
 
 // Logger returns this server's logger.
@@ -812,10 +808,14 @@ type Options struct {
 	ThemesPath string
 	Debug      bool
 	LoginKey   *fernet.Key
-	// CacheDir keeps the calendar and contacts cache between runs,
-	// sealed under LoginKey; empty, or no key, keeps it in memory.
-	// Nothing here is missed if it is deleted, which is what makes it
-	// a cache.
+	// Cache keeps what the servers answered, so a page can be drawn
+	// without asking them again. Off, every page asks and nothing is
+	// kept: alborz is slower, and no less right.
+	Cache bool
+	// CacheDir is where a cache that keeps data between runs puts it,
+	// sealed under LoginKey; empty, or no key, keeps it in memory. Read
+	// only with Cache on. Nothing here is missed if it is deleted,
+	// which is what makes it a cache.
 	CacheDir string
 	// DataDir keeps what a reader would miss: the sessions that remember
 	// an account, what they read by, and the settings of an account
@@ -842,6 +842,15 @@ type Options struct {
 	// wants to point somewhere. Empty by default: a deployment is not the
 	// author's, and no address of anyone's belongs in a shipped binary.
 	ProjectURL string
+}
+
+// CacheFor is how long a cache keeps what it holds: d, or nothing with
+// caching off.
+func (o *Options) CacheFor(d time.Duration) time.Duration {
+	if !o.Cache {
+		return 0
+	}
+	return d
 }
 
 // New creates a new server.

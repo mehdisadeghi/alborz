@@ -5,16 +5,12 @@ import (
 	"time"
 )
 
-// Memo holds one derived value per user. It exists for upstream facts that
-// cost round trips to answer yet barely change, like which calendars an
-// account has or which folder carries a special-use role. Values are kept
-// as long as the process lives; the ttl only decides when one counts as
-// stale.
+// Memo holds one derived value per user, for upstream facts that cost
+// round trips yet barely change. Values live as long as the process; the
+// ttl decides when one is stale. A memo with no ttl holds nothing.
 type Memo[T any] struct {
 	ttl time.Duration
-	// A background memo serves a stale value as it is while one reload
-	// runs behind the scenes, so a returning user never waits on facts
-	// that almost never change.
+	// background serves a stale value while one reload runs behind.
 	background bool
 
 	mu      sync.Mutex
@@ -30,6 +26,34 @@ type memoEntry[T any] struct {
 	retryAfter time.Time
 }
 
+// entry is the user's, made when there is none.
+func (m *Memo[T]) entry(user string) *memoEntry[T] {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.entries[user]
+	if !ok {
+		e = &memoEntry[T]{}
+		m.entries[user] = e
+	}
+	return e
+}
+
+func (m *Memo[T]) held(user string) *memoEntry[T] {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.entries[user]
+}
+
+// settle ends a load begun at version, keeping what it read unless the
+// value was set meanwhile; the caller holds e.mu.
+func (e *memoEntry[T]) settle(version uint64, val T, err error) {
+	if err == nil && version == e.version {
+		e.val, e.fetched = val, time.Now()
+	}
+	close(e.loading)
+	e.loading = nil
+}
+
 // NewMemo returns a memo that reloads synchronously when stale.
 func NewMemo[T any](ttl time.Duration) *Memo[T] {
 	return &Memo[T]{ttl: ttl, entries: make(map[string]*memoEntry[T])}
@@ -39,9 +63,7 @@ func NewMemo[T any](ttl time.Duration) *Memo[T] {
 // reloads them in the background, one reload at a time. load must not
 // depend on its caller's lifetime.
 func NewBackgroundMemo[T any](ttl time.Duration) *Memo[T] {
-	m := NewMemo[T](ttl)
-	m.background = true
-	return m
+	return &Memo[T]{ttl: ttl, background: true, entries: make(map[string]*memoEntry[T])}
 }
 
 // Get returns the user's value, calling load when none is cached yet.
@@ -49,13 +71,10 @@ func NewBackgroundMemo[T any](ttl time.Duration) *Memo[T] {
 // running their own. Failures are not remembered, so the next caller
 // retries; a failed background reload leaves the old value standing.
 func (m *Memo[T]) Get(user string, load func() (T, error)) (T, error) {
-	m.mu.Lock()
-	e, ok := m.entries[user]
-	if !ok {
-		e = &memoEntry[T]{}
-		m.entries[user] = e
+	if m.ttl == 0 {
+		return load()
 	}
-	m.mu.Unlock()
+	e := m.entry(user)
 
 	for {
 		e.mu.Lock()
@@ -78,11 +97,7 @@ func (m *Memo[T]) Get(user string, load func() (T, error)) (T, error) {
 		e.mu.Unlock()
 		val, err := load()
 		e.mu.Lock()
-		if err == nil && version == e.version {
-			e.val, e.fetched = val, time.Now()
-		}
-		close(e.loading)
-		e.loading = nil
+		e.settle(version, val, err)
 		// A first load overtaken by Stale has nothing held to give way
 		// to: what it read is answered, and not kept.
 		if err == nil && !e.fetched.IsZero() {
@@ -105,13 +120,10 @@ func (m *Memo[T]) start(e *memoEntry[T], load func() (T, error)) {
 	go func() {
 		val, err := load()
 		e.mu.Lock()
-		if err == nil && version == e.version {
-			e.val, e.fetched = val, time.Now()
-		} else if err != nil {
+		if err != nil {
 			e.retryAfter = time.Now().Add(memoRetryDelay)
 		}
-		close(e.loading)
-		e.loading = nil
+		e.settle(version, val, err)
 		e.mu.Unlock()
 	}()
 }
@@ -122,13 +134,11 @@ func (m *Memo[T]) start(e *memoEntry[T], load func() (T, error)) {
 // which on a first visit is the zero value. load must not depend on its
 // caller's lifetime.
 func (m *Memo[T]) Warm(user string, load func() (T, error)) T {
-	m.mu.Lock()
-	e, ok := m.entries[user]
-	if !ok {
-		e = &memoEntry[T]{}
-		m.entries[user] = e
+	if m.ttl == 0 {
+		var zero T
+		return zero
 	}
-	m.mu.Unlock()
+	e := m.entry(user)
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -142,13 +152,10 @@ func (m *Memo[T]) Warm(user string, load func() (T, error)) T {
 // Put sets the user's value from a load the caller already made, so a
 // fact fetched for another reason is not fetched again.
 func (m *Memo[T]) Put(user string, val T) {
-	m.mu.Lock()
-	e, ok := m.entries[user]
-	if !ok {
-		e = &memoEntry[T]{}
-		m.entries[user] = e
+	if m.ttl == 0 {
+		return
 	}
-	m.mu.Unlock()
+	e := m.entry(user)
 	e.mu.Lock()
 	e.version++
 	e.val, e.fetched = val, time.Now()
@@ -158,10 +165,8 @@ func (m *Memo[T]) Put(user string, val T) {
 // Update rewrites the user's value in place, for a change the caller
 // already knows the effect of; nothing to do when none is held.
 func (m *Memo[T]) Update(user string, f func(T) T) {
-	m.mu.Lock()
-	e, ok := m.entries[user]
-	m.mu.Unlock()
-	if !ok {
+	e := m.held(user)
+	if e == nil {
 		return
 	}
 	e.mu.Lock()
@@ -183,9 +188,7 @@ func (m *Memo[T]) Forget(user string) {
 // delay, for a value only partly there - a listing a server was missing
 // from - so the next reader after that asks the missing part again.
 func (m *Memo[T]) Retry(user string) {
-	m.mu.Lock()
-	e := m.entries[user]
-	m.mu.Unlock()
+	e := m.held(user)
 	if e == nil {
 		return
 	}
@@ -198,9 +201,7 @@ func (m *Memo[T]) Retry(user string) {
 
 // Stale retains the last value while scheduling its next background refresh.
 func (m *Memo[T]) Stale(user string) {
-	m.mu.Lock()
-	e := m.entries[user]
-	m.mu.Unlock()
+	e := m.held(user)
 	if e == nil {
 		return
 	}

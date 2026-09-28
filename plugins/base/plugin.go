@@ -2,6 +2,7 @@ package alborzbase
 
 import (
 	"embed"
+	"sync"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -27,11 +28,41 @@ func UserLocation(ctx *alborz.Context) *time.Location {
 	return time.UTC
 }
 
-func init() {
-	p := alborz.GoPlugin{Name: "base", Files: public}
+// plugin is the base plugin of one server, with the caches its pages
+// are drawn from.
+type plugin struct {
+	alborz.GoPlugin
+	listings        *listingCache
+	bodies          *bodyCache
+	accountSidebars *alborz.Memo[sidebar]
+	unifiedFolders  *alborz.Memo[map[string]string]
+	correspondents  *alborz.Memo[[]string]
+	senderBooks     *alborz.Memo[*senderBook]
+	authServGuesses *alborz.Memo[string]
+	wkd             *wkdCache
+	watchers        sync.Map // accounts followed
+}
+
+func newPlugin(o *alborz.Options) *plugin {
+	bodies := newBodyCache(o.CacheFor(bodyKeepFor))
+	// The rail serves its last counts while one refresh runs behind the page.
+	sidebars := alborz.NewBackgroundMemo[sidebar](o.CacheFor(listingFreshFor))
+	p := &plugin{
+		GoPlugin:        alborz.GoPlugin{Name: "base", Files: public},
+		listings:        newListingCache(o.CacheFor(listingKeepFor), sidebars, bodies),
+		bodies:          bodies,
+		accountSidebars: sidebars,
+		unifiedFolders:  alborz.NewMemo[map[string]string](o.CacheFor(unifiedFoldersTTL)),
+		// Indexes derived from the mailbox, not copies of an answer:
+		// features are built on them, so they stay with caching off.
+		correspondents:  alborz.NewMemo[[]string](correspondentTTL),
+		senderBooks:     alborz.NewMemo[*senderBook](senderBookTTL),
+		authServGuesses: alborz.NewMemo[string](authSampleTTL),
+		wkd:             newWKDCache(o.CacheFor(wkdKeepFor)),
+	}
 
 	p.TemplateFuncs(templateFuncs)
-	registerRoutes(&p)
+	p.registerRoutes()
 
 	// Every page counts in the reader's clock and starts the week where
 	// they do, whichever account the page is about.
@@ -46,14 +77,17 @@ func init() {
 		data.Global().FirstDayOfWeek = ctx.Reading().FirstDayOfWeek
 		return nil
 	})
+	return p
+}
 
+func init() {
 	// An account restored from remembered credentials is signed in
 	// without passing through the login handler, so the root package
 	// calls this to have it followed too.
-	loader := p.Loader()
 	alborz.RegisterPluginLoader(func(s *alborz.Server) ([]alborz.Plugin, error) {
-		s.OnAccountReady = append(s.OnAccountReady, watchAccount, warmAccount)
-		s.OnAccountGone = append(s.OnAccountGone, forgetAccount)
-		return loader(s)
+		p := newPlugin(s.Options)
+		s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)
+		s.OnAccountGone = append(s.OnAccountGone, p.forgetAccount)
+		return []alborz.Plugin{p.Plugin()}, nil
 	})
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-func handleSidebar(ctx *alborz.Context) error {
+func (p *plugin) handleSidebar(ctx *alborz.Context) error {
 	base := alborz.NewBaseRenderData(ctx)
 	page := ctx.QueryParam("path")
 	if !strings.HasPrefix(page, "/") || strings.HasPrefix(page, "//") {
@@ -34,14 +34,14 @@ func handleSidebar(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	sb, err := sidebarFor(ctx.Login)
+	sb, err := p.sidebarFor(ctx.Login)
 	if err != nil {
 		return err
 	}
 	sb = sb.clone()
 	sb.active = sb.statuses[folder]
 	data := assembleIMAPBase(ctx, base, folder, sb, view)
-	data.SidebarAccounts = sidebarAccounts(ctx)
+	data.SidebarAccounts = p.sidebarAccounts(ctx)
 	return ctx.Render(http.StatusOK, "aside", data)
 }
 
@@ -289,14 +289,11 @@ type AccountSidebar struct {
 	Categorized CategorizedMailboxes
 }
 
-// The rail serves its last counts while one refresh runs behind the page.
-var accountSidebars = alborz.NewBackgroundMemo[sidebar](listingFreshFor)
-
 // railFor is the account's sidebar for a page on one folder: the tree
 // and counts as the memo holds them, with that folder marked active.
 // A folder the memo did not count keeps the status the page fetched.
-func railFor(s *alborz.Login, mboxName string, fetched sidebar) sidebar {
-	sb, err := sidebarFor(s)
+func (p *plugin) railFor(s *alborz.Login, mboxName string, fetched sidebar) sidebar {
+	sb, err := p.sidebarFor(s)
 	if err != nil {
 		return fetched
 	}
@@ -309,8 +306,8 @@ func railFor(s *alborz.Login, mboxName string, fetched sidebar) sidebar {
 	return sb
 }
 
-func sidebarFor(s *alborz.Login) (sidebar, error) {
-	return accountSidebars.Get(s.Username(), func() (sidebar, error) {
+func (p *plugin) sidebarFor(s *alborz.Login) (sidebar, error) {
+	return p.accountSidebars.Get(s.Username(), func() (sidebar, error) {
 		// Loaded before DoIMAP: on a METADATA server the settings read
 		// is itself a DoIMAP, and the login lock is not reentrant.
 		settings, err := LoadSettings(context.Background(), s.Store())
@@ -334,14 +331,14 @@ func sidebarFor(s *alborz.Login) (sidebar, error) {
 // aside; empty with a single account, whose aside needs no sections. A
 // failing account is skipped and its section reappears once its server
 // answers again.
-func sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
+func (p *plugin) sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
 	logins := ctx.Logins()
 	if len(logins) < 2 {
 		return nil
 	}
 	var accounts []AccountSidebar
 	for _, s := range logins {
-		sb, err := sidebarFor(s)
+		sb, err := p.sidebarFor(s)
 		if err != nil {
 			ctx.Logger().Printf("sidebar for %q: %v", s.Username(), err)
 			continue
@@ -503,7 +500,7 @@ func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName
 	}
 }
 
-func newIMAPBaseRenderData(ctx *alborz.Context,
+func (p *plugin) newIMAPBaseRenderData(ctx *alborz.Context,
 	base *alborz.BaseRenderData) (*IMAPBaseRenderData, error) {
 
 	mboxName, err := mailboxRef(ctx)
@@ -536,6 +533,6 @@ func newIMAPBaseRenderData(ctx *alborz.Context,
 		return nil, err
 	}
 	ibase := assembleIMAPBase(ctx, base, mboxName, sb, view)
-	ibase.SidebarAccounts = sidebarAccounts(ctx)
+	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	return ibase, nil
 }

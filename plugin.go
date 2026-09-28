@@ -30,7 +30,7 @@ type PluginLoaderFunc func(*Server) ([]Plugin, error)
 var pluginLoaders []PluginLoaderFunc
 
 // RegisterPluginLoader registers a plugin loader. The loader will be called on
-// server start-up and reload.
+// server start-up.
 func RegisterPluginLoader(f PluginLoaderFunc) {
 	pluginLoaders = append(pluginLoaders, f)
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -32,10 +33,10 @@ func TestStatusUnchangedNeedsEveryField(t *testing.T) {
 }
 
 func TestListingCacheStates(t *testing.T) {
-	lc := newListingCache()
-	lc.store("u", "INBOX", &listingEntry{perPage: 25, total: 3})
-	lc.store("u", listingView("INBOX", "hello", "", "", ""), &listingEntry{perPage: 25})
-	lc.store("u", "Sent", &listingEntry{perPage: 25})
+	lc := newListingCache(listingKeepFor, alborz.NewBackgroundMemo[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
+	lc.storeAt("u", "INBOX", &listingEntry{perPage: 25, total: 3}, lc.epoch("u"))
+	lc.storeAt("u", listingView("INBOX", "hello", "", "", ""), &listingEntry{perPage: 25}, lc.epoch("u"))
+	lc.storeAt("u", "Sent", &listingEntry{perPage: 25}, lc.epoch("u"))
 
 	if e, state := lc.lookup("u", "INBOX", 25); state != listingFresh || e.total != 3 {
 		t.Fatalf("a just-stored entry is not fresh: %v", state)
@@ -54,14 +55,14 @@ func TestListingCacheStates(t *testing.T) {
 	// An entry nobody reads is let go of at the next store; one just
 	// read is not, however old what it holds.
 	lc.entries[listingKey{"u", "Sent"}].lastUse = time.Now().Add(-2 * listingKeepFor)
-	lc.store("u", "Drafts", &listingEntry{perPage: 25})
+	lc.storeAt("u", "Drafts", &listingEntry{perPage: 25}, lc.epoch("u"))
 	if _, state := lc.lookup("u", "Sent", 25); state != listingMiss {
 		t.Errorf("an entry unread past listingKeepFor was kept: %v", state)
 	}
 	if _, state := lc.lookup("u", "INBOX", 25); state == listingMiss {
 		t.Errorf("a read entry was swept with it")
 	}
-	lc.store("u", "Sent", &listingEntry{perPage: 25})
+	lc.storeAt("u", "Sent", &listingEntry{perPage: 25}, lc.epoch("u"))
 
 	// A change to one folder drops its searches with it and leaves the
 	// other folders alone.
@@ -75,9 +76,9 @@ func TestListingCacheStates(t *testing.T) {
 }
 
 func TestListingCacheStaysBounded(t *testing.T) {
-	lc := newListingCache()
+	lc := newListingCache(listingKeepFor, alborz.NewBackgroundMemo[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
 	for i := 0; i < maxListingEntries+10; i++ {
-		lc.store("u", listingView("INBOX", fmt.Sprint("q", i), "", "", ""), &listingEntry{perPage: 25})
+		lc.storeAt("u", listingView("INBOX", fmt.Sprint("q", i), "", "", ""), &listingEntry{perPage: 25}, lc.epoch("u"))
 	}
 	if n := len(lc.entries); n != maxListingEntries {
 		t.Errorf("a crawler minted %d entries; the cap is %d", n, maxListingEntries)
@@ -88,14 +89,14 @@ func TestListingCacheStaysBounded(t *testing.T) {
 // flag the server announced, change the cached row and the folder's
 // unseen count without the listing being fetched again.
 func TestListingTakesFlagsInPlace(t *testing.T) {
-	lc := newListingCache()
+	lc := newListingCache(listingKeepFor, alborz.NewBackgroundMemo[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
 	unseen := uint32(2)
 	status := &MailboxStatus{StatusData: &imap.StatusData{Mailbox: "INBOX", NumUnseen: &unseen}}
 	sb := sidebar{statuses: map[string]*MailboxStatus{"INBOX": status}, active: status, inbox: status}
 	row := func(uid imap.UID, seq uint32) IMAPMessage {
 		return IMAPMessage{Mailbox: "INBOX", FetchMessageBuffer: &imapclient.FetchMessageBuffer{UID: uid, SeqNum: seq}}
 	}
-	lc.store("u", "INBOX", &listingEntry{perPage: 25, sb: sb, msgs: []IMAPMessage{row(7, 1), row(8, 2)}})
+	lc.storeAt("u", "INBOX", &listingEntry{perPage: 25, sb: sb, msgs: []IMAPMessage{row(7, 1), row(8, 2)}}, lc.epoch("u"))
 
 	lc.markSeen("u", "INBOX", 7)
 	e, _ := lc.lookup("u", "INBOX", 25)

@@ -40,11 +40,15 @@ type wkdEntry struct {
 }
 
 type wkdCache struct {
+	// keepFor is how long an answer holds; none keeps nothing.
+	keepFor time.Duration
 	mu      sync.Mutex
 	entries map[string]wkdEntry
 }
 
-var wkd = &wkdCache{entries: map[string]wkdEntry{}}
+func newWKDCache(keepFor time.Duration) *wkdCache {
+	return &wkdCache{keepFor: keepFor, entries: map[string]wkdEntry{}}
+}
 
 // keys returns what the address's domain publishes for it, an empty
 // list when nothing, from the cache when asked within the day.
@@ -53,10 +57,13 @@ func (w *wkdCache) keys(client *http.Client, address string) openpgp.EntityList 
 	w.mu.Lock()
 	e, ok := w.entries[address]
 	w.mu.Unlock()
-	if ok && time.Since(e.fetched) < wkdKeepFor {
+	if ok && time.Since(e.fetched) < w.keepFor {
 		return e.keys
 	}
 	keys := w.fetch(client, address)
+	if w.keepFor == 0 {
+		return keys
+	}
 	w.mu.Lock()
 	w.entries[address] = wkdEntry{keys: keys, fetched: time.Now()}
 	w.mu.Unlock()

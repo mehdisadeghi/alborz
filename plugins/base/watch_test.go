@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -96,7 +97,7 @@ func TestNotifyAdvertisedButRefused(t *testing.T) {
 	if armNotify(c) {
 		t.Fatal("a refused NOTIFY was taken as armed")
 	}
-	if err := folderSweep("u", c, nil)(); err != nil {
+	if err := newPlugin(&alborz.Options{Cache: true}).folderSweep("u", c, nil)(); err != nil {
 		t.Fatalf("the sweep failed after a refused NOTIFY: %v", err)
 	}
 	idle, err := c.Idle()

@@ -618,7 +618,7 @@ func handleSignatureDefault(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
 
-func handleSettings(ctx *alborz.Context) error {
+func (p *plugin) handleSettings(ctx *alborz.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
@@ -675,7 +675,7 @@ func handleSettings(ctx *alborz.Context) error {
 		if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
 			return reject(ctx.SaveRefusal(err))
 		}
-		accountChanged(ctx.Login.Username())
+		p.accountChanged(ctx.Login.Username())
 		ctx.PutNotice(ctx.T("notice.settingssaved"))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
@@ -684,7 +684,7 @@ func handleSettings(ctx *alborz.Context) error {
 	// suggest, and the sample costs a fetch.
 	guess := ""
 	if settings.TrustedAuthServ == "" {
-		guess = SuggestAuthServ(ctx)
+		guess = p.SuggestAuthServ(ctx)
 	}
 	return ctx.Render(http.StatusOK, "settings-account.html", &SettingsRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
@@ -701,7 +701,7 @@ func handleSettings(ctx *alborz.Context) error {
 // went. Written settings the reader cannot remove are settings they do
 // not own, and on a server it is the reader's mailbox that is holding
 // them.
-func handleForget(ctx *alborz.Context) error {
+func (p *plugin) handleForget(ctx *alborz.Context) error {
 	store, ok := ctx.Login.Store().(alborz.Settings)
 	if !ok {
 		// Nothing else outlives the process to forget.
@@ -712,7 +712,7 @@ func handleForget(ctx *alborz.Context) error {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
-	accountChanged(ctx.Login.Username())
+	p.accountChanged(ctx.Login.Username())
 	ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("settings.forgotten")})
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 }

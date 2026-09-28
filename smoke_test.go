@@ -24,11 +24,11 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
-	alborzcaldav "git.mehdix.org/alborz/plugins/caldav"
-	alborzcarddav "git.mehdix.org/alborz/plugins/carddav"
-	alborzdav "git.mehdix.org/alborz/plugins/dav"
-	alborzsieve "git.mehdix.org/alborz/plugins/sieve"
+	"git.mehdix.org/alborz/filters"
+	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim/calendar"
+	"git.mehdix.org/alborz/pim/contacts"
+	alborzdav "git.mehdix.org/alborz/pim/dav"
 	alborzviewhtml "git.mehdix.org/alborz/plugins/viewhtml"
 	alborzviewtext "git.mehdix.org/alborz/plugins/viewtext"
 	"github.com/emersion/go-imap/v2"
@@ -271,22 +271,22 @@ var smokeKey = fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6Nm
 // newAlborz wires the features as cmd/alborz does.
 func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
 	t.Helper()
-	s, err := alborz.New(e, options, alborzbase.TemplateFuncs)
+	s, err := alborz.New(e, options, mail.TemplateFuncs)
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	alborzbase.Mount(s, alborzviewhtml.Viewer{}, alborzviewtext.Viewer{})
+	mail.Mount(s, alborzviewhtml.Viewer{}, alborzviewtext.Viewer{})
 	kept, err := alborzdav.Mount(s)
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	if err := alborzcaldav.Mount(s, kept); err != nil {
+	if err := calendar.Mount(s, kept); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	if err := alborzcarddav.Mount(s, kept); err != nil {
+	if err := contacts.Mount(s, kept); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	alborzsieve.Mount(s)
+	filters.Mount(s)
 	alborzviewhtml.Mount(s)
 }
 

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"git.mehdix.org/alborz/mail"
 	"github.com/aymerick/douceur/css"
 	cssparser "github.com/aymerick/douceur/parser"
 	"github.com/microcosm-cc/bluemonday"
@@ -96,7 +96,7 @@ var allowedStyles = map[string]bool{
 }
 
 type sanitizer struct {
-	msg                  *alborzbase.IMAPMessage
+	msg                  *mail.IMAPMessage
 	account              string
 	allowRemoteResources bool
 	hasRemoteResources   bool

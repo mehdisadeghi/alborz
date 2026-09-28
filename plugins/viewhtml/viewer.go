@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"git.mehdix.org/alborz/mail"
 	"github.com/emersion/go-message"
 )
 
@@ -45,20 +45,20 @@ type frameData struct {
 // Viewer shows an HTML part.
 type Viewer struct{}
 
-func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, _ []int, part *message.Entity) (alborzbase.View, error) {
+func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, _ []int, part *message.Entity) (mail.View, error) {
 	allowRemoteResources := ctx.QueryParam("allow-remote-resources") == "1"
 
 	mimeType, _, err := part.Header.ContentType()
 	if err != nil {
-		return alborzbase.View{}, err
+		return mail.View{}, err
 	}
 	if !strings.EqualFold(mimeType, "text/html") {
-		return alborzbase.View{}, alborzbase.ErrViewUnsupported
+		return mail.View{}, mail.ErrViewUnsupported
 	}
 
 	body, err := io.ReadAll(part.Body)
 	if err != nil {
-		return alborzbase.View{}, fmt.Errorf("failed to read part body: %v", err)
+		return mail.View{}, fmt.Errorf("failed to read part body: %v", err)
 	}
 
 	san := sanitizer{
@@ -68,7 +68,7 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	}
 	body, err = san.sanitizeHTML(body)
 	if err != nil {
-		return alborzbase.View{}, fmt.Errorf("failed to sanitize HTML part: %v", err)
+		return mail.View{}, fmt.Errorf("failed to sanitize HTML part: %v", err)
 	}
 
 	// Mail sizes images for its own layout; long pre lines wrap instead of widening the frame.
@@ -88,8 +88,8 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		Style:  ctx.Server.AssetURL("viewhtml.css"),
 	})
 	if err != nil {
-		return alborzbase.View{}, err
+		return mail.View{}, err
 	}
 
-	return alborzbase.View{Body: template.HTML(buf.String()), Remote: san.hasRemoteResources}, nil
+	return mail.View{Body: template.HTML(buf.String()), Remote: san.hasRemoteResources}, nil
 }

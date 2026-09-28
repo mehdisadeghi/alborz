@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
-	alborzbase "git.mehdix.org/alborz/plugins/base"
+	"git.mehdix.org/alborz/mail"
 	"github.com/emersion/go-message"
 	"gitlab.com/golang-commonmark/linkify"
 )
@@ -67,13 +67,13 @@ func executeTemplate(name string, data interface{}) (template.HTML, error) {
 // Viewer shows a text part.
 type Viewer struct{}
 
-func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, path []int, part *message.Entity) (alborzbase.View, error) {
+func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *mail.IMAPMessage, path []int, part *message.Entity) (mail.View, error) {
 	mimeType, params, err := part.Header.ContentType()
 	if err != nil {
-		return alborzbase.View{}, err
+		return mail.View{}, err
 	}
 	if !strings.EqualFold(mimeType, "text/plain") {
-		return alborzbase.View{}, alborzbase.ErrViewUnsupported
+		return mail.View{}, mail.ErrViewUnsupported
 	}
 
 	// Language is decided per paragraph: per line the voice would stutter.
@@ -99,9 +99,9 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	if strings.EqualFold(params["format"], "flowed") {
 		raw, err := io.ReadAll(part.Body)
 		if err != nil {
-			return alborzbase.View{}, fmt.Errorf("failed to read part body: %v", err)
+			return mail.View{}, fmt.Errorf("failed to read part body: %v", err)
 		}
-		body = strings.NewReader(alborzbase.Unflow(string(raw), strings.EqualFold(params["delsp"], "yes")))
+		body = strings.NewReader(mail.Unflow(string(raw), strings.EqualFold(params["delsp"], "yes")))
 	}
 	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
@@ -140,7 +140,7 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 				Text: l[link.Start:link.End],
 			})
 			if err != nil {
-				return alborzbase.View{}, err
+				return mail.View{}, err
 			}
 			para = append(para, tok)
 			i = link.End
@@ -153,7 +153,7 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	}
 	flush()
 	if err := scanner.Err(); err != nil {
-		return alborzbase.View{}, fmt.Errorf("failed to read part body: %v", err)
+		return mail.View{}, fmt.Errorf("failed to read part body: %v", err)
 	}
 
 	data := textRenderData{Tokens: tokens}
@@ -161,5 +161,5 @@ func (Viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 		data.Images = append(data.Images, imageRenderData{Src: image.URL(true, ctx.URLAccount()).String(), Alt: image.Filename})
 	}
 	html, err := executeTemplate("view-text.html", data)
-	return alborzbase.View{Body: html}, err
+	return mail.View{Body: html}, err
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/memo"
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/labstack/echo/v4"
 )
@@ -75,7 +76,7 @@ type Provider struct {
 	// troubles holds, per account, what its servers answered when last asked for homes, when not a home.
 	troubles sync.Map
 	// found per username; see Collections.
-	collections *alborz.Memo[[]Collection]
+	collections *memo.Memo[[]Collection]
 
 	// debug logs upstream DAV traffic in debug mode.
 	debug echo.Logger
@@ -107,7 +108,7 @@ func NewProvider(srv *alborz.Server, kept *store.Store, kind Kind) (*Provider, e
 		mirror = m
 	}
 	p := &Provider{Kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
-		collections: alborz.NewBackgroundMemo[[]Collection](srv.Options.CacheFor(discoveryTTL))}
+		collections: memo.NewBackground[[]Collection](srv.Options.CacheFor(discoveryTTL))}
 	p.trusted, p.named = srv.Outgoing.Trusted, srv.Outgoing.Trusted
 	if !srv.Options.PrivateServices {
 		p.named = srv.Outgoing.Guarded

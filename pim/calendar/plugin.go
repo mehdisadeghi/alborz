@@ -13,8 +13,8 @@ import (
 
 type plugin struct {
 	alborz.Router
-	dav  *dav.Provider
-	subs *subCache
+	dav   *dav.Provider
+	feeds *feeds
 }
 
 func (p *plugin) client(ctx context.Context, login *alborz.Login) (*caldav.Client, error) {
@@ -41,10 +41,14 @@ func Mount(srv *alborz.Server, kept *store.Store) error {
 		return err
 	}
 
+	feeds, err := openFeeds(srv)
+	if err != nil {
+		return err
+	}
 	p := &plugin{
 		Router: srv.Router(),
 		dav:    provider,
-		subs:   newSubCache(srv.Options.CacheFor(subRefreshAfter)),
+		feeds:  feeds,
 	}
 
 	registerRoutes(p)

@@ -1,56 +1,108 @@
 package calendar
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
+	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/pim/dav"
+	"github.com/emersion/go-ical"
+	"github.com/fernet/fernet-go"
+	"github.com/labstack/echo/v4"
 )
 
-// The production client refuses loopback, so the test injects a plain one.
-func TestSubscriptionFetchParseAndServe(t *testing.T) {
-	const ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n" +
+// The production client refuses loopback, so the tests inject a plain one.
+func keptFeeds(t *testing.T, file string, client *http.Client) *feeds {
+	t.Helper()
+	db, err := bolt.Open(file, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return &feeds{client: client, log: echo.New().Logger, db: db, key: feedsKey, held: map[string]*heldFeed{}}
+}
+
+var feedsKey = func() *fernet.Key {
+	var k fernet.Key
+	if err := k.Generate(); err != nil {
+		panic(err)
+	}
+	return &k
+}()
+
+func TestFeedKeptAcrossRestartAndRefreshedOnItsOwnClock(t *testing.T) {
+	const ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nREFRESH-INTERVAL;VALUE=DURATION:PT2H\r\n" +
 		"BEGIN:VEVENT\r\nUID:h1\r\nDTSTART;VALUE=DATE:20260101\r\nSUMMARY:New Year\r\nEND:VEVENT\r\n" +
 		"END:VCALENDAR\r\n"
-	hits := 0
+	const modified = "Wed, 01 Jan 2026 00:00:00 GMT"
+	var hits int
+	var asked http.Header
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits++
-		if r.Header.Get("If-None-Match") == "\"v1\"" {
+		asked = r.Header.Clone()
+		if r.Header.Get("If-None-Match") == `"v1"` {
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
-		w.Header().Set("ETag", "\"v1\"")
+		w.Header().Set("ETag", `"v1"`)
+		w.Header().Set("Last-Modified", modified)
 		w.Header().Set("Content-Type", "text/calendar")
 		w.Write([]byte(ics))
 	}))
 	defer srv.Close()
+	file := filepath.Join(t.TempDir(), "feeds.db")
 
-	c := newSubCache(subRefreshAfter)
-	if _, err := c.refresh(srv.Client(), srv.URL); err != nil {
+	before := keptFeeds(t, file, srv.Client())
+	if _, err := before.refresh(context.Background(), srv.URL); err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
-	obj, ok := c.events(srv.Client(), srv.URL, "#123456")
-	if !ok {
-		t.Fatal("the fetched feed served no events")
+	before.db.Close()
+
+	f := keptFeeds(t, file, srv.Client())
+	cal := f.calendar(srv.URL)
+	if cal == nil || len(cal.Events()) != 1 || hits != 1 {
+		t.Fatalf("after a restart the feed served %v after %d requests, want its one event after 1", cal, hits)
 	}
-	if !obj.ReadOnly || obj.Color != "#123456" {
-		t.Fatalf("feed object is read-only=%v color=%q, want true #123456", obj.ReadOnly, obj.Color)
+	now := time.Now()
+	f.round(context.Background(), now.Add(time.Hour))
+	if hits != 1 {
+		t.Fatalf("the feed was fetched an hour after it asked for two")
 	}
-	if got := len(obj.Data.Events()); got != 1 {
-		t.Fatalf("the feed served %d events, want 1", got)
+	f.round(context.Background(), now.Add(3*time.Hour))
+	if hits != 2 || asked.Get("If-None-Match") != `"v1"` || asked.Get("If-Modified-Since") != modified {
+		t.Fatalf("the due fetch was request %d with validators %q %q, want request 2 conditional on the kept ones",
+			hits, asked.Get("If-None-Match"), asked.Get("If-Modified-Since"))
 	}
-	if !c.fresh(srv.URL) {
-		t.Fatal("a just-fetched feed is not fresh")
-	}
-	if _, err := c.refresh(srv.Client(), srv.URL); err != nil {
-		t.Fatalf("second refresh: %v", err)
-	}
-	if hits != 2 {
-		t.Fatalf("server saw %d requests, want 2", hits)
-	}
-	if _, ok := c.events(srv.Client(), srv.URL, "#123456"); !ok {
+	if cal := f.calendar(srv.URL); cal == nil || len(cal.Events()) != 1 {
 		t.Fatal("the feed lost its events after a not-modified refresh")
+	}
+}
+
+func TestFeedIntervalWithinBounds(t *testing.T) {
+	for prop, want := range map[string]time.Duration{
+		"":                                     feedEvery,
+		"REFRESH-INTERVAL;VALUE=DURATION:PT6H": 6 * time.Hour,
+		"REFRESH-INTERVAL;VALUE=DURATION:P1W":  feedCeiling,
+		"REFRESH-INTERVAL;VALUE=DURATION:PT1M": feedFloor,
+		"X-PUBLISHED-TTL:PT3H":                 3 * time.Hour,
+	} {
+		raw := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n"
+		if prop != "" {
+			raw += prop + "\r\n"
+		}
+		raw += "BEGIN:VEVENT\r\nUID:h1\r\nDTSTART;VALUE=DATE:20260101\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+		cal, err := ical.NewDecoder(strings.NewReader(raw)).Decode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := refreshEvery(cal); got != want {
+			t.Errorf("%q: every %v, want %v", prop, got, want)
+		}
 	}
 }
 
@@ -76,16 +128,16 @@ func TestSubscriptionIsACalendarInTheRail(t *testing.T) {
 	if info.Address != srv.URL || info.Writable || !supportsEvent(info.Components) || supportsTodo(info.Components) {
 		t.Fatalf("rail entry: %+v", info)
 	}
-	p := &plugin{subs: newSubCache(subRefreshAfter)}
-	if _, err := p.subs.refresh(srv.Client(), srv.URL); err != nil {
+	p := &plugin{feeds: keptFeeds(t, filepath.Join(t.TempDir(), "feeds.db"), srv.Client())}
+	if _, err := p.feeds.refresh(context.Background(), srv.URL); err != nil {
 		t.Fatal(err)
 	}
 	info.Shown = false
-	if got := p.subscriptionObjects(srv.Client(), []dav.Collection{info}, ""); len(got) != 0 {
+	if got := p.subscriptionObjects([]dav.Collection{info}, ""); len(got) != 0 {
 		t.Errorf("a hidden subscription drew %d objects", len(got))
 	}
 	info.Shown = true
-	got := p.subscriptionObjects(srv.Client(), []dav.Collection{info}, "")
+	got := p.subscriptionObjects([]dav.Collection{info}, "")
 	if len(got) != 1 || !got[0].ReadOnly || got[0].Color != "#123456" {
 		t.Fatalf("a visible subscription drew %+v", got)
 	}

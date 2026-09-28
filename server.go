@@ -114,6 +114,9 @@ type Server struct {
 	// Outgoing is how every request to another server leaves.
 	Outgoing Outgoing
 
+	// Schedule runs what keeps its own time.
+	Schedule *Schedule
+
 	// Sessions are the browsers signed in.
 	Sessions *Sessions
 
@@ -172,7 +175,7 @@ type domainUpstreams struct {
 
 func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	s := &Server{e: e, Options: options, assets: make(map[string]assetStamp),
-		Changes: newChanges(), Outgoing: NewOutgoing(), signInRefused: newRefusals(signInTries, signInWindow)}
+		Changes: newChanges(), Outgoing: NewOutgoing(), Schedule: newSchedule(), signInRefused: newRefusals(signInTries, signInWindow)}
 	e.IPExtractor = echo.ExtractIPDirect()
 	if len(options.TrustedProxies) > 0 {
 		// echo trusts every private address by default, and anyone on such a network could write the header.
@@ -300,6 +303,7 @@ func (err UnknownDomainError) Error() string {
 }
 
 func (s *Server) Close() {
+	s.Schedule.close()
 	s.Logins.Close()
 	s.data.Close()
 	for _, release := range s.OnClose {
@@ -676,7 +680,7 @@ type Options struct {
 	LoginKey *fernet.Key
 	// Cache keeps what the servers answered.
 	Cache bool
-	// CacheDir keeps sealed copies of remote calendars and address books; empty keeps none.
+	// CacheDir keeps sealed copies of synced DAV collections and calendar feeds; empty keeps none.
 	CacheDir string
 	// DataDir holds alborz.db; empty is the working directory.
 	DataDir string

@@ -41,9 +41,9 @@ from the environment, so it never appears in the unit or the process
 list.
 
 `CacheDirectory=alborz` gives the service `/var/cache/alborz`, and
-`XDG_CACHE_HOME` points alborz's default cache there. Copies of remote calendars and
-address books are kept there between runs, sealed under the login key,
-so a restart starts warm. `-cache=false` keeps no cache.
+`XDG_CACHE_HOME` points alborz's default cache there. Copies of remote calendars,
+address books and calendar feeds are kept there between runs, sealed
+under the login key, so a restart starts warm. `-cache=false` keeps no cache.
 
 ## DNS
 

@@ -1,23 +1,32 @@
 package calendar
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/kv"
+	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
+	"github.com/fernet/fernet-go"
+	"github.com/labstack/echo/v4"
 )
 
 // Subscription is a read-only calendar followed by its .ics address.
@@ -29,12 +38,22 @@ type Subscription struct {
 
 const (
 	// A feed URL cannot be the path: collection paths are canonicalised and would lose its host.
-	subPrefix       = "/subscriptions/"
-	subRefreshAfter = time.Hour
+	subPrefix = "/subscriptions/"
 	// A year of holidays is a few tens of kilobytes.
 	subMaxSize = 4 << 20
 
 	feedNameProp = "X-WR-CALNAME"
+
+	// feedEvery is for a feed that names no interval: the hour it was before feeds named their own.
+	feedEvery = time.Hour
+	// feedFloor spares the publisher and the host's background share: a feed is read, not edited here.
+	feedFloor = 15 * time.Minute
+	// feedCeiling shows a correction to a feed that asks for a week, as holiday feeds do, the next day.
+	feedCeiling = 24 * time.Hour
+	// feedForgetAfter stops refreshing a feed nobody has read for this long; its copy stays on disk.
+	feedForgetAfter = 7 * 24 * time.Hour
+	// feedTick is how late a due feed may be fetched, well under feedFloor.
+	feedTick = time.Minute
 )
 
 func (s Subscription) path() string {
@@ -106,40 +125,243 @@ func feedHost(feed string) string {
 
 var errNotFeed = errors.New("caldav: the address answered with a web page, not a calendar")
 
-type subEntry struct {
-	cal     *ical.Calendar
-	fetched time.Time
-	etag    string
-	// fetching keeps two page loads from refreshing one feed at once.
-	fetching bool
+// feeds keeps each feed a page reads and fetches it on the feed's own clock.
+// Without a db nothing is kept and every read fetches.
+type feeds struct {
+	client *http.Client
+	log    echo.Logger
+	db     kv.DB
+	key    *fernet.Key
+
+	mu   sync.Mutex
+	held map[string]*heldFeed
 }
 
-type subCache struct {
-	// keepFor is how old a feed may get before a refetch; zero keeps nothing.
-	keepFor time.Duration
-	mu      sync.Mutex
-	entries map[string]*subEntry
+// feed is what is kept of one feed besides its body.
+type feed struct {
+	URL, ETag, LastModified string
+	Fetched                 time.Time
+	Every                   time.Duration
 }
 
-func newSubCache(keepFor time.Duration) *subCache {
-	return &subCache{keepFor: keepFor, entries: map[string]*subEntry{}}
+type heldFeed struct {
+	feed
+	cal          *ical.Calendar
+	read, failed time.Time
+	fetching     bool
 }
 
-func (c *subCache) calendar(client *http.Client, url string) *ical.Calendar {
-	if c.keepFor == 0 {
-		cal, _ := c.refresh(client, url)
+// Keys hash the address, so the file names no feed.
+const feedOwner = "calendar.feeds"
+
+func feedID(url string) string {
+	sum := sha256.Sum256([]byte(url))
+	return hex.EncodeToString(sum[:16])
+}
+
+func feedMetaKey(id string) string { return feedOwner + "/meta/" + id }
+func feedBodyKey(id string) string { return feedOwner + "/body/" + id }
+
+// feedsLockTimeout is short: the CalDAV mirror, opened first, already waited for the directory.
+const feedsLockTimeout = time.Second
+
+// openFeeds keeps feeds sealed in the cache directory and refreshes them on the server's schedule.
+func openFeeds(srv *alborz.Server) (*feeds, error) {
+	f := &feeds{client: srv.Outgoing.Remote(alborz.RoundTripTimeout), log: srv.Logger(), held: map[string]*heldFeed{}}
+	if !srv.Options.Cache || srv.Options.CacheDir == "" {
+		return f, nil
+	}
+	if err := os.MkdirAll(srv.Options.CacheDir, 0o700); err != nil {
+		return nil, err
+	}
+	file := filepath.Join(srv.Options.CacheDir, feedOwner+".db")
+	db, err := bolt.Open(file, feedsLockTimeout)
+	if err != nil {
+		return nil, err
+	}
+	f.db, f.key = db, srv.Options.LoginKey
+	if err := alborz.CheckKey(db, file, f.key, feedOwner+"/"); err != nil {
+		db.Close()
+		return nil, err
+	}
+	srv.Schedule.Add(feedTick, f.round)
+	srv.OnClose = append(srv.OnClose, db.Close)
+	return f, nil
+}
+
+// refreshEvery is the interval the feed asks for (RFC 7986, or the older X-PUBLISHED-TTL), within bounds.
+func refreshEvery(cal *ical.Calendar) time.Duration {
+	for _, name := range []string{"REFRESH-INTERVAL", "X-PUBLISHED-TTL"} {
+		if p := cal.Props.Get(name); p != nil {
+			if d, err := p.Duration(); err == nil {
+				return min(max(d, feedFloor), feedCeiling)
+			}
+		}
+	}
+	return feedEvery
+}
+
+// calendar is the feed as last fetched. One with nothing kept is fetched now, once; nil if that fails.
+func (f *feeds) calendar(url string) *ical.Calendar {
+	if f.db == nil {
+		cal, _ := f.refresh(context.Background(), url)
 		return cal
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if e := c.entries[url]; e != nil {
-		return e.cal
+	f.mu.Lock()
+	h := f.hold(url)
+	h.read = time.Now()
+	cal, cold := h.cal, h.cal == nil && h.failed.IsZero()
+	f.mu.Unlock()
+	if !cold {
+		return cal
 	}
+	cal, err := f.refresh(context.Background(), url)
+	if err != nil {
+		f.log.Printf("calendar: feed %s: %v", url, err)
+	}
+	return cal
+}
+
+// hold finds the feed in memory, or what the cache directory kept of it; f.mu is held.
+func (f *feeds) hold(url string) *heldFeed {
+	h := f.held[url]
+	if h == nil {
+		// Asked for now, so the next round does not take it for unread.
+		h = &heldFeed{feed: feed{URL: url}, read: time.Now()}
+		if err := f.load(h); err != nil {
+			f.log.Printf("calendar: feed %s: %v", url, err)
+		}
+		f.held[url] = h
+	}
+	return h
+}
+
+func (f *feeds) load(h *heldFeed) error {
+	var meta, body []byte
+	err := f.db.View(func(tx kv.Tx) error {
+		id := feedID(h.URL)
+		var err error
+		if meta, err = f.open(tx.Get(feedMetaKey(id))); err != nil {
+			return err
+		}
+		body, err = f.open(tx.Get(feedBodyKey(id)))
+		return err
+	})
+	if err != nil || meta == nil {
+		return err
+	}
+	var kept feed
+	if err := json.Unmarshal(meta, &kept); err != nil {
+		return err
+	}
+	cal, err := ical.NewDecoder(bytes.NewReader(body)).Decode()
+	if err != nil {
+		return err
+	}
+	h.feed, h.cal = kept, cal
 	return nil
 }
 
-func (c *subCache) events(client *http.Client, url, color string) (CalendarObject, bool) {
-	cal := c.calendar(client, url)
+var errUnsealed = errors.New("calendar: a kept feed does not open under the login key")
+
+// open unseals a stored value; a missing one is nil.
+func (f *feeds) open(sealed []byte) ([]byte, error) {
+	if sealed == nil {
+		return nil, nil
+	}
+	raw := fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{f.key})
+	if raw == nil {
+		return nil, errUnsealed
+	}
+	return raw, nil
+}
+
+// refresh fetches the feed now; an unchanged one costs a conditional GET and no parse.
+func (f *feeds) refresh(ctx context.Context, url string) (*ical.Calendar, error) {
+	if f.db == nil {
+		_, cal, _, err := fetchFeed(ctx, f.client, feed{URL: url})
+		return cal, err
+	}
+	f.mu.Lock()
+	h := f.hold(url)
+	if h.fetching {
+		cal := h.cal
+		f.mu.Unlock()
+		return cal, nil
+	}
+	h.fetching = true
+	asked := h.feed
+	if h.cal == nil {
+		asked.ETag, asked.LastModified = "", ""
+	}
+	f.mu.Unlock()
+
+	got, cal, body, err := fetchFeed(ctx, f.client, asked)
+	if err == nil {
+		err = f.keep(got, body)
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	h.fetching = false
+	if err != nil {
+		h.failed = time.Now()
+		return nil, err
+	}
+	h.feed = got
+	if cal != nil {
+		h.cal = cal
+	}
+	return h.cal, nil
+}
+
+// keep writes what was fetched; a nil body is a feed unchanged since the one kept.
+func (f *feeds) keep(got feed, body []byte) error {
+	meta, err := json.Marshal(got)
+	if err != nil {
+		return err
+	}
+	return f.db.Update(func(tx kv.Tx) error {
+		id := feedID(got.URL)
+		if body != nil {
+			if err := f.put(tx, feedBodyKey(id), body); err != nil {
+				return err
+			}
+		}
+		return f.put(tx, feedMetaKey(id), meta)
+	})
+}
+
+func (f *feeds) put(tx kv.Tx, k string, v []byte) error {
+	sealed, err := fernet.EncryptAndSign(v, f.key)
+	if err != nil {
+		return err
+	}
+	return tx.Put(k, sealed)
+}
+
+// round fetches the feeds read lately whose interval has passed, and stops refreshing the ones nobody reads.
+func (f *feeds) round(ctx context.Context, now time.Time) {
+	var due []string
+	f.mu.Lock()
+	for url, h := range f.held {
+		switch {
+		case now.Sub(h.read) > feedForgetAfter:
+			delete(f.held, url)
+		case !h.fetching && now.Sub(h.Fetched) >= h.Every && now.Sub(h.failed) >= feedFloor:
+			due = append(due, url)
+		}
+	}
+	f.mu.Unlock()
+	for _, url := range due {
+		if _, err := f.refresh(alborz.Background(ctx), url); err != nil {
+			f.log.Printf("calendar: feed %s: %v", url, err)
+		}
+	}
+}
+
+func (f *feeds) events(url, color string) (CalendarObject, bool) {
+	cal := f.calendar(url)
 	if cal == nil {
 		return CalendarObject{}, false
 	}
@@ -150,6 +372,13 @@ func (c *subCache) events(client *http.Client, url, color string) (CalendarObjec
 	}, true
 }
 
+func (f *feeds) count(url string) int {
+	if cal := f.calendar(url); cal != nil {
+		return len(cal.Events())
+	}
+	return 0
+}
+
 func feedName(cal *ical.Calendar) string {
 	if p := cal.Props.Get(feedNameProp); p != nil {
 		return strings.TrimSpace(p.Value)
@@ -157,104 +386,53 @@ func feedName(cal *ical.Calendar) string {
 	return ""
 }
 
-func (c *subCache) count(client *http.Client, url string) int {
-	if cal := c.calendar(client, url); cal != nil {
-		return len(cal.Events())
-	}
-	return 0
-}
-
-func (c *subCache) fresh(url string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	e := c.entries[url]
-	return e != nil && e.cal != nil && time.Since(e.fetched) < c.keepFor
-}
-
-func (c *subCache) renew(client *http.Client, url string) {
-	if c.keepFor > 0 && !c.fresh(url) {
-		go c.refresh(client, url)
-	}
-}
-
-// An unchanged feed costs one conditional GET and no parse.
-func (c *subCache) refresh(client *http.Client, url string) (*ical.Calendar, error) {
-	if c.keepFor == 0 {
-		cal, _, _, err := c.get(client, url, "")
-		return cal, err
-	}
-	c.mu.Lock()
-	e := c.entries[url]
-	if e == nil {
-		e = &subEntry{}
-		c.entries[url] = e
-	}
-	if e.fetching {
-		cal := e.cal
-		c.mu.Unlock()
-		return cal, nil
-	}
-	e.fetching = true
-	etag := e.etag
-	c.mu.Unlock()
-
-	cal, newETag, notModified, err := c.get(client, url, etag)
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	e.fetching = false
+// fetchFeed asks for the feed unless it is unchanged since was; calendar and body are nil when it is.
+func fetchFeed(ctx context.Context, client *http.Client, was feed) (feed, *ical.Calendar, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, was.URL, nil)
 	if err != nil {
-		return nil, err
+		return was, nil, nil, err
 	}
-	if notModified {
-		e.fetched = time.Now()
-		return e.cal, nil
+	if was.ETag != "" {
+		req.Header.Set("If-None-Match", was.ETag)
 	}
-	e.cal = cal
-	e.etag = newETag
-	e.fetched = time.Now()
-	return cal, nil
-}
-
-func (c *subCache) get(client *http.Client, url, etag string) (*ical.Calendar, string, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), alborz.RoundTripTimeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, "", false, err
-	}
-	if etag != "" {
-		req.Header.Set("If-None-Match", etag)
+	if was.LastModified != "" {
+		req.Header.Set("If-Modified-Since", was.LastModified)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, "", false, err
+		return was, nil, nil, err
 	}
 	defer resp.Body.Close()
+	now := time.Now()
 	if resp.StatusCode == http.StatusNotModified {
-		return nil, etag, true, nil
+		was.Fetched = now
+		return was, nil, nil, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", false, fmt.Errorf("the calendar at %s answered %s", url, resp.Status)
+		return was, nil, nil, fmt.Errorf("the calendar at %s answered %s", was.URL, resp.Status)
 	}
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
-		return nil, "", false, errNotFeed
+		return was, nil, nil, errNotFeed
 	}
-	cal, err := ical.NewDecoder(io.LimitReader(resp.Body, subMaxSize)).Decode()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, subMaxSize))
 	if err != nil {
-		return nil, "", false, fmt.Errorf("the calendar at %s is not iCalendar: %w", url, err)
+		return was, nil, nil, err
 	}
-	return cal, resp.Header.Get("ETag"), false, nil
+	cal, err := ical.NewDecoder(bytes.NewReader(body)).Decode()
+	if err != nil {
+		return was, nil, nil, fmt.Errorf("the calendar at %s is not iCalendar: %w", was.URL, err)
+	}
+	return feed{URL: was.URL, ETag: resp.Header.Get("ETag"), LastModified: resp.Header.Get("Last-Modified"),
+		Fetched: now, Every: refreshEvery(cal)}, cal, body, nil
 }
 
-func (p *plugin) subscriptionObjects(client *http.Client, infos []dav.Collection, scope string) []CalendarObject {
+func (p *plugin) subscriptionObjects(infos []dav.Collection, scope string) []CalendarObject {
 	var out []CalendarObject
 	for _, info := range infos {
 		if info.Address == "" || !info.Shown || (scope != "" && info.Account != scope) {
 			continue
 		}
-		p.subs.renew(client, info.Address)
-		if obj, ok := p.subs.events(client, info.Address, info.Color); ok {
+		if obj, ok := p.feeds.events(info.Address, info.Color); ok {
 			// The account rides the link, so the event page asks that account's subscriptions.
 			obj.Account = info.Account
 			out = append(out, obj)

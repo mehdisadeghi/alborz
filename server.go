@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz/internal/kv"
-	"git.mehdix.org/alborz/plugins/collections"
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -114,11 +113,10 @@ type Server struct {
 	// Sessions are the browsers signed in.
 	Sessions *Sessions
 
-	// Collections are the calendars, task lists and address books kept here.
-	Collections   *collections.Store
-	davPasswords  *davPasswords
 	signInRefused *refusals
 	data          kv.DB
+	// dataPath is where data lives, for its messages.
+	dataPath string
 
 	loginFailures sync.Map
 
@@ -190,11 +188,10 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		return nil, err
 	}
 	version, _ := Build()
+	s.dataPath = filepath.Join(dataDir, storeFile)
 	if s.data, err = openData(dataDir, version, e.Logger.Printf); err != nil {
 		return nil, err
 	}
-	s.Collections = collections.New(s.data)
-	s.davPasswords = newDAVPasswords()
 	// Remembering a session keeps a password, so it needs a sealing key.
 	var settings *settingsRecords
 	if options.LoginKey != nil {
@@ -475,6 +472,9 @@ type Router struct{ e *echo.Echo }
 
 func (s *Server) Router() Router { return Router{s.e} }
 
+// Pre answers requests ahead of routing, sessions and cookies, inside the reload lock.
+func (s *Server) Pre(mw echo.MiddlewareFunc) { s.e.Pre(mw) }
+
 func (r Router) GET(path string, h HandlerFunc)  { r.add(http.MethodGet, path, h) }
 func (r Router) POST(path string, h HandlerFunc) { r.add(http.MethodPost, path, h) }
 
@@ -684,7 +684,7 @@ type Options struct {
 	DataDir string
 	// StrictNotices fails an action that redirects with no notice instead of only logging it.
 	StrictNotices bool
-	// PrivateServices lets an account name a DAV server on plain HTTP or a private address.
+	// PrivateServices lets an account name a server on plain HTTP or a private address.
 	PrivateServices bool
 	// TrustedProxies are the proxies whose X-Forwarded-For names the reader.
 	TrustedProxies []*net.IPNet
@@ -779,8 +779,6 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 			return err
 		}
 	})
-
-	e.Pre(s.serveOwnDAV())
 
 	// The event stream is skipped: a compressor holds it back.
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{

@@ -368,26 +368,8 @@ func isSieveConnClosed(err error) bool {
 		errors.Is(err, syscall.ECONNRESET)
 }
 
-// SetHTTPBasicAuth sets the login's HTTP service credentials on req.
-func (l *Login) SetHTTPBasicAuth(req *http.Request) error {
-	password, err := l.HTTPPassword(req.Context())
-	if err != nil {
-		return err
-	}
-	services, err := l.Services(req.Context())
-	if err != nil {
-		return err
-	}
-	username := l.username
-	if services.Username != "" {
-		username = services.Username
-	}
-	req.SetBasicAuth(username, password)
-	return nil
-}
-
-// SetMailBasicAuth sets the mail login's credentials on req, for a DAV server
-// on the mail host (ADR 28).
+// SetMailBasicAuth sets the mail login's credentials on req, for a server on
+// the mail host that shares its accounts (ADR 28).
 func (l *Login) SetMailBasicAuth(req *http.Request) {
 	req.SetBasicAuth(l.username, l.password)
 }

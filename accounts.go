@@ -243,6 +243,109 @@ func readerKey(from, username string) string {
 	return from
 }
 
+// CheckPassword asks the mail server whether password opens username, as signing in does and sharing its tries, keeping no login.
+func (s *Server) CheckPassword(username, password, from string) error {
+	return s.signInRefused.attempt(readerKey(from, username), func() error {
+		_, domain, _ := strings.Cut(username, "@")
+		c, err := s.Logins.connectIMAP(domain, username, password, from)
+		if err != nil {
+			return err
+		}
+		c.Logout()
+		return nil
+	})
+}
+
+// refusalsHeld bounds the keys remembered, so a flood of addresses cannot grow the map.
+const refusalsHeld = 4096
+
+// refusals stops asking the mail server after tries refusals within window, since each ask is an IMAP login.
+type refusals struct {
+	tries  int
+	window time.Duration
+
+	mu sync.Mutex
+	at map[string][]time.Time
+	// A full map is not walked again before something can be dropped.
+	sweepAt time.Time
+}
+
+func newRefusals(tries int, window time.Duration) *refusals {
+	return &refusals{tries: tries, window: window, at: make(map[string][]time.Time)}
+}
+
+func (r *refusals) recent(key string, now time.Time) []time.Time {
+	var out []time.Time
+	for _, at := range r.at[key] {
+		if now.Sub(at) < r.window {
+			out = append(out, at)
+		}
+	}
+	return out
+}
+
+func (r *refusals) sweep(now time.Time) {
+	r.sweepAt = time.Time{}
+	for k := range r.at {
+		recent := r.recent(k, now)
+		if len(recent) == 0 {
+			delete(r.at, k)
+			continue
+		}
+		if ends := recent[0].Add(r.window); r.sweepAt.IsZero() || ends.Before(r.sweepAt) {
+			r.sweepAt = ends
+		}
+	}
+}
+
+// Reserving before the try keeps concurrent tries from all passing the count.
+func (r *refusals) reserve(key string, now time.Time) time.Time {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	recent := r.recent(key, now)
+	if len(recent) >= r.tries {
+		return recent[len(recent)-r.tries].Add(r.window)
+	}
+	if _, held := r.at[key]; !held && len(r.at) >= refusalsHeld {
+		if now.Before(r.sweepAt) {
+			return r.sweepAt
+		}
+		if r.sweep(now); len(r.at) >= refusalsHeld {
+			return r.sweepAt
+		}
+	}
+	r.at[key] = append(recent, now)
+	return time.Time{}
+}
+
+func (r *refusals) release(key string, now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	// Two concurrent tries may share a clock tick, so only one is released.
+	i := slices.IndexFunc(r.at[key], func(at time.Time) bool { return at.Equal(now) })
+	if i < 0 {
+		return
+	}
+	kept := slices.Delete(r.at[key], i, i+1)
+	if len(kept) == 0 {
+		delete(r.at, key)
+		return
+	}
+	r.at[key] = kept
+}
+
+func (r *refusals) attempt(key string, ask func() error) error {
+	now := time.Now()
+	if until := r.reserve(key, now); !until.IsZero() {
+		return PausedError{Until: until}
+	}
+	err := ask()
+	if !errors.As(err, new(AuthError)) {
+		r.release(key, now)
+	}
+	return err
+}
+
 // SignInRefusal returns the reader's message and status for a failed sign-in;
 // an empty message means alborz itself failed.
 func (ctx *Context) SignInRefusal(err error) (string, int) {

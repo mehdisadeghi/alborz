@@ -11,17 +11,13 @@ import (
 	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/internal/record"
-	"git.mehdix.org/alborz/plugins/collections"
 )
 
 // metaKey says what the file holds and who has had it; see ADR 26.
 const metaKey = "alborz.meta"
 
-// formats are the key owners this version writes, with each one's format.
-var formats = map[string]int{
-	sessionsOwner: recordsFormat, settingsOwner: recordsFormat,
-	collections.Name: collections.Format,
-}
+// formats are core's key owners, with each one's format; a feature notes its own through Server.Data.
+var formats = map[string]int{sessionsOwner: recordsFormat, settingsOwner: recordsFormat}
 
 // openedKept is enough builds to see a rollback and what it rolled back from.
 const openedKept = 8
@@ -52,7 +48,30 @@ func openData(dir, build string, log func(format string, args ...any)) (kv.DB, e
 	case err != nil:
 		return nil, fmt.Errorf("failed to open %s: %w", path, err)
 	}
-	err = db.Update(func(tx kv.Tx) error {
+	err = updateMeta(db, path, func(meta *dataMeta) {
+		noteFormats(meta, formats, path, log)
+		meta.Opened = append([]dataOpened{{Build: build, At: time.Now().UTC()}}, meta.Opened...)
+		if len(meta.Opened) > openedKept {
+			meta.Opened = meta.Opened[:openedKept]
+		}
+	})
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	return db, nil
+}
+
+// Data is alborz's data file for a feature that keeps keys under owner, in format.
+func (s *Server) Data(owner string, format int) (kv.DB, error) {
+	err := updateMeta(s.data, s.dataPath, func(meta *dataMeta) {
+		noteFormats(meta, map[string]int{owner: format}, s.dataPath, s.e.Logger.Printf)
+	})
+	return s.data, err
+}
+
+func updateMeta(db kv.DB, path string, change func(*dataMeta)) error {
+	return db.Update(func(tx kv.Tx) error {
 		old := tx.Get(metaKey)
 		var meta dataMeta
 		if old != nil {
@@ -63,27 +82,22 @@ func openData(dir, build string, log func(format string, args ...any)) (kv.DB, e
 		if meta.Formats == nil {
 			meta.Formats = map[string]int{}
 		}
-		for owner, format := range formats {
-			switch had := meta.Formats[owner]; {
-			case had > format:
-				log("%s: %s is in format %d, this build knows %d", path, owner, had, format)
-			case had < format:
-				meta.Formats[owner] = format
-			}
-		}
-		meta.Opened = append([]dataOpened{{Build: build, At: time.Now().UTC()}}, meta.Opened...)
-		if len(meta.Opened) > openedKept {
-			meta.Opened = meta.Opened[:openedKept]
-		}
+		change(&meta)
 		raw, err := record.Keep(old, &meta)
 		if err != nil {
 			return err
 		}
 		return tx.Put(metaKey, raw)
 	})
-	if err != nil {
-		db.Close()
-		return nil, err
+}
+
+func noteFormats(meta *dataMeta, formats map[string]int, path string, log func(format string, args ...any)) {
+	for owner, format := range formats {
+		switch had := meta.Formats[owner]; {
+		case had > format:
+			log("%s: %s is in format %d, this build knows %d", path, owner, had, format)
+		case had < format:
+			meta.Formats[owner] = format
+		}
 	}
-	return db, nil
 }

@@ -49,7 +49,7 @@ func (p *Provider) router(ctx context.Context, login *alborz.Login) sourceRouter
 		named:   p.named,
 		sign: func(req *http.Request, src Source) error {
 			if src.Named {
-				err := login.SetHTTPBasicAuth(req)
+				err := setHTTPBasicAuth(login, req)
 				if errors.Is(err, alborz.ErrSealed) {
 					return &RefusedError{Host: req.URL.Host}
 				}

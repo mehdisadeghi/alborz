@@ -56,14 +56,14 @@ func (p *plugin) pooledBooks(ctx *alborz.Context) ([]dav.Account[*carddav.Client
 }
 
 // Mount serves contacts.
-func Mount(srv *alborz.Server) error {
-	provider, err := dav.NewProvider(srv, dav.Kind{
+func Mount(srv *alborz.Server, kept *collections.Store) error {
+	provider, err := dav.NewProvider(srv, kept, dav.Kind{
 		Name: "carddav", Label: "CardDAV",
 		Schemes: [2]string{"carddavs", "carddav+insecure"},
 		// Address books change rarely.
 		Poll:     10 * time.Minute,
 		Discover: carddav.DiscoverContextURL,
-		Own:      func(s alborz.Services) string { return s.CardDAV },
+		Own:      func(s dav.Services) string { return s.CardDAV },
 		Holds:    collections.AddressBook,
 		FindHome: findHome,
 		List:     listAddressBooks,

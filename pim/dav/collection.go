@@ -1,9 +1,7 @@
 package dav
 
 import (
-	"bytes"
 	"context"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,24 +11,6 @@ import (
 
 	"git.mehdix.org/alborz/pim/store"
 )
-
-// Privileges is the DAV:current-user-privilege-set; it says whether a collection is writable.
-type Privileges []struct {
-	Write        *struct{} `xml:"DAV: write"`
-	WriteContent *struct{} `xml:"DAV: write-content"`
-	Bind         *struct{} `xml:"DAV: bind"`
-}
-
-// Writable reports whether a granted privilege allows writing, and whether the server said at all.
-func (ps Privileges) Writable() (writable, known bool) {
-	for _, p := range ps {
-		known = true
-		if p.Write != nil || p.WriteContent != nil || p.Bind != nil {
-			writable = true
-		}
-	}
-	return writable, known
-}
 
 // CollectionProps is a kind's property set as read from a PROPFIND.
 type CollectionProps interface {
@@ -139,9 +119,6 @@ func nameFromPath(p string) string {
 // DefaultColor is what a new collection's colour field opens on.
 const DefaultColor = "#3366cc"
 
-// Past this many taken names, something other than a clash is going on.
-const MaxCreateAttempts = 20
-
 // CountObjects counts a collection's children with a Depth 1 PROPFIND for resource types only.
 func CountObjects(ctx context.Context, client *http.Client, base *url.URL, coll string) (int, error) {
 	target := base.ResolveReference(&url.URL{Path: coll}).String()
@@ -217,91 +194,4 @@ func NameTaken(name, place string, existing []Collection) bool {
 		}
 	}
 	return false
-}
-
-// ErrCollectionExists is MKCALENDAR or MKCOL answered 405: the address is taken (RFC 4918 9.3.1).
-var ErrCollectionExists = errors.New("a collection of that name is already there")
-
-// MakeCollection sends MKCALENDAR or MKCOL; 201, or 207 from some servers, is success.
-func MakeCollection(ctx context.Context, client *http.Client, method, target string, body []byte) error {
-	req, err := http.NewRequestWithContext(ctx, method, target, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "text/xml; charset=\"utf-8\"")
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	switch resp.StatusCode {
-	case http.StatusCreated, http.StatusMultiStatus:
-		return nil
-	case http.StatusMethodNotAllowed:
-		return fmt.Errorf("%s: %w", target, ErrCollectionExists)
-	default:
-		return fmt.Errorf("failed to create the collection: %s", resp.Status)
-	}
-}
-
-// CreateCollection makes a collection at the first free address under homeSet, walking past taken ones.
-func CreateCollection(ctx context.Context, base *url.URL, homeSet, name, fallback string, make func(ctx context.Context, target string) error) (string, error) {
-	segment := url.PathEscape(strings.ToLower(strings.ReplaceAll(strings.TrimSpace(name), " ", "-")))
-	if segment == "" {
-		segment = fallback
-	}
-	home := CanonicalCollectionPath(homeSet)
-	for attempt := 1; ; attempt++ {
-		try := segment
-		if attempt > 1 {
-			try = fmt.Sprintf("%s-%d", segment, attempt)
-		}
-		path := home + try + "/"
-		target := base.ResolveReference(&url.URL{Path: path}).String()
-		err := make(ctx, target)
-		if err == nil {
-			return path, nil
-		}
-		if !errors.Is(err, ErrCollectionExists) || attempt == MaxCreateAttempts {
-			return "", err
-		}
-	}
-}
-
-// Prop names a property by namespace and element, for each kind's vendor colour property.
-type Prop struct {
-	XMLNS, Name string
-}
-
-// Proppatch renames or recolours a collection.
-func Proppatch(ctx context.Context, client *http.Client, target, name, color string, colorProp Prop) error {
-	var props bytes.Buffer
-	if name != "" {
-		fmt.Fprintf(&props, "<D:displayname>%s</D:displayname>", XMLEscape(name))
-	}
-	if color != "" {
-		fmt.Fprintf(&props, `<C:%s xmlns:C="%s">%s</C:%s>`, colorProp.Name, colorProp.XMLNS, XMLEscape(color), colorProp.Name)
-	}
-	if props.Len() == 0 {
-		return nil
-	}
-	var buf bytes.Buffer
-	buf.WriteString(xml.Header)
-	fmt.Fprintf(&buf, `<D:propertyupdate xmlns:D="DAV:"><D:set><D:prop>%s</D:prop></D:set></D:propertyupdate>`, props.String())
-
-	req, err := http.NewRequestWithContext(ctx, "PROPPATCH", target, &buf)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "text/xml; charset=\"utf-8\"")
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusMultiStatus &&
-		resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("failed to change the collection: %s", resp.Status)
-	}
-	return nil
 }

@@ -56,19 +56,40 @@ func Propfind[P any](ctx context.Context, client *http.Client, path string, body
 	return &ms, nil
 }
 
-// DeleteCollection removes a collection and all it holds (RFC 4918 9.6).
-func DeleteCollection(ctx context.Context, client *http.Client, target string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, target, nil)
+// Prop names a property by namespace and element, for each kind's vendor colour property.
+type Prop struct {
+	XMLNS, Name string
+}
+
+// Proppatch renames or recolours a collection.
+func Proppatch(ctx context.Context, client *http.Client, target, name, color string, colorProp Prop) error {
+	var props bytes.Buffer
+	if name != "" {
+		fmt.Fprintf(&props, "<D:displayname>%s</D:displayname>", XMLEscape(name))
+	}
+	if color != "" {
+		fmt.Fprintf(&props, `<C:%s xmlns:C="%s">%s</C:%s>`, colorProp.Name, colorProp.XMLNS, XMLEscape(color), colorProp.Name)
+	}
+	if props.Len() == 0 {
+		return nil
+	}
+	var buf bytes.Buffer
+	buf.WriteString(xml.Header)
+	fmt.Fprintf(&buf, `<D:propertyupdate xmlns:D="DAV:"><D:set><D:prop>%s</D:prop></D:set></D:propertyupdate>`, props.String())
+
+	req, err := http.NewRequestWithContext(ctx, "PROPPATCH", target, &buf)
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Content-Type", "text/xml; charset=\"utf-8\"")
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("failed to delete the collection: %s", resp.Status)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusMultiStatus &&
+		resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("failed to change the collection: %s", resp.Status)
 	}
 	return nil
 }

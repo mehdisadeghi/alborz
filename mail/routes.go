@@ -43,7 +43,6 @@ func (p *plugin) registerRoutes() {
 	p.GET("/message/:mbox/:uid/eml", func(ctx *alborz.Context) error {
 		return handleDownloadMessage(ctx, false)
 	})
-	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
 	p.GET("/proxy", handleProxy)
 	p.POST("/mailbox/:mbox/refresh", p.handleRefreshMailbox)
 	p.POST("/mailbox/:mbox/import", p.handleDropImport)

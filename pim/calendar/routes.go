@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-ical"
@@ -359,7 +358,7 @@ func (p *plugin) rawObject(ctx *alborz.Context) error {
 
 func newCalendar(comp *ical.Component) *ical.Calendar {
 	cal := ical.NewCalendar()
-	cal.Props.SetText(ical.PropProductID, mail.ItipProductID)
+	cal.Props.SetText(ical.PropProductID, ItipProductID)
 	cal.Props.SetText(ical.PropVersion, "2.0")
 	cal.Children = append(cal.Children, comp)
 	return cal

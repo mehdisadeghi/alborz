@@ -1,16 +1,18 @@
-package mail
+package calendar
 
 import (
 	"bytes"
 	"fmt"
-
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-smtp"
+	"github.com/labstack/echo/v4"
 )
 
 // Scheduling mail (iMIP, RFC 6047; iTIP, RFC 5546): only methods a reader can act on.
@@ -67,27 +69,6 @@ type Attendee struct {
 	Name   string
 	Addr   string
 	Status string
-}
-
-func invitationPart(msg *IMAPMessage) *IMAPPartNode {
-	if msg.BodyStructure == nil {
-		return nil
-	}
-	var found *IMAPPartNode
-	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
-		if found != nil {
-			return false
-		}
-		single, ok := part.(*imap.BodyStructureSinglePart)
-		if !ok {
-			return true
-		}
-		if strings.EqualFold(single.Type, "text") && strings.EqualFold(single.Subtype, "calendar") {
-			found = newIMAPPartNode(msg, path, single)
-		}
-		return true
-	})
-	return found
 }
 
 // Anything unparsable is not an invitation and stays shown as an attachment.
@@ -186,58 +167,6 @@ func replyCalendar(inv *Invitation, me, name, status string) *ical.Calendar {
 // ItipProductID is the PRODID of the calendar objects Alborz writes.
 const ItipProductID = "-//mehdix.org//Alborz//EN"
 
-// SendCalendarMessage posts an iCalendar object as mail (iMIP).
-func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, calendar string) error {
-	if len(to) == 0 {
-		return nil
-	}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
-		return err
-	}
-	msg := &OutgoingMessage{
-		From:           fromAddress(settings, ctx.Login.Username()),
-		To:             to,
-		Subject:        subject,
-		MessageID:      newMessageID(),
-		Text:           calendar,
-		CalendarMethod: method,
-		Mailer:         mailerName(ctx),
-	}
-	return ctx.DoSMTP(func(c *smtp.Client) error {
-		return sendMessage(c, msg)
-	})
-}
-
-// ShareHeader names the share invitation a mail stands for.
-const ShareHeader = "X-Alborz-Share"
-
-// SendText posts a short plain message from the login's account.
-func SendText(ctx *alborz.Context, to []string, subject, text string, headers map[string]string) error {
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
-		return err
-	}
-	msg := &OutgoingMessage{
-		From:      fromAddress(settings, ctx.Login.Username()),
-		To:        to,
-		Subject:   subject,
-		MessageID: newMessageID(),
-		Text:      text,
-		Mailer:    mailerName(ctx),
-		Headers:   headers,
-	}
-	return ctx.DoSMTP(func(c *smtp.Client) error {
-		return sendMessage(c, msg)
-	})
-}
-
-// MethodRequest and MethodCancel are what an organizer sends.
-const (
-	MethodRequest = methodRequest
-	MethodCancel  = methodCancel
-)
-
 func replySubject(status, summary string) string {
 	word := "Accepted"
 	switch status {
@@ -250,27 +179,77 @@ func replySubject(status, summary string) string {
 }
 
 // The calendar is the body, not an attachment, so the receiving client acts on it.
-func invitationReply(ctx *alborz.Context, inv *Invitation, status string) (*OutgoingMessage, error) {
+func invitationReply(ctx *alborz.Context, inv *Invitation, status string) (string, error) {
 	if inv.Organizer == "" {
-		return nil, fmt.Errorf("the invitation names no organizer to answer")
+		return "", fmt.Errorf("the invitation names no organizer to answer")
 	}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	me := ctx.Login.Username()
 
 	var buf bytes.Buffer
 	if err := ical.NewEncoder(&buf).Encode(replyCalendar(inv, me, settings.From, status)); err != nil {
-		return nil, fmt.Errorf("failed to write the reply calendar: %v", err)
+		return "", fmt.Errorf("failed to write the reply calendar: %v", err)
+	}
+	return buf.String(), nil
+}
+
+// The invitation is re-read from the message, so what is answered is what was sent.
+func handleInvitationReply(ctx *alborz.Context) error {
+	mboxName, uid, err := mail.ParseMessageRef(ctx.Param("mbox"), ctx.Param("uid"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	return &OutgoingMessage{
-		From:           fromAddress(settings, me),
-		To:             []string{inv.Organizer},
-		Subject:        replySubject(status, inv.Summary),
-		MessageID:      newMessageID(),
-		Text:           buf.String(),
-		CalendarMethod: methodReply,
-	}, nil
+	status := strings.ToUpper(ctx.FormValue("status"))
+	switch status {
+	case partAccepted, partDeclined, partTentative:
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "unknown answer")
+	}
+
+	inv, _, err := invitationAt(ctx, mboxName, uid)
+	if err != nil {
+		return err
+	}
+	if inv == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "this message carries no invitation")
+	}
+
+	reply, err := invitationReply(ctx, inv, status)
+	if err != nil {
+		return err
+	}
+	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/message/%s/%v", url.PathEscape(mboxName), uid)))
+	if err := mail.SendCalendarMessage(ctx, []string{inv.Organizer}, replySubject(status, inv.Summary), methodReply, reply); err != nil {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})
+		return ctx.Redirect(http.StatusFound, back)
+	}
+
+	ctx.PutNotice(ctx.T("invite.answered"))
+	return ctx.Redirect(http.StatusFound, back)
+}
+
+// An unparsable invitation is not a page failure: the part is still an attachment.
+func messageInvitation(ctx *alborz.Context, msg *mail.IMAPMessage, mboxName string, uid imap.UID) *Invitation {
+	raw, part, err := mail.CalendarPart(ctx, msg, mboxName, uid)
+	if err != nil {
+		ctx.Logger().Printf("failed to read the calendar part: %v", err)
+		return nil
+	}
+	if raw == nil {
+		return nil
+	}
+	return readInvitation(raw, part, ctx.Login.Username())
+}
+
+// invitationAt reads the scheduling part of one message, and the bytes it was written as.
+func invitationAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*Invitation, []byte, error) {
+	raw, part, err := mail.CalendarPartAt(ctx, mboxName, uid)
+	if err != nil || raw == nil {
+		return nil, nil, err
+	}
+	return readInvitation(raw, part, ctx.Login.Username()), raw, nil
 }

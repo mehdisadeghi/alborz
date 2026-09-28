@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/calsys"
 	"git.mehdix.org/alborz/mail"
 	"github.com/labstack/echo/v4"
 )
@@ -91,10 +92,10 @@ func handleProfile(ctx *alborz.Context) error {
 		}
 	}
 	if v, ok := given("calendar"); ok {
-		reading.Primary = alborz.CalendarNamed(v)
+		reading.Primary = calsys.Known(v)
 	}
 	if v, ok := given("secondary"); ok {
-		reading.Secondary = alborz.CalendarNamed(v)
+		reading.Secondary = calsys.Known(v)
 	}
 	if reading.Secondary == reading.Primary {
 		reading.Secondary = ""

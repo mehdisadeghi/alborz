@@ -9,6 +9,7 @@ import (
 	"github.com/emersion/go-ical"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/calsys"
 )
 
 // Monthly and yearly rules count in the reader's calendar (RFC 7529 RSCALE).
@@ -28,13 +29,13 @@ type rule struct {
 	interval int
 	until    time.Time
 	count    int
-	cal      alborz.CalendarSystem
+	cal      calsys.System
 	skip     string
 	other    bool
 }
 
 func parseRule(s string, loc *time.Location) rule {
-	r := rule{interval: 1, cal: alborz.Calendar(""), skip: "OMIT"}
+	r := rule{interval: 1, cal: calsys.Of(""), skip: "OMIT"}
 	for _, part := range strings.Split(s, ";") {
 		key, value, _ := strings.Cut(part, "=")
 		switch strings.ToUpper(key) {
@@ -47,7 +48,7 @@ func parseRule(s string, loc *time.Location) rule {
 		case "UNTIL":
 			r.until = parseUntil(value, loc)
 		case "RSCALE":
-			cal, ok := alborz.CalendarOfRSCALE(value)
+			cal, ok := calsys.OfRSCALE(value)
 			if !ok {
 				r.other = true
 			}
@@ -105,7 +106,7 @@ func setRepeat(ctx *alborz.Context, event *ical.Event, rep Repeat, start time.Ti
 	}
 	parts := []string{"FREQ=" + strings.ToUpper(rep.Freq)}
 	cal := ctx.CalendarSystem()
-	if (rep.Freq == "monthly" || rep.Freq == "yearly") && cal.RSCALE() != alborz.Calendar("").RSCALE() {
+	if (rep.Freq == "monthly" || rep.Freq == "yearly") && cal.RSCALE() != calsys.Of("").RSCALE() {
 		parts = append([]string{"RSCALE=" + cal.RSCALE()}, parts...)
 		parts = append(parts, "SKIP=BACKWARD")
 	}

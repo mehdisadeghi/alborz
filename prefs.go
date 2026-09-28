@@ -5,6 +5,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"git.mehdix.org/alborz/internal/calsys"
 )
 
 // The value lands in a stylesheet URL, so only listed themes are accepted.
@@ -136,8 +138,8 @@ func (ctx *Context) Calendars() (primary, secondary string) {
 }
 
 // CalendarSystem is the system the reader counts in.
-func (ctx *Context) CalendarSystem() CalendarSystem {
-	return Calendar(ctx.Reading().Primary)
+func (ctx *Context) CalendarSystem() calsys.System {
+	return calsys.Of(ctx.Reading().Primary)
 }
 
 // SetLanguage sets the UI language; empty follows Accept-Language.

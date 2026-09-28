@@ -5,12 +5,5 @@
 /themes/*
 !/themes/alborz
 /plugins/*
-!/plugins/base
-!/plugins/caldav
-!/plugins/carddav
 !/plugins/viewhtml
 !/plugins/viewtext
-!/plugins/sieve
-!/plugins/davcache
-!/plugins/dav
-!/plugins/collections

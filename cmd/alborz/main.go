@@ -22,11 +22,11 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 
-	alborzbase "git.mehdix.org/alborz/plugins/base"
-	alborzcaldav "git.mehdix.org/alborz/plugins/caldav"
-	alborzcarddav "git.mehdix.org/alborz/plugins/carddav"
-	alborzdav "git.mehdix.org/alborz/plugins/dav"
-	alborzsieve "git.mehdix.org/alborz/plugins/sieve"
+	"git.mehdix.org/alborz/filters"
+	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim/calendar"
+	"git.mehdix.org/alborz/pim/contacts"
+	"git.mehdix.org/alborz/pim/dav"
 	alborzviewhtml "git.mehdix.org/alborz/plugins/viewhtml"
 	alborzviewtext "git.mehdix.org/alborz/plugins/viewtext"
 )
@@ -175,23 +175,23 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		l.SetOutput(os.Stderr)
 		l.SetHeader("${time_rfc3339} ${level}")
 	}
-	s, err := alborz.New(e, &options, alborzbase.TemplateFuncs)
+	s, err := alborz.New(e, &options, mail.TemplateFuncs)
 	if err != nil {
 		e.Logger.Fatal(err)
 	}
-	alborzbase.Mount(s, alborzviewhtml.Viewer{}, alborzviewtext.Viewer{})
-	kept, err := alborzdav.Mount(s)
+	mail.Mount(s, alborzviewhtml.Viewer{}, alborzviewtext.Viewer{})
+	kept, err := dav.Mount(s)
 	if err != nil {
 		e.Logger.Fatal(err)
 	}
 	// Calendar before contacts, so the servers page lists the kept collections last.
-	if err := alborzcaldav.Mount(s, kept); err != nil {
+	if err := calendar.Mount(s, kept); err != nil {
 		e.Logger.Fatal(err)
 	}
-	if err := alborzcarddav.Mount(s, kept); err != nil {
+	if err := contacts.Mount(s, kept); err != nil {
 		e.Logger.Fatal(err)
 	}
-	alborzsieve.Mount(s)
+	filters.Mount(s)
 	alborzviewhtml.Mount(s)
 	e.Use(middleware.Recover())
 	if options.Debug {

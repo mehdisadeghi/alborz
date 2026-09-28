@@ -17,10 +17,6 @@ import (
 
 const settingsKey = "base.settings"
 
-func init() {
-	alborz.RegisterSetting(settingsKey)
-}
-
 const (
 	maxMessagesPerPage = 100
 	// Named for the warming code, which has no context to read a profile from.

@@ -86,5 +86,5 @@ replace github.com/emersion/go-ical => github.com/mehdisadeghi/go-ical v0.0.0-20
 // RFC 2971 does not name, so Dovecot learns the reader's address
 // (emersion/go-imap#693); Dovecot's BODYSTRUCTURE for message/global
 // (#704); an error, not a clean end, for a body cut off mid-transfer
-// (#676).
-replace github.com/emersion/go-imap/v2 => github.com/mehdisadeghi/go-imap/v2 v2.0.0-20250317164603-f648aa3a4b46
+// (#676); GETMETADATA options before the mailbox, as RFC 5464 orders.
+replace github.com/emersion/go-imap/v2 => github.com/mehdisadeghi/go-imap/v2 v2.0.0-20260928174739-a9c192e07373

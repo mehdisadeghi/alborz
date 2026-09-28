@@ -28,10 +28,6 @@ const (
 	settingsKey    = "caldav.settings"
 )
 
-func init() {
-	alborz.RegisterSetting(settingsKey)
-}
-
 // Bypasses go-webdav, whose strconv.Unquote rejects a weak ETag.
 func getCalendarObject(ctx *alborz.Context, c *caldav.Client, path string) (*caldav.CalendarObject, error) {
 	body, err := c.Open(ctx.Request().Context(), path)

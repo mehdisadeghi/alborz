@@ -277,11 +277,11 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		if len(groups) == 0 || len(groups[0].Collections) == 0 {
-			return alborz.RenderInfo(ctx, http.StatusOK, ctx.T("contacts.nowritable"))
-		}
 		card = make(vcard.Card)
-		currentAddressBook = &groups[0].Collections[0]
+		currentAddressBook = &dav.Collection{}
+		if len(groups) > 0 {
+			currentAddressBook = &groups[0].Collections[0]
+		}
 	}
 
 	if ctx.Request().Method == "POST" {

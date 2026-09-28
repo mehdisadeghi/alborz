@@ -1,9 +1,11 @@
 package alborz_test
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -20,8 +22,22 @@ func TestCreateCalendarWithNoneYet(t *testing.T) {
 	base := startAlborzDav(t, startIMAP(t), srv.URL)
 	c := login(t, base)
 
+	page := get(t, c, base+"/calendar/create")
+	if choice := regexp.MustCompile(`(?s)<select name="calendar"[^>]*>(.*?)</select>`).FindStringSubmatch(page); choice == nil || strings.Contains(choice[1], "<option") {
+		t.Fatalf("the new-event form has no empty calendar choice")
+	}
+	resp, err := c.PostForm(base+"/calendar/create", url.Values{"summary": {"Lunch"}, "start": {"2026-09-28T12:00"}, "end": {"2026-09-28T13:00"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(string(body), "Choose where to save it.") {
+		t.Fatalf("saving an event with nowhere to save answered %s, want the form refused", resp.Status)
+	}
+
 	form := url.Values{"name": {"First"}, "color": {"#22aa55"}, "holds": {"both"}}
-	resp := postForm(t, c, base+"/calendars/create", form)
+	resp = postForm(t, c, base+"/calendars/create", form)
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("creating the first calendar answered %s, want a redirect", resp.Status)
 	}

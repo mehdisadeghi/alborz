@@ -93,8 +93,10 @@ func registerRoutes(p *alborz.GoPlugin) {
 	// Settings that belong to the reader need no account; an account's
 	// own do, and the scoped wrapper puts it in the URL rather than
 	// leaving the page to guess.
-	p.GET("/settings", handleReadingSettings)
-	p.POST("/settings", handleReadingSettings)
+	p.GET("/settings", handleProfile)
+	p.POST("/settings", handleProfile)
+	p.POST("/settings/profile/take", handleProfileTake)
+	p.POST("/settings/profile/discard", handleProfileDiscard)
 	p.GET("/signatures", scoped(handleSignatures))
 	p.GET("/signatures/create", scoped(handleSignatureForm))
 	p.GET("/signatures/:name", scoped(handleSignatureForm))

@@ -1185,7 +1185,7 @@ func movedNotice(ctx *alborz.Context, n int, label, href string, landed int, und
 		Markup: template.HTML(ctx.Tf("notice.movedto", n, link)),
 	}
 	if landed > 0 {
-		notice.Action = ctx.Undo(undoPath, undoFields)
+		notice.Actions = []*alborz.NoticeAction{ctx.Undo(undoPath, undoFields)}
 	}
 	return notice
 }
@@ -1340,10 +1340,10 @@ func handleDelete(ctx *alborz.Context) error {
 		// the folder one page at a time. The rest is offered, behind a
 		// page that says how many, and never taken on its own.
 		if done >= PerPage(ctx) && left > 0 {
-			notice.Action = &alborz.NoticeAction{
+			notice.Actions = []*alborz.NoticeAction{{
 				Label: ctx.Tf("notice.deleteall", left),
 				Path:  ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName) + "/empty"),
-			}
+			}}
 		}
 		return notice
 	}, landOn(ctx, back))
@@ -1499,7 +1499,7 @@ func flaggedNotice(ctx *alborz.Context, uids, flags []string, op imap.StoreFlags
 	inverse := map[imap.StoreFlagsOp]string{imap.StoreFlagsAdd: "remove", imap.StoreFlagsDel: "add"}[op]
 	if inverse != "" {
 		fields := url.Values{"uids": uids, "flags": flags, "action": {inverse}, "next": {target}}
-		notice.Action = ctx.Undo(ctx.AccountPath("/message/"+url.PathEscape(mboxName)+"/flag"), fields)
+		notice.Actions = []*alborz.NoticeAction{ctx.Undo(ctx.AccountPath("/message/"+url.PathEscape(mboxName)+"/flag"), fields)}
 	}
 	return notice
 }

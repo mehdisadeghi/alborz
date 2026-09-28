@@ -836,6 +836,21 @@ dialog.notice:not([open]) {
   text-decoration: underline;
 }
 
+/* Two answers beside a sentence crush it on a phone: they drop under
+   the text, whole, where the line cannot hold both. */
+dialog.notice:has(> .notice-action + .notice-action) {
+  flex-wrap: wrap;
+  justify-content: start;
+}
+
+dialog.notice:has(> .notice-action + .notice-action) > .notice-text {
+  flex: 1 1 16rem;
+}
+
+dialog.notice:has(> .notice-action + .notice-action) .button-link {
+  white-space: nowrap;
+}
+
 /* A thing's own name inside a notice: as much of it as the screen can
    hold, cut with an ellipsis rather than pushing the Undo beside it
    off the bar. The bound is the viewport's, since that is what

@@ -432,7 +432,7 @@ func completedNotice(ctx *alborz.Context, done bool, n int, action string, form 
 		key = "notice.tasksopen"
 		form.Set("reopen", "1")
 	}
-	return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf(key, n), Action: ctx.Undo(action, form)}
+	return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf(key, n), Actions: []*alborz.NoticeAction{ctx.Undo(action, form)}}
 }
 
 func markTodo(todo *ical.Component, done bool) {

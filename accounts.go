@@ -66,15 +66,12 @@ func (ctx *Context) Logins() []*Login {
 // request's own. A login for the same address is replaced.
 func (ctx *Context) AddAccount(s *Login) {
 	session := ctx.Session()
+	first := !slices.ContainsFunc(ctx.accountLogins(), func(l *Login) bool { return l.username != s.username })
 	session.Add(s)
-	// A browser with no reading settings of its own takes what the
-	// account brings, whether it is the first to sign in or joins
-	// later. One that has been told what to do is never overruled.
-	// Silently: the page size it starts with is not news.
-	ctx.adoptReading(s.Username())
 	ctx.accountsLoaded = false
 	ctx.Login = s
 	ctx.DefaultLogin = s
+	ctx.joinProfile(s, first)
 	for _, ready := range ctx.Server.OnAccountReady {
 		ready(ctx, s)
 	}

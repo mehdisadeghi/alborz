@@ -89,7 +89,7 @@ func main() {
 	// The working directory, the way a daemon told nothing keeps its
 	// state: the unit says where alborz runs and the file lands there.
 	flag.StringVar(&options.DataDir, "data-dir", ".",
-		"directory keeping alborz.db: remembered logins and reading settings, sealed under the login key, and the calendars and address books kept here; empty keeps none of them")
+		"directory keeping alborz.db: remembered logins and settings, sealed under the login key, and the calendars and address books kept here; empty keeps none of them")
 	flag.StringVar(&options.ProjectURL, "project-url", "",
 		"where the footer's project name links; unset prints the name alone")
 

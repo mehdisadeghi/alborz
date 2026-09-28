@@ -1350,7 +1350,7 @@
 {{ define "notice" }}
 <dialog{{ if not .closed }} open{{ end }} class="notice notice-{{.kind}}"{{ with .id }} id="{{.}}"{{ end }}{{ with .slow }} data-offline="{{$.text}}" data-slow="{{.}}"{{ end }}>
   <span class="notice-text" role="{{ if eq .kind "failed" }}alert{{ else }}status{{ end }}">{{ if .markup }}{{ .markup }}{{ else }}{{ .text }}{{ end }}</span>
-  {{ with .action }}
+  {{ range .actions }}
     {{/* Anything that changes state posts; a link is for going
          somewhere. */}}
     {{ if .Fields }}
@@ -1371,7 +1371,7 @@
      comes or goes. dict: g. */}}
 {{ define "notices" }}
 <div class="notices">
-  {{ with .g.GlobalData.Notice }}{{ template "notice" (dict "g" $.g "kind" .Kind "text" .Text "markup" .Markup "action" .Action) }}{{ end }}
+  {{ with .g.GlobalData.Notice }}{{ template "notice" (dict "g" $.g "kind" .Kind "text" .Text "markup" .Markup "actions" .Actions) }}{{ end }}
   {{/* What a page's own script has to report as failed - a passkey
        the browser refused - it writes into this one. */}}
   {{ template "notice" (dict "g" .g "kind" "failed" "id" "script-failed" "closed" true) }}

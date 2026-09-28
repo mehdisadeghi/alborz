@@ -468,11 +468,16 @@ func firstLines(s string) string {
 
 func login(t *testing.T, base string) *http.Client {
 	t.Helper()
+	return loginAs(t, base, smokeUser)
+}
+
+func loginAs(t *testing.T, base, account string) *http.Client {
+	t.Helper()
 	jar, _ := cookiejar.New(nil)
 	c := &http.Client{Jar: jar, Timeout: 20 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return nil }}
 	resp, err := c.PostForm(base+"/login",
-		url.Values{"username": {smokeUser}, "password": {smokePass}})
+		url.Values{"username": {account}, "password": {smokePass}})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -753,7 +758,7 @@ func TestSettingsWithNowhereToKeepThemAreRefusedOnTheForm(t *testing.T) {
 	c := login(t, base)
 	stay := *c
 	stay.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	resp, err := stay.PostForm(base+"/settings/account", url.Values{"from": {smokeUser}, "reply_position": {"below"}})
+	resp, err := stay.PostForm(base+"/settings/account", url.Values{"from": {smokeUser}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -823,17 +828,17 @@ func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 		t.Errorf("a reply to list mail carried an HTML part:\n%s", headOf(sent.Last()))
 	}
 
-	// The account can turn the part off, and that is saved by the
+	// The writer can turn the part off, and that is saved by the
 	// settings form the way a browser sends it: an unticked box is absent.
 	const ticked = `name="direction_part" id="direction_part" value="1" checked`
-	if !strings.Contains(get(t, c, base+"/settings/account"), ticked) {
+	if !strings.Contains(get(t, c, base+"/settings"), ticked) {
 		t.Fatal("the direction part is not on by default")
 	}
-	resp := postForm(t, c, base+"/settings/account", url.Values{"from": {smokeUser}, "reply_position": {"above"}})
+	resp := postForm(t, c, base+"/settings", url.Values{"reply_position": {"above"}})
 	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("saving account settings: %s", resp.Status)
+		t.Fatalf("saving settings: %s", resp.Status)
 	}
-	if strings.Contains(get(t, c, base+"/settings/account"), ticked) {
+	if strings.Contains(get(t, c, base+"/settings"), ticked) {
 		t.Fatal("the settings page still shows the direction part on")
 	}
 	sendFrom(t, c, base, "/compose", compose(), "subject", "turned off")
@@ -841,7 +846,7 @@ func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 		t.Fatalf("the message sent with the part turned off never arrived:\n%s", headOf(sent.Last()))
 	}
 	if strings.Contains(sent.Last(), "text/html") {
-		t.Errorf("right-to-left plain text carried an HTML part the account turned off:\n%s", headOf(sent.Last()))
+		t.Errorf("right-to-left plain text carried an HTML part the writer turned off:\n%s", headOf(sent.Last()))
 	}
 }
 
@@ -1976,5 +1981,88 @@ func TestASessionOpensOnlyToItsOwnSecret(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
 		t.Fatal("the inbox opened to a cookie holding the id and another secret")
+	}
+}
+
+// perPage is the page size a browser's settings page shows.
+func perPage(t *testing.T, c *http.Client, base string) string {
+	t.Helper()
+	m := regexp.MustCompile(`id="messages_per_page"\s+value="(\d+)"`).FindStringSubmatch(get(t, c, base+"/settings"))
+	if m == nil {
+		t.Fatal("the settings page shows no page size")
+	}
+	return m[1]
+}
+
+// TestProfileReachesEveryAccount changes the profile with two accounts
+// signed in and reads it back through a fresh sign-in to each alone,
+// which takes what that account holds.
+func TestProfileReachesEveryAccount(t *testing.T) {
+	base := startAlborzKeeping(t, startIMAP(t))
+	c := bothAccounts(t, base)
+	if resp := postForm(t, c, base+"/settings", url.Values{"messages_per_page": {"17"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving the profile: %s", resp.Status)
+	}
+	for _, account := range []string{smokeUser, smokeUser2} {
+		if got := perPage(t, loginAs(t, base, account), base); got != "17" {
+			t.Errorf("%s holds a page size of %s, want 17", account, got)
+		}
+	}
+}
+
+// TestSigningInAskedAboutAnotherProfile signs into a session an account
+// holding another page size, and answers the notice each way: both
+// accounts then hold the answer, and so does the session.
+func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
+	for _, answer := range []struct{ path, want string }{
+		{"/settings/profile/take", "17"},
+		{"/settings/profile/discard", "50"},
+	} {
+		t.Run(answer.path, func(t *testing.T) {
+			base := startAlborzKeeping(t, startIMAP(t))
+			postForm(t, loginAs(t, base, smokeUser), base+"/settings", url.Values{"messages_per_page": {"17"}})
+
+			c := loginAs(t, base, smokeUser2)
+			resp, err := c.PostForm(base+"/login?add=1", url.Values{"username": {smokeUser}, "password": {smokePass}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var buf bytes.Buffer
+			buf.ReadFrom(resp.Body)
+			resp.Body.Close()
+			bar := noticeBar(buf.String())
+			if !strings.Contains(bar, "Messages per page") || !strings.Contains(bar, "17") || !strings.Contains(bar, "50") {
+				t.Fatalf("no notice names the differing page size:\n%s", bar)
+			}
+			if got := perPage(t, c, base); got != "50" {
+				t.Fatalf("the session took %s before the reader answered", got)
+			}
+
+			var fields url.Values
+			for _, f := range regexp.MustCompile(`(?s)<form method="post" action="([^"]+)" class="notice-action">(.*?)</form>`).FindAllStringSubmatch(bar, -1) {
+				if f[1] != answer.path {
+					continue
+				}
+				fields = url.Values{}
+				for _, in := range regexp.MustCompile(`name="([^"]+)" value="([^"]*)"`).FindAllStringSubmatch(f[2], -1) {
+					fields.Add(in[1], html.UnescapeString(in[2]))
+				}
+			}
+			if fields == nil {
+				t.Fatalf("the notice offers no %s:\n%s", answer.path, bar)
+			}
+			if resp := postForm(t, c, base+answer.path, fields); resp.StatusCode != http.StatusFound {
+				t.Fatalf("answering: %s", resp.Status)
+			}
+
+			if got := perPage(t, c, base); got != answer.want {
+				t.Errorf("the session reads %s, want %s", got, answer.want)
+			}
+			for _, account := range []string{smokeUser, smokeUser2} {
+				if got := perPage(t, loginAs(t, base, account), base); got != answer.want {
+					t.Errorf("%s holds %s, want %s", account, got, answer.want)
+				}
+			}
+		})
 	}
 }

@@ -483,9 +483,9 @@ type Notice struct {
 	// Markup is the text with a link in it, for a notice that names a
 	// place; the text is what the markup says, for the log.
 	Markup template.HTML
-	// Action is the one thing a reader may want next - to undo, to
-	// delete the rest, to see what was sent. Nil when nothing follows.
-	Action *NoticeAction
+	// Actions are what a reader may want next - to undo, to delete the
+	// rest, to see what was sent.
+	Actions []*NoticeAction
 }
 
 const (
@@ -554,10 +554,10 @@ func (ctx *Context) Made(sentence, name, href, again string) {
 		marked = NoticeLink(name, href)
 	}
 	ctx.Notify(Notice{
-		Kind:   NoticeDone,
-		Text:   fmt.Sprintf(sentence, name),
-		Markup: template.HTML(fmt.Sprintf(sentence, marked)),
-		Action: &NoticeAction{Label: ctx.T("common.addanother"), Path: again},
+		Kind:    NoticeDone,
+		Text:    fmt.Sprintf(sentence, name),
+		Markup:  template.HTML(fmt.Sprintf(sentence, marked)),
+		Actions: []*NoticeAction{{Label: ctx.T("common.addanother"), Path: again}},
 	})
 }
 

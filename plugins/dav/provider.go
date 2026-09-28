@@ -27,7 +27,7 @@ type Kind struct {
 	// Discover finds the service's URL for a domain by its SRV record.
 	Discover func(ctx context.Context, domain string) (string, error)
 	// Own is the server an account names for itself, empty when none.
-	Own func(alborz.Services) string
+	Own func(Services) string
 	// Holds is the kind's collections among those kept here.
 	Holds collections.Kind
 	// FindHome is the home set behind a source's endpoint, asked through the kind's own client.
@@ -80,7 +80,7 @@ type Provider struct {
 }
 
 // NewProvider resolves the service for every served domain by DNS alone; probes run in the background.
-func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
+func NewProvider(srv *alborz.Server, kept *collections.Store, kind Kind) (*Provider, error) {
 	urls := make(map[string]*url.URL)
 	found := make(map[string]string)
 	hosts := make(map[string]*url.URL)
@@ -112,7 +112,7 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	if !srv.Options.PrivateServices {
 		p.named = srv.Outgoing.Guarded
 	}
-	p.here, p.store = srv.Collections.Handler(), srv.Collections
+	p.here, p.store = kept.Handler(), kept
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
@@ -187,7 +187,7 @@ func marker(id string) string { return "/@" + id }
 // Sources are the account's remote DAV servers, each once: its own, its domain's and its mail host's.
 func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	var out []Source
-	if services, err := login.Services(ctx); err == nil {
+	if services, err := LoadServices(ctx, login.Store()); err == nil {
 		if own := p.kind.Own(services); own != "" {
 			if u, err := url.Parse(own); err == nil {
 				out = append(out, Source{ID: SourceOwn, URL: u, Origin: "servers.fromaccount", Named: true})
@@ -374,7 +374,7 @@ func (p *Provider) ReadPlace(ctx *alborz.Context, account string) (string, strin
 // DefaultPlace is where the account's new collections go unless the reader picks another.
 func (p *Provider) DefaultPlace(ctx context.Context, s *alborz.Login) string {
 	sources := p.Sources(ctx, s)
-	if services, err := s.Services(ctx); err == nil && services.Default != "" {
+	if services, err := LoadServices(ctx, s.Store()); err == nil && services.Default != "" {
 		if services.Default == SourceHere {
 			return SourceHere
 		}

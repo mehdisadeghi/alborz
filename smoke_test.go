@@ -27,6 +27,7 @@ import (
 	alborzbase "git.mehdix.org/alborz/plugins/base"
 	alborzcaldav "git.mehdix.org/alborz/plugins/caldav"
 	alborzcarddav "git.mehdix.org/alborz/plugins/carddav"
+	alborzdav "git.mehdix.org/alborz/plugins/dav"
 	alborzsieve "git.mehdix.org/alborz/plugins/sieve"
 	alborzviewhtml "git.mehdix.org/alborz/plugins/viewhtml"
 	alborzviewtext "git.mehdix.org/alborz/plugins/viewtext"
@@ -275,10 +276,14 @@ func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
 		t.Fatalf("start alborz: %v", err)
 	}
 	alborzbase.Mount(s, alborzviewhtml.Viewer{}, alborzviewtext.Viewer{})
-	if err := alborzcaldav.Mount(s); err != nil {
+	kept, err := alborzdav.Mount(s)
+	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	if err := alborzcarddav.Mount(s); err != nil {
+	if err := alborzcaldav.Mount(s, kept); err != nil {
+		t.Fatalf("start alborz: %v", err)
+	}
+	if err := alborzcarddav.Mount(s, kept); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
 	alborzsieve.Mount(s)

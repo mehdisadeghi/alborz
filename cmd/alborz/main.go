@@ -52,14 +52,6 @@ func serveProfiles(addr string) {
 	}()
 }
 
-func defaultCacheDir() string {
-	dir, err := os.UserCacheDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(dir, alborz.AppName)
-}
-
 func main() {
 	var (
 		addr        string
@@ -83,8 +75,6 @@ func main() {
 	flag.StringVar(&loginKey, "login-key", "", "Fernet key sealing what alborz keeps (or $LBRZ_LOGIN_KEY); required")
 	flag.BoolVar(&options.Cache, "cache", true,
 		"keep what the servers answered, so pages open without asking again; false asks every time and keeps nothing")
-	flag.StringVar(&options.CacheDir, "cache-dir", defaultCacheDir(),
-		"directory keeping the copies of remote calendars and address books, sealed under the login key; empty keeps none")
 	flag.StringVar(&options.DataDir, "data-dir", ".",
 		"directory keeping alborz.db: remembered logins and settings, sealed under the login key, and the calendars and address books kept here")
 	flag.StringVar(&options.ProjectURL, "project-url", "",
@@ -154,6 +144,15 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		os.Exit(2)
 	}
 	options.ThemesPath = themesPath
+
+	if options.Cache {
+		dir, err := os.UserCacheDir()
+		if err != nil {
+			fmt.Fprintf(flag.CommandLine.Output(), "alborz: no cache directory: %v; set $XDG_CACHE_HOME or run with -cache=false\n", err)
+			os.Exit(2)
+		}
+		options.CacheDir = filepath.Join(dir, alborz.AppName)
+	}
 
 	if loginKey == "" {
 		fmt.Fprintln(flag.CommandLine.Output(),

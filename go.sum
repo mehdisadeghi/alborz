@@ -4,8 +4,8 @@ github.com/ProtonMail/go-crypto v1.5.0 h1:sKmuvjOgsnrtpMvZ+84MCnTJCpjxZ1qCFn076l
 github.com/ProtonMail/go-crypto v1.5.0/go.mod h1:/RaSu30DaKO4RY+XdV/ACcCcZkGr7AhUIduq5sjzzCo=
 github.com/alborzmail/go-ical v0.0.0-20260928213756-d103982e72b1 h1:SpRBu/EZc9W321AwP2PlZJK18ySZ9TBozKiRHNruwTo=
 github.com/alborzmail/go-ical v0.0.0-20260928213756-d103982e72b1/go.mod h1:WdcLP4nI5QEkYrRShVi1qLT70IS7W2zfsf2P27rNSJY=
-github.com/alborzmail/go-imap/v2 v2.0.0-20260928174739-a9c192e07373 h1:093N1d7ouZCbT8dYyr91U+DyhrT7xMrbu0EivftOzt8=
-github.com/alborzmail/go-imap/v2 v2.0.0-20260928174739-a9c192e07373/go.mod h1:dhoFe2Q0PwLrMD7oZw8ODuaD0vLYPe5uj2wcOMnvh48=
+github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26 h1:fP5cUVkFPLWab8omeK/sWtGirXpXmUL5PuJwyKXAMNg=
+github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26/go.mod h1:dhoFe2Q0PwLrMD7oZw8ODuaD0vLYPe5uj2wcOMnvh48=
 github.com/alborzmail/go-itip v0.0.0-20260928205626-4b0912c3ea74 h1:A/ANzWKB2iI3xG9msEd62Efb6vo82PQ/kvPcM1J4DMA=
 github.com/alborzmail/go-itip v0.0.0-20260928205626-4b0912c3ea74/go.mod h1:ouNfqegM/Xz/UrsTFyB6vqITDWJelhCgGghKEvjuGcQ=
 github.com/alborzmail/go-mbox v0.0.0-20260921114627-f2df45e279df h1:KOcM48S3sXU2laPASgjaCsEIIdPaL+CtYok5AzPEYnA=

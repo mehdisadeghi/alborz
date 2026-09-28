@@ -1,14 +1,11 @@
 package alborz
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"mime"
 	"net"
 	"os"
-	"regexp"
-	"sync"
 
 	"github.com/cention-sany/utf7"
 	"github.com/emersion/go-imap/v2"
@@ -40,7 +37,7 @@ func (s *Server) dial(domain, from string, unilateral *imapclient.UnilateralData
 
 	var debugWriter io.Writer
 	if s.Options.Debug {
-		debugWriter = &maskedTrace{w: os.Stderr}
+		debugWriter = os.Stderr
 	}
 
 	options := &imapclient.Options{
@@ -82,42 +79,3 @@ func (s *Server) dial(domain, from string, unilateral *imapclient.UnilateralData
 // forwardedFor is the ID field (RFC 2971) Dovecot takes the reader's address
 // from when alborz is in its login_trusted_networks.
 const forwardedFor = "x-originating-ip"
-
-const redacted = "***REDACTED***"
-
-// credential matches LOGIN, or AUTHENTICATE with an initial response (RFC 4959).
-var credential = regexp.MustCompile(`(?im)^(\S+) (LOGIN|AUTHENTICATE)\b`)
-
-var serverSide = regexp.MustCompile(`^(?:[*+]|\S+ (?:OK|NO|BAD)\b)`)
-
-// maskedTrace keeps credentials out of the -debug IMAP trace. It sees chunks,
-// so it masks everything the client sends until the credential command completes.
-type maskedTrace struct {
-	mu  sync.Mutex
-	w   io.Writer
-	tag string
-}
-
-func (t *maskedTrace) Write(p []byte) (int, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	out := p
-	switch {
-	case t.tag != "" && serverSide.Match(p):
-		// The completion may follow other lines in the chunk.
-		if bytes.HasPrefix(p, []byte(t.tag+" ")) || bytes.Contains(p, []byte("\n"+t.tag+" ")) {
-			t.tag = ""
-		}
-	case t.tag != "":
-		out = []byte(redacted + "\r\n")
-	default:
-		if m := credential.FindSubmatchIndex(p); m != nil {
-			t.tag = string(p[m[2]:m[3]])
-			out = append(bytes.Clone(p[:m[1]]), " "+redacted+"\r\n"...)
-		}
-	}
-	if _, err := t.w.Write(out); err != nil {
-		return 0, err
-	}
-	return len(p), nil
-}

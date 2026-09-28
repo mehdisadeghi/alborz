@@ -2,26 +2,9 @@ package alborzbase
 
 import (
 	"sync"
-	"time"
 
 	"git.mehdix.org/alborz"
 )
-
-// UserLocation resolves the reader's timezone.
-func UserLocation(ctx *alborz.Context) *time.Location {
-	tz := ctx.Reading().Timezone
-	if tz == "" {
-		if c, err := ctx.Cookie(alborz.TimezoneCookieName); err == nil {
-			tz = c.Value
-		}
-	}
-	if tz != "" {
-		if loc, err := time.LoadLocation(tz); err == nil {
-			return loc
-		}
-	}
-	return time.UTC
-}
 
 type plugin struct {
 	alborz.GoPlugin
@@ -54,18 +37,6 @@ func newPlugin(o *alborz.Options) *plugin {
 
 	p.TemplateFuncs(templateFuncs)
 	p.registerRoutes()
-
-	p.Inject("*", func(ctx *alborz.Context, data alborz.RenderData) error {
-		if ctx.Login == nil {
-			return nil
-		}
-		// Unset means times keep their stored zones.
-		if loc := UserLocation(ctx); loc != time.UTC {
-			data.Global().Timezone = loc
-		}
-		data.Global().FirstDayOfWeek = ctx.Reading().FirstDayOfWeek
-		return nil
-	})
 	return p
 }
 

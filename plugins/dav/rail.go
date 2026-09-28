@@ -18,6 +18,8 @@ type Rail struct {
 	// Groups and Categories are the contact rail's narrowings, nil for other kinds.
 	Groups     []FilterRow
 	Categories []FilterRow
+	// Invitations are the section's open invitations, nil for none.
+	Invitations *RailInvitations
 }
 
 // FilterRow is one narrowing beside the collections.

@@ -87,8 +87,6 @@ func registerRoutes(p *plugin) {
 	POST("/address-books/:path/access", page.HandleAccess(p.dav))
 	POST("/address-books/:path/accept", page.HandleAnswer(p.dav, true))
 	POST("/address-books/:path/decline", page.HandleAnswer(p.dav, false))
-	p.Inject("*", p.dav.InjectInvitations("book", page.Base, "/contacts", "/address-books"))
-	p.Inject("message.html", page.InjectOffer(p.dav))
 	GET("/contacts/create", p.updateContact)
 	POST("/contacts/create", p.updateContact)
 	GET("/contacts/:path/edit", p.updateContact)

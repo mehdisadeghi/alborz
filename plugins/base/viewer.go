@@ -10,10 +10,17 @@ import (
 // ErrViewUnsupported is returned when a viewer does not support a message part.
 var ErrViewUnsupported = fmt.Errorf("cannot generate message view: unsupported part")
 
+// View is a message part as the page shows it.
+type View struct {
+	Body interface{}
+	// Remote says the part asks for resources elsewhere.
+	Remote bool
+}
+
 // Viewer is a message part viewer.
 type Viewer interface {
 	// ViewMessagePart renders the message part at path, or returns ErrViewUnsupported.
-	ViewMessagePart(*alborz.Context, *IMAPMessage, []int, *message.Entity) (interface{}, error)
+	ViewMessagePart(*alborz.Context, *IMAPMessage, []int, *message.Entity) (View, error)
 }
 
 var viewers []Viewer
@@ -23,7 +30,7 @@ func RegisterViewer(viewer Viewer) {
 	viewers = append(viewers, viewer)
 }
 
-func viewMessagePart(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.Entity) (interface{}, error) {
+func viewMessagePart(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.Entity) (View, error) {
 	for _, viewer := range viewers {
 		v, err := viewer.ViewMessagePart(ctx, msg, path, part)
 		if err == ErrViewUnsupported {
@@ -31,5 +38,5 @@ func viewMessagePart(ctx *alborz.Context, msg *IMAPMessage, path []int, part *me
 		}
 		return v, err
 	}
-	return nil, ErrViewUnsupported
+	return View{}, ErrViewUnsupported
 }

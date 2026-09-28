@@ -83,7 +83,7 @@
               <button type="button" class="icon-button" title="{{$.T "mailbox.more"}}" aria-label="{{$.T "mailbox.more"}}" popovertarget="menu-more">{{ template "icon" "more" }}</button>
               <div class="overflow-menu" popover id="menu-more">
                 <a hx-boost="false" class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
-                {{ if call $.GlobalData.HavePlugin "sieve" }}
+                {{ if $.Filters }}
                 {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
                 <a class="button-link" href="{{ localhref (printf "/filters/rules/create?from=%s&list=%s&subject=%s%v" ($from | qv) (.Message.ListID | qv) (.Message.Envelope.Subject | qv) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
                 {{ if $from }}
@@ -278,7 +278,7 @@
             </td>
           </tr>
           {{ end }}
-          {{ with .Extra.ShareOffer }}
+          {{ with .ShareOffer }}
           <tr>
             <td colspan="2">{{ template "share-offer" (dict "g" $ "offer" .) }}</td>
           </tr>
@@ -318,18 +318,18 @@
                   {{ with .Mine }}<span class="invitation-mine">{{ $.T (printf "invite.part%s" (lower .)) }}</span>{{ end }}
                 </form>
                 {{ end }}
-                {{ if $.Extra.InviteFiled }}
+                {{ if $.InviteFiled }}
                 <form method="post" action="/calendar/forget-invitation{{$aq}}" class="invitation-actions">
-                  <input type="hidden" name="path" value="{{ $.Extra.InviteFiled }}">
+                  <input type="hidden" name="path" value="{{ $.InviteFiled }}">
                   <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
                   <button type="submit" class="button-danger">{{$.T "invite.removefromcalendar"}}</button>
                 </form>
                 {{ end }}
-                {{ if and (not .Answer) $.Extra.InviteCalendars }}
+                {{ if and (not .Answer) $.InviteCalendars }}
                 <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
                   <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                   <input type="hidden" name="uid" value="{{$.Message.UID}}">
-                  {{ template "collection-picker" (dict "groups" $.Extra.InviteCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
+                  {{ template "collection-picker" (dict "groups" $.InviteCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
                   <button type="submit">{{$.T "invite.addtocalendar"}}</button>
                 </form>
                 {{ end }}
@@ -337,7 +337,7 @@
             </td>
           </tr>
           {{ end }}
-          {{if and .Extra.HasRemoteResources (not .Extra.RemoteResourcesAllowed)}}
+          {{if and .HasRemoteResources (not .RemoteResourcesAllowed)}}
           <tr class="remote-content">
             <td colspan="2" dir="auto">
               {{$.T "message.remote"}}
@@ -377,23 +377,23 @@
                 {{$.T "message.unnamedfile"}}
               {{- end -}}
               </a> ({{.MIMEType}}, {{.SizeString}})
-              {{ if and (or (eq .MIMEType "text/calendar") (eq .MIMEType "application/ics")) $.Extra.ImportCalendars }}
+              {{ if and (or (eq .MIMEType "text/calendar") (eq .MIMEType "application/ics")) $.ImportCalendars }}
               <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
                 <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                 <input type="hidden" name="uid" value="{{$.Message.UID}}">
                 <input type="hidden" name="part" value="{{.PathString}}">
                 <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-                {{ template "collection-picker" (dict "groups" $.Extra.ImportCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
+                {{ template "collection-picker" (dict "groups" $.ImportCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
                 <button type="submit">{{$.T "import.tocalendar"}}</button>
               </form>
               {{ end }}
-              {{ if and (or (eq .MIMEType "text/vcard") (eq .MIMEType "text/x-vcard") (eq .MIMEType "text/directory")) $.Extra.ImportBooks }}
+              {{ if and (or (eq .MIMEType "text/vcard") (eq .MIMEType "text/x-vcard") (eq .MIMEType "text/directory")) $.ImportBooks }}
               <form method="post" action="/contacts/from-message{{$aq}}" class="invitation-actions">
                 <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                 <input type="hidden" name="uid" value="{{$.Message.UID}}">
                 <input type="hidden" name="part" value="{{.PathString}}">
                 <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-                {{ template "collection-picker" (dict "groups" $.Extra.ImportBooks "name" "addressbook" "label" ($.T "contacts.book") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
+                {{ template "collection-picker" (dict "groups" $.ImportBooks "name" "addressbook" "label" ($.T "contacts.book") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
                 <button type="submit">{{$.T "import.tocontacts"}}</button>
               </form>
               {{ end }}

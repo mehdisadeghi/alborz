@@ -12,6 +12,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+func (p *plugin) invitations(ctx *alborz.Context) (*dav.RailInvitations, error) {
+	return p.dav.RailInvitations(ctx, p.collectionPage().Base)
+}
+
 func (p *plugin) collectionPage() dav.Page {
 	return dav.Page{
 		Base:   "/calendars/",

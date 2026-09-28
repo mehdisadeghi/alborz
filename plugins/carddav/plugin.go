@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
-	"slices"
-	"strings"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -79,15 +77,16 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		GoPlugin: alborz.GoPlugin{Name: "carddav"},
 		dav:      provider,
 	}
-	p.EnabledFunc = provider.Enabled
 	p.CloseFunc = provider.Close
 
 	registerRoutes(p)
-	p.registerServerCard()
+	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.dav))
+	// Calendar registers first, so the kept collections come last.
+	srv.OnServers = append(srv.OnServers, p.dav.Cards("settings.davcontacts", bookAbilities), p.dav.HereCard())
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 
 	// A card attached to a mail is filed from its own row.
-	p.Inject("message.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
+	srv.OnMessage = append(srv.OnMessage, func(ctx *alborz.Context, _data alborz.RenderData) error {
 		data := _data.(*alborzbase.MessageRenderData)
 		if !hasAttachment(data.Message, "text/vcard", "text/x-vcard", "text/directory") {
 			return nil
@@ -96,16 +95,11 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		if err != nil || len(groups) == 0 {
 			return nil
 		}
-		if data.Extra == nil {
-			data.Extra = make(map[string]interface{})
-		}
-		data.Extra["ImportBooks"] = groups
+		data.ImportBooks = groups
 		return nil
 	})
 
-	p.Inject("compose.html", func(ctx *alborz.Context, _data alborz.RenderData) error {
-		data := _data.(*alborzbase.ComposeRenderData)
-
+	srv.Suggest = append(srv.Suggest, func(ctx *alborz.Context) []string {
 		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			// Suggestions are a convenience: a missing or silent address book must not block compose.
@@ -129,17 +123,7 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		})
 
 		// Written as a recipient is, name before address, since it is inserted verbatim.
-		// Added to the correspondents the base plugin put here, not replacing them.
 		var emails []string
-		seen := make(map[string]bool)
-		if existing, ok := data.Extra["EmailSuggestions"].([]string); ok {
-			for _, entry := range existing {
-				if key := strings.ToLower(entry); !seen[key] {
-					seen[key] = true
-					emails = append(emails, entry)
-				}
-			}
-		}
 		for _, result := range results {
 			if result.Err != nil {
 				ctx.Logger().Printf("carddav: no suggestions from one book: %v", result.Err)
@@ -155,17 +139,11 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 					if name != "" {
 						entry = (&mail.Address{Name: name, Address: email}).String()
 					}
-					if key := strings.ToLower(entry); !seen[key] {
-						seen[key] = true
-						emails = append(emails, entry)
-					}
+					emails = append(emails, entry)
 				}
 			}
 		}
-		slices.Sort(emails)
-
-		data.Extra["EmailSuggestions"] = emails
-		return nil
+		return emails
 	})
 
 	return p.Plugin(), nil
@@ -192,23 +170,11 @@ func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]dav.Group, error) {
 	return dav.WritableGroups(accounts, func(ab dav.Collection) bool { return ab.Writable }), nil
 }
 
-func (p *plugin) registerServerCard() {
-	card := p.dav.InjectCard("settings.davcontacts", func(found dav.Advertised) []alborzbase.Ability {
-		return []alborzbase.Ability{
-			{Label: "settings.davability3", Hint: "settings.davability3hint", Have: found.Has("3")},
-			{Label: "settings.davabilityacl", Hint: "settings.davabilityaclhint", Have: found.Has("access-control")},
-			{Label: "settings.davabilitycards", Hint: "settings.davabilitycardshint", Have: found.Has("addressbook")},
-			{Label: "settings.davabilitymkcol", Hint: "settings.davabilitymkcolhint", Have: found.Has("extended-mkcol")},
-		}
-	})
-	// Calendar registers first, so the kept collections come last.
-	here := p.dav.InjectHere()
-	both := func(ctx *alborz.Context, data alborz.RenderData) error {
-		if err := card(ctx, data); err != nil {
-			return err
-		}
-		return here(ctx, data)
+func bookAbilities(found dav.Advertised) []alborzbase.Ability {
+	return []alborzbase.Ability{
+		{Label: "settings.davability3", Hint: "settings.davability3hint", Have: found.Has("3")},
+		{Label: "settings.davabilityacl", Hint: "settings.davabilityaclhint", Have: found.Has("access-control")},
+		{Label: "settings.davabilitycards", Hint: "settings.davabilitycardshint", Have: found.Has("addressbook")},
+		{Label: "settings.davabilitymkcol", Hint: "settings.davabilitymkcolhint", Have: found.Has("extended-mkcol")},
 	}
-	p.Inject("servers.html", both)
-	p.Inject("server.html", both)
 }

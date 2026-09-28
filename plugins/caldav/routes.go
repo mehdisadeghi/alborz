@@ -122,6 +122,9 @@ func (p *plugin) calendarRail(ctx *alborz.Context, kind func([]string) bool, cho
 	if err != nil {
 		return rail, err
 	}
+	if rail.Invitations, err = p.invitations(ctx); err != nil {
+		return rail, err
+	}
 	infos, _, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), nil, kind, chosen)
 	rail.Items = infos
 	return rail, err
@@ -211,8 +214,6 @@ func registerRoutes(p *plugin) {
 	POST("/calendars/:path/decline", page.HandleAnswer(p.dav, false))
 	POST("/calendars/:path/publish", page.HandlePublish(p.dav, true))
 	POST("/calendars/:path/unpublish", page.HandlePublish(p.dav, false))
-	p.Inject("*", p.dav.InjectInvitations("cal", page.Base, "/calendar", "/calendars", "/tasks"))
-	p.Inject("message.html", page.InjectOffer(p.dav))
 	GET("/calendar/create", p.updateEvent)
 	POST("/calendar/create", p.updateEvent)
 	GET("/calendar/:path/update", p.updateEvent)
@@ -398,7 +399,7 @@ func joinCalendars(objects [][]byte) ([]byte, error) {
 }
 
 func (p *plugin) warm(ctx *alborz.Context, s *alborz.Login) {
-	loc := alborzbase.UserLocation(ctx)
+	loc := alborz.UserLocation(ctx)
 	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s, loc) })
 }
 

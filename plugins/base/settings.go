@@ -661,11 +661,21 @@ func handleServers(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "servers.html", &ServersRenderData{
+	return renderServers(ctx, http.StatusOK, "servers.html", &ServersRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.servers")),
 		Rail:           settingsRail(ctx),
 		Cards:          cards,
 	})
+}
+
+// Other features' servers join as the page is shown, so a saved form asks none of them.
+func renderServers(ctx *alborz.Context, status int, name string, data *ServersRenderData) error {
+	for _, add := range ctx.Server.OnServers {
+		if err := add(ctx, data); err != nil {
+			return err
+		}
+	}
+	return ctx.Render(status, name, data)
 }
 
 func handleServer(ctx *alborz.Context) error {
@@ -684,7 +694,7 @@ func handleServer(ctx *alborz.Context) error {
 		Cards:          cards,
 	}
 	if showing != ServerDAV {
-		return ctx.Render(http.StatusOK, "server.html", data)
+		return renderServers(ctx, http.StatusOK, "server.html", data)
 	}
 	if data.HasHTTPPassword, err = ctx.Login.HasHTTPPassword(ctx.Request().Context()); err != nil {
 		return err
@@ -693,7 +703,7 @@ func handleServer(ctx *alborz.Context) error {
 		return err
 	}
 	if ctx.Request().Method != http.MethodPost {
-		return ctx.Render(http.StatusOK, "server.html", data)
+		return renderServers(ctx, http.StatusOK, "server.html", data)
 	}
 
 	// What was typed is what the form shows again when one is refused.
@@ -712,14 +722,14 @@ func handleServer(ctx *alborz.Context) error {
 		if err := ctx.Server.CheckServiceURL(ctx.Request().Context(), server); err != nil {
 			data.Services = named
 			data.Refused(fmt.Sprintf(ctx.T(serviceRefusals[err]), server))
-			return ctx.Render(http.StatusUnprocessableEntity, "server.html", data)
+			return renderServers(ctx, http.StatusUnprocessableEntity, "server.html", data)
 		}
 	}
 	// An empty field leaves the kept password alone; only the reset box lets it go.
 	refuse := func(err error) error {
 		data.Services = named
 		data.Refused(ctx.SaveRefusal(err))
-		return ctx.Render(http.StatusUnprocessableEntity, "server.html", data)
+		return renderServers(ctx, http.StatusUnprocessableEntity, "server.html", data)
 	}
 	if ctx.FormValue("http_password_reset") != "" {
 		err = ctx.Login.SetHTTPPassword(ctx.Request().Context(), "")

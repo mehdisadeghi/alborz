@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -79,6 +80,21 @@ type MessageRenderData struct {
 
 	// Signature is what the page says about the message's authenticity; its zero value says nothing.
 	Signature Verification
+
+	// HasRemoteResources says the shown part asks for resources elsewhere, loaded only when RemoteResourcesAllowed.
+	HasRemoteResources     bool
+	RemoteResourcesAllowed bool
+
+	// Filters offers the rule shortcuts, where an account has a filter server.
+	Filters bool
+
+	// Filled by calendars and contacts, nil where they have nothing: the share this mail announces,
+	// where an invitation or an attached file can be filed, and the kept copy a withdrawal can drop.
+	ShareOffer      any
+	InviteCalendars any
+	ImportCalendars any
+	ImportBooks     any
+	InviteFiled     string
 }
 
 // Enough for mail with a few files, while mail with fifty keeps the body in view.
@@ -556,7 +572,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 
 	view, err := viewMessagePart(ctx, msg, partPath, part)
 	if err != nil {
-		view = nil
+		view = View{}
 		if err != ErrViewUnsupported {
 			ctx.Logger().Printf("message viewer: %v", err)
 		}
@@ -589,7 +605,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		Message:            msg,
 		Part:               msg.PartByPath(partPath),
 		AsText:             asText,
-		View:               view,
+		View:               view.Body,
 		MailboxPage:        int(*mbox.NumMessages-msg.SeqNum) / messagesPerPage,
 		Flags:              flags,
 		NewerURL:           neighbourURL(ctx, mbox.Name(), place.newer),
@@ -609,8 +625,19 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        deliveredTo,
 		ForwardedBy:        ForwardedBy(msg.rootHeader, trusted, msg.ListID),
+
+		HasRemoteResources:     view.Remote,
+		RemoteResourcesAllowed: ctx.QueryParam("allow-remote-resources") == "1",
+		Filters: slices.ContainsFunc(ctx.Logins(), func(s *alborz.Login) bool {
+			return ctx.Server.SieveEnabled(s.Domain())
+		}),
 	}
 	data.Invitation = messageInvitation(ctx, msg, mboxName, uid)
+	for _, add := range ctx.Server.OnMessage {
+		if err := add(ctx, data); err != nil {
+			return err
+		}
+	}
 	return ctx.Render(http.StatusOK, "message.html", data)
 }
 

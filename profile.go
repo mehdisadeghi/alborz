@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // Profile is the person's own choices, kept on every account signed in (ADR 52).
@@ -61,6 +62,22 @@ func (ctx *Context) Reading() Reading {
 		r.MessagesPerPage = DefaultMessagesPerPage
 	}
 	return r
+}
+
+// UserLocation resolves the reader's timezone.
+func UserLocation(ctx *Context) *time.Location {
+	tz := ctx.Reading().Timezone
+	if tz == "" {
+		if c, err := ctx.Cookie(TimezoneCookieName); err == nil {
+			tz = c.Value
+		}
+	}
+	if tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
+		}
+	}
+	return time.UTC
 }
 
 // SetProfile applies p and writes it to every account signed in; it fails only

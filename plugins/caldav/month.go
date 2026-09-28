@@ -50,6 +50,8 @@ type CalendarRenderData struct {
 	// Group is "day" when the agenda is banded by day, else empty.
 	Group string
 	Sub   func(a, b int) int
+
+	Invitations *dav.RailInvitations
 }
 
 type monthView struct {
@@ -95,6 +97,10 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		template = "calendar-list.html"
 	}
 	collection, href := dav.Labels(ctx, mv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
+	invitations, err := p.invitations(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(mv.start)),
@@ -142,11 +148,13 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		Sub: func(a, b int) int {
 			return a - b
 		},
+
+		Invitations: invitations,
 	})
 }
 
 func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
-	loc := alborzbase.UserLocation(ctx)
+	loc := alborz.UserLocation(ctx)
 
 	// The month counts in the reader's calendar system.
 	cal := ctx.CalendarSystem()
@@ -322,7 +330,7 @@ func groupRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
 }
 
 func (p *plugin) exportMonth(ctx *alborz.Context) error {
-	loc := alborzbase.UserLocation(ctx)
+	loc := alborz.UserLocation(ctx)
 	cal := ctx.CalendarSystem()
 	from := cal.MonthStart(time.Now().In(loc))
 	if s := ctx.QueryParam("month"); s != "" {

@@ -44,12 +44,12 @@ func newPlugin(srv *alborz.Server) (alborz.Plugin, error) {
 		dav:      provider,
 		subs:     newSubCache(srv.Options.CacheFor(subRefreshAfter)),
 	}
-	p.EnabledFunc = provider.Enabled
 	p.CloseFunc = provider.Close
 
 	registerRoutes(p)
-	p.registerScheduling()
-	p.registerServerCard()
+	p.registerScheduling(srv)
+	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.dav))
+	srv.OnServers = append(srv.OnServers, p.dav.Cards("settings.davcalendar", davAbilities))
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 
 	return p.Plugin(), nil
@@ -66,12 +66,6 @@ func init() {
 		}
 		return []alborz.Plugin{p}, err
 	})
-}
-
-func (p *plugin) registerServerCard() {
-	card := p.dav.InjectCard("settings.davcalendar", davAbilities)
-	p.Inject("servers.html", card)
-	p.Inject("server.html", card)
 }
 
 func davAbilities(found dav.Advertised) []alborzbase.Ability {

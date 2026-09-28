@@ -40,6 +40,8 @@ type TasksRenderData struct {
 	Query      string
 	Sorting    dav.Sorting
 	Pager      dav.Pager
+
+	Invitations *dav.RailInvitations
 }
 
 // TaskRow is one row of the task list.
@@ -147,7 +149,7 @@ type TaskList struct {
 
 func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 	var rows []TaskRow
-	loc := alborzbase.UserLocation(ctx)
+	loc := alborz.UserLocation(ctx)
 	only := dav.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
@@ -261,6 +263,10 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	for i := range rows {
 		rows[i].AddedBy = addedBy(rows[i].Calendar.Account, rows[i].Task.Path)
 	}
+	invitations, err := p.invitations(ctx)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "tasks.html", &TasksRenderData{
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 		Quick:          quickListOf(ctx, list.Calendars),
@@ -272,6 +278,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		Pager:          pager,
 		Query:          list.Query,
 		Sorting:        list.Sorting,
+		Invitations:    invitations,
 	})
 }
 
@@ -318,7 +325,7 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			// The list's shape is in the return address, not the write's own URL.
 			params := dav.ListParamsIn(next, taskListParams...)
 			params.Set("from", next)
-			row := taskRow(marked, cal, alborzbase.UserLocation(ctx), params)
+			row := taskRow(marked, cal, alborz.UserLocation(ctx), params)
 			row.AddedBy = p.dav.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)
 			data := &TaskRowRenderData{BaseRenderData: *alborz.NewBaseRenderData(ctx), Row: row, Next: next}
 			data.G = &data.BaseRenderData

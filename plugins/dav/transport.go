@@ -37,27 +37,32 @@ func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Cli
 		Transport: hereTripper{
 			here:    p.here,
 			account: login.Username(),
-			remote: p.cache.Transport(login.Username(), sourceRouter{
-				sources: p.Sources(ctx, login),
-				trusted: p.trusted,
-				named:   p.named,
-				sign: func(req *http.Request, src Source) error {
-					if src.Named {
-						err := login.SetHTTPBasicAuth(req)
-						if errors.Is(err, alborz.ErrSealed) {
-							return &RefusedError{Host: req.URL.Host}
-						}
-						return err
-					}
-					login.SetMailBasicAuth(req)
-					return nil
-				},
-				debug: p.debug,
-			}),
+			remote:  p.mirror.Transport(login.Username(), p.router(ctx, login)),
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
+	}
+}
+
+// router is the way from the login to its remote sources.
+func (p *Provider) router(ctx context.Context, login *alborz.Login) sourceRouter {
+	return sourceRouter{
+		sources: p.Sources(ctx, login),
+		trusted: p.trusted,
+		named:   p.named,
+		sign: func(req *http.Request, src Source) error {
+			if src.Named {
+				err := login.SetHTTPBasicAuth(req)
+				if errors.Is(err, alborz.ErrSealed) {
+					return &RefusedError{Host: req.URL.Host}
+				}
+				return err
+			}
+			login.SetMailBasicAuth(req)
+			return nil
+		},
+		debug: p.debug,
 	}
 }
 
@@ -78,9 +83,9 @@ func IfUnchanged(etag string) webdav.ConditionalMatch {
 // sourceRouter sends a path under a source's marker to that source
 // (ADR 28): the host is the source's, the marker comes off on the way
 // out and goes back on every href and Location on the way in, so what
-// is above it - the cache, the pages - sees paths that name the source.
-// It sits below the cache, which keys by path, so two sources holding
-// the same path are two entries.
+// is above it - the mirror, the pages - sees paths that name the source.
+// It sits below the mirror, which keys by path, so two sources holding
+// the same path are two copies.
 //
 // The source decides everything about how a request leaves: the login
 // it carries, the transport that dials it, and where a redirect may
@@ -107,6 +112,7 @@ func (r sourceRouter) source(id string) (Source, error) {
 }
 
 func (r sourceRouter) RoundTrip(req *http.Request) (*http.Response, error) {
+	defer alborz.AddTiming(req.Context(), "dav", time.Now())
 	rest, ok := strings.CutPrefix(req.URL.Path, "/@")
 	if !ok {
 		src, err := r.source(SourceDomain)
@@ -193,8 +199,8 @@ func markHref(href string, src Source) string {
 
 // hereTripper answers a request for a collection kept here without it
 // leaving the process, as the login's account, and ahead of the
-// cache: the store is as near as the cache is, and a share has to show
-// the moment it is made.
+// mirror: the store is as near as the mirror is, and a share has to
+// show the moment it is made.
 type hereTripper struct {
 	here    http.Handler
 	account string
@@ -205,10 +211,16 @@ func (t hereTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.here == nil || !strings.HasPrefix(req.URL.Path, collections.Prefix+"/") {
 		return t.remote.RoundTrip(req)
 	}
+	return respond(t.here, req.WithContext(collections.As(req.Context(), t.account))), nil
+}
+
+// respond is what h answers req with, as a response.
+func respond(h http.Handler, req *http.Request) *http.Response {
 	wrote := &written{header: make(http.Header), code: http.StatusOK}
-	t.here.ServeHTTP(wrote, req.WithContext(collections.As(req.Context(), t.account)))
-	if req.Body != nil {
-		req.Body.Close()
+	body := req.Body
+	h.ServeHTTP(wrote, req)
+	if body != nil {
+		body.Close()
 	}
 	return &http.Response{
 		Status:        fmt.Sprintf("%d %s", wrote.code, http.StatusText(wrote.code)),
@@ -220,7 +232,23 @@ func (t hereTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		Body:          io.NopCloser(&wrote.body),
 		ContentLength: int64(wrote.body.Len()),
 		Request:       req,
-	}, nil
+	}
+}
+
+// buffered is req with its body read, to be sent again.
+func buffered(req *http.Request) (*http.Request, []byte, error) {
+	if req.Body == nil {
+		return req, nil, nil
+	}
+	body, err := io.ReadAll(req.Body)
+	req.Body.Close()
+	if err != nil {
+		return nil, nil, err
+	}
+	out := req.Clone(req.Context())
+	out.Body = io.NopCloser(bytes.NewReader(body))
+	out.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
+	return out, body, nil
 }
 
 // written is what the handler wrote, kept to be read as a response.

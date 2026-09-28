@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -14,7 +13,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/plugins/collections"
-	"git.mehdix.org/alborz/plugins/davcache"
 	"github.com/labstack/echo/v4"
 )
 
@@ -71,7 +69,7 @@ var hereBase = &url.URL{Scheme: "http", Host: alborz.AppName + ".invalid", Path:
 const WarmBudget = 30 * time.Second
 
 // Provider is one DAV service across the served domains: where each
-// domain's server is, the cache in front of it, and the client that
+// domain's server is, the mirror in front of it, and the client that
 // talks to it on a login's behalf.
 type Provider struct {
 	kind Kind
@@ -84,8 +82,8 @@ type Provider struct {
 	// startup probes after NewProvider returns; hostsMu guards the writes.
 	hosts   map[string]*url.URL
 	hostsMu sync.Mutex
-	// cache is nil with caching off.
-	cache *davcache.Cache
+	// mirror is nil with caching off.
+	mirror *Mirror
 	// trusted reaches the servers the deployment names or finds; named
 	// reaches the one an account names, which without the operator's
 	// -private-services is out on the internet at every hop or is not
@@ -129,22 +127,17 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 			found[domain] = record
 		}
 	}
-	var cache *davcache.Cache
-	if srv.Options.Cache {
-		var store *davcache.Store
-		if srv.Options.CacheDir != "" && srv.Options.LoginKey != nil {
-			store = davcache.NewStore(filepath.Join(srv.Options.CacheDir, kind.Name), srv.Options.LoginKey)
-		}
-		c, warm, err := davcache.New(store, kind.Poll)
+	// The copies are sealed under the login key, so without one there
+	// are none.
+	var mirror *Mirror
+	if srv.Options.Cache && srv.Options.CacheDir != "" && srv.Options.LoginKey != nil {
+		m, err := OpenMirror(srv.Options.CacheDir, kind, srv.Options.LoginKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load the %s cache: %w", kind.Name, err)
+			return nil, err
 		}
-		if warm > 0 {
-			srv.Logger().Printf("%s: cache warm for %d accounts", kind.Name, warm)
-		}
-		cache = c
+		mirror = m
 	}
-	p := &Provider{kind: kind, urls: urls, found: found, hosts: hosts, cache: cache,
+	p := &Provider{kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
 		collections: alborz.NewBackgroundMemo[[]Collection](srv.Options.CacheFor(discoveryTTL))}
 	p.trusted, p.named = srv.Outgoing.Trusted, srv.Outgoing.Trusted
 	if !srv.Options.PrivateServices {
@@ -156,11 +149,10 @@ func NewProvider(srv *alborz.Server, kind Kind) (*Provider, error) {
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
-	p.cache.Start()
-	// Signing out is the only thing that ends the cache's authority to
-	// hold this account's collections; idleness no longer does.
 	srv.OnAccountGone = append(srv.OnAccountGone, func(username string) {
-		p.cache.Forget(username)
+		if err := p.mirror.Forget(username); err != nil {
+			srv.Logger().Printf("%s: forget %s: %v", kind.Name, username, err)
+		}
 		p.collections.Forget(username)
 		p.troubles.Delete(username)
 	})
@@ -537,7 +529,7 @@ func (p *Provider) Troubles(username string) []error {
 	return troubles
 }
 
-// HTTPClient talks to the login's server through the cache, with the
+// HTTPClient talks to the login's server through the mirror, with the
 // account's credentials on every request.
 func (p *Provider) HTTPClient(ctx context.Context, login *alborz.Login) *http.Client {
 	return httpClient(ctx, p, login)
@@ -578,7 +570,10 @@ func (p *Provider) Enabled(ctx *alborz.Context) bool {
 func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		for _, s := range ctx.Logins() {
-			p.cache.Refresh(ctx.Request().Context(), s.Username())
+			rc := ctx.Request().Context()
+			if err := p.mirror.Refresh(rc, s.Username(), p.router(rc, s)); err != nil {
+				ctx.Logger().Printf("%s: refresh %s: %v", p.kind.Name, s.Username(), err)
+			}
 		}
 		// The list itself is what was asked for.
 		ctx.Quiet()
@@ -587,10 +582,10 @@ func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 }
 
 // Warm fetches an account's first pages behind a sign-in, so that they
-// open from the cache; without one there is nothing to fill. It
+// open from the mirror; without one there is nothing to fill. It
 // outlives the request, within WarmBudget.
 func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Login, fetch func(context.Context) error) {
-	if p.cache == nil {
+	if p.mirror == nil {
 		return
 	}
 	log := ctx.Logger()
@@ -638,11 +633,8 @@ func HandleChoose(list, field string, keep func(ctx context.Context, store albor
 	}
 }
 
-// Close stops the cache's refresh loop.
-func (p *Provider) Close() error {
-	p.cache.Stop()
-	return nil
-}
+// Close stops the mirror's loop.
+func (p *Provider) Close() error { return p.mirror.Close() }
 
 // domainURL resolves the domain's endpoint; nil without error means the
 // domain has none. It reads DNS and config only, so startup never waits

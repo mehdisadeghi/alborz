@@ -28,16 +28,18 @@ const tplSrc = `
 <iframe id="email-frame" title="{{.Title}}" srcdoc="{{.Body}}" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" style="visibility: hidden"></iframe>
 </div>
 <noscript><style>#email-frame { visibility: visible; }</style></noscript>
-<script src="/plugins/viewhtml/assets/script.js?v=6"></script>
-<link rel="stylesheet" href="/plugins/viewhtml/assets/style.css?v=7">
+<script src="{{.Script}}"></script>
+<link rel="stylesheet" href="{{.Style}}">
 `
 
 var tpl = template.Must(template.New("view-html.html").Parse(tplSrc))
 
 // An untitled iframe is announced only as "frame".
 type frameData struct {
-	Title string
-	Body  string
+	Title  string
+	Body   string
+	Script string
+	Style  string
 }
 
 type viewer struct{}
@@ -80,7 +82,12 @@ func (viewer) ViewMessagePart(ctx *alborz.Context, msg *alborzbase.IMAPMessage, 
 	ctx.Set("viewhtml.hasRemoteResources", san.hasRemoteResources)
 
 	var buf bytes.Buffer
-	err = tpl.Execute(&buf, frameData{Title: ctx.T("a11y.body"), Body: string(body)})
+	err = tpl.Execute(&buf, frameData{
+		Title:  ctx.T("a11y.body"),
+		Body:   string(body),
+		Script: ctx.Server.AssetURL("viewhtml.js"),
+		Style:  ctx.Server.AssetURL("viewhtml.css"),
+	})
 	if err != nil {
 		return nil, err
 	}

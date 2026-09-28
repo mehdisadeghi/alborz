@@ -563,8 +563,8 @@ func (ctx *Context) cookie(name, value string, life time.Duration) *http.Cookie 
 	return c
 }
 
-// assetURL stamps a theme asset's URL with a digest of its content, so a changed file changes its URL.
-func (s *Server) assetURL(name string) string {
+// AssetURL stamps a theme asset's URL with a digest of its content, so a changed file changes its URL.
+func (s *Server) AssetURL(name string) string {
 	if stamp := s.assetStamp(name); stamp != "" {
 		return "/assets/" + name + "?v=" + stamp
 	}
@@ -579,7 +579,7 @@ func (s *Server) shell() ([]string, string) {
 	urls := make([]string, 0, len(shellAssets)+1)
 	version := sha256.New()
 	for _, name := range shellAssets {
-		u := s.assetURL(name)
+		u := s.AssetURL(name)
 		urls = append(urls, u)
 		version.Write([]byte(u))
 	}
@@ -619,10 +619,6 @@ func (s *Server) assetStamp(name string) string {
 }
 
 func isPublic(path string) bool {
-	if strings.HasPrefix(path, "/plugins/") {
-		parts := strings.Split(path, "/")
-		return len(parts) >= 4 && parts[3] == "assets"
-	}
 	// The manifest and the worker say nothing about any account and are fetched before sign-in.
 	return path == "/login" || path == "/manifest.webmanifest" ||
 		path == "/sw.js" ||
@@ -925,7 +921,7 @@ func New(e *echo.Echo, options *Options) (*Server, error) {
 	// Generated so the name under the icon is BrandName.
 	e.GET("/manifest.webmanifest", func(ectx echo.Context) error {
 		icon := func(name, purpose string) map[string]string {
-			out := map[string]string{"src": s.assetURL(name), "sizes": "512x512", "type": "image/png"}
+			out := map[string]string{"src": s.AssetURL(name), "sizes": "512x512", "type": "image/png"}
 			if strings.HasSuffix(name, "192.png") {
 				out["sizes"] = "192x192"
 			}

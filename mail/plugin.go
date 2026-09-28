@@ -8,7 +8,6 @@ import (
 
 type plugin struct {
 	alborz.Router
-	viewers         []Viewer
 	listings        *listingCache
 	bodies          *bodyCache
 	accountSidebars *alborz.Memo[sidebar]
@@ -37,10 +36,10 @@ func newPlugin(o *alborz.Options) *plugin {
 	return p
 }
 
-// Mount serves mail, showing a message part with the first of viewers that takes it.
-func Mount(s *alborz.Server, viewers ...Viewer) {
+// Mount serves mail.
+func Mount(s *alborz.Server) {
 	p := newPlugin(s.Options)
-	p.Router, p.viewers = s.Router(), viewers
+	p.Router = s.Router()
 	p.registerRoutes()
 	// A restored account skips the login handler, so it is followed here too.
 	s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)

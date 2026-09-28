@@ -27,8 +27,6 @@ import (
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
-	alborzviewhtml "git.mehdix.org/alborz/plugins/viewhtml"
-	alborzviewtext "git.mehdix.org/alborz/plugins/viewtext"
 )
 
 var themesPath = "./themes"
@@ -179,7 +177,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	if err != nil {
 		e.Logger.Fatal(err)
 	}
-	mail.Mount(s, alborzviewhtml.Viewer{}, alborzviewtext.Viewer{})
+	mail.Mount(s)
 	kept, err := dav.Mount(s)
 	if err != nil {
 		e.Logger.Fatal(err)
@@ -192,7 +190,6 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		e.Logger.Fatal(err)
 	}
 	filters.Mount(s)
-	alborzviewhtml.Mount(s)
 	e.Use(middleware.Recover())
 	if options.Debug {
 		// Log arrivals too, so a request that never finishes names its URI.

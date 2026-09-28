@@ -4,6 +4,3 @@
 /GNUmakefile
 /themes/*
 !/themes/alborz
-/plugins/*
-!/plugins/viewhtml
-!/plugins/viewtext

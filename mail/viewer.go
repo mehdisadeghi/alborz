@@ -17,19 +17,10 @@ type View struct {
 	Remote bool
 }
 
-// Viewer is a message part viewer.
-type Viewer interface {
-	// ViewMessagePart renders the message part at path, or returns ErrViewUnsupported.
-	ViewMessagePart(*alborz.Context, *IMAPMessage, []int, *message.Entity) (View, error)
-}
-
-func (p *plugin) viewMessagePart(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.Entity) (View, error) {
-	for _, viewer := range p.viewers {
-		v, err := viewer.ViewMessagePart(ctx, msg, path, part)
-		if err == ErrViewUnsupported {
-			continue
-		}
+func viewMessagePart(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.Entity) (View, error) {
+	v, err := viewHTML(ctx, msg, part)
+	if err != ErrViewUnsupported {
 		return v, err
 	}
-	return View{}, ErrViewUnsupported
+	return viewText(ctx, msg, path, part)
 }

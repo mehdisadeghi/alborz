@@ -44,6 +44,7 @@ func (p *plugin) registerRoutes() {
 		return handleDownloadMessage(ctx, false)
 	})
 	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
+	p.GET("/proxy", handleProxy)
 	p.POST("/mailbox/:mbox/refresh", p.handleRefreshMailbox)
 	p.POST("/mailbox/:mbox/import", p.handleDropImport)
 	p.GET("/message/:mbox/export", p.handleExportPage)

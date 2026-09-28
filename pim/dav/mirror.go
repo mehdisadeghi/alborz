@@ -116,7 +116,7 @@ func OpenMirror(dir string, kind Kind, key *fernet.Key) (*Mirror, error) {
 	db, err := bolt.Open(file, lockTimeout)
 	if errors.Is(err, kv.ErrLocked) {
 		return nil, fmt.Errorf("%s is locked: another alborz is running on this cache directory; "+
-			"stop it, or name another with -cache-dir", file)
+			"stop it, or give this one another $XDG_CACHE_HOME", file)
 	}
 	if err != nil {
 		return nil, err

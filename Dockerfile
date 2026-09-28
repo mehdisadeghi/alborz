@@ -22,4 +22,5 @@ USER alborz
 EXPOSE 1323
 # It refuses to start without LBRZ_LOGIN_KEY; without a volume on /data
 # it keeps its data inside the container.
-ENTRYPOINT ["alborz", "-data-dir", "/data", "-cache-dir", "/cache"]
+ENV XDG_CACHE_HOME=/cache
+ENTRYPOINT ["alborz", "-data-dir", "/data"]

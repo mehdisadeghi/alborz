@@ -284,11 +284,11 @@ func (p *plugin) pooledCalendars(ctx *alborz.Context) ([]pim.Account[*caldav.Cli
 	}, errNoCalendar)
 }
 
-func querySites(ctx *alborz.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
+func (p *plugin) querySites(ctx *alborz.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
 	var events []CalendarObject
-	for _, r := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
+	for _, r := range pim.Present(p.dav, dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, query)
-	}) {
+	})) {
 		if r.Err != nil {
 			return nil, fmt.Errorf("failed to query calendar %s: %v", r.Site.Collection.Name, r.Err)
 		}

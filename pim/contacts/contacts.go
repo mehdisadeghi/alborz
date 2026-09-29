@@ -87,9 +87,9 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 	query := contactsQuery(queryText)
 
 	var aos, groups []AddressObject
-	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
+	for _, result := range pim.Present(p.dav, dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
 		return site.Client.QueryAddressBook(ctx, site.Collection.Path, &query)
-	}) {
+	})) {
 		if result.Err != nil {
 			return ContactList{}, fmt.Errorf("failed to query address book %s: %v", result.Site.Collection.Name, result.Err)
 		}

@@ -139,19 +139,6 @@ func (pg Page) sharing(ctx *alborz.Context, p *dav.Provider, info dav.Collection
 	return sharing, nil
 }
 
-// forgetInvitees drops invitees' cached lists before the collection goes, or they would go on naming it.
-func (pg Page) forgetInvitees(p *dav.Provider, path string) error {
-	ref, _, here := p.Held(path)
-	if !here {
-		return nil
-	}
-	shares, err := p.Store.Shares(func(sh store.Share) bool { return sh.Ref() == ref })
-	for _, sh := range shares {
-		pg.Forget(sh.To)
-	}
-	return err
-}
-
 func (pg Page) owned(ctx *alborz.Context, p *dav.Provider) (dav.Collection, store.Ref, error) {
 	collPath, err := ParseObjectPath(ctx.Param("path"))
 	if err != nil {
@@ -239,9 +226,6 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 		if err := p.Store.PutShare(share); err != nil {
 			return err
 		}
-		// The invitee's access and the owner's count changed; both lists are asked again.
-		pg.Forget(share.To)
-		pg.Forget(ctx.Login.Username())
 		// The invitation waits in the invitee's rail regardless of the mail, so a refused mail is only a warning.
 		notice := alborz.Notice{Kind: alborz.NoticeDone, Text: fmt.Sprintf(ctx.T("notice.shared"), info.Name, share.To)}
 		if !share.Accepted {
@@ -298,8 +282,6 @@ func (pg Page) HandleAccess(p *dav.Provider) func(*alborz.Context) error {
 		if err := p.Store.PutShare(*sh); err != nil {
 			return err
 		}
-		pg.Forget(sh.To)
-		pg.Forget(ctx.Login.Username())
 		key := "notice.sharecanview"
 		if sh.Write {
 			key = "notice.sharecanedit"
@@ -320,8 +302,6 @@ func (pg Page) HandleUnshare(p *dav.Provider) func(*alborz.Context) error {
 		if err := p.Store.RemoveShare(ref, to); err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
 		}
-		pg.Forget(to)
-		pg.Forget(ctx.Login.Username())
 		ctx.PutNotice(fmt.Sprintf(ctx.T("notice.unshared"), info.Name, to))
 		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, info.Path))
 	}
@@ -349,8 +329,6 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*alborz.Context) 
 		if err := p.Store.Answer(ref, account, accept); err != nil {
 			return err
 		}
-		// The owner's list counts who the collection is shared with.
-		pg.Forget(c.Owner)
 		if !accept {
 			ctx.PutNotice(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
@@ -359,7 +337,6 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*alborz.Context) 
 			ctx.Notify(Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
 		}
-		pg.Forget(ctx.Login.Username())
 		// The name leads to the collection the account just accepted.
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone,
 			Text:   fmt.Sprintf(ctx.T("notice.shareaccepted"), c.Name),
@@ -387,7 +364,6 @@ func (pg Page) HandlePublish(p *dav.Provider, publish bool) func(*alborz.Context
 		if err := p.Store.Update(ref, func(c *store.Collection) { c.Public = secret }); err != nil {
 			return err
 		}
-		pg.Forget(ctx.Login.Username())
 		notice := "notice.unpublished"
 		if publish {
 			notice = "notice.published"

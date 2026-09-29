@@ -166,10 +166,42 @@ const ctagKey = Name + "/ctag"
 
 // Store keeps collections in the data file; every method is one transaction.
 type Store struct {
-	db kv.DB
+	db       kv.DB
+	watchers []func(accounts []string)
 }
 
 func New(db kv.DB) *Store { return &Store{db: db} }
+
+// OnChange has watch told, after each write that makes, renames, deletes or shares a collection, the accounts
+// that see it, which a phone's write through the DAV server changes as much as a page's. Set before serving.
+func (s *Store) OnChange(watch func(accounts []string)) { s.watchers = append(s.watchers, watch) }
+
+// change runs write as one transaction, then tells the watchers who sees ref before it and after.
+func (s *Store) change(ref Ref, write func(kv.Tx) error) error {
+	seen := []string{ref.Owner}
+	sharees := func(tx kv.Tx) error {
+		return each(tx, sharesOf(ref), func(sh Share) error {
+			seen = append(seen, sh.To)
+			return nil
+		})
+	}
+	err := s.db.Update(func(tx kv.Tx) error {
+		if err := sharees(tx); err != nil {
+			return err
+		}
+		if err := write(tx); err != nil {
+			return err
+		}
+		return sharees(tx)
+	})
+	if err != nil {
+		return err
+	}
+	for _, watch := range s.watchers {
+		watch(seen)
+	}
+	return nil
+}
 
 func publish(tx kv.Tx, before string, c Collection) error {
 	if before != "" && before != c.Public {
@@ -249,7 +281,7 @@ func (s *Store) Create(c Collection) (*Collection, error) {
 		c.ID = uuid.New().String()
 	}
 	c.Owner = strings.ToLower(c.Owner)
-	err := s.db.Update(func(tx kv.Tx) error {
+	err := s.change(c.Ref(), func(tx kv.Tx) error {
 		if tx.Get(collectionKey(c.Ref())) != nil {
 			return ErrExists
 		}
@@ -278,7 +310,7 @@ func (s *Store) Collection(ref Ref) (*Collection, error) {
 
 // Update changes a collection's own properties; a fed calendar's new name or colour is dated unless change dates it.
 func (s *Store) Update(ref Ref, change func(*Collection)) error {
-	return s.db.Update(func(tx kv.Tx) error {
+	return s.change(ref, func(tx kv.Tx) error {
 		c, err := get[Collection](tx, collectionKey(ref))
 		if err != nil {
 			return err
@@ -304,7 +336,7 @@ func (s *Store) Update(ref Ref, change func(*Collection)) error {
 
 // Delete removes a collection with its objects and its shares; a fed calendar leaves a Dropped behind.
 func (s *Store) Delete(ref Ref) error {
-	return s.db.Update(func(tx kv.Tx) error {
+	return s.change(ref, func(tx kv.Tx) error {
 		c, err := get[Collection](tx, collectionKey(ref))
 		if err != nil {
 			return err
@@ -646,7 +678,7 @@ func (s *Store) RemoveObject(ref Ref, name string, unless Unless, by string) err
 // PutShare keeps a share, replacing one to the same address.
 func (s *Store) PutShare(sh Share) error {
 	sh.To = strings.ToLower(sh.To)
-	return s.db.Update(func(tx kv.Tx) error {
+	return s.change(sh.Ref(), func(tx kv.Tx) error {
 		if tx.Get(collectionKey(sh.Ref())) == nil {
 			return ErrNotFound
 		}
@@ -668,7 +700,7 @@ func (s *Store) Share(ref Ref, to string) (*Share, error) {
 
 // Answer is the invitee's yes or no: yes makes it live, no is Declined before and Left after.
 func (s *Store) Answer(ref Ref, to string, yes bool) error {
-	return s.db.Update(func(tx kv.Tx) error {
+	return s.change(ref, func(tx kv.Tx) error {
 		sh, err := get[Share](tx, shareKey(ref, to))
 		if err != nil {
 			return err
@@ -688,7 +720,7 @@ func (s *Store) Answer(ref Ref, to string, yes bool) error {
 
 // RemoveShare ends a share: the owner revoking it.
 func (s *Store) RemoveShare(ref Ref, to string) error {
-	return s.db.Update(func(tx kv.Tx) error {
+	return s.change(ref, func(tx kv.Tx) error {
 		if tx.Get(shareKey(ref, to)) == nil {
 			return ErrNotFound
 		}

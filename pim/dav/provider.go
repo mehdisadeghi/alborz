@@ -131,13 +131,18 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 		p.named = srv.Outgoing.Guarded
 	}
 	p.here, p.local, p.Store = here, st.Handler(), st
+	st.OnChange(func(accounts []string) {
+		for _, account := range accounts {
+			p.Forget(account)
+		}
+	})
 	p.instance = srv.Instance
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
 	srv.OnAccountGone = append(srv.OnAccountGone, func(username string) {
 		p.mirror.Forget(username)
-		p.collections.Forget(username)
+		p.Forget(username)
 		p.troubles.Delete(username)
 	})
 	srv.OnClose = append(srv.OnClose, p.Close)
@@ -331,10 +336,10 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 	// A listing missing a server is kept but asked again after the retry delay, or the failure would stay until restart.
 	defer func() {
 		if len(p.Troubles(login.Username())) > 0 {
-			p.collections.Retry(login.Username())
+			p.collections.Retry(strings.ToLower(login.Username()))
 		}
 	}()
-	return p.collections.Get(login.Username(), func() ([]Collection, error) {
+	return p.collections.Get(strings.ToLower(login.Username()), func() ([]Collection, error) {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), discoveryTimeout)
 		defer cancel()
 
@@ -352,8 +357,9 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 	})
 }
 
-// Forget drops the account's found list, for a change the next page has to show.
-func (p *Provider) Forget(username string) { p.collections.Forget(username) }
+// Forget drops the account's found list, for a change the next page has to show. The store names
+// accounts in lower case, so the list is kept by that name.
+func (p *Provider) Forget(username string) { p.collections.Forget(strings.ToLower(username)) }
 
 // Opened is the login's client of the kind with the account's collections.
 func Opened[C any](ctx context.Context, p *Provider, login *alborz.Login, client func(context.Context, *alborz.Login) (C, error)) (C, []Collection, error) {

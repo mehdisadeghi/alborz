@@ -76,7 +76,7 @@ func TestFeedRefreshesOnItsOwnClockOncePerFeed(t *testing.T) {
 		if err := list.Put(context.Background(), subscriptionsKey, []Subscription{{URL: srv.URL, Name: "Holidays"}}); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := reconcile(context.Background(), f.store, account, list); err != nil {
+		if _, err := reconcile(context.Background(), f.store, account, list); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -121,7 +121,7 @@ func twoAlborz(t *testing.T) (first, second *feeds, list shared) {
 	var instances []*feeds
 	for range 2 {
 		f := feedsAt(t, srv.Client())
-		made, _, err := reconcile(context.Background(), f.store, account, list)
+		made, err := reconcile(context.Background(), f.store, account, list)
 		if err != nil || len(made) != 1 {
 			t.Fatalf("an alborz made %d calendars (%v), want the subscription's one", len(made), err)
 		}
@@ -156,8 +156,8 @@ func TestAnotherAlborzFollowsTheSameList(t *testing.T) {
 		if objects, err := f.store.Objects(c.Ref()); err != nil || len(objects) != 2 {
 			t.Fatalf("an alborz holds %d events (%v), want the feed's two", len(objects), err)
 		}
-		if made, changed, err := reconcile(context.Background(), f.store, account, list); err != nil || changed || len(made) != 0 {
-			t.Fatalf("a second look made %d calendars, changed %v (%v), want nothing", len(made), changed, err)
+		if made, err := reconcile(context.Background(), f.store, account, list); err != nil || len(made) != 0 {
+			t.Fatalf("a second look made %d calendars (%v), want none", len(made), err)
 		}
 	}
 }
@@ -169,7 +169,7 @@ func TestARenameTravels(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range []*feeds{first, second} {
-		if _, _, err := reconcile(context.Background(), f.store, account, list); err != nil {
+		if _, err := reconcile(context.Background(), f.store, account, list); err != nil {
 			t.Fatal(err)
 		}
 		if c := fedCalendar(t, f); c.Name != "Feasts" || c.Color != "#654321" {
@@ -190,7 +190,7 @@ func TestAnUnsubscribeTravels(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range []*feeds{first, second} {
-		if _, _, err := reconcile(context.Background(), f.store, account, list); err != nil {
+		if _, err := reconcile(context.Background(), f.store, account, list); err != nil {
 			t.Fatal(err)
 		}
 		if c := fedCalendar(t, f); c != nil {

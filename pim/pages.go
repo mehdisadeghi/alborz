@@ -419,7 +419,7 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 	begins := map[string]string{".ics": "BEGIN:VCALENDAR", ".vcf": "BEGIN:VCARD"}[pg.Ext]
 	for _, f := range files {
 		if !strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(string(f.raw), "\ufeff")), begins) {
-			return fmt.Errorf(ctx.T("import.notkind"), f.name, pg.Ext)
+			return &UnreadableError{Err: fmt.Errorf(ctx.T("import.notkind"), f.name, pg.Ext)}
 		}
 	}
 	objects, collections := 0, 0
@@ -427,16 +427,14 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 		target := collPath
 		if isNew {
 			var err error
-			if target, err = pg.createFree(ctx, list, collectionName(f), place); errors.Is(err, dav.ErrPlaceDown) {
-				return errors.New(ctx.T("form.placedown"))
-			} else if err != nil {
+			if target, err = pg.createFree(ctx, list, collectionName(f), place); err != nil {
 				return err
 			}
 			collections++
 		}
 		n, err := pg.Import(ctx, target, f.raw)
 		if err != nil {
-			return fmt.Errorf("%s: %s", f.name, ImportRefusal(ctx, err))
+			return &fileError{f.name, err}
 		}
 		objects += n
 	}
@@ -497,10 +495,19 @@ func (e *PartlySavedError) Error() string {
 }
 func (e *PartlySavedError) Unwrap() error { return e.Err }
 
+// fileError names the file of a bundle an import stopped at.
+type fileError struct {
+	name string
+	err  error
+}
+
+func (e *fileError) Error() string { return e.name + ": " + e.err.Error() }
+func (e *fileError) Unwrap() error { return e.err }
+
 // ImportAnswered says whether an import stopped on the reader's file or the server's answer, rather than alborz failing.
 func ImportAnswered(err error) bool {
 	var unreadable *UnreadableError
-	return errors.As(err, &unreadable) || dav.ServerRefused(err)
+	return errors.As(err, &unreadable) || errors.Is(err, dav.ErrPlaceDown) || dav.ServerRefused(err)
 }
 
 // ImportRefused is a failed notice for an import the file or the server stopped.
@@ -508,16 +515,19 @@ func ImportRefused(ctx *alborz.Context, err error) alborz.Notice {
 	return alborz.Notice{Kind: alborz.NoticeFailed, Text: ImportRefusal(ctx, err)}
 }
 
-// ImportRefusal says why an import stopped: an unreadable file with the parser's reason,
-// a server's refusal as any write's with how much was saved before it, any other as it came.
+// ImportRefusal says why an import ImportAnswered stopped: an unreadable file with the parser's reason,
+// a server's refusal as any write's with how much was saved before it; a bundle names the file.
 func ImportRefusal(ctx *alborz.Context, err error) string {
+	var file *fileError
 	var unreadable *UnreadableError
 	var partly *PartlySavedError
 	switch {
+	case errors.As(err, &file):
+		return file.name + ": " + ImportRefusal(ctx, file.err)
 	case errors.As(err, &unreadable):
 		return fmt.Sprintf(ctx.T("import.unreadable"), unreadable.Err)
-	case !dav.ServerRefused(err):
-		return err.Error()
+	case errors.Is(err, dav.ErrPlaceDown):
+		return ctx.T("form.placedown")
 	case !errors.As(err, &partly):
 		return Refusal(ctx, err)
 	case partly.Saved == 0:
@@ -637,16 +647,20 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 		}
 		if place, isNew := strings.CutPrefix(collPath, newPrefix); isNew || len(files) > 1 {
-			if err := pg.importMany(ctx, list, files, place, isNew, collPath); err != nil {
+			if err := pg.importMany(ctx, list, files, place, isNew, collPath); ImportAnswered(err) {
 				data.Refused(ImportRefusal(ctx, err))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
+			} else if err != nil {
+				return err
 			}
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 		}
-		if err := pg.importRaw(ctx, collPath, raw); err != nil {
+		if err := pg.importRaw(ctx, collPath, raw); ImportAnswered(err) {
 			// A file that is not what it claims answers on the form, where another can be picked.
 			data.Refused(ImportRefusal(ctx, err))
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
+		} else if err != nil {
+			return err
 		}
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 	}

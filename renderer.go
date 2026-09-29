@@ -61,8 +61,7 @@ type GlobalRenderData struct {
 
 	Timezone *time.Location
 
-	// 0=Sunday, 1=Monday (default), 6=Saturday
-	FirstDayOfWeek int
+	FirstDayOfWeek time.Weekday
 
 	Unified bool
 
@@ -221,12 +220,9 @@ func (g *GlobalRenderData) InTimezone(t time.Time) time.Time {
 	return t
 }
 
-// weekOne is a Sunday, so adding a weekday index names that weekday.
-var weekOne = time.Date(2023, time.January, 1, 12, 0, 0, 0, time.UTC)
-
-// WeekdayName translates the weekday of t.
-func (g *GlobalRenderData) WeekdayName(t time.Time) string {
-	return g.T(fmt.Sprintf("calendar.weekday.%d", g.InTimezone(t).Weekday()))
+// WeekdayName translates a weekday.
+func (g *GlobalRenderData) WeekdayName(d time.Weekday) string {
+	return g.T(fmt.Sprintf("calendar.weekday.%d", d))
 }
 
 // MonthName translates the month of t, in the primary calendar.
@@ -392,7 +388,7 @@ func (g *GlobalRenderData) MonthYear(t time.Time) string {
 
 // LongDate renders a translated day heading; time.Format knows only English names.
 func (g *GlobalRenderData) LongDate(t time.Time) string {
-	weekday := g.WeekdayName(t)
+	weekday := g.WeekdayName(g.InTimezone(t).Weekday())
 	month := g.MonthName(t)
 	y, _, d := g.PrimaryCalendar().Date(g.InTimezone(t))
 	switch g.Lang {
@@ -422,7 +418,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		Path:           strings.Split(ectx.Request().URL.Path, "/")[1:],
 		Title:          BrandName,
 		URL:            ectx.Request().URL,
-		FirstDayOfWeek: 1,
+		FirstDayOfWeek: Reading{}.WeekStart(),
 		Lang:           lang,
 
 		Asset: func(name string) string {
@@ -485,7 +481,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		if loc := UserLocation(ctx); loc != time.UTC {
 			global.Timezone = loc
 		}
-		global.FirstDayOfWeek = ctx.Reading().FirstDayOfWeek
+		global.FirstDayOfWeek = ctx.Reading().WeekStart()
 	}
 
 	return &BaseRenderData{GlobalData: global}

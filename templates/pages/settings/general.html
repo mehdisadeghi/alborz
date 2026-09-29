@@ -40,7 +40,7 @@
           <label for="first_day_of_week">{{$.T "settings.firstday"}}</label>
           <select name="first_day_of_week" id="first_day_of_week">
             <option value="1" {{if eq .Reading.FirstDayOfWeek 1}}selected{{end}}>{{$.T "settings.monday"}}</option>
-            <option value="0" {{if eq .Reading.FirstDayOfWeek 0}}selected{{end}}>{{$.T "settings.sunday"}}</option>
+            <option value="7" {{if eq .Reading.FirstDayOfWeek 7}}selected{{end}}>{{$.T "settings.sunday"}}</option>
             <option value="6" {{if eq .Reading.FirstDayOfWeek 6}}selected{{end}}>{{$.T "settings.saturday"}}</option>
           </select>
         </div>

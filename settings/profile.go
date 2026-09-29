@@ -87,7 +87,7 @@ func handleProfile(ctx *alborz.Context) error {
 	reading.PreferHTML = ctx.FormValue("prefer_html") != ""
 	if fdow, ok := given("first_day_of_week"); ok && fdow != "" {
 		reading.FirstDayOfWeek, err = alborz.ReadInt(fdow)
-		if err != nil || reading.FirstDayOfWeek < 0 || reading.FirstDayOfWeek > 6 {
+		if err != nil || reading.FirstDayOfWeek < 1 || reading.FirstDayOfWeek > 7 {
 			return render(http.StatusUnprocessableEntity, ctx.T("form.firstday"), shown)
 		}
 	}

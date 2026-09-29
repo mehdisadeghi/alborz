@@ -168,7 +168,7 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	} else {
 		start = cal.MonthStart(time.Now().In(loc))
 	}
-	firstDayOfWeek := ctx.Reading().FirstDayOfWeek
+	firstDayOfWeek := ctx.Reading().WeekStart()
 
 	// A star view narrows the agenda; a grid cannot be narrowed and stay a month.
 	view := ctx.QueryParam("view")
@@ -199,7 +199,7 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 		}
 	}
 
-	offset := (int(start.Weekday()) - firstDayOfWeek + 7) % 7
+	offset := (int(start.Weekday()) - int(firstDayOfWeek) + 7) % 7
 	gridStart := start.AddDate(0, 0, -offset)
 	daysInMonth := cal.DaysInMonth(start)
 	totalCells := offset + daysInMonth

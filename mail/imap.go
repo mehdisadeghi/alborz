@@ -1826,6 +1826,41 @@ func fetchRawMessage(conn *imapclient.Client, mboxName string, uid imap.UID) ([]
 	return buf, msgs[0].Envelope, nil
 }
 
+// streamSection hands use the literal of the one section options asks for,
+// as it arrives from the server.
+func streamSection(c *imapclient.Client, uid imap.UID, options *imap.FetchOptions, use func(imap.LiteralReader) error) error {
+	cmd := c.Fetch(imap.UIDSetNum(uid), options)
+	found := false
+	for msg := cmd.Next(); msg != nil; msg = cmd.Next() {
+		for item := msg.Next(); item != nil; item = msg.Next() {
+			var lit imap.LiteralReader
+			switch item := item.(type) {
+			case imapclient.FetchItemDataBodySection:
+				lit = item.Literal
+			case imapclient.FetchItemDataBinarySection:
+				lit = item.Literal
+			}
+			if lit == nil {
+				continue
+			}
+			found = true
+			if err := use(lit); err != nil {
+				// The client waits for the literal to be read out; closed, it ends at once.
+				go c.Close()
+				io.Copy(io.Discard, lit)
+				return err
+			}
+		}
+	}
+	if err := cmd.Close(); err != nil {
+		return err
+	}
+	if !found {
+		return alborz.NotFound("notfound.message", fmt.Sprint(uid))
+	}
+	return nil
+}
+
 // A whole message carried inside another, arriving intact (RFC 2046 5.2).
 type messageAttachment struct {
 	Path messagePath

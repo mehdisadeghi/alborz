@@ -121,28 +121,46 @@ func handleDownloadMessage(ctx *alborz.Context, plain bool) error {
 	if err != nil {
 		return err
 	}
+	return streamed(ctx, ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
+		env, err := fetchEnvelope(c, mboxName, uid)
+		if err != nil {
+			return err
+		}
+		whole := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{{Peek: true}}}
+		return streamSection(c, uid, whole, func(lit imap.LiteralReader) error {
+			ctx.Response().Header().Set("Content-Length", fmt.Sprint(lit.Size()))
+			if plain {
+				// No charset can be right for a whole message whose parts each name their own.
+				return ctx.Stream(http.StatusOK, "text/plain; charset=utf-8", lit)
+			}
+			ctx.Response().Header().Set("Content-Disposition", downloadName(env.Subject, fmt.Sprint(uid), ".eml"))
+			return ctx.Stream(http.StatusOK, "message/rfc822", lit)
+		})
+	}))
+}
 
-	var raw []byte
-	var env *imap.Envelope
-	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
-		var err error
-		raw, env, err = fetchRawMessage(c, mboxName, uid)
-		return err
-	}); err != nil {
-		return err
+// streamed aborts a response already under way, since it can no longer turn
+// into an error page; ended cleanly, a short file would look complete.
+func streamed(ctx *alborz.Context, err error) error {
+	if err != nil && ctx.Response().Committed {
+		ctx.Logger().Printf("%s: %v", ctx.Request().URL.Path, err)
+		panic(http.ErrAbortHandler)
 	}
-	if plain {
-		// No charset can be right for a whole message whose parts each name their own.
-		return ctx.Blob(http.StatusOK, "text/plain; charset=utf-8", raw)
-	}
+	return err
+}
 
-	subject := ""
-	if env != nil {
-		subject = env.Subject
+func fetchEnvelope(c *imapclient.Client, mboxName string, uid imap.UID) (*imap.Envelope, error) {
+	if err := ensureMailboxSelected(c, mboxName); err != nil {
+		return nil, err
 	}
-	ctx.Response().Header().Set("Content-Disposition",
-		downloadName(subject, fmt.Sprintf("%v", uid), ".eml"))
-	return ctx.Blob(http.StatusOK, "message/rfc822", raw)
+	msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, Envelope: true}).Collect()
+	if err != nil {
+		return nil, err
+	}
+	if len(msgs) == 0 {
+		return nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
+	}
+	return msgs[0].Envelope, nil
 }
 
 func handleDownloadAttachments(ctx *alborz.Context) error {
@@ -150,34 +168,94 @@ func handleDownloadAttachments(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	var raw []byte
-	var env *imap.Envelope
-	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
-		var err error
-		raw, env, err = fetchRawMessage(c, mboxName, uid)
-		return err
-	}); err != nil {
-		return err
-	}
-	entity, err := message.Read(bytes.NewReader(raw))
-	if err != nil && !message.IsUnknownCharset(err) {
-		return err
-	}
-	subject := ""
-	if env != nil {
-		subject = env.Subject
-	}
-	ctx.Response().Header().Set("Content-Disposition",
-		downloadName(subject, fmt.Sprintf("%v", uid), ".zip"))
-	ctx.Response().Header().Set("Content-Type", "application/zip")
-	ctx.Response().WriteHeader(http.StatusOK)
-	archive := zip.NewWriter(ctx.Response())
-	taken := map[string]int{}
-	if err := writeAttachments(archive, entity, taken, ""); err != nil {
-		// The reader has bytes by now, so the file ends short rather than turning into an error page.
-		ctx.Logger().Printf("attachments %q uid %v: %v", mboxName, uid, err)
-	}
-	return archive.Close()
+	return streamed(ctx, ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
+		env, err := fetchEnvelope(c, mboxName, uid)
+		if err != nil {
+			return err
+		}
+		whole := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{{Peek: true}}}
+		return streamSection(c, uid, whole, func(lit imap.LiteralReader) error {
+			entity, err := message.Read(lit)
+			if err != nil && !message.IsUnknownCharset(err) {
+				return err
+			}
+			ctx.Response().Header().Set("Content-Disposition", downloadName(env.Subject, fmt.Sprint(uid), ".zip"))
+			ctx.Response().Header().Set("Content-Type", "application/zip")
+			ctx.Response().WriteHeader(http.StatusOK)
+			archive := zip.NewWriter(ctx.Response())
+			if err := writeAttachments(archive, entity, map[string]int{}, ""); err != nil {
+				return err
+			}
+			return archive.Close()
+		})
+	}))
+}
+
+// handleDownloadPart streams one part, decoded, as it comes from the server.
+func handleDownloadPart(ctx *alborz.Context, mboxName string, uid imap.UID, partPath []int) error {
+	return streamed(ctx, ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
+		if err := ensureMailboxSelected(c, mboxName); err != nil {
+			return err
+		}
+		msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+			UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+		}).Collect()
+		if err != nil {
+			return err
+		}
+		if len(msgs) == 0 {
+			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
+		}
+		var part *imap.BodyStructureSinglePart
+		msgs[0].BodyStructure.Walk(func(p []int, bs imap.BodyStructure) bool {
+			if single, ok := bs.(*imap.BodyStructureSinglePart); ok && slices.Equal(p, partPath) {
+				part = single
+			}
+			return part == nil
+		})
+		if part == nil {
+			return alborz.NotFound("notfound.part", fmt.Sprint(uid))
+		}
+
+		mimeType := strings.ToLower(part.MediaType())
+		contentType := mimeType
+		if charset := part.Params["charset"]; charset != "" && part.Type == "text" {
+			contentType = mime.FormatMediaType(mimeType, map[string]string{"charset": charset})
+		}
+		var disposition string
+		if d := part.Disposition(); d != nil {
+			disposition = d.Value
+		}
+		// Never serve text/html and the like inline.
+		if mimeType != "text/plain" || strings.EqualFold(disposition, "attachment") {
+			ctx.Response().Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
+				"filename": zipEntryName(newIMAPPartNode(nil, partPath, part).Filename, mimeType, map[string]int{}),
+			}))
+		}
+
+		// BINARY (RFC 3516) has the server decode the part, and so know its length.
+		options := &imap.FetchOptions{UID: true}
+		binary := c.Caps().Has(imap.CapBinary)
+		if binary {
+			options.BinarySection = []*imap.FetchItemBinarySection{{Part: partPath}}
+		} else {
+			options.BodySection = []*imap.FetchItemBodySection{{Part: partPath}}
+		}
+		return streamSection(c, uid, options, func(lit imap.LiteralReader) error {
+			if binary {
+				ctx.Response().Header().Set("Content-Length", fmt.Sprint(lit.Size()))
+				return ctx.Stream(http.StatusOK, contentType, lit)
+			}
+			var h message.Header
+			h.Set("Content-Transfer-Encoding", part.Encoding)
+			// An unknown encoding leaves the part as its bytes.
+			decoded, err := message.New(h, lit)
+			if err != nil && !message.IsUnknownEncoding(err) {
+				return err
+			}
+			return ctx.Stream(http.StatusOK, contentType, decoded.Body)
+		})
+	}))
 }
 
 func htmlAsText(part *message.Entity) (*message.Entity, error) {
@@ -262,16 +340,15 @@ func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]i
 		return nil
 	}
 	if filename == "" && strings.EqualFold(mediaType, "message/rfc822") {
-		body, err := io.ReadAll(e.Body)
-		if err != nil {
-			return err
-		}
-		inner, err := mail.CreateReader(bytes.NewReader(body))
+		// Only the header is read for the name; what it took is put back in front.
+		var head bytes.Buffer
+		inner, err := textproto.ReadHeader(bufio.NewReader(io.TeeReader(e.Body, &head)))
 		if err == nil {
-			subject, _ := inner.Header.Subject()
+			h := mail.Header{Header: message.Header{Header: inner}}
+			subject, _ := h.Subject()
 			filename = attachmentName(subject)
 		}
-		e.Body = bytes.NewReader(body)
+		e.Body = io.MultiReader(&head, e.Body)
 	}
 	w, err := archive.Create(zipEntryName(filename, mediaType, taken))
 	if err != nil {
@@ -303,12 +380,25 @@ func zipEntryName(filename, mediaType string, taken map[string]int) string {
 	return name
 }
 
-func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
-	if !raw && ctx.PartialFor("message-navigation") {
-		return p.handleMessageNavigation(ctx)
-	}
-	if raw && ctx.QueryParam("part") == "" {
+// handleRaw serves a part, or the whole message without one, as its bytes.
+func handleRaw(ctx *alborz.Context) error {
+	if ctx.QueryParam("part") == "" {
 		return handleDownloadMessage(ctx, ctx.QueryParam("plain") == "1")
+	}
+	mboxName, uid, err := messageRef(ctx)
+	if err != nil {
+		return err
+	}
+	partPath, err := parsePartPath(ctx.QueryParam("part"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+	return handleDownloadPart(ctx, mboxName, uid, partPath)
+}
+
+func (p *plugin) handleGetPart(ctx *alborz.Context) error {
+	if ctx.PartialFor("message-navigation") {
+		return p.handleMessageNavigation(ctx)
 	}
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
@@ -339,11 +429,9 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		place  listPlace
 		placed bool
 	)
-	if !raw {
-		cached, place, placed = p.cachedPlace(ctx, mboxName, uid, query, railView)
-	}
+	cached, place, placed = p.cachedPlace(ctx, mboxName, uid, query, railView)
 	// A link naming no part opens the part the rows would link to; the cached row knows it without a fetch.
-	if !raw && ctx.QueryParam("part") == "" && cached != nil {
+	if ctx.QueryParam("part") == "" && cached != nil {
 		if row := cached.row(uid); row != nil {
 			if preferred := row.PreferredPart(ctx.Reading().PreferHTML); preferred != nil && len(preferred.Path) > 0 {
 				partPath = preferred.Path
@@ -351,21 +439,16 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		}
 	}
 	// A body fetched ahead serves the page, unless signed: the check reads parts on the folder's connection.
-	var held *cachedBody
-	if !raw {
-		held = p.bodies.current(ctx.Login.Username(), mboxName, uid, partPath)
-		if held != nil && len(partPath) == 0 {
-			partPath = held.part
-		}
-		if held != nil && held.buf.BodyStructure != nil {
-			if isSigned(held.buf.BodyStructure) {
-				held = nil
-			}
+	held := p.bodies.current(ctx.Login.Username(), mboxName, uid, partPath)
+	if held != nil && len(partPath) == 0 {
+		partPath = held.part
+	}
+	if held != nil && held.buf.BodyStructure != nil {
+		if isSigned(held.buf.BodyStructure) {
+			held = nil
 		}
 	}
-	if !raw {
-		alborz.CacheTiming(ctx.Request().Context(), "body", held != nil)
-	}
+	alborz.CacheTiming(ctx.Request().Context(), "body", held != nil)
 	var (
 		sb              sidebar
 		msg             *IMAPMessage
@@ -401,7 +484,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		}
 	}
 	sent := sentFolder(sb.mailboxes)
-	needsThread := !raw && msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && mboxName == sent))
+	needsThread := msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && mboxName == sent))
 	deferContext := held != nil && sb.active != nil && ctx.Partial() && (!placed || needsThread)
 	if cached != nil {
 		threadAlgorithm = cached.threadAlgorithm
@@ -410,7 +493,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 		err = ctx.DoIMAP(func(c *imapclient.Client) error {
 			var load *sidebarLoad
 			var err error
-			if !raw && sb.active == nil {
+			if sb.active == nil {
 				if load, err = startSidebar(c, mboxName, mboxName, settings.Subscriptions); err != nil {
 					return err
 				}
@@ -422,9 +505,6 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 				// The cached listings are marked read rather than fetched again for one flag.
 				p.messageRead(ctx.Login.Username(), mboxName, uid)
 				permanentFlags = c.Mailbox().PermanentFlags
-			}
-			if raw {
-				return nil
 			}
 			if !placed {
 				if place, err = placeInList(ctx, c, settings, mboxName, uid, query, railView); err != nil {
@@ -453,7 +533,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 	// Not in Junk: a message filed as junk needs no telling.
 	var indicators []Indicator
-	if !raw && folderRole(sb.mailboxes, mboxName) != "junk" {
+	if folderRole(sb.mailboxes, mboxName) != "junk" {
 		evidence := &Evidence{
 			Header:     messageRootHeader(msg),
 			Trusted:    trusted,
@@ -479,7 +559,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 	}
 
 	// The bare envelope has no viewer.
-	if !raw && len(partPath) == 0 {
+	if len(partPath) == 0 {
 		preferred := msg.PreferredPart(ctx.Reading().PreferHTML)
 		if preferred != nil && len(preferred.Path) > 0 {
 			q := ctx.Request().URL.Query()
@@ -496,26 +576,6 @@ func (p *plugin) handleGetPart(ctx *alborz.Context, raw bool) error {
 	mimeType, _, err := part.Header.ContentType()
 	if err != nil {
 		return fmt.Errorf("failed to parse part Content-Type: %v", err)
-	}
-
-	if raw {
-		ctx.Response().Header().Set("Content-Type", mimeType)
-
-		disp, _, _ := part.Header.ContentDisposition()
-
-		// Never serve text/html and the like inline.
-		if !strings.EqualFold(mimeType, "text/plain") || strings.EqualFold(disp, "attachment") {
-			var filename string
-			if node := msg.PartByPath(partPath); node != nil {
-				filename = node.Filename
-			}
-			disp := mime.FormatMediaType("attachment", map[string]string{
-				"filename": zipEntryName(filename, mimeType, map[string]int{}),
-			})
-			ctx.Response().Header().Set("Content-Disposition", disp)
-		}
-
-		return ctx.Stream(http.StatusOK, mimeType, part.Body)
 	}
 
 	if pieces := msg.HTMLPieces(partPath); pieces != nil {

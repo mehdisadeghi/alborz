@@ -2718,6 +2718,30 @@ func pagerSteps(t *testing.T, body string) []string {
 	return steps
 }
 
+// A folder that is no role is merged from the accounts that hold it; one
+// that no account holds is not there, rather than an empty list.
+func TestAMergedFolderByNameListsWhoHoldsIt(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := bothAccounts(t, base)
+	refs := rowRefs(get(t, c, base+"/mailbox/INBOX%2FLists"))
+	if len(refs) != 5 {
+		t.Fatalf("the merged INBOX/Lists lists %v, want the five seeded messages", refs)
+	}
+	for _, ref := range refs {
+		if !strings.HasPrefix(ref, smokeUser+"|INBOX/Lists|") {
+			t.Errorf("row %q is not from the account holding the folder's mail", ref)
+		}
+	}
+	resp, err := c.Get(base + "/mailbox/Nowhere")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("a folder no account holds answered %s, want 404", resp.Status)
+	}
+}
+
 func TestAServerDownCostsItsRowsNotThePage(t *testing.T) {
 	elsewhere, srv := startIMAPElsewhere(t)
 	base := startAlborzWith(t, []string{

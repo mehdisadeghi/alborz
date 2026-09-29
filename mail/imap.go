@@ -2088,6 +2088,8 @@ func deleteMessages(conn *imapclient.Client, mboxName string, uids imap.UIDSet) 
 // Folders are renamed rarely.
 const unifiedFoldersTTL = 5 * time.Minute
 
+// resolveRole names an account's folder for a merged view: a role's folder,
+// else the folder of that very name; "" where the account has none.
 func (p *plugin) resolveRole(conn *imapclient.Client, username, role string) (string, error) {
 	folders, err := p.unifiedFolders.Get(username, func() (map[string]string, error) {
 		mailboxes, err := listMailboxes(conn)
@@ -2099,6 +2101,11 @@ func (p *plugin) resolveRole(conn *imapclient.Client, username, role string) (st
 			categorized.Append(mailboxes[i], nil)
 		}
 		folders := map[string]string{"INBOX": "INBOX"}
+		for i := range mailboxes {
+			if !mailboxes[i].IsInternal() {
+				folders[mailboxes[i].Name()] = mailboxes[i].Name()
+			}
+		}
 		for role, details := range map[string]*MailboxDetails{
 			"Drafts":  categorized.Common.Drafts,
 			"Sent":    categorized.Common.Sent,

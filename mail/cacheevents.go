@@ -48,6 +48,13 @@ func (p *plugin) messagesRemoved(user, mailbox string) {
 func (p *plugin) mailboxDeleted(user, mailbox string) {
 	p.bodies.discard(user, mailbox, nil)
 	p.listings.evictAll(user)
+	p.unifiedFolders.Forget(user)
+}
+
+// A merged view of a folder by name finds a new one.
+func (p *plugin) mailboxCreated(user string) {
+	p.listings.evictAll(user)
+	p.unifiedFolders.Forget(user)
 }
 
 // Under a new UIDVALIDITY the held UIDs name other messages.

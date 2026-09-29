@@ -13,16 +13,8 @@ type Item struct {
 	URL  string
 }
 
-// Neighbours are the objects either side of the one on the page; Total is zero without a list.
-type Neighbours struct {
-	PrevURL  string
-	NextURL  string
-	Position int
-	Total    int
-}
-
 // Around places one object among a list's items, in its order.
-func Around(items []Item, path string) Neighbours {
+func Around(items []Item, path string) alborz.Neighbours {
 	at := -1
 	for i, it := range items {
 		if it.Path == path {
@@ -31,9 +23,9 @@ func Around(items []Item, path string) Neighbours {
 		}
 	}
 	if at < 0 {
-		return Neighbours{}
+		return alborz.Neighbours{}
 	}
-	n := Neighbours{Position: at + 1, Total: len(items)}
+	n := alborz.Neighbours{Position: at + 1, Total: len(items)}
 	if at > 0 {
 		n.PrevURL = items[at-1].URL
 	}

@@ -791,6 +791,7 @@
 "import.zipsize" = "El archivo zip ocupa más de %d MB al descomprimirlo."
 "import.notaddress" = "%s no es una dirección web."
 "import.fetchfailed" = "No se pudo obtener el calendario: %s"
+"import.toolarge" = "El archivo ocupa más de %d MB y es demasiado grande para importarlo."
 "export.empty" = "La colección está vacía; no hay nada que exportar."
 "import.exportall" = "Exportar todo como .zip"
 "import.untitled" = "Importado"

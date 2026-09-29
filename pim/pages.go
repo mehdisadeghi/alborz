@@ -291,18 +291,19 @@ func (pg Page) HandleImport(p *dav.Provider) func(*alborz.Context) error {
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err != nil {
 			return err
 		}
+		back := ctx.NextOr(ctx.AccountPath(pg.Base + url.PathEscape(collPath)))
 		file, err := ctx.FormFile("file")
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "no file was sent")
 		}
 		if file.Size > maxImportSize {
-			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the file is too large to import")
+			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.Tf("import.toolarge", maxImportSize>>20)})
+			return ctx.Redirect(http.StatusFound, back)
 		}
 		raw, err := readUpload(file)
 		if err != nil {
 			return err
 		}
-		back := ctx.NextOr(ctx.AccountPath(pg.Base + url.PathEscape(collPath)))
 		if err := pg.importRaw(ctx, collPath, raw); ImportAnswered(err) {
 			ctx.Notify(ImportRefused(ctx, err))
 			return ctx.Redirect(http.StatusFound, back)
@@ -344,7 +345,7 @@ func fetchAddress(ctx *alborz.Context, client *http.Client, address string) ([]b
 		return nil, errors.New(ctx.Tf("import.fetchfailed", err))
 	}
 	if len(raw) > maxImportSize {
-		return nil, echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the calendar is too large to import")
+		return nil, errors.New(ctx.Tf("import.toolarge", maxImportSize>>20))
 	}
 	return raw, nil
 }
@@ -632,7 +633,8 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
 			if file.Size > maxImportSize {
-				return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the file is too large to import")
+				data.Refused(ctx.Tf("import.toolarge", maxImportSize>>20))
+				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
 			if raw, err = readUpload(file); err != nil {
 				return err

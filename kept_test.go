@@ -151,6 +151,23 @@ func TestAnOpenTaskWithoutStatusIsListed(t *testing.T) {
 	}
 }
 
+// A VCALENDAR holds one component at least (RFC 5545 3.6), so no file is written.
+func TestAMonthWithNoEventsExportsNothing(t *testing.T) {
+	base := startAlborzKept(t, startIMAP(t))
+	c := login(t, base)
+	keptCalendar(t, base, c, "Plans", "plans")
+	stay := *c
+	stay.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := stay.Get(base + "/calendar/export?month=2026-09")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/calendar?month=2026-09" {
+		t.Fatalf("an empty month's export answered %s to %q, want the month again", resp.Status, resp.Header.Get("Location"))
+	}
+}
+
 // An address book query with no filter asks for every card (RFC 6352 10.5).
 func TestABookKeptHereListsItsCards(t *testing.T) {
 	base := startAlborzKept(t, startIMAP(t))

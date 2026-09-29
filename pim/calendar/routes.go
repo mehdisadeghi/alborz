@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -318,6 +319,13 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 			return r.Err
 		}
 		children = append(children, r.Value...)
+	}
+	// A VCALENDAR holds one component at least (RFC 5545 3.6).
+	if len(children) == 0 {
+		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("calendar.noevents")})
+		page := *ctx.Request().URL
+		page.Path = "/calendar"
+		return ctx.Redirect(http.StatusFound, page.RequestURI())
 	}
 	body, err := encodeCalendar(children)
 	if err != nil {

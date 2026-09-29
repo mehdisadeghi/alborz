@@ -220,6 +220,8 @@ func registerRoutes(p *plugin) {
 	}
 	POST("/calendar/delete", remove("/calendar"))
 	POST("/calendar/:path/delete", remove("/calendar"))
+	GET("/calendar/:path/copy", p.copyTo("/calendar"))
+	POST("/calendar/:path/copy", p.copyTo("/calendar"))
 	GET("/tasks", p.tasks)
 	GET("/tasks/:path", p.task)
 
@@ -229,6 +231,8 @@ func registerRoutes(p *plugin) {
 	POST("/tasks/:path/edit", p.updateTask)
 	POST("/tasks/:path/delete", remove("/tasks"))
 	POST("/tasks/delete", remove("/tasks"))
+	GET("/tasks/:path/copy", p.copyTo("/tasks"))
+	POST("/tasks/:path/copy", p.copyTo("/tasks"))
 	POST("/tasks/complete", p.complete)
 	GET("/tasks/move", p.move)
 	POST("/tasks/move", p.move)

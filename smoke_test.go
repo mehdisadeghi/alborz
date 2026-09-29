@@ -11,6 +11,7 @@ import (
 	"github.com/emersion/go-smtp"
 	"html"
 	"io"
+	"math/rand/v2"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -1898,6 +1899,128 @@ func TestDownloadedPartIsTheFileSent(t *testing.T) {
 				t.Errorf("the length the server knew was not passed on: %d", resp.ContentLength)
 			}
 		})
+	}
+}
+
+// A forward carries the original's file and the original itself, and what
+// leaves is, byte for byte, what the Sent folder keeps.
+func TestForwardLeavesAsTheSentCopyKeepsIt(t *testing.T) {
+	file := make([]byte, 8<<20)
+	rand.NewChaCha8([32]byte{}).Read(file)
+	var original bytes.Buffer
+	var h message.Header
+	h.Set("From", "<eve@example.org>")
+	h.Set("To", "<"+smokeUser+">")
+	h.Set("Subject", "A large file")
+	h.Set("MIME-Version", "1.0")
+	h.Set("Content-Type", "multipart/mixed")
+	mw, err := message.CreateWriter(&original, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, part := range []struct {
+		header map[string]string
+		body   []byte
+	}{
+		{map[string]string{"Content-Type": "text/plain"}, []byte("See the file.\r\n")},
+		{map[string]string{
+			"Content-Type":              "application/octet-stream",
+			"Content-Transfer-Encoding": "base64",
+			"Content-Disposition":       `attachment; filename="file.bin"`,
+		}, file},
+	} {
+		var ph message.Header
+		for k, v := range part.header {
+			ph.Set(k, v)
+		}
+		w, err := mw.CreatePart(ph)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write(part.body)
+		w.Close()
+	}
+	mw.Close()
+
+	imapAddr := startIMAP(t)
+	ic, err := imapclient.DialInsecure(imapAddr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ic.Close()
+	if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := ic.Append("INBOX", int64(original.Len()), nil)
+	cmd.Write(original.Bytes())
+	cmd.Close()
+	appended, err := cmd.Wait()
+	if err != nil || appended.UID == 0 {
+		t.Fatalf("append: %v", err)
+	}
+
+	smtpAddr, sent := startSMTP(t)
+	base := startAlborz(t, imapAddr, smtpAddr)
+	c := login(t, base)
+	path := fmt.Sprintf("/message/INBOX/%d/forward?part=1", appended.UID)
+	page := get(t, c, base+path)
+	if !strings.Contains(page, `name="prev_attachments" value="2"`) {
+		t.Fatal("the forward does not offer the original's file")
+	}
+	sendFrom(t, c, base, path, page, "prev_attachments", "2",
+		"attached_messages", fmt.Sprintf("INBOX/%d", appended.UID))
+	out := sent.Last()
+	if len(out) < 2*len(file) {
+		t.Fatalf("%d bytes left, fewer than the file and the original weigh", len(out))
+	}
+
+	if _, err := ic.Select("Sent", nil).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	section := &imap.FetchItemBodySection{Peek: true}
+	kept, err := ic.Fetch(imap.SeqSetNum(1), &imap.FetchOptions{BodySection: []*imap.FetchItemBodySection{section}}).Collect()
+	if err != nil || len(kept) != 1 {
+		t.Fatalf("the Sent copy: %v", err)
+	}
+	if stored := kept[0].FindBodySection(section); string(stored) != out {
+		t.Fatalf("the Sent copy (%d bytes) is not what left (%d bytes)", len(stored), len(out))
+	}
+
+	e, err := message.Read(strings.NewReader(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var carried []string
+	err = e.Walk(func(_ []int, part *message.Entity, err error) error {
+		if err != nil {
+			return err
+		}
+		mediaType, _, _ := part.Header.ContentType()
+		_, params, _ := part.Header.ContentDisposition()
+		var want []byte
+		switch {
+		case mediaType == "message/rfc822":
+			want = original.Bytes()
+		case params["filename"] == "file.bin":
+			want = file
+		default:
+			return nil
+		}
+		got, err := io.ReadAll(part.Body)
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(got, want) {
+			t.Errorf("%s arrived as %d bytes, not the %d it has", mediaType, len(got), len(want))
+		}
+		carried = append(carried, mediaType)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(carried) != 2 {
+		t.Errorf("the forward carried %v, want the file and the original", carried)
 	}
 }
 

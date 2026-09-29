@@ -188,30 +188,38 @@ func handleDownloadAttachments(ctx *alborz.Context) error {
 	}))
 }
 
+func singlePart(c *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*imap.BodyStructureSinglePart, error) {
+	if err := ensureMailboxSelected(c, mboxName); err != nil {
+		return nil, err
+	}
+	msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+		UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+	}).Collect()
+	if err != nil {
+		return nil, err
+	}
+	if len(msgs) == 0 {
+		return nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
+	}
+	var part *imap.BodyStructureSinglePart
+	msgs[0].BodyStructure.Walk(func(p []int, bs imap.BodyStructure) bool {
+		if single, ok := bs.(*imap.BodyStructureSinglePart); ok && slices.Equal(p, partPath) {
+			part = single
+		}
+		return part == nil
+	})
+	if part == nil {
+		return nil, alborz.NotFound("notfound.part", fmt.Sprint(uid))
+	}
+	return part, nil
+}
+
 // handleDownloadPart streams one part, decoded, as it comes from the server.
 func handleDownloadPart(ctx *alborz.Context, mboxName string, uid imap.UID, partPath []int) error {
 	return streamed(ctx, ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
-		if err := ensureMailboxSelected(c, mboxName); err != nil {
-			return err
-		}
-		msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
-			UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
-		}).Collect()
+		part, err := singlePart(c, mboxName, uid, partPath)
 		if err != nil {
 			return err
-		}
-		if len(msgs) == 0 {
-			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
-		}
-		var part *imap.BodyStructureSinglePart
-		msgs[0].BodyStructure.Walk(func(p []int, bs imap.BodyStructure) bool {
-			if single, ok := bs.(*imap.BodyStructureSinglePart); ok && slices.Equal(p, partPath) {
-				part = single
-			}
-			return part == nil
-		})
-		if part == nil {
-			return alborz.NotFound("notfound.part", fmt.Sprint(uid))
 		}
 
 		mimeType := strings.ToLower(part.MediaType())

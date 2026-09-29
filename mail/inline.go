@@ -40,8 +40,8 @@ type partImage struct {
 
 func (p *partImage) MIMEType() string { return p.mimeType }
 func (p *partImage) Filename() string { return p.filename }
-func (p *partImage) Open() (io.ReadCloser, error) {
-	return io.NopCloser(bytes.NewReader(p.body)), nil
+func (p *partImage) WriteTo(w io.Writer) (int64, error) {
+	return bytes.NewReader(p.body).WriteTo(w)
 }
 
 func localImages(body string, msg *IMAPMessage, account string) string {

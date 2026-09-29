@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip/imip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
@@ -73,7 +74,7 @@ type MessageRenderData struct {
 	ForwardedBy string
 
 	// Neighbours in the list the message was opened from.
-	Neighbours alborz.Neighbours
+	Neighbours web.Neighbours
 	Query      string
 
 	// HasRemoteResources says the shown part asks for resources elsewhere, loaded only when RemoteResourcesAllowed.
@@ -110,7 +111,7 @@ func (d *MessageRenderData) AttachmentsOpen() bool {
 }
 
 // With plain the bytes are shown rather than saved: the source view.
-func handleDownloadMessage(ctx *alborz.Context, plain bool) error {
+func handleDownloadMessage(ctx *web.Context, plain bool) error {
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
 		return err
@@ -135,7 +136,7 @@ func handleDownloadMessage(ctx *alborz.Context, plain bool) error {
 
 // streamed aborts a response already under way, since it can no longer turn
 // into an error page; ended cleanly, a short file would look complete.
-func streamed(ctx *alborz.Context, err error) error {
+func streamed(ctx *web.Context, err error) error {
 	if err != nil && ctx.Response().Committed {
 		ctx.Logger().Printf("%s: %v", ctx.Request().URL.Path, err)
 		panic(http.ErrAbortHandler)
@@ -157,7 +158,7 @@ func fetchEnvelope(c *imapclient.Client, mboxName string, uid imap.UID) (*imap.E
 	return msgs[0].Envelope, nil
 }
 
-func handleDownloadAttachments(ctx *alborz.Context) error {
+func handleDownloadAttachments(ctx *web.Context) error {
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
 		return err
@@ -212,7 +213,7 @@ func singlePart(c *imapclient.Client, mboxName string, uid imap.UID, partPath []
 }
 
 // handleDownloadPart streams one part, decoded, as it comes from the server.
-func handleDownloadPart(ctx *alborz.Context, mboxName string, uid imap.UID, partPath []int) error {
+func handleDownloadPart(ctx *web.Context, mboxName string, uid imap.UID, partPath []int) error {
 	return streamed(ctx, ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
 		part, err := singlePart(c, mboxName, uid, partPath)
 		if err != nil {
@@ -376,7 +377,7 @@ func zipEntryName(filename, mediaType string, taken map[string]int) string {
 }
 
 // handleRaw serves a part, or the whole message without one, as its bytes.
-func handleRaw(ctx *alborz.Context) error {
+func handleRaw(ctx *web.Context) error {
 	if ctx.QueryParam("part") == "" {
 		return handleDownloadMessage(ctx, ctx.QueryParam("plain") == "1")
 	}
@@ -391,7 +392,7 @@ func handleRaw(ctx *alborz.Context) error {
 	return handleDownloadPart(ctx, mboxName, uid, partPath)
 }
 
-func (p *plugin) handleGetPart(ctx *alborz.Context) error {
+func (p *plugin) handleGetPart(ctx *web.Context) error {
 	if ctx.PartialFor("message-navigation") {
 		return p.handleMessageNavigation(ctx)
 	}
@@ -411,7 +412,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 	}
 	// Read before the message's IMAP work: it may sample the inbox, and the login lock is not reentrant.
 	trusted := p.TrustedAuthServ(ctx, settings)
-	messagesPerPage := alborz.PerPage(ctx)
+	messagesPerPage := web.PerPage(ctx)
 
 	query := ctx.QueryParam("query")
 	railView, err := readView(ctx.QueryParams())
@@ -554,7 +555,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 		if preferred != nil && len(preferred.Path) > 0 {
 			q := ctx.Request().URL.Query()
 			q.Set("part", preferred.PathString())
-			return ctx.Redirect(http.StatusFound, msg.URL().String()+"?"+alborz.Query(q))
+			return ctx.Redirect(http.StatusFound, msg.URL().String()+"?"+web.Query(q))
 		}
 	}
 
@@ -608,7 +609,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 	if addressed(deliveredTo, msg.Envelope.To, msg.Envelope.Cc) {
 		deliveredTo = ""
 	}
-	ibase := assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mboxName, sb, railView)
+	ibase := assembleIMAPBase(ctx, web.NewBaseRenderData(ctx), mboxName, sb, railView)
 	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject).WithItem()
 	mbox := ibase.Mailbox
@@ -678,12 +679,12 @@ func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) 
 	if from := writeAs(settings, trust, msg, msg.Envelope.To, msg.Envelope.Cc); from != "" {
 		q.Set("from", from)
 	}
-	u.RawQuery = alborz.Query(q)
+	u.RawQuery = web.Query(q)
 	return u.String()
 }
 
 // PartAt reads one part of a message as the bytes it was sent as, with its media type.
-func PartAt(ctx *alborz.Context, mboxName string, uid imap.UID, part string) ([]byte, string, error) {
+func PartAt(ctx *web.Context, mboxName string, uid imap.UID, part string) ([]byte, string, error) {
 	partPath, err := parsePartPath(part)
 	if err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusBadRequest, err)
@@ -703,7 +704,7 @@ func PartAt(ctx *alborz.Context, mboxName string, uid imap.UID, part string) ([]
 }
 
 // CalendarPartAt reads the scheduling message of one mail, and the part it is.
-func CalendarPartAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
+func CalendarPartAt(ctx *web.Context, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
 	var msg *IMAPMessage
 	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
@@ -727,7 +728,7 @@ func CalendarPartAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*ical.C
 }
 
 // CalendarPart reads the scheduling message of a fetched mail; nil for none.
-func CalendarPart(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
+func CalendarPart(ctx *web.Context, msg *IMAPMessage, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
 	part := invitationPart(msg)
 	if part == nil || part.Cut() {
 		return nil, "", nil
@@ -761,7 +762,7 @@ func CalendarPart(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid im
 }
 
 // The URI is re-read from the message, so a page cannot make us post anywhere (RFC 8058).
-func handleUnsubscribe(ctx *alborz.Context) error {
+func handleUnsubscribe(ctx *web.Context) error {
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
 		return err
@@ -807,13 +808,13 @@ func handleUnsubscribe(ctx *alborz.Context) error {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := ctx.Server.Outgoing.Remote(unsubscribeTimeout).Do(req)
 	if err != nil {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		ctx.Logger().Printf("unsubscribe %s answered %s", msg.OneClick, resp.Status)
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 	ctx.PutNotice(ctx.T("notice.unsubscribed"))

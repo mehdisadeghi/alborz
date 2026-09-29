@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 )
 
 // Indicators state facts, never a verdict; only what needs no argument earns a colour.
@@ -39,7 +40,7 @@ type Score struct {
 }
 
 // Text is the indicator in the page's words.
-func (t Indicator) Text(g *alborz.GlobalRenderData) string { return g.Tf(t.Key, t.Args...) }
+func (t Indicator) Text(g *web.GlobalRenderData) string { return g.Tf(t.Key, t.Args...) }
 
 // Evidence is what the checks read.
 type Evidence struct {

@@ -29,6 +29,7 @@ import (
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/settings"
+	"git.mehdix.org/alborz/web"
 )
 
 // serveProfiles listens only locally: a heap profile holds passwords and mail.
@@ -175,7 +176,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		l.SetOutput(os.Stderr)
 		l.SetHeader("${time_rfc3339} ${level}")
 	}
-	s, err := alborz.New(e, &options, mail.TemplateFuncs)
+	s, err := web.New(e, &options, mail.TemplateFuncs)
 	if err != nil {
 		e.Logger.Fatal(err)
 	}

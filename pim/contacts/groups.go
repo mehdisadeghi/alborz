@@ -9,9 +9,9 @@ import (
 	"strings"
 	"uuid"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 	"github.com/labstack/echo/v4"
@@ -38,7 +38,7 @@ func contactGroupRows(groups []AddressObject, active, account string) []FilterRo
 		}
 		edit := g.URL()
 		if g.Account != "" {
-			edit += "?account=" + alborz.QueryValue(g.Account)
+			edit += "?account=" + web.QueryValue(g.Account)
 		}
 		rows = append(rows, FilterRow{
 			Label:  g.DisplayName(),
@@ -67,11 +67,11 @@ func filterHref(name, value, account string) string {
 	if account != "" {
 		q.Set("account", account)
 	}
-	return "/contacts?" + alborz.Query(q)
+	return "/contacts?" + web.Query(q)
 }
 
 // A group's card names its members, so that card changes; a card without a UID gets one first.
-func (p *plugin) groupContact(ctx *alborz.Context) error {
+func (p *plugin) groupContact(ctx *web.Context) error {
 	objPath, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
@@ -148,7 +148,7 @@ func (p *plugin) groupContact(ctx *alborz.Context) error {
 }
 
 // A server's refusal shows on the page, never as an error page.
-func (p *plugin) putCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Card) error {
+func (p *plugin) putCard(ctx *web.Context, c *carddav.Client, at string, card vcard.Card) error {
 	if err := writeCard(ctx, c, at, card); err != nil {
 		ctx.Notify(pim.Refused(ctx, err))
 	}

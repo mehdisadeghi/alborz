@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 	"github.com/labstack/echo/v4"
@@ -18,8 +18,8 @@ import (
 
 type AddressBookRenderData struct {
 	// Pager walks the pages of AddressObjects.
-	Pager alborz.Pager
-	alborz.BaseRenderData
+	Pager web.Pager
+	web.BaseRenderData
 	AddressBooks   []dav.Collection
 	AddressObjects []AddressObject
 	Sorting        pim.Sorting
@@ -27,8 +27,8 @@ type AddressBookRenderData struct {
 	// View is the colour the rail is filtering by, empty for all.
 	View string
 	// Filters are the narrowings nothing else on the page states; FilterRows the filter menu.
-	Filters    []alborz.Filter
-	FilterRows []alborz.FilterRow
+	Filters    []web.Filter
+	FilterRows []web.FilterRow
 	// CollectionFor is a contact's address book, CollectionHref the list narrowed to it.
 	CollectionFor  func(account, path string) dav.Collection
 	CollectionHref func(account, path string) string
@@ -64,10 +64,10 @@ type ContactList struct {
 	Sorting    pim.Sorting
 }
 
-func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
+func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	queryText := ctx.QueryParam("query")
 	view := ctx.QueryParam("view")
-	if view != "" && view != alborz.ViewStarred && !slices.Contains(alborz.FlagColors[:], view) {
+	if view != "" && view != web.ViewStarred && !slices.Contains(web.FlagColors[:], view) {
 		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
@@ -101,10 +101,10 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 				continue
 			}
 			// A colour is a view, as in the mail rail; starred is any colour.
-			if view == alborz.ViewStarred && ao.Color() == "" {
+			if view == web.ViewStarred && ao.Color() == "" {
 				continue
 			}
-			if view != "" && view != alborz.ViewStarred && ao.Color() != view {
+			if view != "" && view != web.ViewStarred && ao.Color() != view {
 				continue
 			}
 			aos = append(aos, ao)
@@ -177,7 +177,7 @@ func (p *plugin) contactList(ctx *alborz.Context) (ContactList, error) {
 func contactColumns(books []dav.Collection) []pim.Column[AddressObject] {
 	return []pim.Column[AddressObject]{
 		{Key: "name", Value: func(ao AddressObject) string { return strings.ToLower(ao.DisplayName()) }},
-		{Key: alborz.ViewStarred, Value: func(ao AddressObject) string { return pim.StarredFirst(ao.Color()) }},
+		{Key: web.ViewStarred, Value: func(ao AddressObject) string { return pim.StarredFirst(ao.Color()) }},
 		{Key: "email", Value: func(ao AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("EMAIL")) }},
 		{Key: "phone", Value: func(ao AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("TEL")) }},
 		{Key: "account", Value: func(ao AddressObject) string { return strings.ToLower(ao.Account) }},
@@ -191,7 +191,7 @@ func contactColumns(books []dav.Collection) []pim.Column[AddressObject] {
 	}
 }
 
-func (p *plugin) contacts(ctx *alborz.Context) error {
+func (p *plugin) contacts(ctx *web.Context) error {
 	list, err := p.contactList(ctx)
 	if err != nil {
 		return err
@@ -201,7 +201,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 	for _, item := range list.Items {
 		hrefs[item.Path] = item.URL
 	}
-	cards, pager, err := alborz.Paginate(ctx, list.Cards)
+	cards, pager, err := web.Paginate(ctx, list.Cards)
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "contacts/list", &AddressBookRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
 		AddressBooks:   addressBookInfos,
 		AddressObjects: cards,
 		Pager:          pager,
@@ -224,7 +224,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 		Group:          list.Group,
 		Category:       list.Category,
 		Filters:        searchFilter(ctx, list),
-		FilterRows:     alborz.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
+		FilterRows:     web.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
 		Sorting:        list.Sorting,
 		CollectionFor:  collection,
 		CollectionHref: href,
@@ -265,13 +265,13 @@ func contactsQuery(queryText string) carddav.AddressBookQuery {
 	return query
 }
 
-func searchFilter(ctx *alborz.Context, list ContactList) []alborz.Filter {
-	var out []alborz.Filter
+func searchFilter(ctx *web.Context, list ContactList) []web.Filter {
+	var out []web.Filter
 	if f, ok := ctx.FilterOn("query", ctx.T("filter.search")); ok {
 		out = append(out, f)
 	}
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok {
-		if f.Value == alborz.ViewStarred {
+		if f.Value == web.ViewStarred {
 			f.Value = ctx.T("mailbox.starred")
 		} else {
 			f.Value = ctx.T("color." + f.Value)

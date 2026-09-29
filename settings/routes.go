@@ -1,12 +1,12 @@
 package settings
 
 import (
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/web"
 )
 
 // Mount serves the settings pages.
-func Mount(s *alborz.Server) {
+func Mount(s *web.Server) {
 	p := s.Router()
 	p.GET("/settings", handleProfile)
 	p.POST("/settings", handleProfile)

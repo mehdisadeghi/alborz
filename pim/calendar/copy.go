@@ -12,17 +12,18 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
 )
 
 // copyTo writes an event or a task into a calendar the reader chooses, as an object of its own (ADR 63).
-func (p *plugin) copyTo(list string) func(*alborz.Context) error {
+func (p *plugin) copyTo(list string) func(*web.Context) error {
 	section, supports, key, first, rail, missing := "nav.calendar", supportsEvent, "event", firstEvent, p.eventRail, "notfound.event"
 	if list == "/tasks" {
 		section, supports, key, first, rail, missing = "nav.tasks", supportsTodo, "task", getFirstTodo, p.taskRail, "notfound.task"
 	}
-	return func(ctx *alborz.Context) error {
+	return func(ctx *web.Context) error {
 		src, err := pim.ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -63,7 +64,7 @@ func (p *plugin) copyTo(list string) func(*alborz.Context) error {
 			}
 			summary, _ := comp.Props.Text(ical.PropSummary)
 			data := &DestinationRenderData{
-				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("common.copyask")),
+				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("common.copyask")),
 				Rail:           r,
 				Section:        ctx.T(section),
 				Home:           list,
@@ -107,10 +108,10 @@ func (p *plugin) copyTo(list string) func(*alborz.Context) error {
 			}
 		}
 		sentence := ctx.T("notice.copiedto")
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone,
+		ctx.Notify(web.Notice{Kind: web.NoticeDone,
 			Text:   fmt.Sprintf(sentence, name),
-			Markup: template.HTML(fmt.Sprintf(sentence, alborz.NoticeName(name))),
-			Actions: []*alborz.NoticeAction{ctx.Undo(list+"/"+url.PathEscape(made.Path)+"/delete?account="+alborz.QueryValue(to.Account),
+			Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeName(name))),
+			Actions: []*web.NoticeAction{ctx.Undo(list+"/"+url.PathEscape(made.Path)+"/delete?account="+web.QueryValue(to.Account),
 				url.Values{"next": {back}})}})
 		return ctx.Redirect(http.StatusFound, pim.ObjectURL(list+"/", made.Path, to.Account, kept))
 	}

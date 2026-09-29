@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/labstack/echo/v4"
@@ -53,7 +53,7 @@ func localImages(body string, msg *IMAPMessage, account string) string {
 }
 
 // The session keeps the named uploads until the message has left.
-func inlineImages(ctx *alborz.Context, body, messageID string) ([]inlineImage, []string, error) {
+func inlineImages(ctx *web.Context, body, messageID string) ([]inlineImage, []string, error) {
 	var (
 		images  []inlineImage
 		uploads []string
@@ -89,7 +89,7 @@ func inlineImages(ctx *alborz.Context, body, messageID string) ([]inlineImage, [
 	return images, uploads, nil
 }
 
-func fetchPartImage(ctx *alborz.Context, src string) (*imapAttachment, error) {
+func fetchPartImage(ctx *web.Context, src string) (*imapAttachment, error) {
 	u, err := url.Parse(src)
 	if err != nil {
 		return nil, err
@@ -149,7 +149,7 @@ func cidImages(body string, images []inlineImage) string {
 }
 
 // Anything but a raster image is offered as a file, so no upload runs as a page here.
-func handleGetAttachment(ctx *alborz.Context) error {
+func handleGetAttachment(ctx *web.Context) error {
 	held := ctx.PeekAttachment(ctx.Param("uuid"))
 	if held == nil {
 		return echo.NewHTTPError(http.StatusNotFound)

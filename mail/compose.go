@@ -13,6 +13,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
@@ -48,7 +49,7 @@ type AccountIdentities struct {
 }
 
 // The address written as is offered even when unlisted, so the dropdown can select it.
-func composeIdentities(ctx *alborz.Context, writtenAs string) []AccountIdentities {
+func composeIdentities(ctx *web.Context, writtenAs string) []AccountIdentities {
 	var out []AccountIdentities
 	for _, s := range ctx.Logins() {
 		entry := AccountIdentities{Account: s.Username()}
@@ -154,7 +155,7 @@ func attachedRef(p messagePath) string {
 }
 
 // The form shows only names; the send fetches the messages.
-func attachedNames(ctx *alborz.Context, msg *OutgoingMessage, paths []messagePath) error {
+func attachedNames(ctx *web.Context, msg *OutgoingMessage, paths []messagePath) error {
 	for _, p := range paths {
 		var env *imap.Envelope
 		err := ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -190,7 +191,7 @@ type refused struct {
 func (err refused) Error() string { return err.cause.Error() }
 
 // The sender is the From account; the draft and the answered message stay on the request's account.
-func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
+func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
 	body, err := deliver(sender, msg)
 	if err != nil {
 		if _, ok := err.(alborz.AuthError); ok {
@@ -253,19 +254,19 @@ func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *O
 		}
 	}
 
-	notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.sent")}
+	notice := web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.sent")}
 	if sent != nil && sentUID != 0 {
 		// The Sent copy may be outside the reader's scope, so the link names its account.
 		view := messageURL(sent.Name(), sentUID)
-		view.RawQuery = "account=" + alborz.QueryValue(sender.Username())
-		notice.Actions = []*alborz.NoticeAction{{Label: ctx.T("notice.view"), Path: view.String()}}
+		view.RawQuery = "account=" + web.QueryValue(sender.Username())
+		notice.Actions = []*web.NoticeAction{{Label: ctx.T("notice.view"), Path: view.String()}}
 	}
 	ctx.Notify(notice)
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
 }
 
-func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, options *composeOptions) error {
-	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *composeOptions) error {
+	ibase, err := p.newIMAPBaseRenderData(ctx, web.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -551,7 +552,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 }
 
 // suggestions are what the features offer, each entry once, sorted.
-func suggestions(ctx *alborz.Context) []string {
+func suggestions(ctx *web.Context) []string {
 	var all []string
 	for _, suggest := range ctx.Server.Suggest {
 		all = append(all, suggest(ctx)...)
@@ -613,7 +614,7 @@ func withSignature(body, text string) string {
 	return body + "\n\n\n-- \n" + text
 }
 
-func (p *plugin) handleComposeNew(ctx *alborz.Context) error {
+func (p *plugin) handleComposeNew(ctx *web.Context) error {
 	// Only a mailto URI is followed; redirecting to anything else would be an open redirect.
 	if uri := ctx.QueryParam("mailto"); uri != "" {
 		if to := composeFromMailto(uri); strings.HasPrefix(to, "/compose?") {
@@ -645,16 +646,16 @@ func (p *plugin) handleComposeNew(ctx *alborz.Context) error {
 }
 
 // composeTooLarge answers a message form past its limit; what was typed did not arrive.
-func composeTooLarge(ctx *alborz.Context) error {
+func composeTooLarge(ctx *web.Context) error {
 	return echo.NewHTTPError(http.StatusRequestEntityTooLarge, ctx.T("attach.toolarge"))
 }
 
-func handleComposeAttachment(ctx *alborz.Context) error {
+func handleComposeAttachment(ctx *web.Context) error {
 	reader, err := ctx.Request().MultipartReader()
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
 	}
-	form, err := reader.ReadForm(alborz.MaxAttachmentSize)
+	form, err := reader.ReadForm(web.MaxAttachmentSize)
 	var over *http.MaxBytesError
 	if errors.As(err, &over) {
 		return ctx.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": ctx.T("attach.toolarge")})
@@ -665,7 +666,7 @@ func handleComposeAttachment(ctx *alborz.Context) error {
 	var uuids []string
 	for _, fh := range form.File["attachments"] {
 		uuid, err := ctx.PutAttachment(fh, form)
-		if err == alborz.ErrAttachmentCacheSize {
+		if err == web.ErrAttachmentCacheSize {
 			form.RemoveAll()
 			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.toolarge")})
 		} else if err != nil {
@@ -679,7 +680,7 @@ func handleComposeAttachment(ctx *alborz.Context) error {
 	return ctx.JSON(http.StatusOK, &uuids)
 }
 
-func handleCancelAttachment(ctx *alborz.Context) error {
+func handleCancelAttachment(ctx *web.Context) error {
 	uuid := ctx.Param("uuid")
 	a := ctx.PopAttachment(uuid)
 	if a != nil {
@@ -704,7 +705,7 @@ func unwrapIMAPAddress(addr imap.Address) string {
 	return address
 }
 
-func (p *plugin) handleReply(ctx *alborz.Context) error {
+func (p *plugin) handleReply(ctx *web.Context) error {
 	var inReplyToPath messagePath
 	var err error
 	inReplyToPath.Mailbox, inReplyToPath.Uid, err = messageRef(ctx)
@@ -724,7 +725,7 @@ func (p *plugin) handleReply(ctx *alborz.Context) error {
 }
 
 // A bare link names no part, so the text part shown is fetched instead.
-func quotablePart(ctx *alborz.Context, path messagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
+func quotablePart(ctx *web.Context, path messagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
 	var msg *IMAPMessage
 	var part *message.Entity
 	fetch := func(p []int) error {
@@ -755,7 +756,7 @@ func quotablePart(ctx *alborz.Context, path messagePath, partPath []int) (*IMAPM
 	return msg, part, mimeType, nil
 }
 
-func (p *plugin) populateMessageFromOriginalMessage(ctx *alborz.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
+func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
 	var ret OutgoingMessage
 
 	partPath, err := parsePartPath(ctx.QueryParam("part"))
@@ -848,8 +849,8 @@ func readText(part *message.Entity) (string, error) {
 }
 
 // Not quoted: chevrons on every line are reply convention, not forward.
-func forwardBody(ctx *alborz.Context, original *IMAPMessage, body string) string {
-	g := alborz.NewBaseRenderData(ctx).GlobalData
+func forwardBody(ctx *web.Context, original *IMAPMessage, body string) string {
+	g := web.NewBaseRenderData(ctx).GlobalData
 	var b strings.Builder
 	b.WriteString("\n\n")
 	b.WriteString(ctx.T("message.forwardedblock"))
@@ -867,14 +868,14 @@ func forwardBody(ctx *alborz.Context, original *IMAPMessage, body string) string
 	return b.String()
 }
 
-func forwardHTML(ctx *alborz.Context, original *IMAPMessage, body string) template.HTML {
+func forwardHTML(ctx *web.Context, original *IMAPMessage, body string) template.HTML {
 	head := strings.TrimSpace(forwardBody(ctx, original, ""))
 	lines := strings.Split(html.EscapeString(head), "\n")
 	return template.HTML(`<p dir="auto"><br></p>` + "\n" +
 		`<p dir="` + lang.ParagraphDir(head) + `">` + strings.Join(lines, "<br>") + "</p>\n<div>" + body + "</div>\n")
 }
 
-func quotedHTML(ctx *alborz.Context, path messagePath, msg *IMAPMessage) (string, error) {
+func quotedHTML(ctx *web.Context, path messagePath, msg *IMAPMessage) (string, error) {
 	node := msg.HTMLPart()
 	if node == nil {
 		return "", nil
@@ -909,7 +910,7 @@ func addressLine(a imap.Address) string {
 	return a.Addr()
 }
 
-func replyBody(ctx *alborz.Context, original *IMAPMessage, quoted string, below bool) string {
+func replyBody(ctx *web.Context, original *IMAPMessage, quoted string, below bool) string {
 	who := ""
 	if from := original.Envelope.From; len(from) > 0 {
 		who = from[0].Name
@@ -917,7 +918,7 @@ func replyBody(ctx *alborz.Context, original *IMAPMessage, quoted string, below 
 			who = from[0].Addr()
 		}
 	}
-	when := alborz.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
+	when := web.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
 	attribution := ctx.Tf("message.wrote", when, who)
 	if below {
 		return attribution + "\n" + quoted + "\n"
@@ -925,7 +926,7 @@ func replyBody(ctx *alborz.Context, original *IMAPMessage, quoted string, below 
 	return "\n\n" + attribution + "\n" + quoted
 }
 
-func replyHTML(ctx *alborz.Context, original *IMAPMessage, quoted string, below bool) template.HTML {
+func replyHTML(ctx *web.Context, original *IMAPMessage, quoted string, below bool) template.HTML {
 	who := ""
 	if from := original.Envelope.From; len(from) > 0 {
 		who = from[0].Name
@@ -933,7 +934,7 @@ func replyHTML(ctx *alborz.Context, original *IMAPMessage, quoted string, below 
 			who = from[0].Addr()
 		}
 	}
-	when := alborz.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
+	when := web.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
 	attribution := ctx.Tf("message.wrote", when, who)
 	head := `<p dir="` + lang.ParagraphDir(attribution) + `">` + html.EscapeString(attribution) + "</p>\n<blockquote>" + quoted + "</blockquote>\n"
 	if below {
@@ -942,7 +943,7 @@ func replyHTML(ctx *alborz.Context, original *IMAPMessage, quoted string, below 
 	return template.HTML(`<p dir="auto"><br></p>` + "\n" + head)
 }
 
-func handleForwardSelection(ctx *alborz.Context) error {
+func handleForwardSelection(ctx *web.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
@@ -971,14 +972,14 @@ func handleForwardSelection(ctx *alborz.Context) error {
 	}
 	q := url.Values{"uids": {strings.Join(refs, ",")}}
 	if a := ctx.URLAccount(); a != "" {
-		q.Set("account", alborz.QueryValue(a))
+		q.Set("account", web.QueryValue(a))
 	}
 	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/message/%v/forward?%s",
-		url.PathEscape(mboxName), alborz.Query(q)))
+		url.PathEscape(mboxName), web.Query(q)))
 }
 
 // A GET so the page can be reloaded; the selection arrives in the query.
-func (p *plugin) handleForwardAttached(ctx *alborz.Context) error {
+func (p *plugin) handleForwardAttached(ctx *web.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
@@ -1003,7 +1004,7 @@ func (p *plugin) handleForwardAttached(ctx *alborz.Context) error {
 	return p.handleCompose(ctx, &msg, &composeOptions{Attached: paths})
 }
 
-func (p *plugin) handleForward(ctx *alborz.Context) error {
+func (p *plugin) handleForward(ctx *web.Context) error {
 	var sourcePath messagePath
 	var err error
 	sourcePath.Mailbox, sourcePath.Uid, err = messageRef(ctx)
@@ -1068,7 +1069,7 @@ func (p *plugin) handleForward(ctx *alborz.Context) error {
 	return p.handleCompose(ctx, &msg, &composeOptions{Forward: &sourcePath})
 }
 
-func (p *plugin) handleEdit(ctx *alborz.Context) error {
+func (p *plugin) handleEdit(ctx *web.Context) error {
 	var sourcePath messagePath
 	var err error
 	sourcePath.Mailbox, sourcePath.Uid, err = messageRef(ctx)

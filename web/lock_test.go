@@ -1,8 +1,10 @@
-package alborz
+package web
 
 import (
 	"testing"
 	"time"
+
+	"git.mehdix.org/alborz"
 )
 
 func TestASessionLocksOnlyWithAPasskeyAndOnlyAfterTimeAway(t *testing.T) {
@@ -12,7 +14,7 @@ func TestASessionLocksOnlyWithAPasskeyAndOnlyAfterTimeAway(t *testing.T) {
 		t.Fatal("a session with no passkey locked")
 	}
 
-	s.addPasskey(Passkey{Name: "key"})
+	s.addPasskey(alborz.Passkey{Name: "key"})
 	s.SetLockAfter(10 * time.Minute)
 	s.act(now)
 	if s.Locked(now.Add(9 * time.Minute)) {

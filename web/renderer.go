@@ -1,4 +1,4 @@
-package alborz
+package web
 
 import (
 	"fmt"
@@ -18,6 +18,7 @@ import (
 	"golang.org/x/text/message"
 	"golang.org/x/text/number"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/calsys"
 	"git.mehdix.org/alborz/internal/lang"
 )
@@ -53,7 +54,7 @@ type GlobalRenderData struct {
 	ProjectURL string
 	// Language is the explicit choice, empty while following the browser.
 	Language        string
-	LanguageChoices []LanguageChoice
+	LanguageChoices []alborz.LanguageChoice
 	Year            int
 	// Primary is the calendar the page counts in, Secondary the one glossed beside it, empty for none.
 	Primary   string
@@ -122,7 +123,7 @@ func (brd *BaseRenderData) Global() *GlobalRenderData {
 
 // T translates a namespaced string key into the UI language.
 func (brd *BaseRenderData) T(key string) string {
-	return translate(brd.GlobalData.Lang, key)
+	return alborz.Translate(brd.GlobalData.Lang, key)
 }
 
 // Since dates a message in the reader's language, as short as a list column.
@@ -136,7 +137,7 @@ func (g *GlobalRenderData) Since(t time.Time) string {
 		key, n = "since.ahead", -n
 	}
 	// A year count is never grouped: "2025 yrs ago", not "2,025".
-	span := g.printer().Sprintf(translateCount(g.Lang, "since."+unit, n), number.Decimal(n, number.NoSeparator()))
+	span := g.printer().Sprintf(alborz.TranslateCount(g.Lang, "since."+unit, n), number.Decimal(n, number.NoSeparator()))
 	return g.Tf(key, span)
 }
 
@@ -288,7 +289,7 @@ func (g GlobalRenderData) AccountTrack() template.CSS {
 var printers = map[string]*message.Printer{}
 
 func init() {
-	for _, code := range languages {
+	for _, code := range alborz.Languages {
 		printers[code] = message.NewPrinter(language.MustParse(code))
 	}
 }
@@ -313,7 +314,7 @@ func (g GlobalRenderData) FormatYear(n int) string {
 
 // T translates a key in the page's language.
 func (g GlobalRenderData) T(key string) string {
-	return translate(g.Lang, key)
+	return alborz.Translate(g.Lang, key)
 }
 
 // Tf translates a format string and fills it in the page's language.
@@ -324,7 +325,7 @@ func (g GlobalRenderData) Tf(key string, args ...interface{}) string {
 			count = n
 		}
 	}
-	return g.printer().Sprintf(translateCount(g.Lang, key, count), args...)
+	return g.printer().Sprintf(alborz.TranslateCount(g.Lang, key, count), args...)
 }
 
 var persianDigits = [10]rune{'۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'}
@@ -401,9 +402,9 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	lang := requestLanguage(ectx)
 	global := GlobalRenderData{
 		Path:           strings.Split(ectx.Request().URL.Path, "/")[1:],
-		Title:          BrandName,
+		Title:          alborz.BrandName,
 		URL:            ectx.Request().URL,
-		FirstDayOfWeek: Reading{}.WeekStart(),
+		FirstDayOfWeek: alborz.Reading{}.WeekStart(),
 		Lang:           lang,
 
 		Asset: func(name string) string {
@@ -415,7 +416,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	}
 
 	if isactx {
-		global.Version, global.Revision = Build()
+		global.Version, global.Revision = alborz.Build()
 		_, global.Shell = ctx.Server.shell()
 		if s := ctx.lookupSession(); s != nil {
 			if lock := s.Lock(); len(lock.Passkeys) > 0 {
@@ -423,10 +424,10 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 			}
 		}
 		// A person reads the brand in their own script; what a machine reads stays BrandName.
-		global.Brand = translate(lang, "brand.name")
+		global.Brand = alborz.Translate(lang, "brand.name")
 		global.ProjectURL = ctx.Server.Options.ProjectURL
 		global.Language = ctx.language()
-		global.LanguageChoices = languageChoices()
+		global.LanguageChoices = alborz.LanguageChoices()
 		global.Year = time.Now().Year()
 		global.Primary, global.Secondary = ctx.calendars()
 		global.Theme = ctx.Theme()
@@ -460,7 +461,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 
 	if isactx && ctx.Login != nil {
 		global.LoggedIn = true
-		global.Username = ctx.Login.username
+		global.Username = ctx.Login.Username()
 		global.Accounts = ctx.Accounts()
 		// Unset means times keep their stored zones.
 		if loc := UserLocation(ctx); loc != time.UTC {
@@ -480,7 +481,7 @@ func (ctx *Context) Tf(key string, args ...interface{}) string {
 
 // T translates a namespaced string key into the request's UI language.
 func (ctx *Context) T(key string) string {
-	return translate(requestLanguage(ctx), key)
+	return alborz.Translate(requestLanguage(ctx), key)
 }
 
 // PageLanguage is the UI language this request resolves to.
@@ -500,7 +501,7 @@ func (g GlobalRenderData) LanguageName() string {
 
 // The URL's language outranks the cookie, so a page can be handed to a reader of another language.
 func queryLanguage(ectx echo.Context) string {
-	if v := ectx.QueryParam("lang"); isLanguage(v) {
+	if v := ectx.QueryParam("lang"); alborz.IsLanguage(v) {
 		return v
 	}
 	return ""
@@ -514,10 +515,10 @@ func requestLanguage(ectx echo.Context) string {
 		if v := ctx.language(); v != "" {
 			return v
 		}
-	} else if c, err := ectx.Cookie(langCookieName); err == nil && isLanguage(c.Value) {
+	} else if c, err := ectx.Cookie(langCookieName); err == nil && alborz.IsLanguage(c.Value) {
 		return c.Value
 	}
-	return matchLanguage(ectx.Request().Header.Get("Accept-Language"))
+	return alborz.MatchLanguage(ectx.Request().Header.Get("Accept-Language"))
 }
 
 // renderInfo renders a full page carrying one explanatory sentence.
@@ -568,9 +569,9 @@ func (ctx *Context) dates() *GlobalRenderData {
 func (g *GlobalRenderData) PageTitle() string {
 	brand := g.Brand
 	if brand == "" {
-		brand = BrandName
+		brand = alborz.BrandName
 	}
-	if g.Title == "" || g.Title == BrandName {
+	if g.Title == "" || g.Title == alborz.BrandName {
 		return brand
 	}
 	return g.Title + " - " + brand
@@ -609,7 +610,7 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 	} else {
 		err = r.partials.ExecuteTemplate(w, name, data)
 	}
-	ctx.timing.add("render", start, time.Now())
+	ctx.timing.Add("render", start, time.Now())
 	return err
 }
 

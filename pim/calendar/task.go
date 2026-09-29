@@ -14,6 +14,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/caldav"
@@ -21,7 +22,7 @@ import (
 )
 
 type TaskRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rail     pim.Rail
 	Calendar *dav.Collection
 	Task     TaskObject
@@ -31,18 +32,18 @@ type TaskRenderData struct {
 	List       string
 	Star       string
 	Priority   string
-	Neighbours alborz.Neighbours
+	Neighbours web.Neighbours
 }
 
 type UpdateTaskRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rail           pim.Rail
 	Groups         []dav.Group
 	Calendar       *dav.Collection
 	CalendarObject *caldav.CalendarObject
 	Todo           *ical.Component
 	// Due is the due date as the field holds it.
-	Due alborz.DateField
+	Due web.DateField
 	// Priority is the band the select holds; PriorityBands the bands offered.
 	Priority      string
 	PriorityBands []string
@@ -90,7 +91,7 @@ func setPriorityBand(todo *ical.Component, band string) {
 	todo.Props.Set(prop)
 }
 
-func (p *plugin) task(ctx *alborz.Context) error {
+func (p *plugin) task(ctx *web.Context) error {
 	path, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
@@ -145,7 +146,7 @@ func (p *plugin) task(ctx *alborz.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "tasks/task", &TaskRenderData{
 		Rail:           rail,
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
 		List:           cmp.Or(ctx.From(), pim.ListURL("/tasks", pim.ListParams(ctx, taskListParams...))),
@@ -155,13 +156,13 @@ func (p *plugin) task(ctx *alborz.Context) error {
 		Authors:        p.dav.Authors(task.Path, ctx.Login.Username()),
 	})
 }
-func (p *plugin) updateTask(ctx *alborz.Context) error {
+func (p *plugin) updateTask(ctx *web.Context) error {
 	taskPath, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
 
-	loc := alborz.UserLocation(ctx)
+	loc := web.UserLocation(ctx)
 
 	var c *caldav.Client
 	var calendars []dav.Collection
@@ -221,7 +222,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "tasks/task-edit", &UpdateTaskRenderData{
 				Rail:           rail,
-				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("tasks.createtitle")).Refused(message),
+				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("tasks.createtitle")).Refused(message),
 				Groups:         groups,
 				Calendar:       currentCalendar,
 				CalendarObject: co,
@@ -315,7 +316,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "tasks/task-edit", &UpdateTaskRenderData{
 		Rail:           rail,
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
 		Groups:         groups,
 		Calendar:       currentCalendar,
 		CalendarObject: co,

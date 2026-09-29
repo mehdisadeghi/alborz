@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
@@ -23,7 +23,7 @@ var (
 )
 
 // handleProxy serves a message's remote images.
-func handleProxy(ctx *alborz.Context) error {
+func handleProxy(ctx *web.Context) error {
 	u, err := url.Parse(ctx.QueryParam("src"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid URL")

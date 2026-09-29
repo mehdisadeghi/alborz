@@ -6,32 +6,33 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/web"
 )
 
 // PasskeysRenderData renders passkeys.html.
 type PasskeysRenderData struct {
-	alborz.BaseRenderData
-	Rail     map[string][]alborz.RailRow
+	web.BaseRenderData
+	Rail     map[string][]web.RailRow
 	Passkeys []alborz.Passkey
 }
 
 // PasskeyRenderData renders passkey-create.html.
 type PasskeyRenderData struct {
-	alborz.BaseRenderData
-	Rail map[string][]alborz.RailRow
+	web.BaseRenderData
+	Rail map[string][]web.RailRow
 }
 
-func registerPasskeyRoutes(p alborz.Router) {
-	p.GET("/settings/passkeys", func(ctx *alborz.Context) error {
+func registerPasskeyRoutes(p web.Router) {
+	p.GET("/settings/passkeys", func(ctx *web.Context) error {
 		return ctx.Render(http.StatusOK, "settings/passkeys", &PasskeysRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.title")),
+			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.title")),
 			Rail:           mail.SettingsRail(ctx),
 			Passkeys:       ctx.Session().Lock().Passkeys,
 		})
 	})
-	passkeyForm := func(ctx *alborz.Context) error {
+	passkeyForm := func(ctx *web.Context) error {
 		data := &PasskeyRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.new")),
+			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.new")),
 			Rail:           mail.SettingsRail(ctx),
 		}
 		// Only a form without script posts here, and without script there is no passkey prompt.
@@ -43,14 +44,14 @@ func registerPasskeyRoutes(p alborz.Router) {
 	}
 	p.GET("/settings/passkeys/create", passkeyForm)
 	p.POST("/settings/passkeys/create", passkeyForm)
-	p.POST("/settings/passkeys/begin", func(ctx *alborz.Context) error {
+	p.POST("/settings/passkeys/begin", func(ctx *web.Context) error {
 		options, err := ctx.BeginPasskey()
 		if err != nil {
 			return err
 		}
 		return ctx.JSON(http.StatusOK, options)
 	})
-	p.POST("/settings/passkeys/finish", func(ctx *alborz.Context) error {
+	p.POST("/settings/passkeys/finish", func(ctx *web.Context) error {
 		if err := ctx.FinishPasskey(strings.TrimSpace(ctx.QueryParam("name"))); err != nil {
 			ctx.Logger().Printf("passkey refused: %v", err)
 			return ctx.JSON(http.StatusUnprocessableEntity, map[string]string{"error": ctx.T("passkeys.addrefused")})
@@ -58,7 +59,7 @@ func registerPasskeyRoutes(p alborz.Router) {
 		ctx.PutNotice(ctx.T("notice.passkeyadded"))
 		return ctx.NoContent(http.StatusNoContent)
 	})
-	p.POST("/settings/passkeys/remove", func(ctx *alborz.Context) error {
+	p.POST("/settings/passkeys/remove", func(ctx *web.Context) error {
 		s := ctx.Session()
 		if !s.RemovePasskey(ctx.FormValue("passkey")) {
 			return alborz.NotFound("notfound.passkey")

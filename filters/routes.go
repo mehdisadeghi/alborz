@@ -6,23 +6,24 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
-	"strings"
 )
 
 type FiltersRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	// Groups holds every account with scripts on a bare URL, else the one the URL names.
 	Groups []AccountFilters
 	// Rows are the scripts of every group, one page of them.
 	Rows     []ScriptRow
-	Pager    alborz.Pager
-	Accounts []alborz.Account
+	Pager    web.Pager
+	Accounts []web.Account
 	// Explained is shown once for the page rather than in every server card.
-	Explained []alborz.Explained
-	Rail      map[string][]alborz.RailRow
+	Explained []web.Explained
+	Rail      map[string][]web.RailRow
 }
 
 // ScriptRow is a script as the list shows it, with the account holding it.
@@ -38,26 +39,26 @@ type AccountFilters struct {
 	Server     string
 	Software   string
 	Extensions []Extension
-	Explained  []alborz.Explained
+	Explained  []web.Explained
 	// Unreachable is the filter server's refusal, shown on the page rather than as an error.
 	Unreachable string
 }
 
 type FilterRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Name      string
 	Content   string
 	Loaded    string
 	Suggested string
 
-	Accounts []alborz.Account
+	Accounts []web.Account
 	Account  string
-	Rail     map[string][]alborz.RailRow
+	Rail     map[string][]web.RailRow
 }
 
-func registerRoutes(p alborz.Router) {
-	requireAccount := func(h func(*alborz.Context) error) func(*alborz.Context) error {
-		return func(ctx *alborz.Context) error {
+func registerRoutes(p web.Router) {
+	requireAccount := func(h func(*web.Context) error) func(*web.Context) error {
+		return func(ctx *web.Context) error {
 			if ctx.URLAccount() != "" && ctx.Server.SieveEnabled(ctx.Login.Domain()) {
 				return h(ctx)
 			}
@@ -65,12 +66,12 @@ func registerRoutes(p alborz.Router) {
 				return echo.NewHTTPError(http.StatusBadRequest, "filters require an account")
 			}
 			if !ctx.Unified && ctx.Server.SieveEnabled(ctx.Login.Domain()) {
-				target := ctx.Request().URL.Path + "?account=" + alborz.QueryValue(ctx.Login.Username())
+				target := ctx.Request().URL.Path + "?account=" + web.QueryValue(ctx.Login.Username())
 				return ctx.Redirect(http.StatusFound, target)
 			}
 			for _, login := range ctx.Logins() {
 				if ctx.Server.SieveEnabled(login.Domain()) {
-					target := ctx.Request().URL.Path + "?account=" + alborz.QueryValue(login.Username())
+					target := ctx.Request().URL.Path + "?account=" + web.QueryValue(login.Username())
 					return ctx.Redirect(http.StatusFound, target)
 				}
 			}
@@ -80,7 +81,7 @@ func registerRoutes(p alborz.Router) {
 	p.GET("/filters", handleListFilters)
 	p.GET("/filters/create", handleCreateFilter)
 	p.GET("/filters/import", handleImportFilter)
-	p.Upload("/filters/import", maxScriptSize+alborz.FormFieldsSize, handleImportFilter, handleImportFilterTooLarge)
+	p.Upload("/filters/import", maxScriptSize+web.FormFieldsSize, handleImportFilter, handleImportFilterTooLarge)
 	p.GET("/filters/forwarding", requireAccount(handleForwarding))
 	p.GET("/filters/forwarding/create", requireAccount(handleForwardingCreate))
 	p.POST("/filters/forwarding", requireAccount(handleForwardingAdd))
@@ -108,7 +109,7 @@ func registerRoutes(p alborz.Router) {
 	p.POST("/filters/:name/delete", requireAccount(handleDeleteFilter))
 }
 
-func filterName(ctx *alborz.Context) (string, error) {
+func filterName(ctx *web.Context) (string, error) {
 	name, err := url.PathUnescape(ctx.Param("name"))
 	if err != nil {
 		return "", echo.NewHTTPError(http.StatusBadRequest, err)
@@ -116,9 +117,9 @@ func filterName(ctx *alborz.Context) (string, error) {
 	return name, nil
 }
 
-func handleListFilters(ctx *alborz.Context) error {
+func handleListFilters(ctx *web.Context) error {
 	data := &FiltersRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.title")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.title")),
 		Accounts:       sieveAccounts(ctx),
 		Rail:           rail(ctx),
 	}
@@ -137,7 +138,7 @@ func handleListFilters(ctx *alborz.Context) error {
 			for _, e := range group.Extensions {
 				if e.Hint != "" {
 					group.Explained = append(group.Explained,
-						alborz.Explained{Term: e.Name, Hint: ctx.T(e.Hint)})
+						web.Explained{Term: e.Name, Hint: ctx.T(e.Hint)})
 				}
 			}
 			return err
@@ -157,7 +158,7 @@ func handleListFilters(ctx *alborz.Context) error {
 		}
 	}
 	var err error
-	if data.Rows, data.Pager, err = alborz.Paginate(ctx, rows); err != nil {
+	if data.Rows, data.Pager, err = web.Paginate(ctx, rows); err != nil {
 		return err
 	}
 	seen := map[string]bool{}
@@ -176,8 +177,8 @@ func handleListFilters(ctx *alborz.Context) error {
 	return ctx.Render(status, "filters/list", data)
 }
 
-func sieveAccounts(ctx *alborz.Context) []alborz.Account {
-	var accounts []alborz.Account
+func sieveAccounts(ctx *web.Context) []web.Account {
+	var accounts []web.Account
 	for _, account := range ctx.Accounts() {
 		login := ctx.LoginFor(account.Username)
 		if login != nil && ctx.Server.SieveEnabled(login.Domain()) {
@@ -187,7 +188,7 @@ func sieveAccounts(ctx *alborz.Context) []alborz.Account {
 	return accounts
 }
 
-func handleCreateFilter(ctx *alborz.Context) error {
+func handleCreateFilter(ctx *web.Context) error {
 	accounts := sieveAccounts(ctx)
 	if len(accounts) == 0 {
 		return echo.ErrNotFound
@@ -197,14 +198,14 @@ func handleCreateFilter(ctx *alborz.Context) error {
 		account = accounts[0].Username
 	}
 	return ctx.Render(http.StatusOK, "filters/filter-edit", &FilterRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		BaseRenderData: *web.NewBaseRenderData(ctx),
 		Rail:           rail(ctx),
 		Accounts:       accounts,
 		Account:        account,
 	})
 }
 
-func importFilterData(ctx *alborz.Context) (*FilterRenderData, error) {
+func importFilterData(ctx *web.Context) (*FilterRenderData, error) {
 	accounts := sieveAccounts(ctx)
 	if len(accounts) == 0 {
 		return nil, echo.ErrNotFound
@@ -214,7 +215,7 @@ func importFilterData(ctx *alborz.Context) (*FilterRenderData, error) {
 		account = accounts[0].Username
 	}
 	data := &FilterRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.import")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.import")),
 		Rail:           rail(ctx),
 		Accounts:       accounts,
 		Account:        account,
@@ -223,7 +224,7 @@ func importFilterData(ctx *alborz.Context) (*FilterRenderData, error) {
 }
 
 // handleImportFilterTooLarge answers a script past the limit on the import form.
-func handleImportFilterTooLarge(ctx *alborz.Context) error {
+func handleImportFilterTooLarge(ctx *web.Context) error {
 	data, err := importFilterData(ctx)
 	if err != nil {
 		return err
@@ -232,7 +233,7 @@ func handleImportFilterTooLarge(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
 }
 
-func handleImportFilter(ctx *alborz.Context) error {
+func handleImportFilter(ctx *web.Context) error {
 	data, err := importFilterData(ctx)
 	if err != nil {
 		return err
@@ -266,7 +267,7 @@ func handleImportFilter(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "filters/filter-edit", data)
 }
 
-func handleEditFilter(ctx *alborz.Context) error {
+func handleEditFilter(ctx *web.Context) error {
 	name, err := filterName(ctx)
 	if err != nil {
 		return err
@@ -283,7 +284,7 @@ func handleEditFilter(ctx *alborz.Context) error {
 	}
 
 	return ctx.Render(http.StatusOK, "filters/filter-edit", &FilterRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		BaseRenderData: *web.NewBaseRenderData(ctx),
 		Rail:           rail(ctx),
 		Name:           name,
 		Content:        content,
@@ -291,12 +292,12 @@ func handleEditFilter(ctx *alborz.Context) error {
 	})
 }
 
-func handleSaveFilter(ctx *alborz.Context) error {
+func handleSaveFilter(ctx *web.Context) error {
 	name := ctx.FormValue("name")
 	content := ctx.FormValue("content")
 	if strings.TrimSpace(name) == "" {
 		return ctx.Render(http.StatusUnprocessableEntity, "filters/filter-edit", &FilterRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(ctx.T("form.nameneeded")),
+			BaseRenderData: *web.NewBaseRenderData(ctx).Refused(ctx.T("form.nameneeded")),
 			Rail:           rail(ctx),
 			Content:        content,
 			Accounts:       sieveAccounts(ctx),
@@ -333,7 +334,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	})
 	if err == nil && changed {
 		return ctx.Render(http.StatusConflict, "filters/filter-edit", &FilterRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(ctx.T("filters.changed")),
+			BaseRenderData: *web.NewBaseRenderData(ctx).Refused(ctx.T("filters.changed")),
 			Rail:           rail(ctx),
 			Name:           name,
 			Content:        content,
@@ -345,7 +346,7 @@ func handleSaveFilter(ctx *alborz.Context) error {
 	if err != nil {
 		// Show the server's rejection next to the script instead of an error page.
 		return ctx.Render(http.StatusUnprocessableEntity, "filters/filter-edit", &FilterRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(err.Error()),
+			BaseRenderData: *web.NewBaseRenderData(ctx).Refused(err.Error()),
 			Rail:           rail(ctx),
 			Name:           name,
 			Content:        content,
@@ -357,18 +358,18 @@ func handleSaveFilter(ctx *alborz.Context) error {
 
 	switch {
 	case warnings != "":
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
 	case loaded == "":
-		account := "?account=" + alborz.QueryValue(ctx.Login.Username())
+		account := "?account=" + web.QueryValue(ctx.Login.Username())
 		ctx.Made(ctx.T("notice.filtercreated"), name,
 			"/filters/"+url.PathEscape(name)+account, "/filters/create"+account)
 	default:
 		ctx.PutNotice(ctx.T("notice.filtersaved"))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr("/filters?account="+alborz.QueryValue(ctx.Login.Username())))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr("/filters?account="+web.QueryValue(ctx.Login.Username())))
 }
 
-func handleActivateFilter(ctx *alborz.Context) error {
+func handleActivateFilter(ctx *web.Context) error {
 	name, err := filterName(ctx)
 	if err != nil {
 		return err
@@ -380,14 +381,14 @@ func handleActivateFilter(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters", ctx.T("notice.filteron"))
 }
 
-func handleDeactivateFilter(ctx *alborz.Context) error {
+func handleDeactivateFilter(ctx *web.Context) error {
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.ActivateScript("")
 	})
 	return answer(ctx, err, "/filters", ctx.T("notice.filteroff"))
 }
 
-func handleDeleteFilter(ctx *alborz.Context) error {
+func handleDeleteFilter(ctx *web.Context) error {
 	name, err := filterName(ctx)
 	if err != nil {
 		return err

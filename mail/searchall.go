@@ -9,6 +9,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -49,7 +50,7 @@ func folderNamed(mbox *MailboxInfo, named string) bool {
 		(role == "junk" && strings.EqualFold(named, "spam"))
 }
 
-func (p *plugin) handleSearch(ctx *alborz.Context) error {
+func (p *plugin) handleSearch(ctx *web.Context) error {
 	ask, err := readListAsk(ctx, "account")
 	if err != nil {
 		return err
@@ -88,7 +89,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 		title = ViewLabel(ctx, spec.view)
 		heading = title
 	}
-	base := alborz.NewBaseRenderData(ctx).WithTitle(heading)
+	base := web.NewBaseRenderData(ctx).WithTitle(heading)
 	ibase := &IMAPBaseRenderData{BaseRenderData: *base, ListView: spec.view}
 	if !ctx.Unified {
 		sb, err := p.sidebarFor(ctx.Login)
@@ -110,7 +111,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 }
 
 // searchWindow is a search's rows up to the page asked, from every folder it spans, merged as its page is.
-func (p *plugin) searchWindow(ctx *alborz.Context, logins []*alborz.Login, ask listAsk, settings *Settings) (*listingEntry, error) {
+func (p *plugin) searchWindow(ctx *web.Context, logins []*alborz.Login, ask listAsk, settings *Settings) (*listingEntry, error) {
 	spec := ask.spec
 	q := search.Parse(spec.query)
 	class, bound := listingBudget(spec)

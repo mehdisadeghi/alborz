@@ -8,11 +8,12 @@ import (
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/settings"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav/caldav"
 )
 
 type plugin struct {
-	alborz.Router
+	web.Router
 	dav   *dav.Provider
 	feeds *feeds
 }
@@ -22,7 +23,7 @@ func (p *plugin) client(ctx context.Context, login *alborz.Login) (*caldav.Clien
 }
 
 // Mount serves calendars and tasks.
-func Mount(srv *alborz.Server, st *store.Store) error {
+func Mount(srv *web.Server, st *store.Store) error {
 	provider, err := dav.NewProvider(srv, st, dav.Kind{
 		Name: "caldav", Label: "CalDAV",
 		Schemes: [2]string{"caldavs", "caldav+insecure"},

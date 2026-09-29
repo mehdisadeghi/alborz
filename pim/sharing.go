@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
@@ -48,7 +48,7 @@ func (pg Page) kindKey(c *store.Collection) string {
 }
 
 // offer is the account's share of the collection at collPath in its own home, nil when none.
-func (pg Page) offer(ctx *alborz.Context, p *dav.Provider, collPath, account string) (*Offer, error) {
+func (pg Page) offer(ctx *web.Context, p *dav.Provider, collPath, account string) (*Offer, error) {
 	ref, home, here := p.Held(collPath)
 	account = strings.ToLower(account)
 	if !here || home != account || ref.Owner == account {
@@ -79,7 +79,7 @@ func (pg Page) offer(ctx *alborz.Context, p *dav.Provider, collPath, account str
 		state = "left"
 	}
 	base := pg.Base + url.PathEscape(collPath)
-	q := "?account=" + alborz.QueryValue(account)
+	q := "?account=" + web.QueryValue(account)
 	return &Offer{
 		Kind: pg.kindKey(c), Name: c.Name, From: c.Owner, Write: sh.Write,
 		Expires: sh.Expires, Offered: sh.Created, Answered: sh.Answered, State: state,
@@ -89,8 +89,8 @@ func (pg Page) offer(ctx *alborz.Context, p *dav.Provider, collPath, account str
 }
 
 // ShowOffer puts the invitation a mail announces beside it; the header only points, so a forged one shows nothing.
-func (pg Page) ShowOffer(p *dav.Provider) func(*alborz.Context, alborz.RenderData) error {
-	return func(ctx *alborz.Context, data alborz.RenderData) error {
+func (pg Page) ShowOffer(p *dav.Provider) func(*web.Context, web.RenderData) error {
+	return func(ctx *web.Context, data web.RenderData) error {
 		m := data.(*mail.MessageRenderData)
 		path := strings.TrimSpace(m.Message.HeaderField(mail.ShareHeader))
 		if path == "" {
@@ -115,11 +115,11 @@ type Sharing struct {
 	OffersPublic bool
 	// To and Until keep what a refused share had typed.
 	To    string
-	Until alborz.DateField
+	Until web.DateField
 	Write bool
 }
 
-func (pg Page) sharing(ctx *alborz.Context, p *dav.Provider, info dav.Collection) (*Sharing, error) {
+func (pg Page) sharing(ctx *web.Context, p *dav.Provider, info dav.Collection) (*Sharing, error) {
 	if !info.Here || info.SharedBy != "" {
 		return nil, nil
 	}
@@ -139,7 +139,7 @@ func (pg Page) sharing(ctx *alborz.Context, p *dav.Provider, info dav.Collection
 	return sharing, nil
 }
 
-func (pg Page) owned(ctx *alborz.Context, p *dav.Provider) (dav.Collection, store.Ref, error) {
+func (pg Page) owned(ctx *web.Context, p *dav.Provider) (dav.Collection, store.Ref, error) {
 	collPath, err := ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return dav.Collection{}, store.Ref{}, err
@@ -155,7 +155,7 @@ func (pg Page) owned(ctx *alborz.Context, p *dav.Provider) (dav.Collection, stor
 	return info, ref, nil
 }
 
-func (pg Page) pageOf(ctx *alborz.Context, path string) string {
+func (pg Page) pageOf(ctx *web.Context, path string) string {
 	return ctx.AccountPath(pg.Base + url.PathEscape(path))
 }
 
@@ -167,7 +167,7 @@ var (
 	errNotADate     = errors.New("form.shareuntil")
 )
 
-func invitee(ctx *alborz.Context, typed string) (string, error) {
+func invitee(ctx *web.Context, typed string) (string, error) {
 	addr, err := netmail.ParseAddress(strings.TrimSpace(typed))
 	if err != nil {
 		return "", errNotAnAddress
@@ -186,8 +186,8 @@ func invitee(ctx *alborz.Context, typed string) (string, error) {
 }
 
 // HandleShare invites an address to the collection, or changes an existing invitation's terms.
-func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		info, ref, err := pg.owned(ctx, p)
 		if err != nil {
 			return err
@@ -199,7 +199,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 		share.To, err = invitee(ctx, ctx.FormValue("to"))
 		if until := ctx.DateField("until"); err == nil && until.Value != "" {
 			var day time.Time
-			if day, err = until.Date(alborz.UserLocation(ctx)); err == nil {
+			if day, err = until.Date(web.UserLocation(ctx)); err == nil {
 				// The form names the last day; the share ends after it.
 				share.Expires = day.AddDate(0, 0, 1)
 				if !share.Expires.After(time.Now()) {
@@ -227,7 +227,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 			return err
 		}
 		// The invitation waits in the invitee's rail regardless of the mail, so a refused mail is only a warning.
-		notice := alborz.Notice{Kind: alborz.NoticeDone, Text: fmt.Sprintf(ctx.T("notice.shared"), info.Name, share.To)}
+		notice := web.Notice{Kind: web.NoticeDone, Text: fmt.Sprintf(ctx.T("notice.shared"), info.Name, share.To)}
 		if !share.Accepted {
 			c, err := p.Store.Collection(ref)
 			if err != nil {
@@ -237,7 +237,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 			headers := map[string]string{mail.ShareHeader: p.PathOf(share.To, *c)}
 			if err := mail.SendText(ctx, []string{share.To}, subject, text, headers); err != nil {
 				ctx.Logger().Printf("dav: failed to mail the invitation to %s: %v", share.To, err)
-				notice = alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.sharednomail"), share.To)}
+				notice = web.Notice{Kind: web.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.sharednomail"), share.To)}
 			}
 		}
 		ctx.Notify(notice)
@@ -246,10 +246,10 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 }
 
 // offerMail is the invitation as mail; its links only open the answer page, since mail scanners open links on arrival.
-func (pg Page) offerMail(ctx *alborz.Context, p *dav.Provider, c *store.Collection, sh store.Share) (subject, text string) {
+func (pg Page) offerMail(ctx *web.Context, p *dav.Provider, c *store.Collection, sh store.Share) (subject, text string) {
 	kind := pg.kindKey(c)
 	subject = fmt.Sprintf(ctx.T(kind+"mail"), sh.Owner, c.Name)
-	page := ctx.Origin() + pg.Base + url.PathEscape(p.PathOf(sh.To, *c)) + "?account=" + alborz.QueryValue(sh.To)
+	page := ctx.Origin() + pg.Base + url.PathEscape(p.PathOf(sh.To, *c)) + "?account=" + web.QueryValue(sh.To)
 	access := ctx.T("share.canview")
 	if sh.Write {
 		access = ctx.T("share.canedit")
@@ -265,8 +265,8 @@ func (pg Page) offerMail(ctx *alborz.Context, p *dav.Provider, c *store.Collecti
 }
 
 // HandleAccess turns one address's access between viewing and editing.
-func (pg Page) HandleAccess(p *dav.Provider) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandleAccess(p *dav.Provider) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		info, ref, err := pg.owned(ctx, p)
 		if err != nil {
 			return err
@@ -292,8 +292,8 @@ func (pg Page) HandleAccess(p *dav.Provider) func(*alborz.Context) error {
 }
 
 // HandleUnshare ends one address's access.
-func (pg Page) HandleUnshare(p *dav.Provider) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandleUnshare(p *dav.Provider) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		info, ref, err := pg.owned(ctx, p)
 		if err != nil {
 			return err
@@ -308,8 +308,8 @@ func (pg Page) HandleUnshare(p *dav.Provider) func(*alborz.Context) error {
 }
 
 // HandleAnswer is the invited account's yes or no, at the path in its own home.
-func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -338,9 +338,9 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*alborz.Context) 
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
 		}
 		// The name leads to the collection the account just accepted.
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone,
+		ctx.Notify(web.Notice{Kind: web.NoticeDone,
 			Text:   fmt.Sprintf(ctx.T("notice.shareaccepted"), c.Name),
-			Markup: template.HTML(fmt.Sprintf(ctx.T("notice.shareaccepted"), alborz.NoticeLink(c.Name, pg.pageOf(ctx, dav.CanonicalCollectionPath(collPath)))))})
+			Markup: template.HTML(fmt.Sprintf(ctx.T("notice.shareaccepted"), web.NoticeLink(c.Name, pg.pageOf(ctx, dav.CanonicalCollectionPath(collPath)))))})
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
 	}
 }
@@ -349,8 +349,8 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*alborz.Context) 
 const publicSecretBytes = 24
 
 // HandlePublish gives the calendar a public address or takes it away; republishing makes a new one.
-func (pg Page) HandlePublish(p *dav.Provider, publish bool) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandlePublish(p *dav.Provider, publish bool) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		info, ref, err := pg.owned(ctx, p)
 		if err != nil {
 			return err

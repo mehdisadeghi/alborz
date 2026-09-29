@@ -9,6 +9,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/settings"
+	"git.mehdix.org/alborz/web"
 )
 
 var serviceRefusals = map[error]string{
@@ -40,7 +41,7 @@ func (d *ServerRenderData) DefaultPlace() string {
 	return ""
 }
 
-func handleServer(ctx *alborz.Context) error {
+func handleServer(ctx *web.Context) error {
 	servers, err := settings.NewServersRenderData(ctx, settings.ServerDAV)
 	if err != nil {
 		return err

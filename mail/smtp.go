@@ -16,6 +16,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
+	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip/imip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
@@ -230,7 +231,7 @@ func newMessageID() string {
 	return "<" + id + ">"
 }
 
-func mailerName(ctx *alborz.Context) string {
+func mailerName(ctx *web.Context) string {
 	if v, _ := alborz.Build(); v != "" {
 		return alborz.BrandName + "/" + v
 	}

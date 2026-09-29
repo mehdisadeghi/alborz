@@ -17,12 +17,13 @@ import (
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/settings"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
 // Mount opens the collections kept here and serves them to DAV clients, with the page where an
 // account names its own servers; the providers of each kind share the store it returns.
-func Mount(srv *alborz.Server) (*store.Store, error) {
+func Mount(srv *web.Server) (*store.Store, error) {
 	db, err := srv.Data(store.Name, store.Format)
 	if err != nil {
 		return nil, err
@@ -83,7 +84,7 @@ func (p *davPasswords) keep(username, password string, refused error, now time.T
 }
 
 // authenticate checks a DAV client's password the way signing in does, sharing its tries.
-func (p *davPasswords) authenticate(srv *alborz.Server, username, password, source string) error {
+func (p *davPasswords) authenticate(srv *web.Server, username, password, source string) error {
 	username = strings.ToLower(username)
 	now := time.Now()
 	if was, ok := p.known(username, password, now); ok {
@@ -97,7 +98,7 @@ func (p *davPasswords) authenticate(srv *alborz.Server, username, password, sour
 }
 
 // serveOwn answers DAV clients ahead of sessions and cookies, by address and password on each request.
-func serveOwn(srv *alborz.Server, st *store.Store) echo.MiddlewareFunc {
+func serveOwn(srv *web.Server, st *store.Store) echo.MiddlewareFunc {
 	dav, passwords := st.Handler(), newDAVPasswords()
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ectx echo.Context) error {

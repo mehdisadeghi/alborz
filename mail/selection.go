@@ -9,6 +9,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/labstack/echo/v4"
@@ -54,7 +55,7 @@ func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]i
 	return slices.Collect(maps.Keys(kept)), nil
 }
 
-func selection(ctx *alborz.Context, mboxName string, form url.Values) ([]imap.UID, error) {
+func selection(ctx *web.Context, mboxName string, form url.Values) ([]imap.UID, error) {
 	query, view, whole := wholeView(form)
 	if !whole {
 		uids, err := parseUidList(form["uids"])
@@ -66,7 +67,7 @@ func selection(ctx *alborz.Context, mboxName string, form url.Values) ([]imap.UI
 	return folderViewUIDs(ctx, mboxName, query, view)
 }
 
-func folderSelection(ctx *alborz.Context) (mboxName string, form url.Values, uids []imap.UID, err error) {
+func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids []imap.UID, err error) {
 	if mboxName, err = mailboxRef(ctx); err != nil {
 		return "", nil, nil, err
 	}
@@ -77,7 +78,7 @@ func folderSelection(ctx *alborz.Context) (mboxName string, form url.Values, uid
 	return mboxName, form, uids, err
 }
 
-func folderViewUIDs(ctx *alborz.Context, mboxName, query, view string) ([]imap.UID, error) {
+func folderViewUIDs(ctx *web.Context, mboxName, query, view string) ([]imap.UID, error) {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
@@ -94,7 +95,7 @@ func folderViewUIDs(ctx *alborz.Context, mboxName, query, view string) ([]imap.U
 	return uids, err
 }
 
-func (p *plugin) mergedSelection(ctx *alborz.Context, role string, form url.Values) ([]rowRef, error) {
+func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values) ([]rowRef, error) {
 	query, view, whole := wholeView(form)
 	if !whole {
 		refs, err := parseRefs(form["refs"])

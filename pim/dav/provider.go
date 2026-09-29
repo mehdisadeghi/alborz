@@ -15,6 +15,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/memo"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
@@ -95,7 +96,7 @@ type Provider struct {
 }
 
 // NewProvider resolves the service for every served domain by DNS alone; probes run in the background.
-func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, error) {
+func NewProvider(srv *web.Server, st *store.Store, kind Kind) (*Provider, error) {
 	urls := make(map[string]*url.URL)
 	found := make(map[string]string)
 	hosts := make(map[string]*url.URL)
@@ -405,7 +406,7 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 }
 
 // placeHost is the host a reader knows a source by; alborz knows its own from -public-url, else from the request.
-func placeHost(ctx *alborz.Context, src Source) string {
+func placeHost(ctx *web.Context, src Source) string {
 	if src.ID != SourceHere {
 		return src.URL.Host
 	}
@@ -414,7 +415,7 @@ func placeHost(ctx *alborz.Context, src Source) string {
 }
 
 // PlaceLabel says what a place is rather than where: a host name alone tells the reader nothing.
-func PlaceLabel(ctx *alborz.Context, id, host string) string {
+func PlaceLabel(ctx *web.Context, id, host string) string {
 	label := ctx.T("place." + id)
 	if host == "" {
 		return label
@@ -429,7 +430,7 @@ type Group struct {
 }
 
 // Places are where a new collection can go, grouped by account.
-func (p *Provider) Places(ctx *alborz.Context) []Group {
+func (p *Provider) Places(ctx *web.Context) []Group {
 	var groups []Group
 	for _, s := range ctx.Logins() {
 		var places []Collection
@@ -442,7 +443,7 @@ func (p *Provider) Places(ctx *alborz.Context) []Group {
 }
 
 // ReadPlace is the form's chosen place, else the account's reachable default, its first source, or Alborz.
-func (p *Provider) ReadPlace(ctx *alborz.Context, account string) (string, string) {
+func (p *Provider) ReadPlace(ctx *web.Context, account string) (string, string) {
 	// Account and place are two fields; one holding both read as servers with accounts mixed through.
 	if chosen := ctx.FormValue("account"); chosen != "" && ctx.LoginFor(chosen) != nil {
 		account = chosen
@@ -511,7 +512,7 @@ func (p *Provider) HTTPClient(ctx context.Context, login *alborz.Login) *http.Cl
 }
 
 // CountObjects counts a collection's objects lazily; -1 means the server did not answer.
-func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
+func (p *Provider) CountObjects(ctx *web.Context, coll string) func() int {
 	return func() int {
 		n, err := CountObjects(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), Base(), coll)
 		if err != nil {
@@ -523,8 +524,8 @@ func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
 }
 
 // HandleRefresh asks every signed-in account's server again and lands on list.
-func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (p *Provider) HandleRefresh(list string) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		for _, s := range ctx.Logins() {
 			rc := ctx.Request().Context()
 			who, err := principal(rc, s)
@@ -542,7 +543,7 @@ func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 }
 
 // Warm fetches an account's first pages behind a sign-in so they open from the mirror, within WarmBudget.
-func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Login, fetch func(context.Context) error) {
+func (p *Provider) Warm(ctx *web.Context, s *alborz.Login, fetch func(context.Context) error) {
 	if p.mirror == nil {
 		return
 	}
@@ -557,8 +558,8 @@ func (p *Provider) Warm(ctx *alborz.Context, s *alborz.Login, fetch func(context
 }
 
 // Guarded sends an account with none of the kind to create its first here instead of failing.
-func (p *Provider) Guarded(none error, create string, h func(*alborz.Context) error) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (p *Provider) Guarded(none error, create string, h func(*web.Context) error) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		if err := h(ctx); !errors.Is(err, none) {
 			return err
 		}
@@ -570,7 +571,7 @@ func (p *Provider) Guarded(none error, create string, h func(*alborz.Context) er
 func (p *Provider) Close() error { return p.mirror.Close() }
 
 // domainURL resolves the domain's endpoint from DNS and config only; nil without error means none.
-func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, error) {
+func domainURL(srv *web.Server, kind Kind, domain string) (*url.URL, string, error) {
 	secure, plain := kind.Schemes[0], kind.Schemes[1]
 	record := ""
 	u, err := srv.Upstream(domain, secure, plain, "https", "http+insecure")

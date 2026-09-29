@@ -1,10 +1,11 @@
-package alborz
+package web
 
 import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"slices"
@@ -13,6 +14,7 @@ import (
 	"time"
 	"uuid"
 
+	"git.mehdix.org/alborz"
 	"github.com/fernet/fernet-go"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
@@ -28,31 +30,31 @@ type Session struct {
 	notice      *Notice
 	attachments map[string]*Attachment
 	// accounts is every account this browser has signed into, in display order.
-	accounts []*Login
+	accounts []*alborz.Login
 	// proof verifies the browser's secret; only the secret opens the session.
 	proof []byte
 	// remember holds each password sealed under the browser's secret.
 	remember map[string][]byte
-	profile  *Profile
+	profile  *alborz.Profile
 	// said holds conditions already told once.
 	said            map[string]bool
-	lock            Lock
+	lock            alborz.Lock
 	active          time.Time
 	locked          bool
 	ceremony        *webauthn.SessionData
 	device, address string
 }
 
-func (s *Session) Profile() (Profile, bool) {
+func (s *Session) Profile() (alborz.Profile, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.profile == nil {
-		return Profile{}, false
+		return alborz.Profile{}, false
 	}
 	return *s.profile, true
 }
 
-func (s *Session) setProfile(p Profile) {
+func (s *Session) setProfile(p alborz.Profile) {
 	s.mu.Lock()
 	s.profile = &p
 	s.mu.Unlock()
@@ -60,7 +62,7 @@ func (s *Session) setProfile(p Profile) {
 
 func (s *Session) life() time.Duration {
 	if s.remembered() {
-		return credentialCookieLife
+		return alborz.CredentialCookieLife()
 	}
 	return sessionDuration
 }
@@ -88,21 +90,21 @@ func (s *Session) forget(address string) {
 }
 
 // record keeps only what means something after a restart.
-func (s *Session) record() *sessionRecord {
+func (s *Session) record() *alborz.SessionRecord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rec := &sessionRecord{ID: s.ID, Created: s.created, Seen: s.seen, Proof: s.proof,
+	rec := &alborz.SessionRecord{ID: s.ID, Created: s.created, Seen: s.seen, Proof: s.proof,
 		Profile: s.profile, Lock: s.lock, Device: s.device, Address: s.address}
 	for address, sealed := range s.remember {
-		rec.Accounts = append(rec.Accounts, rememberedAccount{Address: address, Sealed: sealed})
+		rec.Accounts = append(rec.Accounts, alborz.RememberedAccount{Address: address, Sealed: sealed})
 	}
-	slices.SortFunc(rec.Accounts, func(a, b rememberedAccount) int {
+	slices.SortFunc(rec.Accounts, func(a, b alborz.RememberedAccount) int {
 		return strings.Compare(a.Address, b.Address)
 	})
 	return rec
 }
 
-func sessionFromRecord(rec *sessionRecord) *Session {
+func sessionFromRecord(rec *alborz.SessionRecord) *Session {
 	s := &Session{
 		ID:          rec.ID,
 		created:     rec.Created,
@@ -120,12 +122,12 @@ func sessionFromRecord(rec *sessionRecord) *Session {
 }
 
 // Accounts returns the live logins and the addresses of ended ones.
-func (s *Session) Accounts() (live []*Login, lost []string) {
+func (s *Session) Accounts() (live []*alborz.Login, lost []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	kept := s.accounts[:0]
 	for _, login := range s.accounts {
-		if login.alive() {
+		if login.Alive() {
 			kept = append(kept, login)
 			continue
 		}
@@ -136,12 +138,12 @@ func (s *Session) Accounts() (live []*Login, lost []string) {
 }
 
 // add puts an account in the session, replacing an earlier login for it.
-func (s *Session) add(login *Login) {
+func (s *Session) add(login *alborz.Login) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, other := range s.accounts {
-		if other.username == login.username {
-			other.close()
+		if other.Username() == login.Username() {
+			other.Close()
 			s.accounts[i] = login
 			byName(s.accounts)
 			return
@@ -152,11 +154,11 @@ func (s *Session) add(login *Login) {
 }
 
 // remove takes an account out of the session and closes it.
-func (s *Session) remove(username string) *Login {
+func (s *Session) remove(username string) *alborz.Login {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, login := range s.accounts {
-		if login.username == username {
+		if login.Username() == username {
 			s.accounts = append(s.accounts[:i], s.accounts[i+1:]...)
 			return login
 		}
@@ -167,42 +169,14 @@ func (s *Session) remove(username string) *Login {
 // sessionCookieName carries only the id and the secret; the state stays on the server.
 const sessionCookieName = "alborz_session"
 
-// sessionRecord is a session kept across a restart.
-type sessionRecord struct {
-	ID       string
-	Created  time.Time
-	Seen     time.Time
-	Proof    []byte
-	Accounts []rememberedAccount
-	Profile  *Profile
-	Lock     Lock
-	Device   string `json:",omitempty"`
-	Address  string `json:",omitempty"`
-}
-
-// rememberedAccount is one account of a remembered session.
-type rememberedAccount struct {
-	Address string
-	Sealed  []byte
-}
-
-// sessionRecords keeps remembered sessions.
-type sessionRecords interface {
-	Load(id string) (*sessionRecord, bool)
-	Save(rec *sessionRecord) error
-	Delete(id string) error
-	Sweep(before time.Time) error
-	Each(func(*sessionRecord)) error
-}
-
 // Sessions are the browsers signed in.
 type Sessions struct {
 	mu      sync.Mutex
 	live    map[string]*Session
-	records sessionRecords
+	records alborz.SessionRecords
 }
 
-func newSessions(records sessionRecords) *Sessions {
+func newSessions(records alborz.SessionRecords) *Sessions {
 	return &Sessions{live: map[string]*Session{}, records: records}
 }
 
@@ -238,7 +212,7 @@ func (ss *Sessions) delete(id string) error {
 }
 
 // record returns the remembered session of that id.
-func (ss *Sessions) record(id string) (*sessionRecord, bool) {
+func (ss *Sessions) record(id string) (*alborz.SessionRecord, bool) {
 	return ss.records.Load(id)
 }
 
@@ -256,7 +230,7 @@ func (ss *Sessions) sweep(before time.Time) error {
 }
 
 // sessionDuration matches the login's so nothing changes hands while signed in.
-const sessionDuration = loginDuration
+const sessionDuration = alborz.LoginDuration
 
 func newSession() (*Session, string) {
 	b := make([]byte, 64)
@@ -381,7 +355,7 @@ func (ctx *Context) Session() *Session {
 	}
 	s, secret := newSession()
 	ctx.Server.Sessions.put(s)
-	ctx.SetCookie(ctx.cookie(sessionCookieName, s.ID+"."+secret, credentialCookieLife))
+	ctx.SetCookie(ctx.cookie(sessionCookieName, s.ID+"."+secret, alborz.CredentialCookieLife()))
 	ctx.session, ctx.sessionSecret = s, secret
 	return s
 }
@@ -452,7 +426,7 @@ func (ctx *Context) unseal(sealed []byte) (string, bool) {
 	if ctx.sessionSecret == "" {
 		return "", false
 	}
-	raw := fernet.VerifyAndDecrypt(sealed, credentialCookieLife, []*fernet.Key{sessionKey(ctx.sessionSecret)})
+	raw := fernet.VerifyAndDecrypt(sealed, alborz.CredentialCookieLife(), []*fernet.Key{sessionKey(ctx.sessionSecret)})
 	if raw == nil {
 		return "", false
 	}
@@ -502,4 +476,14 @@ func (ctx *Context) PopAttachment(id string) *Attachment {
 		return s.popAttachment(id)
 	}
 	return nil
+}
+
+// MaxAttachmentSize bounds unsent attachments per session and per upload.
+const MaxAttachmentSize = 32 << 20
+
+var ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum file size")
+
+type Attachment struct {
+	File *multipart.FileHeader
+	Form *multipart.Form
 }

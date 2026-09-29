@@ -45,7 +45,7 @@ func (s *Server) parseSieveUpstream(domain string) error {
 	if u.Scheme == "" {
 		u, d.sieve.found, err = discoverSieve(u.Host)
 		if err != nil {
-			s.e.Logger.Printf("Domain %q: failed to discover ManageSieve server: %v", domain, err)
+			s.log.Printf("Domain %q: failed to discover ManageSieve server: %v", domain, err)
 			return nil
 		}
 		if u == nil {
@@ -61,7 +61,7 @@ func (s *Server) parseSieveUpstream(domain string) error {
 	d.sieve.host = host
 	d.sieve.insecure = u.Scheme == "sieve+insecure"
 
-	s.e.Logger.Printf("Domain %q: configured upstream ManageSieve server: %v", domain, host)
+	s.log.Printf("Domain %q: configured upstream ManageSieve server: %v", domain, host)
 	return nil
 }
 

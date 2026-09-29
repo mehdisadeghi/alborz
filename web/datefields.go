@@ -1,4 +1,4 @@
-package alborz
+package web
 
 import (
 	"fmt"

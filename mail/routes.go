@@ -4,16 +4,16 @@ import (
 	"net/http"
 	"net/url"
 
-	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/labstack/echo/v4"
 )
 
 // composeBodySize bounds a message form: its text, and files sent with it where no script uploaded them ahead.
-const composeBodySize = alborz.MaxAttachmentSize + alborz.MaxFormSize
+const composeBodySize = web.MaxAttachmentSize + web.MaxFormSize
 
 func (p *plugin) registerRoutes() {
-	p.GET("/", func(ctx *alborz.Context) error {
+	p.GET("/", func(ctx *web.Context) error {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	})
 
@@ -40,7 +40,7 @@ func (p *plugin) registerRoutes() {
 	p.GET("/message/:mbox/:uid/raw", handleRaw)
 	p.GET("/message/:mbox/:uid/signature", p.handleSignature)
 	p.GET("/message/:mbox/:uid/attachments.zip", handleDownloadAttachments)
-	p.GET("/message/:mbox/:uid/eml", func(ctx *alborz.Context) error {
+	p.GET("/message/:mbox/:uid/eml", func(ctx *web.Context) error {
 		return handleDownloadMessage(ctx, false)
 	})
 	p.GET("/proxy", handleProxy)
@@ -52,7 +52,7 @@ func (p *plugin) registerRoutes() {
 	p.GET("/compose", p.handleComposeNew)
 	p.Upload("/compose", composeBodySize, p.handleComposeNew, composeTooLarge)
 
-	p.Stream("/compose/attachment", alborz.MaxAttachmentSize+alborz.FormFieldsSize, handleComposeAttachment)
+	p.Stream("/compose/attachment", web.MaxAttachmentSize+web.FormFieldsSize, handleComposeAttachment)
 	p.GET("/compose/attachment/:uuid", handleGetAttachment)
 	p.POST("/compose/attachment/:uuid/remove", handleCancelAttachment)
 
@@ -86,8 +86,8 @@ func (p *plugin) registerRoutes() {
 }
 
 // Scoped serves h per account: settings are per account, so a unified GET redirects to name its account.
-func Scoped(h alborz.HandlerFunc) alborz.HandlerFunc {
-	return func(ctx *alborz.Context) error {
+func Scoped(h web.HandlerFunc) web.HandlerFunc {
+	return func(ctx *web.Context) error {
 		if ctx.Unified && ctx.Request().Method == http.MethodGet {
 			return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+AccountQuery(ctx.Login.Username()))
 		}
@@ -95,11 +95,11 @@ func Scoped(h alborz.HandlerFunc) alborz.HandlerFunc {
 	}
 }
 
-func mailboxURL(ctx *alborz.Context, mboxName string) string {
+func mailboxURL(ctx *web.Context, mboxName string) string {
 	return ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName))
 }
 
-func mailboxRef(ctx *alborz.Context) (string, error) {
+func mailboxRef(ctx *web.Context) (string, error) {
 	name, err := url.PathUnescape(ctx.Param("mbox"))
 	if err != nil {
 		return "", echo.NewHTTPError(http.StatusBadRequest, err)
@@ -107,7 +107,7 @@ func mailboxRef(ctx *alborz.Context) (string, error) {
 	return name, nil
 }
 
-func messageRef(ctx *alborz.Context) (string, imap.UID, error) {
+func messageRef(ctx *web.Context) (string, imap.UID, error) {
 	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
 	if err != nil {
 		return "", 0, echo.NewHTTPError(http.StatusBadRequest, err)

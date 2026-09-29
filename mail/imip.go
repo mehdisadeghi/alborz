@@ -3,7 +3,7 @@ package mail
 import (
 	"strings"
 
-	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
 )
@@ -30,7 +30,7 @@ func invitationPart(msg *IMAPMessage) *IMAPPartNode {
 }
 
 // SendCalendarMessage posts an iCalendar object as mail (iMIP).
-func SendCalendarMessage(ctx *alborz.Context, to []string, subject string, cal *ical.Calendar) error {
+func SendCalendarMessage(ctx *web.Context, to []string, subject string, cal *ical.Calendar) error {
 	if len(to) == 0 {
 		return nil
 	}
@@ -53,7 +53,7 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject string, cal *
 const ShareHeader = "X-Alborz-Share"
 
 // SendText posts a short plain message from the login's account.
-func SendText(ctx *alborz.Context, to []string, subject, text string, headers map[string]string) error {
+func SendText(ctx *web.Context, to []string, subject, text string, headers map[string]string) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func SendText(ctx *alborz.Context, to []string, subject, text string, headers ma
 }
 
 // send posts a message no folder keeps.
-func send(ctx *alborz.Context, msg *OutgoingMessage) error {
+func send(ctx *web.Context, msg *OutgoingMessage) error {
 	body, err := deliver(ctx.Login, msg)
 	if err != nil {
 		return err

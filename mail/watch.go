@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/labstack/echo/v4"
@@ -25,11 +26,11 @@ const (
 	sweepWindow = 2 * time.Minute
 )
 
-func (p *plugin) watchAccount(ctx *alborz.Context, s *alborz.Login) {
+func (p *plugin) watchAccount(ctx *web.Context, s *alborz.Login) {
 	p.Watch(s, ctx.Logger(), ctx.Server.Changes)
 }
 
-func (p *plugin) warmAccount(ctx *alborz.Context, s *alborz.Login) {
+func (p *plugin) warmAccount(ctx *web.Context, s *alborz.Login) {
 	p.senderBookFor(s)
 	p.SuggestAuthServ(ctx)
 	if !p.listings.keeps() {
@@ -250,7 +251,7 @@ func (p *plugin) warmInbox(s *alborz.Login) error {
 	// Warmed at the reader's page size: another size is a miss.
 	perPage := p.listings.pageSize(user, "INBOX", defaultMessagesPerPage)
 	own, err := p.listings.load(context.Background(), user, "INBOX", perPage, false, readOn(s, alborz.IMAPForeground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
-		return p.fetchListing(c, user, listingSpec{mbox: "INBOX"}, settings, alborz.Page{Size: perPage})
+		return p.fetchListing(c, user, listingSpec{mbox: "INBOX"}, settings, web.Page{Size: perPage})
 	}))
 	if err != nil {
 		return err

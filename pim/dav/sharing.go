@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/web"
 )
 
 // Invitation is a share offered to a signed-in account and not answered.
@@ -25,7 +25,7 @@ type RailInvitations struct {
 	Items []Invitation
 }
 
-func (p *Provider) invitations(ctx *alborz.Context) ([]Invitation, error) {
+func (p *Provider) invitations(ctx *web.Context) ([]Invitation, error) {
 	now := time.Now()
 	var out []Invitation
 	for _, s := range ctx.Logins() {
@@ -54,7 +54,7 @@ func (p *Provider) invitations(ctx *alborz.Context) ([]Invitation, error) {
 }
 
 // RailInvitations are the open invitations the section's rail offers, answered under base; nil for none.
-func (p *Provider) RailInvitations(ctx *alborz.Context, base string) (*RailInvitations, error) {
+func (p *Provider) RailInvitations(ctx *web.Context, base string) (*RailInvitations, error) {
 	items, err := p.invitations(ctx)
 	if err != nil || len(items) == 0 {
 		return nil, err

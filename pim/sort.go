@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
@@ -47,7 +47,7 @@ type Sorting struct {
 var sortDrops = []string{"sort", "dir", "page"}
 
 // Sort orders rows as the URL asks, by the first column by default; tie breaks equal rows.
-func Sort[T any](ctx *alborz.Context, rows []T, columns []Column[T], tie func(T) string, keep ...string) (Sorting, error) {
+func Sort[T any](ctx *web.Context, rows []T, columns []Column[T], tie func(T) string, keep ...string) (Sorting, error) {
 	key, dir := ctx.QueryParam("sort"), ctx.QueryParam("dir")
 	s := Sorting{Key: key, Dir: dir, Explicit: key != "", DirExplicit: dir != "", Reset: "?"}
 	if key == "" {
@@ -65,8 +65,8 @@ func Sort[T any](ctx *alborz.Context, rows []T, columns []Column[T], tie func(T)
 		kept.Del(k)
 	}
 	if len(kept) > 0 {
-		s.Params = "&" + alborz.Query(kept)
-		s.Reset = "?" + alborz.Query(kept)
+		s.Params = "&" + web.Query(kept)
+		s.Reset = "?" + web.Query(kept)
 	}
 	// Each row's values are taken once, not once per comparison.
 	type keyed struct {

@@ -15,11 +15,12 @@ import (
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/settings"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav/carddav"
 )
 
 type plugin struct {
-	alborz.Router
+	web.Router
 	dav *dav.Provider
 	// remembering keeps two writers from making the account's Previous recipients twice.
 	remembering sync.Mutex
@@ -56,12 +57,12 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, login *alborz.Login
 	return c, infos, nil
 }
 
-func (p *plugin) pooledBooks(ctx *alborz.Context) ([]pim.Account[*carddav.Client], error) {
+func (p *plugin) pooledBooks(ctx *web.Context) ([]pim.Account[*carddav.Client], error) {
 	return pim.Pooled(ctx, p.dav, p.clientWithAddressBooks, errNoAddressBook)
 }
 
 // Mount serves contacts.
-func Mount(srv *alborz.Server, st *store.Store) error {
+func Mount(srv *web.Server, st *store.Store) error {
 	provider, err := dav.NewProvider(srv, st, dav.Kind{
 		Name: "carddav", Label: "CardDAV",
 		Schemes: [2]string{"carddavs", "carddav+insecure"},
@@ -92,7 +93,7 @@ func Mount(srv *alborz.Server, st *store.Store) error {
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm, p.seed)
 
 	// A card attached to a mail is filed from its own row.
-	srv.OnMessage = append(srv.OnMessage, func(ctx *alborz.Context, _data alborz.RenderData) error {
+	srv.OnMessage = append(srv.OnMessage, func(ctx *web.Context, _data web.RenderData) error {
 		data := _data.(*mail.MessageRenderData)
 		if !hasAttachment(data.Message, "text/vcard", "text/x-vcard", "text/directory") {
 			return nil
@@ -105,7 +106,7 @@ func Mount(srv *alborz.Server, st *store.Store) error {
 		return nil
 	})
 
-	srv.OnMessage = append(srv.OnMessage, func(ctx *alborz.Context, _data alborz.RenderData) error {
+	srv.OnMessage = append(srv.OnMessage, func(ctx *web.Context, _data web.RenderData) error {
 		data := _data.(*mail.MessageRenderData)
 		groups, err := p.writableBookGroups(ctx)
 		if err != nil || len(groups) == 0 {
@@ -120,11 +121,11 @@ func Mount(srv *alborz.Server, st *store.Store) error {
 		return nil
 	})
 
-	srv.OnSent = append(srv.OnSent, func(ctx *alborz.Context, sender *alborz.Login, to []*netmail.Address) error {
+	srv.OnSent = append(srv.OnSent, func(ctx *web.Context, sender *alborz.Login, to []*netmail.Address) error {
 		return p.remember(ctx.Request().Context(), sender, ctx.T("contacts.previous"), to, false)
 	})
 
-	srv.Suggest = append(srv.Suggest, func(ctx *alborz.Context) []string {
+	srv.Suggest = append(srv.Suggest, func(ctx *web.Context) []string {
 		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			// Suggestions are a convenience: a missing or silent address book must not block compose.
@@ -151,7 +152,7 @@ func Mount(srv *alborz.Server, st *store.Store) error {
 	return nil
 }
 
-func (p *plugin) writableBookGroups(ctx *alborz.Context) ([]dav.Group, error) {
+func (p *plugin) writableBookGroups(ctx *web.Context) ([]dav.Group, error) {
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
 		return nil, err

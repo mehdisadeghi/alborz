@@ -1,18 +1,13 @@
 package alborz
 
 import (
-	"fmt"
-	"net/http"
-	"slices"
-	"strings"
 	"sync"
-	"time"
 )
 
 // Change says a folder of an account changed; it stays unrendered for the reader's language.
 type Change struct {
-	account string
-	mailbox string
+	Account string
+	Mailbox string
 }
 
 // Changes fans changes out to open streams without waiting on slow readers.
@@ -26,8 +21,8 @@ func newChanges() *Changes {
 	return &Changes{subs: map[chan Change]struct{}{}}
 }
 
-// listen returns a channel of changes and the function that closes it.
-func (c *Changes) listen() (<-chan Change, func()) {
+// Listen returns a channel of changes and the function that closes it.
+func (c *Changes) Listen() (<-chan Change, func()) {
 	ch := make(chan Change, 8)
 	c.mu.Lock()
 	if c.closed {
@@ -58,8 +53,8 @@ func (c *Changes) Publish(ch Change) {
 	}
 }
 
-// close ends every stream, and every one opened after, so shutdown does not wait on open tabs.
-func (c *Changes) close() {
+// Close ends every stream, and every one opened after, so shutdown does not wait on open tabs.
+func (c *Changes) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.closed = true
@@ -71,63 +66,5 @@ func (c *Changes) close() {
 
 // Announce publishes that a folder of an account changed.
 func (c *Changes) Announce(account, mailbox string) {
-	c.Publish(Change{account: account, mailbox: mailbox})
-}
-
-// livePing keeps proxies from dropping an idle stream.
-const livePing = 25 * time.Second
-
-func handleEvents(ctx *Context) error {
-	s := ctx.Session()
-	// The stream outlives its request, so each change rechecks the session's accounts.
-	mine := func(account string) bool {
-		live, _ := s.Accounts()
-		return slices.ContainsFunc(live, func(s *Login) bool { return s.Username() == account })
-	}
-	changes, stop := ctx.Server.Changes.listen()
-	defer stop()
-
-	res := ctx.Response()
-	res.Header().Set("Content-Type", "text/event-stream")
-	res.Header().Set("Cache-Control", "no-cache")
-	res.Header().Set("X-Accel-Buffering", "no")
-	res.WriteHeader(http.StatusOK)
-	res.Flush()
-
-	ping := time.NewTicker(livePing)
-	defer ping.Stop()
-	for {
-		if s.Locked(time.Now()) {
-			fmt.Fprint(res, "event: locked\ndata:\n\n")
-			res.Flush()
-			return nil
-		}
-		select {
-		case <-ctx.Request().Context().Done():
-			return nil
-		case <-ping.C:
-			if _, err := fmt.Fprint(res, ": ping\n\n"); err != nil {
-				return nil
-			}
-			res.Flush()
-		case change, ok := <-changes:
-			if !ok {
-				return nil
-			}
-			if !mine(change.account) {
-				continue
-			}
-			// A newline in either value would end the frame.
-			_, err := fmt.Fprintf(res, "event: mailbox\ndata: %s %s\n\n",
-				oneLine(change.account), oneLine(change.mailbox))
-			if err != nil {
-				return nil
-			}
-			res.Flush()
-		}
-	}
-}
-
-func oneLine(s string) string {
-	return strings.NewReplacer("\r", " ", "\n", " ").Replace(s)
+	c.Publish(Change{Account: account, Mailbox: mailbox})
 }

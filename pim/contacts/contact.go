@@ -17,6 +17,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/carddav"
@@ -24,7 +25,7 @@ import (
 )
 
 type AddressObjectRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rail pim.Rail
 	// Authors are who added and last changed the object, where another account.
 	Authors dav.Authors
@@ -36,21 +37,21 @@ type AddressObjectRenderData struct {
 	AddressObject AddressObject
 	Birthday      string
 	BirthdayDate  time.Time
-	Neighbours    alborz.Neighbours
+	Neighbours    web.Neighbours
 	// In are the groups naming this contact, Groups the others.
 	In     []AddressObject
 	Groups []AddressObject
 }
 
 type UpdateAddressObjectRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rail          pim.Rail
 	Groups        []dav.Group
 	AddressBook   *dav.Collection
 	AddressObject *carddav.AddressObject
 	Card          vcard.Card
 	Name          string
-	Birthday      alborz.DateField
+	Birthday      web.DateField
 	// Photo is the card's current picture, shown beside its replacement.
 	Photo string
 }
@@ -62,7 +63,7 @@ const photoLongestSide = 320
 const photoMaxUpload = 12 << 20
 
 // photoBodySize bounds a contact's form: its fields and the photo.
-const photoBodySize = photoMaxUpload + alborz.MaxFormSize
+const photoBodySize = photoMaxUpload + web.MaxFormSize
 
 var (
 	errPhotoTooLarge   = errors.New("carddav: photo over the upload limit")
@@ -73,12 +74,12 @@ var (
 const photoQuality = 82
 
 // photoTooLarge answers a contact form past its limit: the fields did not arrive, so it opens again on what the server holds.
-func photoTooLarge(ctx *alborz.Context) error {
-	ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("form.phototoolarge")})
+func photoTooLarge(ctx *web.Context) error {
+	ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("form.phototoolarge")})
 	return ctx.Redirect(http.StatusFound, ctx.Request().URL.String())
 }
 
-func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
+func applyPhoto(ctx *web.Context, card vcard.Card) error {
 	file, err := ctx.FormFile("photo")
 	if err != nil || file == nil || file.Size == 0 {
 		return nil
@@ -160,7 +161,7 @@ func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
 	return out
 }
 
-func (p *plugin) contact(ctx *alborz.Context) error {
+func (p *plugin) contact(ctx *web.Context) error {
 	path, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
@@ -222,7 +223,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		Neighbours:     pim.Around(list.Items, path),
 		List:           cmp.Or(ctx.From(), pim.ListURL("/contacts", pim.ListParams(ctx, contactListParams...))),
 		Rail:           rail,
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()).WithItem(),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()).WithItem(),
 		AddressBook:    addressBook,
 		AddressObject:  AddressObject{AddressObject: ao},
 		Birthday:       birthdayValue(ao.Card),
@@ -230,7 +231,7 @@ func (p *plugin) contact(ctx *alborz.Context) error {
 		Modified:       cardModified(ao),
 	})
 }
-func (p *plugin) updateContact(ctx *alborz.Context) error {
+func (p *plugin) updateContact(ctx *web.Context) error {
 	addressObjectPath, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
@@ -281,7 +282,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "contacts/contact-edit", &UpdateAddressObjectRenderData{
 				Rail:           rail,
-				BaseRenderData: *alborz.NewBaseRenderData(ctx).Refused(message),
+				BaseRenderData: *web.NewBaseRenderData(ctx).Refused(message),
 				Groups:         groups,
 				AddressBook:    currentAddressBook,
 				AddressObject:  ao,
@@ -412,7 +413,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "contacts/contact-edit", &UpdateAddressObjectRenderData{
 		Rail:           rail,
-		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		BaseRenderData: *web.NewBaseRenderData(ctx),
 		Groups:         groups,
 		AddressBook:    currentAddressBook,
 		AddressObject:  ao,
@@ -423,10 +424,10 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 	})
 }
 
-func (p *plugin) note(ctx *alborz.Context) error {
+func (p *plugin) note(ctx *web.Context) error {
 	note := strings.TrimSpace(ctx.FormValue("note"))
 	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: pim.Quiet[*carddav.Client],
-		Do: func(ctx *alborz.Context, ref pim.Ref[*carddav.Client]) error {
+		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
 			if note == "" {
 				return nil
 			}
@@ -442,15 +443,15 @@ func (p *plugin) note(ctx *alborz.Context) error {
 }
 
 // Its own request: Enter in a name field must not delete the photo.
-func (p *plugin) deletePhoto(ctx *alborz.Context) error {
+func (p *plugin) deletePhoto(ctx *web.Context) error {
 	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: pim.Quiet[*carddav.Client],
-		Do: func(ctx *alborz.Context, ref pim.Ref[*carddav.Client]) error {
+		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
 			return changeCard(ctx, ref, func(card vcard.Card) { delete(card, vcard.FieldPhoto) })
 		}})
 }
 
-func (p *plugin) color(ctx *alborz.Context) error {
-	return pim.Star(ctx, p.client, "/contacts", func(ctx *alborz.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
+func (p *plugin) color(ctx *web.Context) error {
+	return pim.Star(ctx, p.client, "/contacts", func(ctx *web.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
 		err = changeCard(ctx, ref, func(card vcard.Card) {
 			was = CardColor(card)
 			SetColor(card, name)

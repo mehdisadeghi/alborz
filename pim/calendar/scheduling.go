@@ -15,10 +15,10 @@ import (
 	"time"
 	"uuid"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -130,7 +130,7 @@ func cloneProp(prop ical.Prop) ical.Prop {
 	return ical.Prop{Name: prop.Name, Params: params, Value: prop.Value}
 }
 
-func sendScheduling(ctx *alborz.Context, msg *ical.Calendar, to []string) error {
+func sendScheduling(ctx *web.Context, msg *ical.Calendar, to []string) error {
 	if len(to) == 0 {
 		return nil
 	}
@@ -144,7 +144,7 @@ func sendScheduling(ctx *alborz.Context, msg *ical.Calendar, to []string) error 
 }
 
 // A server that schedules (RFC 6638 2) tells the attendees itself; alborz telling them too sends everything twice.
-func (p *plugin) serverSchedules(ctx *alborz.Context, account, object string) (bool, error) {
+func (p *plugin) serverSchedules(ctx *web.Context, account, object string) (bool, error) {
 	login := ctx.LoginFor(account)
 	rctx := ctx.Request().Context()
 	coll := dav.Base().ResolveReference(&url.URL{Path: path.Dir(object) + "/"})
@@ -153,7 +153,7 @@ func (p *plugin) serverSchedules(ctx *alborz.Context, account, object string) (b
 }
 
 // A meeting this account organizes is withdrawn from its attendees as it goes.
-func (p *plugin) deleteEvent(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) error {
+func (p *plugin) deleteEvent(ctx *web.Context, ref pim.Ref[*caldav.Client]) error {
 	co, err := ref.Client.GetCalendarObject(ctx.Request().Context(), ref.Path)
 	if err != nil {
 		return err
@@ -177,14 +177,14 @@ func (p *plugin) deleteEvent(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) e
 		err = sendScheduling(ctx, itip.Cancel(co.Data, nil, time.Now()), others(itip.Attendees(series), ours))
 	}
 	if err != nil {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.cancelfailed")})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("invite.cancelfailed")})
 		ctx.Logger().Printf("failed to send the cancellation: %v", err)
 	}
 	return nil
 }
 
-func (p *plugin) registerScheduling(srv *alborz.Server) {
-	srv.OnMessage = append(srv.OnMessage, func(ctx *alborz.Context, _data alborz.RenderData) error {
+func (p *plugin) registerScheduling(srv *web.Server) {
+	srv.OnMessage = append(srv.OnMessage, func(ctx *web.Context, _data web.RenderData) error {
 		data := _data.(*mail.MessageRenderData)
 		inv := messageInvitation(ctx, data.Message, data.Mailbox.Name(), data.Message.UID)
 		if inv != nil {
@@ -216,7 +216,7 @@ func (p *plugin) registerScheduling(srv *alborz.Server) {
 }
 
 // The message is re-read and taken into the copy kept of its event, or filed as a new one.
-func (p *plugin) applyInvitation(ctx *alborz.Context) error {
+func (p *plugin) applyInvitation(ctx *web.Context) error {
 	mboxName, uid, err := mail.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
 	if err != nil {
 		return err
@@ -254,7 +254,7 @@ func (p *plugin) applyInvitation(ctx *alborz.Context) error {
 	}
 	out, err := itip.Apply(held, msg)
 	if key := itipRefusal(err); key != "" {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T(key)})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T(key)})
 		return ctx.Redirect(http.StatusFound, back)
 	} else if err != nil {
 		return err
@@ -303,7 +303,7 @@ func (p *plugin) applyInvitation(ctx *alborz.Context) error {
 	ctx.PutNotice(ctx.T("invite.filed"))
 	if account != "" {
 		return ctx.Redirect(http.StatusFound,
-			CalendarObject{CalendarObject: co}.URL()+"?account="+alborz.QueryValue(account))
+			CalendarObject{CalendarObject: co}.URL()+"?account="+web.QueryValue(account))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath(CalendarObject{CalendarObject: co}.URL()))
 }
@@ -324,7 +324,7 @@ func itipRefusal(err error) string {
 	return ""
 }
 
-func (p *plugin) findByUID(ctx *alborz.Context, groups []dav.Group, uid string) string {
+func (p *plugin) findByUID(ctx *web.Context, groups []dav.Group, uid string) string {
 	if uid == "" {
 		return ""
 	}
@@ -372,7 +372,7 @@ func hasAttachment(msg *mail.IMAPMessage, types ...string) bool {
 	return false
 }
 
-func (p *plugin) importCalendar(ctx *alborz.Context) error {
+func (p *plugin) importCalendar(ctx *web.Context) error {
 	mboxName, uid, err := mail.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
 	if err != nil {
 		return err
@@ -390,7 +390,7 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 	}
 	to := "/calendar"
 	if account != "" {
-		to += "?account=" + alborz.QueryValue(account)
+		to += "?account=" + web.QueryValue(account)
 	}
 	n, err := importObjects(ctx.Request().Context(), client, calendarPath, raw)
 	if pim.ImportAnswered(err) {
@@ -400,7 +400,7 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 		return err
 	}
 	if n == 0 {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("import.nothing")})
 	} else {
 		ctx.PutNotice(ctx.Tf("import.ics", n))
 	}

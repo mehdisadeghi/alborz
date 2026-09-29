@@ -11,6 +11,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/carddav"
@@ -182,7 +183,7 @@ func (ao AddressObject) Color() string {
 // CardColor is the colour written on a card, one of the seven, or empty.
 func CardColor(card vcard.Card) string {
 	name := card.Value(colorField)
-	if !slices.Contains(alborz.FlagColors[:], name) {
+	if !slices.Contains(web.FlagColors[:], name) {
 		return ""
 	}
 	return name

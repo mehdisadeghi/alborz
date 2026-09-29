@@ -16,6 +16,7 @@ import (
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
@@ -57,7 +58,7 @@ func startSubscriber(t *testing.T, f *feed) string {
 	t.Helper()
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
-	s, err := alborz.New(e, &alborz.Options{
+	s, err := web.New(e, &alborz.Options{
 		Upstreams: []string{"test.local=imap+insecure://" + startIMAP(t)},
 		LoginKey:  smokeKey, DataDir: t.TempDir(), CacheDir: t.TempDir(), Cache: true,
 	}, mail.TemplateFuncs)

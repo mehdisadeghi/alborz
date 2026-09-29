@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
@@ -85,7 +86,7 @@ func (s *Settings) signatureNamed(name string) (Signature, bool) {
 }
 
 type SettingsRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	// AuthServGuess is the server's apparent authserv-id, empty when recent mail disagrees.
 	AuthServGuess string
 	Mailboxes     []MailboxInfo
@@ -93,7 +94,7 @@ type SettingsRenderData struct {
 	Subscriptions Subscriptions
 	// Storage says where this account's settings are written and what is written there.
 	Storage SettingsStorage
-	Rail    map[string][]alborz.RailRow
+	Rail    map[string][]web.RailRow
 }
 
 // SettingsStorage says where an account's settings live, so the reader can take them back.
@@ -103,7 +104,7 @@ type SettingsStorage struct {
 	Entries  []string
 }
 
-func settingsStorage(ctx *alborz.Context) (SettingsStorage, error) {
+func settingsStorage(ctx *web.Context) (SettingsStorage, error) {
 	store, ok := ctx.Login.Store().(alborz.Settings)
 	if !ok {
 		return SettingsStorage{}, nil
@@ -133,38 +134,38 @@ func (s Subscriptions) Has(sub string) bool {
 
 // SignaturesRenderData is the signature list.
 type SignaturesRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Settings *Settings
-	Rail     map[string][]alborz.RailRow
+	Rail     map[string][]web.RailRow
 }
 
 // SignatureRenderData is one signature's form, new or existing.
 type SignatureRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Editing Signature
 	// Was is the name the form started with, so a rename replaces; empty when adding.
 	Was  string
-	Rail map[string][]alborz.RailRow
+	Rail map[string][]web.RailRow
 }
 
 func AccountQuery(address string) string {
 	if address == "" {
 		return ""
 	}
-	return "?account=" + alborz.QueryValue(address)
+	return "?account=" + web.QueryValue(address)
 }
 
-func SettingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
+func SettingsRail(ctx *web.Context) map[string][]web.RailRow {
 	path := ctx.Request().URL.Path
 	// Under no account: what this browser keeps.
-	rows := map[string][]alborz.RailRow{"": {
+	rows := map[string][]web.RailRow{"": {
 		{Label: ctx.T("settings.general"), Href: "/settings", Active: path == "/settings"},
 		{Label: ctx.T("passkeys.title"), Href: "/settings/passkeys", Active: strings.HasPrefix(path, "/settings/passkeys")},
 	}}
 	for _, account := range ctx.Accounts() {
 		scoped := ctx.Login != nil && account.Username == ctx.Login.Username()
 		q := AccountQuery(account.Username)
-		rows[account.Username] = []alborz.RailRow{
+		rows[account.Username] = []web.RailRow{
 			{Label: ctx.T("settings.account"), Href: "/settings/account" + q, Active: scoped && path == "/settings/account"},
 			{Label: ctx.T("settings.signatures"), Href: "/signatures" + q, Active: scoped && strings.HasPrefix(path, "/signatures")},
 			{Label: ctx.T("settings.servers"), Href: "/settings/servers" + q, Active: scoped && strings.HasPrefix(path, "/settings/servers")},
@@ -174,25 +175,25 @@ func SettingsRail(ctx *alborz.Context) map[string][]alborz.RailRow {
 	return rows
 }
 
-func handleSignatures(ctx *alborz.Context) error {
+func handleSignatures(ctx *web.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
 	return ctx.Render(http.StatusOK, "settings/signatures", &SignaturesRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
 		Settings:       settings,
 		Rail:           SettingsRail(ctx),
 	})
 }
 
-func handleSignatureForm(ctx *alborz.Context) error {
+func handleSignatureForm(ctx *web.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
 	data := &SignatureRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
 		Rail:           SettingsRail(ctx),
 	}
 	if name := ctx.Param("name"); name != "" {
@@ -205,7 +206,7 @@ func handleSignatureForm(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "settings/signature-edit", data)
 }
 
-func handleSignatureSave(ctx *alborz.Context) error {
+func handleSignatureSave(ctx *web.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
@@ -216,7 +217,7 @@ func handleSignatureSave(ctx *alborz.Context) error {
 	editing := Signature{Name: name, Text: text}
 	render := func(message string) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "settings/signature-edit", &SignatureRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")).Refused(message),
+			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")).Refused(message),
 			Editing:        editing,
 			Was:            was,
 			Rail:           SettingsRail(ctx),
@@ -263,7 +264,7 @@ func handleSignatureSave(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
 
-func handleSignatureDelete(ctx *alborz.Context) error {
+func handleSignatureDelete(ctx *web.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
@@ -280,12 +281,12 @@ func handleSignatureDelete(ctx *alborz.Context) error {
 		settings.DefaultSignature = ""
 	}
 	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
 
-func handleSignatureDefault(ctx *alborz.Context) error {
+func handleSignatureDefault(ctx *web.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
@@ -297,12 +298,12 @@ func handleSignatureDefault(ctx *alborz.Context) error {
 	}
 	settings.DefaultSignature = chosen
 	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
 }
 
-func (p *plugin) handleSettings(ctx *alborz.Context) error {
+func (p *plugin) handleSettings(ctx *web.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
@@ -320,13 +321,13 @@ func (p *plugin) handleSettings(ctx *alborz.Context) error {
 	storage, err := settingsStorage(ctx)
 	if err != nil {
 		ctx.Logger().Printf("settings: listing what %s keeps: %v", ctx.Login.Username(), err)
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("notice.noanswer")})
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("notice.noanswer")})
 		storage = SettingsStorage{}
 	}
 
 	reject := func(message string) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "settings/account", &SettingsRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")).Refused(message),
+			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")).Refused(message),
 			Settings:       settings,
 			Mailboxes:      mailboxes,
 			Subscriptions:  Subscriptions(settings.Subscriptions),
@@ -364,7 +365,7 @@ func (p *plugin) handleSettings(ctx *alborz.Context) error {
 		guess = p.SuggestAuthServ(ctx)
 	}
 	return ctx.Render(http.StatusOK, "settings/account", &SettingsRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
 		AuthServGuess:  guess,
 		Settings:       settings,
 		Mailboxes:      mailboxes,
@@ -374,18 +375,18 @@ func (p *plugin) handleSettings(ctx *alborz.Context) error {
 	})
 }
 
-func (p *plugin) handleForget(ctx *alborz.Context) error {
+func (p *plugin) handleForget(ctx *web.Context) error {
 	store, ok := ctx.Login.Store().(alborz.Settings)
 	if !ok {
 		// Nothing else outlives the process to forget.
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("settings.forgotten")})
+		ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: ctx.T("settings.forgotten")})
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
 	if err := store.Forget(ctx.Request().Context()); err != nil {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 	}
 	p.accountChanged(ctx.Login.Username())
-	ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("settings.forgotten")})
+	ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: ctx.T("settings.forgotten")})
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
 }

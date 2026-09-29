@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
@@ -93,7 +93,7 @@ func readInvitation(cal *ical.Calendar, mine []string) *Invitation {
 }
 
 // The invitation is re-read from the message, so what is answered is what was sent.
-func handleInvitationReply(ctx *alborz.Context) error {
+func handleInvitationReply(ctx *web.Context) error {
 	mboxName, uid, err := mail.ParseMessageRef(ctx.Param("mbox"), ctx.Param("uid"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -135,7 +135,7 @@ func handleInvitationReply(ctx *alborz.Context) error {
 	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/message/%s/%v", url.PathEscape(mboxName), uid)))
 	subject := fmt.Sprintf(ctx.T("invite.subject"+strings.ToLower(status)), inv.Summary)
 	if err := mail.SendCalendarMessage(ctx, []string{inv.Organizer}, subject, reply); err != nil {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 
@@ -144,7 +144,7 @@ func handleInvitationReply(ctx *alborz.Context) error {
 }
 
 // An unparsable invitation is not a page failure: the part is still an attachment.
-func messageInvitation(ctx *alborz.Context, msg *mail.IMAPMessage, mboxName string, uid imap.UID) *Invitation {
+func messageInvitation(ctx *web.Context, msg *mail.IMAPMessage, mboxName string, uid imap.UID) *Invitation {
 	cal, _, err := mail.CalendarPart(ctx, msg, mboxName, uid)
 	if err != nil {
 		ctx.Logger().Printf("failed to read the calendar part: %v", err)
@@ -162,7 +162,7 @@ func messageInvitation(ctx *alborz.Context, msg *mail.IMAPMessage, mboxName stri
 }
 
 // invitationAt reads the scheduling message one mail carries; nil for none.
-func invitationAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*ical.Calendar, error) {
+func invitationAt(ctx *web.Context, mboxName string, uid imap.UID) (*ical.Calendar, error) {
 	cal, _, err := mail.CalendarPartAt(ctx, mboxName, uid)
 	return cal, err
 }

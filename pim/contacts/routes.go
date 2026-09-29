@@ -9,6 +9,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
@@ -45,22 +46,22 @@ func choose(ctx context.Context, store alborz.Store, paths []string) error {
 const uidURN = "urn:uuid:"
 
 func registerRoutes(p *plugin) {
-	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
+	guard := func(h func(*web.Context) error) func(*web.Context) error {
 		return p.dav.Guarded(errNoAddressBook, "/address-books/create", h)
 	}
-	GET := func(path string, h func(*alborz.Context) error) { p.Router.GET(path, guard(h)) }
-	POST := func(path string, h func(*alborz.Context) error) { p.Router.POST(path, guard(h)) }
-	upload := func(path string, limit int64, h, over func(*alborz.Context) error) {
+	GET := func(path string, h func(*web.Context) error) { p.Router.GET(path, guard(h)) }
+	POST := func(path string, h func(*web.Context) error) { p.Router.POST(path, guard(h)) }
+	upload := func(path string, limit int64, h, over func(*web.Context) error) {
 		p.Router.Upload(path, limit, guard(h), guard(over))
 	}
 	POST("/contacts", pim.HandleChoose("/contacts", "book", choose))
 	GET("/contacts", p.contacts)
 	POST("/contacts/export", pim.HandleExport(p.client, "/contacts",
-		func(ctx *alborz.Context) string { return ctx.T("nav.contacts") + ".vcf" }, joinCards))
+		func(ctx *web.Context) string { return ctx.T("nav.contacts") + ".vcf" }, joinCards))
 	POST("/contacts/refresh", p.dav.HandleRefresh("/contacts"))
 	GET("/contacts/:path", p.contact)
 
-	GET("/contacts/:path/raw", func(ctx *alborz.Context) error { return pim.Raw(ctx, p.client) })
+	GET("/contacts/:path/raw", func(ctx *web.Context) error { return pim.Raw(ctx, p.client) })
 	page := p.collectionPage()
 	GET("/address-books/create", page.HandleCreate(p.dav, p.createForm))
 	POST("/address-books/create", page.HandleCreate(p.dav, p.createForm))
@@ -88,8 +89,8 @@ func registerRoutes(p *plugin) {
 	POST("/contacts/:path/note", p.note)
 	POST("/contacts/:path/photo/delete", p.deletePhoto)
 	remove := pim.Handler(pim.Action[*carddav.Client]{Client: p.client, Do: pim.Delete[*carddav.Client], List: "/contacts",
-		Done: func(ctx *alborz.Context, done []pim.Ref[*carddav.Client], _ string) alborz.Notice {
-			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.contactsdeleted", len(done))}
+		Done: func(ctx *web.Context, done []pim.Ref[*carddav.Client], _ string) web.Notice {
+			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.contactsdeleted", len(done))}
 		}})
 	POST("/contacts/:path/delete", remove)
 	POST("/contacts/delete", remove)
@@ -97,13 +98,13 @@ func registerRoutes(p *plugin) {
 	POST("/contacts/add", p.addAddress)
 }
 
-func writeCard(ctx *alborz.Context, c *carddav.Client, at string, card vcard.Card) error {
+func writeCard(ctx *web.Context, c *carddav.Client, at string, card vcard.Card) error {
 	card.SetRevision(time.Now())
 	_, err := c.PutAddressObject(ctx.Request().Context(), at, card, nil)
 	return err
 }
 
-func changeCard(ctx *alborz.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
+func changeCard(ctx *web.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
 	ao, err := ref.Client.GetAddressObject(ctx.Request().Context(), ref.Path)
 	if err != nil {
 		return fmt.Errorf("failed to read the contact: %v", err)
@@ -123,7 +124,7 @@ func joinCards(cards [][]byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (p *plugin) warm(ctx *alborz.Context, s *alborz.Login) {
+func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
 	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s) })
 }
 

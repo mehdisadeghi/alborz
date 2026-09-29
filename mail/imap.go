@@ -19,6 +19,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
@@ -175,7 +176,7 @@ func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
 }
 
 // RoleFolder names the account's folder for a role, empty when it has none.
-func RoleFolder(ctx *alborz.Context, role string) (string, error) {
+func RoleFolder(ctx *web.Context, role string) (string, error) {
 	var name string
 	err := ctx.DoIMAP(func(c *imapclient.Client) error {
 		mbox, err := getMailboxByRole(c, role)
@@ -189,7 +190,7 @@ func RoleFolder(ctx *alborz.Context, role string) (string, error) {
 }
 
 // MailboxNames lists the account's selectable folders.
-func MailboxNames(ctx *alborz.Context) ([]string, error) {
+func MailboxNames(ctx *web.Context) ([]string, error) {
 	var names []string
 	err := ctx.DoIMAP(func(c *imapclient.Client) error {
 		mailboxes, err := listMailboxes(c)
@@ -328,7 +329,7 @@ func composeFromMailto(uri string) string {
 	if q.Get("to") == "" {
 		return ""
 	}
-	return "/compose?" + alborz.Query(q)
+	return "/compose?" + web.Query(q)
 }
 
 // Which header holds the alias depends on the server, so all are collected.
@@ -508,9 +509,9 @@ func (msg *IMAPMessage) URL() *url.URL {
 	return messageURL(msg.Mailbox, msg.UID)
 }
 
-func neighbours(ctx *alborz.Context, mboxName string, place listPlace) alborz.Neighbours {
+func neighbours(ctx *web.Context, mboxName string, place listPlace) web.Neighbours {
 	account := ctx.QueryParam("account")
-	return alborz.Neighbours{
+	return web.Neighbours{
 		PrevURL:  neighbourHref(ctx, account, mboxName, place.newer),
 		NextURL:  neighbourHref(ctx, account, mboxName, place.older),
 		Position: place.position, Total: place.total,
@@ -518,7 +519,7 @@ func neighbours(ctx *alborz.Context, mboxName string, place listPlace) alborz.Ne
 }
 
 // Without the narrowing and order, one step sideways lands in the plain folder.
-func neighbourHref(ctx *alborz.Context, account, mboxName string, uid imap.UID) string {
+func neighbourHref(ctx *web.Context, account, mboxName string, uid imap.UID) string {
 	u := messageURL(mboxName, uid)
 	if u == nil {
 		return ""
@@ -535,7 +536,7 @@ func neighbourHref(ctx *alborz.Context, account, mboxName string, uid imap.UID) 
 	if from := ctx.From(); from != "" {
 		kept.Set("from", from)
 	}
-	u.RawQuery = alborz.Query(kept)
+	u.RawQuery = web.Query(kept)
 	return u.String()
 }
 
@@ -877,7 +878,7 @@ func (node IMAPPartNode) URL(raw bool, account string) *url.URL {
 	if account != "" {
 		q.Set("account", account)
 	}
-	u.RawQuery = alborz.Query(q)
+	u.RawQuery = web.Query(q)
 	return u
 }
 
@@ -948,10 +949,10 @@ func (msg *IMAPMessage) FlagColor() string {
 			n |= 1 << i
 		}
 	}
-	if n >= len(alborz.FlagColors) {
+	if n >= len(web.FlagColors) {
 		n = 0
 	}
-	return alborz.FlagColors[n]
+	return web.FlagColors[n]
 }
 
 // FlagColorOption is one colour offered by a picker.
@@ -966,7 +967,7 @@ func FlagColorFlags(color string) (add, del []imap.Flag) {
 		return nil, append([]imap.Flag{imap.FlagFlagged}, flagColorBits[:]...)
 	}
 	n := -1
-	for i, c := range alborz.FlagColors {
+	for i, c := range web.FlagColors {
 		if c == color {
 			n = i
 		}
@@ -1100,7 +1101,7 @@ func listID(h textproto.Header) string {
 	return strings.TrimSpace(id)
 }
 
-func listMessages(conn *imapclient.Client, mboxName string, page alborz.Page, fields rowFields) (msgs []IMAPMessage, total int, err error) {
+func listMessages(conn *imapclient.Client, mboxName string, page web.Page, fields rowFields) (msgs []IMAPMessage, total int, err error) {
 	// Only an already selected mailbox needs a NOOP to notice new mail.
 	if mbox := conn.Mailbox(); mbox != nil && mbox.Name == mboxName {
 		if err := conn.Noop().Wait(); err != nil {
@@ -1228,7 +1229,7 @@ func threadOrder(conn *imapclient.Client, algorithm imap.ThreadAlgorithm, criter
 }
 
 // threadPage fetches one page of conversations, not messages, from a held thread order.
-func threadPage(conn *imapclient.Client, mboxName string, o messageOrder, page alborz.Page) ([]IMAPMessage, error) {
+func threadPage(conn *imapclient.Client, mboxName string, o messageOrder, page web.Page) ([]IMAPMessage, error) {
 	threads := len(o.starts)
 	from, to := page.Within(threads).Rows(threads)
 	if from == to {
@@ -1589,7 +1590,7 @@ func viewOrder(conn *imapclient.Client, q search.Query, criteria *imap.SearchCri
 }
 
 // orderedPage fetches one page of a view whose order is held.
-func orderedPage(conn *imapclient.Client, mboxName string, uids []imap.UID, page alborz.Page, fields rowFields) ([]IMAPMessage, error) {
+func orderedPage(conn *imapclient.Client, mboxName string, uids []imap.UID, page web.Page, fields rowFields) ([]IMAPMessage, error) {
 	from, to := page.Within(len(uids)).Rows(len(uids))
 	if from == to {
 		return nil, nil
@@ -1863,7 +1864,7 @@ func streamSection(c *imapclient.Client, uid imap.UID, options *imap.FetchOption
 // transfer runs f on a connection of its own to the account holding a message.
 type transfer func(f func(*imapclient.Client) error) error
 
-func transferOf(ctx *alborz.Context, login *alborz.Login) transfer {
+func transferOf(ctx *web.Context, login *alborz.Login) transfer {
 	return func(f func(*imapclient.Client) error) error {
 		return login.DoIMAPTransfer(ctx.Request().Context(), f)
 	}

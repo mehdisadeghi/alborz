@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
-	"mime/multipart"
 	"net"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -38,38 +35,33 @@ const (
 	// ScanTimeout bounds a whole-folder search on a server without an index.
 	ScanTimeout = 2 * time.Minute
 
-	// loginDuration is how long a login outlives its last request.
-	loginDuration = 30 * time.Minute
+	// LoginDuration is how long a login outlives its last request.
+	LoginDuration = 30 * time.Minute
 )
-
-// MaxAttachmentSize bounds unsent attachments per session and per upload.
-const MaxAttachmentSize = 32 << 20
-
-var ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum file size")
 
 // UpstreamError is a server that did not answer, as distinct from alborz failing.
 type UpstreamError struct {
-	service string
-	// after zero means the connection was refused or the host not found.
-	after time.Duration
+	Service string
+	// After zero means the connection was refused or the host not found.
+	After time.Duration
 	cause error
 }
 
 func (err UpstreamError) Error() string {
-	if err.after == 0 {
-		return fmt.Sprintf("could not reach the %s server: %v", err.service, err.cause)
+	if err.After == 0 {
+		return fmt.Sprintf("could not reach the %s server: %v", err.Service, err.cause)
 	}
-	return fmt.Sprintf("%s server did not answer within %v: %v", err.service, err.after, err.cause)
+	return fmt.Sprintf("%s server did not answer within %v: %v", err.Service, err.After, err.cause)
 }
 
 func (err UpstreamError) Unwrap() error { return err.cause }
 
-// baselineError says the mail server speaks neither IMAP4rev1 nor IMAP4rev2.
-type baselineError struct {
+// BaselineError says the mail server speaks neither IMAP4rev1 nor IMAP4rev2.
+type BaselineError struct {
 	caps []string
 }
 
-func (err baselineError) Error() string {
+func (err BaselineError) Error() string {
 	return fmt.Sprintf("the mail server speaks neither IMAP4rev1 nor IMAP4rev2, only: %s", strings.Join(err.caps, " "))
 }
 
@@ -107,15 +99,10 @@ type Login struct {
 	sieveConn   SieveClient // protected by sieveLocker, can be nil
 }
 
-type Attachment struct {
-	File *multipart.FileHeader
-	Form *multipart.Form
-}
-
 // Done closes when the login ends.
 func (l *Login) Done() <-chan struct{} { return l.closed }
 
-func (l *Login) alive() bool {
+func (l *Login) Alive() bool {
 	select {
 	case <-l.closed:
 		return false
@@ -156,14 +143,14 @@ func (l *Login) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []i
 	if err != nil || timedOut {
 		c.Close()
 		if timedOut {
-			return nil, UpstreamError{service: "mail", after: RoundTripTimeout, cause: err}
+			return nil, UpstreamError{Service: "mail", After: RoundTripTimeout, cause: err}
 		}
 		return nil, AuthError{err}
 	}
 	return c, nil
 }
 
-func (l *Login) ping() {
+func (l *Login) Ping() {
 	// Non-blocking: once the expiry goroutine is gone, a send would block forever.
 	select {
 	case l.pings <- struct{}{}:
@@ -188,7 +175,7 @@ func (l *Login) DoIMAP(f func(*imapclient.Client) error) error {
 
 // doIMAPWithin is DoIMAP with the caller's bound.
 func (l *Login) doIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
-	return l.doIMAPContext(context.Background(), bound, f)
+	return l.DoIMAPContext(context.Background(), bound, f)
 }
 
 // DoIMAPBackground keeps speculative reads off the interactive connection.
@@ -196,7 +183,7 @@ func (l *Login) DoIMAPBackground(f func(*imapclient.Client) error) error {
 	return l.DoIMAPWork(context.Background(), IMAPBackground, RoundTripTimeout, f)
 }
 
-func (l *Login) doIMAPContext(ctx context.Context, bound time.Duration, f func(*imapclient.Client) error) error {
+func (l *Login) DoIMAPContext(ctx context.Context, bound time.Duration, f func(*imapclient.Client) error) error {
 	return l.DoIMAPWork(ctx, IMAPForeground, bound, f)
 }
 
@@ -212,8 +199,8 @@ const (
 func waitError(err error, bound time.Duration) error {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return UpstreamError{service: "mail", after: bound, cause: err}
-	case errors.Is(err, errIMAPQueueFull):
+		return UpstreamError{Service: "mail", After: bound, cause: err}
+	case errors.Is(err, ErrIMAPQueueFull):
 		return err
 	}
 	return context.Canceled
@@ -265,7 +252,7 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 		if err != nil {
 			var refused AuthError
 			if errors.As(err, &refused) {
-				l.close()
+				l.Close()
 			}
 			return err
 		}
@@ -440,82 +427,13 @@ func (l *Login) SetMailBasicAuth(req *http.Request) {
 	req.SetBasicAuth(l.username, l.password)
 }
 
-// close ends the login.
-func (l *Login) close() {
+// Close ends the login.
+func (l *Login) Close() {
 	select {
 	case <-l.closed:
 	default:
 		close(l.closed)
 	}
-}
-
-// Notice is what the next page tells the reader about the request that
-// redirected to it.
-type Notice struct {
-	Kind string
-	Text string
-	// Markup is Text with a link in it; Text is what goes to the log.
-	Markup  template.HTML
-	Actions []*NoticeAction
-}
-
-const (
-	NoticeDone    = "done"
-	NoticeWarning = "warning"
-	NoticeFailed  = "failed"
-)
-
-// NoticeAction is a link, or a POST when it changes state.
-type NoticeAction struct {
-	Label  string
-	Path   string
-	Fields url.Values
-}
-
-// Undo returns an action that POSTs the exact inverse back to path.
-func (ctx *Context) Undo(path string, fields url.Values) *NoticeAction {
-	fields.Set("undo", "1")
-	return &NoticeAction{Label: ctx.T("notice.undo"), Path: path, Fields: fields}
-}
-
-// Unreachable warns which accounts' servers did not answer.
-func (ctx *Context) Unreachable(accounts []string) {
-	if len(accounts) == 0 {
-		return
-	}
-	linked := make([]string, len(accounts))
-	for i, name := range accounts {
-		linked[i] = NoticeLink(name, "/settings/account?account="+QueryValue(name))
-	}
-	ctx.Notify(Notice{Kind: NoticeWarning,
-		Text:   ctx.Tf("notice.unreachable", len(accounts), strings.Join(accounts, ", ")),
-		Markup: template.HTML(ctx.Tf("notice.unreachable", len(accounts), strings.Join(linked, ", ")))})
-}
-
-// NoticeName marks a name inside a notice for the page to quote and truncate.
-func NoticeName(name string) string {
-	return `<span class="notice-name">` + template.HTMLEscapeString(name) + `</span>`
-}
-
-// NoticeLink is NoticeName as a link to href.
-func NoticeLink(name, href string) string {
-	return `<a class="notice-name" href="` + template.HTMLEscapeString(href) + `">` +
-		template.HTMLEscapeString(name) + `</a>`
-}
-
-// Made notifies that something was made, linking it and offering another.
-func (ctx *Context) Made(sentence, name, href, again string) {
-	// A folder is its own list, so there is nowhere for the name to lead.
-	marked := NoticeName(name)
-	if href != "" {
-		marked = NoticeLink(name, href)
-	}
-	ctx.Notify(Notice{
-		Kind:    NoticeDone,
-		Text:    fmt.Sprintf(sentence, name),
-		Markup:  template.HTML(fmt.Sprintf(sentence, marked)),
-		Actions: []*NoticeAction{{Label: ctx.T("common.addanother"), Path: again}},
-	})
 }
 
 // Store returns the account's settings store.
@@ -567,7 +485,7 @@ func (sm *loginManager) close() {
 	sm.locker.Lock()
 	defer sm.locker.Unlock()
 	for s := range sm.logins {
-		s.close()
+		s.Close()
 	}
 }
 
@@ -585,11 +503,11 @@ func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFun
 	c, err := dial(domain, from)
 	if err != nil {
 		// A misconfigured domain is ours; any other dial failure is the server's.
-		var unknown unknownDomainError
+		var unknown UnknownDomainError
 		if errors.As(err, &unknown) {
 			return nil, err
 		}
-		return nil, UpstreamError{service: "mail", cause: err}
+		return nil, UpstreamError{Service: "mail", cause: err}
 	}
 
 	stopped := make(chan struct{})
@@ -597,7 +515,7 @@ func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFun
 	err = c.Login(username, password).Wait()
 	if !stop() {
 		<-stopped
-		return nil, UpstreamError{service: "mail", after: within, cause: ctx.Err()}
+		return nil, UpstreamError{Service: "mail", After: within, cause: ctx.Err()}
 	}
 	if err != nil {
 		c.Close()
@@ -605,7 +523,7 @@ func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFun
 		if errors.As(err, &status) {
 			return nil, AuthError{err}
 		}
-		return nil, UpstreamError{service: "mail", cause: err}
+		return nil, UpstreamError{Service: "mail", cause: err}
 	}
 	if caps := c.Caps(); !caps.Has(imap.CapIMAP4rev1) && !caps.Has(imap.CapIMAP4rev2) {
 		c.Logout()
@@ -614,7 +532,7 @@ func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFun
 			names = append(names, string(cap))
 		}
 		slices.Sort(names)
-		return nil, baselineError{caps: names}
+		return nil, BaselineError{caps: names}
 	}
 
 	return c, nil
@@ -660,7 +578,7 @@ func (sm *loginManager) put(username, password, from string) (*Login, error) {
 }
 
 func (sm *loginManager) reap(s *Login) {
-	timer := time.NewTimer(loginDuration)
+	timer := time.NewTimer(LoginDuration)
 
 	alive := true
 	for alive {
@@ -669,7 +587,7 @@ func (sm *loginManager) reap(s *Login) {
 			if !timer.Stop() {
 				<-timer.C
 			}
-			timer.Reset(loginDuration)
+			timer.Reset(LoginDuration)
 		case <-timer.C:
 			alive = false
 		case <-s.closed:
@@ -678,7 +596,7 @@ func (sm *loginManager) reap(s *Login) {
 	}
 
 	timer.Stop()
-	s.close()
+	s.Close()
 
 	s.imapLocker.acquire(context.Background(), nil, false)
 	if s.imapConn != nil {

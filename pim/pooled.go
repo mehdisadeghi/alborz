@@ -13,6 +13,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/settings"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav"
 	"github.com/labstack/echo/v4"
 )
@@ -29,7 +30,7 @@ type Account[C any] struct {
 }
 
 // Pooled resolves every signed-in account with the service; a failing account is logged and skipped.
-func Pooled[C any](ctx *alborz.Context, p *dav.Provider, load func(context.Context, *alborz.Login) (C, []dav.Collection, error), none error) ([]Account[C], error) {
+func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context, *alborz.Login) (C, []dav.Collection, error), none error) ([]Account[C], error) {
 	var accounts []Account[C]
 	var lastErr error
 	var down, refused []string
@@ -100,20 +101,20 @@ func Pooled[C any](ctx *alborz.Context, p *dav.Provider, load func(context.Conte
 	ctx.Unreachable(down)
 	for _, username := range slices.Sorted(maps.Keys(answered)) {
 		code := answered[username]
-		key, action := "notice.davanswered", &alborz.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + alborz.QueryValue(username)}
+		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + web.QueryValue(username)}
 		// A 403 stays a permission answer, with the way to the password beside it.
 		if code == http.StatusForbidden {
-			key, action = "notice.davforbidden", &alborz.NoticeAction{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + settings.ServerDAV + "?account=" + alborz.QueryValue(username)}
+			key, action = "notice.davforbidden", &web.NoticeAction{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + settings.ServerDAV + "?account=" + web.QueryValue(username)}
 		}
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
 			Text:    fmt.Sprintf(ctx.T(key), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
-			Actions: []*alborz.NoticeAction{action}})
+			Actions: []*web.NoticeAction{action}})
 	}
 	// A refusal is the one the reader can end, so it wins when both happened.
 	if len(refused) > 0 {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning,
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
 			Text:    ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
-			Actions: []*alborz.NoticeAction{{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + settings.ServerDAV + "?account=" + alborz.QueryValue(refused[0])}}})
+			Actions: []*web.NoticeAction{{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + settings.ServerDAV + "?account=" + web.QueryValue(refused[0])}}})
 	}
 	return accounts, nil
 }
@@ -157,7 +158,7 @@ func Present[C, R any](p *dav.Provider, results []dav.Result[Site[C], R]) []dav.
 }
 
 // Only is the set a URL asks to see through field, overriding stored visibility for that request.
-func Only(ctx *alborz.Context, field string) map[string]bool {
+func Only(ctx *web.Context, field string) map[string]bool {
 	values := ctx.QueryParams()[field]
 	if len(values) == 0 {
 		return nil
@@ -199,8 +200,8 @@ func Visible[C any](accounts []Account[C], scope string, only map[string]bool, c
 }
 
 // HandleChoose keeps which collections of list the reader ticked and lands on the list, no longer narrowed.
-func HandleChoose(list, field string, keep func(ctx context.Context, store alborz.Store, paths []string) error) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func HandleChoose(list, field string, keep func(ctx context.Context, store alborz.Store, paths []string) error) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		params, err := ctx.FormParams()
 		if err != nil {
 			return err
@@ -223,7 +224,7 @@ type Ref[C any] struct {
 }
 
 // Selected resolves checked "account|path" rows to their accounts' clients; a selection can span accounts.
-func Selected[C any](ctx *alborz.Context, refs []string, client func(context.Context, *alborz.Login) (C, error)) ([]Ref[C], error) {
+func Selected[C any](ctx *web.Context, refs []string, client func(context.Context, *alborz.Login) (C, error)) ([]Ref[C], error) {
 	clients := map[string]C{}
 	out := make([]Ref[C], 0, len(refs))
 	for _, ref := range refs {

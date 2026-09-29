@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-message"
 	"gitlab.com/golang-commonmark/linkify"
 )
@@ -64,7 +64,7 @@ func executeTemplate(name string, data interface{}) (template.HTML, error) {
 	return template.HTML(sb.String()), nil
 }
 
-func viewText(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.Entity) (View, error) {
+func viewText(ctx *web.Context, msg *IMAPMessage, path []int, part *message.Entity) (View, error) {
 	mimeType, params, err := part.Header.ContentType()
 	if err != nil {
 		return View{}, err

@@ -9,6 +9,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 )
 
 // files is what go-webdav clients share through their embedded WebDAV client; they have no common type.
@@ -23,19 +24,19 @@ var exportTypes = map[string]string{
 	".zip": "application/zip",
 }
 
-func attach(ctx *alborz.Context, name string) {
+func attach(ctx *web.Context, name string) {
 	ctx.Response().Header().Set("Content-Disposition",
 		mime.FormatMediaType("attachment", map[string]string{"filename": name}))
 }
 
 // Download answers with a file to keep, of the kind its name ends in.
-func Download(ctx *alborz.Context, name string, body []byte) error {
+func Download(ctx *web.Context, name string, body []byte) error {
 	attach(ctx, name)
 	return ctx.Blob(http.StatusOK, exportTypes[path.Ext(name)], body)
 }
 
 // ServeRaw streams an object verbatim; a raw view is only useful unparsed.
-func ServeRaw(ctx *alborz.Context, name string, body io.Reader) error {
+func ServeRaw(ctx *web.Context, name string, body io.Reader) error {
 	if ctx.QueryParam("save") == "1" {
 		attach(ctx, name)
 		return ctx.Stream(http.StatusOK, exportTypes[path.Ext(name)], body)
@@ -44,7 +45,7 @@ func ServeRaw(ctx *alborz.Context, name string, body io.Reader) error {
 }
 
 // Raw is ServeRaw for the object the route names.
-func Raw[C files](ctx *alborz.Context, client func(context.Context, *alborz.Login) (C, error)) error {
+func Raw[C files](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error)) error {
 	refs, err := Selection(ctx, client)
 	if err != nil {
 		return err
@@ -58,8 +59,8 @@ func Raw[C files](ctx *alborz.Context, client func(context.Context, *alborz.Logi
 }
 
 // HandleExport joins the selection into one file; rows name their account, so it may span accounts.
-func HandleExport[C files](client func(context.Context, *alborz.Login) (C, error), list string, name func(*alborz.Context) string, join func([][]byte) ([]byte, error)) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func HandleExport[C files](client func(context.Context, *alborz.Login) (C, error), list string, name func(*web.Context) string, join func([][]byte) ([]byte, error)) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		refs, err := Selection(ctx, client)
 		if err != nil {
 			return err

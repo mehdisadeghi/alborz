@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 )
 
 // Forwarding keeps one Keep for all rules: one redirect without :copy cancels the copy.
@@ -78,7 +79,7 @@ func readForwarding(content string) (f Forwarding, ok bool) {
 }
 
 type ForwardingRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Forwarding
 	Loaded string
 	// ByHand says the script exists in a shape the page did not write.
@@ -88,12 +89,12 @@ type ForwardingRenderData struct {
 	CanKeep bool
 	CanWire bool
 	Address string
-	Rail    map[string][]alborz.RailRow
+	Rail    map[string][]web.RailRow
 }
 
-func forwardingData(ctx *alborz.Context) (*ForwardingRenderData, error) {
+func forwardingData(ctx *web.Context) (*ForwardingRenderData, error) {
 	data := &ForwardingRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.forwarding")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.forwarding")),
 		Script:         forwardScript,
 		Rail:           rail(ctx),
 	}
@@ -113,7 +114,7 @@ func forwardingData(ctx *alborz.Context) (*ForwardingRenderData, error) {
 	return data, err
 }
 
-func handleForwarding(ctx *alborz.Context) error {
+func handleForwarding(ctx *web.Context) error {
 	data, err := forwardingData(ctx)
 	if err != nil {
 		return err
@@ -121,7 +122,7 @@ func handleForwarding(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "filters/forwarding", data)
 }
 
-func handleForwardingCreate(ctx *alborz.Context) error {
+func handleForwardingCreate(ctx *web.Context) error {
 	data, err := forwardingData(ctx)
 	if err != nil {
 		return err
@@ -129,7 +130,7 @@ func handleForwardingCreate(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "filters/forwarding-create", data)
 }
 
-func changeForwarding(ctx *alborz.Context, change func(f *Forwarding)) error {
+func changeForwarding(ctx *web.Context, change func(f *Forwarding)) error {
 	loaded := ctx.FormValue("loaded")
 	return ctx.DoSieve(func(c alborz.SieveClient) error {
 		return rewrite(c, forwardScript, loaded, func(current string, exists bool) (string, error) {
@@ -146,7 +147,7 @@ func changeForwarding(ctx *alborz.Context, change func(f *Forwarding)) error {
 	})
 }
 
-func handleForwardingAdd(ctx *alborz.Context) error {
+func handleForwardingAdd(ctx *web.Context) error {
 	address := strings.TrimSpace(ctx.FormValue("address"))
 	if !strings.Contains(address, "@") {
 		data, err := forwardingData(ctx)
@@ -168,7 +169,7 @@ func handleForwardingAdd(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
 }
 
-func handleForwardingDelete(ctx *alborz.Context) error {
+func handleForwardingDelete(ctx *web.Context) error {
 	address := ctx.FormValue("address")
 	err := changeForwarding(ctx, func(f *Forwarding) {
 		kept := f.Forwards[:0]
@@ -182,7 +183,7 @@ func handleForwardingDelete(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
 }
 
-func handleForwardingToggle(ctx *alborz.Context) error {
+func handleForwardingToggle(ctx *web.Context) error {
 	address := ctx.FormValue("address")
 	err := changeForwarding(ctx, func(f *Forwarding) {
 		for i, fw := range f.Forwards {
@@ -194,18 +195,18 @@ func handleForwardingToggle(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
 }
 
-func handleForwardingKeep(ctx *alborz.Context) error {
+func handleForwardingKeep(ctx *web.Context) error {
 	keep := ctx.FormValue("keep") != ""
 	err := changeForwarding(ctx, func(f *Forwarding) { f.Keep = keep })
 	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
 }
 
-func answer(ctx *alborz.Context, err error, path, saved string) error {
+func answer(ctx *web.Context, err error, path, saved string) error {
 	switch {
 	case errors.Is(err, errChanged{}):
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("filters.changed")})
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("filters.changed")})
 	case err != nil:
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: err.Error()})
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: err.Error()})
 	default:
 		ctx.PutNotice(saved)
 	}

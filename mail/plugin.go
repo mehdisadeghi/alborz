@@ -5,10 +5,11 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/memo"
+	"git.mehdix.org/alborz/web"
 )
 
 type plugin struct {
-	alborz.Router
+	web.Router
 	listings        *listingCache
 	bodies          *bodyCache
 	accountSidebars *memo.Memo[sidebar]
@@ -36,7 +37,7 @@ func newPlugin(o *alborz.Options) *plugin {
 }
 
 // Mount serves mail.
-func Mount(s *alborz.Server) {
+func Mount(s *web.Server) {
 	p := newPlugin(s.Options)
 	p.Router = s.Router()
 	p.registerRoutes()

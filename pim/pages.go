@@ -17,13 +17,14 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav"
 	"github.com/labstack/echo/v4"
 )
 
 // CollectionRenderData renders collection.html, a calendar's, task list's or address book's own page.
 type CollectionRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Name      string
 	Color     string
 	Path      string
@@ -48,8 +49,8 @@ type CollectionRenderData struct {
 
 // NewCollectionRenderData renders create-collection.html; only a calendar offers Holds.
 type NewCollectionRenderData struct {
-	alborz.BaseRenderData
-	Accounts    []alborz.Account
+	web.BaseRenderData
+	Accounts    []web.Account
 	Name        string
 	Account     string
 	Color       string
@@ -96,15 +97,15 @@ type CreateForm struct {
 var held = map[string][]string{"events": {"VEVENT"}, "tasks": {"VTODO"}, "both": {"VEVENT", "VTODO"}}
 
 // HandleCreate adds a collection to the chosen account and place, asking for the component set up front.
-func (pg Page) HandleCreate(p *dav.Provider, form func(*alborz.Context) (CreateForm, error)) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm, error)) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		f, err := form(ctx)
 		if err != nil {
 			return err
 		}
 		data := &NewCollectionRenderData{
 			Rail:           f.Rail,
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(f.Title),
+			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(f.Title),
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Login.Username(),
 			Scope:          ctx.URLAccount(),
@@ -179,22 +180,22 @@ type Page struct {
 	// List is the section's list, where an answered invitation lands.
 	List   string
 	Ext    string
-	Lookup func(ctx *alborz.Context, path string) (info dav.Collection, count func() int, list, label string, err error)
+	Lookup func(ctx *web.Context, path string) (info dav.Collection, count func() int, list, label string, err error)
 	Forget func(username string)
 	// Show ticks a just-accepted collection among those the account sees.
 	Show func(ctx context.Context, store alborz.Store, path string) error
 	// Import writes an uploaded file's objects and counts them; Export renders the collection, or Range, as one file.
-	Import func(ctx *alborz.Context, path string, raw []byte) (int, error)
+	Import func(ctx *web.Context, path string, raw []byte) (int, error)
 	// Create makes a collection of the kind for an import that asked for a new one.
-	Create func(ctx *alborz.Context, list, name, place string) (string, error)
-	Export func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error)
+	Create func(ctx *web.Context, list, name, place string) (string, error)
+	Export func(ctx *web.Context, path string, from, to time.Time) ([]byte, error)
 	// Rail is the section's rail for the list the page returns to.
-	Rail func(ctx *alborz.Context, list string) (Rail, error)
+	Rail func(ctx *web.Context, list string) (Rail, error)
 }
 
 // Handle is the collection's own page; renaming and recolouring are a PROPPATCH.
-func (pg Page) Handle(p *dav.Provider) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -211,7 +212,7 @@ func (pg Page) Handle(p *dav.Provider) func(*alborz.Context) error {
 				return err
 			}
 			return ctx.Render(http.StatusOK, "pim/collection", &CollectionRenderData{
-				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(offer.Name),
+				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(offer.Name),
 				Rail:           rail, Name: offer.Name, Base: pg.Base, ListHref: pg.List,
 				Account: ctx.Login.Username(), Offer: offer,
 			})
@@ -245,7 +246,7 @@ func (pg Page) Handle(p *dav.Provider) func(*alborz.Context) error {
 	}
 }
 
-func (pg Page) data(ctx *alborz.Context, p *dav.Provider, collPath string) (*CollectionRenderData, error) {
+func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*CollectionRenderData, error) {
 	info, count, list, label, err := pg.Lookup(ctx, collPath)
 	if err != nil {
 		return nil, err
@@ -260,7 +261,7 @@ func (pg Page) data(ctx *alborz.Context, p *dav.Provider, collPath string) (*Col
 	}
 	return &CollectionRenderData{
 		Rail:           rail,
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(info.Name),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(info.Name),
 		Name:           info.Name,
 		Color:          info.Color,
 		Path:           info.Path,
@@ -281,23 +282,23 @@ func (pg Page) data(ctx *alborz.Context, p *dav.Provider, collPath string) (*Col
 const maxImportSize = 16 << 20
 
 // ImportBodySize bounds an import's upload: the file and the form around it.
-const ImportBodySize = maxImportSize + alborz.FormFieldsSize
+const ImportBodySize = maxImportSize + web.FormFieldsSize
 
-func importTooLarge(ctx *alborz.Context) string { return ctx.Tf("import.toolarge", maxImportSize>>20) }
+func importTooLarge(ctx *web.Context) string { return ctx.Tf("import.toolarge", maxImportSize>>20) }
 
 // HandleImportTooLarge answers an upload past the limit on the collection it was sent to.
-func (pg Page) HandleImportTooLarge(ctx *alborz.Context) error {
+func (pg Page) HandleImportTooLarge(ctx *web.Context) error {
 	collPath, err := ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
-	ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: importTooLarge(ctx)})
+	ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)})
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(dav.CanonicalCollectionPath(collPath))))
 }
 
 // HandleImport writes an uploaded file into the collection.
-func (pg Page) HandleImport(p *dav.Provider) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandleImport(p *dav.Provider) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -309,7 +310,7 @@ func (pg Page) HandleImport(p *dav.Provider) func(*alborz.Context) error {
 		back := ctx.NextOr(ctx.AccountPath(pg.Base + url.PathEscape(collPath)))
 		file, err := ctx.FormFile("file")
 		if err == nil && file.Size > maxImportSize {
-			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: importTooLarge(ctx)})
+			ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)})
 			return ctx.Redirect(http.StatusFound, back)
 		}
 		if err != nil {
@@ -339,7 +340,7 @@ func readUpload(file *multipart.FileHeader) ([]byte, error) {
 }
 
 // fetchAddress reads a calendar from an address once, unlike a subscription; webcal: is https:.
-func fetchAddress(ctx *alborz.Context, client *http.Client, address string) ([]byte, error) {
+func fetchAddress(ctx *web.Context, client *http.Client, address string) ([]byte, error) {
 	u, err := url.Parse(address)
 	if err != nil {
 		return nil, errors.New(ctx.Tf("import.notaddress", address))
@@ -382,7 +383,7 @@ const maxBundleFiles = 200
 const maxBundleSize = 4 * maxImportSize
 
 // importFiles reads a zip as each file of the kind inside it; anything else is itself.
-func (pg Page) importFiles(ctx *alborz.Context, name string, raw []byte) ([]importFile, error) {
+func (pg Page) importFiles(ctx *web.Context, name string, raw []byte) ([]importFile, error) {
 	if !bytes.HasPrefix(raw, []byte("PK\x03\x04")) {
 		return []importFile{{name, raw}}, nil
 	}
@@ -430,7 +431,7 @@ func collectionName(f importFile) string {
 }
 
 // importMany brings each file into a new collection in place, or all into the chosen one, with one notice.
-func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, place string, isNew bool, collPath string) error {
+func (pg Page) importMany(ctx *web.Context, list string, files []importFile, place string, isNew bool, collPath string) error {
 	// Every file is checked before anything is made, so a bad one leaves no empty collection behind.
 	begins := map[string]string{".ics": "BEGIN:VCALENDAR", ".vcf": "BEGIN:VCARD"}[pg.Ext]
 	for _, f := range files {
@@ -458,13 +459,13 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 	if !isNew {
 		collections = 1
 	}
-	g := alborz.GlobalRenderData{Lang: ctx.PageLanguage()}
+	g := web.GlobalRenderData{Lang: ctx.PageLanguage()}
 	ctx.PutNotice(fmt.Sprintf(ctx.T("import.bundle"+strings.TrimPrefix(pg.Ext, ".")), g.Num(collections), g.Num(objects)))
 	return nil
 }
 
 // createFree makes the collection under name, or the first free "name 2", "name 3".
-func (pg Page) createFree(ctx *alborz.Context, list, name, place string) (string, error) {
+func (pg Page) createFree(ctx *web.Context, list, name, place string) (string, error) {
 	if name == "" {
 		name = ctx.T("import.untitled")
 	}
@@ -480,13 +481,13 @@ func (pg Page) createFree(ctx *alborz.Context, list, name, place string) (string
 	}
 }
 
-func (pg Page) importRaw(ctx *alborz.Context, collPath string, raw []byte) error {
+func (pg Page) importRaw(ctx *web.Context, collPath string, raw []byte) error {
 	n, err := pg.Import(ctx, collPath, raw)
 	if err != nil {
 		return err
 	}
 	if n == 0 {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("import.nothing")})
 	} else {
 		ctx.PutNotice(ctx.Tf("import."+strings.TrimPrefix(pg.Ext, "."), n))
 	}
@@ -527,13 +528,13 @@ func ImportAnswered(err error) bool {
 }
 
 // ImportRefused is a failed notice for an import the file or the server stopped.
-func ImportRefused(ctx *alborz.Context, err error) alborz.Notice {
-	return alborz.Notice{Kind: alborz.NoticeFailed, Text: ImportRefusal(ctx, err)}
+func ImportRefused(ctx *web.Context, err error) web.Notice {
+	return web.Notice{Kind: web.NoticeFailed, Text: ImportRefusal(ctx, err)}
 }
 
 // ImportRefusal says why an import ImportAnswered stopped: an unreadable file with the parser's reason,
 // a server's refusal as any write's with how much was saved before it; a bundle names the file.
-func ImportRefusal(ctx *alborz.Context, err error) string {
+func ImportRefusal(ctx *web.Context, err error) string {
 	var file *fileError
 	var unreadable *UnreadableError
 	var partly *PartlySavedError
@@ -556,7 +557,7 @@ func ImportRefusal(ctx *alborz.Context, err error) string {
 
 // ImportData is the section's import page.
 type ImportData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rail          Rail
 	Section       string
 	Title         string
@@ -572,8 +573,8 @@ type ImportData struct {
 
 // HandleImportPage is the section's import page, reached from its rail; any writable collection may receive.
 // over answers an upload past the limit on the page.
-func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key string, address bool) (page, over func(*alborz.Context) error) {
-	build := func(ctx *alborz.Context) (*ImportData, error) {
+func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key string, address bool) (page, over func(*web.Context) error) {
+	build := func(ctx *web.Context) (*ImportData, error) {
 		rail, err := pg.Rail(ctx, list)
 		if err != nil {
 			return nil, err
@@ -609,7 +610,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			groups[i].Collections = append(news, groups[i].Collections...)
 		}
 		data := &ImportData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T(title)),
+			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T(title)),
 			Rail:           rail,
 			Section:        ctx.T(section),
 			Title:          ctx.T(title),
@@ -626,7 +627,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		}
 		return data, nil
 	}
-	over = func(ctx *alborz.Context) error {
+	over = func(ctx *web.Context) error {
 		data, err := build(ctx)
 		if err != nil {
 			return err
@@ -634,7 +635,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		data.Refused(importTooLarge(ctx))
 		return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 	}
-	page = func(ctx *alborz.Context) error {
+	page = func(ctx *web.Context) error {
 		data, err := build(ctx)
 		if err != nil {
 			return err
@@ -701,8 +702,8 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 }
 
 // HandleExport sends the collection as one file; a date range narrows a calendar.
-func (pg Page) HandleExport(p *dav.Provider) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandleExport(p *dav.Provider) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -731,7 +732,7 @@ func (pg Page) HandleExport(p *dav.Provider) func(*alborz.Context) error {
 		}
 		body, err := pg.Export(ctx, collPath, from, to)
 		if errors.Is(err, ErrNothingToExport) {
-			ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("export.empty")})
+			ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("export.empty")})
 			return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
 		}
 		if err != nil {
@@ -746,8 +747,8 @@ func (pg Page) HandleExport(p *dav.Provider) func(*alborz.Context) error {
 }
 
 // HandleExportAll zips every readable collection of the section.
-func (pg Page) HandleExportAll(list, filename string) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		rail, err := pg.Rail(ctx, list)
 		if err != nil {
 			return err
@@ -788,8 +789,8 @@ func (pg Page) HandleExportAll(list, filename string) func(*alborz.Context) erro
 }
 
 // HandleDelete removes the collection and everything in it; the page above states how much.
-func (pg Page) HandleDelete(p *dav.Provider) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (pg Page) HandleDelete(p *dav.Provider) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		collPath, err := ParseObjectPath(ctx.Param("path"))
 		if err != nil {
 			return err
@@ -805,14 +806,14 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*alborz.Context) error {
 			return err
 		}
 		if err := c.RemoveAll(rc, collPath); err != nil {
-			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
+			ctx.Notify(web.Notice{Kind: web.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectiondeletefailed"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
 		}
 		pg.Forget(ctx.Login.Username())
 		// A 2xx is not taken as proof; listing again shows what the reader will see.
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err == nil {
-			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
+			ctx.Notify(web.Notice{Kind: web.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectionnotdeleted"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
 		}

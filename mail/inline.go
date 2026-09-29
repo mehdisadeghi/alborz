@@ -1,10 +1,8 @@
 package mail
 
 import (
-	"bytes"
 	"fmt"
 	"html"
-	"io"
 	"mime"
 	"net/http"
 	"net/url"
@@ -12,6 +10,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/labstack/echo/v4"
 )
@@ -31,17 +30,6 @@ type inlineImage struct {
 	Src       string
 	ContentID string
 	Attachment
-}
-
-type partImage struct {
-	mimeType, filename string
-	body               []byte
-}
-
-func (p *partImage) MIMEType() string { return p.mimeType }
-func (p *partImage) Filename() string { return p.filename }
-func (p *partImage) WriteTo(w io.Writer) (int64, error) {
-	return bytes.NewReader(p.body).WriteTo(w)
 }
 
 func localImages(body string, msg *IMAPMessage, account string) string {
@@ -101,7 +89,7 @@ func inlineImages(ctx *alborz.Context, body, messageID string) ([]inlineImage, [
 	return images, uploads, nil
 }
 
-func fetchPartImage(ctx *alborz.Context, src string) (*partImage, error) {
+func fetchPartImage(ctx *alborz.Context, src string) (*imapAttachment, error) {
 	u, err := url.Parse(src)
 	if err != nil {
 		return nil, err
@@ -124,25 +112,26 @@ func fetchPartImage(ctx *alborz.Context, src string) (*partImage, error) {
 			return nil, fmt.Errorf("not signed in to %s", account)
 		}
 	}
-	var image partImage
+	var part *imap.BodyStructureSinglePart
 	err = login.DoIMAP(func(c *imapclient.Client) error {
-		_, part, err := getMessagePart(c, mboxName, uid, path)
-		if err != nil {
-			return err
-		}
-		image.mimeType, _, _ = part.Header.ContentType()
-		_, dispParams, _ := part.Header.ContentDisposition()
-		image.filename = dispParams["filename"]
-		image.body, err = io.ReadAll(part.Body)
+		var err error
+		part, err = singlePart(c, mboxName, uid, path)
 		return err
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch image %s: %w", src, err)
 	}
-	if !strings.HasPrefix(image.mimeType, "image/") {
+	node := newIMAPPartNode(nil, path, part)
+	if !strings.HasPrefix(node.MIMEType, "image/") {
 		return nil, fmt.Errorf("%s is not an image", src)
 	}
-	return &image, nil
+	return &imapAttachment{
+		Mailbox:  mboxName,
+		Uid:      uid,
+		Node:     node,
+		Encoding: part.Encoding,
+		transfer: transferOf(ctx, login),
+	}, nil
 }
 
 func cidImages(body string, images []inlineImage) string {

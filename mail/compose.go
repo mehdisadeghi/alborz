@@ -167,7 +167,7 @@ func attachedNames(ctx *alborz.Context, msg *OutgoingMessage, paths []messagePat
 			return err
 		}
 		msg.Attachments = append(msg.Attachments, &messageAttachment{
-			Path: p, Name: attachmentName(env.Subject), transfer: transferOf(ctx),
+			Path: p, Name: attachmentName(env.Subject), transfer: transferOf(ctx, ctx.Login),
 		})
 	}
 	return nil
@@ -436,7 +436,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 					Uid:      original.Uid,
 					Node:     newIMAPPartNode(nil, path, part),
 					Encoding: part.Encoding,
-					transfer: transferOf(ctx),
+					transfer: transferOf(ctx, ctx.Login),
 				})
 			}
 		} else if len(form.Value["prev_attachments"]) > 0 {

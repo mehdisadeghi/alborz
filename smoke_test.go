@@ -2025,6 +2025,84 @@ func TestForwardLeavesAsTheSentCopyKeepsIt(t *testing.T) {
 	}
 }
 
+// An image the original shows travels with a rich forward, fetched as the
+// message is written.
+func TestForwardedImageTravelsBesideTheHTML(t *testing.T) {
+	image := make([]byte, 1<<20)
+	rand.NewChaCha8([32]byte{1}).Read(image)
+	var original bytes.Buffer
+	var h message.Header
+	h.Set("From", "<eve@example.org>")
+	h.Set("To", "<"+smokeUser+">")
+	h.Set("Subject", "A picture")
+	h.Set("MIME-Version", "1.0")
+	h.Set("Content-Type", `multipart/related; type="text/html"`)
+	mw, err := message.CreateWriter(&original, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, part := range []struct {
+		header map[string]string
+		body   []byte
+	}{
+		{map[string]string{"Content-Type": "text/html; charset=utf-8"}, []byte(`<p>Look: <img src="cid:pic@example.org"></p>`)},
+		{map[string]string{
+			"Content-Type":              "image/png",
+			"Content-Transfer-Encoding": "base64",
+			"Content-Id":                "<pic@example.org>",
+			"Content-Disposition":       `inline; filename="pic.png"`,
+		}, image},
+	} {
+		var ph message.Header
+		for k, v := range part.header {
+			ph.Set(k, v)
+		}
+		w, err := mw.CreatePart(ph)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write(part.body)
+		w.Close()
+	}
+	mw.Close()
+
+	imapAddr := startIMAP(t)
+	uid := appendMessage(t, imapAddr, "INBOX", original.String())
+	smtpAddr, sent := startSMTP(t)
+	base := startAlborz(t, imapAddr, smtpAddr)
+	c := login(t, base)
+	path := "/message/INBOX/" + uid + "/forward?part=1"
+	page := get(t, c, base+path)
+	src := html.UnescapeString(between(page, `<img src="`, `"`))
+	if !strings.HasSuffix(src, "part=2") {
+		t.Fatalf("the forward does not show the original's image: %q", src)
+	}
+	sendFrom(t, c, base, path, page, "html", `<p>Look:</p><p><img src="`+html.EscapeString(src)+`"></p>`)
+
+	e, err := message.Read(strings.NewReader(sent.Last()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	e.Walk(func(_ []int, part *message.Entity, err error) error {
+		if err != nil {
+			return err
+		}
+		if mediaType, _, _ := part.Header.ContentType(); mediaType != "image/png" {
+			return nil
+		}
+		found = true
+		got, _ := io.ReadAll(part.Body)
+		if !bytes.Equal(got, image) {
+			t.Errorf("the image arrived as %d bytes, not the %d it has", len(got), len(image))
+		}
+		return nil
+	})
+	if !found {
+		t.Fatalf("the forward left without the image:\n%s", headOf(sent.Last()))
+	}
+}
+
 // Opening a signed message reads only the part it shows; the verdict, which
 // streams the signed part through the check, comes from a request of its own.
 func TestSignedMessageOpensWithoutItsAttachment(t *testing.T) {

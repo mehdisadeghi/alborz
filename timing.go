@@ -12,8 +12,8 @@ import (
 	"github.com/emersion/go-smtp"
 )
 
-// Timing accumulates per-request spans for the Server-Timing header.
-type Timing struct {
+// timing accumulates per-request spans for the Server-timing header.
+type timing struct {
 	mu     sync.Mutex
 	spans  map[string][]span
 	counts map[string]int
@@ -23,12 +23,12 @@ type span struct {
 	start, end time.Time
 }
 
-func newTiming() *Timing {
-	return &Timing{spans: make(map[string][]span), counts: make(map[string]int)}
+func newTiming() *timing {
+	return &timing{spans: make(map[string][]span), counts: make(map[string]int)}
 }
 
 // add records one span of the named kind; DAV pages call it concurrently.
-func (t *Timing) add(kind string, start, end time.Time) {
+func (t *timing) add(kind string, start, end time.Time) {
 	if t == nil {
 		return
 	}
@@ -37,9 +37,9 @@ func (t *Timing) add(kind string, start, end time.Time) {
 	t.mu.Unlock()
 }
 
-// Header renders the spans as a Server-Timing value, kinds in a stable order,
+// header renders the spans as a Server-Timing value, kinds in a stable order,
 // overlaps of one kind counted once. It returns "" when nothing was measured.
-func (t *Timing) Header() string {
+func (t *timing) header() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -67,7 +67,7 @@ func (t *Timing) Header() string {
 
 // CacheTiming records a cache hit or miss.
 func CacheTiming(ctx context.Context, cache string, hit bool) {
-	t, ok := ctx.Value(timingKey).(*Timing)
+	t, ok := ctx.Value(timingKey).(*timing)
 	if !ok {
 		return
 	}
@@ -106,23 +106,23 @@ var timingKey timingKeyType
 // AddTiming records the span from start until now against kind, if reqCtx
 // carries a Timing.
 func AddTiming(reqCtx context.Context, kind string, start time.Time) {
-	if t, ok := reqCtx.Value(timingKey).(*Timing); ok {
+	if t, ok := reqCtx.Value(timingKey).(*timing); ok {
 		t.add(kind, start, time.Now())
 	}
 }
 
 // DoIMAP runs the IMAP operation and times it.
 func (ctx *Context) DoIMAP(f func(*imapclient.Client) error) error {
-	return ctx.DoIMAPWithin(RoundTripTimeout, f)
+	return ctx.doIMAPWithin(RoundTripTimeout, f)
 }
 
 func (ctx *Context) DoIMAPScan(f func(*imapclient.Client) error) error {
 	return ctx.Login.DoIMAPWork(ctx.Request().Context(), IMAPScan, ScanTimeout, f)
 }
 
-func (ctx *Context) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
+func (ctx *Context) doIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
 	start := time.Now()
-	err := ctx.Login.DoIMAPContext(ctx.Request().Context(), bound, f)
+	err := ctx.Login.doIMAPContext(ctx.Request().Context(), bound, f)
 	ctx.timing.add("imap", start, time.Now())
 	return err
 }
@@ -150,7 +150,7 @@ func (ctx *Context) installTiming() {
 	req := ctx.Request()
 	ctx.SetRequest(req.WithContext(context.WithValue(req.Context(), timingKey, ctx.timing)))
 	ctx.Response().Before(func() {
-		if h := ctx.timing.Header(); h != "" {
+		if h := ctx.timing.header(); h != "" {
 			ctx.Response().Header().Set("Server-Timing", h)
 		}
 	})

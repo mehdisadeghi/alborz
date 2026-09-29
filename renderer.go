@@ -265,8 +265,8 @@ func (g *GlobalRenderData) MessageLang(s string) string {
 	return lang.OfMessage(s, g.Lang)
 }
 
-// ShortAccount names an account by its domain unless two accounts share it.
-func ShortAccount(account string, accounts []Account) string {
+// shortAccount names an account by its domain unless two accounts share it.
+func shortAccount(account string, accounts []Account) string {
 	_, domain, ok := strings.Cut(account, "@")
 	if !ok {
 		return account
@@ -281,7 +281,7 @@ func ShortAccount(account string, accounts []Account) string {
 
 // AccountLabel is ShortAccount for the accounts of the page.
 func (g GlobalRenderData) AccountLabel(account string) string {
-	return ShortAccount(account, g.Accounts)
+	return shortAccount(account, g.Accounts)
 }
 
 // AccountTrack is the width of the widest account label, so a column of them aligns.
@@ -339,8 +339,8 @@ func (g GlobalRenderData) Tf(key string, args ...interface{}) string {
 
 var persianDigits = [10]rune{'۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'}
 
-// LatinDigits rewrites Persian and Arabic digits into Latin ones for parsing.
-func LatinDigits(s string) string {
+// latinDigits rewrites Persian and Arabic digits into Latin ones for parsing.
+func latinDigits(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch {
 		case r >= '۰' && r <= '۹':
@@ -354,7 +354,7 @@ func LatinDigits(s string) string {
 
 // ReadInt reads a typed whole number in either digit shape, with the language's thousands separator.
 func ReadInt(s string) (int, error) {
-	return strconv.Atoi(strings.NewReplacer("٬", "", ",", "").Replace(LatinDigits(strings.TrimSpace(s))))
+	return strconv.Atoi(strings.NewReplacer("٬", "", ",", "").Replace(latinDigits(strings.TrimSpace(s))))
 }
 
 // A string still carrying a Latin word is left alone: half-converted reads worse than either script.
@@ -444,19 +444,19 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 		// A person reads the brand in their own script; what a machine reads stays BrandName.
 		global.Brand = translate(lang, "brand.name")
 		global.ProjectURL = ctx.Server.Options.ProjectURL
-		global.Language = ctx.Language()
-		global.LanguageChoices = LanguageChoices()
+		global.Language = ctx.language()
+		global.LanguageChoices = languageChoices()
 		global.Year = time.Now().Year()
-		global.Primary, global.Secondary = ctx.Calendars()
+		global.Primary, global.Secondary = ctx.calendars()
 		global.Theme = ctx.Theme()
 		global.TextSize = ctx.TextSize()
 	}
 
 	if isactx {
 		global.Unified = ctx.Unified
-		global.AlignByScript = ctx.AlignByScript()
+		global.AlignByScript = ctx.alignByScript()
 		global.CustomCSS = len(ctx.Server.custom) > 0
-		global.SchemePinned = ctx.ThemeScheme() != ""
+		global.SchemePinned = ctx.themeScheme() != ""
 		global.URLAccount = ctx.urlAccount
 		global.From = ctx.From()
 		global.Scope, global.Merged = ctx.urlAccount, ctx.Unified
@@ -474,7 +474,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 			global.Merged = global.Scope == "" && len(ctx.Logins()) > 1
 		}
 		// A notice belongs to the session, not to a login.
-		global.Notice = ctx.PopNotice()
+		global.Notice = ctx.popNotice()
 	}
 
 	if isactx && ctx.Login != nil {
@@ -519,7 +519,7 @@ func (g GlobalRenderData) LanguageName() string {
 
 // The URL's language outranks the cookie, so a page can be handed to a reader of another language.
 func queryLanguage(ectx echo.Context) string {
-	if v := ectx.QueryParam("lang"); IsLanguage(v) {
+	if v := ectx.QueryParam("lang"); isLanguage(v) {
 		return v
 	}
 	return ""
@@ -530,17 +530,17 @@ func requestLanguage(ectx echo.Context) string {
 		return v
 	}
 	if ctx, ok := ectx.(*Context); ok {
-		if v := ctx.Language(); v != "" {
+		if v := ctx.language(); v != "" {
 			return v
 		}
-	} else if c, err := ectx.Cookie(langCookieName); err == nil && IsLanguage(c.Value) {
+	} else if c, err := ectx.Cookie(langCookieName); err == nil && isLanguage(c.Value) {
 		return c.Value
 	}
-	return MatchLanguage(ectx.Request().Header.Get("Accept-Language"))
+	return matchLanguage(ectx.Request().Header.Get("Accept-Language"))
 }
 
-// RenderInfo renders a full page carrying one explanatory sentence.
-func RenderInfo(ctx *Context, code int, message string) error {
+// renderInfo renders a full page carrying one explanatory sentence.
+func renderInfo(ctx *Context, code int, message string) error {
 	data := struct {
 		BaseRenderData
 		Message string
@@ -579,7 +579,7 @@ func (ctx *Context) LongDateIn(t time.Time) string {
 
 func (ctx *Context) dates() *GlobalRenderData {
 	g := &GlobalRenderData{Lang: requestLanguage(ctx)}
-	g.Primary, g.Secondary = ctx.Calendars()
+	g.Primary, g.Secondary = ctx.calendars()
 	return g
 }
 
@@ -618,7 +618,7 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.
 
 	// A notice raised after the base data was built belongs to this page, not the next.
 	if g := renderData.Global(); g.Notice == nil {
-		g.Notice = ctx.PopNotice()
+		g.Notice = ctx.popNotice()
 	}
 
 	start := time.Now()

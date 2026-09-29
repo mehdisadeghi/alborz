@@ -61,10 +61,10 @@ func (ctx *Context) Logins() []*Login {
 func (ctx *Context) AddAccount(s *Login) {
 	session := ctx.Session()
 	first := !slices.ContainsFunc(ctx.accountLogins(), func(l *Login) bool { return l.username != s.username })
-	session.Add(s)
+	session.add(s)
 	ctx.accountsLoaded = false
 	ctx.Login = s
-	ctx.DefaultLogin = s
+	ctx.defaultLogin = s
 	ctx.joinProfile(s, first)
 	for _, ready := range ctx.Server.OnAccountReady {
 		ready(ctx, s)
@@ -152,22 +152,22 @@ func (ctx *Context) LogoutAccount(username string) *Login {
 	if s == nil {
 		return nil
 	}
-	target := s.Remove(username)
+	target := s.remove(username)
 	if target == nil {
-		return ctx.DefaultLogin
+		return ctx.defaultLogin
 	}
-	target.Close()
+	target.close()
 	ctx.accountsLoaded = false
 	ctx.forgetLoginToken(target.username)
 	remaining, _ := s.Accounts()
 	if len(remaining) == 0 {
 		ctx.Login = nil
-		ctx.DefaultLogin = nil
+		ctx.defaultLogin = nil
 		return nil
 	}
-	ctx.DefaultLogin = remaining[0]
-	ctx.Login = ctx.DefaultLogin
-	return ctx.DefaultLogin
+	ctx.defaultLogin = remaining[0]
+	ctx.Login = ctx.defaultLogin
+	return ctx.defaultLogin
 }
 
 // SetLoginToken keeps the account's password sealed under the browser's secret.
@@ -194,7 +194,7 @@ func (ctx *Context) forgetLoginToken(username string) {
 	if s.remembered() {
 		err = ctx.Server.Sessions.Save(s)
 	} else {
-		err = ctx.Server.Sessions.Delete(s.ID)
+		err = ctx.Server.Sessions.delete(s.ID)
 	}
 	if err != nil {
 		ctx.Logger().Printf("failed to write the session: %v", err)
@@ -225,7 +225,7 @@ func (e PausedError) Error() string {
 func (s *Server) SignIn(username, password, from string) (*Login, error) {
 	var login *Login
 	err := s.signInRefused.attempt(readerKey(from, username), func() (err error) {
-		login, err = s.Logins.Put(username, password, from)
+		login, err = s.logins.put(username, password, from)
 		return err
 	})
 	return login, err
@@ -242,7 +242,7 @@ func readerKey(from, username string) string {
 func (s *Server) CheckPassword(username, password, from string) error {
 	return s.signInRefused.attempt(readerKey(from, username), func() error {
 		_, domain, _ := strings.Cut(username, "@")
-		c, err := s.Logins.connectIMAP(domain, username, password, from)
+		c, err := s.logins.connectIMAP(domain, username, password, from)
 		if err != nil {
 			return err
 		}
@@ -353,14 +353,14 @@ func (ctx *Context) SignInRefusal(err error) (string, int) {
 	if errors.As(err, &refused) {
 		return ctx.T("notice.loginfailed"), http.StatusUnauthorized
 	}
-	var domain UnknownDomainError
+	var domain unknownDomainError
 	if errors.As(err, &domain) {
-		if domain.Domain == "" {
+		if domain.domain == "" {
 			return ctx.T("login.needsdomain"), http.StatusUnauthorized
 		}
-		return fmt.Sprintf(ctx.T("login.baddomain"), domain.Domain), http.StatusUnauthorized
+		return fmt.Sprintf(ctx.T("login.baddomain"), domain.domain), http.StatusUnauthorized
 	}
-	var baseline BaselineError
+	var baseline baselineError
 	if errors.As(err, &baseline) {
 		return fmt.Sprintf(ctx.T("notice.loginerror"), baseline.Error()), http.StatusBadGateway
 	}
@@ -429,7 +429,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s, err := ctx.Server.Logins.Put(c.address, c.password, ctx.RealIP())
+			s, err := ctx.Server.logins.put(c.address, c.password, ctx.RealIP())
 			if err != nil {
 				ctx.Server.loginFailed(c.address)
 				ctx.Logger().Printf("Login failed for %q: %v", c.address, err)
@@ -468,14 +468,14 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		if session.remembered() {
 			err = ctx.Server.Sessions.Save(session)
 		} else {
-			err = ctx.Server.Sessions.Records().Delete(session.ID)
+			err = ctx.Server.Sessions.records.Delete(session.ID)
 		}
 		if err != nil {
 			ctx.Logger().Printf("failed to write the session: %v", err)
 		}
 	}
 	if len(lost) > 0 {
-		session.Notify(Notice{
+		session.notify(Notice{
 			Kind:   NoticeFailed,
 			Text:   strings.Join(lost, " · "),
 			Markup: template.HTML(strings.Join(marked, " · ")),
@@ -487,10 +487,10 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		if s == nil {
 			continue
 		}
-		session.Add(s)
+		session.add(s)
 		ctx.accountsLoaded = false
 		ctx.Login = s
-		ctx.DefaultLogin = s
+		ctx.defaultLogin = s
 		for _, ready := range ctx.Server.OnAccountReady {
 			ready(ctx, s)
 		}
@@ -498,7 +498,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	}
 	if restored {
 		live, _ := session.Accounts()
-		ctx.Login, ctx.DefaultLogin = live[0], live[0]
+		ctx.Login, ctx.defaultLogin = live[0], live[0]
 	}
 	return restored
 }

@@ -68,7 +68,7 @@ func (ctx *Context) Reading() Reading {
 func UserLocation(ctx *Context) *time.Location {
 	tz := ctx.Reading().Timezone
 	if tz == "" {
-		if c, err := ctx.Cookie(TimezoneCookieName); err == nil {
+		if c, err := ctx.Cookie(timezoneCookieName); err == nil {
 			tz = c.Value
 		}
 	}

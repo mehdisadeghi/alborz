@@ -33,7 +33,7 @@ type Settings interface {
 }
 
 // newStore runs under the manager's lock.
-func (sm *LoginManager) newStore(login *Login) (Store, error) {
+func (sm *loginManager) newStore(login *Login) (Store, error) {
 	var metadata bool
 	err := login.DoIMAP(func(c *imapclient.Client) error {
 		metadata = c.Caps().Has(imap.CapMetadata) || c.Caps().Has(imap.CapMetadataServer)
@@ -98,7 +98,7 @@ func (m *storeMemo) forget(login *Login, key string) {
 
 func (s *imapMetadataStore) fetch(ctx context.Context, key string) ([]byte, error) {
 	var entries map[string]*[]byte
-	err := s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
+	err := s.login.doIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		data, err := c.GetMetadata("", []string{s.key(key)}, nil).Wait()
 		if err != nil {
 			return err
@@ -157,7 +157,7 @@ func (s *imapMetadataStore) Put(ctx context.Context, key string, v any) error {
 		return fmt.Errorf("alborz: failed to marshal IMAP store entry %q: %v", key, err)
 	}
 	entries := map[string]*[]byte{s.key(key): &b}
-	err = s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
+	err = s.login.doIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()
 	})
 	if err != nil {
@@ -171,7 +171,7 @@ const vendorRoot = "/private/vendor/alborz"
 
 func (s *imapMetadataStore) Entries(ctx context.Context) ([]string, error) {
 	var names []string
-	err := s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
+	err := s.login.doIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		options := &imapclient.GetMetadataOptions{Depth: imapclient.GetMetadataDepthInfinity}
 		data, err := c.GetMetadata("", []string{vendorRoot}, options).Wait()
 		if err != nil {
@@ -209,7 +209,7 @@ func (s *imapMetadataStore) Forget(ctx context.Context) error {
 			memoOf(ctx).forget(s.login, strings.TrimPrefix(name, vendorRoot+"/"))
 		}
 	}()
-	err = s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
+	err = s.login.doIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()
 	})
 	if err != nil {

@@ -10,9 +10,9 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// An Envelope keeps a secret under a random key, wrapped under a key derived
+// An envelope keeps a secret under a random key, wrapped under a key derived
 // from the mail password.
-type Envelope struct {
+type envelope struct {
 	Secret     string
 	Salt       string
 	ByPassword string
@@ -49,25 +49,25 @@ func unwrap(tok string, k *fernet.Key) []byte {
 	return fernet.VerifyAndDecrypt([]byte(tok), 0, []*fernet.Key{k})
 }
 
-// Seal wraps plain for this account under its mail password.
-func (l *Login) Seal(plain string) (Envelope, error) {
+// seal wraps plain for this account under its mail password.
+func (l *Login) seal(plain string) (envelope, error) {
 	var k fernet.Key
 	if err := k.Generate(); err != nil {
-		return Envelope{}, err
+		return envelope{}, err
 	}
 	salt := make([]byte, envelopeSalt)
 	if _, err := rand.Read(salt); err != nil {
-		return Envelope{}, err
+		return envelope{}, err
 	}
-	return Envelope{
+	return envelope{
 		Secret:     wrap([]byte(plain), &k),
 		Salt:       base64.StdEncoding.EncodeToString(salt),
 		ByPassword: wrap(k[:], passwordKey(l.password, salt)),
 	}, nil
 }
 
-// Open reads the secret with the mail password.
-func (l *Login) Open(e Envelope) (string, error) {
+// open reads the secret with the mail password.
+func (l *Login) open(e envelope) (string, error) {
 	salt, err := base64.StdEncoding.DecodeString(e.Salt)
 	if err != nil {
 		return "", err
@@ -99,7 +99,7 @@ func (l *Login) HTTPPassword(ctx context.Context) (string, error) {
 	if l.httpLoaded {
 		return l.httpPassword, nil
 	}
-	var e Envelope
+	var e envelope
 	err := l.store.Get(ctx, httpPasswordKey, &e)
 	if err == ErrNoStoreEntry || (err == nil && e.Secret == "") {
 		l.httpPassword, l.httpLoaded = l.password, true
@@ -108,7 +108,7 @@ func (l *Login) HTTPPassword(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	plain, err := l.Open(e)
+	plain, err := l.open(e)
 	l.httpSealed = errors.Is(err, ErrSealed)
 	if err != nil {
 		return "", err
@@ -119,7 +119,7 @@ func (l *Login) HTTPPassword(ctx context.Context) (string, error) {
 
 // HasHTTPPassword reports whether one is kept, without opening it.
 func (l *Login) HasHTTPPassword(ctx context.Context) (bool, error) {
-	var e Envelope
+	var e envelope
 	err := l.store.Get(ctx, httpPasswordKey, &e)
 	if err == ErrNoStoreEntry {
 		return false, nil
@@ -133,10 +133,10 @@ func (l *Login) SetHTTPPassword(ctx context.Context, password string) error {
 	if password == l.password {
 		password = ""
 	}
-	var e Envelope
+	var e envelope
 	if password != "" {
 		var err error
-		if e, err = l.Seal(password); err != nil {
+		if e, err = l.seal(password); err != nil {
 			return err
 		}
 	}

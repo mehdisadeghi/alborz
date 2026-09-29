@@ -43,9 +43,9 @@ var languageTags = func() []language.Tag {
 
 var languageMatcher = language.NewMatcher(languageTags)
 
-// MatchLanguage picks the language an Accept-Language header asks for,
+// matchLanguage picks the language an Accept-Language header asks for,
 // weighing q values, falling back to English.
-func MatchLanguage(header string) string {
+func matchLanguage(header string) string {
 	wanted, _, err := language.ParseAcceptLanguage(header)
 	if err != nil {
 		return "en"
@@ -57,8 +57,8 @@ func MatchLanguage(header string) string {
 	return languages[index]
 }
 
-// IsLanguage reports whether the code names a supported UI language.
-func IsLanguage(code string) bool {
+// isLanguage reports whether the code names a supported UI language.
+func isLanguage(code string) bool {
 	return slices.Contains(languages, code)
 }
 
@@ -94,8 +94,8 @@ var languageNames = map[string]string{
 	"es": "Español",
 }
 
-// LanguageChoices lists following the browser first, then every language.
-func LanguageChoices() []LanguageChoice {
+// languageChoices lists following the browser first, then every language.
+func languageChoices() []LanguageChoice {
 	out := make([]LanguageChoice, 0, len(languages)+1)
 	for _, code := range languages {
 		out = append(out, LanguageChoice{Code: code, Name: languageNames[code]})

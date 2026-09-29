@@ -32,8 +32,8 @@ const (
 	// RoundTripTimeout bounds one exchange that legitimately does work.
 	RoundTripTimeout = 10 * time.Second
 
-	// SignInTimeout is longer because a server may slow its refusals to a guessing sign-in.
-	SignInTimeout = 20 * time.Second
+	// signInTimeout is longer because a server may slow its refusals to a guessing sign-in.
+	signInTimeout = 20 * time.Second
 
 	// ScanTimeout bounds a whole-folder search on a server without an index.
 	ScanTimeout = 2 * time.Minute
@@ -49,28 +49,28 @@ var ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum f
 
 // UpstreamError is a server that did not answer, as distinct from alborz failing.
 type UpstreamError struct {
-	Service string
-	// After zero means the connection was refused or the host not found.
-	After time.Duration
+	service string
+	// after zero means the connection was refused or the host not found.
+	after time.Duration
 	cause error
 }
 
 func (err UpstreamError) Error() string {
-	if err.After == 0 {
-		return fmt.Sprintf("could not reach the %s server: %v", err.Service, err.cause)
+	if err.after == 0 {
+		return fmt.Sprintf("could not reach the %s server: %v", err.service, err.cause)
 	}
-	return fmt.Sprintf("%s server did not answer within %v: %v", err.Service, err.After, err.cause)
+	return fmt.Sprintf("%s server did not answer within %v: %v", err.service, err.after, err.cause)
 }
 
 func (err UpstreamError) Unwrap() error { return err.cause }
 
-// BaselineError says the mail server speaks neither IMAP4rev1 nor IMAP4rev2.
-type BaselineError struct {
-	Caps []string
+// baselineError says the mail server speaks neither IMAP4rev1 nor IMAP4rev2.
+type baselineError struct {
+	caps []string
 }
 
-func (err BaselineError) Error() string {
-	return fmt.Sprintf("the mail server speaks neither IMAP4rev1 nor IMAP4rev2, only: %s", strings.Join(err.Caps, " "))
+func (err baselineError) Error() string {
+	return fmt.Sprintf("the mail server speaks neither IMAP4rev1 nor IMAP4rev2, only: %s", strings.Join(err.caps, " "))
 }
 
 // AuthError wraps an authentication error.
@@ -84,7 +84,7 @@ func (err AuthError) Error() string {
 
 // Login is an account signed in.
 type Login struct {
-	manager            *LoginManager
+	manager            *loginManager
 	username, password string
 	domain             string
 	closed             chan struct{}
@@ -155,7 +155,7 @@ func (l *Login) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []i
 	if err != nil || timedOut {
 		c.Close()
 		if timedOut {
-			return nil, UpstreamError{Service: "mail", After: RoundTripTimeout, cause: err}
+			return nil, UpstreamError{service: "mail", after: RoundTripTimeout, cause: err}
 		}
 		return nil, AuthError{err}
 	}
@@ -182,12 +182,12 @@ func (l *Login) Domain() string {
 
 // DoIMAP executes an IMAP operation on this login; the client is valid only inside f.
 func (l *Login) DoIMAP(f func(*imapclient.Client) error) error {
-	return l.DoIMAPWithin(RoundTripTimeout, f)
+	return l.doIMAPWithin(RoundTripTimeout, f)
 }
 
-// DoIMAPWithin is DoIMAP with the caller's bound.
-func (l *Login) DoIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
-	return l.DoIMAPContext(context.Background(), bound, f)
+// doIMAPWithin is DoIMAP with the caller's bound.
+func (l *Login) doIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
+	return l.doIMAPContext(context.Background(), bound, f)
 }
 
 // DoIMAPBackground keeps speculative reads off the interactive connection.
@@ -195,7 +195,7 @@ func (l *Login) DoIMAPBackground(f func(*imapclient.Client) error) error {
 	return l.DoIMAPWork(context.Background(), IMAPBackground, RoundTripTimeout, f)
 }
 
-func (l *Login) DoIMAPContext(ctx context.Context, bound time.Duration, f func(*imapclient.Client) error) error {
+func (l *Login) doIMAPContext(ctx context.Context, bound time.Duration, f func(*imapclient.Client) error) error {
 	return l.DoIMAPWork(ctx, IMAPForeground, bound, f)
 }
 
@@ -210,7 +210,7 @@ const (
 
 func waitError(err error, bound time.Duration) error {
 	if errors.Is(err, context.DeadlineExceeded) {
-		return UpstreamError{Service: "mail", After: bound, cause: err}
+		return UpstreamError{service: "mail", after: bound, cause: err}
 	}
 	return context.Canceled
 }
@@ -261,7 +261,7 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 		if err != nil {
 			var refused AuthError
 			if errors.As(err, &refused) {
-				l.Close()
+				l.close()
 			}
 			return err
 		}
@@ -375,8 +375,8 @@ func (l *Login) SetMailBasicAuth(req *http.Request) {
 	req.SetBasicAuth(l.username, l.password)
 }
 
-// Close ends the login.
-func (l *Login) Close() {
+// close ends the login.
+func (l *Login) close() {
 	select {
 	case <-l.closed:
 	default:
@@ -459,21 +459,21 @@ func (l *Login) Store() Store {
 }
 
 type (
-	// DialIMAPFunc connects to the domain's IMAP server, for a reader at from,
+	// dialIMAPFunc connects to the domain's IMAP server, for a reader at from,
 	// or for alborz itself when from is empty.
-	DialIMAPFunc func(domain, from string) (*imapclient.Client, error)
-	// DialIMAPWatchFunc dials with a handler for unsolicited updates.
-	DialIMAPWatchFunc func(domain string, h *imapclient.UnilateralDataHandler) (*imapclient.Client, error)
-	// DialSMTPFunc connects to the domain's upstream SMTP server.
-	DialSMTPFunc func(domain string) (*smtp.Client, error)
+	dialIMAPFunc func(domain, from string) (*imapclient.Client, error)
+	// dialIMAPWatchFunc dials with a handler for unsolicited updates.
+	dialIMAPWatchFunc func(domain string, h *imapclient.UnilateralDataHandler) (*imapclient.Client, error)
+	// dialSMTPFunc connects to the domain's upstream SMTP server.
+	dialSMTPFunc func(domain string) (*smtp.Client, error)
 )
 
-// LoginManager keeps track of active logins and prunes expired ones.
-type LoginManager struct {
-	dialIMAP      DialIMAPFunc
-	dialIMAPWatch DialIMAPWatchFunc
-	dialSMTP      DialSMTPFunc
-	dialSieve     DialSieveFunc
+// loginManager keeps track of active logins and prunes expired ones.
+type loginManager struct {
+	dialIMAP      dialIMAPFunc
+	dialIMAPWatch dialIMAPWatchFunc
+	dialSMTP      dialSMTPFunc
+	dialSieve     dialSieveFunc
 	logger        echo.Logger
 	// settings holds settings for servers without METADATA; nil if alborz keeps none.
 	settings *settingsRecords
@@ -484,8 +484,8 @@ type LoginManager struct {
 	warnedNoMetadata bool                // protected by locker
 }
 
-func newLoginManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMTP DialSMTPFunc, dialSieve DialSieveFunc, logger echo.Logger, settings *settingsRecords) *LoginManager {
-	return &LoginManager{
+func newLoginManager(dialIMAP dialIMAPFunc, dialWatch dialIMAPWatchFunc, dialSMTP dialSMTPFunc, dialSieve dialSieveFunc, logger echo.Logger, settings *settingsRecords) *loginManager {
+	return &loginManager{
 		settings:      settings,
 		logins:        make(map[*Login]struct{}),
 		dialIMAP:      dialIMAP,
@@ -496,33 +496,33 @@ func newLoginManager(dialIMAP DialIMAPFunc, dialWatch DialIMAPWatchFunc, dialSMT
 	}
 }
 
-func (sm *LoginManager) Close() {
+func (sm *loginManager) close() {
 	sm.locker.Lock()
 	defer sm.locker.Unlock()
 	for s := range sm.logins {
-		s.Close()
+		s.close()
 	}
 }
 
-func (sm *LoginManager) connectIMAP(domain, username, password, from string) (*imapclient.Client, error) {
+func (sm *loginManager) connectIMAP(domain, username, password, from string) (*imapclient.Client, error) {
 	return sm.connectIMAPContext(context.Background(), domain, username, password, from)
 }
 
-func (sm *LoginManager) connectIMAPContext(ctx context.Context, domain, username, password, from string) (*imapclient.Client, error) {
+func (sm *loginManager) connectIMAPContext(ctx context.Context, domain, username, password, from string) (*imapclient.Client, error) {
 	within := RoundTripTimeout
 	if from != "" {
-		within = SignInTimeout
+		within = signInTimeout
 	}
 	ctx, cancel := context.WithTimeout(ctx, within)
 	defer cancel()
 	c, err := sm.dialIMAP(domain, from)
 	if err != nil {
 		// A misconfigured domain is ours; any other dial failure is the server's.
-		var unknown UnknownDomainError
+		var unknown unknownDomainError
 		if errors.As(err, &unknown) {
 			return nil, err
 		}
-		return nil, UpstreamError{Service: "mail", cause: err}
+		return nil, UpstreamError{service: "mail", cause: err}
 	}
 
 	stopped := make(chan struct{})
@@ -530,7 +530,7 @@ func (sm *LoginManager) connectIMAPContext(ctx context.Context, domain, username
 	err = c.Login(username, password).Wait()
 	if !stop() {
 		<-stopped
-		return nil, UpstreamError{Service: "mail", After: within, cause: ctx.Err()}
+		return nil, UpstreamError{service: "mail", after: within, cause: ctx.Err()}
 	}
 	if err != nil {
 		c.Close()
@@ -538,7 +538,7 @@ func (sm *LoginManager) connectIMAPContext(ctx context.Context, domain, username
 		if errors.As(err, &status) {
 			return nil, AuthError{err}
 		}
-		return nil, UpstreamError{Service: "mail", cause: err}
+		return nil, UpstreamError{service: "mail", cause: err}
 	}
 	if caps := c.Caps(); !caps.Has(imap.CapIMAP4rev1) && !caps.Has(imap.CapIMAP4rev2) {
 		c.Logout()
@@ -547,15 +547,15 @@ func (sm *LoginManager) connectIMAPContext(ctx context.Context, domain, username
 			names = append(names, string(cap))
 		}
 		slices.Sort(names)
-		return nil, BaselineError{Caps: names}
+		return nil, baselineError{caps: names}
 	}
 
 	return c, nil
 }
 
-// Put connects to the IMAP server and creates a new login. It fails with
-// AuthError or UnknownDomainError.
-func (sm *LoginManager) Put(username, password, from string) (*Login, error) {
+// put connects to the IMAP server and creates a new login. It fails with
+// AuthError or unknownDomainError.
+func (sm *loginManager) put(username, password, from string) (*Login, error) {
 	_, domain, _ := strings.Cut(username, "@")
 	c, err := sm.connectIMAP(domain, username, password, from)
 	if err != nil {
@@ -587,7 +587,7 @@ func (sm *LoginManager) Put(username, password, from string) (*Login, error) {
 	return s, nil
 }
 
-func (sm *LoginManager) reap(s *Login) {
+func (sm *loginManager) reap(s *Login) {
 	timer := time.NewTimer(loginDuration)
 
 	alive := true
@@ -606,7 +606,7 @@ func (sm *LoginManager) reap(s *Login) {
 	}
 
 	timer.Stop()
-	s.Close()
+	s.close()
 
 	s.imapLocker.acquire(context.Background(), nil, false)
 	if s.imapConn != nil {

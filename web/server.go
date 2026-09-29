@@ -44,9 +44,10 @@ type Server struct {
 	// OnAccountReady is called when an account signs in.
 	OnAccountReady []AccountReadyFunc
 
-	// OnMessage and OnServers add another feature's part to the message and servers pages.
+	// OnMessage adds another feature's part to the message page.
 	OnMessage []func(*Context, RenderData) error
-	OnServers []func(*Context, RenderData) error
+	// OnServers puts each feature's servers among the account's.
+	OnServers []func(*Context, *Servers) error
 
 	// Suggest offers addresses to write to.
 	Suggest []func(*Context) []string

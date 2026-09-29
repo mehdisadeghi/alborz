@@ -72,12 +72,7 @@ func serverInfo(ctx *web.Context, agent string, abilities []web.Ability) ServerI
 type ServersRenderData struct {
 	web.BaseRenderData
 	Rail map[string][]web.RailRow
-	// Showing is the server the page is about, empty for the list, which costs no round trip.
-	Showing string
-	// Cards are every server this account talks to, filled in by whichever plugin answers for each.
-	Cards []web.ServerCard
-	// Places are where the account's new calendars and address books can go (ADR 28).
-	Places []web.Place
+	*web.Servers
 	// server is the address of a server group's own page.
 	server func(group string) string
 }
@@ -85,16 +80,6 @@ type ServersRenderData struct {
 var serverOrder = []string{web.ServerMail, web.ServerSending, web.ServerFilters, web.ServerDAV}
 
 var serverPages = map[string]bool{web.ServerMail: true, web.ServerDAV: true}
-
-// AddPlace offers a place once, however many plugins know it.
-func (d *ServersRenderData) AddPlace(id, label string) {
-	for _, p := range d.Places {
-		if p.ID == id {
-			return
-		}
-	}
-	d.Places = append(d.Places, web.Place{ID: id, Label: label})
-}
 
 // ServerRow is one row of the list: a group of cards by its hosts.
 type ServerRow struct {
@@ -132,18 +117,8 @@ func (d *ServersRenderData) Rows() []ServerRow {
 	return rows
 }
 
-// Shown are the cards of the server the page is about.
-func (d *ServersRenderData) Shown() []web.ServerCard {
-	var shown []web.ServerCard
-	for _, c := range d.Cards {
-		if c.Group == d.Showing {
-			shown = append(shown, c)
-		}
-	}
-	return shown
-}
-
-func mailCards(ctx *web.Context, showing string) ([]web.ServerCard, error) {
+// mailCards puts mail's servers among the account's.
+func mailCards(ctx *web.Context, servers *web.Servers) error {
 	_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
 	source := func(record string) (string, string) {
@@ -163,12 +138,13 @@ func mailCards(ctx *web.Context, showing string) ([]web.ServerCard, error) {
 	if up.Sieve != "" {
 		cards = append(cards, card(web.ServerFilters, "servers.filters", up.Sieve, up.SieveFound))
 	}
-	if showing != web.ServerMail {
-		return cards, nil
+	if servers.Showing != web.ServerMail {
+		servers.Cards = append(servers.Cards, cards...)
+		return nil
 	}
 	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var agent string
 	var abilityList []web.Ability
@@ -178,7 +154,7 @@ func mailCards(ctx *web.Context, showing string) ([]web.ServerCard, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	info := serverInfo(ctx, agent, abilityList)
 	cards[0].Rows = []map[string]any{
@@ -188,32 +164,21 @@ func mailCards(ctx *web.Context, showing string) ([]web.ServerCard, error) {
 		{"label": ctx.T("settings.serversoftware"), "value": info.Agent},
 	}
 	cards[0].Abilities, cards[0].Explained = info.Abilities, info.Explained
-	return cards, nil
+	servers.Cards = append(servers.Cards, cards...)
+	return nil
 }
 
 func handleServers(ctx *web.Context) error {
-	cards, err := mailCards(ctx, "")
+	servers, err := ctx.Servers("")
 	if err != nil {
 		return err
 	}
-	data := &ServersRenderData{
+	return ctx.Render(http.StatusOK, "settings/servers", &ServersRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.servers")),
 		Rail:           mail.SettingsRail(ctx),
-		Cards:          cards,
+		Servers:        servers,
 		server:         func(group string) string { return ctx.Path("settings.server", group) },
-	}
-	return RenderServers(ctx, http.StatusOK, "settings/servers", data, data)
-}
-
-// RenderServers renders name with data, which shows servers. Other features' servers join as
-// the page is shown, so a saved form asks none of them.
-func RenderServers(ctx *web.Context, status int, name string, data web.RenderData, servers *ServersRenderData) error {
-	for _, add := range ctx.Server.OnServers {
-		if err := add(ctx, servers); err != nil {
-			return err
-		}
-	}
-	return ctx.Render(status, name, data)
+	})
 }
 
 func handleServer(ctx *web.Context) error {
@@ -221,23 +186,13 @@ func handleServer(ctx *web.Context) error {
 	if !serverPages[showing] {
 		return alborz.NotFound("notfound.server")
 	}
-	data, err := NewServersRenderData(ctx, showing)
+	servers, err := ctx.Servers(showing)
 	if err != nil {
 		return err
 	}
-	return RenderServers(ctx, http.StatusOK, "settings/server", data, data)
-}
-
-// NewServersRenderData is the page about the servers of showing, with mail's among them.
-func NewServersRenderData(ctx *web.Context, showing string) (*ServersRenderData, error) {
-	cards, err := mailCards(ctx, showing)
-	if err != nil {
-		return nil, err
-	}
-	return &ServersRenderData{
+	return ctx.Render(http.StatusOK, "settings/server", &ServersRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("servers." + showing)),
 		Rail:           mail.SettingsRail(ctx),
-		Showing:        showing,
-		Cards:          cards,
-	}, nil
+		Servers:        servers,
+	})
 }

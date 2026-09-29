@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/dav"
-	settingsweb "git.mehdix.org/alborz/settings/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -23,7 +23,9 @@ var placeIDs = []string{"domain", "host", "own", "here"}
 
 // ServerRenderData is the DAV servers' page, with the servers the account names for itself.
 type ServerRenderData struct {
-	*settingsweb.ServersRenderData
+	web.BaseRenderData
+	Rail map[string][]web.RailRow
+	*web.Servers
 	Services        dav.Services
 	HasHTTPPassword bool
 }
@@ -42,14 +44,19 @@ func (d *ServerRenderData) DefaultPlace() string {
 }
 
 func handleServer(ctx *web.Context) error {
-	servers, err := settingsweb.NewServersRenderData(ctx, web.ServerDAV)
-	if err != nil {
-		return err
+	data := &ServerRenderData{
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("servers." + web.ServerDAV)),
+		Rail:           mail.SettingsRail(ctx),
 	}
-	data := &ServerRenderData{ServersRenderData: servers}
 	render := func(status int) error {
-		return settingsweb.RenderServers(ctx, status, "settings/server", data, servers)
+		servers, err := ctx.Servers(web.ServerDAV)
+		if err != nil {
+			return err
+		}
+		data.Servers = servers
+		return ctx.Render(status, "settings/server", data)
 	}
+	var err error
 	if data.HasHTTPPassword, err = ctx.Login.HasHTTPPassword(ctx.Request().Context()); err != nil {
 		return err
 	}

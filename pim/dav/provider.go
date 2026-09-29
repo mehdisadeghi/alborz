@@ -250,6 +250,15 @@ func route(sources []Source, p string) (Source, string, error) {
 	return found, rest, nil
 }
 
+// Address is where a path alborz holds is on its server, as another client reaches it.
+func (p *Provider) Address(ctx context.Context, login *alborz.Login, held string) (string, error) {
+	src, rest, err := route(p.Sources(ctx, login), held)
+	if err != nil {
+		return "", err
+	}
+	return (&url.URL{Scheme: src.URL.Scheme, Host: src.URL.Host, Path: rest}).String(), nil
+}
+
 // isHere says whether the server at u is this alborz. It is asked once, on first use rather than at
 // start: a request is being served by then, so this alborz answers.
 func (p *Provider) isHere(u *url.URL) bool {

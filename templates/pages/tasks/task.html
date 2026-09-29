@@ -24,6 +24,7 @@
       {{$due := $todo.Props.Get "DUE"}}
 
       {{ template "object-toolbar" (dict "g" $ "url" .Task.URL "acct" $acct "list" .List "new" "/tasks/create" "newlabel" ($.T "tasks.new") "edit" "edit" "ext" ".ics" "readonly" false
+         "copy" (printf "%s/copy%s" .Task.URL $acct)
          "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
 
       {{ template "next-form" (dict "id" "task-color-form" "next" $.GlobalData.URL.RequestURI) }}

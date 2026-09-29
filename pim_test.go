@@ -314,6 +314,19 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 			t.Errorf("the task left its list: %s", resp.Status)
 		}
 	})
+	t.Run("a copy", func(t *testing.T) {
+		base, c, stub := start(t, nil)
+		plans := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+		put(t, base, plans+"nowruz.ics", "text/calendar", nowruz)
+		resp, body := postBody(t, c, base+"/calendar/"+url.PathEscape(hereAt+plans+"nowruz.ics")+"/copy",
+			url.Values{"to": {smokeUser + "|" + onStub}}, nil)
+		if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(html.UnescapeString(body), refused) {
+			t.Fatalf("the copy answered %s, want the form refused with the reason", resp.Status)
+		}
+		if len(stub.puts) != 0 {
+			t.Errorf("the refused copy was written to the server")
+		}
+	})
 	t.Run("an edit of a rule already there", func(t *testing.T) {
 		base, c, stub := start(t, nil)
 		form := url.Values{"summary": {"Nowruz at home"}, "start": {"2026-03-21T10:00"}, "start-calendar": {"gregorian"},

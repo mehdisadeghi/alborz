@@ -7,6 +7,7 @@
 {{ define "main" }}
       {{ $acct := account "?" .GlobalData.URLAccount }}
       {{ template "object-toolbar" (dict "g" $ "url" .Event.URL "acct" $acct "list" .List "new" "/calendar/create" "newlabel" ($.T "calendar.new") "edit" "update" "ext" ".ics" "readonly" .Event.ReadOnly
+         "copy" (printf "%s/copy%s" .Event.URL $acct)
          "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
 
       {{ if not .Event.ReadOnly }}

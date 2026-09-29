@@ -166,7 +166,7 @@ func handleForwardingAdd(ctx *web.Context) error {
 		}
 		f.Forwards = append(f.Forwards, Forward{Address: address})
 	})
-	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
+	return answer(ctx, err, "filters.forwarding", ctx.T("notice.forwardingsaved"))
 }
 
 func handleForwardingDelete(ctx *web.Context) error {
@@ -180,7 +180,7 @@ func handleForwardingDelete(ctx *web.Context) error {
 		}
 		f.Forwards = kept
 	})
-	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
+	return answer(ctx, err, "filters.forwarding", ctx.T("notice.forwardingsaved"))
 }
 
 func handleForwardingToggle(ctx *web.Context) error {
@@ -192,16 +192,16 @@ func handleForwardingToggle(ctx *web.Context) error {
 			}
 		}
 	})
-	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
+	return answer(ctx, err, "filters.forwarding", ctx.T("notice.forwardingsaved"))
 }
 
 func handleForwardingKeep(ctx *web.Context) error {
 	keep := ctx.FormValue("keep") != ""
 	err := changeForwarding(ctx, func(f *Forwarding) { f.Keep = keep })
-	return answer(ctx, err, "/filters/forwarding", ctx.T("notice.forwardingsaved"))
+	return answer(ctx, err, "filters.forwarding", ctx.T("notice.forwardingsaved"))
 }
 
-func answer(ctx *web.Context, err error, path, saved string) error {
+func answer(ctx *web.Context, err error, route, saved string) error {
 	switch {
 	case errors.Is(err, errChanged{}):
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("filters.changed")})
@@ -210,5 +210,5 @@ func answer(ctx *web.Context, err error, path, saved string) error {
 	default:
 		ctx.PutNotice(saved)
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(path)))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(route)))
 }

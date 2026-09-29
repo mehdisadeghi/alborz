@@ -6,7 +6,7 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      <form method="post" action="/filters{{$aq}}" class="filter">
+      <form method="post" action="{{url "filters.list"}}{{$aq}}" class="filter">
         {{ with .GlobalData.From }}<input type="hidden" name="next" value="{{.}}">{{ end }}
         {{ template "filters-crumb" (dict "g" $ "chooses" (and (not .Name) (gt (len .Accounts) 1))) }}
         <h1>
@@ -29,6 +29,6 @@
           <textarea name="content" id="content" class="code" dir="ltr" spellcheck="false">{{.Content}}</textarea>
         </label>
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/filters%s" $aq)) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "%s%s" (url "filters.list") $aq)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

@@ -6,36 +6,36 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-        {{ template "list-toolbar" (dict "g" $ "title" ($.T "filters.rules") "newhref" (printf "/filters/rules/create%s" $aq) "newlabel" ($.T "filters.rulenew") "pager" .Pager) }}
+        {{ template "list-toolbar" (dict "g" $ "title" ($.T "filters.rules") "newhref" (printf "%s%s" (url "filters.rules.create") $aq) "newlabel" ($.T "filters.rulenew") "pager" .Pager) }}
 
-      {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" "/filters/rules") }}
+      {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" (url "filters.rules")) }}
 
       {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
-      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="/filters/{{.Script | pathescape}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
+      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="{{url "filters.filter" .Script}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
 
       <section class="list-items">
         {{ $n := len .Rules }}
         {{ range $i := .Shown }}{{ with index $.Rules $i }}
         <div class="list-item{{ if .Off }} off{{ end }}">
           <div class="list-content">
-            <a href="/filters/rules/{{$i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
+            <a href="{{url "filters.rule" $i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
             {{ if .Off }}<span class="list-meta">{{$.T "filters.off"}}</span>{{ end }}
             <span class="list-detail">{{ template "rule-words" (dict "r" . "g" $) }}</span>
           </div>
-          <form method="post" action="/filters/rules/move{{$aq}}">
+          <form method="post" action="{{url "filters.rules.move"}}{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">
             <input type="hidden" name="index" value="{{$i}}">
             <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button name="dir" value="up" class="icon-button" title="{{$.T "filters.moveup"}}" aria-label="{{$.T "filters.moveup"}}"{{ if eq $i 0 }} disabled{{ end }}>{{ template "icon" "up" }}</button>
             <button name="dir" value="down" class="icon-button" title="{{$.T "filters.movedown"}}" aria-label="{{$.T "filters.movedown"}}"{{ if eq (sub $n 1) $i }} disabled{{ end }}>{{ template "icon" "down" }}</button>
           </form>
-          <form method="post" action="/filters/rules/toggle{{$aq}}">
+          <form method="post" action="{{url "filters.rules.toggle"}}{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">
             <input type="hidden" name="index" value="{{$i}}">
             <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button>{{ if .Off }}{{$.T "filters.activate"}}{{ else }}{{$.T "filters.deactivate"}}{{ end }}</button>
           </form>
-          <form method="post" action="/filters/rules/delete{{$aq}}">
+          <form method="post" action="{{url "filters.rules.delete"}}{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">
             <input type="hidden" name="index" value="{{$i}}">
             <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">

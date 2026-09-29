@@ -321,7 +321,7 @@ func handleReplySave(ctx *web.Context) error {
 	if index >= 0 && index < len(replies.Items) {
 		replies.Items[index] = v
 	} else if len(replies.Items) >= maxReplies {
-		return answer(ctx, fmt.Errorf(ctx.T("filters.toomanyreplies"), maxReplies), "/filters/autoreply", "")
+		return answer(ctx, fmt.Errorf(ctx.T("filters.toomanyreplies"), maxReplies), "filters.autoreply", "")
 	} else {
 		made = len(replies.Items)
 		replies.Items = append(replies.Items, v)
@@ -345,15 +345,15 @@ func handleReplySave(ctx *web.Context) error {
 	}
 	if err == nil && made >= 0 {
 		ctx.Made(ctx.T("notice.autoreplycreated"), v.Name,
-			ctx.AccountPath(fmt.Sprintf("/filters/autoreply/%d", made)),
-			ctx.AccountPath("/filters/autoreply/create"))
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters/autoreply"))
+			ctx.URL("filters.autoreply.reply", made),
+			ctx.URL("filters.autoreply.create"))
+		return ctx.Redirect(http.StatusFound, ctx.URL("filters.autoreply"))
 	}
 	saved := ctx.T("notice.autoreplyinactive")
 	if sent {
 		saved = ctx.T("notice.autoreplysaved")
 	}
-	return answer(ctx, err, "/filters/autoreply", saved)
+	return answer(ctx, err, "filters.autoreply", saved)
 }
 
 func activeIndex(items []Reply, content string) int {
@@ -385,7 +385,7 @@ func handleReplyDelete(ctx *web.Context) error {
 	replies.Items = append(replies.Items[:index], replies.Items[index+1:]...)
 	if err := ctx.Login.Store().Put(ctx.Request().Context(), repliesKey, replies); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/filters/autoreply")))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL("filters.autoreply")))
 	}
 	// Deleting the reply being sent stops it.
 	loaded := ctx.FormValue("loaded")
@@ -399,7 +399,7 @@ func handleReplyDelete(ctx *web.Context) error {
 			})
 		})
 	}
-	return answer(ctx, err, "/filters/autoreply", ctx.T("notice.autoreplydeleted"))
+	return answer(ctx, err, "filters.autoreply", ctx.T("notice.autoreplydeleted"))
 }
 
 // An empty index composes no reply, which deletes the script.
@@ -428,5 +428,5 @@ func handleReplyActivate(ctx *web.Context) error {
 			return next, nil
 		})
 	})
-	return answer(ctx, err, "/filters/autoreply", saved)
+	return answer(ctx, err, "filters.autoreply", saved)
 }

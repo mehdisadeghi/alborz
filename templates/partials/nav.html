@@ -36,7 +36,7 @@
       {{ end }}
     title="{{$.T "nav.tasks"}}" aria-label="{{$.T "nav.tasks"}}">{{ template "icon" "tasks" }}<span class="label">{{$.T "nav.tasks"}}</span></a>
     <a
-      href="/filters{{$q}}" data-go="f"
+      href="{{url "filters.list"}}{{$q}}" data-go="f"
       {{ if eq $page "filters" }}
       class="active" aria-current="page"
       {{ end }}

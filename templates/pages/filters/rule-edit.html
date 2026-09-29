@@ -6,8 +6,8 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      <form method="post" action="/filters/rules{{$aq}}" class="rule">
-        {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" "/filters/rules") }}
+      <form method="post" action="{{url "filters.rules"}}{{$aq}}" class="rule">
+        {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" (url "filters.rules")) }}
         <h1>{{ if ge .Index 0 }}{{$.T "filters.ruleedit"}}{{ else }}{{$.T "filters.rulenew"}}{{ end }}</h1>
         <input type="hidden" name="loaded" value="{{.Loaded}}">
         {{ if ge .Index 0 }}<input type="hidden" name="index" value="{{.Index}}">{{ end }}
@@ -56,6 +56,6 @@
           <p class="hint">{{$.T "filters.stophint"}}</p>
         </fieldset>
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/filters/rules%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "%s%s" (url "filters.rules") $aq) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

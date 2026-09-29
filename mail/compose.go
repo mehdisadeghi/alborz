@@ -724,7 +724,7 @@ func quotablePart(ctx *alborz.Context, path messagePath, partPath []int) (*IMAPM
 	fetch := func(p []int) error {
 		return ctx.DoIMAP(func(c *imapclient.Client) error {
 			var err error
-			msg, part, err = getMessagePart(c, path.Mailbox, path.Uid, p)
+			msg, part, err = getShownPart(c, path.Mailbox, path.Uid, p)
 			return err
 		})
 	}
@@ -882,7 +882,7 @@ func quotedHTML(ctx *alborz.Context, path messagePath, msg *IMAPMessage) (string
 		if pieces := msg.HTMLPieces(node.Path); pieces != nil {
 			part, err = joinedHTML(c, path.Mailbox, path.Uid, pieces)
 		} else {
-			_, part, err = getMessagePart(c, path.Mailbox, path.Uid, node.Path)
+			_, part, err = getShownPart(c, path.Mailbox, path.Uid, node.Path)
 		}
 		if err != nil {
 			return err

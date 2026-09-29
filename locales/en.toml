@@ -210,6 +210,8 @@
 "message.download" = "Download"
 "message.remote" = "This message contains remote content, such as external images."
 "message.loadremote" = "Load remote content"
+"message.cut" = "The rest of this message part is not shown."
+"message.downloadpart" = "Download the whole part"
 "compose.from" = "From"
 "compose.to" = "To"
 "compose.cc" = "Cc"

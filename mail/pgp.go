@@ -56,14 +56,14 @@ func (p *plugin) handleSignature(ctx *alborz.Context) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
-		msgs, err := c.Fetch(imap.UIDSetNum(uid), partFetchOptions(nil, true)).Collect()
+		msgs, err := c.Fetch(imap.UIDSetNum(uid), partFetchOptions(nil, true, false)).Collect()
 		if err != nil {
 			return err
 		}
 		if len(msgs) == 0 {
 			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
 		}
-		msg, _, err := messagePart(msgs[0], mboxName, uid, nil)
+		msg, _, err := messagePart(msgs[0], mboxName, uid, nil, false)
 		if err != nil {
 			return err
 		}
@@ -121,9 +121,6 @@ func isSigned(bs imap.BodyStructure) bool {
 	return media == pgpProtocol || smimeProtocols[media]
 }
 
-// A signature or key, certificates included, is kilobytes; a larger part is none this reads.
-const maxSignaturePart = 1 << 20
-
 // verifySignature draws the verdict on msg from its parts on c; the signed
 // part streams through the check, never held, and only when a check can come of it.
 func (p *plugin) verifySignature(ctx context.Context, client *http.Client, c *imapclient.Client, msg *IMAPMessage) (Verification, error) {
@@ -133,7 +130,7 @@ func (p *plugin) verifySignature(ctx context.Context, client *http.Client, c *im
 	multi := msg.BodyStructure.(*imap.BodyStructureMultiPart)
 	second := multi.Children[1].(*imap.BodyStructureSinglePart)
 	protocol := strings.ToLower(second.MediaType())
-	if multi.Extended == nil || !strings.EqualFold(multi.Extended.Params["protocol"], protocol) || second.Size > maxSignaturePart {
+	if multi.Extended == nil || !strings.EqualFold(multi.Extended.Params["protocol"], protocol) || second.Size > partReadMax {
 		return Verification{}, nil
 	}
 
@@ -143,7 +140,7 @@ func (p *plugin) verifySignature(ctx context.Context, client *http.Client, c *im
 	var keyParts []*imap.BodyStructureSinglePart
 	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
 		single, ok := part.(*imap.BodyStructureSinglePart)
-		if ok && strings.EqualFold(single.MediaType(), "application/pgp-keys") && single.Size <= maxSignaturePart {
+		if ok && strings.EqualFold(single.MediaType(), "application/pgp-keys") && single.Size <= partReadMax {
 			sections = append(sections, &imap.FetchItemBodySection{Peek: true, Part: path})
 			keyParts = append(keyParts, single)
 		}

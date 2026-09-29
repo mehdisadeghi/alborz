@@ -26,6 +26,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/auth"
@@ -2662,5 +2663,83 @@ func TestCachingOffServesEveryPage(t *testing.T) {
 	}
 	if !strings.Contains(get(t, c, base+"/calendar"), "Personal") {
 		t.Error("the calendar page does not show the server's calendar")
+	}
+}
+
+// A part past 2 MiB shows its start, cut on a whole rune or tag, and
+// no more than that crosses the wire; the link fetches all of it.
+func TestLongPartShowsItsStart(t *testing.T) {
+	const shown = 2 << 20
+	// 57 bytes to a base64 line, and an odd start: the cut splits an "é".
+	text := "PARTSTART\r\n" + strings.Repeat(strings.Repeat("é", 1000)+"\r\n", 1600) + "PARTEND\r\n"
+	encoded := base64.StdEncoding.EncodeToString([]byte(text))
+	var wrapped strings.Builder
+	for len(encoded) > 76 {
+		wrapped.WriteString(encoded[:76] + "\r\n")
+		encoded = encoded[76:]
+	}
+	wrapped.WriteString(encoded + "\r\n")
+	// One line, and the cut falls inside a tag.
+	markup := "<p>PARTSTART</p>" + strings.Repeat("<b>w</b>", (shown-40)/8) + `<a href="https://example.org/">link</a>` +
+		strings.Repeat("<i>w</i>", 1<<17) + "<p>PARTEND</p>"
+
+	for name, part := range map[string]struct{ header, body string }{
+		"text": {"Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n", wrapped.String()},
+		"html": {"Content-Type: text/html; charset=utf-8\r\n", markup},
+	} {
+		t.Run(name, func(t *testing.T) {
+			raw := "From: <eve@example.org>\r\nTo: <" + smokeUser + ">\r\nSubject: Long\r\nMIME-Version: 1.0\r\n" +
+				part.header + "\r\n" + part.body
+			mem := imapmemserver.New()
+			user := imapmemserver.NewUser(smokeUser, smokePass)
+			if err := user.Create("INBOX", nil); err != nil {
+				t.Fatal(err)
+			}
+			appended, err := user.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			mem.AddUser(user)
+			var wire trafficCount
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			srv := imapserver.New(&imapserver.Options{
+				NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
+					return mem.NewSession(), nil, nil
+				},
+				Caps:         rigCaps(),
+				InsecureAuth: true,
+				DebugWriter:  &wire,
+			})
+			go srv.Serve(ln)
+			t.Cleanup(func() { srv.Close() })
+
+			base := startAlborz(t, ln.Addr().String())
+			c := login(t, base)
+			message := fmt.Sprintf("%s/message/INBOX/%d", base, appended.UID)
+			before := wire.n.Load()
+			page := get(t, c, message+"?part=1")
+			if moved := wire.n.Load() - before; moved > shown+64<<10 {
+				t.Errorf("opening the message moved %d bytes", moved)
+			}
+			if !strings.Contains(page, "PARTSTART") || strings.Contains(page, "PARTEND") {
+				t.Fatal("the page does not show the part's start, or shows its end")
+			}
+			if !utf8.ValidString(page) || strings.ContainsRune(page, utf8.RuneError) {
+				t.Error("the cut left a broken character on the page")
+			}
+			if !strings.Contains(page, "The rest of this message part is not shown.") {
+				t.Error("the page does not say the part is cut")
+			}
+			if !slices.Contains(rawPartHrefs(page), fmt.Sprintf("/message/INBOX/%d/raw?part=1", appended.UID)) {
+				t.Fatalf("no link to the whole part among %q", rawPartHrefs(page))
+			}
+			whole := get(t, c, message+"/raw?part=1")
+			if !strings.HasSuffix(whole, "PARTEND\r\n") && !strings.HasSuffix(whole, "<p>PARTEND</p>") {
+				t.Error("the download is not the whole part")
+			}
+		})
 	}
 }

@@ -2,6 +2,7 @@ package alborz_test
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
@@ -3044,5 +3045,234 @@ func TestUnbrokenLineShowsAsText(t *testing.T) {
 	page := get(t, c, fmt.Sprintf("%s/message/INBOX/%d?part=1", base, appended.UID))
 	if !strings.Contains(page, "LINESTART") || !strings.Contains(page, "LINEEND") {
 		t.Error("a 100 KiB line does not show as text")
+	}
+}
+
+// asked counts the SORT and THREAD commands a sortingProxy answered.
+type asked struct{ sorts, threads atomic.Int32 }
+
+// sortingProxy offers SORT and THREAD for the in-memory server, which has
+// neither: it asks SEARCH instead and hands the answer back in its order,
+// reversed where the sort was, or two messages to a conversation.
+func sortingProxy(t *testing.T, upstream string) (string, *asked) {
+	t.Helper()
+	counts := &asked{}
+	command := regexp.MustCompile(`^(\S+ (?:UID )?)SORT \(([^)]*)\) \S+ (.*)$`)
+	threading := regexp.MustCompile(`^(\S+ (?:UID )?)THREAD \S+ \S+ (.*)$`)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			client, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			server, err := net.Dial("tcp", upstream)
+			if err != nil {
+				client.Close()
+				continue
+			}
+			// The tags the server has yet to answer, in order; the one in front owns an untagged SEARCH.
+			var mu sync.Mutex
+			type pending struct {
+				tag                        string
+				sorted, reversed, threaded bool
+			}
+			var queue []pending
+			go func() {
+				defer server.Close()
+				r := bufio.NewReader(client)
+				for {
+					line, err := r.ReadString('\n')
+					if err != nil {
+						return
+					}
+					body := strings.TrimRight(line, "\r\n")
+					if m := threading.FindStringSubmatch(body); m != nil {
+						counts.threads.Add(1)
+						mu.Lock()
+						tag, _, _ := strings.Cut(m[1], " ")
+						queue = append(queue, pending{tag: tag, threaded: true})
+						mu.Unlock()
+						line = m[1] + "SEARCH " + m[2] + "\r\n"
+					} else if m := command.FindStringSubmatch(body); m != nil {
+						counts.sorts.Add(1)
+						mu.Lock()
+						tag, _, _ := strings.Cut(m[1], " ")
+						queue = append(queue, pending{tag: tag, sorted: true, reversed: strings.HasPrefix(m[2], "REVERSE ")})
+						mu.Unlock()
+						line = m[1] + "SEARCH " + m[3] + "\r\n"
+					} else if tag, _, ok := strings.Cut(body, " "); ok && tag != "*" {
+						mu.Lock()
+						queue = append(queue, pending{tag: tag})
+						mu.Unlock()
+					}
+					if _, err := io.WriteString(server, line); err != nil {
+						return
+					}
+				}
+			}()
+			go func() {
+				defer client.Close()
+				r := bufio.NewReader(server)
+				for {
+					line, err := r.ReadString('\n')
+					if err != nil {
+						return
+					}
+					body := strings.TrimRight(line, "\r\n")
+					line = strings.Replace(line, "CAPABILITY ", "CAPABILITY SORT THREAD=REFERENCES ", 1)
+					mu.Lock()
+					if nums, ok := strings.CutPrefix(body, "* SEARCH"); ok && len(queue) > 0 && queue[0].threaded {
+						line = "* THREAD "
+						for pair := range slices.Chunk(strings.Fields(nums), 2) {
+							line += "(" + strings.Join(pair, " ") + ")"
+						}
+						line = strings.TrimRight(line, " ") + "\r\n"
+					}
+					if nums, ok := strings.CutPrefix(body, "* SEARCH"); ok && len(queue) > 0 && queue[0].sorted {
+						uids := strings.Fields(nums)
+						if queue[0].reversed {
+							slices.Reverse(uids)
+						}
+						line = strings.TrimRight("* SORT "+strings.Join(uids, " "), " ") + "\r\n"
+					}
+					if tag, _, ok := strings.Cut(body, " "); ok {
+						if i := slices.IndexFunc(queue, func(p pending) bool { return p.tag == tag }); i >= 0 {
+							queue = slices.Delete(queue, i, i+1)
+						}
+					}
+					mu.Unlock()
+					if _, err := io.WriteString(client, line); err != nil {
+						return
+					}
+				}
+			}()
+		}
+	}()
+	return ln.Addr().String(), counts
+}
+
+// A conversation list is threaded once for all its pages, and a message
+// opened from it walks the conversations' order, not the folder's.
+func TestAConversationListThreadsOnceAndItsMessagesWalkIt(t *testing.T) {
+	addr, asked := sortingProxy(t, startIMAP(t))
+	base := startAlborz(t, addr)
+	c := login(t, base)
+	list := base + "/mailbox/INBOX?sort=thread&ipp=1"
+	var order []string
+	var links []string
+	for page := range 3 {
+		body := get(t, c, fmt.Sprintf("%s&page=%d", list, page))
+		order = append(order, rowUIDs(body)...)
+		for _, m := range regexp.MustCompile(`class="message-list-subject[^"]*" role="cell">\s*<a [^>]*href="([^"]+)"`).FindAllStringSubmatch(body, -1) {
+			links = append(links, m[1])
+		}
+	}
+	if len(order) != 5 || len(links) != 5 || slices.IsSortedFunc(order, func(a, b string) int { return strings.Compare(b, a) }) {
+		t.Fatalf("three pages of one conversation each list %v, want the five seeded messages out of the folder's order", order)
+	}
+	msg := get(t, c, base+html.UnescapeString(links[2]))
+	if prev, next := neighbourUID(t, msg, "k"), neighbourUID(t, msg, "j"); prev != order[1] || next != order[3] {
+		t.Errorf("the third message steps to %q and %q, want %q and %q", prev, next, order[1], order[3])
+	}
+	if n := asked.threads.Load(); n != 1 {
+		t.Errorf("three pages and a message sent %d THREADs, want 1", n)
+	}
+}
+
+// neighbourUID is the UID a message page's k or j link leads to.
+func neighbourUID(t *testing.T, page, key string) string {
+	t.Helper()
+	m := regexp.MustCompile(`<a [^>]*href="([^"]+)"[^>]*data-key="` + key + `"`).FindStringSubmatch(page)
+	if m == nil {
+		return ""
+	}
+	u, err := url.Parse(html.UnescapeString(m[1]))
+	if err != nil {
+		t.Fatalf("neighbour link %q: %v", m[1], err)
+	}
+	return u.Path[strings.LastIndexByte(u.Path, '/')+1:]
+}
+
+// rowUIDs are the UIDs of a mail list's rows, in the order shown.
+func rowUIDs(body string) []string {
+	var out []string
+	for _, m := range regexp.MustCompile(`name="uids" value="(\d+)" form="messages-form"`).FindAllStringSubmatch(body, -1) {
+		out = append(out, m[1])
+	}
+	return out
+}
+
+// The pages of a sorted list share one SORT, which only a change asks again.
+func TestASortedListSortsOncePerChange(t *testing.T) {
+	addr, asked := sortingProxy(t, startIMAP(t))
+	base := startAlborz(t, addr)
+	c := login(t, base)
+	list := base + "/mailbox/INBOX?sort=subject&dir=asc&ipp=2"
+	var seen []string
+	for page := range 3 {
+		uids := rowUIDs(get(t, c, fmt.Sprintf("%s&page=%d", list, page)))
+		if len(uids) == 0 {
+			t.Fatalf("page %d of the sorted inbox lists no rows", page)
+		}
+		seen = append(seen, uids...)
+	}
+	if len(seen) != 5 || len(slices.Compact(slices.Sorted(slices.Values(seen)))) != 5 {
+		t.Fatalf("three pages of two list %v, want the five seeded messages once each", seen)
+	}
+	if n := asked.sorts.Load(); n != 1 {
+		t.Errorf("three pages of one order sent %d SORTs, want 1", n)
+	}
+	if resp := postForm(t, c, base+"/message/INBOX/move", url.Values{"uids": {seen[0]}, "to": {"Archive"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("move: %s", resp.Status)
+	}
+	if uids := rowUIDs(get(t, c, list+"&page=1")); slices.Contains(uids, seen[0]) || len(uids) == 0 {
+		t.Errorf("the second page after a move lists %v", uids)
+	}
+	if n := asked.sorts.Load(); n != 2 {
+		t.Errorf("a page after a move sent %d SORTs in all, want 2", n)
+	}
+}
+
+// A message opened from the third page walks to the rows either side of it in
+// that order, taken from the order the pages were cut from.
+func TestNeighboursOnTheThirdPageOfASortedList(t *testing.T) {
+	addr, asked := sortingProxy(t, startIMAP(t))
+	base := startAlborz(t, addr)
+	c := login(t, base)
+	list := base + "/mailbox/INBOX?sort=subject&dir=desc"
+	order := rowUIDs(get(t, c, list+"&ipp=100"))
+	if len(order) != 5 {
+		t.Fatalf("the sorted inbox lists %v, want the five seeded messages", order)
+	}
+	page := get(t, c, list+"&ipp=1&page=2")
+	link := regexp.MustCompile(`class="message-list-subject[^"]*" role="cell">\s*<a [^>]*href="([^"]+)"`).FindStringSubmatch(page)
+	if link == nil {
+		t.Fatal("the third page has no row to open")
+	}
+	msg := get(t, c, base+html.UnescapeString(link[1]))
+	step := func(key string) string {
+		m := regexp.MustCompile(`<a [^>]*href="([^"]+)"[^>]*data-key="` + key + `"`).FindStringSubmatch(msg)
+		if m == nil {
+			return ""
+		}
+		u, err := url.Parse(html.UnescapeString(m[1]))
+		if err != nil {
+			t.Fatalf("neighbour link %q: %v", m[1], err)
+		}
+		return u.Path[strings.LastIndexByte(u.Path, '/')+1:]
+	}
+	if prev, next := step("k"), step("j"); prev != order[1] || next != order[3] {
+		t.Errorf("the third message steps to %q and %q, want %q and %q", prev, next, order[1], order[3])
+	}
+	if !strings.Contains(msg, ">3 of 5<") {
+		t.Error("the third message does not say it is 3 of 5")
+	}
+	if n := asked.sorts.Load(); n != 1 {
+		t.Errorf("listing and opening sent %d SORTs, want the one", n)
 	}
 }

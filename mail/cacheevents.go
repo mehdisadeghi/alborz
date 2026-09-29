@@ -59,6 +59,11 @@ func (p *plugin) mailboxStale(user, mailbox string) {
 	p.listings.stale(user, mailbox)
 }
 
+// A folder seen moved behind a listing is sorted again for the fresh one.
+func (p *plugin) folderMoved(user, mailbox string) {
+	p.listings.reorder(user, mailbox)
+}
+
 func (p *plugin) mailboxFlagsAnnounced(user, mailbox string, seqNum uint32, flags []imap.Flag) {
 	p.listings.setFlags(user, mailbox, seqNum, flags)
 }

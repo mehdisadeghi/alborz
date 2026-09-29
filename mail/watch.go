@@ -234,7 +234,7 @@ func (p *plugin) warmInbox(s *alborz.Login) error {
 	// Warmed at the reader's page size: another size is a miss.
 	perPage := p.listings.pageSize(user, "INBOX", defaultMessagesPerPage)
 	own, err := p.listings.load(context.Background(), user, "INBOX", perPage, false, readOn(s, alborz.IMAPForeground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
-		return fetchListing(c, user, listingSpec{mbox: "INBOX"}, settings, alborz.Page{Size: perPage})
+		return p.fetchListing(c, user, listingSpec{mbox: "INBOX"}, settings, alborz.Page{Size: perPage})
 	}))
 	if err != nil {
 		return err

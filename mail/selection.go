@@ -51,7 +51,7 @@ func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]i
 	if err != nil {
 		return nil, err
 	}
-	return slices.Collect(maps.Values(kept)), nil
+	return slices.Collect(maps.Keys(kept)), nil
 }
 
 func selection(ctx *alborz.Context, mboxName string, form url.Values) ([]imap.UID, error) {

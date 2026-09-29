@@ -13,7 +13,7 @@ var cacheTypes = map[string]string{"listings": "listingCache", "bodies": "bodyCa
 
 // Everything unlisted is denied, so a method added later is guarded from the start.
 var cacheDirect = map[string][]string{
-	"listingCache": {"lookup", "message", "load", "claim", "release", "keeps", "epoch", "pageSize", "heldSize", "storeAt", "fill", "refresh"},
+	"listingCache": {"lookup", "message", "load", "claim", "release", "keeps", "epoch", "pageSize", "heldSize", "storeAt", "fill", "refresh", "order", "heldOrder"},
 	"bodyCache":    {"current", "claim", "put"},
 }
 

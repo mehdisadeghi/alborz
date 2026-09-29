@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/textproto"
@@ -17,18 +18,51 @@ type listPlace struct {
 	position, total int
 }
 
-func (p *plugin) cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
-	sortKey, _ := listOrder(ctx)
-	return p.listings.message(ctx.Login.Username(), listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, alborz.PerPage(ctx))
-}
-
-func placeInList(ctx *alborz.Context, c *imapclient.Client, settings *Settings, mailbox string, uid imap.UID, query, view string) (place listPlace, err error) {
-	if err := ensureMailboxSelected(c, mailbox); err != nil {
-		return place, err
+// messageList is the order a message's list is cut from, and whether that is the folder's own.
+func messageList(ctx *alborz.Context, mailbox, query, view string) (order string, own bool) {
+	if ctx.QueryParam("sort") == threadSort {
+		return orderView(mailbox, query, view, threadSort, true), false
 	}
 	sortKey, reverse := listOrder(ctx)
-	place.newer, place.older, place.position, place.total, err = messageNeighbors(c, uid, listCriteria(c, settings, query, view), sortKey, reverse)
-	return place, err
+	return orderView(mailbox, query, view, sortKey, reverse), query == "" && view == "" && sortKey == "" && reverse
+}
+
+// A narrowed, sorted or threaded list places the message in its held order; the folder's own, in its held pages.
+func (p *plugin) cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
+	user := ctx.Login.Username()
+	sortKey, _ := listOrder(ctx)
+	cached, place, placed = p.listings.message(user, listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, alborz.PerPage(ctx))
+	if order, own := messageList(ctx, mailbox, query, view); !own {
+		if o, ok := p.listings.heldOrder(user, order); ok {
+			return cached, placeIn(o.uids, uid), true
+		}
+	}
+	return cached, place, placed
+}
+
+func (p *plugin) placeInList(ctx *alborz.Context, c *imapclient.Client, settings *Settings, mailbox string, uid imap.UID, query, view string) (listPlace, error) {
+	if err := ensureMailboxSelected(c, mailbox); err != nil {
+		return listPlace{}, err
+	}
+	order, own := messageList(ctx, mailbox, query, view)
+	algorithm := ThreadAlgorithm(c)
+	threaded := ctx.QueryParam("sort") == threadSort
+	if own || threaded && algorithm == "" {
+		return folderNeighbors(c, uid)
+	}
+	o, err := p.listings.order(ctx.Login.Username(), order, func() (messageOrder, error) {
+		criteria := listCriteria(c, settings, query, view)
+		if threaded {
+			return threadOrder(c, algorithm, criteria)
+		}
+		sortKey, reverse := listOrder(ctx)
+		uids, err := viewOrder(c, search.Parse(query), criteria, sortKey, reverse)
+		return messageOrder{uids: uids}, err
+	})
+	if err != nil {
+		return listPlace{}, err
+	}
+	return placeIn(o.uids, uid), nil
 }
 
 func readThread(ctx *alborz.Context, c *imapclient.Client, mailbox, sent string, msg *IMAPMessage) (*ThreadNeighbour, []ThreadNeighbour) {
@@ -96,7 +130,7 @@ func (p *plugin) handleMessageNavigation(ctx *alborz.Context) error {
 		msg := data.Message
 		if !placed {
 			var err error
-			if place, err = placeInList(ctx, c, settings, mailbox, uid, data.Query, view); err != nil {
+			if place, err = p.placeInList(ctx, c, settings, mailbox, uid, data.Query, view); err != nil {
 				return err
 			}
 		}

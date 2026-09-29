@@ -37,6 +37,15 @@ const listingSep = "\x00"
 // Every search makes an entry.
 const maxListingEntries = 512
 
+// A view's order is a UID per message, 400 KB for a folder of a hundred
+// thousand, and a conversation view's twice that and a word per thread;
+// these bound every order held: 16 MiB in four-byte words, and a search
+// across two hundred folders of forty accounts, twice.
+const (
+	maxHeldWords  = 4 << 20
+	maxHeldOrders = 16 << 10
+)
+
 func listingView(folder, query, view, sortKey, sortDir string) string {
 	if query == "" && view == "" && sortKey == "" && sortDir == "" {
 		return folder
@@ -67,7 +76,7 @@ type listingKey struct{ user, view string }
 func newListingCache(keepFor time.Duration, sidebars *memo.Memo[sidebar], bodies *bodyCache) *listingCache {
 	return &listingCache{
 		keepFor: keepFor, accountSidebars: sidebars, bodies: bodies,
-		entries: make(map[listingKey]*listingEntry), refreshing: make(map[listingKey]bool),
+		entries: make(map[listingKey]*listingEntry), orders: make(map[listingKey]*heldOrder), refreshing: make(map[listingKey]bool),
 		flights: make(map[listingKey]*listingFlight), generation: make(map[string]uint64),
 	}
 }
@@ -79,9 +88,106 @@ type listingCache struct {
 
 	mu         sync.Mutex
 	entries    map[listingKey]*listingEntry
+	orders     map[listingKey]*heldOrder
+	heldWords  int
 	refreshing map[listingKey]bool
 	flights    map[listingKey]*listingFlight
 	generation map[string]uint64
+}
+
+// messageOrder is a view's messages in the list's order. A conversation view
+// also holds each message's depth and the place each conversation starts.
+type messageOrder struct {
+	uids   []imap.UID
+	depths []int32
+	starts []int32
+}
+
+func (o messageOrder) words() int {
+	return len(o.uids) + len(o.depths) + len(o.starts)
+}
+
+// heldOrder is never written once held.
+type heldOrder struct {
+	messageOrder
+	lastUse time.Time
+}
+
+// The order a view's pages and neighbours are cut from: sortKey "" is by date, as the list is.
+func orderView(folder, query, view, sortKey string, reverse bool) string {
+	if sortKey == "" {
+		sortKey = "date"
+	}
+	return strings.Join([]string{folder, query, view, sortKey, map[bool]string{true: "desc", false: "asc"}[reverse]}, listingSep)
+}
+
+// order returns a view's order, asking the server once until its folder changes.
+func (lc *listingCache) order(user, view string, ask func() (messageOrder, error)) (messageOrder, error) {
+	if !lc.keeps() {
+		return ask()
+	}
+	if o, ok := lc.heldOrder(user, view); ok {
+		return o, nil
+	}
+	generation := lc.epoch(user)
+	o, err := ask()
+	if err != nil {
+		return messageOrder{}, err
+	}
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	// A change while the server answered leaves the answer unheld.
+	if lc.generation[user] != generation || o.words() > maxHeldWords {
+		return o, nil
+	}
+	k := listingKey{user, view}
+	if old := lc.orders[k]; old != nil {
+		lc.heldWords -= old.words()
+	}
+	lc.orders[k] = &heldOrder{messageOrder: o, lastUse: time.Now()}
+	lc.heldWords += o.words()
+	if lc.heldWords > maxHeldWords || len(lc.orders) > maxHeldOrders {
+		// Down to three quarters at once, so a search across many folders sorts the orders once, not per folder.
+		keys := slices.SortedFunc(maps.Keys(lc.orders), func(a, b listingKey) int {
+			return lc.orders[a].lastUse.Compare(lc.orders[b].lastUse)
+		})
+		for _, old := range keys {
+			if lc.heldWords <= maxHeldWords*3/4 && len(lc.orders) <= maxHeldOrders*3/4 {
+				break
+			}
+			lc.heldWords -= lc.orders[old].words()
+			delete(lc.orders, old)
+		}
+	}
+	return o, nil
+}
+
+func (lc *listingCache) heldOrder(user, view string) (messageOrder, bool) {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	o := lc.orders[listingKey{user, view}]
+	if o == nil || time.Since(o.lastUse) > lc.keepFor {
+		return messageOrder{}, false
+	}
+	o.lastUse = time.Now()
+	return o.messageOrder, true
+}
+
+// Called with lc.mu held.
+func (lc *listingCache) dropOrders(user string, match func(view string) bool) {
+	for k, o := range lc.orders {
+		if k.user == user && match(k.view) {
+			lc.heldWords -= o.words()
+			delete(lc.orders, k)
+		}
+	}
+}
+
+// reorder drops a folder's orders: its messages or their flags moved.
+func (lc *listingCache) reorder(user, folder string) {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	lc.dropOrders(user, func(view string) bool { return shows(view, folder) })
 }
 
 type listingFlight struct {
@@ -366,6 +472,7 @@ func (lc *listingCache) railUnseen(user, folder string, delta int) {
 func (lc *listingCache) setFlags(user, folder string, seqNum uint32, flags []imap.Flag) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
+	lc.dropOrders(user, func(view string) bool { return shows(view, folder) })
 	moved := 0
 	for k, e := range lc.entries {
 		if k.user != user || e.fetched.IsZero() {
@@ -393,6 +500,7 @@ func (lc *listingCache) flags(user, folder string, uids []imap.UID, op imap.Stor
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	lc.generation[user]++
+	lc.dropOrders(user, func(view string) bool { return shows(view, folder) })
 	deltas := make(map[imap.UID]int)
 	shown := make(map[imap.UID]bool)
 	for k, e := range lc.entries {
@@ -520,6 +628,7 @@ func (lc *listingCache) stale(user, folder string) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	lc.generation[user]++
+	lc.dropOrders(user, func(view string) bool { return shows(view, folder) })
 	for k, e := range lc.entries {
 		if k.user == user && shows(k.view, folder) {
 			e.fetched, e.changed = time.Time{}, true
@@ -549,6 +658,7 @@ func (p *plugin) revalidate(s *alborz.Login, view string, e *listingEntry, folde
 				p.listings.refresh(user, view)
 				return nil
 			}
+			p.folderMoved(user, name)
 			fresh, err = fetch(c)
 			return err
 		})
@@ -583,6 +693,7 @@ func (lc *listingCache) drop(user string, match func(view string) bool) {
 	lc.mu.Lock()
 	lc.generation[user]++
 	maps.DeleteFunc(lc.entries, func(k listingKey, _ *listingEntry) bool { return k.user == user && match(k.view) })
+	lc.dropOrders(user, match)
 	lc.mu.Unlock()
 	lc.accountSidebars.Stale(user)
 }

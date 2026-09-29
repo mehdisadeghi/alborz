@@ -96,7 +96,9 @@ var TemplateFuncs = template.FuncMap{
 		}
 		return "ascending"
 	},
-	"pathescape": url.PathEscape,
+	// A colon escaped too, or a segment after a dynamic prefix reads to the escaper as a scheme: a DAV path's
+	// marker carries a host's port (ADR 28).
+	"pathescape": func(s string) string { return strings.ReplaceAll(url.PathEscape(s), ":", "%3A") },
 	// template.URL, or the escaper would percent-encode what QueryValue left alone.
 	"qv":         func(v string) template.URL { return template.URL(alborz.QueryValue(v)) },
 	"subjectdir": lang.SubjectDir,

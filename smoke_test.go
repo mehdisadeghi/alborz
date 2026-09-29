@@ -2999,3 +2999,31 @@ func TestLongPartShowsItsStart(t *testing.T) {
 		})
 	}
 }
+
+func TestUnbrokenLineShowsAsText(t *testing.T) {
+	addr, _ := startIMAPServer(t, rigCaps())
+	ic, err := imapclient.DialInsecure(addr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ic.Close()
+	if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	line := "LINESTART" + strings.Repeat(" word", 100<<10/5) + " LINEEND"
+	raw := "From: <eve@example.org>\r\nTo: <" + smokeUser + ">\r\nSubject: One line\r\nMIME-Version: 1.0\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n\r\n" + line + "\r\n"
+	cmd := ic.Append("INBOX", int64(len(raw)), nil)
+	cmd.Write([]byte(raw))
+	cmd.Close()
+	appended, err := cmd.Wait()
+	if err != nil {
+		t.Fatalf("append: %v", err)
+	}
+	base := startAlborz(t, addr)
+	c := login(t, base)
+	page := get(t, c, fmt.Sprintf("%s/message/INBOX/%d?part=1", base, appended.UID))
+	if !strings.Contains(page, "LINESTART") || !strings.Contains(page, "LINEEND") {
+		t.Error("a 100 KiB line does not show as text")
+	}
+}

@@ -1116,8 +1116,11 @@ func emptyMailbox(c *imapclient.Client, mboxName string) (int, error) {
 	}
 	var seq imap.SeqSet
 	seq.AddRange(1, 0)
-	if err := deleteMessages(c, mboxName, seq); err != nil {
-		return 0, err
+	if err := storeFlags(c, mboxName, seq, imap.StoreFlagsAdd, []imap.Flag{imap.FlagDeleted}); err != nil {
+		return 0, fmt.Errorf("failed to add deleted flag: %w", err)
+	}
+	if err := c.Expunge().Close(); err != nil {
+		return 0, fmt.Errorf("failed to expunge mailbox: %w", err)
 	}
 	return n, nil
 }

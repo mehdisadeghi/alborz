@@ -1921,12 +1921,17 @@ func deleteMessage(conn *imapclient.Client, mboxName string, uid imap.UID) error
 	return deleteMessages(conn, mboxName, imap.UIDSetNum(uid))
 }
 
-func deleteMessages(conn *imapclient.Client, mboxName string, set imap.NumSet) error {
-	if err := storeFlags(conn, mboxName, set, imap.StoreFlagsAdd, []imap.Flag{imap.FlagDeleted}); err != nil {
+// A plain EXPUNGE would also remove what another client marked deleted, so
+// without UIDPLUS the messages are only marked.
+func deleteMessages(conn *imapclient.Client, mboxName string, uids imap.UIDSet) error {
+	if err := storeFlags(conn, mboxName, uids, imap.StoreFlagsAdd, []imap.Flag{imap.FlagDeleted}); err != nil {
 		return fmt.Errorf("failed to add deleted flag: %w", err)
 	}
-	if err := conn.Expunge().Close(); err != nil {
-		return fmt.Errorf("failed to expunge mailbox: %w", err)
+	if !conn.Caps().Has(imap.CapUIDPlus) {
+		return nil
+	}
+	if err := conn.UIDExpunge(uids).Close(); err != nil {
+		return fmt.Errorf("failed to expunge messages: %w", err)
 	}
 	return nil
 }

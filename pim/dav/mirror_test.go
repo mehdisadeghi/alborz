@@ -80,6 +80,11 @@ func (s *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.requests++
+	if r.Method == http.MethodDelete {
+		s.set(path.Base(r.URL.Path), "")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	raw, _ := io.ReadAll(r.Body)
 	body := string(raw)
 	var out []string
@@ -276,6 +281,12 @@ func TestMirrorShowsAnOwnWriteAtOnce(t *testing.T) {
 	if n := s.count() - before; n != 0 {
 		t.Errorf("the read after an own write reached the server %d times", n)
 	}
+	if err := c.RemoveAll(context.Background(), "/cal/mine.ics"); err != nil {
+		t.Fatal(err)
+	}
+	if got := summaries(t, c); !slices.Equal(got, []string{"a"}) {
+		t.Errorf("after an own delete: %v", got)
+	}
 }
 
 // byHost is the internet as far as a test goes: each host its server.
@@ -349,5 +360,45 @@ func TestMirrorNeverServesOneNamesCopyToAnother(t *testing.T) {
 	}
 	if _, kept, err := m.held(Principal{Account: "u", Name: "alice"}.key(), marker(u.Host)+"/cal/"); err != nil || !kept {
 		t.Errorf("alice's copy is gone (%v)", err)
+	}
+}
+
+// Past its budget the copy lets the least recently read collections go from memory, never from disk.
+func TestMirrorHoldsOpenedCollectionsWithinItsBudget(t *testing.T) {
+	m, _ := through(t, newFake())
+	read := func(i int) []string {
+		s := newFake()
+		s.change("a.ics", "")
+		s.change("s.ics", event(fmt.Sprintf("s%d", i)))
+		c, err := caldav.NewClient(&http.Client{Transport: m.Transport(Principal{Account: "u", Name: strconv.Itoa(i)}, s)}, "https://dav.test/")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return summaries(t, c)
+	}
+	held := func(i int) bool {
+		m.hotMu.Lock()
+		defer m.hotMu.Unlock()
+		return m.hot[objectsKey(Principal{Account: "u", Name: strconv.Itoa(i)}.key(), "/cal/")] != nil
+	}
+	read(0)
+	one := m.hotBytes
+	if one == 0 {
+		t.Fatal("a read collection is not held")
+	}
+	m.hotMax = 2*one + one/2
+	for i := range 5 {
+		if got, want := read(i), []string{fmt.Sprintf("s%d", i)}; !slices.Equal(got, want) {
+			t.Fatalf("collection %d read %v, want %v", i, got, want)
+		}
+		if m.hotBytes > m.hotMax || !held(i) {
+			t.Fatalf("after reading %d: %d bytes held of %d, it held: %v", i, m.hotBytes, m.hotMax, held(i))
+		}
+	}
+	if len(m.hot) != 2 || !held(3) || held(2) {
+		t.Errorf("held %d collections, 3 held %v, 2 held %v; want the two last read", len(m.hot), held(3), held(2))
+	}
+	if got := read(0); !slices.Equal(got, []string{"s0"}) {
+		t.Errorf("a collection let go read %v", got)
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/kv"
@@ -33,6 +34,9 @@ const (
 	tick        = 10 * time.Second
 	syncWorkers = 4
 	lockTimeout = 5 * time.Second
+	// hotMaxBytes bounds a kind's opened objects across every account. The rig's 33 accounts open 74 MB
+	// of calendars and 19 MB of address books; a page reading more than this opens every collection again.
+	hotMaxBytes = 128 << 20
 )
 
 // Mirror keeps a copy of each remote collection an account reads, in step with its server (ADR 53).
@@ -49,6 +53,30 @@ type Mirror struct {
 	readers map[string]*reader
 	closed  bool
 	work    sync.WaitGroup
+
+	// hot is read collections' objects as opened from disk, until they change or the least recently
+	// read give way to hotMax; changed counts the changes.
+	hotMu    sync.Mutex
+	hot      map[string]*opened
+	hotBytes int
+	hotMax   int
+	uses     uint64
+	changed  map[string]uint64
+}
+
+type opened struct {
+	objects []object
+	size    int
+	used    uint64
+}
+
+// sizeOf is what the opened objects hold in memory: their headers and the bytes behind them.
+func sizeOf(objects []object) int {
+	n := cap(objects) * int(unsafe.Sizeof(object{}))
+	for _, o := range objects {
+		n += len(o.Name) + len(o.ETag) + cap(o.Data)
+	}
+	return n
 }
 
 type reader struct {
@@ -122,7 +150,7 @@ func OpenMirror(dir string, kind Kind, key *fernet.Key) (*Mirror, error) {
 		return nil, err
 	}
 	m := &Mirror{db: db, key: key, wire: wireFor(kind.Holds), poll: kind.Poll,
-		readers: map[string]*reader{}}
+		readers: map[string]*reader{}, hot: map[string]*opened{}, hotMax: hotMaxBytes, changed: map[string]uint64{}}
 	if err := alborz.CheckKey(db, file, key, owner+"/"); err != nil {
 		db.Close()
 		return nil, err
@@ -188,10 +216,67 @@ func (m *Mirror) heldOf(u string) ([]mirrored, error) {
 	return scan[mirrored](m, owner+"/held/"+u+"/")
 }
 
+// objects are the collection's copy, by name; the slice is shared and never changed.
 func (m *Mirror) objects(u, coll string) ([]object, error) {
-	out, err := scan[object](m, objectsKey(u, coll))
+	k := objectsKey(u, coll)
+	m.hotMu.Lock()
+	m.uses++
+	h := m.hot[k]
+	if h != nil {
+		h.used = m.uses
+	}
+	before := m.changed[k]
+	m.hotMu.Unlock()
+	if h != nil {
+		return h.objects, nil
+	}
+	out, err := scan[object](m, k)
+	if err != nil {
+		return nil, err
+	}
 	slices.SortFunc(out, func(a, b object) int { return strings.Compare(a.Name, b.Name) })
-	return out, err
+	m.hotMu.Lock()
+	if m.changed[k] == before {
+		m.hold(k, &opened{objects: out, size: sizeOf(out), used: m.uses})
+	}
+	m.hotMu.Unlock()
+	return out, nil
+}
+
+// hold keeps the collection opened, letting the least recently read go until the rest fit; the caller holds hotMu.
+func (m *Mirror) hold(k string, o *opened) {
+	m.unhold(k)
+	m.hot[k] = o
+	m.hotBytes += o.size
+	for m.hotBytes > m.hotMax {
+		var oldest string
+		for k, h := range m.hot {
+			if oldest == "" || h.used < m.hot[oldest].used {
+				oldest = k
+			}
+		}
+		m.unhold(oldest)
+	}
+}
+
+// The caller holds hotMu.
+func (m *Mirror) unhold(k string) {
+	if h := m.hot[k]; h != nil {
+		m.hotBytes -= h.size
+		delete(m.hot, k)
+	}
+}
+
+// change drops the collection's opened objects; the caller changes them on disk inside update.
+func (m *Mirror) change(u, coll string, update func(kv.Tx) error) error {
+	k := objectsKey(u, coll)
+	defer func() {
+		m.hotMu.Lock()
+		m.unhold(k)
+		m.changed[k]++
+		m.hotMu.Unlock()
+	}()
+	return m.db.Update(update)
 }
 
 func (m *Mirror) etags(u, coll string) (map[string]string, error) {
@@ -374,7 +459,7 @@ func (m *Mirror) sync(ctx context.Context, r *reader, u string, target *url.URL,
 		return nil
 	}
 	h.Token, h.CTag, h.NoSync, h.Synced = d.token, d.ctag, d.noSync, time.Now()
-	return m.db.Update(func(tx kv.Tx) error {
+	return m.change(u, target.Path, func(tx kv.Tx) error {
 		prefix := objectsKey(u, target.Path)
 		if d.whole {
 			if err := kv.DeleteUnder(tx, prefix, nil); err != nil {
@@ -432,7 +517,7 @@ func (m *Mirror) wrote(u string, req *http.Request, body []byte, resp *http.Resp
 		return err
 	}
 	etag := resp.Header.Get("ETag")
-	return m.db.Update(func(tx kv.Tx) error {
+	return m.change(u, coll, func(tx kv.Tx) error {
 		k := objectsKey(u, coll) + hashed(name)
 		var err error
 		switch {
@@ -454,7 +539,7 @@ func (m *Mirror) wrote(u string, req *http.Request, body []byte, resp *http.Resp
 }
 
 func (m *Mirror) drop(u, coll string) error {
-	return m.db.Update(func(tx kv.Tx) error {
+	return m.change(u, coll, func(tx kv.Tx) error {
 		if err := tx.Delete(heldKey(u, coll)); err != nil {
 			return err
 		}

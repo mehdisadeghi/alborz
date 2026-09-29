@@ -2,14 +2,18 @@ package mail
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-imap/v2/imapserver"
+	"github.com/emersion/go-imap/v2/imapserver/imapmemserver"
 )
 
 func refusingIMAP(t *testing.T) string {
@@ -100,5 +104,92 @@ func TestNotifyAdvertisedButRefused(t *testing.T) {
 	}
 	if err := idle.Close(); err != nil {
 		t.Fatalf("leaving IDLE failed: %v", err)
+	}
+}
+
+// imapserver always offers IDLE with IMAP4rev1, so it is struck from what the server says.
+type idleHiding struct{ net.Listener }
+
+func (l idleHiding) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	return idleHidingConn{c}, err
+}
+
+type idleHidingConn struct{ net.Conn }
+
+func (c idleHidingConn) Write(b []byte) (int, error) {
+	if _, err := c.Conn.Write(bytes.ReplaceAll(b, []byte(" IDLE"), nil)); err != nil {
+		return 0, err
+	}
+	return len(b), nil
+}
+
+func TestWithoutIdleTheSweepNoticesNewMail(t *testing.T) {
+	mem := imapmemserver.New()
+	user := imapmemserver.NewUser("u", "p")
+	for _, name := range []string{"INBOX", "Junk"} {
+		if err := user.Create(name, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mem.AddUser(user)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := imapserver.New(&imapserver.Options{
+		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
+			return mem.NewSession(), nil, nil
+		},
+		Caps:         imap.CapSet{imap.CapIMAP4rev1: {}},
+		InsecureAuth: true,
+	})
+	go srv.Serve(idleHiding{ln})
+	t.Cleanup(func() { srv.Close() })
+
+	c, err := imapclient.DialInsecure(ln.Addr().String(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := c.Login("u", "p").Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if c.Caps().Has(imap.CapIdle) {
+		t.Fatal("the server advertises IDLE; the check proves nothing")
+	}
+
+	p := newPlugin(&alborz.Options{Cache: true})
+	for _, name := range []string{"INBOX", "Junk"} {
+		p.listings.storeAt("u", name, &listingEntry{perPage: 25}, p.listings.epoch("u"))
+	}
+	done, swept := make(chan struct{}), make(chan struct{})
+	sweep := p.folderSweep("u", c, &alborz.Changes{})
+	go sweepEvery(done, func() error {
+		err := sweep()
+		select {
+		case swept <- struct{}{}:
+		case <-done:
+		}
+		return err
+	}, time.Millisecond)
+	defer close(done)
+
+	<-swept
+	for _, name := range []string{"INBOX", "Junk"} {
+		if _, state := p.listings.lookup("u", name, 25); state != listingFresh {
+			t.Fatalf("%s is %v before any mail came", name, state)
+		}
+		raw := "Subject: new\r\n\r\nBody.\r\n"
+		if _, err := user.Append(name, strings.NewReader(raw), &imap.AppendOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	<-swept
+	<-swept
+	for _, name := range []string{"INBOX", "Junk"} {
+		if _, state := p.listings.lookup("u", name, 25); state != listingChanged {
+			t.Errorf("new mail in %s went unnoticed: %v", name, state)
+		}
 	}
 }

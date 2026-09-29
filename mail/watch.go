@@ -106,17 +106,11 @@ func (p *plugin) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool
 	}
 	defer c.Close()
 
-	if !c.Caps().Has(imap.CapIdle) {
-		// Sleeping keeps the loop from spinning.
-		select {
-		case <-s.Done():
-		case <-time.After(idleWindow):
+	idle := c.Caps().Has(imap.CapIdle)
+	if idle {
+		if _, err := c.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
+			return fmt.Errorf("failed to select INBOX: %w", err)
 		}
-		return nil
-	}
-
-	if _, err := c.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
-		return fmt.Errorf("failed to select INBOX: %w", err)
 	}
 	// A reconnection may have missed changes in any folder.
 	if reconnect {
@@ -124,6 +118,9 @@ func (p *plugin) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool
 		if err := p.warmInbox(s); err != nil {
 			return err
 		}
+	}
+	if !idle {
+		return sweepEvery(s.Done(), p.folderSweep(user, c, changes), idleWindow)
 	}
 
 	window, sweep := idleWindow, (func() error)(nil)
@@ -170,13 +167,18 @@ func armNotify(c *imapclient.Client) bool {
 
 func (p *plugin) folderSweep(user string, c *imapclient.Client, changes *alborz.Changes) func() error {
 	seen := map[string]imap.UID{}
+	// The selected folder is IDLE's to report; without IDLE none is selected.
+	var selected string
+	if m := c.Mailbox(); m != nil {
+		selected = m.Name
+	}
 	return func() error {
 		folders, err := c.List("", "*", nil).Collect()
 		if err != nil {
 			return fmt.Errorf("failed to list folders: %w", err)
 		}
 		for _, f := range folders {
-			if f.Mailbox == "INBOX" || slices.Contains(f.Attrs, imap.MailboxAttrNoSelect) ||
+			if f.Mailbox == selected || slices.Contains(f.Attrs, imap.MailboxAttrNoSelect) ||
 				slices.Contains(f.Attrs, imap.MailboxAttrNonExistent) {
 				continue
 			}
@@ -192,6 +194,20 @@ func (p *plugin) folderSweep(user string, c *imapclient.Client, changes *alborz.
 			}
 		}
 		return nil
+	}
+}
+
+// Without IDLE, new mail is noticed only by sweeping.
+func sweepEvery(done <-chan struct{}, sweep func() error, window time.Duration) error {
+	for {
+		if err := sweep(); err != nil {
+			return err
+		}
+		select {
+		case <-done:
+			return nil
+		case <-time.After(window):
+		}
 	}
 }
 

@@ -18,4 +18,6 @@ func Mount(g *web.Group) {
 	g.POST("server", "/settings/servers/{server}", mail.Scoped(handleServer))
 	g.POST("language", "/language", handleLanguage)
 	registerPasskeyRoutes(g)
+	srv := g.Server()
+	srv.OnServers = append(srv.OnServers, mailCards)
 }

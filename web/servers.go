@@ -11,7 +11,7 @@ type Ability struct {
 	Stated bool
 }
 
-// Server groups, in the order the list shows them.
+// Server groups: a card's row in the list, and the page about them.
 const (
 	ServerMail    = "mail"
 	ServerSending = "sending"
@@ -42,4 +42,45 @@ func (c ServerCard) SourceText(t func(string) string) string {
 // Place is one place new collections can go.
 type Place struct {
 	ID, Label string
+}
+
+// Servers are the account's servers as a page about them shows them, each feature adding its own.
+type Servers struct {
+	// Showing is the group the page is about, empty for the list, which costs no round trip.
+	Showing string
+	Cards   []ServerCard
+	// Places are where the account's new calendars and address books can go (ADR 28).
+	Places []Place
+}
+
+// Servers asks every feature for its servers, as the page about showing is shown, so a saved form asks none of them.
+func (ctx *Context) Servers(showing string) (*Servers, error) {
+	servers := &Servers{Showing: showing}
+	for _, add := range ctx.Server.OnServers {
+		if err := add(ctx, servers); err != nil {
+			return nil, err
+		}
+	}
+	return servers, nil
+}
+
+// AddPlace offers a place once, however many features know it.
+func (s *Servers) AddPlace(id, label string) {
+	for _, p := range s.Places {
+		if p.ID == id {
+			return
+		}
+	}
+	s.Places = append(s.Places, Place{ID: id, Label: label})
+}
+
+// Shown are the cards of the group the page is about.
+func (s *Servers) Shown() []ServerCard {
+	var shown []ServerCard
+	for _, c := range s.Cards {
+		if c.Group == s.Showing {
+			shown = append(shown, c)
+		}
+	}
+	return shown
 }

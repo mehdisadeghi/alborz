@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz/pim/store"
-	settingsweb "git.mehdix.org/alborz/settings/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -53,9 +52,8 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 }
 
 // Cards put each of the kind's sources among the account's servers.
-func (p *Provider) Cards(title string, abilities func(Advertised) []web.Ability) func(*web.Context, web.RenderData) error {
-	return func(ctx *web.Context, data web.RenderData) error {
-		servers := data.(*settingsweb.ServersRenderData)
+func (p *Provider) Cards(title string, abilities func(Advertised) []web.Ability) func(*web.Context, *web.Servers) error {
+	return func(ctx *web.Context, servers *web.Servers) error {
 		for _, src := range p.Sources(ctx.Request().Context(), ctx.Login) {
 			servers.AddPlace(src.ID, placeHost(ctx, src))
 			// This alborz tells other clients how to reach it instead; HereCard is its card.
@@ -67,7 +65,7 @@ func (p *Provider) Cards(title string, abilities func(Advertised) []web.Ability)
 	}
 }
 
-func (p *Provider) card(ctx *web.Context, servers *settingsweb.ServersRenderData, title string, src Source, abilities func(Advertised) []web.Ability) web.ServerCard {
+func (p *Provider) card(ctx *web.Context, servers *web.Servers, title string, src Source, abilities func(Advertised) []web.Ability) web.ServerCard {
 	host := src.URL.Host
 	card := web.ServerCard{Group: web.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
 	if servers.Showing == web.ServerDAV {
@@ -93,9 +91,8 @@ func (p *Provider) card(ctx *web.Context, servers *settingsweb.ServersRenderData
 }
 
 // HereCard puts the collections kept here among the account's servers.
-func (p *Provider) HereCard() func(*web.Context, web.RenderData) error {
-	return func(ctx *web.Context, data web.RenderData) error {
-		servers := data.(*settingsweb.ServersRenderData)
+func (p *Provider) HereCard() func(*web.Context, *web.Servers) error {
+	return func(ctx *web.Context, servers *web.Servers) error {
 		servers.Cards = append(servers.Cards, web.ServerCard{
 			Group: web.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
 			Rows: []map[string]any{

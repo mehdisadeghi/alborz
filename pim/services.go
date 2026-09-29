@@ -42,7 +42,7 @@ func (d *ServerRenderData) DefaultPlace() string {
 }
 
 func handleServer(ctx *web.Context) error {
-	servers, err := settingsweb.NewServersRenderData(ctx, settingsweb.ServerDAV)
+	servers, err := settingsweb.NewServersRenderData(ctx, web.ServerDAV)
 	if err != nil {
 		return err
 	}

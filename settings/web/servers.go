@@ -1,7 +1,6 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -21,34 +20,25 @@ type ServerInfo struct {
 	// Agent is what the IMAP server calls itself (RFC 2971 ID); empty without the extension.
 	Agent string
 	// Abilities are the capabilities that change what alborz does.
-	Abilities []Ability
+	Abilities []web.Ability
 	// Explained is the same list as prose.
 	Explained []web.Explained
 }
 
-// Ability is one capability named for what it means to the reader.
-type Ability struct {
-	Label string
-	Hint  string
-	Have  bool
-	// Stated marks an ability the reader claimed in settings rather than the server announced.
-	Stated bool
-}
-
-func abilities(c *imapclient.Client, settings *mail.Settings) []Ability {
+func abilities(c *imapclient.Client, settings *mail.Settings) []web.Ability {
 	caps := c.Caps()
 	indexed := caps.Has(imap.CapSearchFuzzy)
-	return []Ability{
-		{"settings.abilitysort", "settings.abilitysorthint", caps.Has(imap.CapSort), false},
-		{"settings.abilitythread", "settings.abilitythreadhint", caps.Has(imap.Cap("THREAD=REFERENCES")), false},
-		{"settings.abilitysettings", "settings.abilitysettingshint", caps.Has(imap.CapMetadata), false},
-		{"settings.abilityquota", "settings.abilityquotahint", caps.Has(imap.CapQuota), false},
-		{"settings.abilitypush", "settings.abilitypushhint", caps.Has(imap.CapIdle), false},
-		{"settings.abilitycounts", "settings.abilitycountshint", caps.Has(imap.CapListStatus), false},
-		{"settings.abilityindex", "settings.abilityindexhint", indexed || settings.IndexedSearch, !indexed && settings.IndexedSearch},
-		{"settings.abilityuidplus", "settings.abilityuidplushint", caps.Has(imap.CapUIDPlus), false},
-		{"settings.abilitysize", "settings.abilitysizehint", caps.Has(imap.CapStatusSize), false},
-		{"settings.abilityid", "settings.abilityidhint", caps.Has(imap.CapID), false},
+	return []web.Ability{
+		{Label: "settings.abilitysort", Hint: "settings.abilitysorthint", Have: caps.Has(imap.CapSort)},
+		{Label: "settings.abilitythread", Hint: "settings.abilitythreadhint", Have: caps.Has(imap.Cap("THREAD=REFERENCES"))},
+		{Label: "settings.abilitysettings", Hint: "settings.abilitysettingshint", Have: caps.Has(imap.CapMetadata)},
+		{Label: "settings.abilityquota", Hint: "settings.abilityquotahint", Have: caps.Has(imap.CapQuota)},
+		{Label: "settings.abilitypush", Hint: "settings.abilitypushhint", Have: caps.Has(imap.CapIdle)},
+		{Label: "settings.abilitycounts", Hint: "settings.abilitycountshint", Have: caps.Has(imap.CapListStatus)},
+		{Label: "settings.abilityindex", Hint: "settings.abilityindexhint", Have: indexed || settings.IndexedSearch, Stated: !indexed && settings.IndexedSearch},
+		{Label: "settings.abilityuidplus", Hint: "settings.abilityuidplushint", Have: caps.Has(imap.CapUIDPlus)},
+		{Label: "settings.abilitysize", Hint: "settings.abilitysizehint", Have: caps.Has(imap.CapStatusSize)},
+		{Label: "settings.abilityid", Hint: "settings.abilityidhint", Have: caps.Has(imap.CapID)},
 	}
 }
 
@@ -66,7 +56,7 @@ func serverAgent(c *imapclient.Client) string {
 	return data.Name + " " + data.Version
 }
 
-func serverInfo(ctx *web.Context, agent string, abilities []Ability) ServerInfo {
+func serverInfo(ctx *web.Context, agent string, abilities []web.Ability) ServerInfo {
 	_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
 	explained := make([]web.Explained, 0, len(abilities))
@@ -85,49 +75,16 @@ type ServersRenderData struct {
 	// Showing is the server the page is about, empty for the list, which costs no round trip.
 	Showing string
 	// Cards are every server this account talks to, filled in by whichever plugin answers for each.
-	Cards []ServerCard
+	Cards []web.ServerCard
 	// Places are where the account's new calendars and address books can go (ADR 28).
-	Places []Place
+	Places []web.Place
 	// server is the address of a server group's own page.
 	server func(group string) string
 }
 
-// Server groups, in the order the list shows them.
-const (
-	ServerMail    = "mail"
-	ServerSending = "sending"
-	ServerFilters = "filters"
-	ServerDAV     = "dav"
-)
+var serverOrder = []string{web.ServerMail, web.ServerSending, web.ServerFilters, web.ServerDAV}
 
-var serverOrder = []string{ServerMail, ServerSending, ServerFilters, ServerDAV}
-
-var serverPages = map[string]bool{ServerMail: true, ServerDAV: true}
-
-// ServerCard is one upstream's card; Rows are the label/value maps the shared card renders.
-type ServerCard struct {
-	// Group is the list row the card belongs to; several cards can share one.
-	Group string
-	Title string
-	// Host is empty for collections kept here; Source is a translation key; Record is the SRV record it was found by.
-	Host, Source, Record string
-	Rows                 []map[string]any
-	Abilities            []Ability
-	Explained            []web.Explained
-}
-
-// SourceText says how alborz came to the server, in words.
-func (c ServerCard) SourceText(t func(string) string) string {
-	if c.Record != "" {
-		return fmt.Sprintf(t(c.Source), c.Record)
-	}
-	return t(c.Source)
-}
-
-// Place is one place new collections can go.
-type Place struct {
-	ID, Label string
-}
+var serverPages = map[string]bool{web.ServerMail: true, web.ServerDAV: true}
 
 // AddPlace offers a place once, however many plugins know it.
 func (d *ServersRenderData) AddPlace(id, label string) {
@@ -136,7 +93,7 @@ func (d *ServersRenderData) AddPlace(id, label string) {
 			return
 		}
 	}
-	d.Places = append(d.Places, Place{ID: id, Label: label})
+	d.Places = append(d.Places, web.Place{ID: id, Label: label})
 }
 
 // ServerRow is one row of the list: a group of cards by its hosts.
@@ -176,8 +133,8 @@ func (d *ServersRenderData) Rows() []ServerRow {
 }
 
 // Shown are the cards of the server the page is about.
-func (d *ServersRenderData) Shown() []ServerCard {
-	var shown []ServerCard
+func (d *ServersRenderData) Shown() []web.ServerCard {
+	var shown []web.ServerCard
 	for _, c := range d.Cards {
 		if c.Group == d.Showing {
 			shown = append(shown, c)
@@ -186,7 +143,7 @@ func (d *ServersRenderData) Shown() []ServerCard {
 	return shown
 }
 
-func mailCards(ctx *web.Context, showing string) ([]ServerCard, error) {
+func mailCards(ctx *web.Context, showing string) ([]web.ServerCard, error) {
 	_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
 	source := func(record string) (string, string) {
@@ -195,18 +152,18 @@ func mailCards(ctx *web.Context, showing string) ([]ServerCard, error) {
 		}
 		return "servers.fromconfig", ""
 	}
-	card := func(group, title, host, record string) ServerCard {
+	card := func(group, title, host, record string) web.ServerCard {
 		src, rec := source(record)
-		return ServerCard{Group: group, Title: ctx.T(title), Host: host, Source: src, Record: rec}
+		return web.ServerCard{Group: group, Title: ctx.T(title), Host: host, Source: src, Record: rec}
 	}
-	cards := []ServerCard{
-		card(ServerMail, "servers.mail", up.IMAP, up.IMAPFound),
-		card(ServerSending, "servers.sending", up.SMTP, up.SMTPFound),
+	cards := []web.ServerCard{
+		card(web.ServerMail, "servers.mail", up.IMAP, up.IMAPFound),
+		card(web.ServerSending, "servers.sending", up.SMTP, up.SMTPFound),
 	}
 	if up.Sieve != "" {
-		cards = append(cards, card(ServerFilters, "servers.filters", up.Sieve, up.SieveFound))
+		cards = append(cards, card(web.ServerFilters, "servers.filters", up.Sieve, up.SieveFound))
 	}
-	if showing != ServerMail {
+	if showing != web.ServerMail {
 		return cards, nil
 	}
 	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
@@ -214,7 +171,7 @@ func mailCards(ctx *web.Context, showing string) ([]ServerCard, error) {
 		return nil, err
 	}
 	var agent string
-	var abilityList []Ability
+	var abilityList []web.Ability
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		agent = serverAgent(c)
 		abilityList = abilities(c, settings)

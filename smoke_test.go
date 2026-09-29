@@ -798,6 +798,21 @@ func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 	}
 }
 
+func TestReopenedDraftKeepsItsLines(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	text := strings.Repeat("A paragraph long enough to be wrapped when saved. ", 4) + "End."
+	sendFrom(t, c, base, "/compose", get(t, c, base+"/compose"), "save_as_draft", "1", "text", text)
+	drafts := messageUIDs(get(t, c, base+"/mailbox/Drafts"))
+	if len(drafts) != 1 {
+		t.Fatalf("want one draft, found %d", len(drafts))
+	}
+	page := get(t, c, base+"/message/Drafts/"+drafts[0]+"/edit?part=1")
+	if got := html.UnescapeString(between(page, `data-caret="end">`, "</textarea>")); got != text {
+		t.Errorf("the reopened draft reads\n%q\nwant\n%q", got, text)
+	}
+}
+
 func TestBadMessageReferenceIsTheCallersFault(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)

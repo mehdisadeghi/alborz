@@ -791,6 +791,7 @@
 "import.zipsize" = "Die ZIP-Datei ist entpackt größer als %d MB."
 "import.notaddress" = "%s ist keine Webadresse."
 "import.fetchfailed" = "Der Kalender konnte nicht abgerufen werden: %s"
+"import.toolarge" = "Die Datei ist größer als %d MB und zu groß für den Import."
 "export.empty" = "Die Sammlung ist leer; es gibt nichts zu exportieren."
 "import.exportall" = "Alle als .zip exportieren"
 "import.untitled" = "Importiert"

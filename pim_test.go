@@ -373,6 +373,16 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 			t.Errorf("the card before the refusal was not written")
 		}
 	})
+	t.Run("a file over the limit on the import page", func(t *testing.T) {
+		resp := upload(base+"/calendar/import", url.Values{"collection": {smokeUser + "|" + personal}}, "big.ics", strings.Repeat("x", 16<<20+1))
+		page, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("the file over the limit answered %s, want 422", resp.Status)
+		}
+		if !strings.Contains(string(page), "larger than 16 MB") {
+			t.Errorf("the import page does not state the limit")
+		}
+	})
 	t.Run("a server that does not answer the import page", func(t *testing.T) {
 		resp := upload(base+"/calendar/import", url.Values{"collection": {smokeUser + "|" + work}}, "plan.ics", event("plan", "Plan"))
 		if resp.StatusCode != http.StatusInternalServerError {

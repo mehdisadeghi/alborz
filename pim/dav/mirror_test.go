@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"regexp"
 	"slices"
@@ -142,6 +143,8 @@ func (s *fakeDAV) count() int {
 	return s.requests
 }
 
+var someone = Principal{Account: "u", Name: "u"}
+
 func through(t *testing.T, s *fakeDAV) (*Mirror, *caldav.Client) {
 	t.Helper()
 	var key fernet.Key
@@ -153,7 +156,7 @@ func through(t *testing.T, s *fakeDAV) (*Mirror, *caldav.Client) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { m.Close() })
-	c, err := caldav.NewClient(&http.Client{Transport: m.Transport("u", s)}, "https://dav.test/")
+	c, err := caldav.NewClient(&http.Client{Transport: m.Transport(someone, s)}, "https://dav.test/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +165,12 @@ func through(t *testing.T, s *fakeDAV) (*Mirror, *caldav.Client) {
 
 func summaries(t *testing.T, c *caldav.Client) []string {
 	t.Helper()
-	objects, err := c.QueryCalendar(context.Background(), "/cal/", &caldav.CalendarQuery{
+	return summariesIn(t, c, "/cal/")
+}
+
+func summariesIn(t *testing.T, c *caldav.Client, coll string) []string {
+	t.Helper()
+	objects, err := c.QueryCalendar(context.Background(), coll, &caldav.CalendarQuery{
 		// Partial, as the pages ask, so the server re-encodes what it sends.
 		CompRequest: caldav.CalendarCompRequest{Name: "VCALENDAR", Props: []string{"VERSION"},
 			Comps: []caldav.CalendarCompRequest{{Name: "VEVENT", AllProps: true, AllComps: true}}},
@@ -215,7 +223,7 @@ func TestMirrorFollowsTheServer(t *testing.T) {
 			summaries(t, c)
 			s.change("b.ics", event("b"))
 			s.change("a.ics", "")
-			if err := m.Refresh(context.Background(), "u", s); err != nil {
+			if err := m.Refresh(context.Background(), someone, s); err != nil {
 				t.Fatal(err)
 			}
 			if got := summaries(t, c); !slices.Equal(got, []string{"b"}) {
@@ -239,7 +247,7 @@ func TestMirrorResyncsWhenTheTokenIsRefused(t *testing.T) {
 	summaries(t, c)
 	s.forget = true
 	s.change("b.ics", event("b"))
-	if err := m.Refresh(context.Background(), "u", s); err != nil {
+	if err := m.Refresh(context.Background(), someone, s); err != nil {
 		t.Fatal(err)
 	}
 	if got := summaries(t, c); !slices.Equal(got, []string{"a", "b"}) {
@@ -267,5 +275,79 @@ func TestMirrorShowsAnOwnWriteAtOnce(t *testing.T) {
 	}
 	if n := s.count() - before; n != 0 {
 		t.Errorf("the read after an own write reached the server %d times", n)
+	}
+}
+
+// byHost is the internet as far as a test goes: each host its server.
+type byHost map[string]http.RoundTripper
+
+func (h byHost) RoundTrip(req *http.Request) (*http.Response, error) {
+	return h[req.URL.Host].RoundTrip(req)
+}
+
+// One path on two servers is two collections, so naming another server needs nothing forgotten (ADR 28, 59).
+func TestMirrorKeepsTheOldServersCopyApartFromTheNew(t *testing.T) {
+	old, named := newFake(), newFake()
+	named.change("a.ics", "")
+	named.change("n.ics", event("n"))
+	m, _ := through(t, old)
+	web := byHost{"old.test": old, "new.test": named}
+	read := func(host string) []string {
+		u := &url.URL{Scheme: "https", Host: host, Path: "/"}
+		out := sourceRouter{sources: []Source{{ID: SourceOwn, URL: u, Named: true}}, trusted: web, named: web,
+			sign: func(*http.Request, Source) error { return nil }}
+		c, err := caldav.NewClient(&http.Client{Transport: m.Transport(someone, out)}, base.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return summariesIn(t, c, marker(host)+"/cal/")
+	}
+	if got := read("old.test"); !slices.Equal(got, []string{"a"}) {
+		t.Fatalf("the old server's collection: %v", got)
+	}
+	if got := read("new.test"); !slices.Equal(got, []string{"n"}) {
+		t.Errorf("the new server's collection at the same path read %v, want its own", got)
+	}
+	if named.count() == 0 {
+		t.Errorf("the new server was never asked")
+	}
+	if _, kept, err := m.held(someone.key(), marker("old.test")+"/cal/"); err != nil || !kept {
+		t.Errorf("the old server's copy is gone (%v)", err)
+	}
+}
+
+// byName answers each login with its own server, as one path on a server may hold another collection per user.
+type byName map[string]http.RoundTripper
+
+func (n byName) RoundTrip(req *http.Request) (*http.Response, error) {
+	name, _, _ := req.BasicAuth()
+	return n[name].RoundTrip(req)
+}
+
+// An account renamed on its server reads its new name's collection, and the old name's copy stays (ADR 53, 59).
+func TestMirrorNeverServesOneNamesCopyToAnother(t *testing.T) {
+	alice, bob := newFake(), newFake()
+	bob.change("a.ics", "")
+	bob.change("b.ics", event("b"))
+	m, _ := through(t, alice)
+	web := byName{"alice": alice, "bob": bob}
+	u := &url.URL{Scheme: "https", Host: "dav.test", Path: "/"}
+	read := func(name string) []string {
+		out := sourceRouter{sources: []Source{{ID: SourceOwn, URL: u, Named: true}}, trusted: web, named: web,
+			sign: func(req *http.Request, _ Source) error { req.SetBasicAuth(name, "secret"); return nil }}
+		c, err := caldav.NewClient(&http.Client{Transport: m.Transport(Principal{Account: "u", Name: name}, out)}, base.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return summariesIn(t, c, marker(u.Host)+"/cal/")
+	}
+	if got := read("alice"); !slices.Equal(got, []string{"a"}) {
+		t.Fatalf("alice's collection: %v", got)
+	}
+	if got := read("bob"); !slices.Equal(got, []string{"b"}) {
+		t.Errorf("bob was served %v, want his own", got)
+	}
+	if _, kept, err := m.held(Principal{Account: "u", Name: "alice"}.key(), marker(u.Host)+"/cal/"); err != nil || !kept {
+		t.Errorf("alice's copy is gone (%v)", err)
 	}
 }

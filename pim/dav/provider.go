@@ -136,12 +136,6 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 		p.collections.Forget(username)
 		p.troubles.Delete(username)
 	})
-	// A copy is keyed by its collection's path, which the new servers may share with the old.
-	srv.OnServersChanged = append(srv.OnServersChanged, func(username string) {
-		if err := p.mirror.Delete(username); err != nil {
-			srv.Logger().Printf("%s: delete %s: %v", kind.Name, username, err)
-		}
-	})
 	srv.OnClose = append(srv.OnClose, p.Close)
 
 	// Probes may take seconds each, so they run after the port is open.
@@ -506,7 +500,11 @@ func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		for _, s := range ctx.Logins() {
 			rc := ctx.Request().Context()
-			if err := p.mirror.Refresh(rc, s.Username(), p.router(p.Sources(rc, s), s)); err != nil {
+			who, err := principal(rc, s)
+			if err == nil {
+				err = p.mirror.Refresh(rc, who, p.router(p.Sources(rc, s), s))
+			}
+			if err != nil {
 				ctx.Logger().Printf("%s: refresh %s: %v", p.Kind.Name, s.Username(), err)
 			}
 		}

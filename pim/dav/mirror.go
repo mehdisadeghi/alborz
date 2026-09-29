@@ -219,12 +219,20 @@ func (m *Mirror) note(u string, out http.RoundTripper) {
 	m.mu.Unlock()
 }
 
+// Principal is whom a copy is kept for: the account, and the name its servers know it by.
+// A server may answer one path differently per name, so a copy is never served to another (ADR 53).
+type Principal struct {
+	Account, Name string
+}
+
+func (p Principal) key() string { return hashed(p.Account) + "/" + hashed(p.Name) }
+
 // Transport answers reads of held collections and passes everything else to next.
-func (m *Mirror) Transport(username string, next http.RoundTripper) http.RoundTripper {
+func (m *Mirror) Transport(who Principal, next http.RoundTripper) http.RoundTripper {
 	if m == nil {
 		return next
 	}
-	return tripper{m: m, user: hashed(username), next: next}
+	return tripper{m: m, user: who.key(), next: next}
 }
 
 type tripper struct {
@@ -454,44 +462,26 @@ func (m *Mirror) drop(u, coll string) error {
 	})
 }
 
-// Forget stops keeping a signed-out account in step; its sealed copy stays for its return.
+// Forget stops keeping a signed-out account in step under any name; its sealed copies stay for its return.
 func (m *Mirror) Forget(username string) {
 	if m == nil {
 		return
 	}
 	m.mu.Lock()
-	delete(m.readers, hashed(username))
-	m.mu.Unlock()
-}
-
-// Delete drops everything kept for an account.
-func (m *Mirror) Delete(username string) error {
-	if m == nil {
-		return nil
-	}
-	return m.delete(hashed(username))
-}
-
-func (m *Mirror) delete(u string) error {
-	m.saving.Lock()
-	defer m.saving.Unlock()
-	m.mu.Lock()
-	delete(m.readers, u)
-	m.mu.Unlock()
-	return m.db.Update(func(tx kv.Tx) error {
-		if err := kv.DeleteUnder(tx, owner+"/held/"+u+"/", nil); err != nil {
-			return err
+	for u := range m.readers {
+		if strings.HasPrefix(u, hashed(username)+"/") {
+			delete(m.readers, u)
 		}
-		return kv.DeleteUnder(tx, owner+"/objects/"+u+"/", nil)
-	})
+	}
+	m.mu.Unlock()
 }
 
 // Refresh syncs every held collection now; a sync under way is followed by a new one, as it may predate the change.
-func (m *Mirror) Refresh(ctx context.Context, username string, next http.RoundTripper) error {
+func (m *Mirror) Refresh(ctx context.Context, who Principal, next http.RoundTripper) error {
 	if m == nil {
 		return nil
 	}
-	u := hashed(username)
+	u := who.key()
 	m.note(u, next)
 	all, err := m.heldOf(u)
 	if err != nil {

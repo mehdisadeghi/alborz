@@ -154,61 +154,61 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 	}
 }
 
-func registerRoutes(p *plugin) {
+func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
 		return p.dav.Guarded(errNoCalendar, "/calendars/create", h)
 	}
-	GET := func(path string, h func(*web.Context) error) { p.Router.GET(path, guard(h)) }
-	POST := func(path string, h func(*web.Context) error) { p.Router.POST(path, guard(h)) }
-	upload := func(path string, h, over func(*web.Context) error) {
-		p.Router.Upload(path, pim.ImportBodySize, guard(h), guard(over))
+	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
+	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
+	upload := func(name, path string, h, over func(*web.Context) error) {
+		g.Upload(name, path, pim.ImportBodySize, guard(h), guard(over))
 	}
-	POST("/calendar", pim.HandleChoose("/calendar", "cal", choose(func(s *Settings, paths []string) {
+	POST("month", "/calendar", pim.HandleChoose("/calendar", "cal", choose(func(s *Settings, paths []string) {
 		s.CalendarFilter, s.VisibleCalendars = true, paths
 	})))
-	POST("/tasks", pim.HandleChoose("/tasks", "cal", choose(func(s *Settings, paths []string) {
+	POST("tasks", "/tasks", pim.HandleChoose("/tasks", "cal", choose(func(s *Settings, paths []string) {
 		s.TaskFilter, s.VisibleTasks = true, paths
 	})))
-	POST("/calendar/refresh", p.refresh)
-	POST("/tasks/refresh", p.dav.HandleRefresh("/tasks"))
-	GET("/calendar", p.month)
-	GET("/calendar/export", p.exportMonth)
-	GET("/calendar/date", p.day)
-	GET("/calendar/:path", p.event)
+	POST("refresh", "/calendar/refresh", p.refresh)
+	POST("tasks.refresh", "/tasks/refresh", p.dav.HandleRefresh("/tasks"))
+	GET("month", "/calendar", p.month)
+	GET("month.export", "/calendar/export", p.exportMonth)
+	GET("day", "/calendar/date", p.day)
+	GET("event", "/calendar/{path}", p.event)
 
-	GET("/calendar/:path/raw", p.rawObject)
-	GET("/tasks/:path/raw", p.rawObject)
-	GET("/calendars/subscribe", handleSubscribe(p))
-	POST("/calendars/subscribe", handleSubscribe(p))
+	GET("event.raw", "/calendar/{path}/raw", p.rawObject)
+	GET("task.raw", "/tasks/{path}/raw", p.rawObject)
+	GET("subscribe", "/calendars/subscribe", handleSubscribe(p))
+	POST("subscribe", "/calendars/subscribe", handleSubscribe(p))
 	page := p.collectionPage()
-	GET("/calendars/create", page.HandleCreate(p.dav, p.createForm))
-	POST("/calendars/create", page.HandleCreate(p.dav, p.createForm))
+	GET("calendars.create", "/calendars/create", page.HandleCreate(p.dav, p.createForm))
+	POST("calendars.create", "/calendars/create", page.HandleCreate(p.dav, p.createForm))
 	calendarImport, calendarOver := page.HandleImportPage(p.dav, "/calendar", "nav.calendar", "calendar.import", "calendar.importhint", "event", true)
-	GET("/calendar/import", calendarImport)
-	upload("/calendar/import", calendarImport, calendarOver)
+	GET("import", "/calendar/import", calendarImport)
+	upload("import", "/calendar/import", calendarImport, calendarOver)
 	tasksImport, tasksOver := page.HandleImportPage(p.dav, "/tasks", "nav.tasks", "tasks.import", "tasks.importhint", "task", false)
-	GET("/tasks/import", tasksImport)
-	upload("/tasks/import", tasksImport, tasksOver)
-	for _, method := range []func(string, func(*web.Context) error){GET, POST} {
-		method("/calendar/export-all", page.HandleExportAll("/calendar", "calendars.zip"))
-		method("/tasks/export-all", page.HandleExportAll("/tasks", "task-lists.zip"))
+	GET("tasks.import", "/tasks/import", tasksImport)
+	upload("tasks.import", "/tasks/import", tasksImport, tasksOver)
+	for _, method := range []func(string, string, func(*web.Context) error){GET, POST} {
+		method("exportall", "/calendar/export-all", page.HandleExportAll("/calendar", "calendars.zip"))
+		method("tasks.exportall", "/tasks/export-all", page.HandleExportAll("/tasks", "task-lists.zip"))
 	}
-	GET("/calendars/:path", page.Handle(p.dav))
-	POST("/calendars/:path", page.Handle(p.dav))
-	POST("/calendars/:path/delete", page.HandleDelete(p.dav))
-	upload("/calendars/:path/import", page.HandleImport(p.dav), page.HandleImportTooLarge)
-	GET("/calendars/:path/export", page.HandleExport(p.dav))
-	POST("/calendars/:path/share", page.HandleShare(p.dav))
-	POST("/calendars/:path/unshare", page.HandleUnshare(p.dav))
-	POST("/calendars/:path/access", page.HandleAccess(p.dav))
-	POST("/calendars/:path/accept", page.HandleAnswer(p.dav, true))
-	POST("/calendars/:path/decline", page.HandleAnswer(p.dav, false))
-	POST("/calendars/:path/publish", page.HandlePublish(p.dav, true))
-	POST("/calendars/:path/unpublish", page.HandlePublish(p.dav, false))
-	GET("/calendar/create", p.updateEvent)
-	POST("/calendar/create", p.updateEvent)
-	GET("/calendar/:path/update", p.updateEvent)
-	POST("/calendar/:path/update", p.updateEvent)
+	GET("collection", "/calendars/{path}", page.Handle(p.dav))
+	POST("collection", "/calendars/{path}", page.Handle(p.dav))
+	POST("collection.delete", "/calendars/{path}/delete", page.HandleDelete(p.dav))
+	upload("collection.import", "/calendars/{path}/import", page.HandleImport(p.dav), page.HandleImportTooLarge)
+	GET("collection.export", "/calendars/{path}/export", page.HandleExport(p.dav))
+	POST("collection.share", "/calendars/{path}/share", page.HandleShare(p.dav))
+	POST("collection.unshare", "/calendars/{path}/unshare", page.HandleUnshare(p.dav))
+	POST("collection.access", "/calendars/{path}/access", page.HandleAccess(p.dav))
+	POST("collection.accept", "/calendars/{path}/accept", page.HandleAnswer(p.dav, true))
+	POST("collection.decline", "/calendars/{path}/decline", page.HandleAnswer(p.dav, false))
+	POST("collection.publish", "/calendars/{path}/publish", page.HandlePublish(p.dav, true))
+	POST("collection.unpublish", "/calendars/{path}/unpublish", page.HandlePublish(p.dav, false))
+	GET("event.create", "/calendar/create", p.updateEvent)
+	POST("event.create", "/calendar/create", p.updateEvent)
+	GET("event.update", "/calendar/{path}/update", p.updateEvent)
+	POST("event.update", "/calendar/{path}/update", p.updateEvent)
 	remove := func(list string) func(*web.Context) error {
 		key, do := "notice.eventsdeleted", p.deleteEvent
 		if list == "/tasks" {
@@ -219,32 +219,32 @@ func registerRoutes(p *plugin) {
 				return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf(key, len(done))}
 			}})
 	}
-	POST("/calendar/delete", remove("/calendar"))
-	POST("/calendar/:path/delete", remove("/calendar"))
-	GET("/calendar/:path/copy", p.copyTo("/calendar"))
-	POST("/calendar/:path/copy", p.copyTo("/calendar"))
-	GET("/tasks", p.tasks)
-	GET("/tasks/:path", p.task)
+	POST("events.delete", "/calendar/delete", remove("/calendar"))
+	POST("event.delete", "/calendar/{path}/delete", remove("/calendar"))
+	GET("event.copy", "/calendar/{path}/copy", p.copyTo("/calendar"))
+	POST("event.copy", "/calendar/{path}/copy", p.copyTo("/calendar"))
+	GET("tasks", "/tasks", p.tasks)
+	GET("task", "/tasks/{path}", p.task)
 
-	GET("/tasks/create", p.updateTask)
-	POST("/tasks/create", p.updateTask)
-	GET("/tasks/:path/edit", p.updateTask)
-	POST("/tasks/:path/edit", p.updateTask)
-	POST("/tasks/:path/delete", remove("/tasks"))
-	POST("/tasks/delete", remove("/tasks"))
-	GET("/tasks/:path/copy", p.copyTo("/tasks"))
-	POST("/tasks/:path/copy", p.copyTo("/tasks"))
-	POST("/tasks/complete", p.complete)
-	GET("/tasks/move", p.move)
-	POST("/tasks/move", p.move)
-	POST("/tasks/export", pim.HandleExport(p.client, "/tasks",
+	GET("task.create", "/tasks/create", p.updateTask)
+	POST("task.create", "/tasks/create", p.updateTask)
+	GET("task.edit", "/tasks/{path}/edit", p.updateTask)
+	POST("task.edit", "/tasks/{path}/edit", p.updateTask)
+	POST("task.delete", "/tasks/{path}/delete", remove("/tasks"))
+	POST("tasks.delete", "/tasks/delete", remove("/tasks"))
+	GET("task.copy", "/tasks/{path}/copy", p.copyTo("/tasks"))
+	POST("task.copy", "/tasks/{path}/copy", p.copyTo("/tasks"))
+	POST("tasks.complete", "/tasks/complete", p.complete)
+	GET("tasks.move", "/tasks/move", p.move)
+	POST("tasks.move", "/tasks/move", p.move)
+	POST("tasks.export", "/tasks/export", pim.HandleExport(p.client, "/tasks",
 		func(ctx *web.Context) string { return ctx.T("nav.tasks") + ".ics" }, joinCalendars))
 
-	POST("/tasks/:path/note", p.note(getFirstTodo, "/tasks"))
-	POST("/calendar/:path/note", p.note(firstEvent, "/calendar"))
-	POST("/tasks/:path/complete", p.complete)
-	POST("/tasks/:path/color", p.color(getFirstTodo, "/tasks"))
-	POST("/calendar/:path/color", p.color(firstEvent, "/calendar"))
+	POST("task.note", "/tasks/{path}/note", p.note(getFirstTodo, "/tasks"))
+	POST("event.note", "/calendar/{path}/note", p.note(firstEvent, "/calendar"))
+	POST("task.complete", "/tasks/{path}/complete", p.complete)
+	POST("task.color", "/tasks/{path}/color", p.color(getFirstTodo, "/tasks"))
+	POST("event.color", "/calendar/{path}/color", p.color(firstEvent, "/calendar"))
 }
 
 // Appended and dated rather than replacing: a note people use is a record.

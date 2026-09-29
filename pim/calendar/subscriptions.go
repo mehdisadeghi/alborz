@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"slices"
@@ -21,7 +22,6 @@ import (
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
-	"github.com/labstack/echo/v4"
 )
 
 // Subscription is a calendar followed by its .ics address. The account's settings list them, so every
@@ -114,7 +114,7 @@ var errNotFeed = errors.New("caldav: the address answered with a web page, not a
 // feeds fills each subscribed calendar kept here from its feed, on the feed's own clock.
 type feeds struct {
 	client *http.Client
-	log    echo.Logger
+	log    *log.Logger
 	store  *store.Store
 
 	// Both are by feed address: accounts following one feed share its fetch.

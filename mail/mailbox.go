@@ -18,7 +18,6 @@ import (
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/labstack/echo/v4"
 )
 
 type MailboxRenderData struct {
@@ -409,7 +408,7 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 	if raw := ctx.QueryParam("thread"); raw != "" {
 		n, perr := strconv.ParseUint(raw, 10, 32)
 		if perr != nil || n == 0 {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid thread")
+			return web.NewError(http.StatusBadRequest, "invalid thread")
 		}
 		ask.spec.thread = imap.UID(n)
 	}
@@ -536,11 +535,11 @@ func searchInstead(ctx *web.Context, ask listAsk) string {
 func readSort(q url.Values, also string) (sortKey, sortDir string, err error) {
 	sortKey = q.Get("sort")
 	if _, ok := sortKeys[sortKey]; !ok && sortKey != also {
-		return "", "", echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
+		return "", "", web.NewError(http.StatusBadRequest, "invalid sort order")
 	}
 	sortDir = q.Get("dir")
 	if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
-		return "", "", echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
+		return "", "", web.NewError(http.StatusBadRequest, "invalid sort direction")
 	}
 	return sortKey, sortDir, nil
 }
@@ -562,7 +561,7 @@ func listOrder(ctx *web.Context) (sortKey string, reverse bool) {
 func readView(q url.Values) (string, error) {
 	view := q.Get("view")
 	if !KnownView(view) {
-		return "", echo.NewHTTPError(http.StatusBadRequest, "unknown view")
+		return "", web.NewError(http.StatusBadRequest, "unknown view")
 	}
 	return view, nil
 }
@@ -747,7 +746,7 @@ func (p *plugin) handleNewMailbox(ctx *web.Context) error {
 
 		selectedLogin := ctx.LoginFor(selectedAccount)
 		if selectedLogin == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+			return web.NewError(http.StatusBadRequest, "not signed in to that account")
 		}
 		fullName := location.folder(name)
 		err := selectedLogin.DoIMAP(func(c *imapclient.Client) error {
@@ -1163,12 +1162,9 @@ func emptiedNotice(ctx *web.Context, removed int) web.Notice {
 }
 
 func (p *plugin) handleEmptyAllMailbox(ctx *web.Context) error {
-	role, err := url.PathUnescape(ctx.Param("role"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
-	}
+	role := ctx.Param("role")
 	if !slices.Contains(unifiedRoles, role) {
-		return echo.NewHTTPError(http.StatusNotFound,
+		return web.NewError(http.StatusNotFound,
 			fmt.Sprintf("%q is not a unified folder", role))
 	}
 
@@ -1268,7 +1264,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 	if color, ok := formParams["color"]; ok {
 		add, del := FlagColorFlags(color[0])
 		if add == nil && del == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "unknown flag colour")
+			return web.NewError(http.StatusBadRequest, "unknown flag colour")
 		}
 		// A single star renders from what was just stored, without rebuilding the listing.
 		// A star the list is narrowed to, once changed, takes the row out of the list.
@@ -1307,7 +1303,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 	if !ok {
 		flagsStr := ctx.QueryParam("to")
 		if flagsStr == "" {
-			return echo.NewHTTPError(http.StatusBadRequest, "missing 'flags' form parameter")
+			return web.NewError(http.StatusBadRequest, "missing 'flags' form parameter")
 		}
 		flags = strings.Fields(flagsStr)
 	}
@@ -1326,7 +1322,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 	case "remove":
 		op = imap.StoreFlagsDel
 	default:
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid 'action' value")
+		return web.NewError(http.StatusBadRequest, "invalid 'action' value")
 	}
 
 	l := make([]imap.Flag, len(flags))
@@ -1442,13 +1438,10 @@ func grouped(refs []rowRef) map[rowRef][]imap.UID {
 }
 
 func (p *plugin) handleUnifiedAct(ctx *web.Context) error {
-	role, err := url.PathUnescape(ctx.Param("role"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
-	}
+	role := ctx.Param("role")
 	params, err := ctx.FormParams()
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return web.NewError(http.StatusBadRequest, err)
 	}
 	refs, err := p.mergedSelection(ctx, role, params)
 	if err != nil {
@@ -1475,7 +1468,7 @@ func (p *plugin) handleUnifiedAct(ctx *web.Context) error {
 	case "flag":
 		add, del := FlagColorFlags(ctx.FormValue("color"))
 		if add == nil && del == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "unknown flag colour")
+			return web.NewError(http.StatusBadRequest, "unknown flag colour")
 		}
 		act = p.colourAct(add, del)
 	case "read":
@@ -1483,7 +1476,7 @@ func (p *plugin) handleUnifiedAct(ctx *web.Context) error {
 	case "unread":
 		act = p.flagAct(imap.StoreFlagsDel, []imap.Flag{imap.FlagSeen})
 	default:
-		return echo.NewHTTPError(http.StatusBadRequest, "unknown action")
+		return web.NewError(http.StatusBadRequest, "unknown action")
 	}
 	each := act.do
 	act.do = func(c *imapclient.Client, key rowRef, uids []imap.UID) error {

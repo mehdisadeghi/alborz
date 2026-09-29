@@ -12,12 +12,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/auth"
-	"git.mehdix.org/alborz/mail"
-	"git.mehdix.org/alborz/pim"
-	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 // feed publishes one event today under the summary it holds, with an ETag naming it; down makes it fail.
@@ -56,28 +51,14 @@ func startFeed(t *testing.T, summary string) *feed {
 // startSubscriber serves an alborz whose outgoing client trusts the feed's certificate.
 func startSubscriber(t *testing.T, f *feed) string {
 	t.Helper()
-	e := echo.New()
-	e.HideBanner, e.HidePort = true, true
-	s, err := web.New(e, &alborz.Options{
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newAlborz(t, ln, &alborz.Options{
 		Upstreams: []string{"test.local=imap+insecure://" + startIMAP(t)},
 		LoginKey:  smokeKey, DataDir: t.TempDir(), CacheDir: t.TempDir(), Cache: true,
-	}, mail.TemplateFuncs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Outgoing.Guarded = f.Client().Transport
-	auth.Mount(s)
-	mail.Mount(s)
-	st, err := pim.Mount(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := calendar.Mount(s, st); err != nil {
-		t.Fatal(err)
-	}
-	ln, _ := net.Listen("tcp", "127.0.0.1:0")
-	go e.Server.Serve(ln)
-	t.Cleanup(func() { e.Close() })
+	}, func(s *web.Server) { s.Outgoing.Guarded = f.Client().Transport })
 	return "http://" + ln.Addr().String()
 }
 

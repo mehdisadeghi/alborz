@@ -12,7 +12,6 @@ import (
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/labstack/echo/v4"
 )
 
 // The images a message written here shows in its HTML (ADR 40).
@@ -152,7 +151,7 @@ func cidImages(body string, images []inlineImage) string {
 func handleGetAttachment(ctx *web.Context) error {
 	held := ctx.PeekAttachment(ctx.Param("uuid"))
 	if held == nil {
-		return echo.NewHTTPError(http.StatusNotFound)
+		return web.NewError(http.StatusNotFound)
 	}
 	f, err := held.File.Open()
 	if err != nil {

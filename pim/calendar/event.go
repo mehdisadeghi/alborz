@@ -142,10 +142,7 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pim.Item, error) {
 }
 
 func (p *plugin) event(ctx *web.Context) error {
-	path, err := pim.ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return err
-	}
+	path := ctx.Param("path")
 
 	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 	if err != nil {
@@ -208,13 +205,11 @@ func (p *plugin) event(ctx *web.Context) error {
 }
 
 func (p *plugin) updateEvent(ctx *web.Context) error {
-	calendarObjectPath, err := pim.ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return err
-	}
+	calendarObjectPath := ctx.Param("path")
 
 	loc := web.UserLocation(ctx)
 
+	var err error
 	var c *caldav.Client
 	var calendars []dav.Collection
 	var groups []dav.Group

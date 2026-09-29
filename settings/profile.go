@@ -10,7 +10,6 @@ import (
 	"git.mehdix.org/alborz/internal/calsys"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 // ProfileRenderData is the settings page that belongs to no account.
@@ -152,7 +151,7 @@ func answerProfile(ctx *web.Context, answer func(*alborz.Login) error, done stri
 	account := ctx.FormValue("account")
 	login := ctx.LoginFor(account)
 	if login == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+		return web.NewError(http.StatusBadRequest, "not signed in to that account")
 	}
 	if err := answer(login); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})

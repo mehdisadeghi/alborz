@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -18,7 +19,6 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-webdav"
-	"github.com/labstack/echo/v4"
 )
 
 const requestTimeout = 10 * time.Second
@@ -102,7 +102,7 @@ type sourceRouter struct {
 	sign func(*http.Request, Source) error
 
 	// debug logs upstream DAV queries and status lines, never credentials; nil keeps it silent.
-	debug echo.Logger
+	debug *log.Logger
 }
 
 func (r sourceRouter) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -262,7 +262,7 @@ func (a *written) WriteHeader(code int)        { a.code = code }
 func (a *written) Write(b []byte) (int, error) { return a.body.Write(b) }
 
 // logDAVExchange prints one upstream round trip, re-wrapping the body so the caller still reads it.
-func logDAVExchange(l echo.Logger, req *http.Request, resp *http.Response, err error) {
+func logDAVExchange(l *log.Logger, req *http.Request, resp *http.Response, err error) {
 	q := ""
 	if req.Method == "REPORT" && req.GetBody != nil {
 		if r, e := req.GetBody(); e == nil {

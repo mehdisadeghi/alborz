@@ -24,10 +24,7 @@ func (p *plugin) copyTo(list string) func(*web.Context) error {
 		section, supports, key, first, rail, missing = "nav.tasks", supportsTodo, "task", getFirstTodo, p.taskRail, "notfound.task"
 	}
 	return func(ctx *web.Context) error {
-		src, err := pim.ParseObjectPath(ctx.Param("path"))
-		if err != nil {
-			return err
-		}
+		src := ctx.Param("path")
 		rc := ctx.Request().Context()
 		c, calendars, err := p.clientWithCalendars(rc, ctx.Login)
 		if err != nil {

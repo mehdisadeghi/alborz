@@ -7,7 +7,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 func handleLogin(ctx *web.Context) error {
@@ -84,7 +83,7 @@ func HandleLogout(ctx *web.Context) error {
 	}
 	target := ctx.LoginFor(username)
 	if target == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+		return web.NewError(http.StatusBadRequest, "not signed in to that account")
 	}
 	ctx.Server.ForgetAccount(username)
 	ctx.Quiet()

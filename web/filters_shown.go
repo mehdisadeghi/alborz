@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"git.mehdix.org/alborz"
-	"github.com/labstack/echo/v4"
 )
 
 // Filter is one narrowing in force on a listing, with the page without it.
@@ -154,7 +153,7 @@ func (ctx *Context) ListPageAt(q url.Values) (Page, error) {
 	if raw := q.Get("page"); raw != "" {
 		n, err := ReadInt(raw)
 		if err != nil || n < 0 {
-			return p, echo.NewHTTPError(http.StatusBadRequest, "invalid page index")
+			return p, NewError(http.StatusBadRequest, "invalid page index")
 		}
 		p.Number = n
 	}

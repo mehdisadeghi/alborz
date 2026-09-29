@@ -20,7 +20,6 @@ import (
 )
 
 type plugin struct {
-	web.Router
 	dav *dav.Provider
 	// remembering keeps two writers from making the account's Previous recipients twice.
 	remembering sync.Mutex
@@ -62,7 +61,8 @@ func (p *plugin) pooledBooks(ctx *web.Context) ([]pim.Account[*carddav.Client], 
 }
 
 // Mount serves contacts.
-func Mount(srv *web.Server, st *store.Store) error {
+func Mount(g *web.Group, st *store.Store) error {
+	srv := g.Server()
 	provider, err := dav.NewProvider(srv, st, dav.Kind{
 		Name: "carddav", Label: "CardDAV",
 		Schemes: [2]string{"carddavs", "carddav+insecure"},
@@ -82,11 +82,10 @@ func Mount(srv *web.Server, st *store.Store) error {
 	}
 
 	p := &plugin{
-		Router: srv.Router(),
-		dav:    provider,
+		dav: provider,
 	}
 
-	registerRoutes(p)
+	registerRoutes(p, g)
 	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.dav))
 	// Calendar registers first, so the collections on alborz come last.
 	srv.OnServers = append(srv.OnServers, p.dav.Cards("settings.davcontacts", bookAbilities), p.dav.HereCard())

@@ -18,7 +18,6 @@ import (
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/caldav"
-	"github.com/labstack/echo/v4"
 )
 
 type TaskRenderData struct {
@@ -92,10 +91,7 @@ func setPriorityBand(todo *ical.Component, band string) {
 }
 
 func (p *plugin) task(ctx *web.Context) error {
-	path, err := pim.ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return err
-	}
+	path := ctx.Param("path")
 
 	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 	if err != nil {
@@ -157,13 +153,11 @@ func (p *plugin) task(ctx *web.Context) error {
 	})
 }
 func (p *plugin) updateTask(ctx *web.Context) error {
-	taskPath, err := pim.ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return err
-	}
+	taskPath := ctx.Param("path")
 
 	loc := web.UserLocation(ctx)
 
+	var err error
 	var c *caldav.Client
 	var calendars []dav.Collection
 	var groups []dav.Group
@@ -212,7 +206,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		_, prioritySent := params["priority"]
 		band := ctx.FormValue("priority")
 		if band != "" && !slices.Contains(priorityBands, band) {
-			return echo.NewHTTPError(http.StatusBadRequest, "no such priority")
+			return web.NewError(http.StatusBadRequest, "no such priority")
 		}
 
 		reject := func(message string) error {

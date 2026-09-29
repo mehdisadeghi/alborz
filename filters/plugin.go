@@ -6,8 +6,9 @@ import (
 )
 
 // Mount serves the filters.
-func Mount(srv *web.Server) {
-	registerRoutes(srv.Router())
+func Mount(g *web.Group) {
+	registerRoutes(g)
+	srv := g.Server()
 	srv.OnAccountReady = append(srv.OnAccountReady, warm)
 }
 

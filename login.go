@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"slices"
@@ -17,7 +18,6 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
-	"github.com/labstack/echo/v4"
 	"go.guido-berhoerster.org/managesieve"
 )
 
@@ -458,7 +458,7 @@ type loginManager struct {
 	dialIMAPWatch    dialIMAPWatchFunc
 	dialSMTP         dialSMTPFunc
 	dialSieve        dialSieveFunc
-	logger           echo.Logger
+	logger           *log.Logger
 	// settings holds settings for servers without METADATA; nil if alborz keeps none.
 	settings *settingsRecords
 
@@ -468,7 +468,7 @@ type loginManager struct {
 	warnedNoMetadata bool                // protected by locker
 }
 
-func newLoginManager(dialIMAP, dialTransfer dialIMAPFunc, dialWatch dialIMAPWatchFunc, dialSMTP dialSMTPFunc, dialSieve dialSieveFunc, logger echo.Logger, settings *settingsRecords) *loginManager {
+func newLoginManager(dialIMAP, dialTransfer dialIMAPFunc, dialWatch dialIMAPWatchFunc, dialSMTP dialSMTPFunc, dialSieve dialSieveFunc, logger *log.Logger, settings *settingsRecords) *loginManager {
 	return &loginManager{
 		settings:         settings,
 		logins:           make(map[*Login]struct{}),

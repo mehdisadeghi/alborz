@@ -162,10 +162,7 @@ func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
 }
 
 func (p *plugin) contact(ctx *web.Context) error {
-	path, err := pim.ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return err
-	}
+	path := ctx.Param("path")
 
 	c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 	if err != nil {
@@ -232,11 +229,9 @@ func (p *plugin) contact(ctx *web.Context) error {
 	})
 }
 func (p *plugin) updateContact(ctx *web.Context) error {
-	addressObjectPath, err := pim.ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return err
-	}
+	addressObjectPath := ctx.Param("path")
 
+	var err error
 	var c *carddav.Client
 	var addressBooks []dav.Collection
 	var groups []dav.Group

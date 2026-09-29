@@ -22,7 +22,6 @@ import (
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
-	"github.com/labstack/echo/v4"
 )
 
 // ItipProductID is the PRODID of the calendar objects Alborz writes.
@@ -183,7 +182,8 @@ func (p *plugin) deleteEvent(ctx *web.Context, ref pim.Ref[*caldav.Client]) erro
 	return nil
 }
 
-func (p *plugin) registerScheduling(srv *web.Server) {
+func (p *plugin) registerScheduling(g *web.Group) {
+	srv := g.Server()
 	srv.OnMessage = append(srv.OnMessage, func(ctx *web.Context, _data web.RenderData) error {
 		data := _data.(*mail.MessageRenderData)
 		inv := messageInvitation(ctx, data.Message, data.Mailbox.Name(), data.Message.UID)
@@ -210,9 +210,9 @@ func (p *plugin) registerScheduling(srv *web.Server) {
 		return nil
 	})
 
-	p.POST("/message/:mbox/:uid/invite", handleInvitationReply)
-	p.POST("/calendar/from-attachment", p.importCalendar)
-	p.POST("/calendar/from-message", p.applyInvitation)
+	g.POST("invite", "/message/{mbox}/{uid}/invite", handleInvitationReply)
+	g.POST("fromattachment", "/calendar/from-attachment", p.importCalendar)
+	g.POST("frommessage", "/calendar/from-message", p.applyInvitation)
 }
 
 // The message is re-read and taken into the copy kept of its event, or filed as a new one.
@@ -226,7 +226,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 		return err
 	}
 	if msg == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "this message carries no invitation")
+		return web.NewError(http.StatusBadRequest, "this message carries no invitation")
 	}
 	inv := readInvitation(msg, nil)
 	back := ctx.NextOr(ctx.AccountPath("/calendar"))
@@ -246,7 +246,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 		}
 	}
 	if stored == nil && (inv.Cancelled() || inv.Answer()) {
-		return echo.NewHTTPError(http.StatusBadRequest, "no calendar holds this event")
+		return web.NewError(http.StatusBadRequest, "no calendar holds this event")
 	}
 	var held *ical.Calendar
 	if stored != nil {
@@ -285,7 +285,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
 	client, calendarPath, account := dest.Client, dest.Path, dest.Account
 	if errors.Is(err, pim.ErrNoDestination) {
-		return echo.NewHTTPError(http.StatusBadRequest, "no calendar to file it in")
+		return web.NewError(http.StatusBadRequest, "no calendar to file it in")
 	} else if err != nil {
 		return err
 	}
@@ -384,7 +384,7 @@ func (p *plugin) importCalendar(ctx *web.Context) error {
 	dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
 	client, calendarPath, account := dest.Client, dest.Path, dest.Account
 	if errors.Is(err, pim.ErrNoDestination) {
-		return echo.NewHTTPError(http.StatusBadRequest, "no calendar to file it in")
+		return web.NewError(http.StatusBadRequest, "no calendar to file it in")
 	} else if err != nil {
 		return err
 	}

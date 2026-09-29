@@ -96,19 +96,7 @@ func (s *Session) usedPasskey(credential webauthn.Credential, now time.Time) {
 	}
 }
 
-func lockOpen(path string) bool {
-	return isPublic(path) || path == unlockPath || strings.HasPrefix(path, unlockPath+"/")
-}
-
 const unlockPath = "/unlock"
-
-// unaskedHeader marks a request a page makes by itself; sending it can only bring the lock nearer.
-const unaskedHeader = "Alborz-Unasked"
-
-// Background requests are not the reader acting, or an open tab would never lock.
-func isBackground(r *http.Request) bool {
-	return r.URL.Path == "/events" || isPublic(r.URL.Path) || r.Header.Get(unaskedHeader) != ""
-}
 
 func redirectToUnlock(ctx *Context) error {
 	to := unlockPath

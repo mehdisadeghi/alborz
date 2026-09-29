@@ -18,21 +18,20 @@ import (
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/settings"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
-// Mount opens the collections kept here and serves them to DAV clients, with the page where an
-// account names its own servers; the providers of each kind share the store it returns.
-func Mount(srv *web.Server) (*store.Store, error) {
+// Mount opens the collections kept here and serves them to DAV clients on dav, with the page on app where
+// an account names its own servers; the providers of each kind share the store it returns.
+func Mount(dav, app *web.Group) (*store.Store, error) {
+	srv := app.Server()
 	db, err := srv.Data(store.Name, store.Format)
 	if err != nil {
 		return nil, err
 	}
 	st := store.New(db)
-	srv.Pre(serveOwn(srv, st))
-	r := srv.Router()
-	r.GET("/settings/servers/"+settings.ServerDAV, mail.Scoped(handleServer))
-	r.POST("/settings/servers/"+settings.ServerDAV, mail.Scoped(handleServer))
+	serveOwn(dav, srv, st)
+	app.GET("server", "/settings/servers/"+settings.ServerDAV, mail.Scoped(handleServer))
+	app.POST("server", "/settings/servers/"+settings.ServerDAV, mail.Scoped(handleServer))
 	return st, nil
 }
 
@@ -41,9 +40,6 @@ const davPasswordLife = 5 * time.Minute
 
 // davRealm is what a DAV client shows beside its password prompt.
 const davRealm = alborz.AppName
-
-// wellKnown are where a client given only the host starts (RFC 6764).
-var wellKnown = []string{"/.well-known/caldav", "/.well-known/carddav"}
 
 // Refusals are cached too, so a phone's stale password does not spend the reader's sign-in tries.
 type davPasswords struct {
@@ -97,51 +93,47 @@ func (p *davPasswords) authenticate(srv *web.Server, username, password, source 
 	return err
 }
 
-// serveOwn answers DAV clients ahead of sessions and cookies, by address and password on each request.
-func serveOwn(srv *web.Server, st *store.Store) echo.MiddlewareFunc {
+// serveOwn answers DAV clients by address and password on each request, with no session or cookie.
+func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 	dav, passwords := st.Handler(), newDAVPasswords()
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(ectx echo.Context) error {
-			w, r := ectx.Response(), ectx.Request()
-			for _, start := range wellKnown {
-				if r.URL.Path == start {
-					http.Redirect(w, r, store.Prefix+"/", http.StatusPermanentRedirect)
-					return nil
-				}
-			}
-			// A published calendar needs no credentials.
-			if store.IsPublic(r.URL.Path) {
-				st.ServePublic(w, r)
+	// Where a client given only the host starts (RFC 6764).
+	home := func(ctx *web.Context) error {
+		http.Redirect(ctx.Response(), ctx.Request(), store.Prefix+"/", http.StatusPermanentRedirect)
+		return nil
+	}
+	g.Handle("caldav", "/.well-known/caldav", home)
+	g.Handle("carddav", "/.well-known/carddav", home)
+	// A published calendar needs no credentials.
+	g.Handle("published", store.PublicPrefix, func(ctx *web.Context) error {
+		st.ServePublic(ctx.Response(), ctx.Request())
+		return nil
+	})
+	g.Handle("collections", store.Prefix+"/", func(ctx *web.Context) error {
+		w, r := ctx.Response(), ctx.Request()
+		w.Header().Set(alborz.InstanceHeader, srv.Instance)
+		username, password, ok := r.BasicAuth()
+		if ok {
+			err := passwords.authenticate(srv, username, password, ctx.RealIP())
+			var upstream alborz.UpstreamError
+			if errors.As(err, &upstream) {
+				http.Error(w, err.Error(), http.StatusServiceUnavailable)
 				return nil
 			}
-			if !strings.HasPrefix(r.URL.Path, store.Prefix+"/") {
-				return next(ectx)
-			}
-			w.Header().Set(alborz.InstanceHeader, srv.Instance)
-			username, password, ok := r.BasicAuth()
-			if ok {
-				err := passwords.authenticate(srv, username, password, ectx.RealIP())
-				var upstream alborz.UpstreamError
-				if errors.As(err, &upstream) {
-					http.Error(w, err.Error(), http.StatusServiceUnavailable)
-					return nil
-				}
-				// Not 401 for a paused reader: a client hearing 401 asks its owner for a new password.
-				var paused alborz.PausedError
-				if errors.As(err, &paused) {
-					w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(time.Until(paused.Until).Seconds()))))
-					http.Error(w, err.Error(), http.StatusTooManyRequests)
-					return nil
-				}
-				ok = err == nil
-			}
-			if !ok {
-				w.Header().Set("WWW-Authenticate", `Basic realm="`+davRealm+`", charset="UTF-8"`)
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			// Not 401 for a paused reader: a client hearing 401 asks its owner for a new password.
+			var paused alborz.PausedError
+			if errors.As(err, &paused) {
+				w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(time.Until(paused.Until).Seconds()))))
+				http.Error(w, err.Error(), http.StatusTooManyRequests)
 				return nil
 			}
-			dav.ServeHTTP(w, r.WithContext(store.As(r.Context(), username)))
+			ok = err == nil
+		}
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+davRealm+`", charset="UTF-8"`)
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return nil
 		}
-	}
+		dav.ServeHTTP(w, r.WithContext(store.As(r.Context(), username)))
+		return nil
+	})
 }

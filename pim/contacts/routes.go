@@ -45,57 +45,57 @@ func choose(ctx context.Context, store alborz.Store, paths []string) error {
 
 const uidURN = "urn:uuid:"
 
-func registerRoutes(p *plugin) {
+func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
 		return p.dav.Guarded(errNoAddressBook, "/address-books/create", h)
 	}
-	GET := func(path string, h func(*web.Context) error) { p.Router.GET(path, guard(h)) }
-	POST := func(path string, h func(*web.Context) error) { p.Router.POST(path, guard(h)) }
-	upload := func(path string, limit int64, h, over func(*web.Context) error) {
-		p.Router.Upload(path, limit, guard(h), guard(over))
+	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
+	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
+	upload := func(name, path string, limit int64, h, over func(*web.Context) error) {
+		g.Upload(name, path, limit, guard(h), guard(over))
 	}
-	POST("/contacts", pim.HandleChoose("/contacts", "book", choose))
-	GET("/contacts", p.contacts)
-	POST("/contacts/export", pim.HandleExport(p.client, "/contacts",
+	POST("list", "/contacts", pim.HandleChoose("/contacts", "book", choose))
+	GET("list", "/contacts", p.contacts)
+	POST("export", "/contacts/export", pim.HandleExport(p.client, "/contacts",
 		func(ctx *web.Context) string { return ctx.T("nav.contacts") + ".vcf" }, joinCards))
-	POST("/contacts/refresh", p.dav.HandleRefresh("/contacts"))
-	GET("/contacts/:path", p.contact)
+	POST("refresh", "/contacts/refresh", p.dav.HandleRefresh("/contacts"))
+	GET("contact", "/contacts/{path}", p.contact)
 
-	GET("/contacts/:path/raw", func(ctx *web.Context) error { return pim.Raw(ctx, p.client) })
+	GET("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pim.Raw(ctx, p.client) })
 	page := p.collectionPage()
-	GET("/address-books/create", page.HandleCreate(p.dav, p.createForm))
-	POST("/address-books/create", page.HandleCreate(p.dav, p.createForm))
-	GET("/contacts/export-all", page.HandleExportAll("/contacts", "address-books.zip"))
+	GET("books.create", "/address-books/create", page.HandleCreate(p.dav, p.createForm))
+	POST("books.create", "/address-books/create", page.HandleCreate(p.dav, p.createForm))
+	GET("exportall", "/contacts/export-all", page.HandleExportAll("/contacts", "address-books.zip"))
 	contactsImport, contactsOver := page.HandleImportPage(p.dav, "/contacts", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false)
-	GET("/contacts/import", contactsImport)
-	upload("/contacts/import", pim.ImportBodySize, contactsImport, contactsOver)
-	GET("/address-books/:path", page.Handle(p.dav))
-	POST("/address-books/:path", page.Handle(p.dav))
-	POST("/address-books/:path/delete", page.HandleDelete(p.dav))
-	upload("/address-books/:path/import", pim.ImportBodySize, page.HandleImport(p.dav), page.HandleImportTooLarge)
-	GET("/address-books/:path/export", page.HandleExport(p.dav))
-	POST("/address-books/:path/share", page.HandleShare(p.dav))
-	POST("/address-books/:path/unshare", page.HandleUnshare(p.dav))
-	POST("/address-books/:path/access", page.HandleAccess(p.dav))
-	POST("/address-books/:path/accept", page.HandleAnswer(p.dav, true))
-	POST("/address-books/:path/decline", page.HandleAnswer(p.dav, false))
-	GET("/contacts/create", p.updateContact)
-	upload("/contacts/create", photoBodySize, p.updateContact, photoTooLarge)
-	GET("/contacts/:path/edit", p.updateContact)
-	upload("/contacts/:path/edit", photoBodySize, p.updateContact, photoTooLarge)
-	POST("/contacts/color", p.color)
-	POST("/contacts/:path/group", p.groupContact)
-	POST("/contacts/:path/color", p.color)
-	POST("/contacts/:path/note", p.note)
-	POST("/contacts/:path/photo/delete", p.deletePhoto)
+	GET("import", "/contacts/import", contactsImport)
+	upload("import", "/contacts/import", pim.ImportBodySize, contactsImport, contactsOver)
+	GET("book", "/address-books/{path}", page.Handle(p.dav))
+	POST("book", "/address-books/{path}", page.Handle(p.dav))
+	POST("book.delete", "/address-books/{path}/delete", page.HandleDelete(p.dav))
+	upload("book.import", "/address-books/{path}/import", pim.ImportBodySize, page.HandleImport(p.dav), page.HandleImportTooLarge)
+	GET("book.export", "/address-books/{path}/export", page.HandleExport(p.dav))
+	POST("book.share", "/address-books/{path}/share", page.HandleShare(p.dav))
+	POST("book.unshare", "/address-books/{path}/unshare", page.HandleUnshare(p.dav))
+	POST("book.access", "/address-books/{path}/access", page.HandleAccess(p.dav))
+	POST("book.accept", "/address-books/{path}/accept", page.HandleAnswer(p.dav, true))
+	POST("book.decline", "/address-books/{path}/decline", page.HandleAnswer(p.dav, false))
+	GET("contact.create", "/contacts/create", p.updateContact)
+	upload("contact.create", "/contacts/create", photoBodySize, p.updateContact, photoTooLarge)
+	GET("contact.edit", "/contacts/{path}/edit", p.updateContact)
+	upload("contact.edit", "/contacts/{path}/edit", photoBodySize, p.updateContact, photoTooLarge)
+	POST("color", "/contacts/color", p.color)
+	POST("contact.group", "/contacts/{path}/group", p.groupContact)
+	POST("contact.color", "/contacts/{path}/color", p.color)
+	POST("contact.note", "/contacts/{path}/note", p.note)
+	POST("contact.photo.delete", "/contacts/{path}/photo/delete", p.deletePhoto)
 	remove := pim.Handler(pim.Action[*carddav.Client]{Client: p.client, Do: pim.Delete[*carddav.Client], List: "/contacts",
 		Done: func(ctx *web.Context, done []pim.Ref[*carddav.Client], _ string) web.Notice {
 			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.contactsdeleted", len(done))}
 		}})
-	POST("/contacts/:path/delete", remove)
-	POST("/contacts/delete", remove)
-	POST("/contacts/from-message", p.importFromMessage)
-	POST("/contacts/add", p.addAddress)
+	POST("contact.delete", "/contacts/{path}/delete", remove)
+	POST("delete", "/contacts/delete", remove)
+	POST("frommessage", "/contacts/from-message", p.importFromMessage)
+	POST("add", "/contacts/add", p.addAddress)
 }
 
 func writeCard(ctx *web.Context, c *carddav.Client, at string, card vcard.Card) error {

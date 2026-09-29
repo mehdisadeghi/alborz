@@ -19,7 +19,6 @@ import (
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav"
-	"github.com/labstack/echo/v4"
 )
 
 // CollectionRenderData renders collection.html, a calendar's, task list's or address book's own page.
@@ -139,7 +138,7 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 		}
 		login := ctx.LoginFor(data.Account)
 		if login == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+			return web.NewError(http.StatusBadRequest, "not signed in to that account")
 		}
 		path, err := p.Create(ctx.Request().Context(), login, data.Name, data.Color, data.Place, held[data.Holds])
 		if err != nil {
@@ -164,16 +163,6 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 	}
 }
 
-// ParseObjectPath reads the collection or object path a route names.
-func ParseObjectPath(s string) (string, error) {
-	p, err := url.PathUnescape(s)
-	if err != nil {
-		err = fmt.Errorf("failed to parse path: %v", err)
-		return "", echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-	return p, nil
-}
-
 // Page is what a collection's own page needs from its kind; Base is its path prefix.
 type Page struct {
 	Base string
@@ -196,10 +185,7 @@ type Page struct {
 // Handle is the collection's own page; renaming and recolouring are a PROPPATCH.
 func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		collPath, err := ParseObjectPath(ctx.Param("path"))
-		if err != nil {
-			return err
-		}
+		collPath := ctx.Param("path")
 		collPath = dav.CanonicalCollectionPath(collPath)
 		offer, err := pg.offer(ctx, p, collPath, ctx.Login.Username())
 		if err != nil {
@@ -226,7 +212,7 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 
 		if ctx.Request().Method == http.MethodPost {
 			if data.SharedBy != "" {
-				return echo.NewHTTPError(http.StatusForbidden, "the collection is its owner's to change")
+				return web.NewError(http.StatusForbidden, "the collection is its owner's to change")
 			}
 			name := strings.TrimSpace(ctx.FormValue("name"))
 			data.Name, data.Color = name, ctx.FormValue("color")
@@ -288,10 +274,7 @@ func importTooLarge(ctx *web.Context) string { return ctx.Tf("import.toolarge", 
 
 // HandleImportTooLarge answers an upload past the limit on the collection it was sent to.
 func (pg Page) HandleImportTooLarge(ctx *web.Context) error {
-	collPath, err := ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return err
-	}
+	collPath := ctx.Param("path")
 	ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)})
 	return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(dav.CanonicalCollectionPath(collPath))))
 }
@@ -299,10 +282,7 @@ func (pg Page) HandleImportTooLarge(ctx *web.Context) error {
 // HandleImport writes an uploaded file into the collection.
 func (pg Page) HandleImport(p *dav.Provider) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		collPath, err := ParseObjectPath(ctx.Param("path"))
-		if err != nil {
-			return err
-		}
+		collPath := ctx.Param("path")
 		collPath = dav.CanonicalCollectionPath(collPath)
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err != nil {
 			return err
@@ -314,7 +294,7 @@ func (pg Page) HandleImport(p *dav.Provider) func(*web.Context) error {
 			return ctx.Redirect(http.StatusFound, back)
 		}
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "no file was sent")
+			return web.NewError(http.StatusBadRequest, "no file was sent")
 		}
 		raw, err := readUpload(file)
 		if err != nil {
@@ -704,10 +684,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 // HandleExport sends the collection as one file; a date range narrows a calendar.
 func (pg Page) HandleExport(p *dav.Provider) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		collPath, err := ParseObjectPath(ctx.Param("path"))
-		if err != nil {
-			return err
-		}
+		collPath := ctx.Param("path")
 		collPath = dav.CanonicalCollectionPath(collPath)
 		info, _, _, _, err := pg.Lookup(ctx, collPath)
 		if err != nil {
@@ -721,7 +698,7 @@ func (pg Page) HandleExport(p *dav.Provider) func(*web.Context) error {
 			if v := ctx.QueryParam(bound.name); v != "" {
 				t, err := time.Parse("2006-01-02", v)
 				if err != nil {
-					return echo.NewHTTPError(http.StatusBadRequest, err)
+					return web.NewError(http.StatusBadRequest, err)
 				}
 				*bound.into = t
 			}
@@ -791,10 +768,7 @@ func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
 // HandleDelete removes the collection and everything in it; the page above states how much.
 func (pg Page) HandleDelete(p *dav.Provider) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		collPath, err := ParseObjectPath(ctx.Param("path"))
-		if err != nil {
-			return err
-		}
+		collPath := ctx.Param("path")
 		collPath = dav.CanonicalCollectionPath(collPath)
 		info, _, list, _, err := pg.Lookup(ctx, collPath)
 		if err != nil {

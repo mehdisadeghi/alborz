@@ -9,7 +9,6 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 type CalendarRenderData struct {
@@ -163,7 +162,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 		var err error
 		start, err = cal.ParsePage(s, loc)
 		if err != nil {
-			return monthView{}, echo.NewHTTPError(http.StatusBadRequest, err)
+			return monthView{}, web.NewError(http.StatusBadRequest, err)
 		}
 	} else {
 		start = cal.MonthStart(time.Now().In(loc))
@@ -173,7 +172,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	// A star view narrows the agenda; a grid cannot be narrowed and stay a month.
 	view := ctx.QueryParam("view")
 	if view != "list" && !validStarView(view) {
-		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid view")
+		return monthView{}, web.NewError(http.StatusBadRequest, "invalid view")
 	}
 
 	// Pad a week each way for adjacent-month days; a fixed window keeps the cache key stable.
@@ -184,11 +183,11 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	// In the current month the agenda starts today; span=month asks for all of it.
 	span := ctx.QueryParam("span")
 	if span != "" && span != "month" {
-		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid span")
+		return monthView{}, web.NewError(http.StatusBadRequest, "invalid span")
 	}
 	group := ctx.QueryParam("group")
 	if group != "" && group != "day" {
-		return monthView{}, echo.NewHTTPError(http.StatusBadRequest, "invalid group")
+		return monthView{}, web.NewError(http.StatusBadRequest, "invalid group")
 	}
 	since := start
 	thisMonth := false
@@ -335,7 +334,7 @@ func (p *plugin) exportMonth(ctx *web.Context) error {
 	if s := ctx.QueryParam("month"); s != "" {
 		var err error
 		if from, err = cal.ParsePage(s, loc); err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			return web.NewError(http.StatusBadRequest, err)
 		}
 	}
 	return p.exportVisible(ctx, supportsEvent, eventVisibility, []string{"VEVENT"},

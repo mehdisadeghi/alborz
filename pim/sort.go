@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 // Column is one order a list can take: its URL key and a row's sort value.
@@ -55,10 +54,10 @@ func Sort[T any](ctx *web.Context, rows []T, columns []Column[T], tie func(T) st
 	}
 	at := slices.IndexFunc(columns, func(c Column[T]) bool { return c.Key == s.Key })
 	if at < 0 {
-		return s, echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
+		return s, web.NewError(http.StatusBadRequest, "invalid sort order")
 	}
 	if dir != "" && dir != "asc" && dir != "desc" {
-		return s, echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
+		return s, web.NewError(http.StatusBadRequest, "invalid sort direction")
 	}
 	kept := Keep(ctx.QueryParams(), keep...)
 	for _, k := range sortDrops {

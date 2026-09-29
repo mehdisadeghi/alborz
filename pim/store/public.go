@@ -10,19 +10,16 @@ import (
 	"github.com/emersion/go-ical"
 )
 
-// publicExt is what a client expects a feed's address to end in.
+// PublicPrefix is where published calendars are served; publicExt is what a client expects a feed's address to end in.
 const (
-	publicPrefix = "/pub/"
+	PublicPrefix = "/pub/"
 	publicExt    = ".ics"
 )
 
 const prodID = "-//mehdix.org//Alborz//EN"
 
 // PublicPath is the address a secret publishes its calendar at.
-func PublicPath(secret string) string { return publicPrefix + secret + publicExt }
-
-// IsPublic says whether a path is a published calendar's, answered without asking who reads.
-func IsPublic(p string) bool { return strings.HasPrefix(p, publicPrefix) }
+func PublicPath(secret string) string { return PublicPrefix + secret + publicExt }
 
 // ServePublic answers a published calendar as one iCalendar stream.
 func (s *Store) ServePublic(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +27,7 @@ func (s *Store) ServePublic(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
 	}
-	secret, ok := strings.CutSuffix(strings.TrimPrefix(r.URL.Path, publicPrefix), publicExt)
+	secret, ok := strings.CutSuffix(strings.TrimPrefix(r.URL.Path, PublicPrefix), publicExt)
 	c, err := s.ByPublic(secret)
 	if !ok || errors.Is(err, ErrNotFound) || (err == nil && c.Kind != Calendar) {
 		http.NotFound(w, r)

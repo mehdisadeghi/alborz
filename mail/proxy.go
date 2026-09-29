@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 var (
@@ -26,16 +25,16 @@ var (
 func handleProxy(ctx *web.Context) error {
 	u, err := url.Parse(ctx.QueryParam("src"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid URL")
+		return web.NewError(http.StatusBadRequest, "invalid URL")
 	}
 
 	if u.Scheme != "https" {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid scheme")
+		return web.NewError(http.StatusBadRequest, "invalid scheme")
 	}
 
 	req, err := http.NewRequestWithContext(ctx.Request().Context(), http.MethodGet, u.String(), nil)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid URL")
+		return web.NewError(http.StatusBadRequest, "invalid URL")
 	}
 	resp, err := ctx.Server.Outgoing.Remote(proxyTimeout).Do(req)
 	if err != nil {
@@ -45,13 +44,13 @@ func handleProxy(ctx *web.Context) error {
 
 	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	if err != nil || !strings.HasPrefix(mediaType, "image/") {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid resource type")
+		return web.NewError(http.StatusBadRequest, "invalid resource type")
 	}
 
 	size, err := strconv.Atoi(resp.Header.Get("Content-Length"))
 	if err == nil {
 		if size > proxyMaxSize {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid resource length")
+			return web.NewError(http.StatusBadRequest, "invalid resource length")
 		}
 		ctx.Response().Header().Set("Content-Length", strconv.Itoa(size))
 	}

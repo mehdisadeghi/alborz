@@ -3,6 +3,7 @@ package calendar
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-ical"
-	"github.com/labstack/echo/v4"
 )
 
 // The production client refuses loopback, so the tests inject a plain one.
@@ -25,7 +25,7 @@ func feedsAt(t *testing.T, client *http.Client) *feeds {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return &feeds{client: client, log: echo.New().Logger, store: store.New(db),
+	return &feeds{client: client, log: log.Default(), store: store.New(db),
 		fetching: map[string]bool{}, failed: map[string]time.Time{}}
 }
 

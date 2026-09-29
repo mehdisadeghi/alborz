@@ -9,7 +9,6 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 type CalendarDateRenderData struct {
@@ -72,7 +71,7 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 		var err error
 		start, err = time.ParseInLocation(datePageLayout, s, loc)
 		if err != nil {
-			return dayView{}, echo.NewHTTPError(http.StatusBadRequest, err)
+			return dayView{}, web.NewError(http.StatusBadRequest, err)
 		}
 	} else {
 		now := time.Now().In(loc)

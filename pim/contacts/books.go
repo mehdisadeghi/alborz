@@ -23,7 +23,6 @@ import (
 	"git.mehdix.org/alborz/pim/dav"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
-	"github.com/labstack/echo/v4"
 )
 
 func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
@@ -137,14 +136,14 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	acct, bookPath, ok := strings.Cut(ctx.FormValue("addressbook"), "|")
 	login := ctx.LoginFor(acct)
 	if !ok || login == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "no address book to file it in")
+		return web.NewError(http.StatusBadRequest, "no address book to file it in")
 	}
 	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), login)
 	if err != nil {
 		return err
 	}
 	if book := dav.At(books, bookPath); book == nil || !book.Writable {
-		return echo.NewHTTPError(http.StatusBadRequest, "no address book to file it in")
+		return web.NewError(http.StatusBadRequest, "no address book to file it in")
 	}
 	to := "/contacts"
 	if acct != ctx.Login.Username() {
@@ -305,11 +304,11 @@ func addCard(ctx context.Context, c *carddav.Client, book string, addr *netmail.
 func (p *plugin) addAddress(ctx *web.Context) error {
 	addr, err := netmail.ParseAddress(ctx.FormValue("address"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return web.NewError(http.StatusBadRequest, err)
 	}
 	to, err := pim.Destination(ctx, ctx.FormValue("addressbook"), p.clientWithAddressBooks, func(book dav.Collection) bool { return book.Writable })
 	if errors.Is(err, pim.ErrNoDestination) {
-		return echo.NewHTTPError(http.StatusBadRequest, "no address book to add it to")
+		return web.NewError(http.StatusBadRequest, "no address book to add it to")
 	} else if err != nil {
 		return err
 	}

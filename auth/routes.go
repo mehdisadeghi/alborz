@@ -2,12 +2,12 @@ package auth
 
 import "git.mehdix.org/alborz/web"
 
-// Mount serves signing in and out, locking and unlocking.
-func Mount(s *web.Server) {
-	p := s.Router()
-	p.GET("/login", handleLogin)
-	p.POST("/login", handleLogin)
+// Mount serves signing in on public, unlocking on unlock, which a locked session reaches, and signing
+// out and locking on app.
+func Mount(public, unlock, app *web.Group) {
+	public.GET("login", "/login", handleLogin)
+	public.POST("login", "/login", handleLogin)
 
-	p.POST("/logout", HandleLogout)
-	registerPasskeyRoutes(p)
+	app.POST("logout", "/logout", HandleLogout)
+	registerPasskeyRoutes(unlock, app)
 }

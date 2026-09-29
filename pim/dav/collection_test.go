@@ -49,7 +49,7 @@ func TestListCollectionsReadsWhatTheServerSaid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listed, failed := ListCollections(context.Background(), []Home{{Path: "/cal/u/"}}, func(ctx context.Context, home string) ([]Collection, error) {
+	listed, failed := ListCollections(context.Background(), []Home{{Path: "/cal/u/", Source: Source{ID: SourceDomain, URL: &url.URL{Host: "dav.example"}}}}, func(ctx context.Context, home string) ([]Collection, error) {
 		cals, err := c.FindCalendars(ctx, home)
 		out := make([]Collection, len(cals))
 		for i, cal := range cals {
@@ -129,6 +129,9 @@ func TestCountObjectsSkipsTheCollectionItself(t *testing.T) {
 	}
 }
 
+// at is the marker of paths on srv.
+func at(srv *httptest.Server) string { return marker(strings.TrimPrefix(srv.URL, "http://")) }
+
 func routerTo(own *httptest.Server, named http.RoundTripper) sourceRouter {
 	u, _ := url.Parse(own.URL + "/dav/")
 	return sourceRouter{
@@ -149,7 +152,7 @@ func TestASourceIsAskedInItsOwnPathsAndAnswersInOurs(t *testing.T) {
 		io.WriteString(w, `<D:href>/dav/cal/a.ics</D:href>`)
 	}))
 	defer own.Close()
-	req, _ := http.NewRequest("REPORT", "http://alborz.invalid/@own/dav/cal/", strings.NewReader(`<D:href>/@own/dav/cal/a.ics</D:href>`))
+	req, _ := http.NewRequest("REPORT", "http://alborz.invalid"+at(own)+"/dav/cal/", strings.NewReader(`<D:href>`+at(own)+`/dav/cal/a.ics</D:href>`))
 	resp, err := routerTo(own, http.DefaultTransport).RoundTrip(req)
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +161,7 @@ func TestASourceIsAskedInItsOwnPathsAndAnswersInOurs(t *testing.T) {
 	if want := `/dav/cal/ <D:href>/dav/cal/a.ics</D:href>`; asked != want {
 		t.Errorf("the source was asked %q, want %q", asked, want)
 	}
-	if want := `<D:href>/@own/dav/cal/a.ics</D:href>`; string(answered) != want {
+	if want := `<D:href>` + at(own) + `/dav/cal/a.ics</D:href>`; string(answered) != want {
 		t.Errorf("the page was answered %q, want %q", answered, want)
 	}
 }
@@ -176,7 +179,7 @@ func TestALoginStaysOnItsSourcesHost(t *testing.T) {
 		http.Redirect(w, r, other.URL+"/elsewhere/", http.StatusTemporaryRedirect)
 	}))
 	defer own.Close()
-	req, _ := http.NewRequest("PROPFIND", "http://alborz.invalid/@own/dav/", nil)
+	req, _ := http.NewRequest("PROPFIND", "http://alborz.invalid"+at(own)+"/dav/", nil)
 	_, err := routerTo(own, http.DefaultTransport).RoundTrip(req)
 	var refused *RefusedError
 	if !errors.As(err, &refused) {
@@ -191,7 +194,7 @@ func TestAnAccountsServerIsNotDialledOnOurNetwork(t *testing.T) {
 	reached := false
 	own := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true }))
 	defer own.Close()
-	req, _ := http.NewRequest("PROPFIND", "http://alborz.invalid/@own/dav/", nil)
+	req, _ := http.NewRequest("PROPFIND", "http://alborz.invalid"+at(own)+"/dav/", nil)
 	if _, err := routerTo(own, alborz.NewOutgoing().Guarded).RoundTrip(req); err == nil || reached {
 		t.Errorf("a loopback server was reached (%v), err %v", reached, err)
 	}

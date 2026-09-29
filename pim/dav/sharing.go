@@ -46,7 +46,7 @@ func (p *Provider) invitations(ctx *alborz.Context) ([]Invitation, error) {
 			}
 			out = append(out, Invitation{
 				Account: s.Username(), Name: c.Name, From: c.Owner,
-				Path: store.PathOf(account, *c), Write: sh.Write, Expires: sh.Expires,
+				Path: p.PathOf(account, *c), Write: sh.Write, Expires: sh.Expires,
 			})
 		}
 	}
@@ -62,6 +62,23 @@ func (p *Provider) RailInvitations(ctx *alborz.Context, base string) (*RailInvit
 	return &RailInvitations{Base: base, Items: items}, nil
 }
 
+// Held reads a path on this alborz as the store holds it: the collection, and the home it is reached through.
+func (p *Provider) Held(path string) (store.Ref, string, bool) { return p.here.held(path) }
+
+// HeldObject reads an object's path on this alborz as its collection and name.
+func (p *Provider) HeldObject(path string) (store.Ref, string, bool) {
+	rest, ok := strings.CutPrefix(path, marker(p.here.URL.Host))
+	if !ok {
+		return store.Ref{}, "", false
+	}
+	return store.HeldObject(rest)
+}
+
+// PathOf is a collection kept here as viewer reaches it.
+func (p *Provider) PathOf(viewer string, c store.Collection) string {
+	return p.here.mark(store.PathOf(viewer, c))
+}
+
 // Authors are who added and last changed an object kept here, omitted where that is the viewer.
 type Authors struct {
 	Creator, Editor string
@@ -69,7 +86,7 @@ type Authors struct {
 
 // Authors of the object at path as viewer sees them; none for an object elsewhere.
 func (p *Provider) Authors(objPath, viewer string) Authors {
-	ref, name, ok := store.HeldObject(objPath)
+	ref, name, ok := p.HeldObject(objPath)
 	if !ok {
 		return Authors{}
 	}
@@ -99,7 +116,7 @@ func (p *Provider) AddedBy(viewer string) func(account, path string) string {
 
 // Published says whether a collection kept here answers at a public address.
 func (p *Provider) Published(collPath string) bool {
-	ref, _, ok := store.Held(collPath)
+	ref, _, ok := p.Held(collPath)
 	if !ok {
 		return false
 	}
@@ -109,7 +126,7 @@ func (p *Provider) Published(collPath string) bool {
 
 // SharedWith counts the accounts a collection kept here is shared with or offered to, less refusals and ended shares.
 func (p *Provider) SharedWith(collPath string) int {
-	ref, home, ok := store.Held(collPath)
+	ref, home, ok := p.Held(collPath)
 	if !ok || ref.Owner != home {
 		return 0
 	}

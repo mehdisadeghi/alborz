@@ -57,10 +57,12 @@ func (p *Provider) Cards(title string, abilities func(Advertised) []settings.Abi
 	return func(ctx *alborz.Context, data alborz.RenderData) error {
 		servers := data.(*settings.ServersRenderData)
 		for _, src := range p.Sources(ctx.Request().Context(), ctx.Login) {
-			servers.Cards = append(servers.Cards, p.card(ctx, servers, title, src, abilities))
-			servers.AddPlace(src.ID, src.URL.Host)
+			servers.AddPlace(src.ID, placeHost(ctx, src))
+			// This alborz tells other clients how to reach it instead; HereCard is its card.
+			if src.ID != SourceHere {
+				servers.Cards = append(servers.Cards, p.card(ctx, servers, title, src, abilities))
+			}
 		}
-		servers.AddPlace(SourceHere, originHost(ctx))
 		return nil
 	}
 }

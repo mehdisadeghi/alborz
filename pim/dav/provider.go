@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -49,8 +50,15 @@ const discoveryTTL = 5 * time.Minute
 // The load is detached from its requester, so only its own deadline stops a hung server wedging every waiter.
 const discoveryTimeout = 30 * time.Second
 
-// hereBase stands for an account whose collections are all kept here; .invalid never resolves (RFC 2606).
-var hereBase = &url.URL{Scheme: "http", Host: alborz.AppName + ".invalid", Path: store.Prefix + "/"}
+// base is where every client starts; the transport routes a path by its marker, never by this host,
+// which never resolves (RFC 2606).
+var base = &url.URL{Scheme: "http", Host: alborz.AppName + ".invalid", Path: "/"}
+
+// Base is the URL a client of any account's collections is made with.
+func Base() *url.URL {
+	u := *base
+	return &u
+}
 
 // WarmBudget bounds a sign-in's background fetch of an account's first pages.
 const WarmBudget = 30 * time.Second
@@ -70,8 +78,9 @@ type Provider struct {
 	// trusted reaches the servers the deployment names or finds; named reaches the one an account names,
 	// which without -private-services stays on the public internet at every hop.
 	trusted, named http.RoundTripper
-	// here serves the collections kept in this alborz.
-	here  http.Handler
+	// here is this alborz as a source, which local answers in-process.
+	here  Source
+	local http.Handler
 	Store *store.Store
 	// troubles holds, per account, what its servers answered when last asked for homes, when not a home.
 	troubles sync.Map
@@ -108,13 +117,17 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 		mirror = m
 		srv.Schedule.Add(tick, m.round)
 	}
+	here, err := hereSource(srv.Options.PublicURL)
+	if err != nil {
+		return nil, err
+	}
 	p := &Provider{Kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
 		collections: memo.NewBackground[[]Collection](srv.Options.CacheFor(discoveryTTL))}
 	p.trusted, p.named = srv.Outgoing.Trusted, srv.Outgoing.Trusted
 	if !srv.Options.PrivateServices {
 		p.named = srv.Outgoing.Guarded
 	}
-	p.here, p.Store = st.Handler(), st
+	p.here, p.local, p.Store = here, st.Handler(), st
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
@@ -151,14 +164,20 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 	return p, nil
 }
 
-// URL is where the login's client starts; the transport routes by path, not host, so hereBase serves an account without a server.
-func (p *Provider) URL(ctx context.Context, login *alborz.Login) *url.URL {
-	for _, s := range p.Sources(ctx, login) {
-		if s.ID == SourceDomain {
-			return s.URL
+// hereSource is this alborz at its public address, else at its machine's name: either tells it
+// from another alborz whose collections an account's shared settings may name.
+func hereSource(public *url.URL) (Source, error) {
+	u := &url.URL{Scheme: base.Scheme, Path: store.Prefix + "/"}
+	if public != nil {
+		u.Scheme, u.Host = public.Scheme, public.Host
+	} else {
+		host, err := os.Hostname()
+		if err != nil {
+			return Source{}, fmt.Errorf("without -public-url alborz names its collections by the machine's name: %w", err)
 		}
+		u.Host = strings.ToLower(host)
 	}
-	return hereBase
+	return Source{ID: SourceHere, URL: u, Origin: "servers.onalborz"}, nil
 }
 
 // The sources an account's collections come from (ADR 28).
@@ -179,18 +198,56 @@ type Source struct {
 	Named bool
 }
 
-// Endpoint is where a client for the source starts; sources other than the domain's sit under their marker.
+// Endpoint is where a client for the source starts.
 func (s Source) Endpoint() string {
-	if s.ID == SourceDomain {
-		return s.URL.String()
-	}
-	return (&url.URL{Scheme: hereBase.Scheme, Host: hereBase.Host, Path: marker(s.ID) + s.URL.Path}).String()
+	return (&url.URL{Scheme: base.Scheme, Host: base.Host, Path: s.mark(s.URL.Path)}).String()
 }
 
-// marker begins every path on a source other than the domain's.
-func marker(id string) string { return "/@" + id }
+// marker begins every path alborz holds: the server's host, so paths of two servers never meet (ADR 28).
+func marker(host string) string { return "/@" + host }
 
-// Sources are the account's remote DAV servers, each once: its own, its domain's and its mail host's.
+// mark is a path on the source as alborz holds it.
+func (s Source) mark(p string) string { return marker(s.URL.Host) + p }
+
+// held reads a path on this alborz as the store holds it: the collection, and the home it is reached through.
+func (s Source) held(p string) (store.Ref, string, bool) {
+	rest, ok := strings.CutPrefix(p, marker(s.URL.Host))
+	if !ok || s.ID != SourceHere {
+		return store.Ref{}, "", false
+	}
+	return store.Held(rest)
+}
+
+// route is the source a marked path is on, and the path there: the host picks, the longest base path
+// settles two sources on one host, and a path under neither goes to the first.
+func route(sources []Source, p string) (Source, string, error) {
+	rest, ok := strings.CutPrefix(p, "/@")
+	if !ok {
+		return Source{}, "", fmt.Errorf("dav: %q names no server", p)
+	}
+	host, rest, _ := strings.Cut(rest, "/")
+	rest = "/" + rest
+	var found Source
+	longest := -1
+	for _, s := range sources {
+		if s.URL.Host != host {
+			continue
+		}
+		n := 0
+		if strings.HasPrefix(rest, s.URL.Path) {
+			n = len(s.URL.Path)
+		}
+		if n > longest {
+			found, longest = s, n
+		}
+	}
+	if longest < 0 {
+		return Source{}, "", fmt.Errorf("dav: %s is none of this account's servers", host)
+	}
+	return found, rest, nil
+}
+
+// Sources are the account's DAV servers, each once: its own, its domain's, its mail host's and this alborz.
 func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	var out []Source
 	if services, err := LoadServices(ctx, login.Store()); err == nil {
@@ -239,17 +296,16 @@ func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 			out[i].Named = out[i].ID == SourceDomain
 		}
 	}
-	return out
+	return append(out, p.here)
 }
 
 // Home is one place an account's collections of the kind are listed.
 type Home struct {
-	Path string
-	// Source is the one the home is on, SourceHere for Alborz.
-	Source string
+	Path   string
+	Source Source
 }
 
-// homes are each source's home set and the one kept here; a source that does not answer is left out and said so.
+// homes are each source's home set; a source that does not answer is left out and said so.
 func (p *Provider) homes(ctx context.Context, login *alborz.Login) []Home {
 	var homes []Home
 	var failed []error
@@ -259,15 +315,14 @@ func (p *Provider) homes(ctx context.Context, login *alborz.Login) []Home {
 			failed = append(failed, fmt.Errorf("%s: %w", s.URL.Host, err))
 			continue
 		}
-		homes = append(homes, Home{Path: home, Source: s.ID})
+		homes = append(homes, Home{Path: home, Source: s})
 	}
 	p.troubles.Store(login.Username(), failed)
-	return append(homes, Home{Path: store.HomePath(p.Kind.Holds, login.Username()), Source: SourceHere})
+	return homes
 }
 
 // Collections is the account's list of the kind, found once per user; the load outlives the request that starts it.
 func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Collection, error) {
-	base := p.URL(ctx, login)
 	// A listing missing a server is kept but asked again after the retry delay, or the failure would stay until restart.
 	defer func() {
 		if len(p.Troubles(login.Username())) > 0 {
@@ -279,7 +334,7 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 		defer cancel()
 
 		homes := p.homes(ctx, login)
-		infos, failed := p.Kind.List(ctx, p.HTTPClient(ctx, login), base, homes)
+		infos, failed := p.Kind.List(ctx, p.HTTPClient(ctx, login), Base(), homes)
 		if err := p.Settle(login.Username(), homes, failed); err != nil {
 			return nil, fmt.Errorf("failed to list the %s collections: %v", p.Kind.Label, err)
 		}
@@ -313,14 +368,13 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 	if NameTaken(name, place, infos) {
 		return "", ErrNameTaken
 	}
-	base := p.URL(ctx, login)
 	home, err := HomeFor(p.homes(ctx, login), place)
 	if err != nil {
 		return "", err
 	}
 	client := p.HTTPClient(ctx, login)
 	path, err := CreateCollection(ctx, home, name, p.Kind.Unnamed, func(ctx context.Context, path string) error {
-		return p.Kind.Make(ctx, client, base, path, name, color, components)
+		return p.Kind.Make(ctx, client, Base(), path, name, color, components)
 	})
 	if err != nil {
 		return "", err
@@ -329,7 +383,11 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 	return path, nil
 }
 
-func originHost(ctx *alborz.Context) string {
+// placeHost is the host a reader knows a source by; alborz knows its own from -public-url, else from the request.
+func placeHost(ctx *alborz.Context, src Source) string {
+	if src.ID != SourceHere {
+		return src.URL.Host
+	}
 	_, host, _ := strings.Cut(ctx.Origin(), "://")
 	return host
 }
@@ -355,9 +413,8 @@ func (p *Provider) Places(ctx *alborz.Context) []Group {
 	for _, s := range ctx.Logins() {
 		var places []Collection
 		for _, src := range p.Sources(ctx.Request().Context(), s) {
-			places = append(places, Collection{Path: src.ID, Name: PlaceLabel(ctx, src.ID, src.URL.Host)})
+			places = append(places, Collection{Path: src.ID, Name: PlaceLabel(ctx, src.ID, placeHost(ctx, src))})
 		}
-		places = append(places, Collection{Path: SourceHere, Name: PlaceLabel(ctx, SourceHere, originHost(ctx))})
 		groups = append(groups, Group{Account: s.Username(), Collections: places})
 	}
 	return groups
@@ -387,19 +444,13 @@ func (p *Provider) ReadPlace(ctx *alborz.Context, account string) (string, strin
 func (p *Provider) DefaultPlace(ctx context.Context, s *alborz.Login) string {
 	sources := p.Sources(ctx, s)
 	if services, err := LoadServices(ctx, s.Store()); err == nil && services.Default != "" {
-		if services.Default == SourceHere {
-			return SourceHere
-		}
 		for _, src := range sources {
 			if src.ID == services.Default {
 				return src.ID
 			}
 		}
 	}
-	if len(sources) > 0 {
-		return sources[0].ID
-	}
-	return SourceHere
+	return sources[0].ID
 }
 
 // ErrPlaceDown refuses a new collection whose place has no home; any other home would be unasked for.
@@ -408,7 +459,7 @@ var ErrPlaceDown = errors.New("the place asked for has no home")
 // HomeFor is the home on the place asked for.
 func HomeFor(homes []Home, place string) (string, error) {
 	for _, home := range homes {
-		if home.Source == place {
+		if home.Source.ID == place {
 			return home.Path, nil
 		}
 	}
@@ -441,8 +492,7 @@ func (p *Provider) HTTPClient(ctx context.Context, login *alborz.Login) *http.Cl
 // CountObjects counts a collection's objects lazily; -1 means the server did not answer.
 func (p *Provider) CountObjects(ctx *alborz.Context, coll string) func() int {
 	return func() int {
-		base := p.URL(ctx.Request().Context(), ctx.Login)
-		n, err := CountObjects(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), base, coll)
+		n, err := CountObjects(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), Base(), coll)
 		if err != nil {
 			ctx.Logger().Printf("%s: failed to count %s: %v", p.Kind.Name, coll, err)
 			return -1
@@ -456,7 +506,7 @@ func (p *Provider) HandleRefresh(list string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		for _, s := range ctx.Logins() {
 			rc := ctx.Request().Context()
-			if err := p.mirror.Refresh(rc, s.Username(), p.router(rc, s)); err != nil {
+			if err := p.mirror.Refresh(rc, s.Username(), p.router(p.Sources(rc, s), s)); err != nil {
 				ctx.Logger().Printf("%s: refresh %s: %v", p.Kind.Name, s.Username(), err)
 			}
 		}

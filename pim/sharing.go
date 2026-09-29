@@ -49,7 +49,7 @@ func (pg Page) kindKey(c *store.Collection) string {
 
 // offer is the account's share of the collection at collPath in its own home, nil when none.
 func (pg Page) offer(ctx *alborz.Context, p *dav.Provider, collPath, account string) (*Offer, error) {
-	ref, home, here := store.Held(collPath)
+	ref, home, here := p.Held(collPath)
 	account = strings.ToLower(account)
 	if !here || home != account || ref.Owner == account {
 		return nil, nil
@@ -123,7 +123,7 @@ func (pg Page) sharing(ctx *alborz.Context, p *dav.Provider, info dav.Collection
 	if !info.Here || info.SharedBy != "" {
 		return nil, nil
 	}
-	ref, _, _ := store.Held(info.Path)
+	ref, _, _ := p.Held(info.Path)
 	c, err := p.Store.Collection(ref)
 	if err != nil {
 		return nil, err
@@ -141,7 +141,7 @@ func (pg Page) sharing(ctx *alborz.Context, p *dav.Provider, info dav.Collection
 
 // forgetInvitees drops invitees' cached lists before the collection goes, or they would go on naming it.
 func (pg Page) forgetInvitees(p *dav.Provider, path string) error {
-	ref, _, here := store.Held(path)
+	ref, _, here := p.Held(path)
 	if !here {
 		return nil
 	}
@@ -152,7 +152,7 @@ func (pg Page) forgetInvitees(p *dav.Provider, path string) error {
 	return err
 }
 
-func (pg Page) owned(ctx *alborz.Context) (dav.Collection, store.Ref, error) {
+func (pg Page) owned(ctx *alborz.Context, p *dav.Provider) (dav.Collection, store.Ref, error) {
 	collPath, err := ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return dav.Collection{}, store.Ref{}, err
@@ -161,7 +161,7 @@ func (pg Page) owned(ctx *alborz.Context) (dav.Collection, store.Ref, error) {
 	if err != nil {
 		return info, store.Ref{}, err
 	}
-	ref, _, here := store.Held(info.Path)
+	ref, _, here := p.Held(info.Path)
 	if !here || info.SharedBy != "" {
 		return info, ref, echo.NewHTTPError(http.StatusForbidden, "not one of this account's collections on alborz")
 	}
@@ -201,7 +201,7 @@ func invitee(ctx *alborz.Context, typed string) (string, error) {
 // HandleShare invites an address to the collection, or changes an existing invitation's terms.
 func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
-		info, ref, err := pg.owned(ctx)
+		info, ref, err := pg.owned(ctx, p)
 		if err != nil {
 			return err
 		}
@@ -249,8 +249,8 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 			if err != nil {
 				return err
 			}
-			subject, text := pg.offerMail(ctx, c, share)
-			headers := map[string]string{mail.ShareHeader: store.PathOf(share.To, *c)}
+			subject, text := pg.offerMail(ctx, p, c, share)
+			headers := map[string]string{mail.ShareHeader: p.PathOf(share.To, *c)}
 			if err := mail.SendText(ctx, []string{share.To}, subject, text, headers); err != nil {
 				ctx.Logger().Printf("dav: failed to mail the invitation to %s: %v", share.To, err)
 				notice = alborz.Notice{Kind: alborz.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.sharednomail"), share.To)}
@@ -262,10 +262,10 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 }
 
 // offerMail is the invitation as mail; its links only open the answer page, since mail scanners open links on arrival.
-func (pg Page) offerMail(ctx *alborz.Context, c *store.Collection, sh store.Share) (subject, text string) {
+func (pg Page) offerMail(ctx *alborz.Context, p *dav.Provider, c *store.Collection, sh store.Share) (subject, text string) {
 	kind := pg.kindKey(c)
 	subject = fmt.Sprintf(ctx.T(kind+"mail"), sh.Owner, c.Name)
-	page := ctx.Origin() + pg.Base + url.PathEscape(store.PathOf(sh.To, *c)) + "?account=" + alborz.QueryValue(sh.To)
+	page := ctx.Origin() + pg.Base + url.PathEscape(p.PathOf(sh.To, *c)) + "?account=" + alborz.QueryValue(sh.To)
 	access := ctx.T("share.canview")
 	if sh.Write {
 		access = ctx.T("share.canedit")
@@ -283,7 +283,7 @@ func (pg Page) offerMail(ctx *alborz.Context, c *store.Collection, sh store.Shar
 // HandleAccess turns one address's access between viewing and editing.
 func (pg Page) HandleAccess(p *dav.Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
-		info, ref, err := pg.owned(ctx)
+		info, ref, err := pg.owned(ctx, p)
 		if err != nil {
 			return err
 		}
@@ -312,7 +312,7 @@ func (pg Page) HandleAccess(p *dav.Provider) func(*alborz.Context) error {
 // HandleUnshare ends one address's access.
 func (pg Page) HandleUnshare(p *dav.Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
-		info, ref, err := pg.owned(ctx)
+		info, ref, err := pg.owned(ctx, p)
 		if err != nil {
 			return err
 		}
@@ -334,7 +334,7 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*alborz.Context) 
 		if err != nil {
 			return err
 		}
-		ref, home, here := store.Held(collPath)
+		ref, home, here := p.Held(collPath)
 		account := strings.ToLower(ctx.Login.Username())
 		if !here || home != account {
 			return echo.NewHTTPError(http.StatusNotFound, "no such invitation")
@@ -374,7 +374,7 @@ const publicSecretBytes = 24
 // HandlePublish gives the calendar a public address or takes it away; republishing makes a new one.
 func (pg Page) HandlePublish(p *dav.Provider, publish bool) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
-		info, ref, err := pg.owned(ctx)
+		info, ref, err := pg.owned(ctx, p)
 		if err != nil {
 			return err
 		}

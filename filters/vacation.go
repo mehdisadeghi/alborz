@@ -191,6 +191,9 @@ type RepliesRenderData struct {
 	CanDate    bool
 	CanWire    bool
 	Rail       map[string][]alborz.RailRow
+
+	// From and Until are Editing's date fields as shown.
+	From, Until alborz.DateField
 }
 
 func repliesData(ctx *alborz.Context) (*RepliesRenderData, error) {
@@ -248,6 +251,7 @@ func handleReplyForm(ctx *alborz.Context) error {
 		}
 		data.Editing, data.Index = data.Replies[i], i
 	}
+	data.From, data.Until = ctx.InputDay(data.Editing.From), ctx.InputDay(data.Editing.Until)
 	return ctx.Render(http.StatusOK, "filters/autoreply-edit", data)
 }
 
@@ -261,8 +265,6 @@ func replyFromForm(ctx *alborz.Context) (Reply, error) {
 		Subject:   strings.TrimSpace(ctx.FormValue("subject")),
 		Text:      strings.TrimRight(strings.ReplaceAll(ctx.FormValue("text"), "\r\n", "\n"), "\n"),
 		Addresses: params["addresses"],
-		From:      strings.TrimSpace(ctx.FormValue("from")),
-		Until:     strings.TrimSpace(ctx.FormValue("until")),
 	}
 	v.Days, err = alborz.ReadInt(ctx.FormValue("days"))
 	switch {
@@ -273,11 +275,12 @@ func replyFromForm(ctx *alborz.Context) (Reply, error) {
 	case err != nil || v.Days < 1 || v.Days > vacationDaysMax:
 		return v, fmt.Errorf(ctx.T("filters.baddays"), vacationDaysMax)
 	}
-	for _, bound := range []*string{&v.From, &v.Until} {
-		if *bound == "" {
+	for name, bound := range map[string]*string{"from": &v.From, "until": &v.Until} {
+		field := ctx.DateField(name)
+		if field.Value == "" {
 			continue
 		}
-		day, err := ctx.ReadDate(*bound, time.UTC)
+		day, err := field.Date(time.UTC)
 		if err != nil {
 			return v, errors.New(ctx.T("filters.baddate"))
 		}
@@ -301,6 +304,7 @@ func handleReplySave(ctx *alborz.Context) error {
 			return err
 		}
 		data.Editing, data.Index = v, index
+		data.From, data.Until = ctx.DateField("from"), ctx.DateField("until")
 		data.Refused(message)
 		return ctx.Render(http.StatusUnprocessableEntity, "filters/autoreply-edit", data)
 	}

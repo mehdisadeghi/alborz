@@ -8,84 +8,123 @@ import (
 	"git.mehdix.org/alborz/internal/calsys"
 )
 
-// Non-Gregorian calendars take typed dates, since a native date picker speaks only Gregorian.
+// Gregorian fields are picked, since a native date picker speaks only Gregorian; other calendars take dates typed.
 const (
 	isoDate     = "2006-01-02"
 	isoDateTime = "2006-01-02T15:04"
 	typedDate   = "%04d/%02d/%02d"
 	typedTime   = "%02d:%02d"
+	// fieldCalendar suffixes a date field's name to name the hidden field saying its calendar, as templates/partials/form.html writes it.
+	fieldCalendar = "-calendar"
 )
 
-// TypedDates reports whether forms take dates typed rather than picked.
-func (g *GlobalRenderData) TypedDates() bool { return g.PrimaryCalendar().Name() != calsys.Gregorian }
+// DateField is a date field's text and the calendar it is written in, so it is read back in that calendar and never by its shape.
+type DateField struct{ Value, Calendar string }
 
-// InputDate and InputDateTime are a date as its field holds it.
-func (g *GlobalRenderData) InputDate(t time.Time) string {
+// Typed reports whether the field takes its date typed rather than picked.
+func (f DateField) Typed() bool { return f.Calendar != calsys.Gregorian }
+
+// InputDate and InputDateTime write t in the primary calendar, or in Gregorian where the primary cannot count it; zero is an empty field.
+func (g *GlobalRenderData) InputDate(t time.Time) DateField {
+	return g.inputIn(g.calendarFor(t), t, false)
+}
+
+func (g *GlobalRenderData) InputDateTime(t time.Time) DateField {
+	return g.inputIn(g.calendarFor(t), t, true)
+}
+
+func (g *GlobalRenderData) calendarFor(t time.Time) calsys.System {
 	if t.IsZero() {
-		return ""
+		return g.PrimaryCalendar()
 	}
-	if !g.TypedDates() {
-		return t.Format(isoDate)
-	}
-	y, m, d := g.PrimaryCalendar().Date(t)
-	return g.shapeDigits(fmt.Sprintf(typedDate, y, m, d))
+	return calsys.For(g.PrimaryCalendar(), t)
 }
 
-func (g *GlobalRenderData) InputDateTime(t time.Time) string {
-	if t.IsZero() {
-		return ""
+func (g *GlobalRenderData) inputIn(cal calsys.System, t time.Time, clock bool) DateField {
+	f := DateField{Calendar: cal.Name()}
+	switch {
+	case t.IsZero():
+	case !f.Typed() && clock:
+		f.Value = t.Format(isoDateTime)
+	case !f.Typed():
+		f.Value = t.Format(isoDate)
+	default:
+		y, m, d := cal.Date(t)
+		f.Value = g.shapeDigits(fmt.Sprintf(typedDate, y, m, d))
+		if clock {
+			f.Value += " " + g.shapeDigits(fmt.Sprintf(typedTime, t.Hour(), t.Minute()))
+		}
 	}
-	if !g.TypedDates() {
-		return t.Format(isoDateTime)
-	}
-	return g.InputDate(t) + " " + g.shapeDigits(fmt.Sprintf(typedTime, t.Hour(), t.Minute()))
+	return f
 }
 
-// DateExample and DateTimeExample show today as a typed field expects it.
-func (g *GlobalRenderData) DateExample() string { return g.InputDate(g.InTimezone(time.Now())) }
-
-func (g *GlobalRenderData) DateTimeExample() string {
-	return g.InputDateTime(g.InTimezone(time.Now()))
+// DateExample and DateTimeExample show today as a typed field in f's calendar expects it.
+func (g *GlobalRenderData) DateExample(f DateField) string {
+	return g.inputIn(calsys.Of(f.Calendar), g.InTimezone(time.Now()), false).Value
 }
 
-// InputDay is InputDate for an ISO day string; anything else is returned as typed.
-func (g *GlobalRenderData) InputDay(iso string) string {
+func (g *GlobalRenderData) DateTimeExample(f DateField) string {
+	return g.inputIn(calsys.Of(f.Calendar), g.InTimezone(time.Now()), true).Value
+}
+
+// InputDay is InputDate for an ISO day string; anything else is kept as written, in the primary calendar.
+func (g *GlobalRenderData) InputDay(iso string) DateField {
 	t, err := time.Parse(isoDate, iso)
 	if err != nil {
-		return iso
+		return DateField{Value: iso, Calendar: g.PrimaryCalendar().Name()}
 	}
 	return g.InputDate(t)
 }
 
-func (ctx *Context) InputDate(t time.Time) string { return ctx.dates().InputDate(t) }
+func (ctx *Context) InputDate(t time.Time) DateField { return ctx.dates().InputDate(t) }
 
-// ReadDate and ReadDateTime read a field's date back in the reader's calendar.
-func (ctx *Context) ReadDate(s string, loc *time.Location) (time.Time, error) {
-	g := ctx.dates()
-	if !g.TypedDates() {
-		return time.ParseInLocation(isoDate, s, loc)
+func (ctx *Context) InputDay(iso string) DateField { return ctx.dates().InputDay(iso) }
+
+// DateField is the named field as the form sent it.
+func (ctx *Context) DateField(name string) DateField {
+	return DateField{Value: strings.TrimSpace(ctx.FormValue(name)), Calendar: ctx.FormValue(name + fieldCalendar)}
+}
+
+// Date and DateTime read the field in the calendar it names.
+func (f DateField) Date(loc *time.Location) (time.Time, error) {
+	cal, err := f.calendar()
+	switch {
+	case err != nil:
+		return time.Time{}, err
+	case !f.Typed():
+		return time.ParseInLocation(isoDate, f.Value, loc)
 	}
-	day, rest, err := typedDay(g.PrimaryCalendar(), s, loc)
+	day, rest, err := typedDay(cal, f.Value, loc)
 	if err != nil || rest != "" {
-		return time.Time{}, fmt.Errorf("not a date: %q", s)
+		return time.Time{}, fmt.Errorf("not a date: %q", f.Value)
 	}
 	return day, nil
 }
 
-func (ctx *Context) ReadDateTime(s string, loc *time.Location) (time.Time, error) {
-	g := ctx.dates()
-	if !g.TypedDates() {
-		return time.ParseInLocation(isoDateTime, s, loc)
+func (f DateField) DateTime(loc *time.Location) (time.Time, error) {
+	cal, err := f.calendar()
+	switch {
+	case err != nil:
+		return time.Time{}, err
+	case !f.Typed():
+		return time.ParseInLocation(isoDateTime, f.Value, loc)
 	}
-	day, rest, err := typedDay(g.PrimaryCalendar(), s, loc)
+	day, rest, err := typedDay(cal, f.Value, loc)
 	var h, m int
 	if err != nil || rest == "" {
-		return time.Time{}, fmt.Errorf("not a date and time: %q", s)
+		return time.Time{}, fmt.Errorf("not a date and time: %q", f.Value)
 	}
 	if _, err := fmt.Sscanf(rest, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
 		return time.Time{}, fmt.Errorf("not a time: %q", rest)
 	}
 	return day.Add(time.Duration(h)*time.Hour + time.Duration(m)*time.Minute), nil
+}
+
+func (f DateField) calendar() (calsys.System, error) {
+	if calsys.Known(f.Calendar) == "" {
+		return nil, fmt.Errorf("no calendar %q", f.Calendar)
+	}
+	return calsys.Of(f.Calendar), nil
 }
 
 func typedDay(cal calsys.System, s string, loc *time.Location) (time.Time, string, error) {
@@ -95,8 +134,6 @@ func typedDay(cal calsys.System, s string, loc *time.Location) (time.Time, strin
 	if n, err := fmt.Sscanf(strings.ReplaceAll(date, "-", "/"), "%d/%d/%d", &y, &m, &d); n != 3 || err != nil {
 		return time.Time{}, "", fmt.Errorf("not a date: %q", date)
 	}
-	if m < 1 || m > 12 || d < 1 || d > cal.DaysInMonth(cal.Time(y, m, 1, loc)) {
-		return time.Time{}, "", fmt.Errorf("no such day: %q", date)
-	}
-	return cal.Time(y, m, d, loc), strings.TrimSpace(rest), nil
+	t, err := cal.Day(y, m, d, loc)
+	return t, strings.TrimSpace(rest), err
 }

@@ -23,8 +23,8 @@
         {{ if .CanDate }}
         <div class="action-group">
           <div class="condition-row">
-            {{ template "date-field" (dict "g" $ "label" ($.T "filters.replyfrom") "name" "from" "value" ($.GlobalData.InputDay .Editing.From) "hint" true) }}
-            {{ template "date-field" (dict "g" $ "label" ($.T "filters.replyuntil") "name" "until" "value" ($.GlobalData.InputDay .Editing.Until)) }}
+            {{ template "date-field" (dict "g" $ "label" ($.T "filters.replyfrom") "name" "from" "value" .From "hint" true) }}
+            {{ template "date-field" (dict "g" $ "label" ($.T "filters.replyuntil") "name" "until" "value" .Until) }}
           </div>
           <p class="hint">{{$.T "filters.replydateshint"}}</p>
         </div>

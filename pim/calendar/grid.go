@@ -46,7 +46,7 @@ func (d *CalendarRenderData) SameMonth(a, b time.Time) bool {
 // SecondaryDay is the day number in the secondary calendar, empty when none is chosen.
 func (d *CalendarRenderData) SecondaryDay(t time.Time) string {
 	g := &d.GlobalData
-	cal, ok := g.SecondaryCalendar()
+	cal, ok := g.SecondaryCalendar(g.InTimezone(t))
 	if !ok {
 		return ""
 	}
@@ -88,22 +88,23 @@ func (d *CalendarRenderData) WeekTitle(rowStart time.Time) string {
 // SecondaryWeek is the same week counted in the secondary calendar, empty when none is chosen.
 func (d *CalendarRenderData) SecondaryWeek(rowStart time.Time) string {
 	g := &d.GlobalData
-	cal, ok := g.SecondaryCalendar()
+	anchor := weekAnchor(g.InTimezone(rowStart))
+	cal, ok := g.SecondaryCalendar(anchor)
 	if !ok {
 		return ""
 	}
-	return g.Num(weekOf(cal, weekAnchor(g.InTimezone(rowStart))))
+	return g.Num(weekOf(cal, anchor))
 }
 
 // SecondaryMonthYear names the secondary months a primary month spans, empty when none is chosen.
 func (d *CalendarRenderData) SecondaryMonthYear(t time.Time) string {
 	g := &d.GlobalData
-	cal, ok := g.SecondaryCalendar()
-	if !ok {
-		return ""
-	}
 	start := g.PrimaryCalendar().MonthStart(g.InTimezone(t))
 	end := g.PrimaryCalendar().AddMonths(start, 1).AddDate(0, 0, -1)
+	cal, ok := g.SecondaryCalendar(start)
+	if _, counts := g.SecondaryCalendar(end); !ok || !counts {
+		return ""
+	}
 	fy, fm, _ := cal.Date(start.Add(12 * time.Hour))
 	ly, lm, _ := cal.Date(end.Add(12 * time.Hour))
 	first, last := g.T(cal.MonthKey(fm)), g.T(cal.MonthKey(lm))

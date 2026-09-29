@@ -207,7 +207,7 @@ func walkedKinds() []walked {
 		{name: "event", list: "/calendar", objects: "/calendar/",
 			views: []string{"/calendar?view=list&span=month", "/calendar?view=list&span=month&group=day", "/calendar/date?date=" + time.Now().UTC().Format("2006-01-02")}, edit: "/update", collField: "cal",
 			collection: "/alborz/dav/calendars/" + smokeUser + "/plans/", collName: "Plans", ext: ".ics", mime: "text/calendar", object: eventToday,
-			titleField: "summary", destField: "calendar", form: url.Values{"start": {noon}, "end": {noon}},
+			titleField: "summary", destField: "calendar", form: url.Values{"start": {noon}, "end": {noon}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"}},
 			listExport: "/calendar/export", exported: "BEGIN:VEVENT"},
 		{name: "task", list: "/tasks", objects: "/tasks/", edit: "/edit", collField: "cal",
 			sorts:      []string{"summary", "status", "priority", "starred", "account", "calendar", "due", "added"},

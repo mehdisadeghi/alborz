@@ -26,7 +26,7 @@ func TestCreateCalendarWithNoneYet(t *testing.T) {
 	if choice := regexp.MustCompile(`(?s)<select name="calendar"[^>]*>(.*?)</select>`).FindStringSubmatch(page); choice == nil || strings.Contains(choice[1], "<option") {
 		t.Fatalf("the new-event form has no empty calendar choice")
 	}
-	resp, err := c.PostForm(base+"/calendar/create", url.Values{"summary": {"Lunch"}, "start": {"2026-09-28T12:00"}, "end": {"2026-09-28T13:00"}})
+	resp, err := c.PostForm(base+"/calendar/create", url.Values{"summary": {"Lunch"}, "start": {"2026-09-28T12:00"}, "end": {"2026-09-28T13:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"}})
 	if err != nil {
 		t.Fatal(err)
 	}

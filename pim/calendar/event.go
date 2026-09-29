@@ -46,10 +46,10 @@ type UpdateEventRenderData struct {
 
 	// Both shapes are filled, so ticking the box loses nothing typed.
 	AllDay    bool
-	StartTime string
-	EndTime   string
-	StartDate string
-	EndDate   string
+	StartTime alborz.DateField
+	EndTime   alborz.DateField
+	StartDate alborz.DateField
+	EndDate   alborz.DateField
 	// Attendees are the invited addresses, one per line.
 	Attendees string
 	Repeat    Repeat
@@ -364,11 +364,11 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 				CalendarObject: co,
 				Event:          event,
 				AllDay:         ctx.FormValue("allday") != "",
-				StartTime:      ctx.FormValue("start"),
-				EndTime:        ctx.FormValue("end"),
-				StartDate:      ctx.FormValue("start_date"),
-				EndDate:        ctx.FormValue("end_date"),
-				Repeat:         Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.FormValue("until")},
+				StartTime:      ctx.DateField("start"),
+				EndTime:        ctx.DateField("end"),
+				StartDate:      ctx.DateField("start_date"),
+				EndDate:        ctx.DateField("end_date"),
+				Repeat:         Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")},
 				RepeatFreqs:    repeatFreqs,
 			})
 		}
@@ -390,11 +390,11 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		allDay := ctx.FormValue("allday") != ""
 		var start, end time.Time
 		if allDay {
-			start, err = ctx.ReadDate(ctx.FormValue("start_date"), loc)
+			start, err = ctx.DateField("start_date").Date(loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
-			end, err = ctx.ReadDate(ctx.FormValue("end_date"), loc)
+			end, err = ctx.DateField("end_date").Date(loc)
 			if err != nil {
 				end = start
 			}
@@ -404,11 +404,11 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			// DTEND is exclusive; the form asks for the last day.
 			end = end.AddDate(0, 0, 1)
 		} else {
-			start, err = ctx.ReadDateTime(ctx.FormValue("start"), loc)
+			start, err = ctx.DateField("start").DateTime(loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
-			end, err = ctx.ReadDateTime(ctx.FormValue("end"), loc)
+			end, err = ctx.DateField("end").DateTime(loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
@@ -430,7 +430,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			event.Props.SetDateTime(ical.PropDateTimeEnd, end)
 		}
 		event.Props.Del(ical.PropDuration)
-		if err := setRepeat(ctx, event, Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.FormValue("until")}, start, allDay, loc); err != nil {
+		if err := setRepeat(ctx, event, Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")}, start, allDay, loc); err != nil {
 			return reject(ctx.T("form.repeatuntil"))
 		}
 

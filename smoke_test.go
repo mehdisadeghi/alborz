@@ -1972,6 +1972,30 @@ func TestDownloadedPartIsTheFileSent(t *testing.T) {
 
 // A forward carries the original's file and the original itself, and what
 // leaves is, byte for byte, what the Sent folder keeps.
+// Writing the quoted date must not take the notice the page came to show.
+func TestAReplyOrForwardShowsThePendingNotice(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
+	if len(uids) == 0 {
+		t.Fatal("the rig seeded no message to reply to")
+	}
+	for _, page := range []string{"reply", "forward"} {
+		resp, err := c.PostForm(base+"/settings", url.Values{"messages_per_page": {"50"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusFound {
+			t.Fatalf("saving the settings: %s", resp.Status)
+		}
+		if body := get(t, c, base+"/message/INBOX/"+uids[0]+"/"+page); !strings.Contains(body, "Settings saved.") {
+			t.Errorf("the %s page lost the notice", page)
+		}
+	}
+}
+
 func TestForwardLeavesAsTheSentCopyKeepsIt(t *testing.T) {
 	file := make([]byte, 8<<20)
 	rand.NewChaCha8([32]byte{}).Read(file)

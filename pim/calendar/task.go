@@ -316,7 +316,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		Calendar:       currentCalendar,
 		CalendarObject: co,
 		Todo:           todo,
-		Due:            ctx.InputDate(at),
+		Due:            ctx.Dates().Input(at),
 		Priority:       priorityBand(todo),
 		PriorityBands:  priorityBands,
 	})

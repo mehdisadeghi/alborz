@@ -415,7 +415,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		AddressObject:  ao,
 		Card:           card,
 		Name:           name,
-		Birthday:       ctx.InputDay(birthdayValue(card)),
+		Birthday:       ctx.Dates().Day(birthdayValue(card)),
 		Photo:          card.PreferredValue(vcard.FieldPhoto),
 	})
 }

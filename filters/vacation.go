@@ -254,7 +254,7 @@ func handleReplyForm(ctx *web.Context) error {
 		}
 		data.Editing, data.Index = data.Replies[i], i
 	}
-	data.From, data.Until = ctx.InputDay(data.Editing.From), ctx.InputDay(data.Editing.Until)
+	data.From, data.Until = ctx.Dates().Day(data.Editing.From), ctx.Dates().Day(data.Editing.Until)
 	return ctx.Render(http.StatusOK, "filters/autoreply-edit", data)
 }
 

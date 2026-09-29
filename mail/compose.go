@@ -847,7 +847,6 @@ func readText(part *message.Entity) (string, error) {
 
 // Not quoted: chevrons on every line are reply convention, not forward.
 func forwardBody(ctx *web.Context, original *IMAPMessage, body string) string {
-	g := web.NewBaseRenderData(ctx).GlobalData
 	var b strings.Builder
 	b.WriteString("\n\n")
 	b.WriteString(ctx.T("message.forwardedblock"))
@@ -855,7 +854,7 @@ func forwardBody(ctx *web.Context, original *IMAPMessage, body string) string {
 	if from := original.Envelope.From; len(from) > 0 {
 		fmt.Fprintf(&b, "From: %s\n", addressLine(from[0]))
 	}
-	fmt.Fprintf(&b, "Date: %s\n", g.FormatDate(original.Date()))
+	fmt.Fprintf(&b, "Date: %s\n", ctx.Dates().Full(original.Date()))
 	fmt.Fprintf(&b, "Subject: %s\n", original.Envelope.Subject)
 	if to := original.Envelope.To; len(to) > 0 {
 		fmt.Fprintf(&b, "To: %s\n", strings.Join(unwrapIMAPAddressList(to), ", "))
@@ -915,7 +914,7 @@ func replyBody(ctx *web.Context, original *IMAPMessage, quoted string, below boo
 			who = from[0].Addr()
 		}
 	}
-	when := web.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
+	when := ctx.Dates().Full(original.Date())
 	attribution := ctx.Tf("message.wrote", when, who)
 	if below {
 		return attribution + "\n" + quoted + "\n"
@@ -931,7 +930,7 @@ func replyHTML(ctx *web.Context, original *IMAPMessage, quoted string, below boo
 			who = from[0].Addr()
 		}
 	}
-	when := web.NewBaseRenderData(ctx).GlobalData.FormatDate(original.Date())
+	when := ctx.Dates().Full(original.Date())
 	attribution := ctx.Tf("message.wrote", when, who)
 	head := `<p dir="` + lang.ParagraphDir(attribution) + `">` + html.EscapeString(attribution) + "</p>\n<blockquote>" + quoted + "</blockquote>\n"
 	if below {

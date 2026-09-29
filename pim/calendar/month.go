@@ -140,7 +140,7 @@ func (p *plugin) month(ctx *web.Context) error {
 			return mv.on[mv.day(when)]
 		},
 
-		AddedBy:        p.dav.AddedBy(ctx.Login.Username()),
+		AddedBy:        p.DAV.AddedBy(ctx.Login.Username()),
 		CollectionFor:  collection,
 		CollectionHref: href,
 
@@ -216,7 +216,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	}
 	query := eventQuery(queryStart, queryEnd)
 
-	events, err := p.querySites(ctx, sites, &query)
+	events, err := p.QuerySites(ctx.Request().Context(), sites, &query)
 	if err != nil {
 		return monthView{}, err
 	}

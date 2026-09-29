@@ -26,7 +26,7 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		src := ctx.Param("path")
 		rc := ctx.Request().Context()
-		c, calendars, err := p.clientWithCalendars(rc, ctx.Login)
+		c, calendars, err := p.Open(rc, ctx.Login)
 		if err != nil {
 			return err
 		}
@@ -87,13 +87,13 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 		}
 		source := held.Feed
 		if source == "" {
-			if source, err = p.dav.Address(rc, ctx.Login, held.Path); err != nil {
+			if source, err = p.DAV.Address(rc, ctx.Login, held.Path); err != nil {
 				return err
 			}
 		}
 		uid := uuid.New().String()
 		asCopy(co.Data, uid, source, time.Now().UTC())
-		made, err := putObject(ctx, to, uid+".ics", nil, co.Data)
+		made, err := putObject(ctx.Request().Context(), to, uid+".ics", nil, co.Data)
 		if err != nil {
 			return page(http.StatusUnprocessableEntity, pim.Refusal(ctx, err))
 		}

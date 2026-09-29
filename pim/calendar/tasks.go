@@ -182,7 +182,7 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 
 	query := taskQuery()
 
-	for _, result := range pim.Present(p.dav, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
+	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
 	})) {
 		if result.Err != nil {
@@ -269,7 +269,7 @@ func (p *plugin) tasks(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	addedBy := p.dav.AddedBy(ctx.Login.Username())
+	addedBy := p.DAV.AddedBy(ctx.Login.Username())
 	for i := range rows {
 		rows[i].AddedBy = addedBy(rows[i].Calendar.Account, rows[i].Task.Path)
 	}
@@ -306,10 +306,10 @@ func (p *plugin) complete(ctx *web.Context) error {
 	}
 	var marked *caldav.CalendarObject
 	return pim.Run(ctx, pim.Action[*caldav.Client]{
-		Client: p.client,
+		Client: p.Client,
 		List:   "calendar.tasks",
 		Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) (err error) {
-			marked, err = changeComponent(ctx, ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
+			marked, err = changeComponent(ctx.Request().Context(), ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
 			return err
 		},
 		Done: words,
@@ -321,7 +321,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 				return ctx.Relocate(next)
 			}
 			// The same button undoes it, so a marked task answers with its row and no notice.
-			calendars, err := p.dav.Collections(ctx.Request().Context(), ctx.Login)
+			calendars, err := p.DAV.Collections(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return err
 			}
@@ -336,7 +336,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 			params := pim.ListParamsIn(next, taskListParams...)
 			params.Set("from", next)
 			row := taskRow(ctx, marked, cal, web.UserLocation(ctx), params)
-			row.AddedBy = p.dav.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)
+			row.AddedBy = p.DAV.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)
 			data := &TaskRowRenderData{BaseRenderData: *web.NewBaseRenderData(ctx), Row: row, Next: next}
 			data.G = &data.BaseRenderData
 			return ctx.Render(http.StatusOK, "task-row", data)
@@ -446,7 +446,7 @@ func (p *plugin) move(ctx *web.Context) error {
 	} else if err != nil {
 		return err
 	}
-	return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.client, List: "calendar.tasks",
+	return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.Client, List: "calendar.tasks",
 		Done: func(ctx *web.Context, done []pim.Ref[*caldav.Client], _ string) web.Notice {
 			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.tasksmoved", len(done))}
 		},

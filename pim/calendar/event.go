@@ -69,7 +69,7 @@ func newEventStart(ctx *web.Context, loc *time.Location) time.Time {
 
 func fillEventForm(ctx *web.Context, d *UpdateEventRenderData, loc *time.Location, when time.Time) {
 	d.RepeatFreqs = repeatFreqs
-	d.Repeat = formRepeat(ctx, d.Event, loc)
+	d.Repeat = formRepeat(ctx.Dates(), d.Event, loc)
 	start, _ := d.Event.DateTimeStart(loc)
 	end, _ := d.Event.DateTimeEnd(loc)
 	if prop := d.Event.Props.Get(ical.PropDateTimeStart); prop != nil {
@@ -145,7 +145,7 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pim.Item, error) {
 func (p *plugin) event(ctx *web.Context) error {
 	path := ctx.Param("path")
 
-	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+	c, calendars, err := p.Open(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (p *plugin) event(ctx *web.Context) error {
 		Event:          CalendarObject{CalendarObject: event, ReadOnly: !calendar.Writable},
 		Star:           componentColor(vevents[0].Component),
 		Neighbours:     pim.Around(items, path),
-		Authors:        p.dav.Authors(event.Path, ctx.Login.Username()),
+		Authors:        p.DAV.Authors(event.Path, ctx.Login.Username()),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], web.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "calendar/event", data)
@@ -219,7 +219,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 	var before *ical.Calendar
 	var currentCalendar *dav.Collection
 	if calendarObjectPath != "" {
-		c, calendars, err = p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+		c, calendars, err = p.Open(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			return err
 		}
@@ -345,7 +345,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			event.Props.SetDateTime(ical.PropDateTimeEnd, end)
 		}
 		event.Props.Del(ical.PropDuration)
-		if err := setRepeat(ctx, event, Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")}, start, allDay, loc); err != nil {
+		if err := setRepeat(ctx.Dates(), event, Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")}, start, allDay, loc); err != nil {
 			return reject(ctx.T("form.repeatuntil"))
 		}
 
@@ -378,7 +378,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			cal = co.Data
 		}
 		ensureTimezones(cal, start)
-		co, err = putObject(ctx, to, newID.String()+".ics", co, cal)
+		co, err = putObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
 		if err != nil {
 			return reject(pim.Refusal(ctx, err))
 		}
@@ -391,7 +391,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		told := others(attendees, ours)
 		schedules := false
 		if len(told) > 0 || len(dropped) > 0 {
-			schedules, err = p.serverSchedules(ctx, to.Account, co.Path)
+			schedules, err = p.ServerSchedules(ctx.Request().Context(), ctx.LoginFor(to.Account), co.Path)
 		}
 		if err == nil && !schedules {
 			err = sendScheduling(ctx, itip.Request(cal), told)

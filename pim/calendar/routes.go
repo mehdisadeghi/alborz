@@ -164,7 +164,7 @@ var (
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
-		return p.dav.Guarded(errNoCalendar, "calendar.calendars.create", h)
+		return p.DAV.Guarded(errNoCalendar, "calendar.calendars.create", h)
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
@@ -178,7 +178,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 		s.TaskFilter, s.VisibleTasks = true, paths
 	})))
 	POST("refresh", "/calendar/refresh", p.refresh)
-	POST("tasks.refresh", "/tasks/refresh", p.dav.HandleRefresh("calendar.tasks"))
+	POST("tasks.refresh", "/tasks/refresh", p.DAV.HandleRefresh("calendar.tasks"))
 	GET("month", "/calendar", p.month)
 	GET("month.export", "/calendar/export", p.exportMonth)
 	GET("day", "/calendar/date", p.day)
@@ -189,30 +189,30 @@ func registerRoutes(p *plugin, g *web.Group) {
 	GET("subscribe", "/calendars/subscribe", handleSubscribe(p))
 	POST("subscribe", "/calendars/subscribe", handleSubscribe(p))
 	page := p.collectionPage()
-	GET("calendars.create", "/calendars/create", page.HandleCreate(p.dav, p.createForm))
-	POST("calendars.create", "/calendars/create", page.HandleCreate(p.dav, p.createForm))
-	calendarImport, calendarOver := page.HandleImportPage(p.dav, "calendar.month", "nav.calendar", "calendar.import", "calendar.importhint", "event", true)
+	GET("calendars.create", "/calendars/create", page.HandleCreate(p.DAV, p.createForm))
+	POST("calendars.create", "/calendars/create", page.HandleCreate(p.DAV, p.createForm))
+	calendarImport, calendarOver := page.HandleImportPage(p.DAV, "calendar.month", "nav.calendar", "calendar.import", "calendar.importhint", "event", true)
 	GET("import", "/calendar/import", calendarImport)
 	upload("import", "/calendar/import", calendarImport, calendarOver)
-	tasksImport, tasksOver := page.HandleImportPage(p.dav, "calendar.tasks", "nav.tasks", "tasks.import", "tasks.importhint", "task", false)
+	tasksImport, tasksOver := page.HandleImportPage(p.DAV, "calendar.tasks", "nav.tasks", "tasks.import", "tasks.importhint", "task", false)
 	GET("tasks.import", "/tasks/import", tasksImport)
 	upload("tasks.import", "/tasks/import", tasksImport, tasksOver)
 	for _, method := range []func(string, string, func(*web.Context) error){GET, POST} {
 		method("exportall", "/calendar/export-all", page.HandleExportAll("calendar.month", "calendars.zip"))
 		method("tasks.exportall", "/tasks/export-all", page.HandleExportAll("calendar.tasks", "task-lists.zip"))
 	}
-	GET("collection", "/calendars/{path}", page.Handle(p.dav))
-	POST("collection", "/calendars/{path}", page.Handle(p.dav))
-	POST("collection.delete", "/calendars/{path}/delete", page.HandleDelete(p.dav))
-	upload("collection.import", "/calendars/{path}/import", page.HandleImport(p.dav), page.HandleImportTooLarge)
-	GET("collection.export", "/calendars/{path}/export", page.HandleExport(p.dav))
-	POST("collection.share", "/calendars/{path}/share", page.HandleShare(p.dav))
-	POST("collection.unshare", "/calendars/{path}/unshare", page.HandleUnshare(p.dav))
-	POST("collection.access", "/calendars/{path}/access", page.HandleAccess(p.dav))
-	POST("collection.accept", "/calendars/{path}/accept", page.HandleAnswer(p.dav, true))
-	POST("collection.decline", "/calendars/{path}/decline", page.HandleAnswer(p.dav, false))
-	POST("collection.publish", "/calendars/{path}/publish", page.HandlePublish(p.dav, true))
-	POST("collection.unpublish", "/calendars/{path}/unpublish", page.HandlePublish(p.dav, false))
+	GET("collection", "/calendars/{path}", page.Handle(p.DAV))
+	POST("collection", "/calendars/{path}", page.Handle(p.DAV))
+	POST("collection.delete", "/calendars/{path}/delete", page.HandleDelete(p.DAV))
+	upload("collection.import", "/calendars/{path}/import", page.HandleImport(p.DAV), page.HandleImportTooLarge)
+	GET("collection.export", "/calendars/{path}/export", page.HandleExport(p.DAV))
+	POST("collection.share", "/calendars/{path}/share", page.HandleShare(p.DAV))
+	POST("collection.unshare", "/calendars/{path}/unshare", page.HandleUnshare(p.DAV))
+	POST("collection.access", "/calendars/{path}/access", page.HandleAccess(p.DAV))
+	POST("collection.accept", "/calendars/{path}/accept", page.HandleAnswer(p.DAV, true))
+	POST("collection.decline", "/calendars/{path}/decline", page.HandleAnswer(p.DAV, false))
+	POST("collection.publish", "/calendars/{path}/publish", page.HandlePublish(p.DAV, true))
+	POST("collection.unpublish", "/calendars/{path}/unpublish", page.HandlePublish(p.DAV, false))
 	GET("event.create", "/calendar/create", p.updateEvent)
 	POST("event.create", "/calendar/create", p.updateEvent)
 	GET("event.update", "/calendar/{path}/update", p.updateEvent)
@@ -222,7 +222,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 		if s == taskSection {
 			key, do = "notice.tasksdeleted", pim.Delete[*caldav.Client]
 		}
-		return pim.Handler(pim.Action[*caldav.Client]{Client: p.client, Do: do, List: s.list,
+		return pim.Handler(pim.Action[*caldav.Client]{Client: p.Client, Do: do, List: s.list,
 			Done: func(ctx *web.Context, done []pim.Ref[*caldav.Client], _ string) web.Notice {
 				return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf(key, len(done))}
 			}})
@@ -245,7 +245,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("tasks.complete", "/tasks/complete", p.complete)
 	GET("tasks.move", "/tasks/move", p.move)
 	POST("tasks.move", "/tasks/move", p.move)
-	POST("tasks.export", "/tasks/export", pim.HandleExport(p.client, "calendar.tasks",
+	POST("tasks.export", "/tasks/export", pim.HandleExport(p.Client, "calendar.tasks",
 		func(ctx *web.Context) string { return ctx.T("nav.tasks") + ".ics" }, joinCalendars))
 
 	POST("task.note", "/tasks/{path}/note", p.note(getFirstTodo, taskSection))
@@ -259,12 +259,12 @@ func registerRoutes(p *plugin, g *web.Group) {
 func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, s section) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		note := strings.TrimSpace(ctx.FormValue("note"))
-		return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.client, List: s.list, Done: pim.Quiet[*caldav.Client],
+		return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.Client, List: s.list, Done: pim.Quiet[*caldav.Client],
 			Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) error {
 				if note == "" {
 					return nil
 				}
-				_, err := changeComponent(ctx, ref, comp, func(target *ical.Component) {
+				_, err := changeComponent(ctx.Request().Context(), ref, comp, func(target *ical.Component) {
 					existing, _ := target.Props.Text(ical.PropDescription)
 					target.Props.SetText(ical.PropDescription, pim.AppendNote(ctx, existing, note))
 				})
@@ -273,8 +273,8 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, s section) func
 	}
 }
 
-func changeComponent(ctx *web.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
-	co, err := ref.Client.GetCalendarObject(ctx.Request().Context(), ref.Path)
+func changeComponent(ctx context.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
+	co, err := ref.Client.GetCalendarObject(ctx, ref.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object: %v", err)
 	}
@@ -285,7 +285,7 @@ func changeComponent(ctx *web.Context, ref pim.Ref[*caldav.Client], comp func(*i
 	change(target)
 	target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
 	target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
-	_, err = ref.Client.PutCalendarObject(ctx.Request().Context(), co.Path, co.Data, nil)
+	_, err = ref.Client.PutCalendarObject(ctx, co.Path, co.Data, nil)
 	return co, err
 }
 
@@ -324,7 +324,7 @@ func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chose
 		return err
 	}
 	var children []*ical.Component
-	for _, r := range pim.Present(p.dav, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]*ical.Component, error) {
+	for _, r := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]*ical.Component, error) {
 		return calendarComponents(ctx, site.Client, site.Collection.Path, comps, from, to)
 	})) {
 		if r.Err != nil {
@@ -347,7 +347,7 @@ func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chose
 }
 
 func (p *plugin) rawObject(ctx *web.Context) error {
-	return pim.Raw(ctx, p.client)
+	return pim.Raw(ctx, p.Client)
 }
 
 func newCalendar(comp *ical.Component) *ical.Calendar {
@@ -358,20 +358,20 @@ func newCalendar(comp *ical.Component) *ical.Calendar {
 	return cal
 }
 
-func putObject(ctx *web.Context, to pim.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
+func putObject(ctx context.Context, to pim.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
 	held, etag := "", ""
 	if was != nil {
 		held, etag = was.Path, was.ETag
 	}
 	at, ifMatch, ifNoneMatch := pim.Target(to.Path, name, held, etag)
-	return to.Client.PutCalendarObject(ctx.Request().Context(), at, cal,
+	return to.Client.PutCalendarObject(ctx, at, cal,
 		&caldav.PutCalendarObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
 }
 
 func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, s section) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		return pim.Star(ctx, p.client, s.list, s.object, func(ctx *web.Context, ref pim.Ref[*caldav.Client], name string) (was string, err error) {
-			_, err = changeComponent(ctx, ref, comp, func(target *ical.Component) {
+		return pim.Star(ctx, p.Client, s.list, s.object, func(ctx *web.Context, ref pim.Ref[*caldav.Client], name string) (was string, err error) {
+			_, err = changeComponent(ctx.Request().Context(), ref, comp, func(target *ical.Component) {
 				was = componentColor(target)
 				setComponentColor(target, name)
 			})
@@ -394,11 +394,12 @@ func joinCalendars(objects [][]byte) ([]byte, error) {
 
 func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
 	loc := web.UserLocation(ctx)
-	p.dav.Warm(s, func(bg context.Context) error { return p.warmAccount(bg, s, loc) })
+	p.DAV.Warm(s, func(bg context.Context) error { return p.WarmAccount(bg, s, loc) })
 }
 
-func (p *plugin) warmAccount(ctx context.Context, s *alborz.Login, loc *time.Location) error {
-	c, calendars, err := p.clientWithCalendars(ctx, s)
+// WarmAccount reads the login's month around now and its tasks, so the pages open from the mirror.
+func (p *Calendars) WarmAccount(ctx context.Context, s *alborz.Login, loc *time.Location) error {
+	c, calendars, err := p.Open(ctx, s)
 	if err != nil {
 		return err
 	}

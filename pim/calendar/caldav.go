@@ -111,8 +111,9 @@ func findHome(ctx context.Context, client *http.Client, endpoint string) (string
 	return homeSet, nil
 }
 
-func (p *plugin) clientWithCalendars(ctx context.Context, login *alborz.Login) (*caldav.Client, []dav.Collection, error) {
-	return dav.Opened(ctx, p.dav, login, p.client)
+// Open is the login's client with its calendars.
+func (p *Calendars) Open(ctx context.Context, login *alborz.Login) (*caldav.Client, []dav.Collection, error) {
+	return dav.Opened(ctx, p.DAV, login, p.Client)
 }
 
 type CalendarObject struct {
@@ -260,26 +261,30 @@ type TaskObject struct {
 	Account string
 }
 
-// pooledCalendars lists every account's calendars, subscriptions another alborz added to the settings made here first.
-func (p *plugin) pooledCalendars(ctx *web.Context) ([]pim.Account[*caldav.Client], error) {
-	return pim.Pooled(ctx, p.dav, func(rc context.Context, login *alborz.Login) (*caldav.Client, []dav.Collection, error) {
-		err := p.follows(rc, login, func(c store.Collection) error {
-			// A feed that is down leaves its calendar empty until the next round, not the page failing.
-			if err := p.feeds.refresh(rc, c.Feed.URL); err != nil {
-				p.feeds.log.Printf("calendar: feed %s: %v", c.Feed.URL, err)
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, nil, err
+// OpenWithFeeds is Open, the calendars of subscriptions another alborz added to the settings made here first.
+func (p *Calendars) OpenWithFeeds(ctx context.Context, login *alborz.Login) (*caldav.Client, []dav.Collection, error) {
+	err := p.follows(ctx, login, func(c store.Collection) error {
+		// A feed that is down leaves its calendar empty until the next round, not the page failing.
+		if err := p.feeds.refresh(ctx, c.Feed.URL); err != nil {
+			p.feeds.log.Printf("calendar: feed %s: %v", c.Feed.URL, err)
 		}
-		return p.clientWithCalendars(rc, login)
-	}, errNoCalendar)
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return p.Open(ctx, login)
 }
 
-func (p *plugin) querySites(ctx *web.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
+// pooledCalendars lists every account's calendars.
+func (p *plugin) pooledCalendars(ctx *web.Context) ([]pim.Account[*caldav.Client], error) {
+	return pim.Pooled(ctx, p.DAV, p.OpenWithFeeds, errNoCalendar)
+}
+
+// QuerySites asks each site for the objects query matches.
+func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
 	var events []CalendarObject
-	for _, r := range pim.Present(p.dav, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
+	for _, r := range pim.Present(p.DAV, dav.Across(ctx, sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, query)
 	})) {
 		if r.Err != nil {
@@ -302,7 +307,7 @@ func (p *plugin) writableGroups(ctx *web.Context, supports func([]string) bool) 
 }
 
 func (p *plugin) destination(ctx *web.Context, value string, supports func([]string) bool) (pim.Ref[*caldav.Client], error) {
-	return pim.Destination(ctx, value, p.clientWithCalendars, func(cal dav.Collection) bool {
+	return pim.Destination(ctx, value, p.Open, func(cal dav.Collection) bool {
 		return cal.Writable && supports(cal.Components)
 	})
 }

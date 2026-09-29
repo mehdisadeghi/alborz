@@ -56,7 +56,7 @@ func (p *plugin) day(ctx *web.Context) error {
 		Events:         dv.events,
 		PrevPage:       dv.start.AddDate(0, 0, -1).Format(datePageLayout),
 		NextPage:       dv.start.AddDate(0, 0, 1).Format(datePageLayout),
-		AddedBy:        p.dav.AddedBy(ctx.Login.Username()),
+		AddedBy:        p.DAV.AddedBy(ctx.Login.Username()),
 		CollectionFor:  collection,
 		CollectionHref: href,
 		Invitations:    invitations,
@@ -91,7 +91,7 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 	}
 	query := eventQuery(start, end)
 
-	events, err := p.querySites(ctx, sites, &query)
+	events, err := p.QuerySites(ctx.Request().Context(), sites, &query)
 	if err != nil {
 		return dayView{}, err
 	}

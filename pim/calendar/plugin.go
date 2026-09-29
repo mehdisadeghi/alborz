@@ -11,19 +11,15 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-type plugin struct {
-	dav   *dav.Provider
+// Calendars are every account's calendars and task lists, and the feeds some of them are filled from.
+type Calendars struct {
+	DAV   *dav.Provider
 	feeds *feeds
 }
 
-func (p *plugin) client(ctx context.Context, login *alborz.Login) (*caldav.Client, error) {
-	return newClient(dav.Base(), p.dav.HTTPClient(ctx, login))
-}
-
-// Mount serves calendars and tasks.
-func Mount(g *web.Group, st *store.Store) error {
-	srv := g.Server()
-	provider, err := dav.NewProvider(srv.Server, st, dav.Kind{
+// New finds each served domain's CalDAV server and opens the feeds of the calendars kept in st.
+func New(srv *alborz.Server, st *store.Store) (*Calendars, error) {
+	provider, err := dav.NewProvider(srv, st, dav.Kind{
 		Name: "caldav", Label: "CalDAV",
 		Schemes: [2]string{"caldavs", "caldav+insecure"},
 		// Invitations and tasks ticked on a phone should show within minutes.
@@ -38,18 +34,31 @@ func Mount(g *web.Group, st *store.Store) error {
 		Unnamed:  "calendar",
 	})
 	if err != nil {
+		return nil, err
+	}
+	return &Calendars{DAV: provider, feeds: openFeeds(srv, st)}, nil
+}
+
+// Client is the login's CalDAV client.
+func (p *Calendars) Client(ctx context.Context, login *alborz.Login) (*caldav.Client, error) {
+	return newClient(dav.Base(), p.DAV.HTTPClient(ctx, login))
+}
+
+type plugin struct{ *Calendars }
+
+// Mount serves calendars and tasks.
+func Mount(g *web.Group, st *store.Store) error {
+	srv := g.Server()
+	c, err := New(srv.Server, st)
+	if err != nil {
 		return err
 	}
-
-	p := &plugin{
-		dav:   provider,
-		feeds: openFeeds(srv, st),
-	}
+	p := &plugin{c}
 
 	registerRoutes(p, g)
 	p.registerScheduling(g)
-	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.dav))
-	srv.OnServers = append(srv.OnServers, p.dav.Cards("settings.davcalendar", davAbilities))
+	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.DAV))
+	srv.OnServers = append(srv.OnServers, p.DAV.Cards("settings.davcalendar", davAbilities))
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 
 	return nil

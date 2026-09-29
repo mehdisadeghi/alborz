@@ -78,7 +78,7 @@ func TestRSCALE(t *testing.T) {
 		cal := ical.NewCalendar()
 		cal.Children = append(cal.Children, event.Component)
 		var got []time.Time
-		for _, o := range occurrences(CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}, time.UTC, c.first, c.to) {
+		for _, o := range Occurrences(CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}, time.UTC, c.first, c.to) {
 			got = append(got, o.Start)
 		}
 		if !slices.EqualFunc(got, c.want, time.Time.Equal) {

@@ -96,7 +96,7 @@ func quickListOf(ctx *web.Context, calendars []dav.Collection) *quickList {
 	var lists []dav.Group
 	shown := 0
 	for _, cal := range calendars {
-		if !cal.Writable || !supportsTodo(cal.Components) || (scope != "" && cal.Account != scope) {
+		if !cal.Writable || !SupportsTodo(cal.Components) || (scope != "" && cal.Account != scope) {
 			continue
 		}
 		// The list in force, else the first shown.
@@ -163,7 +163,7 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 		return TaskList{}, err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), only, supportsTodo, taskVisibility)
+	calendarInfos, sites, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, SupportsTodo, TaskVisibility)
 	if err != nil {
 		return TaskList{}, err
 	}
@@ -180,7 +180,7 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 	}
 	params := pim.RowParams(ctx, ctx.Path("calendar.tasks"), pim.ListParams(ctx, taskListParams...))
 
-	query := taskQuery()
+	query := TaskQuery()
 
 	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
@@ -190,7 +190,7 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 		}
 
 		for _, task := range result.Value {
-			todo := getFirstTodo(task.Data)
+			todo := FirstTodo(task.Data)
 			if todo == nil {
 				continue
 			}
@@ -200,10 +200,10 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 			if completed != (view == viewCompleted) && view != viewAll {
 				continue
 			}
-			if !web.StarMatches(componentColor(todo), star) {
+			if !web.StarMatches(ComponentColor(todo), star) {
 				continue
 			}
-			if view == viewHigh && priorityBand(todo) != priorityHigh {
+			if view == viewHigh && PriorityBand(todo) != PriorityHigh {
 				continue
 			}
 			if search != "" {
@@ -248,10 +248,10 @@ var taskColumns = []pim.Column[TaskRow]{
 	}},
 	// High first; a task with none after the low ones.
 	{Key: "priority", Value: func(row TaskRow) string {
-		if i := slices.Index(priorityBands, row.Priority); i >= 0 {
+		if i := slices.Index(PriorityBands, row.Priority); i >= 0 {
 			return strconv.Itoa(i)
 		}
-		return strconv.Itoa(len(priorityBands))
+		return strconv.Itoa(len(PriorityBands))
 	}},
 	{Key: web.ViewStarred, Value: func(row TaskRow) string { return pim.StarredFirst(row.Star) }},
 	{Key: "account", Value: func(row TaskRow) string { return strings.ToLower(row.Task.Account) }},
@@ -309,7 +309,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 		Client: p.Client,
 		List:   "calendar.tasks",
 		Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) (err error) {
-			marked, err = changeComponent(ctx.Request().Context(), ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
+			marked, err = ChangeComponent(ctx.Request().Context(), ref, FirstTodo, func(todo *ical.Component) { MarkTodo(todo, done) })
 			return err
 		},
 		Done: words,
@@ -327,7 +327,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 			}
 			holder := dav.Holding(calendars, "", ref.Path)
 			if holder == nil {
-				return errNoCalendar
+				return ErrNoCalendar
 			}
 			// Only the pooled listing names the calendar's account, and the row's links need it.
 			cal := *holder
@@ -354,7 +354,7 @@ type TaskRowRenderData struct {
 }
 
 func taskRow(ctx *web.Context, task *caldav.CalendarObject, cal dav.Collection, loc *time.Location, params url.Values) TaskRow {
-	todo := getFirstTodo(task.Data)
+	todo := FirstTodo(task.Data)
 	summary, _ := todo.Props.Text("SUMMARY")
 	status, _ := todo.Props.Text("STATUS")
 	// A writer with only DTSTART is still saying when the task is for.
@@ -376,8 +376,8 @@ func taskRow(ctx *web.Context, task *caldav.CalendarObject, cal dav.Collection, 
 		Due:       due,
 		Added:     added,
 		Completed: status == "COMPLETED",
-		Priority:  priorityBand(todo),
-		Star:      componentColor(todo),
+		Priority:  PriorityBand(todo),
+		Star:      ComponentColor(todo),
 	}
 }
 
@@ -401,7 +401,7 @@ func (p *plugin) move(ctx *web.Context) error {
 		return err
 	}
 	page := func(status int, refusal string) error {
-		groups, err := p.writableGroups(ctx, supportsTodo)
+		groups, err := p.writableGroups(ctx, SupportsTodo)
 		if err != nil {
 			return err
 		}
@@ -430,7 +430,7 @@ func (p *plugin) move(ctx *web.Context) error {
 	if ctx.Request().Method != http.MethodPost {
 		return page(http.StatusOK, "")
 	}
-	target, err := p.destination(ctx, params.Get("to"), supportsTodo)
+	target, err := p.destination(ctx, params.Get("to"), SupportsTodo)
 	if errors.Is(err, pim.ErrNoDestination) {
 		return page(http.StatusUnprocessableEntity, ctx.T("form.destinationneeded"))
 	} else if err != nil {

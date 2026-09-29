@@ -84,7 +84,7 @@ func (p *plugin) task(ctx *web.Context) error {
 		return fmt.Errorf("expected exactly one task with path %q, got %v", path, len(tasks))
 	}
 	task := &tasks[0]
-	todo := getFirstTodo(task.Data)
+	todo := FirstTodo(task.Data)
 	if todo == nil {
 		return fmt.Errorf("no VTODO component found")
 	}
@@ -104,8 +104,8 @@ func (p *plugin) task(ctx *web.Context) error {
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
 		List:           cmp.Or(ctx.From(), pim.ListURL(ctx.Path("calendar.tasks"), pim.ListParams(ctx, taskListParams...))),
-		Star:           componentColor(getFirstTodo(task.Data)),
-		Priority:       priorityBand(getFirstTodo(task.Data)),
+		Star:           ComponentColor(FirstTodo(task.Data)),
+		Priority:       PriorityBand(FirstTodo(task.Data)),
 		Neighbours:     pim.Around(list.Items, path),
 		Authors:        p.DAV.Authors(task.Path, ctx.Login.Username()),
 	})
@@ -134,13 +134,13 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 			}
 			return fmt.Errorf("failed to get task: %v", err)
 		}
-		todo = getFirstTodo(co.Data)
+		todo = FirstTodo(co.Data)
 		if todo == nil {
 			return fmt.Errorf("no VTODO component found")
 		}
 		currentCalendar = dav.Holding(calendars, "", co.Path)
 	} else {
-		groups, err = p.writableGroups(ctx, supportsTodo)
+		groups, err = p.writableGroups(ctx, SupportsTodo)
 		if err != nil {
 			return err
 		}
@@ -163,7 +163,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		// A form without the select changes no priority.
 		_, prioritySent := params["priority"]
 		band := ctx.FormValue("priority")
-		if band != "" && !slices.Contains(priorityBands, band) {
+		if band != "" && !slices.Contains(PriorityBands, band) {
 			return web.NewError(http.StatusBadRequest, "no such priority")
 		}
 
@@ -181,7 +181,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 				Todo:           todo,
 				Due:            dueDate,
 				Priority:       band,
-				PriorityBands:  priorityBands,
+				PriorityBands:  PriorityBands,
 			})
 		}
 		if summary == "" {
@@ -191,7 +191,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		to := pim.Ref[*caldav.Client]{Client: c}
 		creating := co == nil
 		if creating {
-			to, err = p.destination(ctx, ctx.FormValue("calendar"), supportsTodo)
+			to, err = p.destination(ctx, ctx.FormValue("calendar"), SupportsTodo)
 			if errors.Is(err, pim.ErrNoDestination) {
 				return reject(ctx.T("form.destinationneeded"))
 			} else if err != nil {
@@ -228,7 +228,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		// alborz keeps the date in DUE, where the form shows it.
 		todo.Props.Del(ical.PropDateTimeStart)
 		if prioritySent {
-			setPriorityBand(todo, band)
+			SetPriorityBand(todo, band)
 		}
 
 		newID := uuid.New()
@@ -237,12 +237,12 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 			todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
 		}
 
-		cal := newCalendar(todo)
+		cal := NewCalendar(todo)
 		if !creating {
 			cal = co.Data
 		}
-		ensureTimezones(cal, due)
-		co, err = putObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
+		EnsureTimezones(cal, due)
+		co, err = PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
@@ -274,7 +274,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		CalendarObject: co,
 		Todo:           todo,
 		Due:            ctx.Dates().Input(at),
-		Priority:       priorityBand(todo),
-		PriorityBands:  priorityBands,
+		Priority:       PriorityBand(todo),
+		PriorityBands:  PriorityBands,
 	})
 }

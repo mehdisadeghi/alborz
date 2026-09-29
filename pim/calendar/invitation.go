@@ -28,7 +28,7 @@ func handleInvitationReply(ctx *web.Context) error {
 
 	status := strings.ToUpper(ctx.FormValue("status"))
 	switch status {
-	case partAccepted, partDeclined, partTentative:
+	case PartAccepted, PartDeclined, PartTentative:
 	default:
 		return web.NewError(http.StatusBadRequest, "unknown answer")
 	}
@@ -40,7 +40,7 @@ func handleInvitationReply(ctx *web.Context) error {
 	if request == nil {
 		return web.NewError(http.StatusBadRequest, "this message carries no invitation")
 	}
-	inv := readInvitation(request, nil)
+	inv := ReadInvitation(request, nil)
 	if inv.Organizer == "" {
 		return web.NewError(http.StatusBadRequest, "the invitation names no organizer to answer")
 	}
@@ -57,7 +57,7 @@ func handleInvitationReply(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	messageZones(reply)
+	MessageZones(reply)
 
 	back := ctx.NextOr(ctx.URL("mail.message", mboxName, uid))
 	subject := fmt.Sprintf(ctx.T("invite.subject"+strings.ToLower(status)), inv.Summary)
@@ -85,7 +85,7 @@ func messageInvitation(ctx *web.Context, msg *mail.IMAPMessage, mboxName string,
 		ctx.Logger().Printf("failed to read the account's addresses: %v", err)
 		return nil
 	}
-	return readInvitation(cal, mine)
+	return ReadInvitation(cal, mine)
 }
 
 // invitationAt reads the scheduling message one mail carries; nil for none.
@@ -98,7 +98,7 @@ func sendScheduling(ctx *web.Context, msg *ical.Calendar, to []string) error {
 	if len(to) == 0 {
 		return nil
 	}
-	messageZones(msg)
+	MessageZones(msg)
 	summary, _ := msg.Events()[0].Props.Text(ical.PropSummary)
 	subject := summary
 	if itip.Method(msg) == itip.MethodCancel {
@@ -124,12 +124,12 @@ func (p *plugin) deleteEvent(ctx *web.Context, ref pim.Ref[*caldav.Client]) erro
 	if err != nil {
 		return err
 	}
-	if !holds(ours, itip.Address(series.Props.Get(ical.PropOrganizer))) {
+	if !Holds(ours, itip.Address(series.Props.Get(ical.PropOrganizer))) {
 		return nil
 	}
 	schedules, err := p.ServerSchedules(ctx.Request().Context(), ctx.LoginFor(ref.Account), ref.Path)
 	if err == nil && !schedules {
-		err = sendScheduling(ctx, itip.Cancel(co.Data, nil, time.Now()), others(itip.Attendees(series), ours))
+		err = sendScheduling(ctx, itip.Cancel(co.Data, nil, time.Now()), Others(itip.Attendees(series), ours))
 	}
 	if err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("invite.cancelfailed")})
@@ -149,7 +149,7 @@ func (p *plugin) registerScheduling(g *web.Group) {
 		if inv == nil && !hasAttachment(data.Message, calendarTypes...) {
 			return nil
 		}
-		groups, err := p.writableGroups(ctx, supportsEvent)
+		groups, err := p.writableGroups(ctx, SupportsEvent)
 		if err != nil || len(groups) == 0 {
 			// No calendar to file it in is not an error on a mail page.
 			return nil
@@ -184,10 +184,10 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	if msg == nil {
 		return web.NewError(http.StatusBadRequest, "this message carries no invitation")
 	}
-	inv := readInvitation(msg, nil)
+	inv := ReadInvitation(msg, nil)
 	back := ctx.NextOr(ctx.URL("calendar.month"))
 
-	groups, err := p.writableGroups(ctx, supportsEvent)
+	groups, err := p.writableGroups(ctx, SupportsEvent)
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 		if out == nil {
 			err = c.RemoveAll(ctx.Request().Context(), stored.Path)
 		} else {
-			ensureTimezones(out, time.Now())
+			EnsureTimezones(out, time.Now())
 			_, err = c.PutCalendarObject(ctx.Request().Context(), stored.Path, out, nil)
 		}
 		if err != nil {
@@ -238,7 +238,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 		return ctx.Redirect(http.StatusFound, back)
 	}
 
-	dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
+	dest, err := p.destination(ctx, ctx.FormValue("calendar"), SupportsEvent)
 	client, calendarPath, account := dest.Client, dest.Path, dest.Account
 	if errors.Is(err, pim.ErrNoDestination) {
 		return web.NewError(http.StatusBadRequest, "no calendar to file it in")
@@ -249,7 +249,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	if name == "" {
 		name = uuid.New().String()
 	}
-	ensureTimezones(out, time.Now())
+	EnsureTimezones(out, time.Now())
 	co, err := client.PutCalendarObject(ctx.Request().Context(),
 		path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), out, nil)
 	if err != nil {
@@ -302,7 +302,7 @@ func (p *plugin) importCalendar(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
+	dest, err := p.destination(ctx, ctx.FormValue("calendar"), SupportsEvent)
 	client, calendarPath, account := dest.Client, dest.Path, dest.Account
 	if errors.Is(err, pim.ErrNoDestination) {
 		return web.NewError(http.StatusBadRequest, "no calendar to file it in")
@@ -313,7 +313,7 @@ func (p *plugin) importCalendar(ctx *web.Context) error {
 	if account != "" {
 		to += "?account=" + web.QueryValue(account)
 	}
-	n, err := importObjects(ctx.Request().Context(), client, calendarPath, raw)
+	n, err := Import(ctx.Request().Context(), client, calendarPath, raw)
 	if pim.ImportAnswered(err) {
 		ctx.Notify(pim.ImportRefused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))

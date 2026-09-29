@@ -85,11 +85,11 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 		return dayView{}, err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
+	calendarInfos, sites, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, SupportsEvent, EventVisibility)
 	if err != nil {
 		return dayView{}, err
 	}
-	query := eventQuery(start, end)
+	query := EventQuery(start, end)
 
 	events, err := p.QuerySites(ctx.Request().Context(), sites, &query)
 	if err != nil {
@@ -99,7 +99,7 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 	// Keep only what falls in the day; an unexpanded master matched as a whole.
 	var shown []Occurrence
 	for _, ev := range events {
-		for _, oc := range occurrences(ev, loc, start, end) {
+		for _, oc := range Occurrences(ev, loc, start, end) {
 			if oc.Start.Before(end) && (oc.End.After(start) || !oc.End.After(oc.Start)) {
 				shown = append(shown, oc)
 			}

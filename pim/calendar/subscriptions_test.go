@@ -176,7 +176,7 @@ func TestARenameTravels(t *testing.T) {
 			t.Errorf("after the rename an alborz calls it %s in %s, want Feasts in #654321", c.Name, c.Color)
 		}
 	}
-	subs, err := loadSubscriptions(context.Background(), list)
+	subs, err := LoadSubscriptions(context.Background(), list)
 	if err != nil || len(subs) != 1 || subs[0].Name != "Feasts" {
 		t.Errorf("the list holds %+v (%v), want Feasts", subs, err)
 	}
@@ -200,7 +200,7 @@ func TestAnUnsubscribeTravels(t *testing.T) {
 			t.Errorf("an alborz still keeps %d deletes to tell (%v)", len(dropped), err)
 		}
 	}
-	if subs, err := loadSubscriptions(context.Background(), list); err != nil || len(subs) != 0 {
+	if subs, err := LoadSubscriptions(context.Background(), list); err != nil || len(subs) != 0 {
 		t.Errorf("the list still holds %+v (%v)", subs, err)
 	}
 }
@@ -235,7 +235,7 @@ func TestNormalizeFeedURL(t *testing.T) {
 		"cal.example/a.ics":           "https://cal.example/a.ics",
 		" https://cal.example/a.ics ": "https://cal.example/a.ics",
 	} {
-		if got := normalizeFeedURL(in); got != want {
+		if got := NormalizeFeedURL(in); got != want {
 			t.Errorf("%q: got %q, want %q", in, got, want)
 		}
 	}

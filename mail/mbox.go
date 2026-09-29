@@ -23,7 +23,6 @@ import (
 	"github.com/emersion/go-mbox"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/textproto"
-	"github.com/labstack/echo/v4"
 )
 
 func (p *plugin) handleExportMbox(ctx *web.Context) error {
@@ -33,7 +32,7 @@ func (p *plugin) handleExportMbox(ctx *web.Context) error {
 	}
 	params, err := ctx.FormParams()
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return web.NewError(http.StatusBadRequest, err)
 	}
 	strip := ctx.FormValue("strip") != ""
 	var uids []imap.UID
@@ -50,7 +49,7 @@ func (p *plugin) handleExportMbox(ctx *web.Context) error {
 		return err
 	}
 	if len(uids) == 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "no messages selected")
+		return web.NewError(http.StatusBadRequest, "no messages selected")
 	}
 	if ctx.FormValue("ask") != "" {
 		return p.exportPage(ctx, uids, params)
@@ -423,7 +422,7 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 	req := ctx.Request()
 	form, err := req.MultipartReader()
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return web.NewError(http.StatusBadRequest, err)
 	}
 	var file *multipart.Part
 	for file == nil {
@@ -432,7 +431,7 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 			return render(http.StatusUnprocessableEntity, ctx.T("form.fileneeded"))
 		}
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			return web.NewError(http.StatusBadRequest, err)
 		}
 		switch part.FormName() {
 		case "location":
@@ -456,7 +455,7 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 	}
 	login := ctx.LoginFor(selectedAccount)
 	if login == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+		return web.NewError(http.StatusBadRequest, "not signed in to that account")
 	}
 	fullName := location.folder(name)
 	if err := login.DoIMAP(func(c *imapclient.Client) error {
@@ -559,9 +558,9 @@ func messageID(raw []byte) string {
 func importBodyError(err error) error {
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
-		return echo.NewHTTPError(http.StatusRequestEntityTooLarge, err)
+		return web.NewError(http.StatusRequestEntityTooLarge, err)
 	}
-	return echo.NewHTTPError(http.StatusBadRequest, err)
+	return web.NewError(http.StatusBadRequest, err)
 }
 
 func (p *plugin) handleDropImport(ctx *web.Context) error {
@@ -580,7 +579,7 @@ func (p *plugin) handleDropImport(ctx *web.Context) error {
 	}
 	login := ctx.LoginFor(account)
 	if login == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+		return web.NewError(http.StatusBadRequest, "not signed in to that account")
 	}
 	// The drop takes the connection once and reads the body inside, so files are appended as they arrive.
 	count, held := 0, 0

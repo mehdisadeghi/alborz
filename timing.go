@@ -64,7 +64,7 @@ func (t *Timing) Header() string {
 
 // CacheTiming records a cache hit or miss.
 func CacheTiming(ctx context.Context, cache string, hit bool) {
-	t, ok := ctx.Value(TimingKey).(*Timing)
+	t, ok := ctx.Value(timingKey{}).(*Timing)
 	if !ok {
 		return
 	}
@@ -96,14 +96,17 @@ func mergedDuration(spans []span) time.Duration {
 	return total + cur.end.Sub(cur.start)
 }
 
-type timingKeyType struct{}
+type timingKey struct{}
 
-var TimingKey timingKeyType
+// WithTiming is ctx carrying t, for the calls made under it to add their spans to.
+func WithTiming(ctx context.Context, t *Timing) context.Context {
+	return context.WithValue(ctx, timingKey{}, t)
+}
 
 // AddTiming records the span from start until now against kind, if reqCtx
 // carries a Timing.
 func AddTiming(reqCtx context.Context, kind string, start time.Time) {
-	if t, ok := reqCtx.Value(TimingKey).(*Timing); ok {
+	if t, ok := reqCtx.Value(timingKey{}).(*Timing); ok {
 		t.Add(kind, start, time.Now())
 	}
 }

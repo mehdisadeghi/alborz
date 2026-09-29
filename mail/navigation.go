@@ -169,7 +169,7 @@ func readThread(ctx *web.Context, c *imapclient.Client, mailbox, sent string, ms
 }
 
 func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
-	mailbox, uid, err := messageRef(ctx)
+	mailbox, uid, err := MessageRef(ctx)
 	if err != nil {
 		return err
 	}

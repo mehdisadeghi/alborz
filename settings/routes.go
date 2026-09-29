@@ -6,17 +6,16 @@ import (
 )
 
 // Mount serves the settings pages.
-func Mount(s *web.Server) {
-	p := s.Router()
-	p.GET("/settings", handleProfile)
-	p.POST("/settings", handleProfile)
-	p.POST("/settings/profile/take", handleProfileTake)
-	p.POST("/settings/profile/discard", handleProfileDiscard)
-	p.GET("/settings/sessions", mail.Scoped(handleSessions))
-	p.POST("/settings/sessions", mail.Scoped(handleSessions))
-	p.GET("/settings/servers", mail.Scoped(handleServers))
-	p.GET("/settings/servers/:server", mail.Scoped(handleServer))
-	p.POST("/settings/servers/:server", mail.Scoped(handleServer))
-	p.POST("/language", handleLanguage)
-	registerPasskeyRoutes(p)
+func Mount(g *web.Group) {
+	g.GET("profile", "/settings", handleProfile)
+	g.POST("profile", "/settings", handleProfile)
+	g.POST("profile.take", "/settings/profile/take", handleProfileTake)
+	g.POST("profile.discard", "/settings/profile/discard", handleProfileDiscard)
+	g.GET("sessions", "/settings/sessions", mail.Scoped(handleSessions))
+	g.POST("sessions", "/settings/sessions", mail.Scoped(handleSessions))
+	g.GET("servers", "/settings/servers", mail.Scoped(handleServers))
+	g.GET("server", "/settings/servers/{server}", mail.Scoped(handleServer))
+	g.POST("server", "/settings/servers/{server}", mail.Scoped(handleServer))
+	g.POST("language", "/language", handleLanguage)
+	registerPasskeyRoutes(g)
 }

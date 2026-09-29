@@ -22,8 +22,8 @@ type PasskeyRenderData struct {
 	Rail map[string][]web.RailRow
 }
 
-func registerPasskeyRoutes(p web.Router) {
-	p.GET("/settings/passkeys", func(ctx *web.Context) error {
+func registerPasskeyRoutes(g *web.Group) {
+	g.GET("passkeys", "/settings/passkeys", func(ctx *web.Context) error {
 		return ctx.Render(http.StatusOK, "settings/passkeys", &PasskeysRenderData{
 			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.title")),
 			Rail:           mail.SettingsRail(ctx),
@@ -42,16 +42,16 @@ func registerPasskeyRoutes(p web.Router) {
 		}
 		return ctx.Render(http.StatusOK, "settings/passkey-create", data)
 	}
-	p.GET("/settings/passkeys/create", passkeyForm)
-	p.POST("/settings/passkeys/create", passkeyForm)
-	p.POST("/settings/passkeys/begin", func(ctx *web.Context) error {
+	g.GET("passkeys.create", "/settings/passkeys/create", passkeyForm)
+	g.POST("passkeys.create", "/settings/passkeys/create", passkeyForm)
+	g.POST("passkeys.begin", "/settings/passkeys/begin", func(ctx *web.Context) error {
 		options, err := ctx.BeginPasskey()
 		if err != nil {
 			return err
 		}
 		return ctx.JSON(http.StatusOK, options)
 	})
-	p.POST("/settings/passkeys/finish", func(ctx *web.Context) error {
+	g.POST("passkeys.finish", "/settings/passkeys/finish", func(ctx *web.Context) error {
 		if err := ctx.FinishPasskey(strings.TrimSpace(ctx.QueryParam("name"))); err != nil {
 			ctx.Logger().Printf("passkey refused: %v", err)
 			return ctx.JSON(http.StatusUnprocessableEntity, map[string]string{"error": ctx.T("passkeys.addrefused")})
@@ -59,7 +59,7 @@ func registerPasskeyRoutes(p web.Router) {
 		ctx.PutNotice(ctx.T("notice.passkeyadded"))
 		return ctx.NoContent(http.StatusNoContent)
 	})
-	p.POST("/settings/passkeys/remove", func(ctx *web.Context) error {
+	g.POST("passkeys.remove", "/settings/passkeys/remove", func(ctx *web.Context) error {
 		s := ctx.Session()
 		if !s.RemovePasskey(ctx.FormValue("passkey")) {
 			return alborz.NotFound("notfound.passkey")

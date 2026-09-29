@@ -12,7 +12,6 @@ import (
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/labstack/echo/v4"
 )
 
 // A bulk form's "everything" means the whole list its next URL names, asked again.
@@ -60,7 +59,7 @@ func selection(ctx *web.Context, mboxName string, form url.Values) ([]imap.UID, 
 	if !whole {
 		uids, err := parseUidList(form["uids"])
 		if err != nil {
-			return nil, echo.NewHTTPError(http.StatusBadRequest, err)
+			return nil, web.NewError(http.StatusBadRequest, err)
 		}
 		return uids, nil
 	}
@@ -72,7 +71,7 @@ func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids [
 		return "", nil, nil, err
 	}
 	if form, err = ctx.FormParams(); err != nil {
-		return "", nil, nil, echo.NewHTTPError(http.StatusBadRequest, err)
+		return "", nil, nil, web.NewError(http.StatusBadRequest, err)
 	}
 	uids, err = selection(ctx, mboxName, form)
 	return mboxName, form, uids, err
@@ -100,7 +99,7 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 	if !whole {
 		refs, err := parseRefs(form["refs"])
 		if err != nil {
-			return nil, echo.NewHTTPError(http.StatusBadRequest, err)
+			return nil, web.NewError(http.StatusBadRequest, err)
 		}
 		return refs, nil
 	}
@@ -114,7 +113,7 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 	if account := next.Query().Get("account"); account != "" {
 		s := ctx.LoginFor(account)
 		if s == nil {
-			return nil, echo.NewHTTPError(http.StatusBadRequest, "no such account")
+			return nil, web.NewError(http.StatusBadRequest, "no such account")
 		}
 		logins = []*alborz.Login{s}
 	}

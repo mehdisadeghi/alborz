@@ -17,7 +17,6 @@ import (
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
-	"github.com/labstack/echo/v4"
 )
 
 // DestinationRenderData asks where a move or a copy goes; a menu holds actions, so the choice is a page.
@@ -172,7 +171,7 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 	// A star is a view, as in the mail rail; open tasks are the list with no view.
 	view := ctx.QueryParam("view")
 	if view != viewCompleted && view != viewAll && view != viewHigh && !validStarView(view) {
-		return TaskList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
+		return TaskList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
 	star := view
 	withCompleted := view == viewCompleted || view == viewAll

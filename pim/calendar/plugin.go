@@ -13,7 +13,6 @@ import (
 )
 
 type plugin struct {
-	web.Router
 	dav   *dav.Provider
 	feeds *feeds
 }
@@ -23,7 +22,8 @@ func (p *plugin) client(ctx context.Context, login *alborz.Login) (*caldav.Clien
 }
 
 // Mount serves calendars and tasks.
-func Mount(srv *web.Server, st *store.Store) error {
+func Mount(g *web.Group, st *store.Store) error {
+	srv := g.Server()
 	provider, err := dav.NewProvider(srv, st, dav.Kind{
 		Name: "caldav", Label: "CalDAV",
 		Schemes: [2]string{"caldavs", "caldav+insecure"},
@@ -43,13 +43,12 @@ func Mount(srv *web.Server, st *store.Store) error {
 	}
 
 	p := &plugin{
-		Router: srv.Router(),
-		dav:    provider,
-		feeds:  openFeeds(srv, st),
+		dav:   provider,
+		feeds: openFeeds(srv, st),
 	}
 
-	registerRoutes(p)
-	p.registerScheduling(srv)
+	registerRoutes(p, g)
+	p.registerScheduling(g)
 	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.dav))
 	srv.OnServers = append(srv.OnServers, p.dav.Cards("settings.davcalendar", davAbilities))
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)

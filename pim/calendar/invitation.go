@@ -12,7 +12,6 @@ import (
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
-	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -94,16 +93,16 @@ func readInvitation(cal *ical.Calendar, mine []string) *Invitation {
 
 // The invitation is re-read from the message, so what is answered is what was sent.
 func handleInvitationReply(ctx *web.Context) error {
-	mboxName, uid, err := mail.ParseMessageRef(ctx.Param("mbox"), ctx.Param("uid"))
+	mboxName, uid, err := mail.MessageRef(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return err
 	}
 
 	status := strings.ToUpper(ctx.FormValue("status"))
 	switch status {
 	case partAccepted, partDeclined, partTentative:
 	default:
-		return echo.NewHTTPError(http.StatusBadRequest, "unknown answer")
+		return web.NewError(http.StatusBadRequest, "unknown answer")
 	}
 
 	request, err := invitationAt(ctx, mboxName, uid)
@@ -111,11 +110,11 @@ func handleInvitationReply(ctx *web.Context) error {
 		return err
 	}
 	if request == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "this message carries no invitation")
+		return web.NewError(http.StatusBadRequest, "this message carries no invitation")
 	}
 	inv := readInvitation(request, nil)
 	if inv.Organizer == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "the invitation names no organizer to answer")
+		return web.NewError(http.StatusBadRequest, "the invitation names no organizer to answer")
 	}
 	mine, err := mail.Addresses(ctx.Request().Context(), ctx.Login)
 	if err != nil {

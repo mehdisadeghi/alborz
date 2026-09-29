@@ -10,7 +10,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 type FiltersRenderData struct {
@@ -56,14 +55,14 @@ type FilterRenderData struct {
 	Rail     map[string][]web.RailRow
 }
 
-func registerRoutes(p web.Router) {
+func registerRoutes(g *web.Group) {
 	requireAccount := func(h func(*web.Context) error) func(*web.Context) error {
 		return func(ctx *web.Context) error {
 			if ctx.URLAccount() != "" && ctx.Server.SieveEnabled(ctx.Login.Domain()) {
 				return h(ctx)
 			}
 			if ctx.Request().Method != http.MethodGet {
-				return echo.NewHTTPError(http.StatusBadRequest, "filters require an account")
+				return web.NewError(http.StatusBadRequest, "filters require an account")
 			}
 			if !ctx.Unified && ctx.Server.SieveEnabled(ctx.Login.Domain()) {
 				target := ctx.Request().URL.Path + "?account=" + web.QueryValue(ctx.Login.Username())
@@ -75,46 +74,42 @@ func registerRoutes(p web.Router) {
 					return ctx.Redirect(http.StatusFound, target)
 				}
 			}
-			return echo.ErrNotFound
+			return web.NewError(http.StatusNotFound)
 		}
 	}
-	p.GET("/filters", handleListFilters)
-	p.GET("/filters/create", handleCreateFilter)
-	p.GET("/filters/import", handleImportFilter)
-	p.Upload("/filters/import", maxScriptSize+web.FormFieldsSize, handleImportFilter, handleImportFilterTooLarge)
-	p.GET("/filters/forwarding", requireAccount(handleForwarding))
-	p.GET("/filters/forwarding/create", requireAccount(handleForwardingCreate))
-	p.POST("/filters/forwarding", requireAccount(handleForwardingAdd))
-	p.POST("/filters/forwarding/delete", requireAccount(handleForwardingDelete))
-	p.POST("/filters/forwarding/keep", requireAccount(handleForwardingKeep))
-	p.POST("/filters/forwarding/toggle", requireAccount(handleForwardingToggle))
-	p.GET("/filters/rules", requireAccount(handleRules))
-	p.GET("/filters/rules/create", requireAccount(handleRuleForm))
-	p.POST("/filters/rules/block", requireAccount(handleBlock))
-	p.GET("/filters/rules/:index", requireAccount(handleRuleForm))
-	p.POST("/filters/rules", requireAccount(handleRuleSave))
-	p.POST("/filters/rules/delete", requireAccount(handleRuleDelete))
-	p.POST("/filters/rules/move", requireAccount(handleRuleMove))
-	p.POST("/filters/rules/toggle", requireAccount(handleRuleToggle))
-	p.GET("/filters/autoreply", requireAccount(handleReplies))
-	p.GET("/filters/autoreply/create", requireAccount(handleReplyForm))
-	p.GET("/filters/autoreply/:index", requireAccount(handleReplyForm))
-	p.POST("/filters/autoreply", requireAccount(handleReplySave))
-	p.POST("/filters/autoreply/delete", requireAccount(handleReplyDelete))
-	p.POST("/filters/autoreply/activate", requireAccount(handleReplyActivate))
-	p.GET("/filters/:name", requireAccount(handleEditFilter))
-	p.POST("/filters", requireAccount(handleSaveFilter))
-	p.POST("/filters/:name/activate", requireAccount(handleActivateFilter))
-	p.POST("/filters/deactivate", requireAccount(handleDeactivateFilter))
-	p.POST("/filters/:name/delete", requireAccount(handleDeleteFilter))
+	g.GET("list", "", handleListFilters)
+	g.GET("create", "/create", handleCreateFilter)
+	g.GET("import", "/import", handleImportFilter)
+	g.Upload("import", "/import", maxScriptSize+web.FormFieldsSize, handleImportFilter, handleImportFilterTooLarge)
+	g.GET("forwarding", "/forwarding", requireAccount(handleForwarding))
+	g.GET("forwarding.create", "/forwarding/create", requireAccount(handleForwardingCreate))
+	g.POST("forwarding", "/forwarding", requireAccount(handleForwardingAdd))
+	g.POST("forwarding.delete", "/forwarding/delete", requireAccount(handleForwardingDelete))
+	g.POST("forwarding.keep", "/forwarding/keep", requireAccount(handleForwardingKeep))
+	g.POST("forwarding.toggle", "/forwarding/toggle", requireAccount(handleForwardingToggle))
+	g.GET("rules", "/rules", requireAccount(handleRules))
+	g.GET("rules.create", "/rules/create", requireAccount(handleRuleForm))
+	g.POST("rules.block", "/rules/block", requireAccount(handleBlock))
+	g.GET("rule", "/rules/{index}", requireAccount(handleRuleForm))
+	g.POST("rules", "/rules", requireAccount(handleRuleSave))
+	g.POST("rules.delete", "/rules/delete", requireAccount(handleRuleDelete))
+	g.POST("rules.move", "/rules/move", requireAccount(handleRuleMove))
+	g.POST("rules.toggle", "/rules/toggle", requireAccount(handleRuleToggle))
+	g.GET("autoreply", "/autoreply", requireAccount(handleReplies))
+	g.GET("autoreply.create", "/autoreply/create", requireAccount(handleReplyForm))
+	g.GET("autoreply.reply", "/autoreply/{index}", requireAccount(handleReplyForm))
+	g.POST("autoreply", "/autoreply", requireAccount(handleReplySave))
+	g.POST("autoreply.delete", "/autoreply/delete", requireAccount(handleReplyDelete))
+	g.POST("autoreply.activate", "/autoreply/activate", requireAccount(handleReplyActivate))
+	g.GET("filter", "/{name}", requireAccount(handleEditFilter))
+	g.POST("list", "", requireAccount(handleSaveFilter))
+	g.POST("filter.activate", "/{name}/activate", requireAccount(handleActivateFilter))
+	g.POST("deactivate", "/deactivate", requireAccount(handleDeactivateFilter))
+	g.POST("filter.delete", "/{name}/delete", requireAccount(handleDeleteFilter))
 }
 
 func filterName(ctx *web.Context) (string, error) {
-	name, err := url.PathUnescape(ctx.Param("name"))
-	if err != nil {
-		return "", echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-	return name, nil
+	return ctx.Param("name"), nil
 }
 
 func handleListFilters(ctx *web.Context) error {
@@ -191,7 +186,7 @@ func sieveAccounts(ctx *web.Context) []web.Account {
 func handleCreateFilter(ctx *web.Context) error {
 	accounts := sieveAccounts(ctx)
 	if len(accounts) == 0 {
-		return echo.ErrNotFound
+		return web.NewError(http.StatusNotFound)
 	}
 	account := ctx.URLAccount()
 	if account == "" {
@@ -208,7 +203,7 @@ func handleCreateFilter(ctx *web.Context) error {
 func importFilterData(ctx *web.Context) (*FilterRenderData, error) {
 	accounts := sieveAccounts(ctx)
 	if len(accounts) == 0 {
-		return nil, echo.ErrNotFound
+		return nil, web.NewError(http.StatusNotFound)
 	}
 	account := ctx.URLAccount()
 	if account == "" {
@@ -309,7 +304,7 @@ func handleSaveFilter(ctx *web.Context) error {
 	if account := ctx.FormValue("account"); account != "" && account != ctx.Login.Username() {
 		login := ctx.LoginFor(account)
 		if login == nil || !ctx.Server.SieveEnabled(login.Domain()) {
-			return echo.NewHTTPError(http.StatusBadRequest, "no filters for that account")
+			return web.NewError(http.StatusBadRequest, "no filters for that account")
 		}
 		ctx.Login = login
 	}

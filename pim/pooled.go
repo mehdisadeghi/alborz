@@ -15,7 +15,6 @@ import (
 	"git.mehdix.org/alborz/settings"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav"
-	"github.com/labstack/echo/v4"
 )
 
 // Discovery across an account may take several exchanges; bound the whole load.
@@ -230,13 +229,13 @@ func Selected[C any](ctx *web.Context, refs []string, client func(context.Contex
 	for _, ref := range refs {
 		account, objPath, ok := strings.Cut(ref, "|")
 		if !ok {
-			return nil, echo.NewHTTPError(http.StatusBadRequest, "unqualified selection")
+			return nil, web.NewError(http.StatusBadRequest, "unqualified selection")
 		}
 		c, ok := clients[account]
 		if !ok {
 			login := ctx.LoginFor(account)
 			if login == nil {
-				return nil, echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+				return nil, web.NewError(http.StatusBadRequest, "not signed in to that account")
 			}
 			var err error
 			if c, err = client(ctx.Request().Context(), login); err != nil {

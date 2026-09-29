@@ -16,19 +16,12 @@ import (
 	"syscall"
 	"time"
 
+	"log"
+
 	"git.mehdix.org/alborz"
 	"github.com/fernet/fernet-go"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/labstack/gommon/log"
 
-	"git.mehdix.org/alborz/auth"
-	"git.mehdix.org/alborz/filters"
 	"git.mehdix.org/alborz/mail"
-	"git.mehdix.org/alborz/pim"
-	"git.mehdix.org/alborz/pim/calendar"
-	"git.mehdix.org/alborz/pim/contacts"
-	"git.mehdix.org/alborz/settings"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -170,60 +163,30 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 	options.LoginKey = fernetKey
 
-	e := echo.New()
-	e.HideBanner = true
-	if l, ok := e.Logger.(*log.Logger); ok {
-		l.SetOutput(os.Stderr)
-		l.SetHeader("${time_rfc3339} ${level}")
-	}
-	s, err := web.New(e, &options, mail.TemplateFuncs)
+	logger := log.New(os.Stderr, "", log.LstdFlags)
+	s, err := web.New(logger, &options, mail.TemplateFuncs)
 	if err != nil {
-		e.Logger.Fatal(err)
+		logger.Fatal(err)
 	}
-	auth.Mount(s)
-	mail.Mount(s)
-	settings.Mount(s)
-	st, err := pim.Mount(s)
+	if err := mount(s); err != nil {
+		logger.Fatal(err)
+	}
+	handler, err := s.Handler()
 	if err != nil {
-		e.Logger.Fatal(err)
-	}
-	// Calendar before contacts, so the servers page lists the collections on alborz last.
-	if err := calendar.Mount(s, st); err != nil {
-		e.Logger.Fatal(err)
-	}
-	if err := contacts.Mount(s, st); err != nil {
-		e.Logger.Fatal(err)
-	}
-	filters.Mount(s)
-	e.Use(middleware.Recover())
-	if options.Debug {
-		// Log arrivals too, so a request that never finishes names its URI.
-		e.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				e.Logger.Printf("-> %s %s", c.Request().Method, c.Request().RequestURI)
-				return next(c)
-			}
-		})
-		e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-			LogMethod: true, LogURI: true, LogStatus: true,
-			LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
-				e.Logger.Printf("method=%s, uri=%s, status=%d", v.Method, v.URI, v.Status)
-				return nil
-			},
-		}))
-		e.Logger.SetLevel(log.DEBUG)
+		logger.Fatal(err)
 	}
 
 	// Bind before announcing, so the prologue is true.
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		e.Logger.Fatal(err)
+		logger.Fatal(err)
 	}
-	e.Listener = ln
 	fmt.Fprint(os.Stdout, alborz.Prologue)
 
+	server := &http.Server{Handler: handler}
+	server.RegisterOnShutdown(s.Changes.Close)
 	go func() {
-		if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "alborz: %v\n", err)
 			os.Exit(1)
 		}
@@ -235,7 +198,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	for sig := range sigs {
 		if sig == syscall.SIGUSR1 {
 			if err := s.Reload(); err != nil {
-				e.Logger.Errorf("Failed to reload server: %v", err)
+				logger.Printf("Failed to reload server: %v", err)
 			}
 		} else {
 			break
@@ -250,7 +213,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		fmt.Fprintln(os.Stderr, "alborz: forced exit")
 		os.Exit(1)
 	}()
-	e.Shutdown(ctx)
+	server.Shutdown(ctx)
 	cancel()
 
 	s.Close()

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"log"
 	"math/rand/v2"
 	"mime/multipart"
 	"net"
@@ -19,6 +20,7 @@ import (
 	"net/http/httptest"
 	"net/textproto"
 	"net/url"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -48,7 +50,6 @@ import (
 	"github.com/emersion/go-mbox"
 	"github.com/emersion/go-message"
 	"github.com/fernet/fernet-go"
-	"github.com/labstack/echo/v4"
 )
 
 const smokeUser = "a@test.local"
@@ -324,27 +325,47 @@ func startAlborzWith(t *testing.T, upstreams []string) string {
 
 var smokeKey = fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 
-// newAlborz wires the features as cmd/alborz does.
-func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
+// newAlborz wires the features as cmd/alborz does and serves them on ln; setup runs first.
+func newAlborz(t *testing.T, ln net.Listener, options *alborz.Options, setup ...func(*web.Server)) {
 	t.Helper()
-	s, err := web.New(e, options, mail.TemplateFuncs)
+	s, err := web.New(log.New(os.Stderr, "", log.LstdFlags), options, mail.TemplateFuncs)
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	auth.Mount(s)
-	mail.Mount(s)
-	settings.Mount(s)
-	st, err := pim.Mount(s)
+	for _, f := range setup {
+		f(s)
+	}
+	dav := s.Group("", "dav")
+	page := s.Group("", "", web.Compress, web.SameOrigin, web.Secure, web.Prepare)
+	public := page.Group("", "", web.Accounts, web.Noticed)
+	unlock := page.Group("/unlock", "auth", web.Activity, web.SignedIn, web.Noticed)
+	app := page.Group("", "", web.Activity, web.Lock, web.SignedIn, web.Noticed)
+	events := s.Group("", "", web.SameOrigin, web.Secure, web.Prepare, web.Lock, web.SignedIn)
+	web.PublicRoutes(public)
+	web.EventRoutes(events)
+	auth.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
+	mail.Mount(app.Group("", "mail"))
+	settings.Mount(app.Group("", "settings"))
+	st, err := pim.Mount(dav, app.Group("", "pim"))
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	if err := calendar.Mount(s, st); err != nil {
+	if err := calendar.Mount(app.Group("", "calendar"), st); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	if err := contacts.Mount(s, st); err != nil {
+	if err := contacts.Mount(app.Group("", "contacts"), st); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	filters.Mount(s)
+	filters.Mount(app.Group("/filters", "filters"))
+	web.Fallback(app)
+	h, err := s.Handler()
+	if err != nil {
+		t.Fatalf("start alborz: %v", err)
+	}
+	server := &http.Server{Handler: h}
+	server.RegisterOnShutdown(s.Changes.Close)
+	go server.Serve(ln)
+	t.Cleanup(func() { server.Close() })
 }
 
 func serveAlborz(t *testing.T, upstreams []string, cache bool) string {
@@ -359,9 +380,7 @@ func serveAlborzAt(t *testing.T, upstreams func(host string) []string, cache boo
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := echo.New()
-	e.HideBanner, e.HidePort = true, true
-	newAlborz(t, e, &alborz.Options{
+	newAlborz(t, ln, &alborz.Options{
 		Upstreams: upstreams(ln.Addr().String()),
 		LoginKey:  smokeKey,
 		DataDir:   t.TempDir(),
@@ -370,8 +389,6 @@ func serveAlborzAt(t *testing.T, upstreams func(host string) []string, cache boo
 		// A handler that sends the reader elsewhere says what it did.
 		StrictNotices: true,
 	})
-	go e.Server.Serve(ln)
-	t.Cleanup(func() { e.Close() })
 	return "http://" + ln.Addr().String()
 }
 

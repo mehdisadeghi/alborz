@@ -11,7 +11,6 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 // Rule is one Sieve block; Stop also hides the message from the reader's own script, which runs after.
@@ -378,7 +377,7 @@ func handleBlock(ctx *web.Context) error {
 	value := strings.ToLower(strings.TrimSpace(ctx.FormValue("value")))
 	domain := ctx.FormValue("domain") != ""
 	if value == "" || (domain && strings.ContainsRune(value, '@')) || (!domain && !strings.ContainsRune(value, '@')) {
-		return echo.NewHTTPError(http.StatusBadRequest, "nothing to block")
+		return web.NewError(http.StatusBadRequest, "nothing to block")
 	}
 	junk, err := mail.RoleFolder(ctx, "junk")
 	if err != nil {

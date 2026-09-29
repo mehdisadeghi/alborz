@@ -5,14 +5,13 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"maps"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"text/template/parse"
 	"time"
-
-	"github.com/labstack/echo/v4"
 
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -396,70 +395,58 @@ type RenderData interface {
 }
 
 // NewBaseRenderData initializes a new BaseRenderData.
-func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
-	ctx, isactx := ectx.(*Context)
-
-	lang := requestLanguage(ectx)
+func NewBaseRenderData(ctx *Context) *BaseRenderData {
+	lang := requestLanguage(ctx)
 	global := GlobalRenderData{
-		Path:           strings.Split(ectx.Request().URL.Path, "/")[1:],
+		Path:           strings.Split(ctx.Request().URL.Path, "/")[1:],
 		Title:          alborz.BrandName,
-		URL:            ectx.Request().URL,
+		URL:            ctx.Request().URL,
 		FirstDayOfWeek: alborz.Reading{}.WeekStart(),
 		Lang:           lang,
 
-		Asset: func(name string) string {
-			if !isactx {
-				return "/assets/" + name
-			}
-			return ctx.Server.AssetURL(name)
-		},
+		Asset: ctx.Server.AssetURL,
 	}
 
-	if isactx {
-		global.Version, global.Revision = alborz.Build()
-		_, global.Shell = ctx.Server.shell()
-		if s := ctx.lookupSession(); s != nil {
-			if lock := s.Lock(); len(lock.Passkeys) > 0 {
-				global.LockSeconds = int(lock.Wait() / time.Second)
-			}
+	global.Version, global.Revision = alborz.Build()
+	_, global.Shell = ctx.Server.shell()
+	if s := ctx.lookupSession(); s != nil {
+		if lock := s.Lock(); len(lock.Passkeys) > 0 {
+			global.LockSeconds = int(lock.Wait() / time.Second)
 		}
-		// A person reads the brand in their own script; what a machine reads stays BrandName.
-		global.Brand = alborz.Translate(lang, "brand.name")
-		global.ProjectURL = ctx.Server.Options.ProjectURL
-		global.Language = ctx.language()
-		global.LanguageChoices = alborz.LanguageChoices()
-		global.Year = time.Now().Year()
-		global.Primary, global.Secondary = ctx.calendars()
-		global.Theme = ctx.Theme()
-		global.TextSize = ctx.TextSize()
 	}
-
-	if isactx {
-		global.Unified = ctx.Unified
-		global.AlignByScript = ctx.alignByScript()
-		global.CustomCSS = len(ctx.Server.custom) > 0
-		global.SchemePinned = ctx.themeScheme() != ""
-		global.URLAccount = ctx.urlAccount
-		global.From = ctx.From()
-		global.Scope, global.Merged = ctx.urlAccount, ctx.Unified
-		// Values.Encode would escape the raw values again.
-		req := ctx.Request().URL
-		kept := slices.DeleteFunc(strings.Split(req.RawQuery, "&"), func(p string) bool {
-			return p == "" || strings.HasPrefix(p, "from=")
-		})
-		global.Own = req.EscapedPath()
-		if q := strings.Join(kept, "&"); q != "" {
-			global.Own += "?" + q
-		}
-		if u, err := url.Parse(global.From); err == nil && global.From != "" {
-			global.Scope = u.Query().Get("account")
-			global.Merged = global.Scope == "" && len(ctx.Logins()) > 1
-		}
-		// A notice belongs to the session, not to a login.
-		global.Notice = ctx.popNotice()
+	// A person reads the brand in their own script; what a machine reads stays BrandName.
+	global.Brand = alborz.Translate(lang, "brand.name")
+	global.ProjectURL = ctx.Server.Options.ProjectURL
+	global.Language = ctx.language()
+	global.LanguageChoices = alborz.LanguageChoices()
+	global.Year = time.Now().Year()
+	global.Primary, global.Secondary = ctx.calendars()
+	global.Theme = ctx.Theme()
+	global.TextSize = ctx.TextSize()
+	global.Unified = ctx.Unified
+	global.AlignByScript = ctx.alignByScript()
+	global.CustomCSS = len(ctx.Server.loaded.Load().custom) > 0
+	global.SchemePinned = ctx.themeScheme() != ""
+	global.URLAccount = ctx.urlAccount
+	global.From = ctx.From()
+	global.Scope, global.Merged = ctx.urlAccount, ctx.Unified
+	// Values.Encode would escape the raw values again.
+	req := ctx.Request().URL
+	kept := slices.DeleteFunc(strings.Split(req.RawQuery, "&"), func(p string) bool {
+		return p == "" || strings.HasPrefix(p, "from=")
+	})
+	global.Own = req.EscapedPath()
+	if q := strings.Join(kept, "&"); q != "" {
+		global.Own += "?" + q
 	}
+	if u, err := url.Parse(global.From); err == nil && global.From != "" {
+		global.Scope = u.Query().Get("account")
+		global.Merged = global.Scope == "" && len(ctx.Logins()) > 1
+	}
+	// A notice belongs to the session, not to a login.
+	global.Notice = ctx.popNotice()
 
-	if isactx && ctx.Login != nil {
+	if ctx.Login != nil {
 		global.LoggedIn = true
 		global.Username = ctx.Login.Username()
 		global.Accounts = ctx.Accounts()
@@ -500,25 +487,21 @@ func (g GlobalRenderData) LanguageName() string {
 }
 
 // The URL's language outranks the cookie, so a page can be handed to a reader of another language.
-func queryLanguage(ectx echo.Context) string {
-	if v := ectx.QueryParam("lang"); alborz.IsLanguage(v) {
+func queryLanguage(ctx *Context) string {
+	if v := ctx.QueryParam("lang"); alborz.IsLanguage(v) {
 		return v
 	}
 	return ""
 }
 
-func requestLanguage(ectx echo.Context) string {
-	if v := queryLanguage(ectx); v != "" {
+func requestLanguage(ctx *Context) string {
+	if v := queryLanguage(ctx); v != "" {
 		return v
 	}
-	if ctx, ok := ectx.(*Context); ok {
-		if v := ctx.language(); v != "" {
-			return v
-		}
-	} else if c, err := ectx.Cookie(langCookieName); err == nil && alborz.IsLanguage(c.Value) {
-		return c.Value
+	if v := ctx.language(); v != "" {
+		return v
 	}
-	return alborz.MatchLanguage(ectx.Request().Header.Get("Accept-Language"))
+	return alborz.MatchLanguage(ctx.Request().Header.Get("Accept-Language"))
 }
 
 // renderInfo renders a full page carrying one explanatory sentence.
@@ -583,10 +566,7 @@ type renderer struct {
 	pages    map[string]*template.Template
 }
 
-func (r *renderer) Render(w io.Writer, name string, data interface{}, ectx echo.Context) error {
-	// ectx is the raw *echo.context, not our own *Context
-	ctx := ectx.Get("context").(*Context)
-
+func (r *renderer) Render(w io.Writer, name string, data interface{}, ctx *Context) error {
 	var renderData RenderData
 	if data == nil {
 		renderData = &struct{ BaseRenderData }{*NewBaseRenderData(ctx)}
@@ -753,4 +733,19 @@ type RailRow struct {
 	Label  string
 	Href   string
 	Active bool
+}
+
+// templates are every template of every page, each once.
+func (r *renderer) templates() []*template.Template {
+	seen := map[*parse.Tree]bool{}
+	var out []*template.Template
+	for _, set := range append([]*template.Template{r.partials}, slices.Collect(maps.Values(r.pages))...) {
+		for _, t := range set.Templates() {
+			if t.Tree != nil && !seen[t.Tree] {
+				seen[t.Tree] = true
+				out = append(out, t)
+			}
+		}
+	}
+	return out
 }

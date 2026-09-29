@@ -10,7 +10,6 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 // Selection is the object the route's path names, or the rows a list had checked.
@@ -22,10 +21,7 @@ func Selection[C any](ctx *web.Context, client func(context.Context, *alborz.Log
 		}
 		return Selected(ctx, params["paths"], client)
 	}
-	path, err := ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return nil, err
-	}
+	path := ctx.Param("path")
 	c, err := client(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return nil, err
@@ -114,7 +110,7 @@ type StarRenderData struct {
 func Star[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error), list string, mark func(ctx *web.Context, ref Ref[C], name string) (was string, err error)) error {
 	name := ctx.FormValue("color")
 	if name != "" && !slices.Contains(web.FlagColors[:], name) {
-		return echo.NewHTTPError(http.StatusBadRequest, "no such colour")
+		return web.NewError(http.StatusBadRequest, "no such colour")
 	}
 	var was string
 	return Run(ctx, Action[C]{

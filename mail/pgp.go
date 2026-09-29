@@ -43,7 +43,7 @@ const (
 // handleSignature answers the page's request for its verdict, which may
 // stream the whole signed part; the reader leaving drops the connection.
 func (p *plugin) handleSignature(ctx *web.Context) error {
-	mboxName, uid, err := messageRef(ctx)
+	mboxName, uid, err := MessageRef(ctx)
 	if err != nil {
 		return err
 	}

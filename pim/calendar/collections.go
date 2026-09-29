@@ -13,7 +13,6 @@ import (
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
@@ -136,7 +135,7 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 		}
 		login := ctx.LoginFor(data.Account)
 		if login == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+			return web.NewError(http.StatusBadRequest, "not signed in to that account")
 		}
 		sub := Subscription{URL: normalizeFeedURL(data.Address), Color: dav.DefaultColor, Changed: time.Now().UTC()}
 		rc := ctx.Request().Context()

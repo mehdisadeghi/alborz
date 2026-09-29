@@ -13,7 +13,6 @@ import (
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
-	"github.com/labstack/echo/v4"
 )
 
 type AddressBookRenderData struct {
@@ -68,7 +67,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	queryText := ctx.QueryParam("query")
 	view := ctx.QueryParam("view")
 	if view != "" && view != web.ViewStarred && !slices.Contains(web.FlagColors[:], view) {
-		return ContactList{}, echo.NewHTTPError(http.StatusBadRequest, "no such view")
+		return ContactList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
 	params := pim.RowParams(ctx, "/contacts", pim.ListParams(ctx, contactListParams...))

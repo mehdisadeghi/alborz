@@ -25,7 +25,6 @@ import (
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-message/textproto"
-	"github.com/labstack/echo/v4"
 	"jaytaylor.com/html2text"
 )
 
@@ -112,7 +111,7 @@ func (d *MessageRenderData) AttachmentsOpen() bool {
 
 // With plain the bytes are shown rather than saved: the source view.
 func handleDownloadMessage(ctx *web.Context, plain bool) error {
-	mboxName, uid, err := messageRef(ctx)
+	mboxName, uid, err := MessageRef(ctx)
 	if err != nil {
 		return err
 	}
@@ -159,7 +158,7 @@ func fetchEnvelope(c *imapclient.Client, mboxName string, uid imap.UID) (*imap.E
 }
 
 func handleDownloadAttachments(ctx *web.Context) error {
-	mboxName, uid, err := messageRef(ctx)
+	mboxName, uid, err := MessageRef(ctx)
 	if err != nil {
 		return err
 	}
@@ -381,13 +380,13 @@ func handleRaw(ctx *web.Context) error {
 	if ctx.QueryParam("part") == "" {
 		return handleDownloadMessage(ctx, ctx.QueryParam("plain") == "1")
 	}
-	mboxName, uid, err := messageRef(ctx)
+	mboxName, uid, err := MessageRef(ctx)
 	if err != nil {
 		return err
 	}
 	partPath, err := parsePartPath(ctx.QueryParam("part"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return web.NewError(http.StatusBadRequest, err)
 	}
 	return handleDownloadPart(ctx, mboxName, uid, partPath)
 }
@@ -396,14 +395,14 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	if ctx.PartialFor("message-navigation") {
 		return p.handleMessageNavigation(ctx)
 	}
-	mboxName, uid, err := messageRef(ctx)
+	mboxName, uid, err := MessageRef(ctx)
 	if err != nil {
 		return err
 	}
 
 	partPath, err := parsePartPath(ctx.QueryParam("part"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return web.NewError(http.StatusBadRequest, err)
 	}
 
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
@@ -560,7 +559,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	}
 
 	if len(partPath) > 0 && msg.PartByPath(partPath) == nil {
-		return echo.NewHTTPError(http.StatusNotFound,
+		return web.NewError(http.StatusNotFound,
 			fmt.Sprintf("message %v has no part %v", uid, ctx.QueryParam("part")))
 	}
 
@@ -687,7 +686,7 @@ func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) 
 func PartAt(ctx *web.Context, mboxName string, uid imap.UID, part string) ([]byte, string, error) {
 	partPath, err := parsePartPath(part)
 	if err != nil {
-		return nil, "", echo.NewHTTPError(http.StatusBadRequest, err)
+		return nil, "", web.NewError(http.StatusBadRequest, err)
 	}
 	var raw []byte
 	var mediaType string
@@ -763,7 +762,7 @@ func CalendarPart(ctx *web.Context, msg *IMAPMessage, mboxName string, uid imap.
 
 // The URI is re-read from the message, so a page cannot make us post anywhere (RFC 8058).
 func handleUnsubscribe(ctx *web.Context) error {
-	mboxName, uid, err := messageRef(ctx)
+	mboxName, uid, err := MessageRef(ctx)
 	if err != nil {
 		return err
 	}
@@ -796,7 +795,7 @@ func handleUnsubscribe(ctx *web.Context) error {
 	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/message/%v/%v",
 		url.PathEscape(mboxName), uid)))
 	if msg.OneClick == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "this message offers no one-click unsubscribe")
+		return web.NewError(http.StatusBadRequest, "this message offers no one-click unsubscribe")
 	}
 
 	body := strings.NewReader("List-Unsubscribe=One-Click")

@@ -14,7 +14,6 @@ import (
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
-	"github.com/labstack/echo/v4"
 )
 
 // FilterRow is one narrowing the rail offers.
@@ -72,10 +71,7 @@ func filterHref(name, value, account string) string {
 
 // A group's card names its members, so that card changes; a card without a UID gets one first.
 func (p *plugin) groupContact(ctx *web.Context) error {
-	objPath, err := pim.ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return err
-	}
+	objPath := ctx.Param("path")
 	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
@@ -126,7 +122,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 		// The group is made in the contact's book, the only one the page knows.
 		book := dav.Holding(books, "", ao.Path)
 		if book == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "the contact is in no address book")
+			return web.NewError(http.StatusBadRequest, "the contact is in no address book")
 		}
 		if err := p.putCard(ctx, c, path.Join(book.Path, uuid.New().String()+".vcf"), card); err != nil {
 			return err

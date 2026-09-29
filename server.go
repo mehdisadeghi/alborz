@@ -3,6 +3,7 @@ package alborz
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 
 	"git.mehdix.org/alborz/internal/kv"
 	"github.com/fernet/fernet-go"
-	"github.com/labstack/echo/v4"
 )
 
 // BrandName is the name a person reads.
@@ -53,7 +53,7 @@ func CredentialCookieLife() time.Duration { return credentialCookieLife }
 
 // Server holds all the alborz server state.
 type Server struct {
-	log     echo.Logger
+	log     *log.Logger
 	logins  *loginManager
 	Options *Options
 
@@ -113,7 +113,7 @@ type domainUpstreams struct {
 }
 
 // New opens the data file and the upstreams the options name.
-func New(log echo.Logger, options *Options) (*Server, error) {
+func New(log *log.Logger, options *Options) (*Server, error) {
 	s := &Server{log: log, Options: options,
 		Changes: newChanges(), Outgoing: NewOutgoing(), Schedule: newSchedule(), signInRefused: newRefusals(signInTries, signInWindow)}
 

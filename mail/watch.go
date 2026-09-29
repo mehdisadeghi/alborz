@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/labstack/echo/v4"
 )
 
 // The watcher's connection is its own: an IDLE on the login's would hold DoIMAP's lock until mail came.
@@ -45,7 +45,7 @@ func (p *plugin) warmAccount(ctx *web.Context, s *alborz.Login) {
 }
 
 // Watch starts following an account's folders unless a watcher already is.
-func (p *plugin) Watch(s *alborz.Login, log echo.Logger, changes *alborz.Changes) {
+func (p *plugin) Watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes) {
 	user := s.Username()
 	if _, running := p.watchers.LoadOrStore(user, true); running {
 		return
@@ -56,7 +56,7 @@ func (p *plugin) Watch(s *alborz.Login, log echo.Logger, changes *alborz.Changes
 	}()
 }
 
-func (p *plugin) watch(s *alborz.Login, log echo.Logger, changes *alborz.Changes) {
+func (p *plugin) watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes) {
 	backoff := idleRetry
 	reconnect := false
 	for {

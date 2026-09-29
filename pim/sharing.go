@@ -17,7 +17,6 @@ import (
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 // Offer is one share as its invitee sees it, on the collection's page and beside the announcing mail.
@@ -140,17 +139,14 @@ func (pg Page) sharing(ctx *web.Context, p *dav.Provider, info dav.Collection) (
 }
 
 func (pg Page) owned(ctx *web.Context, p *dav.Provider) (dav.Collection, store.Ref, error) {
-	collPath, err := ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return dav.Collection{}, store.Ref{}, err
-	}
+	collPath := ctx.Param("path")
 	info, _, _, _, err := pg.Lookup(ctx, dav.CanonicalCollectionPath(collPath))
 	if err != nil {
 		return info, store.Ref{}, err
 	}
 	ref, _, here := p.Held(info.Path)
 	if !here || info.SharedBy != "" {
-		return info, ref, echo.NewHTTPError(http.StatusForbidden, "not one of this account's collections on alborz")
+		return info, ref, web.NewError(http.StatusForbidden, "not one of this account's collections on alborz")
 	}
 	return info, ref, nil
 }
@@ -273,7 +269,7 @@ func (pg Page) HandleAccess(p *dav.Provider) func(*web.Context) error {
 		}
 		sh, err := p.Store.Share(ref, ctx.FormValue("to"))
 		if errors.Is(err, store.ErrNotFound) {
-			return echo.NewHTTPError(http.StatusNotFound, "no such share")
+			return web.NewError(http.StatusNotFound, "no such share")
 		}
 		if err != nil {
 			return err
@@ -310,17 +306,14 @@ func (pg Page) HandleUnshare(p *dav.Provider) func(*web.Context) error {
 // HandleAnswer is the invited account's yes or no, at the path in its own home.
 func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		collPath, err := ParseObjectPath(ctx.Param("path"))
-		if err != nil {
-			return err
-		}
+		collPath := ctx.Param("path")
 		ref, home, here := p.Held(collPath)
 		account := strings.ToLower(ctx.Login.Username())
 		if !here || home != account {
-			return echo.NewHTTPError(http.StatusNotFound, "no such invitation")
+			return web.NewError(http.StatusNotFound, "no such invitation")
 		}
 		if _, err := p.Store.Share(ref, account); err != nil {
-			return echo.NewHTTPError(http.StatusNotFound, "no such invitation")
+			return web.NewError(http.StatusNotFound, "no such invitation")
 		}
 		c, err := p.Store.Collection(ref)
 		if err != nil {

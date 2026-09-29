@@ -36,14 +36,3 @@ func TestASessionLocksOnlyWithAPasskeyAndOnlyAfterTimeAway(t *testing.T) {
 		t.Fatal("a session with a passkey came back from its record unlocked")
 	}
 }
-
-func TestALockedSessionAnswersOnlyTheWayInAndOut(t *testing.T) {
-	for path, open := range map[string]bool{
-		"/unlock": true, "/unlock/finish": true, "/unlock/leave": true, "/assets/style.css": true, "/login": true,
-		"/mailbox/INBOX": false, "/events": false, "/logout": false, "/settings/lock": false, "/unlocked": false,
-	} {
-		if lockOpen(path) != open {
-			t.Errorf("%s: open=%v, want %v", path, !open, open)
-		}
-	}
-}

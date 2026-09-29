@@ -18,7 +18,6 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
-	"github.com/labstack/echo/v4"
 	"jaytaylor.com/html2text"
 )
 
@@ -195,7 +194,7 @@ func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *Outg
 	body, err := deliver(sender, msg)
 	if err != nil {
 		if _, ok := err.(alborz.AuthError); ok {
-			return echo.NewHTTPError(http.StatusForbidden, err)
+			return web.NewError(http.StatusForbidden, err)
 		}
 		return err
 	}
@@ -294,7 +293,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		if account != "" && account != sender.Username() {
 			sender = ctx.LoginFor(account)
 			if sender == nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
+				return web.NewError(http.StatusBadRequest, "not signed in to that account")
 			}
 		}
 		settings, err := LoadSettings(ctx.Request().Context(), sender.Store())
@@ -394,7 +393,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		for _, s := range form.Value[attachedField] {
 			p, err := parseAttachedRef(s)
 			if err != nil {
-				return echo.NewHTTPError(http.StatusBadRequest, err)
+				return web.NewError(http.StatusBadRequest, err)
 			}
 			attached = append(attached, p)
 		}
@@ -620,7 +619,7 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 		if to := composeFromMailto(uri); strings.HasPrefix(to, "/compose?") {
 			return ctx.Redirect(http.StatusFound, to)
 		}
-		return echo.NewHTTPError(http.StatusBadRequest, "not a mailto URI")
+		return web.NewError(http.StatusBadRequest, "not a mailto URI")
 	}
 
 	text := ctx.QueryParam("body")
@@ -647,7 +646,7 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 
 // composeTooLarge answers a message form past its limit; what was typed did not arrive.
 func composeTooLarge(ctx *web.Context) error {
-	return echo.NewHTTPError(http.StatusRequestEntityTooLarge, ctx.T("attach.toolarge"))
+	return web.NewError(http.StatusRequestEntityTooLarge, ctx.T("attach.toolarge"))
 }
 
 func handleComposeAttachment(ctx *web.Context) error {
@@ -708,7 +707,7 @@ func unwrapIMAPAddress(addr imap.Address) string {
 func (p *plugin) handleReply(ctx *web.Context) error {
 	var inReplyToPath messagePath
 	var err error
-	inReplyToPath.Mailbox, inReplyToPath.Uid, err = messageRef(ctx)
+	inReplyToPath.Mailbox, inReplyToPath.Uid, err = MessageRef(ctx)
 	if err != nil {
 		return err
 	}
@@ -741,7 +740,7 @@ func quotablePart(ctx *web.Context, path messagePath, partPath []int) (*IMAPMess
 		}
 		text := msg.TextPart()
 		if text == nil {
-			return nil, nil, "", echo.NewHTTPError(http.StatusBadRequest,
+			return nil, nil, "", web.NewError(http.StatusBadRequest,
 				fmt.Errorf("message has no text part to quote"))
 		}
 		partPath = text.Path
@@ -761,7 +760,7 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToP
 
 	partPath, err := parsePartPath(ctx.QueryParam("part"))
 	if err != nil {
-		return ret, echo.NewHTTPError(http.StatusBadRequest, err)
+		return ret, web.NewError(http.StatusBadRequest, err)
 	}
 
 	inReplyTo, part, mimeType, err := quotablePart(ctx, inReplyToPath, partPath)
@@ -787,7 +786,7 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToP
 		quoted, err = quote(strings.NewReader(text))
 	default:
 		defErr := fmt.Errorf("cannot forward %q part", mimeType)
-		err = echo.NewHTTPError(http.StatusBadRequest, defErr)
+		err = web.NewError(http.StatusBadRequest, defErr)
 	}
 	if err != nil {
 		return ret, err
@@ -950,11 +949,11 @@ func handleForwardSelection(ctx *web.Context) error {
 	}
 	params, err := ctx.FormParams()
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return web.NewError(http.StatusBadRequest, err)
 	}
 	uids, err := parseUidList(params["uids"])
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return web.NewError(http.StatusBadRequest, err)
 	}
 	back := ctx.NextOr(mailboxURL(ctx, mboxName))
 	if len(uids) == 0 {
@@ -986,7 +985,7 @@ func (p *plugin) handleForwardAttached(ctx *web.Context) error {
 	}
 	uids, err := parseUidList(strings.Split(ctx.QueryParam("uids"), ","))
 	if err != nil || len(uids) == 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "no messages to forward")
+		return web.NewError(http.StatusBadRequest, "no messages to forward")
 	}
 	paths := make([]messagePath, len(uids))
 	for i, uid := range uids {
@@ -1007,7 +1006,7 @@ func (p *plugin) handleForwardAttached(ctx *web.Context) error {
 func (p *plugin) handleForward(ctx *web.Context) error {
 	var sourcePath messagePath
 	var err error
-	sourcePath.Mailbox, sourcePath.Uid, err = messageRef(ctx)
+	sourcePath.Mailbox, sourcePath.Uid, err = MessageRef(ctx)
 	if err != nil {
 		return err
 	}
@@ -1016,7 +1015,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 	if ctx.Request().Method == http.MethodGet {
 		partPath, err := parsePartPath(ctx.QueryParam("part"))
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			return web.NewError(http.StatusBadRequest, err)
 		}
 
 		source, part, mimeType, err := quotablePart(ctx, sourcePath, partPath)
@@ -1033,7 +1032,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 			body, err = html2text.FromReader(part.Body, html2text.Options{})
 		default:
 			defErr := fmt.Errorf("cannot forward %q part", mimeType)
-			err = echo.NewHTTPError(http.StatusBadRequest, defErr)
+			err = web.NewError(http.StatusBadRequest, defErr)
 		}
 		if err != nil {
 			return err
@@ -1072,7 +1071,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 func (p *plugin) handleEdit(ctx *web.Context) error {
 	var sourcePath messagePath
 	var err error
-	sourcePath.Mailbox, sourcePath.Uid, err = messageRef(ctx)
+	sourcePath.Mailbox, sourcePath.Uid, err = MessageRef(ctx)
 	if err != nil {
 		return err
 	}
@@ -1083,7 +1082,7 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 	if ctx.Request().Method == http.MethodGet {
 		partPath, err := parsePartPath(ctx.QueryParam("part"))
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			return web.NewError(http.StatusBadRequest, err)
 		}
 
 		source, part, mimeType, err := quotablePart(ctx, sourcePath, partPath)
@@ -1100,7 +1099,7 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 
 		if !strings.EqualFold(mimeType, "text/plain") {
 			err := fmt.Errorf("cannot edit %q part", mimeType)
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			return web.NewError(http.StatusBadRequest, err)
 		}
 
 		if msg.Text, err = readText(part); err != nil {

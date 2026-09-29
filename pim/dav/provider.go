@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,7 +17,6 @@ import (
 	"git.mehdix.org/alborz/internal/memo"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
-	"github.com/labstack/echo/v4"
 )
 
 // Kind tells a CalDAV provider from a CardDAV one.
@@ -92,7 +92,7 @@ type Provider struct {
 	collections *memo.Memo[[]Collection]
 
 	// debug logs upstream DAV traffic in debug mode.
-	debug echo.Logger
+	debug *log.Logger
 }
 
 // NewProvider resolves the service for every served domain by DNS alone; probes run in the background.

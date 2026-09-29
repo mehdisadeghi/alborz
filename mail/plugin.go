@@ -9,7 +9,6 @@ import (
 )
 
 type plugin struct {
-	web.Router
 	listings        *listingCache
 	bodies          *bodyCache
 	accountSidebars *memo.Memo[sidebar]
@@ -37,10 +36,10 @@ func newPlugin(o *alborz.Options) *plugin {
 }
 
 // Mount serves mail.
-func Mount(s *web.Server) {
+func Mount(g *web.Group) {
+	s := g.Server()
 	p := newPlugin(s.Options)
-	p.Router = s.Router()
-	p.registerRoutes()
+	p.registerRoutes(g)
 	// A restored account skips the login handler, so it is followed here too.
 	s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)
 	s.OnAccountGone = append(s.OnAccountGone, p.forgetAccount)

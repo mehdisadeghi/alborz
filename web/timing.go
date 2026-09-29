@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"time"
 
 	"github.com/emersion/go-smtp"
@@ -48,7 +47,7 @@ func (ctx *Context) DoSMTP(f func(*smtp.Client) error) error {
 func (ctx *Context) installTiming() {
 	ctx.timing = alborz.NewTiming()
 	req := ctx.Request()
-	ctx.SetRequest(req.WithContext(context.WithValue(req.Context(), alborz.TimingKey, ctx.timing)))
+	ctx.SetRequest(req.WithContext(alborz.WithTiming(req.Context(), ctx.timing)))
 	ctx.Response().Before(func() {
 		if h := ctx.timing.Header(); h != "" {
 			ctx.Response().Header().Set("Server-Timing", h)

@@ -6,83 +6,82 @@ import (
 
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
-	"github.com/labstack/echo/v4"
 )
 
 // composeBodySize bounds a message form: its text, and files sent with it where no script uploaded them ahead.
 const composeBodySize = web.MaxAttachmentSize + web.MaxFormSize
 
-func (p *plugin) registerRoutes() {
-	p.GET("/", func(ctx *web.Context) error {
+func (p *plugin) registerRoutes(g *web.Group) {
+	g.GET("home", "/{$}", func(ctx *web.Context) error {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	})
 
-	p.GET("/mailbox/:mbox", p.handleGetMailbox)
-	p.GET("/mail/sidebar", p.handleSidebar)
-	p.GET("/search", p.handleSearch)
-	p.GET("/mailbox/:mbox/empty", p.handleEmptyMailbox)
-	p.POST("/mailbox/:mbox/empty", p.handleEmptyMailbox)
-	p.POST("/mailbox/:role/empty-all", p.handleEmptyAllMailbox)
-	p.POST("/mailbox/:role/all/act", p.handleUnifiedAct)
-	p.POST("/mailbox/:mbox", p.handleGetMailbox)
+	g.GET("mailbox", "/mailbox/{mbox}", p.handleGetMailbox)
+	g.GET("sidebar", "/mail/sidebar", p.handleSidebar)
+	g.GET("search", "/search", p.handleSearch)
+	g.GET("mailbox.empty", "/mailbox/{mbox}/empty", p.handleEmptyMailbox)
+	g.POST("mailbox.empty", "/mailbox/{mbox}/empty", p.handleEmptyMailbox)
+	g.POST("role.empty", "/mailbox/{role}/empty-all", p.handleEmptyAllMailbox)
+	g.POST("role.act", "/mailbox/{role}/all/act", p.handleUnifiedAct)
+	g.POST("mailbox", "/mailbox/{mbox}", p.handleGetMailbox)
 
-	p.GET("/new-mailbox", p.handleNewMailbox)
-	p.POST("/new-mailbox", p.handleNewMailbox)
-	p.GET("/import", p.handleImport)
-	p.Stream("/import", importMaxSize, p.handleImport)
+	g.GET("mailbox.create", "/new-mailbox", p.handleNewMailbox)
+	g.POST("mailbox.create", "/new-mailbox", p.handleNewMailbox)
+	g.GET("import", "/import", p.handleImport)
+	g.Stream("import", "/import", importMaxSize, p.handleImport)
 
-	p.GET("/rename-mailbox/:mbox", p.handleRenameMailbox)
-	p.POST("/rename-mailbox/:mbox", p.handleRenameMailbox)
-	p.GET("/delete-mailbox/:mbox", p.handleDeleteMailbox)
-	p.POST("/delete-mailbox/:mbox", p.handleDeleteMailbox)
+	g.GET("mailbox.rename", "/rename-mailbox/{mbox}", p.handleRenameMailbox)
+	g.POST("mailbox.rename", "/rename-mailbox/{mbox}", p.handleRenameMailbox)
+	g.GET("mailbox.delete", "/delete-mailbox/{mbox}", p.handleDeleteMailbox)
+	g.POST("mailbox.delete", "/delete-mailbox/{mbox}", p.handleDeleteMailbox)
 
-	p.GET("/message/:mbox/:uid", p.handleGetPart)
-	p.GET("/message/:mbox/:uid/raw", handleRaw)
-	p.GET("/message/:mbox/:uid/signature", p.handleSignature)
-	p.GET("/message/:mbox/:uid/attachments.zip", handleDownloadAttachments)
-	p.GET("/message/:mbox/:uid/eml", func(ctx *web.Context) error {
+	g.GET("message", "/message/{mbox}/{uid}", p.handleGetPart)
+	g.GET("message.raw", "/message/{mbox}/{uid}/raw", handleRaw)
+	g.GET("message.signature", "/message/{mbox}/{uid}/signature", p.handleSignature)
+	g.GET("message.attachments", "/message/{mbox}/{uid}/attachments.zip", handleDownloadAttachments)
+	g.GET("message.eml", "/message/{mbox}/{uid}/eml", func(ctx *web.Context) error {
 		return handleDownloadMessage(ctx, false)
 	})
-	p.GET("/proxy", handleProxy)
-	p.POST("/mailbox/:mbox/refresh", p.handleRefreshMailbox)
-	p.Stream("/mailbox/:mbox/import", importMaxSize, p.handleDropImport)
-	p.GET("/message/:mbox/export", p.handleExportPage)
-	p.POST("/message/:mbox/export", p.handleExportMbox)
+	g.GET("proxy", "/proxy", handleProxy)
+	g.POST("mailbox.refresh", "/mailbox/{mbox}/refresh", p.handleRefreshMailbox)
+	g.Stream("mailbox.import", "/mailbox/{mbox}/import", importMaxSize, p.handleDropImport)
+	g.GET("messages.export", "/message/{mbox}/export", p.handleExportPage)
+	g.POST("messages.export", "/message/{mbox}/export", p.handleExportMbox)
 
-	p.GET("/compose", p.handleComposeNew)
-	p.Upload("/compose", composeBodySize, p.handleComposeNew, composeTooLarge)
+	g.GET("compose", "/compose", p.handleComposeNew)
+	g.Upload("compose", "/compose", composeBodySize, p.handleComposeNew, composeTooLarge)
 
-	p.Stream("/compose/attachment", web.MaxAttachmentSize+web.FormFieldsSize, handleComposeAttachment)
-	p.GET("/compose/attachment/:uuid", handleGetAttachment)
-	p.POST("/compose/attachment/:uuid/remove", handleCancelAttachment)
+	g.Stream("attachment.add", "/compose/attachment", web.MaxAttachmentSize+web.FormFieldsSize, handleComposeAttachment)
+	g.GET("attachment", "/compose/attachment/{uuid}", handleGetAttachment)
+	g.POST("attachment.remove", "/compose/attachment/{uuid}/remove", handleCancelAttachment)
 
-	p.GET("/message/:mbox/:uid/reply", p.handleReply)
-	p.Upload("/message/:mbox/:uid/reply", composeBodySize, p.handleReply, composeTooLarge)
+	g.GET("message.reply", "/message/{mbox}/{uid}/reply", p.handleReply)
+	g.Upload("message.reply", "/message/{mbox}/{uid}/reply", composeBodySize, p.handleReply, composeTooLarge)
 
-	p.GET("/message/:mbox/:uid/forward", p.handleForward)
-	p.Upload("/message/:mbox/:uid/forward", composeBodySize, p.handleForward, composeTooLarge)
-	p.POST("/message/:mbox/forward", handleForwardSelection)
-	p.POST("/message/:mbox/:uid/unsubscribe", handleUnsubscribe)
-	p.GET("/message/:mbox/forward", p.handleForwardAttached)
+	g.GET("message.forward", "/message/{mbox}/{uid}/forward", p.handleForward)
+	g.Upload("message.forward", "/message/{mbox}/{uid}/forward", composeBodySize, p.handleForward, composeTooLarge)
+	g.POST("messages.forward", "/message/{mbox}/forward", handleForwardSelection)
+	g.POST("message.unsubscribe", "/message/{mbox}/{uid}/unsubscribe", handleUnsubscribe)
+	g.GET("messages.forward", "/message/{mbox}/forward", p.handleForwardAttached)
 
-	p.GET("/message/:mbox/:uid/edit", p.handleEdit)
-	p.Upload("/message/:mbox/:uid/edit", composeBodySize, p.handleEdit, composeTooLarge)
+	g.GET("message.edit", "/message/{mbox}/{uid}/edit", p.handleEdit)
+	g.Upload("message.edit", "/message/{mbox}/{uid}/edit", composeBodySize, p.handleEdit, composeTooLarge)
 
-	p.POST("/message/:mbox/move", p.handleMove)
+	g.POST("messages.move", "/message/{mbox}/move", p.handleMove)
 
-	p.POST("/message/:mbox/delete", p.handleDelete)
+	g.POST("messages.delete", "/message/{mbox}/delete", p.handleDelete)
 
-	p.POST("/message/:mbox/flag", p.handleSetFlags)
+	g.POST("messages.flag", "/message/{mbox}/flag", p.handleSetFlags)
 
-	p.GET("/signatures", Scoped(handleSignatures))
-	p.GET("/signatures/create", Scoped(handleSignatureForm))
-	p.GET("/signatures/:name", Scoped(handleSignatureForm))
-	p.POST("/signatures", handleSignatureSave)
-	p.POST("/signatures/delete", handleSignatureDelete)
-	p.POST("/signatures/default", handleSignatureDefault)
-	p.GET("/settings/account", Scoped(p.handleSettings))
-	p.POST("/settings/account", p.handleSettings)
-	p.POST("/settings/account/forget", p.handleForget)
+	g.GET("signatures", "/signatures", Scoped(handleSignatures))
+	g.GET("signatures.create", "/signatures/create", Scoped(handleSignatureForm))
+	g.GET("signature", "/signatures/{name}", Scoped(handleSignatureForm))
+	g.POST("signatures", "/signatures", handleSignatureSave)
+	g.POST("signatures.delete", "/signatures/delete", handleSignatureDelete)
+	g.POST("signatures.default", "/signatures/default", handleSignatureDefault)
+	g.GET("account", "/settings/account", Scoped(p.handleSettings))
+	g.POST("account", "/settings/account", p.handleSettings)
+	g.POST("account.forget", "/settings/account/forget", p.handleForget)
 }
 
 // Scoped serves h per account: settings are per account, so a unified GET redirects to name its account.
@@ -100,17 +99,14 @@ func mailboxURL(ctx *web.Context, mboxName string) string {
 }
 
 func mailboxRef(ctx *web.Context) (string, error) {
-	name, err := url.PathUnescape(ctx.Param("mbox"))
-	if err != nil {
-		return "", echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-	return name, nil
+	return ctx.Param("mbox"), nil
 }
 
-func messageRef(ctx *web.Context) (string, imap.UID, error) {
-	mboxName, uid, err := parseMboxAndUid(ctx.Param("mbox"), ctx.Param("uid"))
+// MessageRef is the message the route's path names.
+func MessageRef(ctx *web.Context) (string, imap.UID, error) {
+	uid, err := parseUid(ctx.Param("uid"))
 	if err != nil {
-		return "", 0, echo.NewHTTPError(http.StatusBadRequest, err)
+		return "", 0, web.NewError(http.StatusBadRequest, err)
 	}
-	return mboxName, uid, nil
+	return ctx.Param("mbox"), uid, nil
 }

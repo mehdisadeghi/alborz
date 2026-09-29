@@ -745,6 +745,8 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 			code = he.Code
 		} else if errors.Is(err, errNotFound) {
 			code = http.StatusNotFound
+		} else if errors.Is(err, errIMAPQueueFull) {
+			code = http.StatusServiceUnavailable
 		}
 
 		if code == http.StatusNotFound {

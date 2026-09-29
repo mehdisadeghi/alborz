@@ -82,8 +82,8 @@ func waitQueued(t *testing.T, q *imapQueue, n int) {
 }
 
 func TestMailQueueFullRefuses(t *testing.T) {
-	var q imapQueue
-	done := make(chan struct{})
+	l := &Login{closed: make(chan struct{})}
+	q, done := &l.imapLocker, l.Done()
 	if err := q.acquire(context.Background(), done, false); err != nil {
 		t.Fatal(err)
 	}
@@ -97,10 +97,9 @@ func TestMailQueueFullRefuses(t *testing.T) {
 			}
 		}()
 	}
-	waitQueued(t, &q, imapQueueLimit)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := q.acquire(ctx, done, false); !errors.Is(err, errIMAPQueueFull) {
+	waitQueued(t, q, imapQueueLimit)
+	err := l.DoIMAPWork(context.Background(), IMAPForeground, time.Second, func(*imapclient.Client) error { return nil })
+	if !errors.Is(err, errIMAPQueueFull) {
 		t.Fatalf("request past a full queue: %v", err)
 	}
 	q.release()

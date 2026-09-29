@@ -67,7 +67,7 @@ func (s *Server) fail(ctx *Context, err error) {
 		Status string
 	}{*NewBaseRenderData(ctx), code, err, http.StatusText(code)}
 	if err := ctx.Render(code, "error", &data); err != nil {
-		s.log.Printf("rendering the error page: %v", err)
+		s.Logger().Printf("rendering the error page: %v", err)
 	}
-	s.log.Printf("%s %s: %v", ctx.Request().Method, ctx.Request().URL.Path, err)
+	s.Logger().Printf("%s %s: %v", ctx.Request().Method, ctx.Request().URL.Path, err)
 }

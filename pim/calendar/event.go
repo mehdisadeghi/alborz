@@ -261,12 +261,12 @@ func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
 }
 
 func (p *plugin) feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ical.Calendar, error) {
-	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
+	subs, err := loadSubscriptions(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, nil, err
 	}
 	var info *dav.Collection
-	for _, s := range settings.Subscriptions {
+	for _, s := range subs {
 		if s.URL == address {
 			i := s.info(ctx.Login.Username())
 			info = &i

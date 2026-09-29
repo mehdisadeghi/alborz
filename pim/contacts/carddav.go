@@ -137,7 +137,8 @@ func (ao AddressObject) PhotoURL() string {
 const (
 	appleKindField   = "X-ADDRESSBOOKSERVER-KIND"
 	appleMemberField = "X-ADDRESSBOOKSERVER-MEMBER"
-	MemberPrefix     = "urn:uuid:"
+	// UIDPrefix is the URN a card's UID and a group's members are written as.
+	UIDPrefix = "urn:uuid:"
 )
 
 // IsGroup reports whether the card is a group of contacts.
@@ -147,14 +148,14 @@ func (ao AddressObject) IsGroup() bool {
 
 // UID is the card's UID without the URN wrapper.
 func (ao AddressObject) UID() string {
-	return strings.TrimPrefix(ao.Card.Value(vcard.FieldUID), MemberPrefix)
+	return strings.TrimPrefix(ao.Card.Value(vcard.FieldUID), UIDPrefix)
 }
 
 // Members are the UIDs a group names, in the order the card lists them.
 func (ao AddressObject) Members() []string {
 	var out []string
 	for _, member := range append(ao.Card.Members(), ao.Card.Values(appleMemberField)...) {
-		if uid := strings.TrimPrefix(member, MemberPrefix); uid != "" {
+		if uid := strings.TrimPrefix(member, UIDPrefix); uid != "" {
 			out = append(out, uid)
 		}
 	}
@@ -173,7 +174,7 @@ func SetMembers(card vcard.Card, uids []string) {
 	delete(card, appleMemberField)
 	members := make([]string, len(uids))
 	for i, uid := range uids {
-		members[i] = MemberPrefix + uid
+		members[i] = UIDPrefix + uid
 	}
 	card.SetMembers(members)
 }
@@ -208,8 +209,6 @@ func SetColor(card vcard.Card, name string) {
 func (ao AddressObject) Modified() time.Time {
 	return Modified(ao.AddressObject)
 }
-
-const UIDPrefix = "urn:uuid:"
 
 func WriteCard(ctx context.Context, c *carddav.Client, at string, card vcard.Card) error {
 	card.SetRevision(time.Now())

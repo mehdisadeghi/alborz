@@ -76,7 +76,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 	uid := contact.UID()
 	if uid == "" {
 		uid = uuid.New().String()
-		ao.Card.SetValue(vcard.FieldUID, contacts.MemberPrefix+uid)
+		ao.Card.SetValue(vcard.FieldUID, contacts.UIDPrefix+uid)
 		if err := contacts.WriteCard(ctx.Request().Context(), c, ao.Path, ao.Card); err != nil {
 			ctx.Notify(pimweb.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
@@ -108,7 +108,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 		card := vcard.Card{}
 		card.SetValue(vcard.FieldVersion, "4.0")
 		card.SetValue(vcard.FieldFormattedName, name)
-		card.SetValue(vcard.FieldUID, contacts.MemberPrefix+uuid.New().String())
+		card.SetValue(vcard.FieldUID, contacts.UIDPrefix+uuid.New().String())
 		card.SetKind(vcard.KindGroup)
 		contacts.SetMembers(card, []string{uid})
 		// The group is made in the contact's book, the only one the page knows.

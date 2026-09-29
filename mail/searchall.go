@@ -73,36 +73,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 		logins = ctx.Logins()
 	}
 	q := search.Parse(spec.query)
-	class, bound := listingBudget(spec)
-	var (
-		mu   sync.Mutex
-		junk = map[rowRef]bool{}
-	)
-	merged, err := gather(ctx, logins, spec, func(s *alborz.Login) (*listingEntry, error) {
-		sb, err := p.sidebarFor(s)
-		if err != nil {
-			return nil, err
-		}
-		// One turn per folder, so the account's other pages are served between them.
-		found := &listingEntry{sortSupported: true}
-		for _, folder := range searchFolders(sb.mailboxes, q) {
-			e, err := readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
-				return p.fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.page.Window(), listFetchOptions, false)
-			})(ctx.Request().Context())
-			if err != nil {
-				return nil, err
-			}
-			found.absorb(e)
-		}
-		mu.Lock()
-		for i := range sb.mailboxes {
-			if sb.mailboxes[i].role() == "junk" {
-				junk[rowRef{account: s.Username(), mailbox: sb.mailboxes[i].Name()}] = true
-			}
-		}
-		mu.Unlock()
-		return found, nil
-	})
+	merged, err := p.searchWindow(ctx, logins, ask, settings)
 	if err != nil {
 		return err
 	}
@@ -137,4 +108,41 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 	data.FolderQuery = q.Without(search.In)
 	data.FolderTrack = template.CSS(fmt.Sprintf("%dch", min(track, folderTrackMax)))
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
+}
+
+// searchWindow is a search's rows up to the page asked, from every folder it spans, merged as its page is.
+func (p *plugin) searchWindow(ctx *alborz.Context, logins []*alborz.Login, ask listAsk, settings *Settings) (*listingEntry, error) {
+	spec := ask.spec
+	q := search.Parse(spec.query)
+	class, bound := listingBudget(spec)
+	var (
+		mu   sync.Mutex
+		junk = map[rowRef]bool{}
+	)
+	merged, err := gather(ctx, logins, spec, func(s *alborz.Login) (*listingEntry, error) {
+		sb, err := p.sidebarFor(s)
+		if err != nil {
+			return nil, err
+		}
+		// One turn per folder, so the account's other pages are served between them.
+		found := &listingEntry{sortSupported: true}
+		for _, folder := range searchFolders(sb.mailboxes, q) {
+			e, err := readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
+				return p.fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.page.Window(), listFetchOptions, false)
+			})(ctx.Request().Context())
+			if err != nil {
+				return nil, err
+			}
+			found.absorb(e)
+		}
+		mu.Lock()
+		for i := range sb.mailboxes {
+			if sb.mailboxes[i].role() == "junk" {
+				junk[rowRef{account: s.Username(), mailbox: sb.mailboxes[i].Name()}] = true
+			}
+		}
+		mu.Unlock()
+		return found, nil
+	})
+	return merged, err
 }

@@ -103,7 +103,11 @@ func PerPageChoices(ctx *Context) []int {
 
 // PerPage is how many rows a page of a list holds, the reader's rather than the account's.
 func PerPage(ctx *Context) int {
-	if raw := ctx.QueryParam("ipp"); raw != "" {
+	return perPage(ctx, ctx.QueryParams())
+}
+
+func perPage(ctx *Context, q url.Values) int {
+	if raw := q.Get("ipp"); raw != "" {
 		if n, err := ReadInt(raw); err == nil &&
 			n > 0 && n <= MaxMessagesPerPage {
 			return n
@@ -140,8 +144,13 @@ func (p Page) Window() int {
 
 // ListPage is the page of a list the request asks for; a number it cannot read is refused.
 func (ctx *Context) ListPage() (Page, error) {
-	p := Page{Size: PerPage(ctx)}
-	if raw := ctx.QueryParam("page"); raw != "" {
+	return ctx.ListPageAt(ctx.QueryParams())
+}
+
+// ListPageAt is the page a list's address asks for, read as ListPage reads the request's.
+func (ctx *Context) ListPageAt(q url.Values) (Page, error) {
+	p := Page{Size: perPage(ctx, q)}
+	if raw := q.Get("page"); raw != "" {
 		n, err := ReadInt(raw)
 		if err != nil || n < 0 {
 			return p, echo.NewHTTPError(http.StatusBadRequest, "invalid page index")

@@ -83,14 +83,53 @@ func (p *plugin) handleUnifiedMailbox(ctx *alborz.Context) error {
 		return err
 	}
 	spec := ask.spec
-
+	key := listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir)
+	class, bound := listingBudget(spec)
 	// A search costs a round trip per account, so it most wants the cache.
-	cacheable := ctx.Request().Method == http.MethodGet
+	merged, found, err := p.mergedWindow(ctx, role, ask, settings, ctx.Request().Method == http.MethodGet)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return alborz.NotFound("notfound.folder", role)
+	}
+	page, cut := cutPage(merged, ask.page)
+	rows, err := p.wholePage(ctx, role, key, cut, class, bound)
+	if err != nil {
+		return err
+	}
+	named := role
+	if slices.Contains(unifiedRoles, role) {
+		named = ctx.T("aside." + strings.ToLower(role))
+	}
+	title := named
+	if spec.view != "" {
+		title = viewTitle(ctx, spec.view)
+	}
+
+	data := listPage(ctx, ask.spec, page, merged, rows)
+	data.IMAPBaseRenderData = IMAPBaseRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
+		// The role is the name the rail marks and the refresh form posts to; Label is what is read.
+		Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: role}, Label: title},
+		ListView:        spec.view,
+		SidebarAccounts: p.sidebarAccounts(ctx),
+	}
+	data.Crumb = []CrumbLink{{Label: named, URL: mailboxPageURL(role).String()}}
+	data.Outgoing = role == "Sent" || role == "Drafts"
+	data.Merged, data.Role = true, role
+	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
+}
+
+// mergedWindow is a merged folder's rows up to the page asked, merged as its
+// page is; found is false where every account answered without the folder.
+func (p *plugin) mergedWindow(ctx *alborz.Context, role string, ask listAsk, settings *Settings, cacheable bool) (merged *listingEntry, found bool, err error) {
+	spec := ask.spec
 	key := listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir)
 	class, bound := listingBudget(spec)
 	// Every account that answered lacking the folder is a folder that is not there.
 	var holding, silent atomic.Int32
-	merged, err := gather(ctx, ctx.Logins(), spec, func(s *alborz.Login) (e *listingEntry, err error) {
+	merged, err = gather(ctx, ctx.Logins(), spec, func(s *alborz.Login) (e *listingEntry, err error) {
 		defer func() {
 			if e != nil {
 				holding.Add(1)
@@ -120,37 +159,9 @@ func (p *plugin) handleUnifiedMailbox(ctx *alborz.Context) error {
 		return readOn(s, class, bound, fetch)(ctx.Request().Context())
 	})
 	if err != nil {
-		return err
+		return nil, false, err
 	}
-	if holding.Load() == 0 && silent.Load() == 0 {
-		return alborz.NotFound("notfound.folder", role)
-	}
-	page, cut := cutPage(merged, ask.page)
-	rows, err := p.wholePage(ctx, role, key, cut, class, bound)
-	if err != nil {
-		return err
-	}
-	named := role
-	if slices.Contains(unifiedRoles, role) {
-		named = ctx.T("aside." + strings.ToLower(role))
-	}
-	title := named
-	if spec.view != "" {
-		title = viewTitle(ctx, spec.view)
-	}
-
-	data := listPage(ctx, ask.spec, page, merged, rows)
-	data.IMAPBaseRenderData = IMAPBaseRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
-		// The role is the name the rail marks and the refresh form posts to; Label is what is read.
-		Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: role}, Label: title},
-		ListView:        spec.view,
-		SidebarAccounts: p.sidebarAccounts(ctx),
-	}
-	data.Crumb = []CrumbLink{{Label: named, URL: mailboxPageURL(role).String()}}
-	data.Outgoing = role == "Sent" || role == "Drafts"
-	data.Merged, data.Role = true, role
-	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
+	return merged, holding.Load() > 0 || silent.Load() > 0, nil
 }
 
 // Rounded up to a power of two so a walk through n pages refetches log n times (ADR 46).
@@ -487,20 +498,25 @@ type listAsk struct {
 
 // also is the one order the page has beyond the columns.
 func readListAsk(ctx *alborz.Context, also string) (listAsk, error) {
+	return readListAskAt(ctx, ctx.QueryParams(), also)
+}
+
+// readListAskAt reads a list's address, the request's or the one an object was opened from.
+func readListAskAt(ctx *alborz.Context, q url.Values, also string) (listAsk, error) {
 	var ask listAsk
 	var err error
-	if ask.page, err = ctx.ListPage(); err != nil {
+	if ask.page, err = ctx.ListPageAt(q); err != nil {
 		return ask, err
 	}
-	view, err := readView(ctx)
+	view, err := readView(q)
 	if err != nil {
 		return ask, err
 	}
-	sortKey, sortDir, err := readSort(ctx, also)
+	sortKey, sortDir, err := readSort(q, also)
 	if err != nil {
 		return ask, err
 	}
-	ask.spec = listingSpec{query: ctx.QueryParam("query"), view: view, sortKey: sortKey, sortDir: sortDir}
+	ask.spec = listingSpec{query: q.Get("query"), view: view, sortKey: sortKey, sortDir: sortDir}
 	return ask, nil
 }
 
@@ -516,12 +532,12 @@ func searchInstead(ctx *alborz.Context, ask listAsk) string {
 }
 
 // also is the one order the page has beyond the columns.
-func readSort(ctx *alborz.Context, also string) (sortKey, sortDir string, err error) {
-	sortKey = ctx.QueryParam("sort")
+func readSort(q url.Values, also string) (sortKey, sortDir string, err error) {
+	sortKey = q.Get("sort")
 	if _, ok := sortKeys[sortKey]; !ok && sortKey != also {
 		return "", "", echo.NewHTTPError(http.StatusBadRequest, "invalid sort order")
 	}
-	sortDir = ctx.QueryParam("dir")
+	sortDir = q.Get("dir")
 	if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
 		return "", "", echo.NewHTTPError(http.StatusBadRequest, "invalid sort direction")
 	}
@@ -542,8 +558,8 @@ func listOrder(ctx *alborz.Context) (sortKey string, reverse bool) {
 }
 
 // A view is a link in the rail, never typed, so an unknown one is refused.
-func readView(ctx *alborz.Context) (string, error) {
-	view := ctx.QueryParam("view")
+func readView(q url.Values) (string, error) {
+	view := q.Get("view")
 	if !KnownView(view) {
 		return "", echo.NewHTTPError(http.StatusBadRequest, "unknown view")
 	}

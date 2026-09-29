@@ -191,7 +191,7 @@ func (o Occurrence) Star() string {
 
 func componentColor(comp *ical.Component) string {
 	name, _ := comp.Props.Text(ical.PropColor)
-	if !slices.Contains(web.FlagColors[:], name) {
+	if !slices.Contains(alborz.FlagColors[:], name) {
 		return ""
 	}
 	return name
@@ -206,7 +206,7 @@ func setComponentColor(comp *ical.Component, name string) {
 }
 
 func validStarView(view string) bool {
-	return view == "" || view == web.ViewStarred || slices.Contains(web.FlagColors[:], view)
+	return view == "" || view == web.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
 }
 
 func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {

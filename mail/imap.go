@@ -912,10 +912,10 @@ func (msg *IMAPMessage) FlagColor() string {
 			n |= 1 << i
 		}
 	}
-	if n >= len(web.FlagColors) {
+	if n >= len(alborz.FlagColors) {
 		n = 0
 	}
-	return web.FlagColors[n]
+	return alborz.FlagColors[n]
 }
 
 // FlagColorOption is one colour offered by a picker.
@@ -930,7 +930,7 @@ func FlagColorFlags(color string) (add, del []imap.Flag) {
 		return nil, append([]imap.Flag{imap.FlagFlagged}, flagColorBits[:]...)
 	}
 	n := -1
-	for i, c := range web.FlagColors {
+	for i, c := range alborz.FlagColors {
 		if c == color {
 			n = i
 		}

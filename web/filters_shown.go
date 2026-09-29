@@ -212,9 +212,6 @@ type Neighbours struct {
 	Total    int
 }
 
-// FlagColors names the colours the flag bits address, indexed by their value.
-var FlagColors = [7]string{"red", "orange", "yellow", "green", "blue", "purple", "grey"}
-
 // Views narrow a folder by a flag.
 const (
 	ViewStarred = "starred"
@@ -239,7 +236,7 @@ func StarLeaves(next, star string) bool {
 		return false
 	}
 	view := u.Query().Get("view")
-	return (view == ViewStarred || slices.Contains(FlagColors[:], view)) && !StarMatches(star, view)
+	return (view == ViewStarred || slices.Contains(alborz.FlagColors[:], view)) && !StarMatches(star, view)
 }
 
 // StarNotice says what became of a row's star that left its list.
@@ -265,7 +262,7 @@ func ViewRows(ctx *Context, current string, unread bool, clear string) []FilterR
 		rows = append(rows, row(ctx.T("mailbox.unread"), ViewUnread, ""))
 	}
 	rows = append(rows, row(ctx.T("mailbox.starred"), ViewStarred, ""))
-	for _, name := range FlagColors {
+	for _, name := range alborz.FlagColors {
 		rows = append(rows, row(ctx.T("color."+name), name, name))
 	}
 	return rows

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
@@ -66,8 +67,8 @@ var TemplateFuncs = template.FuncMap{
 	},
 	// Takes the render data for its translator: a method value cannot be passed through a dict.
 	"flagcolors": func(t interface{ T(string) string }) []FlagColorOption {
-		opts := make([]FlagColorOption, len(web.FlagColors))
-		for i, name := range web.FlagColors {
+		opts := make([]FlagColorOption, len(alborz.FlagColors))
+		for i, name := range alborz.FlagColors {
 			opts[i] = FlagColorOption{Name: name, Label: t.T("color." + name)}
 		}
 		return opts

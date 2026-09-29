@@ -813,6 +813,71 @@ func TestReopenedDraftKeepsItsLines(t *testing.T) {
 	}
 }
 
+// Both read the message only to decide; opening it is what marks it read.
+func TestUnsubscribeAndAddToCalendarLeaveTheMessageUnread(t *testing.T) {
+	addr, _ := startIMAPServer(t, rigCaps())
+	base := startAlborz(t, addr)
+	c := login(t, base)
+
+	ic, err := imapclient.DialInsecure(addr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ic.Close()
+	if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	invite := "From: <eve@example.org>\r\nTo: <" + smokeUser + ">\r\nSubject: Planning\r\nMIME-Version: 1.0\r\n" +
+		"Content-Type: text/calendar; charset=utf-8; method=REQUEST\r\n\r\n" +
+		"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//rig//EN\r\nMETHOD:REQUEST\r\n" +
+		"BEGIN:VEVENT\r\nUID:planning@rig\r\nDTSTAMP:20260901T090000Z\r\nDTSTART:20261001T090000Z\r\n" +
+		"SUMMARY:Planning\r\nORGANIZER:mailto:eve@example.org\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	cmd := ic.Append("INBOX", int64(len(invite)), nil)
+	cmd.Write([]byte(invite))
+	cmd.Close()
+	if _, err := cmd.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ic.Select("INBOX", nil).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	uidOf := func(subject string) imap.UID {
+		t.Helper()
+		found, err := ic.UIDSearch(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Subject", Value: subject}}}, nil).Wait()
+		if err != nil {
+			t.Fatal(err)
+		}
+		uids := found.AllUIDs()
+		if len(uids) != 1 {
+			t.Fatalf("want one message about %q, found %d", subject, len(uids))
+		}
+		return uids[0]
+	}
+
+	for _, action := range []struct{ subject, path string }{
+		{"Planning", "/calendar/from-message?mbox=INBOX&uid=%d"},
+		{"Ideas for the redesign", "/message/INBOX/%d/unsubscribe"},
+	} {
+		uid := uidOf(action.subject)
+		path := fmt.Sprintf(action.path, uid)
+		resp, err := c.Post(base+path, "", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		msgs, err := ic.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{Flags: true}).Collect()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(msgs) != 1 {
+			t.Fatalf("%s: want the message back, got %d", path, len(msgs))
+		}
+		if slices.Contains(msgs[0].Flags, imap.FlagSeen) {
+			t.Errorf("%s marked the message read", path)
+		}
+	}
+}
+
 func TestBadMessageReferenceIsTheCallersFault(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)

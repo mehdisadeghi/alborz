@@ -652,9 +652,20 @@ func PartAt(ctx *alborz.Context, mboxName string, uid imap.UID, part string) ([]
 func CalendarPartAt(ctx *alborz.Context, mboxName string, uid imap.UID) ([]byte, string, error) {
 	var msg *IMAPMessage
 	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
-		var err error
-		msg, _, err = getMessagePart(c, mboxName, uid, nil)
-		return err
+		if err := ensureMailboxSelected(c, mboxName); err != nil {
+			return err
+		}
+		msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+			UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+		}).Collect()
+		if err != nil {
+			return err
+		}
+		if len(msgs) == 0 {
+			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
+		}
+		msg = &IMAPMessage{FetchMessageBuffer: msgs[0], Mailbox: mboxName}
+		return nil
 	}); err != nil {
 		return nil, "", err
 	}
@@ -669,7 +680,17 @@ func CalendarPart(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid im
 	}
 	var raw []byte
 	err := ctx.DoIMAP(func(c *imapclient.Client) error {
-		_, entity, err := getMessagePart(c, mboxName, uid, part.Path)
+		if err := ensureMailboxSelected(c, mboxName); err != nil {
+			return err
+		}
+		msgs, err := c.Fetch(imap.UIDSetNum(uid), partFetchOptions(part.Path, true)).Collect()
+		if err != nil {
+			return err
+		}
+		if len(msgs) == 0 {
+			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
+		}
+		_, entity, err := messagePart(msgs[0], mboxName, uid, part.Path)
 		if err != nil {
 			return err
 		}
@@ -688,11 +709,28 @@ func handleUnsubscribe(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	var msg *IMAPMessage
+	msg := &IMAPMessage{Mailbox: mboxName}
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		var err error
-		msg, _, err = getMessagePart(c, mboxName, uid, nil)
-		return err
+		if err := ensureMailboxSelected(c, mboxName); err != nil {
+			return err
+		}
+		header := &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader,
+			HeaderFields: []string{"List-Unsubscribe", "List-Unsubscribe-Post"}}
+		msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+			BodySection: []*imap.FetchItemBodySection{header},
+		}).Collect()
+		if err != nil {
+			return err
+		}
+		if len(msgs) == 0 {
+			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
+		}
+		h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(msgs[0].FindBodySection(header))))
+		if err != nil {
+			return err
+		}
+		msg.setListHeaders(h)
+		return nil
 	})
 	if err != nil {
 		return err

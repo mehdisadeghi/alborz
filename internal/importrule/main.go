@@ -22,7 +22,6 @@ const (
 var allowed = []string{
 	"git.mehdix.org/alborz/mail git.mehdix.org/alborz/web",
 	"git.mehdix.org/alborz/pim git.mehdix.org/alborz/web",
-	"git.mehdix.org/alborz/pim/contacts git.mehdix.org/alborz/web",
 	"git.mehdix.org/alborz/pim/dav git.mehdix.org/alborz/web",
 }
 

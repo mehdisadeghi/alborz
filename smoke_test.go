@@ -40,7 +40,7 @@ import (
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	calendarweb "git.mehdix.org/alborz/pim/calendar/web"
-	"git.mehdix.org/alborz/pim/contacts"
+	contactsweb "git.mehdix.org/alborz/pim/contacts/web"
 	settingsweb "git.mehdix.org/alborz/settings/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/ProtonMail/go-crypto/openpgp"
@@ -353,7 +353,7 @@ func newAlborz(t *testing.T, ln net.Listener, options web.Options, setup ...func
 	if err := calendarweb.Mount(app.Group("", "calendar"), st); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	if err := contacts.Mount(app.Group("", "contacts"), st); err != nil {
+	if err := contactsweb.Mount(app.Group("", "contacts"), st); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
 	filtersweb.Mount(app.Group("/filters", "filters"))

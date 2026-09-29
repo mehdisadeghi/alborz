@@ -1,4 +1,4 @@
-package contacts
+package web
 
 import (
 	"cmp"
@@ -13,6 +13,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
@@ -30,13 +31,13 @@ type AddressObjectRenderData struct {
 	// Modified is REV, else the server's last-modified; vCard has no property for creation.
 	Modified      time.Time
 	AddressBook   *dav.Collection
-	AddressObject AddressObject
+	AddressObject contacts.AddressObject
 	Birthday      string
 	BirthdayDate  time.Time
 	Neighbours    web.Neighbours
 	// In are the groups naming this contact, Groups the others.
-	In     []AddressObject
-	Groups []AddressObject
+	In     []contacts.AddressObject
+	Groups []contacts.AddressObject
 }
 
 type UpdateAddressObjectRenderData struct {
@@ -76,10 +77,10 @@ func applyPhoto(ctx *web.Context, card vcard.Card) error {
 	}
 	f, err := file.Open()
 	if err != nil {
-		return ErrPhotoUnreadable
+		return contacts.ErrPhotoUnreadable
 	}
 	defer f.Close()
-	return SetPhoto(card, f)
+	return contacts.SetPhoto(card, f)
 }
 
 func (p *plugin) contact(ctx *web.Context) error {
@@ -123,8 +124,8 @@ func (p *plugin) contact(ctx *web.Context) error {
 		return err
 	}
 	// A contact says nothing about its groups; the groups are read to find them.
-	object := AddressObject{AddressObject: ao}
-	var in, rest []AddressObject
+	object := contacts.AddressObject{AddressObject: ao}
+	var in, rest []contacts.AddressObject
 	for _, g := range list.Groups {
 		if slices.Contains(g.Members(), object.UID()) {
 			in = append(in, g)
@@ -141,12 +142,12 @@ func (p *plugin) contact(ctx *web.Context) error {
 		Neighbours:     pim.Around(list.Items, path),
 		List:           cmp.Or(ctx.From(), pim.ListURL(ctx.Path("contacts.list"), pim.ListParams(ctx, contactListParams...))),
 		Rail:           rail,
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()).WithItem(),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(contacts.AddressObject{AddressObject: ao}.DisplayName()).WithItem(),
 		AddressBook:    addressBook,
-		AddressObject:  AddressObject{AddressObject: ao},
-		Birthday:       Birthday(ao.Card),
+		AddressObject:  contacts.AddressObject{AddressObject: ao},
+		Birthday:       contacts.Birthday(ao.Card),
 		BirthdayDate:   birthday,
-		Modified:       Modified(ao),
+		Modified:       contacts.Modified(ao),
 	})
 }
 func (p *plugin) updateContact(ctx *web.Context) error {
@@ -233,12 +234,12 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 			card.Add(vcard.FieldFormattedName, &vcard.Field{Value: fn})
 		}
 
-		if fields := WithValues(card[vcard.FieldEmail], emails); len(fields) > 0 {
+		if fields := contacts.WithValues(card[vcard.FieldEmail], emails); len(fields) > 0 {
 			card[vcard.FieldEmail] = fields
 		} else {
 			delete(card, vcard.FieldEmail)
 		}
-		if fields := WithValues(card[vcard.FieldTelephone], strings.Split(ctx.FormValue("tels"), ",")); len(fields) > 0 {
+		if fields := contacts.WithValues(card[vcard.FieldTelephone], strings.Split(ctx.FormValue("tels"), ",")); len(fields) > 0 {
 			card[vcard.FieldTelephone] = fields
 		} else {
 			delete(card, vcard.FieldTelephone)
@@ -279,7 +280,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 			switch {
 			case errors.Is(err, errPhotoTooLarge):
 				return reject(ctx.T("form.phototoolarge"))
-			case errors.Is(err, ErrPhotoUnreadable):
+			case errors.Is(err, contacts.ErrPhotoUnreadable):
 				return reject(ctx.T("form.photounreadable"))
 			}
 			return err
@@ -300,7 +301,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 
 		id := uuid.New()
 		if _, ok := card[vcard.FieldUID]; !ok {
-			card.SetValue(vcard.FieldUID, UIDPrefix+id.String())
+			card.SetValue(vcard.FieldUID, contacts.UIDPrefix+id.String())
 		}
 
 		held, etag := "", ""
@@ -314,14 +315,14 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 		// The PUT answer carries only the path, so the card as written names the contact.
-		named := AddressObject{AddressObject: &carddav.AddressObject{Path: ao.Path, Card: card}}
+		named := contacts.AddressObject{AddressObject: &carddav.AddressObject{Path: ao.Path, Card: card}}
 		return pim.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), ctx.Path("contacts.contact", named.Path), ctx.Path("contacts.list"), to.Account)
 	}
 
 	// Map values evaluate eagerly; a missing object must not reach DisplayName.
 	name := ""
 	if ao != nil {
-		name = AddressObject{AddressObject: ao}.DisplayName()
+		name = contacts.AddressObject{AddressObject: ao}.DisplayName()
 	}
 	rail, err := p.bookRail(ctx)
 	if err != nil {
@@ -335,7 +336,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		AddressObject:  ao,
 		Card:           card,
 		Name:           name,
-		Birthday:       ctx.Dates().Day(Birthday(card)),
+		Birthday:       ctx.Dates().Day(contacts.Birthday(card)),
 		Photo:          card.PreferredValue(vcard.FieldPhoto),
 	})
 }
@@ -347,7 +348,7 @@ func (p *plugin) note(ctx *web.Context) error {
 			if note == "" {
 				return nil
 			}
-			return ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
+			return contacts.ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
 				text := pim.AppendNote(ctx, card.Value(vcard.FieldNote), note)
 				if field := card.Preferred(vcard.FieldNote); field != nil {
 					field.Value = text
@@ -362,15 +363,15 @@ func (p *plugin) note(ctx *web.Context) error {
 func (p *plugin) deletePhoto(ctx *web.Context) error {
 	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.Client, List: "contacts.list", Done: pim.Quiet[*carddav.Client],
 		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
-			return ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) { delete(card, vcard.FieldPhoto) })
+			return contacts.ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) { delete(card, vcard.FieldPhoto) })
 		}})
 }
 
 func (p *plugin) color(ctx *web.Context) error {
 	return pim.Star(ctx, p.Client, "contacts.list", "contacts.contact", func(ctx *web.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
-		err = ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
-			was = CardColor(card)
-			SetColor(card, name)
+		err = contacts.ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
+			was = contacts.CardColor(card)
+			contacts.SetColor(card, name)
 		})
 		return was, err
 	})

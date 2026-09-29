@@ -1,4 +1,4 @@
-package contacts
+package web
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
@@ -20,15 +21,15 @@ import (
 )
 
 func (p *plugin) pooledBooks(ctx *web.Context) ([]pim.Account[*carddav.Client], error) {
-	return pim.Pooled(ctx, p.DAV, p.Open, ErrNoAddressBook)
+	return pim.Pooled(ctx, p.DAV, p.Open, contacts.ErrNoAddressBook)
 }
 
-type plugin struct{ *Books }
+type plugin struct{ *contacts.Books }
 
 // Mount serves contacts.
 func Mount(g *web.Group, st *store.Store) error {
 	srv := g.Server()
-	b, err := New(srv.Server, st)
+	b, err := contacts.New(srv.Server, st)
 	if err != nil {
 		return err
 	}
@@ -65,7 +66,7 @@ func Mount(g *web.Group, st *store.Store) error {
 		for _, a := range slices.Concat(env.From, env.To, env.Cc) {
 			addrs = append(addrs, &netmail.Address{Name: a.Name, Address: a.Addr()})
 		}
-		data.Contact = &mail.ContactOffer{Addresses: Distinct(addrs), Books: groups}
+		data.Contact = &mail.ContactOffer{Addresses: contacts.Distinct(addrs), Books: groups}
 		return nil
 	})
 
@@ -77,12 +78,12 @@ func Mount(g *web.Group, st *store.Store) error {
 		c, addressBooks, err := p.Open(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			// Suggestions are a convenience: a missing or silent address book must not block compose.
-			if err != ErrNoAddressBook {
+			if err != contacts.ErrNoAddressBook {
 				ctx.Logger().Printf("carddav: no suggestions for compose: %v", err)
 			}
 			return nil
 		}
-		addrs, err := Emails(ctx.Request().Context(), c, addressBooks)
+		addrs, err := contacts.Emails(ctx.Request().Context(), c, addressBooks)
 		if err != nil {
 			ctx.Logger().Printf("carddav: no suggestions from one book: %v", err)
 		}
@@ -153,7 +154,7 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	if acct != ctx.Login.Username() {
 		to += "?account=" + web.QueryValue(acct)
 	}
-	n, err := Import(ctx.Request().Context(), c, bookPath, raw)
+	n, err := contacts.Import(ctx.Request().Context(), c, bookPath, raw)
 	if pim.ImportAnswered(err) {
 		ctx.Notify(pim.ImportRefused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
@@ -186,7 +187,7 @@ func (p *plugin) addAddress(ctx *web.Context) error {
 	}
 	book := dav.At(books, to.Path)
 	back := ctx.NextOr(ctx.URL("contacts.list"))
-	held, err := Emails(ctx.Request().Context(), to.Client, []dav.Collection{*book})
+	held, err := contacts.Emails(ctx.Request().Context(), to.Client, []dav.Collection{*book})
 	if err != nil {
 		return err
 	}
@@ -197,12 +198,12 @@ func (p *plugin) addAddress(ctx *web.Context) error {
 			Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeName(addr.Address), web.NoticeName(book.Name)))})
 		return ctx.Redirect(http.StatusFound, back)
 	}
-	ao, err := AddCard(ctx.Request().Context(), to.Client, to.Path, addr)
+	ao, err := contacts.AddCard(ctx.Request().Context(), to.Client, to.Path, addr)
 	if err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
 		return ctx.Redirect(http.StatusFound, back)
 	}
-	named := AddressObject{AddressObject: ao}
+	named := contacts.AddressObject{AddressObject: ao}
 	sentence := ctx.T("notice.contactcreated")
 	href := ctx.Path("contacts.contact", named.Path) + "?account=" + web.QueryValue(to.Account)
 	ctx.Notify(web.Notice{Kind: web.NoticeDone,

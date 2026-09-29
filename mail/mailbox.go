@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -62,14 +63,11 @@ type MailboxDetails struct {
 
 var unifiedRoles = []string{"INBOX", "Drafts", "Sent", "Junk", "Trash", "Archive"}
 
+// A merged folder is a role in every account, or a folder by name in the accounts that hold it.
 func (p *plugin) handleUnifiedMailbox(ctx *alborz.Context) error {
 	role, err := mailboxRef(ctx)
 	if err != nil {
 		return err
-	}
-	if !slices.Contains(unifiedRoles, role) {
-		return echo.NewHTTPError(http.StatusNotFound,
-			fmt.Sprintf("%q is not a unified folder", role))
 	}
 
 	// account is a property of the merge, not of any single server's order.
@@ -90,7 +88,17 @@ func (p *plugin) handleUnifiedMailbox(ctx *alborz.Context) error {
 	cacheable := ctx.Request().Method == http.MethodGet
 	key := listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir)
 	class, bound := listingBudget(spec)
-	merged, err := gather(ctx, ctx.Logins(), spec, func(s *alborz.Login) (*listingEntry, error) {
+	// Every account that answered lacking the folder is a folder that is not there.
+	var holding, silent atomic.Int32
+	merged, err := gather(ctx, ctx.Logins(), spec, func(s *alborz.Login) (e *listingEntry, err error) {
+		defer func() {
+			if e != nil {
+				holding.Add(1)
+			}
+			if err != nil {
+				silent.Add(1)
+			}
+		}()
 		user := s.Username()
 		size := ask.held(p.listings.heldSize(user, key))
 		fields := mergeFetchOptions
@@ -114,12 +122,19 @@ func (p *plugin) handleUnifiedMailbox(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
+	if holding.Load() == 0 && silent.Load() == 0 {
+		return alborz.NotFound("notfound.folder", role)
+	}
 	page, cut := cutPage(merged, ask.page)
 	rows, err := p.wholePage(ctx, role, key, cut, class, bound)
 	if err != nil {
 		return err
 	}
-	title := ctx.T("aside." + strings.ToLower(role))
+	named := role
+	if slices.Contains(unifiedRoles, role) {
+		named = ctx.T("aside." + strings.ToLower(role))
+	}
+	title := named
 	if spec.view != "" {
 		title = viewTitle(ctx, spec.view)
 	}
@@ -132,7 +147,7 @@ func (p *plugin) handleUnifiedMailbox(ctx *alborz.Context) error {
 		ListView:        spec.view,
 		SidebarAccounts: p.sidebarAccounts(ctx),
 	}
-	data.Crumb = []CrumbLink{{Label: ctx.T("aside." + strings.ToLower(role)), URL: "/mailbox/" + role}}
+	data.Crumb = []CrumbLink{{Label: named, URL: mailboxPageURL(role).String()}}
 	data.Outgoing = role == "Sent" || role == "Drafts"
 	data.Merged, data.Role = true, role
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
@@ -726,7 +741,7 @@ func (p *plugin) handleNewMailbox(ctx *alborz.Context) error {
 			return render(http.StatusUnprocessableEntity, err.Error())
 		}
 
-		p.accountChanged(selectedAccount)
+		p.mailboxCreated(selectedAccount)
 		ctx.Made(ctx.T("notice.foldercreated"), name, "", ctx.Request().URL.RequestURI())
 		return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
 	}
@@ -1413,9 +1428,6 @@ func (p *plugin) handleUnifiedAct(ctx *alborz.Context) error {
 	role, err := url.PathUnescape(ctx.Param("role"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
-	}
-	if !slices.Contains(unifiedRoles, role) {
-		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("%q is not a unified folder", role))
 	}
 	params, err := ctx.FormParams()
 	if err != nil {

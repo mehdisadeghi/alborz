@@ -3,39 +3,13 @@ package alborz_test
 import (
 	"html"
 	"io"
-	"net"
 	"net/http"
 	"net/mail"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
-
-	"git.mehdix.org/alborz"
-	"github.com/fernet/fernet-go"
-	"github.com/labstack/echo/v4"
 )
-
-// startAlborzKept starts alborz with no DAV server of the domain's.
-func startAlborzKept(t *testing.T, imapAddr string) string {
-	t.Helper()
-	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
-	e := echo.New()
-	e.HideBanner, e.HidePort = true, true
-	newAlborz(t, e, &alborz.Options{
-		Upstreams: []string{"test.local=imap+insecure://" + imapAddr},
-		LoginKey:  key,
-		DataDir:   t.TempDir(),
-		Cache:     true,
-	})
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	go e.Server.Serve(ln)
-	t.Cleanup(func() { e.Close() })
-	return "http://" + ln.Addr().String()
-}
 
 func put(t *testing.T, base, path, contentType, body string) {
 	t.Helper()
@@ -83,7 +57,7 @@ func event(uid, summary string) string {
 		summary + "\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 }
 
-func keptCalendar(t *testing.T, base string, c *http.Client, name, id string) string {
+func createCalendar(t *testing.T, base string, c *http.Client, name, id string) string {
 	t.Helper()
 	form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {name}, "color": {"#22aa55"}}
 	if resp := postForm(t, c, base+"/calendars/create", form); resp.StatusCode != http.StatusFound {
@@ -94,9 +68,9 @@ func keptCalendar(t *testing.T, base string, c *http.Client, name, id string) st
 
 // A DELETE carrying If-Match must match the object's tag (RFC 9110 13.1.1).
 func TestADeleteWithAStaleTagKeepsTheObject(t *testing.T) {
-	base := startAlborzKept(t, startIMAP(t))
+	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
-	cal := keptCalendar(t, base, c, "Plans", "plans")
+	cal := createCalendar(t, base, c, "Plans", "plans")
 	put(t, base, strings.TrimPrefix(cal+"dentist.ics", base), "text/calendar", event("dentist", "Dentist"))
 
 	if resp, _ := dav(t, http.MethodDelete, cal+"dentist.ics", map[string]string{"If-Match": `"stale"`}, ""); resp.StatusCode != http.StatusPreconditionFailed {
@@ -116,9 +90,9 @@ func TestADeleteWithAStaleTagKeepsTheObject(t *testing.T) {
 
 // One UID per calendar (RFC 4791 5.3.2.1).
 func TestASecondObjectWithATakenUIDIsRefused(t *testing.T) {
-	base := startAlborzKept(t, startIMAP(t))
+	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
-	cal := keptCalendar(t, base, c, "Work", "work")
+	cal := createCalendar(t, base, c, "Work", "work")
 	put(t, base, strings.TrimPrefix(cal+"review.ics", base), "text/calendar", event("review", "Review"))
 
 	resp, _ := dav(t, http.MethodPut, cal+"copy.ics", map[string]string{"Content-Type": "text/calendar"}, event("review", "Review again"))
@@ -137,7 +111,7 @@ func TestASecondObjectWithATakenUIDIsRefused(t *testing.T) {
 }
 
 func TestAnOpenTaskWithoutStatusIsListed(t *testing.T) {
-	base := startAlborzKept(t, startIMAP(t))
+	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
 	form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {"Chores"}, "color": {"#22aa55"}, "holds": {"tasks"}}
 	if resp := postForm(t, c, base+"/calendars/create", form); resp.StatusCode != http.StatusFound {
@@ -153,9 +127,9 @@ func TestAnOpenTaskWithoutStatusIsListed(t *testing.T) {
 
 // A VCALENDAR holds one component at least (RFC 5545 3.6), so no file is written.
 func TestAMonthWithNoEventsExportsNothing(t *testing.T) {
-	base := startAlborzKept(t, startIMAP(t))
+	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
-	keptCalendar(t, base, c, "Plans", "plans")
+	createCalendar(t, base, c, "Plans", "plans")
 	stay := *c
 	stay.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	resp, err := stay.Get(base + "/calendar/export?month=2026-09")
@@ -169,10 +143,10 @@ func TestAMonthWithNoEventsExportsNothing(t *testing.T) {
 }
 
 // Its own store answers for a rule alborz writes, and alborz expands it (ADR 10).
-func TestAKeptCalendarDrawsItsSolarHijriRule(t *testing.T) {
-	base := startAlborzKept(t, startIMAP(t))
+func TestACalendarOnAlborzDrawsItsSolarHijriRule(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
-	coll := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
+	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 	postForm(t, c, base+"/settings", url.Values{"calendar": {"shcal"}, "secondary": {""}})
 	form := url.Values{"summary": {"Nowruz"}, "calendar": {smokeUser + "|" + coll},
 		"start": {"1405/01/01 10:00"}, "start-calendar": {"shcal"},
@@ -189,8 +163,8 @@ func TestAKeptCalendarDrawsItsSolarHijriRule(t *testing.T) {
 }
 
 // An address book query with no filter asks for every card (RFC 6352 10.5).
-func TestABookKeptHereListsItsCards(t *testing.T) {
-	base := startAlborzKept(t, startIMAP(t))
+func TestABookOnAlborzListsItsCards(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
 	form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {"People"}}
 	if resp := postForm(t, c, base+"/address-books/create", form); resp.StatusCode != http.StatusFound {
@@ -199,7 +173,7 @@ func TestABookKeptHereListsItsCards(t *testing.T) {
 	put(t, base, "/alborz/dav/addressbooks/"+smokeUser+"/people/parvin.vcf", "text/vcard",
 		"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:parvin\r\nFN:Parvin Etesami\r\nN:Etesami;Parvin;;;\r\nEND:VCARD\r\n")
 	if page := get(t, c, base+"/contacts"); !strings.Contains(page, "Parvin Etesami") {
-		t.Errorf("the card in the book kept here is not on the list")
+		t.Errorf("the card in the book on alborz is not on the list")
 	}
 }
 
@@ -294,7 +268,7 @@ func postBody(t *testing.T, c *http.Client, u string, form url.Values, header ma
 func TestEveryDAVObjectRouteAnswers(t *testing.T) {
 	for _, scope := range []string{"", "?account=" + smokeUser} {
 		t.Run("scope="+scope, func(t *testing.T) {
-			base := startAlborzKept(t, startIMAP(t))
+			base := startAlborz(t, startIMAP(t))
 			c := login(t, base)
 			postForm(t, c, base+"/login", url.Values{"username": {smokeUser2}, "password": {smokePass}})
 			for _, made := range []struct {
@@ -497,8 +471,8 @@ func walk(t *testing.T, base string, c *http.Client, k walked, scope string) {
 	}
 }
 
-// keptCards are the cards of the account's book kept here under name, as a DAV client reads them.
-func keptCards(t *testing.T, base, name string) string {
+// bookCards are the cards of the account's book on alborz named name, as a DAV client reads them.
+func bookCards(t *testing.T, base, name string) string {
 	t.Helper()
 	_, list := dav(t, "PROPFIND", base+"/alborz/dav/addressbooks/"+smokeUser+"/", map[string]string{"Depth": "1", "Content-Type": "application/xml"},
 		`<propfind xmlns="DAV:"><prop><displayname/></prop></propfind>`)
@@ -516,7 +490,7 @@ func keptCards(t *testing.T, base, name string) string {
 	return cards
 }
 
-func keptBook(t *testing.T, base string, c *http.Client, name string) {
+func createBook(t *testing.T, base string, c *http.Client, name string) {
 	t.Helper()
 	form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {name}}
 	if resp := postForm(t, c, base+"/address-books/create", form); resp.StatusCode != http.StatusFound {
@@ -528,14 +502,14 @@ func TestSendingKeepsNewRecipientsInPreviousRecipients(t *testing.T) {
 	smtpAddr, _ := startSMTP(t)
 	base := startAlborz(t, startIMAP(t), smtpAddr)
 	c := login(t, base)
-	keptBook(t, base, c, "People")
+	createBook(t, base, c, "People")
 	put(t, base, "/alborz/dav/addressbooks/"+smokeUser+"/people/known.vcf", "text/vcard",
 		"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:known\r\nFN:Known\r\nEMAIL:known@example.org\r\nEND:VCARD\r\n")
 
 	sendFrom(t, c, base, "/compose", get(t, c, base+"/compose"),
 		"to", "Parvin Etesami <parvin@example.org>", "cc", "known@example.org")
 
-	cards := keptCards(t, base, "Previous recipients")
+	cards := bookCards(t, base, "Previous recipients")
 	if !strings.Contains(cards, "EMAIL:parvin@example.org") || !strings.Contains(cards, "FN:Parvin Etesami") {
 		t.Errorf("the new recipient is not in Previous recipients:\n%s", cards)
 	}
@@ -550,8 +524,8 @@ func TestSendingKeepsNewRecipientsInPreviousRecipients(t *testing.T) {
 func TestAddToContactsWritesTheChosenBook(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
-	keptBook(t, base, c, "People")
-	keptBook(t, base, c, "Work")
+	createBook(t, base, c, "People")
+	createBook(t, base, c, "Work")
 
 	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX"))
 	if len(uids) == 0 {
@@ -580,10 +554,10 @@ func TestAddToContactsWritesTheChosenBook(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cards := keptCards(t, base, "Work"); strings.Count(cards, "EMAIL:"+parsed.Address) != 1 {
+	if cards := bookCards(t, base, "Work"); strings.Count(cards, "EMAIL:"+parsed.Address) != 1 {
 		t.Errorf("Work does not hold %s once:\n%s", parsed.Address, cards)
 	}
-	if cards := keptCards(t, base, "People"); strings.Contains(cards, parsed.Address) {
+	if cards := bookCards(t, base, "People"); strings.Contains(cards, parsed.Address) {
 		t.Errorf("a book not chosen got the card:\n%s", cards)
 	}
 }

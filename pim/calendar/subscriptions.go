@@ -270,7 +270,7 @@ func (f *feeds) load(h *heldFeed) error {
 	return nil
 }
 
-var errUnsealed = errors.New("calendar: a kept feed does not open under the login key")
+var errUnsealed = errors.New("calendar: a stored feed does not open under the login key")
 
 // open unseals a stored value; a missing one is nil.
 func (f *feeds) open(sealed []byte) ([]byte, error) {

@@ -54,11 +54,11 @@ func TestForceRefreshFetchesFeeds(t *testing.T) {
 	s.Outgoing.Guarded = feed.Client().Transport
 	auth.Mount(s)
 	mail.Mount(s)
-	kept, err := pim.Mount(s)
+	st, err := pim.Mount(s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := calendar.Mount(s, kept); err != nil {
+	if err := calendar.Mount(s, st); err != nil {
 		t.Fatal(err)
 	}
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
@@ -83,6 +83,6 @@ func TestForceRefreshFetchesFeeds(t *testing.T) {
 		t.Fatalf("hits %d after a failed refresh", hits.Load())
 	}
 	if !strings.Contains(get(t, c, base+"/calendar"), "Feast") {
-		t.Fatal("a failed refresh dropped the kept feed")
+		t.Fatal("a failed refresh dropped the stored feed")
 	}
 }

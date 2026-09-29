@@ -19,8 +19,8 @@ const metaKey = "alborz.meta"
 // formats are core's key owners, with each one's format; a feature notes its own through Server.Data.
 var formats = map[string]int{sessionsOwner: recordsFormat, settingsOwner: recordsFormat}
 
-// openedKept is enough builds to see a rollback and what it rolled back from.
-const openedKept = 8
+// maxOpened is enough builds to see a rollback and what it rolled back from.
+const maxOpened = 8
 
 type dataMeta struct {
 	Formats map[string]int
@@ -51,8 +51,8 @@ func openData(dir, build string, log func(format string, args ...any)) (kv.DB, e
 	err = updateMeta(db, path, func(meta *dataMeta) {
 		noteFormats(meta, formats, path, log)
 		meta.Opened = append([]dataOpened{{Build: build, At: time.Now().UTC()}}, meta.Opened...)
-		if len(meta.Opened) > openedKept {
-			meta.Opened = meta.Opened[:openedKept]
+		if len(meta.Opened) > maxOpened {
+			meta.Opened = meta.Opened[:maxOpened]
 		}
 	})
 	if err != nil {

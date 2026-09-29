@@ -83,7 +83,7 @@ type Provider struct {
 }
 
 // NewProvider resolves the service for every served domain by DNS alone; probes run in the background.
-func NewProvider(srv *alborz.Server, kept *store.Store, kind Kind) (*Provider, error) {
+func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, error) {
 	urls := make(map[string]*url.URL)
 	found := make(map[string]string)
 	hosts := make(map[string]*url.URL)
@@ -114,7 +114,7 @@ func NewProvider(srv *alborz.Server, kept *store.Store, kind Kind) (*Provider, e
 	if !srv.Options.PrivateServices {
 		p.named = srv.Outgoing.Guarded
 	}
-	p.here, p.Store = kept.Handler(), kept
+	p.here, p.Store = st.Handler(), st
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}

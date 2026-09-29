@@ -17,7 +17,7 @@ import (
 )
 
 // The production client refuses loopback, so the tests inject a plain one.
-func keptFeeds(t *testing.T, file string, client *http.Client) *feeds {
+func feedsAt(t *testing.T, file string, client *http.Client) *feeds {
 	t.Helper()
 	db, err := bolt.Open(file, time.Second)
 	if err != nil {
@@ -35,7 +35,7 @@ var feedsKey = func() *fernet.Key {
 	return &k
 }()
 
-func TestFeedKeptAcrossRestartAndRefreshedOnItsOwnClock(t *testing.T) {
+func TestFeedSurvivesARestartAndRefreshesOnItsOwnClock(t *testing.T) {
 	const ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nREFRESH-INTERVAL;VALUE=DURATION:PT2H\r\n" +
 		"BEGIN:VEVENT\r\nUID:h1\r\nDTSTART;VALUE=DATE:20260101\r\nSUMMARY:New Year\r\nEND:VEVENT\r\n" +
 		"END:VCALENDAR\r\n"
@@ -57,13 +57,13 @@ func TestFeedKeptAcrossRestartAndRefreshedOnItsOwnClock(t *testing.T) {
 	defer srv.Close()
 	file := filepath.Join(t.TempDir(), "feeds.db")
 
-	before := keptFeeds(t, file, srv.Client())
+	before := feedsAt(t, file, srv.Client())
 	if _, err := before.refresh(context.Background(), srv.URL); err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
 	before.db.Close()
 
-	f := keptFeeds(t, file, srv.Client())
+	f := feedsAt(t, file, srv.Client())
 	cal := f.calendar(srv.URL)
 	if cal == nil || len(cal.Events()) != 1 || hits != 1 {
 		t.Fatalf("after a restart the feed served %v after %d requests, want its one event after 1", cal, hits)
@@ -75,7 +75,7 @@ func TestFeedKeptAcrossRestartAndRefreshedOnItsOwnClock(t *testing.T) {
 	}
 	f.round(context.Background(), now.Add(3*time.Hour))
 	if hits != 2 || asked.Get("If-None-Match") != `"v1"` || asked.Get("If-Modified-Since") != modified {
-		t.Fatalf("the due fetch was request %d with validators %q %q, want request 2 conditional on the kept ones",
+		t.Fatalf("the due fetch was request %d with validators %q %q, want request 2 conditional on the stored ones",
 			hits, asked.Get("If-None-Match"), asked.Get("If-Modified-Since"))
 	}
 	if cal := f.calendar(srv.URL); cal == nil || len(cal.Events()) != 1 {
@@ -128,7 +128,7 @@ func TestSubscriptionIsACalendarInTheRail(t *testing.T) {
 	if info.Address != srv.URL || info.Writable || !supportsEvent(info.Components) || supportsTodo(info.Components) {
 		t.Fatalf("rail entry: %+v", info)
 	}
-	p := &plugin{feeds: keptFeeds(t, filepath.Join(t.TempDir(), "feeds.db"), srv.Client())}
+	p := &plugin{feeds: feedsAt(t, filepath.Join(t.TempDir(), "feeds.db"), srv.Client())}
 	if _, err := p.feeds.refresh(context.Background(), srv.URL); err != nil {
 		t.Fatal(err)
 	}

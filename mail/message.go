@@ -87,7 +87,7 @@ type MessageRenderData struct {
 	Filters bool
 
 	// Filled by calendars and contacts, nil where they have nothing: the share this mail announces,
-	// where an invitation or an attached file can be filed, and the kept copy a withdrawal can drop.
+	// where an invitation or an attached file can be filed, and the stored copy a withdrawal can drop.
 	ShareOffer      any
 	InviteCalendars any
 	ImportCalendars any

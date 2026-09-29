@@ -122,7 +122,7 @@ func TestAnOrganizerKeepsAttendeesInformed(t *testing.T) {
 	c := login(t, base)
 	u, _ := url.Parse(base)
 	c.Jar.SetCookies(u, []*http.Cookie{{Name: "alborz_tz", Value: "Europe/Berlin"}})
-	coll := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
+	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
 		"calendar": {smokeUser + "|" + coll}, "attendees": {"b@example.org\nc@example.org"}}
@@ -272,7 +272,7 @@ func TestAnAnswerIsRecordedOnTheEvent(t *testing.T) {
 	imapAddr := startIMAP(t)
 	base := startAlborz(t, imapAddr, smtpAddr)
 	c := login(t, base)
-	coll := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
+	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
 		"calendar": {smokeUser + "|" + coll}, "attendees": {"b@example.org"}}
 	created(t, postForm(t, c, base+"/calendar/create", form))
@@ -317,7 +317,7 @@ func TestAnIcsAttachmentIsImported(t *testing.T) {
 	imapAddr := startIMAP(t)
 	base := startAlborz(t, imapAddr)
 	c := login(t, base)
-	coll := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
+	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 	raw := "From: eve@example.org\r\nTo: " + smokeUser + "\r\nSubject: The plan\r\nMIME-Version: 1.0\r\n" +
 		"Content-Type: multipart/mixed; boundary=b1\r\n\r\n" +
 		"--b1\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nAttached.\r\n" +
@@ -358,7 +358,7 @@ func TestAServerThatSchedulesSendsTheInvitations(t *testing.T) {
 		"test.local=caldav+insecure://" + strings.TrimPrefix(dav.URL, "http://") + "/dav",
 	}, smtpUpstreams([]string{smtpAddr})...))
 	c := login(t, base)
-	kept := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
+	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
 		"calendar": {smokeUser + "|" + personal}, "attendees": {"b@example.org"}}
@@ -367,9 +367,9 @@ func TestAServerThatSchedulesSendsTheInvitations(t *testing.T) {
 		t.Fatalf("saving on a scheduling server sent %d messages, want none", len(got))
 	}
 
-	form.Set("calendar", smokeUser+"|"+kept)
+	form.Set("calendar", smokeUser+"|"+coll)
 	created(t, postForm(t, c, base+"/calendar/create", form))
 	if got := sentCalendars(t, sent.All()); len(got) != 1 || got[0].method != "REQUEST" {
-		t.Fatalf("saving on a calendar kept here sent %d calendars, want one REQUEST", len(got))
+		t.Fatalf("saving on a calendar on alborz sent %d calendars, want one REQUEST", len(got))
 	}
 }

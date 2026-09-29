@@ -2,6 +2,7 @@ package calendar
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -19,13 +20,20 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// MoveTasksRenderData is the chooser a move without a destination answers with.
-type MoveTasksRenderData struct {
+// DestinationRenderData asks where a move or a copy goes; a menu holds actions, so the choice is a page.
+type DestinationRenderData struct {
 	alborz.BaseRenderData
-	Rail      pim.Rail
-	Calendars []dav.Collection
-	Paths     []string
-	Next      string
+	Rail          pim.Rail
+	Section, Home string
+	Title, Lead   string
+	Label, Save   string
+	// Action is where the form posts; empty posts to the page's own address.
+	Action string
+	// Key is the picker's remembered choice.
+	Key    string
+	Groups []dav.Group
+	Paths  []string
+	Next   string
 }
 
 type TasksRenderData struct {
@@ -403,10 +411,8 @@ func (p *plugin) move(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	// A menu holds actions; the destination is chosen on a page this route answers with.
-	to := params.Get("to")
-	if to == "" {
-		list, err := p.taskList(ctx)
+	page := func(status int, refusal string) error {
+		groups, err := p.writableGroups(ctx, supportsTodo)
 		if err != nil {
 			return err
 		}
@@ -414,19 +420,33 @@ func (p *plugin) move(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		return ctx.Render(http.StatusOK, "calendar/destination", &MoveTasksRenderData{
+		data := &DestinationRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("folder.moveask")),
 			Rail:           rail,
-			Calendars:      list.Calendars,
+			Section:        ctx.T("nav.tasks"),
+			Home:           "/tasks",
+			Title:          ctx.T("folder.moveask"),
+			Lead:           ctx.Tf("tasks.movecount", len(params["paths"])),
+			Label:          ctx.T("tasks.movelist"),
+			Save:           ctx.T("folder.movedo"),
+			Action:         "/tasks/move",
+			Key:            "move",
+			Groups:         groups,
 			Paths:          params["paths"],
 			Next:           ctx.NextOr(ctx.AccountPath("/tasks")),
-		})
+		}
+		data.Refused(refusal)
+		return ctx.Render(status, "calendar/destination", data)
 	}
-	targets, err := pim.Selected(ctx, []string{to}, p.client)
-	if err != nil {
+	if ctx.Request().Method != http.MethodPost {
+		return page(http.StatusOK, "")
+	}
+	target, err := p.destination(ctx, params.Get("to"), supportsTodo)
+	if errors.Is(err, pim.ErrNoDestination) {
+		return page(http.StatusUnprocessableEntity, ctx.T("form.destinationneeded"))
+	} else if err != nil {
 		return err
 	}
-	target := targets[0]
 	return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.client, List: "/tasks",
 		Done: func(ctx *alborz.Context, done []pim.Ref[*caldav.Client], _ string) alborz.Notice {
 			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.tasksmoved", len(done))}

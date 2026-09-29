@@ -20,8 +20,12 @@ Alternatively, one or more upstream server URLs can be specified:
 
 The following URL schemes are supported:
 
-* `imaps` (IMAP with TLS), `imap+insecure` (plain IMAP)
-* `smtps` (SMTP with TLS), `smtp+insecure` (plain SMTP)
+* `imaps` (IMAP with TLS), `imap` (IMAP with STARTTLS), `imap+insecure`
+  (plain IMAP)
+* `smtps` (SMTP with TLS), `smtp` (SMTP with STARTTLS), `smtp+insecure`
+  (plain SMTP)
+* `sieve` (ManageSieve with STARTTLS, port 4190 by default),
+  `sieve+insecure` (plain ManageSieve)
 * `https` (CardDAV and CalDAV over HTTPS), `http+insecure` (CardDAV and CalDAV
   over plain HTTP)
 * `carddavs` (CardDAV over HTTPS), `carddav+insecure` (CardDAV over plain HTTP)
@@ -31,12 +35,35 @@ The following URL schemes are supported:
 
 **-addr**: listening address (default: ":1323")
 
+**-pprof**: loopback address, such as `localhost:6060`, serving Go's profiles
+under `/debug/pprof/` (default: unset, none served). Any other address is
+refused: a heap profile holds passwords and mail.
+
 **-debug**: enable debug logs, print IMAP network activity, and read
 templates and assets from `./templates`
 
-**-login-key**: supply a secret key to preserve logins over application restart.
-Can also be given as the `LBRZ_LOGIN_KEY` environment variable, which keeps
-it out of the process list.
+**-private-services**: let an account name a calendar or contacts server on
+plain HTTP or a private address
+
+**-trusted-proxy**: comma-separated addresses or CIDR ranges of the proxies in
+front of alborz, whose `X-Forwarded-For` names the reader (default: unset, the
+connection's address)
+
+**-public-url**: where readers reach alborz, such as
+`https://mail.example.org`, used for links in mail and addresses shown to other
+clients; scheme and host only. Can also be given as `LBRZ_PUBLIC_URL`
+(default: unset, each request's own)
+
+**-login-key**: required Fernet key sealing what alborz keeps: remembered
+logins, settings and the cache. Can also be given as the `LBRZ_LOGIN_KEY`
+environment variable, which keeps it out of the process list.
+
+**-cache**: keep what the servers answered in the user cache directory
+(`$XDG_CACHE_HOME/alborz` or the platform's equivalent), so pages open without
+asking again (default: true); `-cache=false` asks every time and keeps nothing
+
+**-data-dir**: directory holding `alborz.db` and an optional `custom.css`; it
+must exist (default: the working directory)
 
 **-project-url**: where the footer's project name links (default: unset, the
 name is printed as text)
@@ -51,8 +78,9 @@ name is printed as text)
 
 # LOGIN-KEY
 
-A login key can be used to preserve user sessions over application restarts if
-the user has selected 'remember me' on the login page. A key can be generated 
-by running `go run github.com/fernet/fernet-go/cmd/fernet-keygen`
+Generate one with `go run github.com/fernet/fernet-go/cmd/fernet-keygen`.
+What alborz seals under a key opens only with that key. Each file it keeps
+records the key it was sealed under, and alborz refuses to start on a file
+another key sealed; restore the key, or move the file aside.
 
 [RFC 6186]: https://tools.ietf.org/html/rfc6186

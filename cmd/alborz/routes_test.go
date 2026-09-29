@@ -19,15 +19,13 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapserver"
 	"github.com/emersion/go-imap/v2/imapserver/imapmemserver"
-	"github.com/fernet/fernet-go"
 )
 
 const (
 	testUser = "a@test.local"
 	testPass = "x"
+	testKey  = "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA="
 )
-
-var testKey = fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 
 func startIMAP(t *testing.T) string {
 	t.Helper()
@@ -56,10 +54,12 @@ func startIMAP(t *testing.T) string {
 // serve mounts the routes as run does over the data in dir; stop closes the server so another can open dir.
 func serve(t *testing.T, dir, imapAddr string) (s *web.Server, base string, stop func()) {
 	t.Helper()
-	s, err := web.New(log.New(io.Discard, "", 0), &alborz.Options{
-		Upstreams: []string{"test.local=imap+insecure://" + imapAddr},
-		LoginKey:  testKey,
-		DataDir:   dir,
+	s, err := web.New(log.New(io.Discard, "", 0), web.Options{
+		Options: alborz.Options{
+			Upstreams: []string{"test.local=imap+insecure://" + imapAddr},
+			LoginKey:  testKey,
+			DataDir:   dir,
+		},
 	}, mail.TemplateFuncs)
 	if err != nil {
 		t.Fatal(err)

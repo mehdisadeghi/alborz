@@ -114,14 +114,14 @@ func NewProvider(srv *web.Server, st *store.Store, kind Kind) (*Provider, error)
 	}
 	var mirror *Mirror
 	if srv.Options.Cache && srv.Options.CacheDir != "" {
-		m, err := OpenMirror(srv.Options.CacheDir, kind, srv.Options.LoginKey)
+		m, err := OpenMirror(srv.Options.CacheDir, kind, srv.LoginKey)
 		if err != nil {
 			return nil, err
 		}
 		mirror = m
 		srv.Schedule.Add(tick, m.round)
 	}
-	here, err := hereSource(srv.Options.PublicURL)
+	here, err := hereSource(srv.PublicURL)
 	if err != nil {
 		return nil, err
 	}

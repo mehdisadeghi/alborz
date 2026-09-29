@@ -416,7 +416,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	}
 	// A person reads the brand in their own script; what a machine reads stays BrandName.
 	global.Brand = alborz.Translate(lang, "brand.name")
-	global.ProjectURL = ctx.Server.Options.ProjectURL
+	global.ProjectURL = ctx.Server.projectURL
 	global.Language = ctx.language()
 	global.LanguageChoices = alborz.LanguageChoices()
 	global.Year = time.Now().Year()

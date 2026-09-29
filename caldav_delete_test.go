@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"git.mehdix.org/alborz"
-	"github.com/fernet/fernet-go"
+	"git.mehdix.org/alborz/web"
 )
 
 type davCal struct{ name, color string }
@@ -201,20 +201,19 @@ func (s *davStub) deleteColl(w http.ResponseWriter, r *http.Request) {
 
 func startAlborzDav(t *testing.T, imapAddr, davURL string) string {
 	t.Helper()
-	key := fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	newAlborz(t, ln, &alborz.Options{
+	newAlborz(t, ln, web.Options{Options: alborz.Options{
 		Upstreams: []string{
 			"test.local=imap+insecure://" + imapAddr,
 			"test.local=caldav+insecure://" + strings.TrimPrefix(davURL, "http://") + "/dav",
 		},
-		LoginKey: key,
+		LoginKey: smokeKey,
 		DataDir:  t.TempDir(),
 		Cache:    true,
-	})
+	}})
 	return "http://" + ln.Addr().String()
 }
 

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"net/url"
 	"path/filepath"
 	"runtime/debug"
@@ -56,6 +55,10 @@ type Server struct {
 	log     *log.Logger
 	logins  *loginManager
 	Options *Options
+
+	// LoginKey and PublicURL are the options read.
+	LoginKey  *fernet.Key
+	PublicURL *url.URL
 
 	domains map[string]*domainUpstreams
 
@@ -113,9 +116,24 @@ type domainUpstreams struct {
 }
 
 // New opens the data file and the upstreams the options name.
-func New(log *log.Logger, options *Options) (*Server, error) {
-	s := &Server{log: log, Options: options,
+func New(log *log.Logger, options Options) (*Server, error) {
+	s := &Server{log: log, Options: &options,
 		Changes: newChanges(), Outgoing: NewOutgoing(), Schedule: newSchedule(), signInRefused: newRefusals(signInTries, signInWindow)}
+	if options.LoginKey == "" {
+		return nil, errors.New("no login key: make one with `go run github.com/fernet/fernet-go/cmd/fernet-keygen`")
+	}
+	var err error
+	if s.LoginKey, err = fernet.DecodeKey(options.LoginKey); err != nil {
+		return nil, fmt.Errorf("invalid login key: %v", err)
+	}
+	if options.PublicURL != "" {
+		u, err := url.Parse(options.PublicURL)
+		// alborz answers at the root of its host only.
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || strings.Trim(u.Path, "/") != "" {
+			return nil, fmt.Errorf("invalid public URL %q: want scheme://host", options.PublicURL)
+		}
+		s.PublicURL = u
+	}
 
 	// Absolute, so messages name a path without guessing the working directory; empty is the working directory.
 	dataDir, err := filepath.Abs(options.DataDir)
@@ -127,14 +145,14 @@ func New(log *log.Logger, options *Options) (*Server, error) {
 	if s.data, s.Instance, err = openData(dataDir, version, log.Printf); err != nil {
 		return nil, err
 	}
-	if err := CheckKey(s.data, s.DataPath, options.LoginKey, sessionsOwner+"/", settingsOwner+"/"); err != nil {
+	if err := CheckKey(s.data, s.DataPath, s.LoginKey, sessionsOwner+"/", settingsOwner+"/"); err != nil {
 		return nil, err
 	}
-	s.SessionRecords = openSessionRecords(s.data, options.LoginKey)
+	s.SessionRecords = openSessionRecords(s.data, s.LoginKey)
 	if err := s.SessionRecords.Sweep(time.Now().Add(-credentialCookieLife)); err != nil {
 		return nil, err
 	}
-	settings := openSettingsRecords(s.data, options.LoginKey)
+	settings := openSettingsRecords(s.data, s.LoginKey)
 
 	s.domains = make(map[string]*domainUpstreams)
 	for _, arg := range options.Upstreams {
@@ -388,24 +406,19 @@ type Options struct {
 	Upstreams []string
 	// Debug logs more, and reads templates and assets from ./templates.
 	Debug bool
-	// LoginKey seals remembered sessions, settings kept here and the cached copies.
-	LoginKey *fernet.Key
+	// LoginKey is the Fernet key, as text, sealing remembered sessions, settings kept here and the cached copies.
+	LoginKey string
 	// Cache keeps what the servers answered.
 	Cache bool
 	// CacheDir keeps sealed copies of synced DAV collections and calendar feeds; empty keeps none.
 	CacheDir string
 	// DataDir holds alborz.db; empty is the working directory.
 	DataDir string
-	// StrictNotices fails an action that redirects with no notice instead of only logging it.
-	StrictNotices bool
 	// PrivateServices lets an account name a server on plain HTTP or a private address.
 	PrivateServices bool
-	// TrustedProxies are the proxies whose X-Forwarded-For names the reader.
-	TrustedProxies []*net.IPNet
-	// PublicURL is where readers reach alborz, for links in mail and for other clients.
-	PublicURL *url.URL
-	// ProjectURL is where the footer's name links; empty by default.
-	ProjectURL string
+	// PublicURL is where readers reach alborz, scheme and host, for links in mail and for other clients;
+	// empty takes each request's own.
+	PublicURL string
 }
 
 // CacheFor is how long a cache keeps what it holds: d, or zero with caching off.

@@ -50,7 +50,6 @@ import (
 	"github.com/emersion/go-imap/v2/imapserver/imapmemserver"
 	"github.com/emersion/go-mbox"
 	"github.com/emersion/go-message"
-	"github.com/fernet/fernet-go"
 )
 
 const smokeUser = "a@test.local"
@@ -324,10 +323,10 @@ func startAlborzWith(t *testing.T, upstreams []string) string {
 	return serveAlborz(t, upstreams, true)
 }
 
-var smokeKey = fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")[0]
+const smokeKey = "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA="
 
 // newAlborz wires the features as cmd/alborz does and serves them on ln; setup runs first.
-func newAlborz(t *testing.T, ln net.Listener, options *alborz.Options, setup ...func(*web.Server)) {
+func newAlborz(t *testing.T, ln net.Listener, options web.Options, setup ...func(*web.Server)) {
 	t.Helper()
 	s, err := web.New(log.New(os.Stderr, "", log.LstdFlags), options, mail.TemplateFuncs)
 	if err != nil {
@@ -371,22 +370,24 @@ func newAlborz(t *testing.T, ln net.Listener, options *alborz.Options, setup ...
 
 func serveAlborz(t *testing.T, upstreams []string, cache bool) string {
 	t.Helper()
-	return serveAlborzAt(t, func(string) []string { return upstreams }, cache, nil)
+	return serveAlborzAt(t, func(string) []string { return upstreams }, cache, "")
 }
 
 // serveAlborzAt serves an alborz whose -public-url is public, with upstreams that may name its own host.
-func serveAlborzAt(t *testing.T, upstreams func(host string) []string, cache bool, public *url.URL) string {
+func serveAlborzAt(t *testing.T, upstreams func(host string) []string, cache bool, public string) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	newAlborz(t, ln, &alborz.Options{
-		Upstreams: upstreams(ln.Addr().String()),
-		LoginKey:  smokeKey,
-		DataDir:   t.TempDir(),
-		Cache:     cache,
-		PublicURL: public,
+	newAlborz(t, ln, web.Options{
+		Options: alborz.Options{
+			Upstreams: upstreams(ln.Addr().String()),
+			LoginKey:  smokeKey,
+			DataDir:   t.TempDir(),
+			Cache:     cache,
+			PublicURL: public,
+		},
 		// A handler that sends the reader elsewhere says what it did.
 		StrictNotices: true,
 	})

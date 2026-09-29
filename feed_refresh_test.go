@@ -55,10 +55,10 @@ func startSubscriber(t *testing.T, f *feed) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newAlborz(t, ln, &alborz.Options{
+	newAlborz(t, ln, web.Options{Options: alborz.Options{
 		Upstreams: []string{"test.local=imap+insecure://" + startIMAP(t)},
 		LoginKey:  smokeKey, DataDir: t.TempDir(), CacheDir: t.TempDir(), Cache: true,
-	}, func(s *web.Server) { s.Outgoing.Guarded = f.Client().Transport })
+	}}, func(s *web.Server) { s.Outgoing.Guarded = f.Client().Transport })
 	return "http://" + ln.Addr().String()
 }
 

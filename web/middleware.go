@@ -196,7 +196,7 @@ func Noticed(next HandlerFunc) HandlerFunc {
 			return err
 		}
 		ctx.Logger().Printf("POST %s answered %d with no notice", ctx.Request().URL.Path, status)
-		if ctx.Server.Options.StrictNotices {
+		if ctx.Server.strictNotices {
 			return fmt.Errorf("POST %s answered %d with no notice: say what it did, or ctx.Quiet()",
 				ctx.Request().URL.Path, status)
 		}

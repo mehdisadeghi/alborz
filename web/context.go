@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 
@@ -132,13 +133,12 @@ func (ctx *Context) RealIP() string {
 	}
 	hops := append(strings.Split(strings.Join(forwarded, ","), ","), direct)
 	for i := len(hops) - 1; i >= 0; i-- {
-		hop := strings.Trim(strings.TrimSpace(hops[i]), "[]")
-		ip := net.ParseIP(hop)
-		if ip == nil {
+		ip, err := netip.ParseAddr(strings.Trim(strings.TrimSpace(hops[i]), "[]"))
+		if err != nil {
 			return direct
 		}
 		if !ctx.Server.trusts(ip) {
-			return ip.String()
+			return ip.Unmap().String()
 		}
 	}
 	// Every hop is trusted, so the farthest is the best guess.

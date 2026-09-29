@@ -9,9 +9,9 @@ import (
 	"io/fs"
 	"log"
 	"maps"
-	"net"
 	"net/http"
 	"net/mail"
+	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
@@ -36,7 +36,10 @@ type Server struct {
 	loaded atomic.Pointer[loaded]
 
 	// trusted are the proxies whose X-Forwarded-For names the reader.
-	trusted []*net.IPNet
+	trusted []netip.Prefix
+	// projectURL is where the footer's name links; strictNotices fails a POST that redirects saying nothing.
+	projectURL    string
+	strictNotices bool
 
 	// OnAccountReady is called when an account signs in.
 	OnAccountReady []AccountReadyFunc
@@ -70,13 +73,37 @@ type loaded struct {
 	customStamp string
 }
 
+// Options are alborz's, and what the web adds.
+type Options struct {
+	alborz.Options
+	// TrustedProxies are the addresses or CIDR ranges of the proxies in front, whose X-Forwarded-For names the reader.
+	TrustedProxies []string
+	// ProjectURL is where the footer's name links; empty prints the name alone.
+	ProjectURL string
+	// StrictNotices fails an action that redirects with no notice instead of only logging it.
+	StrictNotices bool
+}
+
 // New creates a new server; funcs are the functions the templates call, beside url.
-func New(logger *log.Logger, options *alborz.Options, funcs template.FuncMap) (*Server, error) {
-	core, err := alborz.New(logger, options)
+func New(logger *log.Logger, options Options, funcs template.FuncMap) (*Server, error) {
+	var trusted []netip.Prefix
+	for _, p := range options.TrustedProxies {
+		prefix, err := netip.ParsePrefix(p)
+		if err != nil {
+			a, aerr := netip.ParseAddr(p)
+			if aerr != nil {
+				return nil, fmt.Errorf("invalid trusted proxy %q: %v", p, aerr)
+			}
+			prefix = netip.PrefixFrom(a, a.BitLen())
+		}
+		trusted = append(trusted, prefix.Masked())
+	}
+	core, err := alborz.New(logger, options.Options)
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{Server: core, log: logger, assets: make(map[string]assetStamp), trusted: options.TrustedProxies,
+	s := &Server{Server: core, log: logger, assets: make(map[string]assetStamp), trusted: trusted,
+		projectURL: options.ProjectURL, strictNotices: options.StrictNotices,
 		routes: routes{mux: http.NewServeMux(), names: map[string]string{}}}
 	s.files = os.DirFS(templatesDir)
 	if !options.Debug {
@@ -108,9 +135,9 @@ func (s *Server) Handler() (http.Handler, error) {
 	return s.routes.mux, nil
 }
 
-func (s *Server) trusts(ip net.IP) bool {
+func (s *Server) trusts(ip netip.Addr) bool {
 	for _, n := range s.trusted {
-		if n.Contains(ip) {
+		if n.Contains(ip.Unmap()) {
 			return true
 		}
 	}
@@ -195,7 +222,7 @@ func (ctx *Context) Relocate(path string) error {
 
 // Origin is where alborz is reached from outside: -public-url, else this request's address.
 func (ctx *Context) Origin() string {
-	if u := ctx.Server.Options.PublicURL; u != nil {
+	if u := ctx.Server.PublicURL; u != nil {
 		return u.Scheme + "://" + u.Host
 	}
 	return ctx.Scheme() + "://" + ctx.Request().Host

@@ -75,8 +75,8 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 	uid := contact.UID()
 	if uid == "" {
 		uid = uuid.New().String()
-		ao.Card.SetValue(vcard.FieldUID, memberPrefix+uid)
-		if err := writeCard(ctx.Request().Context(), c, ao.Path, ao.Card); err != nil {
+		ao.Card.SetValue(vcard.FieldUID, MemberPrefix+uid)
+		if err := WriteCard(ctx.Request().Context(), c, ao.Path, ao.Card); err != nil {
 			ctx.Notify(pim.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
 		}
@@ -107,7 +107,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 		card := vcard.Card{}
 		card.SetValue(vcard.FieldVersion, "4.0")
 		card.SetValue(vcard.FieldFormattedName, name)
-		card.SetValue(vcard.FieldUID, memberPrefix+uuid.New().String())
+		card.SetValue(vcard.FieldUID, MemberPrefix+uuid.New().String())
 		card.SetKind(vcard.KindGroup)
 		SetMembers(card, []string{uid})
 		// The group is made in the contact's book, the only one the page knows.
@@ -136,7 +136,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 
 // A server's refusal shows on the page, never as an error page.
 func (p *plugin) putCard(ctx *web.Context, c *carddav.Client, at string, card vcard.Card) error {
-	if err := writeCard(ctx.Request().Context(), c, at, card); err != nil {
+	if err := WriteCard(ctx.Request().Context(), c, at, card); err != nil {
 		ctx.Notify(pim.Refused(ctx, err))
 	}
 	return nil

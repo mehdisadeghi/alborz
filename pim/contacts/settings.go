@@ -18,7 +18,7 @@ type Settings struct {
 const settingsKey = "carddav.settings"
 
 // A book made after the choice was not chosen to be hidden.
-func show(ctx context.Context, store alborz.Store, path string) error {
+func Show(ctx context.Context, store alborz.Store, path string) error {
 	settings := &Settings{}
 	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return err
@@ -30,7 +30,7 @@ func show(ctx context.Context, store alborz.Store, path string) error {
 	return store.Put(ctx, settingsKey, settings)
 }
 
-func choose(ctx context.Context, store alborz.Store, paths []string) error {
+func Choose(ctx context.Context, store alborz.Store, paths []string) error {
 	settings := &Settings{}
 	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return err
@@ -39,7 +39,7 @@ func choose(ctx context.Context, store alborz.Store, paths []string) error {
 	return store.Put(ctx, settingsKey, settings)
 }
 
-func visibleBooks(ctx context.Context, accounts []pim.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []pim.Site[*carddav.Client], error) {
+func Visible(ctx context.Context, accounts []pim.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []pim.Site[*carddav.Client], error) {
 	return pim.Visible(accounts, scope, only, func(acc pim.Account[*carddav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings := &Settings{}
 		if err := acc.Login.Store().Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {

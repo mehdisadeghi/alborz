@@ -50,7 +50,7 @@ func (s *davStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "REPORT":
 		writeMS(w)
 	case "PUT":
-		if s.refuse[path.Dir(r.URL.Path)+"/"] {
+		if s.refuse[path.Dir(r.URL.Path)+"/"] || s.refuse[r.URL.Path] {
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusForbidden)
 			io.WriteString(w, "read-only collection")

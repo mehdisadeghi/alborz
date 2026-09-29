@@ -407,36 +407,44 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }
 
+// importObjects reads the whole file before writing, so a refusal can say how much of it was saved.
 func importObjects(ctx context.Context, client *caldav.Client, calendarPath string, raw []byte) (int, error) {
 	dec := ical.NewDecoder(bytes.NewReader(raw))
-	n := 0
+	var calendars []map[string]*ical.Calendar
+	total := 0
 	for {
 		cal, err := dec.Decode()
 		if err == io.EOF {
-			return n, nil
+			break
 		}
 		if err != nil {
-			return n, &pim.UnreadableError{Err: err}
+			return 0, &pim.UnreadableError{Err: err}
 		}
 		objects, err := objectsByUID(cal)
 		if err != nil {
-			return n, &pim.UnreadableError{Err: err}
+			return 0, &pim.UnreadableError{Err: err}
 		}
+		calendars = append(calendars, objects)
+		total += len(objects)
+	}
+	n := 0
+	for _, objects := range calendars {
 		for uid, obj := range objects {
 			target := path.Join(calendarPath, dav.SafeObjectName(uid)+".ics")
 			if _, err := client.PutCalendarObject(ctx, target, obj, nil); err != nil {
 				// A server refusing a UID it holds under another path: find the object and write there.
 				existing := objectPathByUID(ctx, client, calendarPath, uid)
 				if existing == "" {
-					return n, fmt.Errorf("failed to write %s: %w", uid, err)
+					return n, &pim.PartlySavedError{Saved: n, Total: total, Err: fmt.Errorf("failed to write %s: %w", uid, err)}
 				}
 				if _, err := client.PutCalendarObject(ctx, existing, obj, nil); err != nil {
-					return n, fmt.Errorf("failed to write %s: %w", uid, err)
+					return n, &pim.PartlySavedError{Saved: n, Total: total, Err: fmt.Errorf("failed to write %s: %w", uid, err)}
 				}
 			}
 			n++
 		}
 	}
+	return n, nil
 }
 
 // A stored object carries no METHOD (RFC 4791 4.1) and names alborz as the product that wrote it.

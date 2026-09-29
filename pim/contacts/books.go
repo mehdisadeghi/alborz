@@ -164,17 +164,22 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }
 
+// importBook reads the whole file before writing, so a refusal can say how much of it was saved.
 func importBook(ctx context.Context, client *carddav.Client, bookPath string, raw []byte) (int, error) {
 	dec := vcard.NewDecoder(bytes.NewReader(raw))
-	n := 0
+	var cards []vcard.Card
 	for {
 		card, err := dec.Decode()
 		if err == io.EOF {
-			return n, nil
+			break
 		}
 		if err != nil {
-			return n, &pim.UnreadableError{Err: err}
+			return 0, &pim.UnreadableError{Err: err}
 		}
+		cards = append(cards, card)
+	}
+	n := 0
+	for _, card := range cards {
 		if _, ok := card[vcard.FieldVersion]; !ok {
 			card.SetValue(vcard.FieldVersion, "4.0")
 		}
@@ -187,14 +192,15 @@ func importBook(ctx context.Context, client *carddav.Client, bookPath string, ra
 		if _, err := client.PutAddressObject(ctx, target, card, nil); err != nil {
 			existing := cardPathByUID(ctx, client, bookPath, uid)
 			if existing == "" {
-				return n, fmt.Errorf("failed to write %s: %w", uid, err)
+				return n, &pim.PartlySavedError{Saved: n, Total: len(cards), Err: fmt.Errorf("failed to write %s: %w", uid, err)}
 			}
 			if _, err := client.PutAddressObject(ctx, existing, card, nil); err != nil {
-				return n, fmt.Errorf("failed to write %s: %w", uid, err)
+				return n, &pim.PartlySavedError{Saved: n, Total: len(cards), Err: fmt.Errorf("failed to write %s: %w", uid, err)}
 			}
 		}
 		n++
 	}
+	return n, nil
 }
 
 func cardPathByUID(ctx context.Context, client *carddav.Client, bookPath, uid string) string {

@@ -783,6 +783,7 @@
 "import.bundlevcf" = "Address books: %s, contacts added: %s."
 "import.notkind" = "%s is not a %s file."
 "import.unreadable" = "The file could not be read: %s"
+"import.partly" = "%d of %d saved; the server refused the rest: %s"
 "export.empty" = "The collection is empty; there is nothing to export."
 "import.exportall" = "Export all as a .zip"
 "import.untitled" = "Imported"

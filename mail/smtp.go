@@ -2,12 +2,15 @@ package mail
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"mime"
 	"mime/multipart"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -286,6 +289,9 @@ func writeAttachment(mw *mail.Writer, att Attachment) error {
 	var h mail.AttachmentHeader
 	h.SetContentType(att.MIMEType(), nil)
 	h.SetFilename(att.Filename())
+	if m, ok := att.(*fetchedMessage); ok {
+		h.Set("Content-Transfer-Encoding", m.transferEncoding())
+	}
 
 	aw, err := mw.CreateAttachment(h)
 	if err != nil {
@@ -426,10 +432,9 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	return nil
 }
 
-// spool writes the message once, so what is sent and what is kept are the same
-// bytes, and IMAP learns their size before the APPEND. The file is unlinked
-// at once and goes with its last descriptor, even if alborz dies (Unix).
-func spool(msg *OutgoingMessage) (*os.File, error) {
+// unlinkedFile is a temporary file no name leads to; it goes with its last
+// descriptor, even if alborz dies (Unix).
+func unlinkedFile() (*os.File, error) {
 	f, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err
@@ -438,11 +443,127 @@ func spool(msg *OutgoingMessage) (*os.File, error) {
 		f.Close()
 		return nil, err
 	}
-	if err := msg.WriteMessage(f); err != nil {
+	return f, nil
+}
+
+// fetchOriginals copies msg with every part the mail server holds fetched
+// into a file of its own, so writing the message reads local disk only; done
+// closes the files. What the server would not hand over is a refusal for the
+// form; a failing disk is the error it is.
+func fetchOriginals(msg *OutgoingMessage) (local *OutgoingMessage, done func(), err error) {
+	var files []*os.File
+	done = func() {
+		for _, f := range files {
+			f.Close()
+		}
+	}
+	fetch := func(att Attachment, tee io.Writer) (fetched, error) {
+		f, err := unlinkedFile()
+		if err != nil {
+			return fetched{}, err
+		}
+		files = append(files, f)
+		if _, err := att.WriteTo(io.MultiWriter(f, tee)); err != nil {
+			if errors.As(err, new(*fs.PathError)) {
+				return fetched{}, err
+			}
+			return fetched{}, refused{"form.originalunreadable", err}
+		}
+		return fetched{att, f}, nil
+	}
+	out := *msg
+	out.Attachments = slices.Clone(msg.Attachments)
+	for i, att := range out.Attachments {
+		switch att := att.(type) {
+		case *imapAttachment:
+			part, err := fetch(att, io.Discard)
+			if err != nil {
+				done()
+				return nil, nil, err
+			}
+			out.Attachments[i] = &part
+		case *messageAttachment:
+			var class octetClass
+			part, err := fetch(att, &class)
+			if err != nil {
+				done()
+				return nil, nil, err
+			}
+			out.Attachments[i] = &fetchedMessage{fetched: part, class: class.encoding()}
+		}
+	}
+	out.Inline = slices.Clone(msg.Inline)
+	for i, im := range out.Inline {
+		if att, ok := im.Attachment.(*imapAttachment); ok {
+			part, err := fetch(att, io.Discard)
+			if err != nil {
+				done()
+				return nil, nil, err
+			}
+			out.Inline[i].Attachment = &part
+		}
+	}
+	return &out, done, nil
+}
+
+// spool writes the message once, so what is sent and what is kept are the same
+// bytes, and IMAP learns their size before the APPEND. eightBit says whether
+// the way out carries 8-bit lines.
+func spool(msg *OutgoingMessage, eightBit bool) (*os.File, error) {
+	out := *msg
+	out.Attachments = slices.Clone(msg.Attachments)
+	for i, att := range out.Attachments {
+		if m, ok := att.(*fetchedMessage); ok {
+			settled := *m
+			settled.eightBit = eightBit
+			out.Attachments[i] = &settled
+		}
+	}
+	f, err := unlinkedFile()
+	if err != nil {
+		return nil, err
+	}
+	if err := out.WriteMessage(f); err != nil {
 		f.Close()
 		return nil, fmt.Errorf("failed to write outgoing message: %w", err)
 	}
 	return f, nil
+}
+
+// IMAP literals carry any octet but NUL (RFC 3501 9, CHAR8).
+const imapEightBit = true
+
+// deliver sends msg in one SMTP session and returns the bytes sent, for a Sent
+// copy. The originals come off the mail server first, so the session waits
+// only on local disk while the message is written as its EHLO allows.
+func deliver(sender *alborz.Login, msg *OutgoingMessage) (*os.File, error) {
+	local, done, err := fetchOriginals(msg)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+	var body *os.File
+	var spoolErr error
+	err = sender.DoSMTP(func(c *smtp.Client) error {
+		eightBit, _ := c.Extension("8BITMIME")
+		if body, spoolErr = spool(local, eightBit); spoolErr != nil {
+			return spoolErr
+		}
+		return sendMessage(c, msg, body)
+	})
+	if spoolErr != nil {
+		return nil, spoolErr
+	}
+	if err != nil {
+		if body != nil {
+			body.Close()
+		}
+		if _, ok := err.(alborz.AuthError); ok {
+			return nil, err
+		}
+		return nil, refused{"form.sendrefused", err}
+	}
+	return body, nil
 }
 
 // sendMessage transmits body, a spooled msg, from its start.

@@ -3,6 +3,7 @@
 "form.nametaken" = "مجموعه‌ای به نام %s از قبل وجود دارد."
 "form.sendrefused" = "نامه فرستاده نشد. سرور گفت: %s"
 "form.draftrefused" = "پیش‌نویس ذخیره نشد. سرور گفت: %s"
+"form.originalunreadable" = "نامهٔ اصلی از سرور نامه خوانده نشد: %s"
 "form.saverefused" = "تغییر ذخیره نشد. سرور گفت: %s"
 "form.summaryneeded" = "عنوان لازم است."
 "form.recipientneeded" = "دست‌کم یک گیرنده بیفزایید."

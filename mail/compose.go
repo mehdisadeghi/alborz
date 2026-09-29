@@ -17,7 +17,6 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
-	"github.com/emersion/go-smtp"
 	"github.com/labstack/echo/v4"
 	"jaytaylor.com/html2text"
 )
@@ -192,20 +191,14 @@ func (err refused) Error() string { return err.cause.Error() }
 
 // The sender is the From account; the draft and the answered message stay on the request's account.
 func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
-	body, err := spool(msg)
-	if err != nil {
-		return err
-	}
-	defer body.Close()
-	err = sender.DoSMTP(func(c *smtp.Client) error {
-		return sendMessage(c, msg, body)
-	})
+	body, err := deliver(sender, msg)
 	if err != nil {
 		if _, ok := err.(alborz.AuthError); ok {
 			return echo.NewHTTPError(http.StatusForbidden, err)
 		}
-		return refused{"form.sendrefused", err}
+		return err
 	}
+	defer body.Close()
 
 	if inReplyTo := options.InReplyTo; inReplyTo != nil {
 		err = ctx.DoIMAP(func(c *imapclient.Client) error {
@@ -480,7 +473,12 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 			if saveAsDraft {
 				// A draft is what was typed; the editor cannot open a multipart/alternative.
 				msg.SendHTML = false
-				body, err := spool(msg)
+				local, done, err := fetchOriginals(msg)
+				if err != nil {
+					return err
+				}
+				defer done()
+				body, err := spool(local, imapEightBit)
 				if err != nil {
 					return err
 				}

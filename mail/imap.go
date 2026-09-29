@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/mail"
 	"net/url"
+	"os"
 	"regexp"
 	"slices"
 	"sort"
@@ -1949,6 +1950,87 @@ func (a *messageAttachment) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 func (a *messageAttachment) MIMEType() string { return "message/rfc822" }
+
+// A part of a message on the mail server, fetched into a file.
+type fetched struct {
+	Attachment
+	body *os.File
+}
+
+func (f *fetched) WriteTo(w io.Writer) (int64, error) {
+	if _, err := f.body.Seek(0, io.SeekStart); err != nil {
+		return 0, err
+	}
+	return io.Copy(w, f.body)
+}
+
+// A whole message is never encoded (RFC 2046 5.2.1); one the way out cannot
+// carry as it is goes as a file, base64, keeping its bytes. Binary never
+// qualifies: go-smtp sends no BDAT (RFC 3030) and go-imap no literal8 (RFC 3516).
+type fetchedMessage struct {
+	fetched
+	class string
+	// eightBit says the way out carries 8-bit lines (RFC 6152).
+	eightBit bool
+}
+
+func (m *fetchedMessage) transferEncoding() string {
+	if m.class == "7bit" || m.class == "8bit" && m.eightBit {
+		return m.class
+	}
+	return "base64"
+}
+
+func (m *fetchedMessage) MIMEType() string {
+	if m.transferEncoding() == "base64" {
+		return "application/octet-stream"
+	}
+	return "message/rfc822"
+}
+
+// octetClass finds the narrowest encoding bytes fit (RFC 2045 2.7-2.9): binary
+// for NUL, a CR or LF out of a pair, or a line over 998 octets.
+type octetClass struct {
+	eight, binary, cr bool
+	line              int
+}
+
+func (c *octetClass) Write(p []byte) (int, error) {
+	for _, b := range p {
+		if c.cr && b != '\n' {
+			c.binary = true
+		}
+		switch {
+		case b == '\n':
+			if !c.cr {
+				c.binary = true
+			}
+			c.line = 0
+		case b == '\r':
+		case b == 0:
+			c.binary = true
+		case b >= 0x80:
+			c.eight = true
+		}
+		if b != '\r' && b != '\n' {
+			if c.line++; c.line > 998 {
+				c.binary = true
+			}
+		}
+		c.cr = b == '\r'
+	}
+	return len(p), nil
+}
+
+func (c *octetClass) encoding() string {
+	switch {
+	case c.binary || c.cr:
+		return "binary"
+	case c.eight:
+		return "8bit"
+	}
+	return "7bit"
+}
 
 func (a *messageAttachment) Filename() string { return a.Name }
 

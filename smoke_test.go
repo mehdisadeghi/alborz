@@ -3,6 +3,8 @@ package alborz_test
 import (
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/emersion/go-sasl"
@@ -35,6 +37,7 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-imap/v2/imapserver"
 	"github.com/emersion/go-imap/v2/imapserver/imapmemserver"
+	"github.com/emersion/go-mbox"
 	"github.com/emersion/go-message"
 	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
@@ -690,6 +693,276 @@ func TestExportFailsAsAnError(t *testing.T) {
 	if page := buf.String(); !strings.Contains(page, `name="everything"`) || strings.Contains(page, `name="uids"`) {
 		t.Errorf("the export page of a whole list carries its messages, or not the list")
 	}
+}
+
+// An export is the reader's copy of their mail: every message whole, in order.
+func TestExportHoldsEveryMessageWhole(t *testing.T) {
+	addr, _ := startIMAPServer(t, rigCaps())
+	ic, err := imapclient.DialInsecure(addr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ic.Close()
+	if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	file := make([]byte, 3<<20)
+	for i := range file {
+		file[i] = byte(i * 7)
+	}
+	encoded := base64.StdEncoding.EncodeToString(file)
+	var wrapped strings.Builder
+	for len(encoded) > 76 {
+		wrapped.WriteString(encoded[:76] + "\r\n")
+		encoded = encoded[76:]
+	}
+	wrapped.WriteString(encoded + "\r\n")
+	var sent []string
+	for i := range 3 {
+		raw := fmt.Sprintf("From: <eve@example.org>\r\nTo: <%s>\r\nSubject: Export %d\r\nMessage-ID: <export-%d@test>\r\n"+
+			"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n"+
+			"--b\r\nContent-Type: text/plain\r\n\r\nFrom the start of a line.\r\n>From quoted.\r\n"+
+			"--b\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n"+
+			"Content-Disposition: attachment; filename=\"file%d.bin\"\r\n\r\n%s--b--\r\n", smokeUser, i, i, i, wrapped.String())
+		cmd := ic.Append("INBOX", int64(len(raw)), nil)
+		cmd.Write([]byte(raw))
+		cmd.Close()
+		if _, err := cmd.Wait(); err != nil {
+			t.Fatalf("append: %v", err)
+		}
+		sent = append(sent, raw)
+	}
+
+	base := startAlborz(t, addr)
+	c := login(t, base)
+	uids := messageUIDs(get(t, c, base+"/mailbox/INBOX?query="+url.QueryEscape("subject:Export")))
+	if len(uids) != len(sent) {
+		t.Fatalf("the search finds %d of the %d messages", len(uids), len(sent))
+	}
+	resp, err := c.PostForm(base+"/message/INBOX/export", url.Values{"uids": uids})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("export: %s", resp.Status)
+	}
+	archive := mbox.NewReader(resp.Body)
+	archive.Mboxrd = true
+	var got []string
+	for {
+		r, err := archive.NextMessage()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("reading the export: %v", err)
+		}
+		b, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatalf("reading the export: %v", err)
+		}
+		got = append(got, string(b))
+	}
+	if len(got) != len(sent) {
+		t.Fatalf("the export holds %d messages, want %d", len(got), len(sent))
+	}
+	for _, raw := range sent {
+		if !slices.Contains(got, raw) {
+			t.Errorf("no exported message is the one sent as %q", headOf(raw))
+		}
+	}
+}
+
+// A compressor that miscounts the write crossing its threshold breaks a
+// download that reaches it in small writes.
+func TestGzippedDownloadArrivesWhole(t *testing.T) {
+	addr, _ := startIMAPServer(t, rigCaps())
+	ic, err := imapclient.DialInsecure(addr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ic.Close()
+	if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	raw := "From: <eve@example.org>\r\nTo: <" + smokeUser + ">\r\nSubject: Gzipped\r\n\r\n" +
+		strings.Repeat("A line of a long message.\r\n", 2000)
+	cmd := ic.Append("INBOX", int64(len(raw)), nil)
+	cmd.Write([]byte(raw))
+	cmd.Close()
+	appended, err := cmd.Wait()
+	if err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	// Trickled, the message reaches the response in writes below the threshold.
+	base := startAlborz(t, trickleProxy(t, addr, 512))
+	c := login(t, base)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/message/INBOX/%d/eml", base, appended.UID), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Set by hand, the header turns off the transport's own decoding.
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("download: %s", resp.Status)
+	}
+	if ce := resp.Header.Get("Content-Encoding"); ce != "gzip" {
+		t.Fatalf("the download was not compressed: Content-Encoding %q", ce)
+	}
+	zr, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(zr)
+	if err != nil {
+		t.Fatalf("reading the download after %d bytes: %v", len(got), err)
+	}
+	if string(got) != raw {
+		t.Errorf("the download is %d bytes, not the %d-byte message sent", len(got), len(raw))
+	}
+}
+
+// A download cut off by the server must fail in the browser, not arrive
+// as a shorter file that looks whole.
+func TestBrokenDownloadIsNotComplete(t *testing.T) {
+	file := make([]byte, 3<<20)
+	for i := range file {
+		file[i] = byte(i * 7)
+	}
+	encoded := base64.StdEncoding.EncodeToString(file)
+	var wrapped strings.Builder
+	for len(encoded) > 76 {
+		wrapped.WriteString(encoded[:76] + "\r\n")
+		encoded = encoded[76:]
+	}
+	wrapped.WriteString(encoded + "\r\n")
+	raw := "From: <eve@example.org>\r\nTo: <" + smokeUser + ">\r\nSubject: Cut off\r\nMIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n" +
+		"--b\r\nContent-Type: text/plain\r\n\r\nSee the file.\r\n" +
+		"--b\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n" +
+		"Content-Disposition: attachment; filename=\"file.bin\"\r\n\r\n" + wrapped.String() + "--b--\r\n"
+
+	for name, download := range map[string]func(c *http.Client, base string, uid imap.UID) (*http.Response, error){
+		"mbox": func(c *http.Client, base string, uid imap.UID) (*http.Response, error) {
+			return c.PostForm(base+"/message/INBOX/export", url.Values{"uids": {fmt.Sprint(uid)}})
+		},
+		"zip": func(c *http.Client, base string, uid imap.UID) (*http.Response, error) {
+			return c.Get(fmt.Sprintf("%s/message/INBOX/%d/attachments.zip", base, uid))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			addr, _ := startIMAPServer(t, rigCaps())
+			ic, err := imapclient.DialInsecure(addr, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ic.Close()
+			if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+				t.Fatal(err)
+			}
+			cmd := ic.Append("INBOX", int64(len(raw)), nil)
+			cmd.Write([]byte(raw))
+			cmd.Close()
+			appended, err := cmd.Wait()
+			if err != nil {
+				t.Fatalf("append: %v", err)
+			}
+			proxy, arm := cutProxy(t, addr, 1<<20)
+			base := startAlborz(t, proxy)
+			c := login(t, base)
+			arm()
+			// Held back by compression, the cut may come before the response does.
+			resp, err := download(c, base, appended.UID)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			if got, err := io.ReadAll(resp.Body); err == nil {
+				t.Errorf("a download cut off after %d bytes arrived as complete: %s", len(got), resp.Status)
+			}
+		})
+	}
+}
+
+// proxy passes IMAP traffic through, the server's side by relay.
+func proxy(t *testing.T, upstream string, relay func(client, server net.Conn)) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			client, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			server, err := net.Dial("tcp", upstream)
+			if err != nil {
+				client.Close()
+				continue
+			}
+			go func() {
+				io.Copy(server, client)
+				server.Close()
+			}()
+			go func() {
+				defer client.Close()
+				defer server.Close()
+				relay(client, server)
+			}()
+		}
+	}()
+	return ln.Addr().String()
+}
+
+// cutProxy drops, once armed, the connection on which the server has sent
+// limit more bytes.
+func cutProxy(t *testing.T, upstream string, limit int64) (string, func()) {
+	t.Helper()
+	armed := make(chan struct{})
+	addr := proxy(t, upstream, func(client, server net.Conn) {
+		buf := make([]byte, 32<<10)
+		var sent int64
+		for {
+			n, err := server.Read(buf)
+			select {
+			case <-armed:
+				if sent += int64(n); sent > limit {
+					return
+				}
+			default:
+			}
+			if _, werr := client.Write(buf[:n]); werr != nil || err != nil {
+				return
+			}
+		}
+	})
+	return addr, func() { close(armed) }
+}
+
+// trickleProxy passes the server's bytes in pieces of at most chunk bytes,
+// each arriving on its own.
+func trickleProxy(t *testing.T, upstream string, chunk int) string {
+	t.Helper()
+	return proxy(t, upstream, func(client, server net.Conn) {
+		buf := make([]byte, chunk)
+		for {
+			n, err := server.Read(buf)
+			if _, werr := client.Write(buf[:n]); werr != nil || err != nil {
+				return
+			}
+			time.Sleep(time.Millisecond)
+		}
+	})
 }
 
 // It asserts the bytes sent to the SMTP server, the only place the answer is visible.
@@ -1570,6 +1843,59 @@ func TestZipHoldsTheAttachmentsTheCardCounts(t *testing.T) {
 	}
 	if len(archive.File) != listed {
 		t.Errorf("the zip holds %d files and the page lists %d", len(archive.File), listed)
+	}
+}
+
+// The server decodes a part where it speaks BINARY, and alborz on the way out where it does not.
+func TestDownloadedPartIsTheFileSent(t *testing.T) {
+	file := bytes.Repeat([]byte("alborz\x00\xff\r\n"), 1<<16)
+	encoded := base64.StdEncoding.EncodeToString(file)
+	var wrapped strings.Builder
+	for len(encoded) > 76 {
+		wrapped.WriteString(encoded[:76] + "\r\n")
+		encoded = encoded[76:]
+	}
+	wrapped.WriteString(encoded + "\r\n")
+	raw := "From: <eve@example.org>\r\nTo: <" + smokeUser + ">\r\nSubject: A file\r\nMIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n" +
+		"--b\r\nContent-Type: text/plain\r\n\r\nSee the file.\r\n" +
+		"--b\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n" +
+		"Content-Disposition: attachment; filename=\"file.bin\"\r\n\r\n" + wrapped.String() + "--b--\r\n"
+
+	for name, caps := range map[string]imap.CapSet{"BINARY": rigCaps(), "IMAP4rev1": {imap.CapIMAP4rev1: {}}} {
+		t.Run(name, func(t *testing.T) {
+			addr, _ := startIMAPServer(t, caps)
+			ic, err := imapclient.DialInsecure(addr, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ic.Close()
+			if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+				t.Fatal(err)
+			}
+			cmd := ic.Append("INBOX", int64(len(raw)), nil)
+			cmd.Write([]byte(raw))
+			cmd.Close()
+			appended, err := cmd.Wait()
+			if err != nil || appended.UID == 0 {
+				t.Fatalf("append: %v", err)
+			}
+
+			base := startAlborz(t, addr)
+			c := login(t, base)
+			resp, err := c.Get(fmt.Sprintf("%s/message/INBOX/%d/raw?part=2", base, appended.UID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK || !bytes.Equal(got, file) {
+				t.Fatalf("%s: got %d bytes, want the %d sent", resp.Status, len(got), len(file))
+			}
+			if caps.Has(imap.CapBinary) && resp.ContentLength != int64(len(file)) {
+				t.Errorf("the length the server knew was not passed on: %d", resp.ContentLength)
+			}
+		})
 	}
 }
 

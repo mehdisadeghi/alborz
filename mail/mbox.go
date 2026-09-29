@@ -76,59 +76,89 @@ func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) err
 	archive := mbox.NewWriter(res)
 	archive.Mboxrd = true
 	defer archive.Close()
-	started := false
-	for _, r := range refs {
-		s := ctx.LoginFor(r.account)
-		if s == nil {
-			continue
-		}
-		// One round trip per message, so no single call outlasts the login's budget.
-		var raw []byte
-		var env *imap.Envelope
-		err := s.DoIMAP(func(c *imapclient.Client) error {
-			var err error
-			raw, env, err = fetchRawMessage(c, r.mailbox, r.uid)
-			return err
-		})
-		if err != nil {
-			if started {
-				// Too late for the response: stop, leave the file short, and log why.
-				ctx.Logger().Printf("export %s %q uid %v: %v", r.account, r.mailbox, r.uid, err)
-				return nil
-			}
-			return fmt.Errorf("export %q uid %v: %w", r.mailbox, r.uid, err)
-		}
-		if strip {
-			if stripped, err := withoutAttachments(raw, ctx.T("mailbox.attachmentremoved")); err != nil {
-				// A message that cannot be taken apart goes out whole: larger than asked, not wrong.
-				ctx.Logger().Printf("export %q uid %v: kept attachments: %v", r.mailbox, r.uid, err)
-			} else {
-				raw = stripped
-			}
-		}
-		if !started {
+	begin := func() {
+		if !res.Committed {
 			res.Header().Set("Content-Disposition", downloadName(name, "messages", ".mbox"))
 			res.Header().Set("Content-Type", "application/mbox")
 			res.WriteHeader(http.StatusOK)
-			started = true
 		}
-		if err := writeMbox(archive, raw, env); err != nil {
-			ctx.Logger().Printf("export %s %q uid %v: %v", r.account, r.mailbox, r.uid, err)
+	}
+	for len(refs) > 0 {
+		// Each account's run of messages shares one connection of its own.
+		n := 1
+		for n < len(refs) && refs[n].account == refs[0].account {
+			n++
+		}
+		run := refs[:n]
+		refs = refs[n:]
+		s := ctx.LoginFor(run[0].account)
+		if s == nil {
+			continue
+		}
+		err := s.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
+			for _, r := range run {
+				if err := exportMessage(ctx, c, archive, r, strip, begin); err != nil {
+					return fmt.Errorf("export %s %q uid %v: %w", r.account, r.mailbox, r.uid, err)
+				}
+				res.Flush()
+			}
 			return nil
+		})
+		// Too late for the response: stop, leave the file short, and log why.
+		if err != nil {
+			return streamed(ctx, err)
 		}
-		res.Flush()
 	}
 	return nil
 }
 
-func withoutAttachments(raw []byte, note string) ([]byte, error) {
-	entity, err := message.Read(bytes.NewReader(raw))
+// exportMessage streams one message into the archive; stripped, only its text is held.
+func exportMessage(ctx *alborz.Context, c *imapclient.Client, archive *mbox.Writer, r rowRef, strip bool, begin func()) error {
+	if err := ensureMailboxSelected(c, r.mailbox); err != nil {
+		return err
+	}
+	msgs, err := c.Fetch(imap.UIDSetNum(r.uid), &imap.FetchOptions{UID: true, Envelope: true}).Collect()
+	if err != nil {
+		return err
+	}
+	if len(msgs) == 0 {
+		return alborz.NotFound("notfound.message", fmt.Sprint(r.uid))
+	}
+	env := msgs[0].Envelope
+	whole := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{{Peek: true}}}
+	var stripped []byte
+	if strip {
+		err := streamSection(c, r.uid, whole, func(lit imap.LiteralReader) error {
+			var err error
+			stripped, err = withoutAttachments(lit, ctx.T("mailbox.attachmentremoved"))
+			return err
+		})
+		if err != nil && !errors.Is(err, errKeepWhole) {
+			// A message that cannot be taken apart goes out whole: larger than asked, not wrong.
+			ctx.Logger().Printf("export %q uid %v: kept attachments: %v", r.mailbox, r.uid, err)
+		}
+	}
+	if stripped != nil {
+		begin()
+		return writeMbox(archive, bytes.NewReader(stripped), env)
+	}
+	return streamSection(c, r.uid, whole, func(lit imap.LiteralReader) error {
+		begin()
+		return writeMbox(archive, lit, env)
+	})
+}
+
+// errKeepWhole is a message whose parts cannot change without breaking it.
+var errKeepWhole = errors.New("signed or encrypted")
+
+func withoutAttachments(r io.Reader, note string) ([]byte, error) {
+	entity, err := message.Read(r)
 	if err != nil && !message.IsUnknownCharset(err) {
 		return nil, err
 	}
 	mediaType, _, _ := entity.Header.ContentType()
 	if mediaType == "multipart/signed" || mediaType == "multipart/encrypted" {
-		return raw, nil
+		return nil, errKeepWhole
 	}
 	var out bytes.Buffer
 	w, err := message.CreateWriter(&out, entity.Header)
@@ -198,7 +228,7 @@ func copyWithoutAttachments(w *message.Writer, e *message.Entity, note string) e
 }
 
 // Nothing reads the separator's sender and date, but a file without them is not an mbox.
-func writeMbox(archive *mbox.Writer, raw []byte, env *imap.Envelope) error {
+func writeMbox(archive *mbox.Writer, raw io.Reader, env *imap.Envelope) error {
 	var from string
 	when := time.Now()
 	if env != nil {
@@ -213,7 +243,39 @@ func writeMbox(archive *mbox.Writer, raw []byte, env *imap.Envelope) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(raw)
+	held := &heldBreak{w: w}
+	if _, err := io.Copy(held, raw); err != nil {
+		return err
+	}
+	return held.end()
+}
+
+// heldBreak keeps back a message's final line break: the mbox writer ends
+// every message with its own, and a second would join the message.
+type heldBreak struct {
+	w    io.Writer
+	held []byte
+}
+
+func (h *heldBreak) Write(b []byte) (int, error) {
+	n := len(b)
+	b = append(h.held, b...)
+	cut := len(b)
+	for cut > 0 && len(b)-cut < len("\r\n") && (b[cut-1] == '\n' || b[cut-1] == '\r') {
+		cut--
+	}
+	if _, err := h.w.Write(b[:cut]); err != nil {
+		return 0, err
+	}
+	h.held = bytes.Clone(b[cut:])
+	return n, nil
+}
+
+func (h *heldBreak) end() error {
+	if s := string(h.held); s == "\r\n" || s == "\n" {
+		return nil
+	}
+	_, err := h.w.Write(h.held)
 	return err
 }
 

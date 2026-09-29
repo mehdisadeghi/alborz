@@ -31,7 +31,7 @@ the place in its queue:
 | Class | Connection | Bound | Used for |
 |---|---|---|---|
 | `IMAPForeground` | interactive | 10 s | pages, writes |
-| `IMAPScan` | work | 2 min; 10 for an mbox import | searches of message text, selections, mbox export and import |
+| `IMAPScan` | work | 2 min; 10 for an mbox import | searches of message text, selections, mbox import |
 | `IMAPBackground` | work | 10 s | body warming, next-page metadata, counts, samples |
 
 Each connection has one queue (`imap_queue.go`). A caller holds the
@@ -55,6 +55,18 @@ Once a callback runs, the reader leaving no longer stops it: a command
 half sent would leave the connection unusable. It drains under the
 call's deadline. Only that deadline, or the login ending, stops it;
 then the connection is closed and the next call dials a new one.
+
+## Transfers
+
+A download (a part, the whole message or its source, the attachments as
+a zip, an mbox export) streams from the server's literal to the reader
+and holds neither connection: it gets a connection of its own
+(`DoIMAPTransfer`). A login runs at most two at once, since Dovecot
+allows ten connections per user and address by default. A transfer has
+no total bound: it ends when the reader leaves, the login ends, or the
+server sends nothing for 30 s. Its connection is kept for the next
+transfer, as a page's images follow one another, and closes after 30 s
+unused; one idle for more than half of that is not reused.
 
 ## Write and invalidation rules
 

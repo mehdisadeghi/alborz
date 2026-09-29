@@ -22,8 +22,8 @@ import (
 
 	"git.mehdix.org/alborz/internal/kv"
 	"github.com/fernet/fernet-go"
+	"github.com/klauspost/compress/gzhttp"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 )
 
 // BrandName is the name a person reads.
@@ -277,7 +277,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		return nil, fmt.Errorf("no usable domains left")
 	}
 
-	s.logins = newLoginManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, settings)
+	s.logins = newLoginManager(s.dialIMAP, s.dialIMAPTransfer, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, settings)
 	return s, nil
 }
 
@@ -800,20 +800,35 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 	e.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ectx echo.Context) error {
 			s.mutex.RLock()
-			err := next(ectx)
-			s.mutex.RUnlock()
-			return err
+			// Deferred: a download that fails midway aborts with a panic.
+			defer s.mutex.RUnlock()
+			return next(ectx)
 		}
 	})
 
+	compress, err := gzhttp.NewWrapper(gzhttp.EnableZstd(false))
+	if err != nil {
+		return nil, err
+	}
 	// The event stream is skipped: a compressor holds it back.
-	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
-		Skipper: func(c echo.Context) bool {
-			p := c.Request().URL.Path
-			return strings.HasSuffix(p, ".png") || strings.HasSuffix(p, "/raw") || p == "/events"
-		},
-		MinLength: 1024,
-	}))
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(ectx echo.Context) error {
+			p := ectx.Request().URL.Path
+			if strings.HasSuffix(p, ".png") || strings.HasSuffix(p, "/raw") || p == "/events" {
+				return next(ectx)
+			}
+			res := ectx.Response()
+			plain := res.Writer
+			var err error
+			compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				res.Writer = w
+				err = next(ectx)
+			})).ServeHTTP(plain, ectx.Request())
+			// The error page is written after the compressor has closed.
+			res.Writer = plain
+			return err
+		}
+	})
 
 	// Lax cookies still let a same-site sibling post, so cross-origin POSTs are refused here.
 	e.Use(echo.WrapMiddleware(http.NewCrossOriginProtection().Handler))

@@ -101,6 +101,7 @@ type Login struct {
 	imapConn   *imapclient.Client // protected by imapLocker
 	workLocker imapQueue
 	workConn   *imapclient.Client
+	transfers  chan idleTransfer
 
 	sieveLocker sync.Mutex
 	sieveConn   SieveClient // protected by sieveLocker, can be nil
@@ -260,7 +261,7 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 		*conn = nil
 	}
 	if *conn == nil {
-		*conn, err = l.manager.connectIMAPContext(ctx, l.domain, l.username, l.password, "")
+		*conn, err = l.manager.connectIMAPContext(ctx, l.manager.dialIMAP, l.domain, l.username, l.password, "")
 		if err != nil {
 			var refused AuthError
 			if errors.As(err, &refused) {
@@ -283,6 +284,67 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 		}
 	}()
 	return f(c)
+}
+
+// maxIMAPTransfers bounds a login's downloads at once: Dovecot allows ten
+// connections per user and address by default, and the login's two lanes and
+// watcher take three of them.
+const maxIMAPTransfers = 2
+
+// DoIMAPTransfer runs a download on a connection of its own, so it neither
+// waits behind the account's pages nor holds them up however long it takes.
+// It ends with ctx, or when the server falls silent.
+func (l *Login) DoIMAPTransfer(ctx context.Context, f func(*imapclient.Client) error) error {
+	var slot idleTransfer
+	select {
+	case slot = <-l.transfers:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-l.Done():
+		return context.Canceled
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-l.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	c, keep := slot.c, false
+	defer func() {
+		if keep {
+			l.transfers <- idleTransfer{c, time.Now()}
+			return
+		}
+		if c != nil {
+			c.Close()
+		}
+		l.transfers <- idleTransfer{}
+	}()
+	// Silence closes an idle connection, so one close to that is not taken.
+	if c != nil && (c.State() == imap.ConnStateLogout || time.Since(slot.since) > transferStall/2) {
+		c.Close()
+		c = nil
+	}
+	if c == nil {
+		var err error
+		if c, err = l.manager.connectIMAPContext(ctx, l.manager.dialIMAPTransfer, l.domain, l.username, l.password, ""); err != nil {
+			return err
+		}
+	}
+	stop := context.AfterFunc(ctx, func() { c.Close() })
+	err := f(c)
+	keep = stop() && err == nil
+	return err
+}
+
+// idleTransfer is a transfer's slot, holding the connection it left for the
+// next, as a page's images follow one another; c is nil when none was left.
+type idleTransfer struct {
+	c     *imapclient.Client
+	since time.Time
 }
 
 // DoSMTP executes an SMTP operation on this login; the client is valid only inside f.
@@ -473,11 +535,12 @@ type (
 
 // loginManager keeps track of active logins and prunes expired ones.
 type loginManager struct {
-	dialIMAP      dialIMAPFunc
-	dialIMAPWatch dialIMAPWatchFunc
-	dialSMTP      dialSMTPFunc
-	dialSieve     dialSieveFunc
-	logger        echo.Logger
+	dialIMAP         dialIMAPFunc
+	dialIMAPTransfer dialIMAPFunc
+	dialIMAPWatch    dialIMAPWatchFunc
+	dialSMTP         dialSMTPFunc
+	dialSieve        dialSieveFunc
+	logger           echo.Logger
 	// settings holds settings for servers without METADATA; nil if alborz keeps none.
 	settings *settingsRecords
 
@@ -487,15 +550,16 @@ type loginManager struct {
 	warnedNoMetadata bool                // protected by locker
 }
 
-func newLoginManager(dialIMAP dialIMAPFunc, dialWatch dialIMAPWatchFunc, dialSMTP dialSMTPFunc, dialSieve dialSieveFunc, logger echo.Logger, settings *settingsRecords) *loginManager {
+func newLoginManager(dialIMAP, dialTransfer dialIMAPFunc, dialWatch dialIMAPWatchFunc, dialSMTP dialSMTPFunc, dialSieve dialSieveFunc, logger echo.Logger, settings *settingsRecords) *loginManager {
 	return &loginManager{
-		settings:      settings,
-		logins:        make(map[*Login]struct{}),
-		dialIMAP:      dialIMAP,
-		dialIMAPWatch: dialWatch,
-		dialSMTP:      dialSMTP,
-		dialSieve:     dialSieve,
-		logger:        logger,
+		settings:         settings,
+		logins:           make(map[*Login]struct{}),
+		dialIMAP:         dialIMAP,
+		dialIMAPTransfer: dialTransfer,
+		dialIMAPWatch:    dialWatch,
+		dialSMTP:         dialSMTP,
+		dialSieve:        dialSieve,
+		logger:           logger,
 	}
 }
 
@@ -508,17 +572,17 @@ func (sm *loginManager) close() {
 }
 
 func (sm *loginManager) connectIMAP(domain, username, password, from string) (*imapclient.Client, error) {
-	return sm.connectIMAPContext(context.Background(), domain, username, password, from)
+	return sm.connectIMAPContext(context.Background(), sm.dialIMAP, domain, username, password, from)
 }
 
-func (sm *loginManager) connectIMAPContext(ctx context.Context, domain, username, password, from string) (*imapclient.Client, error) {
+func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFunc, domain, username, password, from string) (*imapclient.Client, error) {
 	within := RoundTripTimeout
 	if from != "" {
 		within = signInTimeout
 	}
 	ctx, cancel := context.WithTimeout(ctx, within)
 	defer cancel()
-	c, err := sm.dialIMAP(domain, from)
+	c, err := dial(domain, from)
 	if err != nil {
 		// A misconfigured domain is ours; any other dial failure is the server's.
 		var unknown unknownDomainError
@@ -569,13 +633,18 @@ func (sm *loginManager) put(username, password, from string) (*Login, error) {
 	defer sm.locker.Unlock()
 
 	s := &Login{
-		manager:  sm,
-		closed:   make(chan struct{}),
-		pings:    make(chan struct{}, 5),
-		imapConn: c,
-		username: username,
-		password: password,
-		domain:   domain,
+		manager:   sm,
+		closed:    make(chan struct{}),
+		pings:     make(chan struct{}, 5),
+		imapConn:  c,
+		transfers: make(chan idleTransfer, maxIMAPTransfers),
+		username:  username,
+		password:  password,
+		domain:    domain,
+	}
+
+	for range maxIMAPTransfers {
+		s.transfers <- idleTransfer{}
 	}
 
 	s.store, err = sm.newStore(s)
@@ -627,6 +696,13 @@ func (sm *loginManager) reap(s *Login) {
 		s.sieveConn.Close()
 	}
 	s.sieveLocker.Unlock()
+
+	// A running transfer ends with the login; only idle ones are left to close.
+	for len(s.transfers) > 0 {
+		if t := <-s.transfers; t.c != nil {
+			t.c.Close()
+		}
+	}
 
 	// Caches outlive expiry; only signing out forgets (Server.ForgetAccount).
 	sm.locker.Lock()

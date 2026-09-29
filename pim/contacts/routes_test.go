@@ -8,7 +8,7 @@ import (
 
 func TestWithValuesKeepsTheParametersOfEditedFields(t *testing.T) {
 	work := &vcard.Field{Value: "old@example.org", Params: vcard.Params{vcard.ParamType: {"work"}}}
-	got := withValues([]*vcard.Field{work}, []string{" new@example.org ", "second@example.org", ""})
+	got := WithValues([]*vcard.Field{work}, []string{" new@example.org ", "second@example.org", ""})
 	if len(got) != 2 {
 		t.Fatalf("got %d fields, want 2", len(got))
 	}
@@ -18,7 +18,7 @@ func TestWithValuesKeepsTheParametersOfEditedFields(t *testing.T) {
 	if got[1].Value != "second@example.org" || len(got[1].Params) != 0 {
 		t.Errorf("a new address carries parameters it was never given: %v", got[1].Params)
 	}
-	if got := withValues([]*vcard.Field{work}, []string{" "}); got != nil {
+	if got := WithValues([]*vcard.Field{work}, []string{" "}); got != nil {
 		t.Errorf("blank input kept a field: %v", got)
 	}
 }

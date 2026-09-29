@@ -20,7 +20,7 @@ import (
 )
 
 func (p *plugin) pooledBooks(ctx *web.Context) ([]pim.Account[*carddav.Client], error) {
-	return pim.Pooled(ctx, p.DAV, p.Open, errNoAddressBook)
+	return pim.Pooled(ctx, p.DAV, p.Open, ErrNoAddressBook)
 }
 
 type plugin struct{ *Books }
@@ -65,7 +65,7 @@ func Mount(g *web.Group, st *store.Store) error {
 		for _, a := range slices.Concat(env.From, env.To, env.Cc) {
 			addrs = append(addrs, &netmail.Address{Name: a.Name, Address: a.Addr()})
 		}
-		data.Contact = &mail.ContactOffer{Addresses: distinct(addrs), Books: groups}
+		data.Contact = &mail.ContactOffer{Addresses: Distinct(addrs), Books: groups}
 		return nil
 	})
 
@@ -77,12 +77,12 @@ func Mount(g *web.Group, st *store.Store) error {
 		c, addressBooks, err := p.Open(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			// Suggestions are a convenience: a missing or silent address book must not block compose.
-			if err != errNoAddressBook {
+			if err != ErrNoAddressBook {
 				ctx.Logger().Printf("carddav: no suggestions for compose: %v", err)
 			}
 			return nil
 		}
-		addrs, err := emails(ctx.Request().Context(), c, addressBooks)
+		addrs, err := Emails(ctx.Request().Context(), c, addressBooks)
 		if err != nil {
 			ctx.Logger().Printf("carddav: no suggestions from one book: %v", err)
 		}
@@ -153,7 +153,7 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	if acct != ctx.Login.Username() {
 		to += "?account=" + web.QueryValue(acct)
 	}
-	n, err := importBook(ctx.Request().Context(), c, bookPath, raw)
+	n, err := Import(ctx.Request().Context(), c, bookPath, raw)
 	if pim.ImportAnswered(err) {
 		ctx.Notify(pim.ImportRefused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
@@ -186,7 +186,7 @@ func (p *plugin) addAddress(ctx *web.Context) error {
 	}
 	book := dav.At(books, to.Path)
 	back := ctx.NextOr(ctx.URL("contacts.list"))
-	held, err := emails(ctx.Request().Context(), to.Client, []dav.Collection{*book})
+	held, err := Emails(ctx.Request().Context(), to.Client, []dav.Collection{*book})
 	if err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func (p *plugin) addAddress(ctx *web.Context) error {
 			Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeName(addr.Address), web.NoticeName(book.Name)))})
 		return ctx.Redirect(http.StatusFound, back)
 	}
-	ao, err := addCard(ctx.Request().Context(), to.Client, to.Path, addr)
+	ao, err := AddCard(ctx.Request().Context(), to.Client, to.Path, addr)
 	if err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
 		return ctx.Redirect(http.StatusFound, back)

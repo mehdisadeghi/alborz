@@ -27,7 +27,7 @@ import (
 	"golang.org/x/image/draw"
 )
 
-var errNoAddressBook = alborz.NotFound("notfound.addressbook")
+var ErrNoAddressBook = alborz.NotFound("notfound.addressbook")
 
 // The colour is InfCloud's, which the server keeps as a dead property.
 var colorName = xml.Name{Space: "http://inf-it.com/ns/ab/", Local: "addressbook-color"}
@@ -137,7 +137,7 @@ func (ao AddressObject) PhotoURL() string {
 const (
 	appleKindField   = "X-ADDRESSBOOKSERVER-KIND"
 	appleMemberField = "X-ADDRESSBOOKSERVER-MEMBER"
-	memberPrefix     = "urn:uuid:"
+	MemberPrefix     = "urn:uuid:"
 )
 
 // IsGroup reports whether the card is a group of contacts.
@@ -147,14 +147,14 @@ func (ao AddressObject) IsGroup() bool {
 
 // UID is the card's UID without the URN wrapper.
 func (ao AddressObject) UID() string {
-	return strings.TrimPrefix(ao.Card.Value(vcard.FieldUID), memberPrefix)
+	return strings.TrimPrefix(ao.Card.Value(vcard.FieldUID), MemberPrefix)
 }
 
 // Members are the UIDs a group names, in the order the card lists them.
 func (ao AddressObject) Members() []string {
 	var out []string
 	for _, member := range append(ao.Card.Members(), ao.Card.Values(appleMemberField)...) {
-		if uid := strings.TrimPrefix(member, memberPrefix); uid != "" {
+		if uid := strings.TrimPrefix(member, MemberPrefix); uid != "" {
 			out = append(out, uid)
 		}
 	}
@@ -173,7 +173,7 @@ func SetMembers(card vcard.Card, uids []string) {
 	delete(card, appleMemberField)
 	members := make([]string, len(uids))
 	for i, uid := range uids {
-		members[i] = memberPrefix + uid
+		members[i] = MemberPrefix + uid
 	}
 	card.SetMembers(members)
 }
@@ -206,27 +206,27 @@ func SetColor(card vcard.Card, name string) {
 
 // Modified is when the card last changed; vCard has no property for its creation.
 func (ao AddressObject) Modified() time.Time {
-	return cardModified(ao.AddressObject)
+	return Modified(ao.AddressObject)
 }
 
-const uidURN = "urn:uuid:"
+const UIDPrefix = "urn:uuid:"
 
-func writeCard(ctx context.Context, c *carddav.Client, at string, card vcard.Card) error {
+func WriteCard(ctx context.Context, c *carddav.Client, at string, card vcard.Card) error {
 	card.SetRevision(time.Now())
 	_, err := c.PutAddressObject(ctx, at, card, nil)
 	return err
 }
 
-func changeCard(ctx context.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
+func ChangeCard(ctx context.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
 	ao, err := ref.Client.GetAddressObject(ctx, ref.Path)
 	if err != nil {
 		return fmt.Errorf("failed to read the contact: %v", err)
 	}
 	change(ao.Card)
-	return writeCard(ctx, ref.Client, ao.Path, ao.Card)
+	return WriteCard(ctx, ref.Client, ao.Path, ao.Card)
 }
 
-func joinCards(cards [][]byte) ([]byte, error) {
+func Join(cards [][]byte) ([]byte, error) {
 	var buf bytes.Buffer
 	for _, card := range cards {
 		buf.Write(card)
@@ -243,7 +243,7 @@ func (p *Books) WarmAccount(ctx context.Context, s *alborz.Login) error {
 	if err != nil {
 		return err
 	}
-	query := contactsQuery("")
+	query := Query("")
 	for _, r := range dav.Each(ctx, books, func(ctx context.Context, book dav.Collection) (int, error) {
 		_, err := c.QueryAddressBook(ctx, book.Path, &query)
 		return 0, err
@@ -290,7 +290,7 @@ func (p *Books) Open(ctx context.Context, login *alborz.Login) (*carddav.Client,
 		return nil, nil, err
 	}
 	if len(infos) == 0 {
-		return nil, nil, errNoAddressBook
+		return nil, nil, ErrNoAddressBook
 	}
 	return c, infos, nil
 }
@@ -320,16 +320,16 @@ func New(srv *alborz.Server, st *store.Store) (*Books, error) {
 // Small on purpose: the card carries the picture inline, fetched on every visit.
 const photoLongestSide = 320
 
-var errPhotoUnreadable = errors.New("carddav: photo is not an image")
+var ErrPhotoUnreadable = errors.New("carddav: photo is not an image")
 
 // Past this the bytes grow faster than a thumbnail improves.
 const photoQuality = 82
 
-// setPhoto puts the picture into the card, made small.
-func setPhoto(card vcard.Card, r io.Reader) error {
+// SetPhoto puts the picture into the card, made small.
+func SetPhoto(card vcard.Card, r io.Reader) error {
 	src, _, err := image.Decode(r)
 	if err != nil {
-		return errPhotoUnreadable
+		return ErrPhotoUnreadable
 	}
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
@@ -347,7 +347,7 @@ func setPhoto(card vcard.Card, r io.Reader) error {
 
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: photoQuality}); err != nil {
-		return errPhotoUnreadable
+		return ErrPhotoUnreadable
 	}
 	// vCard 4.0 carries the picture as a data URI, 3.0 as an encoded property.
 	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
@@ -362,7 +362,7 @@ func setPhoto(card vcard.Card, r io.Reader) error {
 	return nil
 }
 
-func cardModified(ao *carddav.AddressObject) time.Time {
+func Modified(ao *carddav.AddressObject) time.Time {
 	if rev, err := ao.Card.Revision(); err == nil && !rev.IsZero() {
 		return rev
 	}
@@ -370,7 +370,7 @@ func cardModified(ao *carddav.AddressObject) time.Time {
 }
 
 // A birthday with no year (--0412) is shown as written.
-func birthdayValue(card vcard.Card) string {
+func Birthday(card vcard.Card) string {
 	if day, err := card.Birthday(); err == nil && !day.IsZero() {
 		return day.Format("2006-01-02")
 	}
@@ -378,7 +378,7 @@ func birthdayValue(card vcard.Card) string {
 }
 
 // Matched by position, so a TYPE or PREF synced onto a field survives an edit that left it alone.
-func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
+func WithValues(fields []*vcard.Field, values []string) []*vcard.Field {
 	var out []*vcard.Field
 	for _, value := range values {
 		if value = strings.TrimSpace(value); value == "" {
@@ -395,7 +395,7 @@ func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
 	return out
 }
 
-func contactsQuery(queryText string) carddav.AddressBookQuery {
+func Query(queryText string) carddav.AddressBookQuery {
 	// Every property: the list reads the colour, categories, revision and members.
 	query := carddav.AddressBookQuery{
 		DataRequest: carddav.AddressDataRequest{AllProp: true},

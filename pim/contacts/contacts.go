@@ -82,12 +82,12 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		return ContactList{}, err
 	}
 
-	addressBookInfos, sites, err := visibleBooks(ctx.Request().Context(), accounts, ctx.URLAccount(), only)
+	addressBookInfos, sites, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only)
 	if err != nil {
 		return ContactList{}, err
 	}
 
-	query := contactsQuery(queryText)
+	query := Query(queryText)
 
 	var aos, groups []AddressObject
 	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
@@ -190,7 +190,7 @@ func contactColumns(books []dav.Collection) []pim.Column[AddressObject] {
 			}
 			return pim.Last
 		}},
-		{Key: "changed", Value: func(ao AddressObject) string { return pim.When(cardModified(ao.AddressObject)) }},
+		{Key: "changed", Value: func(ao AddressObject) string { return pim.When(Modified(ao.AddressObject)) }},
 	}
 }
 

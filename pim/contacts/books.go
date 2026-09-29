@@ -20,8 +20,8 @@ import (
 	"github.com/emersion/go-webdav/carddav"
 )
 
-// importBook reads the whole file before writing, so a refusal can say how much of it was saved.
-func importBook(ctx context.Context, client *carddav.Client, bookPath string, raw []byte) (int, error) {
+// Import reads the whole file before writing, so a refusal can say how much of it was saved.
+func Import(ctx context.Context, client *carddav.Client, bookPath string, raw []byte) (int, error) {
 	dec := vcard.NewDecoder(bytes.NewReader(raw))
 	var cards []vcard.Card
 	for {
@@ -41,7 +41,7 @@ func importBook(ctx context.Context, client *carddav.Client, bookPath string, ra
 		}
 		uid := card.Value(vcard.FieldUID)
 		if uid == "" {
-			uid = uidURN + uuid.New().String()
+			uid = UIDPrefix + uuid.New().String()
 			card.SetValue(vcard.FieldUID, uid)
 		}
 		target := path.Join(bookPath, dav.SafeObjectName(uid)+".vcf")
@@ -70,7 +70,7 @@ func cardPathByUID(ctx context.Context, client *carddav.Client, bookPath, uid st
 	return objects[0].Path
 }
 
-func exportBook(ctx context.Context, client *carddav.Client, bookPath string) ([]byte, error) {
+func Export(ctx context.Context, client *carddav.Client, bookPath string) ([]byte, error) {
 	objects, err := client.QueryAddressBook(ctx, bookPath, &carddav.AddressBookQuery{
 		DataRequest: carddav.AddressDataRequest{AllProp: true},
 	})
@@ -87,8 +87,8 @@ func exportBook(ctx context.Context, client *carddav.Client, bookPath string) ([
 	return buf.Bytes(), nil
 }
 
-// distinct are the addresses each once, a named form kept over a bare one.
-func distinct(addrs []*netmail.Address) []*netmail.Address {
+// Distinct are the addresses each once, a named form kept over a bare one.
+func Distinct(addrs []*netmail.Address) []*netmail.Address {
 	var out []*netmail.Address
 	at := make(map[string]int)
 	for _, a := range addrs {
@@ -109,8 +109,8 @@ func distinct(addrs []*netmail.Address) []*netmail.Address {
 	return out
 }
 
-// emails are the addresses the books hold, each with its card's name; a book that did not answer is in the error.
-func emails(ctx context.Context, c *carddav.Client, books []dav.Collection) ([]*netmail.Address, error) {
+// Emails are the addresses the books hold, each with its card's name; a book that did not answer is in the error.
+func Emails(ctx context.Context, c *carddav.Client, books []dav.Collection) ([]*netmail.Address, error) {
 	query := carddav.AddressBookQuery{
 		DataRequest: carddav.AddressDataRequest{Props: []string{vcard.FieldFormattedName, vcard.FieldEmail}},
 		PropFilters: []carddav.PropFilter{{Name: vcard.FieldEmail}},
@@ -135,8 +135,8 @@ func emails(ctx context.Context, c *carddav.Client, books []dav.Collection) ([]*
 	return out, errors.Join(errs...)
 }
 
-// addCard writes a new card for one address into book.
-func addCard(ctx context.Context, c *carddav.Client, book string, addr *netmail.Address) (*carddav.AddressObject, error) {
+// AddCard writes a new card for one address into book.
+func AddCard(ctx context.Context, c *carddav.Client, book string, addr *netmail.Address) (*carddav.AddressObject, error) {
 	id := uuid.New().String()
 	name := addr.Name
 	if name == "" {
@@ -144,7 +144,7 @@ func addCard(ctx context.Context, c *carddav.Client, book string, addr *netmail.
 	}
 	card := vcard.Card{}
 	card.SetValue(vcard.FieldVersion, "4.0")
-	card.SetValue(vcard.FieldUID, uidURN+id)
+	card.SetValue(vcard.FieldUID, UIDPrefix+id)
 	card.SetValue(vcard.FieldFormattedName, name)
 	card.SetValue(vcard.FieldEmail, addr.Address)
 	at, _, ifNoneMatch := pim.Target(book, id+".vcf", "", "")
@@ -215,7 +215,7 @@ func (p *Books) Remember(ctx context.Context, s *alborz.Login, name string, addr
 		return err
 	}
 	if now.Book == "" || dav.At(books, now.Book) != nil {
-		held, err := emails(ctx, c, books)
+		held, err := Emails(ctx, c, books)
 		if err != nil {
 			return err
 		}
@@ -224,7 +224,7 @@ func (p *Books) Remember(ctx context.Context, s *alborz.Login, name string, addr
 			known[strings.ToLower(a.Address)] = true
 		}
 		var fresh []*netmail.Address
-		for _, a := range distinct(addrs) {
+		for _, a := range Distinct(addrs) {
 			if !known[strings.ToLower(a.Address)] {
 				fresh = append(fresh, a)
 			}
@@ -238,7 +238,7 @@ func (p *Books) Remember(ctx context.Context, s *alborz.Login, name string, addr
 			}
 		}
 		for _, a := range fresh {
-			if _, err := addCard(ctx, c, now.Book, a); err != nil {
+			if _, err := AddCard(ctx, c, now.Book, a); err != nil {
 				return err
 			}
 		}

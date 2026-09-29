@@ -32,6 +32,7 @@ type fakeDAV struct {
 	noSync, forget bool
 	tokens         []string
 	requests       int
+	down           bool
 }
 
 func event(summary string) string {
@@ -80,6 +81,10 @@ func (s *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.requests++
+	if s.down {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 	if r.Method == http.MethodDelete {
 		s.set(path.Base(r.URL.Path), "")
 		w.WriteHeader(http.StatusNoContent)
@@ -428,5 +433,33 @@ func TestMirrorHoldsOpenedCollectionsWithinItsBudget(t *testing.T) {
 	}
 	if got := read(0); !slices.Equal(got, []string{"s0"}) {
 		t.Errorf("a collection let go read %v", got)
+	}
+}
+
+// A held copy gone stale while its server is down is served, and the server asked again only after a poll.
+func TestMirrorWaitsOutAFailedSync(t *testing.T) {
+	s := newFake()
+	m, c := through(t, s)
+	summaries(t, c)
+	s.mu.Lock()
+	s.down = true
+	s.mu.Unlock()
+	cal, err := ical.NewDecoder(strings.NewReader(event("mine"))).Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A refused write leaves the copy stale.
+	if _, err := c.PutCalendarObject(context.Background(), "/cal/mine.ics", cal, nil); err == nil {
+		t.Fatal("the down server took a write")
+	}
+	before := s.count()
+	for range 5 {
+		if got := summaries(t, c); !slices.Equal(got, []string{"a"}) {
+			t.Fatalf("a stale copy read %v", got)
+		}
+		m.work.Wait()
+	}
+	if n := s.count() - before; n != 1 {
+		t.Errorf("five reads of a stale copy asked the down server %d times, want once", n)
 	}
 }

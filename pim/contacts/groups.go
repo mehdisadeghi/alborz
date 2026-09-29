@@ -63,7 +63,7 @@ func filterHref(ctx *web.Context, name, value, account string) string {
 // A group's card names its members, so that card changes; a card without a UID gets one first.
 func (p *plugin) groupContact(ctx *web.Context) error {
 	objPath := ctx.Param("path")
-	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
+	c, books, err := p.Open(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 	if uid == "" {
 		uid = uuid.New().String()
 		ao.Card.SetValue(vcard.FieldUID, memberPrefix+uid)
-		if err := writeCard(ctx, c, ao.Path, ao.Card); err != nil {
+		if err := writeCard(ctx.Request().Context(), c, ao.Path, ao.Card); err != nil {
 			ctx.Notify(pim.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
 		}
@@ -136,7 +136,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 
 // A server's refusal shows on the page, never as an error page.
 func (p *plugin) putCard(ctx *web.Context, c *carddav.Client, at string, card vcard.Card) error {
-	if err := writeCard(ctx, c, at, card); err != nil {
+	if err := writeCard(ctx.Request().Context(), c, at, card); err != nil {
 		ctx.Notify(pim.Refused(ctx, err))
 	}
 	return nil

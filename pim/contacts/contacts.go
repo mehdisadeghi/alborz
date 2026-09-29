@@ -91,7 +91,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	query := contactsQuery(queryText)
 
 	var aos, groups []AddressObject
-	for _, result := range pim.Present(p.dav, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
+	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
 		return site.Client.QueryAddressBook(ctx, site.Collection.Path, &query)
 	})) {
 		if result.Err != nil {
@@ -220,7 +220,7 @@ func (p *plugin) contacts(ctx *web.Context) error {
 		AddressObjects: cards,
 		Pager:          pager,
 		HrefFor:        func(_, contactPath string) string { return hrefs[contactPath] },
-		AddedBy:        p.dav.AddedBy(ctx.Login.Username()),
+		AddedBy:        p.DAV.AddedBy(ctx.Login.Username()),
 		Query:          list.Query,
 		View:           list.View,
 		Groups:         list.Groups,

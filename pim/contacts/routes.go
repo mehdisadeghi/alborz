@@ -47,7 +47,7 @@ const uidURN = "urn:uuid:"
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
-		return p.dav.Guarded(errNoAddressBook, "contacts.books.create", h)
+		return p.DAV.Guarded(errNoAddressBook, "contacts.books.create", h)
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
@@ -56,29 +56,29 @@ func registerRoutes(p *plugin, g *web.Group) {
 	}
 	POST("list", "/contacts", pim.HandleChoose("contacts.list", "book", choose))
 	GET("list", "/contacts", p.contacts)
-	POST("export", "/contacts/export", pim.HandleExport(p.client, "contacts.list",
+	POST("export", "/contacts/export", pim.HandleExport(p.Client, "contacts.list",
 		func(ctx *web.Context) string { return ctx.T("nav.contacts") + ".vcf" }, joinCards))
-	POST("refresh", "/contacts/refresh", p.dav.HandleRefresh("contacts.list"))
+	POST("refresh", "/contacts/refresh", p.DAV.HandleRefresh("contacts.list"))
 	GET("contact", "/contacts/{path}", p.contact)
 
-	GET("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pim.Raw(ctx, p.client) })
+	GET("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pim.Raw(ctx, p.Client) })
 	page := p.collectionPage()
-	GET("books.create", "/address-books/create", page.HandleCreate(p.dav, p.createForm))
-	POST("books.create", "/address-books/create", page.HandleCreate(p.dav, p.createForm))
+	GET("books.create", "/address-books/create", page.HandleCreate(p.DAV, p.createForm))
+	POST("books.create", "/address-books/create", page.HandleCreate(p.DAV, p.createForm))
 	GET("exportall", "/contacts/export-all", page.HandleExportAll("contacts.list", "address-books.zip"))
-	contactsImport, contactsOver := page.HandleImportPage(p.dav, "contacts.list", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false)
+	contactsImport, contactsOver := page.HandleImportPage(p.DAV, "contacts.list", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false)
 	GET("import", "/contacts/import", contactsImport)
 	upload("import", "/contacts/import", pim.ImportBodySize, contactsImport, contactsOver)
-	GET("book", "/address-books/{path}", page.Handle(p.dav))
-	POST("book", "/address-books/{path}", page.Handle(p.dav))
-	POST("book.delete", "/address-books/{path}/delete", page.HandleDelete(p.dav))
-	upload("book.import", "/address-books/{path}/import", pim.ImportBodySize, page.HandleImport(p.dav), page.HandleImportTooLarge)
-	GET("book.export", "/address-books/{path}/export", page.HandleExport(p.dav))
-	POST("book.share", "/address-books/{path}/share", page.HandleShare(p.dav))
-	POST("book.unshare", "/address-books/{path}/unshare", page.HandleUnshare(p.dav))
-	POST("book.access", "/address-books/{path}/access", page.HandleAccess(p.dav))
-	POST("book.accept", "/address-books/{path}/accept", page.HandleAnswer(p.dav, true))
-	POST("book.decline", "/address-books/{path}/decline", page.HandleAnswer(p.dav, false))
+	GET("book", "/address-books/{path}", page.Handle(p.DAV))
+	POST("book", "/address-books/{path}", page.Handle(p.DAV))
+	POST("book.delete", "/address-books/{path}/delete", page.HandleDelete(p.DAV))
+	upload("book.import", "/address-books/{path}/import", pim.ImportBodySize, page.HandleImport(p.DAV), page.HandleImportTooLarge)
+	GET("book.export", "/address-books/{path}/export", page.HandleExport(p.DAV))
+	POST("book.share", "/address-books/{path}/share", page.HandleShare(p.DAV))
+	POST("book.unshare", "/address-books/{path}/unshare", page.HandleUnshare(p.DAV))
+	POST("book.access", "/address-books/{path}/access", page.HandleAccess(p.DAV))
+	POST("book.accept", "/address-books/{path}/accept", page.HandleAnswer(p.DAV, true))
+	POST("book.decline", "/address-books/{path}/decline", page.HandleAnswer(p.DAV, false))
 	GET("contact.create", "/contacts/create", p.updateContact)
 	upload("contact.create", "/contacts/create", photoBodySize, p.updateContact, photoTooLarge)
 	GET("contact.edit", "/contacts/{path}/edit", p.updateContact)
@@ -88,7 +88,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("contact.color", "/contacts/{path}/color", p.color)
 	POST("contact.note", "/contacts/{path}/note", p.note)
 	POST("contact.photo.delete", "/contacts/{path}/photo/delete", p.deletePhoto)
-	remove := pim.Handler(pim.Action[*carddav.Client]{Client: p.client, Do: pim.Delete[*carddav.Client], List: "contacts.list",
+	remove := pim.Handler(pim.Action[*carddav.Client]{Client: p.Client, Do: pim.Delete[*carddav.Client], List: "contacts.list",
 		Done: func(ctx *web.Context, done []pim.Ref[*carddav.Client], _ string) web.Notice {
 			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.contactsdeleted", len(done))}
 		}})
@@ -98,14 +98,14 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("add", "/contacts/add", p.addAddress)
 }
 
-func writeCard(ctx *web.Context, c *carddav.Client, at string, card vcard.Card) error {
+func writeCard(ctx context.Context, c *carddav.Client, at string, card vcard.Card) error {
 	card.SetRevision(time.Now())
-	_, err := c.PutAddressObject(ctx.Request().Context(), at, card, nil)
+	_, err := c.PutAddressObject(ctx, at, card, nil)
 	return err
 }
 
-func changeCard(ctx *web.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
-	ao, err := ref.Client.GetAddressObject(ctx.Request().Context(), ref.Path)
+func changeCard(ctx context.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
+	ao, err := ref.Client.GetAddressObject(ctx, ref.Path)
 	if err != nil {
 		return fmt.Errorf("failed to read the contact: %v", err)
 	}
@@ -125,11 +125,12 @@ func joinCards(cards [][]byte) ([]byte, error) {
 }
 
 func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
-	p.dav.Warm(s, func(bg context.Context) error { return p.warmAccount(bg, s) })
+	p.DAV.Warm(s, func(bg context.Context) error { return p.WarmAccount(bg, s) })
 }
 
-func (p *plugin) warmAccount(ctx context.Context, s *alborz.Login) error {
-	c, books, err := p.clientWithAddressBooks(ctx, s)
+// WarmAccount reads the login's address books, so the pages open from the mirror.
+func (p *Books) WarmAccount(ctx context.Context, s *alborz.Login) error {
+	c, books, err := p.Open(ctx, s)
 	if err != nil {
 		return err
 	}

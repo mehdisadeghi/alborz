@@ -35,7 +35,7 @@ func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
 }
 
 func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
-	return p.dav.RailInvitations(ctx, p.collectionPage().Collection)
+	return p.DAV.RailInvitations(ctx, p.collectionPage().Collection)
 }
 
 func (p *plugin) collectionPage() pim.Page {
@@ -43,28 +43,28 @@ func (p *plugin) collectionPage() pim.Page {
 		Collection: "contacts.book",
 		List:       "contacts.list",
 		Ext:        ".vcf",
-		Forget:     p.dav.Forget,
+		Forget:     p.DAV.Forget,
 		Show:       show,
 		Rail:       func(ctx *web.Context, _ string) (pim.Rail, error) { return p.bookRail(ctx) },
 		Create: func(ctx *web.Context, _, name, place string) (string, error) {
-			return p.dav.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, nil)
+			return p.DAV.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, nil)
 		},
 		Import: func(ctx *web.Context, path string, raw []byte) (int, error) {
-			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
+			c, _, err := p.Open(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return 0, err
 			}
 			return importBook(ctx.Request().Context(), c, path, raw)
 		},
 		Export: func(ctx *web.Context, path string, _, _ time.Time) ([]byte, error) {
-			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
+			c, _, err := p.Open(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return nil, err
 			}
 			return exportBook(ctx.Request().Context(), c, path)
 		},
 		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
-			_, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
+			_, books, err := p.Open(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return dav.Collection{}, nil, "", "", err
 			}
@@ -72,7 +72,7 @@ func (p *plugin) collectionPage() pim.Page {
 			if info == nil {
 				return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
 			}
-			return *info, p.dav.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), ctx.Path("contacts.list"), ctx.T("nav.contacts"), nil
+			return *info, p.DAV.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), ctx.Path("contacts.list"), ctx.T("nav.contacts"), nil
 		},
 	}
 }
@@ -138,7 +138,7 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	if !ok || login == nil {
 		return web.NewError(http.StatusBadRequest, "no address book to file it in")
 	}
-	c, books, err := p.clientWithAddressBooks(ctx.Request().Context(), login)
+	c, books, err := p.Open(ctx.Request().Context(), login)
 	if err != nil {
 		return err
 	}
@@ -306,13 +306,13 @@ func (p *plugin) addAddress(ctx *web.Context) error {
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
-	to, err := pim.Destination(ctx, ctx.FormValue("addressbook"), p.clientWithAddressBooks, func(book dav.Collection) bool { return book.Writable })
+	to, err := pim.Destination(ctx, ctx.FormValue("addressbook"), p.Open, func(book dav.Collection) bool { return book.Writable })
 	if errors.Is(err, pim.ErrNoDestination) {
 		return web.NewError(http.StatusBadRequest, "no address book to add it to")
 	} else if err != nil {
 		return err
 	}
-	books, err := p.dav.Collections(ctx.Request().Context(), ctx.LoginFor(to.Account))
+	books, err := p.DAV.Collections(ctx.Request().Context(), ctx.LoginFor(to.Account))
 	if err != nil {
 		return err
 	}
@@ -370,25 +370,30 @@ func (p *plugin) seed(ctx *web.Context, s *alborz.Login) {
 	go func() {
 		bg, cancel := context.WithTimeout(context.Background(), dav.WarmBudget)
 		defer cancel()
-		was, err := loadPrevious(bg, s)
-		if err == nil && was.Seeded {
-			return
-		}
-		var addrs []*netmail.Address
-		if err == nil {
-			addrs, err = mail.SentRecipients(s, seedDepth)
-		}
-		if err == nil {
-			err = p.remember(bg, s, name, addrs, true)
-		}
-		if err != nil {
+		if err := p.Seed(bg, s, name); err != nil {
 			log.Printf("carddav: previous recipients of %s: %v", s.Username(), err)
 		}
 	}()
 }
 
-// remember adds to Previous recipients the addresses no address book of the account holds.
-func (p *plugin) remember(ctx context.Context, s *alborz.Login, name string, addrs []*netmail.Address, seeding bool) error {
+// Seed fills the book called name with the recipients of the login's recent sent mail, once.
+func (p *Books) Seed(ctx context.Context, s *alborz.Login, name string) error {
+	was, err := loadPrevious(ctx, s)
+	if err == nil && was.Seeded {
+		return nil
+	}
+	var addrs []*netmail.Address
+	if err == nil {
+		addrs, err = mail.SentRecipients(s, seedDepth)
+	}
+	if err == nil {
+		err = p.Remember(ctx, s, name, addrs, true)
+	}
+	return err
+}
+
+// Remember adds to Previous recipients the addresses no address book of the account holds.
+func (p *Books) Remember(ctx context.Context, s *alborz.Login, name string, addrs []*netmail.Address, seeding bool) error {
 	p.remembering.Lock()
 	defer p.remembering.Unlock()
 	was, err := loadPrevious(ctx, s)
@@ -400,11 +405,11 @@ func (p *plugin) remember(ctx context.Context, s *alborz.Login, name string, add
 	}
 	now := was
 	now.Seeded = was.Seeded || seeding
-	c, err := p.client(ctx, s)
+	c, err := p.Client(ctx, s)
 	if err != nil {
 		return err
 	}
-	books, err := p.dav.Collections(ctx, s)
+	books, err := p.DAV.Collections(ctx, s)
 	if err != nil {
 		return err
 	}
@@ -424,7 +429,7 @@ func (p *plugin) remember(ctx context.Context, s *alborz.Login, name string, add
 			}
 		}
 		if len(fresh) > 0 && now.Book == "" {
-			if now.Book, err = p.dav.Create(ctx, s, name, dav.DefaultColor, dav.SourceHere, nil); err != nil {
+			if now.Book, err = p.DAV.Create(ctx, s, name, dav.DefaultColor, dav.SourceHere, nil); err != nil {
 				return err
 			}
 			if err := s.Store().Put(ctx, previousKey, &now); err != nil {

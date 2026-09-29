@@ -35,7 +35,7 @@ import (
 	"github.com/emersion/go-smtp"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/auth"
+	authweb "git.mehdix.org/alborz/auth/web"
 	"git.mehdix.org/alborz/filters"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
@@ -343,7 +343,7 @@ func newAlborz(t *testing.T, ln net.Listener, options web.Options, setup ...func
 	events := s.Group("", "", web.SameOrigin, web.Secure, web.Prepare, web.Lock, web.SignedIn)
 	web.PublicRoutes(public)
 	web.EventRoutes(events)
-	auth.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
+	authweb.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
 	mail.Mount(app.Group("", "mail"))
 	settings.Mount(app.Group("", "settings"))
 	st, err := pim.Mount(dav, app.Group("", "pim"))

@@ -230,6 +230,7 @@ func registerRoutes(p *plugin) {
 	POST("/tasks/:path/delete", remove("/tasks"))
 	POST("/tasks/delete", remove("/tasks"))
 	POST("/tasks/complete", p.complete)
+	GET("/tasks/move", p.move)
 	POST("/tasks/move", p.move)
 	POST("/tasks/export", pim.HandleExport(p.client, "/tasks",
 		func(ctx *alborz.Context) string { return ctx.T("nav.tasks") + ".ics" }, joinCalendars))

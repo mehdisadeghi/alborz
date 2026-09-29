@@ -756,10 +756,7 @@ func walk(t *testing.T, base string, c *http.Client, k walked, scope string) {
 		if page := get(t, c, base+all); strings.Contains(page, "task-row list-row completed") {
 			t.Errorf("a task is still done after the undo")
 		}
-		asked, where := postBody(t, c, base+"/tasks/move", url.Values{"paths": {ref("first")}, "next": {next}}, nil)
-		if asked.StatusCode != http.StatusOK {
-			t.Fatalf("asking where to move answered %s", asked.Status)
-		}
+		where := get(t, c, base+"/tasks/move?"+url.Values{"paths": {ref("first")}, "next": {next}}.Encode())
 		found("the move page", where, `name="to"`)
 		found("the move page", where, "Chores")
 		moved("moving to the list it is in", postForm(t, c, base+"/tasks/move", url.Values{"paths": {ref("first")}, "to": {smokeUser + "|" + held}, "next": {next}}))

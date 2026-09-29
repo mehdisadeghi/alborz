@@ -19,7 +19,7 @@
             {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" "/tasks/export" "priority" 10 "download" true) }}
           </span>
           {{ template "more-open" $ }}
-              <button form="tasks-form" formaction="/tasks/move">{{$.T "mailbox.moveto"}}</button>
+              <button form="tasks-form" formaction="/tasks/move" formmethod="get">{{$.T "mailbox.moveto"}}</button>
               <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
           {{ template "more-close" }}
         {{ template "toolbar-end" }}

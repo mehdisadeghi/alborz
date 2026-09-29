@@ -94,7 +94,7 @@ func setPriorityBand(todo *ical.Component, band string) {
 func (p *plugin) task(ctx *web.Context) error {
 	path := ctx.Param("path")
 
-	c, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+	c, calendars, err := p.Open(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (p *plugin) task(ctx *web.Context) error {
 		Star:           componentColor(getFirstTodo(task.Data)),
 		Priority:       priorityBand(getFirstTodo(task.Data)),
 		Neighbours:     pim.Around(list.Items, path),
-		Authors:        p.dav.Authors(task.Path, ctx.Login.Username()),
+		Authors:        p.DAV.Authors(task.Path, ctx.Login.Username()),
 	})
 }
 func (p *plugin) updateTask(ctx *web.Context) error {
@@ -166,7 +166,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 	var todo *ical.Component
 	var currentCalendar *dav.Collection
 	if taskPath != "" {
-		c, calendars, err = p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+		c, calendars, err = p.Open(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			return err
 		}
@@ -285,7 +285,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 			cal = co.Data
 		}
 		ensureTimezones(cal, due)
-		co, err = putObject(ctx, to, newID.String()+".ics", co, cal)
+		co, err = putObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}

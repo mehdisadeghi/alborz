@@ -15,6 +15,7 @@ import (
 	"time"
 	"uuid"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
@@ -143,11 +144,9 @@ func sendScheduling(ctx *web.Context, msg *ical.Calendar, to []string) error {
 }
 
 // A server that schedules (RFC 6638 2) tells the attendees itself; alborz telling them too sends everything twice.
-func (p *plugin) serverSchedules(ctx *web.Context, account, object string) (bool, error) {
-	login := ctx.LoginFor(account)
-	rctx := ctx.Request().Context()
+func (p *Calendars) ServerSchedules(ctx context.Context, login *alborz.Login, object string) (bool, error) {
 	coll := dav.Base().ResolveReference(&url.URL{Path: path.Dir(object) + "/"})
-	found, err := dav.Describe(rctx, p.dav.HTTPClient(rctx, login), coll)
+	found, err := dav.Describe(ctx, p.DAV.HTTPClient(ctx, login), coll)
 	return found.Has("calendar-auto-schedule"), err
 }
 
@@ -171,7 +170,7 @@ func (p *plugin) deleteEvent(ctx *web.Context, ref pim.Ref[*caldav.Client]) erro
 	if !holds(ours, itip.Address(series.Props.Get(ical.PropOrganizer))) {
 		return nil
 	}
-	schedules, err := p.serverSchedules(ctx, ref.Account, ref.Path)
+	schedules, err := p.ServerSchedules(ctx.Request().Context(), ctx.LoginFor(ref.Account), ref.Path)
 	if err == nil && !schedules {
 		err = sendScheduling(ctx, itip.Cancel(co.Data, nil, time.Now()), others(itip.Attendees(series), ours))
 	}
@@ -203,7 +202,7 @@ func (p *plugin) registerScheduling(g *web.Group) {
 			data.ImportCalendars = groups
 			return nil
 		}
-		data.InviteFiled = p.findByUID(ctx, groups, inv.UID)
+		data.InviteFiled = p.FindByUID(ctx.Request().Context(), ctx.Login, groups, inv.UID)
 		if data.InviteFiled == "" && !inv.Cancelled() && !inv.Answer() {
 			data.InviteCalendars = groups
 		}
@@ -235,12 +234,12 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+	c, _, err := p.Open(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}
 	var stored *caldav.CalendarObject
-	if at := p.findByUID(ctx, groups, inv.UID); at != "" {
+	if at := p.FindByUID(ctx.Request().Context(), ctx.Login, groups, inv.UID); at != "" {
 		if stored, err = c.GetCalendarObject(ctx.Request().Context(), at); err != nil {
 			return err
 		}
@@ -324,11 +323,12 @@ func itipRefusal(err error) string {
 	return ""
 }
 
-func (p *plugin) findByUID(ctx *web.Context, groups []dav.Group, uid string) string {
+// FindByUID is where the login's calendars among groups hold the event uid, empty where none does.
+func (p *Calendars) FindByUID(ctx context.Context, login *alborz.Login, groups []dav.Group, uid string) string {
 	if uid == "" {
 		return ""
 	}
-	c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+	c, _, err := p.Open(ctx, login)
 	if err != nil {
 		return ""
 	}
@@ -347,7 +347,7 @@ func (p *plugin) findByUID(ctx *web.Context, groups []dav.Group, uid string) str
 	}
 	for _, group := range groups {
 		for _, cal := range group.Collections {
-			objects, err := c.QueryCalendar(ctx.Request().Context(), cal.Path, query)
+			objects, err := c.QueryCalendar(ctx, cal.Path, query)
 			if err != nil {
 				continue
 			}

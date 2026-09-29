@@ -11,12 +11,11 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
-	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
 )
 
 func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
-	return p.dav.RailInvitations(ctx, p.collectionPage().Collection)
+	return p.DAV.RailInvitations(ctx, p.collectionPage().Collection)
 }
 
 func (p *plugin) collectionPage() pim.Page {
@@ -24,7 +23,7 @@ func (p *plugin) collectionPage() pim.Page {
 		Collection: "calendar.collection",
 		List:       "calendar.month",
 		Ext:        ".ics",
-		Forget:     p.dav.Forget,
+		Forget:     p.DAV.Forget,
 		Show:       show,
 		Rail: func(ctx *web.Context, list string) (pim.Rail, error) {
 			if list == ctx.Path("calendar.tasks") {
@@ -33,7 +32,7 @@ func (p *plugin) collectionPage() pim.Page {
 			return p.eventRail(ctx)
 		},
 		Import: func(ctx *web.Context, path string, raw []byte) (int, error) {
-			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+			c, _, err := p.Open(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return 0, err
 			}
@@ -45,17 +44,17 @@ func (p *plugin) collectionPage() pim.Page {
 			if list == ctx.Path("calendar.tasks") {
 				components = []string{"VTODO"}
 			}
-			return p.dav.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, components)
+			return p.DAV.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, components)
 		},
 		Export: func(ctx *web.Context, path string, from, to time.Time) ([]byte, error) {
-			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+			c, _, err := p.Open(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return nil, err
 			}
 			return exportCalendar(ctx.Request().Context(), c, path, from, to)
 		},
 		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
-			_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
+			_, calendars, err := p.Open(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return dav.Collection{}, nil, "", "", err
 			}
@@ -68,7 +67,7 @@ func (p *plugin) collectionPage() pim.Page {
 			if list == ctx.Path("calendar.tasks") {
 				label = ctx.T("nav.tasks")
 			}
-			return *info, p.dav.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), list, label, nil
+			return *info, p.DAV.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), list, label, nil
 		},
 	}
 }
@@ -147,7 +146,7 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL))
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
-		got, cal, err := fetchFeed(rc, p.feeds.client, store.Feed{URL: sub.URL})
+		got, cal, err := p.Fetch(rc, sub.URL)
 		if err != nil {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.feedfailed"), sub.URL, err))
 			if errors.Is(err, errNotFeed) {
@@ -158,16 +157,12 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 		if sub.Name = feedName(cal); sub.Name == "" {
 			sub.Name = feedHost(sub.URL)
 		}
-		if err := login.Store().Put(rc, subscriptionsKey, append(subs, sub)); err != nil {
+		if err := SaveSubscriptions(rc, login.Store(), append(subs, sub)); err != nil {
 			data.Refused(ctx.SaveRefusal(err))
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
 		// Filled with what was just fetched rather than asked again.
-		objects, err := p.feeds.objects(sub.URL, cal)
-		if err != nil {
-			return err
-		}
-		if err := p.follows(rc, login, func(c store.Collection) error { return p.feeds.store.Fill(c.Ref(), got, objects) }); err != nil {
+		if err := p.Fill(rc, login, sub.URL, got, cal); err != nil {
 			return err
 		}
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("calendar.month")))

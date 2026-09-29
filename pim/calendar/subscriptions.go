@@ -123,7 +123,7 @@ type feeds struct {
 	failed   map[string]time.Time
 }
 
-func openFeeds(srv *web.Server, st *store.Store) *feeds {
+func openFeeds(srv *alborz.Server, st *store.Store) *feeds {
 	f := &feeds{client: srv.Outgoing.Remote(alborz.RoundTripTimeout), log: srv.Logger(), store: st,
 		fetching: map[string]bool{}, failed: map[string]time.Time{}}
 	srv.Schedule.Add(feedTick, f.round)
@@ -379,7 +379,7 @@ func reconcile(ctx context.Context, st *store.Store, account string, settings al
 }
 
 // follows reconciles the login's calendars with its subscriptions, has fill fill each calendar made, and shows it.
-func (p *plugin) follows(ctx context.Context, login *alborz.Login, fill func(store.Collection) error) error {
+func (p *Calendars) follows(ctx context.Context, login *alborz.Login, fill func(store.Collection) error) error {
 	made, err := reconcile(ctx, p.feeds.store, login.Username(), login.Store())
 	if err != nil {
 		return err
@@ -388,23 +388,22 @@ func (p *plugin) follows(ctx context.Context, login *alborz.Login, fill func(sto
 		if err := fill(c); err != nil {
 			return err
 		}
-		if err := show(ctx, login.Store(), p.dav.PathOf(login.Username(), c)); err != nil {
+		if err := show(ctx, login.Store(), p.DAV.PathOf(login.Username(), c)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// refresh fetches every signed-in account's feeds, then asks the DAV servers again.
-func (p *plugin) refresh(ctx *web.Context) error {
-	rc := ctx.Request().Context()
+// RefreshFeeds fetches the feeds of the logins' calendars.
+func (p *Calendars) RefreshFeeds(ctx context.Context, logins []*alborz.Login) error {
 	var fetches sync.WaitGroup
 	fed, err := p.feeds.store.Feeds()
 	if err != nil {
 		return err
 	}
 	signed := map[string]bool{}
-	for _, login := range ctx.Logins() {
+	for _, login := range logins {
 		signed[strings.ToLower(login.Username())] = true
 	}
 	urls := map[string]bool{}
@@ -415,11 +414,38 @@ func (p *plugin) refresh(ctx *web.Context) error {
 	}
 	for url := range urls {
 		fetches.Go(func() {
-			if err := p.feeds.refresh(rc, url); err != nil {
-				ctx.Logger().Printf("calendar: feed %s: %v", url, err)
+			if err := p.feeds.refresh(ctx, url); err != nil {
+				p.feeds.log.Printf("calendar: feed %s: %v", url, err)
 			}
 		})
 	}
 	fetches.Wait()
-	return p.dav.HandleRefresh("calendar.month")(ctx)
+	return nil
+}
+
+// refresh fetches every signed-in account's feeds, then asks the DAV servers again.
+func (p *plugin) refresh(ctx *web.Context) error {
+	if err := p.RefreshFeeds(ctx.Request().Context(), ctx.Logins()); err != nil {
+		return err
+	}
+	return p.DAV.HandleRefresh("calendar.month")(ctx)
+}
+
+// SaveSubscriptions keeps the list of the account's subscriptions in its settings.
+func SaveSubscriptions(ctx context.Context, settings alborz.Store, subs []Subscription) error {
+	return settings.Put(ctx, subscriptionsKey, subs)
+}
+
+// Fetch reads the feed at url as a subscription does.
+func (p *Calendars) Fetch(ctx context.Context, url string) (store.Feed, *ical.Calendar, error) {
+	return fetchFeed(ctx, p.feeds.client, store.Feed{URL: url})
+}
+
+// Fill fills the login's calendar of the feed at url with what was fetched, making the calendar first.
+func (p *Calendars) Fill(ctx context.Context, login *alborz.Login, url string, got store.Feed, cal *ical.Calendar) error {
+	objects, err := p.feeds.objects(url, cal)
+	if err != nil {
+		return err
+	}
+	return p.follows(ctx, login, func(c store.Collection) error { return p.feeds.store.Fill(c.Ref(), got, objects) })
 }

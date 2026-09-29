@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
@@ -70,7 +71,7 @@ type ContactList struct {
 func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	queryText := ctx.QueryParam("query")
 	view := ctx.QueryParam("view")
-	if view != "" && view != web.ViewStarred && !slices.Contains(web.FlagColors[:], view) {
+	if view != "" && view != web.ViewStarred && !slices.Contains(alborz.FlagColors[:], view) {
 		return ContactList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")

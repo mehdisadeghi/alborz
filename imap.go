@@ -22,6 +22,10 @@ func init() {
 		charset.RegisterEncoding(name, utf7.UTF7)
 	}
 }
+
+// FlagColors names the colours the flag bits address, indexed by their value.
+var FlagColors = [7]string{"red", "orange", "yellow", "green", "blue", "purple", "grey"}
+
 func (s *Server) dialIMAP(domain, from string) (*imapclient.Client, error) {
 	return s.dial(domain, from, nil, 0)
 }

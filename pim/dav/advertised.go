@@ -53,7 +53,7 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 }
 
 // Cards put each of the kind's sources among the account's servers.
-func (p *Provider) Cards(title string, abilities func(Advertised) []settingsweb.Ability) func(*web.Context, web.RenderData) error {
+func (p *Provider) Cards(title string, abilities func(Advertised) []web.Ability) func(*web.Context, web.RenderData) error {
 	return func(ctx *web.Context, data web.RenderData) error {
 		servers := data.(*settingsweb.ServersRenderData)
 		for _, src := range p.Sources(ctx.Request().Context(), ctx.Login) {
@@ -67,10 +67,10 @@ func (p *Provider) Cards(title string, abilities func(Advertised) []settingsweb.
 	}
 }
 
-func (p *Provider) card(ctx *web.Context, servers *settingsweb.ServersRenderData, title string, src Source, abilities func(Advertised) []settingsweb.Ability) settingsweb.ServerCard {
+func (p *Provider) card(ctx *web.Context, servers *settingsweb.ServersRenderData, title string, src Source, abilities func(Advertised) []web.Ability) web.ServerCard {
 	host := src.URL.Host
-	card := settingsweb.ServerCard{Group: settingsweb.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
-	if servers.Showing == settingsweb.ServerDAV {
+	card := web.ServerCard{Group: web.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
+	if servers.Showing == web.ServerDAV {
 		endpoint, _ := url.Parse(src.Endpoint())
 		found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), endpoint)
 		// An unreachable server is said on the page, not failed over.
@@ -96,8 +96,8 @@ func (p *Provider) card(ctx *web.Context, servers *settingsweb.ServersRenderData
 func (p *Provider) HereCard() func(*web.Context, web.RenderData) error {
 	return func(ctx *web.Context, data web.RenderData) error {
 		servers := data.(*settingsweb.ServersRenderData)
-		servers.Cards = append(servers.Cards, settingsweb.ServerCard{
-			Group: settingsweb.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
+		servers.Cards = append(servers.Cards, web.ServerCard{
+			Group: web.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
 			Rows: []map[string]any{
 				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Origin() + store.Prefix + "/"},
 				{"label": ctx.T("settings.davhereuser"), "value": ctx.Login.Username()},

@@ -1,49 +1,16 @@
 package contacts
 
 import (
-	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
-	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
-
-type Settings struct {
-	AddressBookFilter   bool
-	VisibleAddressBooks []string
-}
-
-const settingsKey = "carddav.settings"
-
-// A book made after the choice was not chosen to be hidden.
-func show(ctx context.Context, store alborz.Store, path string) error {
-	settings := &Settings{}
-	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
-		return err
-	}
-	if !settings.AddressBookFilter {
-		return nil
-	}
-	settings.VisibleAddressBooks = append(settings.VisibleAddressBooks, path)
-	return store.Put(ctx, settingsKey, settings)
-}
-
-func choose(ctx context.Context, store alborz.Store, paths []string) error {
-	settings := &Settings{}
-	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
-		return err
-	}
-	settings.AddressBookFilter, settings.VisibleAddressBooks = true, paths
-	return store.Put(ctx, settingsKey, settings)
-}
-
-const uidURN = "urn:uuid:"
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
@@ -98,50 +65,84 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("add", "/contacts/add", p.addAddress)
 }
 
-func writeCard(ctx context.Context, c *carddav.Client, at string, card vcard.Card) error {
-	card.SetRevision(time.Now())
-	_, err := c.PutAddressObject(ctx, at, card, nil)
-	return err
-}
-
-func changeCard(ctx context.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
-	ao, err := ref.Client.GetAddressObject(ctx, ref.Path)
-	if err != nil {
-		return fmt.Errorf("failed to read the contact: %v", err)
-	}
-	change(ao.Card)
-	return writeCard(ctx, ref.Client, ao.Path, ao.Card)
-}
-
-func joinCards(cards [][]byte) ([]byte, error) {
-	var buf bytes.Buffer
-	for _, card := range cards {
-		buf.Write(card)
-		if !bytes.HasSuffix(card, []byte("\n")) {
-			buf.WriteString("\r\n")
-		}
-	}
-	return buf.Bytes(), nil
-}
-
 func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
 	p.DAV.Warm(s, func(bg context.Context) error { return p.WarmAccount(bg, s) })
 }
 
-// WarmAccount reads the login's address books, so the pages open from the mirror.
-func (p *Books) WarmAccount(ctx context.Context, s *alborz.Login) error {
-	c, books, err := p.Open(ctx, s)
+func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
+	rail, err := p.bookRail(ctx)
+	if err != nil && !errors.Is(err, errNoAddressBook) {
+		return pim.CreateForm{}, err
+	}
+	return pim.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: ctx.Path("contacts.list"),
+		Made: func(string) (string, string) { return ctx.T("notice.bookcreated"), ctx.Path("contacts.list") }}, nil
+}
+
+func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
+	return p.DAV.RailInvitations(ctx, p.collectionPage().Collection)
+}
+
+func (p *plugin) collectionPage() pim.Page {
+	return pim.Page{
+		Collection: "contacts.book",
+		List:       "contacts.list",
+		Ext:        ".vcf",
+		Forget:     p.DAV.Forget,
+		Show:       show,
+		Rail:       func(ctx *web.Context, _ string) (pim.Rail, error) { return p.bookRail(ctx) },
+		Create: func(ctx *web.Context, _, name, place string) (string, error) {
+			return p.DAV.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, nil)
+		},
+		Import: func(ctx *web.Context, path string, raw []byte) (int, error) {
+			c, _, err := p.Open(ctx.Request().Context(), ctx.Login)
+			if err != nil {
+				return 0, err
+			}
+			return importBook(ctx.Request().Context(), c, path, raw)
+		},
+		Export: func(ctx *web.Context, path string, _, _ time.Time) ([]byte, error) {
+			c, _, err := p.Open(ctx.Request().Context(), ctx.Login)
+			if err != nil {
+				return nil, err
+			}
+			return exportBook(ctx.Request().Context(), c, path)
+		},
+		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
+			_, books, err := p.Open(ctx.Request().Context(), ctx.Login)
+			if err != nil {
+				return dav.Collection{}, nil, "", "", err
+			}
+			info := dav.At(books, path)
+			if info == nil {
+				return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
+			}
+			return *info, p.DAV.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), ctx.Path("contacts.list"), ctx.T("nav.contacts"), nil
+		},
+	}
+}
+
+func (p *plugin) bookRail(ctx *web.Context) (pim.Rail, error) {
+	rail := pim.Rail{Path: ctx.Path("contacts.list"), Field: "book", ItemClass: "addressbook-item", Action: ctx.Path("contacts.list"), Edit: "contacts.book",
+		NewHref: ctx.Path("contacts.books.create") + "?next=" + web.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
+		ImportHref: ctx.Path("contacts.import"), ImportLabel: ctx.T("contacts.import")}
+	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
-		return err
+		return rail, err
 	}
-	query := contactsQuery("")
-	for _, r := range dav.Each(ctx, books, func(ctx context.Context, book dav.Collection) (int, error) {
-		_, err := c.QueryAddressBook(ctx, book.Path, &query)
-		return 0, err
-	}) {
-		if r.Err != nil {
-			return r.Err
-		}
+	if rail.Invitations, err = p.invitations(ctx); err != nil {
+		return rail, err
 	}
-	return nil
+	infos, _, err := visibleBooks(ctx.Request().Context(), accounts, ctx.URLAccount(), nil)
+	rail.Items = infos
+	if err != nil {
+		return rail, err
+	}
+	// Groups and categories narrow the list, so the rail carries them on every list page.
+	list, err := p.contactList(ctx)
+	if err != nil {
+		return rail, err
+	}
+	rail.Groups = contactGroupRows(ctx, list.Groups, list.Group, ctx.URLAccount())
+	rail.Categories = contactCategoryRows(ctx, list.Categories, list.Category, ctx.URLAccount())
+	return rail, nil
 }

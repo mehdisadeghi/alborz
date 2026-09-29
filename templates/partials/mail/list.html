@@ -88,7 +88,7 @@
             {{if $.Merged}}
             {{$mlink := printf "%v" .URL}}{{$msep := "?"}}
             {{with .Account}}{{$mlink = printf "%s%saccount=%s" $mlink $msep (. | qv)}}{{$msep = "&"}}{{end}}
-            {{if $.ListView}}{{$mlink = printf "%s%sview=%s" $mlink $msep $.ListView}}{{$msep = "&"}}{{else if $.Query}}{{$mlink = printf "%s%squery=%s" $mlink $msep ($.Query | qv)}}{{$msep = "&"}}{{end}}
+            {{with $.ListView}}{{$mlink = printf "%s%sview=%s" $mlink $msep .}}{{$msep = "&"}}{{end}}{{with $.Query}}{{$mlink = printf "%s%squery=%s" $mlink $msep (. | qv)}}{{$msep = "&"}}{{end}}
             {{with $.Sort}}{{$mlink = printf "%s%ssort=%s&dir=%s" $mlink $msep . $.SortDir}}{{$msep = "&"}}{{end}}
             {{$mlink = from $mlink $.GlobalData.URL.RequestURI}}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $mlink}}">
@@ -96,7 +96,7 @@
             {{/* Built in one piece: the escaper cannot follow a URL whose query grows across branches. */}}
             {{$link := ""}}{{$sep := "?"}}
             {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%v" ($open.URL false "")}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
-            {{if $.ListView}}{{$link = printf "%s%sview=%s" $link $sep $.ListView}}{{$sep = "&"}}{{else if $.Query}}{{$link = printf "%s%squery=%s" $link $sep ($.Query | qv)}}{{$sep = "&"}}{{end}}
+            {{with $.ListView}}{{$link = printf "%s%sview=%s" $link $sep .}}{{$sep = "&"}}{{end}}{{with $.Query}}{{$link = printf "%s%squery=%s" $link $sep (. | qv)}}{{$sep = "&"}}{{end}}
             {{with $.Sort}}{{$link = printf "%s%ssort=%s&dir=%s" $link $sep . $.SortDir}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | qv)}}{{end}}
             {{$link = from $link $.GlobalData.URL.RequestURI}}

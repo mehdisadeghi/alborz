@@ -967,8 +967,7 @@ func TestTwoAlborzKeepTheirCollectionsApart(t *testing.T) {
 	imapAddr := startIMAP(t)
 	var held []string
 	for _, host := range []string{"a.example", "b.example"} {
-		base := serveAlborzAt(t, func(string) []string { return []string{"test.local=imap+insecure://" + imapAddr} }, true,
-			&url.URL{Scheme: "https", Host: host})
+		base := serveAlborzAt(t, func(string) []string { return []string{"test.local=imap+insecure://" + imapAddr} }, true, "https://"+host)
 		c := login(t, base)
 		createCalendar(t, base, c, "Personal", "personal")
 		path := "/@" + host + "/alborz/dav/calendars/" + smokeUser + "/personal/"
@@ -1004,7 +1003,7 @@ func TestADomainServedByThisAlborzListsItsCollectionsOnce(t *testing.T) {
 	imapAddr := startIMAP(t)
 	base := serveAlborzAt(t, func(self string) []string {
 		return []string{"test.local=imap+insecure://" + imapAddr, "test.local=caldav+insecure://" + self + "/alborz/dav/"}
-	}, false, nil)
+	}, false, "")
 	c := login(t, base)
 	createCalendar(t, base, c, "Local", "local")
 	here := hereAt + "/alborz/dav/calendars/" + smokeUser + "/local/"

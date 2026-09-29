@@ -644,13 +644,21 @@ func (p *plugin) handleComposeNew(ctx *alborz.Context) error {
 	}, &composeOptions{Signature: chosen})
 }
 
+// composeTooLarge answers a message form past its limit; what was typed did not arrive.
+func composeTooLarge(ctx *alborz.Context) error {
+	return echo.NewHTTPError(http.StatusRequestEntityTooLarge, ctx.T("attach.toolarge"))
+}
+
 func handleComposeAttachment(ctx *alborz.Context) error {
 	reader, err := ctx.Request().MultipartReader()
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
 	}
 	form, err := reader.ReadForm(alborz.MaxAttachmentSize)
-	if err != nil {
+	var over *http.MaxBytesError
+	if errors.As(err, &over) {
+		return ctx.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": ctx.T("attach.toolarge")})
+	} else if err != nil {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
 	}
 

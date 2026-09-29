@@ -420,7 +420,6 @@ func (p *plugin) handleImport(ctx *alborz.Context) error {
 
 	// Streamed part by part: the file is the last field, so the folder is settled first.
 	req := ctx.Request()
-	req.Body = http.MaxBytesReader(ctx.Response(), req.Body, importMaxSize)
 	form, err := req.MultipartReader()
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -570,7 +569,6 @@ func (p *plugin) handleDropImport(ctx *alborz.Context) error {
 		return err
 	}
 	req := ctx.Request()
-	req.Body = http.MaxBytesReader(ctx.Response(), req.Body, importMaxSize)
 	form, err := req.MultipartReader()
 	if err != nil {
 		return importBodyError(err)

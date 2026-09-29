@@ -168,6 +168,9 @@ func registerRoutes(p *plugin) {
 	}
 	GET := func(path string, h func(*alborz.Context) error) { p.Router.GET(path, guard(h)) }
 	POST := func(path string, h func(*alborz.Context) error) { p.Router.POST(path, guard(h)) }
+	upload := func(path string, h, over func(*alborz.Context) error) {
+		p.Router.Upload(path, pim.ImportBodySize, guard(h), guard(over))
+	}
 	POST("/calendar", pim.HandleChoose("/calendar", "cal", choose(func(s *Settings, paths []string) {
 		s.CalendarFilter, s.VisibleCalendars = true, paths
 	})))
@@ -188,16 +191,20 @@ func registerRoutes(p *plugin) {
 	page := p.collectionPage()
 	GET("/calendars/create", page.HandleCreate(p.dav, p.createForm))
 	POST("/calendars/create", page.HandleCreate(p.dav, p.createForm))
+	calendarImport, calendarOver := page.HandleImportPage(p.dav, "/calendar", "nav.calendar", "calendar.import", "calendar.importhint", "event", true)
+	GET("/calendar/import", calendarImport)
+	upload("/calendar/import", calendarImport, calendarOver)
+	tasksImport, tasksOver := page.HandleImportPage(p.dav, "/tasks", "nav.tasks", "tasks.import", "tasks.importhint", "task", false)
+	GET("/tasks/import", tasksImport)
+	upload("/tasks/import", tasksImport, tasksOver)
 	for _, method := range []func(string, func(*alborz.Context) error){GET, POST} {
-		method("/calendar/import", page.HandleImportPage(p.dav, "/calendar", "nav.calendar", "calendar.import", "calendar.importhint", "event", true))
 		method("/calendar/export-all", page.HandleExportAll("/calendar", "calendars.zip"))
 		method("/tasks/export-all", page.HandleExportAll("/tasks", "task-lists.zip"))
-		method("/tasks/import", page.HandleImportPage(p.dav, "/tasks", "nav.tasks", "tasks.import", "tasks.importhint", "task", false))
 	}
 	GET("/calendars/:path", page.Handle(p.dav))
 	POST("/calendars/:path", p.forSubscription(p.updateSubscription, page.Handle(p.dav)))
 	POST("/calendars/:path/delete", p.forSubscription(p.unsubscribe, page.HandleDelete(p.dav)))
-	POST("/calendars/:path/import", page.HandleImport(p.dav))
+	upload("/calendars/:path/import", page.HandleImport(p.dav), page.HandleImportTooLarge)
 	GET("/calendars/:path/export", page.HandleExport(p.dav))
 	POST("/calendars/:path/share", page.HandleShare(p.dav))
 	POST("/calendars/:path/unshare", page.HandleUnshare(p.dav))

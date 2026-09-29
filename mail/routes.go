@@ -9,6 +9,9 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// composeBodySize bounds a message form: its text, and files sent with it where no script uploaded them ahead.
+const composeBodySize = alborz.MaxAttachmentSize + alborz.MaxFormSize
+
 func (p *plugin) registerRoutes() {
 	p.GET("/", func(ctx *alborz.Context) error {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
@@ -26,7 +29,7 @@ func (p *plugin) registerRoutes() {
 	p.GET("/new-mailbox", p.handleNewMailbox)
 	p.POST("/new-mailbox", p.handleNewMailbox)
 	p.GET("/import", p.handleImport)
-	p.POST("/import", p.handleImport)
+	p.Stream("/import", importMaxSize, p.handleImport)
 
 	p.GET("/rename-mailbox/:mbox", p.handleRenameMailbox)
 	p.POST("/rename-mailbox/:mbox", p.handleRenameMailbox)
@@ -42,28 +45,28 @@ func (p *plugin) registerRoutes() {
 	})
 	p.GET("/proxy", handleProxy)
 	p.POST("/mailbox/:mbox/refresh", p.handleRefreshMailbox)
-	p.POST("/mailbox/:mbox/import", p.handleDropImport)
+	p.Stream("/mailbox/:mbox/import", importMaxSize, p.handleDropImport)
 	p.GET("/message/:mbox/export", p.handleExportPage)
 	p.POST("/message/:mbox/export", p.handleExportMbox)
 
 	p.GET("/compose", p.handleComposeNew)
-	p.POST("/compose", p.handleComposeNew)
+	p.Upload("/compose", composeBodySize, p.handleComposeNew, composeTooLarge)
 
-	p.POST("/compose/attachment", handleComposeAttachment)
+	p.Stream("/compose/attachment", alborz.MaxAttachmentSize+alborz.FormFieldsSize, handleComposeAttachment)
 	p.GET("/compose/attachment/:uuid", handleGetAttachment)
 	p.POST("/compose/attachment/:uuid/remove", handleCancelAttachment)
 
 	p.GET("/message/:mbox/:uid/reply", p.handleReply)
-	p.POST("/message/:mbox/:uid/reply", p.handleReply)
+	p.Upload("/message/:mbox/:uid/reply", composeBodySize, p.handleReply, composeTooLarge)
 
 	p.GET("/message/:mbox/:uid/forward", p.handleForward)
-	p.POST("/message/:mbox/:uid/forward", p.handleForward)
+	p.Upload("/message/:mbox/:uid/forward", composeBodySize, p.handleForward, composeTooLarge)
 	p.POST("/message/:mbox/forward", handleForwardSelection)
 	p.POST("/message/:mbox/:uid/unsubscribe", handleUnsubscribe)
 	p.GET("/message/:mbox/forward", p.handleForwardAttached)
 
 	p.GET("/message/:mbox/:uid/edit", p.handleEdit)
-	p.POST("/message/:mbox/:uid/edit", p.handleEdit)
+	p.Upload("/message/:mbox/:uid/edit", composeBodySize, p.handleEdit, composeTooLarge)
 
 	p.POST("/message/:mbox/move", p.handleMove)
 

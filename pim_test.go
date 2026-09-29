@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -389,6 +390,47 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 			t.Errorf("the import no server answered gave %s, want 500", resp.Status)
 		}
 	})
+}
+
+// endless reads one byte forever, counting what was taken.
+type endless struct {
+	b     byte
+	taken *atomic.Int64
+}
+
+func (e endless) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = e.b
+	}
+	e.taken.Add(int64(len(p)))
+	return len(p), nil
+}
+
+// An upload past its limit is answered while it is still being sent: the server took a fraction of it.
+func TestAnUploadPastTheLimitIsRefusedUnread(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	cal := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+	var head strings.Builder
+	w := multipart.NewWriter(&head)
+	w.WriteField("collection", smokeUser+"|"+cal)
+	w.CreateFormFile("file", "big.ics")
+	// Eight times the limit; a server that read it whole would take all of it.
+	const size = 128 << 20
+	var taken atomic.Int64
+	body := io.MultiReader(strings.NewReader(head.String()), io.LimitReader(endless{'x', &taken}, size))
+	resp, err := c.Post(base+"/calendar/import", w.FormDataContentType(), body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(string(page), "larger than 16 MB") {
+		t.Errorf("the upload past the limit answered %s, without the limit on the form", resp.Status)
+	}
+	if n := taken.Load(); n > size/4 {
+		t.Errorf("the server took %d MB of %d before answering", n>>20, size>>20)
+	}
 }
 
 // An EXDATE takes one year out of a Solar Hijri rule, in the store's query and on the page.

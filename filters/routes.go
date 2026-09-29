@@ -71,7 +71,7 @@ func registerRoutes(p alborz.Router) {
 	p.GET("/filters", handleListFilters)
 	p.GET("/filters/create", handleCreateFilter)
 	p.GET("/filters/import", handleImportFilter)
-	p.POST("/filters/import", handleImportFilter)
+	p.Upload("/filters/import", maxScriptSize+alborz.FormFieldsSize, handleImportFilter, handleImportFilterTooLarge)
 	p.GET("/filters/forwarding", requireAccount(handleForwarding))
 	p.GET("/filters/forwarding/create", requireAccount(handleForwardingCreate))
 	p.POST("/filters/forwarding", requireAccount(handleForwardingAdd))
@@ -185,10 +185,10 @@ func handleCreateFilter(ctx *alborz.Context) error {
 	})
 }
 
-func handleImportFilter(ctx *alborz.Context) error {
+func importFilterData(ctx *alborz.Context) (*FilterRenderData, error) {
 	accounts := sieveAccounts(ctx)
 	if len(accounts) == 0 {
-		return echo.ErrNotFound
+		return nil, echo.ErrNotFound
 	}
 	account := ctx.URLAccount()
 	if account == "" {
@@ -200,6 +200,24 @@ func handleImportFilter(ctx *alborz.Context) error {
 		Accounts:       accounts,
 		Account:        account,
 	}
+	return data, nil
+}
+
+// handleImportFilterTooLarge answers a script past the limit on the import form.
+func handleImportFilterTooLarge(ctx *alborz.Context) error {
+	data, err := importFilterData(ctx)
+	if err != nil {
+		return err
+	}
+	data.Refused(ctx.Tf("import.toolarge", maxScriptSize>>20))
+	return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
+}
+
+func handleImportFilter(ctx *alborz.Context) error {
+	data, err := importFilterData(ctx)
+	if err != nil {
+		return err
+	}
 	if ctx.Request().Method != http.MethodPost {
 		return ctx.Render(http.StatusOK, "filters/import", data)
 	}
@@ -207,12 +225,13 @@ func handleImportFilter(ctx *alborz.Context) error {
 		data.Account = picked
 	}
 	file, err := ctx.FormFile("file")
+	if err == nil && file.Size > maxScriptSize {
+		data.Refused(ctx.Tf("import.toolarge", maxScriptSize>>20))
+		return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
+	}
 	if err != nil {
 		data.Refused(ctx.T("form.fileneeded"))
 		return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
-	}
-	if file.Size > maxScriptSize {
-		return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the script is too large")
 	}
 	f, err := file.Open()
 	if err != nil {

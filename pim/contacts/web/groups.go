@@ -1,4 +1,4 @@
-package contacts
+package web
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
@@ -19,7 +20,7 @@ import (
 // FilterRow is one narrowing the rail offers.
 type FilterRow = pim.FilterRow
 
-func contactGroupRows(ctx *web.Context, groups []AddressObject, active, account string) []FilterRow {
+func contactGroupRows(ctx *web.Context, groups []contacts.AddressObject, active, account string) []FilterRow {
 	rows := make([]FilterRow, 0, len(groups))
 	for _, g := range groups {
 		uid := g.UID()
@@ -71,12 +72,12 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to read the contact: %v", err)
 	}
-	contact := AddressObject{AddressObject: ao}
+	contact := contacts.AddressObject{AddressObject: ao}
 	uid := contact.UID()
 	if uid == "" {
 		uid = uuid.New().String()
-		ao.Card.SetValue(vcard.FieldUID, MemberPrefix+uid)
-		if err := WriteCard(ctx.Request().Context(), c, ao.Path, ao.Card); err != nil {
+		ao.Card.SetValue(vcard.FieldUID, contacts.MemberPrefix+uid)
+		if err := contacts.WriteCard(ctx.Request().Context(), c, ao.Path, ao.Card); err != nil {
 			ctx.Notify(pim.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
 		}
@@ -95,7 +96,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 				continue
 			}
 			kept := slices.DeleteFunc(g.Members(), func(m string) bool { return m == uid })
-			SetMembers(g.Card, kept)
+			contacts.SetMembers(g.Card, kept)
 			if err := p.putCard(ctx, c, g.Path, g.Card); err != nil {
 				return err
 			}
@@ -107,9 +108,9 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 		card := vcard.Card{}
 		card.SetValue(vcard.FieldVersion, "4.0")
 		card.SetValue(vcard.FieldFormattedName, name)
-		card.SetValue(vcard.FieldUID, MemberPrefix+uuid.New().String())
+		card.SetValue(vcard.FieldUID, contacts.MemberPrefix+uuid.New().String())
 		card.SetKind(vcard.KindGroup)
-		SetMembers(card, []string{uid})
+		contacts.SetMembers(card, []string{uid})
 		// The group is made in the contact's book, the only one the page knows.
 		book := dav.Holding(books, "", ao.Path)
 		if book == nil {
@@ -126,7 +127,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 		if g.UID() != joining || slices.Contains(g.Members(), uid) {
 			continue
 		}
-		SetMembers(g.Card, append(g.Members(), uid))
+		contacts.SetMembers(g.Card, append(g.Members(), uid))
 		if err := p.putCard(ctx, c, g.Path, g.Card); err != nil {
 			return err
 		}
@@ -136,7 +137,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 
 // A server's refusal shows on the page, never as an error page.
 func (p *plugin) putCard(ctx *web.Context, c *carddav.Client, at string, card vcard.Card) error {
-	if err := WriteCard(ctx.Request().Context(), c, at, card); err != nil {
+	if err := contacts.WriteCard(ctx.Request().Context(), c, at, card); err != nil {
 		ctx.Notify(pim.Refused(ctx, err))
 	}
 	return nil

@@ -1,4 +1,4 @@
-package contacts
+package web
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav/carddav"
@@ -14,17 +15,17 @@ import (
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
-		return p.DAV.Guarded(ErrNoAddressBook, "contacts.books.create", h)
+		return p.DAV.Guarded(contacts.ErrNoAddressBook, "contacts.books.create", h)
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
 	upload := func(name, path string, limit int64, h, over func(*web.Context) error) {
 		g.Upload(name, path, limit, guard(h), guard(over))
 	}
-	POST("list", "/contacts", pim.HandleChoose("contacts.list", "book", Choose))
+	POST("list", "/contacts", pim.HandleChoose("contacts.list", "book", contacts.Choose))
 	GET("list", "/contacts", p.contacts)
 	POST("export", "/contacts/export", pim.HandleExport(p.Client, "contacts.list",
-		func(ctx *web.Context) string { return ctx.T("nav.contacts") + ".vcf" }, Join))
+		func(ctx *web.Context) string { return ctx.T("nav.contacts") + ".vcf" }, contacts.Join))
 	POST("refresh", "/contacts/refresh", p.DAV.HandleRefresh("contacts.list"))
 	GET("contact", "/contacts/{path}", p.contact)
 
@@ -71,7 +72,7 @@ func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
 
 func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
 	rail, err := p.bookRail(ctx)
-	if err != nil && !errors.Is(err, ErrNoAddressBook) {
+	if err != nil && !errors.Is(err, contacts.ErrNoAddressBook) {
 		return pim.CreateForm{}, err
 	}
 	return pim.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: ctx.Path("contacts.list"),
@@ -88,7 +89,7 @@ func (p *plugin) collectionPage() pim.Page {
 		List:       "contacts.list",
 		Ext:        ".vcf",
 		Forget:     p.DAV.Forget,
-		Show:       Show,
+		Show:       contacts.Show,
 		Rail:       func(ctx *web.Context, _ string) (pim.Rail, error) { return p.bookRail(ctx) },
 		Create: func(ctx *web.Context, _, name, place string) (string, error) {
 			return p.DAV.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, nil)
@@ -98,14 +99,14 @@ func (p *plugin) collectionPage() pim.Page {
 			if err != nil {
 				return 0, err
 			}
-			return Import(ctx.Request().Context(), c, path, raw)
+			return contacts.Import(ctx.Request().Context(), c, path, raw)
 		},
 		Export: func(ctx *web.Context, path string, _, _ time.Time) ([]byte, error) {
 			c, _, err := p.Open(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return nil, err
 			}
-			return Export(ctx.Request().Context(), c, path)
+			return contacts.Export(ctx.Request().Context(), c, path)
 		},
 		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
 			_, books, err := p.Open(ctx.Request().Context(), ctx.Login)
@@ -132,7 +133,7 @@ func (p *plugin) bookRail(ctx *web.Context) (pim.Rail, error) {
 	if rail.Invitations, err = p.invitations(ctx); err != nil {
 		return rail, err
 	}
-	infos, _, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), nil)
+	infos, _, err := contacts.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), nil)
 	rail.Items = infos
 	if err != nil {
 		return rail, err

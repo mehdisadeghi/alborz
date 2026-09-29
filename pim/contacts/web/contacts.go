@@ -1,4 +1,4 @@
-package contacts
+package web
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav/carddav"
@@ -20,7 +21,7 @@ type AddressBookRenderData struct {
 	Pager web.Pager
 	web.BaseRenderData
 	AddressBooks   []dav.Collection
-	AddressObjects []AddressObject
+	AddressObjects []contacts.AddressObject
 	Sorting        pim.Sorting
 	Query          string
 	// View is the colour the rail is filtering by, empty for all.
@@ -36,7 +37,7 @@ type AddressBookRenderData struct {
 	// AddedBy names who added a card, where not the row's own account.
 	AddedBy func(account, path string) string
 	// Groups are the accounts' group cards, Categories the words in use.
-	Groups     []AddressObject
+	Groups     []contacts.AddressObject
 	Categories []string
 	Group      string
 	Category   string
@@ -50,12 +51,12 @@ var contactListParams = []string{"account", "book", "query", "view", "group", "c
 
 // ContactList is the list page's cards in order, their books, and what shaped them.
 type ContactList struct {
-	Cards []AddressObject
+	Cards []contacts.AddressObject
 	Books []dav.Collection
 	// Items are the cards as a single contact's neighbours, in the same order.
 	Items []pim.Item
 	// Groups are the group cards, offered as filters and never listed as contacts.
-	Groups []AddressObject
+	Groups []contacts.AddressObject
 	// Categories are the words in use across what was read, sorted.
 	Categories []string
 	Query      string
@@ -82,14 +83,14 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		return ContactList{}, err
 	}
 
-	addressBookInfos, sites, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only)
+	addressBookInfos, sites, err := contacts.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only)
 	if err != nil {
 		return ContactList{}, err
 	}
 
-	query := Query(queryText)
+	query := contacts.Query(queryText)
 
-	var aos, groups []AddressObject
+	var aos, groups []contacts.AddressObject
 	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
 		return site.Client.QueryAddressBook(ctx, site.Collection.Path, &query)
 	})) {
@@ -97,7 +98,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 			return ContactList{}, fmt.Errorf("failed to query address book %s: %v", result.Site.Collection.Name, result.Err)
 		}
 		for i := range result.Value {
-			ao := AddressObject{AddressObject: &result.Value[i], Account: result.Site.Collection.Account}
+			ao := contacts.AddressObject{AddressObject: &result.Value[i], Account: result.Site.Collection.Account}
 			// A group is a card and arrives with the contacts, but is not a person.
 			if ao.IsGroup() {
 				groups = append(groups, ao)
@@ -114,7 +115,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		}
 	}
 
-	sorting, err := pim.Sort(ctx, aos, contactColumns(addressBookInfos), func(ao AddressObject) string {
+	sorting, err := pim.Sort(ctx, aos, contactColumns(addressBookInfos), func(ao contacts.AddressObject) string {
 		return strings.ToLower(ao.DisplayName())
 	}, contactListParams...)
 	if err != nil {
@@ -177,20 +178,20 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	}, nil
 }
 
-func contactColumns(books []dav.Collection) []pim.Column[AddressObject] {
-	return []pim.Column[AddressObject]{
-		{Key: "name", Value: func(ao AddressObject) string { return strings.ToLower(ao.DisplayName()) }},
-		{Key: web.ViewStarred, Value: func(ao AddressObject) string { return pim.StarredFirst(ao.Color()) }},
-		{Key: "email", Value: func(ao AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("EMAIL")) }},
-		{Key: "phone", Value: func(ao AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("TEL")) }},
-		{Key: "account", Value: func(ao AddressObject) string { return strings.ToLower(ao.Account) }},
-		{Key: "book", Value: func(ao AddressObject) string {
+func contactColumns(books []dav.Collection) []pim.Column[contacts.AddressObject] {
+	return []pim.Column[contacts.AddressObject]{
+		{Key: "name", Value: func(ao contacts.AddressObject) string { return strings.ToLower(ao.DisplayName()) }},
+		{Key: web.ViewStarred, Value: func(ao contacts.AddressObject) string { return pim.StarredFirst(ao.Color()) }},
+		{Key: "email", Value: func(ao contacts.AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("EMAIL")) }},
+		{Key: "phone", Value: func(ao contacts.AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("TEL")) }},
+		{Key: "account", Value: func(ao contacts.AddressObject) string { return strings.ToLower(ao.Account) }},
+		{Key: "book", Value: func(ao contacts.AddressObject) string {
 			if ab := dav.Holding(books, ao.Account, ao.Path); ab != nil {
 				return strings.ToLower(ab.Name + "\x00" + ao.Account)
 			}
 			return pim.Last
 		}},
-		{Key: "changed", Value: func(ao AddressObject) string { return pim.When(Modified(ao.AddressObject)) }},
+		{Key: "changed", Value: func(ao contacts.AddressObject) string { return pim.When(contacts.Modified(ao.AddressObject)) }},
 	}
 }
 

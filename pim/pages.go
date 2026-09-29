@@ -799,11 +799,6 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		if info.SharedBy == "" {
-			if err := pg.forgetInvitees(p, collPath); err != nil {
-				return err
-			}
-		}
 		rc := ctx.Request().Context()
 		c, err := webdav.NewClient(p.HTTPClient(rc, ctx.Login), dav.Base().String())
 		if err != nil {

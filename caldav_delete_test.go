@@ -64,6 +64,10 @@ func (s *davStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "DELETE":
 		s.deleteColl(w, r)
 	case "REPORT":
+		if s.gone[r.URL.Path] {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		writeMS(w)
 	case "PUT":
 		if s.hangup[path.Dir(r.URL.Path)+"/"] {
@@ -256,5 +260,57 @@ func TestCollectionDeleteReportsItsOutcome(t *testing.T) {
 	}
 	if page := get(t, c, base+"/calendar"); !strings.Contains(page, "“Personal” was deleted.") {
 		t.Errorf("a completed delete was not confirmed")
+	}
+}
+
+// A phone deleting a shared calendar is heard by every account that saw it, so no page names it again.
+func TestAPhoneDeletingASharedCalendarLeavesNoPageNamingIt(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	owner := login(t, base)
+	cal := createCalendar(t, base, owner, "Plans", "plans")
+	ownPath := hereAt + strings.TrimPrefix(cal, base)
+	if resp := postForm(t, owner, base+"/calendars/"+url.PathEscape(ownPath)+"/share",
+		url.Values{"to": {smokeUser2}, "access": {"read"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("sharing answered %s", resp.Status)
+	}
+	guest := loginAs(t, base, smokeUser2)
+	guestPath := hereAt + "/alborz/dav/calendars/" + smokeUser2 + "/plans~" + smokeUser + "/"
+	if resp := postForm(t, guest, base+"/calendars/"+url.PathEscape(guestPath)+"/accept", url.Values{}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("accepting answered %s", resp.Status)
+	}
+	seen := map[*http.Client]string{owner: ownPath, guest: guestPath}
+	for c, p := range seen {
+		if !listed(t, c, base)[p] {
+			t.Fatalf("%s is not listed before the delete", p)
+		}
+	}
+	if resp, _ := dav(t, http.MethodDelete, cal, nil, ""); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("the phone's DELETE answered %s", resp.Status)
+	}
+	for c, p := range seen {
+		if listed(t, c, base)[p] {
+			t.Errorf("%s is still listed after a phone deleted it", p)
+		}
+	}
+}
+
+// Another client deleting a calendar on a remote server leaves the page answering, and the next one without it.
+// The calendar is listed but never read before, so no copy of it is held to answer instead of the server.
+func TestARemoteCalendarDeletedElsewhereLeavesThePage(t *testing.T) {
+	personal := davHome + "personal/"
+	stub := &davStub{cals: map[string]davCal{personal: {"Personal", "#3366cc"}},
+		refuse: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}}
+	srv := httptest.NewServer(stub)
+	defer srv.Close()
+	base := startAlborzDav(t, startIMAP(t), srv.URL)
+	c := login(t, base)
+	path := at(srv.URL) + personal
+	if rail := get(t, c, base+"/calendars/create"); !strings.Contains(rail, path) {
+		t.Fatalf("%s is not listed", path)
+	}
+	stub.gone[personal] = true
+	get(t, c, base+"/calendar")
+	if rail := get(t, c, base+"/calendars/create"); strings.Contains(rail, path) {
+		t.Errorf("%s is still listed on the page after the one that found it gone", path)
 	}
 }

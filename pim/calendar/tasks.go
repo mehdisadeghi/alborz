@@ -175,9 +175,9 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 
 	query := taskQuery()
 
-	for _, result := range dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
+	for _, result := range pim.Present(p.dav, dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
-	}) {
+	})) {
 		if result.Err != nil {
 			return TaskList{}, fmt.Errorf("failed to query tasks from %s: %v", result.Site.Collection.Name, result.Err)
 		}

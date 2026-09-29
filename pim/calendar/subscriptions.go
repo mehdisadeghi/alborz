@@ -302,19 +302,19 @@ func fetchFeed(ctx context.Context, client *http.Client, was store.Feed) (store.
 // reconcile makes the account's fed calendars here agree with its list of subscriptions, which travels
 // between alborz instances while the calendars do not: a calendar deleted here leaves the list, an entry
 // gone from the list takes its calendar, an entry this alborz lacks is made, and the newer name and
-// colour wins. It returns the calendars made, empty, and whether anything here changed.
-func reconcile(ctx context.Context, st *store.Store, account string, settings alborz.Store) ([]store.Collection, bool, error) {
+// colour wins. It returns the calendars made, empty.
+func reconcile(ctx context.Context, st *store.Store, account string, settings alborz.Store) ([]store.Collection, error) {
 	subs, err := loadSubscriptions(ctx, settings)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	dropped, err := st.Dropped(account)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	fed, err := st.Feeds()
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	listed := len(subs)
 	for _, d := range dropped {
@@ -329,7 +329,6 @@ func reconcile(ctx context.Context, st *store.Store, account string, settings al
 		}
 	}
 	var made []store.Collection
-	changed := false
 	for i, sub := range subs {
 		c, ok := held[sub.URL]
 		delete(held, sub.URL)
@@ -343,7 +342,7 @@ func reconcile(ctx context.Context, st *store.Store, account string, settings al
 				continue
 			}
 			if err != nil {
-				return made, changed, err
+				return made, err
 			}
 			made = append(made, *c)
 		case c.Feed.Named.After(sub.Changed):
@@ -354,38 +353,34 @@ func reconcile(ctx context.Context, st *store.Store, account string, settings al
 				c.Name, c.Color, c.Feed.Named = sub.Name, sub.Color, sub.Changed
 			})
 			if err != nil {
-				return made, changed, err
+				return made, err
 			}
-			changed = true
 		}
 	}
 	if relisted {
 		if err := settings.Put(ctx, subscriptionsKey, subs); err != nil {
-			return made, changed, err
+			return made, err
 		}
 	}
 	// What held still has, the list no longer names: unsubscribed on another alborz.
 	for _, c := range held {
 		if err := st.Delete(c.Ref()); err != nil {
-			return made, changed, err
+			return made, err
 		}
 		dropped = append(dropped, store.Dropped{ID: c.ID})
-		changed = true
 	}
 	for _, d := range dropped {
 		if err := st.Told(store.Ref{Owner: account, ID: d.ID}); err != nil {
-			return made, changed, err
+			return made, err
 		}
-		// Deleted by a DAV client, which no page's list of calendars heard of.
-		changed = true
 	}
-	return made, changed || len(made) > 0, nil
+	return made, nil
 }
 
 // follows reconciles the login's calendars with its subscriptions, has fill fill each calendar made, and shows it.
 func (p *plugin) follows(ctx context.Context, login *alborz.Login, fill func(store.Collection) error) error {
-	made, changed, err := reconcile(ctx, p.feeds.store, login.Username(), login.Store())
-	if err != nil || !changed {
+	made, err := reconcile(ctx, p.feeds.store, login.Username(), login.Store())
+	if err != nil {
 		return err
 	}
 	for _, c := range made {
@@ -396,7 +391,6 @@ func (p *plugin) follows(ctx context.Context, login *alborz.Login, fill func(sto
 			return err
 		}
 	}
-	p.dav.Forget(login.Username())
 	return nil
 }
 

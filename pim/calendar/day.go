@@ -92,7 +92,7 @@ func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
 	}
 	query := eventQuery(start, end)
 
-	events, err := querySites(ctx, sites, &query)
+	events, err := p.querySites(ctx, sites, &query)
 	if err != nil {
 		return dayView{}, err
 	}

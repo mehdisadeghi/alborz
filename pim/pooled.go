@@ -141,6 +141,18 @@ type Site[C any] struct {
 	Collection dav.Collection
 }
 
+// Present leaves out the answers of listed collections their server no longer has: deleted by another
+// client, they are gone, not an error, and each one's account is listed afresh on the next page.
+func Present[C, R any](p *dav.Provider, results []dav.Result[Site[C], R]) []dav.Result[Site[C], R] {
+	return slices.DeleteFunc(results, func(r dav.Result[Site[C], R]) bool {
+		code, _ := webdav.HTTPErrorCode(r.Err)
+		if code == http.StatusNotFound {
+			p.Forget(r.Site.Collection.Account)
+		}
+		return code == http.StatusNotFound
+	})
+}
+
 // Only is the set a URL asks to see through field, overriding stored visibility for that request.
 func Only(ctx *alborz.Context, field string) map[string]bool {
 	values := ctx.QueryParams()[field]

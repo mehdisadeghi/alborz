@@ -217,7 +217,7 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	}
 	query := eventQuery(queryStart, queryEnd)
 
-	events, err := querySites(ctx, sites, &query)
+	events, err := p.querySites(ctx, sites, &query)
 	if err != nil {
 		return monthView{}, err
 	}

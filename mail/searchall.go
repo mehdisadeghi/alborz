@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"sync"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
@@ -115,10 +114,6 @@ func (p *plugin) searchWindow(ctx *alborz.Context, logins []*alborz.Login, ask l
 	spec := ask.spec
 	q := search.Parse(spec.query)
 	class, bound := listingBudget(spec)
-	var (
-		mu   sync.Mutex
-		junk = map[rowRef]bool{}
-	)
 	merged, err := gather(ctx, logins, spec, func(s *alborz.Login) (*listingEntry, error) {
 		sb, err := p.sidebarFor(s)
 		if err != nil {
@@ -135,13 +130,6 @@ func (p *plugin) searchWindow(ctx *alborz.Context, logins []*alborz.Login, ask l
 			}
 			found.absorb(e)
 		}
-		mu.Lock()
-		for i := range sb.mailboxes {
-			if sb.mailboxes[i].role() == "junk" {
-				junk[rowRef{account: s.Username(), mailbox: sb.mailboxes[i].Name()}] = true
-			}
-		}
-		mu.Unlock()
 		return found, nil
 	})
 	return merged, err

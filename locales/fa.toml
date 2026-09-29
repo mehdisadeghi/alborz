@@ -782,6 +782,7 @@
 "import.bundleics" = "تقویم‌ها: %s، موارد افزوده: %s."
 "import.bundlevcf" = "دفترچه‌ها: %s، مخاطبان افزوده: %s."
 "import.notkind" = "%s فایل %s نیست."
+"import.unreadable" = "پرونده خوانده نشد: %s"
 "export.empty" = "این مجموعه خالی است؛ چیزی برای صدور نیست."
 "import.exportall" = "صدور همه به‌صورت .zip"
 "import.untitled" = "واردشده"

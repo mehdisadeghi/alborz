@@ -782,6 +782,7 @@
 "import.bundleics" = "Kalender: %s, hinzugefügte Einträge: %s."
 "import.bundlevcf" = "Adressbücher: %s, hinzugefügte Kontakte: %s."
 "import.notkind" = "%s ist keine %s-Datei."
+"import.unreadable" = "Die Datei konnte nicht gelesen werden: %s"
 "export.empty" = "Die Sammlung ist leer; es gibt nichts zu exportieren."
 "import.exportall" = "Alle als .zip exportieren"
 "import.untitled" = "Importiert"

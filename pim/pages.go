@@ -303,8 +303,8 @@ func (pg Page) HandleImport(p *dav.Provider) func(*alborz.Context) error {
 			return err
 		}
 		back := ctx.NextOr(ctx.AccountPath(pg.Base + url.PathEscape(collPath)))
-		if err := pg.importRaw(ctx, collPath, raw); dav.ServerRefused(err) {
-			ctx.Notify(Refused(ctx, err))
+		if err := pg.importRaw(ctx, collPath, raw); ImportAnswered(err) {
+			ctx.Notify(ImportRefused(ctx, err))
 			return ctx.Redirect(http.StatusFound, back)
 		} else if err != nil {
 			return err
@@ -436,7 +436,7 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 		}
 		n, err := pg.Import(ctx, target, f.raw)
 		if err != nil {
-			return fmt.Errorf("%s: %w", f.name, err)
+			return fmt.Errorf("%s: %s", f.name, ImportRefusal(ctx, err))
 		}
 		objects += n
 	}
@@ -480,8 +480,29 @@ func (pg Page) importRaw(ctx *alborz.Context, collPath string, raw []byte) error
 	return nil
 }
 
-// importRefusal says why an import stopped: a server's refusal as any write's, any other as it came.
-func importRefusal(ctx *alborz.Context, err error) string {
+// UnreadableError is a file its parser could not read, for the reader to correct.
+type UnreadableError struct{ Err error }
+
+func (e *UnreadableError) Error() string { return "failed to read the file: " + e.Err.Error() }
+func (e *UnreadableError) Unwrap() error { return e.Err }
+
+// ImportAnswered says whether an import stopped on the reader's file or the server's answer, rather than alborz failing.
+func ImportAnswered(err error) bool {
+	var unreadable *UnreadableError
+	return errors.As(err, &unreadable) || dav.ServerRefused(err)
+}
+
+// ImportRefused is a failed notice for an import the file or the server stopped.
+func ImportRefused(ctx *alborz.Context, err error) alborz.Notice {
+	return alborz.Notice{Kind: alborz.NoticeFailed, Text: ImportRefusal(ctx, err)}
+}
+
+// ImportRefusal says why an import stopped: an unreadable file with the parser's reason, a server's refusal as any write's, any other as it came.
+func ImportRefusal(ctx *alborz.Context, err error) string {
+	var unreadable *UnreadableError
+	if errors.As(err, &unreadable) {
+		return fmt.Sprintf(ctx.T("import.unreadable"), unreadable.Err)
+	}
 	if dav.ServerRefused(err) {
 		return Refusal(ctx, err)
 	}
@@ -598,14 +619,14 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		}
 		if place, isNew := strings.CutPrefix(collPath, newPrefix); isNew || len(files) > 1 {
 			if err := pg.importMany(ctx, list, files, place, isNew, collPath); err != nil {
-				data.Refused(importRefusal(ctx, err))
+				data.Refused(ImportRefusal(ctx, err))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 		}
 		if err := pg.importRaw(ctx, collPath, raw); err != nil {
 			// A file that is not what it claims answers on the form, where another can be picked.
-			data.Refused(importRefusal(ctx, err))
+			data.Refused(ImportRefusal(ctx, err))
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))

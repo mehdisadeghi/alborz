@@ -451,6 +451,18 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 			t.Errorf("the import page does not say the file could not be read, and why")
 		}
 	})
+	for name, ics := range map[string]string{
+		"a parameter the line ends in":   "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:plan\r\nX;A=b\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+		"a file cut off inside an event": "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:plan\r\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			resp := upload(base+"/calendar/import", url.Values{"collection": {smokeUser + "|" + personal}}, "plan.ics", ics)
+			page, _ := io.ReadAll(resp.Body)
+			if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(string(page), unreadable) {
+				t.Errorf("the file answered %s without saying it could not be read, want 422", resp.Status)
+			}
+		})
+	}
 	t.Run("an unreadable file into an address book", func(t *testing.T) {
 		resp := upload(base+"/address-books/"+url.PathEscape(friends)+"/import", nil, "ada.vcf", "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Ada\r\n")
 		if resp.StatusCode != http.StatusFound {

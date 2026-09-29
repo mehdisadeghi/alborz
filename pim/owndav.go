@@ -58,9 +58,7 @@ type davVerdict struct {
 
 func newDAVPasswords() *davPasswords {
 	p := &davPasswords{checked: make(map[[sha256.Size]byte]davVerdict)}
-	if _, err := rand.Read(p.salt[:]); err != nil {
-		panic(err)
-	}
+	rand.Read(p.salt[:])
 	return p
 }
 

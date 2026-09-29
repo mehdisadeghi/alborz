@@ -380,9 +380,7 @@ func (pg Page) HandlePublish(p *dav.Provider, publish bool) func(*alborz.Context
 		secret := ""
 		if publish {
 			raw := make([]byte, publicSecretBytes)
-			if _, err := rand.Read(raw); err != nil {
-				return err
-			}
+			rand.Read(raw)
 			secret = base64.RawURLEncoding.EncodeToString(raw)
 		}
 		if err := p.Store.Update(ref, func(c *store.Collection) { c.Public = secret }); err != nil {

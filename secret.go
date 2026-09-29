@@ -56,9 +56,7 @@ func (l *Login) seal(plain string) (envelope, error) {
 		return envelope{}, err
 	}
 	salt := make([]byte, envelopeSalt)
-	if _, err := rand.Read(salt); err != nil {
-		return envelope{}, err
-	}
+	rand.Read(salt)
 	return envelope{
 		Secret:     wrap([]byte(plain), &k),
 		Salt:       base64.StdEncoding.EncodeToString(salt),

@@ -440,3 +440,24 @@ func (p *plugin) subscriptionObjects(infos []dav.Collection, scope string) []Cal
 	}
 	return out
 }
+
+// refresh fetches every signed-in account's feeds, then asks the DAV servers again.
+func (p *plugin) refresh(ctx *alborz.Context) error {
+	rc := ctx.Request().Context()
+	var fetches sync.WaitGroup
+	for _, login := range ctx.Logins() {
+		settings, err := loadSettings(rc, login.Store())
+		if err != nil {
+			return err
+		}
+		for _, sub := range settings.Subscriptions {
+			fetches.Go(func() {
+				if _, err := p.feeds.refresh(rc, sub.URL); err != nil {
+					ctx.Logger().Printf("calendar: feed %s: %v", sub.URL, err)
+				}
+			})
+		}
+	}
+	fetches.Wait()
+	return p.dav.HandleRefresh("/calendar")(ctx)
+}

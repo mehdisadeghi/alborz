@@ -168,7 +168,7 @@ func registerRoutes(p *plugin) {
 	POST("/tasks", pim.HandleChoose("/tasks", "cal", choose(func(s *Settings, paths []string) {
 		s.TaskFilter, s.VisibleTasks = true, paths
 	})))
-	POST("/calendar/refresh", p.dav.HandleRefresh("/calendar"))
+	POST("/calendar/refresh", p.refresh)
 	POST("/tasks/refresh", p.dav.HandleRefresh("/tasks"))
 	GET("/calendar", p.month)
 	GET("/calendar/export", p.exportMonth)

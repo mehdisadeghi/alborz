@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
@@ -53,9 +54,16 @@ const smokePass = "x"
 
 // sentMail collects what the server actually put on the wire.
 type sentMail struct {
-	mu   sync.Mutex
-	last string
-	all  []string
+	mu       sync.Mutex
+	last     string
+	all      []string
+	sessions int
+}
+
+func (s *sentMail) Sessions() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.sessions
 }
 
 func (s *sentMail) Last() string {
@@ -73,6 +81,9 @@ func (s *sentMail) All() []string {
 type smtpBackend struct{ got *sentMail }
 
 func (b *smtpBackend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
+	b.got.mu.Lock()
+	b.got.sessions++
+	b.got.mu.Unlock()
 	return &smtpSession{got: b.got}, nil
 }
 
@@ -111,7 +122,8 @@ func (s *smtpSession) Data(r io.Reader) error {
 	return nil
 }
 
-func startSMTP(t *testing.T) (string, *sentMail) {
+// startSMTP leaves the extensions named in hidden out of its EHLO.
+func startSMTP(t *testing.T, hidden ...string) (string, *sentMail) {
 	t.Helper()
 	got := &sentMail{}
 	srv := smtp.NewServer(&smtpBackend{got: got})
@@ -121,9 +133,35 @@ func startSMTP(t *testing.T) (string, *sentMail) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go srv.Serve(ln)
+	go srv.Serve(ehloHiding{ln, hidden})
 	t.Cleanup(func() { srv.Close() })
 	return ln.Addr().String(), got
+}
+
+type ehloHiding struct {
+	net.Listener
+	hidden []string
+}
+
+func (l ehloHiding) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	return ehloHidingConn{c, l.hidden}, err
+}
+
+type ehloHidingConn struct {
+	net.Conn
+	hidden []string
+}
+
+func (c ehloHidingConn) Write(b []byte) (int, error) {
+	out := b
+	for _, ext := range c.hidden {
+		out = bytes.ReplaceAll(out, []byte("250-"+ext+"\r\n"), nil)
+	}
+	if _, err := c.Conn.Write(out); err != nil {
+		return 0, err
+	}
+	return len(b), nil
 }
 
 // The second account's draft makes one deleted on the wrong account go missing.
@@ -1975,15 +2013,7 @@ func TestForwardLeavesAsTheSentCopyKeepsIt(t *testing.T) {
 		t.Fatalf("%d bytes left, fewer than the file and the original weigh", len(out))
 	}
 
-	if _, err := ic.Select("Sent", nil).Wait(); err != nil {
-		t.Fatal(err)
-	}
-	section := &imap.FetchItemBodySection{Peek: true}
-	kept, err := ic.Fetch(imap.SeqSetNum(1), &imap.FetchOptions{BodySection: []*imap.FetchItemBodySection{section}}).Collect()
-	if err != nil || len(kept) != 1 {
-		t.Fatalf("the Sent copy: %v", err)
-	}
-	if stored := kept[0].FindBodySection(section); string(stored) != out {
+	if stored := sentCopy(t, imapAddr); stored != out {
 		t.Fatalf("the Sent copy (%d bytes) is not what left (%d bytes)", len(stored), len(out))
 	}
 
@@ -2101,6 +2131,154 @@ func TestForwardedImageTravelsBesideTheHTML(t *testing.T) {
 	if !found {
 		t.Fatalf("the forward left without the image:\n%s", headOf(sent.Last()))
 	}
+}
+
+// A message attached whole is never encoded (RFC 2046 5.2.1); one the way
+// out cannot carry as it is goes as a file, its bytes intact.
+func TestAttachedMessageTravelsAsItsBytesAllow(t *testing.T) {
+	long := strings.Repeat("x", 998)
+	head := "From: <eve@example.org>\r\nTo: <" + smokeUser + ">\r\nSubject: Whole\r\nMIME-Version: 1.0\r\n"
+	sevenBit := head + "Content-Type: text/plain\r\n\r\nPlain.\r\n" + long + "\r\n"
+	eightBit := head + "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\nسلام\r\n" + long + "\r\n"
+	binary := head + "Content-Type: application/octet-stream\r\nContent-Transfer-Encoding: binary\r\n\r\na\x00b\r\n"
+	for _, c := range []struct {
+		name, original string
+		hidden         []string
+		mediaType, cte string
+	}{
+		{"7bit", sevenBit, nil, "message/rfc822", "7bit"},
+		{"8bit", eightBit, nil, "message/rfc822", "8bit"},
+		{"8bit without 8BITMIME", eightBit, []string{"8BITMIME"}, "application/octet-stream", "base64"},
+		{"binary", binary, nil, "application/octet-stream", "base64"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			imapAddr := startIMAP(t)
+			uid := appendMessage(t, imapAddr, "INBOX", c.original)
+			smtpAddr, sent := startSMTP(t, c.hidden...)
+			base := startAlborz(t, imapAddr, smtpAddr)
+			cl := login(t, base)
+			sendFrom(t, cl, base, "/compose", get(t, cl, base+"/compose"), "attached_messages", "INBOX/"+uid)
+			out := sent.Last()
+			if out == "" {
+				t.Fatal("nothing left")
+			}
+			if n := sent.Sessions(); n != 1 {
+				t.Errorf("the send took %d SMTP sessions, want one", n)
+			}
+
+			e, err := message.Read(strings.NewReader(out))
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			e.Walk(func(_ []int, part *message.Entity, err error) error {
+				if err != nil {
+					return err
+				}
+				if disposition, _, _ := part.Header.ContentDisposition(); disposition != "attachment" {
+					return nil
+				}
+				found = true
+				mediaType, _, _ := part.Header.ContentType()
+				if cte := part.Header.Get("Content-Transfer-Encoding"); mediaType != c.mediaType || cte != c.cte {
+					t.Errorf("the message went as %s, %s; want %s, %s", mediaType, cte, c.mediaType, c.cte)
+				}
+				if got, _ := io.ReadAll(part.Body); string(got) != c.original {
+					t.Errorf("the message arrived as %q", got)
+				}
+				return nil
+			})
+			if !found {
+				t.Fatalf("the message left without the one attached:\n%s", headOf(out))
+			}
+			if kept := sentCopy(t, imapAddr); kept != out {
+				t.Errorf("the Sent copy (%d bytes) is not what left (%d bytes)", len(kept), len(out))
+			}
+		})
+	}
+}
+
+// A whole message the mail server cannot hand over is not the SMTP server's
+// refusal; the form comes back saying which it was.
+func TestUnreadableOriginalIsNotASendRefusal(t *testing.T) {
+	mem := imapmemserver.New()
+	user := imapmemserver.NewUser(smokeUser, smokePass)
+	for _, name := range []string{"INBOX", "Sent"} {
+		if err := user.Create(name, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw := "From: <eve@example.org>\r\nSubject: Gone\r\n\r\nBody.\r\n"
+	appended, err := user.Append("INBOX", literal{strings.NewReader(raw), int64(len(raw))}, &imap.AppendOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mem.AddUser(user)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := imapserver.New(&imapserver.Options{
+		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
+			return wholeFetchFails{mem.NewSession()}, nil, nil
+		},
+		Caps:         imap.CapSet{imap.CapIMAP4rev1: {}},
+		InsecureAuth: true,
+	})
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+
+	smtpAddr, sent := startSMTP(t)
+	base := startAlborz(t, ln.Addr().String(), smtpAddr)
+	c := login(t, base)
+	resp := postCompose(t, c, base, "/compose", get(t, c, base+"/compose"),
+		"attached_messages", fmt.Sprintf("INBOX/%d", appended.UID))
+	page, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("an unreadable original answered %s, want 422", resp.Status)
+	}
+	notice := noticeBar(string(page))
+	if !strings.Contains(notice, "could not be read from the mail server") || strings.Contains(notice, "was not sent. The server said") {
+		t.Errorf("the form does not say the original was unreadable:\n%s", notice)
+	}
+	if sent.Sessions() != 0 {
+		t.Errorf("the SMTP server was contacted for a message that could not be written")
+	}
+}
+
+// wholeFetchFails refuses to hand over a whole message, as a server might
+// when the message went meanwhile.
+type wholeFetchFails struct{ imapserver.Session }
+
+func (s wholeFetchFails) Fetch(w *imapserver.FetchWriter, numSet imap.NumSet, options *imap.FetchOptions) error {
+	for _, section := range options.BodySection {
+		if section.Specifier == imap.PartSpecifierNone && len(section.Part) == 0 {
+			return errors.New("the message is gone")
+		}
+	}
+	return s.Session.Fetch(w, numSet, options)
+}
+
+func sentCopy(t *testing.T, imapAddr string) string {
+	t.Helper()
+	ic, err := imapclient.DialInsecure(imapAddr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ic.Close()
+	if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ic.Select("Sent", nil).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	section := &imap.FetchItemBodySection{Peek: true}
+	kept, err := ic.Fetch(imap.SeqSetNum(1), &imap.FetchOptions{BodySection: []*imap.FetchItemBodySection{section}}).Collect()
+	if err != nil || len(kept) != 1 {
+		t.Fatalf("the Sent copy: %v", err)
+	}
+	return string(kept[0].FindBodySection(section))
 }
 
 // Opening a signed message reads only the part it shows; the verdict, which

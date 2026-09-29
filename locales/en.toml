@@ -3,6 +3,7 @@
 "form.nametaken" = "A collection named %s is already there."
 "form.sendrefused" = "The message was not sent. The server said: %s"
 "form.draftrefused" = "The draft was not saved. The server said: %s"
+"form.originalunreadable" = "The original could not be read from the mail server: %s"
 "form.saverefused" = "The change was not saved. The server said: %s"
 "form.summaryneeded" = "A summary is required."
 "form.recipientneeded" = "Add at least one recipient."

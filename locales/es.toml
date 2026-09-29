@@ -3,6 +3,7 @@
 "form.nametaken" = "Ya existe una colección llamada %s."
 "form.sendrefused" = "El mensaje no se envió. El servidor dijo: %s"
 "form.draftrefused" = "El borrador no se guardó. El servidor dijo: %s"
+"form.originalunreadable" = "No se pudo leer el original del servidor de correo: %s"
 "form.saverefused" = "El cambio no se guardó. El servidor dijo: %s"
 "form.summaryneeded" = "Se requiere un asunto."
 "form.recipientneeded" = "Añada al menos un destinatario."

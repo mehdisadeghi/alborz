@@ -6,7 +6,6 @@ import (
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-smtp"
 )
 
 func invitationPart(msg *IMAPMessage) *IMAPPartNode {
@@ -73,12 +72,9 @@ func SendText(ctx *alborz.Context, to []string, subject, text string, headers ma
 
 // send posts a message no folder keeps.
 func send(ctx *alborz.Context, msg *OutgoingMessage) error {
-	body, err := spool(msg)
+	body, err := deliver(ctx.Login, msg)
 	if err != nil {
 		return err
 	}
-	defer body.Close()
-	return ctx.DoSMTP(func(c *smtp.Client) error {
-		return sendMessage(c, msg, body)
-	})
+	return body.Close()
 }

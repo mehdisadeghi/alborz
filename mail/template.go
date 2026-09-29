@@ -102,13 +102,7 @@ var TemplateFuncs = template.FuncMap{
 	// template.URL, or the escaper would percent-encode what QueryValue left alone.
 	"qv":         func(v string) template.URL { return template.URL(alborz.QueryValue(v)) },
 	"subjectdir": lang.SubjectDir,
-	// template.URL, so the escaper normalises rather than escapes the address.
-	"account": func(sep, username string) template.URL {
-		if username == "" {
-			return ""
-		}
-		return template.URL(sep + "account=" + alborz.QueryValue(username))
-	},
+	"account":    alborz.AccountParam,
 	"localhref": func(raw string) template.URL {
 		if raw == "" {
 			return ""

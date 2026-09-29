@@ -51,7 +51,7 @@
     </span>
     </span>
 
-    {{ $flagAction := printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount) }}{{ if .Merged }}{{ $flagAction = printf "%s?action=flag" $act }}{{ end }}
+    {{ $flagAction := printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $.GlobalData.AccountQuery }}{{ if .Merged }}{{ $flagAction = printf "%s?action=flag" $act }}{{ end }}
     {{ template "flag-menu" (dict
        "priority" 12
        "form" "messages-form"

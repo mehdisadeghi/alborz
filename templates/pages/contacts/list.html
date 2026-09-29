@@ -1,5 +1,5 @@
 {{ define "rail" }}
-  {{ $q := account "?" .GlobalData.URLAccount }}{{ $sep := "?" }}{{ if $q }}{{ $sep = "&" }}{{ end }}
+  {{ $q := .GlobalData.AccountQuery }}{{ $sep := "?" }}{{ if $q }}{{ $sep = "&" }}{{ end }}
   {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" "/contacts" "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "edithref" "/address-books/" "invitations" .Invitations
      "new" (dict "href" (printf "/address-books/create?next=%s" (.GlobalData.URL.RequestURI | qv)) "label" ($.T "contacts.newbook"))
      "views" (dict "path" "/contacts" "view" .View "account" .GlobalData.URLAccount)

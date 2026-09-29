@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-  {{ $aq := account "?" .GlobalData.URLAccount }}
+  {{ $aq := .GlobalData.AccountQuery }}
       <form method="post" action="/filters{{$aq}}" class="filter">
         {{ with .GlobalData.From }}<input type="hidden" name="next" value="{{.}}">{{ end }}
         {{ template "filters-crumb" (dict "g" $ "chooses" (and (not .Name) (gt (len .Accounts) 1))) }}

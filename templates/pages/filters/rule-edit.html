@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-  {{ $aq := account "?" .GlobalData.URLAccount }}
+  {{ $aq := .GlobalData.AccountQuery }}
       <form method="post" action="/filters/rules{{$aq}}" class="rule">
         {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" "/filters/rules") }}
         <h1>{{ if ge .Index 0 }}{{$.T "filters.ruleedit"}}{{ else }}{{$.T "filters.rulenew"}}{{ end }}</h1>

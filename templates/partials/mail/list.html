@@ -1,6 +1,6 @@
 {{ define "message-list" }}
       {{ template "next-form" (dict "id" "messages-form" "next" $.GlobalData.URL.RequestURI) }}
-      {{ template "next-form" (dict "id" "refresh-form" "action" (printf "/mailbox/%s/refresh%s" (.Mailbox.Name | pathescape) (account "?" $.GlobalData.URLAccount)) "next" $.GlobalData.URL.RequestURI) }}
+      {{ template "next-form" (dict "id" "refresh-form" "action" (printf "/mailbox/%s/refresh%s" (.Mailbox.Name | pathescape) $.GlobalData.AccountQuery) "next" $.GlobalData.URL.RequestURI) }}
         {{ template "mail-toolbar" . }}
       <div class="crumb-slot">
       {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "heading" true "steps" .Crumb) }}
@@ -20,7 +20,7 @@
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove") "offers" (tuple (tuple $whole ($.T "mailbox.searchtext")) (tuple $everywhere ($.T "search.allfolders")))) }}
       {{/* On the part every swap renews: on main they stayed those of the first
            folder loaded. */}}
-      <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{.Mailbox.URL}}{{ account "?" $.GlobalData.URLAccount }}"{{ end }}>
+      <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{.Mailbox.URL}}{{ $.GlobalData.AccountQuery }}"{{ end }}>
         <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}>
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}

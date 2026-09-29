@@ -5,7 +5,7 @@
 
 {{ define "before-main" }}
     {{ template "next-form" (dict "id" "events-form" "next" $.GlobalData.URL.RequestURI) }}
-    {{ template "next-form" (dict "id" "refresh-form" "action" (printf "/calendar/refresh%s" (account "?" $.GlobalData.URLAccount)) "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "next-form" (dict "id" "refresh-form" "action" (printf "/calendar/refresh%s" $.GlobalData.AccountQuery) "next" $.GlobalData.URL.RequestURI) }}
 {{ end }}
 
 {{ define "main-class" }} class="list"{{ end }}

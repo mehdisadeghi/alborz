@@ -97,6 +97,19 @@ func (g *GlobalRenderData) Dir() string {
 	return g.T("language.dir")
 }
 
+// AccountQuery keeps a link in the request's account.
+func (g *GlobalRenderData) AccountQuery() template.URL {
+	return AccountParam("?", g.URLAccount)
+}
+
+// AccountParam names the account in a link; template.URL, so the escaper normalises rather than escapes the address.
+func AccountParam(sep, username string) template.URL {
+	if username == "" {
+		return ""
+	}
+	return template.URL(sep + "account=" + QueryValue(username))
+}
+
 // BaseRenderData is the base type for templates, embedded in template-specific ones.
 type BaseRenderData struct {
 	GlobalData GlobalRenderData

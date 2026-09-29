@@ -8,7 +8,7 @@
           {{ if not .readonly }}
           <a class="icon-button" href="{{ localhref (from (printf "%s/%s%s" .url .edit .acct) $g.GlobalData.From) }}" title="{{$g.T "common.edit"}}" aria-label="{{$g.T "common.edit"}}">{{ template "icon" "edit" }}</a>
           {{ end }}
-          <a hx-boost="false" class="icon-button" href="{{.url}}/raw{{ account "?" $g.GlobalData.URLAccount }}" title="{{$g.T "common.source"}}" aria-label="{{$g.T "common.source"}}">{{ template "icon" "source" }}</a>
+          <a hx-boost="false" class="icon-button" href="{{.url}}/raw{{ $g.GlobalData.AccountQuery }}" title="{{$g.T "common.source"}}" aria-label="{{$g.T "common.source"}}">{{ template "icon" "source" }}</a>
           <a hx-boost="false" class="icon-button" href="{{.url}}/raw?save=1{{ account "&" $g.GlobalData.URLAccount }}" title="{{ printf ($g.T "common.saveas") .ext }}" aria-label="{{ printf ($g.T "common.saveas") .ext }}">{{ template "icon" "download" }}</a>
           {{ if not .readonly }}
           <form action="{{.url}}/delete{{.acct}}" method="post">

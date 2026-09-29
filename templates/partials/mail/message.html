@@ -7,8 +7,8 @@
           <tr id="message-conversation"{{ if not (or .InReplyTo .Answers .Message.ListID .ContextPending) }} hidden{{ end }}>
             <th scope="row">{{ if .ThreadSupported }}<a href="{{ localhref (printf "%v?thread=%d%s" $.Mailbox.URL .Message.UID (account "&" $.GlobalData.URLAccount)) }}">{{$.T "list.conversation"}}</a>{{ else }}{{$.T "list.conversation"}}{{ end }}:</th>
             <td class="conversation">
-              {{ with .InReplyTo }}<a href="{{.URL}}{{account "?" $.GlobalData.URLAccount}}">{{ printf ($.T "list.answering") (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}
-              {{ with .Answers }}<a href="{{ (index . 0).URL }}{{account "?" $.GlobalData.URLAccount}}">{{ if eq (len .) 1 }}{{ printf ($.T "list.answeredby") (or (index . 0).From ($.T "mailbox.nosender")) }}{{ else }}{{ printf ($.T "list.answeredbymore") (or (index . 0).From ($.T "mailbox.nosender")) (sub (len .) 1) }}{{ end }}</a>{{ end }}
+              {{ with .InReplyTo }}<a href="{{.URL}}{{$.GlobalData.AccountQuery}}">{{ printf ($.T "list.answering") (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}
+              {{ with .Answers }}<a href="{{ (index . 0).URL }}{{$.GlobalData.AccountQuery}}">{{ if eq (len .) 1 }}{{ printf ($.T "list.answeredby") (or (index . 0).From ($.T "mailbox.nosender")) }}{{ else }}{{ printf ($.T "list.answeredbymore") (or (index . 0).From ($.T "mailbox.nosender")) (sub (len .) 1) }}{{ end }}</a>{{ end }}
               {{ with .Message.ListID }}<a href="{{ localhref (printf "%v?query=list:%s%s" $.Mailbox.URL (. | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ printf ($.T "list.via") . }}</a>{{ end }}
             </td>
           </tr>

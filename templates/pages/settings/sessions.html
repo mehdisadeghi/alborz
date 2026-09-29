@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
-  {{ $aq := account "?" .GlobalData.URLAccount }}
+  {{ $aq := .GlobalData.AccountQuery }}
       {{ template "settings-head" (dict "g" $ "title" ($.T "sessions.title") "path" "/settings/sessions") }}
       <section class="list-items">
         {{ range .Signed }}

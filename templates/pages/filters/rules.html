@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
-  {{ $aq := account "?" .GlobalData.URLAccount }}
+  {{ $aq := .GlobalData.AccountQuery }}
         {{ template "list-toolbar" (dict "g" $ "title" ($.T "filters.rules") "newhref" (printf "/filters/rules/create%s" $aq) "newlabel" ($.T "filters.rulenew") "pager" .Pager) }}
 
       {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" "/filters/rules") }}

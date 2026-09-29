@@ -3,13 +3,17 @@ package pim
 import (
 	"strings"
 	"time"
+
+	"git.mehdix.org/alborz"
 )
 
-// AppendNote appends a dated line to a free-text note, separated by a blank line.
-func AppendNote(existing, note string, when time.Time) string {
+// noteStamp is ISO 8601 in Gregorian whatever the reader's calendar: the note is stored data other clients read.
+const noteStamp = "2006-01-02T15:04Z07:00"
+
+// AppendNote appends a line stamped with the reader's time and offset to a free-text note, separated by a blank line.
+func AppendNote(ctx *alborz.Context, existing, note string) string {
 	note = strings.ReplaceAll(note, "\r", "")
-	stamp := when.Format("2006-01-02 15:04")
-	entry := stamp + "\n" + note
+	entry := time.Now().In(alborz.UserLocation(ctx)).Format(noteStamp) + "\n" + note
 	if strings.TrimSpace(existing) == "" {
 		return entry
 	}

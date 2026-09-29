@@ -248,7 +248,7 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) fu
 				}
 				_, err := changeComponent(ctx, ref, comp, func(target *ical.Component) {
 					existing, _ := target.Props.Text(ical.PropDescription)
-					target.Props.SetText(ical.PropDescription, pim.AppendNote(existing, note, time.Now()))
+					target.Props.SetText(ical.PropDescription, pim.AppendNote(ctx, existing, note))
 				})
 				return err
 			}})

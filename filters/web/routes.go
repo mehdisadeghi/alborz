@@ -1,4 +1,4 @@
-package filters
+package web
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/filters"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -283,7 +284,7 @@ func handleEditFilter(ctx *web.Context) error {
 		Rail:           rail(ctx),
 		Name:           name,
 		Content:        content,
-		Loaded:         Fingerprint(content),
+		Loaded:         filters.Fingerprint(content),
 	})
 }
 
@@ -313,10 +314,10 @@ func handleSaveFilter(ctx *web.Context) error {
 	loaded := ctx.FormValue("loaded")
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		var err error
-		warnings, err = SaveScript(c, name, content, loaded)
+		warnings, err = filters.SaveScript(c, name, content, loaded)
 		return err
 	})
-	if errors.Is(err, ErrChanged) {
+	if errors.Is(err, filters.ErrChanged) {
 		return ctx.Render(http.StatusConflict, "filters/filter-edit", &FilterRenderData{
 			BaseRenderData: *web.NewBaseRenderData(ctx).Refused(ctx.T("filters.changed")),
 			Rail:           rail(ctx),

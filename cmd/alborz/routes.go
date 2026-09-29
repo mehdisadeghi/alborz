@@ -2,7 +2,7 @@ package main
 
 import (
 	authweb "git.mehdix.org/alborz/auth/web"
-	"git.mehdix.org/alborz/filters"
+	filtersweb "git.mehdix.org/alborz/filters/web"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
@@ -40,7 +40,7 @@ func mount(s *web.Server) error {
 	if err := contacts.Mount(app.Group("", "contacts"), st); err != nil {
 		return err
 	}
-	filters.Mount(app.Group("/filters", "filters"))
+	filtersweb.Mount(app.Group("/filters", "filters"))
 	web.Fallback(app)
 	return nil
 }

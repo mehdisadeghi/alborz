@@ -36,7 +36,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	authweb "git.mehdix.org/alborz/auth/web"
-	"git.mehdix.org/alborz/filters"
+	filtersweb "git.mehdix.org/alborz/filters/web"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
@@ -356,7 +356,7 @@ func newAlborz(t *testing.T, ln net.Listener, options web.Options, setup ...func
 	if err := contacts.Mount(app.Group("", "contacts"), st); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	filters.Mount(app.Group("/filters", "filters"))
+	filtersweb.Mount(app.Group("/filters", "filters"))
 	web.Fallback(app)
 	h, err := s.Handler()
 	if err != nil {

@@ -94,6 +94,11 @@ type collection struct {
 	read bool
 }
 
+// waiting says a failed sync is not tried again until the round would, so a down server is not asked on every read.
+func (c *collection) waiting(now time.Time, poll time.Duration) bool {
+	return now.Sub(c.failed) <= poll-tick
+}
+
 func (r *reader) coll(p string) *collection {
 	c := r.colls[p]
 	if c == nil {
@@ -379,10 +384,10 @@ func (m *Mirror) ready(ctx context.Context, u string, target *url.URL) (bool, er
 	m.mu.Lock()
 	c := m.reader(u).coll(target.Path)
 	c.read = true
-	failed := time.Since(c.failed) < m.poll
+	failed := c.waiting(time.Now(), m.poll)
 	m.mu.Unlock()
 	if ok {
-		if time.Since(h.Synced) > m.poll {
+		if time.Since(h.Synced) > m.poll && !failed {
 			m.start(alborz.Background(context.Background()), u, target)
 		}
 		return true, nil
@@ -610,9 +615,9 @@ func (m *Mirror) round(ctx context.Context, now time.Time) {
 			coll := h.target().Path
 			m.mu.Lock()
 			c := m.reader(u).coll(coll)
-			read, failed := c.read, c.failed
+			read, failed := c.read, c.waiting(now, m.poll)
 			m.mu.Unlock()
-			if read && now.Sub(h.Synced) > m.poll-tick && now.Sub(failed) > m.poll-tick {
+			if read && now.Sub(h.Synced) > m.poll-tick && !failed {
 				due = append(due, h)
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
 )
@@ -25,10 +26,11 @@ type RailInvitations struct {
 	Items      []Invitation
 }
 
-func (p *Provider) invitations(ctx *web.Context) ([]Invitation, error) {
+// Invitations are the logins' open invitations to collections of the kind.
+func (p *Provider) Invitations(logins []*alborz.Login) ([]Invitation, error) {
 	now := time.Now()
 	var out []Invitation
-	for _, s := range ctx.Logins() {
+	for _, s := range logins {
 		account := strings.ToLower(s.Username())
 		shares, err := p.Store.Shares(func(sh store.Share) bool {
 			return sh.To == account && !sh.Accepted && !sh.Declined && !sh.Left && (sh.Expires.IsZero() || now.Before(sh.Expires))
@@ -55,7 +57,7 @@ func (p *Provider) invitations(ctx *web.Context) ([]Invitation, error) {
 
 // RailInvitations are the open invitations the section's rail offers, answered under the collection route; nil for none.
 func (p *Provider) RailInvitations(ctx *web.Context, collection string) (*RailInvitations, error) {
-	items, err := p.invitations(ctx)
+	items, err := p.Invitations(ctx.Logins())
 	if err != nil || len(items) == 0 {
 		return nil, err
 	}

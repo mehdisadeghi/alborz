@@ -394,7 +394,7 @@ func joinCalendars(objects [][]byte) ([]byte, error) {
 
 func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
 	loc := web.UserLocation(ctx)
-	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s, loc) })
+	p.dav.Warm(s, func(bg context.Context) error { return p.warmAccount(bg, s, loc) })
 }
 
 func (p *plugin) warmAccount(ctx context.Context, s *alborz.Login, loc *time.Location) error {

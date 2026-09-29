@@ -23,7 +23,7 @@ func (p *plugin) client(ctx context.Context, login *alborz.Login) (*caldav.Clien
 // Mount serves calendars and tasks.
 func Mount(g *web.Group, st *store.Store) error {
 	srv := g.Server()
-	provider, err := dav.NewProvider(srv, st, dav.Kind{
+	provider, err := dav.NewProvider(srv.Server, st, dav.Kind{
 		Name: "caldav", Label: "CalDAV",
 		Schemes: [2]string{"caldavs", "caldav+insecure"},
 		// Invitations and tasks ticked on a phone should show within minutes.

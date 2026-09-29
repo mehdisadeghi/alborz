@@ -125,7 +125,7 @@ func joinCards(cards [][]byte) ([]byte, error) {
 }
 
 func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
-	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s) })
+	p.dav.Warm(s, func(bg context.Context) error { return p.warmAccount(bg, s) })
 }
 
 func (p *plugin) warmAccount(ctx context.Context, s *alborz.Login) error {

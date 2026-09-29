@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"github.com/alborzmail/go-itip/imip"
+	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
@@ -648,8 +650,8 @@ func PartAt(ctx *alborz.Context, mboxName string, uid imap.UID, part string) ([]
 	return raw, mediaType, err
 }
 
-// CalendarPartAt reads the scheduling part of one message, and the part it is.
-func CalendarPartAt(ctx *alborz.Context, mboxName string, uid imap.UID) ([]byte, string, error) {
+// CalendarPartAt reads the scheduling message of one mail, and the part it is.
+func CalendarPartAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
 	var msg *IMAPMessage
 	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
@@ -672,13 +674,13 @@ func CalendarPartAt(ctx *alborz.Context, mboxName string, uid imap.UID) ([]byte,
 	return CalendarPart(ctx, msg, mboxName, uid)
 }
 
-// CalendarPart reads the scheduling part of a fetched message; nil for none.
-func CalendarPart(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) ([]byte, string, error) {
+// CalendarPart reads the scheduling message of a fetched mail; nil for none.
+func CalendarPart(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
 	part := invitationPart(msg)
 	if part == nil {
 		return nil, "", nil
 	}
-	var raw []byte
+	var cal *ical.Calendar
 	err := ctx.DoIMAP(func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
@@ -694,13 +696,16 @@ func CalendarPart(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid im
 		if err != nil {
 			return err
 		}
-		raw, err = io.ReadAll(entity.Body)
+		cals, err := imip.Read(entity)
+		if len(cals) > 0 {
+			cal = cals[0]
+		}
 		return err
 	})
 	if err != nil {
 		return nil, "", err
 	}
-	return raw, part.PathString(), nil
+	return cal, part.PathString(), nil
 }
 
 // The URI is re-read from the message, so a page cannot make us post anywhere (RFC 8058).

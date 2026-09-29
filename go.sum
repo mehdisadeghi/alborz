@@ -6,8 +6,8 @@ github.com/alborzmail/go-ical v0.0.0-20260928213756-d103982e72b1 h1:SpRBu/EZc9W3
 github.com/alborzmail/go-ical v0.0.0-20260928213756-d103982e72b1/go.mod h1:WdcLP4nI5QEkYrRShVi1qLT70IS7W2zfsf2P27rNSJY=
 github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26 h1:fP5cUVkFPLWab8omeK/sWtGirXpXmUL5PuJwyKXAMNg=
 github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26/go.mod h1:dhoFe2Q0PwLrMD7oZw8ODuaD0vLYPe5uj2wcOMnvh48=
-github.com/alborzmail/go-itip v0.0.0-20260928205626-4b0912c3ea74 h1:A/ANzWKB2iI3xG9msEd62Efb6vo82PQ/kvPcM1J4DMA=
-github.com/alborzmail/go-itip v0.0.0-20260928205626-4b0912c3ea74/go.mod h1:ouNfqegM/Xz/UrsTFyB6vqITDWJelhCgGghKEvjuGcQ=
+github.com/alborzmail/go-itip v0.0.0-20260929111949-05f20f0ab6b6 h1:eAULlOggIEAywrpdQtZthJ3c1wJLOcNVD0IzND2HEO8=
+github.com/alborzmail/go-itip v0.0.0-20260929111949-05f20f0ab6b6/go.mod h1:rwyM2jDji7cvDdobbF4nBTx9SaBKqLdse1KXy/ebQCU=
 github.com/alborzmail/go-mbox v0.0.0-20260921114627-f2df45e279df h1:KOcM48S3sXU2laPASgjaCsEIIdPaL+CtYok5AzPEYnA=
 github.com/alborzmail/go-mbox v0.0.0-20260921114627-f2df45e279df/go.mod h1:Yp9IVuuOYLEuMv4yjgDHvhb5mHOcYH6x92Oas3QqEZI=
 github.com/alborzmail/go-msgauth v0.0.0-20260928213517-dae367b5cecf h1:hud+wLir8ciZ1WfbAv1fuvVC0OA2YabKxahNl0J2jAc=

@@ -13,6 +13,8 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
+	"github.com/alborzmail/go-itip/imip"
+	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
@@ -246,8 +248,8 @@ type OutgoingMessage struct {
 	InReplyTo string
 	// References is the thread this message belongs to, oldest first.
 	References string
-	// CalendarMethod makes the body a scheduling message with this method (RFC 6047); empty for ordinary mail.
-	CalendarMethod string
+	// Calendar makes the mail a scheduling message, Text its plain alternative; nil for ordinary mail.
+	Calendar *ical.Calendar
 	// ReplyTo is where answers should go when that is not the From.
 	ReplyTo []string
 	// Sender is the mailbox transmitting for a different author; empty for one's own identity.
@@ -377,6 +379,10 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	}
 	h.Set("Message-Id", msg.MessageID)
 
+	if msg.Calendar != nil {
+		return imip.Write(w, h, msg.Calendar, msg.Text)
+	}
+
 	mw, err := mail.CreateWriter(w, h)
 	if err != nil {
 		return fmt.Errorf("failed to create mail writer: %v", err)
@@ -386,18 +392,13 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	// format=flowed lets the reader's client undo the soft breaks (RFC 3676).
 	th.Set("Content-Type", "text/plain; charset=utf-8; format=flowed")
 	body := wrapText(msg.Text)
-	if msg.CalendarMethod != "" {
-		// An iCalendar body's line breaks are its format; rewrapping would break it.
-		th.Set("Content-Type", "text/calendar; charset=utf-8; method="+msg.CalendarMethod)
-		body = msg.Text
-	}
 
 	switch {
-	case msg.HTML != "" && msg.CalendarMethod == "":
+	case msg.HTML != "":
 		if err := writeAlternative(mw, th, body, msg.HTML, msg.Inline); err != nil {
 			return err
 		}
-	case msg.SendHTML && msg.CalendarMethod == "":
+	case msg.SendHTML:
 		if err := writeAlternative(mw, th, body, lang.HTMLAlternative(msg.Text), nil); err != nil {
 			return err
 		}

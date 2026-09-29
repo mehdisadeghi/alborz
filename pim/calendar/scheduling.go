@@ -135,17 +135,12 @@ func sendScheduling(ctx *alborz.Context, msg *ical.Calendar, to []string) error 
 		return nil
 	}
 	messageZones(msg)
-	var buf bytes.Buffer
-	if err := ical.NewEncoder(&buf).Encode(msg); err != nil {
-		return fmt.Errorf("failed to write the scheduling object: %v", err)
-	}
-	method := itip.Method(msg)
 	summary, _ := msg.Events()[0].Props.Text(ical.PropSummary)
 	subject := summary
-	if method == itip.MethodCancel {
+	if itip.Method(msg) == itip.MethodCancel {
 		subject = ctx.T("invite.cancelledsubject") + ": " + summary
 	}
-	return mail.SendCalendarMessage(ctx, to, subject, method, buf.String())
+	return mail.SendCalendarMessage(ctx, to, subject, msg)
 }
 
 // A server that schedules (RFC 6638 2) tells the attendees itself; alborz telling them too sends everything twice.

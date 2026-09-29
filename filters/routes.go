@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -282,7 +283,7 @@ func handleEditFilter(ctx *web.Context) error {
 		Rail:           rail(ctx),
 		Name:           name,
 		Content:        content,
-		Loaded:         fingerprint(content),
+		Loaded:         Fingerprint(content),
 	})
 }
 
@@ -309,24 +310,13 @@ func handleSaveFilter(ctx *web.Context) error {
 	}
 
 	var warnings string
-	changed := false
 	loaded := ctx.FormValue("loaded")
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
-		if loaded != "" {
-			current, err := c.GetScript(name)
-			if err != nil {
-				return err
-			}
-			if fingerprint(current) != loaded {
-				changed = true
-				return nil
-			}
-		}
 		var err error
-		warnings, err = c.PutScript(name, content)
+		warnings, err = SaveScript(c, name, content, loaded)
 		return err
 	})
-	if err == nil && changed {
+	if errors.Is(err, ErrChanged) {
 		return ctx.Render(http.StatusConflict, "filters/filter-edit", &FilterRenderData{
 			BaseRenderData: *web.NewBaseRenderData(ctx).Refused(ctx.T("filters.changed")),
 			Rail:           rail(ctx),

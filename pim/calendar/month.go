@@ -102,7 +102,7 @@ func (p *plugin) month(ctx *web.Context) error {
 	}
 	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).
-			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(mv.start)),
+			WithTitle(ctx.T("nav.calendar") + ": " + ctx.Dates().MonthYear(mv.start)),
 		Time:      mv.start,
 		Now:       mv.now,
 		Since:     mv.since,

@@ -130,7 +130,7 @@ func (pg Page) sharing(ctx *web.Context, p *dav.Provider, info dav.Collection) (
 	if err != nil {
 		return nil, err
 	}
-	sharing := &Sharing{Shares: shares, OffersPublic: pg.Ext == ".ics", Until: ctx.InputDate(time.Time{})}
+	sharing := &Sharing{Shares: shares, OffersPublic: pg.Ext == ".ics", Until: ctx.Dates().Input(time.Time{})}
 	if c.Public != "" {
 		sharing.PublicURL = ctx.Origin() + store.PublicPath(c.Public)
 	}

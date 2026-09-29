@@ -29,18 +29,18 @@ var repeatFreqs = []string{"daily", "weekly", "monthly", "yearly"}
 
 func formRepeat(ctx *web.Context, event *ical.Event, loc *time.Location) Repeat {
 	if event.Props.Get(ical.PropRecurrenceRule) == nil {
-		return Repeat{Until: ctx.InputDate(time.Time{})}
+		return Repeat{Until: ctx.Dates().Input(time.Time{})}
 	}
 	rule, err := event.Props.RecurrenceRule()
 	if err != nil || !plain(*rule) {
-		return Repeat{Freq: repeatCustom, Until: ctx.InputDate(time.Time{})}
+		return Repeat{Freq: repeatCustom, Until: ctx.Dates().Input(time.Time{})}
 	}
 	freq := strings.ToLower(rule.Freq.String())
 	scale := cmp.Or(rule.Scale, calsys.Of("").RSCALE())
 	// A monthly or yearly rule in another calendar would mean other days if rewritten.
 	neutral := rule.Freq == recur.Daily || rule.Freq == recur.Weekly
 	if !slices.Contains(repeatFreqs, freq) || !neutral && scale != ctx.CalendarSystem().RSCALE() {
-		return Repeat{Freq: repeatCustom, Until: ctx.InputDate(time.Time{})}
+		return Repeat{Freq: repeatCustom, Until: ctx.Dates().Input(time.Time{})}
 	}
 	var until time.Time
 	if rule.Until != nil {
@@ -49,7 +49,7 @@ func formRepeat(ctx *web.Context, event *ical.Event, loc *time.Location) Repeat 
 			until = time.Date(rule.Until.Year(), rule.Until.Month(), rule.Until.Day(), rule.Until.Hour(), rule.Until.Minute(), rule.Until.Second(), 0, loc)
 		}
 	}
-	return Repeat{Freq: freq, Until: ctx.InputDate(until)}
+	return Repeat{Freq: freq, Until: ctx.Dates().Input(until)}
 }
 
 // plain reports whether the form can say rule: a frequency, a last day, and

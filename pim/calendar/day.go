@@ -48,7 +48,7 @@ func (p *plugin) day(ctx *web.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "calendar/day", &CalendarDateRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).
-			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(dv.start)),
+			WithTitle(ctx.T("nav.calendar") + ": " + ctx.Dates().Long(dv.start)),
 		// Named even when the URL omits it, so an opened event knows its list.
 		ListQuery:      dayQuery(ctx, dv.start),
 		Time:           dv.start,

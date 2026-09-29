@@ -225,7 +225,8 @@ type RenderData interface {
 
 // NewBaseRenderData initializes a new BaseRenderData.
 func NewBaseRenderData(ctx *Context) *BaseRenderData {
-	lang := requestLanguage(ctx)
+	reader := ctx.Dates()
+	lang := reader.Lang
 	global := GlobalRenderData{
 		Path:           strings.Split(ctx.Request().URL.Path, "/")[1:],
 		Title:          alborz.BrandName,
@@ -249,7 +250,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.Language = ctx.language()
 	global.LanguageChoices = locale.Choices()
 	global.Year = time.Now().Year()
-	global.Primary, global.Secondary = ctx.calendars()
+	global.Primary, global.Secondary, global.Timezone = reader.Primary, reader.Secondary, reader.Loc
 	global.Theme = ctx.Theme()
 	global.TextSize = ctx.TextSize()
 	global.Unified = ctx.Unified
@@ -279,10 +280,6 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 		global.LoggedIn = true
 		global.Username = ctx.Login.Username()
 		global.Accounts = ctx.Accounts()
-		// Unset means times keep their stored zones.
-		if loc := UserLocation(ctx); loc != time.UTC {
-			global.Timezone = loc
-		}
 		global.FirstDayOfWeek = ctx.Reading().WeekStart()
 	}
 
@@ -361,19 +358,18 @@ func (brd *BaseRenderData) WithItem() *BaseRenderData {
 	return brd
 }
 
-// dates is the reader of this request, for what is written before the render data exists.
-func (ctx *Context) dates() dates.Reader {
-	primary, secondary := ctx.calendars()
-	return dates.Reader{Lang: requestLanguage(ctx), Primary: primary, Secondary: secondary}
+// Dates is the request's reader: its language, calendars and, signed in, its zone.
+func (ctx *Context) Dates() dates.Reader {
+	r := dates.Reader{Lang: requestLanguage(ctx)}
+	r.Primary, r.Secondary = ctx.calendars()
+	// Unset means times keep their stored zones.
+	if ctx.Login != nil {
+		if loc := UserLocation(ctx); loc != time.UTC {
+			r.Loc = loc
+		}
+	}
+	return r
 }
-
-func (ctx *Context) MonthYearIn(t time.Time) string { return ctx.dates().MonthYear(t) }
-
-func (ctx *Context) LongDateIn(t time.Time) string { return ctx.dates().Long(t) }
-
-func (ctx *Context) InputDate(t time.Time) dates.Field { return ctx.dates().Input(t) }
-
-func (ctx *Context) InputDay(iso string) dates.Field { return ctx.dates().Day(iso) }
 
 // DateField is the named field as the form sent it.
 func (ctx *Context) DateField(name string) dates.Field {

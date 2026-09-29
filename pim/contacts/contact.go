@@ -1,14 +1,9 @@
 package contacts
 
 import (
-	"bytes"
 	"cmp"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"image"
-	"image/jpeg"
-	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -23,7 +18,6 @@ import (
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/carddav"
-	"golang.org/x/image/draw"
 )
 
 type AddressObjectRenderData struct {
@@ -58,22 +52,13 @@ type UpdateAddressObjectRenderData struct {
 	Photo string
 }
 
-// Small on purpose: the card carries the picture inline, fetched on every visit.
-const photoLongestSide = 320
-
 // Beyond this the answer is no rather than a slow yes.
 const photoMaxUpload = 12 << 20
 
 // photoBodySize bounds a contact's form: its fields and the photo.
 const photoBodySize = photoMaxUpload + web.MaxFormSize
 
-var (
-	errPhotoTooLarge   = errors.New("carddav: photo over the upload limit")
-	errPhotoUnreadable = errors.New("carddav: photo is not an image")
-)
-
-// Past this the bytes grow faster than a thumbnail improves.
-const photoQuality = 82
+var errPhotoTooLarge = errors.New("carddav: photo over the upload limit")
 
 // photoTooLarge answers a contact form past its limit: the fields did not arrive, so it opens again on what the server holds.
 func photoTooLarge(ctx *web.Context) error {
@@ -95,76 +80,6 @@ func applyPhoto(ctx *web.Context, card vcard.Card) error {
 	}
 	defer f.Close()
 	return setPhoto(card, f)
-}
-
-// setPhoto puts the picture into the card, made small.
-func setPhoto(card vcard.Card, r io.Reader) error {
-	src, _, err := image.Decode(r)
-	if err != nil {
-		return errPhotoUnreadable
-	}
-	b := src.Bounds()
-	w, h := b.Dx(), b.Dy()
-	if w > photoLongestSide || h > photoLongestSide {
-		if w >= h {
-			h = h * photoLongestSide / w
-			w = photoLongestSide
-		} else {
-			w = w * photoLongestSide / h
-			h = photoLongestSide
-		}
-	}
-	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Over, nil)
-
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: photoQuality}); err != nil {
-		return errPhotoUnreadable
-	}
-	// vCard 4.0 carries the picture as a data URI, 3.0 as an encoded property.
-	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
-	if card.Value(vcard.FieldVersion) == "3.0" {
-		card.Set(vcard.FieldPhoto, &vcard.Field{
-			Value:  encoded,
-			Params: vcard.Params{"ENCODING": {"b"}, "TYPE": {"JPEG"}},
-		})
-		return nil
-	}
-	card.Set(vcard.FieldPhoto, &vcard.Field{Value: "data:image/jpeg;base64," + encoded})
-	return nil
-}
-
-func cardModified(ao *carddav.AddressObject) time.Time {
-	if rev, err := ao.Card.Revision(); err == nil && !rev.IsZero() {
-		return rev
-	}
-	return ao.ModTime
-}
-
-// A birthday with no year (--0412) is shown as written.
-func birthdayValue(card vcard.Card) string {
-	if day, err := card.Birthday(); err == nil && !day.IsZero() {
-		return day.Format("2006-01-02")
-	}
-	return card.Value(vcard.FieldBirthday)
-}
-
-// Matched by position, so a TYPE or PREF synced onto a field survives an edit that left it alone.
-func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
-	var out []*vcard.Field
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value == "" {
-			continue
-		}
-		if len(out) < len(fields) {
-			field := fields[len(out)]
-			field.Value = value
-			out = append(out, field)
-		} else {
-			out = append(out, &vcard.Field{Value: value})
-		}
-	}
-	return out
 }
 
 func (p *plugin) contact(ctx *web.Context) error {

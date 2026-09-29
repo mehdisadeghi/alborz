@@ -2,12 +2,13 @@ package contacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	netmail "net/mail"
 	"slices"
-	"sync"
-	"time"
+	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
@@ -18,70 +19,8 @@ import (
 	"github.com/emersion/go-webdav/carddav"
 )
 
-// Books are every account's address books.
-type Books struct {
-	DAV *dav.Provider
-	// remembering keeps two writers from making the account's Previous recipients twice.
-	remembering sync.Mutex
-}
-
-// Client is the login's CardDAV client.
-func (p *Books) Client(ctx context.Context, login *alborz.Login) (*carddav.Client, error) {
-	return newClient(dav.Base(), p.DAV.HTTPClient(ctx, login))
-}
-
-func findHome(ctx context.Context, client *http.Client, endpoint string) (string, error) {
-	c, err := carddav.NewClient(client, endpoint)
-	if err != nil {
-		return "", err
-	}
-	principal, err := c.FindCurrentUserPrincipal(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to query CardDAV principal: %w", err)
-	}
-	homeSet, err := c.FindAddressBookHomeSet(ctx, principal)
-	if err != nil {
-		return "", fmt.Errorf("failed to query CardDAV address book home set: %w", err)
-	}
-	return homeSet, nil
-}
-
-// Open is the login's client with its address books.
-func (p *Books) Open(ctx context.Context, login *alborz.Login) (*carddav.Client, []dav.Collection, error) {
-	c, infos, err := dav.Opened(ctx, p.DAV, login, p.Client)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(infos) == 0 {
-		return nil, nil, errNoAddressBook
-	}
-	return c, infos, nil
-}
-
 func (p *plugin) pooledBooks(ctx *web.Context) ([]pim.Account[*carddav.Client], error) {
 	return pim.Pooled(ctx, p.DAV, p.Open, errNoAddressBook)
-}
-
-// New finds each served domain's CardDAV server.
-func New(srv *alborz.Server, st *store.Store) (*Books, error) {
-	provider, err := dav.NewProvider(srv, st, dav.Kind{
-		Name: "carddav", Label: "CardDAV",
-		Schemes: [2]string{"carddavs", "carddav+insecure"},
-		// Address books change rarely.
-		Poll:     10 * time.Minute,
-		Discover: carddav.DiscoverContextURL,
-		Own:      func(s dav.Services) string { return s.CardDAV },
-		Holds:    store.AddressBook,
-		FindHome: findHome,
-		List:     listAddressBooks,
-		Make:     makeBook,
-		Change:   changeBook,
-		Unnamed:  "contacts",
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &Books{DAV: provider}, nil
 }
 
 type plugin struct{ *Books }
@@ -176,4 +115,110 @@ func bookAbilities(found dav.Advertised) []web.Ability {
 		{Label: "settings.davabilitycards", Hint: "settings.davabilitycardshint", Have: found.Has("addressbook")},
 		{Label: "settings.davabilitymkcol", Hint: "settings.davabilitymkcolhint", Have: found.Has("extended-mkcol")},
 	}
+}
+
+func hasAttachment(msg *mail.IMAPMessage, types ...string) bool {
+	for _, att := range msg.Attachments() {
+		for _, t := range types {
+			if strings.EqualFold(att.MIMEType, t) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (p *plugin) importFromMessage(ctx *web.Context) error {
+	mboxName, uid, err := mail.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
+	if err != nil {
+		return err
+	}
+	raw, _, err := mail.PartAt(ctx, mboxName, uid, ctx.FormValue("part"))
+	if err != nil {
+		return err
+	}
+	acct, bookPath, ok := strings.Cut(ctx.FormValue("addressbook"), "|")
+	login := ctx.LoginFor(acct)
+	if !ok || login == nil {
+		return web.NewError(http.StatusBadRequest, "no address book to file it in")
+	}
+	c, books, err := p.Open(ctx.Request().Context(), login)
+	if err != nil {
+		return err
+	}
+	if book := dav.At(books, bookPath); book == nil || !book.Writable {
+		return web.NewError(http.StatusBadRequest, "no address book to file it in")
+	}
+	to := ctx.Path("contacts.list")
+	if acct != ctx.Login.Username() {
+		to += "?account=" + web.QueryValue(acct)
+	}
+	n, err := importBook(ctx.Request().Context(), c, bookPath, raw)
+	if pim.ImportAnswered(err) {
+		ctx.Notify(pim.ImportRefused(ctx, err))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
+	} else if err != nil {
+		return err
+	}
+	if n == 0 {
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("import.nothing")})
+	} else {
+		ctx.PutNotice(ctx.Tf("import.vcf", n))
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
+}
+
+// addAddress adds one of a message's addresses to the address book chosen.
+func (p *plugin) addAddress(ctx *web.Context) error {
+	addr, err := netmail.ParseAddress(ctx.FormValue("address"))
+	if err != nil {
+		return web.NewError(http.StatusBadRequest, err)
+	}
+	to, err := pim.Destination(ctx, ctx.FormValue("addressbook"), p.Open, func(book dav.Collection) bool { return book.Writable })
+	if errors.Is(err, pim.ErrNoDestination) {
+		return web.NewError(http.StatusBadRequest, "no address book to add it to")
+	} else if err != nil {
+		return err
+	}
+	books, err := p.DAV.Collections(ctx.Request().Context(), ctx.LoginFor(to.Account))
+	if err != nil {
+		return err
+	}
+	book := dav.At(books, to.Path)
+	back := ctx.NextOr(ctx.URL("contacts.list"))
+	held, err := emails(ctx.Request().Context(), to.Client, []dav.Collection{*book})
+	if err != nil {
+		return err
+	}
+	if slices.ContainsFunc(held, func(a *netmail.Address) bool { return strings.EqualFold(a.Address, addr.Address) }) {
+		sentence := ctx.T("notice.contactknown")
+		ctx.Notify(web.Notice{Kind: web.NoticeDone,
+			Text:   fmt.Sprintf(sentence, addr.Address, book.Name),
+			Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeName(addr.Address), web.NoticeName(book.Name)))})
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	ao, err := addCard(ctx.Request().Context(), to.Client, to.Path, addr)
+	if err != nil {
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	named := AddressObject{AddressObject: ao}
+	sentence := ctx.T("notice.contactcreated")
+	href := ctx.Path("contacts.contact", named.Path) + "?account=" + web.QueryValue(to.Account)
+	ctx.Notify(web.Notice{Kind: web.NoticeDone,
+		Text:   fmt.Sprintf(sentence, named.DisplayName()),
+		Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeLink(named.DisplayName(), href)))})
+	return ctx.Redirect(http.StatusFound, back)
+}
+
+// seed fills Previous recipients from Sent, once per account.
+func (p *plugin) seed(ctx *web.Context, s *alborz.Login) {
+	name, log := ctx.T("contacts.previous"), ctx.Logger()
+	go func() {
+		bg, cancel := context.WithTimeout(context.Background(), dav.WarmBudget)
+		defer cancel()
+		if err := p.Seed(bg, s, name); err != nil {
+			log.Printf("carddav: previous recipients of %s: %v", s.Username(), err)
+		}
+	}()
 }

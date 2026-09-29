@@ -12,7 +12,6 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
-	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
 
@@ -236,39 +235,6 @@ func (p *plugin) contacts(ctx *web.Context) error {
 		CollectionHref: href,
 		Invitations:    invitations,
 	})
-}
-
-func contactsQuery(queryText string) carddav.AddressBookQuery {
-	// Every property: the list reads the colour, categories, revision and members.
-	query := carddav.AddressBookQuery{
-		DataRequest: carddav.AddressDataRequest{AllProp: true},
-	}
-
-	if queryText != "" {
-		query.PropFilters = []carddav.PropFilter{
-			{
-				Name:        vcard.FieldFormattedName,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldName,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldNickname,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldOrganization,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldEmail,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-		}
-	}
-	return query
 }
 
 func searchFilter(ctx *web.Context, list ContactList) []web.Filter {

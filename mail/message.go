@@ -425,6 +425,11 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 		placed bool
 	)
 	cached, place, placed = p.cachedPlace(ctx, mboxName, uid, query, railView)
+	// A list across accounts or folders is read back through its own pages, not this folder's order.
+	merged := mergedOrigin(ctx)
+	if merged != nil {
+		place, placed = listPlace{}, true
+	}
 	// A link naming no part opens the part the rows would link to; the cached row knows it without a fetch.
 	if ctx.QueryParam("part") == "" && cached != nil {
 		if row := cached.row(uid); row != nil {
@@ -473,7 +478,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 	}
 	sent := sentFolder(sb.mailboxes)
 	needsThread := msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && mboxName == sent))
-	deferContext := held != nil && sb.active != nil && ctx.Partial() && (!placed || needsThread)
+	deferContext := held != nil && sb.active != nil && ctx.Partial() && (!placed || needsThread || merged != nil)
 	if cached != nil {
 		threadAlgorithm = cached.threadAlgorithm
 	}
@@ -608,6 +613,12 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject).WithItem()
 	mbox := ibase.Mailbox
 
+	nav := neighbours(ctx, mbox.Name(), place)
+	if merged != nil && !deferContext {
+		if nav, err = p.mergedNeighbours(ctx, settings, merged, mboxName, uid); err != nil {
+			return err
+		}
+	}
 	contextURL := *ctx.Request().URL
 	data := &MessageRenderData{
 		ContextPending:     deferContext,
@@ -619,7 +630,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 		View:               view.Body,
 		MailboxPage:        int(*mbox.NumMessages-msg.SeqNum) / messagesPerPage,
 		Flags:              flags,
-		Neighbours:         neighbours(ctx, mbox.Name(), place),
+		Neighbours:         nav,
 		Query:              query,
 		AuthResults:        authResults,
 		Warnings:           warnings,

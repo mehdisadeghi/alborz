@@ -5,6 +5,9 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"net/url"
+	"slices"
+	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
@@ -65,6 +68,90 @@ func (p *plugin) placeInList(ctx *alborz.Context, c *imapclient.Client, settings
 	return placeIn(o.uids, uid), nil
 }
 
+// mergedList is the list a message was opened from when that list spans
+// accounts or folders: a merged folder or a search.
+type mergedList struct {
+	role   string
+	search bool
+	logins []*alborz.Login
+	ask    listAsk
+}
+
+// mergedOrigin reads the list a message was opened from; nil where it is one folder's.
+func mergedOrigin(ctx *alborz.Context) *mergedList {
+	from := ctx.From()
+	if from == "" {
+		return nil
+	}
+	u, err := url.Parse(from)
+	if err != nil {
+		return nil
+	}
+	q := u.Query()
+	logins := ctx.Logins()
+	if account := q.Get("account"); account != "" {
+		login := ctx.LoginFor(account)
+		if login == nil {
+			return nil
+		}
+		logins = []*alborz.Login{login}
+	}
+	ask, err := readListAskAt(ctx, q, "account")
+	if err != nil {
+		return nil
+	}
+	if u.Path == "/search" {
+		ask.spec.query = strings.TrimSpace(ask.spec.query)
+		if !StarView(ask.spec.view) {
+			ask.spec.view = ""
+		}
+		return &mergedList{search: true, logins: logins, ask: ask}
+	}
+	role, ok := strings.CutPrefix(u.Path, "/mailbox/")
+	if !ok || len(logins) < 2 {
+		return nil
+	}
+	return &mergedList{role: role, logins: logins, ask: ask}
+}
+
+// mergedNeighbours places a message among the merged rows it was opened
+// from, reading once a page further down where it is the last row read.
+func (p *plugin) mergedNeighbours(ctx *alborz.Context, settings *Settings, m *mergedList, mailbox string, uid imap.UID) (alborz.Neighbours, error) {
+	account := ctx.Login.Username()
+	ask := m.ask
+	var n alborz.Neighbours
+	for read := range 2 {
+		var e *listingEntry
+		var err error
+		if m.search {
+			e, err = p.searchWindow(ctx, m.logins, ask, settings)
+		} else {
+			e, _, err = p.mergedWindow(ctx, m.role, ask, settings, true)
+		}
+		if err != nil {
+			return alborz.Neighbours{}, err
+		}
+		i := slices.IndexFunc(e.msgs, func(r IMAPMessage) bool {
+			return r.Account == account && r.Mailbox == mailbox && r.UID == uid
+		})
+		if i < 0 {
+			return alborz.Neighbours{}, nil
+		}
+		n = alborz.Neighbours{Position: i + 1, Total: e.total}
+		if i > 0 {
+			n.PrevURL = neighbourHref(ctx, e.msgs[i-1].Account, e.msgs[i-1].Mailbox, e.msgs[i-1].UID)
+		}
+		if i+1 < len(e.msgs) {
+			n.NextURL = neighbourHref(ctx, e.msgs[i+1].Account, e.msgs[i+1].Mailbox, e.msgs[i+1].UID)
+		}
+		if n.NextURL != "" || len(e.msgs) >= e.total || read > 0 {
+			break
+		}
+		ask.page.Number = len(e.msgs) / ask.page.Size
+	}
+	return n, nil
+}
+
 func readThread(ctx *alborz.Context, c *imapclient.Client, mailbox, sent string, msg *IMAPMessage) (*ThreadNeighbour, []ThreadNeighbour) {
 	parent, err := threadParent(c, mailbox, sent, msg)
 	if err != nil {
@@ -101,6 +188,10 @@ func (p *plugin) handleMessageNavigation(ctx *alborz.Context) error {
 		return err
 	}
 	cached, place, placed := p.cachedPlace(ctx, mailbox, uid, data.Query, view)
+	merged := mergedOrigin(ctx)
+	if merged != nil {
+		place, placed = listPlace{}, true
+	}
 	if cached != nil {
 		data.Message = cached.row(uid)
 		data.ThreadSupported = cached.threadAlgorithm != ""
@@ -149,6 +240,11 @@ func (p *plugin) handleMessageNavigation(ctx *alborz.Context) error {
 		return err
 	}
 	data.Neighbours = neighbours(ctx, mailbox, place)
+	if merged != nil {
+		if data.Neighbours, err = p.mergedNeighbours(ctx, settings, merged, mailbox, uid); err != nil {
+			return err
+		}
+	}
 	data.IMAPBaseRenderData = *assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mailbox, sb, view)
 	return ctx.Render(http.StatusOK, "message-context", data)
 }

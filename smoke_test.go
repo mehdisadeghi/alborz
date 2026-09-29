@@ -2718,6 +2718,47 @@ func pagerSteps(t *testing.T, body string) []string {
 	return steps
 }
 
+// A message opened from the merged inbox walks the merged rows, across
+// accounts, reading past the page it was on for the row after its last.
+func TestAMergedListIsWalkedInItsOwnOrder(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := bothAccounts(t, base)
+	all := rowRefs(get(t, c, base+"/mailbox/INBOX?ipp=100"))
+	if len(all) != 6 {
+		t.Fatalf("the merged inbox lists %v, want both accounts' six messages", all)
+	}
+	subject := regexp.MustCompile(`class="message-list-subject[^"]*" role="cell">\s*<a [^>]*href="([^"]+)"`)
+	step := func(page, key string) string {
+		m := regexp.MustCompile(`<a [^>]*href="([^"]+)"[^>]*data-key="` + key + `"`).FindStringSubmatch(page)
+		if m == nil {
+			return ""
+		}
+		u, err := url.Parse(html.UnescapeString(m[1]))
+		if err != nil {
+			t.Fatalf("neighbour link %q: %v", m[1], err)
+		}
+		folder, uid, _ := strings.Cut(strings.TrimPrefix(u.Path, "/message/"), "/")
+		return u.Query().Get("account") + "|" + folder + "|" + uid
+	}
+	// The last row of the second page, whose next is on the third, and a row inside one page.
+	for _, at := range []struct {
+		list     string
+		row, pos int
+	}{{"/mailbox/INBOX?ipp=2&page=1", 1, 3}, {"/mailbox/INBOX?ipp=100", 4, 4}} {
+		links := subject.FindAllStringSubmatch(get(t, c, base+at.list), -1)
+		if len(links) <= at.row {
+			t.Fatalf("%s lists %d rows", at.list, len(links))
+		}
+		msg := get(t, c, base+html.UnescapeString(links[at.row][1]))
+		if prev, next := step(msg, "k"), step(msg, "j"); prev != all[at.pos-1] || next != all[at.pos+1] {
+			t.Errorf("%s: row %d steps to %q and %q, want %q and %q", at.list, at.row, prev, next, all[at.pos-1], all[at.pos+1])
+		}
+		if !strings.Contains(msg, fmt.Sprintf(">%d of 6<", at.pos+1)) {
+			t.Errorf("%s: row %d does not say it is %d of 6", at.list, at.row, at.pos+1)
+		}
+	}
+}
+
 // A folder that is no role is merged from the accounts that hold it; one
 // that no account holds is not there, rather than an empty list.
 func TestAMergedFolderByNameListsWhoHoldsIt(t *testing.T) {

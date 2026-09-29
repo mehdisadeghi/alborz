@@ -508,26 +508,35 @@ func (msg *IMAPMessage) URL() *url.URL {
 	return messageURL(msg.Mailbox, msg.UID)
 }
 
-// Without the narrowing and order, one step sideways lands in the plain folder.
 func neighbours(ctx *alborz.Context, mboxName string, place listPlace) alborz.Neighbours {
+	account := ctx.QueryParam("account")
+	return alborz.Neighbours{
+		PrevURL:  neighbourHref(ctx, account, mboxName, place.newer),
+		NextURL:  neighbourHref(ctx, account, mboxName, place.older),
+		Position: place.position, Total: place.total,
+	}
+}
+
+// Without the narrowing and order, one step sideways lands in the plain folder.
+func neighbourHref(ctx *alborz.Context, account, mboxName string, uid imap.UID) string {
+	u := messageURL(mboxName, uid)
+	if u == nil {
+		return ""
+	}
 	kept := url.Values{}
-	for _, name := range []string{"query", "view", "sort", "dir", "ipp", "account", "all", "thread"} {
+	for _, name := range []string{"query", "view", "sort", "dir", "ipp", "all", "thread"} {
 		if value := ctx.QueryParam(name); value != "" {
 			kept.Set(name, value)
 		}
 	}
+	if account != "" {
+		kept.Set("account", account)
+	}
 	if from := ctx.From(); from != "" {
 		kept.Set("from", from)
 	}
-	href := func(uid imap.UID) string {
-		u := messageURL(mboxName, uid)
-		if u == nil {
-			return ""
-		}
-		u.RawQuery = alborz.Query(kept)
-		return u.String()
-	}
-	return alborz.Neighbours{PrevURL: href(place.newer), NextURL: href(place.older), Position: place.position, Total: place.total}
+	u.RawQuery = alborz.Query(kept)
+	return u.String()
 }
 
 // messageURL returns nil for the zero UID so templates can elide the link.

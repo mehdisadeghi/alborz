@@ -16,12 +16,13 @@ import (
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav/carddav"
 )
 
 func (p *plugin) pooledBooks(ctx *web.Context) ([]pim.Account[*carddav.Client], error) {
-	return pim.Pooled(ctx, p.DAV, p.Open, contacts.ErrNoAddressBook)
+	return pimweb.Pooled(ctx, p.DAV, p.Open, contacts.ErrNoAddressBook)
 }
 
 type plugin struct{ *contacts.Books }
@@ -38,7 +39,7 @@ func Mount(g *web.Group, st *store.Store) error {
 	registerRoutes(p, g)
 	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.DAV))
 	// Calendar registers first, so the collections on alborz come last.
-	srv.OnServers = append(srv.OnServers, p.DAV.Cards("settings.davcontacts", bookAbilities), p.DAV.HereCard())
+	srv.OnServers = append(srv.OnServers, pimweb.Cards(p.DAV, "settings.davcontacts", bookAbilities), pimweb.HereCard(p.DAV))
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm, p.seed)
 
 	// A card attached to a mail is filed from its own row.
@@ -156,7 +157,7 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	}
 	n, err := contacts.Import(ctx.Request().Context(), c, bookPath, raw)
 	if pim.ImportAnswered(err) {
-		ctx.Notify(pim.ImportRefused(ctx, err))
+		ctx.Notify(pimweb.ImportRefused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 	} else if err != nil {
 		return err
@@ -175,7 +176,7 @@ func (p *plugin) addAddress(ctx *web.Context) error {
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
-	to, err := pim.Destination(ctx, ctx.FormValue("addressbook"), p.Open, func(book dav.Collection) bool { return book.Writable })
+	to, err := pimweb.Destination(ctx, ctx.FormValue("addressbook"), p.Open, func(book dav.Collection) bool { return book.Writable })
 	if errors.Is(err, pim.ErrNoDestination) {
 		return web.NewError(http.StatusBadRequest, "no address book to add it to")
 	} else if err != nil {

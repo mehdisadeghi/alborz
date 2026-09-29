@@ -9,38 +9,39 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav/carddav"
 )
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
-		return p.DAV.Guarded(contacts.ErrNoAddressBook, "contacts.books.create", h)
+		return pimweb.Guarded(p.DAV, contacts.ErrNoAddressBook, "contacts.books.create", h)
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
 	upload := func(name, path string, limit int64, h, over func(*web.Context) error) {
 		g.Upload(name, path, limit, guard(h), guard(over))
 	}
-	POST("list", "/contacts", pim.HandleChoose("contacts.list", "book", contacts.Choose))
+	POST("list", "/contacts", pimweb.HandleChoose("contacts.list", "book", contacts.Choose))
 	GET("list", "/contacts", p.contacts)
-	POST("export", "/contacts/export", pim.HandleExport(p.Client, "contacts.list",
+	POST("export", "/contacts/export", pimweb.HandleExport(p.Client, "contacts.list",
 		func(ctx *web.Context) string { return ctx.T("nav.contacts") + ".vcf" }, contacts.Join))
-	POST("refresh", "/contacts/refresh", p.DAV.HandleRefresh("contacts.list"))
+	POST("refresh", "/contacts/refresh", pimweb.HandleRefresh(p.DAV, "contacts.list"))
 	GET("contact", "/contacts/{path}", p.contact)
 
-	GET("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pim.Raw(ctx, p.Client) })
+	GET("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pimweb.Raw(ctx, p.Client) })
 	page := p.collectionPage()
 	GET("books.create", "/address-books/create", page.HandleCreate(p.DAV, p.createForm))
 	POST("books.create", "/address-books/create", page.HandleCreate(p.DAV, p.createForm))
 	GET("exportall", "/contacts/export-all", page.HandleExportAll("contacts.list", "address-books.zip"))
 	contactsImport, contactsOver := page.HandleImportPage(p.DAV, "contacts.list", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false)
 	GET("import", "/contacts/import", contactsImport)
-	upload("import", "/contacts/import", pim.ImportBodySize, contactsImport, contactsOver)
+	upload("import", "/contacts/import", pimweb.ImportBodySize, contactsImport, contactsOver)
 	GET("book", "/address-books/{path}", page.Handle(p.DAV))
 	POST("book", "/address-books/{path}", page.Handle(p.DAV))
 	POST("book.delete", "/address-books/{path}/delete", page.HandleDelete(p.DAV))
-	upload("book.import", "/address-books/{path}/import", pim.ImportBodySize, page.HandleImport(p.DAV), page.HandleImportTooLarge)
+	upload("book.import", "/address-books/{path}/import", pimweb.ImportBodySize, page.HandleImport(p.DAV), page.HandleImportTooLarge)
 	GET("book.export", "/address-books/{path}/export", page.HandleExport(p.DAV))
 	POST("book.share", "/address-books/{path}/share", page.HandleShare(p.DAV))
 	POST("book.unshare", "/address-books/{path}/unshare", page.HandleUnshare(p.DAV))
@@ -56,7 +57,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("contact.color", "/contacts/{path}/color", p.color)
 	POST("contact.note", "/contacts/{path}/note", p.note)
 	POST("contact.photo.delete", "/contacts/{path}/photo/delete", p.deletePhoto)
-	remove := pim.Handler(pim.Action[*carddav.Client]{Client: p.Client, Do: pim.Delete[*carddav.Client], List: "contacts.list",
+	remove := pimweb.Handler(pimweb.Action[*carddav.Client]{Client: p.Client, Do: pimweb.Delete[*carddav.Client], List: "contacts.list",
 		Done: func(ctx *web.Context, done []pim.Ref[*carddav.Client], _ string) web.Notice {
 			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.contactsdeleted", len(done))}
 		}})
@@ -70,27 +71,27 @@ func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
 	p.DAV.Warm(s, func(bg context.Context) error { return p.WarmAccount(bg, s) })
 }
 
-func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
+func (p *plugin) createForm(ctx *web.Context) (pimweb.CreateForm, error) {
 	rail, err := p.bookRail(ctx)
 	if err != nil && !errors.Is(err, contacts.ErrNoAddressBook) {
-		return pim.CreateForm{}, err
+		return pimweb.CreateForm{}, err
 	}
-	return pim.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: ctx.Path("contacts.list"),
+	return pimweb.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: ctx.Path("contacts.list"),
 		Made: func(string) (string, string) { return ctx.T("notice.bookcreated"), ctx.Path("contacts.list") }}, nil
 }
 
-func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
-	return p.DAV.RailInvitations(ctx, p.collectionPage().Collection)
+func (p *plugin) invitations(ctx *web.Context) (*pimweb.RailInvitations, error) {
+	return pimweb.Invitations(ctx, p.DAV, p.collectionPage().Collection)
 }
 
-func (p *plugin) collectionPage() pim.Page {
-	return pim.Page{
+func (p *plugin) collectionPage() pimweb.Page {
+	return pimweb.Page{
 		Collection: "contacts.book",
 		List:       "contacts.list",
 		Ext:        ".vcf",
 		Forget:     p.DAV.Forget,
 		Show:       contacts.Show,
-		Rail:       func(ctx *web.Context, _ string) (pim.Rail, error) { return p.bookRail(ctx) },
+		Rail:       func(ctx *web.Context, _ string) (pimweb.Rail, error) { return p.bookRail(ctx) },
 		Create: func(ctx *web.Context, _, name, place string) (string, error) {
 			return p.DAV.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, nil)
 		},
@@ -122,8 +123,8 @@ func (p *plugin) collectionPage() pim.Page {
 	}
 }
 
-func (p *plugin) bookRail(ctx *web.Context) (pim.Rail, error) {
-	rail := pim.Rail{Path: ctx.Path("contacts.list"), Field: "book", ItemClass: "addressbook-item", Action: ctx.Path("contacts.list"), Edit: "contacts.book",
+func (p *plugin) bookRail(ctx *web.Context) (pimweb.Rail, error) {
+	rail := pimweb.Rail{Path: ctx.Path("contacts.list"), Field: "book", ItemClass: "addressbook-item", Action: ctx.Path("contacts.list"), Edit: "contacts.book",
 		NewHref: ctx.Path("contacts.books.create") + "?next=" + web.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
 		ImportHref: ctx.Path("contacts.import"), ImportLabel: ctx.T("contacts.import")}
 	accounts, err := p.pooledBooks(ctx)

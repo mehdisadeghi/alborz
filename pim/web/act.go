@@ -1,4 +1,4 @@
-package pim
+package web
 
 import (
 	"context"
@@ -8,12 +8,13 @@ import (
 	"slices"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 )
 
 // Selection is the object the route's path names, or the rows a list had checked.
-func Selection[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error)) ([]Ref[C], error) {
+func Selection[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error)) ([]pim.Ref[C], error) {
 	if ctx.Param("path") == "" {
 		params, err := ctx.FormParams()
 		if err != nil {
@@ -26,20 +27,20 @@ func Selection[C any](ctx *web.Context, client func(context.Context, *alborz.Log
 	if err != nil {
 		return nil, err
 	}
-	return []Ref[C]{{c, ctx.Login.Username(), path}}, nil
+	return []pim.Ref[C]{{Client: c, Account: ctx.Login.Username(), Path: path}}, nil
 }
 
 // Action is one thing a route does to the selected objects.
 type Action[C any] struct {
 	Client func(context.Context, *alborz.Login) (C, error)
 	// Do acts on one object; an error is the server's refusal, said on the page, and ends the run.
-	Do func(ctx *web.Context, ref Ref[C]) error
+	Do func(ctx *web.Context, ref pim.Ref[C]) error
 	// List is the route the action lands on when the form names no page.
 	List string
 	// Done words the result; Quiet where the action shows where the reader already is.
-	Done func(ctx *web.Context, done []Ref[C], next string) web.Notice
+	Done func(ctx *web.Context, done []pim.Ref[C], next string) web.Notice
 	// Piece answers a request for a piece of the page; nil lands as a whole page.
-	Piece func(ctx *web.Context, ref Ref[C], next string) error
+	Piece func(ctx *web.Context, ref pim.Ref[C], next string) error
 }
 
 // Run does the action to the request's selection and lands.
@@ -73,13 +74,13 @@ func Handler[C any](a Action[C]) func(*web.Context) error {
 }
 
 // Quiet is Done for an action whose result shows where the reader already is.
-func Quiet[C any](ctx *web.Context, _ []Ref[C], _ string) web.Notice {
+func Quiet[C any](ctx *web.Context, _ []pim.Ref[C], _ string) web.Notice {
 	ctx.Quiet()
 	return web.Notice{}
 }
 
 // Delete removes the object.
-func Delete[C files](ctx *web.Context, ref Ref[C]) error {
+func Delete[C files](ctx *web.Context, ref pim.Ref[C]) error {
 	return ref.Client.RemoveAll(ctx.Request().Context(), ref.Path)
 }
 
@@ -108,7 +109,7 @@ type StarRenderData struct {
 
 // Star marks the selection with the form's colour; a refused write leaves the star as the server holds it.
 // list and object are the routes of the list and of one object.
-func Star[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error), list, object string, mark func(ctx *web.Context, ref Ref[C], name string) (was string, err error)) error {
+func Star[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error), list, object string, mark func(ctx *web.Context, ref pim.Ref[C], name string) (was string, err error)) error {
 	name := ctx.FormValue("color")
 	if name != "" && !slices.Contains(alborz.FlagColors[:], name) {
 		return web.NewError(http.StatusBadRequest, "no such colour")
@@ -118,11 +119,11 @@ func Star[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (
 		Client: client,
 		List:   list,
 		Done:   Quiet[C],
-		Do: func(ctx *web.Context, ref Ref[C]) (err error) {
+		Do: func(ctx *web.Context, ref pim.Ref[C]) (err error) {
 			was, err = mark(ctx, ref, name)
 			return err
 		},
-		Piece: func(ctx *web.Context, ref Ref[C], next string) error {
+		Piece: func(ctx *web.Context, ref pim.Ref[C], next string) error {
 			action := ctx.URL(object+".color", ref.Path)
 			// Changing a star the list is narrowed to takes the row out of the list.
 			if web.StarLeaves(next, name) {

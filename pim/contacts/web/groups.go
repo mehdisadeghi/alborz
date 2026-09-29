@@ -9,16 +9,16 @@ import (
 	"strings"
 	"uuid"
 
-	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
 
 // FilterRow is one narrowing the rail offers.
-type FilterRow = pim.FilterRow
+type FilterRow = pimweb.FilterRow
 
 func contactGroupRows(ctx *web.Context, groups []contacts.AddressObject, active, account string) []FilterRow {
 	rows := make([]FilterRow, 0, len(groups))
@@ -78,7 +78,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 		uid = uuid.New().String()
 		ao.Card.SetValue(vcard.FieldUID, contacts.MemberPrefix+uid)
 		if err := contacts.WriteCard(ctx.Request().Context(), c, ao.Path, ao.Card); err != nil {
-			ctx.Notify(pim.Refused(ctx, err))
+			ctx.Notify(pimweb.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
 		}
 	}
@@ -138,7 +138,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 // A server's refusal shows on the page, never as an error page.
 func (p *plugin) putCard(ctx *web.Context, c *carddav.Client, at string, card vcard.Card) error {
 	if err := contacts.WriteCard(ctx.Request().Context(), c, at, card); err != nil {
-		ctx.Notify(pim.Refused(ctx, err))
+		ctx.Notify(pimweb.Refused(ctx, err))
 	}
 	return nil
 }

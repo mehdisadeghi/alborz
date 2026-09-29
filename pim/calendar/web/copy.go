@@ -13,6 +13,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
@@ -49,7 +50,7 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 		if from := ctx.From(); from != "" {
 			kept = url.Values{"from": {from}}
 		}
-		back := pim.ObjectURL(ctx, s.object, src, ctx.URLAccount(), kept)
+		back := pimweb.ObjectURL(ctx, s.object, src, ctx.URLAccount(), kept)
 		groups, err := p.writableGroups(ctx, supports)
 		if err != nil {
 			return err
@@ -96,7 +97,7 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 		calendar.AsCopy(co.Data, uid, source, time.Now().UTC())
 		made, err := calendar.PutObject(ctx.Request().Context(), to, uid+".ics", nil, co.Data)
 		if err != nil {
-			return page(http.StatusUnprocessableEntity, pim.Refusal(ctx, err))
+			return page(http.StatusUnprocessableEntity, pimweb.Refusal(ctx, err))
 		}
 
 		name := ""
@@ -111,6 +112,6 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 			Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeName(name))),
 			Actions: []*web.NoticeAction{ctx.Undo(ctx.Path(s.object+".delete", made.Path)+"?account="+web.QueryValue(to.Account),
 				url.Values{"next": {back}})}})
-		return ctx.Redirect(http.StatusFound, pim.ObjectURL(ctx, s.object, made.Path, to.Account, kept))
+		return ctx.Redirect(http.StatusFound, pimweb.ObjectURL(ctx, s.object, made.Path, to.Account, kept))
 	}
 }

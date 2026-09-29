@@ -9,24 +9,24 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 )
 
-func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
-	return p.DAV.RailInvitations(ctx, p.collectionPage().Collection)
+func (p *plugin) invitations(ctx *web.Context) (*pimweb.RailInvitations, error) {
+	return pimweb.Invitations(ctx, p.DAV, p.collectionPage().Collection)
 }
 
-func (p *plugin) collectionPage() pim.Page {
-	return pim.Page{
+func (p *plugin) collectionPage() pimweb.Page {
+	return pimweb.Page{
 		Collection: "calendar.collection",
 		List:       "calendar.month",
 		Ext:        ".ics",
 		Forget:     p.DAV.Forget,
 		Show:       calendar.Show,
-		Rail: func(ctx *web.Context, list string) (pim.Rail, error) {
+		Rail: func(ctx *web.Context, list string) (pimweb.Rail, error) {
 			if list == ctx.Path("calendar.tasks") {
 				return p.taskRail(ctx)
 			}
@@ -80,7 +80,7 @@ func collectionList(ctx *web.Context, info dav.Collection) string {
 	return ctx.Path("calendar.month")
 }
 
-func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
+func (p *plugin) createForm(ctx *web.Context) (pimweb.CreateForm, error) {
 	forTasks := ctx.QueryParam("for") == "tasks"
 	// Back to the rail that asked, when the new collection shows there.
 	made := func(holds string) (string, string) {
@@ -91,18 +91,18 @@ func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
 	}
 	if forTasks {
 		rail, err := p.taskRail(ctx)
-		return pim.CreateForm{Rail: rail, Title: ctx.T("tasks.newlist"), Section: ctx.T("nav.tasks"), List: ctx.Path("calendar.tasks"),
+		return pimweb.CreateForm{Rail: rail, Title: ctx.T("tasks.newlist"), Section: ctx.T("nav.tasks"), List: ctx.Path("calendar.tasks"),
 			Holds: "tasks", Made: made}, err
 	}
 	rail, err := p.eventRail(ctx)
-	return pim.CreateForm{Rail: rail, Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: ctx.Path("calendar.month"),
+	return pimweb.CreateForm{Rail: rail, Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: ctx.Path("calendar.month"),
 		Holds: "both", OffersHolds: true, Made: made}, err
 }
 
 // SubscribeRenderData renders subscribe-calendar.html.
 type SubscribeRenderData struct {
 	web.BaseRenderData
-	Rail     pim.Rail
+	Rail     pimweb.Rail
 	Accounts []web.Account
 	Account  string
 	Address  string

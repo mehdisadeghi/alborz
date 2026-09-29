@@ -1,4 +1,4 @@
-package pim
+package web
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav"
@@ -20,8 +21,8 @@ import (
 const accountLoadBudget = 30 * time.Second
 
 // Pooled resolves every signed-in account with the service; a failing account is logged and skipped.
-func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context, *alborz.Login) (C, []dav.Collection, error), none error) ([]Account[C], error) {
-	var accounts []Account[C]
+func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context, *alborz.Login) (C, []dav.Collection, error), none error) ([]pim.Account[C], error) {
+	var accounts []pim.Account[C]
 	var lastErr error
 	var down, refused []string
 	// answered counts servers that refused other than over the password.
@@ -41,24 +42,24 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 			refused = append(refused, username)
 		}
 	}
-	results := dav.Across(ctx.Request().Context(), ctx.Logins(), (*alborz.Login).Username, func(reqCtx context.Context, s *alborz.Login) (Account[C], error) {
+	results := dav.Across(ctx.Request().Context(), ctx.Logins(), (*alborz.Login).Username, func(reqCtx context.Context, s *alborz.Login) (pim.Account[C], error) {
 		reqCtx, cancel := context.WithTimeout(reqCtx, accountLoadBudget)
 		defer cancel()
 		c, infos, err := load(reqCtx, s)
-		return Account[C]{Client: c, Collections: infos}, err
+		return pim.Account[C]{Client: c, Collections: infos}, err
 	})
 	for _, result := range results {
 		s, err := result.Site, result.Err
 		c, infos := result.Value.Client, result.Value.Collections
 		// An account with nothing of the kind keeps its place, empty, so the first one can be made.
 		if errors.Is(err, none) {
-			accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c})
+			accounts = append(accounts, pim.Account[C]{Name: s.Username(), Login: s, Client: c})
 			continue
 		}
 		// A refused password keeps the account's place, empty, and tells the reader.
 		var no *dav.RefusedError
 		if errors.As(err, &no) {
-			accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c})
+			accounts = append(accounts, pim.Account[C]{Name: s.Username(), Login: s, Client: c})
 			refuse(s.Username())
 			continue
 		}
@@ -72,7 +73,7 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 		for i := range owned {
 			owned[i].Account = s.Username()
 		}
-		accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c, Collections: owned})
+		accounts = append(accounts, pim.Account[C]{Name: s.Username(), Login: s, Client: c, Collections: owned})
 		for _, trouble := range p.Troubles(s.Username()) {
 			ctx.Logger().Printf("%s: %q in the pooled view without a source: %v", p.Kind.Name, s.Username(), trouble)
 			if errors.As(trouble, &no) {
@@ -140,9 +141,9 @@ func HandleChoose(list, field string, keep func(ctx context.Context, store albor
 }
 
 // Selected resolves checked "account|path" rows to their accounts' clients; a selection can span accounts.
-func Selected[C any](ctx *web.Context, refs []string, client func(context.Context, *alborz.Login) (C, error)) ([]Ref[C], error) {
+func Selected[C any](ctx *web.Context, refs []string, client func(context.Context, *alborz.Login) (C, error)) ([]pim.Ref[C], error) {
 	clients := map[string]C{}
-	out := make([]Ref[C], 0, len(refs))
+	out := make([]pim.Ref[C], 0, len(refs))
 	for _, ref := range refs {
 		account, objPath, ok := strings.Cut(ref, "|")
 		if !ok {
@@ -160,7 +161,7 @@ func Selected[C any](ctx *web.Context, refs []string, client func(context.Contex
 			}
 			clients[account] = c
 		}
-		out = append(out, Ref[C]{c, account, objPath})
+		out = append(out, pim.Ref[C]{Client: c, Account: account, Path: objPath})
 	}
 	return out, nil
 }

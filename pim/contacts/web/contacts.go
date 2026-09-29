@@ -12,6 +12,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav/carddav"
 )
@@ -22,7 +23,7 @@ type AddressBookRenderData struct {
 	web.BaseRenderData
 	AddressBooks   []dav.Collection
 	AddressObjects []contacts.AddressObject
-	Sorting        pim.Sorting
+	Sorting        pimweb.Sorting
 	Query          string
 	// View is the colour the rail is filtering by, empty for all.
 	View string
@@ -44,7 +45,7 @@ type AddressBookRenderData struct {
 	// GroupRows and CategoryRows are the rail rows for groups and categories.
 	GroupRows, CategoryRows []FilterRow
 
-	Invitations *dav.RailInvitations
+	Invitations *pimweb.RailInvitations
 }
 
 var contactListParams = []string{"account", "book", "query", "view", "group", "category", "sort", "dir", "page", "ipp"}
@@ -54,7 +55,7 @@ type ContactList struct {
 	Cards []contacts.AddressObject
 	Books []dav.Collection
 	// Items are the cards as a single contact's neighbours, in the same order.
-	Items []pim.Item
+	Items []pimweb.Item
 	// Groups are the group cards, offered as filters and never listed as contacts.
 	Groups []contacts.AddressObject
 	// Categories are the words in use across what was read, sorted.
@@ -65,7 +66,7 @@ type ContactList struct {
 	Category   string
 	// GroupRows and CategoryRows are the rail rows for groups and categories.
 	GroupRows, CategoryRows []FilterRow
-	Sorting                 pim.Sorting
+	Sorting                 pimweb.Sorting
 }
 
 func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
@@ -75,9 +76,9 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		return ContactList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
-	params := pim.RowParams(ctx, ctx.Path("contacts.list"), pim.ListParams(ctx, contactListParams...))
+	params := pimweb.RowParams(ctx, ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))
 
-	only := pim.Only(ctx, "book")
+	only := pimweb.Only(ctx, "book")
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
 		return ContactList{}, err
@@ -115,7 +116,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		}
 	}
 
-	sorting, err := pim.Sort(ctx, aos, contactColumns(addressBookInfos), func(ao contacts.AddressObject) string {
+	sorting, err := pimweb.Sort(ctx, aos, contactColumns(addressBookInfos), func(ao contacts.AddressObject) string {
 		return strings.ToLower(ao.DisplayName())
 	}, contactListParams...)
 	if err != nil {
@@ -160,9 +161,9 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		return strings.ToLower(groups[i].DisplayName()) < strings.ToLower(groups[j].DisplayName())
 	})
 
-	items := make([]pim.Item, len(aos))
+	items := make([]pimweb.Item, len(aos))
 	for i, ao := range aos {
-		items[i] = pim.Item{Path: ao.Path, URL: pim.ObjectURL(ctx, "contacts.contact", ao.Path, ao.Account, params)}
+		items[i] = pimweb.Item{Path: ao.Path, URL: pimweb.ObjectURL(ctx, "contacts.contact", ao.Path, ao.Account, params)}
 	}
 	return ContactList{
 		Cards:      aos,
@@ -209,7 +210,7 @@ func (p *plugin) contacts(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	collection, href := pim.Labels(ctx, addressBookInfos, "contacts.list", "book", nil)
+	collection, href := pimweb.Labels(ctx, addressBookInfos, "contacts.list", "book", nil)
 	invitations, err := p.invitations(ctx)
 	if err != nil {
 		return err

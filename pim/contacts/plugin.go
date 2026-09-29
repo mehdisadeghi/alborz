@@ -62,7 +62,7 @@ func (p *plugin) pooledBooks(ctx *web.Context) ([]pim.Account[*carddav.Client], 
 // Mount serves contacts.
 func Mount(g *web.Group, st *store.Store) error {
 	srv := g.Server()
-	provider, err := dav.NewProvider(srv, st, dav.Kind{
+	provider, err := dav.NewProvider(srv.Server, st, dav.Kind{
 		Name: "carddav", Label: "CardDAV",
 		Schemes: [2]string{"carddavs", "carddav+insecure"},
 		// Address books change rarely.

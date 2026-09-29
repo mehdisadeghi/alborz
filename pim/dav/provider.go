@@ -91,12 +91,12 @@ type Provider struct {
 	// found per username; see Collections.
 	collections *memo.Memo[[]Collection]
 
-	// debug logs upstream DAV traffic in debug mode.
-	debug *log.Logger
+	// log says what failed in the background; debug logs upstream DAV traffic in debug mode.
+	log, debug *log.Logger
 }
 
 // NewProvider resolves the service for every served domain by DNS alone; probes run in the background.
-func NewProvider(srv *web.Server, st *store.Store, kind Kind) (*Provider, error) {
+func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, error) {
 	urls := make(map[string]*url.URL)
 	found := make(map[string]string)
 	hosts := make(map[string]*url.URL)
@@ -137,7 +137,7 @@ func NewProvider(srv *web.Server, st *store.Store, kind Kind) (*Provider, error)
 			p.Forget(account)
 		}
 	})
-	p.instance = srv.Instance
+	p.instance, p.log = srv.Instance, srv.Logger()
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
@@ -512,30 +512,34 @@ func (p *Provider) HTTPClient(ctx context.Context, login *alborz.Login) *http.Cl
 }
 
 // CountObjects counts a collection's objects lazily; -1 means the server did not answer.
-func (p *Provider) CountObjects(ctx *web.Context, coll string) func() int {
+func (p *Provider) CountObjects(ctx context.Context, login *alborz.Login, coll string) func() int {
 	return func() int {
-		n, err := CountObjects(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), Base(), coll)
+		n, err := CountObjects(ctx, p.HTTPClient(ctx, login), Base(), coll)
 		if err != nil {
-			ctx.Logger().Printf("%s: failed to count %s: %v", p.Kind.Name, coll, err)
+			p.log.Printf("%s: failed to count %s: %v", p.Kind.Name, coll, err)
 			return -1
 		}
 		return n
 	}
 }
 
+// Refresh asks each login's servers again.
+func (p *Provider) Refresh(ctx context.Context, logins []*alborz.Login) {
+	for _, s := range logins {
+		who, err := principal(ctx, s)
+		if err == nil {
+			err = p.mirror.Refresh(ctx, who, p.router(p.Sources(ctx, s), s))
+		}
+		if err != nil {
+			p.log.Printf("%s: refresh %s: %v", p.Kind.Name, s.Username(), err)
+		}
+	}
+}
+
 // HandleRefresh asks every signed-in account's server again and lands on list, a route.
 func (p *Provider) HandleRefresh(list string) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		for _, s := range ctx.Logins() {
-			rc := ctx.Request().Context()
-			who, err := principal(rc, s)
-			if err == nil {
-				err = p.mirror.Refresh(rc, who, p.router(p.Sources(rc, s), s))
-			}
-			if err != nil {
-				ctx.Logger().Printf("%s: refresh %s: %v", p.Kind.Name, s.Username(), err)
-			}
-		}
+		p.Refresh(ctx.Request().Context(), ctx.Logins())
 		// The list itself is what was asked for.
 		ctx.Quiet()
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(list)))
@@ -543,16 +547,15 @@ func (p *Provider) HandleRefresh(list string) func(*web.Context) error {
 }
 
 // Warm fetches an account's first pages behind a sign-in so they open from the mirror, within WarmBudget.
-func (p *Provider) Warm(ctx *web.Context, s *alborz.Login, fetch func(context.Context) error) {
+func (p *Provider) Warm(s *alborz.Login, fetch func(context.Context) error) {
 	if p.mirror == nil {
 		return
 	}
-	log := ctx.Logger()
 	go func() {
 		bg, cancel := context.WithTimeout(context.Background(), WarmBudget)
 		defer cancel()
 		if err := fetch(bg); err != nil {
-			log.Printf("%s: warm %s: %v", p.Kind.Name, s.Username(), err)
+			p.log.Printf("%s: warm %s: %v", p.Kind.Name, s.Username(), err)
 		}
 	}()
 }
@@ -571,7 +574,7 @@ func (p *Provider) Guarded(none error, create string, h func(*web.Context) error
 func (p *Provider) Close() error { return p.mirror.Close() }
 
 // domainURL resolves the domain's endpoint from DNS and config only; nil without error means none.
-func domainURL(srv *web.Server, kind Kind, domain string) (*url.URL, string, error) {
+func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, error) {
 	secure, plain := kind.Schemes[0], kind.Schemes[1]
 	record := ""
 	u, err := srv.Upstream(domain, secure, plain, "https", "http+insecure")

@@ -72,7 +72,7 @@ func (p *plugin) collectionPage() pim.Page {
 			if info == nil {
 				return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
 			}
-			return *info, p.dav.CountObjects(ctx, info.Path), ctx.Path("contacts.list"), ctx.T("nav.contacts"), nil
+			return *info, p.dav.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), ctx.Path("contacts.list"), ctx.T("nav.contacts"), nil
 		},
 	}
 }

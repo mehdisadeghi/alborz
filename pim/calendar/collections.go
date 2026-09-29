@@ -68,7 +68,7 @@ func (p *plugin) collectionPage() pim.Page {
 			if list == ctx.Path("calendar.tasks") {
 				label = ctx.T("nav.tasks")
 			}
-			return *info, p.dav.CountObjects(ctx, info.Path), list, label, nil
+			return *info, p.dav.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), list, label, nil
 		},
 	}
 }

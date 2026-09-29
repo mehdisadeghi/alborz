@@ -30,8 +30,8 @@ type Collection struct {
 	Visible, Shown bool
 	// Only marks the sole collection a URL is narrowed to, so pressing its link again widens back.
 	Only bool
-	// Address is a subscribed calendar's feed; empty for a server-held collection.
-	Address string
+	// Feed is the address a subscribed calendar kept here is filled from; empty for any other.
+	Feed string
 	// Here marks a collection kept in this alborz, which can be shared; SharedBy is its other owner.
 	Here     bool
 	SharedBy string
@@ -133,13 +133,10 @@ func At(colls []Collection, path string) *Collection {
 	return nil
 }
 
-// Holding is the account's collection an object lies in, or nil; a feed's object matches by address.
+// Holding is the account's collection an object lies in, or nil.
 func Holding(colls []Collection, account, path string) *Collection {
 	for i := range colls {
-		if colls[i].Account != account {
-			continue
-		}
-		if strings.HasPrefix(path, colls[i].Path) || (colls[i].Address != "" && path == colls[i].Address) {
+		if colls[i].Account == account && strings.HasPrefix(path, colls[i].Path) {
 			return &colls[i]
 		}
 	}

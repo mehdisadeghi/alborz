@@ -346,6 +346,7 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 		for i := range infos {
 			infos[i].Public = infos[i].Here && p.Published(infos[i].Path)
 			infos[i].SharedWith = p.SharedWith(infos[i].Path)
+			infos[i].Feed = p.Feed(infos[i].Path)
 		}
 		return infos, nil
 	})

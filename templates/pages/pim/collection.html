@@ -20,7 +20,7 @@
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true) }}
         {{ template "field" (dict "label" ($.T "common.color") "name" "color" "type" "color" "value" .Color) }}
         {{ end }}
-        {{ with .Address }}
+        {{ with .Feed }}
         <div class="field">
           <label>{{$.T "calendar.address"}}</label>
           <a href="{{.}}" rel="noopener noreferrer" target="_blank" dir="ltr">{{.}}</a>
@@ -92,7 +92,6 @@
       {{ end }}
       {{ end }}
 
-      {{ if not .Address }}
       {{ if .Writable }}
       <form method="post" enctype="multipart/form-data" action="{{.Base}}{{.Path | pathescape}}/import{{account "?" .Account}}" class="collection-file">
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
@@ -113,13 +112,9 @@
         {{ end }}
         <button>{{ printf ($.T "collection.exportdo") .Ext }}</button>
       </form>
-      {{ end }}
 
       <form class="danger-zone" method="post" action="{{.Base}}{{.Path | pathescape}}/delete{{account "?" .Account}}">
-        {{ if .Address }}
-        <h2>{{$.T "collection.unsubscribetitle"}}</h2>
-        <button class="button-danger">{{ printf ($.T "collection.unsubscribedo") .Name }}</button>
-        {{ else if .SharedBy }}
+        {{ if .SharedBy }}
         <h2>{{$.T "share.leavetitle"}}</h2>
         <button class="button-danger">{{ printf ($.T "share.leavedo") .Name }}</button>
         {{ else }}

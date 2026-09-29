@@ -36,7 +36,7 @@
 {{ range .events }}
 {{ $obj := . }}
 {{ $when := $base.T "calendar.allday" }}{{ if not .AllDay }}{{ $when = $base.GlobalData.FormatTime .Start }}{{ end }}
-{{ $href := $obj.URL }}{{ if $obj.ReadOnly }}{{ $href = printf "%s?uid=%s" $obj.URL (.UID | qv) }}{{ end }}
+{{ $href := $obj.URL }}
 {{ with $obj.Account }}{{ $href = printf "%s%s" $href (account (qsep $href) .) }}{{ end }}
 {{ with $base.ListQuery }}{{ $href = printf "%s%s%s" $href (qsep $href) . }}{{ end }}
 {{ $href = from $href $base.GlobalData.URL.RequestURI }}
@@ -56,7 +56,7 @@
    "staraction" $staraction
    "next" $base.GlobalData.URL.RequestURI
    "starLabel" ($base.T "mailbox.flagcolor") "clearLabel" ($base.T "mailbox.flagnone")
-   "color" (or .Color $collection.Color)
+   "color" $collection.Color
    "owner" $collection.Name
    "ownerhref" (call $base.CollectionHref .Account .Path)
    "collection" $collection "g" $base

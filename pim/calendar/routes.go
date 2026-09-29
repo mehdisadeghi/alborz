@@ -124,18 +124,9 @@ func visibleCalendars(ctx context.Context, accounts []pim.Account[*caldav.Client
 		if err != nil {
 			return nil, false, nil, fmt.Errorf("failed to load CalDAV settings: %w", err)
 		}
-		subs, err := loadSubscriptions(ctx, acc.Login.Store())
-		if err != nil {
-			return nil, false, nil, err
-		}
 		var cals []dav.Collection
 		for _, cal := range acc.Collections {
 			if kind(cal.Components) {
-				cals = append(cals, cal)
-			}
-		}
-		for _, sub := range subs {
-			if cal := sub.info(acc.Name); kind(cal.Components) {
 				cals = append(cals, cal)
 			}
 		}
@@ -202,8 +193,8 @@ func registerRoutes(p *plugin) {
 		method("/tasks/export-all", page.HandleExportAll("/tasks", "task-lists.zip"))
 	}
 	GET("/calendars/:path", page.Handle(p.dav))
-	POST("/calendars/:path", p.forSubscription(p.updateSubscription, page.Handle(p.dav)))
-	POST("/calendars/:path/delete", p.forSubscription(p.unsubscribe, page.HandleDelete(p.dav)))
+	POST("/calendars/:path", page.Handle(p.dav))
+	POST("/calendars/:path/delete", page.HandleDelete(p.dav))
 	upload("/calendars/:path/import", page.HandleImport(p.dav), page.HandleImportTooLarge)
 	GET("/calendars/:path/export", page.HandleExport(p.dav))
 	POST("/calendars/:path/share", page.HandleShare(p.dav))
@@ -342,24 +333,7 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 }
 
 func (p *plugin) rawObject(ctx *alborz.Context) error {
-	path, err := pim.ParseObjectPath(ctx.Param("path"))
-	if err != nil {
-		return err
-	}
-	if !strings.Contains(path, "://") {
-		return pim.Raw(ctx, p.client)
-	}
-	// A feed's event has no object of its own; the page's calendar is handed over.
-	uid := ctx.QueryParam("uid")
-	_, cal, err := p.feedObject(ctx, path, uid)
-	if err != nil {
-		return err
-	}
-	var buf bytes.Buffer
-	if err := ical.NewEncoder(&buf).Encode(cal); err != nil {
-		return err
-	}
-	return pim.ServeRaw(ctx, uid+".ics", &buf)
+	return pim.Raw(ctx, p.client)
 }
 
 func newCalendar(comp *ical.Component) *ical.Calendar {

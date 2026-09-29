@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 	"uuid"
@@ -109,14 +108,6 @@ func monthQuery(ctx *alborz.Context, mv monthView) string {
 	return alborz.Query(q)
 }
 
-// A feed is one object holding every event, so there the UID tells rows apart.
-func eventKey(path, uid string, feed bool) string {
-	if feed {
-		return path + "#" + uid
-	}
-	return path
-}
-
 func (p *plugin) eventItems(ctx *alborz.Context) ([]pim.Item, error) {
 	var shown []Occurrence
 	switch {
@@ -140,27 +131,13 @@ func (p *plugin) eventItems(ctx *alborz.Context) ([]pim.Item, error) {
 	var items []pim.Item
 	seen := map[string]bool{}
 	for _, oc := range shown {
-		uid, _ := oc.Event.Props.Text("UID")
-		key := eventKey(oc.Path, uid, oc.ReadOnly)
-		if seen[key] {
+		if seen[oc.Path] {
 			continue
 		}
-		seen[key] = true
-		href := pim.ObjectURL("/calendar/", oc.Path, oc.Account, params)
-		if oc.ReadOnly {
-			href = pim.ObjectURL("/calendar/", oc.Path, oc.Account, withUID(params, uid))
-		}
-		items = append(items, pim.Item{Path: key, URL: href})
+		seen[oc.Path] = true
+		items = append(items, pim.Item{Path: oc.Path, URL: pim.ObjectURL("/calendar/", oc.Path, oc.Account, params)})
 	}
 	return items, nil
-}
-
-func withUID(params url.Values, uid string) url.Values {
-	q := url.Values{"uid": {uid}}
-	for key, values := range params {
-		q[key] = values
-	}
-	return q
 }
 
 func (p *plugin) event(ctx *alborz.Context) error {
@@ -173,10 +150,6 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	if strings.Contains(path, "://") {
-		return p.feedEvent(ctx, path)
-	}
-
 	calendar := dav.Holding(calendars, "", path)
 	if calendar == nil {
 		return alborz.NotFound("notfound.event")
@@ -224,73 +197,13 @@ func (p *plugin) event(ctx *alborz.Context) error {
 		List:           eventList(ctx),
 		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       calendar,
-		Event:          CalendarObject{CalendarObject: event},
+		Event:          CalendarObject{CalendarObject: event, ReadOnly: !calendar.Writable},
 		Star:           componentColor(vevents[0].Component),
-		Neighbours:     pim.Around(items, eventKey(path, "", false)),
+		Neighbours:     pim.Around(items, path),
 		Authors:        p.dav.Authors(event.Path, ctx.Login.Username()),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborz.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "calendar/event", data)
-}
-
-func (p *plugin) feedEvent(ctx *alborz.Context, address string) error {
-	info, cal, err := p.feedObject(ctx, address, ctx.QueryParam("uid"))
-	if err != nil {
-		return err
-	}
-	event := cal.Events()[0]
-	summary, _ := event.Props.Text(ical.PropSummary)
-	rail, err := p.eventRail(ctx)
-	if err != nil {
-		return err
-	}
-	items, err := p.eventItems(ctx)
-	if err != nil {
-		return err
-	}
-	data := &EventRenderData{
-		Rail:           rail,
-		List:           eventList(ctx),
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
-		Calendar:       info,
-		Event:          CalendarObject{CalendarObject: &caldav.CalendarObject{Path: address, Data: cal}, Color: info.Color, ReadOnly: true},
-		Neighbours:     pim.Around(items, eventKey(address, ctx.QueryParam("uid"), true)),
-	}
-	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &event, alborz.UserLocation(ctx))
-	return ctx.Render(http.StatusOK, "calendar/event", data)
-}
-
-func (p *plugin) feedObject(ctx *alborz.Context, address, uid string) (*dav.Collection, *ical.Calendar, error) {
-	subs, err := loadSubscriptions(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
-		return nil, nil, err
-	}
-	var info *dav.Collection
-	for _, s := range subs {
-		if s.URL == address {
-			i := s.info(ctx.Login.Username())
-			info = &i
-		}
-	}
-	if info == nil {
-		return nil, nil, alborz.NotFound("notfound.subscription", address)
-	}
-	feed, ok := p.feeds.events(address, info.Color)
-	if !ok {
-		return nil, nil, alborz.NotFound("notfound.feed", address)
-	}
-	cal := ical.NewCalendar()
-	cal.Props = feed.Data.Props
-	for _, ch := range feed.Data.Children {
-		id, _ := ch.Props.Text(ical.PropUID)
-		if ch.Name == ical.CompTimezone || (ch.Name == ical.CompEvent && id == uid) {
-			cal.Children = append(cal.Children, ch)
-		}
-	}
-	if len(cal.Events()) == 0 {
-		return nil, nil, alborz.NotFound("notfound.event")
-	}
-	return info, cal, nil
 }
 
 func (p *plugin) updateEvent(ctx *alborz.Context) error {

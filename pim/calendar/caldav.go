@@ -13,6 +13,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/pim/store"
 	"github.com/alborzmail/go-recur"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -117,9 +118,7 @@ type CalendarObject struct {
 	*caldav.CalendarObject
 
 	Account string
-	// Color is a subscribed feed's own, since it has no calendar to take one from.
-	Color string
-	// ReadOnly marks a subscribed feed's events: no edit, no delete.
+	// ReadOnly marks an object whose calendar this account may not write: no edit, no delete.
 	ReadOnly bool
 }
 
@@ -268,8 +267,21 @@ func (t TaskObject) URL() string {
 	return "/tasks/" + url.PathEscape(t.Path)
 }
 
+// pooledCalendars lists every account's calendars, subscriptions another alborz added to the settings made here first.
 func (p *plugin) pooledCalendars(ctx *alborz.Context) ([]pim.Account[*caldav.Client], error) {
-	return pim.Pooled(ctx, p.dav, p.clientWithCalendars, errNoCalendar)
+	return pim.Pooled(ctx, p.dav, func(rc context.Context, login *alborz.Login) (*caldav.Client, []dav.Collection, error) {
+		err := p.follows(rc, login, func(c store.Collection) error {
+			// A feed that is down leaves its calendar empty until the next round, not the page failing.
+			if err := p.feeds.refresh(rc, c.Feed.URL); err != nil {
+				p.feeds.log.Printf("calendar: feed %s: %v", c.Feed.URL, err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		return p.clientWithCalendars(rc, login)
+	}, errNoCalendar)
 }
 
 func querySites(ctx *alborz.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
@@ -281,7 +293,8 @@ func querySites(ctx *alborz.Context, sites []pim.Site[*caldav.Client], query *ca
 			return nil, fmt.Errorf("failed to query calendar %s: %v", r.Site.Collection.Name, r.Err)
 		}
 		for i := range r.Value {
-			events = append(events, CalendarObject{CalendarObject: &r.Value[i], Account: r.Site.Collection.Account})
+			events = append(events, CalendarObject{CalendarObject: &r.Value[i], Account: r.Site.Collection.Account,
+				ReadOnly: !r.Site.Collection.Writable})
 		}
 	}
 	return events, nil

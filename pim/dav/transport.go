@@ -3,6 +3,7 @@ package dav
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -27,6 +28,11 @@ const maxRedirects = 10
 
 func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Client {
 	sources := p.Sources(ctx, login)
+	var remote http.RoundTripper = p.router(sources, login)
+	// A copy is served only to the name it was kept for; with the name unknown, none is.
+	if who, err := principal(ctx, login); err == nil {
+		remote = p.mirror.Transport(who, remote)
+	}
 	return &http.Client{
 		// A wedged DAV server fails the request instead of hanging it.
 		Timeout: requestTimeout,
@@ -35,7 +41,7 @@ func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Cli
 				sources: sources,
 				local:   p.local,
 				account: login.Username(),
-				remote:  p.mirror.Transport(login.Username(), p.router(sources, login)),
+				remote:  remote,
 			},
 			colls: func(req *http.Request) ([]Collection, error) { return p.Collections(req.Context(), login) },
 		},
@@ -63,6 +69,15 @@ func (p *Provider) router(sources []Source, login *alborz.Login) sourceRouter {
 		},
 		debug: p.debug,
 	}
+}
+
+// principal is whom the login's requests to its servers authenticate as.
+func principal(ctx context.Context, login *alborz.Login) (Principal, error) {
+	services, err := LoadServices(ctx, login.Store())
+	if err != nil {
+		return Principal{}, err
+	}
+	return Principal{Account: login.Username(), Name: cmp.Or(services.Username, login.Username())}, nil
 }
 
 // IfNew is an If-None-Match that holds only while nothing is at the address (RFC 7232 3.2).

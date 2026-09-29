@@ -96,10 +96,8 @@ func (s *Session) usedPasskey(credential webauthn.Credential, now time.Time) {
 	}
 }
 
-const unlockPath = "/unlock"
-
 func redirectToUnlock(ctx *Context) error {
-	to := unlockPath
+	to := ctx.Path("auth.unlock")
 	if ctx.Request().Method == http.MethodGet {
 		to += "?next=" + QueryValue(ctx.Request().URL.RequestURI())
 	}

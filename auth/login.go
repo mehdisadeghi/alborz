@@ -68,7 +68,7 @@ func handleLogin(ctx *web.Context) error {
 
 func loginRedirect(ctx *web.Context) error {
 	// A second leading slash or backslash is scheme-relative: off-site.
-	if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != "/login" &&
+	if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != ctx.Path("auth.login") &&
 		!strings.HasPrefix(path, "//") && !strings.HasPrefix(path, "/\\") {
 		return ctx.Redirect(http.StatusFound, path)
 	}
@@ -90,5 +90,5 @@ func HandleLogout(ctx *web.Context) error {
 	if ctx.LogoutAccount(username) != nil {
 		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 	}
-	return ctx.Redirect(http.StatusFound, "/login")
+	return ctx.Redirect(http.StatusFound, ctx.Path("auth.login"))
 }

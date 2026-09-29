@@ -88,7 +88,7 @@
     <div class="account-menu-row">
     {{ $to := printf "%s%s" $section (account "?" .Username) }}{{ if and $g.GlobalData.Item (eq .Username $g.GlobalData.URLAccount) }}{{ $to = $g.GlobalData.Own }}{{ end }}
     <a href="{{ localhref $to }}"{{ if eq .Username $g.GlobalData.Scope }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
-    <form method="post" action="/logout" class="account-signout">
+    <form method="post" action="{{url "auth.logout"}}" class="account-signout">
       <button type="submit" name="account" value="{{.Username}}" title="{{$g.T "nav.signout"}} {{.Username}}">{{$g.T "nav.signout"}}</button>
     </form>
     </div>
@@ -97,10 +97,10 @@
     {{ $all := $merged }}{{ if $g.GlobalData.Item }}{{ $all = from $g.GlobalData.Own $merged }}{{ end }}
     <a href="{{ localhref $all }}"{{ if $g.GlobalData.Merged }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
     {{ end }}
-    <a href="/login?add=1">{{$g.T "nav.addaccount"}}</a>
+    <a href="{{url "auth.login"}}?add=1">{{$g.T "nav.addaccount"}}</a>
     <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$g.T "keys.title"}}</button>
     {{ if $g.GlobalData.LockSeconds }}
-    <form method="post" action="/lock" hx-boost="false">
+    <form method="post" action="{{url "auth.lock"}}" hx-boost="false">
       <button type="submit">{{$g.T "lock.now"}}</button>
     </form>
     {{ end }}

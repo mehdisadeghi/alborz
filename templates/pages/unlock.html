@@ -6,11 +6,11 @@
     <h1>{{$.T "lock.title"}}</h1>
     <p class="action-group">
       <button type="button" class="button-primary" id="passkey-unlock" autofocus
-              data-begin="/unlock/begin" data-finish="/unlock/finish" data-next="{{.Next}}"
+              data-begin="{{url "auth.unlock.begin"}}" data-finish="{{url "auth.unlock.finish"}}" data-next="{{.Next}}"
               data-unsupported="{{$.T "passkeys.unsupported"}}" data-failed="{{$.T "passkeys.refused"}}">{{$.T "lock.unlock"}}</button>
     </p>
     <noscript><p>{{$.T "passkeys.needsscript"}}</p></noscript>
-    <form method="post" action="/unlock/leave" class="action-group">
+    <form method="post" action="{{url "auth.unlock.leave"}}" class="action-group">
       <button type="submit" class="button-link button-quiet">{{$.T "lock.leave"}}</button>
       {{ template "hint" (dict "text" ($.T "lock.leavehint")) }}
     </form>

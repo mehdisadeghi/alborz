@@ -718,7 +718,7 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*alborz.Context) error {
 		// A 2xx is not taken as proof; listing again shows what the reader will see.
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err == nil {
 			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed,
-				Text: fmt.Sprintf(ctx.T("notice.collectionkept"), info.Name)})
+				Text: fmt.Sprintf(ctx.T("notice.collectionnotdeleted"), info.Name)})
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
 		}
 		done := "notice.collectiondeleted"

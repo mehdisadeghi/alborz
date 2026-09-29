@@ -291,14 +291,14 @@ func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
 	auth.Mount(s)
 	mail.Mount(s)
 	settings.Mount(s)
-	kept, err := pim.Mount(s)
+	st, err := pim.Mount(s)
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	if err := calendar.Mount(s, kept); err != nil {
+	if err := calendar.Mount(s, st); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	if err := contacts.Mount(s, kept); err != nil {
+	if err := contacts.Mount(s, st); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
 	filters.Mount(s)
@@ -1613,9 +1613,9 @@ func TestDatesPastTheSolarHijriReckoningShowGregorian(t *testing.T) {
 
 // A date is read in the calendar its field names: typed Solar Hijri beyond the reckoning is refused, a stored date beyond it round-trips in Gregorian.
 func TestInputPastTheSolarHijriReckoning(t *testing.T) {
-	base := startAlborzKept(t, startIMAP(t))
+	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
-	coll := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
+	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 	put(t, base, coll+"far.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n"+
 		"BEGIN:VEVENT\r\nUID:far\r\nDTSTAMP:20260901T080000Z\r\nDTSTART:40000101T100000Z\r\nDTEND:40000101T110000Z\r\n"+
 		"SUMMARY:Far\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")

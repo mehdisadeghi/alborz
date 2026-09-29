@@ -61,8 +61,8 @@ func (p *plugin) pooledBooks(ctx *alborz.Context) ([]pim.Account[*carddav.Client
 }
 
 // Mount serves contacts.
-func Mount(srv *alborz.Server, kept *store.Store) error {
-	provider, err := dav.NewProvider(srv, kept, dav.Kind{
+func Mount(srv *alborz.Server, st *store.Store) error {
+	provider, err := dav.NewProvider(srv, st, dav.Kind{
 		Name: "carddav", Label: "CardDAV",
 		Schemes: [2]string{"carddavs", "carddav+insecure"},
 		// Address books change rarely.
@@ -87,7 +87,7 @@ func Mount(srv *alborz.Server, kept *store.Store) error {
 
 	registerRoutes(p)
 	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.dav))
-	// Calendar registers first, so the kept collections come last.
+	// Calendar registers first, so the collections on alborz come last.
 	srv.OnServers = append(srv.OnServers, p.dav.Cards("settings.davcontacts", bookAbilities), p.dav.HereCard())
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm, p.seed)
 

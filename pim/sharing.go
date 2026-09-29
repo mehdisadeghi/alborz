@@ -163,7 +163,7 @@ func (pg Page) owned(ctx *alborz.Context) (dav.Collection, store.Ref, error) {
 	}
 	ref, _, here := store.Held(info.Path)
 	if !here || info.SharedBy != "" {
-		return info, ref, echo.NewHTTPError(http.StatusForbidden, "not a collection of this account's kept here")
+		return info, ref, echo.NewHTTPError(http.StatusForbidden, "not one of this account's collections on alborz")
 	}
 	return info, ref, nil
 }

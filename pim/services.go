@@ -78,7 +78,7 @@ func handleServer(ctx *alborz.Context) error {
 			return render(http.StatusUnprocessableEntity)
 		}
 	}
-	// An empty field leaves the kept password alone; only the reset box lets it go.
+	// An empty field leaves the stored password alone; only the reset box lets it go.
 	refuse := func(err error) error {
 		data.Services = named
 		data.Refused(ctx.SaveRefusal(err))

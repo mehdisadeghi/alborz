@@ -27,12 +27,12 @@ func Mount(srv *alborz.Server) (*store.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	kept := store.New(db)
-	srv.Pre(serveOwn(srv, kept))
+	st := store.New(db)
+	srv.Pre(serveOwn(srv, st))
 	r := srv.Router()
 	r.GET("/settings/servers/"+settings.ServerDAV, mail.Scoped(handleServer))
 	r.POST("/settings/servers/"+settings.ServerDAV, mail.Scoped(handleServer))
-	return kept, nil
+	return st, nil
 }
 
 // Each check is an IMAP login, and a syncing phone sends its password with every request.
@@ -97,8 +97,8 @@ func (p *davPasswords) authenticate(srv *alborz.Server, username, password, sour
 }
 
 // serveOwn answers DAV clients ahead of sessions and cookies, by address and password on each request.
-func serveOwn(srv *alborz.Server, kept *store.Store) echo.MiddlewareFunc {
-	dav, passwords := kept.Handler(), newDAVPasswords()
+func serveOwn(srv *alborz.Server, st *store.Store) echo.MiddlewareFunc {
+	dav, passwords := st.Handler(), newDAVPasswords()
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ectx echo.Context) error {
 			w, r := ectx.Response(), ectx.Request()
@@ -110,7 +110,7 @@ func serveOwn(srv *alborz.Server, kept *store.Store) echo.MiddlewareFunc {
 			}
 			// A published calendar needs no credentials.
 			if store.IsPublic(r.URL.Path) {
-				kept.ServePublic(w, r)
+				st.ServePublic(w, r)
 				return nil
 			}
 			if !strings.HasPrefix(r.URL.Path, store.Prefix+"/") {

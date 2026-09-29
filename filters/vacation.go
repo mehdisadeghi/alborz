@@ -348,7 +348,7 @@ func handleReplySave(ctx *alborz.Context) error {
 			ctx.AccountPath("/filters/autoreply/create"))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters/autoreply"))
 	}
-	saved := ctx.T("notice.autoreplykept")
+	saved := ctx.T("notice.autoreplyinactive")
 	if sent {
 		saved = ctx.T("notice.autoreplysaved")
 	}

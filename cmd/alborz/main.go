@@ -182,15 +182,15 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	auth.Mount(s)
 	mail.Mount(s)
 	settings.Mount(s)
-	kept, err := pim.Mount(s)
+	st, err := pim.Mount(s)
 	if err != nil {
 		e.Logger.Fatal(err)
 	}
-	// Calendar before contacts, so the servers page lists the kept collections last.
-	if err := calendar.Mount(s, kept); err != nil {
+	// Calendar before contacts, so the servers page lists the collections on alborz last.
+	if err := calendar.Mount(s, st); err != nil {
 		e.Logger.Fatal(err)
 	}
-	if err := contacts.Mount(s, kept); err != nil {
+	if err := contacts.Mount(s, st); err != nil {
 		e.Logger.Fatal(err)
 	}
 	filters.Mount(s)

@@ -86,8 +86,8 @@ func (l *Login) open(e envelope) (string, error) {
 // httpPasswordKey stores the HTTP services' password when it is not the mail password.
 const httpPasswordKey = "http-password"
 
-// HTTPPassword returns the kept HTTP password, else the login password. One the
-// mail password no longer opens stays kept, for the reader to enter again or clear.
+// HTTPPassword returns the stored HTTP password, else the login password. One the
+// mail password no longer opens stays stored, for the reader to enter again or clear.
 func (l *Login) HTTPPassword(ctx context.Context) (string, error) {
 	l.httpLocker.Lock()
 	defer l.httpLocker.Unlock()

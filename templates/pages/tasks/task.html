@@ -16,7 +16,7 @@
 {{ define "main-class" }} class="task"{{ end }}
 
 {{ define "main" }}
-      {{ $acct := account "?" .GlobalData.URLAccount }}
+      {{ $acct := .GlobalData.AccountQuery }}
       {{$todo := index .Task.Data.Children 0}}
       {{$summary := $todo.Props.Text "SUMMARY"}}
       {{$desc := $todo.Props.Text "DESCRIPTION"}}

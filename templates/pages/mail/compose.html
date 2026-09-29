@@ -160,7 +160,7 @@
           </select>
           <button type="submit" name="signature_apply" value="1" formnovalidate
                   {{ if not .Signatures }}disabled title="{{$.T "settings.signaturesnone"}}"{{ end }}>{{$.T "compose.signatureapply"}}</button>
-          <a class="signature-edit" href="/signatures{{ account "?" $.GlobalData.URLAccount }}">{{$.T "settings.signaturesedit"}}</a>
+          <a class="signature-edit" href="/signatures{{ $.GlobalData.AccountQuery }}">{{$.T "settings.signaturesedit"}}</a>
         </div>
 
         <div class="actions">

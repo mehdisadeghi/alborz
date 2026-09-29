@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/export{{ if not (or .UIDs .Everything) }}?all=1{{ with .Query }}&query={{ . | qv }}{{ end }}{{ with .ListView }}&view={{ . }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}{{ else }}{{ account "?" $.GlobalData.URLAccount }}{{ end }}" data-download hx-boost="false">
+      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/export{{ if not (or .UIDs .Everything) }}?all=1{{ with .Query }}&query={{ . | qv }}{{ end }}{{ with .ListView }}&view={{ . }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}{{ else }}{{ $.GlobalData.AccountQuery }}{{ end }}" data-download hx-boost="false">
         {{ range .UIDs }}<input type="hidden" name="uids" value="{{.}}">{{ end }}
         {{ with .Everything }}<input type="hidden" name="everything" value="1"><input type="hidden" name="next" value="{{.}}">{{ end }}
         {{ template "mail-crumb" $ }}

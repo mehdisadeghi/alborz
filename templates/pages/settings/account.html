@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="settings"{{ end }}
 
 {{ define "main" }}
-  {{ $aq := account "?" .GlobalData.URLAccount }}
+  {{ $aq := .GlobalData.AccountQuery }}
       {{ template "settings-head" (dict "g" $ "title" ($.T "settings.account") "path" "/settings/account") }}
 
       <form method="post">

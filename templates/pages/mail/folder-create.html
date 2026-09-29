@@ -6,7 +6,7 @@
 
 {{ define "main" }}
       <form method="POST">
-        {{ $acct := account "?" .GlobalData.URLAccount }}
+        {{ $acct := .GlobalData.AccountQuery }}
         {{ template "mail-crumb" $ }}
         <h1>{{$.T "folder.create"}}</h1>
         {{ template "folder-location" $ }}

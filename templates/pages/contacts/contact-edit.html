@@ -4,14 +4,14 @@
 
 {{ define "before-main" }}
     {{ if and .AddressObject .Photo }}
-    {{ template "next-form" (dict "id" "photo-remove-form" "action" (printf "/contacts/%s/photo/delete%s" (.AddressObject.Path | pathescape) (account "?" .GlobalData.URLAccount)) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "next-form" (dict "id" "photo-remove-form" "action" (printf "/contacts/%s/photo/delete%s" (.AddressObject.Path | pathescape) .GlobalData.AccountQuery) "next" .GlobalData.URL.RequestURI) }}
     {{ end }}
 {{ end }}
 
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-  {{ $acct := account "?" .GlobalData.URLAccount }}
+  {{ $acct := .GlobalData.AccountQuery }}
       <form method="post" enctype="multipart/form-data">
         {{ template "object-form-head" (dict "g" $ "editing" .AddressObject "collection" .AddressBook "groups" .Groups "section" ($.T "nav.contacts") "home" "/contacts" "field" "book"
            "title" (or (and .AddressObject ($.T "contacts.edittitle")) ($.T "contacts.createtitle")) "name" "addressbook" "key" "contact") }}

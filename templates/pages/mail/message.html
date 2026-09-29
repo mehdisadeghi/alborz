@@ -215,7 +215,7 @@
               {{/* Outside the body frame: a message can style its own body to look
                    like a verdict. It may read the whole message, so it comes after the page. */}}
               {{ if .Message.Signed }}
-              <span hx-get="{{.Message.URL}}/signature{{account "?" $.GlobalData.URLAccount}}" hx-trigger="load" hx-swap="outerHTML"></span>
+              <span hx-get="{{.Message.URL}}/signature{{$.GlobalData.AccountQuery}}" hx-trigger="load" hx-swap="outerHTML"></span>
               {{ end }}
             </td>
           </tr>

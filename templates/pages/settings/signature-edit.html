@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-  {{ $aq := account "?" .GlobalData.URLAccount }}
+  {{ $aq := .GlobalData.AccountQuery }}
       <form method="post" action="/signatures{{$aq}}">
         {{ template "settings-crumb" (dict "g" $ "collection" ($.T "settings.signatures") "path" "/signatures") }}
         <h1>{{ if .Was }}{{$.T "settings.signatureedit"}}{{ else }}{{$.T "settings.signaturenew"}}{{ end }}</h1>

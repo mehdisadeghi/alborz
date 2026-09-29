@@ -1,6 +1,6 @@
 {{/* dict: g accounts [nonew newactive import importactive]. */}}
 {{ define "filters-rail" }}
-{{ $aq := account "?" .g.GlobalData.URLAccount }}
+{{ $aq := .g.GlobalData.AccountQuery }}
 {{ $new := dict "href" (printf "/filters/create%s" $aq) "label" (.g.T "filters.new") "active" .newactive }}{{ if .nonew }}{{ $new = false }}{{ end }}
 {{ $import := false }}{{ if .import }}{{ $import = dict "href" (printf "/filters/import%s" $aq) "label" (.g.T "filters.import") "active" .importactive }}{{ end }}
 <aside>

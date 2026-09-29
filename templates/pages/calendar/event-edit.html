@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-  {{ $acct := account "?" .GlobalData.URLAccount }}
+  {{ $acct := .GlobalData.AccountQuery }}
       <form method="post">
         {{ template "object-form-head" (dict "g" $ "editing" .CalendarObject "collection" .Calendar "groups" .Groups "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal"
            "title" (or (and .CalendarObject ($.T "calendar.edittitle")) ($.T "calendar.createtitle")) "name" "calendar" "key" "event") }}

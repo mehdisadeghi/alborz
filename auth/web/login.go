@@ -3,7 +3,6 @@ package web
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/web"
@@ -67,10 +66,8 @@ func handleLogin(ctx *web.Context) error {
 }
 
 func loginRedirect(ctx *web.Context) error {
-	// A second leading slash or backslash is scheme-relative: off-site.
-	if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != ctx.Path("auth.login") &&
-		!strings.HasPrefix(path, "//") && !strings.HasPrefix(path, "/\\") {
-		return ctx.Redirect(http.StatusFound, path)
+	if next := ctx.NextOr(""); next != "" && next != ctx.Path("auth.login") {
+		return ctx.Redirect(http.StatusFound, next)
 	}
 	ctx.Quiet()
 	return ctx.Redirect(http.StatusFound, ctx.Path("mail.mailbox", "INBOX"))

@@ -190,7 +190,7 @@ func handleBlock(ctx *web.Context) error {
 	}
 	if junk == "" {
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("filters.nojunk")})
-		return ctx.Redirect(http.StatusFound, ctx.FormValue("next"))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL("filters.rules")))
 	}
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		return filters.Block(c, value, domain, junk)

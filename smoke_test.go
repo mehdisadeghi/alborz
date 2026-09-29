@@ -3492,7 +3492,9 @@ func serveSieve(conn net.Conn, s *sieveScripts) {
 // Blocking lands wherever the form says, not on a route, and leaves the rule in the script.
 func TestBlockingASenderLandsOnTheMessage(t *testing.T) {
 	sieve, scripts := startSieve(t)
-	base := startAlborzWith(t, []string{"test.local=imap+insecure://" + startIMAP(t), "test.local=sieve+insecure://" + sieve})
+	elsewhere, _ := startIMAPElsewhere(t)
+	base := startAlborzWith(t, []string{"test.local=imap+insecure://" + startIMAP(t), "test.local=sieve+insecure://" + sieve,
+		"elsewhere.local=imap+insecure://" + elsewhere, "elsewhere.local=sieve+insecure://" + sieve})
 	c := login(t, base)
 	resp, err := c.PostForm(base+"/filters/rules/block?account="+smokeUser,
 		url.Values{"value": {"spam@example.org"}, "next": {"/mailbox/INBOX"}})
@@ -3510,5 +3512,20 @@ func TestBlockingASenderLandsOnTheMessage(t *testing.T) {
 	}
 	if rules := scripts.get("alborz-rules"); !strings.Contains(rules, `address :is "from" "spam@example.org"`) {
 		t.Errorf("the rules script does not block the sender:\n%s", rules)
+	}
+
+	// Off-site is refused on either landing; the account elsewhere has no junk folder to block into.
+	other := loginAs(t, base, smokeElsewhere)
+	for _, tc := range []struct {
+		c       *http.Client
+		account string
+	}{{c, smokeUser}, {other, smokeElsewhere}} {
+		for _, next := range []string{"https://evil.example/", "//evil.example/"} {
+			resp := postForm(t, tc.c, base+"/filters/rules/block?account="+tc.account,
+				url.Values{"value": {"spam@example.org"}, "next": {next}})
+			if at := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound || !strings.HasPrefix(at, "/filters/rules?") {
+				t.Errorf("%s blocking with next %s: %s to %q, want the rules page", tc.account, next, resp.Status, at)
+			}
+		}
 	}
 }

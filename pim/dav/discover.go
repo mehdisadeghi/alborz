@@ -55,6 +55,20 @@ func OnMailHost(rt http.RoundTripper, host, service, instance string) (*url.URL,
 	return nil, false
 }
 
+// answersAs says whether the server at u names instance in its answer (alborz.InstanceHeader).
+func answersAs(rt http.RoundTripper, u *url.URL, instance string) bool {
+	req, err := http.NewRequest(http.MethodOptions, u.String(), nil)
+	if err != nil {
+		return false
+	}
+	resp, err := (&http.Client{Transport: rt, Timeout: alborz.RoundTripTimeout}).Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.Header.Get(alborz.InstanceHeader) == instance
+}
+
 // SanityCheckURL asks the endpoint whether it is there at all.
 func SanityCheckURL(rt http.RoundTripper, u *url.URL) error {
 	req, err := http.NewRequest(http.MethodOptions, u.String(), nil)

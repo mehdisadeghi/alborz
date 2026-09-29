@@ -20,12 +20,13 @@ type Settings struct {
 	VisibleCalendars []string
 	TaskFilter       bool
 	VisibleTasks     []string
-	Subscriptions    []Subscription
 }
 
 const (
 	datePageLayout = "2006-01-02"
 	settingsKey    = "caldav.settings"
+	// Subscriptions have their own entry: METADATA has no compare-and-set, so a tick written from one tab would drop a subscription added in another.
+	subscriptionsKey = "caldav.subscriptions"
 )
 
 func loadSettings(ctx context.Context, store alborz.Store) (*Settings, error) {
@@ -122,13 +123,17 @@ func visibleCalendars(ctx context.Context, accounts []pim.Account[*caldav.Client
 		if err != nil {
 			return nil, false, nil, fmt.Errorf("failed to load CalDAV settings: %w", err)
 		}
+		subs, err := loadSubscriptions(ctx, acc.Login.Store())
+		if err != nil {
+			return nil, false, nil, err
+		}
 		var cals []dav.Collection
 		for _, cal := range acc.Collections {
 			if kind(cal.Components) {
 				cals = append(cals, cal)
 			}
 		}
-		for _, sub := range settings.Subscriptions {
+		for _, sub := range subs {
 			if cal := sub.info(acc.Name); kind(cal.Components) {
 				cals = append(cals, cal)
 			}

@@ -56,6 +56,14 @@ const (
 	feedTick = time.Minute
 )
 
+func loadSubscriptions(ctx context.Context, store alborz.Store) ([]Subscription, error) {
+	var subs []Subscription
+	if err := store.Get(ctx, subscriptionsKey, &subs); err != nil && err != alborz.ErrNoStoreEntry {
+		return nil, err
+	}
+	return subs, nil
+}
+
 func (s Subscription) path() string {
 	sum := sha1.Sum([]byte(s.URL))
 	return subPrefix + hex.EncodeToString(sum[:6]) + "/"
@@ -446,11 +454,11 @@ func (p *plugin) refresh(ctx *alborz.Context) error {
 	rc := ctx.Request().Context()
 	var fetches sync.WaitGroup
 	for _, login := range ctx.Logins() {
-		settings, err := loadSettings(rc, login.Store())
+		subs, err := loadSubscriptions(rc, login.Store())
 		if err != nil {
 			return err
 		}
-		for _, sub := range settings.Subscriptions {
+		for _, sub := range subs {
 			fetches.Go(func() {
 				if _, err := p.feeds.refresh(rc, sub.URL); err != nil {
 					ctx.Logger().Printf("calendar: feed %s: %v", sub.URL, err)

@@ -54,15 +54,15 @@ func (p *plugin) collectionPage() pim.Page {
 		},
 		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
 			if isSubscription(path) {
-				settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
+				subs, err := loadSubscriptions(ctx.Request().Context(), ctx.Login.Store())
 				if err != nil {
 					return dav.Collection{}, nil, "", "", err
 				}
-				i := subscriptionAt(settings.Subscriptions, path)
+				i := subscriptionAt(subs, path)
 				if i < 0 {
 					return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
 				}
-				sub := settings.Subscriptions[i]
+				sub := subs[i]
 				return sub.info(ctx.Login.Username()),
 					func() int { return p.feeds.count(sub.URL) }, "/calendar", ctx.T("nav.calendar"), nil
 			}
@@ -99,11 +99,11 @@ func (p *plugin) forSubscription(sub func(*alborz.Context, string) error, next f
 }
 
 func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
-	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
+	subs, err := loadSubscriptions(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
-	i := subscriptionAt(settings.Subscriptions, path)
+	i := subscriptionAt(subs, path)
 	if i < 0 {
 		return alborz.NotFound("notfound.collection")
 	}
@@ -111,26 +111,26 @@ func (p *plugin) updateSubscription(ctx *alborz.Context, path string) error {
 	if name == "" {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, ctx.T("form.nameneeded"))
 	}
-	settings.Subscriptions[i].Name = name
-	settings.Subscriptions[i].Color = ctx.FormValue("color")
-	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+	subs[i].Name = name
+	subs[i].Color = ctx.FormValue("color")
+	if err := ctx.Login.Store().Put(ctx.Request().Context(), subscriptionsKey, subs); err != nil {
 		ctx.Notify(pim.Refused(ctx, err))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/calendar")))
 }
 
 func (p *plugin) unsubscribe(ctx *alborz.Context, path string) error {
-	settings, err := loadSettings(ctx.Request().Context(), ctx.Login.Store())
+	subs, err := loadSubscriptions(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
-	i := subscriptionAt(settings.Subscriptions, path)
+	i := subscriptionAt(subs, path)
 	if i < 0 {
 		return alborz.NotFound("notfound.collection")
 	}
-	name := settings.Subscriptions[i].Name
-	settings.Subscriptions = append(settings.Subscriptions[:i], settings.Subscriptions[i+1:]...)
-	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+	name := subs[i].Name
+	subs = append(subs[:i], subs[i+1:]...)
+	if err := ctx.Login.Store().Put(ctx.Request().Context(), subscriptionsKey, subs); err != nil {
 		ctx.Notify(pim.Refused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/calendar"))
 	}
@@ -203,11 +203,11 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, "not signed in to that account")
 		}
 		sub := Subscription{URL: normalizeFeedURL(data.Address), Color: dav.DefaultColor}
-		settings, err := loadSettings(ctx.Request().Context(), login.Store())
+		subs, err := loadSubscriptions(ctx.Request().Context(), login.Store())
 		if err != nil {
 			return err
 		}
-		if subscriptionAt(settings.Subscriptions, sub.path()) >= 0 {
+		if subscriptionAt(subs, sub.path()) >= 0 {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL))
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
@@ -225,8 +225,8 @@ func handleSubscribe(p *plugin) func(*alborz.Context) error {
 		if sub.Name == "" {
 			sub.Name = feedHost(sub.URL)
 		}
-		settings.Subscriptions = append(settings.Subscriptions, sub)
-		if err := login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+		subs = append(subs, sub)
+		if err := login.Store().Put(ctx.Request().Context(), subscriptionsKey, subs); err != nil {
 			data.Refused(ctx.SaveRefusal(err))
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}

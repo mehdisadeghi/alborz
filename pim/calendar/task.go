@@ -12,6 +12,7 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
@@ -42,7 +43,7 @@ type UpdateTaskRenderData struct {
 	CalendarObject *caldav.CalendarObject
 	Todo           *ical.Component
 	// Due is the due date as the field holds it.
-	Due web.DateField
+	Due dates.Field
 	// Priority is the band the select holds; PriorityBands the bands offered.
 	Priority      string
 	PriorityBands []string
@@ -258,7 +259,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		// The zone definition must cover the date it qualifies, so it brackets the due date.
 		due := time.Now().In(loc)
 		if dueDate.Value != "" {
-			at, err := dueDate.Date(loc)
+			at, err := dueDate.Read(loc)
 			if err != nil {
 				return reject(ctx.T("form.duedate"))
 			}

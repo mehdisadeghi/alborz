@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
@@ -112,7 +113,7 @@ type Sharing struct {
 	OffersPublic bool
 	// To and Until keep what a refused share had typed.
 	To    string
-	Until web.DateField
+	Until dates.Field
 	Write bool
 }
 
@@ -193,7 +194,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
 		share.To, err = invitee(ctx, ctx.FormValue("to"))
 		if until := ctx.DateField("until"); err == nil && until.Value != "" {
 			var day time.Time
-			if day, err = until.Date(web.UserLocation(ctx)); err == nil {
+			if day, err = until.Read(web.UserLocation(ctx)); err == nil {
 				// The form names the last day; the share ends after it.
 				share.Expires = day.AddDate(0, 0, 1)
 				if !share.Expires.After(time.Now()) {

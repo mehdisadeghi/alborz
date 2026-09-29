@@ -12,10 +12,9 @@ import (
 	"text/template/parse"
 	"time"
 
-	"golang.org/x/text/number"
-
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/calsys"
+	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/internal/lang"
 	"git.mehdix.org/alborz/internal/locale"
 )
@@ -123,125 +122,49 @@ func (brd *BaseRenderData) T(key string) string {
 	return locale.T(brd.GlobalData.Lang, key)
 }
 
-// Since dates a message in the reader's language, as short as a list column.
-func (g *GlobalRenderData) Since(t time.Time) string {
-	unit, n := elapsed(g.InTimezone(t), g.InTimezone(time.Now()))
-	if unit == "" {
-		return g.T("since.now")
-	}
-	key := "since.ago"
-	if n < 0 {
-		key, n = "since.ahead", -n
-	}
-	// A year count is never grouped: "2025 yrs ago", not "2,025".
-	span := locale.Sprintf(g.Lang, locale.Plural(g.Lang, "since."+unit, n), number.Decimal(n, number.NoSeparator()))
-	return g.Tf(key, span)
+func (g *GlobalRenderData) dates() dates.Reader {
+	return dates.Reader{Lang: g.Lang, Loc: g.Timezone, Primary: g.Primary, Secondary: g.Secondary}
 }
 
-var secondsIn = []struct {
-	unit string
-	n    int64
-}{
-	{"week", int64(7 * 24 * time.Hour / time.Second)},
-	{"day", int64(24 * time.Hour / time.Second)},
-	{"hour", int64(time.Hour / time.Second)},
-	{"minute", int64(time.Minute / time.Second)},
-	{"second", 1},
-}
+func (g *GlobalRenderData) Since(t time.Time) string { return g.dates().Since(t) }
 
-func elapsed(t, now time.Time) (string, int) {
-	sign, s, e := 1, t, now
-	if e.Before(s) {
-		sign, s, e = -1, e, s
-	}
-	years := e.Year() - s.Year()
-	if s.AddDate(years, 0, 0).After(e) {
-		years--
-	}
-	if years > 0 {
-		return "year", sign * years
-	}
-	months := (e.Year()-s.Year())*12 + int(e.Month()-s.Month())
-	if s.AddDate(0, months, 0).After(e) {
-		months--
-	}
-	if months > 0 {
-		return "month", sign * months
-	}
-	secs := e.Unix() - s.Unix()
-	for _, u := range secondsIn {
-		if secs >= u.n {
-			return u.unit, sign * int(secs/u.n)
-		}
-	}
-	return "", 0
-}
+func (g *GlobalRenderData) FormatDate(t time.Time) string { return g.dates().Full(t) }
 
-// FormatDate states a full date and time.
-func (g *GlobalRenderData) FormatDate(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return locale.Sprintf(g.Lang, g.T("date.withtime"), g.LongDate(t), g.FormatTime(t))
-}
+func (g *GlobalRenderData) ShortDate(t time.Time) string { return g.dates().Short(t) }
 
-// ShortDate is a bare date in the secondary calendar when one is chosen, without the current year.
-func (g *GlobalRenderData) ShortDate(t time.Time) string {
-	cal := calsys.For(g.PrimaryCalendar(), g.InTimezone(t))
-	year, m, day := cal.Date(g.InTimezone(t))
-	thisYear, _, _ := cal.Date(g.InTimezone(time.Now()))
-	month := g.ShortMonth(cal, m)
-	if year != thisYear {
-		return locale.Sprintf(g.Lang, g.T("date.shortyear"), day, month, g.FormatYear(year))
-	}
-	return locale.Sprintf(g.Lang, g.T("date.short"), day, month)
-}
+func (g *GlobalRenderData) FormatTime(t time.Time) string { return g.dates().Clock(t) }
 
-// FormatTime formats just the time portion in the user's timezone.
-func (g *GlobalRenderData) FormatTime(t time.Time) string {
-	t = g.InTimezone(t)
-	return locale.Sprintf(g.Lang, "%02d:%02d", t.Hour(), t.Minute())
-}
+func (g *GlobalRenderData) InTimezone(t time.Time) time.Time { return g.dates().In(t) }
 
-// InTimezone converts a time to the user's timezone.
-func (g *GlobalRenderData) InTimezone(t time.Time) time.Time {
-	if g.Timezone != nil {
-		return t.In(g.Timezone)
-	}
-	return t
-}
+func (g *GlobalRenderData) WeekdayName(d time.Weekday) string { return g.dates().Weekday(d) }
 
-// WeekdayName translates a weekday.
-func (g *GlobalRenderData) WeekdayName(d time.Weekday) string {
-	return g.T(fmt.Sprintf("calendar.weekday.%d", d))
-}
+func (g *GlobalRenderData) MonthName(t time.Time) string { return g.dates().Month(t) }
 
-// MonthName translates the month of t, in the primary calendar.
-func (g *GlobalRenderData) MonthName(t time.Time) string {
-	cal := calsys.For(g.PrimaryCalendar(), g.InTimezone(t))
-	_, m, _ := cal.Date(g.InTimezone(t))
-	return g.T(cal.MonthKey(m))
-}
-
-// ShortMonth names a month of cal as a narrow column does.
 func (g *GlobalRenderData) ShortMonth(cal calsys.System, month int) string {
-	if cal.Name() != calsys.Gregorian {
-		return g.T(cal.MonthKey(month))
-	}
-	return g.T(fmt.Sprintf("calendar.gmonthshort.%d", month))
+	return g.dates().ShortMonth(cal, month)
 }
 
-// PrimaryCalendar is the calendar the page counts in.
-func (g *GlobalRenderData) PrimaryCalendar() calsys.System { return calsys.Of(g.Primary) }
+func (g *GlobalRenderData) PrimaryCalendar() calsys.System { return g.dates().Calendar() }
 
-// SecondaryCalendar is the calendar glossed beside the primary one at t; false for none, or one that cannot count t.
 func (g *GlobalRenderData) SecondaryCalendar(t time.Time) (calsys.System, bool) {
-	if g.Secondary == "" || g.Secondary == g.PrimaryCalendar().Name() {
-		return calsys.System{}, false
-	}
-	cal := calsys.Of(g.Secondary)
-	return cal, calsys.For(cal, t) == cal
+	return g.dates().SecondaryCalendar(t)
 }
+
+func (g *GlobalRenderData) SecondaryDate(t time.Time) string { return g.dates().SecondaryDate(t) }
+
+func (g *GlobalRenderData) MonthYear(t time.Time) string { return g.dates().MonthYear(t) }
+
+func (g *GlobalRenderData) LongDate(t time.Time) string { return g.dates().Long(t) }
+
+func (g *GlobalRenderData) InputDate(t time.Time) dates.Field { return g.dates().Input(t) }
+
+func (g *GlobalRenderData) InputDateTime(t time.Time) dates.Field { return g.dates().InputTime(t) }
+
+func (g *GlobalRenderData) DateExample(f dates.Field) string { return g.dates().Example(f) }
+
+func (g *GlobalRenderData) DateTimeExample(f dates.Field) string { return g.dates().ExampleTime(f) }
+
+func (g *GlobalRenderData) InputDay(iso string) dates.Field { return g.dates().Day(iso) }
 
 // ContentLang names the language of interface text, empty where it matches the page.
 func (g *GlobalRenderData) ContentLang(s string) string {
@@ -292,30 +215,6 @@ func (g GlobalRenderData) T(key string) string { return locale.T(g.Lang, key) }
 
 func (g GlobalRenderData) Tf(key string, args ...interface{}) string {
 	return locale.Tf(g.Lang, key, args...)
-}
-
-// SecondaryDate is the full secondary date of one day.
-func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
-	cal, ok := g.SecondaryCalendar(g.InTimezone(t))
-	if !ok || t.IsZero() {
-		return ""
-	}
-	y, m, d := cal.Date(g.InTimezone(t))
-	return locale.Sprintf(g.Lang, "%d %s %s", d, g.T(cal.MonthKey(m)), g.FormatYear(y))
-}
-
-// MonthYear renders the calendar heading for t's month.
-func (g *GlobalRenderData) MonthYear(t time.Time) string {
-	y, _, _ := calsys.For(g.PrimaryCalendar(), g.InTimezone(t)).Date(g.InTimezone(t))
-	return fmt.Sprintf("%s %s", g.MonthName(t), g.FormatYear(y))
-}
-
-// LongDate renders a translated day heading; time.Format knows only English names.
-func (g *GlobalRenderData) LongDate(t time.Time) string {
-	weekday := g.WeekdayName(g.InTimezone(t).Weekday())
-	month := g.MonthName(t)
-	y, _, d := calsys.For(g.PrimaryCalendar(), g.InTimezone(t)).Date(g.InTimezone(t))
-	return locale.Sprintf(g.Lang, g.T("date.long"), weekday, d, month, g.FormatYear(y))
 }
 
 // RenderData is implemented by template data structs.
@@ -462,20 +361,27 @@ func (brd *BaseRenderData) WithItem() *BaseRenderData {
 	return brd
 }
 
-// MonthYearIn and LongDateIn translate a heading before the render data exists.
-func (ctx *Context) MonthYearIn(t time.Time) string {
-	return ctx.dates().MonthYear(t)
+// dates is the reader of this request, for what is written before the render data exists.
+func (ctx *Context) dates() dates.Reader {
+	primary, secondary := ctx.calendars()
+	return dates.Reader{Lang: requestLanguage(ctx), Primary: primary, Secondary: secondary}
 }
 
-func (ctx *Context) LongDateIn(t time.Time) string {
-	return ctx.dates().LongDate(t)
+func (ctx *Context) MonthYearIn(t time.Time) string { return ctx.dates().MonthYear(t) }
+
+func (ctx *Context) LongDateIn(t time.Time) string { return ctx.dates().Long(t) }
+
+func (ctx *Context) InputDate(t time.Time) dates.Field { return ctx.dates().Input(t) }
+
+func (ctx *Context) InputDay(iso string) dates.Field { return ctx.dates().Day(iso) }
+
+// DateField is the named field as the form sent it.
+func (ctx *Context) DateField(name string) dates.Field {
+	return dates.Field{Value: strings.TrimSpace(ctx.FormValue(name)), Calendar: ctx.FormValue(name + fieldCalendar)}
 }
 
-func (ctx *Context) dates() *GlobalRenderData {
-	g := &GlobalRenderData{Lang: requestLanguage(ctx)}
-	g.Primary, g.Secondary = ctx.calendars()
-	return g
-}
+// fieldCalendar suffixes a date field's name to name the hidden field saying its calendar, as templates/partials/form.html writes it.
+const fieldCalendar = "-calendar"
 
 // PageTitle is the browser title: the page's subject and the brand, or the brand alone.
 func (g *GlobalRenderData) PageTitle() string {

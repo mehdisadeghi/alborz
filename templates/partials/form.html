@@ -10,7 +10,7 @@
 </div>
 {{ end }}
 
-{{/* dict: g label name value [class time hint]; value is an alborz.DateField, its calendar sent beside it. */}}
+{{/* dict: g label name value [class time hint]; value is a dates.Field, its calendar sent beside it. */}}
 {{ define "date-field" }}
 {{ $type := "date" }}{{ if .time }}{{ $type = "datetime-local" }}{{ end }}
 {{ $example := "" }}{{ $hint := "" }}

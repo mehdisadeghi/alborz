@@ -9,6 +9,7 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
@@ -46,10 +47,10 @@ type UpdateEventRenderData struct {
 
 	// Both shapes are filled, so ticking the box loses nothing typed.
 	AllDay    bool
-	StartTime web.DateField
-	EndTime   web.DateField
-	StartDate web.DateField
-	EndDate   web.DateField
+	StartTime dates.Field
+	EndTime   dates.Field
+	StartDate dates.Field
+	EndDate   dates.Field
 	// Attendees are the invited addresses, one per line.
 	Attendees string
 	Repeat    Repeat
@@ -304,11 +305,11 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		allDay := ctx.FormValue("allday") != ""
 		var start, end time.Time
 		if allDay {
-			start, err = ctx.DateField("start_date").Date(loc)
+			start, err = ctx.DateField("start_date").Read(loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
-			end, err = ctx.DateField("end_date").Date(loc)
+			end, err = ctx.DateField("end_date").Read(loc)
 			if err != nil {
 				end = start
 			}
@@ -318,11 +319,11 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			// DTEND is exclusive; the form asks for the last day.
 			end = end.AddDate(0, 0, 1)
 		} else {
-			start, err = ctx.DateField("start").DateTime(loc)
+			start, err = ctx.DateField("start").ReadTime(loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}
-			end, err = ctx.DateField("end").DateTime(loc)
+			end, err = ctx.DateField("end").ReadTime(loc)
 			if err != nil {
 				return reject(ctx.T("form.datesneeded"))
 			}

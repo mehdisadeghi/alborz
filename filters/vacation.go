@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/internal/lang"
 	"git.mehdix.org/alborz/internal/locale"
 	"git.mehdix.org/alborz/mail"
@@ -195,7 +196,7 @@ type RepliesRenderData struct {
 	Rail       map[string][]web.RailRow
 
 	// From and Until are Editing's date fields as shown.
-	From, Until web.DateField
+	From, Until dates.Field
 }
 
 func repliesData(ctx *web.Context) (*RepliesRenderData, error) {
@@ -282,7 +283,7 @@ func replyFromForm(ctx *web.Context) (Reply, error) {
 		if field.Value == "" {
 			continue
 		}
-		day, err := field.Date(time.UTC)
+		day, err := field.Read(time.UTC)
 		if err != nil {
 			return v, errors.New(ctx.T("filters.baddate"))
 		}

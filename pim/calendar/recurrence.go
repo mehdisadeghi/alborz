@@ -11,6 +11,7 @@ import (
 	"github.com/emersion/go-ical"
 
 	"git.mehdix.org/alborz/internal/calsys"
+	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -19,7 +20,7 @@ import (
 // Repeat is a rule as the form holds it.
 type Repeat struct {
 	Freq  string
-	Until web.DateField
+	Until dates.Field
 }
 
 const repeatCustom = "custom"
@@ -79,7 +80,7 @@ func setRepeat(ctx *web.Context, event *ical.Event, rep Repeat, start time.Time,
 		rule.Scale, rule.Skip = cal.RSCALE(), recur.Backward
 	}
 	if rep.Until.Value != "" {
-		last, err := rep.Until.Date(loc)
+		last, err := rep.Until.Read(loc)
 		if err != nil {
 			return err
 		}

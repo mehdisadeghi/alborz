@@ -15,6 +15,7 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
@@ -51,7 +52,7 @@ type UpdateAddressObjectRenderData struct {
 	AddressObject *carddav.AddressObject
 	Card          vcard.Card
 	Name          string
-	Birthday      web.DateField
+	Birthday      dates.Field
 	// Photo is the card's current picture, shown beside its replacement.
 	Photo string
 }
@@ -336,7 +337,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		setValue(vcard.FieldTitle, strings.TrimSpace(ctx.FormValue("title")))
 		var birthday string
 		if field := ctx.DateField("bday"); field.Value != "" {
-			day, err := field.Date(time.UTC)
+			day, err := field.Read(time.UTC)
 			if err != nil {
 				return reject(ctx.T("form.birthday"))
 			}

@@ -145,18 +145,21 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 	if book := dav.At(books, bookPath); book == nil || !book.Writable {
 		return echo.NewHTTPError(http.StatusBadRequest, "no address book to file it in")
 	}
+	to := "/contacts"
+	if acct != ctx.Login.Username() {
+		to += "?account=" + alborz.QueryValue(acct)
+	}
 	n, err := importBook(ctx.Request().Context(), c, bookPath, raw)
-	if err != nil {
+	if dav.ServerRefused(err) {
+		ctx.Notify(pim.Refused(ctx, err))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
+	} else if err != nil {
 		return err
 	}
 	if n == 0 {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
 	} else {
 		ctx.PutNotice(ctx.Tf("import.vcf", n))
-	}
-	to := "/contacts"
-	if acct != ctx.Login.Username() {
-		to += "?account=" + alborz.QueryValue(acct)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }
@@ -184,10 +187,10 @@ func importBook(ctx context.Context, client *carddav.Client, bookPath string, ra
 		if _, err := client.PutAddressObject(ctx, target, card, nil); err != nil {
 			existing := cardPathByUID(ctx, client, bookPath, uid)
 			if existing == "" {
-				return n, fmt.Errorf("failed to write %s: %v", uid, err)
+				return n, fmt.Errorf("failed to write %s: %w", uid, err)
 			}
 			if _, err := client.PutAddressObject(ctx, existing, card, nil); err != nil {
-				return n, fmt.Errorf("failed to write %s: %v", uid, err)
+				return n, fmt.Errorf("failed to write %s: %w", uid, err)
 			}
 		}
 		n++

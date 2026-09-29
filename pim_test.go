@@ -266,6 +266,76 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 	})
 }
 
+// A server refusing the write is an answer for the reader, not an error page.
+func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
+	const refused = "The change was not saved. The server said:"
+	personal, friends := davHome+"personal/", davBooks+"friends/"
+	card := "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:ada\r\nFN:Ada\r\nEND:VCARD\r\n"
+	stub := &davStub{cals: map[string]davCal{personal: {"Personal", "#3366cc"}}, books: map[string]davCal{friends: {"Friends", ""}},
+		refuse: map[string]bool{personal: true, friends: true}, keep: map[string]bool{}, gone: map[string]bool{}}
+	srv := httptest.NewServer(stub)
+	defer srv.Close()
+	imapAddr := startIMAP(t)
+	host := strings.TrimPrefix(srv.URL, "http://")
+	base := serveAlborz(t, []string{"test.local=imap+insecure://" + imapAddr,
+		"test.local=caldav+insecure://" + host + "/dav", "test.local=carddav+insecure://" + host + "/dav"}, false)
+	c := login(t, base)
+	attached := func(mime, name, body string) string {
+		return appendMessage(t, imapAddr, "INBOX", "From: eve@example.org\r\nTo: "+smokeUser+"\r\nSubject: "+name+"\r\n"+
+			"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b1\r\n\r\n"+
+			"--b1\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nAttached.\r\n"+
+			"--b1\r\nContent-Type: "+mime+"; charset=utf-8\r\nContent-Disposition: attachment; filename=\""+name+"\"\r\n\r\n"+
+			body+"--b1--\r\n")
+	}
+	upload := func(u, name, body string) *http.Response {
+		var form strings.Builder
+		w := multipart.NewWriter(&form)
+		part, err := w.CreateFormFile("file", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		io.WriteString(part, body)
+		w.Close()
+		stay := *c
+		stay.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		resp, err := stay.Post(u, w.FormDataContentType(), strings.NewReader(form.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+	for _, tc := range []struct {
+		name string
+		post func() *http.Response
+	}{
+		{"a file into a calendar", func() *http.Response {
+			return upload(base+"/calendars/"+url.PathEscape(personal)+"/import", "plan.ics", event("plan", "Plan"))
+		}},
+		{"a file into an address book", func() *http.Response {
+			return upload(base+"/address-books/"+url.PathEscape(friends)+"/import", "ada.vcf", card)
+		}},
+		{"a calendar attachment", func() *http.Response {
+			uid := attached("text/calendar", "plan.ics", event("plan", "Plan"))
+			return postForm(t, c, base+"/calendar/from-attachment", url.Values{"mbox": {"INBOX"}, "uid": {uid}, "part": {"2"}, "calendar": {smokeUser + "|" + personal}})
+		}},
+		{"a card attachment", func() *http.Response {
+			uid := attached("text/vcard", "ada.vcf", card)
+			return postForm(t, c, base+"/contacts/from-message", url.Values{"mbox": {"INBOX"}, "uid": {uid}, "part": {"2"}, "addressbook": {smokeUser + "|" + friends}})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := tc.post()
+			if resp.StatusCode != http.StatusFound {
+				t.Fatalf("the refused import answered %s, want a redirect", resp.Status)
+			}
+			if page := get(t, c, base+resp.Header.Get("Location")); !strings.Contains(page, refused) || !strings.Contains(page, "read-only collection") {
+				t.Errorf("the page after the refused import does not give the server's reason")
+			}
+		})
+	}
+}
+
 // An EXDATE takes one year out of a Solar Hijri rule, in the store's query and on the page.
 func TestAnExceptionHidesOneSolarHijriYear(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))

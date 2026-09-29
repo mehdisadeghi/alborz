@@ -393,7 +393,7 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 		to += "?account=" + alborz.QueryValue(account)
 	}
 	n, err := importObjects(ctx.Request().Context(), client, calendarPath, raw)
-	if errors.Is(err, dav.ErrScaleUnlisted) {
+	if dav.ServerRefused(err) {
 		ctx.Notify(pim.Refused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 	} else if err != nil {

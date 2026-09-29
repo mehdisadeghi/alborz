@@ -269,10 +269,10 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 // A server refusing the write is an answer for the reader, not an error page.
 func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 	const refused = "The change was not saved. The server said:"
-	personal, friends := davHome+"personal/", davBooks+"friends/"
+	personal, friends, family := davHome+"personal/", davBooks+"friends/", davBooks+"family/"
 	card := "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:ada\r\nFN:Ada\r\nEND:VCARD\r\n"
-	stub := &davStub{cals: map[string]davCal{personal: {"Personal", "#3366cc"}}, books: map[string]davCal{friends: {"Friends", ""}},
-		refuse: map[string]bool{personal: true, friends: true}, keep: map[string]bool{}, gone: map[string]bool{}}
+	stub := &davStub{cals: map[string]davCal{personal: {"Personal", "#3366cc"}}, books: map[string]davCal{friends: {"Friends", ""}, family: {"Family", ""}},
+		refuse: map[string]bool{personal: true, friends: true, family + "bob.vcf": true}, keep: map[string]bool{}, gone: map[string]bool{}}
 	srv := httptest.NewServer(stub)
 	defer srv.Close()
 	imapAddr := startIMAP(t)
@@ -358,6 +358,19 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 		}
 		if page := get(t, c, base+resp.Header.Get("Location")); !strings.Contains(page, unreadable) || !strings.Contains(page, "no END field") {
 			t.Errorf("the page after the unreadable file does not say it could not be read, and why")
+		}
+	})
+	t.Run("a file the server refuses partway", func(t *testing.T) {
+		resp := upload(base+"/address-books/"+url.PathEscape(family)+"/import", nil, "family.vcf",
+			card+"BEGIN:VCARD\r\nVERSION:4.0\r\nUID:bob\r\nFN:Bob\r\nEND:VCARD\r\n")
+		if resp.StatusCode != http.StatusFound {
+			t.Fatalf("the partly refused import answered %s, want a redirect", resp.Status)
+		}
+		if page := get(t, c, base+resp.Header.Get("Location")); !strings.Contains(page, "1 of 2 saved; the server refused the rest:") || !strings.Contains(page, "read-only collection") {
+			t.Errorf("the page after the partly refused import does not say how much was saved, and why the rest was not")
+		}
+		if !strings.Contains(strings.Join(stub.puts, ""), "UID:ada") {
+			t.Errorf("the card before the refusal was not written")
 		}
 	})
 }

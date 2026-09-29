@@ -486,6 +486,17 @@ type UnreadableError struct{ Err error }
 func (e *UnreadableError) Error() string { return "failed to read the file: " + e.Err.Error() }
 func (e *UnreadableError) Unwrap() error { return e.Err }
 
+// PartlySavedError is an import stopped after Saved of Total objects were written; those stay written.
+type PartlySavedError struct {
+	Saved, Total int
+	Err          error
+}
+
+func (e *PartlySavedError) Error() string {
+	return fmt.Sprintf("%d of %d saved: %v", e.Saved, e.Total, e.Err)
+}
+func (e *PartlySavedError) Unwrap() error { return e.Err }
+
 // ImportAnswered says whether an import stopped on the reader's file or the server's answer, rather than alborz failing.
 func ImportAnswered(err error) bool {
 	var unreadable *UnreadableError
@@ -497,16 +508,24 @@ func ImportRefused(ctx *alborz.Context, err error) alborz.Notice {
 	return alborz.Notice{Kind: alborz.NoticeFailed, Text: ImportRefusal(ctx, err)}
 }
 
-// ImportRefusal says why an import stopped: an unreadable file with the parser's reason, a server's refusal as any write's, any other as it came.
+// ImportRefusal says why an import stopped: an unreadable file with the parser's reason,
+// a server's refusal as any write's with how much was saved before it, any other as it came.
 func ImportRefusal(ctx *alborz.Context, err error) string {
 	var unreadable *UnreadableError
-	if errors.As(err, &unreadable) {
+	var partly *PartlySavedError
+	switch {
+	case errors.As(err, &unreadable):
 		return fmt.Sprintf(ctx.T("import.unreadable"), unreadable.Err)
-	}
-	if dav.ServerRefused(err) {
+	case !dav.ServerRefused(err):
+		return err.Error()
+	case !errors.As(err, &partly):
 		return Refusal(ctx, err)
+	case partly.Saved == 0:
+		return Refusal(ctx, partly.Err)
+	case errors.Is(err, dav.ErrScaleUnlisted):
+		return ctx.Tf("import.partly", partly.Saved, partly.Total, ctx.T("form.repeatscale"))
 	}
-	return err.Error()
+	return ctx.Tf("import.partly", partly.Saved, partly.Total, partly.Err)
 }
 
 // ImportData is the section's import page.

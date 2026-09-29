@@ -783,6 +783,7 @@
 "import.bundlevcf" = "Libretas: %s, contactos añadidos: %s."
 "import.notkind" = "%s no es un archivo %s."
 "import.unreadable" = "No se pudo leer el archivo: %s"
+"import.partly" = "%d de %d guardados; el servidor rechazó el resto: %s"
 "export.empty" = "La colección está vacía; no hay nada que exportar."
 "import.exportall" = "Exportar todo como .zip"
 "import.untitled" = "Importado"

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/pim/store"
 )
 
 // A host without DAV may drop the connection rather than refuse it, and every domain is asked in turn.
@@ -18,8 +17,9 @@ const wellKnownWait = 3 * time.Second
 // davFeature is the DAV header class naming the service (RFC 4791 5.1, RFC 6352 6.1).
 var davFeature = map[string]string{"caldav": "calendar-access", "carddav": "addressbook"}
 
-// OnMailHost finds DAV at the mail host's /.well-known/<service> (RFC 6764 5), HTTPS only since the password goes there.
-func OnMailHost(rt http.RoundTripper, host, service string) (*url.URL, bool) {
+// OnMailHost finds DAV at the mail host's /.well-known/<service> (RFC 6764 5), HTTPS only since the password goes there;
+// an answer naming instance is this alborz, not a second server.
+func OnMailHost(rt http.RoundTripper, host, service, instance string) (*url.URL, bool) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
 		hostname = host
@@ -39,8 +39,7 @@ func OnMailHost(rt http.RoundTripper, host, service string) (*url.URL, bool) {
 		return nil, false
 	}
 	resp.Body.Close()
-	// A well-known address leading to alborz's own DAV is not a second server.
-	if landed := resp.Request.URL; landed != nil && strings.HasPrefix(landed.Path, store.Prefix+"/") {
+	if resp.Header.Get(alborz.InstanceHeader) == instance {
 		return nil, false
 	}
 	for _, v := range resp.Header.Values("DAV") {

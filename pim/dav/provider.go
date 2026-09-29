@@ -140,7 +140,7 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 					srv.Logger().Printf("Warning: %s: domain %q: %s server %q not reachable at startup: %v", kind.Name, domain, kind.Label, p.urls[domain], err)
 				}
 			}
-			if h, ok := OnMailHost(srv.Outgoing.Trusted, srv.UpstreamsFor(domain).IMAP, kind.Name); ok && (p.urls[domain] == nil || h.Host != p.urls[domain].Host) {
+			if h, ok := OnMailHost(srv.Outgoing.Trusted, srv.UpstreamsFor(domain).IMAP, kind.Name, srv.Instance); ok && (p.urls[domain] == nil || h.Host != p.urls[domain].Host) {
 				srv.Logger().Printf("Domain %q: %s server on the mail host: %v", domain, kind.Label, h)
 				p.hostsMu.Lock()
 				p.hosts[domain] = h

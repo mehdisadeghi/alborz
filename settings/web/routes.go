@@ -1,4 +1,4 @@
-package settings
+package web
 
 import (
 	"git.mehdix.org/alborz/mail"

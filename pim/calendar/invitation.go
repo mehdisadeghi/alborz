@@ -1,94 +1,23 @@
 package calendar
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 	"time"
+	"uuid"
 
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-webdav/caldav"
 )
-
-const (
-	partAccepted  = "ACCEPTED"
-	partDeclined  = "DECLINED"
-	partTentative = "TENTATIVE"
-)
-
-// Invitation is a scheduling request as a page can show it.
-type Invitation struct {
-	Method    string
-	UID       string
-	Summary   string
-	Location  string
-	Start     time.Time
-	End       time.Time
-	AllDay    bool
-	Organizer string
-	Attendees []Attendee
-	// Mine is this account's own answer so far, empty when not an attendee.
-	Mine string
-}
-
-// Cancelled reports whether the organizer has withdrawn the meeting.
-func (inv *Invitation) Cancelled() bool { return inv.Method == itip.MethodCancel }
-
-// Published reports an event sent to be kept rather than answered.
-func (inv *Invitation) Published() bool { return inv.Method == itip.MethodPublish }
-
-// Answer reports whether this is somebody's reply rather than a request.
-func (inv *Invitation) Answer() bool { return inv.Method == itip.MethodReply }
-
-// Answered is the attendee whose reply this is.
-func (inv *Invitation) Answered() Attendee {
-	if len(inv.Attendees) == 0 {
-		return Attendee{}
-	}
-	return inv.Attendees[0]
-}
-
-// Attendee is one invited address and what they have answered.
-type Attendee struct {
-	Name   string
-	Addr   string
-	Status string
-}
-
-func readInvitation(cal *ical.Calendar, mine []string) *Invitation {
-	event := itip.Series(cal)
-	if event == nil {
-		event = cal.Events()[0].Component
-	}
-	inv := &Invitation{Method: itip.Method(cal)}
-	inv.UID, _ = event.Props.Text(ical.PropUID)
-	inv.Summary, _ = event.Props.Text(ical.PropSummary)
-	inv.Location, _ = event.Props.Text(ical.PropLocation)
-	inv.Start, _ = (&ical.Event{Component: event}).DateTimeStart(nil)
-	inv.End, _ = (&ical.Event{Component: event}).DateTimeEnd(nil)
-	if prop := event.Props.Get(ical.PropDateTimeStart); prop != nil {
-		inv.AllDay = prop.ValueType() == ical.ValueDate
-	}
-	if prop := event.Props.Get(ical.PropOrganizer); prop != nil {
-		inv.Organizer = itip.Address(prop)
-	}
-	for i := range event.Props[ical.PropAttendee] {
-		prop := &event.Props[ical.PropAttendee][i]
-		who := Attendee{
-			Name:   prop.Params.Get("CN"),
-			Addr:   itip.Address(prop),
-			Status: strings.ToUpper(prop.Params.Get("PARTSTAT")),
-		}
-		inv.Attendees = append(inv.Attendees, who)
-		if holds(mine, who.Addr) {
-			inv.Mine = who.Status
-		}
-	}
-	return inv
-}
 
 // The invitation is re-read from the message, so what is answered is what was sent.
 func handleInvitationReply(ctx *web.Context) error {
@@ -163,4 +92,238 @@ func messageInvitation(ctx *web.Context, msg *mail.IMAPMessage, mboxName string,
 func invitationAt(ctx *web.Context, mboxName string, uid imap.UID) (*ical.Calendar, error) {
 	cal, _, err := mail.CalendarPartAt(ctx, mboxName, uid)
 	return cal, err
+}
+
+func sendScheduling(ctx *web.Context, msg *ical.Calendar, to []string) error {
+	if len(to) == 0 {
+		return nil
+	}
+	messageZones(msg)
+	summary, _ := msg.Events()[0].Props.Text(ical.PropSummary)
+	subject := summary
+	if itip.Method(msg) == itip.MethodCancel {
+		subject = ctx.T("invite.cancelledsubject") + ": " + summary
+	}
+	return mail.SendCalendarMessage(ctx, to, subject, msg)
+}
+
+// A meeting this account organizes is withdrawn from its attendees as it goes.
+func (p *plugin) deleteEvent(ctx *web.Context, ref pim.Ref[*caldav.Client]) error {
+	co, err := ref.Client.GetCalendarObject(ctx.Request().Context(), ref.Path)
+	if err != nil {
+		return err
+	}
+	if err := ref.Client.RemoveAll(ctx.Request().Context(), ref.Path); err != nil {
+		return err
+	}
+	series := itip.Series(co.Data)
+	if series == nil || series.Props.Get(ical.PropOrganizer) == nil {
+		return nil
+	}
+	ours, err := mail.Addresses(ctx.Request().Context(), ctx.Login)
+	if err != nil {
+		return err
+	}
+	if !holds(ours, itip.Address(series.Props.Get(ical.PropOrganizer))) {
+		return nil
+	}
+	schedules, err := p.ServerSchedules(ctx.Request().Context(), ctx.LoginFor(ref.Account), ref.Path)
+	if err == nil && !schedules {
+		err = sendScheduling(ctx, itip.Cancel(co.Data, nil, time.Now()), others(itip.Attendees(series), ours))
+	}
+	if err != nil {
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("invite.cancelfailed")})
+		ctx.Logger().Printf("failed to send the cancellation: %v", err)
+	}
+	return nil
+}
+
+func (p *plugin) registerScheduling(g *web.Group) {
+	srv := g.Server()
+	srv.OnMessage = append(srv.OnMessage, func(ctx *web.Context, _data web.RenderData) error {
+		data := _data.(*mail.MessageRenderData)
+		inv := messageInvitation(ctx, data.Message, data.Mailbox.Name(), data.Message.UID)
+		if inv != nil {
+			data.Invitation = inv
+		}
+		if inv == nil && !hasAttachment(data.Message, calendarTypes...) {
+			return nil
+		}
+		groups, err := p.writableGroups(ctx, supportsEvent)
+		if err != nil || len(groups) == 0 {
+			// No calendar to file it in is not an error on a mail page.
+			return nil
+		}
+		if inv == nil {
+			// A calendar with no METHOD is no invitation but still something to file.
+			data.ImportCalendars = groups
+			return nil
+		}
+		data.InviteFiled = p.FindByUID(ctx.Request().Context(), ctx.Login, groups, inv.UID)
+		if data.InviteFiled == "" && !inv.Cancelled() && !inv.Answer() {
+			data.InviteCalendars = groups
+		}
+		return nil
+	})
+
+	g.POST("invite", "/message/{mbox}/{uid}/invite", handleInvitationReply)
+	g.POST("fromattachment", "/calendar/from-attachment", p.importCalendar)
+	g.POST("frommessage", "/calendar/from-message", p.applyInvitation)
+}
+
+// The message is re-read and taken into the copy kept of its event, or filed as a new one.
+func (p *plugin) applyInvitation(ctx *web.Context) error {
+	mboxName, uid, err := mail.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
+	if err != nil {
+		return err
+	}
+	msg, err := invitationAt(ctx, mboxName, uid)
+	if err != nil {
+		return err
+	}
+	if msg == nil {
+		return web.NewError(http.StatusBadRequest, "this message carries no invitation")
+	}
+	inv := readInvitation(msg, nil)
+	back := ctx.NextOr(ctx.URL("calendar.month"))
+
+	groups, err := p.writableGroups(ctx, supportsEvent)
+	if err != nil {
+		return err
+	}
+	c, _, err := p.Open(ctx.Request().Context(), ctx.Login)
+	if err != nil {
+		return err
+	}
+	var stored *caldav.CalendarObject
+	if at := p.FindByUID(ctx.Request().Context(), ctx.Login, groups, inv.UID); at != "" {
+		if stored, err = c.GetCalendarObject(ctx.Request().Context(), at); err != nil {
+			return err
+		}
+	}
+	if stored == nil && (inv.Cancelled() || inv.Answer()) {
+		return web.NewError(http.StatusBadRequest, "no calendar holds this event")
+	}
+	var held *ical.Calendar
+	if stored != nil {
+		held = stored.Data
+	}
+	out, err := itip.Apply(held, msg)
+	if key := itipRefusal(err); key != "" {
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T(key)})
+		return ctx.Redirect(http.StatusFound, back)
+	} else if err != nil {
+		return err
+	}
+
+	if stored != nil {
+		if out == nil {
+			err = c.RemoveAll(ctx.Request().Context(), stored.Path)
+		} else {
+			ensureTimezones(out, time.Now())
+			_, err = c.PutCalendarObject(ctx.Request().Context(), stored.Path, out, nil)
+		}
+		if err != nil {
+			ctx.Notify(pim.Refused(ctx, err))
+			return ctx.Redirect(http.StatusFound, back)
+		}
+		switch {
+		case inv.Cancelled():
+			ctx.PutNotice(ctx.T("invite.forgotten"))
+		case inv.Answer():
+			ctx.PutNotice(ctx.T("invite.recorded"))
+		default:
+			ctx.PutNotice(ctx.T("invite.filed"))
+		}
+		return ctx.Redirect(http.StatusFound, back)
+	}
+
+	dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
+	client, calendarPath, account := dest.Client, dest.Path, dest.Account
+	if errors.Is(err, pim.ErrNoDestination) {
+		return web.NewError(http.StatusBadRequest, "no calendar to file it in")
+	} else if err != nil {
+		return err
+	}
+	name := inv.UID
+	if name == "" {
+		name = uuid.New().String()
+	}
+	ensureTimezones(out, time.Now())
+	co, err := client.PutCalendarObject(ctx.Request().Context(),
+		path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), out, nil)
+	if err != nil {
+		ctx.Notify(pim.Refused(ctx, err))
+		return ctx.Redirect(http.StatusFound, back)
+	}
+	ctx.PutNotice(ctx.T("invite.filed"))
+	if account != "" {
+		return ctx.Redirect(http.StatusFound,
+			ctx.Path("calendar.event", co.Path)+"?account="+web.QueryValue(account))
+	}
+	return ctx.Redirect(http.StatusFound, ctx.URL("calendar.event", co.Path))
+}
+
+func itipRefusal(err error) string {
+	switch {
+	case errors.Is(err, itip.ErrOrganizer):
+		return "invite.notorganizer"
+	case errors.Is(err, itip.ErrOutdated):
+		return "invite.outdated"
+	case errors.Is(err, itip.ErrSuperseded):
+		return "invite.superseded"
+	case errors.Is(err, itip.ErrUninvited):
+		return "invite.uninvited"
+	case errors.Is(err, itip.ErrInstance):
+		return "invite.noinstance"
+	}
+	return ""
+}
+
+var calendarTypes = []string{"text/calendar", "application/ics"}
+
+func hasAttachment(msg *mail.IMAPMessage, types ...string) bool {
+	for _, att := range msg.Attachments() {
+		for _, t := range types {
+			if strings.EqualFold(att.MIMEType, t) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (p *plugin) importCalendar(ctx *web.Context) error {
+	mboxName, uid, err := mail.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
+	if err != nil {
+		return err
+	}
+	raw, _, err := mail.PartAt(ctx, mboxName, uid, ctx.FormValue("part"))
+	if err != nil {
+		return err
+	}
+	dest, err := p.destination(ctx, ctx.FormValue("calendar"), supportsEvent)
+	client, calendarPath, account := dest.Client, dest.Path, dest.Account
+	if errors.Is(err, pim.ErrNoDestination) {
+		return web.NewError(http.StatusBadRequest, "no calendar to file it in")
+	} else if err != nil {
+		return err
+	}
+	to := ctx.Path("calendar.month")
+	if account != "" {
+		to += "?account=" + web.QueryValue(account)
+	}
+	n, err := importObjects(ctx.Request().Context(), client, calendarPath, raw)
+	if pim.ImportAnswered(err) {
+		ctx.Notify(pim.ImportRefused(ctx, err))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
+	} else if err != nil {
+		return err
+	}
+	if n == 0 {
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("import.nothing")})
+	} else {
+		ctx.PutNotice(ctx.Tf("import.ics", n))
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }

@@ -12,7 +12,6 @@ import (
 
 	"git.mehdix.org/alborz/internal/calsys"
 	"git.mehdix.org/alborz/internal/dates"
-	"git.mehdix.org/alborz/web"
 )
 
 // Monthly and yearly rules count in the reader's calendar (RFC 7529 RSCALE).
@@ -95,19 +94,4 @@ func setRepeat(r dates.Reader, event *ical.Event, rep Repeat, start time.Time, a
 	}
 	event.Props.SetRecurrenceRule(&rule)
 	return nil
-}
-
-func repeatWords(ctx *web.Context, event *ical.Event, loc *time.Location) (words, until string) {
-	rep := formRepeat(ctx.Dates(), event, loc)
-	switch rep.Freq {
-	case "":
-		return "", ""
-	case repeatCustom:
-		return ctx.T("calendar.repeat.custom"), ""
-	}
-	words = ctx.T("calendar.repeat." + rep.Freq)
-	if rep.Until.Value != "" {
-		return fmt.Sprintf(ctx.T("calendar.repeat.until"), words), rep.Until.Value
-	}
-	return words, ""
 }

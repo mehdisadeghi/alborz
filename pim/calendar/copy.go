@@ -113,36 +113,3 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 		return ctx.Redirect(http.StatusFound, pim.ObjectURL(ctx, s.object, made.Path, to.Account, kept))
 	}
 }
-
-// asCopy makes cal an object of its own: a fresh UID, no invitation, and a link to where it came from.
-// RFC 9253's LINK with the registered relation "via" names a source; RELATED-TO relates components of
-// one calendar, and without a RELTYPE, of which none means a copy, makes the copy the original's child.
-func asCopy(cal *ical.Calendar, uid, source string, now time.Time) {
-	cal.Props.Del(ical.PropMethod)
-	for _, comp := range cal.Children {
-		if comp.Name == ical.CompTimezone {
-			continue
-		}
-		was, _ := comp.Props.Text(ical.PropUID)
-		comp.Props.SetText(ical.PropUID, uid)
-		comp.Props.SetDateTime(ical.PropDateTimeStamp, now)
-		comp.Props.Del(ical.PropOrganizer)
-		comp.Props.Del(ical.PropAttendee)
-		comp.Props.Add(link("URI", source))
-		comp.Props.Add(link("UID", was))
-	}
-}
-
-// The names RFC 9253 gives LINK and its relation parameter.
-const (
-	propLink     = "LINK"
-	paramLinkRel = "LINKREL"
-)
-
-func link(kind, value string) *ical.Prop {
-	prop := ical.NewProp(propLink)
-	prop.Params.Set(ical.ParamValue, kind)
-	prop.Params.Set(paramLinkRel, "via")
-	prop.Value = value
-	return prop
-}

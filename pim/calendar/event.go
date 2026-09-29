@@ -437,3 +437,18 @@ func eventList(ctx *web.Context) string {
 	}
 	return pim.ListURL(ctx.Path("calendar.month"), params)
 }
+
+func repeatWords(ctx *web.Context, event *ical.Event, loc *time.Location) (words, until string) {
+	rep := formRepeat(ctx.Dates(), event, loc)
+	switch rep.Freq {
+	case "":
+		return "", ""
+	case repeatCustom:
+		return ctx.T("calendar.repeat.custom"), ""
+	}
+	words = ctx.T("calendar.repeat." + rep.Freq)
+	if rep.Until.Value != "" {
+		return fmt.Sprintf(ctx.T("calendar.repeat.until"), words), rep.Until.Value
+	}
+	return words, ""
+}

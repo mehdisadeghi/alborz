@@ -20,7 +20,6 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
-	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 )
 
@@ -421,14 +420,6 @@ func (p *Calendars) RefreshFeeds(ctx context.Context, logins []*alborz.Login) er
 	}
 	fetches.Wait()
 	return nil
-}
-
-// refresh fetches every signed-in account's feeds, then asks the DAV servers again.
-func (p *plugin) refresh(ctx *web.Context) error {
-	if err := p.RefreshFeeds(ctx.Request().Context(), ctx.Logins()); err != nil {
-		return err
-	}
-	return p.DAV.HandleRefresh("calendar.month")(ctx)
 }
 
 // SaveSubscriptions keeps the list of the account's subscriptions in its settings.

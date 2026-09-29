@@ -1,12 +1,15 @@
 package calendar
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,7 +17,6 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
-	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-recur"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -206,10 +208,6 @@ func setComponentColor(comp *ical.Component, name string) {
 	comp.Props.SetText(ical.PropColor, name)
 }
 
-func validStarView(view string) bool {
-	return view == "" || view == web.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
-}
-
 func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {
 	var out []Occurrence
 	seen := make(map[string]bool)
@@ -276,11 +274,6 @@ func (p *Calendars) OpenWithFeeds(ctx context.Context, login *alborz.Login) (*ca
 	return p.Open(ctx, login)
 }
 
-// pooledCalendars lists every account's calendars.
-func (p *plugin) pooledCalendars(ctx *web.Context) ([]pim.Account[*caldav.Client], error) {
-	return pim.Pooled(ctx, p.DAV, p.OpenWithFeeds, errNoCalendar)
-}
-
 // QuerySites asks each site for the objects query matches.
 func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
 	var events []CalendarObject
@@ -298,16 +291,249 @@ func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Cli
 	return events, nil
 }
 
-func (p *plugin) writableGroups(ctx *web.Context, supports func([]string) bool) ([]dav.Group, error) {
-	accounts, err := p.pooledCalendars(ctx)
+func firstEvent(cal *ical.Calendar) *ical.Component {
+	if evs := cal.Events(); len(evs) > 0 {
+		return evs[0].Component
+	}
+	return nil
+}
+
+func getFirstTodo(cal *ical.Calendar) *ical.Component {
+	for _, child := range cal.Children {
+		if child.Name == ical.CompToDo {
+			return child
+		}
+	}
+	return nil
+}
+
+func eventQuery(start, end time.Time) caldav.CalendarQuery {
+	return caldav.CalendarQuery{
+		CompRequest: caldav.CalendarCompRequest{
+			Name:  "VCALENDAR",
+			Props: []string{"VERSION"},
+			// The whole event: an unexpanded rule must arrive, or only the first instance is drawn.
+			Comps: []caldav.CalendarCompRequest{{
+				Name: "VEVENT", AllProps: true, AllComps: true,
+			}},
+			Expand: &caldav.CalendarExpandRequest{Start: start, End: end},
+		},
+		CompFilter: caldav.CompFilter{
+			Name:  "VCALENDAR",
+			Comps: []caldav.CompFilter{{Name: "VEVENT", Start: start, End: end}},
+		},
+	}
+}
+
+func changeComponent(ctx context.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
+	co, err := ref.Client.GetCalendarObject(ctx, ref.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object: %v", err)
+	}
+	target := comp(co.Data)
+	if target == nil {
+		return nil, errors.New("the object holds no such component")
+	}
+	change(target)
+	target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
+	target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
+	_, err = ref.Client.PutCalendarObject(ctx, co.Path, co.Data, nil)
+	return co, err
+}
+
+func newCalendar(comp *ical.Component) *ical.Calendar {
+	cal := ical.NewCalendar()
+	cal.Props.SetText(ical.PropProductID, ItipProductID)
+	cal.Props.SetText(ical.PropVersion, "2.0")
+	cal.Children = append(cal.Children, comp)
+	return cal
+}
+
+func putObject(ctx context.Context, to pim.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
+	held, etag := "", ""
+	if was != nil {
+		held, etag = was.Path, was.ETag
+	}
+	at, ifMatch, ifNoneMatch := pim.Target(to.Path, name, held, etag)
+	return to.Client.PutCalendarObject(ctx, at, cal,
+		&caldav.PutCalendarObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
+}
+
+func joinCalendars(objects [][]byte) ([]byte, error) {
+	var children []*ical.Component
+	for _, object := range objects {
+		cal, err := ical.NewDecoder(bytes.NewReader(object)).Decode()
+		if err != nil {
+			return nil, err
+		}
+		children = append(children, cal.Children...)
+	}
+	return encodeCalendar(children)
+}
+
+// WarmAccount reads the login's month around now and its tasks, so the pages open from the mirror.
+func (p *Calendars) WarmAccount(ctx context.Context, s *alborz.Login, loc *time.Location) error {
+	c, calendars, err := p.Open(ctx, s)
+	if err != nil {
+		return err
+	}
+	now := time.Now().In(loc)
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+	events := eventQuery(start.AddDate(0, 0, -7), start.AddDate(0, 1, 0).AddDate(0, 0, 7))
+	tasks := taskQuery()
+	type ask struct {
+		path  string
+		query caldav.CalendarQuery
+	}
+	var asks []ask
+	for _, cal := range calendars {
+		if supportsEvent(cal.Components) {
+			asks = append(asks, ask{cal.Path, events})
+		}
+		if supportsTodo(cal.Components) {
+			asks = append(asks, ask{cal.Path, tasks})
+		}
+	}
+	for _, r := range dav.Each(ctx, asks, func(ctx context.Context, a ask) (int, error) {
+		_, err := c.QueryCalendar(ctx, a.path, &a.query)
+		return 0, err
+	}) {
+		if r.Err != nil {
+			return r.Err
+		}
+	}
+	return nil
+}
+
+// Calendars are every account's calendars and task lists, and the feeds some of them are filled from.
+type Calendars struct {
+	DAV   *dav.Provider
+	feeds *feeds
+}
+
+// New finds each served domain's CalDAV server and opens the feeds of the calendars kept in st.
+func New(srv *alborz.Server, st *store.Store) (*Calendars, error) {
+	provider, err := dav.NewProvider(srv, st, dav.Kind{
+		Name: "caldav", Label: "CalDAV",
+		Schemes: [2]string{"caldavs", "caldav+insecure"},
+		// Invitations and tasks ticked on a phone should show within minutes.
+		Poll:     2 * time.Minute,
+		Discover: caldav.DiscoverContextURL,
+		Own:      func(s dav.Services) string { return s.CalDAV },
+		Holds:    store.Calendar,
+		FindHome: findHome,
+		List:     listCalendars,
+		Make:     makeCalendar,
+		Change:   changeCalendar,
+		Unnamed:  "calendar",
+	})
 	if err != nil {
 		return nil, err
 	}
-	return pim.WritableGroups(accounts, func(cal dav.Collection) bool { return cal.Writable && supports(cal.Components) }), nil
+	return &Calendars{DAV: provider, feeds: openFeeds(srv, st)}, nil
 }
 
-func (p *plugin) destination(ctx *web.Context, value string, supports func([]string) bool) (pim.Ref[*caldav.Client], error) {
-	return pim.Destination(ctx, value, p.Open, func(cal dav.Collection) bool {
-		return cal.Writable && supports(cal.Components)
-	})
+// Client is the login's CalDAV client.
+func (p *Calendars) Client(ctx context.Context, login *alborz.Login) (*caldav.Client, error) {
+	return newClient(dav.Base(), p.DAV.HTTPClient(ctx, login))
+}
+
+// PRIORITY bands (RFC 5545 3.8.1.9): 1-4 high, 5 medium, 6-9 low, 0 none.
+const (
+	priorityHigh   = "high"
+	priorityMedium = "medium"
+	priorityLow    = "low"
+)
+
+var priorityBands = []string{priorityHigh, priorityMedium, priorityLow}
+
+func priorityBand(todo *ical.Component) string {
+	prop := todo.Props.Get(ical.PropPriority)
+	if prop == nil {
+		return ""
+	}
+	n, err := strconv.Atoi(prop.Value)
+	switch {
+	case err != nil || n <= 0:
+		return ""
+	case n <= 4:
+		return priorityHigh
+	case n == 5:
+		return priorityMedium
+	default:
+		return priorityLow
+	}
+}
+
+// A number another client wrote stays while it falls in the chosen band.
+func setPriorityBand(todo *ical.Component, band string) {
+	if band == priorityBand(todo) {
+		return
+	}
+	value := map[string]string{priorityHigh: "1", priorityMedium: "5", priorityLow: "9"}[band]
+	if value == "" {
+		todo.Props.Del(ical.PropPriority)
+		return
+	}
+	prop := ical.NewProp(ical.PropPriority)
+	prop.Value = value
+	todo.Props.Set(prop)
+}
+
+func markTodo(todo *ical.Component, done bool) {
+	if done {
+		todo.Props.SetText(ical.PropStatus, "COMPLETED")
+		todo.Props.SetDateTime(ical.PropCompleted, time.Now().UTC())
+	} else {
+		todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
+		todo.Props.Del(ical.PropCompleted)
+	}
+}
+
+func taskQuery() caldav.CalendarQuery {
+	return caldav.CalendarQuery{
+		CompRequest: caldav.CalendarCompRequest{
+			Name:  "VCALENDAR",
+			Props: []string{"VERSION"},
+			// The whole to-do: every column reads a property of it.
+			Comps: []caldav.CalendarCompRequest{{Name: "VTODO", AllProps: true, AllComps: true}},
+		},
+		CompFilter: caldav.CompFilter{
+			Name:  "VCALENDAR",
+			Comps: []caldav.CompFilter{{Name: "VTODO"}},
+		},
+	}
+}
+
+// asCopy makes cal an object of its own: a fresh UID, no invitation, and a link to where it came from.
+// RFC 9253's LINK with the registered relation "via" names a source; RELATED-TO relates components of
+// one calendar, and without a RELTYPE, of which none means a copy, makes the copy the original's child.
+func asCopy(cal *ical.Calendar, uid, source string, now time.Time) {
+	cal.Props.Del(ical.PropMethod)
+	for _, comp := range cal.Children {
+		if comp.Name == ical.CompTimezone {
+			continue
+		}
+		was, _ := comp.Props.Text(ical.PropUID)
+		comp.Props.SetText(ical.PropUID, uid)
+		comp.Props.SetDateTime(ical.PropDateTimeStamp, now)
+		comp.Props.Del(ical.PropOrganizer)
+		comp.Props.Del(ical.PropAttendee)
+		comp.Props.Add(link("URI", source))
+		comp.Props.Add(link("UID", was))
+	}
+}
+
+// The names RFC 9253 gives LINK and its relation parameter.
+const (
+	propLink     = "LINK"
+	paramLinkRel = "LINKREL"
+)
+
+func link(kind, value string) *ical.Prop {
+	prop := ical.NewProp(propLink)
+	prop.Params.Set(ical.ParamValue, kind)
+	prop.Params.Set(paramLinkRel, "via")
+	prop.Value = value
+	return prop
 }

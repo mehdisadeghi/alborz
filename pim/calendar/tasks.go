@@ -394,16 +394,6 @@ func completedNotice(ctx *web.Context, done bool, n int, action string, form url
 	return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf(key, n), Actions: []*web.NoticeAction{ctx.Undo(action, form)}}
 }
 
-func markTodo(todo *ical.Component, done bool) {
-	if done {
-		todo.Props.SetText(ical.PropStatus, "COMPLETED")
-		todo.Props.SetDateTime(ical.PropCompleted, time.Now().UTC())
-	} else {
-		todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
-		todo.Props.Del(ical.PropCompleted)
-	}
-}
-
 // Copy and delete, since the lists may live on different servers.
 func (p *plugin) move(ctx *web.Context) error {
 	params, err := ctx.FormParams()
@@ -469,19 +459,4 @@ func (p *plugin) move(ctx *web.Context) error {
 			}
 			return nil
 		}})
-}
-
-func taskQuery() caldav.CalendarQuery {
-	return caldav.CalendarQuery{
-		CompRequest: caldav.CalendarCompRequest{
-			Name:  "VCALENDAR",
-			Props: []string{"VERSION"},
-			// The whole to-do: every column reads a property of it.
-			Comps: []caldav.CalendarCompRequest{{Name: "VTODO", AllProps: true, AllComps: true}},
-		},
-		CompFilter: caldav.CompFilter{
-			Name:  "VCALENDAR",
-			Comps: []caldav.CompFilter{{Name: "VTODO"}},
-		},
-	}
 }

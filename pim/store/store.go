@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -54,6 +55,25 @@ type Collection struct {
 	Timezone []byte `json:",omitempty"`
 	// Dead are properties clients keep on a collection, handed back unread.
 	Dead []Dead `json:",omitempty"`
+	// Feed fills a subscribed calendar; nobody writes its objects.
+	Feed *Feed `json:",omitempty"`
+}
+
+// Feed is the address a calendar is filled from and what its last fetch said.
+type Feed struct {
+	URL          string
+	ETag         string        `json:",omitempty"`
+	LastModified string        `json:",omitempty"`
+	Fetched      time.Time     `json:",omitzero"`
+	Every        time.Duration `json:",omitempty"`
+	// Named is when the calendar's name or colour last changed, so the newer of it and the account's list wins.
+	Named time.Time `json:",omitzero"`
+}
+
+// Dropped is a fed calendar deleted, kept until the account's list of subscriptions has been told.
+type Dropped struct {
+	ID, URL string
+	At      time.Time
 }
 
 // Dead is one such property: its name and the element as it was sent.
@@ -136,6 +156,10 @@ func publicKey(secret string) string { return Name + "/public/" + secret }
 func receivedKey(to string, ref Ref) string { return receivedBy(to) + ref.key() }
 
 func receivedBy(to string) string { return Name + "/received/" + strings.ToLower(to) + "\x00" }
+
+func droppedKey(ref Ref) string { return droppedOf(ref.Owner) + ref.ID }
+
+func droppedOf(owner string) string { return Name + "/dropped/" + strings.ToLower(owner) + "/" }
 
 // Counted across collections, so a name made again cannot reuse ctags a client holds.
 const ctagKey = Name + "/ctag"
@@ -235,6 +259,9 @@ func (s *Store) Create(c Collection) (*Collection, error) {
 		if err := put(tx, collectionKey(c.Ref()), &c); err != nil {
 			return err
 		}
+		if err := tx.Delete(droppedKey(c.Ref())); err != nil {
+			return err
+		}
 		return publish(tx, "", c)
 	})
 	return &c, err
@@ -249,15 +276,22 @@ func (s *Store) Collection(ref Ref) (*Collection, error) {
 	return c, err
 }
 
-// Update changes a collection's own properties.
+// Update changes a collection's own properties; a fed calendar's new name or colour is dated unless change dates it.
 func (s *Store) Update(ref Ref, change func(*Collection)) error {
 	return s.db.Update(func(tx kv.Tx) error {
 		c, err := get[Collection](tx, collectionKey(ref))
 		if err != nil {
 			return err
 		}
-		before := c.Public
+		before, was := c.Public, *c
+		var named time.Time
+		if c.Feed != nil {
+			named = c.Feed.Named
+		}
 		change(c)
+		if c.Feed != nil && (c.Name != was.Name || c.Color != was.Color) && c.Feed.Named.Equal(named) {
+			c.Feed.Named = time.Now().UTC()
+		}
 		if err := stamp(tx, c); err != nil {
 			return err
 		}
@@ -268,7 +302,7 @@ func (s *Store) Update(ref Ref, change func(*Collection)) error {
 	})
 }
 
-// Delete removes a collection with its objects and its shares.
+// Delete removes a collection with its objects and its shares; a fed calendar leaves a Dropped behind.
 func (s *Store) Delete(ref Ref) error {
 	return s.db.Update(func(tx kv.Tx) error {
 		c, err := get[Collection](tx, collectionKey(ref))
@@ -277,6 +311,11 @@ func (s *Store) Delete(ref Ref) error {
 		}
 		if err := publish(tx, c.Public, Collection{}); err != nil {
 			return err
+		}
+		if c.Feed != nil {
+			if err := put(tx, droppedKey(ref), Dropped{ID: ref.ID, URL: c.Feed.URL, At: time.Now().UTC()}); err != nil {
+				return err
+			}
 		}
 		var gone []string
 		collect := func(k string, _ []byte) error {
@@ -476,11 +515,105 @@ func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless,
 }
 
 func writable(tx kv.Tx, ref Ref, by string, now time.Time) error {
-	_, may, err := allowed(tx, ref, strings.ToLower(by), now)
-	if err == nil && may < write {
+	c, may, err := allowed(tx, ref, strings.ToLower(by), now)
+	if err == nil && (may < write || c.Feed != nil) {
 		err = ErrForbidden
 	}
 	return err
+}
+
+// Dropped are the owner's fed calendars deleted since the account's list was last told.
+func (s *Store) Dropped(owner string) ([]Dropped, error) {
+	var out []Dropped
+	err := s.db.View(func(tx kv.Tx) error {
+		return each(tx, droppedOf(owner), func(d Dropped) error {
+			out = append(out, d)
+			return nil
+		})
+	})
+	return out, err
+}
+
+// Told forgets a Dropped once the account's list says so.
+func (s *Store) Told(ref Ref) error {
+	return s.db.Update(func(tx kv.Tx) error { return tx.Delete(droppedKey(ref)) })
+}
+
+// Feeds are every calendar filled from a feed, of every account.
+func (s *Store) Feeds() ([]Collection, error) {
+	var out []Collection
+	err := s.db.View(func(tx kv.Tx) error {
+		return each(tx, Name+"/collections/", func(c Collection) error {
+			if c.Feed != nil {
+				out = append(out, c)
+			}
+			return nil
+		})
+	})
+	return out, err
+}
+
+// Fill keeps what a fetch of a fed calendar said, and its objects when the feed sent them: all replaced in one
+// write, the ctag moved only when one changed. Nil objects keep those held.
+func (s *Store) Fill(ref Ref, feed Feed, objects []Object) error {
+	return s.db.Update(func(tx kv.Tx) error {
+		c, err := get[Collection](tx, collectionKey(ref))
+		if err != nil {
+			return err
+		}
+		if c.Feed == nil || c.Feed.URL != feed.URL {
+			return fmt.Errorf("collections: %s is not filled from %s", ref.key(), feed.URL)
+		}
+		feed.Named = c.Feed.Named
+		c.Feed = &feed
+		if objects != nil {
+			if err := replace(tx, c, objects); err != nil {
+				return err
+			}
+		}
+		return put(tx, collectionKey(ref), c)
+	})
+}
+
+func replace(tx kv.Tx, c *Collection, objects []Object) error {
+	ref := c.Ref()
+	held := map[string]Object{}
+	err := each(tx, objectsOf(ref), func(o Object) error {
+		held[o.Name] = o
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	changed := len(held) != len(objects)
+	for _, o := range objects {
+		changed = changed || held[o.Name].ETag != ETagOf(o.Data)
+	}
+	if !changed {
+		return nil
+	}
+	for _, o := range held {
+		if err := tx.Delete(objectKey(ref, o.Name)); err != nil {
+			return err
+		}
+		if err := tx.Delete(uidKey(ref, o.UID)); err != nil {
+			return err
+		}
+	}
+	now := time.Now().UTC()
+	for _, o := range objects {
+		o.ETag, o.Modified, o.Created = ETagOf(o.Data), now, now
+		if was, ok := held[o.Name]; ok {
+			o.Created = was.Created
+		}
+		if err := put(tx, objectKey(ref, o.Name), &o); err != nil {
+			return err
+		}
+		if err := tx.Put(uidKey(ref, o.UID), []byte(o.Name)); err != nil {
+			return err
+		}
+	}
+	return stamp(tx, c)
 }
 
 // RemoveObject deletes an object as the account by, unless its condition says not to.

@@ -3,6 +3,7 @@ package store
 import (
 	"bytes"
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/http"
@@ -37,9 +38,16 @@ func calendarOf(viewer string, c Collection, may access) (*caldav.Calendar, erro
 		Color:                 c.Color,
 		SupportedComponentSet: c.Components,
 		SupportedRScaleSet:    calsys.RSCALEs(),
-		ReadOnly:              may < write,
+		ReadOnly:              may < write || c.Feed != nil,
 		CTag:                  strconv.FormatUint(c.CTag, 10),
 		DeadProperties:        deadOf(c),
+	}
+	if c.Feed != nil {
+		source, err := xml.Marshal(csSource{Href: c.Feed.URL})
+		if err != nil {
+			return nil, err
+		}
+		cal.DeadProperties = append([]webdav.DeadProperty{{Name: csSourceName, XML: source}}, cal.DeadProperties...)
 	}
 	if len(c.Timezone) == 0 {
 		return cal, nil
@@ -48,6 +56,14 @@ func calendarOf(viewer string, c Collection, may access) (*caldav.Calendar, erro
 	cal.Timezone, err = ical.NewDecoder(bytes.NewReader(c.Timezone)).Decode()
 	return cal, err
 }
+
+// csSource names the feed a subscribed calendar is filled from, as CalendarServer does.
+type csSource struct {
+	XMLName xml.Name `xml:"http://calendarserver.org/ns/ source"`
+	Href    string   `xml:"DAV: href"`
+}
+
+var csSourceName = xml.Name{Space: "http://calendarserver.org/ns/", Local: "source"}
 
 func (b calendars) ListCalendars(ctx context.Context) ([]caldav.Calendar, error) {
 	visible, err := b.Visible(userOf(ctx), Calendar, time.Now())

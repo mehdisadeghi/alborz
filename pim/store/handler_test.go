@@ -300,3 +300,52 @@ func TestAPublishedCalendarReadsWithoutAnAccountAndOnlyByItsSecret(t *testing.T)
 		}
 	}
 }
+
+// A phone syncs a subscribed calendar by its ctag, which must hold still while the feed does; the feed alone writes it.
+func TestAFedCalendarIsWrittenByItsFeedAlone(t *testing.T) {
+	st := open(t)
+	const owner, feed = "owner@example.org", "https://feed.example/hols.ics"
+	ref := Ref{Owner: owner, ID: "hols"}
+	if _, err := st.Create(Collection{ID: ref.ID, Owner: owner, Kind: Calendar, Components: []string{"VEVENT"},
+		Name: "Holidays", Feed: &Feed{URL: feed}}); err != nil {
+		t.Fatal(err)
+	}
+	path := HomePath(Calendar, owner) + "hols/"
+	if code := serve(t, st.Handler(), owner, http.MethodPut, path+"e1.ics", event); code != http.StatusForbidden {
+		t.Fatalf("the owner's PUT answered %d, want %d", code, http.StatusForbidden)
+	}
+
+	fill := func(etag string, objects []Object) uint64 {
+		t.Helper()
+		if err := st.Fill(ref, Feed{URL: feed, ETag: etag}, objects); err != nil {
+			t.Fatal(err)
+		}
+		c, err := st.Collection(ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c.CTag
+	}
+	lunch := []Object{{Name: "e1.ics", UID: "e1", Data: []byte(event)}}
+	first := fill("v1", lunch)
+	if again := fill("v1", lunch); again != first {
+		t.Errorf("the same objects moved the ctag from %d to %d", first, again)
+	}
+	if unchanged := fill("v1", nil); unchanged != first {
+		t.Errorf("a feed unchanged moved the ctag from %d to %d", first, unchanged)
+	}
+	other := strings.ReplaceAll(event, "e1", "e2")
+	if moved := fill("v2", []Object{{Name: "e2.ics", UID: "e2", Data: []byte(other)}}); moved == first {
+		t.Error("new objects left the ctag where it was")
+	}
+	objects, err := st.Objects(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(objects) != 1 || objects[0].Name != "e2.ics" {
+		t.Errorf("after the second fetch the calendar holds %+v, want e2.ics alone", objects)
+	}
+	if code := serve(t, st.Handler(), owner, http.MethodDelete, path+"e2.ics", ""); code != http.StatusForbidden {
+		t.Errorf("the owner's DELETE of an object answered %d, want %d", code, http.StatusForbidden)
+	}
+}

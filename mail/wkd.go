@@ -2,6 +2,7 @@ package mail
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"sync"
 	"time"
@@ -17,6 +18,8 @@ const (
 	wkdTimeout = 3 * time.Second
 	// Misses are kept too, so a domain without a directory costs one request a day.
 	wkdKeepFor = 24 * time.Hour
+	// Every author read makes an entry; a key is a few KiB.
+	maxWKDEntries = 1024
 )
 
 type wkdEntry struct {
@@ -48,6 +51,17 @@ func (w *wkdCache) keys(ctx context.Context, client *http.Client, address string
 	}
 	w.mu.Lock()
 	w.entries[address] = wkdEntry{keys: keys, fetched: time.Now()}
+	maps.DeleteFunc(w.entries, func(_ string, e wkdEntry) bool { return time.Since(e.fetched) > w.keepFor })
+	for len(w.entries) > maxWKDEntries {
+		var oldestKey string
+		var oldest time.Time
+		for k, e := range w.entries {
+			if oldest.IsZero() || e.fetched.Before(oldest) {
+				oldestKey, oldest = k, e.fetched
+			}
+		}
+		delete(w.entries, oldestKey)
+	}
 	w.mu.Unlock()
 	return keys
 }

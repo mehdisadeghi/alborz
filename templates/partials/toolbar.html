@@ -118,23 +118,23 @@
 </div>
 {{ end }}
 
-{{/* dict: [range] [prev href label] [next href label]. */}}
+{{/* dict: [range] [prev href label] [next href label]; g p and g n step through them. */}}
 {{ define "pagination" }}
 <div class="actions-pagination">
   {{ with .range }}<span class="pagination-range" data-priority="1" data-yield="hide">{{.}}</span>{{ end }}
-  {{ template "pager-link" (dict "step" .prev "icon" "prev" "target" .target) }}
-  {{ template "pager-link" (dict "step" .next "icon" "next" "target" .target) }}
+  {{ template "pager-link" (dict "step" .prev "icon" "prev" "go" "p" "target" .target) }}
+  {{ template "pager-link" (dict "step" .next "icon" "next" "go" "n" "target" .target) }}
 </div>
 {{ end }}
 
-{{/* dict: step(href label) icon. */}}
+{{/* dict: step(href label) icon [go]. */}}
 {{ define "pager-link" }}
 {{ with .step }}
 {{ if .label }}
-{{ if .href }}<a href="{{localhref .href}}" class="button-link pager-link" data-priority="2" data-yield="word"{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ else }}<span class="button-link pager-link" aria-disabled="true" data-priority="2" data-yield="word">{{ end }}{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}{{ if .href }}</a>{{ else }}</span>{{ end }}
+{{ if .href }}<a href="{{localhref .href}}" class="button-link pager-link" data-priority="2" data-yield="word"{{ with $.go }} data-go="{{.}}"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ else }}<span class="button-link pager-link" aria-disabled="true" data-priority="2" data-yield="word">{{ end }}{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}{{ if .href }}</a>{{ else }}</span>{{ end }}
 {{ else }}
 {{ if .href }}
-<a href="{{localhref .href}}" class="icon-button" title="{{.title}}" aria-label="{{.title}}"{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ template "icon" $.icon }}</a>
+<a href="{{localhref .href}}" class="icon-button" title="{{.title}}" aria-label="{{.title}}"{{ with $.go }} data-go="{{.}}"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ template "icon" $.icon }}</a>
 {{ else }}
 <span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}">{{ template "icon" $.icon }}</span>
 {{ end }}
@@ -168,15 +168,19 @@
 {{ end }}
 {{ end }}
 
-{{/* dict: g n. */}}
+{{/* dict: g n [id load]. The objects either side in the list the page was opened from, k and j;
+     a side with none keeps its place, and load fills the whole in once the page is up. */}}
 {{ define "object-nav" }}
-{{ with .n }}{{ if .Total }}
-<span class="action-group">
-  <span class="pagination-range" data-priority="1" data-yield="hide">{{$.g.GlobalData.Tf "common.position" .Position .Total}}</span>
-  {{ with .PrevURL }}<a class="icon-button" href="{{.}}" title="{{$.g.T "common.previous"}}" aria-label="{{$.g.T "common.previous"}}">{{ template "icon" "up" }}</a>{{ end }}
-  {{ with .NextURL }}<a class="icon-button" href="{{.}}" title="{{$.g.T "common.next"}}" aria-label="{{$.g.T "common.next"}}">{{ template "icon" "down" }}</a>{{ end }}
+<span{{ with .id }} id="{{.}}"{{ end }} class="action-group"{{ with .load }} hx-get="{{.}}" hx-trigger="load" hx-target="this" hx-swap="outerHTML"{{ end }}>
+  <span class="pagination-range" data-priority="1" data-yield="hide">{{ with .n }}{{ if .Total }}{{$.g.GlobalData.Tf "common.position" .Position .Total}}{{ end }}{{ end }}</span>
+  {{ template "object-step" (dict "href" .n.PrevURL "title" (.g.T "common.previous") "icon" "up" "key" "k") }}
+  {{ template "object-step" (dict "href" .n.NextURL "title" (.g.T "common.next") "icon" "down" "key" "j") }}
 </span>
-{{ end }}{{ end }}
+{{ end }}
+
+{{/* dict: href title icon key. */}}
+{{ define "object-step" }}
+{{ if .href }}<a class="icon-button" href="{{ localhref .href }}" title="{{.title}}" aria-label="{{.title}}" data-key="{{.key}}">{{ template "icon" .icon }}</a>{{ else }}<span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}">{{ template "icon" .icon }}</span>{{ end }}
 {{ end }}
 
 {{/* dict: items [label]; item: label href current [icon]. */}}

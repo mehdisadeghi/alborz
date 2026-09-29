@@ -509,19 +509,25 @@ func (msg *IMAPMessage) URL() *url.URL {
 }
 
 // Without the narrowing and order, one step sideways lands in the plain folder.
-func neighbourURL(ctx *alborz.Context, mboxName string, uid imap.UID) *url.URL {
-	next := messageURL(mboxName, uid)
-	if next == nil {
-		return nil
-	}
+func neighbours(ctx *alborz.Context, mboxName string, place listPlace) alborz.Neighbours {
 	kept := url.Values{}
 	for _, name := range []string{"query", "view", "sort", "dir", "ipp", "account", "all", "thread"} {
 		if value := ctx.QueryParam(name); value != "" {
 			kept.Set(name, value)
 		}
 	}
-	next.RawQuery = alborz.Query(kept)
-	return next
+	if from := ctx.From(); from != "" {
+		kept.Set("from", from)
+	}
+	href := func(uid imap.UID) string {
+		u := messageURL(mboxName, uid)
+		if u == nil {
+			return ""
+		}
+		u.RawQuery = alborz.Query(kept)
+		return u.String()
+	}
+	return alborz.Neighbours{PrevURL: href(place.newer), NextURL: href(place.older), Position: place.position, Total: place.total}
 }
 
 // messageURL returns nil for the zero UID so templates can elide the link.

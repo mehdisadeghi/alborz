@@ -72,12 +72,9 @@ type MessageRenderData struct {
 	// ForwardedBy names the mailbox that passed the message on, proved by our server's SPF check.
 	ForwardedBy string
 
-	// Neighbors in the view the message was opened from; nil when absent.
-	NewerURL *url.URL
-	OlderURL *url.URL
-	Position int
-	Total    int
-	Query    string
+	// Neighbours in the list the message was opened from.
+	Neighbours alborz.Neighbours
+	Query      string
 
 	// HasRemoteResources says the shown part asks for resources elsewhere, loaded only when RemoteResourcesAllowed.
 	HasRemoteResources     bool
@@ -622,10 +619,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 		View:               view.Body,
 		MailboxPage:        int(*mbox.NumMessages-msg.SeqNum) / messagesPerPage,
 		Flags:              flags,
-		NewerURL:           neighbourURL(ctx, mbox.Name(), place.newer),
-		OlderURL:           neighbourURL(ctx, mbox.Name(), place.older),
-		Position:           place.position,
-		Total:              place.total,
+		Neighbours:         neighbours(ctx, mbox.Name(), place),
 		Query:              query,
 		AuthResults:        authResults,
 		Warnings:           warnings,

@@ -1,6 +1,7 @@
 package alborz_test
 
 import (
+	"fmt"
 	"html"
 	"io"
 	"mime/multipart"
@@ -9,6 +10,7 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -126,6 +128,58 @@ func TestAnOpenTaskWithoutStatusIsListed(t *testing.T) {
 			"UID:water\r\nDTSTAMP:20260901T080000Z\r\nSUMMARY:Water the ferns\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
 	if page := get(t, c, base+"/tasks"); !strings.Contains(page, "Water the ferns") {
 		t.Errorf("the open task without a STATUS is not on the list")
+	}
+}
+
+// A list held whole pages as mail does, and a task opened from one page walks
+// the whole list, not the page it was on.
+func TestATaskListPagesAndItsTasksWalkIt(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {"Chores"}, "color": {"#22aa55"}, "holds": {"tasks"}}
+	if resp := postForm(t, c, base+"/calendars/create", form); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the task list answered %s", resp.Status)
+	}
+	for i := 1; i <= 5; i++ {
+		put(t, base, fmt.Sprintf("/alborz/dav/calendars/%s/chores/t%d.ics", smokeUser, i), "text/calendar",
+			fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VTODO\r\n"+
+				"UID:t%d\r\nDTSTAMP:20260901T080000Z\r\nSUMMARY:Chore %d\r\nEND:VTODO\r\nEND:VCALENDAR\r\n", i, i))
+	}
+	list := base + "/tasks?sort=summary&ipp=2"
+	shown := func(page string) []string {
+		return regexp.MustCompile(`>(Chore \d)</a>`).FindAllString(page, -1)
+	}
+	second := get(t, c, list+"&page=1")
+	if got := shown(second); !slices.Equal(got, []string{">Chore 3</a>", ">Chore 4</a>"}) {
+		t.Fatalf("the second page shows %v, want chores 3 and 4", got)
+	}
+	if !strings.Contains(second, "3–4 of 5") {
+		t.Error("the second page does not say it holds 3–4 of 5")
+	}
+	if got := pagerSteps(t, second); !slices.Equal(got, []string{"", "2"}) {
+		t.Errorf("the second page steps to pages %q, want the first and the third", got)
+	}
+	if got := shown(get(t, c, list+"&page=9")); !slices.Equal(got, []string{">Chore 5</a>"}) {
+		t.Errorf("a page past the end shows %v, want the last page", got)
+	}
+	if resp, err := c.Get(list + "&page=x"); err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("an unreadable page answered %v %v, want 400", resp.Status, err)
+	}
+
+	link := regexp.MustCompile(`<a href="([^"]+)" dir="auto"[^>]*>Chore 4</a>`).FindStringSubmatch(second)
+	if link == nil {
+		t.Fatal("the second page has no link to chore 4")
+	}
+	task := get(t, c, base+html.UnescapeString(link[1]))
+	next := regexp.MustCompile(`<a class="icon-button" href="([^"]+)"[^>]*data-key="j"`).FindStringSubmatch(task)
+	if next == nil {
+		t.Fatal("chore 4 has no way to the next task")
+	}
+	if !strings.Contains(get(t, c, base+html.UnescapeString(next[1])), "Chore 5") {
+		t.Error("the task after chore 4, on the next page, is not chore 5")
+	}
+	if !strings.Contains(task, ">4 of 5<") {
+		t.Error("chore 4 does not say it is 4 of 5")
 	}
 }
 

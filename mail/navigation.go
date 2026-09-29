@@ -148,8 +148,7 @@ func (p *plugin) handleMessageNavigation(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	data.NewerURL, data.OlderURL = neighbourURL(ctx, mailbox, place.newer), neighbourURL(ctx, mailbox, place.older)
-	data.Position, data.Total = place.position, place.total
+	data.Neighbours = neighbours(ctx, mailbox, place)
 	data.IMAPBaseRenderData = *assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mailbox, sb, view)
 	return ctx.Render(http.StatusOK, "message-context", data)
 }

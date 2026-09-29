@@ -15,7 +15,7 @@
     {{ with .FilterRows }}{{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" . "priority" 25 "class" "filter-overflow") }}{{ end }}
     {{ with .GroupRows }}{{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" . "priority" 30 "class" "group-overflow") }}{{ end }}
     <div class="actions-pagination" data-priority="21">
-      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime)) "icon" "prev") }}
+      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime)) "icon" "prev" "go" "p") }}
       {{if not .ThisMonth}}
       {{/* localhref, or html/template escapes the whole query as one value. */}}
       {{ $today := "/calendar" }}{{ if $suffix }}{{ $today = printf "/calendar?%s" (slice $suffix 1) }}{{ end }}
@@ -23,7 +23,7 @@
       {{else}}
       <span class="button-link" aria-disabled="true">{{$.T "calendar.today"}}</span>
       {{end}}
-      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "title" ($.GlobalData.MonthName .NextTime)) "icon" "next") }}
+      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "title" ($.GlobalData.MonthName .NextTime)) "icon" "next" "go" "n") }}
     </div>
     <div class="actions-pagination" data-priority="22">
       {{ template "toggle" (dict "items" (tuple

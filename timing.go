@@ -116,6 +116,7 @@ func (ctx *Context) DoIMAP(f func(*imapclient.Client) error) error {
 	return ctx.doIMAPWithin(RoundTripTimeout, f)
 }
 
+// DoIMAPScan runs a whole-folder search, which may outlast a round trip, off the connection the reader's clicks wait on.
 func (ctx *Context) DoIMAPScan(f func(*imapclient.Client) error) error {
 	return ctx.Login.DoIMAPWork(ctx.Request().Context(), IMAPScan, ScanTimeout, f)
 }

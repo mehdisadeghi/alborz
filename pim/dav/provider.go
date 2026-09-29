@@ -106,6 +106,7 @@ func NewProvider(srv *alborz.Server, kept *store.Store, kind Kind) (*Provider, e
 			return nil, err
 		}
 		mirror = m
+		srv.Schedule.Add(tick, m.round)
 	}
 	p := &Provider{Kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
 		collections: memo.NewBackground[[]Collection](srv.Options.CacheFor(discoveryTTL))}
@@ -486,7 +487,7 @@ func (p *Provider) Guarded(none error, create string, h func(*alborz.Context) er
 	}
 }
 
-// Close stops the mirror's loop.
+// Close waits for the mirror's syncs and closes its file.
 func (p *Provider) Close() error { return p.mirror.Close() }
 
 // domainURL resolves the domain's endpoint from DNS and config only; nil without error means none.

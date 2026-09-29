@@ -29,7 +29,7 @@ const (
 	syncWait = 4 * time.Second
 	// syncBudget bounds one collection's sync, every round trip of it.
 	syncBudget = 30 * time.Second
-	// tick is the loop's pace; what would go stale before the next one is synced now.
+	// tick is the round's pace; what would go stale before the next one is synced now.
 	tick        = 10 * time.Second
 	syncWorkers = 4
 	lockTimeout = 5 * time.Second
@@ -48,7 +48,6 @@ type Mirror struct {
 	mu      sync.Mutex
 	readers map[string]*reader
 	closed  bool
-	stop    chan struct{}
 	work    sync.WaitGroup
 }
 
@@ -108,7 +107,7 @@ func hashed(s string) string {
 func heldKey(u, coll string) string    { return owner + "/held/" + u + "/" + hashed(coll) }
 func objectsKey(u, coll string) string { return owner + "/objects/" + u + "/" + hashed(coll) + "/" }
 
-// OpenMirror opens the kind's copies in dir and starts keeping them in step.
+// OpenMirror opens the kind's copies in dir; round keeps them in step.
 func OpenMirror(dir string, kind Kind, key *fernet.Key) (*Mirror, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
@@ -123,13 +122,11 @@ func OpenMirror(dir string, kind Kind, key *fernet.Key) (*Mirror, error) {
 		return nil, err
 	}
 	m := &Mirror{db: db, key: key, wire: wireFor(kind.Holds), poll: kind.Poll,
-		readers: map[string]*reader{}, stop: make(chan struct{})}
+		readers: map[string]*reader{}}
 	if err := alborz.CheckKey(db, file, key, owner+"/"); err != nil {
 		db.Close()
 		return nil, err
 	}
-	m.work.Add(1)
-	go m.run()
 	return m, nil
 }
 
@@ -140,7 +137,6 @@ func (m *Mirror) Close() error {
 	m.mu.Lock()
 	m.closed = true
 	m.mu.Unlock()
-	close(m.stop)
 	m.work.Wait()
 	return m.db.Close()
 }
@@ -509,23 +505,8 @@ func (m *Mirror) Refresh(ctx context.Context, username string, next http.RoundTr
 	return nil
 }
 
-func (m *Mirror) run() {
-	defer m.work.Done()
-	t := time.NewTicker(tick)
-	defer t.Stop()
-	for {
-		select {
-		case <-m.stop:
-			return
-		case <-t.C:
-			m.round()
-		}
-	}
-}
-
 // round syncs the collections read since start ahead of staleness.
-func (m *Mirror) round() {
-	now := time.Now()
+func (m *Mirror) round(ctx context.Context, now time.Time) {
 	m.mu.Lock()
 	var users []string
 	for u, r := range m.readers {
@@ -551,7 +532,7 @@ func (m *Mirror) round() {
 			}
 		}
 		parallel(due, func(h mirrored) {
-			done, _ := m.start(alborz.Background(context.Background()), u, h.target())
+			done, _ := m.start(alborz.Background(ctx), u, h.target())
 			<-done
 		})
 	})

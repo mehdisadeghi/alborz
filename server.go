@@ -132,8 +132,9 @@ type Server struct {
 
 	themes []Theme
 
-	// custom is loaded last so a deployment can override the theme without forking it.
-	custom bool
+	// custom is the deployment's own stylesheet, loaded last so it can override the theme without forking it.
+	custom      []byte
+	customStamp string
 }
 
 func (s *Server) hasTheme(name string) bool {
@@ -201,8 +202,6 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		s.files = files
 	}
 	s.themes = readThemes(s.files)
-	_, err := fs.Stat(s.files, path.Join("assets", customCSS))
-	s.custom = err == nil
 
 	// Absolute, so messages name a path without guessing the working directory; empty is the working directory.
 	dataDir, err := filepath.Abs(options.DataDir)
@@ -469,15 +468,21 @@ func (s *Server) load() error {
 	if err != nil {
 		return fmt.Errorf("failed to load templates: %v", err)
 	}
+	custom, err := os.ReadFile(filepath.Join(filepath.Dir(s.dataPath), customCSS))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.e.Renderer = renderer
+	s.custom = custom
+	s.customStamp = stampOf(custom)
 	return nil
 }
 
-// Reload reads the templates from disk again.
+// Reload reads the templates and custom.css from disk again.
 func (s *Server) Reload() error {
-	s.e.Logger.Printf("Reloading templates")
+	s.e.Logger.Printf("Reloading templates and custom.css")
 	return s.load()
 }
 
@@ -600,6 +605,9 @@ func (s *Server) shell() ([]string, string) {
 
 // A file is read again when its mtime or size changes, so a CSS edit in debug mode shows on reload.
 func (s *Server) assetStamp(name string) string {
+	if name == customCSS {
+		return s.customStamp
+	}
 	file := path.Join("assets", name)
 	info, err := fs.Stat(s.files, file)
 	if err != nil {
@@ -617,10 +625,14 @@ func (s *Server) assetStamp(name string) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256(content)
-	stamp := hex.EncodeToString(sum[:4])
+	stamp := stampOf(content)
 	s.assets[name] = assetStamp{key: key, stamp: stamp}
 	return stamp
+}
+
+func stampOf(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:4])
 }
 
 func isPublic(path string) bool {
@@ -976,6 +988,12 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 		}
 		if v := ectx.QueryParam("v"); v != "" && v == s.assetStamp(name) {
 			ectx.Response().Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		if name == customCSS {
+			if len(s.custom) == 0 {
+				return echo.ErrNotFound
+			}
+			return ectx.Blob(http.StatusOK, "text/css; charset=utf-8", s.custom)
 		}
 		http.ServeFileFS(ectx.Response(), ectx.Request(), assets, name)
 		return nil

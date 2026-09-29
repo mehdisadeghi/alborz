@@ -44,6 +44,12 @@ list.
 address books and calendar feeds are kept there between runs, sealed
 under the login key, so a restart starts warm. `-cache=false` keeps no cache.
 
+## Custom stylesheet
+
+A `custom.css` in the data directory (`-data-dir`, here `/var/lib/alborz`)
+is linked after the theme on every page, so it overrides any style.
+alborz reads it at startup and on SIGUSR1; without it nothing is linked.
+
 ## DNS
 
 A bare domain argument relies on SRV records for discovery. Per served

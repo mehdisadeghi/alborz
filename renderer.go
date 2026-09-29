@@ -455,7 +455,7 @@ func NewBaseRenderData(ectx echo.Context) *BaseRenderData {
 	if isactx {
 		global.Unified = ctx.Unified
 		global.AlignByScript = ctx.AlignByScript()
-		global.CustomCSS = ctx.Server.custom
+		global.CustomCSS = len(ctx.Server.custom) > 0
 		global.SchemePinned = ctx.ThemeScheme() != ""
 		global.URLAccount = ctx.urlAccount
 		global.From = ctx.From()

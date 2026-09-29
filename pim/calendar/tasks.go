@@ -459,11 +459,16 @@ func (p *plugin) move(ctx *alborz.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to get task: %v", err)
 			}
-			if _, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data,
-				&caldav.PutCalendarObjectOptions{IfNoneMatch: dav.IfNew}); err != nil {
+			made, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data,
+				&caldav.PutCalendarObjectOptions{IfNoneMatch: dav.IfNew})
+			if err != nil {
 				return err
 			}
-			return pim.Delete(ctx, ref)
+			// A list that keeps its task, a read-only share, leaves it where it was rather than in two lists.
+			if err := pim.Delete(ctx, ref); err != nil {
+				return errors.Join(err, target.Client.RemoveAll(ctx.Request().Context(), made.Path))
+			}
+			return nil
 		}})
 }
 

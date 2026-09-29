@@ -1106,11 +1106,9 @@ func (p *plugin) handleEdit(ctx *alborz.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		b, err := io.ReadAll(part.Body)
-		if err != nil {
+		if msg.Text, err = readText(part); err != nil {
 			return fmt.Errorf("failed to read part body: %v", err)
 		}
-		msg.Text = string(b)
 		if msg.HTML, err = quotedHTML(ctx, sourcePath, source); err != nil {
 			return fmt.Errorf("failed to read the draft's HTML: %v", err)
 		}

@@ -117,7 +117,7 @@
         </div>
 
         <div class="action-group" id="handler-group" hidden>
-          <button type="button" data-protocol="mailto" data-handler="/compose?mailto=%s">{{$.T "settings.mailtohandler"}}</button>
+          <button type="button" data-protocol="mailto" data-handler="{{url "mail.compose"}}?mailto=%s">{{$.T "settings.mailtohandler"}}</button>
           <button type="button" data-protocol="webcal" data-handler="{{url "calendar.import"}}?url=%s">{{$.T "settings.webcalhandler"}}</button>
           <p class="hint" id="register-mailto-asked" hidden>{{$.T "settings.mailtoasked"}}</p>
           <p class="hint" id="register-mailto-before" hidden>{{$.T "settings.mailtobefore"}}</p>

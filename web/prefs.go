@@ -1,4 +1,4 @@
-package alborz
+package web
 
 import (
 	"io/fs"
@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/calsys"
 )
 
@@ -62,14 +63,14 @@ func (ctx *Context) cookieValue(name string, valid func(string) bool) (string, b
 }
 
 // cookieProfile serves pages rendered with no account signed in.
-func (ctx *Context) cookieProfile() Profile {
+func (ctx *Context) cookieProfile() alborz.Profile {
 	has := func(name string) string {
 		v, _ := ctx.cookieValue(name, func(v string) bool { return v != "" })
 		return v
 	}
-	return Profile{
-		Reading: Reading{MessagesPerPage: DefaultMessagesPerPage},
-		Display: Display{
+	return alborz.Profile{
+		Reading: alborz.Reading{MessagesPerPage: alborz.DefaultMessagesPerPage},
+		Display: alborz.Display{
 			Theme:         has(themeCookieName),
 			TextSize:      has(textSizeCookieName),
 			AlignByScript: has(alignCookieName) == "1",
@@ -78,7 +79,7 @@ func (ctx *Context) cookieProfile() Profile {
 	}
 }
 
-func (ctx *Context) setProfileCookies(d Display) {
+func (ctx *Context) setProfileCookies(d alborz.Display) {
 	align := ""
 	if d.AlignByScript {
 		align = "1"
@@ -144,7 +145,7 @@ func (ctx *Context) CalendarSystem() calsys.System {
 
 // SetLanguage sets the UI language; empty follows Accept-Language.
 func (ctx *Context) SetLanguage(code string) error {
-	if !isLanguage(code) {
+	if !alborz.IsLanguage(code) {
 		code = ""
 	}
 	p := ctx.Profile()
@@ -157,8 +158,11 @@ func (ctx *Context) SetLanguage(code string) error {
 
 // language returns the explicit UI language, empty when following the browser.
 func (ctx *Context) language() string {
-	if code := ctx.Profile().Display.Language; isLanguage(code) {
+	if code := ctx.Profile().Display.Language; alborz.IsLanguage(code) {
 		return code
 	}
 	return ""
 }
+
+// langCookieName holds the language in the browser, since it is per person, not per account.
+const langCookieName = "alborz_lang"

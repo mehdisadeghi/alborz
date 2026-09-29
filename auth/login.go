@@ -6,22 +6,23 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
-func handleLogin(ctx *alborz.Context) error {
+func handleLogin(ctx *web.Context) error {
 	username := ctx.FormValue("username")
 	password := ctx.FormValue("password")
 	remember := ctx.FormValue("remember-me")
 	add := ctx.QueryParam("add") == "1"
 
 	renderData := struct {
-		alborz.BaseRenderData
+		web.BaseRenderData
 		RememberDays int
 		Add          bool
 		Username     string
 	}{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx),
+		BaseRenderData: *web.NewBaseRenderData(ctx),
 		Username:       username,
 		RememberDays:   int(alborz.CredentialCookieLife().Hours() / 24),
 		Add:            add,
@@ -38,7 +39,7 @@ func handleLogin(ctx *alborz.Context) error {
 	}
 
 	if ctx.Request().Method == http.MethodPost && (username == "" || password == "") {
-		renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("notice.loginmissing")}
+		renderData.BaseRenderData.GlobalData.Notice = &web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.loginmissing")}
 		return ctx.Render(http.StatusUnprocessableEntity, "login", &renderData)
 	}
 
@@ -51,7 +52,7 @@ func handleLogin(ctx *alborz.Context) error {
 			if text == "" {
 				return fmt.Errorf("failed to put connection in pool: %w", err)
 			}
-			renderData.BaseRenderData.GlobalData.Notice = &alborz.Notice{Kind: alborz.NoticeFailed, Text: text}
+			renderData.BaseRenderData.GlobalData.Notice = &web.Notice{Kind: web.NoticeFailed, Text: text}
 			return ctx.Render(status, "login", &renderData)
 		}
 		ctx.AddAccount(s)
@@ -66,7 +67,7 @@ func handleLogin(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "login", &renderData)
 }
 
-func loginRedirect(ctx *alborz.Context) error {
+func loginRedirect(ctx *web.Context) error {
 	// A second leading slash or backslash is scheme-relative: off-site.
 	if path := ctx.QueryParam("next"); path != "" && path[0] == '/' && path != "/login" &&
 		!strings.HasPrefix(path, "//") && !strings.HasPrefix(path, "/\\") {
@@ -76,7 +77,7 @@ func loginRedirect(ctx *alborz.Context) error {
 	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
 }
 
-func HandleLogout(ctx *alborz.Context) error {
+func HandleLogout(ctx *web.Context) error {
 	username := ctx.Login.Username()
 	if ctx.FormValue("account") != "" {
 		username = ctx.FormValue("account")

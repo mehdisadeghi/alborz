@@ -6,14 +6,14 @@ import (
 	"sort"
 	"time"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
 type CalendarRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Time time.Time
 	Now  time.Time
 	// Since is the first day the agenda lists: today in the current month, else the first.
@@ -43,10 +43,10 @@ type CalendarRenderData struct {
 	AddedBy func(account, path string) string
 	// StarView is the star the agenda is narrowed to.
 	StarView string
-	Filters  []alborz.Filter
+	Filters  []web.Filter
 	// FilterRows and GroupRows are the agenda's filter and sort menus.
-	FilterRows []alborz.FilterRow
-	GroupRows  []alborz.FilterRow
+	FilterRows []web.FilterRow
+	GroupRows  []web.FilterRow
 	// Group is "day" when the agenda is banded by day, else empty.
 	Group string
 	Sub   func(a, b int) int
@@ -87,7 +87,7 @@ func (mv monthView) shown() []Occurrence {
 	return out
 }
 
-func (p *plugin) month(ctx *alborz.Context) error {
+func (p *plugin) month(ctx *web.Context) error {
 	mv, err := p.monthView(ctx)
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).
+		BaseRenderData: *web.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.MonthYearIn(mv.start)),
 		Time:      mv.start,
 		Now:       mv.now,
@@ -119,7 +119,7 @@ func (p *plugin) month(ctx *alborz.Context) error {
 		PrevTime:  mv.prevTime,
 		NextTime:  mv.nextTime,
 		ListQuery: monthQuery(ctx, mv),
-		Scope:     alborz.Query(pim.ListParams(ctx, "account", "cal")),
+		Scope:     web.Query(pim.ListParams(ctx, "account", "cal")),
 		SelectForm: func() string {
 			if mv.view != "" {
 				return "events-form"
@@ -153,8 +153,8 @@ func (p *plugin) month(ctx *alborz.Context) error {
 	})
 }
 
-func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
-	loc := alborz.UserLocation(ctx)
+func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
+	loc := web.UserLocation(ctx)
 
 	// The month counts in the reader's calendar system.
 	cal := ctx.CalendarSystem()
@@ -243,7 +243,7 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	eventMap := make(map[time.Time][]Occurrence)
 	for _, ev := range events {
 		for _, oc := range occurrences(ev, loc, queryStart, queryEnd) {
-			if view != "list" && !alborz.StarMatches(oc.Star(), view) {
+			if view != "list" && !web.StarMatches(oc.Star(), view) {
 				continue
 			}
 			var first, last time.Time
@@ -299,25 +299,25 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	}, nil
 }
 
-func agendaRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
+func agendaRows(ctx *web.Context, mv monthView) []web.FilterRow {
 	if mv.view == "" {
 		return nil
 	}
-	var rows []alborz.FilterRow
+	var rows []web.FilterRow
 	if mv.thisMonth {
 		rows = append(rows,
-			alborz.FilterRow{Label: ctx.T("calendar.fromtoday"), Href: ctx.WithParam("span", ""), Current: mv.span != "month"},
-			alborz.FilterRow{Label: ctx.T("calendar.wholemonth"), Href: ctx.WithParam("span", "month"), Current: mv.span == "month"})
+			web.FilterRow{Label: ctx.T("calendar.fromtoday"), Href: ctx.WithParam("span", ""), Current: mv.span != "month"},
+			web.FilterRow{Label: ctx.T("calendar.wholemonth"), Href: ctx.WithParam("span", "month"), Current: mv.span == "month"})
 	}
 	star := mv.view
 	if star == "list" {
 		star = ""
 	}
 	// Cleared of its star the agenda is still the agenda.
-	return append(rows, alborz.ViewRows(ctx, star, false, ctx.WithParam("view", "list"))...)
+	return append(rows, web.ViewRows(ctx, star, false, ctx.WithParam("view", "list"))...)
 }
 
-func groupRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
+func groupRows(ctx *web.Context, mv monthView) []web.FilterRow {
 	if mv.view == "" {
 		return nil
 	}
@@ -325,11 +325,11 @@ func groupRows(ctx *alborz.Context, mv monthView) []alborz.FilterRow {
 	if mv.group == "day" {
 		href = ctx.WithParam("group", "")
 	}
-	return []alborz.FilterRow{{Label: ctx.T("calendar.groupday"), Href: href, Current: mv.group == "day"}}
+	return []web.FilterRow{{Label: ctx.T("calendar.groupday"), Href: href, Current: mv.group == "day"}}
 }
 
-func (p *plugin) exportMonth(ctx *alborz.Context) error {
-	loc := alborz.UserLocation(ctx)
+func (p *plugin) exportMonth(ctx *web.Context) error {
+	loc := web.UserLocation(ctx)
 	cal := ctx.CalendarSystem()
 	from := cal.MonthStart(time.Now().In(loc))
 	if s := ctx.QueryParam("month"); s != "" {

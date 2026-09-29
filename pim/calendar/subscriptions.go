@@ -19,6 +19,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/labstack/echo/v4"
 )
@@ -122,7 +123,7 @@ type feeds struct {
 	failed   map[string]time.Time
 }
 
-func openFeeds(srv *alborz.Server, st *store.Store) *feeds {
+func openFeeds(srv *web.Server, st *store.Store) *feeds {
 	f := &feeds{client: srv.Outgoing.Remote(alborz.RoundTripTimeout), log: srv.Logger(), store: st,
 		fetching: map[string]bool{}, failed: map[string]time.Time{}}
 	srv.Schedule.Add(feedTick, f.round)
@@ -395,7 +396,7 @@ func (p *plugin) follows(ctx context.Context, login *alborz.Login, fill func(sto
 }
 
 // refresh fetches every signed-in account's feeds, then asks the DAV servers again.
-func (p *plugin) refresh(ctx *alborz.Context) error {
+func (p *plugin) refresh(ctx *web.Context) error {
 	rc := ctx.Request().Context()
 	var fetches sync.WaitGroup
 	fed, err := p.feeds.store.Feeds()

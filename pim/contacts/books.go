@@ -17,6 +17,7 @@ import (
 
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/web"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
@@ -25,7 +26,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (p *plugin) createForm(ctx *alborz.Context) (pim.CreateForm, error) {
+func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
 	rail, err := p.bookRail(ctx)
 	if err != nil && !errors.Is(err, errNoAddressBook) {
 		return pim.CreateForm{}, err
@@ -34,7 +35,7 @@ func (p *plugin) createForm(ctx *alborz.Context) (pim.CreateForm, error) {
 		Made: func(string) (string, string) { return ctx.T("notice.bookcreated"), "/contacts" }}, nil
 }
 
-func (p *plugin) invitations(ctx *alborz.Context) (*dav.RailInvitations, error) {
+func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
 	return p.dav.RailInvitations(ctx, p.collectionPage().Base)
 }
 
@@ -45,25 +46,25 @@ func (p *plugin) collectionPage() pim.Page {
 		Ext:    ".vcf",
 		Forget: p.dav.Forget,
 		Show:   show,
-		Rail:   func(ctx *alborz.Context, _ string) (pim.Rail, error) { return p.bookRail(ctx) },
-		Create: func(ctx *alborz.Context, _, name, place string) (string, error) {
+		Rail:   func(ctx *web.Context, _ string) (pim.Rail, error) { return p.bookRail(ctx) },
+		Create: func(ctx *web.Context, _, name, place string) (string, error) {
 			return p.dav.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, nil)
 		},
-		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
+		Import: func(ctx *web.Context, path string, raw []byte) (int, error) {
 			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return 0, err
 			}
 			return importBook(ctx.Request().Context(), c, path, raw)
 		},
-		Export: func(ctx *alborz.Context, path string, _, _ time.Time) ([]byte, error) {
+		Export: func(ctx *web.Context, path string, _, _ time.Time) ([]byte, error) {
 			c, _, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return nil, err
 			}
 			return exportBook(ctx.Request().Context(), c, path)
 		},
-		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
+		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
 			_, books, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return dav.Collection{}, nil, "", "", err
@@ -77,9 +78,9 @@ func (p *plugin) collectionPage() pim.Page {
 	}
 }
 
-func (p *plugin) bookRail(ctx *alborz.Context) (pim.Rail, error) {
+func (p *plugin) bookRail(ctx *web.Context) (pim.Rail, error) {
 	rail := pim.Rail{Path: "/contacts", Field: "book", ItemClass: "addressbook-item", Action: "/contacts", EditHref: "/address-books/",
-		NewHref: "/address-books/create?next=" + alborz.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
+		NewHref: "/address-books/create?next=" + web.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
 		ImportHref: "/contacts/import", ImportLabel: ctx.T("contacts.import")}
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
@@ -124,7 +125,7 @@ func hasAttachment(msg *mail.IMAPMessage, types ...string) bool {
 	return false
 }
 
-func (p *plugin) importFromMessage(ctx *alborz.Context) error {
+func (p *plugin) importFromMessage(ctx *web.Context) error {
 	mboxName, uid, err := mail.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
 	if err != nil {
 		return err
@@ -147,7 +148,7 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 	}
 	to := "/contacts"
 	if acct != ctx.Login.Username() {
-		to += "?account=" + alborz.QueryValue(acct)
+		to += "?account=" + web.QueryValue(acct)
 	}
 	n, err := importBook(ctx.Request().Context(), c, bookPath, raw)
 	if pim.ImportAnswered(err) {
@@ -157,7 +158,7 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 		return err
 	}
 	if n == 0 {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("import.nothing")})
 	} else {
 		ctx.PutNotice(ctx.Tf("import.vcf", n))
 	}
@@ -301,7 +302,7 @@ func addCard(ctx context.Context, c *carddav.Client, book string, addr *netmail.
 }
 
 // addAddress adds one of a message's addresses to the address book chosen.
-func (p *plugin) addAddress(ctx *alborz.Context) error {
+func (p *plugin) addAddress(ctx *web.Context) error {
 	addr, err := netmail.ParseAddress(ctx.FormValue("address"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
@@ -324,22 +325,22 @@ func (p *plugin) addAddress(ctx *alborz.Context) error {
 	}
 	if slices.ContainsFunc(held, func(a *netmail.Address) bool { return strings.EqualFold(a.Address, addr.Address) }) {
 		sentence := ctx.T("notice.contactknown")
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone,
+		ctx.Notify(web.Notice{Kind: web.NoticeDone,
 			Text:   fmt.Sprintf(sentence, addr.Address, book.Name),
-			Markup: template.HTML(fmt.Sprintf(sentence, alborz.NoticeName(addr.Address), alborz.NoticeName(book.Name)))})
+			Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeName(addr.Address), web.NoticeName(book.Name)))})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 	ao, err := addCard(ctx.Request().Context(), to.Client, to.Path, addr)
 	if err != nil {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 	named := AddressObject{AddressObject: ao}
 	sentence := ctx.T("notice.contactcreated")
-	href := named.URL() + "?account=" + alborz.QueryValue(to.Account)
-	ctx.Notify(alborz.Notice{Kind: alborz.NoticeDone,
+	href := named.URL() + "?account=" + web.QueryValue(to.Account)
+	ctx.Notify(web.Notice{Kind: web.NoticeDone,
 		Text:   fmt.Sprintf(sentence, named.DisplayName()),
-		Markup: template.HTML(fmt.Sprintf(sentence, alborz.NoticeLink(named.DisplayName(), href)))})
+		Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeLink(named.DisplayName(), href)))})
 	return ctx.Redirect(http.StatusFound, back)
 }
 
@@ -365,7 +366,7 @@ func loadPrevious(ctx context.Context, s *alborz.Login) (previous, error) {
 const seedDepth = 200
 
 // seed fills Previous recipients from Sent, once per account.
-func (p *plugin) seed(ctx *alborz.Context, s *alborz.Login) {
+func (p *plugin) seed(ctx *web.Context, s *alborz.Login) {
 	name, log := ctx.T("contacts.previous"), ctx.Logger()
 	go func() {
 		bg, cancel := context.WithTimeout(context.Background(), dav.WarmBudget)

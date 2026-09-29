@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/emersion/go-sasl"
-	"github.com/emersion/go-smtp"
 	"html"
 	"io"
 	"math/rand/v2"
@@ -30,6 +28,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/emersion/go-sasl"
+	"github.com/emersion/go-smtp"
+
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/auth"
 	"git.mehdix.org/alborz/filters"
@@ -38,6 +39,7 @@ import (
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/settings"
+	"git.mehdix.org/alborz/web"
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -325,7 +327,7 @@ var smokeKey = fernet.MustDecodeKeys("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6Nm
 // newAlborz wires the features as cmd/alborz does.
 func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
 	t.Helper()
-	s, err := alborz.New(e, options, mail.TemplateFuncs)
+	s, err := web.New(e, options, mail.TemplateFuncs)
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}

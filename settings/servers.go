@@ -8,6 +8,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -22,7 +23,7 @@ type ServerInfo struct {
 	// Abilities are the capabilities that change what alborz does.
 	Abilities []Ability
 	// Explained is the same list as prose.
-	Explained []alborz.Explained
+	Explained []web.Explained
 }
 
 // Ability is one capability named for what it means to the reader.
@@ -65,12 +66,12 @@ func serverAgent(c *imapclient.Client) string {
 	return data.Name + " " + data.Version
 }
 
-func serverInfo(ctx *alborz.Context, agent string, abilities []Ability) ServerInfo {
+func serverInfo(ctx *web.Context, agent string, abilities []Ability) ServerInfo {
 	_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
-	explained := make([]alborz.Explained, 0, len(abilities))
+	explained := make([]web.Explained, 0, len(abilities))
 	for _, a := range abilities {
-		explained = append(explained, alborz.Explained{
+		explained = append(explained, web.Explained{
 			Term: ctx.T(a.Label), Hint: ctx.T(a.Hint)})
 	}
 	return ServerInfo{IMAP: up.IMAP, SMTP: up.SMTP, Sieve: up.Sieve,
@@ -79,8 +80,8 @@ func serverInfo(ctx *alborz.Context, agent string, abilities []Ability) ServerIn
 
 // ServersRenderData is where the account's mail lives and what the software there can do.
 type ServersRenderData struct {
-	alborz.BaseRenderData
-	Rail map[string][]alborz.RailRow
+	web.BaseRenderData
+	Rail map[string][]web.RailRow
 	// Showing is the server the page is about, empty for the list, which costs no round trip.
 	Showing string
 	// Cards are every server this account talks to, filled in by whichever plugin answers for each.
@@ -110,7 +111,7 @@ type ServerCard struct {
 	Host, Source, Record string
 	Rows                 []map[string]any
 	Abilities            []Ability
-	Explained            []alborz.Explained
+	Explained            []web.Explained
 }
 
 // SourceText says how alborz came to the server, in words.
@@ -183,7 +184,7 @@ func (d *ServersRenderData) Shown() []ServerCard {
 	return shown
 }
 
-func mailCards(ctx *alborz.Context, showing string) ([]ServerCard, error) {
+func mailCards(ctx *web.Context, showing string) ([]ServerCard, error) {
 	_, domain, _ := strings.Cut(ctx.Login.Username(), "@")
 	up := ctx.Server.UpstreamsFor(domain)
 	source := func(record string) (string, string) {
@@ -231,13 +232,13 @@ func mailCards(ctx *alborz.Context, showing string) ([]ServerCard, error) {
 	return cards, nil
 }
 
-func handleServers(ctx *alborz.Context) error {
+func handleServers(ctx *web.Context) error {
 	cards, err := mailCards(ctx, "")
 	if err != nil {
 		return err
 	}
 	data := &ServersRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.servers")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.servers")),
 		Rail:           mail.SettingsRail(ctx),
 		Cards:          cards,
 	}
@@ -246,7 +247,7 @@ func handleServers(ctx *alborz.Context) error {
 
 // RenderServers renders name with data, which shows servers. Other features' servers join as
 // the page is shown, so a saved form asks none of them.
-func RenderServers(ctx *alborz.Context, status int, name string, data alborz.RenderData, servers *ServersRenderData) error {
+func RenderServers(ctx *web.Context, status int, name string, data web.RenderData, servers *ServersRenderData) error {
 	for _, add := range ctx.Server.OnServers {
 		if err := add(ctx, servers); err != nil {
 			return err
@@ -255,7 +256,7 @@ func RenderServers(ctx *alborz.Context, status int, name string, data alborz.Ren
 	return ctx.Render(status, name, data)
 }
 
-func handleServer(ctx *alborz.Context) error {
+func handleServer(ctx *web.Context) error {
 	showing := ctx.Param("server")
 	if !serverPages[showing] {
 		return alborz.NotFound("notfound.server")
@@ -268,13 +269,13 @@ func handleServer(ctx *alborz.Context) error {
 }
 
 // NewServersRenderData is the page about the servers of showing, with mail's among them.
-func NewServersRenderData(ctx *alborz.Context, showing string) (*ServersRenderData, error) {
+func NewServersRenderData(ctx *web.Context, showing string) (*ServersRenderData, error) {
 	cards, err := mailCards(ctx, showing)
 	if err != nil {
 		return nil, err
 	}
 	return &ServersRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("servers." + showing)),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("servers." + showing)),
 		Rail:           mail.SettingsRail(ctx),
 		Showing:        showing,
 		Cards:          cards,

@@ -10,8 +10,8 @@ import (
 	"github.com/alborzmail/go-recur"
 	"github.com/emersion/go-ical"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/calsys"
+	"git.mehdix.org/alborz/web"
 )
 
 // Monthly and yearly rules count in the reader's calendar (RFC 7529 RSCALE).
@@ -19,14 +19,14 @@ import (
 // Repeat is a rule as the form holds it.
 type Repeat struct {
 	Freq  string
-	Until alborz.DateField
+	Until web.DateField
 }
 
 const repeatCustom = "custom"
 
 var repeatFreqs = []string{"daily", "weekly", "monthly", "yearly"}
 
-func formRepeat(ctx *alborz.Context, event *ical.Event, loc *time.Location) Repeat {
+func formRepeat(ctx *web.Context, event *ical.Event, loc *time.Location) Repeat {
 	if event.Props.Get(ical.PropRecurrenceRule) == nil {
 		return Repeat{Until: ctx.InputDate(time.Time{})}
 	}
@@ -59,7 +59,7 @@ func plain(r recur.Rule) bool {
 }
 
 // UNTIL takes DTSTART's value type (RFC 5545 3.3.10) and includes the last day.
-func setRepeat(ctx *alborz.Context, event *ical.Event, rep Repeat, start time.Time, allDay bool, loc *time.Location) error {
+func setRepeat(ctx *web.Context, event *ical.Event, rep Repeat, start time.Time, allDay bool, loc *time.Location) error {
 	switch rep.Freq {
 	case "":
 		event.Props.Del(ical.PropRecurrenceRule)
@@ -96,7 +96,7 @@ func setRepeat(ctx *alborz.Context, event *ical.Event, rep Repeat, start time.Ti
 	return nil
 }
 
-func repeatWords(ctx *alborz.Context, event *ical.Event, loc *time.Location) (words, until string) {
+func repeatWords(ctx *web.Context, event *ical.Event, loc *time.Location) (words, until string) {
 	rep := formRepeat(ctx, event, loc)
 	switch rep.Freq {
 	case "":

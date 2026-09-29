@@ -6,6 +6,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
@@ -28,7 +29,7 @@ func readOn(s *alborz.Login, class alborz.IMAPClass, bound time.Duration, fetch 
 	}
 }
 
-func (p *plugin) cachedListing(ctx *alborz.Context, s *alborz.Login, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
+func (p *plugin) cachedListing(ctx *web.Context, s *alborz.Login, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
 	// A folder the watcher saw change is read again: its count beside the folder already moved.
 	if e, state := p.listings.lookup(s.Username(), view, size); e != nil && state != listingChanged {
 		alborz.CacheTiming(ctx.Request().Context(), "listing", true)
@@ -40,13 +41,13 @@ func (p *plugin) cachedListing(ctx *alborz.Context, s *alborz.Login, view string
 	return p.loadListing(ctx, s, view, size, spec, fetch)
 }
 
-func (p *plugin) loadListing(ctx *alborz.Context, s *alborz.Login, view string, size int, spec listingSpec, fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
+func (p *plugin) loadListing(ctx *web.Context, s *alborz.Login, view string, size int, spec listingSpec, fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
 	alborz.CacheTiming(ctx.Request().Context(), "listing", false)
 	class, bound := listingBudget(spec)
 	return p.listings.load(ctx.Request().Context(), s.Username(), view, size, false, readOn(s, class, bound, fetch))
 }
 
-func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page alborz.Page) {
+func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page web.Page) {
 	key := listingPage(listingView(spec.mbox, spec.query, spec.view, spec.sortKey, spec.sortDir), page.Number, page.Size)
 	if e, _ := p.listings.lookup(s.Username(), key, page.Size); e != nil {
 		return

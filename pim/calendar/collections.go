@@ -12,10 +12,11 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
-func (p *plugin) invitations(ctx *alborz.Context) (*dav.RailInvitations, error) {
+func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
 	return p.dav.RailInvitations(ctx, p.collectionPage().Base)
 }
 
@@ -26,20 +27,20 @@ func (p *plugin) collectionPage() pim.Page {
 		Ext:    ".ics",
 		Forget: p.dav.Forget,
 		Show:   show,
-		Rail: func(ctx *alborz.Context, list string) (pim.Rail, error) {
+		Rail: func(ctx *web.Context, list string) (pim.Rail, error) {
 			if list == "/tasks" {
 				return p.taskRail(ctx)
 			}
 			return p.eventRail(ctx)
 		},
-		Import: func(ctx *alborz.Context, path string, raw []byte) (int, error) {
+		Import: func(ctx *web.Context, path string, raw []byte) (int, error) {
 			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return 0, err
 			}
 			return importObjects(ctx.Request().Context(), c, path, raw)
 		},
-		Create: func(ctx *alborz.Context, list, name, place string) (string, error) {
+		Create: func(ctx *web.Context, list, name, place string) (string, error) {
 			// A task list takes tasks; an imported calendar keeps events and tasks both.
 			components := []string{"VEVENT", "VTODO"}
 			if list == "/tasks" {
@@ -47,14 +48,14 @@ func (p *plugin) collectionPage() pim.Page {
 			}
 			return p.dav.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, components)
 		},
-		Export: func(ctx *alborz.Context, path string, from, to time.Time) ([]byte, error) {
+		Export: func(ctx *web.Context, path string, from, to time.Time) ([]byte, error) {
 			c, _, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return nil, err
 			}
 			return exportCalendar(ctx.Request().Context(), c, path, from, to)
 		},
-		Lookup: func(ctx *alborz.Context, path string) (dav.Collection, func() int, string, string, error) {
+		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
 			_, calendars, err := p.clientWithCalendars(ctx.Request().Context(), ctx.Login)
 			if err != nil {
 				return dav.Collection{}, nil, "", "", err
@@ -80,7 +81,7 @@ func collectionList(info dav.Collection) string {
 	return "/calendar"
 }
 
-func (p *plugin) createForm(ctx *alborz.Context) (pim.CreateForm, error) {
+func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
 	forTasks := ctx.QueryParam("for") == "tasks"
 	// Back to the rail that asked, when the new collection shows there.
 	made := func(holds string) (string, string) {
@@ -101,23 +102,23 @@ func (p *plugin) createForm(ctx *alborz.Context) (pim.CreateForm, error) {
 
 // SubscribeRenderData renders subscribe-calendar.html.
 type SubscribeRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rail     pim.Rail
-	Accounts []alborz.Account
+	Accounts []web.Account
 	Account  string
 	Address  string
 	Next     string
 }
 
-func handleSubscribe(p *plugin) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func handleSubscribe(p *plugin) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		rail, err := p.eventRail(ctx)
 		if err != nil {
 			return err
 		}
 		data := &SubscribeRenderData{
 			Rail:           rail,
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.subscribe")),
+			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.subscribe")),
 			Accounts:       ctx.Accounts(),
 			Account:        ctx.Login.Username(),
 			Next:           ctx.FormValue("next"),

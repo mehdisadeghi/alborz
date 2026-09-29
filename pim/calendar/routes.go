@@ -12,6 +12,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
 )
@@ -86,9 +87,9 @@ func getFirstTodo(cal *ical.Calendar) *ical.Component {
 func eventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
 func taskVisibility(s *Settings) (bool, []string)  { return s.TaskFilter, s.VisibleTasks }
 
-func (p *plugin) eventRail(ctx *alborz.Context) (pim.Rail, error) {
+func (p *plugin) eventRail(ctx *web.Context) (pim.Rail, error) {
 	rail, err := p.calendarRail(ctx, supportsEvent, eventVisibility)
-	next := alborz.QueryValue(ctx.Request().URL.RequestURI())
+	next := web.QueryValue(ctx.Request().URL.RequestURI())
 	rail.Path, rail.Action = "/calendar", "/calendar"
 	rail.NewHref, rail.NewLabel = "/calendars/create?next="+next, ctx.T("calendar.newcalendar")
 	rail.FollowHref, rail.FollowLabel = "/calendars/subscribe?next="+next, ctx.T("calendar.subscribe")
@@ -96,15 +97,15 @@ func (p *plugin) eventRail(ctx *alborz.Context) (pim.Rail, error) {
 	return rail, err
 }
 
-func (p *plugin) taskRail(ctx *alborz.Context) (pim.Rail, error) {
+func (p *plugin) taskRail(ctx *web.Context) (pim.Rail, error) {
 	rail, err := p.calendarRail(ctx, supportsTodo, taskVisibility)
 	rail.Path, rail.Action = "/tasks", "/tasks"
-	rail.NewHref, rail.NewLabel = "/calendars/create?for=tasks&next="+alborz.QueryValue(ctx.Request().URL.RequestURI()), ctx.T("tasks.newlist")
+	rail.NewHref, rail.NewLabel = "/calendars/create?for=tasks&next="+web.QueryValue(ctx.Request().URL.RequestURI()), ctx.T("tasks.newlist")
 	rail.ImportHref, rail.ImportLabel = "/tasks/import", ctx.T("tasks.import")
 	return rail, err
 }
 
-func (p *plugin) calendarRail(ctx *alborz.Context, kind func([]string) bool, chosen func(*Settings) (bool, []string)) (pim.Rail, error) {
+func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen func(*Settings) (bool, []string)) (pim.Rail, error) {
 	rail := pim.Rail{Field: "cal", ItemClass: "calendar-item", EditHref: "/calendars/"}
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
@@ -154,12 +155,12 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 }
 
 func registerRoutes(p *plugin) {
-	guard := func(h func(*alborz.Context) error) func(*alborz.Context) error {
+	guard := func(h func(*web.Context) error) func(*web.Context) error {
 		return p.dav.Guarded(errNoCalendar, "/calendars/create", h)
 	}
-	GET := func(path string, h func(*alborz.Context) error) { p.Router.GET(path, guard(h)) }
-	POST := func(path string, h func(*alborz.Context) error) { p.Router.POST(path, guard(h)) }
-	upload := func(path string, h, over func(*alborz.Context) error) {
+	GET := func(path string, h func(*web.Context) error) { p.Router.GET(path, guard(h)) }
+	POST := func(path string, h func(*web.Context) error) { p.Router.POST(path, guard(h)) }
+	upload := func(path string, h, over func(*web.Context) error) {
 		p.Router.Upload(path, pim.ImportBodySize, guard(h), guard(over))
 	}
 	POST("/calendar", pim.HandleChoose("/calendar", "cal", choose(func(s *Settings, paths []string) {
@@ -188,7 +189,7 @@ func registerRoutes(p *plugin) {
 	tasksImport, tasksOver := page.HandleImportPage(p.dav, "/tasks", "nav.tasks", "tasks.import", "tasks.importhint", "task", false)
 	GET("/tasks/import", tasksImport)
 	upload("/tasks/import", tasksImport, tasksOver)
-	for _, method := range []func(string, func(*alborz.Context) error){GET, POST} {
+	for _, method := range []func(string, func(*web.Context) error){GET, POST} {
 		method("/calendar/export-all", page.HandleExportAll("/calendar", "calendars.zip"))
 		method("/tasks/export-all", page.HandleExportAll("/tasks", "task-lists.zip"))
 	}
@@ -208,14 +209,14 @@ func registerRoutes(p *plugin) {
 	POST("/calendar/create", p.updateEvent)
 	GET("/calendar/:path/update", p.updateEvent)
 	POST("/calendar/:path/update", p.updateEvent)
-	remove := func(list string) func(*alborz.Context) error {
+	remove := func(list string) func(*web.Context) error {
 		key, do := "notice.eventsdeleted", p.deleteEvent
 		if list == "/tasks" {
 			key, do = "notice.tasksdeleted", pim.Delete[*caldav.Client]
 		}
 		return pim.Handler(pim.Action[*caldav.Client]{Client: p.client, Do: do, List: list,
-			Done: func(ctx *alborz.Context, done []pim.Ref[*caldav.Client], _ string) alborz.Notice {
-				return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf(key, len(done))}
+			Done: func(ctx *web.Context, done []pim.Ref[*caldav.Client], _ string) web.Notice {
+				return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf(key, len(done))}
 			}})
 	}
 	POST("/calendar/delete", remove("/calendar"))
@@ -237,7 +238,7 @@ func registerRoutes(p *plugin) {
 	GET("/tasks/move", p.move)
 	POST("/tasks/move", p.move)
 	POST("/tasks/export", pim.HandleExport(p.client, "/tasks",
-		func(ctx *alborz.Context) string { return ctx.T("nav.tasks") + ".ics" }, joinCalendars))
+		func(ctx *web.Context) string { return ctx.T("nav.tasks") + ".ics" }, joinCalendars))
 
 	POST("/tasks/:path/note", p.note(getFirstTodo, "/tasks"))
 	POST("/calendar/:path/note", p.note(firstEvent, "/calendar"))
@@ -247,11 +248,11 @@ func registerRoutes(p *plugin) {
 }
 
 // Appended and dated rather than replacing: a note people use is a record.
-func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) func(*web.Context) error {
+	return func(ctx *web.Context) error {
 		note := strings.TrimSpace(ctx.FormValue("note"))
 		return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.client, List: list, Done: pim.Quiet[*caldav.Client],
-			Do: func(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) error {
+			Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) error {
 				if note == "" {
 					return nil
 				}
@@ -264,7 +265,7 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, list string) fu
 	}
 }
 
-func changeComponent(ctx *alborz.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
+func changeComponent(ctx *web.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
 	co, err := ref.Client.GetCalendarObject(ctx.Request().Context(), ref.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object: %v", err)
@@ -280,8 +281,8 @@ func changeComponent(ctx *alborz.Context, ref pim.Ref[*caldav.Client], comp func
 	return co, err
 }
 
-func calendarFilters(ctx *alborz.Context, calendars []dav.Collection) []alborz.Filter {
-	var out []alborz.Filter
+func calendarFilters(ctx *web.Context, calendars []dav.Collection) []web.Filter {
+	var out []web.Filter
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok && f.Value != "list" {
 		switch f.Value {
 		case viewCompleted:
@@ -290,7 +291,7 @@ func calendarFilters(ctx *alborz.Context, calendars []dav.Collection) []alborz.F
 			f.Label, f.Value = ctx.T("tasks.status"), ctx.T("tasks.all")
 		case viewHigh:
 			f.Label, f.Value = ctx.T("tasks.priority"), ctx.T("tasks.priority.high")
-		case alborz.ViewStarred:
+		case web.ViewStarred:
 			f.Value = ctx.T("mailbox.starred")
 		default:
 			f.Value = ctx.T("color." + f.Value)
@@ -305,7 +306,7 @@ func calendarFilters(ctx *alborz.Context, calendars []dav.Collection) []alborz.F
 	return out
 }
 
-func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, chosen func(*Settings) (bool, []string), comps []string, from, to time.Time, name string) error {
+func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chosen func(*Settings) (bool, []string), comps []string, from, to time.Time, name string) error {
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return err
@@ -325,7 +326,7 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 	}
 	// A VCALENDAR holds one component at least (RFC 5545 3.6).
 	if len(children) == 0 {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("calendar.noevents")})
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("calendar.noevents")})
 		page := *ctx.Request().URL
 		page.Path = "/calendar"
 		return ctx.Redirect(http.StatusFound, page.RequestURI())
@@ -337,7 +338,7 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 	return pim.Download(ctx, name+".ics", body)
 }
 
-func (p *plugin) rawObject(ctx *alborz.Context) error {
+func (p *plugin) rawObject(ctx *web.Context) error {
 	return pim.Raw(ctx, p.client)
 }
 
@@ -349,7 +350,7 @@ func newCalendar(comp *ical.Component) *ical.Calendar {
 	return cal
 }
 
-func putObject(ctx *alborz.Context, to pim.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
+func putObject(ctx *web.Context, to pim.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
 	held, etag := "", ""
 	if was != nil {
 		held, etag = was.Path, was.ETag
@@ -359,9 +360,9 @@ func putObject(ctx *alborz.Context, to pim.Ref[*caldav.Client], name string, was
 		&caldav.PutCalendarObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
 }
 
-func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, list string) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
-		return pim.Star(ctx, p.client, list, func(ctx *alborz.Context, ref pim.Ref[*caldav.Client], name string) (was string, err error) {
+func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, list string) func(*web.Context) error {
+	return func(ctx *web.Context) error {
+		return pim.Star(ctx, p.client, list, func(ctx *web.Context, ref pim.Ref[*caldav.Client], name string) (was string, err error) {
 			_, err = changeComponent(ctx, ref, comp, func(target *ical.Component) {
 				was = componentColor(target)
 				setComponentColor(target, name)
@@ -383,8 +384,8 @@ func joinCalendars(objects [][]byte) ([]byte, error) {
 	return encodeCalendar(children)
 }
 
-func (p *plugin) warm(ctx *alborz.Context, s *alborz.Login) {
-	loc := alborz.UserLocation(ctx)
+func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
+	loc := web.UserLocation(ctx)
 	p.dav.Warm(ctx, s, func(bg context.Context) error { return p.warmAccount(bg, s, loc) })
 }
 

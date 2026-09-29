@@ -6,14 +6,14 @@ import (
 	"sort"
 	"time"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
 type CalendarDateRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	ListQuery string
 	// SelectForm is empty: the agenda, not the day page, acts on the list.
 	SelectForm         string
@@ -37,7 +37,7 @@ type dayView struct {
 	accounts  int
 }
 
-func (p *plugin) day(ctx *alborz.Context) error {
+func (p *plugin) day(ctx *web.Context) error {
 	dv, err := p.dayView(ctx)
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func (p *plugin) day(ctx *alborz.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "calendar/day", &CalendarDateRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).
+		BaseRenderData: *web.NewBaseRenderData(ctx).
 			WithTitle(ctx.T("nav.calendar") + ": " + ctx.LongDateIn(dv.start)),
 		// Named even when the URL omits it, so an opened event knows its list.
 		ListQuery:      dayQuery(ctx, dv.start),
@@ -64,8 +64,8 @@ func (p *plugin) day(ctx *alborz.Context) error {
 	})
 }
 
-func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
-	loc := alborz.UserLocation(ctx)
+func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
+	loc := web.UserLocation(ctx)
 
 	var start time.Time
 	if s := ctx.QueryParam("date"); s != "" {

@@ -1,10 +1,11 @@
-package alborz
+package web
 
 import (
-	"net/netip"
 	"slices"
 	"strings"
 	"time"
+
+	"git.mehdix.org/alborz"
 )
 
 // Signed is one browser signed into an account.
@@ -34,23 +35,13 @@ func (s *Session) holds(account string) bool {
 	if _, ok := s.remember[account]; ok {
 		return true
 	}
-	return slices.ContainsFunc(s.accounts, func(login *Login) bool { return login.username == account && login.alive() })
+	return slices.ContainsFunc(s.accounts, func(login *alborz.Login) bool { return login.Username() == account && login.Alive() })
 }
 
 func (s *Session) signed() Signed {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return Signed{ID: s.ID, Device: s.device, Address: s.address, Created: s.created, Seen: s.seen}
-}
-
-// requestAddress is "" for loopback and private addresses: an untrusted proxy
-// in front of alborz, which says nothing about the reader.
-func requestAddress(from string) string {
-	ip, err := netip.ParseAddr(from)
-	if err != nil || !publicAddr(ip) {
-		return ""
-	}
-	return from
 }
 
 // SignedIn lists every browser signed into the account, live and remembered,
@@ -70,8 +61,8 @@ func (ss *Sessions) SignedIn(account, current string) ([]Signed, error) {
 		}
 	}
 	ss.mu.Unlock()
-	err := ss.records.Each(func(rec *sessionRecord) {
-		if seen[rec.ID] || !slices.ContainsFunc(rec.Accounts, func(a rememberedAccount) bool { return a.Address == account }) {
+	err := ss.records.Each(func(rec *alborz.SessionRecord) {
+		if seen[rec.ID] || !slices.ContainsFunc(rec.Accounts, func(a alborz.RememberedAccount) bool { return a.Address == account }) {
 			return
 		}
 		out = append(out, Signed{ID: rec.ID, Device: rec.Device, Address: rec.Address, Created: rec.Created, Seen: rec.Seen})
@@ -93,7 +84,7 @@ func (ss *Sessions) SignOut(id, account string) error {
 	ss.mu.Unlock()
 	if s != nil {
 		if s := s.remove(account); s != nil {
-			s.close()
+			s.Close()
 		}
 		s.forget(account)
 		if live, _ := s.Accounts(); len(live) == 0 && !s.remembered() {
@@ -106,7 +97,7 @@ func (ss *Sessions) SignOut(id, account string) error {
 	if !ok {
 		return nil
 	}
-	rec.Accounts = slices.DeleteFunc(rec.Accounts, func(a rememberedAccount) bool { return a.Address == account })
+	rec.Accounts = slices.DeleteFunc(rec.Accounts, func(a alborz.RememberedAccount) bool { return a.Address == account })
 	if len(rec.Accounts) == 0 {
 		return ss.records.Delete(id)
 	}

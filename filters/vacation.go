@@ -15,6 +15,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/web"
 )
 
 // Days between two automatic answers to one sender (RFC 5230 4.1).
@@ -177,7 +178,7 @@ func readReply(content string) (v Reply, ok bool) {
 }
 
 type RepliesRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Replies []Reply
 	// Active is the index of the reply the script sends, -1 when none.
 	Active     int
@@ -190,13 +191,13 @@ type RepliesRenderData struct {
 	CanReply   bool
 	CanDate    bool
 	CanWire    bool
-	Rail       map[string][]alborz.RailRow
+	Rail       map[string][]web.RailRow
 
 	// From and Until are Editing's date fields as shown.
-	From, Until alborz.DateField
+	From, Until web.DateField
 }
 
-func repliesData(ctx *alborz.Context) (*RepliesRenderData, error) {
+func repliesData(ctx *web.Context) (*RepliesRenderData, error) {
 	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
@@ -206,7 +207,7 @@ func repliesData(ctx *alborz.Context) (*RepliesRenderData, error) {
 		return nil, err
 	}
 	data := &RepliesRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.autoreply")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.autoreply")),
 		Replies:        replies.Items,
 		Active:         -1,
 		Index:          -1,
@@ -230,7 +231,7 @@ func repliesData(ctx *alborz.Context) (*RepliesRenderData, error) {
 	return data, err
 }
 
-func handleReplies(ctx *alborz.Context) error {
+func handleReplies(ctx *web.Context) error {
 	data, err := repliesData(ctx)
 	if err != nil {
 		return err
@@ -238,7 +239,7 @@ func handleReplies(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "filters/autoreply", data)
 }
 
-func handleReplyForm(ctx *alborz.Context) error {
+func handleReplyForm(ctx *web.Context) error {
 	data, err := repliesData(ctx)
 	if err != nil {
 		return err
@@ -255,7 +256,7 @@ func handleReplyForm(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "filters/autoreply-edit", data)
 }
 
-func replyFromForm(ctx *alborz.Context) (Reply, error) {
+func replyFromForm(ctx *web.Context) (Reply, error) {
 	params, err := ctx.FormParams()
 	if err != nil {
 		return Reply{}, err
@@ -266,7 +267,7 @@ func replyFromForm(ctx *alborz.Context) (Reply, error) {
 		Text:      strings.TrimRight(strings.ReplaceAll(ctx.FormValue("text"), "\r\n", "\n"), "\n"),
 		Addresses: params["addresses"],
 	}
-	v.Days, err = alborz.ReadInt(ctx.FormValue("days"))
+	v.Days, err = web.ReadInt(ctx.FormValue("days"))
 	switch {
 	case v.Name == "":
 		return v, errors.New(ctx.T("form.nameneeded"))
@@ -292,7 +293,7 @@ func replyFromForm(ctx *alborz.Context) (Reply, error) {
 	return v, nil
 }
 
-func handleReplySave(ctx *alborz.Context) error {
+func handleReplySave(ctx *web.Context) error {
 	v, err := replyFromForm(ctx)
 	index := -1
 	if at := ctx.FormValue("index"); at != "" {
@@ -368,7 +369,7 @@ func activeIndex(items []Reply, content string) int {
 	return -1
 }
 
-func handleReplyDelete(ctx *alborz.Context) error {
+func handleReplyDelete(ctx *web.Context) error {
 	index, err := strconv.Atoi(ctx.FormValue("index"))
 	if err != nil {
 		return err
@@ -383,7 +384,7 @@ func handleReplyDelete(ctx *alborz.Context) error {
 	gone := replies.Items[index]
 	replies.Items = append(replies.Items[:index], replies.Items[index+1:]...)
 	if err := ctx.Login.Store().Put(ctx.Request().Context(), repliesKey, replies); err != nil {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath("/filters/autoreply")))
 	}
 	// Deleting the reply being sent stops it.
@@ -402,7 +403,7 @@ func handleReplyDelete(ctx *alborz.Context) error {
 }
 
 // An empty index composes no reply, which deletes the script.
-func handleReplyActivate(ctx *alborz.Context) error {
+func handleReplyActivate(ctx *web.Context) error {
 	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err

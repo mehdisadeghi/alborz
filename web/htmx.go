@@ -1,4 +1,4 @@
-package alborz
+package web
 
 // Partial reports whether htmx asked for a piece of the page rather than the
 // whole; a history restore asks for the whole (ADR 13).

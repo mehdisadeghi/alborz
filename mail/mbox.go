@@ -17,6 +17,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/pgp"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-mbox"
@@ -25,7 +26,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (p *plugin) handleExportMbox(ctx *alborz.Context) error {
+func (p *plugin) handleExportMbox(ctx *web.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
@@ -70,7 +71,7 @@ func folderRefs(account, mailbox string, uids []imap.UID) []rowRef {
 	return refs
 }
 
-func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) error {
+func streamMbox(ctx *web.Context, refs []rowRef, name string, strip bool) error {
 	// The header waits for the first message, so a failed fetch never renders into an .mbox body.
 	res := ctx.Response()
 	archive := mbox.NewWriter(res)
@@ -113,7 +114,7 @@ func streamMbox(ctx *alborz.Context, refs []rowRef, name string, strip bool) err
 }
 
 // exportMessage streams one message into the archive; stripped, only its text is held.
-func exportMessage(ctx *alborz.Context, c *imapclient.Client, archive *mbox.Writer, r rowRef, strip bool, begin func()) error {
+func exportMessage(ctx *web.Context, c *imapclient.Client, archive *mbox.Writer, r rowRef, strip bool, begin func()) error {
 	if err := ensureMailboxSelected(c, r.mailbox); err != nil {
 		return err
 	}
@@ -319,8 +320,8 @@ type ExportRenderData struct {
 	Everything string
 }
 
-func (p *plugin) exportPage(ctx *alborz.Context, uids []imap.UID, form url.Values) error {
-	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+func (p *plugin) exportPage(ctx *web.Context, uids []imap.UID, form url.Values) error {
+	ibase, err := p.newIMAPBaseRenderData(ctx, web.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -332,12 +333,12 @@ func (p *plugin) exportPage(ctx *alborz.Context, uids []imap.UID, form url.Value
 	return ctx.Render(http.StatusOK, "mail/export", data)
 }
 
-func (p *plugin) handleExportPage(ctx *alborz.Context) error {
+func (p *plugin) handleExportPage(ctx *web.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
 	}
-	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+	ibase, err := p.newIMAPBaseRenderData(ctx, web.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -385,8 +386,8 @@ func (p *plugin) handleExportPage(ctx *alborz.Context) error {
 const importMaxSize = 1 << 30
 
 // Always into a new folder, so an import never lands in an existing one.
-func (p *plugin) handleImport(ctx *alborz.Context) error {
-	ibase, err := p.newIMAPBaseRenderData(ctx, alborz.NewBaseRenderData(ctx))
+func (p *plugin) handleImport(ctx *web.Context) error {
+	ibase, err := p.newIMAPBaseRenderData(ctx, web.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
@@ -478,7 +479,7 @@ func (p *plugin) handleImport(ctx *alborz.Context) error {
 		ctx.PutNotice(ctx.Tf("notice.imported", count, fullName))
 	}
 	if held > 0 {
-		ctx.Notify(alborz.Notice{Text: ctx.Tf("notice.importheld", held)})
+		ctx.Notify(web.Notice{Text: ctx.Tf("notice.importheld", held)})
 	}
 	return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
 }
@@ -563,7 +564,7 @@ func importBodyError(err error) error {
 	return echo.NewHTTPError(http.StatusBadRequest, err)
 }
 
-func (p *plugin) handleDropImport(ctx *alborz.Context) error {
+func (p *plugin) handleDropImport(ctx *web.Context) error {
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {
 		return err
@@ -620,13 +621,13 @@ func (p *plugin) handleDropImport(ctx *alborz.Context) error {
 	if importErr != nil {
 		p.accountChanged(account)
 		ctx.Logger().Printf("drop into %q stopped after %d: %v", mboxName, count, importErr)
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.Tf("notice.importstopped", count, mboxName)})
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.Tf("notice.importstopped", count, mboxName)})
 		return ctx.NoContent(http.StatusOK)
 	}
 	p.accountChanged(account)
-	ctx.Notify(alborz.Notice{Text: ctx.Tf("notice.imported", count, mboxName)})
+	ctx.Notify(web.Notice{Text: ctx.Tf("notice.imported", count, mboxName)})
 	if held > 0 {
-		ctx.Notify(alborz.Notice{Text: ctx.Tf("notice.importheld", held)})
+		ctx.Notify(web.Notice{Text: ctx.Tf("notice.importheld", held)})
 	}
 	return ctx.NoContent(http.StatusOK)
 }

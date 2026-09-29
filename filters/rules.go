@@ -10,6 +10,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/web"
 	"github.com/labstack/echo/v4"
 )
 
@@ -205,11 +206,11 @@ func readRules(content string) (rules []Rule, ok bool) {
 }
 
 type RulesRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rules []Rule
 	// Shown are the places in Rules of the rules one page shows.
 	Shown  []int
-	Pager  alborz.Pager
+	Pager  web.Pager
 	Loaded string
 	ByHand bool
 	Script string
@@ -221,12 +222,12 @@ type RulesRenderData struct {
 	Folders []string
 	Fields  []string
 	Matches []string
-	Rail    map[string][]alborz.RailRow
+	Rail    map[string][]web.RailRow
 }
 
-func rulesData(ctx *alborz.Context) (*RulesRenderData, error) {
+func rulesData(ctx *web.Context) (*RulesRenderData, error) {
 	data := &RulesRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.rules")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.rules")),
 		Script:         rulesScript,
 		Index:          -1,
 		Fields:         conditionFields,
@@ -250,7 +251,7 @@ func rulesData(ctx *alborz.Context) (*RulesRenderData, error) {
 	return data, err
 }
 
-func handleRules(ctx *alborz.Context) error {
+func handleRules(ctx *web.Context) error {
 	data, err := rulesData(ctx)
 	if err != nil {
 		return err
@@ -259,13 +260,13 @@ func handleRules(ctx *alborz.Context) error {
 	for i := range at {
 		at[i] = i
 	}
-	if data.Shown, data.Pager, err = alborz.Paginate(ctx, at); err != nil {
+	if data.Shown, data.Pager, err = web.Paginate(ctx, at); err != nil {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "filters/rules", data)
 }
 
-func handleRuleForm(ctx *alborz.Context) error {
+func handleRuleForm(ctx *web.Context) error {
 	data, err := rulesData(ctx)
 	if err != nil {
 		return err
@@ -297,7 +298,7 @@ func handleRuleForm(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "filters/rule-edit", data)
 }
 
-func ruleFromForm(ctx *alborz.Context) (Rule, error) {
+func ruleFromForm(ctx *web.Context) (Rule, error) {
 	r := Rule{
 		Name:     strings.TrimSpace(ctx.FormValue("name")),
 		Any:      ctx.FormValue("join") == "any",
@@ -336,7 +337,7 @@ func ruleFromForm(ctx *alborz.Context) (Rule, error) {
 	return r, nil
 }
 
-func handleRuleSave(ctx *alborz.Context) error {
+func handleRuleSave(ctx *web.Context) error {
 	r, err := ruleFromForm(ctx)
 	index, _ := strconv.Atoi(ctx.FormValue("index"))
 	if ctx.FormValue("index") == "" {
@@ -373,7 +374,7 @@ func handleRuleSave(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
 }
 
-func handleBlock(ctx *alborz.Context) error {
+func handleBlock(ctx *web.Context) error {
 	value := strings.ToLower(strings.TrimSpace(ctx.FormValue("value")))
 	domain := ctx.FormValue("domain") != ""
 	if value == "" || (domain && strings.ContainsRune(value, '@')) || (!domain && !strings.ContainsRune(value, '@')) {
@@ -384,7 +385,7 @@ func handleBlock(ctx *alborz.Context) error {
 		return err
 	}
 	if junk == "" {
-		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("filters.nojunk")})
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("filters.nojunk")})
 		return ctx.Redirect(http.StatusFound, ctx.FormValue("next"))
 	}
 	// No editing session preceded this, and appending cannot undo anyone's edit.
@@ -417,7 +418,7 @@ func handleBlock(ctx *alborz.Context) error {
 	return answer(ctx, err, ctx.FormValue("next"), fmt.Sprintf(ctx.T("notice.blocked"), value))
 }
 
-func handleRuleDelete(ctx *alborz.Context) error {
+func handleRuleDelete(ctx *web.Context) error {
 	index, err := strconv.Atoi(ctx.FormValue("index"))
 	if err != nil {
 		return err
@@ -432,7 +433,7 @@ func handleRuleDelete(ctx *alborz.Context) error {
 }
 
 // Order is meaning: the first rule that stops wins.
-func handleRuleMove(ctx *alborz.Context) error {
+func handleRuleMove(ctx *web.Context) error {
 	index, err := strconv.Atoi(ctx.FormValue("index"))
 	if err != nil {
 		return err
@@ -451,7 +452,7 @@ func handleRuleMove(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
 }
 
-func handleRuleToggle(ctx *alborz.Context) error {
+func handleRuleToggle(ctx *web.Context) error {
 	index, err := strconv.Atoi(ctx.FormValue("index"))
 	if err != nil {
 		return err
@@ -465,7 +466,7 @@ func handleRuleToggle(ctx *alborz.Context) error {
 	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
 }
 
-func changeRules(ctx *alborz.Context, change func([]Rule) []Rule) error {
+func changeRules(ctx *web.Context, change func([]Rule) []Rule) error {
 	loaded := ctx.FormValue("loaded")
 	return ctx.DoSieve(func(c alborz.SieveClient) error {
 		return rewrite(c, rulesScript, loaded, func(current string, exists bool) (string, error) {

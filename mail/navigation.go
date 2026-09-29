@@ -11,6 +11,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/textproto"
@@ -22,7 +23,7 @@ type listPlace struct {
 }
 
 // messageList is the order a message's list is cut from, and whether that is the folder's own.
-func messageList(ctx *alborz.Context, mailbox, query, view string) (order string, own bool) {
+func messageList(ctx *web.Context, mailbox, query, view string) (order string, own bool) {
 	if ctx.QueryParam("sort") == threadSort {
 		return orderView(mailbox, query, view, threadSort, true), false
 	}
@@ -31,10 +32,10 @@ func messageList(ctx *alborz.Context, mailbox, query, view string) (order string
 }
 
 // A narrowed, sorted or threaded list places the message in its held order; the folder's own, in its held pages.
-func (p *plugin) cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
+func (p *plugin) cachedPlace(ctx *web.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
 	user := ctx.Login.Username()
 	sortKey, _ := listOrder(ctx)
-	cached, place, placed = p.listings.message(user, listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, alborz.PerPage(ctx))
+	cached, place, placed = p.listings.message(user, listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, web.PerPage(ctx))
 	if order, own := messageList(ctx, mailbox, query, view); !own {
 		if o, ok := p.listings.heldOrder(user, order); ok {
 			return cached, placeIn(o.uids, uid), true
@@ -43,7 +44,7 @@ func (p *plugin) cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, 
 	return cached, place, placed
 }
 
-func (p *plugin) placeInList(ctx *alborz.Context, c *imapclient.Client, settings *Settings, mailbox string, uid imap.UID, query, view string) (listPlace, error) {
+func (p *plugin) placeInList(ctx *web.Context, c *imapclient.Client, settings *Settings, mailbox string, uid imap.UID, query, view string) (listPlace, error) {
 	if err := ensureMailboxSelected(c, mailbox); err != nil {
 		return listPlace{}, err
 	}
@@ -78,7 +79,7 @@ type mergedList struct {
 }
 
 // mergedOrigin reads the list a message was opened from; nil where it is one folder's.
-func mergedOrigin(ctx *alborz.Context) *mergedList {
+func mergedOrigin(ctx *web.Context) *mergedList {
 	from := ctx.From()
 	if from == "" {
 		return nil
@@ -116,10 +117,10 @@ func mergedOrigin(ctx *alborz.Context) *mergedList {
 
 // mergedNeighbours places a message among the merged rows it was opened
 // from, reading once a page further down where it is the last row read.
-func (p *plugin) mergedNeighbours(ctx *alborz.Context, settings *Settings, m *mergedList, mailbox string, uid imap.UID) (alborz.Neighbours, error) {
+func (p *plugin) mergedNeighbours(ctx *web.Context, settings *Settings, m *mergedList, mailbox string, uid imap.UID) (web.Neighbours, error) {
 	account := ctx.Login.Username()
 	ask := m.ask
-	var n alborz.Neighbours
+	var n web.Neighbours
 	for read := range 2 {
 		var e *listingEntry
 		var err error
@@ -129,15 +130,15 @@ func (p *plugin) mergedNeighbours(ctx *alborz.Context, settings *Settings, m *me
 			e, _, err = p.mergedWindow(ctx, m.role, ask, settings, true)
 		}
 		if err != nil {
-			return alborz.Neighbours{}, err
+			return web.Neighbours{}, err
 		}
 		i := slices.IndexFunc(e.msgs, func(r IMAPMessage) bool {
 			return r.Account == account && r.Mailbox == mailbox && r.UID == uid
 		})
 		if i < 0 {
-			return alborz.Neighbours{}, nil
+			return web.Neighbours{}, nil
 		}
-		n = alborz.Neighbours{Position: i + 1, Total: e.total}
+		n = web.Neighbours{Position: i + 1, Total: e.total}
 		if i > 0 {
 			n.PrevURL = neighbourHref(ctx, e.msgs[i-1].Account, e.msgs[i-1].Mailbox, e.msgs[i-1].UID)
 		}
@@ -152,7 +153,7 @@ func (p *plugin) mergedNeighbours(ctx *alborz.Context, settings *Settings, m *me
 	return n, nil
 }
 
-func readThread(ctx *alborz.Context, c *imapclient.Client, mailbox, sent string, msg *IMAPMessage) (*ThreadNeighbour, []ThreadNeighbour) {
+func readThread(ctx *web.Context, c *imapclient.Client, mailbox, sent string, msg *IMAPMessage) (*ThreadNeighbour, []ThreadNeighbour) {
 	parent, err := threadParent(c, mailbox, sent, msg)
 	if err != nil {
 		ctx.Logger().Printf("thread lookup failed: %v", err)
@@ -167,7 +168,7 @@ func readThread(ctx *alborz.Context, c *imapclient.Client, mailbox, sent string,
 	return parent, answers
 }
 
-func (p *plugin) handleMessageNavigation(ctx *alborz.Context) error {
+func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
 	mailbox, uid, err := messageRef(ctx)
 	if err != nil {
 		return err
@@ -245,6 +246,6 @@ func (p *plugin) handleMessageNavigation(ctx *alborz.Context) error {
 			return err
 		}
 	}
-	data.IMAPBaseRenderData = *assembleIMAPBase(ctx, alborz.NewBaseRenderData(ctx), mailbox, sb, view)
+	data.IMAPBaseRenderData = *assembleIMAPBase(ctx, web.NewBaseRenderData(ctx), mailbox, sb, view)
 	return ctx.Render(http.StatusOK, "message-context", data)
 }

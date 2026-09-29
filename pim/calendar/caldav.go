@@ -14,6 +14,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-recur"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -190,7 +191,7 @@ func (o Occurrence) Star() string {
 
 func componentColor(comp *ical.Component) string {
 	name, _ := comp.Props.Text(ical.PropColor)
-	if !slices.Contains(alborz.FlagColors[:], name) {
+	if !slices.Contains(web.FlagColors[:], name) {
 		return ""
 	}
 	return name
@@ -205,7 +206,7 @@ func setComponentColor(comp *ical.Component, name string) {
 }
 
 func validStarView(view string) bool {
-	return view == "" || view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
+	return view == "" || view == web.ViewStarred || slices.Contains(web.FlagColors[:], view)
 }
 
 func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {
@@ -268,7 +269,7 @@ func (t TaskObject) URL() string {
 }
 
 // pooledCalendars lists every account's calendars, subscriptions another alborz added to the settings made here first.
-func (p *plugin) pooledCalendars(ctx *alborz.Context) ([]pim.Account[*caldav.Client], error) {
+func (p *plugin) pooledCalendars(ctx *web.Context) ([]pim.Account[*caldav.Client], error) {
 	return pim.Pooled(ctx, p.dav, func(rc context.Context, login *alborz.Login) (*caldav.Client, []dav.Collection, error) {
 		err := p.follows(rc, login, func(c store.Collection) error {
 			// A feed that is down leaves its calendar empty until the next round, not the page failing.
@@ -284,7 +285,7 @@ func (p *plugin) pooledCalendars(ctx *alborz.Context) ([]pim.Account[*caldav.Cli
 	}, errNoCalendar)
 }
 
-func (p *plugin) querySites(ctx *alborz.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
+func (p *plugin) querySites(ctx *web.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
 	var events []CalendarObject
 	for _, r := range pim.Present(p.dav, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, query)
@@ -300,7 +301,7 @@ func (p *plugin) querySites(ctx *alborz.Context, sites []pim.Site[*caldav.Client
 	return events, nil
 }
 
-func (p *plugin) writableGroups(ctx *alborz.Context, supports func([]string) bool) ([]dav.Group, error) {
+func (p *plugin) writableGroups(ctx *web.Context, supports func([]string) bool) ([]dav.Group, error) {
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return nil, err
@@ -308,7 +309,7 @@ func (p *plugin) writableGroups(ctx *alborz.Context, supports func([]string) boo
 	return pim.WritableGroups(accounts, func(cal dav.Collection) bool { return cal.Writable && supports(cal.Components) }), nil
 }
 
-func (p *plugin) destination(ctx *alborz.Context, value string, supports func([]string) bool) (pim.Ref[*caldav.Client], error) {
+func (p *plugin) destination(ctx *web.Context, value string, supports func([]string) bool) (pim.Ref[*caldav.Client], error) {
 	return pim.Destination(ctx, value, p.clientWithCalendars, func(cal dav.Collection) bool {
 		return cal.Writable && supports(cal.Components)
 	})

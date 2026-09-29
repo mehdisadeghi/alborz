@@ -14,6 +14,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/pgp"
+	"git.mehdix.org/alborz/web"
 	"github.com/ProtonMail/go-crypto/openpgp"
 	pgperrors "github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/emersion/go-imap/v2"
@@ -41,7 +42,7 @@ const (
 
 // handleSignature answers the page's request for its verdict, which may
 // stream the whole signed part; the reader leaving drops the connection.
-func (p *plugin) handleSignature(ctx *alborz.Context) error {
+func (p *plugin) handleSignature(ctx *web.Context) error {
 	mboxName, uid, err := messageRef(ctx)
 	if err != nil {
 		return err
@@ -78,12 +79,12 @@ func (p *plugin) handleSignature(ctx *alborz.Context) error {
 		ctx.Logger().Printf("signature %q uid %v: %v", mboxName, uid, err)
 	}
 	return ctx.Render(http.StatusOK, "message-signature", &VerdictRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx), Signature: v})
+		BaseRenderData: *web.NewBaseRenderData(ctx), Signature: v})
 }
 
 // VerdictRenderData fills the page's place for the verdict.
 type VerdictRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Signature Verification
 }
 

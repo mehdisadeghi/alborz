@@ -9,7 +9,7 @@ import (
 // A burst of tabs must not leave an unbounded queue behind a slow server.
 const imapQueueLimit = 64
 
-var errIMAPQueueFull = errors.New("mail request queue is full")
+var ErrIMAPQueueFull = errors.New("mail request queue is full")
 
 type imapWaiter struct {
 	ready      chan struct{}
@@ -42,7 +42,7 @@ func (q *imapQueue) acquire(ctx context.Context, done <-chan struct{}, backgroun
 	}
 	if done != nil && len(q.waiters) >= imapQueueLimit {
 		q.mu.Unlock()
-		return errIMAPQueueFull
+		return ErrIMAPQueueFull
 	}
 	w := &imapWaiter{ready: make(chan struct{}), background: background}
 	q.waiters = append(q.waiters, w)

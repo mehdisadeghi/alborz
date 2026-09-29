@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 )
 
@@ -31,7 +31,7 @@ var TemplateFuncs = template.FuncMap{
 	"humansize": formatSize,
 	"sub":       func(a, b int) int { return a - b },
 	// A theme's name is a proper noun, so it is not a locale string.
-	"themename": alborz.ThemeName,
+	"themename": web.ThemeName,
 	// A crumb step may already carry a query.
 	"qsep": func(raw string) string {
 		if strings.Contains(raw, "?") {
@@ -54,7 +54,7 @@ var TemplateFuncs = template.FuncMap{
 		if strings.Contains(href, "?") {
 			sep = "&"
 		}
-		return href + sep + "from=" + alborz.QueryValue(list)
+		return href + sep + "from=" + web.QueryValue(list)
 	},
 	"mod": func(a, b int) int { return a % b },
 	// PARTSTAT arrives upper case and the locale keys are not.
@@ -66,13 +66,13 @@ var TemplateFuncs = template.FuncMap{
 	},
 	// Takes the render data for its translator: a method value cannot be passed through a dict.
 	"flagcolors": func(t interface{ T(string) string }) []FlagColorOption {
-		opts := make([]FlagColorOption, len(alborz.FlagColors))
-		for i, name := range alborz.FlagColors {
+		opts := make([]FlagColorOption, len(web.FlagColors))
+		for i, name := range web.FlagColors {
 			opts[i] = FlagColorOption{Name: name, Label: t.T("color." + name)}
 		}
 		return opts
 	},
-	"devicename": alborz.DeviceName,
+	"devicename": web.DeviceName,
 	"dict": func(pairs ...interface{}) (map[string]interface{}, error) {
 		if len(pairs)%2 != 0 {
 			return nil, fmt.Errorf("dict: odd number of arguments")
@@ -100,9 +100,9 @@ var TemplateFuncs = template.FuncMap{
 	// marker carries a host's port (ADR 28).
 	"pathescape": func(s string) string { return strings.ReplaceAll(url.PathEscape(s), ":", "%3A") },
 	// template.URL, or the escaper would percent-encode what QueryValue left alone.
-	"qv":         func(v string) template.URL { return template.URL(alborz.QueryValue(v)) },
+	"qv":         func(v string) template.URL { return template.URL(web.QueryValue(v)) },
 	"subjectdir": lang.SubjectDir,
-	"account":    alborz.AccountParam,
+	"account":    web.AccountParam,
 	"localhref": func(raw string) template.URL {
 		if raw == "" {
 			return ""

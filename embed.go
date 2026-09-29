@@ -3,7 +3,7 @@ package alborz
 import "embed"
 
 //go:embed templates
-var embedded embed.FS
+var Templates embed.FS
 
 //go:embed prologue.txt
 var prologue string

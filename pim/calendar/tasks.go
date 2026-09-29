@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
 	"github.com/labstack/echo/v4"
@@ -22,7 +22,7 @@ import (
 
 // DestinationRenderData asks where a move or a copy goes; a menu holds actions, so the choice is a page.
 type DestinationRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rail          pim.Rail
 	Section, Home string
 	Title, Lead   string
@@ -37,17 +37,17 @@ type DestinationRenderData struct {
 }
 
 type TasksRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Calendars []dav.Collection
 	Tasks     []TaskRow
 	// Quick is where a task typed above the rows goes; nil when no list takes tasks.
 	Quick      *quickList
 	View       string
-	Filters    []alborz.Filter
-	FilterRows []alborz.FilterRow
+	Filters    []web.Filter
+	FilterRows []web.FilterRow
 	Query      string
 	Sorting    pim.Sorting
-	Pager      alborz.Pager
+	Pager      web.Pager
 
 	Invitations *dav.RailInvitations
 }
@@ -91,7 +91,7 @@ type quickList struct {
 	Only bool
 }
 
-func quickListOf(ctx *alborz.Context, calendars []dav.Collection) *quickList {
+func quickListOf(ctx *web.Context, calendars []dav.Collection) *quickList {
 	scope := ctx.URLAccount()
 	var quick *quickList
 	var lists []dav.Group
@@ -127,21 +127,21 @@ func quickListOf(ctx *alborz.Context, calendars []dav.Collection) *quickList {
 	return quick
 }
 
-func taskRows(ctx *alborz.Context, view string) []alborz.FilterRow {
+func taskRows(ctx *web.Context, view string) []web.FilterRow {
 	clear := ctx.WithoutParam("view")
-	row := func(label, name string) alborz.FilterRow {
+	row := func(label, name string) web.FilterRow {
 		href := ctx.WithParam("view", name)
 		if name == view {
 			href = clear
 		}
-		return alborz.FilterRow{Label: label, Href: href, Current: name == view}
+		return web.FilterRow{Label: label, Href: href, Current: name == view}
 	}
-	rows := []alborz.FilterRow{
+	rows := []web.FilterRow{
 		row(ctx.T("tasks.completed"), viewCompleted),
 		row(ctx.T("tasks.all"), viewAll),
 		row(ctx.T("tasks.priorityhigh"), viewHigh),
 	}
-	return append(rows, alborz.ViewRows(ctx, view, false, clear)...)
+	return append(rows, web.ViewRows(ctx, view, false, clear)...)
 }
 
 // TaskList is the list page's rows in order, their lists, and what shaped them.
@@ -155,9 +155,9 @@ type TaskList struct {
 	Sorting pim.Sorting
 }
 
-func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
+func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 	var rows []TaskRow
-	loc := alborz.UserLocation(ctx)
+	loc := web.UserLocation(ctx)
 	only := pim.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
@@ -201,7 +201,7 @@ func (p *plugin) taskList(ctx *alborz.Context) (TaskList, error) {
 			if completed != (view == viewCompleted) && view != viewAll {
 				continue
 			}
-			if !alborz.StarMatches(componentColor(todo), star) {
+			if !web.StarMatches(componentColor(todo), star) {
 				continue
 			}
 			if view == viewHigh && priorityBand(todo) != priorityHigh {
@@ -254,19 +254,19 @@ var taskColumns = []pim.Column[TaskRow]{
 		}
 		return strconv.Itoa(len(priorityBands))
 	}},
-	{Key: alborz.ViewStarred, Value: func(row TaskRow) string { return pim.StarredFirst(row.Star) }},
+	{Key: web.ViewStarred, Value: func(row TaskRow) string { return pim.StarredFirst(row.Star) }},
 	{Key: "account", Value: func(row TaskRow) string { return strings.ToLower(row.Task.Account) }},
 	{Key: "calendar", Value: func(row TaskRow) string { return strings.ToLower(row.Calendar.Name) }},
 	{Key: "due", Value: func(row TaskRow) string { return pim.When(row.Due) }},
 	{Key: "added", Value: func(row TaskRow) string { return pim.When(row.Added) }},
 }
 
-func (p *plugin) tasks(ctx *alborz.Context) error {
+func (p *plugin) tasks(ctx *web.Context) error {
 	list, err := p.taskList(ctx)
 	if err != nil {
 		return err
 	}
-	rows, pager, err := alborz.Paginate(ctx, list.Rows)
+	rows, pager, err := web.Paginate(ctx, list.Rows)
 	if err != nil {
 		return err
 	}
@@ -279,7 +279,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "tasks/list", &TasksRenderData{
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 		Quick:          quickListOf(ctx, list.Calendars),
 		View:           list.View,
 		Filters:        calendarFilters(ctx, list.Calendars),
@@ -293,11 +293,11 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	})
 }
 
-func (p *plugin) complete(ctx *alborz.Context) error {
+func (p *plugin) complete(ctx *web.Context) error {
 	done := wantsDone(ctx)
-	words := func(ctx *alborz.Context, marked []pim.Ref[*caldav.Client], next string) alborz.Notice {
+	words := func(ctx *web.Context, marked []pim.Ref[*caldav.Client], next string) web.Notice {
 		if ctx.FormValue("undo") != "" {
-			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.T("notice.undone")}
+			return web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.undone")}
 		}
 		paths := make([]string, len(marked))
 		for i, ref := range marked {
@@ -309,12 +309,12 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 	return pim.Run(ctx, pim.Action[*caldav.Client]{
 		Client: p.client,
 		List:   "/tasks",
-		Do: func(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) (err error) {
+		Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) (err error) {
 			marked, err = changeComponent(ctx, ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
 			return err
 		},
 		Done: words,
-		Piece: func(ctx *alborz.Context, ref pim.Ref[*caldav.Client], next string) error {
+		Piece: func(ctx *web.Context, ref pim.Ref[*caldav.Client], next string) error {
 			// A task the list no longer shows leaves it, with a notice that brings it back.
 			view := pim.ListParamsIn(next, "view").Get("view")
 			if view != viewAll && done != (view == viewCompleted) {
@@ -336,9 +336,9 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 			// The list's shape is in the return address, not the write's own URL.
 			params := pim.ListParamsIn(next, taskListParams...)
 			params.Set("from", next)
-			row := taskRow(marked, cal, alborz.UserLocation(ctx), params)
+			row := taskRow(marked, cal, web.UserLocation(ctx), params)
 			row.AddedBy = p.dav.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)
-			data := &TaskRowRenderData{BaseRenderData: *alborz.NewBaseRenderData(ctx), Row: row, Next: next}
+			data := &TaskRowRenderData{BaseRenderData: *web.NewBaseRenderData(ctx), Row: row, Next: next}
 			data.G = &data.BaseRenderData
 			return ctx.Render(http.StatusOK, "task-row", data)
 		},
@@ -347,9 +347,9 @@ func (p *plugin) complete(ctx *alborz.Context) error {
 
 // TaskRowRenderData is one task's row, re-rendered when it is marked.
 type TaskRowRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	// G hands the row template the page's globals, the page being absent.
-	G    *alborz.BaseRenderData
+	G    *web.BaseRenderData
 	Row  TaskRow
 	Next string
 }
@@ -382,17 +382,17 @@ func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location
 	}
 }
 
-func wantsDone(ctx *alborz.Context) bool {
+func wantsDone(ctx *web.Context) bool {
 	return (ctx.FormValue("reopen") == "") != (ctx.FormValue("undo") != "")
 }
 
-func completedNotice(ctx *alborz.Context, done bool, n int, action string, form url.Values) alborz.Notice {
+func completedNotice(ctx *web.Context, done bool, n int, action string, form url.Values) web.Notice {
 	key := "notice.tasksdone"
 	if !done {
 		key = "notice.tasksopen"
 		form.Set("reopen", "1")
 	}
-	return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf(key, n), Actions: []*alborz.NoticeAction{ctx.Undo(action, form)}}
+	return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf(key, n), Actions: []*web.NoticeAction{ctx.Undo(action, form)}}
 }
 
 func markTodo(todo *ical.Component, done bool) {
@@ -406,7 +406,7 @@ func markTodo(todo *ical.Component, done bool) {
 }
 
 // Copy and delete, since the lists may live on different servers.
-func (p *plugin) move(ctx *alborz.Context) error {
+func (p *plugin) move(ctx *web.Context) error {
 	params, err := ctx.FormParams()
 	if err != nil {
 		return err
@@ -421,7 +421,7 @@ func (p *plugin) move(ctx *alborz.Context) error {
 			return err
 		}
 		data := &DestinationRenderData{
-			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("folder.moveask")),
+			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("folder.moveask")),
 			Rail:           rail,
 			Section:        ctx.T("nav.tasks"),
 			Home:           "/tasks",
@@ -448,10 +448,10 @@ func (p *plugin) move(ctx *alborz.Context) error {
 		return err
 	}
 	return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.client, List: "/tasks",
-		Done: func(ctx *alborz.Context, done []pim.Ref[*caldav.Client], _ string) alborz.Notice {
-			return alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.tasksmoved", len(done))}
+		Done: func(ctx *web.Context, done []pim.Ref[*caldav.Client], _ string) web.Notice {
+			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.tasksmoved", len(done))}
 		},
-		Do: func(ctx *alborz.Context, ref pim.Ref[*caldav.Client]) error {
+		Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) error {
 			if path.Dir(ref.Path)+"/" == target.Path {
 				return nil
 			}

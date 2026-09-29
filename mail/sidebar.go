@@ -8,12 +8,13 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-func (p *plugin) handleSidebar(ctx *alborz.Context) error {
-	base := alborz.NewBaseRenderData(ctx)
+func (p *plugin) handleSidebar(ctx *web.Context) error {
+	base := web.NewBaseRenderData(ctx)
 	page := ctx.QueryParam("path")
 	if !strings.HasPrefix(page, "/") || strings.HasPrefix(page, "//") {
 		page = "/mailbox/INBOX"
@@ -22,7 +23,7 @@ func (p *plugin) handleSidebar(ctx *alborz.Context) error {
 	u.Path = page
 	q := u.Query()
 	q.Del("path")
-	u.RawQuery = alborz.Query(q)
+	u.RawQuery = web.Query(q)
 	base.GlobalData.URL = &u
 	base.GlobalData.Path = strings.Split(page, "/")[1:]
 	folder := ""
@@ -46,7 +47,7 @@ func (p *plugin) handleSidebar(ctx *alborz.Context) error {
 }
 
 type IMAPBaseRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	CategorizedMailboxes CategorizedMailboxes
 	Mailboxes            []MailboxInfo
 	Mailbox              *MailboxStatus
@@ -301,7 +302,7 @@ func (p *plugin) sidebarFor(s *alborz.Login) (sidebar, error) {
 	})
 }
 
-func (p *plugin) sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
+func (p *plugin) sidebarAccounts(ctx *web.Context) []AccountSidebar {
 	logins := ctx.Logins()
 	if len(logins) < 2 {
 		return nil
@@ -313,7 +314,7 @@ func (p *plugin) sidebarAccounts(ctx *alborz.Context) []AccountSidebar {
 			ctx.Logger().Printf("sidebar for %q: %v", s.Username(), err)
 			continue
 		}
-		ib := assembleIMAPBase(ctx, &alborz.BaseRenderData{}, "", sb.clone(), "")
+		ib := assembleIMAPBase(ctx, &web.BaseRenderData{}, "", sb.clone(), "")
 		accounts = append(accounts, AccountSidebar{
 			Account:     s.Username(),
 			Categorized: ib.CategorizedMailboxes,
@@ -417,7 +418,7 @@ func (l *sidebarLoad) finish() (sidebar, error) {
 	return l.sb, nil
 }
 
-func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName string, sb sidebar, view string) *IMAPBaseRenderData {
+func assembleIMAPBase(ctx *web.Context, base *web.BaseRenderData, mboxName string, sb sidebar, view string) *IMAPBaseRenderData {
 	if mboxName != "" {
 		sb.statuses[mboxName] = sb.active
 	}
@@ -455,8 +456,8 @@ func assembleIMAPBase(ctx *alborz.Context, base *alborz.BaseRenderData, mboxName
 	}
 }
 
-func (p *plugin) newIMAPBaseRenderData(ctx *alborz.Context,
-	base *alborz.BaseRenderData) (*IMAPBaseRenderData, error) {
+func (p *plugin) newIMAPBaseRenderData(ctx *web.Context,
+	base *web.BaseRenderData) (*IMAPBaseRenderData, error) {
 
 	mboxName, err := mailboxRef(ctx)
 	if err != nil {

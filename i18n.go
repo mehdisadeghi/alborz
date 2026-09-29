@@ -18,7 +18,7 @@ var localizers = map[string]*i18n.Localizer{}
 func init() {
 	bundle := i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
-	for _, code := range languages {
+	for _, code := range Languages {
 		name := "locales/" + code + ".toml"
 		if _, err := bundle.LoadMessageFileFS(localeFS, name); err != nil {
 			panic(fmt.Sprintf("alborz: cannot load %s: %v", name, err))
@@ -27,15 +27,12 @@ func init() {
 	}
 }
 
-// langCookieName holds the language in the browser, since it is per person, not per account.
-const langCookieName = "alborz_lang"
-
-// languages are the supported UI languages, in fallback order.
-var languages = []string{"en", "fa", "de", "es"}
+// Languages are the supported UI Languages, in fallback order.
+var Languages = []string{"en", "fa", "de", "es"}
 
 var languageTags = func() []language.Tag {
-	tags := make([]language.Tag, len(languages))
-	for i, code := range languages {
+	tags := make([]language.Tag, len(Languages))
+	for i, code := range Languages {
 		tags[i] = language.MustParse(code)
 	}
 	return tags
@@ -43,9 +40,9 @@ var languageTags = func() []language.Tag {
 
 var languageMatcher = language.NewMatcher(languageTags)
 
-// matchLanguage picks the language an Accept-Language header asks for,
+// MatchLanguage picks the language an Accept-Language header asks for,
 // weighing q values, falling back to English.
-func matchLanguage(header string) string {
+func MatchLanguage(header string) string {
 	wanted, _, err := language.ParseAcceptLanguage(header)
 	if err != nil {
 		return "en"
@@ -54,19 +51,19 @@ func matchLanguage(header string) string {
 	if confidence == language.No {
 		return "en"
 	}
-	return languages[index]
+	return Languages[index]
 }
 
-// isLanguage reports whether the code names a supported UI language.
-func isLanguage(code string) bool {
-	return slices.Contains(languages, code)
+// IsLanguage reports whether the code names a supported UI language.
+func IsLanguage(code string) bool {
+	return slices.Contains(Languages, code)
 }
 
-func translate(lang, key string) string {
-	return translateCount(lang, key, 1)
+func Translate(lang, key string) string {
+	return TranslateCount(lang, key, 1)
 }
 
-func translateCount(lang, key string, count int) string {
+func TranslateCount(lang, key string, count int) string {
 	loc, ok := localizers[lang]
 	if !ok {
 		loc = localizers["en"]
@@ -87,18 +84,18 @@ type LanguageChoice struct {
 	Name string
 }
 
-var languageNames = map[string]string{
+var LanguageNames = map[string]string{
 	"en": "English",
 	"fa": "فارسی",
 	"de": "Deutsch",
 	"es": "Español",
 }
 
-// languageChoices lists following the browser first, then every language.
-func languageChoices() []LanguageChoice {
-	out := make([]LanguageChoice, 0, len(languages)+1)
-	for _, code := range languages {
-		out = append(out, LanguageChoice{Code: code, Name: languageNames[code]})
+// LanguageChoices lists following the browser first, then every language.
+func LanguageChoices() []LanguageChoice {
+	out := make([]LanguageChoice, 0, len(Languages)+1)
+	for _, code := range Languages {
+		out = append(out, LanguageChoice{Code: code, Name: LanguageNames[code]})
 	}
 	return out
 }

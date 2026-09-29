@@ -5,11 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/emersion/go-imap/v2/imapclient"
 	"net"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 func TestMailQueueCancellation(t *testing.T) {
@@ -99,7 +100,7 @@ func TestMailQueueFullRefuses(t *testing.T) {
 	}
 	waitQueued(t, q, imapQueueLimit)
 	err := l.DoIMAPWork(context.Background(), IMAPForeground, time.Second, func(*imapclient.Client) error { return nil })
-	if !errors.Is(err, errIMAPQueueFull) {
+	if !errors.Is(err, ErrIMAPQueueFull) {
 		t.Fatalf("request past a full queue: %v", err)
 	}
 	q.release()

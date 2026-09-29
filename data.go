@@ -72,8 +72,8 @@ func openData(dir, build string, log func(format string, args ...any)) (kv.DB, s
 
 // Data is alborz's data file for a feature that keeps keys under owner, in format.
 func (s *Server) Data(owner string, format int) (kv.DB, error) {
-	err := updateMeta(s.data, s.dataPath, func(meta *dataMeta) {
-		noteFormats(meta, map[string]int{owner: format}, s.dataPath, s.e.Logger.Printf)
+	err := updateMeta(s.data, s.DataPath, func(meta *dataMeta) {
+		noteFormats(meta, map[string]int{owner: format}, s.DataPath, s.log.Printf)
 	})
 	return s.data, err
 }

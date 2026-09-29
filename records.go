@@ -114,26 +114,26 @@ func CheckKey(db kv.DB, path string, key *fernet.Key, sealed ...string) error {
 type records struct{ vault }
 
 // openSessionRecords keeps sessions in the data file.
-func openSessionRecords(db kv.DB, key *fernet.Key) sessionRecords {
+func openSessionRecords(db kv.DB, key *fernet.Key) SessionRecords {
 	return &records{vault{db: db, key: key}}
 }
 
-func (r *records) Load(id string) (*sessionRecord, bool) {
-	var rec sessionRecord
+func (r *records) Load(id string) (*SessionRecord, bool) {
+	var rec SessionRecord
 	if !r.load(sessionRecordKey(id), &rec) {
 		return nil, false
 	}
 	return &rec, true
 }
 
-func (r *records) Save(rec *sessionRecord) error { return r.save(sessionRecordKey(rec.ID), rec) }
+func (r *records) Save(rec *SessionRecord) error { return r.save(sessionRecordKey(rec.ID), rec) }
 
 func (r *records) Delete(id string) error { return r.remove(sessionRecordKey(id)) }
 
-func (r *records) Each(f func(*sessionRecord)) error {
+func (r *records) Each(f func(*SessionRecord)) error {
 	return r.db.View(func(tx kv.Tx) error {
 		return tx.Scan(sessionsOwner+"/", func(_ string, sealed []byte) error {
-			var rec sessionRecord
+			var rec SessionRecord
 			if r.read(sealed, &rec) {
 				f(&rec)
 			}
@@ -146,7 +146,7 @@ func (r *records) Each(f func(*sessionRecord)) error {
 func (r *records) Sweep(before time.Time) error {
 	return r.db.Update(func(tx kv.Tx) error {
 		return kv.DeleteUnder(tx, sessionsOwner+"/", func(sealed []byte) bool {
-			var rec sessionRecord
+			var rec SessionRecord
 			return r.read(sealed, &rec) && rec.Seen.Before(before)
 		})
 	})
@@ -211,4 +211,32 @@ func (r *settingsRecords) Entries(account string) ([]string, error) {
 
 func (r *settingsRecords) Forget(account string) error {
 	return r.remove(accountKey(settingsOwner, account))
+}
+
+// SessionRecord is a session kept across a restart.
+type SessionRecord struct {
+	ID       string
+	Created  time.Time
+	Seen     time.Time
+	Proof    []byte
+	Accounts []RememberedAccount
+	Profile  *Profile
+	Lock     Lock
+	Device   string `json:",omitempty"`
+	Address  string `json:",omitempty"`
+}
+
+// RememberedAccount is one account of a remembered session.
+type RememberedAccount struct {
+	Address string
+	Sealed  []byte
+}
+
+// SessionRecords keeps remembered sessions.
+type SessionRecords interface {
+	Load(id string) (*SessionRecord, bool)
+	Save(rec *SessionRecord) error
+	Delete(id string) error
+	Sweep(before time.Time) error
+	Each(func(*SessionRecord)) error
 }

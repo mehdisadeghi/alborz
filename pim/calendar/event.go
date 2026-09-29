@@ -12,6 +12,7 @@ import (
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
@@ -21,7 +22,7 @@ import (
 var eventListParams = []string{"account", "cal", "month", "date", "view", "span"}
 
 type EventRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rail     pim.Rail
 	Calendar *dav.Collection
 	Event    CalendarObject
@@ -30,13 +31,13 @@ type EventRenderData struct {
 	// List is the view the page was opened from.
 	List       string
 	Star       string
-	Neighbours alborz.Neighbours
+	Neighbours web.Neighbours
 	// Repeats says the rule in words; RepeatsUntil its last day.
 	Repeats, RepeatsUntil string
 }
 
 type UpdateEventRenderData struct {
-	alborz.BaseRenderData
+	web.BaseRenderData
 	Rail           pim.Rail
 	Groups         []dav.Group
 	Calendar       *dav.Collection
@@ -45,10 +46,10 @@ type UpdateEventRenderData struct {
 
 	// Both shapes are filled, so ticking the box loses nothing typed.
 	AllDay    bool
-	StartTime alborz.DateField
-	EndTime   alborz.DateField
-	StartDate alborz.DateField
-	EndDate   alborz.DateField
+	StartTime web.DateField
+	EndTime   web.DateField
+	StartDate web.DateField
+	EndDate   web.DateField
 	// Attendees are the invited addresses, one per line.
 	Attendees string
 	Repeat    Repeat
@@ -56,7 +57,7 @@ type UpdateEventRenderData struct {
 	RepeatFreqs []string
 }
 
-func newEventStart(ctx *alborz.Context, loc *time.Location) time.Time {
+func newEventStart(ctx *web.Context, loc *time.Location) time.Time {
 	now := time.Now().In(loc)
 	d, err := time.ParseInLocation(datePageLayout, ctx.QueryParam("date"), loc)
 	if err != nil {
@@ -65,7 +66,7 @@ func newEventStart(ctx *alborz.Context, loc *time.Location) time.Time {
 	return time.Date(d.Year(), d.Month(), d.Day(), now.Hour(), now.Minute(), 0, 0, loc)
 }
 
-func fillEventForm(ctx *alborz.Context, d *UpdateEventRenderData, loc *time.Location, when time.Time) {
+func fillEventForm(ctx *web.Context, d *UpdateEventRenderData, loc *time.Location, when time.Time) {
 	d.RepeatFreqs = repeatFreqs
 	d.Repeat = formRepeat(ctx, d.Event, loc)
 	start, _ := d.Event.DateTimeStart(loc)
@@ -93,22 +94,22 @@ func fillEventForm(ctx *alborz.Context, d *UpdateEventRenderData, loc *time.Loca
 	d.Attendees = attendeeLines(d.Event)
 }
 
-func dayQuery(ctx *alborz.Context, start time.Time) string {
+func dayQuery(ctx *web.Context, start time.Time) string {
 	q := pim.ListParams(ctx, "account", "cal")
 	q.Set("date", start.Format(datePageLayout))
-	return alborz.Query(q)
+	return web.Query(q)
 }
 
-func monthQuery(ctx *alborz.Context, mv monthView) string {
+func monthQuery(ctx *web.Context, mv monthView) string {
 	q := pim.ListParams(ctx, "account", "cal", "span", "group")
 	q.Set("month", mv.page)
 	if mv.view != "" {
 		q.Set("view", mv.view)
 	}
-	return alborz.Query(q)
+	return web.Query(q)
 }
 
-func (p *plugin) eventItems(ctx *alborz.Context) ([]pim.Item, error) {
+func (p *plugin) eventItems(ctx *web.Context) ([]pim.Item, error) {
 	var shown []Occurrence
 	switch {
 	case ctx.QueryParam("date") != "":
@@ -140,7 +141,7 @@ func (p *plugin) eventItems(ctx *alborz.Context) ([]pim.Item, error) {
 	return items, nil
 }
 
-func (p *plugin) event(ctx *alborz.Context) error {
+func (p *plugin) event(ctx *web.Context) error {
 	path, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
@@ -195,24 +196,24 @@ func (p *plugin) event(ctx *alborz.Context) error {
 	data := &EventRenderData{
 		Rail:           rail,
 		List:           eventList(ctx),
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       calendar,
 		Event:          CalendarObject{CalendarObject: event, ReadOnly: !calendar.Writable},
 		Star:           componentColor(vevents[0].Component),
 		Neighbours:     pim.Around(items, path),
 		Authors:        p.dav.Authors(event.Path, ctx.Login.Username()),
 	}
-	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], alborz.UserLocation(ctx))
+	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], web.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "calendar/event", data)
 }
 
-func (p *plugin) updateEvent(ctx *alborz.Context) error {
+func (p *plugin) updateEvent(ctx *web.Context) error {
 	calendarObjectPath, err := pim.ParseObjectPath(ctx.Param("path"))
 	if err != nil {
 		return err
 	}
 
-	loc := alborz.UserLocation(ctx)
+	loc := web.UserLocation(ctx)
 
 	var c *caldav.Client
 	var calendars []dav.Collection
@@ -271,7 +272,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/event-edit", &UpdateEventRenderData{
 				Rail:           rail,
-				BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.createtitle")).Refused(message),
+				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.createtitle")).Refused(message),
 				Groups:         groups,
 				Calendar:       currentCalendar,
 				CalendarObject: co,
@@ -403,7 +404,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			err = sendScheduling(ctx, itip.Cancel(before, dropped, time.Now()), others(dropped, ours))
 		}
 		if err != nil {
-			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("invite.sendfailed")})
+			ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("invite.sendfailed")})
 			ctx.Logger().Printf("failed to send the scheduling message: %v", err)
 		} else if !schedules && (len(told) > 0 || len(dropped) > 0) {
 			ctx.PutNotice(ctx.T("invite.sent"))
@@ -420,7 +421,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 	}
 	data := &UpdateEventRenderData{
 		Rail:           rail,
-		BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
 		Groups:         groups,
 		Calendar:       currentCalendar,
 		CalendarObject: co,
@@ -430,7 +431,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 	return ctx.Render(http.StatusOK, "calendar/event-edit", data)
 }
 
-func eventList(ctx *alborz.Context) string {
+func eventList(ctx *web.Context) string {
 	if from := ctx.From(); from != "" {
 		return from
 	}

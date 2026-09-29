@@ -45,7 +45,7 @@ func (s *Server) dialIMAPWatch(domain string, unilateral *imapclient.UnilateralD
 func (s *Server) dial(domain, from string, unilateral *imapclient.UnilateralDataHandler, stall time.Duration) (*imapclient.Client, error) {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {
-		return nil, unknownDomainError{domain}
+		return nil, UnknownDomainError{domain}
 	}
 
 	var debugWriter io.Writer

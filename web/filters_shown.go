@@ -1,4 +1,4 @@
-package alborz
+package web
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 
+	"git.mehdix.org/alborz"
 	"github.com/labstack/echo/v4"
 )
 
@@ -116,7 +117,7 @@ func perPage(ctx *Context, q url.Values) int {
 	if n := ctx.Reading().MessagesPerPage; n > 0 && n <= MaxMessagesPerPage {
 		return n
 	}
-	return DefaultMessagesPerPage
+	return alborz.DefaultMessagesPerPage
 }
 
 // Page is one page of a list: its number, counted from zero, and how many rows a page holds.

@@ -4,17 +4,18 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/web"
 )
 
 // rail reads extensions from the warmed connection's greeting: no round trip.
-func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
+func rail(ctx *web.Context) map[string][]web.RailRow {
 	path := ctx.Request().URL.Path
-	rows := map[string][]alborz.RailRow{}
+	rows := map[string][]web.RailRow{}
 	var down []string
 	for _, account := range sieveAccounts(ctx) {
 		login := ctx.LoginFor(account.Username)
 		scoped := account.Username == ctx.URLAccount()
-		q := "?account=" + alborz.QueryValue(account.Username)
+		q := "?account=" + web.QueryValue(account.Username)
 		var include, vacation bool
 		err := login.DoSieve(func(c alborz.SieveClient) error {
 			include = hasExtension(c, "include")
@@ -25,10 +26,10 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 			down = append(down, account.Username)
 			ctx.Logger().Printf("rail %s filters: %v", account.Username, err)
 		}
-		row := func(label, at string) alborz.RailRow {
-			return alborz.RailRow{Label: ctx.T(label), Href: at + q, Active: scoped && (path == at || strings.HasPrefix(path, at+"/"))}
+		row := func(label, at string) web.RailRow {
+			return web.RailRow{Label: ctx.T(label), Href: at + q, Active: scoped && (path == at || strings.HasPrefix(path, at+"/"))}
 		}
-		var pages []alborz.RailRow
+		var pages []web.RailRow
 		if include {
 			pages = append(pages, row("filters.rules", "/filters/rules"), row("filters.forwarding", "/filters/forwarding"))
 			if vacation {
@@ -36,13 +37,13 @@ func rail(ctx *alborz.Context) map[string][]alborz.RailRow {
 			}
 		}
 		// The scripts page is active for whatever the other pages do not claim.
-		scripts := alborz.RailRow{Label: ctx.T("filters.title"), Href: "/filters" + q, Active: scoped}
+		scripts := web.RailRow{Label: ctx.T("filters.title"), Href: "/filters" + q, Active: scoped}
 		for _, p := range pages {
 			if p.Active {
 				scripts.Active = false
 			}
 		}
-		rows[account.Username] = append([]alborz.RailRow{scripts}, pages...)
+		rows[account.Username] = append([]web.RailRow{scripts}, pages...)
 	}
 	ctx.Unreachable(down)
 	return rows

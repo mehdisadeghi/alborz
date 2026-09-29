@@ -5,25 +5,25 @@ import (
 	"strings"
 	"time"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // KnownView says whether a view name is one alborz offers.
 func KnownView(view string) bool {
-	return view == "" || view == alborz.ViewStarred || view == alborz.ViewUnread || slices.Contains(alborz.FlagColors[:], view)
+	return view == "" || view == web.ViewStarred || view == web.ViewUnread || slices.Contains(web.FlagColors[:], view)
 }
 
 // StarView says whether a view is a mark the reader put on a message.
 func StarView(view string) bool {
-	return view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
+	return view == web.ViewStarred || slices.Contains(web.FlagColors[:], view)
 }
 
 // ViewLabel names a view for a page heading.
-func ViewLabel(ctx *alborz.Context, view string) string {
-	if view == alborz.ViewStarred {
+func ViewLabel(ctx *web.Context, view string) string {
+	if view == web.ViewStarred {
 		return ctx.T("mailbox.starred")
 	}
 	return ctx.T("color." + view)
@@ -34,9 +34,9 @@ func ViewCriteria(view string) *imap.SearchCriteria {
 	switch view {
 	case "":
 		return nil
-	case alborz.ViewStarred:
+	case web.ViewStarred:
 		return &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-	case alborz.ViewUnread:
+	case web.ViewUnread:
 		return &imap.SearchCriteria{NotFlag: []imap.Flag{imap.FlagSeen}}
 	}
 	add, del := FlagColorFlags(view)

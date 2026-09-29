@@ -1,6 +1,7 @@
 // Importrule holds the packages to ADR 66: only web packages and cmd import
 // alborz/web, no logic package imports a web package, and no web package
-// imports another feature's. It reads what go list prints:
+// imports another feature's, save the pages of the feature it is part of.
+// It reads what go list prints:
 //
 //	go list -f '{{.ImportPath}}{{range .Imports}} {{.}}{{end}}' ./... | go run ./internal/importrule
 package main
@@ -37,7 +38,9 @@ func breaks(pkg, imp string) bool {
 	case !isWeb(pkg):
 		return true
 	}
-	return imp != core
+	// pim/calendar/web may use pim/web: the calendar is part of pim.
+	feature := strings.TrimSuffix(imp, "web")
+	return imp != core && !strings.HasPrefix(pkg, feature)
 }
 
 func main() {

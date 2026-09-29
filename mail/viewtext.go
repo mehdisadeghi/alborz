@@ -160,7 +160,7 @@ func viewText(ctx *web.Context, msg *IMAPMessage, path []int, part *message.Enti
 
 	data := textRenderData{Tokens: tokens}
 	for _, image := range msg.ShownImages(path) {
-		data.Images = append(data.Images, imageRenderData{Src: image.URL(true, ctx.URLAccount()).String(), Alt: image.Filename})
+		data.Images = append(data.Images, imageRenderData{Src: ctx.Path("mail.message.raw", msg.Mailbox, msg.UID) + image.Query(ctx.URLAccount()), Alt: image.Filename})
 	}
 	html, err := executeTemplate("view-text.html", data)
 	return View{Body: html}, err

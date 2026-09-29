@@ -73,7 +73,7 @@ func loginRedirect(ctx *web.Context) error {
 		return ctx.Redirect(http.StatusFound, path)
 	}
 	ctx.Quiet()
-	return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+	return ctx.Redirect(http.StatusFound, ctx.Path("mail.mailbox", "INBOX"))
 }
 
 func HandleLogout(ctx *web.Context) error {
@@ -88,7 +88,7 @@ func HandleLogout(ctx *web.Context) error {
 	ctx.Server.ForgetAccount(username)
 	ctx.Quiet()
 	if ctx.LogoutAccount(username) != nil {
-		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+		return ctx.Redirect(http.StatusFound, ctx.Path("mail.mailbox", "INBOX"))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.Path("auth.login"))
 }

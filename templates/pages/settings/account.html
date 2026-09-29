@@ -6,7 +6,7 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.account") "path" "/settings/account") }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.account") "path" (url "mail.account")) }}
 
       <form method="post">
         <div class="action-group">
@@ -84,7 +84,7 @@
         </ul>
         {{ end }}
         {{ if .Storage.Entries }}
-        <form method="post" action="/settings/account/forget{{$aq}}">
+        <form method="post" action="{{url "mail.account.forget"}}{{$aq}}">
           <button class="button-danger">{{$.T "settings.forget"}}</button>
           {{ template "hint" (dict "text" ($.T "settings.forgethint")) }}
         </form>

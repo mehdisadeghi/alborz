@@ -100,7 +100,7 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 	ctx.Unreachable(down)
 	for _, username := range slices.Sorted(maps.Keys(answered)) {
 		code := answered[username]
-		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: "/settings/account?account=" + web.QueryValue(username)}
+		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: ctx.Path("mail.account") + "?account=" + web.QueryValue(username)}
 		// A 403 stays a permission answer, with the way to the password beside it.
 		if code == http.StatusForbidden {
 			key, action = "notice.davforbidden", &web.NoticeAction{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + settings.ServerDAV + "?account=" + web.QueryValue(username)}

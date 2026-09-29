@@ -6,19 +6,19 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.signatures") "path" "/signatures" "newhref" (printf "/signatures/create%s" $aq) "newlabel" ($.T "settings.signaturenew")) }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.signatures") "path" (url "mail.signatures") "newhref" (printf "%s%s" (url "mail.signatures.create") $aq) "newlabel" ($.T "settings.signaturenew")) }}
 
       <section class="list-items">
         {{ range .Settings.Signatures }}
         <div class="list-item">
           <div class="list-content">
-            <a href="/signatures/{{.Name | pathescape}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
+            <a href="{{url "mail.signature" .Name}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
             <span class="list-detail" dir="auto">{{.Text}}</span>
             {{ if eq .Name $.Settings.DefaultSignature }}
             <span class="list-meta">{{$.T "settings.signaturedefaultmark"}}</span>
             {{ end }}
           </div>
-          <form method="post" action="/signatures/default{{$aq}}">
+          <form method="post" action="{{url "mail.signatures.default"}}{{$aq}}">
             {{ if eq .Name $.Settings.DefaultSignature }}
             <input type="hidden" name="name" value="">
             <button>{{$.T "settings.signaturecleardefault"}}</button>
@@ -27,7 +27,7 @@
             <button>{{$.T "settings.signaturemakedefault"}}</button>
             {{ end }}
           </form>
-          <form method="post" action="/signatures/delete{{$aq}}">
+          <form method="post" action="{{url "mail.signatures.delete"}}{{$aq}}">
             <input type="hidden" name="name" value="{{.Name}}">
             <button class="button-danger">{{$.T "common.delete"}}</button>
           </form>

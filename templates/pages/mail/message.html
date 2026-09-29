@@ -1,6 +1,6 @@
 {{/* dict: mbox aq uid next to label [icon] [class]. */}}
 {{ define "msg-move-form" }}
-<form class="action-group{{ with .formclass }} {{.}}{{ end }}" method="post" action="/message/{{.mbox | pathescape}}/move{{.aq}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+<form class="action-group{{ with .formclass }} {{.}}{{ end }}" method="post" action="{{url "mail.messages.move" .mbox}}{{.aq}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <input type="hidden" name="uids" value="{{.uid}}">
   {{ with .next }}<input type="hidden" name="next" value="{{.}}">{{ end }}
   <input type="hidden" name="to" value="{{.to}}">
@@ -15,7 +15,7 @@
       {{/* dict: addrs account mbox key. */}}
       {{define "addr-list"}}
         {{ $aamp := account "&" .account }}
-        {{ $folder := printf "/mailbox/%s" (.mbox | pathescape) }}
+        {{ $folder := url "mail.mailbox" .mbox }}
         {{range $i, $addr := .addrs}}
           {{if $i}},{{end}}
           {{/* By name: the From a list wrote does not carry the author's address. */}}
@@ -23,9 +23,9 @@
           {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $term | qv) $aamp) }}{{ end }}
           {{ if .Name }}
           <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Name}}</a>{{ else }}<strong>{{.Name}}</strong>{{ end }}
-          &lt;<a href="{{ localhref (printf "/compose?to=%s%s" (.Addr | qv) $aamp) }}">{{.Addr}}</a>&gt;</bdi>
+          &lt;<a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") (.Addr | qv) $aamp) }}">{{.Addr}}</a>&gt;</bdi>
           {{ else }}
-          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Addr}}</a>{{ else }}<a href="{{ localhref (printf "/compose?to=%s%s" ($addr.Addr | qv) $aamp) }}">{{$addr.Addr}}</a>{{ end }}</bdi>
+          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Addr}}</a>{{ else }}<a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") ($addr.Addr | qv) $aamp) }}">{{$addr.Addr}}</a>{{ end }}</bdi>
           {{ end }}
         {{end}}
       {{end}}
@@ -39,13 +39,13 @@
 {{ define "main" }}
   {{ $aq := "" }}{{ $aamp := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ $aamp = printf "&account=%s" . }}{{ end }}
   {{ $partq := $aq }}{{ $partallq := $aq }}{{ $partlistq := printf "?list=1%s" $aamp }}{{ with .Message.PreferredPart $.PreferHTML }}{{ $partq = printf "?part=%s%s" .PathString $aamp }}{{ $partallq = printf "?part=%s&all=true%s" .PathString $aamp }}{{ $partlistq = printf "?part=%s&list=1%s" .PathString $aamp }}{{ end }}
-      {{ $here := printf "%v%s" .Message.URL $partq }}
+      {{ $here := printf "%s%s" (url "mail.message" .Message.Mailbox .Message.UID) $partq }}
       <form id="message-flag-form" method="post" hx-boost="false">
         <input type="hidden" name="uids" value="{{.Message.UID}}">
         <input type="hidden" name="next" value="{{$here}}">
       </form>
       {{ template "toolbar-head" (dict "g" $) }}
-            {{$back := printf "%v?page=%v%s" .Mailbox.URL .MailboxPage $aamp}}{{ with .GlobalData.From }}{{ $back = . }}{{ end }}
+            {{$back := printf "%s?page=%v%s" (url "mail.mailbox" .Mailbox.Name) .MailboxPage $aamp}}{{ with .GlobalData.From }}{{ $back = . }}{{ end }}
             {{$common := .CategorizedMailboxes.Common}}
             {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
             {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
@@ -56,16 +56,16 @@
             {{ $flagged := .Message.HasFlag "\\Flagged" }}
             <span class="icon-group followups">
               {{if .Message.HasFlag "\\Draft"}}
-                <a class="button-link" href="{{.Message.URL}}/edit{{$partq}}">{{$.T "message.editdraft"}}</a>
+                <a class="button-link" href="{{url "mail.message.edit" .Message.Mailbox .Message.UID}}{{$partq}}">{{$.T "message.editdraft"}}</a>
               {{else}}
                 {{ if .Message.ListID }}
-                <a class="icon-button" href="{{.Message.URL}}/reply{{$partlistq}}" title="{{$.T "message.replylist"}} — {{.Message.ListID}}" aria-label="{{$.T "message.replylist"}}">{{ template "icon" "reply-list" }}</a>
-                <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.replyauthor"}}" aria-label="{{$.T "message.replyauthor"}}" data-key="r">{{ template "icon" "reply" }}</a>
+                <a class="icon-button" href="{{url "mail.message.reply" .Message.Mailbox .Message.UID}}{{$partlistq}}" title="{{$.T "message.replylist"}} — {{.Message.ListID}}" aria-label="{{$.T "message.replylist"}}">{{ template "icon" "reply-list" }}</a>
+                <a class="icon-button" href="{{url "mail.message.reply" .Message.Mailbox .Message.UID}}{{$partq}}" title="{{$.T "message.replyauthor"}}" aria-label="{{$.T "message.replyauthor"}}" data-key="r">{{ template "icon" "reply" }}</a>
                 {{ else }}
-                <a class="icon-button" href="{{.Message.URL}}/reply{{$partq}}" title="{{$.T "message.reply"}}" aria-label="{{$.T "message.reply"}}" data-key="r">{{ template "icon" "reply" }}</a>
-                <a class="icon-button" href="{{.Message.URL}}/reply{{$partallq}}" title="{{$.T "message.replyall"}}" aria-label="{{$.T "message.replyall"}}" data-key="a">{{ template "icon" "reply-all" }}</a>
+                <a class="icon-button" href="{{url "mail.message.reply" .Message.Mailbox .Message.UID}}{{$partq}}" title="{{$.T "message.reply"}}" aria-label="{{$.T "message.reply"}}" data-key="r">{{ template "icon" "reply" }}</a>
+                <a class="icon-button" href="{{url "mail.message.reply" .Message.Mailbox .Message.UID}}{{$partallq}}" title="{{$.T "message.replyall"}}" aria-label="{{$.T "message.replyall"}}" data-key="a">{{ template "icon" "reply-all" }}</a>
                 {{ end }}
-                <a class="icon-button" href="{{.Message.URL}}/forward{{$partq}}" title="{{$.T "message.forward"}}" aria-label="{{$.T "message.forward"}}" data-key="f" data-priority="15">{{ template "icon" "forward" }}<span class="label">{{$.T "message.forward"}}</span></a>
+                <a class="icon-button" href="{{url "mail.message.forward" .Message.Mailbox .Message.UID}}{{$partq}}" title="{{$.T "message.forward"}}" aria-label="{{$.T "message.forward"}}" data-key="f" data-priority="15">{{ template "icon" "forward" }}<span class="label">{{$.T "message.forward"}}</span></a>
               {{end}}
             </span>
 
@@ -82,7 +82,7 @@
               {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" "INBOX" "label" ($.T "mailbox.notspam") "icon" "notjunk") }}
               {{ end }}
               {{ if or (eq .Mailbox.Name $trash) (eq .Mailbox.Name $junk) (not $trash) }}
-              <form class="action-group" method="post" action="/message/{{.Mailbox.Name | pathescape}}/delete{{$aq}}">
+              <form class="action-group" method="post" action="{{url "mail.messages.delete" .Mailbox.Name}}{{$aq}}">
                 <input type="hidden" name="uids" value="{{.Message.UID}}">
                 <input type="hidden" name="next" value="{{$back}}">
                 <button class="icon-button icon-danger" title="{{$.T "mailbox.deleteperm"}}" aria-label="{{$.T "mailbox.deleteperm"}}">{{ template "icon" "trash" }}</button>
@@ -93,21 +93,21 @@
             </span>
 
             {{ template "more-open" $ }}
-                <a hx-boost="false" class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
+                <a hx-boost="false" class="button-link" href="{{url "mail.message.eml" .Message.Mailbox .Message.UID}}{{$aq}}" download>{{$.T "message.downloademl"}}</a>
                 {{ if $.Filters }}
                 {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
                 <a class="button-link" href="{{ localhref (printf "%s?from=%s&list=%s&subject=%s%v" (url "filters.rules.create") ($from | qv) (.Message.ListID | qv) (.Message.Envelope.Subject | qv) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
                 {{ if $from }}
                 <form method="POST" action="{{url "filters.rules.block"}}{{$aq}}">
                   <input type="hidden" name="value" value="{{$from}}">
-                  <input type="hidden" name="next" value="{{$.Message.URL}}">
+                  <input type="hidden" name="next" value="{{url "mail.message" $.Message.Mailbox $.Message.UID}}">
                   <button>{{ printf ($.T "message.blocksender") $from }}</button>
                 </form>
                 {{ $domain := .Message.FromDomain }}
                 <form method="POST" action="{{url "filters.rules.block"}}{{$aq}}">
                   <input type="hidden" name="value" value="{{$domain}}">
                   <input type="hidden" name="domain" value="1">
-                  <input type="hidden" name="next" value="{{$.Message.URL}}">
+                  <input type="hidden" name="next" value="{{url "mail.message" $.Message.Mailbox $.Message.UID}}">
                   <button>{{ printf ($.T "message.blockdomain") $domain }}</button>
                 </form>
                 {{ end }}
@@ -116,11 +116,11 @@
                 <button type="button" commandfor="add-contact" command="show-modal">{{$.T "message.addcontact"}}</button>
                 {{ end }}
                 {{ if .Message.ListID }}
-                <a class="button-link" href="{{localhref (printf "%v/reply%s" $.Message.URL $partallq)}}">{{$.T "message.replyall"}}</a>
+                <a class="button-link" href="{{localhref (printf "%s%s" (url "mail.message.reply" $.Message.Mailbox $.Message.UID) $partallq)}}">{{$.T "message.replyall"}}</a>
                 {{ end }}
-                <a class="button-link" href="{{localhref (printf "/message/%s/forward?uids=%v%s" (.Mailbox.Name | pathescape) .Message.UID $aamp)}}">{{$.T "message.forwardattached"}}</a>
+                <a class="button-link" href="{{localhref (printf "%s?uids=%v%s" (url "mail.messages.forward" .Mailbox.Name) .Message.UID $aamp)}}">{{$.T "message.forwardattached"}}</a>
                 {{ if .Message.OneClick }}
-                <form method="post" action="{{.Message.URL}}/unsubscribe{{$aq}}">
+                <form method="post" action="{{url "mail.message.unsubscribe" .Message.Mailbox .Message.UID}}{{$aq}}">
                   <input type="hidden" name="next" value="{{$here}}">
                   <button>{{$.T "message.unsubscribe"}}</button>
                 </form>
@@ -131,7 +131,7 @@
                 {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "to" "INBOX" "label" ($.T "message.movetoinbox")) }}
                 {{ end }}
 
-                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/flag{{$aq}}">
+                <form method="post" action="{{url "mail.messages.flag" .Mailbox.Name}}{{$aq}}">
                   <input type="hidden" name="uids" value="{{.Message.UID}}">
                   <input type="hidden" name="action" value="remove">
                   <input type="hidden" name="flags" value="\Seen">
@@ -139,7 +139,7 @@
                   <button>{{$.T "message.markunread"}}</button>
                 </form>
 
-                <form method="post" action="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">
+                <form method="post" action="{{url "mail.messages.move" .Mailbox.Name}}{{$aq}}">
                   <input type="hidden" name="uids" value="{{.Message.UID}}">
                   <select name="to">
                     <option value="" disabled selected>{{$.T "mailbox.moveto"}}</option>
@@ -179,7 +179,7 @@
       </dialog>
       {{ end }}
 
-      {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "steps" .Crumb) }}
+      {{ template "crumb" (dict "g" $ "home" (url "mail.mailbox" "INBOX") "steps" .Crumb) }}
       <div class="message-header">
         <table>
           <tbody>
@@ -196,7 +196,7 @@
               {{ template "flag-menu" (dict
                  "toggle" true
                  "form" "message-flag-form"
-                 "action" (printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $aq)
+                 "action" (printf "%s%v" (url "mail.messages.flag" .Mailbox.Name) $aq)
                  "current" .Message.FlagColor
                  "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
               </div>
@@ -215,7 +215,7 @@
               {{/* Outside the body frame: a message can style its own body to look
                    like a verdict. It may read the whole message, so it comes after the page. */}}
               {{ if .Message.Signed }}
-              <span hx-get="{{.Message.URL}}/signature{{$.GlobalData.AccountQuery}}" hx-trigger="load" hx-swap="outerHTML"></span>
+              <span hx-get="{{url "mail.message.signature" .Message.Mailbox .Message.UID}}{{$.GlobalData.AccountQuery}}" hx-trigger="load" hx-swap="outerHTML"></span>
               {{ end }}
             </td>
           </tr>
@@ -262,7 +262,7 @@
                 <dl>
                   {{ with .Message.ListPost }}
                   <dt>{{$.T "list.post"}}</dt>
-                  <dd><a href="{{ localhref (printf "/compose?to=%s" (. | qv)) }}">{{ template "ltr" . }}</a></dd>
+                  <dd><a href="{{ localhref (printf "%s?to=%s" (url "mail.compose") (. | qv)) }}">{{ template "ltr" . }}</a></dd>
                   {{ end }}
                   {{ with .Message.ListHelp }}
                   <dt>{{$.T "list.help"}}</dt>
@@ -376,7 +376,7 @@
           <tr class="part-cut">
             <td colspan="2" dir="auto">
               {{$.T "message.cut"}}
-              <a hx-boost="false" href="{{$.Message.URL}}/raw?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.downloadpart"}}</a>
+              <a hx-boost="false" href="{{url "mail.message.raw" $.Message.Mailbox $.Message.UID}}?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.downloadpart"}}</a>
             </td>
           </tr>
           {{end}}{{end}}
@@ -388,7 +388,7 @@
           <summary>
             <span class="parts-name">{{$.T "message.attachments"}}</span>
             <span class="hint">{{$.GlobalData.Tf "mailbox.attachmore" (len $attachments)}} · {{$.Message.AttachmentsSize}}</span>
-            <a class="parts-all" hx-boost="false" download href="{{$.Message.URL}}/attachments.zip{{$aq}}">{{$.T "message.downloadall"}}</a>
+            <a class="parts-all" hx-boost="false" download href="{{url "mail.message.attachments" $.Message.Mailbox $.Message.UID}}{{$aq}}">{{$.T "message.downloadall"}}</a>
           </summary>
           <ul>
             {{ range .Message.Attachments }}
@@ -401,7 +401,7 @@
                   href="?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}"
                 {{else}}
                   hx-boost="false"
-                  href="{{$.Message.URL}}/raw?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}"
+                  href="{{url "mail.message.raw" $.Message.Mailbox $.Message.UID}}?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}"
                 {{end}}
               >
               {{- if .Filename -}}
@@ -466,7 +466,7 @@
           {{ end }}
         >{{$.T "message.html"}}</a>
         {{ end }}
-        <a hx-boost="false" href="{{.Message.URL}}/raw?plain=1{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.raw"}}</a>
+        <a hx-boost="false" href="{{url "mail.message.raw" .Message.Mailbox .Message.UID}}?plain=1{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.raw"}}</a>
       </div>
 
       {{if .View}}
@@ -474,7 +474,7 @@
       {{else if .Invitation}}
       {{else}}
         <p>{{$.T "message.cantpreview"}}</p>
-        <a hx-boost="false" href="{{.Message.URL}}/raw?part={{.Part.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.download"}}</a>
+        <a hx-boost="false" href="{{url "mail.message.raw" .Message.Mailbox .Message.UID}}?part={{.Part.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.download"}}</a>
       {{end}}
 {{ end }}
 

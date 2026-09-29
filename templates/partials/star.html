@@ -1,8 +1,8 @@
 {{/* The keys are capitalised because the same block is rendered from Go,
      where a field has to be exported to be read. */}}
 {{ define "row-star" }}
-<form method="POST" action="/message/{{.Mailbox | pathescape}}/flag{{.Account}}" class="row-star"
-      hx-post="/message/{{.Mailbox | pathescape}}/flag{{.Account}}" hx-target="this" hx-swap="outerHTML">
+<form method="POST" action="{{url "mail.messages.flag" .Mailbox}}{{.Account}}" class="row-star"
+      hx-post="{{url "mail.messages.flag" .Mailbox}}{{.Account}}" hx-target="this" hx-swap="outerHTML">
   <input type="hidden" name="uids" value="{{.UID}}">
   <input type="hidden" name="next" value="{{.Next}}">
   <input type="hidden" name="was" value="{{.Color}}">

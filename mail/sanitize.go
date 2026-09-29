@@ -95,8 +95,10 @@ var allowedStyles = map[string]bool{
 }
 
 type sanitizer struct {
-	msg                  *IMAPMessage
-	account              string
+	msg     *IMAPMessage
+	account string
+	// raw is where the message's parts are fetched, proxy where a remote image is.
+	raw, proxy           string
 	allowRemoteResources bool
 	hasRemoteResources   bool
 	// text is sampled during the walk so the language needs no second parse.
@@ -141,7 +143,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 		if part == nil || !strings.HasPrefix(part.MIMEType, "image/") {
 			return "about:blank"
 		}
-		return part.URL(true, san.account).String()
+		return san.raw + part.Query(san.account)
 	// TODO: mid support?
 	case "cid":
 		if san.msg == nil {
@@ -153,7 +155,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 			return "about:blank"
 		}
 
-		return part.URL(true, san.account).String()
+		return san.raw + part.Query(san.account)
 	case "https":
 		san.hasRemoteResources = true
 
@@ -161,7 +163,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 			return "about:blank"
 		}
 
-		proxyURL := url.URL{Path: "/proxy"}
+		proxyURL := url.URL{Path: san.proxy}
 		proxyQuery := make(url.Values)
 		proxyQuery.Set("src", u.String())
 		proxyURL.RawQuery = proxyQuery.Encode()

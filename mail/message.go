@@ -554,7 +554,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		if preferred != nil && len(preferred.Path) > 0 {
 			q := ctx.Request().URL.Query()
 			q.Set("part", preferred.PathString())
-			return ctx.Redirect(http.StatusFound, msg.URL().String()+"?"+web.Query(q))
+			return ctx.Redirect(http.StatusFound, ctx.Path("mail.message", msg.Mailbox, msg.UID)+"?"+web.Query(q))
 		}
 	}
 
@@ -638,7 +638,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		InReplyTo:          inReplyTo,
 		Answers:            answers,
 		ThreadSupported:    threadAlgorithm != "",
-		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Login.Username()),
+		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Login.Username(), folderPath(ctx)),
 		PreferHTML:         ctx.Reading().PreferHTML,
 		Unsubscribe:        unsubscribeHref(settings, trust, msg),
 		DeliveredTo:        deliveredTo,
@@ -792,8 +792,7 @@ func handleUnsubscribe(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/message/%v/%v",
-		url.PathEscape(mboxName), uid)))
+	back := ctx.NextOr(ctx.URL("mail.message", mboxName, uid))
 	if msg.OneClick == "" {
 		return web.NewError(http.StatusBadRequest, "this message offers no one-click unsubscribe")
 	}

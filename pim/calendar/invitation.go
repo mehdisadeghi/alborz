@@ -3,7 +3,6 @@ package calendar
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -131,7 +130,7 @@ func handleInvitationReply(ctx *web.Context) error {
 	}
 	messageZones(reply)
 
-	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/message/%s/%v", url.PathEscape(mboxName), uid)))
+	back := ctx.NextOr(ctx.URL("mail.message", mboxName, uid))
 	subject := fmt.Sprintf(ctx.T("invite.subject"+strings.ToLower(status)), inv.Summary)
 	if err := mail.SendCalendarMessage(ctx, []string{inv.Organizer}, subject, reply); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})

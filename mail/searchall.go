@@ -61,7 +61,7 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	}
 	spec := ask.spec
 	if spec.query == "" && spec.view == "" {
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
+		return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
 	}
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {

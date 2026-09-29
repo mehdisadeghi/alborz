@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -166,8 +165,8 @@ func SettingsRail(ctx *web.Context) map[string][]web.RailRow {
 		scoped := ctx.Login != nil && account.Username == ctx.Login.Username()
 		q := AccountQuery(account.Username)
 		rows[account.Username] = []web.RailRow{
-			{Label: ctx.T("settings.account"), Href: "/settings/account" + q, Active: scoped && path == "/settings/account"},
-			{Label: ctx.T("settings.signatures"), Href: "/signatures" + q, Active: scoped && strings.HasPrefix(path, "/signatures")},
+			{Label: ctx.T("settings.account"), Href: ctx.Path("mail.account") + q, Active: scoped && path == ctx.Path("mail.account")},
+			{Label: ctx.T("settings.signatures"), Href: ctx.Path("mail.signatures") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("mail.signatures"))},
 			{Label: ctx.T("settings.servers"), Href: ctx.Path("settings.servers") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("settings.servers"))},
 			{Label: ctx.T("sessions.title"), Href: ctx.Path("settings.sessions") + q, Active: scoped && path == ctx.Path("settings.sessions")},
 		}
@@ -258,10 +257,10 @@ func handleSignatureSave(ctx *web.Context) error {
 	}
 	if !replaced {
 		ctx.Made(ctx.T("notice.signaturecreated"), name,
-			ctx.AccountPath("/signatures/"+url.PathEscape(name)),
-			ctx.AccountPath("/signatures/create"))
+			ctx.URL("mail.signature", name),
+			ctx.URL("mail.signatures.create"))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
+	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
 }
 
 func handleSignatureDelete(ctx *web.Context) error {
@@ -283,7 +282,7 @@ func handleSignatureDelete(ctx *web.Context) error {
 	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
+	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
 }
 
 func handleSignatureDefault(ctx *web.Context) error {
@@ -300,7 +299,7 @@ func handleSignatureDefault(ctx *web.Context) error {
 	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/signatures"))
+	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
 }
 
 func (p *plugin) handleSettings(ctx *web.Context) error {
@@ -356,7 +355,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		}
 		p.accountChanged(ctx.Login.Username())
 		ctx.PutNotice(ctx.T("notice.settingssaved"))
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
+		return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
 	}
 
 	// The suggestion costs a fetch, so only when nothing is set.
@@ -380,13 +379,13 @@ func (p *plugin) handleForget(ctx *web.Context) error {
 	if !ok {
 		// Nothing else outlives the process to forget.
 		ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: ctx.T("settings.forgotten")})
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
+		return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
 	}
 	if err := store.Forget(ctx.Request().Context()); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
+		return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
 	}
 	p.accountChanged(ctx.Login.Username())
 	ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: ctx.T("settings.forgotten")})
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/account"))
+	return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
 }

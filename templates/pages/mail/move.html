@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-      <form method="POST" action="/message/{{.Mailbox.Name | pathescape}}/move{{ $.GlobalData.AccountQuery }}" hx-boost="false">
+      <form method="POST" action="{{url "mail.messages.move" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}" hx-boost="false">
         {{ template "mail-crumb" $ }}
         <h1>{{$.T "folder.moveask"}}</h1>
         <p>{{ $.GlobalData.Tf "folder.movecount" (len .UIDs) }}</p>

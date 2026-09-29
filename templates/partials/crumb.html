@@ -47,4 +47,4 @@
 {{ end }}
 {{ end }}
 
-{{ define "mail-crumb" }}{{ template "section-crumb" (dict "g" . "section" (.T "nav.email") "home" "/mailbox/INBOX" "field" "" "collection" "" "path" "") }}{{ end }}
+{{ define "mail-crumb" }}{{ template "section-crumb" (dict "g" . "section" (.T "nav.email") "home" (url "mail.mailbox" "INBOX") "field" "" "collection" "" "path" "") }}{{ end }}

@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/emersion/go-imap/v2"
@@ -14,7 +15,8 @@ func TestMailboxCrumbNamesEachStep(t *testing.T) {
 	}
 	boxes[1].Attrs = []imap.MailboxAttr{imap.MailboxAttrNoSelect}
 
-	crumb := mailboxCrumb(boxes, "INBOX/Lists/Unix", "someone@example.org")
+	folder := func(name string) string { return "/mailbox/" + url.PathEscape(name) }
+	crumb := mailboxCrumb(boxes, "INBOX/Lists/Unix", "someone@example.org", folder)
 	want := []CrumbLink{
 		{Label: "someone@example.org", URL: "/mailbox/INBOX", Address: true},
 		{Label: "Inbox", URL: "/mailbox/INBOX"},

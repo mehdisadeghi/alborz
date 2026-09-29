@@ -12,6 +12,6 @@
         {{ template "mail-crumb" $ }}
         <h1>{{$.T "folder.import"}}</h1>
         {{ template "folder-location" $ }}
-        {{ template "import-fields" (dict "g" $ "name" ($.T "folder.name") "namevalue" .Name "namehint" ($.T "folder.importname") "file" ($.T "folder.importfile") "accept" ".mbox,.eml,application/mbox,message/rfc822" "hint" ($.T "folder.importhint") "go" ($.T "folder.importgo") "cancel" (printf "/mailbox/INBOX%s" $acct)) }}
+        {{ template "import-fields" (dict "g" $ "name" ($.T "folder.name") "namevalue" .Name "namehint" ($.T "folder.importname") "file" ($.T "folder.importfile") "accept" ".mbox,.eml,application/mbox,message/rfc822" "hint" ($.T "folder.importhint") "go" ($.T "folder.importgo") "cancel" (printf "%s%s" (url "mail.mailbox" "INBOX") $acct)) }}
       </form>
 {{ end }}

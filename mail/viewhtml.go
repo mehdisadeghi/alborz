@@ -61,6 +61,8 @@ func viewHTML(ctx *web.Context, msg *IMAPMessage, part *message.Entity) (View, e
 	san := sanitizer{
 		msg:                  msg,
 		account:              ctx.URLAccount(),
+		raw:                  ctx.Path("mail.message.raw", msg.Mailbox, msg.UID),
+		proxy:                ctx.Path("mail.proxy"),
 		allowRemoteResources: allowRemoteResources,
 	}
 	body, err = san.sanitizeHTML(body)

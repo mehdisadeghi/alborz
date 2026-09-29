@@ -28,7 +28,7 @@ func registerPasskeyRoutes(unlock, app *web.Group) {
 	})
 
 	unlock.GET("unlock", "", func(ctx *web.Context) error {
-		next := ctx.NextOr("/")
+		next := ctx.NextOr(ctx.Path("mail.home"))
 		if !ctx.Session().Locked(time.Now()) {
 			return ctx.Redirect(http.StatusFound, next)
 		}

@@ -256,12 +256,11 @@ func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *Outg
 	notice := web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.sent")}
 	if sent != nil && sentUID != 0 {
 		// The Sent copy may be outside the reader's scope, so the link names its account.
-		view := messageURL(sent.Name(), sentUID)
-		view.RawQuery = "account=" + web.QueryValue(sender.Username())
-		notice.Actions = []*web.NoticeAction{{Label: ctx.T("notice.view"), Path: view.String()}}
+		view := ctx.Path("mail.message", sent.Name(), sentUID) + "?account=" + web.QueryValue(sender.Username())
+		notice.Actions = []*web.NoticeAction{{Label: ctx.T("notice.view"), Path: view}}
 	}
 	ctx.Notify(notice)
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
+	return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
 }
 
 func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *composeOptions) error {
@@ -530,8 +529,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 				}
 				p.accountChanged(ctx.Login.Username())
 				ctx.PutNotice(ctx.T("notice.draftsaved"))
-				return ctx.Redirect(http.StatusFound, fmt.Sprintf(
-					"/message/%s/%d/edit?part=1", drafts.Mailbox, uid))
+				return ctx.Redirect(http.StatusFound, ctx.Path("mail.message.edit", drafts.Mailbox, uid)+"?part=1")
 			}
 			return p.submitCompose(ctx, sender, msg, options)
 		})
@@ -899,7 +897,7 @@ func quotedHTML(ctx *web.Context, path messagePath, msg *IMAPMessage) (string, e
 	if err != nil {
 		return "", err
 	}
-	return composedHTML(localImages(string(raw), msg, ctx.Login.Username())), nil
+	return composedHTML(localImages(string(raw), ctx.Path("mail.message.raw", msg.Mailbox, msg.UID), msg, ctx.Login.Username())), nil
 }
 
 func addressLine(a imap.Address) string {
@@ -961,8 +959,7 @@ func handleForwardSelection(ctx *web.Context) error {
 	}
 	// One message is forwarded inline where it can be trimmed; several travel whole as attachments.
 	if len(uids) == 1 {
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(
-			fmt.Sprintf("/message/%v/%v/forward", url.PathEscape(mboxName), uids[0])))
+		return ctx.Redirect(http.StatusFound, ctx.URL("mail.message.forward", mboxName, uids[0]))
 	}
 
 	refs := make([]string, len(uids))
@@ -973,8 +970,7 @@ func handleForwardSelection(ctx *web.Context) error {
 	if a := ctx.URLAccount(); a != "" {
 		q.Set("account", web.QueryValue(a))
 	}
-	return ctx.Redirect(http.StatusFound, fmt.Sprintf("/message/%v/forward?%s",
-		url.PathEscape(mboxName), web.Query(q)))
+	return ctx.Redirect(http.StatusFound, ctx.Path("mail.messages.forward", mboxName)+"?"+web.Query(q))
 }
 
 // A GET so the page can be reloaded; the selection arrives in the query.

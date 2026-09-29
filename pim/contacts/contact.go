@@ -422,7 +422,7 @@ func (p *plugin) note(ctx *alborz.Context) error {
 				return nil
 			}
 			return changeCard(ctx, ref, func(card vcard.Card) {
-				text := pim.AppendNote(card.Value(vcard.FieldNote), note, time.Now())
+				text := pim.AppendNote(ctx, card.Value(vcard.FieldNote), note)
 				if field := card.Preferred(vcard.FieldNote); field != nil {
 					field.Value = text
 				} else {

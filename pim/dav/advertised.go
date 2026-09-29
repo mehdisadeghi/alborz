@@ -6,9 +6,6 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-
-	"git.mehdix.org/alborz/pim/store"
-	"git.mehdix.org/alborz/web"
 )
 
 // Advertised is what a DAV server claims about itself, nothing alborz inferred.
@@ -49,57 +46,4 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 		}
 	}
 	return a, nil
-}
-
-// Cards put each of the kind's sources among the account's servers.
-func (p *Provider) Cards(title string, abilities func(Advertised) []web.Ability) func(*web.Context, *web.Servers) error {
-	return func(ctx *web.Context, servers *web.Servers) error {
-		for _, src := range p.Sources(ctx.Request().Context(), ctx.Login) {
-			servers.AddPlace(src.ID, placeHost(ctx, src))
-			// This alborz tells other clients how to reach it instead; HereCard is its card.
-			if src.ID != SourceHere {
-				servers.Cards = append(servers.Cards, p.card(ctx, servers, title, src, abilities))
-			}
-		}
-		return nil
-	}
-}
-
-func (p *Provider) card(ctx *web.Context, servers *web.Servers, title string, src Source, abilities func(Advertised) []web.Ability) web.ServerCard {
-	host := src.URL.Host
-	card := web.ServerCard{Group: web.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
-	if servers.Showing == web.ServerDAV {
-		endpoint, _ := url.Parse(src.Endpoint())
-		found, err := Describe(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), endpoint)
-		// An unreachable server is said on the page, not failed over.
-		if err != nil {
-			card.Rows = []map[string]any{
-				{"label": ctx.T("settings.serverhost"), "value": host},
-				{"label": ctx.T("settings.serverunreachable"), "value": err.Error()},
-			}
-		} else {
-			card.Rows = []map[string]any{
-				{"label": ctx.T("settings.serverhost"), "value": host},
-				{"label": ctx.T("settings.serversource"), "value": card.SourceText(ctx.T)},
-				{"label": ctx.T("settings.serversoftware"), "value": found.Software},
-				{"label": ctx.T("settings.davcompliance"), "value": strings.Join(found.Compliance, ", ")},
-			}
-			card.Abilities = abilities(found)
-		}
-	}
-	return card
-}
-
-// HereCard puts the collections kept here among the account's servers.
-func (p *Provider) HereCard() func(*web.Context, *web.Servers) error {
-	return func(ctx *web.Context, servers *web.Servers) error {
-		servers.Cards = append(servers.Cards, web.ServerCard{
-			Group: web.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
-			Rows: []map[string]any{
-				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Origin() + store.Prefix + "/"},
-				{"label": ctx.T("settings.davhereuser"), "value": ctx.Login.Username()},
-			},
-		})
-		return nil
-	}
 }

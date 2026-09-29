@@ -6,7 +6,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/store"
-	"git.mehdix.org/alborz/web"
 )
 
 // Invitation is a share offered to a signed-in account and not answered.
@@ -18,12 +17,6 @@ type Invitation struct {
 	Path    string
 	Write   bool
 	Expires time.Time
-}
-
-// RailInvitations are a section's open invitations and the route of the collection page their answers post under.
-type RailInvitations struct {
-	Collection string
-	Items      []Invitation
 }
 
 // Invitations are the logins' open invitations to collections of the kind.
@@ -53,15 +46,6 @@ func (p *Provider) Invitations(logins []*alborz.Login) ([]Invitation, error) {
 		}
 	}
 	return out, nil
-}
-
-// RailInvitations are the open invitations the section's rail offers, answered under the collection route; nil for none.
-func (p *Provider) RailInvitations(ctx *web.Context, collection string) (*RailInvitations, error) {
-	items, err := p.Invitations(ctx.Logins())
-	if err != nil || len(items) == 0 {
-		return nil, err
-	}
-	return &RailInvitations{Collection: collection, Items: items}, nil
 }
 
 // Held reads a path on this alborz as the store holds it: the collection, and the home it is reached through.

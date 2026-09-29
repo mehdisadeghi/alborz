@@ -16,7 +16,6 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/memo"
 	"git.mehdix.org/alborz/pim/store"
-	"git.mehdix.org/alborz/web"
 )
 
 // Kind tells a CalDAV provider from a CardDAV one.
@@ -405,61 +404,10 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 	return path, nil
 }
 
-// placeHost is the host a reader knows a source by; alborz knows its own from -public-url, else from the request.
-func placeHost(ctx *web.Context, src Source) string {
-	if src.ID != SourceHere {
-		return src.URL.Host
-	}
-	_, host, _ := strings.Cut(ctx.Origin(), "://")
-	return host
-}
-
-// PlaceLabel says what a place is rather than where: a host name alone tells the reader nothing.
-func PlaceLabel(ctx *web.Context, id, host string) string {
-	label := ctx.T("place." + id)
-	if host == "" {
-		return label
-	}
-	return label + " · " + host
-}
-
 // Group is one account's collections, for a form's destination.
 type Group struct {
 	Account     string
 	Collections []Collection
-}
-
-// Places are where a new collection can go, grouped by account.
-func (p *Provider) Places(ctx *web.Context) []Group {
-	var groups []Group
-	for _, s := range ctx.Logins() {
-		var places []Collection
-		for _, src := range p.Sources(ctx.Request().Context(), s) {
-			places = append(places, Collection{Path: src.ID, Name: PlaceLabel(ctx, src.ID, placeHost(ctx, src))})
-		}
-		groups = append(groups, Group{Account: s.Username(), Collections: places})
-	}
-	return groups
-}
-
-// ReadPlace is the form's chosen place, else the account's reachable default, its first source, or Alborz.
-func (p *Provider) ReadPlace(ctx *web.Context, account string) (string, string) {
-	// Account and place are two fields; one holding both read as servers with accounts mixed through.
-	if chosen := ctx.FormValue("account"); chosen != "" && ctx.LoginFor(chosen) != nil {
-		account = chosen
-	}
-	if place := ctx.FormValue("place"); place != "" {
-		return account, place
-	}
-	// The account in view is in force; otherwise the session's first would be preselected.
-	if scoped := ctx.URLAccount(); scoped != "" {
-		account = scoped
-	}
-	s := ctx.LoginFor(account)
-	if s == nil {
-		return account, SourceHere
-	}
-	return account, p.DefaultPlace(ctx.Request().Context(), s)
 }
 
 // DefaultPlace is where the account's new collections go unless the reader picks another.
@@ -536,16 +484,6 @@ func (p *Provider) Refresh(ctx context.Context, logins []*alborz.Login) {
 	}
 }
 
-// HandleRefresh asks every signed-in account's server again and lands on list, a route.
-func (p *Provider) HandleRefresh(list string) func(*web.Context) error {
-	return func(ctx *web.Context) error {
-		p.Refresh(ctx.Request().Context(), ctx.Logins())
-		// The list itself is what was asked for.
-		ctx.Quiet()
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(list)))
-	}
-}
-
 // Warm fetches an account's first pages behind a sign-in so they open from the mirror, within WarmBudget.
 func (p *Provider) Warm(s *alborz.Login, fetch func(context.Context) error) {
 	if p.mirror == nil {
@@ -558,16 +496,6 @@ func (p *Provider) Warm(s *alborz.Login, fetch func(context.Context) error) {
 			p.log.Printf("%s: warm %s: %v", p.Kind.Name, s.Username(), err)
 		}
 	}()
-}
-
-// Guarded sends an account with none of the kind to create its first, at the route create, instead of failing.
-func (p *Provider) Guarded(none error, create string, h func(*web.Context) error) func(*web.Context) error {
-	return func(ctx *web.Context) error {
-		if err := h(ctx); !errors.Is(err, none) {
-			return err
-		}
-		return ctx.Redirect(http.StatusFound, ctx.URL(create))
-	}
 }
 
 // Close waits for the mirror's syncs and closes its file.

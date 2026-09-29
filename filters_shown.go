@@ -71,11 +71,6 @@ func (ctx *Context) PageHref(n int) string {
 	return u.Path + "?" + u.RawQuery
 }
 
-// QueryValues returns the request's query.
-func (ctx *Context) QueryValues() url.Values {
-	return ctx.Request().URL.Query()
-}
-
 // FlagColors names the colours the flag bits address, indexed by their value.
 var FlagColors = [7]string{"red", "orange", "yellow", "green", "blue", "purple", "grey"}
 

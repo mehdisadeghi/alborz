@@ -43,7 +43,7 @@ type Mirror struct {
 	wire wire
 	poll time.Duration
 
-	// saving orders a sync's result against own writes and sign-outs made while it ran.
+	// saving orders a sync's result against own writes and deletes made while it ran.
 	saving  sync.Mutex
 	mu      sync.Mutex
 	readers map[string]*reader
@@ -454,15 +454,25 @@ func (m *Mirror) drop(u, coll string) error {
 	})
 }
 
-// Forget drops everything kept for an account: signing out ends the mirror's authority to keep it.
-func (m *Mirror) Forget(username string) error {
+// Forget stops keeping a signed-out account in step; its sealed copy stays for its return.
+func (m *Mirror) Forget(username string) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	delete(m.readers, hashed(username))
+	m.mu.Unlock()
+}
+
+// Delete drops everything kept for an account.
+func (m *Mirror) Delete(username string) error {
 	if m == nil {
 		return nil
 	}
-	return m.forget(hashed(username))
+	return m.delete(hashed(username))
 }
 
-func (m *Mirror) forget(u string) error {
+func (m *Mirror) delete(u string) error {
 	m.saving.Lock()
 	defer m.saving.Unlock()
 	m.mu.Lock()

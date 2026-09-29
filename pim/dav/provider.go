@@ -119,11 +119,15 @@ func NewProvider(srv *alborz.Server, kept *store.Store, kind Kind) (*Provider, e
 		p.debug = srv.Logger()
 	}
 	srv.OnAccountGone = append(srv.OnAccountGone, func(username string) {
-		if err := p.mirror.Forget(username); err != nil {
-			srv.Logger().Printf("%s: forget %s: %v", kind.Name, username, err)
-		}
+		p.mirror.Forget(username)
 		p.collections.Forget(username)
 		p.troubles.Delete(username)
+	})
+	// A copy is keyed by its collection's path, which the new servers may share with the old.
+	srv.OnServersChanged = append(srv.OnServersChanged, func(username string) {
+		if err := p.mirror.Delete(username); err != nil {
+			srv.Logger().Printf("%s: delete %s: %v", kind.Name, username, err)
+		}
 	})
 	srv.OnClose = append(srv.OnClose, p.Close)
 

@@ -100,9 +100,17 @@ func viewText(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.E
 		}
 		body = strings.NewReader(Unflow(string(raw), strings.EqualFold(params["delsp"], "yes")))
 	}
-	scanner := bufio.NewScanner(body)
-	for scanner.Scan() {
-		l := scanner.Text()
+	// No line limit: some mail never breaks its lines.
+	lines := bufio.NewReader(body)
+	for {
+		l, err := lines.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return View{}, fmt.Errorf("failed to read part body: %v", err)
+		}
+		if l == "" && err == io.EOF {
+			break
+		}
+		l = strings.TrimSuffix(strings.TrimSuffix(l, "\n"), "\r")
 		if strings.TrimSpace(l) == "" {
 			flush()
 			tokens = append(tokens, "\n")
@@ -149,9 +157,6 @@ func viewText(ctx *alborz.Context, msg *IMAPMessage, path []int, part *message.E
 		para = append(para, "\n")
 	}
 	flush()
-	if err := scanner.Err(); err != nil {
-		return View{}, fmt.Errorf("failed to read part body: %v", err)
-	}
 
 	data := textRenderData{Tokens: tokens}
 	for _, image := range msg.ShownImages(path) {

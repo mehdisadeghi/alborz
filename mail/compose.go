@@ -178,6 +178,23 @@ func attachMessages(ctx *alborz.Context, msg *OutgoingMessage, paths []messagePa
 	return nil
 }
 
+// The form shows only names; the send fetches the messages.
+func attachedNames(ctx *alborz.Context, msg *OutgoingMessage, paths []messagePath) error {
+	for _, p := range paths {
+		var env *imap.Envelope
+		err := ctx.DoIMAP(func(c *imapclient.Client) error {
+			var err error
+			env, err = fetchEnvelope(c, p.Mailbox, p.Uid)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		msg.Attachments = append(msg.Attachments, &messageAttachment{Path: p, Name: attachmentName(env.Subject)})
+	}
+	return nil
+}
+
 type composeOptions struct {
 	Draft   *messagePath
 	Forward *messagePath
@@ -724,7 +741,7 @@ func (p *plugin) handleReply(ctx *alborz.Context) error {
 	return p.handleCompose(ctx, &msg, &composeOptions{InReplyTo: &inReplyToPath})
 }
 
-// A bare link names no part and a multipart root is not text, so the text part shown is fetched instead.
+// A bare link names no part, so the text part shown is fetched instead.
 func quotablePart(ctx *alborz.Context, path messagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
 	var msg *IMAPMessage
 	var part *message.Entity
@@ -735,26 +752,21 @@ func quotablePart(ctx *alborz.Context, path messagePath, partPath []int) (*IMAPM
 			return err
 		})
 	}
+	if len(partPath) == 0 {
+		if err := fetch(nil); err != nil {
+			return nil, nil, "", err
+		}
+		text := msg.TextPart()
+		if text == nil {
+			return nil, nil, "", echo.NewHTTPError(http.StatusBadRequest,
+				fmt.Errorf("message has no text part to quote"))
+		}
+		partPath = text.Path
+	}
 	if err := fetch(partPath); err != nil {
 		return nil, nil, "", err
 	}
 	mimeType, _, err := part.Header.ContentType()
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("failed to parse part Content-Type: %v", err)
-	}
-	if len(partPath) > 0 || !strings.HasPrefix(mimeType, "multipart/") {
-		return msg, part, mimeType, nil
-	}
-
-	text := msg.TextPart()
-	if text == nil {
-		return nil, nil, "", echo.NewHTTPError(http.StatusBadRequest,
-			fmt.Errorf("message has no text part to quote"))
-	}
-	if err := fetch(text.Path); err != nil {
-		return nil, nil, "", err
-	}
-	mimeType, _, err = part.Header.ContentType()
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("failed to parse part Content-Type: %v", err)
 	}
@@ -999,7 +1011,7 @@ func (p *plugin) handleForwardAttached(ctx *alborz.Context) error {
 	}
 	var msg OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		if err := attachMessages(ctx, &msg, paths); err != nil {
+		if err := attachedNames(ctx, &msg, paths); err != nil {
 			return err
 		}
 		msg.MessageID = newMessageID()

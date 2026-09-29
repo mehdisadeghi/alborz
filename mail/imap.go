@@ -1728,23 +1728,14 @@ func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, part
 	return messagePart(msgs[0], mboxName, uid, partPath)
 }
 
-// The message's header comes too, for what a part's does not carry, like List-Post.
+// The message's header comes too, for what a part's does not carry, like
+// List-Post. Without a part it comes alone, as the bare envelope shows no body.
 func partFetchOptions(partPath []int, peek bool) *imap.FetchOptions {
-	headerItem := &imap.FetchItemBodySection{Peek: true, Part: partPath}
+	sections := []*imap.FetchItemBodySection{{Peek: peek, Specifier: imap.PartSpecifierHeader}}
 	if len(partPath) > 0 {
-		headerItem.Specifier = imap.PartSpecifierMIME
-	} else {
-		headerItem.Specifier = imap.PartSpecifierHeader
-	}
-	bodyItem := &imap.FetchItemBodySection{Peek: peek, Part: partPath}
-	if len(partPath) > 0 {
-		bodyItem.Specifier = imap.PartSpecifierNone
-	} else {
-		bodyItem.Specifier = imap.PartSpecifierText
-	}
-	sections := []*imap.FetchItemBodySection{headerItem, bodyItem}
-	if len(partPath) > 0 {
-		sections = append(sections, &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader})
+		sections = append(sections,
+			&imap.FetchItemBodySection{Peek: true, Part: partPath, Specifier: imap.PartSpecifierMIME},
+			&imap.FetchItemBodySection{Peek: peek, Part: partPath})
 	}
 	return &imap.FetchOptions{
 		Envelope:      true,
@@ -1757,30 +1748,27 @@ func partFetchOptions(partPath []int, peek bool) *imap.FetchOptions {
 }
 
 func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
-	options := partFetchOptions(partPath, true)
-	headerItem, bodyItem := options.BodySection[0], options.BodySection[1]
-	var rootHeaderItem *imap.FetchItemBodySection
-	if len(partPath) > 0 {
-		rootHeaderItem = options.BodySection[2]
+	sections := partFetchOptions(partPath, true).BodySection
+	rootHeaderBuf := msg.FindBodySection(sections[0])
+	if rootHeaderBuf == nil {
+		return nil, nil, fmt.Errorf("server didn't return the header")
+	}
+	out := &IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
+	rootHeader, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(rootHeaderBuf)))
+	if err == nil {
+		out.setListHeaders(rootHeader)
+	}
+	if len(partPath) == 0 {
+		// No body is read, so an encoding the header names cannot fail.
+		part, _ := message.New(message.Header{Header: rootHeader}, bytes.NewReader(nil))
+		return out, part, nil
 	}
 
-	headerBuf := msg.FindBodySection(headerItem)
-	bodyBuf := msg.FindBodySection(bodyItem)
+	headerBuf, bodyBuf := msg.FindBodySection(sections[1]), msg.FindBodySection(sections[2])
 	if headerBuf == nil || bodyBuf == nil {
 		// A part path the message lacks comes back without the sections.
-		if len(partPath) > 0 {
-			return nil, nil, alborz.NotFound("notfound.part", fmt.Sprint(uid))
-		}
-		return nil, nil, fmt.Errorf("server didn't return header and body")
+		return nil, nil, alborz.NotFound("notfound.part", fmt.Sprint(uid))
 	}
-
-	rootHeaderBuf := headerBuf
-	if rootHeaderItem != nil {
-		if buf := msg.FindBodySection(rootHeaderItem); buf != nil {
-			rootHeaderBuf = buf
-		}
-	}
-
 	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(headerBuf)))
 	if err != nil {
 		// Show a broken header's part raw rather than fail the page.
@@ -1793,11 +1781,6 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 	part, err := message.New(message.Header{Header: h}, bytes.NewReader(bodyBuf))
 	if err != nil && !message.IsUnknownCharset(err) {
 		return nil, nil, fmt.Errorf("failed to create message reader: %v", err)
-	}
-
-	out := &IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
-	if rh, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(rootHeaderBuf))); err == nil {
-		out.setListHeaders(rh)
 	}
 	return out, part, nil
 }

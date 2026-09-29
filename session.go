@@ -260,9 +260,7 @@ const sessionDuration = loginDuration
 
 func newSession() (*Session, string) {
 	b := make([]byte, 64)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
+	rand.Read(b)
 	now := time.Now()
 	secret := base64.RawURLEncoding.EncodeToString(b[32:])
 	s := &Session{

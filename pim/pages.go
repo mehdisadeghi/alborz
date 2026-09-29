@@ -302,10 +302,14 @@ func (pg Page) HandleImport(p *dav.Provider) func(*alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := pg.importRaw(ctx, collPath, raw); err != nil {
+		back := ctx.NextOr(ctx.AccountPath(pg.Base + url.PathEscape(collPath)))
+		if err := pg.importRaw(ctx, collPath, raw); errors.Is(err, dav.ErrScaleUnlisted) {
+			ctx.Notify(Refused(ctx, err))
+			return ctx.Redirect(http.StatusFound, back)
+		} else if err != nil {
 			return err
 		}
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.Base+url.PathEscape(collPath))))
+		return ctx.Redirect(http.StatusFound, back)
 	}
 }
 
@@ -432,7 +436,7 @@ func (pg Page) importMany(ctx *alborz.Context, list string, files []importFile, 
 		}
 		n, err := pg.Import(ctx, target, f.raw)
 		if err != nil {
-			return fmt.Errorf("%s: %v", f.name, err)
+			return fmt.Errorf("%s: %w", f.name, err)
 		}
 		objects += n
 	}
@@ -474,6 +478,14 @@ func (pg Page) importRaw(ctx *alborz.Context, collPath string, raw []byte) error
 	}
 	pg.Forget(ctx.Login.Username())
 	return nil
+}
+
+// importRefusal says why an import stopped: alborz's own refusal in the reader's words, any other as it came.
+func importRefusal(ctx *alborz.Context, err error) string {
+	if errors.Is(err, dav.ErrScaleUnlisted) {
+		return Refusal(ctx, err)
+	}
+	return err.Error()
 }
 
 // ImportData is the section's import page.
@@ -586,14 +598,14 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		}
 		if place, isNew := strings.CutPrefix(collPath, newPrefix); isNew || len(files) > 1 {
 			if err := pg.importMany(ctx, list, files, place, isNew, collPath); err != nil {
-				data.Refused(err.Error())
+				data.Refused(importRefusal(ctx, err))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
 			return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 		}
 		if err := pg.importRaw(ctx, collPath, raw); err != nil {
 			// A file that is not what it claims answers on the form, where another can be picked.
-			data.Refused(err.Error())
+			data.Refused(importRefusal(ctx, err))
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 		}
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))

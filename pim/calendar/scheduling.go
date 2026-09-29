@@ -388,18 +388,21 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 	} else if err != nil {
 		return err
 	}
+	to := "/calendar"
+	if account != "" {
+		to += "?account=" + alborz.QueryValue(account)
+	}
 	n, err := importObjects(ctx.Request().Context(), client, calendarPath, raw)
-	if err != nil {
+	if errors.Is(err, dav.ErrScaleUnlisted) {
+		ctx.Notify(pim.Refused(ctx, err))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
+	} else if err != nil {
 		return err
 	}
 	if n == 0 {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeWarning, Text: ctx.T("import.nothing")})
 	} else {
 		ctx.PutNotice(ctx.Tf("import.ics", n))
-	}
-	to := "/calendar"
-	if account != "" {
-		to += "?account=" + alborz.QueryValue(account)
 	}
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }
@@ -425,10 +428,10 @@ func importObjects(ctx context.Context, client *caldav.Client, calendarPath stri
 				// A server refusing a UID it holds under another path: find the object and write there.
 				existing := objectPathByUID(ctx, client, calendarPath, uid)
 				if existing == "" {
-					return n, fmt.Errorf("failed to write %s: %v", uid, err)
+					return n, fmt.Errorf("failed to write %s: %w", uid, err)
 				}
 				if _, err := client.PutCalendarObject(ctx, existing, obj, nil); err != nil {
-					return n, fmt.Errorf("failed to write %s: %v", uid, err)
+					return n, fmt.Errorf("failed to write %s: %w", uid, err)
 				}
 			}
 			n++

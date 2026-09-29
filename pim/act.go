@@ -2,11 +2,13 @@ package pim
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim/dav"
 	"github.com/labstack/echo/v4"
 )
 
@@ -86,7 +88,15 @@ func Delete[C files](ctx *alborz.Context, ref Ref[C]) error {
 
 // Refused carries a server's refusal back to the page a button returns to.
 func Refused(ctx *alborz.Context, err error) alborz.Notice {
-	return alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.SaveRefusal(err)}
+	return alborz.Notice{Kind: alborz.NoticeFailed, Text: Refusal(ctx, err)}
+}
+
+// Refusal is a refused write in the reader's words; one alborz makes itself says why, any other quotes the server.
+func Refusal(ctx *alborz.Context, err error) string {
+	if errors.Is(err, dav.ErrScaleUnlisted) {
+		return ctx.T("form.repeatscale")
+	}
+	return ctx.SaveRefusal(err)
 }
 
 // StarRenderData is one object's star.

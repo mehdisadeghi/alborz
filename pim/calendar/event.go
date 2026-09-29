@@ -385,6 +385,11 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 			} else if err != nil {
 				return err
 			}
+			for _, g := range groups {
+				if g.Account == to.Account {
+					currentCalendar = dav.At(g.Collections, to.Path)
+				}
+			}
 		}
 
 		allDay := ctx.FormValue("allday") != ""
@@ -465,7 +470,7 @@ func (p *plugin) updateEvent(ctx *alborz.Context) error {
 		ensureTimezones(cal, start)
 		co, err = putObject(ctx, to, newID.String()+".ics", co, cal)
 		if err != nil {
-			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
+			return reject(pim.Refusal(ctx, err))
 		}
 
 		// Saved before sending: a failed send must not lose the event.

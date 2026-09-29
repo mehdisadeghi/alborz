@@ -3,7 +3,9 @@ package alborz_test
 import (
 	"html"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"net/mail"
 	"net/url"
 	"strings"
@@ -160,6 +162,108 @@ func TestACalendarOnAlborzDrawsItsSolarHijriRule(t *testing.T) {
 	if page := get(t, c, base+"/calendar?month=1406-02"); strings.Contains(page, "Nowruz") {
 		t.Errorf("a month without an instance shows the event")
 	}
+}
+
+// A client must not store RSCALE where the server does not advertise the set;
+// an empty set lets any scale be tried (RFC 7529 10).
+func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
+	const refused = "does not say it can keep a repeat"
+	personal := davHome + "personal/"
+	nowruz := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:nowruz\r\n" +
+		"DTSTAMP:20260101T080000Z\r\nDTSTART:20260321T100000Z\r\nDTEND:20260321T110000Z\r\n" +
+		"RRULE:RSCALE=PERSIAN;FREQ=YEARLY;SKIP=BACKWARD\r\nSUMMARY:Nowruz\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	start := func(t *testing.T, rscales []string) (string, *http.Client, *davStub) {
+		stub := &davStub{cals: map[string]davCal{personal: {"Personal", "#3366cc"}},
+			refuse: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{},
+			rscales: rscales, objects: map[string]string{personal + "nowruz.ics": nowruz}}
+		srv := httptest.NewServer(stub)
+		t.Cleanup(srv.Close)
+		base := serveAlborz(t, []string{
+			"test.local=imap+insecure://" + startIMAP(t),
+			"test.local=caldav+insecure://" + strings.TrimPrefix(srv.URL, "http://") + "/dav",
+		}, false)
+		return base, login(t, base), stub
+	}
+	create := func(t *testing.T, base string, c *http.Client) (*http.Response, string) {
+		postForm(t, c, base+"/settings", url.Values{"calendar": {"shcal"}, "secondary": {""}})
+		return postBody(t, c, base+"/calendar/create", url.Values{"summary": {"Nowruz"}, "calendar": {smokeUser + "|" + personal},
+			"start": {"1405/01/01 10:00"}, "start-calendar": {"shcal"},
+			"end": {"1405/01/01 11:00"}, "end-calendar": {"shcal"}, "repeat": {"yearly"}}, nil)
+	}
+
+	t.Run("the form, without the set", func(t *testing.T) {
+		base, c, stub := start(t, nil)
+		resp, body := create(t, base, c)
+		if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(html.UnescapeString(body), refused) {
+			t.Fatalf("saving answered %s, want the form refused with the reason", resp.Status)
+		}
+		if len(stub.puts) != 0 {
+			t.Errorf("the refused event was written to the server")
+		}
+	})
+	t.Run("the form, with an empty set", func(t *testing.T) {
+		base, c, stub := start(t, []string{})
+		resp, _ := create(t, base, c)
+		if len(stub.puts) != 1 || !strings.Contains(stub.puts[0], "RSCALE=PERSIAN") {
+			t.Fatalf("saving answered %s and wrote %q, want the Solar Hijri rule", resp.Status, stub.puts)
+		}
+	})
+	t.Run("an import", func(t *testing.T) {
+		base, c, stub := start(t, nil)
+		var body strings.Builder
+		w := multipart.NewWriter(&body)
+		w.WriteField("collection", smokeUser+"|"+personal)
+		part, err := w.CreateFormFile("file", "nowruz.ics")
+		if err != nil {
+			t.Fatal(err)
+		}
+		io.WriteString(part, strings.Replace(nowruz, "UID:nowruz", "UID:imported", 1))
+		w.Close()
+		resp, err := c.Post(base+"/calendar/import", w.FormDataContentType(), strings.NewReader(body.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		page, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(html.UnescapeString(string(page)), refused) {
+			t.Fatalf("the import answered %s, want the form refused with the reason", resp.Status)
+		}
+		if len(stub.puts) != 0 {
+			t.Errorf("the refused import was written to the server")
+		}
+	})
+	t.Run("a task move", func(t *testing.T) {
+		base, c, stub := start(t, nil)
+		form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {"Chores"}, "color": {"#22aa55"}, "holds": {"tasks"}}
+		if resp := postForm(t, c, base+"/calendars/create", form); resp.StatusCode != http.StatusFound {
+			t.Fatalf("creating the task list answered %s", resp.Status)
+		}
+		task := "/alborz/dav/calendars/" + smokeUser + "/chores/water.ics"
+		put(t, base, task, "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VTODO\r\n"+
+			"UID:water\r\nDTSTAMP:20260101T080000Z\r\nDTSTART:20260321T100000Z\r\n"+
+			"RRULE:RSCALE=PERSIAN;FREQ=YEARLY;SKIP=BACKWARD\r\nSUMMARY:Water the ferns\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
+		if resp := postForm(t, c, base+"/tasks/move", url.Values{"paths": {smokeUser + "|" + task}, "to": {smokeUser + "|" + personal}}); resp.StatusCode != http.StatusFound {
+			t.Fatalf("the move answered %s", resp.Status)
+		}
+		if page := get(t, c, base+"/tasks"); !strings.Contains(html.UnescapeString(page), refused) {
+			t.Errorf("the refused move left no reason on the page")
+		}
+		if len(stub.puts) != 0 {
+			t.Errorf("the refused task was written to the server")
+		}
+		if resp, _ := dav(t, http.MethodGet, base+task, nil, ""); resp.StatusCode != http.StatusOK {
+			t.Errorf("the task left its list: %s", resp.Status)
+		}
+	})
+	t.Run("an edit of a rule already there", func(t *testing.T) {
+		base, c, stub := start(t, nil)
+		form := url.Values{"summary": {"Nowruz at home"}, "start": {"2026-03-21T10:00"}, "start-calendar": {"gregorian"},
+			"end": {"2026-03-21T11:00"}, "end-calendar": {"gregorian"}, "repeat": {"custom"}}
+		resp := postForm(t, c, base+"/calendar/"+url.PathEscape(personal+"nowruz.ics")+"/update", form)
+		if resp.StatusCode != http.StatusFound || len(stub.puts) != 1 || !strings.Contains(stub.puts[0], "RSCALE=PERSIAN") {
+			t.Fatalf("the edit answered %s and wrote %q, want the rule kept", resp.Status, stub.puts)
+		}
+	})
 }
 
 // An EXDATE takes one year out of a Solar Hijri rule, in the store's query and on the page.

@@ -352,6 +352,7 @@
 "calendar.repeat.until" = "%s bis"
 "calendar.repeatuntil" = "Letzter Tag der Wiederholung"
 "form.repeatuntil" = "Die Wiederholung endet vor dem Beginn, oder ihr letzter Tag ist kein Datum."
+"form.repeatscale" = "Der Server dieses Kalenders gibt nicht an, dass er eine Wiederholung in einem anderen Kalendersystem speichern kann, etwa nach Monaten und Jahren des Sonnen-Hidschri. Wählen Sie einen Kalender auf Alborz oder eine andere Wiederholung."
 "calendar.time" = "Zeit"
 "calendar.event" = "Termin"
 "calendar.edittitle" = "Termin bearbeiten"

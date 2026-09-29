@@ -457,6 +457,7 @@
 "calendar.repeat.until" = "%s until"
 "calendar.repeatuntil" = "Last day of the repeat"
 "form.repeatuntil" = "The repeat ends before the event starts, or its last day is not a date."
+"form.repeatscale" = "This calendar's server does not say it can keep a repeat counted in another calendar system, such as Solar Hijri months and years. Choose a calendar on Alborz, or another repeat."
 "calendar.time" = "Time"
 "calendar.event" = "Event"
 "settings.langauto" = "Auto"

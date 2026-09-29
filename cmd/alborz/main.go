@@ -32,24 +32,26 @@ import (
 )
 
 // serveProfiles listens only locally: a heap profile holds passwords and mail.
-func serveProfiles(addr string) {
+func serveProfiles(addr string) error {
 	host, _, err := net.SplitHostPort(addr)
-	if ip := net.ParseIP(host); err != nil || (host != "localhost" && (ip == nil || !ip.IsLoopback())) {
-		fmt.Fprintf(os.Stderr, "alborz: -pprof %s: the profiles hold the process's memory; give a loopback address such as localhost:6060\n", addr)
-		os.Exit(2)
+	if err != nil {
+		return err
+	}
+	if ip, err := netip.ParseAddr(host); host != "localhost" && (err != nil || !ip.IsLoopback()) {
+		return fmt.Errorf("the profiles hold the process's memory; give a loopback address such as localhost:6060")
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			fmt.Fprintf(os.Stderr, "alborz: -pprof %s: %v\n", addr, err)
-			os.Exit(1)
-		}
-	}()
+	server := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	go server.Serve(ln)
+	return nil
 }
 
 func main() {
@@ -96,7 +98,10 @@ upstreams are given as repeated domain=url arguments, e.g.:
 
 	flag.Parse()
 	if profileAddr != "" {
-		serveProfiles(profileAddr)
+		if err := serveProfiles(profileAddr); err != nil {
+			fmt.Fprintf(flag.CommandLine.Output(), "alborz: -pprof %s: %v\n", profileAddr, err)
+			os.Exit(2)
+		}
 	}
 
 	for _, p := range strings.FieldsFunc(proxies, func(r rune) bool { return r == ',' || r == ' ' }) {

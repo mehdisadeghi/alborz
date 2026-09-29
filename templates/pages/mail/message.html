@@ -372,6 +372,14 @@
             </td>
           </tr>
           {{end}}
+          {{- if .View}}{{with .Message.CutPart .Part.Path}}
+          <tr class="part-cut">
+            <td colspan="2" dir="auto">
+              {{$.T "message.cut"}}
+              <a hx-boost="false" href="{{$.Message.URL}}/raw?part={{.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.downloadpart"}}</a>
+            </td>
+          </tr>
+          {{end}}{{end}}
         </tbody>
         </table>
         {{ $attachments := .Message.Attachments }}

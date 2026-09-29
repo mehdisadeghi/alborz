@@ -160,11 +160,11 @@ func verdictOver(t *testing.T, raw string) Verification {
 	if _, err := c.Select("INBOX", nil).Wait(); err != nil {
 		t.Fatal(err)
 	}
-	msgs, err := c.Fetch(imap.UIDSetNum(1), partFetchOptions(nil, true)).Collect()
+	msgs, err := c.Fetch(imap.UIDSetNum(1), partFetchOptions(nil, true, false)).Collect()
 	if err != nil || len(msgs) != 1 {
 		t.Fatalf("fetch: %v", err)
 	}
-	msg, _, err := messagePart(msgs[0], "INBOX", 1, nil)
+	msg, _, err := messagePart(msgs[0], "INBOX", 1, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

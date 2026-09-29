@@ -1264,11 +1264,13 @@ main.message .shown-image {
 .message-grid.unified > .message-list-flags {
   padding-inline-start: 0.5rem;
 }
-main.message .remote-content {
+main.message .remote-content,
+main.message .part-cut {
   background: var(--bg-green);
 }
 
-main.message .remote-content td {
+main.message .remote-content td,
+main.message .part-cut td {
   color: var(--fg);
 }
 

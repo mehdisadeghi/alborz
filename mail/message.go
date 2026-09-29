@@ -275,7 +275,7 @@ func joinedHTML(c *imapclient.Client, mboxName string, uid imap.UID, pieces []IM
 		if p.MIMEType == "text/html" {
 			options.BodySection = append(options.BodySection,
 				&imap.FetchItemBodySection{Peek: true, Part: p.Path, Specifier: imap.PartSpecifierMIME},
-				&imap.FetchItemBodySection{Peek: true, Part: p.Path})
+				&imap.FetchItemBodySection{Peek: true, Part: p.Path, Partial: &imap.SectionPartial{Size: partReadMax}})
 		}
 	}
 	msgs, err := c.Fetch(imap.UIDSetNum(uid), options).Collect()
@@ -300,8 +300,8 @@ func joinedHTML(c *imapclient.Client, mboxName string, uid imap.UID, pieces []IM
 		if err != nil {
 			return nil, err
 		}
-		piece, err := message.New(message.Header{Header: h}, bytes.NewReader(bodyBuf))
-		if err != nil && !message.IsUnknownCharset(err) {
+		piece, err := readPart(h, bodyBuf, p.Cut())
+		if err != nil {
 			return nil, err
 		}
 		if _, err := io.Copy(&joined, piece.Body); err != nil {
@@ -464,7 +464,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 		sb.active = sb.statuses[mboxName]
 	}
 	if held != nil {
-		if msg, part, err = messagePart(held.buf, mboxName, uid, partPath); err != nil {
+		if msg, part, err = messagePart(held.buf, mboxName, uid, partPath, true); err != nil {
 			return err
 		}
 		permanentFlags = held.permanent
@@ -490,7 +490,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 				}
 			}
 			if held == nil {
-				if msg, part, err = getMessagePart(c, mboxName, uid, partPath); err != nil {
+				if msg, part, err = getShownPart(c, mboxName, uid, partPath); err != nil {
 					return err
 				}
 				// The cached listings are marked read rather than fetched again for one flag.
@@ -724,7 +724,7 @@ func CalendarPartAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*ical.C
 // CalendarPart reads the scheduling message of a fetched mail; nil for none.
 func CalendarPart(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
 	part := invitationPart(msg)
-	if part == nil {
+	if part == nil || part.Cut() {
 		return nil, "", nil
 	}
 	var cal *ical.Calendar
@@ -732,14 +732,14 @@ func CalendarPart(ctx *alborz.Context, msg *IMAPMessage, mboxName string, uid im
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
-		msgs, err := c.Fetch(imap.UIDSetNum(uid), partFetchOptions(part.Path, true)).Collect()
+		msgs, err := c.Fetch(imap.UIDSetNum(uid), partFetchOptions(part.Path, true, true)).Collect()
 		if err != nil {
 			return err
 		}
 		if len(msgs) == 0 {
 			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
 		}
-		_, entity, err := messagePart(msgs[0], mboxName, uid, part.Path)
+		_, entity, err := messagePart(msgs[0], mboxName, uid, part.Path, true)
 		if err != nil {
 			return err
 		}

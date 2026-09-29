@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
@@ -542,6 +543,7 @@ func newIMAPPartNode(msg *IMAPMessage, path []int, part imap.BodyStructure) *IMA
 	if singlePart, ok := part.(*imap.BodyStructureSinglePart); ok {
 		node.Filename = singlePart.Filename()
 		node.Size = decodedSize(singlePart)
+		node.octets = singlePart.Size
 		if inner := singlePart.MessageRFC822; node.Filename == "" && inner != nil && inner.Envelope != nil {
 			node.Filename = attachmentName(inner.Envelope.Subject)
 		}
@@ -810,6 +812,8 @@ type IMAPPartNode struct {
 	Children []IMAPPartNode
 	Message  *IMAPMessage
 	Size     uint32
+	// octets is the size as transferred, which a partial fetch counts.
+	octets uint32
 }
 
 func (node IMAPPartNode) PathString() string {
@@ -1714,28 +1718,50 @@ func uidNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.SearchCr
 	return imap.UID(below.Max), imap.UID(above.Min), int(below.Count) + 1, total, nil
 }
 
+// A page reads no more of a part than this, to show it or to parse it: text
+// past it is not read on screen, and the whole part is a download away.
+const partReadMax = 2 << 20
+
+// Cut reports whether a page reads only the start of the part.
+func (node IMAPPartNode) Cut() bool {
+	return node.octets > partReadMax
+}
+
 func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
+	return fetchMessagePart(conn, mboxName, uid, partPath, false)
+}
+
+// getShownPart is the part as a page reads it, cut at partReadMax.
+func getShownPart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
+	return fetchMessagePart(conn, mboxName, uid, partPath, true)
+}
+
+func fetchMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int, cut bool) (*IMAPMessage, *message.Entity, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, nil, err
 	}
 	// TODO: stream attachments
-	msgs, err := conn.Fetch(imap.UIDSetNum(uid), partFetchOptions(partPath, false)).Collect()
+	msgs, err := conn.Fetch(imap.UIDSetNum(uid), partFetchOptions(partPath, false, cut)).Collect()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
 	} else if len(msgs) == 0 {
 		return nil, nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
 	}
-	return messagePart(msgs[0], mboxName, uid, partPath)
+	return messagePart(msgs[0], mboxName, uid, partPath, cut)
 }
 
 // The message's header comes too, for what a part's does not carry, like
 // List-Post. Without a part it comes alone, as the bare envelope shows no body.
-func partFetchOptions(partPath []int, peek bool) *imap.FetchOptions {
+// With cut, no more than partReadMax bytes of the body cross the wire.
+func partFetchOptions(partPath []int, peek, cut bool) *imap.FetchOptions {
 	sections := []*imap.FetchItemBodySection{{Peek: peek, Specifier: imap.PartSpecifierHeader}}
 	if len(partPath) > 0 {
+		body := &imap.FetchItemBodySection{Peek: peek, Part: partPath}
+		if cut {
+			body.Partial = &imap.SectionPartial{Size: partReadMax}
+		}
 		sections = append(sections,
-			&imap.FetchItemBodySection{Peek: true, Part: partPath, Specifier: imap.PartSpecifierMIME},
-			&imap.FetchItemBodySection{Peek: peek, Part: partPath})
+			&imap.FetchItemBodySection{Peek: true, Part: partPath, Specifier: imap.PartSpecifierMIME}, body)
 	}
 	return &imap.FetchOptions{
 		Envelope:      true,
@@ -1747,8 +1773,8 @@ func partFetchOptions(partPath []int, peek bool) *imap.FetchOptions {
 	}
 }
 
-func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
-	sections := partFetchOptions(partPath, true).BodySection
+func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.UID, partPath []int, cut bool) (*IMAPMessage, *message.Entity, error) {
+	sections := partFetchOptions(partPath, true, cut).BodySection
 	rootHeaderBuf := msg.FindBodySection(sections[0])
 	if rootHeaderBuf == nil {
 		return nil, nil, fmt.Errorf("server didn't return the header")
@@ -1777,12 +1803,63 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 		bodyBuf = append(headerBuf, bodyBuf...)
 	}
 
-	// An unknown charset leaves the part as its bytes, as the download does.
-	part, err := message.New(message.Header{Header: h}, bytes.NewReader(bodyBuf))
-	if err != nil && !message.IsUnknownCharset(err) {
+	node := out.PartByPath(partPath)
+	part, err := readPart(h, bodyBuf, cut && node != nil && node.Cut())
+	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create message reader: %v", err)
 	}
 	return out, part, nil
+}
+
+// readPart reads a part's body under its header. A cut body ends at its last
+// line break, where a transfer encoding can end, and on a whole rune.
+func readPart(h textproto.Header, body []byte, cut bool) (*message.Entity, error) {
+	if i := bytes.LastIndexByte(body, '\n'); cut && i >= 0 {
+		body = body[:i+1]
+	}
+	// An unknown charset leaves the part as its bytes, as the download does.
+	part, err := message.New(message.Header{Header: h}, bytes.NewReader(body))
+	if err != nil && !message.IsUnknownCharset(err) {
+		return nil, err
+	}
+	if cut {
+		text, err := io.ReadAll(part.Body)
+		if err != nil {
+			return nil, err
+		}
+		part.Body = bytes.NewReader(wholeRunes(text))
+	}
+	return part, nil
+}
+
+// wholeRunes drops the start of a rune the cut split.
+func wholeRunes(b []byte) []byte {
+	for i := len(b) - 1; i >= 0 && i > len(b)-utf8.UTFMax; i-- {
+		if utf8.RuneStart(b[i]) {
+			if !utf8.FullRune(b[i:]) {
+				return b[:i]
+			}
+			break
+		}
+	}
+	return b
+}
+
+// CutPart is the part a page shows only the start of, among those it reads for path; nil when none.
+func (msg *IMAPMessage) CutPart(path []int) *IMAPPartNode {
+	pieces := msg.HTMLPieces(path)
+	if pieces == nil {
+		if node := msg.PartByPath(path); node != nil && node.Cut() {
+			return node
+		}
+		return nil
+	}
+	for _, p := range pieces {
+		if p.MIMEType == "text/html" && p.Cut() {
+			return &p
+		}
+	}
+	return nil
 }
 
 // streamSection hands use the literal of the one section options asks for,

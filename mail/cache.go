@@ -50,7 +50,7 @@ func listingView(folder, query, view, sortKey, sortDir string) string {
 	if query == "" && view == "" && sortKey == "" && sortDir == "" {
 		return folder
 	}
-	return strings.Join([]string{folder, query, view, sortKey, sortDir}, listingSep)
+	return strings.Join([]string{folder, query, view, sortKey, sortDir, queryDays(query, time.Now())}, listingSep)
 }
 
 // Merged entries are keyed by role with a "#" prefix.
@@ -118,7 +118,7 @@ func orderView(folder, query, view, sortKey string, reverse bool) string {
 	if sortKey == "" {
 		sortKey = "date"
 	}
-	return strings.Join([]string{folder, query, view, sortKey, map[bool]string{true: "desc", false: "asc"}[reverse]}, listingSep)
+	return strings.Join([]string{folder, query, view, sortKey, map[bool]string{true: "desc", false: "asc"}[reverse], queryDays(query, time.Now())}, listingSep)
 }
 
 // order returns a view's order, asking the server once until its folder changes.

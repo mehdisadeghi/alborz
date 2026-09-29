@@ -116,3 +116,19 @@ func TestListingTakesFlagsInPlace(t *testing.T) {
 		t.Errorf("a stale page took flags by sequence number: %v", e.msgs[0].Flags)
 	}
 }
+
+// A list held for newer_than: is another list once midnight has passed; one
+// with no date, or a fixed one, is the same list.
+func TestARelativeDateListTurnsWithTheDay(t *testing.T) {
+	evening := time.Date(2026, 9, 29, 23, 0, 0, 0, time.Local)
+	morning := evening.Add(2 * time.Hour)
+	if a, b := queryDays("newer_than:2d", evening), queryDays("newer_than:2d", morning); a == "" || a == b {
+		t.Errorf("newer_than:2d resolves to %q in the evening and %q the next morning", a, b)
+	}
+	if a, b := queryDays("after:2026/01/01", evening), queryDays("after:2026/01/01", morning); a == "" || a != b {
+		t.Errorf("a fixed date resolves to %q and then %q", a, b)
+	}
+	if got := queryDays("subject:plans", evening); got != "" {
+		t.Errorf("a query without a date names the days %q", got)
+	}
+}

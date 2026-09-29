@@ -2,6 +2,7 @@ package mail
 
 import (
 	"slices"
+	"strings"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -48,6 +49,34 @@ func listCriteria(c *imapclient.Client, settings *Settings, query, view string) 
 		criteria = search.And(criteria, search.Parse(query).Criteria(SearchesIndex(c, settings), time.Now()))
 	}
 	return criteria
+}
+
+// queryDays names the days a query's dates resolve to at now: newer_than:
+// moves with the day, so a list held since yesterday is another list.
+func queryDays(query string, now time.Time) string {
+	if query == "" {
+		return ""
+	}
+	var days []string
+	var walk func(c *imap.SearchCriteria)
+	walk = func(c *imap.SearchCriteria) {
+		for _, t := range []time.Time{c.Since, c.Before, c.SentSince, c.SentBefore} {
+			if !t.IsZero() {
+				days = append(days, t.Format(time.DateOnly))
+			}
+		}
+		for i := range c.Not {
+			walk(&c.Not[i])
+		}
+		for i := range c.Or {
+			walk(&c.Or[i][0])
+			walk(&c.Or[i][1])
+		}
+	}
+	if c := search.Parse(query).Criteria(false, now); c != nil {
+		walk(c)
+	}
+	return strings.Join(days, ",")
 }
 
 // SearchesIndex says whether bare terms reach the whole message on this

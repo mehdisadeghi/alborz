@@ -3,6 +3,7 @@ package filters
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -13,13 +14,13 @@ import (
 // Nothing marks these scripts as ours; the main script only includes them and the reader's own.
 const (
 	mainScript     = "alborz"
-	rulesScript    = "alborz-rules"
-	forwardScript  = "alborz-forward"
-	vacationScript = "alborz-vacation"
+	RulesScript    = "alborz-rules"
+	ForwardScript  = "alborz-forward"
+	VacationScript = "alborz-vacation"
 )
 
 // Rules run first, since one may stop delivery of what the rest would forward or answer.
-var composed = []string{rulesScript, forwardScript, vacationScript}
+var composed = []string{RulesScript, ForwardScript, VacationScript}
 
 func isComposed(name string) bool {
 	for _, c := range composed {
@@ -31,7 +32,7 @@ func isComposed(name string) bool {
 }
 
 // ManageSieve keeps no script version, so a save compares content to notice edits made elsewhere.
-func fingerprint(content string) string {
+func Fingerprint(content string) string {
 	sum := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(sum[:])
 }
@@ -148,7 +149,8 @@ func scriptIfAny(c alborz.SieveClient, name string) (content string, exists bool
 	return "", false, nil
 }
 
-func hasExtension(c alborz.SieveClient, name string) bool {
+// HasExtension reports whether the server lets a script use the extension.
+func HasExtension(c alborz.SieveClient, name string) bool {
 	for _, e := range c.Extensions() {
 		if strings.EqualFold(e, name) {
 			return true
@@ -157,18 +159,35 @@ func hasExtension(c alborz.SieveClient, name string) bool {
 	return false
 }
 
-type errChanged struct{}
+var (
+	// ErrChanged is a script that differs from the one the page loaded.
+	ErrChanged = errors.New("script changed on the server")
+	// ErrByHand is a composed script in a shape the page did not write.
+	ErrByHand = errors.New("script edited by hand")
+)
 
-func (errChanged) Error() string { return "script changed on the server" }
+// SaveScript writes a script; with loaded, only over the content it was loaded with.
+func SaveScript(c alborz.SieveClient, name, content, loaded string) (warnings string, err error) {
+	if loaded != "" {
+		current, err := c.GetScript(name)
+		if err != nil {
+			return "", err
+		}
+		if Fingerprint(current) != loaded {
+			return "", ErrChanged
+		}
+	}
+	return c.PutScript(name, content)
+}
 
-// rewrite fails with errChanged if the script differs from loaded; an empty result deletes it.
+// rewrite fails with ErrChanged if the script differs from loaded; an empty result deletes it.
 func rewrite(c alborz.SieveClient, name, loaded string, change func(current string, exists bool) (string, error)) error {
 	current, exists, err := scriptIfAny(c, name)
 	if err != nil {
 		return err
 	}
-	if exists != (loaded != "") || (exists && fingerprint(current) != loaded) {
-		return errChanged{}
+	if exists != (loaded != "") || (exists && Fingerprint(current) != loaded) {
+		return ErrChanged
 	}
 	next, err := change(current, exists)
 	if err != nil {

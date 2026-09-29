@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -36,8 +37,8 @@ type Condition struct {
 }
 
 var (
-	conditionFields  = []string{"from", "to", "cc", "subject", "list"}
-	conditionMatches = []string{"is", "contains", "domain"}
+	ConditionFields  = []string{"from", "to", "cc", "subject", "list"}
+	ConditionMatches = []string{"is", "contains", "domain"}
 	headerOf         = map[string]string{"from": "from", "to": "to", "cc": "cc", "subject": "subject", "list": "list-id"}
 )
 
@@ -204,6 +205,59 @@ func readRules(content string) (rules []Rule, ok bool) {
 	return rules, rulesScriptFor(rules) == content
 }
 
+// LoadRules reads the rules script; byHand says it is in a shape the page did not write.
+func LoadRules(c alborz.SieveClient) (rules []Rule, loaded string, byHand bool, err error) {
+	content, exists, err := scriptIfAny(c, RulesScript)
+	if err != nil || !exists {
+		return nil, "", false, err
+	}
+	rules, ok := readRules(content)
+	return rules, Fingerprint(content), !ok, nil
+}
+
+// ChangeRules rewrites the rules as loaded; ErrByHand leaves a script the page did not write alone.
+func ChangeRules(c alborz.SieveClient, loaded string, change func([]Rule) []Rule) error {
+	return rewrite(c, RulesScript, loaded, func(current string, exists bool) (string, error) {
+		var rules []Rule
+		if exists {
+			var ok bool
+			if rules, ok = readRules(current); !ok {
+				return "", ErrByHand
+			}
+		}
+		return rulesScriptFor(change(rules)), nil
+	})
+}
+
+// Block files mail from an address, or a whole domain, as junk, once.
+// No editing session precedes it, and appending cannot undo anyone's edit.
+func Block(c alborz.SieveClient, value string, domain bool, junk string) error {
+	current, exists, err := scriptIfAny(c, RulesScript)
+	if err != nil {
+		return err
+	}
+	loaded := ""
+	if exists {
+		loaded = Fingerprint(current)
+	}
+	return rewrite(c, RulesScript, loaded, func(current string, exists bool) (string, error) {
+		var rules []Rule
+		if exists {
+			var ok bool
+			if rules, ok = readRules(current); !ok {
+				return "", ErrByHand
+			}
+		}
+		block := blockRule(value, domain, junk)
+		for _, r := range rules {
+			if len(r.Conditions) == 1 && r.Conditions[0] == block.Conditions[0] {
+				return rulesScriptFor(rules), nil
+			}
+		}
+		return rulesScriptFor(append(rules, block)), nil
+	})
+}
+
 type RulesRenderData struct {
 	web.BaseRenderData
 	Rules []Rule
@@ -227,25 +281,20 @@ type RulesRenderData struct {
 func rulesData(ctx *web.Context) (*RulesRenderData, error) {
 	data := &RulesRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.rules")),
-		Script:         rulesScript,
+		Script:         RulesScript,
 		Index:          -1,
-		Fields:         conditionFields,
-		Matches:        conditionMatches,
+		Fields:         ConditionFields,
+		Matches:        ConditionMatches,
 		Rail:           rail(ctx),
 	}
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
-		data.CanFile = hasExtension(c, "fileinto")
-		data.CanFlag = hasExtension(c, "imap4flags")
-		data.CanCopy = hasExtension(c, "copy")
-		data.CanWire = hasExtension(c, "include")
-		content, exists, err := scriptIfAny(c, rulesScript)
-		if err != nil || !exists {
-			return err
-		}
-		data.Loaded = fingerprint(content)
-		rules, ok := readRules(content)
-		data.Rules, data.ByHand = rules, !ok
-		return nil
+		data.CanFile = HasExtension(c, "fileinto")
+		data.CanFlag = HasExtension(c, "imap4flags")
+		data.CanCopy = HasExtension(c, "copy")
+		data.CanWire = HasExtension(c, "include")
+		var err error
+		data.Rules, data.Loaded, data.ByHand, err = LoadRules(c)
+		return err
 	})
 	return data, err
 }
@@ -318,7 +367,7 @@ func ruleFromForm(ctx *web.Context) (Rule, error) {
 			continue
 		}
 		c := Condition{Field: params["field"][i], Match: params["match"][i], Value: value}
-		if headerOf[c.Field] == "" || (c.Match != "is" && c.Match != "contains") {
+		if !slices.Contains(ConditionFields, c.Field) || (c.Match != "is" && c.Match != "contains") {
 			return r, errors.New(ctx.T("filters.badcondition"))
 		}
 		r.Conditions = append(r.Conditions, c)
@@ -387,32 +436,8 @@ func handleBlock(ctx *web.Context) error {
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("filters.nojunk")})
 		return ctx.Redirect(http.StatusFound, ctx.FormValue("next"))
 	}
-	// No editing session preceded this, and appending cannot undo anyone's edit.
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
-		current, exists, err := scriptIfAny(c, rulesScript)
-		if err != nil {
-			return err
-		}
-		loaded := ""
-		if exists {
-			loaded = fingerprint(current)
-		}
-		return rewrite(c, rulesScript, loaded, func(current string, exists bool) (string, error) {
-			var rules []Rule
-			if exists {
-				var ok bool
-				if rules, ok = readRules(current); !ok {
-					return "", errors.New(ctx.T("filters.byhand"))
-				}
-			}
-			block := blockRule(value, domain, junk)
-			for _, r := range rules {
-				if len(r.Conditions) == 1 && r.Conditions[0] == block.Conditions[0] {
-					return rulesScriptFor(rules), nil
-				}
-			}
-			return rulesScriptFor(append(rules, block)), nil
-		})
+		return Block(c, value, domain, junk)
 	})
 	return answer(ctx, err, "filters.rules", fmt.Sprintf(ctx.T("notice.blocked"), value))
 }
@@ -466,17 +491,7 @@ func handleRuleToggle(ctx *web.Context) error {
 }
 
 func changeRules(ctx *web.Context, change func([]Rule) []Rule) error {
-	loaded := ctx.FormValue("loaded")
 	return ctx.DoSieve(func(c alborz.SieveClient) error {
-		return rewrite(c, rulesScript, loaded, func(current string, exists bool) (string, error) {
-			var rules []Rule
-			if exists {
-				var ok bool
-				if rules, ok = readRules(current); !ok {
-					return "", errors.New(ctx.T("filters.byhand"))
-				}
-			}
-			return rulesScriptFor(change(rules)), nil
-		})
+		return ChangeRules(c, ctx.FormValue("loaded"), change)
 	})
 }

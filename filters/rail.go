@@ -18,8 +18,8 @@ func rail(ctx *web.Context) map[string][]web.RailRow {
 		q := "?account=" + web.QueryValue(account.Username)
 		var include, vacation bool
 		err := login.DoSieve(func(c alborz.SieveClient) error {
-			include = hasExtension(c, "include")
-			vacation = hasExtension(c, "vacation")
+			include = HasExtension(c, "include")
+			vacation = HasExtension(c, "vacation")
 			return nil
 		})
 		if err != nil {

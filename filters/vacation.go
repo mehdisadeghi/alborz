@@ -8,6 +8,7 @@ import (
 	"mime/quotedprintable"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -22,12 +23,14 @@ import (
 
 // Days between two automatic answers to one sender (RFC 5230 4.1).
 const (
-	vacationDaysDefault = 7
-	vacationDaysMax     = 30
-	repliesKey          = "sieve.replies"
-	maxReplies          = 20
-	dateLayout          = "2006-01-02"
+	ReplyDays    = 7
+	MaxReplyDays = 30
+	repliesKey   = "sieve.replies"
+	MaxReplies   = 20
 )
+
+// ErrTooManyReplies refuses a reply past MaxReplies.
+var ErrTooManyReplies = errors.New("too many replies")
 
 // Reply is one automatic answer; Addresses limit it (RFC 5230 4.5), From and Until bound its days (RFC 5260).
 type Reply struct {
@@ -45,12 +48,83 @@ type Replies struct {
 	Items []Reply
 }
 
-func loadReplies(ctx context.Context, s alborz.Store) (*Replies, error) {
+func LoadReplies(ctx context.Context, s alborz.Store) (*Replies, error) {
 	r := &Replies{}
 	if err := s.Get(ctx, repliesKey, r); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
 	return r, nil
+}
+
+func SaveReplies(ctx context.Context, s alborz.Store, r *Replies) error {
+	return s.Put(ctx, repliesKey, r)
+}
+
+// Put replaces the reply at index, or adds one when index holds none; made is where it was added, else -1.
+func (r *Replies) Put(index int, v Reply) (made int, err error) {
+	switch {
+	case index >= 0 && index < len(r.Items):
+		r.Items[index] = v
+		return -1, nil
+	case len(r.Items) >= MaxReplies:
+		return -1, ErrTooManyReplies
+	}
+	r.Items = append(r.Items, v)
+	return len(r.Items) - 1, nil
+}
+
+// ActiveReply is the index in items of the reply the script sends, -1 when none;
+// byHand says the script is in a shape the page did not write.
+func ActiveReply(c alborz.SieveClient, items []Reply) (active int, loaded string, byHand bool, err error) {
+	content, exists, err := scriptIfAny(c, VacationScript)
+	if err != nil || !exists {
+		return -1, "", false, err
+	}
+	_, ok := readReply(content)
+	return activeIndex(items, content), Fingerprint(content), !ok, nil
+}
+
+// ReplaceReply sends v at once if the reply at index in was is the one being sent.
+func ReplaceReply(c alborz.SieveClient, loaded string, was []Reply, index int, v Reply) (sent bool, err error) {
+	err = rewrite(c, VacationScript, loaded, func(current string, exists bool) (string, error) {
+		if activeIndex(was, current) != index {
+			return current, nil
+		}
+		sent = true
+		return v.script(), nil
+	})
+	return sent, err
+}
+
+// WithdrawReply stops gone if it is the reply being sent.
+func WithdrawReply(c alborz.SieveClient, loaded string, gone Reply) error {
+	return rewrite(c, VacationScript, loaded, func(current string, exists bool) (string, error) {
+		if sent, ok := readReply(current); ok && sent.script() == gone.script() {
+			return "", nil
+		}
+		return current, nil
+	})
+}
+
+// ActivateReply sends v; ErrByHand leaves a script the page did not write alone.
+func ActivateReply(c alborz.SieveClient, loaded string, v Reply) error {
+	return send(c, loaded, v.script())
+}
+
+// DeactivateReply stops the reply being sent, which deletes the script.
+func DeactivateReply(c alborz.SieveClient, loaded string) error {
+	return send(c, loaded, "")
+}
+
+func send(c alborz.SieveClient, loaded, script string) error {
+	return rewrite(c, VacationScript, loaded, func(current string, exists bool) (string, error) {
+		if exists {
+			if _, ok := readReply(current); !ok {
+				return "", ErrByHand
+			}
+		}
+		return script, nil
+	})
 }
 
 func (v Reply) dated() bool { return v.From != "" || v.Until != "" }
@@ -200,7 +274,7 @@ type RepliesRenderData struct {
 }
 
 func repliesData(ctx *web.Context) (*RepliesRenderData, error) {
-	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
+	replies, err := LoadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
@@ -213,22 +287,17 @@ func repliesData(ctx *web.Context) (*RepliesRenderData, error) {
 		Replies:        replies.Items,
 		Active:         -1,
 		Index:          -1,
-		Script:         vacationScript,
+		Script:         VacationScript,
 		Identities:     append([]string{ctx.Login.Username()}, settings.Identities...),
 		Rail:           rail(ctx),
 	}
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
-		data.CanReply = hasExtension(c, "vacation")
-		data.CanDate = hasExtension(c, "date") && hasExtension(c, "relational")
-		data.CanWire = hasExtension(c, "include")
-		content, exists, err := scriptIfAny(c, vacationScript)
-		if err != nil || !exists {
-			return err
-		}
-		data.Loaded = fingerprint(content)
-		_, ok := readReply(content)
-		data.ByHand, data.Active = !ok, activeIndex(replies.Items, content)
-		return nil
+		data.CanReply = HasExtension(c, "vacation")
+		data.CanDate = HasExtension(c, "date") && HasExtension(c, "relational")
+		data.CanWire = HasExtension(c, "include")
+		var err error
+		data.Active, data.Loaded, data.ByHand, err = ActiveReply(c, replies.Items)
+		return err
 	})
 	return data, err
 }
@@ -246,7 +315,7 @@ func handleReplyForm(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	data.Editing = Reply{Days: vacationDaysDefault, Addresses: data.Identities}
+	data.Editing = Reply{Days: ReplyDays, Addresses: data.Identities}
 	if at := ctx.Param("index"); at != "" {
 		i, err := strconv.Atoi(at)
 		if err != nil || i < 0 || i >= len(data.Replies) {
@@ -275,8 +344,8 @@ func replyFromForm(ctx *web.Context) (Reply, error) {
 		return v, errors.New(ctx.T("form.nameneeded"))
 	case v.Text == "":
 		return v, errors.New(ctx.T("filters.replyneeded"))
-	case err != nil || v.Days < 1 || v.Days > vacationDaysMax:
-		return v, fmt.Errorf(ctx.T("filters.baddays"), vacationDaysMax)
+	case err != nil || v.Days < 1 || v.Days > MaxReplyDays:
+		return v, fmt.Errorf(ctx.T("filters.baddays"), MaxReplyDays)
 	}
 	for name, bound := range map[string]*string{"from": &v.From, "until": &v.Until} {
 		field := ctx.DateField(name)
@@ -287,7 +356,7 @@ func replyFromForm(ctx *web.Context) (Reply, error) {
 		if err != nil {
 			return v, errors.New(ctx.T("filters.baddate"))
 		}
-		*bound = day.Format(dateLayout)
+		*bound = day.Format(time.DateOnly)
 	}
 	if v.From != "" && v.Until != "" && v.Until < v.From {
 		return v, errors.New(ctx.T("filters.baddate"))
@@ -314,21 +383,16 @@ func handleReplySave(ctx *web.Context) error {
 	if err != nil {
 		return refuse(err.Error())
 	}
-	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
+	replies, err := LoadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
-	was := append([]Reply(nil), replies.Items...)
-	made := -1
-	if index >= 0 && index < len(replies.Items) {
-		replies.Items[index] = v
-	} else if len(replies.Items) >= maxReplies {
-		return answer(ctx, fmt.Errorf(ctx.T("filters.toomanyreplies"), maxReplies), "filters.autoreply", "")
-	} else {
-		made = len(replies.Items)
-		replies.Items = append(replies.Items, v)
+	was := slices.Clone(replies.Items)
+	made, err := replies.Put(index, v)
+	if errors.Is(err, ErrTooManyReplies) {
+		return answer(ctx, fmt.Errorf(ctx.T("filters.toomanyreplies"), MaxReplies), "filters.autoreply", "")
 	}
-	if err := ctx.Login.Store().Put(ctx.Request().Context(), repliesKey, replies); err != nil {
+	if err := SaveReplies(ctx.Request().Context(), ctx.Login.Store(), replies); err != nil {
 		return refuse(ctx.SaveRefusal(err))
 	}
 	// An edit to the reply being sent goes out at once; any other waits for activating.
@@ -336,13 +400,9 @@ func handleReplySave(ctx *web.Context) error {
 	loaded := ctx.FormValue("loaded")
 	if loaded != "" && index >= 0 {
 		err = ctx.DoSieve(func(c alborz.SieveClient) error {
-			return rewrite(c, vacationScript, loaded, func(current string, exists bool) (string, error) {
-				if activeIndex(was, current) != index {
-					return current, nil
-				}
-				sent = true
-				return v.script(), nil
-			})
+			var err error
+			sent, err = ReplaceReply(c, loaded, was, index, v)
+			return err
 		})
 	}
 	if err == nil && made >= 0 {
@@ -376,7 +436,7 @@ func handleReplyDelete(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
+	replies, err := LoadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -385,7 +445,7 @@ func handleReplyDelete(ctx *web.Context) error {
 	}
 	gone := replies.Items[index]
 	replies.Items = append(replies.Items[:index], replies.Items[index+1:]...)
-	if err := ctx.Login.Store().Put(ctx.Request().Context(), repliesKey, replies); err != nil {
+	if err := SaveReplies(ctx.Request().Context(), ctx.Login.Store(), replies); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL("filters.autoreply")))
 	}
@@ -393,12 +453,7 @@ func handleReplyDelete(ctx *web.Context) error {
 	loaded := ctx.FormValue("loaded")
 	if loaded != "" {
 		err = ctx.DoSieve(func(c alborz.SieveClient) error {
-			return rewrite(c, vacationScript, loaded, func(current string, exists bool) (string, error) {
-				if sent, ok := readReply(current); ok && sent.script() == gone.script() {
-					return "", nil
-				}
-				return current, nil
-			})
+			return WithdrawReply(c, loaded, gone)
 		})
 	}
 	return answer(ctx, err, "filters.autoreply", ctx.T("notice.autoreplydeleted"))
@@ -406,29 +461,24 @@ func handleReplyDelete(ctx *web.Context) error {
 
 // An empty index composes no reply, which deletes the script.
 func handleReplyActivate(ctx *web.Context) error {
-	replies, err := loadReplies(ctx.Request().Context(), ctx.Login.Store())
+	replies, err := LoadReplies(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
-	next := ""
-	saved := ctx.T("notice.autoreplyoff")
-	if at := ctx.FormValue("index"); at != "" {
-		index, err := strconv.Atoi(at)
-		if err != nil || index < 0 || index >= len(replies.Items) {
-			return alborz.NotFound("notfound.reply")
-		}
-		next, saved = replies.Items[index].script(), ctx.T("notice.autoreplyon")
-	}
 	loaded := ctx.FormValue("loaded")
-	err = ctx.DoSieve(func(c alborz.SieveClient) error {
-		return rewrite(c, vacationScript, loaded, func(current string, exists bool) (string, error) {
-			if exists {
-				if _, ok := readReply(current); !ok {
-					return "", errors.New(ctx.T("filters.byhand"))
-				}
-			}
-			return next, nil
+	at := ctx.FormValue("index")
+	if at == "" {
+		err = ctx.DoSieve(func(c alborz.SieveClient) error {
+			return DeactivateReply(c, loaded)
 		})
+		return answer(ctx, err, "filters.autoreply", ctx.T("notice.autoreplyoff"))
+	}
+	index, err := strconv.Atoi(at)
+	if err != nil || index < 0 || index >= len(replies.Items) {
+		return alborz.NotFound("notfound.reply")
+	}
+	err = ctx.DoSieve(func(c alborz.SieveClient) error {
+		return ActivateReply(c, loaded, replies.Items[index])
 	})
-	return answer(ctx, err, "filters.autoreply", saved)
+	return answer(ctx, err, "filters.autoreply", ctx.T("notice.autoreplyon"))
 }

@@ -78,6 +78,31 @@ func readForwarding(content string) (f Forwarding, ok bool) {
 	return f, f.script() == content
 }
 
+// LoadForwarding reads the forwarding script; without one, forwarding keeps a copy where the server can.
+func LoadForwarding(c alborz.SieveClient) (f Forwarding, loaded string, byHand bool, err error) {
+	content, exists, err := scriptIfAny(c, ForwardScript)
+	if err != nil || !exists {
+		return Forwarding{Keep: HasExtension(c, "copy")}, "", false, err
+	}
+	f, ok := readForwarding(content)
+	return f, Fingerprint(content), !ok, nil
+}
+
+// ChangeForwarding rewrites the forwarding as loaded; ErrByHand leaves a script the page did not write alone.
+func ChangeForwarding(c alborz.SieveClient, loaded string, change func(f *Forwarding)) error {
+	return rewrite(c, ForwardScript, loaded, func(current string, exists bool) (string, error) {
+		f := Forwarding{Keep: HasExtension(c, "copy")}
+		if exists {
+			var ok bool
+			if f, ok = readForwarding(current); !ok {
+				return "", ErrByHand
+			}
+		}
+		change(&f)
+		return f.script(), nil
+	})
+}
+
 type ForwardingRenderData struct {
 	web.BaseRenderData
 	Forwarding
@@ -95,21 +120,15 @@ type ForwardingRenderData struct {
 func forwardingData(ctx *web.Context) (*ForwardingRenderData, error) {
 	data := &ForwardingRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.forwarding")),
-		Script:         forwardScript,
+		Script:         ForwardScript,
 		Rail:           rail(ctx),
 	}
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
-		data.CanKeep = hasExtension(c, "copy")
-		data.CanWire = hasExtension(c, "include")
-		content, exists, err := scriptIfAny(c, forwardScript)
-		if err != nil || !exists {
-			data.Keep = data.CanKeep
-			return err
-		}
-		data.Loaded = fingerprint(content)
-		f, ok := readForwarding(content)
-		data.Forwarding, data.ByHand = f, !ok
-		return nil
+		data.CanKeep = HasExtension(c, "copy")
+		data.CanWire = HasExtension(c, "include")
+		var err error
+		data.Forwarding, data.Loaded, data.ByHand, err = LoadForwarding(c)
+		return err
 	})
 	return data, err
 }
@@ -131,19 +150,8 @@ func handleForwardingCreate(ctx *web.Context) error {
 }
 
 func changeForwarding(ctx *web.Context, change func(f *Forwarding)) error {
-	loaded := ctx.FormValue("loaded")
 	return ctx.DoSieve(func(c alborz.SieveClient) error {
-		return rewrite(c, forwardScript, loaded, func(current string, exists bool) (string, error) {
-			f := Forwarding{Keep: hasExtension(c, "copy")}
-			if exists {
-				var ok bool
-				if f, ok = readForwarding(current); !ok {
-					return "", errors.New(ctx.T("filters.byhand"))
-				}
-			}
-			change(&f)
-			return f.script(), nil
-		})
+		return ChangeForwarding(c, ctx.FormValue("loaded"), change)
 	})
 }
 
@@ -203,8 +211,10 @@ func handleForwardingKeep(ctx *web.Context) error {
 
 func answer(ctx *web.Context, err error, route, saved string) error {
 	switch {
-	case errors.Is(err, errChanged{}):
+	case errors.Is(err, ErrChanged):
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("filters.changed")})
+	case errors.Is(err, ErrByHand):
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("filters.byhand")})
 	case err != nil:
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: err.Error()})
 	default:

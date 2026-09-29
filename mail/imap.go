@@ -1178,11 +1178,8 @@ func flattenThread(data imapclient.ThreadData, depth int, out []threadRow) []thr
 	return out
 }
 
-// A page of threads, not messages; THREAD has no window, so the whole set is asked.
-func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAlgorithm, criteria *imap.SearchCriteria, page alborz.Page) (msgs []IMAPMessage, totalThreads int, err error) {
-	if err := ensureMailboxSelected(conn, mboxName); err != nil {
-		return nil, 0, err
-	}
+// threadOrder is a conversation view's order; THREAD has no window, so the whole set is asked.
+func threadOrder(conn *imapclient.Client, algorithm imap.ThreadAlgorithm, criteria *imap.SearchCriteria) (messageOrder, error) {
 	if criteria == nil {
 		criteria = &imap.SearchCriteria{}
 	}
@@ -1191,7 +1188,7 @@ func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.Thr
 		SearchCriteria: criteria,
 	}).Wait()
 	if err != nil {
-		return nil, 0, fmt.Errorf("THREAD failed: %v", err)
+		return messageOrder{}, fmt.Errorf("THREAD failed: %v", err)
 	}
 
 	// A thread's age is its newest message, so a long-running one stays on top.
@@ -1204,28 +1201,38 @@ func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.Thr
 	sort.SliceStable(rows, func(i, j int) bool {
 		return newestUID(rows[i]) > newestUID(rows[j])
 	})
-
-	totalThreads = len(rows)
-	from, to := page.Within(totalThreads).Rows(totalThreads)
-
-	var want []threadRow
-	for _, thread := range rows[from:to] {
-		want = append(want, thread...)
+	var o messageOrder
+	for _, thread := range rows {
+		o.starts = append(o.starts, int32(len(o.uids)))
+		for _, r := range thread {
+			o.uids = append(o.uids, r.uid)
+			o.depths = append(o.depths, int32(r.depth))
+		}
 	}
-	if len(want) == 0 {
-		return nil, totalThreads, nil
-	}
+	return o, nil
+}
 
-	uids := make([]imap.UID, len(want))
-	for i, r := range want {
-		uids[i] = r.uid
+// threadPage fetches one page of conversations, not messages, from a held thread order.
+func threadPage(conn *imapclient.Client, mboxName string, o messageOrder, page alborz.Page) ([]IMAPMessage, error) {
+	threads := len(o.starts)
+	from, to := page.Within(threads).Rows(threads)
+	if from == to {
+		return nil, nil
+	}
+	first, last := int(o.starts[from]), len(o.uids)
+	if to < threads {
+		last = int(o.starts[to])
+	}
+	want := make([]threadRow, 0, last-first)
+	for i := first; i < last; i++ {
+		want = append(want, threadRow{uid: o.uids[i], depth: int(o.depths[i])})
 	}
 	header := listHeaderItem()
-	fetched, err := conn.Fetch(imap.UIDSetNum(uids...), listFetchOptions(header)).Collect()
+	fetched, err := conn.Fetch(imap.UIDSetNum(o.uids[first:last]...), listFetchOptions(header)).Collect()
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to fetch thread page: %v", err)
+		return nil, fmt.Errorf("failed to fetch thread page: %v", err)
 	}
-	return threadRows(fetched, want, mboxName, header), totalThreads, nil
+	return threadRows(fetched, want, mboxName, header), nil
 }
 
 // FETCH does not promise the order asked for.
@@ -1399,9 +1406,9 @@ func envelopeName(from []imap.Address) string {
 
 // A full-text index matches addresses inside attached messages; only what the
 // envelope contradicts is dropped, over every answer so totals hold.
-func carried(c *imapclient.Client, q search.Query, answers imap.NumSet) (map[uint32]imap.UID, error) {
+func carried(c *imapclient.Client, q search.Query, answers imap.NumSet) (map[imap.UID]bool, error) {
 	wanted := q.Addresses()
-	kept := map[uint32]imap.UID{}
+	kept := map[imap.UID]bool{}
 	cmd := c.Fetch(answers, &imap.FetchOptions{UID: true, Envelope: true})
 	for msg := cmd.Next(); msg != nil; msg = cmd.Next() {
 		buf, err := msg.Collect()
@@ -1410,7 +1417,7 @@ func carried(c *imapclient.Client, q search.Query, answers imap.NumSet) (map[uin
 			return nil, err
 		}
 		if envelopeCarries(buf.Envelope, wanted) {
-			kept[buf.SeqNum] = buf.UID
+			kept[buf.UID] = true
 		}
 	}
 	return kept, cmd.Close()
@@ -1497,50 +1504,6 @@ var sortKeys = map[string]struct {
 	"size":    {imapclient.SortKeySize, true},
 }
 
-func sortSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, crit imapclient.SortCriterion) ([]uint32, error) {
-	sortOptions := &imapclient.SortOptions{
-		SearchCriteria: criteria,
-		SortCriteria:   []imapclient.SortCriterion{crit},
-	}
-	nums, err := conn.Sort(sortOptions).Wait()
-	if err != nil {
-		return nil, fmt.Errorf("SORT failed: %v", err)
-	}
-	return nums, nil
-}
-
-// SORT has no flag key, so the starred order concatenates two queries.
-func searchSeqNums(conn *imapclient.Client, criteria *imap.SearchCriteria, sort string, reverse bool) ([]uint32, error) {
-	if !conn.Caps().Has(imap.CapSort) {
-		data, err := conn.Search(criteria, nil).Wait()
-		if err != nil {
-			return nil, fmt.Errorf("SEARCH failed: %v", err)
-		}
-		// Without SORT, sequence order is the only date order available.
-		nums := data.AllSeqNums()
-		if reverse {
-			slices.Reverse(nums)
-		}
-		return nums, nil
-	}
-
-	if sort == "starred" {
-		first, second := starredHalves(criteria, reverse)
-		byDate := imapclient.SortCriterion{Key: imapclient.SortKeyDate, Reverse: true}
-		nums, err := sortSeqNums(conn, first, byDate)
-		if err != nil {
-			return nil, err
-		}
-		rest, err := sortSeqNums(conn, second, byDate)
-		if err != nil {
-			return nil, err
-		}
-		return append(nums, rest...), nil
-	}
-
-	return sortSeqNums(conn, criteria, imapclient.SortCriterion{Key: sortKeys[sort].key, Reverse: reverse})
-}
-
 func starredHalves(criteria *imap.SearchCriteria, reverse bool) (first, second *imap.SearchCriteria) {
 	flagged := *criteria
 	flagged.Flag = append(append([]imap.Flag{}, criteria.Flag...), imap.FlagFlagged)
@@ -1577,100 +1540,99 @@ func sortedUIDs(conn *imapclient.Client, criteria *imap.SearchCriteria, sort str
 	return uids, nil
 }
 
+// viewOrder is a view's UIDs in the list's order: SORT's where the server has
+// it, else arrival order. SORT has no flag key, so the starred order joins two.
 // q is the query the criteria came from, empty for a list no query narrowed.
-func searchMessages(conn *imapclient.Client, mboxName string, q search.Query, searchCriteria *imap.SearchCriteria, page alborz.Page, sort string, reverse bool, fields rowFields) (msgs []IMAPMessage, total int, err error) {
-	if err := ensureMailboxSelected(conn, mboxName); err != nil {
-		return nil, 0, err
-	}
-
-	nums, err := searchSeqNums(conn, searchCriteria, sort, reverse)
-	if err != nil {
-		return nil, 0, err
-	}
-	if q.Addressed() && len(nums) > 0 {
-		kept, err := carried(conn, q, imap.SeqSetNum(nums...))
-		if err != nil {
-			return nil, 0, err
-		}
-		nums = slices.DeleteFunc(nums, func(num uint32) bool { _, ok := kept[num]; return !ok })
-	}
-
-	total = len(nums)
-	from, to := page.Within(total).Rows(total)
-	if from == to {
-		return nil, total, nil
-	}
-	nums = nums[from:to]
-
-	indexes := make(map[uint32]int)
-	for i, num := range nums {
-		indexes[num] = i
-	}
-
-	seqSet := imap.SeqSetNum(nums...)
-	header := listHeaderItem()
-	results, err := conn.Fetch(seqSet, fields(header)).Collect()
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
-	}
-
-	msgs = make([]IMAPMessage, len(nums))
-	for _, msg := range results {
-		i, ok := indexes[msg.SeqNum]
-		if !ok {
-			continue
-		}
-		msgs[i] = IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
-		msgs[i].setRowHeaders(msg.FindBodySection(header))
-	}
-
-	return msgs, total, nil
-}
-
-// A zero position means the message is not in the view. Asked in UIDs: a
-// remembered sequence number may predate an expunge.
-func messageNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.SearchCriteria, sortKey string, reverse bool) (newer, older imap.UID, pos, total int, err error) {
-	plain := criteria == nil && sortKey == ""
+func viewOrder(conn *imapclient.Client, q search.Query, criteria *imap.SearchCriteria, sort string, reverse bool) ([]imap.UID, error) {
 	if criteria == nil {
 		criteria = &imap.SearchCriteria{}
 	}
 	var uids []imap.UID
-	if plain || !conn.Caps().Has(imap.CapSort) {
-		// The folder's own order, and any list without SORT, is UID order.
-		descending := plain || reverse
-		if conn.Caps().Has(imap.CapESearch) {
-			return uidNeighbors(conn, uid, criteria, descending)
+	if conn.Caps().Has(imap.CapSort) {
+		var err error
+		if uids, err = sortedUIDs(conn, criteria, sort, reverse); err != nil {
+			return nil, err
 		}
+	} else {
 		data, err := conn.UIDSearch(criteria, nil).Wait()
 		if err != nil {
-			return 0, 0, 0, 0, fmt.Errorf("UID SEARCH failed: %v", err)
+			return nil, fmt.Errorf("UID SEARCH failed: %v", err)
 		}
 		uids = data.AllUIDs()
-		if descending {
+		if reverse {
 			slices.Reverse(uids)
 		}
-	} else if uids, err = sortedUIDs(conn, criteria, sortKey, reverse); err != nil {
-		return 0, 0, 0, 0, err
 	}
+	if !q.Addressed() || len(uids) == 0 {
+		return uids, nil
+	}
+	kept, err := carried(conn, q, imap.UIDSetNum(uids...))
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(uids, func(uid imap.UID) bool { return !kept[uid] }), nil
+}
+
+// orderedPage fetches one page of a view whose order is held.
+func orderedPage(conn *imapclient.Client, mboxName string, uids []imap.UID, page alborz.Page, fields rowFields) ([]IMAPMessage, error) {
+	from, to := page.Within(len(uids)).Rows(len(uids))
+	if from == to {
+		return nil, nil
+	}
+	uids = uids[from:to]
+	header := listHeaderItem()
+	results, err := conn.Fetch(imap.UIDSetNum(uids...), fields(header)).Collect()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch message list: %v", err)
+	}
+	byUID := indexByUID(results)
+	// A message expunged since the order was taken is left out.
+	msgs := make([]IMAPMessage, 0, len(uids))
+	for _, uid := range uids {
+		if msg, ok := byUID[uid]; ok {
+			row := IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
+			row.setRowHeaders(msg.FindBodySection(header))
+			msgs = append(msgs, row)
+		}
+	}
+	return msgs, nil
+}
+
+// placeIn finds a message in a view's order; a zero position means it is not there.
+func placeIn(uids []imap.UID, uid imap.UID) listPlace {
 	i := slices.Index(uids, uid)
 	if i < 0 {
-		return 0, 0, 0, 0, nil
+		return listPlace{}
 	}
+	place := listPlace{position: i + 1, total: len(uids)}
 	if i > 0 {
-		newer = uids[i-1]
+		place.newer = uids[i-1]
 	}
 	if i+1 < len(uids) {
-		older = uids[i+1]
+		place.older = uids[i+1]
 	}
-	return newer, older, i + 1, len(uids), nil
+	return place
+}
+
+// folderNeighbors places a message in its folder's own order, newest first.
+// Asked in UIDs: a remembered sequence number may predate an expunge.
+func folderNeighbors(conn *imapclient.Client, uid imap.UID) (listPlace, error) {
+	if conn.Caps().Has(imap.CapESearch) {
+		return uidNeighbors(conn, uid)
+	}
+	data, err := conn.UIDSearch(&imap.SearchCriteria{}, nil).Wait()
+	if err != nil {
+		return listPlace{}, fmt.Errorf("UID SEARCH failed: %v", err)
+	}
+	uids := data.AllUIDs()
+	slices.Reverse(uids)
+	return placeIn(uids, uid), nil
 }
 
 // Counting either side answers a folder of any size in a few numbers.
-func uidNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.SearchCriteria, descending bool) (newer, older imap.UID, pos, total int, err error) {
+func uidNeighbors(conn *imapclient.Client, uid imap.UID) (listPlace, error) {
 	within := func(r imap.UIDRange) *imap.SearchCriteria {
-		c := *criteria
-		c.UID = append(slices.Clone(criteria.UID), imap.UIDSet{r})
-		return &c
+		return &imap.SearchCriteria{UID: []imap.UIDSet{{r}}}
 	}
 	// A zero Stop is "*", and uid+1:* still holds the highest UID when
 	// that is below uid+1 (RFC 9051 6.4.9).
@@ -1682,29 +1644,26 @@ func uidNeighbors(conn *imapclient.Client, uid imap.UID, criteria *imap.SearchCr
 	}
 	above, err := aboveCmd.Wait()
 	if err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("UID SEARCH failed: %v", err)
+		return listPlace{}, fmt.Errorf("UID SEARCH failed: %v", err)
 	}
 	self, err := selfCmd.Wait()
 	if err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("UID SEARCH failed: %v", err)
+		return listPlace{}, fmt.Errorf("UID SEARCH failed: %v", err)
 	}
 	below := &imap.SearchData{}
 	if belowCmd != nil {
 		if below, err = belowCmd.Wait(); err != nil {
-			return 0, 0, 0, 0, fmt.Errorf("UID SEARCH failed: %v", err)
+			return listPlace{}, fmt.Errorf("UID SEARCH failed: %v", err)
 		}
 	}
 	if self.Count == 0 {
-		return 0, 0, 0, 0, nil
+		return listPlace{}, nil
 	}
 	if imap.UID(above.Min) <= uid {
 		above = &imap.SearchData{}
 	}
-	total = int(above.Count + 1 + below.Count)
-	if descending {
-		return imap.UID(above.Min), imap.UID(below.Max), int(above.Count) + 1, total, nil
-	}
-	return imap.UID(below.Max), imap.UID(above.Min), int(below.Count) + 1, total, nil
+	return listPlace{newer: imap.UID(above.Min), older: imap.UID(below.Max),
+		position: int(above.Count) + 1, total: int(above.Count + 1 + below.Count)}, nil
 }
 
 // A page reads no more of a part than this, to show it or to parse it: text

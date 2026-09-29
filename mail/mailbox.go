@@ -103,7 +103,7 @@ func (p *plugin) handleUnifiedMailbox(ctx *alborz.Context) error {
 			if err != nil || name == "" {
 				return nil, err
 			}
-			return fetchUnifiedAccount(c, user, name, spec, settings, size, fields, cacheable)
+			return p.fetchUnifiedAccount(c, user, name, spec, settings, size, fields, cacheable)
 		}
 		if cacheable {
 			return p.cachedListing(ctx, s, key, size, spec, folder, fetch)
@@ -334,12 +334,12 @@ func unifiedLess(sortKey string, reverse bool) func(a, b IMAPMessage) int {
 	}
 }
 
-func fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listingSpec, settings *Settings, window int, fields rowFields, withSnap bool) (*listingEntry, error) {
+func (p *plugin) fetchUnifiedAccount(c *imapclient.Client, user, folder string, spec listingSpec, settings *Settings, window int, fields rowFields, withSnap bool) (*listingEntry, error) {
 	var snapCmd *imapclient.StatusCommand
 	if withSnap {
 		snapCmd = c.Status(folder, listingStatusOptions(c))
 	}
-	e, err := fetchRows(c, folder, spec, settings, alborz.Page{Size: window}, fields)
+	e, err := p.fetchRows(c, user, folder, spec, settings, alborz.Page{Size: window}, fields)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +394,7 @@ func (p *plugin) handleGetMailbox(ctx *alborz.Context) error {
 	}
 	key = listingPage(key, ask.page.Number, ask.page.Size)
 	fetch := func(c *imapclient.Client) (*listingEntry, error) {
-		return fetchListing(c, ctx.Login.Username(), spec, settings, ask.page)
+		return p.fetchListing(c, ctx.Login.Username(), spec, settings, ask.page)
 	}
 	var e *listingEntry
 	if cacheable {
@@ -412,7 +412,7 @@ func (p *plugin) handleGetMailbox(ctx *alborz.Context) error {
 	if cacheable {
 		login := ctx.Login
 		p.prefetchBodies(login, ctx.Reading().PreferHTML, mboxName, e.validity(), e.msgs)
-		if spec.query == "" && spec.sortKey != threadSort && spec.thread == 0 && page.Window() < e.total {
+		if spec.sortKey != threadSort && spec.thread == 0 && page.Window() < e.total {
 			p.prefetchPage(login, settings, spec, alborz.Page{Number: page.Number + 1, Size: page.Size})
 		}
 	}
@@ -545,12 +545,12 @@ func viewTitle(ctx *alborz.Context, view string) string {
 	return fmt.Sprintf(ctx.T("mailbox.starcolor"), ctx.T("color."+view))
 }
 
-func fetchListing(c *imapclient.Client, user string, spec listingSpec, settings *Settings, page alborz.Page) (*listingEntry, error) {
+func (p *plugin) fetchListing(c *imapclient.Client, user string, spec listingSpec, settings *Settings, page alborz.Page) (*listingEntry, error) {
 	load, err := startSidebar(c, spec.mbox, spec.mbox, settings.Subscriptions)
 	if err != nil {
 		return nil, err
 	}
-	e, err := fetchRows(c, spec.mbox, spec, settings, page, listFetchOptions)
+	e, err := p.fetchRows(c, user, spec.mbox, spec, settings, page, listFetchOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -561,7 +561,7 @@ func fetchListing(c *imapclient.Client, user string, spec listingSpec, settings 
 	return e, nil
 }
 
-func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *Settings, page alborz.Page, fields rowFields) (*listingEntry, error) {
+func (p *plugin) fetchRows(c *imapclient.Client, user, folder string, spec listingSpec, settings *Settings, page alborz.Page, fields rowFields) (*listingEntry, error) {
 	e := &listingEntry{perPage: page.Size, sortSupported: c.Caps().Has(imap.CapSort), threadAlgorithm: ThreadAlgorithm(c)}
 	// Each window is cut under the requested order, so the merge sees the true candidates.
 	sortKey, reverse := spec.sortKey, spec.reverse()
@@ -575,16 +575,33 @@ func fetchRows(c *imapclient.Client, folder string, spec listingSpec, settings *
 		e.total = len(e.msgs)
 	case spec.sortKey == threadSort && e.threadAlgorithm != "":
 		e.headersOnly = spec.query != "" && !SearchesIndex(c, settings)
-		criteria := listCriteria(c, settings, spec.query, spec.view)
-		if criteria == nil {
-			criteria = &imap.SearchCriteria{}
+		if err = ensureMailboxSelected(c, folder); err != nil {
+			return nil, err
 		}
-		e.msgs, e.total, err = threadMessages(c, folder, e.threadAlgorithm, criteria, page)
-	case spec.query != "" || spec.view != "":
+		criteria := listCriteria(c, settings, spec.query, spec.view)
+		var o messageOrder
+		o, err = p.listings.order(user, orderView(folder, spec.query, spec.view, threadSort, true), func() (messageOrder, error) {
+			return threadOrder(c, e.threadAlgorithm, criteria)
+		})
+		if err == nil {
+			e.total = len(o.starts)
+			e.msgs, err = threadPage(c, folder, o, page)
+		}
+	case spec.query != "" || spec.view != "" || spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != ""):
 		e.headersOnly = spec.query != "" && !SearchesIndex(c, settings)
-		e.msgs, e.total, err = searchMessages(c, folder, search.Parse(spec.query), listCriteria(c, settings, spec.query, spec.view), page, sortKey, reverse, fields)
-	case spec.sortKey != "account" && (spec.sortKey != "" || spec.sortDir != "") && e.sortSupported:
-		e.msgs, e.total, err = searchMessages(c, folder, search.Query{}, &imap.SearchCriteria{}, page, sortKey, reverse, fields)
+		if err = ensureMailboxSelected(c, folder); err != nil {
+			return nil, err
+		}
+		criteria := listCriteria(c, settings, spec.query, spec.view)
+		var o messageOrder
+		o, err = p.listings.order(user, orderView(folder, spec.query, spec.view, sortKey, reverse), func() (messageOrder, error) {
+			uids, err := viewOrder(c, search.Parse(spec.query), criteria, sortKey, reverse)
+			return messageOrder{uids: uids}, err
+		})
+		if err == nil {
+			e.total = len(o.uids)
+			e.msgs, err = orderedPage(c, folder, o.uids, page, fields)
+		}
 	default:
 		e.msgs, e.total, err = listMessages(c, folder, page, fields)
 	}

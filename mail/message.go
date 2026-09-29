@@ -498,7 +498,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 				permanentFlags = c.Mailbox().PermanentFlags
 			}
 			if !placed {
-				if place, err = placeInList(ctx, c, settings, mboxName, uid, query, railView); err != nil {
+				if place, err = p.placeInList(ctx, c, settings, mboxName, uid, query, railView); err != nil {
 					return err
 				}
 			}

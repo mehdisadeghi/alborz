@@ -57,7 +57,7 @@ func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingS
 	go func() {
 		defer p.listings.release(s.Username(), key)
 		p.listings.load(context.Background(), s.Username(), key, page.Size, true, readOn(s, alborz.IMAPBackground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
-			return fetchListing(c, s.Username(), spec, settings, page)
+			return p.fetchListing(c, s.Username(), spec, settings, page)
 		}))
 		// Only visited pages get bodies; speculative ones would evict the page in use.
 	}()

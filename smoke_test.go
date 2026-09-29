@@ -538,6 +538,24 @@ func loginAs(t *testing.T, base, account string) *http.Client {
 	return c
 }
 
+// A sign-in goes on to the page that asked for it, and never off the site.
+func TestSignInStaysOnTheSite(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	for next, want := range map[string]string{
+		"/settings":             "/settings",
+		"//evil.example/":       "/mailbox/INBOX",
+		"https://evil.example/": "/mailbox/INBOX",
+		`/\evil`:                "/mailbox/INBOX",
+		"/login":                "/mailbox/INBOX",
+	} {
+		resp := postForm(t, &http.Client{Timeout: 20 * time.Second}, base+"/login",
+			url.Values{"username": {smokeUser}, "password": {smokePass}, "next": {next}})
+		if got := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound || got != want {
+			t.Errorf("next %q answered %s to %q, want %q", next, resp.Status, got, want)
+		}
+	}
+}
+
 // The login must still work after answering the bad query.
 func TestUnknownSearchKeySurvives(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))

@@ -68,16 +68,28 @@ func Sort[T any](ctx *alborz.Context, rows []T, columns []Column[T], tie func(T)
 		s.Params = "&" + alborz.Query(kept)
 		s.Reset = "?" + alborz.Query(kept)
 	}
+	// Each row's values are taken once, not once per comparison.
+	type keyed struct {
+		row        T
+		value, tie string
+	}
 	value := columns[at].Value
-	slices.SortStableFunc(rows, func(a, b T) int {
-		x, y := value(a), value(b)
+	all := make([]keyed, len(rows))
+	for i, row := range rows {
+		all[i] = keyed{row, value(row), tie(row)}
+	}
+	slices.SortStableFunc(all, func(a, b keyed) int {
+		x, y := a.value, b.value
 		if x == y {
-			x, y = tie(a), tie(b)
+			x, y = a.tie, b.tie
 		}
 		if dir == "desc" {
 			x, y = y, x
 		}
 		return strings.Compare(x, y)
 	})
+	for i := range all {
+		rows[i] = all[i].row
+	}
 	return s, nil
 }

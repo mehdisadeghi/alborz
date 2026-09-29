@@ -32,6 +32,9 @@ const BrandName = "Alborz"
 // AppName is the name the machine reads, such as the data and cache directory.
 const AppName = "alborz"
 
+// InstanceHeader carries Server.Instance on every DAV answer, so a server found by discovery can be told from this one.
+const InstanceHeader = "Alborz-Instance"
+
 // Build returns the version the go tool stamped and a short form for the head.
 var Build = sync.OnceValues(func() (full, short string) {
 	info, _ := debug.ReadBuildInfo()
@@ -123,6 +126,9 @@ type Server struct {
 	// Sessions are the browsers signed in.
 	Sessions *Sessions
 
+	// Instance names this alborz to another asking whether a DAV server is it; see InstanceHeader.
+	Instance string
+
 	signInRefused *refusals
 	data          kv.DB
 	// dataPath is where data lives, for its messages.
@@ -213,7 +219,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	}
 	version, _ := Build()
 	s.dataPath = filepath.Join(dataDir, storeFile)
-	if s.data, err = openData(dataDir, version, e.Logger.Printf); err != nil {
+	if s.data, s.Instance, err = openData(dataDir, version, e.Logger.Printf); err != nil {
 		return nil, err
 	}
 	if err := CheckKey(s.data, s.dataPath, options.LoginKey, sessionsOwner+"/", settingsOwner+"/"); err != nil {

@@ -1,6 +1,7 @@
 package alborz
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +24,10 @@ var formats = map[string]int{sessionsOwner: recordsFormat, settingsOwner: record
 const maxOpened = 8
 
 type dataMeta struct {
-	Formats map[string]int
-	Opened  []dataOpened
+	// Instance names the deployment whose file this is; every process opening it is that one alborz.
+	Instance string `json:",omitempty"`
+	Formats  map[string]int
+	Opened   []dataOpened
 }
 
 type dataOpened struct {
@@ -32,23 +35,28 @@ type dataOpened struct {
 	At    time.Time
 }
 
-// openData opens alborz's data file in dir and notes this build as the latest to open it.
-func openData(dir, build string, log func(format string, args ...any)) (kv.DB, error) {
+// openData opens alborz's data file in dir, notes this build as the latest to open it, and names the instance.
+func openData(dir, build string, log func(format string, args ...any)) (kv.DB, string, error) {
 	// The directory is the operator's to make, with the owner and mode they mean.
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		return nil, fmt.Errorf("%s is not there: it holds remembered logins, settings and the "+
+		return nil, "", fmt.Errorf("%s is not there: it holds remembered logins, settings and the "+
 			"calendars and address books kept here; make it, or name another with -data-dir", dir)
 	}
 	path := filepath.Join(dir, storeFile)
 	db, err := bolt.Open(path, openTimeout)
 	switch {
 	case errors.Is(err, kv.ErrLocked):
-		return nil, fmt.Errorf("%s is locked: another alborz is running on this data directory (waited %v); "+
+		return nil, "", fmt.Errorf("%s is locked: another alborz is running on this data directory (waited %v); "+
 			"stop it, or name another with -data-dir", path, openTimeout)
 	case err != nil:
-		return nil, fmt.Errorf("failed to open %s: %w", path, err)
+		return nil, "", fmt.Errorf("failed to open %s: %w", path, err)
 	}
+	var instance string
 	err = updateMeta(db, path, func(meta *dataMeta) {
+		if meta.Instance == "" {
+			meta.Instance = rand.Text()
+		}
+		instance = meta.Instance
 		noteFormats(meta, formats, path, log)
 		meta.Opened = append([]dataOpened{{Build: build, At: time.Now().UTC()}}, meta.Opened...)
 		if len(meta.Opened) > maxOpened {
@@ -57,9 +65,9 @@ func openData(dir, build string, log func(format string, args ...any)) (kv.DB, e
 	})
 	if err != nil {
 		db.Close()
-		return nil, err
+		return nil, "", err
 	}
-	return db, nil
+	return db, instance, nil
 }
 
 // Data is alborz's data file for a feature that keeps keys under owner, in format.

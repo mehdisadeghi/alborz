@@ -116,6 +116,7 @@ func serveOwn(srv *alborz.Server, st *store.Store) echo.MiddlewareFunc {
 			if !strings.HasPrefix(r.URL.Path, store.Prefix+"/") {
 				return next(ectx)
 			}
+			w.Header().Set(alborz.InstanceHeader, srv.Instance)
 			username, password, ok := r.BasicAuth()
 			if ok {
 				err := passwords.authenticate(srv, username, password, ectx.RealIP())

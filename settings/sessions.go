@@ -27,7 +27,7 @@ func handleSessions(ctx *web.Context) error {
 			return err
 		}
 		ctx.PutNotice(ctx.T("notice.signedout"))
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/sessions"))
+		return ctx.Redirect(http.StatusFound, ctx.URL("settings.sessions"))
 	}
 	signed, err := ctx.Server.Sessions.SignedIn(account, ctx.Session().ID)
 	if err != nil {

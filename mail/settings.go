@@ -159,8 +159,8 @@ func SettingsRail(ctx *web.Context) map[string][]web.RailRow {
 	path := ctx.Request().URL.Path
 	// Under no account: what this browser keeps.
 	rows := map[string][]web.RailRow{"": {
-		{Label: ctx.T("settings.general"), Href: "/settings", Active: path == "/settings"},
-		{Label: ctx.T("passkeys.title"), Href: "/settings/passkeys", Active: strings.HasPrefix(path, "/settings/passkeys")},
+		{Label: ctx.T("settings.general"), Href: ctx.Path("settings.profile"), Active: path == ctx.Path("settings.profile")},
+		{Label: ctx.T("passkeys.title"), Href: ctx.Path("settings.passkeys"), Active: strings.HasPrefix(path, ctx.Path("settings.passkeys"))},
 	}}
 	for _, account := range ctx.Accounts() {
 		scoped := ctx.Login != nil && account.Username == ctx.Login.Username()
@@ -168,8 +168,8 @@ func SettingsRail(ctx *web.Context) map[string][]web.RailRow {
 		rows[account.Username] = []web.RailRow{
 			{Label: ctx.T("settings.account"), Href: "/settings/account" + q, Active: scoped && path == "/settings/account"},
 			{Label: ctx.T("settings.signatures"), Href: "/signatures" + q, Active: scoped && strings.HasPrefix(path, "/signatures")},
-			{Label: ctx.T("settings.servers"), Href: "/settings/servers" + q, Active: scoped && strings.HasPrefix(path, "/settings/servers")},
-			{Label: ctx.T("sessions.title"), Href: "/settings/sessions" + q, Active: scoped && path == "/settings/sessions"},
+			{Label: ctx.T("settings.servers"), Href: ctx.Path("settings.servers") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("settings.servers"))},
+			{Label: ctx.T("sessions.title"), Href: ctx.Path("settings.sessions") + q, Active: scoped && path == ctx.Path("settings.sessions")},
 		}
 	}
 	return rows

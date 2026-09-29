@@ -45,7 +45,7 @@
     <div>
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" false) }}
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" true) }}
-      <a href="/settings"{{ if or (eq $page "settings") (eq $page "signatures") }} class="active" aria-current="page"{{ end }}>{{$.T "nav.settings"}}</a>
+      <a href="{{url "settings.profile"}}"{{ if or (eq $page "settings") (eq $page "signatures") }} class="active" aria-current="page"{{ end }}>{{$.T "nav.settings"}}</a>
     </div>
     {{ template "scheme-toggle" $ }}
     {{ end }}
@@ -83,7 +83,7 @@
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
     {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = "/mailbox/INBOX" }}{{ $merged = $section }}{{ end }}
-    {{ if or (eq $page "settings") (eq $page "signatures") }}{{ $section = "/settings/account" }}{{ $merged = "/settings" }}{{ end }}
+    {{ if or (eq $page "settings") (eq $page "signatures") }}{{ $section = "/settings/account" }}{{ $merged = url "settings.profile" }}{{ end }}
     {{ range $g.GlobalData.Accounts }}
     <div class="account-menu-row">
     {{ $to := printf "%s%s" $section (account "?" .Username) }}{{ if and $g.GlobalData.Item (eq .Username $g.GlobalData.URLAccount) }}{{ $to = $g.GlobalData.Own }}{{ end }}
@@ -109,12 +109,12 @@
   {{ if .drawer }}<details class="accounts lang-menu"><summary>{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</summary>{{ else }}<div class="accounts lang-menu"><button type="button" class="accounts-button" popovertarget="menu-language"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
   <div class="accounts-menu"{{ if not .drawer }} popover id="menu-language"{{ end }}>
     {{/* A whole page: lang and dir live on the root, which a swap keeps. */}}
-    <form method="post" action="/language" hx-boost="false">
+    <form method="post" action="{{url "settings.language"}}" hx-boost="false">
       <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
       <button type="submit" name="language" value=""{{ if eq $g.GlobalData.Language "" }} class="active" disabled{{ end }}>{{$g.T "settings.langauto"}}</button>
     </form>
     {{ range $g.GlobalData.LanguageChoices }}
-    <form method="post" action="/language" hx-boost="false">
+    <form method="post" action="{{url "settings.language"}}" hx-boost="false">
       <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
       <button type="submit" name="language" value="{{.Code}}"{{ if eq .Code $g.GlobalData.Language }} class="active" disabled{{ end }}>{{.Name}}</button>
     </form>

@@ -6,7 +6,7 @@
 
 {{ define "main" }}
       {{ $title := $.T (printf "servers.%s" .Showing) }}
-      {{ template "settings-head" (dict "g" $ "title" $title "collection" ($.T "settings.servers") "path" "/settings/servers" "object" $title) }}
+      {{ template "settings-head" (dict "g" $ "title" $title "collection" ($.T "settings.servers") "path" (url "settings.servers") "object" $title) }}
 
       {{ range .Shown }}
       {{ template "info-card" (dict "title" .Title "page" $ "rows" .Rows

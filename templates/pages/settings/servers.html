@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
-      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.servers") "path" "/settings/servers") }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.servers") "path" (url "settings.servers")) }}
       <section class="list-items">
         {{ range .Rows }}
         <div class="list-item">

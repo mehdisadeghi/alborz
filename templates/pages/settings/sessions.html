@@ -6,7 +6,7 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      {{ template "settings-head" (dict "g" $ "title" ($.T "sessions.title") "path" "/settings/sessions") }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "sessions.title") "path" (url "settings.sessions")) }}
       <section class="list-items">
         {{ range .Signed }}
         {{ $d := devicename .Device }}
@@ -15,7 +15,7 @@
             <span class="list-summary" title="{{.Device}}">{{ if and $d.Browser $d.System }}{{ printf ($.T "sessions.device") $d.Browser $d.System }}{{ else if or $d.Browser $d.System }}{{ or $d.Browser $d.System }}{{ else }}{{$.T "sessions.unknown"}}{{ end }}</span>
             <span class="list-detail">{{ printf ($.T "sessions.lastused") (printf "%s %s" ($.GlobalData.ShortDate .Seen) ($.GlobalData.FormatTime .Seen)) }} · {{ printf ($.T "sessions.since") ($.GlobalData.ShortDate .Created) }}{{ with .Address }} · {{ template "ltr" . }}{{ end }}{{ if .Current }} · {{$.T "sessions.current"}}{{ end }}</span>
           </div>
-          <form method="post" action="/settings/sessions{{$aq}}">
+          <form method="post" action="{{url "settings.sessions"}}{{$aq}}">
             <input type="hidden" name="session" value="{{.ID}}">
             <button class="button-danger">{{$.T "nav.signout"}}</button>
           </form>

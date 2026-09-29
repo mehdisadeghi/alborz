@@ -124,6 +124,19 @@ func (p *Provider) Published(collPath string) bool {
 	return err == nil && c.Public != ""
 }
 
+// Feed is the address a calendar kept here is filled from, empty for one that is written to.
+func (p *Provider) Feed(collPath string) string {
+	ref, _, ok := p.Held(collPath)
+	if !ok {
+		return ""
+	}
+	c, err := p.Store.Collection(ref)
+	if err != nil || c.Feed == nil {
+		return ""
+	}
+	return c.Feed.URL
+}
+
 // SharedWith counts the accounts a collection kept here is shared with or offered to, less refusals and ended shares.
 func (p *Provider) SharedWith(collPath string) int {
 	ref, home, ok := p.Held(collPath)

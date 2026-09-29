@@ -96,7 +96,6 @@ func (p *plugin) dayView(ctx *alborz.Context) (dayView, error) {
 	if err != nil {
 		return dayView{}, err
 	}
-	events = append(events, p.subscriptionObjects(calendarInfos, ctx.URLAccount())...)
 
 	// Keep only what falls in the day; an unexpanded master matched as a whole.
 	var shown []Occurrence

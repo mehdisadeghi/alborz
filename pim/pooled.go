@@ -154,7 +154,7 @@ func Only(ctx *alborz.Context, field string) map[string]bool {
 	return only
 }
 
-// Visible returns every collection for the rail and the visible ones in scope as sites; feeds are never queried.
+// Visible returns every collection for the rail and the visible ones in scope as sites.
 func Visible[C any](accounts []Account[C], scope string, only map[string]bool, chosen func(Account[C]) (colls []dav.Collection, filter bool, paths []string, err error)) ([]dav.Collection, []Site[C], error) {
 	var infos []dav.Collection
 	var sites []Site[C]
@@ -175,7 +175,7 @@ func Visible[C any](accounts []Account[C], scope string, only map[string]bool, c
 				coll.Only = len(only) == 1 && coll.Shown
 			}
 			infos = append(infos, coll)
-			if coll.Shown && coll.Address == "" && (scope == "" || acc.Name == scope) {
+			if coll.Shown && (scope == "" || acc.Name == scope) {
 				sites = append(sites, Site[C]{Client: acc.Client, Collection: coll})
 			}
 		}

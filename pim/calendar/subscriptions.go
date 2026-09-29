@@ -3,42 +3,36 @@ package calendar
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/internal/kv"
-	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-ical"
-	"github.com/emersion/go-webdav/caldav"
-	"github.com/fernet/fernet-go"
 	"github.com/labstack/echo/v4"
 )
 
-// Subscription is a read-only calendar followed by its .ics address.
+// Subscription is a calendar followed by its .ics address. The account's settings list them, so every
+// alborz it signs in to follows the same, named and coloured alike; Changed dates the name and colour.
 type Subscription struct {
-	URL   string
-	Name  string
-	Color string
+	URL     string
+	Name    string
+	Color   string
+	Changed time.Time `json:",omitzero"`
 }
 
 const (
-	// A feed URL cannot be the path: collection paths are canonicalised and would lose its host.
-	subPrefix = "/subscriptions/"
 	// A year of holidays is a few tens of kilobytes.
 	subMaxSize = 4 << 20
 
@@ -50,39 +44,22 @@ const (
 	feedFloor = 15 * time.Minute
 	// feedCeiling shows a correction to a feed that asks for a week, as holiday feeds do, the next day.
 	feedCeiling = 24 * time.Hour
-	// feedForgetAfter stops refreshing a feed nobody has read for this long; its copy stays on disk.
-	feedForgetAfter = 7 * 24 * time.Hour
 	// feedTick is how late a due feed may be fetched, well under feedFloor.
 	feedTick = time.Minute
 )
 
-func loadSubscriptions(ctx context.Context, store alborz.Store) ([]Subscription, error) {
+func loadSubscriptions(ctx context.Context, settings alborz.Store) ([]Subscription, error) {
 	var subs []Subscription
-	if err := store.Get(ctx, subscriptionsKey, &subs); err != nil && err != alborz.ErrNoStoreEntry {
+	if err := settings.Get(ctx, subscriptionsKey, &subs); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
 	return subs, nil
 }
 
-func (s Subscription) path() string {
-	sum := sha1.Sum([]byte(s.URL))
-	return subPrefix + hex.EncodeToString(sum[:6]) + "/"
-}
-
-func (s Subscription) info(account string) dav.Collection {
-	return dav.Collection{Path: s.path(), Name: s.Name, Color: s.Color, Address: s.URL,
-		Components: []string{"VEVENT"}, Account: account}
-}
-
-func isSubscription(path string) bool { return strings.HasPrefix(path, subPrefix) }
-
-func subscriptionAt(list []Subscription, path string) int {
-	for i, s := range list {
-		if s.path() == path {
-			return i
-		}
-	}
-	return -1
+// feedCalendar names a subscription's calendar by its address, so two pages making it at once make one.
+func feedCalendar(account, url string) store.Ref {
+	sum := sha256.Sum256([]byte(url))
+	return store.Ref{Owner: strings.ToLower(account), ID: "feed-" + hex.EncodeToString(sum[:8])}
 }
 
 func normalizeFeedURL(raw string) string {
@@ -133,68 +110,23 @@ func feedHost(feed string) string {
 
 var errNotFeed = errors.New("caldav: the address answered with a web page, not a calendar")
 
-// feeds keeps each feed a page reads and fetches it on the feed's own clock.
-// Without a db nothing is kept and every read fetches.
+// feeds fills each subscribed calendar kept here from its feed, on the feed's own clock.
 type feeds struct {
 	client *http.Client
 	log    echo.Logger
-	db     kv.DB
-	key    *fernet.Key
+	store  *store.Store
 
-	mu   sync.Mutex
-	held map[string]*heldFeed
+	// Both are by feed address: accounts following one feed share its fetch.
+	mu       sync.Mutex
+	fetching map[string]bool
+	failed   map[string]time.Time
 }
 
-// feed is what is kept of one feed besides its body.
-type feed struct {
-	URL, ETag, LastModified string
-	Fetched                 time.Time
-	Every                   time.Duration
-}
-
-type heldFeed struct {
-	feed
-	cal          *ical.Calendar
-	read, failed time.Time
-	fetching     bool
-}
-
-// Keys hash the address, so the file names no feed.
-const feedOwner = "calendar.feeds"
-
-func feedID(url string) string {
-	sum := sha256.Sum256([]byte(url))
-	return hex.EncodeToString(sum[:16])
-}
-
-func feedMetaKey(id string) string { return feedOwner + "/meta/" + id }
-func feedBodyKey(id string) string { return feedOwner + "/body/" + id }
-
-// feedsLockTimeout is short: the CalDAV mirror, opened first, already waited for the directory.
-const feedsLockTimeout = time.Second
-
-// openFeeds keeps feeds sealed in the cache directory and refreshes them on the server's schedule.
-func openFeeds(srv *alborz.Server) (*feeds, error) {
-	f := &feeds{client: srv.Outgoing.Remote(alborz.RoundTripTimeout), log: srv.Logger(), held: map[string]*heldFeed{}}
-	if !srv.Options.Cache || srv.Options.CacheDir == "" {
-		return f, nil
-	}
-	if err := os.MkdirAll(srv.Options.CacheDir, 0o700); err != nil {
-		return nil, err
-	}
-	file := filepath.Join(srv.Options.CacheDir, feedOwner+".db")
-	db, err := bolt.Open(file, feedsLockTimeout)
-	if err != nil {
-		return nil, err
-	}
-	f.db, f.key = db, srv.Options.LoginKey
-	if err := alborz.CheckKey(db, file, f.key, feedOwner+"/"); err != nil {
-		db.Close()
-		return nil, err
-	}
+func openFeeds(srv *alborz.Server, st *store.Store) *feeds {
+	f := &feeds{client: srv.Outgoing.Remote(alborz.RoundTripTimeout), log: srv.Logger(), store: st,
+		fetching: map[string]bool{}, failed: map[string]time.Time{}}
 	srv.Schedule.Add(feedTick, f.round)
-	srv.OnClose = append(srv.OnClose, db.Close)
-	return f, nil
+	return f
 }
 
 // refreshEvery is the interval the feed asks for (RFC 7986, or the older X-PUBLISHED-TTL), within bounds.
@@ -209,182 +141,115 @@ func refreshEvery(cal *ical.Calendar) time.Duration {
 	return feedEvery
 }
 
-// calendar is the feed as last fetched. One with nothing kept is fetched now, once; nil if that fails.
-func (f *feeds) calendar(url string) *ical.Calendar {
-	if f.db == nil {
-		cal, _ := f.refresh(context.Background(), url)
-		return cal
-	}
+// refresh fetches the feed once into every calendar filled from it; an unchanged one costs a conditional
+// GET, a failed one changes nothing.
+func (f *feeds) refresh(ctx context.Context, url string) error {
 	f.mu.Lock()
-	h := f.hold(url)
-	h.read = time.Now()
-	cal, cold := h.cal, h.cal == nil && h.failed.IsZero()
-	f.mu.Unlock()
-	if !cold {
-		return cal
-	}
-	cal, err := f.refresh(context.Background(), url)
-	if err != nil {
-		f.log.Printf("calendar: feed %s: %v", url, err)
-	}
-	return cal
-}
-
-// hold finds the feed in memory, or what the cache directory kept of it; f.mu is held.
-func (f *feeds) hold(url string) *heldFeed {
-	h := f.held[url]
-	if h == nil {
-		// Asked for now, so the next round does not take it for unread.
-		h = &heldFeed{feed: feed{URL: url}, read: time.Now()}
-		if err := f.load(h); err != nil {
-			f.log.Printf("calendar: feed %s: %v", url, err)
-		}
-		f.held[url] = h
-	}
-	return h
-}
-
-func (f *feeds) load(h *heldFeed) error {
-	var meta, body []byte
-	err := f.db.View(func(tx kv.Tx) error {
-		id := feedID(h.URL)
-		var err error
-		if meta, err = f.open(tx.Get(feedMetaKey(id))); err != nil {
-			return err
-		}
-		body, err = f.open(tx.Get(feedBodyKey(id)))
-		return err
-	})
-	if err != nil || meta == nil {
-		return err
-	}
-	var kept feed
-	if err := json.Unmarshal(meta, &kept); err != nil {
-		return err
-	}
-	cal, err := ical.NewDecoder(bytes.NewReader(body)).Decode()
-	if err != nil {
-		return err
-	}
-	h.feed, h.cal = kept, cal
-	return nil
-}
-
-var errUnsealed = errors.New("calendar: a stored feed does not open under the login key")
-
-// open unseals a stored value; a missing one is nil.
-func (f *feeds) open(sealed []byte) ([]byte, error) {
-	if sealed == nil {
-		return nil, nil
-	}
-	raw := fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{f.key})
-	if raw == nil {
-		return nil, errUnsealed
-	}
-	return raw, nil
-}
-
-// refresh fetches the feed now; an unchanged one costs a conditional GET and no parse.
-func (f *feeds) refresh(ctx context.Context, url string) (*ical.Calendar, error) {
-	if f.db == nil {
-		_, cal, _, err := fetchFeed(ctx, f.client, feed{URL: url})
-		return cal, err
-	}
-	f.mu.Lock()
-	h := f.hold(url)
-	if h.fetching {
-		cal := h.cal
+	if f.fetching[url] {
 		f.mu.Unlock()
-		return cal, nil
+		return nil
 	}
-	h.fetching = true
-	asked := h.feed
-	if h.cal == nil {
-		asked.ETag, asked.LastModified = "", ""
-	}
+	f.fetching[url] = true
 	f.mu.Unlock()
+	defer func() {
+		f.mu.Lock()
+		delete(f.fetching, url)
+		f.mu.Unlock()
+	}()
 
-	got, cal, body, err := fetchFeed(ctx, f.client, asked)
-	if err == nil {
-		err = f.keep(got, body)
-	}
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	h.fetching = false
+	fed, err := f.store.Feeds()
 	if err != nil {
-		h.failed = time.Now()
+		return err
+	}
+	fed = slices.DeleteFunc(fed, func(c store.Collection) bool { return c.Feed.URL != url })
+	if len(fed) == 0 {
+		return nil
+	}
+	// A condition holds only for a copy every calendar has.
+	was := *fed[0].Feed
+	for _, c := range fed[1:] {
+		if c.Feed.ETag != was.ETag || c.Feed.LastModified != was.LastModified {
+			was.ETag, was.LastModified = "", ""
+		}
+	}
+	got, cal, err := fetchFeed(ctx, f.client, was)
+	var objects []store.Object
+	if err == nil && cal != nil {
+		objects, err = f.objects(url, cal)
+	}
+	for _, c := range fed {
+		if err == nil {
+			err = f.store.Fill(c.Ref(), got, objects)
+		}
+	}
+	if err != nil {
+		f.mu.Lock()
+		f.failed[url] = time.Now()
+		f.mu.Unlock()
+	}
+	return err
+}
+
+// objects are a fetched feed's events one object per UID, named as an import names them.
+func (f *feeds) objects(url string, cal *ical.Calendar) ([]store.Object, error) {
+	split, err := objectsByUID(cal)
+	if err != nil {
 		return nil, err
 	}
-	h.feed = got
-	if cal != nil {
-		h.cal = cal
-	}
-	return h.cal, nil
-}
-
-// keep writes what was fetched; a nil body is a feed unchanged since the one kept.
-func (f *feeds) keep(got feed, body []byte) error {
-	meta, err := json.Marshal(got)
-	if err != nil {
-		return err
-	}
-	return f.db.Update(func(tx kv.Tx) error {
-		id := feedID(got.URL)
-		if body != nil {
-			if err := f.put(tx, feedBodyKey(id), body); err != nil {
-				return err
-			}
+	objects := make([]store.Object, 0, len(split))
+	for uid, obj := range split {
+		if len(obj.Events()) == 0 {
+			continue
 		}
-		return f.put(tx, feedMetaKey(id), meta)
-	})
-}
-
-func (f *feeds) put(tx kv.Tx, k string, v []byte) error {
-	sealed, err := fernet.EncryptAndSign(v, f.key)
-	if err != nil {
-		return err
+		for _, ev := range obj.Events() {
+			stamp(ev.Component)
+		}
+		var buf bytes.Buffer
+		if err := ical.NewEncoder(&buf).Encode(obj); err != nil {
+			// One malformed event is left out rather than holding back the rest of the feed.
+			f.log.Printf("calendar: feed %s: event %s: %v", url, uid, err)
+			continue
+		}
+		objects = append(objects, store.Object{Name: dav.SafeObjectName(uid) + ".ics", UID: uid, Data: buf.Bytes()})
 	}
-	return tx.Put(k, sealed)
+	return objects, nil
 }
 
-// round fetches the feeds read lately whose interval has passed, and stops refreshing the ones nobody reads.
+// stamp gives an event the DTSTAMP a feed may leave out and a stored object must carry (RFC 5545 3.6.1): its
+// own LAST-MODIFIED or CREATED, else the epoch; never the fetch time, which would change every object's ETag.
+func stamp(ev *ical.Component) {
+	if ev.Props.Get(ical.PropDateTimeStamp) != nil {
+		return
+	}
+	for _, name := range []string{ical.PropLastModified, ical.PropCreated} {
+		if t, err := ev.Props.DateTime(name, time.UTC); err == nil && !t.IsZero() {
+			ev.Props.SetDateTime(ical.PropDateTimeStamp, t.UTC())
+			return
+		}
+	}
+	ev.Props.SetDateTime(ical.PropDateTimeStamp, time.Unix(0, 0).UTC())
+}
+
+// round fetches every feed whose interval has passed: a phone reads its calendars without alborz seeing.
 func (f *feeds) round(ctx context.Context, now time.Time) {
-	var due []string
+	fed, err := f.store.Feeds()
+	if err != nil {
+		f.log.Printf("calendar: feeds: %v", err)
+		return
+	}
+	due := map[string]bool{}
 	f.mu.Lock()
-	for url, h := range f.held {
-		switch {
-		case now.Sub(h.read) > feedForgetAfter:
-			delete(f.held, url)
-		case !h.fetching && now.Sub(h.Fetched) >= h.Every && now.Sub(h.failed) >= feedFloor:
-			due = append(due, url)
+	for _, c := range fed {
+		if now.Sub(c.Feed.Fetched) >= c.Feed.Every && now.Sub(f.failed[c.Feed.URL]) >= feedFloor {
+			due[c.Feed.URL] = true
 		}
 	}
 	f.mu.Unlock()
-	for _, url := range due {
-		if _, err := f.refresh(alborz.Background(ctx), url); err != nil {
+	for url := range due {
+		if err := f.refresh(alborz.Background(ctx), url); err != nil {
 			f.log.Printf("calendar: feed %s: %v", url, err)
 		}
 	}
-}
-
-func (f *feeds) events(url, color string) (CalendarObject, bool) {
-	cal := f.calendar(url)
-	if cal == nil {
-		return CalendarObject{}, false
-	}
-	return CalendarObject{
-		CalendarObject: &caldav.CalendarObject{Path: url, Data: cal},
-		Color:          color,
-		ReadOnly:       true,
-	}, true
-}
-
-func (f *feeds) count(url string) int {
-	if cal := f.calendar(url); cal != nil {
-		return len(cal.Events())
-	}
-	return 0
 }
 
 func feedName(cal *ical.Calendar) string {
@@ -394,11 +259,11 @@ func feedName(cal *ical.Calendar) string {
 	return ""
 }
 
-// fetchFeed asks for the feed unless it is unchanged since was; calendar and body are nil when it is.
-func fetchFeed(ctx context.Context, client *http.Client, was feed) (feed, *ical.Calendar, []byte, error) {
+// fetchFeed asks for the feed unless it is unchanged since was; the calendar is nil when it is.
+func fetchFeed(ctx context.Context, client *http.Client, was store.Feed) (store.Feed, *ical.Calendar, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, was.URL, nil)
 	if err != nil {
-		return was, nil, nil, err
+		return was, nil, err
 	}
 	if was.ETag != "" {
 		req.Header.Set("If-None-Match", was.ETag)
@@ -408,63 +273,157 @@ func fetchFeed(ctx context.Context, client *http.Client, was feed) (feed, *ical.
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return was, nil, nil, err
+		return was, nil, err
 	}
 	defer resp.Body.Close()
 	now := time.Now()
 	if resp.StatusCode == http.StatusNotModified {
 		was.Fetched = now
-		return was, nil, nil, nil
+		return was, nil, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return was, nil, nil, fmt.Errorf("the calendar at %s answered %s", was.URL, resp.Status)
+		return was, nil, fmt.Errorf("the calendar at %s answered %s", was.URL, resp.Status)
 	}
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
-		return was, nil, nil, errNotFeed
+		return was, nil, errNotFeed
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, subMaxSize))
 	if err != nil {
-		return was, nil, nil, err
+		return was, nil, err
 	}
 	cal, err := ical.NewDecoder(bytes.NewReader(body)).Decode()
 	if err != nil {
-		return was, nil, nil, fmt.Errorf("the calendar at %s is not iCalendar: %w", was.URL, err)
+		return was, nil, fmt.Errorf("the calendar at %s is not iCalendar: %w", was.URL, err)
 	}
-	return feed{URL: was.URL, ETag: resp.Header.Get("ETag"), LastModified: resp.Header.Get("Last-Modified"),
-		Fetched: now, Every: refreshEvery(cal)}, cal, body, nil
+	return store.Feed{URL: was.URL, ETag: resp.Header.Get("ETag"), LastModified: resp.Header.Get("Last-Modified"),
+		Fetched: now, Every: refreshEvery(cal)}, cal, nil
 }
 
-func (p *plugin) subscriptionObjects(infos []dav.Collection, scope string) []CalendarObject {
-	var out []CalendarObject
-	for _, info := range infos {
-		if info.Address == "" || !info.Shown || (scope != "" && info.Account != scope) {
-			continue
-		}
-		if obj, ok := p.feeds.events(info.Address, info.Color); ok {
-			// The account rides the link, so the event page asks that account's subscriptions.
-			obj.Account = info.Account
-			out = append(out, obj)
+// reconcile makes the account's fed calendars here agree with its list of subscriptions, which travels
+// between alborz instances while the calendars do not: a calendar deleted here leaves the list, an entry
+// gone from the list takes its calendar, an entry this alborz lacks is made, and the newer name and
+// colour wins. It returns the calendars made, empty, and whether anything here changed.
+func reconcile(ctx context.Context, st *store.Store, account string, settings alborz.Store) ([]store.Collection, bool, error) {
+	subs, err := loadSubscriptions(ctx, settings)
+	if err != nil {
+		return nil, false, err
+	}
+	dropped, err := st.Dropped(account)
+	if err != nil {
+		return nil, false, err
+	}
+	fed, err := st.Feeds()
+	if err != nil {
+		return nil, false, err
+	}
+	listed := len(subs)
+	for _, d := range dropped {
+		// An entry written after the delete is the reader subscribing again.
+		subs = slices.DeleteFunc(subs, func(s Subscription) bool { return s.URL == d.URL && !s.Changed.After(d.At) })
+	}
+	relisted := len(subs) != listed
+	held := map[string]store.Collection{}
+	for _, c := range fed {
+		if c.Owner == strings.ToLower(account) {
+			held[c.Feed.URL] = c
 		}
 	}
-	return out
+	var made []store.Collection
+	changed := false
+	for i, sub := range subs {
+		c, ok := held[sub.URL]
+		delete(held, sub.URL)
+		switch {
+		case !ok:
+			ref := feedCalendar(account, sub.URL)
+			c, err := st.Create(store.Collection{ID: ref.ID, Owner: ref.Owner, Kind: store.Calendar,
+				Components: []string{ical.CompEvent}, Name: sub.Name, Color: sub.Color,
+				Feed: &store.Feed{URL: sub.URL, Named: sub.Changed}})
+			if errors.Is(err, store.ErrExists) {
+				continue
+			}
+			if err != nil {
+				return made, changed, err
+			}
+			made = append(made, *c)
+		case c.Feed.Named.After(sub.Changed):
+			subs[i].Name, subs[i].Color, subs[i].Changed = c.Name, c.Color, c.Feed.Named
+			relisted = true
+		case sub.Changed.After(c.Feed.Named):
+			err := st.Update(c.Ref(), func(c *store.Collection) {
+				c.Name, c.Color, c.Feed.Named = sub.Name, sub.Color, sub.Changed
+			})
+			if err != nil {
+				return made, changed, err
+			}
+			changed = true
+		}
+	}
+	if relisted {
+		if err := settings.Put(ctx, subscriptionsKey, subs); err != nil {
+			return made, changed, err
+		}
+	}
+	// What held still has, the list no longer names: unsubscribed on another alborz.
+	for _, c := range held {
+		if err := st.Delete(c.Ref()); err != nil {
+			return made, changed, err
+		}
+		dropped = append(dropped, store.Dropped{ID: c.ID})
+		changed = true
+	}
+	for _, d := range dropped {
+		if err := st.Told(store.Ref{Owner: account, ID: d.ID}); err != nil {
+			return made, changed, err
+		}
+		// Deleted by a DAV client, which no page's list of calendars heard of.
+		changed = true
+	}
+	return made, changed || len(made) > 0, nil
+}
+
+// follows reconciles the login's calendars with its subscriptions, has fill fill each calendar made, and shows it.
+func (p *plugin) follows(ctx context.Context, login *alborz.Login, fill func(store.Collection) error) error {
+	made, changed, err := reconcile(ctx, p.feeds.store, login.Username(), login.Store())
+	if err != nil || !changed {
+		return err
+	}
+	for _, c := range made {
+		if err := fill(c); err != nil {
+			return err
+		}
+		if err := show(ctx, login.Store(), p.dav.PathOf(login.Username(), c)); err != nil {
+			return err
+		}
+	}
+	p.dav.Forget(login.Username())
+	return nil
 }
 
 // refresh fetches every signed-in account's feeds, then asks the DAV servers again.
 func (p *plugin) refresh(ctx *alborz.Context) error {
 	rc := ctx.Request().Context()
 	var fetches sync.WaitGroup
+	fed, err := p.feeds.store.Feeds()
+	if err != nil {
+		return err
+	}
+	signed := map[string]bool{}
 	for _, login := range ctx.Logins() {
-		subs, err := loadSubscriptions(rc, login.Store())
-		if err != nil {
-			return err
+		signed[strings.ToLower(login.Username())] = true
+	}
+	urls := map[string]bool{}
+	for _, c := range fed {
+		if signed[c.Owner] {
+			urls[c.Feed.URL] = true
 		}
-		for _, sub := range subs {
-			fetches.Go(func() {
-				if _, err := p.feeds.refresh(rc, sub.URL); err != nil {
-					ctx.Logger().Printf("calendar: feed %s: %v", sub.URL, err)
-				}
-			})
-		}
+	}
+	for url := range urls {
+		fetches.Go(func() {
+			if err := p.feeds.refresh(rc, url); err != nil {
+				ctx.Logger().Printf("calendar: feed %s: %v", url, err)
+			}
+		})
 	}
 	fetches.Wait()
 	return p.dav.HandleRefresh("/calendar")(ctx)

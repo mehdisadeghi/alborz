@@ -41,14 +41,10 @@ func Mount(srv *alborz.Server, st *store.Store) error {
 		return err
 	}
 
-	feeds, err := openFeeds(srv)
-	if err != nil {
-		return err
-	}
 	p := &plugin{
 		Router: srv.Router(),
 		dav:    provider,
-		feeds:  feeds,
+		feeds:  openFeeds(srv, st),
 	}
 
 	registerRoutes(p)

@@ -221,7 +221,6 @@ func (p *plugin) monthView(ctx *alborz.Context) (monthView, error) {
 	if err != nil {
 		return monthView{}, err
 	}
-	events = append(events, p.subscriptionObjects(calendarInfos, ctx.URLAccount())...)
 
 	dates := make([]time.Time, rows*7)
 	d := gridStart

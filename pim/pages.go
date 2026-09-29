@@ -36,8 +36,8 @@ type CollectionRenderData struct {
 	// Ext is the export and import file type; OffersRange says the export takes a date range.
 	Ext         string
 	OffersRange bool
-	// Address is a subscribed calendar's feed: nothing on the server to import, export or delete.
-	Address string
+	// Feed is the address a subscribed calendar is filled from.
+	Feed string
 	// SharedBy owns a collection this account was invited to; Sharing is the owner's view, nil elsewhere.
 	SharedBy string
 	Writable bool
@@ -271,7 +271,7 @@ func (pg Page) data(ctx *alborz.Context, p *dav.Provider, collPath string) (*Col
 		BackLabel:      label,
 		Ext:            pg.Ext,
 		OffersRange:    pg.Ext == ".ics",
-		Address:        info.Address,
+		Feed:           info.Feed,
 		SharedBy:       info.SharedBy,
 		Writable:       info.Writable,
 		Sharing:        sharing,
@@ -582,7 +582,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		var groups []dav.Group
 		for _, coll := range rail.Items {
 			account := coll.Account
-			if !coll.Writable || coll.Address != "" {
+			if !coll.Writable {
 				continue
 			}
 			if account == "" {
@@ -745,7 +745,7 @@ func (pg Page) HandleExport(p *dav.Provider) func(*alborz.Context) error {
 	}
 }
 
-// HandleExportAll zips every readable collection of the section; followed feeds stay out.
+// HandleExportAll zips every readable collection of the section.
 func (pg Page) HandleExportAll(list, filename string) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
 		rail, err := pg.Rail(ctx, list)
@@ -757,7 +757,7 @@ func (pg Page) HandleExportAll(list, filename string) func(*alborz.Context) erro
 		taken := map[string]int{}
 		for _, coll := range rail.Items {
 			account := coll.Account
-			if coll.Address != "" || (account != "" && account != ctx.Login.Username()) {
+			if account != "" && account != ctx.Login.Username() {
 				continue
 			}
 			body, err := pg.Export(ctx, coll.Path, time.Time{}, time.Time{})

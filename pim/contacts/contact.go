@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -93,8 +94,12 @@ func applyPhoto(ctx *web.Context, card vcard.Card) error {
 		return errPhotoUnreadable
 	}
 	defer f.Close()
+	return setPhoto(card, f)
+}
 
-	src, _, err := image.Decode(f)
+// setPhoto puts the picture into the card, made small.
+func setPhoto(card vcard.Card, r io.Reader) error {
+	src, _, err := image.Decode(r)
 	if err != nil {
 		return errPhotoUnreadable
 	}
@@ -165,7 +170,7 @@ func withValues(fields []*vcard.Field, values []string) []*vcard.Field {
 func (p *plugin) contact(ctx *web.Context) error {
 	path := ctx.Param("path")
 
-	c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
+	c, addressBooks, err := p.Open(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -215,7 +220,7 @@ func (p *plugin) contact(ctx *web.Context) error {
 	// A birthday with no date stays zero and is shown as written.
 	birthday, _ := ao.Card.Birthday()
 	return ctx.Render(http.StatusOK, "contacts/contact", &AddressObjectRenderData{
-		Authors:        p.dav.Authors(object.Path, ctx.Login.Username()),
+		Authors:        p.DAV.Authors(object.Path, ctx.Login.Username()),
 		In:             in,
 		Groups:         rest,
 		Neighbours:     pim.Around(list.Items, path),
@@ -241,7 +246,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 
 	var currentAddressBook *dav.Collection
 	if addressObjectPath != "" {
-		c, addressBooks, err = p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
+		c, addressBooks, err = p.Open(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			return err
 		}
@@ -295,7 +300,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		to := pim.Ref[*carddav.Client]{Client: c}
 		creating := ao == nil
 		if creating {
-			to, err = pim.Destination(ctx, ctx.FormValue("addressbook"), p.clientWithAddressBooks, func(book dav.Collection) bool { return book.Writable })
+			to, err = pim.Destination(ctx, ctx.FormValue("addressbook"), p.Open, func(book dav.Collection) bool { return book.Writable })
 			if errors.Is(err, pim.ErrNoDestination) {
 				return reject(ctx.T("form.destinationneeded"))
 			} else if err != nil {
@@ -422,12 +427,12 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 
 func (p *plugin) note(ctx *web.Context) error {
 	note := strings.TrimSpace(ctx.FormValue("note"))
-	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "contacts.list", Done: pim.Quiet[*carddav.Client],
+	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.Client, List: "contacts.list", Done: pim.Quiet[*carddav.Client],
 		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
 			if note == "" {
 				return nil
 			}
-			return changeCard(ctx, ref, func(card vcard.Card) {
+			return changeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
 				text := pim.AppendNote(ctx, card.Value(vcard.FieldNote), note)
 				if field := card.Preferred(vcard.FieldNote); field != nil {
 					field.Value = text
@@ -440,15 +445,15 @@ func (p *plugin) note(ctx *web.Context) error {
 
 // Its own request: Enter in a name field must not delete the photo.
 func (p *plugin) deletePhoto(ctx *web.Context) error {
-	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "contacts.list", Done: pim.Quiet[*carddav.Client],
+	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.Client, List: "contacts.list", Done: pim.Quiet[*carddav.Client],
 		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
-			return changeCard(ctx, ref, func(card vcard.Card) { delete(card, vcard.FieldPhoto) })
+			return changeCard(ctx.Request().Context(), ref, func(card vcard.Card) { delete(card, vcard.FieldPhoto) })
 		}})
 }
 
 func (p *plugin) color(ctx *web.Context) error {
-	return pim.Star(ctx, p.client, "contacts.list", "contacts.contact", func(ctx *web.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
-		err = changeCard(ctx, ref, func(card vcard.Card) {
+	return pim.Star(ctx, p.Client, "contacts.list", "contacts.contact", func(ctx *web.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
+		err = changeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
 			was = CardColor(card)
 			SetColor(card, name)
 		})

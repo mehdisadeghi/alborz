@@ -18,14 +18,16 @@ import (
 	"github.com/emersion/go-webdav/carddav"
 )
 
-type plugin struct {
-	dav *dav.Provider
+// Books are every account's address books.
+type Books struct {
+	DAV *dav.Provider
 	// remembering keeps two writers from making the account's Previous recipients twice.
 	remembering sync.Mutex
 }
 
-func (p *plugin) client(ctx context.Context, login *alborz.Login) (*carddav.Client, error) {
-	return newClient(dav.Base(), p.dav.HTTPClient(ctx, login))
+// Client is the login's CardDAV client.
+func (p *Books) Client(ctx context.Context, login *alborz.Login) (*carddav.Client, error) {
+	return newClient(dav.Base(), p.DAV.HTTPClient(ctx, login))
 }
 
 func findHome(ctx context.Context, client *http.Client, endpoint string) (string, error) {
@@ -44,8 +46,9 @@ func findHome(ctx context.Context, client *http.Client, endpoint string) (string
 	return homeSet, nil
 }
 
-func (p *plugin) clientWithAddressBooks(ctx context.Context, login *alborz.Login) (*carddav.Client, []dav.Collection, error) {
-	c, infos, err := dav.Opened(ctx, p.dav, login, p.client)
+// Open is the login's client with its address books.
+func (p *Books) Open(ctx context.Context, login *alborz.Login) (*carddav.Client, []dav.Collection, error) {
+	c, infos, err := dav.Opened(ctx, p.DAV, login, p.Client)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -56,13 +59,12 @@ func (p *plugin) clientWithAddressBooks(ctx context.Context, login *alborz.Login
 }
 
 func (p *plugin) pooledBooks(ctx *web.Context) ([]pim.Account[*carddav.Client], error) {
-	return pim.Pooled(ctx, p.dav, p.clientWithAddressBooks, errNoAddressBook)
+	return pim.Pooled(ctx, p.DAV, p.Open, errNoAddressBook)
 }
 
-// Mount serves contacts.
-func Mount(g *web.Group, st *store.Store) error {
-	srv := g.Server()
-	provider, err := dav.NewProvider(srv.Server, st, dav.Kind{
+// New finds each served domain's CardDAV server.
+func New(srv *alborz.Server, st *store.Store) (*Books, error) {
+	provider, err := dav.NewProvider(srv, st, dav.Kind{
 		Name: "carddav", Label: "CardDAV",
 		Schemes: [2]string{"carddavs", "carddav+insecure"},
 		// Address books change rarely.
@@ -77,17 +79,26 @@ func Mount(g *web.Group, st *store.Store) error {
 		Unnamed:  "contacts",
 	})
 	if err != nil {
+		return nil, err
+	}
+	return &Books{DAV: provider}, nil
+}
+
+type plugin struct{ *Books }
+
+// Mount serves contacts.
+func Mount(g *web.Group, st *store.Store) error {
+	srv := g.Server()
+	b, err := New(srv.Server, st)
+	if err != nil {
 		return err
 	}
-
-	p := &plugin{
-		dav: provider,
-	}
+	p := &plugin{b}
 
 	registerRoutes(p, g)
-	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.dav))
+	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.DAV))
 	// Calendar registers first, so the collections on alborz come last.
-	srv.OnServers = append(srv.OnServers, p.dav.Cards("settings.davcontacts", bookAbilities), p.dav.HereCard())
+	srv.OnServers = append(srv.OnServers, p.DAV.Cards("settings.davcontacts", bookAbilities), p.DAV.HereCard())
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm, p.seed)
 
 	// A card attached to a mail is filed from its own row.
@@ -120,11 +131,11 @@ func Mount(g *web.Group, st *store.Store) error {
 	})
 
 	srv.OnSent = append(srv.OnSent, func(ctx *web.Context, sender *alborz.Login, to []*netmail.Address) error {
-		return p.remember(ctx.Request().Context(), sender, ctx.T("contacts.previous"), to, false)
+		return p.Remember(ctx.Request().Context(), sender, ctx.T("contacts.previous"), to, false)
 	})
 
 	srv.Suggest = append(srv.Suggest, func(ctx *web.Context) []string {
-		c, addressBooks, err := p.clientWithAddressBooks(ctx.Request().Context(), ctx.Login)
+		c, addressBooks, err := p.Open(ctx.Request().Context(), ctx.Login)
 		if err != nil {
 			// Suggestions are a convenience: a missing or silent address book must not block compose.
 			if err != errNoAddressBook {

@@ -2,10 +2,13 @@ package alborz
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"slices"
 	"sort"
 	"strconv"
+
+	"github.com/labstack/echo/v4"
 )
 
 // Filter is one narrowing in force on a listing, with the page without it.
@@ -59,17 +62,19 @@ func (ctx *Context) FilterOn(name, label string) (Filter, bool) {
 
 // PageHref returns this page at page n; the first page carries no number.
 func (ctx *Context) PageHref(n int) string {
-	u := *ctx.Request().URL
-	q := u.Query()
+	return pageHref(ctx.Request().URL, n)
+}
+
+func pageHref(at *url.URL, n int) string {
+	q := at.Query()
 	q.Del("page")
 	if n > 0 {
 		q.Set("page", strconv.Itoa(n))
 	}
-	u.RawQuery = Query(q)
-	if u.RawQuery == "" {
-		return u.Path
+	if len(q) == 0 {
+		return at.Path
 	}
-	return u.Path + "?" + u.RawQuery
+	return at.Path + "?" + Query(q)
 }
 
 const MaxMessagesPerPage = 100
@@ -110,7 +115,43 @@ func PerPage(ctx *Context) int {
 	return DefaultMessagesPerPage
 }
 
-// Pager is one page of a list held whole, since a DAV query cannot ask for rows after the first n.
+// Page is one page of a list: its number, counted from zero, and how many rows a page holds.
+type Page struct {
+	Number, Size int
+}
+
+// Within is the page in a list of total rows. A page past the end is the
+// last one: the list may have shrunk since the link was drawn.
+func (p Page) Within(total int) Page {
+	p.Number = min(p.Number, max(0, (total-1)/p.Size))
+	return p
+}
+
+// Rows are the bounds of the page's rows in a list of total rows.
+func (p Page) Rows(total int) (from, to int) {
+	from = min(p.Number*p.Size, total)
+	return from, min(from+p.Size, total)
+}
+
+// Window is how many rows lie from the top of the list to the end of this page.
+func (p Page) Window() int {
+	return (p.Number + 1) * p.Size
+}
+
+// ListPage is the page of a list the request asks for; a number it cannot read is refused.
+func (ctx *Context) ListPage() (Page, error) {
+	p := Page{Size: PerPage(ctx)}
+	if raw := ctx.QueryParam("page"); raw != "" {
+		n, err := ReadInt(raw)
+		if err != nil || n < 0 {
+			return p, echo.NewHTTPError(http.StatusBadRequest, "invalid page index")
+		}
+		p.Number = n
+	}
+	return p, nil
+}
+
+// Pager is where one page lies in its list, and the addresses of the pages beside it.
 type Pager struct {
 	From, To, Total int
 	Prev, Next      string
@@ -120,37 +161,37 @@ type Pager struct {
 	IppBase string
 }
 
-// Paginate returns the requested page of items and the pager for the rest.
-func Paginate[T any](ctx *Context, items []T) ([]T, Pager) {
-	per := PerPage(ctx)
-	page, err := ReadInt(ctx.QueryParam("page"))
-	if err != nil || page < 0 {
-		page = 0
-	}
-	// A page past the end is the last one: the list may have shrunk since the link was drawn.
-	if last := max(0, (len(items)-1)/per); page > last {
-		page = last
-	}
-	from, to := page*per, min((page+1)*per, len(items))
-	q := ctx.Request().URL.Query()
+// NewPager is the pager of page p of a list of total rows, drawn at the address at.
+func NewPager(at *url.URL, p Page, total int, sizes []int) Pager {
+	from, to := p.Rows(total)
+	q := at.Query()
 	q.Del("ipp")
 	q.Del("page")
-	base := ""
+	pager := Pager{To: to, Total: total, Per: p.Size, Options: sizes}
 	if len(q) > 0 {
-		base = "&" + Query(q)
+		pager.IppBase = "&" + Query(q)
 	}
-	pager := Pager{From: from + 1, To: to, Total: len(items),
-		Per: per, Options: PerPageChoices(ctx), IppBase: base}
-	if len(items) == 0 {
-		pager.From = 0
+	if total > 0 {
+		pager.From = from + 1
 	}
-	if page > 0 {
-		pager.Prev = ctx.PageHref(page - 1)
+	if p.Number > 0 {
+		pager.Prev = pageHref(at, p.Number-1)
 	}
-	if to < len(items) {
-		pager.Next = ctx.PageHref(page + 1)
+	if to < total {
+		pager.Next = pageHref(at, p.Number+1)
 	}
-	return items[from:to], pager
+	return pager
+}
+
+// Paginate returns the requested page of a list held whole, and its pager.
+func Paginate[T any](ctx *Context, items []T) ([]T, Pager, error) {
+	p, err := ctx.ListPage()
+	if err != nil {
+		return nil, Pager{}, err
+	}
+	p = p.Within(len(items))
+	from, to := p.Rows(len(items))
+	return items[from:to], NewPager(ctx.Request().URL, p, len(items), PerPageChoices(ctx)), nil
 }
 
 // FlagColors names the colours the flag bits address, indexed by their value.

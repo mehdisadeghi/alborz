@@ -1085,7 +1085,7 @@ func listID(h textproto.Header) string {
 	return strings.TrimSpace(id)
 }
 
-func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPage int, fields rowFields) (msgs []IMAPMessage, total int, err error) {
+func listMessages(conn *imapclient.Client, mboxName string, page alborz.Page, fields rowFields) (msgs []IMAPMessage, total int, err error) {
 	// Only an already selected mailbox needs a NOOP to notice new mail.
 	if mbox := conn.Mailbox(); mbox != nil && mbox.Name == mboxName {
 		if err := conn.Noop().Wait(); err != nil {
@@ -1102,17 +1102,14 @@ func listMessages(conn *imapclient.Client, mboxName string, page, messagesPerPag
 	}
 	total = int(mbox.NumMessages)
 
-	to := total - page*messagesPerPage
-	from := to - messagesPerPage + 1
-	if from <= 0 {
-		from = 1
-	}
-	if to <= 0 {
+	// The newest message has the highest sequence number.
+	first, last := page.Within(total).Rows(total)
+	if first == last {
 		return nil, total, nil
 	}
 
 	var seqSet imap.SeqSet
-	seqSet.AddRange(uint32(from), uint32(to))
+	seqSet.AddRange(uint32(total-last+1), uint32(total-first))
 	header := listHeaderItem()
 	imapMsgs, err := conn.Fetch(seqSet, fields(header)).Collect()
 	if err != nil {
@@ -1182,7 +1179,7 @@ func flattenThread(data imapclient.ThreadData, depth int, out []threadRow) []thr
 }
 
 // A page of threads, not messages; THREAD has no window, so the whole set is asked.
-func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAlgorithm, criteria *imap.SearchCriteria, page, threadsPerPage int) (msgs []IMAPMessage, totalThreads int, err error) {
+func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAlgorithm, criteria *imap.SearchCriteria, page alborz.Page) (msgs []IMAPMessage, totalThreads int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
 	}
@@ -1209,11 +1206,7 @@ func threadMessages(conn *imapclient.Client, mboxName string, algorithm imap.Thr
 	})
 
 	totalThreads = len(rows)
-	from := page * threadsPerPage
-	if from >= len(rows) {
-		return nil, totalThreads, nil
-	}
-	to := min(from+threadsPerPage, len(rows))
+	from, to := page.Within(totalThreads).Rows(totalThreads)
 
 	var want []threadRow
 	for _, thread := range rows[from:to] {
@@ -1585,7 +1578,7 @@ func sortedUIDs(conn *imapclient.Client, criteria *imap.SearchCriteria, sort str
 }
 
 // q is the query the criteria came from, empty for a list no query narrowed.
-func searchMessages(conn *imapclient.Client, mboxName string, q search.Query, searchCriteria *imap.SearchCriteria, page, messagesPerPage int, sort string, reverse bool, fields rowFields) (msgs []IMAPMessage, total int, err error) {
+func searchMessages(conn *imapclient.Client, mboxName string, q search.Query, searchCriteria *imap.SearchCriteria, page alborz.Page, sort string, reverse bool, fields rowFields) (msgs []IMAPMessage, total int, err error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, 0, err
 	}
@@ -1603,14 +1596,9 @@ func searchMessages(conn *imapclient.Client, mboxName string, q search.Query, se
 	}
 
 	total = len(nums)
-
-	from := page * messagesPerPage
-	to := from + messagesPerPage
-	if from >= len(nums) {
+	from, to := page.Within(total).Rows(total)
+	if from == to {
 		return nil, total, nil
-	}
-	if to > len(nums) {
-		to = len(nums)
 	}
 	nums = nums[from:to]
 

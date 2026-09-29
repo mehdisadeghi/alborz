@@ -2697,12 +2697,24 @@ func TestMergedListsCutTheSamePage(t *testing.T) {
 		if want := fmt.Sprintf("3–4 of %d", len(all)); !strings.Contains(body, want) {
 			t.Errorf("%s: the second page does not say %q", list, want)
 		}
-		for _, page := range []string{"?page=0&", "?page=2&"} {
-			if !strings.Contains(html.UnescapeString(body), page) {
-				t.Errorf("%s: the second page has no link to %s", list, page)
-			}
+		if got := pagerSteps(t, body); !slices.Equal(got, []string{"", "2"}) {
+			t.Errorf("%s: the second page steps to pages %q, want the first and the third", list, got)
 		}
 	}
+}
+
+// pagerSteps are the page parameters the pager's links name, the first page's being empty.
+func pagerSteps(t *testing.T, body string) []string {
+	t.Helper()
+	var steps []string
+	for _, m := range regexp.MustCompile(`<a href="([^"]+)" class="icon-button"`).FindAllStringSubmatch(between(body, `class="actions-pagination"`, "</div>"), -1) {
+		u, err := url.Parse(html.UnescapeString(m[1]))
+		if err != nil {
+			t.Fatalf("pager link %q: %v", m[1], err)
+		}
+		steps = append(steps, u.Query().Get("page"))
+	}
+	return steps
 }
 
 func TestAServerDownCostsItsRowsNotThePage(t *testing.T) {

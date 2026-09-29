@@ -258,7 +258,10 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	rows, pager := alborz.Paginate(ctx, list.Rows)
+	rows, pager, err := alborz.Paginate(ctx, list.Rows)
+	if err != nil {
+		return err
+	}
 	addedBy := p.dav.AddedBy(ctx.Login.Username())
 	for i := range rows {
 		rows[i].AddedBy = addedBy(rows[i].Calendar.Account, rows[i].Task.Path)

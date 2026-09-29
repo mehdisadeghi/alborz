@@ -46,9 +46,9 @@ func (p *plugin) loadListing(ctx *alborz.Context, s *alborz.Login, view string, 
 	return p.listings.load(ctx.Request().Context(), s.Username(), view, size, false, readOn(s, class, bound, fetch))
 }
 
-func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page, perPage int) {
-	key := listingPage(listingView(spec.mbox, spec.query, spec.view, spec.sortKey, spec.sortDir), page, perPage)
-	if e, _ := p.listings.lookup(s.Username(), key, perPage); e != nil {
+func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page alborz.Page) {
+	key := listingPage(listingView(spec.mbox, spec.query, spec.view, spec.sortKey, spec.sortDir), page.Number, page.Size)
+	if e, _ := p.listings.lookup(s.Username(), key, page.Size); e != nil {
 		return
 	}
 	if !p.listings.claim(s.Username(), key) {
@@ -56,8 +56,8 @@ func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingS
 	}
 	go func() {
 		defer p.listings.release(s.Username(), key)
-		p.listings.load(context.Background(), s.Username(), key, perPage, true, readOn(s, alborz.IMAPBackground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
-			return fetchListing(c, s.Username(), spec, settings, page, perPage)
+		p.listings.load(context.Background(), s.Username(), key, page.Size, true, readOn(s, alborz.IMAPBackground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
+			return fetchListing(c, s.Username(), spec, settings, page)
 		}))
 		// Only visited pages get bodies; speculative ones would evict the page in use.
 	}()

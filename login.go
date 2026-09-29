@@ -209,8 +209,11 @@ const (
 )
 
 func waitError(err error, bound time.Duration) error {
-	if errors.Is(err, context.DeadlineExceeded) {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
 		return UpstreamError{service: "mail", after: bound, cause: err}
+	case errors.Is(err, errIMAPQueueFull):
+		return err
 	}
 	return context.Canceled
 }

@@ -92,8 +92,10 @@ replace github.com/emersion/go-mbox => github.com/alborzmail/go-mbox v0.0.0-2026
 // NewTimezone, the VTIMEZONE of a zone over a span, the zones a calendar
 // refers to, alarm triggers, splitting by UID, dropping repeated zones;
 // and recurrence by go-recur, RSCALE included, with a component and its
-// overrides read as one series.
-replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-20260929134259-007cc45012fd
+// overrides read as one series; and a decoder that reports a malformed
+// parameter or a file cut off inside a component instead of panicking or
+// ending early.
+replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-20260929144159-1c57fd6d8438
 
 // Our fork of go-imap carries what upstream has open: ID with fields
 // RFC 2971 does not name, so Dovecot learns the reader's address

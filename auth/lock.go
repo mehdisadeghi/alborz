@@ -20,7 +20,7 @@ func registerPasskeyRoutes(unlock, app *web.Group) {
 		// An empty change wakes this session's other tabs to find the lock.
 		ctx.Server.Changes.Publish(alborz.Change{})
 		ctx.Quiet()
-		return ctx.Redirect(http.StatusSeeOther, "/unlock")
+		return ctx.Redirect(http.StatusSeeOther, ctx.Path("auth.unlock"))
 	})
 	// Any request counts as presence, so this one needs to do nothing.
 	app.POST("alive", "/alive", func(ctx *web.Context) error {
@@ -53,6 +53,6 @@ func registerPasskeyRoutes(unlock, app *web.Group) {
 	})
 	unlock.POST("unlock.leave", "/leave", func(ctx *web.Context) error {
 		ctx.EndSession()
-		return ctx.Redirect(http.StatusFound, "/login")
+		return ctx.Redirect(http.StatusFound, ctx.Path("auth.login"))
 	})
 }

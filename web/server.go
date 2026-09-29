@@ -281,10 +281,9 @@ func stampOf(content []byte) string {
 }
 
 func redirectToLogin(ctx *Context) error {
-	path := ctx.Request().URL.Path
-	to := "/login"
+	path, to := ctx.Request().URL.Path, ctx.Path("auth.login")
 	// Only a GET can be resumed after login; a POST-only route must not be replayed as a GET.
-	if ctx.Request().Method == http.MethodGet && path != "/" && path != "/login" {
+	if ctx.Request().Method == http.MethodGet && path != "/" && path != to {
 		to += "?next=" + QueryValue(ctx.Request().URL.String())
 	}
 	return ctx.Redirect(http.StatusFound, to)

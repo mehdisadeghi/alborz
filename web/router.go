@@ -240,6 +240,11 @@ func (s *Server) mustPath(name string, values ...any) string {
 	return p
 }
 
+// Path is the route's address with values in its wildcards.
+func (ctx *Context) Path(name string, values ...any) string {
+	return ctx.Server.mustPath(name, values...)
+}
+
 // URL is the route's address in the request's account.
 func (ctx *Context) URL(name string, values ...any) string {
 	return ctx.AccountPath(ctx.Server.mustPath(name, values...))

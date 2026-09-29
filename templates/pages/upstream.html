@@ -3,7 +3,7 @@
   <div class="container error">
     <h1>{{$.T "upstream.title"}}</h1>
     <p>{{ if .Waited }}{{ $.GlobalData.Tf "upstream.explain" .Seconds .Service }}{{ else }}{{ $.GlobalData.Tf "upstream.unreachable" .Service }}{{ end }}</p>
-    <form method="post" action="/logout" class="upstream-actions">
+    <form method="post" action="{{url "auth.logout"}}" class="upstream-actions">
       <a class="button-link button-primary" href="{{.Retry}}">{{$.T "upstream.retry"}}</a>
       <button class="button-quiet">{{$.T "nav.signout"}}</button>
     </form>

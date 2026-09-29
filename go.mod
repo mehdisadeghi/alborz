@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/ProtonMail/go-crypto v1.5.0
-	github.com/alborzmail/go-itip v0.0.0-20260928205626-4b0912c3ea74
+	github.com/alborzmail/go-itip v0.0.0-20260929111949-05f20f0ab6b6
 	github.com/aymerick/douceur v0.2.0
 	github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608

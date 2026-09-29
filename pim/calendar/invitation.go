@@ -1,7 +1,6 @@
 package calendar
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -132,14 +131,10 @@ func handleInvitationReply(ctx *alborz.Context) error {
 		return err
 	}
 	messageZones(reply)
-	var buf bytes.Buffer
-	if err := ical.NewEncoder(&buf).Encode(reply); err != nil {
-		return fmt.Errorf("failed to write the reply calendar: %v", err)
-	}
 
 	back := ctx.NextOr(ctx.AccountPath(fmt.Sprintf("/message/%s/%v", url.PathEscape(mboxName), uid)))
 	subject := fmt.Sprintf(ctx.T("invite.subject"+strings.ToLower(status)), inv.Summary)
-	if err := mail.SendCalendarMessage(ctx, []string{inv.Organizer}, subject, itip.MethodReply, buf.String()); err != nil {
+	if err := mail.SendCalendarMessage(ctx, []string{inv.Organizer}, subject, reply); err != nil {
 		ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})
 		return ctx.Redirect(http.StatusFound, back)
 	}
@@ -150,16 +145,12 @@ func handleInvitationReply(ctx *alborz.Context) error {
 
 // An unparsable invitation is not a page failure: the part is still an attachment.
 func messageInvitation(ctx *alborz.Context, msg *mail.IMAPMessage, mboxName string, uid imap.UID) *Invitation {
-	raw, _, err := mail.CalendarPart(ctx, msg, mboxName, uid)
+	cal, _, err := mail.CalendarPart(ctx, msg, mboxName, uid)
 	if err != nil {
 		ctx.Logger().Printf("failed to read the calendar part: %v", err)
 		return nil
 	}
-	if raw == nil {
-		return nil
-	}
-	cal, err := itip.Parse(raw)
-	if err != nil {
+	if cal == nil {
 		return nil
 	}
 	mine, err := mail.Addresses(ctx.Request().Context(), ctx.Login)
@@ -172,13 +163,6 @@ func messageInvitation(ctx *alborz.Context, msg *mail.IMAPMessage, mboxName stri
 
 // invitationAt reads the scheduling message one mail carries; nil for none.
 func invitationAt(ctx *alborz.Context, mboxName string, uid imap.UID) (*ical.Calendar, error) {
-	raw, _, err := mail.CalendarPartAt(ctx, mboxName, uid)
-	if err != nil || raw == nil {
-		return nil, err
-	}
-	cal, err := itip.Parse(raw)
-	if err != nil {
-		return nil, nil
-	}
-	return cal, nil
+	cal, _, err := mail.CalendarPartAt(ctx, mboxName, uid)
+	return cal, err
 }

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-smtp"
 )
@@ -30,7 +31,7 @@ func invitationPart(msg *IMAPMessage) *IMAPPartNode {
 }
 
 // SendCalendarMessage posts an iCalendar object as mail (iMIP).
-func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, calendar string) error {
+func SendCalendarMessage(ctx *alborz.Context, to []string, subject string, cal *ical.Calendar) error {
 	if len(to) == 0 {
 		return nil
 	}
@@ -39,13 +40,12 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject, method, cale
 		return err
 	}
 	msg := &OutgoingMessage{
-		From:           fromAddress(settings, ctx.Login.Username()),
-		To:             to,
-		Subject:        subject,
-		MessageID:      newMessageID(),
-		Text:           calendar,
-		CalendarMethod: method,
-		Mailer:         mailerName(ctx),
+		From:      fromAddress(settings, ctx.Login.Username()),
+		To:        to,
+		Subject:   subject,
+		MessageID: newMessageID(),
+		Calendar:  cal,
+		Mailer:    mailerName(ctx),
 	}
 	return ctx.DoSMTP(func(c *smtp.Client) error {
 		return sendMessage(c, msg)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -174,4 +175,18 @@ func verdictOver(t *testing.T, raw string) Verification {
 		t.Fatal(err)
 	}
 	return v
+}
+
+func TestWKDCacheStaysBounded(t *testing.T) {
+	w := newWKDCache(wkdKeepFor)
+	client := &http.Client{Transport: unresolvable{}}
+	for i := range maxWKDEntries + 10 {
+		w.keys(context.Background(), client, fmt.Sprintf("a%d@example.org", i))
+	}
+	if n := len(w.entries); n != maxWKDEntries {
+		t.Errorf("reading %d authors kept %d entries; the cap is %d", maxWKDEntries+10, n, maxWKDEntries)
+	}
+	if _, ok := w.entries[fmt.Sprintf("a%d@example.org", maxWKDEntries+9)]; !ok {
+		t.Error("the newest author was evicted")
+	}
 }

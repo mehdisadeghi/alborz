@@ -414,7 +414,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 	messagesPerPage := alborz.PerPage(ctx)
 
 	query := ctx.QueryParam("query")
-	railView, err := readView(ctx)
+	railView, err := readView(ctx.QueryParams())
 	if err != nil {
 		return err
 	}

@@ -85,7 +85,7 @@ func (p *plugin) handleMessageNavigation(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	view, err := readView(ctx)
+	view, err := readView(ctx.QueryParams())
 	if err != nil {
 		return err
 	}

@@ -38,7 +38,7 @@ func (p *plugin) handleExportMbox(ctx *alborz.Context) error {
 	var uids []imap.UID
 	if ctx.FormValue("all") != "" {
 		query := ctx.QueryParam("query")
-		view, err := readView(ctx)
+		view, err := readView(ctx.QueryParams())
 		if err != nil {
 			return err
 		}

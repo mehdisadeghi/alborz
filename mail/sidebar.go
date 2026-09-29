@@ -30,7 +30,7 @@ func (p *plugin) handleSidebar(ctx *alborz.Context) error {
 	if len(parts) > 2 && (parts[1] == "mailbox" || parts[1] == "message") {
 		folder, _ = url.PathUnescape(parts[2])
 	}
-	view, err := readView(ctx)
+	view, err := readView(ctx.QueryParams())
 	if err != nil {
 		return err
 	}
@@ -481,7 +481,7 @@ func (p *plugin) newIMAPBaseRenderData(ctx *alborz.Context,
 		return nil, err
 	}
 
-	view, err := readView(ctx)
+	view, err := readView(ctx.QueryParams())
 	if err != nil {
 		return nil, err
 	}

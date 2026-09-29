@@ -206,7 +206,10 @@ func readRules(content string) (rules []Rule, ok bool) {
 
 type RulesRenderData struct {
 	alborz.BaseRenderData
-	Rules  []Rule
+	Rules []Rule
+	// Shown are the places in Rules of the rules one page shows.
+	Shown  []int
+	Pager  alborz.Pager
 	Loaded string
 	ByHand bool
 	Script string
@@ -250,6 +253,13 @@ func rulesData(ctx *alborz.Context) (*RulesRenderData, error) {
 func handleRules(ctx *alborz.Context) error {
 	data, err := rulesData(ctx)
 	if err != nil {
+		return err
+	}
+	at := make([]int, len(data.Rules))
+	for i := range at {
+		at[i] = i
+	}
+	if data.Shown, data.Pager, err = alborz.Paginate(ctx, at); err != nil {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "filters/rules", data)

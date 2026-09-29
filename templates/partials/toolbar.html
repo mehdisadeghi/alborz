@@ -22,10 +22,11 @@
 
 {{ define "list-toolbar" }}
 {{ template "toolbar-head" . }}
-{{ if or .search .pagination }}
+{{ if or .search .pagination .pager }}
 {{ template "toolbar-end" }}
     {{ with .search }}{{ template "toolbar-search" . }}{{ end }}
     {{ with .pagination }}{{ template "pagination" . }}{{ end }}
+    {{ with .pager }}{{ template "list-pager" (dict "g" $.g "pager" .) }}{{ end }}
 {{ end }}
 {{ template "toolbar-foot" }}
 {{ end }}

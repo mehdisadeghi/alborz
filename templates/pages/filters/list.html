@@ -6,7 +6,7 @@
 
 {{ define "main" }}
   {{ $aq := account "?" .GlobalData.URLAccount }}
-        {{ template "list-toolbar" (dict "g" $ "newhref" (and .Accounts (printf "/filters/create%s" $aq)) "newlabel" ($.T "filters.new")) }}
+        {{ template "list-toolbar" (dict "g" $ "newhref" (and .Accounts (printf "/filters/create%s" $aq)) "newlabel" ($.T "filters.new") "pager" .Pager) }}
 
       {{ template "filters-crumb" (dict "g" $ "heading" true) }}
 
@@ -21,12 +21,9 @@
       {{ end }}
 
       <section class="list-items">
-        {{ $any := false }}
-        {{ range .Groups }}
+        {{ range .Rows }}
         {{ $gq := account "?" .Account }}
         {{ $label := $.GlobalData.AccountLabel .Account }}
-        {{ range .Scripts }}
-        {{ $any = true }}
         <div class="list-item">
           <div class="list-content">
             <a href="{{ localhref (from (printf "/filters/%s%s" (.Name | pathescape) $gq) $.GlobalData.URL.RequestURI) }}" class="list-summary">{{.Name}}{{ if $.GlobalData.Unified }}<span class="row-account">{{ template "ltr" $label }}</span>{{ end }}</a>
@@ -51,10 +48,9 @@
           </form>
         </div>
         {{ end }}
-        {{ end }}
         {{ if not .Accounts }}
         <p class="empty-list">{{$.T "filters.noserver"}}</p>
-        {{ else if not $any }}
+        {{ else if not .Rows }}
         <p class="empty-list">{{$.T "filters.empty"}}</p>
         {{ end }}
       </section>

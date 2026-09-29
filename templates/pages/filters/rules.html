@@ -6,7 +6,7 @@
 
 {{ define "main" }}
   {{ $aq := account "?" .GlobalData.URLAccount }}
-        {{ template "list-toolbar" (dict "g" $ "title" ($.T "filters.rules") "newhref" (printf "/filters/rules/create%s" $aq) "newlabel" ($.T "filters.rulenew")) }}
+        {{ template "list-toolbar" (dict "g" $ "title" ($.T "filters.rules") "newhref" (printf "/filters/rules/create%s" $aq) "newlabel" ($.T "filters.rulenew") "pager" .Pager) }}
 
       {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" "/filters/rules") }}
 
@@ -15,7 +15,7 @@
 
       <section class="list-items">
         {{ $n := len .Rules }}
-        {{ range $i, $r := .Rules }}
+        {{ range $i := .Shown }}{{ with index $.Rules $i }}
         <div class="list-item{{ if .Off }} off{{ end }}">
           <div class="list-content">
             <a href="/filters/rules/{{$i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
@@ -25,21 +25,24 @@
           <form method="post" action="/filters/rules/move{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">
             <input type="hidden" name="index" value="{{$i}}">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button name="dir" value="up" class="icon-button" title="{{$.T "filters.moveup"}}" aria-label="{{$.T "filters.moveup"}}"{{ if eq $i 0 }} disabled{{ end }}>{{ template "icon" "up" }}</button>
             <button name="dir" value="down" class="icon-button" title="{{$.T "filters.movedown"}}" aria-label="{{$.T "filters.movedown"}}"{{ if eq (sub $n 1) $i }} disabled{{ end }}>{{ template "icon" "down" }}</button>
           </form>
           <form method="post" action="/filters/rules/toggle{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">
             <input type="hidden" name="index" value="{{$i}}">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button>{{ if .Off }}{{$.T "filters.activate"}}{{ else }}{{$.T "filters.deactivate"}}{{ end }}</button>
           </form>
           <form method="post" action="/filters/rules/delete{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">
             <input type="hidden" name="index" value="{{$i}}">
+            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button class="button-danger">{{$.T "common.delete"}}</button>
           </form>
         </div>
-        {{ end }}
+        {{ end }}{{ end }}
         {{ if and (not .Rules) (not .ByHand) }}
         <p class="empty-list">{{$.T "filters.rulesnone"}}</p>
         {{ end }}

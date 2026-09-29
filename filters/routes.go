@@ -15,11 +15,20 @@ import (
 type FiltersRenderData struct {
 	alborz.BaseRenderData
 	// Groups holds every account with scripts on a bare URL, else the one the URL names.
-	Groups   []AccountFilters
+	Groups []AccountFilters
+	// Rows are the scripts of every group, one page of them.
+	Rows     []ScriptRow
+	Pager    alborz.Pager
 	Accounts []alborz.Account
 	// Explained is shown once for the page rather than in every server card.
 	Explained []alborz.Explained
 	Rail      map[string][]alborz.RailRow
+}
+
+// ScriptRow is a script as the list shows it, with the account holding it.
+type ScriptRow struct {
+	alborz.SieveScript
+	Account string
 }
 
 // AccountFilters is one account's scripts and the server they live on.
@@ -140,6 +149,16 @@ func handleListFilters(ctx *alborz.Context) error {
 			unreachable++
 		}
 		data.Groups = append(data.Groups, group)
+	}
+	var rows []ScriptRow
+	for _, group := range data.Groups {
+		for _, script := range group.Scripts {
+			rows = append(rows, ScriptRow{SieveScript: script, Account: group.Account})
+		}
+	}
+	var err error
+	if data.Rows, data.Pager, err = alborz.Paginate(ctx, rows); err != nil {
+		return err
 	}
 	seen := map[string]bool{}
 	for _, group := range data.Groups {

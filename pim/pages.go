@@ -347,9 +347,6 @@ func fetchAddress(ctx *web.Context, client *http.Client, address string) ([]byte
 	return raw, nil
 }
 
-// ErrNothingToExport is an empty collection, for which no file can be written.
-var ErrNothingToExport = errors.New("nothing to export")
-
 // newPrefix marks a new collection per file as destination, in the place that follows.
 const newPrefix = "new:"
 
@@ -476,23 +473,6 @@ func (pg Page) importRaw(ctx *web.Context, collPath string, raw []byte) error {
 	return nil
 }
 
-// UnreadableError is a file its parser could not read, for the reader to correct.
-type UnreadableError struct{ Err error }
-
-func (e *UnreadableError) Error() string { return "failed to read the file: " + e.Err.Error() }
-func (e *UnreadableError) Unwrap() error { return e.Err }
-
-// PartlySavedError is an import stopped after Saved of Total objects were written; those stay written.
-type PartlySavedError struct {
-	Saved, Total int
-	Err          error
-}
-
-func (e *PartlySavedError) Error() string {
-	return fmt.Sprintf("%d of %d saved: %v", e.Saved, e.Total, e.Err)
-}
-func (e *PartlySavedError) Unwrap() error { return e.Err }
-
 // fileError names the file of a bundle an import stopped at.
 type fileError struct {
 	name string
@@ -501,12 +481,6 @@ type fileError struct {
 
 func (e *fileError) Error() string { return e.name + ": " + e.err.Error() }
 func (e *fileError) Unwrap() error { return e.err }
-
-// ImportAnswered says whether an import stopped on the reader's file or the server's answer, rather than alborz failing.
-func ImportAnswered(err error) bool {
-	var unreadable *UnreadableError
-	return errors.As(err, &unreadable) || errors.Is(err, dav.ErrPlaceDown) || dav.ServerRefused(err)
-}
 
 // ImportRefused is a failed notice for an import the file or the server stopped.
 func ImportRefused(ctx *web.Context, err error) web.Notice {

@@ -1,12 +1,9 @@
 package pim
 
 import (
-	"net/http"
 	"slices"
 	"strings"
 	"time"
-
-	"git.mehdix.org/alborz/web"
 )
 
 // Column is one order a list can take: its URL key and a row's sort value.
@@ -32,43 +29,6 @@ func StarredFirst(star string) string {
 		return "0"
 	}
 	return "1"
-}
-
-// Sorting is a list's order; Explicit and DirExplicit say whether the URL asked for it.
-type Sorting struct {
-	Key, Dir              string
-	Explicit, DirExplicit bool
-	// Params is what a sort link keeps of the list's address; Reset is the default order.
-	Params, Reset string
-}
-
-// A new order starts at the first page, so sort links drop these.
-var sortDrops = []string{"sort", "dir", "page"}
-
-// Sort orders rows as the URL asks, by the first column by default; tie breaks equal rows.
-func Sort[T any](ctx *web.Context, rows []T, columns []Column[T], tie func(T) string, keep ...string) (Sorting, error) {
-	key, dir := ctx.QueryParam("sort"), ctx.QueryParam("dir")
-	s := Sorting{Key: key, Dir: dir, Explicit: key != "", DirExplicit: dir != "", Reset: "?"}
-	if key == "" {
-		s.Key = columns[0].Key
-	}
-	at := slices.IndexFunc(columns, func(c Column[T]) bool { return c.Key == s.Key })
-	if at < 0 {
-		return s, web.NewError(http.StatusBadRequest, "invalid sort order")
-	}
-	if dir != "" && dir != "asc" && dir != "desc" {
-		return s, web.NewError(http.StatusBadRequest, "invalid sort direction")
-	}
-	kept := Keep(ctx.QueryParams(), keep...)
-	for _, k := range sortDrops {
-		kept.Del(k)
-	}
-	if len(kept) > 0 {
-		s.Params = "&" + web.Query(kept)
-		s.Reset = "?" + web.Query(kept)
-	}
-	Order(rows, columns[at], tie, dir == "desc")
-	return s, nil
 }
 
 // Order sorts rows by column, equal rows by tie; desc reverses both.

@@ -4,7 +4,7 @@
     {{/* Its own direction, or an RTL page reorders the code and its colon. */}}
     <h1 dir="ltr">{{.Code}}: {{.Status}}</h1>
     <p>
-      {{$.T "error.prefix"}}<a href="/">{{$.T "error.back"}}</a>{{$.T "error.suffix"}}
+      {{$.T "error.prefix"}}<a href="{{url "mail.home"}}">{{$.T "error.back"}}</a>{{$.T "error.suffix"}}
     </p>
   </div>
 </div>

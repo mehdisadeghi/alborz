@@ -228,9 +228,9 @@ func (ctx *Context) cookie(name, value string, life time.Duration) *http.Cookie 
 // AssetURL stamps a theme asset's URL with a digest of its content, so a changed file changes its URL.
 func (s *Server) AssetURL(name string) string {
 	if stamp := s.assetStamp(name); stamp != "" {
-		return "/assets/" + name + "?v=" + stamp
+		return s.mustPath("core.asset", name) + "?v=" + stamp
 	}
-	return "/assets/" + name
+	return s.mustPath("core.asset", name)
 }
 
 var shellAssets = []string{"style.css", "scheme.js", "htmx.js", "helpers.js", "keys.js", "print.css",

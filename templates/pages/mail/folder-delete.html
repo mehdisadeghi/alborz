@@ -13,7 +13,7 @@
         </div>
         <div class="actions">
           <button type="submit" class="button-danger">{{printf ($.T "folder.deletedo") .Mailbox.Name}}</button>
-          <a class="button-link button-quiet" href="/">{{$.T "common.cancel"}}</a>
+          <a class="button-link button-quiet" href="{{url "mail.home"}}">{{$.T "common.cancel"}}</a>
         </div>
       </form>
 {{ end }}

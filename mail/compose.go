@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"html"
@@ -155,29 +154,6 @@ func attachedRef(p messagePath) string {
 	return fmt.Sprintf("%s/%v", url.PathEscape(p.Mailbox), p.Uid)
 }
 
-func attachMessages(ctx *alborz.Context, msg *OutgoingMessage, paths []messagePath) error {
-	for _, p := range paths {
-		var body []byte
-		var env *imap.Envelope
-		err := ctx.DoIMAP(func(c *imapclient.Client) error {
-			var err error
-			body, env, err = fetchRawMessage(c, p.Mailbox, p.Uid)
-			return err
-		})
-		if err != nil {
-			return err
-		}
-		subject := ""
-		if env != nil {
-			subject = env.Subject
-		}
-		msg.Attachments = append(msg.Attachments, &messageAttachment{
-			Path: p, Name: attachmentName(subject), Body: body,
-		})
-	}
-	return nil
-}
-
 // The form shows only names; the send fetches the messages.
 func attachedNames(ctx *alborz.Context, msg *OutgoingMessage, paths []messagePath) error {
 	for _, p := range paths {
@@ -190,7 +166,9 @@ func attachedNames(ctx *alborz.Context, msg *OutgoingMessage, paths []messagePat
 		if err != nil {
 			return err
 		}
-		msg.Attachments = append(msg.Attachments, &messageAttachment{Path: p, Name: attachmentName(env.Subject)})
+		msg.Attachments = append(msg.Attachments, &messageAttachment{
+			Path: p, Name: attachmentName(env.Subject), transfer: transferOf(ctx),
+		})
 	}
 	return nil
 }
@@ -214,8 +192,13 @@ func (err refused) Error() string { return err.cause.Error() }
 
 // The sender is the From account; the draft and the answered message stay on the request's account.
 func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
-	err := sender.DoSMTP(func(c *smtp.Client) error {
-		return sendMessage(c, msg)
+	body, err := spool(msg)
+	if err != nil {
+		return err
+	}
+	defer body.Close()
+	err = sender.DoSMTP(func(c *smtp.Client) error {
+		return sendMessage(c, msg, body)
 	})
 	if err != nil {
 		if _, ok := err.(alborz.AuthError); ok {
@@ -245,9 +228,9 @@ func (p *plugin) submitCompose(ctx *alborz.Context, sender *alborz.Login, msg *O
 
 	var sent *MailboxInfo
 	var sentUID imap.UID
-	err = sender.DoIMAP(func(c *imapclient.Client) error {
+	err = sender.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
 		var err error
-		sent, sentUID, err = appendMessage(c, msg, "sent")
+		sent, sentUID, err = appendMessage(c, body, "sent")
 		return err
 	})
 	if err != nil {
@@ -421,7 +404,7 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 			}
 			attached = append(attached, p)
 		}
-		if err := attachMessages(ctx, msg, attached); err != nil {
+		if err := attachedNames(ctx, msg, attached); err != nil {
 			return err
 		}
 		options.Attached = attached
@@ -439,33 +422,21 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 					return fmt.Errorf("failed to parse original attachment path: %v", err)
 				}
 
-				var part *message.Entity
+				var part *imap.BodyStructureSinglePart
 				err = ctx.DoIMAP(func(c *imapclient.Client) error {
 					var err error
-					_, part, err = getMessagePart(c, original.Mailbox, original.Uid, path)
+					part, err = singlePart(c, original.Mailbox, original.Uid, path)
 					return err
 				})
 				if err != nil {
 					return fmt.Errorf("failed to fetch attachment from original message: %w", err)
 				}
-
-				var buf bytes.Buffer
-				if _, err := io.Copy(&buf, part.Body); err != nil {
-					return fmt.Errorf("failed to copy attachment from original message: %v", err)
-				}
-
-				h := mail.AttachmentHeader{Header: part.Header}
-				mimeType, _, _ := h.ContentType()
-				filename, _ := h.Filename()
 				msg.Attachments = append(msg.Attachments, &imapAttachment{
-					Mailbox: original.Mailbox,
-					Uid:     original.Uid,
-					Node: &IMAPPartNode{
-						Path:     path,
-						MIMEType: mimeType,
-						Filename: filename,
-					},
-					Body: buf.Bytes(),
+					Mailbox:  original.Mailbox,
+					Uid:      original.Uid,
+					Node:     newIMAPPartNode(nil, path, part),
+					Encoding: part.Encoding,
+					transfer: transferOf(ctx),
 				})
 			}
 		} else if len(form.Value["prev_attachments"]) > 0 {
@@ -509,12 +480,17 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 			if saveAsDraft {
 				// A draft is what was typed; the editor cannot open a multipart/alternative.
 				msg.SendHTML = false
+				body, err := spool(msg)
+				if err != nil {
+					return err
+				}
+				defer body.Close()
 				var (
 					drafts *MailboxInfo
 					uid    imap.UID
 				)
-				err = ctx.DoIMAP(func(c *imapclient.Client) error {
-					drafts, uid, err = appendMessage(c, msg, "drafts")
+				err = ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
+					drafts, uid, err = appendMessage(c, body, "drafts")
 					if err != nil {
 						return err
 					}

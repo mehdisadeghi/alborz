@@ -47,9 +47,7 @@ func SendCalendarMessage(ctx *alborz.Context, to []string, subject string, cal *
 		Calendar:  cal,
 		Mailer:    mailerName(ctx),
 	}
-	return ctx.DoSMTP(func(c *smtp.Client) error {
-		return sendMessage(c, msg)
-	})
+	return send(ctx, msg)
 }
 
 // ShareHeader names the share invitation a mail stands for.
@@ -70,7 +68,17 @@ func SendText(ctx *alborz.Context, to []string, subject, text string, headers ma
 		Mailer:    mailerName(ctx),
 		Headers:   headers,
 	}
+	return send(ctx, msg)
+}
+
+// send posts a message no folder keeps.
+func send(ctx *alborz.Context, msg *OutgoingMessage) error {
+	body, err := spool(msg)
+	if err != nil {
+		return err
+	}
+	defer body.Close()
 	return ctx.DoSMTP(func(c *smtp.Client) error {
-		return sendMessage(c, msg)
+		return sendMessage(c, msg, body)
 	})
 }

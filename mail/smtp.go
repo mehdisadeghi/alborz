@@ -2,12 +2,12 @@ package mail
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"html/template"
 	"io"
 	"mime"
 	"mime/multipart"
+	"os"
 	"strings"
 	"time"
 
@@ -16,6 +16,7 @@ import (
 	"github.com/alborzmail/go-itip/imip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-smtp"
@@ -163,7 +164,7 @@ func quoteDepth(line string) int {
 type Attachment interface {
 	MIMEType() string
 	Filename() string
-	Open() (io.ReadCloser, error)
+	io.WriterTo
 }
 
 // ID names an upload the session holds, which a refused send puts back on the form.
@@ -176,8 +177,13 @@ func (att *formAttachment) SizeString() string {
 	return formatSize(att.FileHeader.Size)
 }
 
-func (att *formAttachment) Open() (io.ReadCloser, error) {
-	return att.FileHeader.Open()
+func (att *formAttachment) WriteTo(w io.Writer) (int64, error) {
+	f, err := att.FileHeader.Open()
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	return io.Copy(w, f)
 }
 
 func (att *formAttachment) MIMEType() string {
@@ -191,18 +197,19 @@ func (att *formAttachment) Filename() string {
 }
 
 type imapAttachment struct {
-	Mailbox string
-	Uid     imap.UID
-	Node    *IMAPPartNode
-
-	Body []byte
+	Mailbox  string
+	Uid      imap.UID
+	Node     *IMAPPartNode
+	Encoding string
+	transfer transfer
 }
 
-func (att *imapAttachment) Open() (io.ReadCloser, error) {
-	if att.Body == nil {
-		return nil, fmt.Errorf("IMAP attachment has not been pre-fetched")
-	}
-	return io.NopCloser(bytes.NewReader(att.Body)), nil
+func (att *imapAttachment) WriteTo(w io.Writer) (n int64, err error) {
+	err = att.transfer(func(c *imapclient.Client) error {
+		n, err = copySection(w, c, att.Mailbox, att.Uid, att.Node.Path, att.Encoding)
+		return err
+	})
+	return n, err
 }
 
 func (att *imapAttachment) MIMEType() string {
@@ -286,18 +293,8 @@ func writeAttachment(mw *mail.Writer, att Attachment) error {
 	}
 	defer aw.Close()
 
-	f, err := att.Open()
-	if err != nil {
-		return fmt.Errorf("failed to open attachment: %v", err)
-	}
-	defer f.Close()
-
-	if _, err := io.Copy(aw, f); err != nil {
+	if _, err := att.WriteTo(aw); err != nil {
 		return fmt.Errorf("failed to write attachment: %v", err)
-	}
-
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("failed to close attachment: %v", err)
 	}
 	if err := aw.Close(); err != nil {
 		return fmt.Errorf("failed to close attachment writer: %v", err)
@@ -429,7 +426,27 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	return nil
 }
 
-func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
+// spool writes the message once, so what is sent and what is kept are the same
+// bytes, and IMAP learns their size before the APPEND. The file is unlinked
+// at once and goes with its last descriptor, even if alborz dies (Unix).
+func spool(msg *OutgoingMessage) (*os.File, error) {
+	f, err := os.CreateTemp("", "")
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Remove(f.Name()); err != nil {
+		f.Close()
+		return nil, err
+	}
+	if err := msg.WriteMessage(f); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("failed to write outgoing message: %w", err)
+	}
+	return f, nil
+}
+
+// sendMessage transmits body, a spooled msg, from its start.
+func sendMessage(c *smtp.Client, msg *OutgoingMessage, body io.ReadSeeker) error {
 	addr, err := mail.ParseAddress(msg.From)
 	if err != nil {
 		return fmt.Errorf("parsing 'From' address failed: %v", err)
@@ -450,13 +467,16 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage) error {
 		}
 	}
 
+	if _, err := body.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
 	w, err := c.Data()
 	if err != nil {
 		return fmt.Errorf("DATA failed: %v", err)
 	}
 	defer w.Close()
 
-	if err := msg.WriteMessage(w); err != nil {
+	if _, err := io.Copy(w, body); err != nil {
 		return fmt.Errorf("failed to write outgoing message: %v", err)
 	}
 
@@ -555,15 +575,7 @@ func writeRelated(iw *mail.InlineWriter, htmlBody string, images []inlineImage) 
 			rw.Close()
 			return fmt.Errorf("failed to create image part: %v", err)
 		}
-		f, err := im.Open()
-		if err != nil {
-			w.Close()
-			rw.Close()
-			return fmt.Errorf("failed to open image: %v", err)
-		}
-		_, err = io.Copy(w, f)
-		f.Close()
-		if err != nil {
+		if _, err := im.WriteTo(w); err != nil {
 			w.Close()
 			rw.Close()
 			return fmt.Errorf("failed to write image: %v", err)

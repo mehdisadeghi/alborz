@@ -1785,30 +1785,6 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 	return out, part, nil
 }
 
-// Attaching a message needs its exact bytes, which quoting can never reproduce.
-func fetchRawMessage(conn *imapclient.Client, mboxName string, uid imap.UID) ([]byte, *imap.Envelope, error) {
-	if err := ensureMailboxSelected(conn, mboxName); err != nil {
-		return nil, nil, err
-	}
-	section := &imap.FetchItemBodySection{Peek: true}
-	msgs, err := conn.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
-		Envelope:    true,
-		UID:         true,
-		BodySection: []*imap.FetchItemBodySection{section},
-	}).Collect()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
-	}
-	if len(msgs) == 0 {
-		return nil, nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
-	}
-	buf := msgs[0].FindBodySection(section)
-	if buf == nil {
-		return nil, nil, fmt.Errorf("server didn't return the message body")
-	}
-	return buf, msgs[0].Envelope, nil
-}
-
 // streamSection hands use the literal of the one section options asks for,
 // as it arrives from the server.
 func streamSection(c *imapclient.Client, uid imap.UID, options *imap.FetchOptions, use func(imap.LiteralReader) error) error {
@@ -1844,6 +1820,29 @@ func streamSection(c *imapclient.Client, uid imap.UID, options *imap.FetchOption
 	return nil
 }
 
+// transfer runs f on a connection of its own to the account holding a message.
+type transfer func(f func(*imapclient.Client) error) error
+
+func transferOf(ctx *alborz.Context) transfer {
+	return func(f func(*imapclient.Client) error) error {
+		return ctx.Login.DoIMAPTransfer(ctx.Request().Context(), f)
+	}
+}
+
+// copySection streams a section of a message into w as the server sends it,
+// undoing its transfer encoding; a nil part is the whole message.
+func copySection(w io.Writer, c *imapclient.Client, mboxName string, uid imap.UID, part []int, encoding string) (n int64, err error) {
+	if err := ensureMailboxSelected(c, mboxName); err != nil {
+		return 0, err
+	}
+	options := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{{Peek: true, Part: part}}}
+	err = streamSection(c, uid, options, func(lit imap.LiteralReader) error {
+		n, err = io.Copy(w, transferDecoded(encoding, lit))
+		return err
+	})
+	return n, err
+}
+
 // transferDecoded undoes a part's transfer encoding as it is read; an unknown one leaves the bytes.
 func transferDecoded(encoding string, r io.Reader) io.Reader {
 	var h message.Header
@@ -1859,13 +1858,17 @@ func (msg *IMAPMessage) Signed() bool {
 
 // A whole message carried inside another, arriving intact (RFC 2046 5.2).
 type messageAttachment struct {
-	Path messagePath
-	Name string
-	Body []byte
+	Path     messagePath
+	Name     string
+	transfer transfer
 }
 
-func (a *messageAttachment) Open() (io.ReadCloser, error) {
-	return io.NopCloser(bytes.NewReader(a.Body)), nil
+func (a *messageAttachment) WriteTo(w io.Writer) (n int64, err error) {
+	err = a.transfer(func(c *imapclient.Client) error {
+		n, err = copySection(w, c, a.Path.Mailbox, a.Path.Uid, nil, "")
+		return err
+	})
+	return n, err
 }
 
 func (a *messageAttachment) MIMEType() string { return "message/rfc822" }
@@ -1912,8 +1915,9 @@ func storeFlags(conn *imapclient.Client, mboxName string, set imap.NumSet, op im
 	return conn.Store(set, &imap.StoreFlags{Op: op, Silent: true, Flags: flags}, nil).Close()
 }
 
-// The UID is named only with UIDPLUS (RFC 4315); zero says it was not.
-func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*MailboxInfo, imap.UID, error) {
+// appendMessage stores body, a spooled message; the UID is named only with
+// UIDPLUS (RFC 4315), zero says it was not.
+func appendMessage(c *imapclient.Client, body io.ReadSeeker, role string) (*MailboxInfo, imap.UID, error) {
 	mbox, err := getMailboxByRole(c, role)
 	if err != nil {
 		return nil, 0, err
@@ -1922,9 +1926,11 @@ func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*Ma
 		return nil, 0, fmt.Errorf("Unable to resolve mailbox")
 	}
 
-	// IMAP needs the final size in advance.
-	var buf bytes.Buffer
-	if err := msg.WriteMessage(&buf); err != nil {
+	size, err := body.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, 0, err
+	}
+	if _, err := body.Seek(0, io.SeekStart); err != nil {
 		return nil, 0, err
 	}
 
@@ -1933,9 +1939,9 @@ func appendMessage(c *imapclient.Client, msg *OutgoingMessage, role string) (*Ma
 		flags = append(flags, imap.FlagDraft)
 	}
 	options := imap.AppendOptions{Flags: flags}
-	appendCmd := c.Append(mbox.Name(), int64(buf.Len()), &options)
+	appendCmd := c.Append(mbox.Name(), size, &options)
 	defer appendCmd.Close()
-	if _, err := io.Copy(appendCmd, &buf); err != nil {
+	if _, err := io.Copy(appendCmd, body); err != nil {
 		return nil, 0, err
 	}
 	if err := appendCmd.Close(); err != nil {

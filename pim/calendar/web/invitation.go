@@ -1,4 +1,4 @@
-package calendar
+package web
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
@@ -28,7 +29,7 @@ func handleInvitationReply(ctx *web.Context) error {
 
 	status := strings.ToUpper(ctx.FormValue("status"))
 	switch status {
-	case PartAccepted, PartDeclined, PartTentative:
+	case calendar.PartAccepted, calendar.PartDeclined, calendar.PartTentative:
 	default:
 		return web.NewError(http.StatusBadRequest, "unknown answer")
 	}
@@ -40,7 +41,7 @@ func handleInvitationReply(ctx *web.Context) error {
 	if request == nil {
 		return web.NewError(http.StatusBadRequest, "this message carries no invitation")
 	}
-	inv := ReadInvitation(request, nil)
+	inv := calendar.ReadInvitation(request, nil)
 	if inv.Organizer == "" {
 		return web.NewError(http.StatusBadRequest, "the invitation names no organizer to answer")
 	}
@@ -57,7 +58,7 @@ func handleInvitationReply(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	MessageZones(reply)
+	calendar.MessageZones(reply)
 
 	back := ctx.NextOr(ctx.URL("mail.message", mboxName, uid))
 	subject := fmt.Sprintf(ctx.T("invite.subject"+strings.ToLower(status)), inv.Summary)
@@ -71,7 +72,7 @@ func handleInvitationReply(ctx *web.Context) error {
 }
 
 // An unparsable invitation is not a page failure: the part is still an attachment.
-func messageInvitation(ctx *web.Context, msg *mail.IMAPMessage, mboxName string, uid imap.UID) *Invitation {
+func messageInvitation(ctx *web.Context, msg *mail.IMAPMessage, mboxName string, uid imap.UID) *calendar.Invitation {
 	cal, _, err := mail.CalendarPart(ctx, msg, mboxName, uid)
 	if err != nil {
 		ctx.Logger().Printf("failed to read the calendar part: %v", err)
@@ -85,7 +86,7 @@ func messageInvitation(ctx *web.Context, msg *mail.IMAPMessage, mboxName string,
 		ctx.Logger().Printf("failed to read the account's addresses: %v", err)
 		return nil
 	}
-	return ReadInvitation(cal, mine)
+	return calendar.ReadInvitation(cal, mine)
 }
 
 // invitationAt reads the scheduling message one mail carries; nil for none.
@@ -98,7 +99,7 @@ func sendScheduling(ctx *web.Context, msg *ical.Calendar, to []string) error {
 	if len(to) == 0 {
 		return nil
 	}
-	MessageZones(msg)
+	calendar.MessageZones(msg)
 	summary, _ := msg.Events()[0].Props.Text(ical.PropSummary)
 	subject := summary
 	if itip.Method(msg) == itip.MethodCancel {
@@ -124,12 +125,12 @@ func (p *plugin) deleteEvent(ctx *web.Context, ref pim.Ref[*caldav.Client]) erro
 	if err != nil {
 		return err
 	}
-	if !Holds(ours, itip.Address(series.Props.Get(ical.PropOrganizer))) {
+	if !calendar.Holds(ours, itip.Address(series.Props.Get(ical.PropOrganizer))) {
 		return nil
 	}
 	schedules, err := p.ServerSchedules(ctx.Request().Context(), ctx.LoginFor(ref.Account), ref.Path)
 	if err == nil && !schedules {
-		err = sendScheduling(ctx, itip.Cancel(co.Data, nil, time.Now()), Others(itip.Attendees(series), ours))
+		err = sendScheduling(ctx, itip.Cancel(co.Data, nil, time.Now()), calendar.Others(itip.Attendees(series), ours))
 	}
 	if err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("invite.cancelfailed")})
@@ -149,7 +150,7 @@ func (p *plugin) registerScheduling(g *web.Group) {
 		if inv == nil && !hasAttachment(data.Message, calendarTypes...) {
 			return nil
 		}
-		groups, err := p.writableGroups(ctx, SupportsEvent)
+		groups, err := p.writableGroups(ctx, calendar.SupportsEvent)
 		if err != nil || len(groups) == 0 {
 			// No calendar to file it in is not an error on a mail page.
 			return nil
@@ -184,10 +185,10 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	if msg == nil {
 		return web.NewError(http.StatusBadRequest, "this message carries no invitation")
 	}
-	inv := ReadInvitation(msg, nil)
+	inv := calendar.ReadInvitation(msg, nil)
 	back := ctx.NextOr(ctx.URL("calendar.month"))
 
-	groups, err := p.writableGroups(ctx, SupportsEvent)
+	groups, err := p.writableGroups(ctx, calendar.SupportsEvent)
 	if err != nil {
 		return err
 	}
@@ -220,7 +221,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 		if out == nil {
 			err = c.RemoveAll(ctx.Request().Context(), stored.Path)
 		} else {
-			EnsureTimezones(out, time.Now())
+			calendar.EnsureTimezones(out, time.Now())
 			_, err = c.PutCalendarObject(ctx.Request().Context(), stored.Path, out, nil)
 		}
 		if err != nil {
@@ -238,7 +239,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 		return ctx.Redirect(http.StatusFound, back)
 	}
 
-	dest, err := p.destination(ctx, ctx.FormValue("calendar"), SupportsEvent)
+	dest, err := p.destination(ctx, ctx.FormValue("calendar"), calendar.SupportsEvent)
 	client, calendarPath, account := dest.Client, dest.Path, dest.Account
 	if errors.Is(err, pim.ErrNoDestination) {
 		return web.NewError(http.StatusBadRequest, "no calendar to file it in")
@@ -249,7 +250,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	if name == "" {
 		name = uuid.New().String()
 	}
-	EnsureTimezones(out, time.Now())
+	calendar.EnsureTimezones(out, time.Now())
 	co, err := client.PutCalendarObject(ctx.Request().Context(),
 		path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), out, nil)
 	if err != nil {
@@ -302,7 +303,7 @@ func (p *plugin) importCalendar(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	dest, err := p.destination(ctx, ctx.FormValue("calendar"), SupportsEvent)
+	dest, err := p.destination(ctx, ctx.FormValue("calendar"), calendar.SupportsEvent)
 	client, calendarPath, account := dest.Client, dest.Path, dest.Account
 	if errors.Is(err, pim.ErrNoDestination) {
 		return web.NewError(http.StatusBadRequest, "no calendar to file it in")
@@ -313,7 +314,7 @@ func (p *plugin) importCalendar(ctx *web.Context) error {
 	if account != "" {
 		to += "?account=" + web.QueryValue(account)
 	}
-	n, err := Import(ctx.Request().Context(), client, calendarPath, raw)
+	n, err := calendar.Import(ctx.Request().Context(), client, calendarPath, raw)
 	if pim.ImportAnswered(err) {
 		ctx.Notify(pim.ImportRefused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))

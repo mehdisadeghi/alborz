@@ -1,17 +1,18 @@
-package calendar
+package web
 
 import (
+	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
 )
 
-type plugin struct{ *Calendars }
+type plugin struct{ *calendar.Calendars }
 
 // Mount serves calendars and tasks.
 func Mount(g *web.Group, st *store.Store) error {
 	srv := g.Server()
-	c, err := New(srv.Server, st)
+	c, err := calendar.New(srv.Server, st)
 	if err != nil {
 		return err
 	}

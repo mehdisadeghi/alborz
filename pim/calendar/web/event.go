@@ -1,4 +1,4 @@
-package calendar
+package web
 
 import (
 	"errors"
@@ -12,6 +12,7 @@ import (
 	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
@@ -26,7 +27,7 @@ type EventRenderData struct {
 	web.BaseRenderData
 	Rail     pim.Rail
 	Calendar *dav.Collection
-	Event    CalendarObject
+	Event    calendar.CalendarObject
 	// Authors are who added and last changed the object, where another account.
 	Authors dav.Authors
 	// List is the view the page was opened from.
@@ -53,7 +54,7 @@ type UpdateEventRenderData struct {
 	EndDate   dates.Field
 	// Attendees are the invited addresses, one per line.
 	Attendees string
-	Repeat    Repeat
+	Repeat    calendar.Repeat
 	// RepeatFreqs are the rules the form offers, in its order.
 	RepeatFreqs []string
 }
@@ -68,8 +69,8 @@ func newEventStart(ctx *web.Context, loc *time.Location) time.Time {
 }
 
 func fillEventForm(ctx *web.Context, d *UpdateEventRenderData, loc *time.Location, when time.Time) {
-	d.RepeatFreqs = RepeatFreqs
-	d.Repeat = FormRepeat(ctx.Dates(), d.Event, loc)
+	d.RepeatFreqs = calendar.RepeatFreqs
+	d.Repeat = calendar.FormRepeat(ctx.Dates(), d.Event, loc)
 	start, _ := d.Event.DateTimeStart(loc)
 	end, _ := d.Event.DateTimeEnd(loc)
 	if prop := d.Event.Props.Get(ical.PropDateTimeStart); prop != nil {
@@ -92,7 +93,7 @@ func fillEventForm(ctx *web.Context, d *UpdateEventRenderData, loc *time.Locatio
 		}
 	}
 	d.EndDate = d.GlobalData.InputDate(last)
-	d.Attendees = AttendeeLines(d.Event)
+	d.Attendees = calendar.AttendeeLines(d.Event)
 }
 
 func dayQuery(ctx *web.Context, start time.Time) string {
@@ -111,7 +112,7 @@ func monthQuery(ctx *web.Context, mv monthView) string {
 }
 
 func (p *plugin) eventItems(ctx *web.Context) ([]pim.Item, error) {
-	var shown []Occurrence
+	var shown []calendar.Occurrence
 	switch {
 	case ctx.QueryParam("date") != "":
 		dv, err := p.dayView(ctx)
@@ -149,8 +150,8 @@ func (p *plugin) event(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	calendar := dav.Holding(calendars, "", path)
-	if calendar == nil {
+	coll := dav.Holding(calendars, "", path)
+	if coll == nil {
 		return alborz.NotFound("notfound.event")
 	}
 
@@ -195,9 +196,9 @@ func (p *plugin) event(ctx *web.Context) error {
 		Rail:           rail,
 		List:           eventList(ctx),
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
-		Calendar:       calendar,
-		Event:          CalendarObject{CalendarObject: event, ReadOnly: !calendar.Writable},
-		Star:           ComponentColor(vevents[0].Component),
+		Calendar:       coll,
+		Event:          calendar.CalendarObject{CalendarObject: event, ReadOnly: !coll.Writable},
+		Star:           calendar.ComponentColor(vevents[0].Component),
 		Neighbours:     pim.Around(items, path),
 		Authors:        p.DAV.Authors(event.Path, ctx.Login.Username()),
 	}
@@ -240,11 +241,11 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		if event == nil {
 			return fmt.Errorf("calendar object %q holds no event to edit", calendarObjectPath)
 		}
-		before = Clone(co.Data)
+		before = calendar.Clone(co.Data)
 		currentCalendar = dav.Holding(calendars, "", co.Path)
 	} else {
 		// Pooled, so creating does not fail when the active account lacks such a collection.
-		groups, err = p.writableGroups(ctx, SupportsEvent)
+		groups, err = p.writableGroups(ctx, calendar.SupportsEvent)
 		if err != nil {
 			return err
 		}
@@ -278,8 +279,8 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 				EndTime:        ctx.DateField("end"),
 				StartDate:      ctx.DateField("start_date"),
 				EndDate:        ctx.DateField("end_date"),
-				Repeat:         Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")},
-				RepeatFreqs:    RepeatFreqs,
+				Repeat:         calendar.Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")},
+				RepeatFreqs:    calendar.RepeatFreqs,
 			})
 		}
 		if summary == "" {
@@ -289,7 +290,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		to := pim.Ref[*caldav.Client]{Client: c, Account: ctx.Login.Username()}
 		creating := co == nil
 		if creating {
-			to, err = p.destination(ctx, ctx.FormValue("calendar"), SupportsEvent)
+			to, err = p.destination(ctx, ctx.FormValue("calendar"), calendar.SupportsEvent)
 			if errors.Is(err, pim.ErrNoDestination) {
 				return reject(ctx.T("form.destinationneeded"))
 			} else if err != nil {
@@ -345,7 +346,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			event.Props.SetDateTime(ical.PropDateTimeEnd, end)
 		}
 		event.Props.Del(ical.PropDuration)
-		if err := SetRepeat(ctx.Dates(), event, Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")}, start, allDay, loc); err != nil {
+		if err := calendar.SetRepeat(ctx.Dates(), event, calendar.Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")}, start, allDay, loc); err != nil {
 			return reject(ctx.T("form.repeatuntil"))
 		}
 
@@ -357,8 +358,8 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		}
 
 		// Naming anybody makes this account the organizer; removing the last withdraws it.
-		attendees := ParseAttendees(ctx.FormValue("attendees"))
-		SetScheduling(event, ctx.Login.Username(), attendees)
+		attendees := calendar.ParseAttendees(ctx.FormValue("attendees"))
+		calendar.SetScheduling(event, ctx.Login.Username(), attendees)
 		var was *ical.Component
 		if before != nil {
 			was = itip.Series(before)
@@ -373,12 +374,12 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			event.Props.SetText(ical.PropUID, newID.String())
 		}
 
-		cal := NewCalendar(event.Component)
+		cal := calendar.NewCalendar(event.Component)
 		if !creating {
 			cal = co.Data
 		}
-		EnsureTimezones(cal, start)
-		co, err = PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
+		calendar.EnsureTimezones(cal, start)
+		co, err = calendar.PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
 		if err != nil {
 			return reject(pim.Refusal(ctx, err))
 		}
@@ -388,7 +389,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		told := Others(attendees, ours)
+		told := calendar.Others(attendees, ours)
 		schedules := false
 		if len(told) > 0 || len(dropped) > 0 {
 			schedules, err = p.ServerSchedules(ctx.Request().Context(), ctx.LoginFor(to.Account), co.Path)
@@ -397,7 +398,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			err = sendScheduling(ctx, itip.Request(cal), told)
 		}
 		if len(dropped) > 0 && err == nil && !schedules {
-			err = sendScheduling(ctx, itip.Cancel(before, dropped, time.Now()), Others(dropped, ours))
+			err = sendScheduling(ctx, itip.Cancel(before, dropped, time.Now()), calendar.Others(dropped, ours))
 		}
 		if err != nil {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("invite.sendfailed")})
@@ -439,11 +440,11 @@ func eventList(ctx *web.Context) string {
 }
 
 func repeatWords(ctx *web.Context, event *ical.Event, loc *time.Location) (words, until string) {
-	rep := FormRepeat(ctx.Dates(), event, loc)
+	rep := calendar.FormRepeat(ctx.Dates(), event, loc)
 	switch rep.Freq {
 	case "":
 		return "", ""
-	case RepeatCustom:
+	case calendar.RepeatCustom:
 		return ctx.T("calendar.repeat.custom"), ""
 	}
 	words = ctx.T("calendar.repeat." + rep.Freq)

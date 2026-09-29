@@ -22,9 +22,9 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-var errNoCalendar = alborz.NotFound("notfound.calendar")
+var ErrNoCalendar = alborz.NotFound("notfound.calendar")
 
-func supportsTodo(components []string) bool {
+func SupportsTodo(components []string) bool {
 	// Without a component set, a calendar is not promoted to a task list.
 	if len(components) == 0 {
 		return false
@@ -37,7 +37,7 @@ func supportsTodo(components []string) bool {
 	return false
 }
 
-func supportsEvent(components []string) bool {
+func SupportsEvent(components []string) bool {
 	// Servers that advertise no component set are taken to hold events.
 	if len(components) == 0 {
 		return true
@@ -189,10 +189,10 @@ func (o Occurrence) Summary() string {
 
 // Star is the colour the occurrence's own event is marked in, or empty.
 func (o Occurrence) Star() string {
-	return componentColor(o.Event.Component)
+	return ComponentColor(o.Event.Component)
 }
 
-func componentColor(comp *ical.Component) string {
+func ComponentColor(comp *ical.Component) string {
 	name, _ := comp.Props.Text(ical.PropColor)
 	if !slices.Contains(alborz.FlagColors[:], name) {
 		return ""
@@ -200,7 +200,7 @@ func componentColor(comp *ical.Component) string {
 	return name
 }
 
-func setComponentColor(comp *ical.Component, name string) {
+func SetComponentColor(comp *ical.Component, name string) {
 	if name == "" {
 		comp.Props.Del(ical.PropColor)
 		return
@@ -208,7 +208,7 @@ func setComponentColor(comp *ical.Component, name string) {
 	comp.Props.SetText(ical.PropColor, name)
 }
 
-func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {
+func Occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {
 	var out []Occurrence
 	seen := make(map[string]bool)
 	for _, event := range obj.Data.Events() {
@@ -291,14 +291,14 @@ func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Cli
 	return events, nil
 }
 
-func firstEvent(cal *ical.Calendar) *ical.Component {
+func FirstEvent(cal *ical.Calendar) *ical.Component {
 	if evs := cal.Events(); len(evs) > 0 {
 		return evs[0].Component
 	}
 	return nil
 }
 
-func getFirstTodo(cal *ical.Calendar) *ical.Component {
+func FirstTodo(cal *ical.Calendar) *ical.Component {
 	for _, child := range cal.Children {
 		if child.Name == ical.CompToDo {
 			return child
@@ -307,7 +307,7 @@ func getFirstTodo(cal *ical.Calendar) *ical.Component {
 	return nil
 }
 
-func eventQuery(start, end time.Time) caldav.CalendarQuery {
+func EventQuery(start, end time.Time) caldav.CalendarQuery {
 	return caldav.CalendarQuery{
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
@@ -325,7 +325,7 @@ func eventQuery(start, end time.Time) caldav.CalendarQuery {
 	}
 }
 
-func changeComponent(ctx context.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
+func ChangeComponent(ctx context.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
 	co, err := ref.Client.GetCalendarObject(ctx, ref.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object: %v", err)
@@ -341,7 +341,7 @@ func changeComponent(ctx context.Context, ref pim.Ref[*caldav.Client], comp func
 	return co, err
 }
 
-func newCalendar(comp *ical.Component) *ical.Calendar {
+func NewCalendar(comp *ical.Component) *ical.Calendar {
 	cal := ical.NewCalendar()
 	cal.Props.SetText(ical.PropProductID, ItipProductID)
 	cal.Props.SetText(ical.PropVersion, "2.0")
@@ -349,7 +349,7 @@ func newCalendar(comp *ical.Component) *ical.Calendar {
 	return cal
 }
 
-func putObject(ctx context.Context, to pim.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
+func PutObject(ctx context.Context, to pim.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
 	held, etag := "", ""
 	if was != nil {
 		held, etag = was.Path, was.ETag
@@ -359,7 +359,7 @@ func putObject(ctx context.Context, to pim.Ref[*caldav.Client], name string, was
 		&caldav.PutCalendarObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
 }
 
-func joinCalendars(objects [][]byte) ([]byte, error) {
+func Join(objects [][]byte) ([]byte, error) {
 	var children []*ical.Component
 	for _, object := range objects {
 		cal, err := ical.NewDecoder(bytes.NewReader(object)).Decode()
@@ -368,7 +368,7 @@ func joinCalendars(objects [][]byte) ([]byte, error) {
 		}
 		children = append(children, cal.Children...)
 	}
-	return encodeCalendar(children)
+	return Encode(children)
 }
 
 // WarmAccount reads the login's month around now and its tasks, so the pages open from the mirror.
@@ -379,18 +379,18 @@ func (p *Calendars) WarmAccount(ctx context.Context, s *alborz.Login, loc *time.
 	}
 	now := time.Now().In(loc)
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
-	events := eventQuery(start.AddDate(0, 0, -7), start.AddDate(0, 1, 0).AddDate(0, 0, 7))
-	tasks := taskQuery()
+	events := EventQuery(start.AddDate(0, 0, -7), start.AddDate(0, 1, 0).AddDate(0, 0, 7))
+	tasks := TaskQuery()
 	type ask struct {
 		path  string
 		query caldav.CalendarQuery
 	}
 	var asks []ask
 	for _, cal := range calendars {
-		if supportsEvent(cal.Components) {
+		if SupportsEvent(cal.Components) {
 			asks = append(asks, ask{cal.Path, events})
 		}
-		if supportsTodo(cal.Components) {
+		if SupportsTodo(cal.Components) {
 			asks = append(asks, ask{cal.Path, tasks})
 		}
 	}
@@ -440,14 +440,14 @@ func (p *Calendars) Client(ctx context.Context, login *alborz.Login) (*caldav.Cl
 
 // PRIORITY bands (RFC 5545 3.8.1.9): 1-4 high, 5 medium, 6-9 low, 0 none.
 const (
-	priorityHigh   = "high"
-	priorityMedium = "medium"
-	priorityLow    = "low"
+	PriorityHigh   = "high"
+	PriorityMedium = "medium"
+	PriorityLow    = "low"
 )
 
-var priorityBands = []string{priorityHigh, priorityMedium, priorityLow}
+var PriorityBands = []string{PriorityHigh, PriorityMedium, PriorityLow}
 
-func priorityBand(todo *ical.Component) string {
+func PriorityBand(todo *ical.Component) string {
 	prop := todo.Props.Get(ical.PropPriority)
 	if prop == nil {
 		return ""
@@ -457,20 +457,20 @@ func priorityBand(todo *ical.Component) string {
 	case err != nil || n <= 0:
 		return ""
 	case n <= 4:
-		return priorityHigh
+		return PriorityHigh
 	case n == 5:
-		return priorityMedium
+		return PriorityMedium
 	default:
-		return priorityLow
+		return PriorityLow
 	}
 }
 
 // A number another client wrote stays while it falls in the chosen band.
-func setPriorityBand(todo *ical.Component, band string) {
-	if band == priorityBand(todo) {
+func SetPriorityBand(todo *ical.Component, band string) {
+	if band == PriorityBand(todo) {
 		return
 	}
-	value := map[string]string{priorityHigh: "1", priorityMedium: "5", priorityLow: "9"}[band]
+	value := map[string]string{PriorityHigh: "1", PriorityMedium: "5", PriorityLow: "9"}[band]
 	if value == "" {
 		todo.Props.Del(ical.PropPriority)
 		return
@@ -480,7 +480,7 @@ func setPriorityBand(todo *ical.Component, band string) {
 	todo.Props.Set(prop)
 }
 
-func markTodo(todo *ical.Component, done bool) {
+func MarkTodo(todo *ical.Component, done bool) {
 	if done {
 		todo.Props.SetText(ical.PropStatus, "COMPLETED")
 		todo.Props.SetDateTime(ical.PropCompleted, time.Now().UTC())
@@ -490,7 +490,7 @@ func markTodo(todo *ical.Component, done bool) {
 	}
 }
 
-func taskQuery() caldav.CalendarQuery {
+func TaskQuery() caldav.CalendarQuery {
 	return caldav.CalendarQuery{
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
@@ -505,10 +505,10 @@ func taskQuery() caldav.CalendarQuery {
 	}
 }
 
-// asCopy makes cal an object of its own: a fresh UID, no invitation, and a link to where it came from.
+// AsCopy makes cal an object of its own: a fresh UID, no invitation, and a link to where it came from.
 // RFC 9253's LINK with the registered relation "via" names a source; RELATED-TO relates components of
 // one calendar, and without a RELTYPE, of which none means a copy, makes the copy the original's child.
-func asCopy(cal *ical.Calendar, uid, source string, now time.Time) {
+func AsCopy(cal *ical.Calendar, uid, source string, now time.Time) {
 	cal.Props.Del(ical.PropMethod)
 	for _, comp := range cal.Children {
 		if comp.Name == ical.CompTimezone {

@@ -19,9 +19,9 @@ import (
 
 // copyTo writes an event or a task into a calendar the reader chooses, as an object of its own (ADR 63).
 func (p *plugin) copyTo(s section) func(*web.Context) error {
-	section, supports, key, first, rail, missing := "nav.calendar", supportsEvent, "event", firstEvent, p.eventRail, "notfound.event"
+	section, supports, key, first, rail, missing := "nav.calendar", SupportsEvent, "event", FirstEvent, p.eventRail, "notfound.event"
 	if s == taskSection {
-		section, supports, key, first, rail, missing = "nav.tasks", supportsTodo, "task", getFirstTodo, p.taskRail, "notfound.task"
+		section, supports, key, first, rail, missing = "nav.tasks", SupportsTodo, "task", FirstTodo, p.taskRail, "notfound.task"
 	}
 	return func(ctx *web.Context) error {
 		src := ctx.Param("path")
@@ -92,8 +92,8 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 			}
 		}
 		uid := uuid.New().String()
-		asCopy(co.Data, uid, source, time.Now().UTC())
-		made, err := putObject(ctx.Request().Context(), to, uid+".ics", nil, co.Data)
+		AsCopy(co.Data, uid, source, time.Now().UTC())
+		made, err := PutObject(ctx.Request().Context(), to, uid+".ics", nil, co.Data)
 		if err != nil {
 			return page(http.StatusUnprocessableEntity, pim.Refusal(ctx, err))
 		}

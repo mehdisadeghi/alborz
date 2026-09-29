@@ -210,11 +210,11 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 		return monthView{}, err
 	}
 
-	calendarInfos, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), only, supportsEvent, eventVisibility)
+	calendarInfos, sites, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, SupportsEvent, EventVisibility)
 	if err != nil {
 		return monthView{}, err
 	}
-	query := eventQuery(queryStart, queryEnd)
+	query := EventQuery(queryStart, queryEnd)
 
 	events, err := p.QuerySites(ctx.Request().Context(), sites, &query)
 	if err != nil {
@@ -241,7 +241,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	gridEnd := gridStart.AddDate(0, 0, rows*7)
 	eventMap := make(map[time.Time][]Occurrence)
 	for _, ev := range events {
-		for _, oc := range occurrences(ev, loc, queryStart, queryEnd) {
+		for _, oc := range Occurrences(ev, loc, queryStart, queryEnd) {
 			if view != "list" && !web.StarMatches(oc.Star(), view) {
 				continue
 			}
@@ -337,6 +337,6 @@ func (p *plugin) exportMonth(ctx *web.Context) error {
 			return web.NewError(http.StatusBadRequest, err)
 		}
 	}
-	return p.exportVisible(ctx, supportsEvent, eventVisibility, []string{"VEVENT"},
+	return p.exportVisible(ctx, SupportsEvent, EventVisibility, []string{"VEVENT"},
 		from, cal.AddMonths(from, 1), ctx.T("nav.calendar")+" "+cal.Page(from))
 }

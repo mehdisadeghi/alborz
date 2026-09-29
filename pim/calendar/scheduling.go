@@ -24,7 +24,7 @@ import (
 // ItipProductID is the PRODID of the calendar objects Alborz writes.
 const ItipProductID = "-//mehdix.org//Alborz//EN"
 
-func parseAttendees(value string) []string {
+func ParseAttendees(value string) []string {
 	var out []string
 	seen := make(map[string]bool)
 	for _, line := range strings.Split(value, "\n") {
@@ -44,7 +44,7 @@ func parseAttendees(value string) []string {
 	return out
 }
 
-func attendeeLines(event *ical.Event) string {
+func AttendeeLines(event *ical.Event) string {
 	var lines []string
 	for i := range event.Props[ical.PropAttendee] {
 		prop := &event.Props[ical.PropAttendee][i]
@@ -57,7 +57,7 @@ func attendeeLines(event *ical.Event) string {
 }
 
 // Attendees already invited keep their answers; the new ones are asked for one.
-func setScheduling(event *ical.Event, organizer string, attendees []string) {
+func SetScheduling(event *ical.Event, organizer string, attendees []string) {
 	was := event.Props[ical.PropAttendee]
 	event.Props.Del(ical.PropAttendee)
 	if len(attendees) == 0 {
@@ -72,7 +72,7 @@ func setScheduling(event *ical.Event, organizer string, attendees []string) {
 		}
 		prop := mailto(ical.PropAttendee, addr)
 		if strings.EqualFold(addr, organizer) {
-			prop.Params.Set("PARTSTAT", partAccepted)
+			prop.Params.Set("PARTSTAT", PartAccepted)
 		} else {
 			prop.Params.Set("PARTSTAT", "NEEDS-ACTION")
 			prop.Params.Set("RSVP", "TRUE")
@@ -81,17 +81,17 @@ func setScheduling(event *ical.Event, organizer string, attendees []string) {
 	}
 }
 
-func others(addrs, ours []string) []string {
+func Others(addrs, ours []string) []string {
 	var out []string
 	for _, addr := range addrs {
-		if !holds(ours, addr) {
+		if !Holds(ours, addr) {
 			out = append(out, addr)
 		}
 	}
 	return out
 }
 
-func holds(addrs []string, addr string) bool {
+func Holds(addrs []string, addr string) bool {
 	return slices.ContainsFunc(addrs, func(a string) bool { return strings.EqualFold(a, addr) })
 }
 
@@ -101,7 +101,7 @@ func mailto(name, addr string) *ical.Prop {
 	return prop
 }
 
-func cloneCalendar(cal *ical.Calendar) *ical.Calendar {
+func Clone(cal *ical.Calendar) *ical.Calendar {
 	return &ical.Calendar{Component: cloneComponent(cal.Component)}
 }
 
@@ -169,8 +169,8 @@ func (p *Calendars) FindByUID(ctx context.Context, login *alborz.Login, groups [
 	return ""
 }
 
-// importObjects reads the whole file before writing, so a refusal can say how much of it was saved.
-func importObjects(ctx context.Context, client *caldav.Client, calendarPath string, raw []byte) (int, error) {
+// Import reads the whole file before writing, so a refusal can say how much of it was saved.
+func Import(ctx context.Context, client *caldav.Client, calendarPath string, raw []byte) (int, error) {
 	dec := ical.NewDecoder(bytes.NewReader(raw))
 	var calendars []map[string]*ical.Calendar
 	total := 0
@@ -244,8 +244,8 @@ func objectPathByUID(ctx context.Context, client *caldav.Client, calendarPath, u
 	return ""
 }
 
-func exportCalendar(ctx context.Context, client *caldav.Client, calendarPath string, from, to time.Time) ([]byte, error) {
-	children, err := calendarComponents(ctx, client, calendarPath, []string{"VEVENT", "VTODO"}, from, to)
+func Export(ctx context.Context, client *caldav.Client, calendarPath string, from, to time.Time) ([]byte, error) {
+	children, err := Components(ctx, client, calendarPath, []string{"VEVENT", "VTODO"}, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -253,10 +253,10 @@ func exportCalendar(ctx context.Context, client *caldav.Client, calendarPath str
 	if len(children) == 0 {
 		return nil, pim.ErrNothingToExport
 	}
-	return encodeCalendar(children)
+	return Encode(children)
 }
 
-func calendarComponents(ctx context.Context, client *caldav.Client, calendarPath string, comps []string, from, to time.Time) ([]*ical.Component, error) {
+func Components(ctx context.Context, client *caldav.Client, calendarPath string, comps []string, from, to time.Time) ([]*ical.Component, error) {
 	var out []*ical.Component
 	for _, comp := range comps {
 		filter := caldav.CompFilter{Name: comp}
@@ -277,7 +277,7 @@ func calendarComponents(ctx context.Context, client *caldav.Client, calendarPath
 	return out, nil
 }
 
-func encodeCalendar(children []*ical.Component) ([]byte, error) {
+func Encode(children []*ical.Component) ([]byte, error) {
 	out := ical.NewCalendar()
 	out.Props.SetText(ical.PropProductID, ItipProductID)
 	out.Props.SetText(ical.PropVersion, "2.0")
@@ -301,9 +301,9 @@ func encodeCalendar(children []*ical.Component) ([]byte, error) {
 }
 
 const (
-	partAccepted  = "ACCEPTED"
-	partDeclined  = "DECLINED"
-	partTentative = "TENTATIVE"
+	PartAccepted  = "ACCEPTED"
+	PartDeclined  = "DECLINED"
+	PartTentative = "TENTATIVE"
 )
 
 // Invitation is a scheduling request as a page can show it.
@@ -345,7 +345,7 @@ type Attendee struct {
 	Status string
 }
 
-func readInvitation(cal *ical.Calendar, mine []string) *Invitation {
+func ReadInvitation(cal *ical.Calendar, mine []string) *Invitation {
 	event := itip.Series(cal)
 	if event == nil {
 		event = cal.Events()[0].Component
@@ -370,7 +370,7 @@ func readInvitation(cal *ical.Calendar, mine []string) *Invitation {
 			Status: strings.ToUpper(prop.Params.Get("PARTSTAT")),
 		}
 		inv.Attendees = append(inv.Attendees, who)
-		if holds(mine, who.Addr) {
+		if Holds(mine, who.Addr) {
 			inv.Mine = who.Status
 		}
 	}

@@ -22,24 +22,24 @@ type Repeat struct {
 	Until dates.Field
 }
 
-const repeatCustom = "custom"
+const RepeatCustom = "custom"
 
-var repeatFreqs = []string{"daily", "weekly", "monthly", "yearly"}
+var RepeatFreqs = []string{"daily", "weekly", "monthly", "yearly"}
 
-func formRepeat(r dates.Reader, event *ical.Event, loc *time.Location) Repeat {
+func FormRepeat(r dates.Reader, event *ical.Event, loc *time.Location) Repeat {
 	if event.Props.Get(ical.PropRecurrenceRule) == nil {
 		return Repeat{Until: r.Input(time.Time{})}
 	}
 	rule, err := event.Props.RecurrenceRule()
 	if err != nil || !plain(*rule) {
-		return Repeat{Freq: repeatCustom, Until: r.Input(time.Time{})}
+		return Repeat{Freq: RepeatCustom, Until: r.Input(time.Time{})}
 	}
 	freq := strings.ToLower(rule.Freq.String())
 	scale := cmp.Or(rule.Scale, calsys.Of("").RSCALE())
 	// A monthly or yearly rule in another calendar would mean other days if rewritten.
 	neutral := rule.Freq == recur.Daily || rule.Freq == recur.Weekly
-	if !slices.Contains(repeatFreqs, freq) || !neutral && scale != r.Calendar().RSCALE() {
-		return Repeat{Freq: repeatCustom, Until: r.Input(time.Time{})}
+	if !slices.Contains(RepeatFreqs, freq) || !neutral && scale != r.Calendar().RSCALE() {
+		return Repeat{Freq: RepeatCustom, Until: r.Input(time.Time{})}
 	}
 	var until time.Time
 	if rule.Until != nil {
@@ -59,15 +59,15 @@ func plain(r recur.Rule) bool {
 }
 
 // UNTIL takes DTSTART's value type (RFC 5545 3.3.10) and includes the last day.
-func setRepeat(r dates.Reader, event *ical.Event, rep Repeat, start time.Time, allDay bool, loc *time.Location) error {
+func SetRepeat(r dates.Reader, event *ical.Event, rep Repeat, start time.Time, allDay bool, loc *time.Location) error {
 	switch rep.Freq {
 	case "":
 		event.Props.Del(ical.PropRecurrenceRule)
 		return nil
-	case repeatCustom:
+	case RepeatCustom:
 		return nil
 	}
-	if !slices.Contains(repeatFreqs, rep.Freq) {
+	if !slices.Contains(RepeatFreqs, rep.Freq) {
 		return fmt.Errorf("no repeat %q", rep.Freq)
 	}
 	rule, err := recur.Parse("FREQ=" + strings.ToUpper(rep.Freq))

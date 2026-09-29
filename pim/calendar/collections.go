@@ -24,7 +24,7 @@ func (p *plugin) collectionPage() pim.Page {
 		List:       "calendar.month",
 		Ext:        ".ics",
 		Forget:     p.DAV.Forget,
-		Show:       show,
+		Show:       Show,
 		Rail: func(ctx *web.Context, list string) (pim.Rail, error) {
 			if list == ctx.Path("calendar.tasks") {
 				return p.taskRail(ctx)
@@ -36,7 +36,7 @@ func (p *plugin) collectionPage() pim.Page {
 			if err != nil {
 				return 0, err
 			}
-			return importObjects(ctx.Request().Context(), c, path, raw)
+			return Import(ctx.Request().Context(), c, path, raw)
 		},
 		Create: func(ctx *web.Context, list, name, place string) (string, error) {
 			// A task list takes tasks; an imported calendar keeps events and tasks both.
@@ -51,7 +51,7 @@ func (p *plugin) collectionPage() pim.Page {
 			if err != nil {
 				return nil, err
 			}
-			return exportCalendar(ctx.Request().Context(), c, path, from, to)
+			return Export(ctx.Request().Context(), c, path, from, to)
 		},
 		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
 			_, calendars, err := p.Open(ctx.Request().Context(), ctx.Login)
@@ -73,7 +73,7 @@ func (p *plugin) collectionPage() pim.Page {
 }
 
 func collectionList(ctx *web.Context, info dav.Collection) string {
-	if !supportsEvent(info.Components) {
+	if !SupportsEvent(info.Components) {
 		return ctx.Path("calendar.tasks")
 	}
 	return ctx.Path("calendar.month")
@@ -136,9 +136,9 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 		if login == nil {
 			return web.NewError(http.StatusBadRequest, "not signed in to that account")
 		}
-		sub := Subscription{URL: normalizeFeedURL(data.Address), Color: dav.DefaultColor, Changed: time.Now().UTC()}
+		sub := Subscription{URL: NormalizeFeedURL(data.Address), Color: dav.DefaultColor, Changed: time.Now().UTC()}
 		rc := ctx.Request().Context()
-		subs, err := loadSubscriptions(rc, login.Store())
+		subs, err := LoadSubscriptions(rc, login.Store())
 		if err != nil {
 			return err
 		}
@@ -149,13 +149,13 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 		got, cal, err := p.Fetch(rc, sub.URL)
 		if err != nil {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.feedfailed"), sub.URL, err))
-			if errors.Is(err, errNotFeed) {
+			if errors.Is(err, ErrNotFeed) {
 				data.Refused(fmt.Sprintf(ctx.T("calendar.notfeed"), sub.URL))
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
-		if sub.Name = feedName(cal); sub.Name == "" {
-			sub.Name = feedHost(sub.URL)
+		if sub.Name = FeedName(cal); sub.Name == "" {
+			sub.Name = FeedHost(sub.URL)
 		}
 		if err := SaveSubscriptions(rc, login.Store(), append(subs, sub)); err != nil {
 			data.Refused(ctx.SaveRefusal(err))

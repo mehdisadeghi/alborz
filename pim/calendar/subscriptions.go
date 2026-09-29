@@ -48,7 +48,7 @@ const (
 	feedTick = time.Minute
 )
 
-func loadSubscriptions(ctx context.Context, settings alborz.Store) ([]Subscription, error) {
+func LoadSubscriptions(ctx context.Context, settings alborz.Store) ([]Subscription, error) {
 	var subs []Subscription
 	if err := settings.Get(ctx, subscriptionsKey, &subs); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
@@ -62,7 +62,7 @@ func feedCalendar(account, url string) store.Ref {
 	return store.Ref{Owner: strings.ToLower(account), ID: "feed-" + hex.EncodeToString(sum[:8])}
 }
 
-func normalizeFeedURL(raw string) string {
+func NormalizeFeedURL(raw string) string {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimPrefix(raw, "webcal://")
 	switch {
@@ -100,7 +100,7 @@ func feedBehindPage(u *url.URL) (string, bool) {
 	return fmt.Sprintf(googleFeedFormat, url.QueryEscape(string(id))), true
 }
 
-func feedHost(feed string) string {
+func FeedHost(feed string) string {
 	u, err := url.Parse(feed)
 	if err != nil || u.Host == "" {
 		return feed
@@ -108,7 +108,7 @@ func feedHost(feed string) string {
 	return u.Host
 }
 
-var errNotFeed = errors.New("caldav: the address answered with a web page, not a calendar")
+var ErrNotFeed = errors.New("caldav: the address answered with a web page, not a calendar")
 
 // feeds fills each subscribed calendar kept here from its feed, on the feed's own clock.
 type feeds struct {
@@ -252,7 +252,7 @@ func (f *feeds) round(ctx context.Context, now time.Time) {
 	}
 }
 
-func feedName(cal *ical.Calendar) string {
+func FeedName(cal *ical.Calendar) string {
 	if p := cal.Props.Get(feedNameProp); p != nil {
 		return strings.TrimSpace(p.Value)
 	}
@@ -285,7 +285,7 @@ func fetchFeed(ctx context.Context, client *http.Client, was store.Feed) (store.
 		return was, nil, fmt.Errorf("the calendar at %s answered %s", was.URL, resp.Status)
 	}
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
-		return was, nil, errNotFeed
+		return was, nil, ErrNotFeed
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, subMaxSize))
 	if err != nil {
@@ -304,7 +304,7 @@ func fetchFeed(ctx context.Context, client *http.Client, was store.Feed) (store.
 // gone from the list takes its calendar, an entry this alborz lacks is made, and the newer name and
 // colour wins. It returns the calendars made, empty.
 func reconcile(ctx context.Context, st *store.Store, account string, settings alborz.Store) ([]store.Collection, error) {
-	subs, err := loadSubscriptions(ctx, settings)
+	subs, err := LoadSubscriptions(ctx, settings)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +387,7 @@ func (p *Calendars) follows(ctx context.Context, login *alborz.Login, fill func(
 		if err := fill(c); err != nil {
 			return err
 		}
-		if err := show(ctx, login.Store(), p.DAV.PathOf(login.Username(), c)); err != nil {
+		if err := Show(ctx, login.Store(), p.DAV.PathOf(login.Username(), c)); err != nil {
 			return err
 		}
 	}

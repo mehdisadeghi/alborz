@@ -34,7 +34,7 @@ END:VCALENDAR
 	}
 	obj := CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}
 	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	got := occurrences(obj, time.UTC, from, from.AddDate(0, 0, 7))
+	got := Occurrences(obj, time.UTC, from, from.AddDate(0, 0, 7))
 
 	var starts []string
 	for _, o := range got {
@@ -83,7 +83,7 @@ END:VCALENDAR
 	obj := CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}
 	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	var gym []string
-	for _, o := range occurrences(obj, time.UTC, from, from.AddDate(0, 0, 7)) {
+	for _, o := range Occurrences(obj, time.UTC, from, from.AddDate(0, 0, 7)) {
 		if summary, _ := o.Event.Props.Text(ical.PropSummary); summary == "Gym" {
 			gym = append(gym, o.Start.UTC().Format("02T15:04"))
 		}

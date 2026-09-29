@@ -43,7 +43,7 @@ func parse(t *testing.T, text string) *ical.Calendar {
 
 func TestSetSchedulingKeepsAnswers(t *testing.T) {
 	event := &ical.Event{Component: itip.Series(parse(t, groupRequest))}
-	setScheduling(event, "a@example.com", []string{"a@example.com", "b@example.com", "new@example.com"})
+	SetScheduling(event, "a@example.com", []string{"a@example.com", "b@example.com", "new@example.com"})
 	got := map[string]string{}
 	for _, prop := range event.Props[ical.PropAttendee] {
 		got[itip.Address(&prop)] = prop.Params.Get("PARTSTAT") + "/" + prop.Params.Get("CN")
@@ -55,8 +55,8 @@ func TestSetSchedulingKeepsAnswers(t *testing.T) {
 		}
 	}
 	answered := &ical.Event{Component: itip.Series(parse(t, strings.Replace(groupRequest, "CN=B:", "PARTSTAT=DECLINED;CN=B:", 1)))}
-	setScheduling(answered, "a@example.com", []string{"b@example.com"})
-	if p := answered.Props.Get(ical.PropAttendee); p.Params.Get("PARTSTAT") != partDeclined {
+	SetScheduling(answered, "a@example.com", []string{"b@example.com"})
+	if p := answered.Props.Get(ical.PropAttendee); p.Params.Get("PARTSTAT") != PartDeclined {
 		t.Errorf("saving reset b's answer to %q", p.Params.Get("PARTSTAT"))
 	}
 }

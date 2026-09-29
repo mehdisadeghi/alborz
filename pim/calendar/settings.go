@@ -31,7 +31,7 @@ func loadSettings(ctx context.Context, store alborz.Store) (*Settings, error) {
 	return settings, nil
 }
 
-func choose(set func(*Settings, []string)) func(context.Context, alborz.Store, []string) error {
+func Choose(set func(*Settings, []string)) func(context.Context, alborz.Store, []string) error {
 	return func(ctx context.Context, store alborz.Store, paths []string) error {
 		settings, err := loadSettings(ctx, store)
 		if err != nil {
@@ -43,7 +43,7 @@ func choose(set func(*Settings, []string)) func(context.Context, alborz.Store, [
 }
 
 // A collection made after the choice was not chosen to be hidden.
-func show(ctx context.Context, store alborz.Store, path string) error {
+func Show(ctx context.Context, store alborz.Store, path string) error {
 	settings, err := loadSettings(ctx, store)
 	if err != nil {
 		return err
@@ -60,11 +60,11 @@ func show(ctx context.Context, store alborz.Store, path string) error {
 	return store.Put(ctx, settingsKey, settings)
 }
 
-func eventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
+func EventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
 
-func taskVisibility(s *Settings) (bool, []string) { return s.TaskFilter, s.VisibleTasks }
+func TaskVisibility(s *Settings) (bool, []string) { return s.TaskFilter, s.VisibleTasks }
 
-func visibleCalendars(ctx context.Context, accounts []pim.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []pim.Site[*caldav.Client], error) {
+func Visible(ctx context.Context, accounts []pim.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []pim.Site[*caldav.Client], error) {
 	return pim.Visible(accounts, scope, only, func(acc pim.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
 		settings, err := loadSettings(ctx, acc.Login.Store())
 		if err != nil {

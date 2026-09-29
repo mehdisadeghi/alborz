@@ -18,7 +18,7 @@ import (
 const datePageLayout = "2006-01-02"
 
 func (p *plugin) eventRail(ctx *web.Context) (pim.Rail, error) {
-	rail, err := p.calendarRail(ctx, supportsEvent, eventVisibility)
+	rail, err := p.calendarRail(ctx, SupportsEvent, EventVisibility)
 	next := web.QueryValue(ctx.Request().URL.RequestURI())
 	rail.Path, rail.Action = ctx.Path("calendar.month"), ctx.Path("calendar.month")
 	rail.NewHref, rail.NewLabel = ctx.Path("calendar.calendars.create")+"?next="+next, ctx.T("calendar.newcalendar")
@@ -28,7 +28,7 @@ func (p *plugin) eventRail(ctx *web.Context) (pim.Rail, error) {
 }
 
 func (p *plugin) taskRail(ctx *web.Context) (pim.Rail, error) {
-	rail, err := p.calendarRail(ctx, supportsTodo, taskVisibility)
+	rail, err := p.calendarRail(ctx, SupportsTodo, TaskVisibility)
 	rail.Path, rail.Action = ctx.Path("calendar.tasks"), ctx.Path("calendar.tasks")
 	rail.NewHref, rail.NewLabel = ctx.Path("calendar.calendars.create")+"?for=tasks&next="+web.QueryValue(ctx.Request().URL.RequestURI()), ctx.T("tasks.newlist")
 	rail.ImportHref, rail.ImportLabel = ctx.Path("calendar.tasks.import"), ctx.T("tasks.import")
@@ -44,7 +44,7 @@ func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen
 	if rail.Invitations, err = p.invitations(ctx); err != nil {
 		return rail, err
 	}
-	infos, _, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), nil, kind, chosen)
+	infos, _, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), nil, kind, chosen)
 	rail.Items = infos
 	return rail, err
 }
@@ -59,17 +59,17 @@ var (
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
-		return p.DAV.Guarded(errNoCalendar, "calendar.calendars.create", h)
+		return p.DAV.Guarded(ErrNoCalendar, "calendar.calendars.create", h)
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
 	upload := func(name, path string, h, over func(*web.Context) error) {
 		g.Upload(name, path, pim.ImportBodySize, guard(h), guard(over))
 	}
-	POST("month", "/calendar", pim.HandleChoose("calendar.month", "cal", choose(func(s *Settings, paths []string) {
+	POST("month", "/calendar", pim.HandleChoose("calendar.month", "cal", Choose(func(s *Settings, paths []string) {
 		s.CalendarFilter, s.VisibleCalendars = true, paths
 	})))
-	POST("tasks", "/tasks", pim.HandleChoose("calendar.tasks", "cal", choose(func(s *Settings, paths []string) {
+	POST("tasks", "/tasks", pim.HandleChoose("calendar.tasks", "cal", Choose(func(s *Settings, paths []string) {
 		s.TaskFilter, s.VisibleTasks = true, paths
 	})))
 	POST("refresh", "/calendar/refresh", p.refresh)
@@ -141,13 +141,13 @@ func registerRoutes(p *plugin, g *web.Group) {
 	GET("tasks.move", "/tasks/move", p.move)
 	POST("tasks.move", "/tasks/move", p.move)
 	POST("tasks.export", "/tasks/export", pim.HandleExport(p.Client, "calendar.tasks",
-		func(ctx *web.Context) string { return ctx.T("nav.tasks") + ".ics" }, joinCalendars))
+		func(ctx *web.Context) string { return ctx.T("nav.tasks") + ".ics" }, Join))
 
-	POST("task.note", "/tasks/{path}/note", p.note(getFirstTodo, taskSection))
-	POST("event.note", "/calendar/{path}/note", p.note(firstEvent, eventSection))
+	POST("task.note", "/tasks/{path}/note", p.note(FirstTodo, taskSection))
+	POST("event.note", "/calendar/{path}/note", p.note(FirstEvent, eventSection))
 	POST("task.complete", "/tasks/{path}/complete", p.complete)
-	POST("task.color", "/tasks/{path}/color", p.color(getFirstTodo, taskSection))
-	POST("event.color", "/calendar/{path}/color", p.color(firstEvent, eventSection))
+	POST("task.color", "/tasks/{path}/color", p.color(FirstTodo, taskSection))
+	POST("event.color", "/calendar/{path}/color", p.color(FirstEvent, eventSection))
 }
 
 // Appended and dated rather than replacing: a note people use is a record.
@@ -159,7 +159,7 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, s section) func
 				if note == "" {
 					return nil
 				}
-				_, err := changeComponent(ctx.Request().Context(), ref, comp, func(target *ical.Component) {
+				_, err := ChangeComponent(ctx.Request().Context(), ref, comp, func(target *ical.Component) {
 					existing, _ := target.Props.Text(ical.PropDescription)
 					target.Props.SetText(ical.PropDescription, pim.AppendNote(ctx, existing, note))
 				})
@@ -198,13 +198,13 @@ func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chose
 	if err != nil {
 		return err
 	}
-	_, sites, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), pim.Only(ctx, "cal"), kind, chosen)
+	_, sites, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), pim.Only(ctx, "cal"), kind, chosen)
 	if err != nil {
 		return err
 	}
 	var children []*ical.Component
 	for _, r := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]*ical.Component, error) {
-		return calendarComponents(ctx, site.Client, site.Collection.Path, comps, from, to)
+		return Components(ctx, site.Client, site.Collection.Path, comps, from, to)
 	})) {
 		if r.Err != nil {
 			return r.Err
@@ -218,7 +218,7 @@ func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chose
 		page.Path = ctx.Path("calendar.month")
 		return ctx.Redirect(http.StatusFound, page.RequestURI())
 	}
-	body, err := encodeCalendar(children)
+	body, err := Encode(children)
 	if err != nil {
 		return err
 	}
@@ -232,9 +232,9 @@ func (p *plugin) rawObject(ctx *web.Context) error {
 func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, s section) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		return pim.Star(ctx, p.Client, s.list, s.object, func(ctx *web.Context, ref pim.Ref[*caldav.Client], name string) (was string, err error) {
-			_, err = changeComponent(ctx.Request().Context(), ref, comp, func(target *ical.Component) {
-				was = componentColor(target)
-				setComponentColor(target, name)
+			_, err = ChangeComponent(ctx.Request().Context(), ref, comp, func(target *ical.Component) {
+				was = ComponentColor(target)
+				SetComponentColor(target, name)
 			})
 			return was, err
 		})
@@ -252,7 +252,7 @@ func validStarView(view string) bool {
 
 // pooledCalendars lists every account's calendars.
 func (p *plugin) pooledCalendars(ctx *web.Context) ([]pim.Account[*caldav.Client], error) {
-	return pim.Pooled(ctx, p.DAV, p.OpenWithFeeds, errNoCalendar)
+	return pim.Pooled(ctx, p.DAV, p.OpenWithFeeds, ErrNoCalendar)
 }
 
 func (p *plugin) writableGroups(ctx *web.Context, supports func([]string) bool) ([]dav.Group, error) {

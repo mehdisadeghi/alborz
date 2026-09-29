@@ -122,7 +122,7 @@ func (f DateField) DateTime(loc *time.Location) (time.Time, error) {
 
 func (f DateField) calendar() (calsys.System, error) {
 	if calsys.Known(f.Calendar) == "" {
-		return nil, fmt.Errorf("no calendar %q", f.Calendar)
+		return calsys.System{}, fmt.Errorf("no calendar %q", f.Calendar)
 	}
 	return calsys.Of(f.Calendar), nil
 }

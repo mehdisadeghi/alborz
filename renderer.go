@@ -226,7 +226,7 @@ func (g *GlobalRenderData) PrimaryCalendar() calsys.System { return calsys.Of(g.
 // SecondaryCalendar is the calendar glossed beside the primary one at t; false for none, or one that cannot count t.
 func (g *GlobalRenderData) SecondaryCalendar(t time.Time) (calsys.System, bool) {
 	if g.Secondary == "" || g.Secondary == g.PrimaryCalendar().Name() {
-		return nil, false
+		return calsys.System{}, false
 	}
 	cal := calsys.Of(g.Secondary)
 	return cal, calsys.For(cal, t) == cal

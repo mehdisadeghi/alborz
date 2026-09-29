@@ -3,6 +3,7 @@ package calendar
 import (
 	"context"
 	"fmt"
+	"iter"
 	"net/http"
 	"net/url"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
+	"github.com/alborzmail/go-recur"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
 )
@@ -208,52 +210,34 @@ func validStarView(view string) bool {
 }
 
 func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {
-	events := obj.Data.Events()
-
-	// A RECURRENCE-ID override takes the slot its own series still produces for it (RFC 5545 3.8.4.4).
-	type slot struct {
-		uid string
-		at  int64
-	}
-	overridden := make(map[slot]bool)
-	for i := range events {
-		if prop := events[i].Props.Get(ical.PropRecurrenceID); prop != nil {
-			if at, err := prop.DateTime(loc); err == nil {
-				uid, _ := events[i].Props.Text(ical.PropUID)
-				overridden[slot{uid, at.Unix()}] = true
-			}
-		}
-	}
-
 	var out []Occurrence
-	for i := range events {
-		event := &events[i]
-		first, _ := event.DateTimeStart(nil)
-		last, _ := event.DateTimeEnd(nil)
-		span := last.Sub(first)
-		if span < 0 {
-			span = 0
-		}
-
-		// A rule still on the component was not expanded by the server.
-		var instances []time.Time
-		if prop := event.Props.Get(ical.PropRecurrenceRule); prop != nil && strings.Contains(strings.ToUpper(prop.Value), "RSCALE=") {
-			dtstart, _ := event.Props.DateTime(ical.PropDateTimeStart, loc)
-			instances = expandRule(prop.Value, dtstart, start.Add(-span), end)
-		} else if set, err := event.RecurrenceSet(loc); err == nil && set != nil {
-			instances = set.Between(start.Add(-span), end, true)
-		} else {
-			out = append(out, Occurrence{CalendarObject: obj, Event: event, Start: first, End: last})
+	seen := make(map[string]bool)
+	for _, event := range obj.Data.Events() {
+		uid, _ := event.Props.Text(ical.PropUID)
+		if seen[uid] {
 			continue
 		}
-		uid, _ := event.Props.Text(ical.PropUID)
-		for _, at := range instances {
-			if overridden[slot{uid, at.Unix()}] {
-				continue
+		seen[uid] = true
+		series, err := obj.Data.Series(uid, loc)
+		var instances iter.Seq[recur.Instance]
+		if err == nil {
+			instances, err = series.Between(start, end)
+		}
+		if err != nil {
+			// A series not read here shows each component once, at its own start: a wrong instance is worse than a missing one.
+			for _, event := range obj.Data.Events() {
+				if id, _ := event.Props.Text(ical.PropUID); id == uid {
+					first, _ := event.DateTimeStart(loc)
+					last, _ := event.DateTimeEnd(loc)
+					out = append(out, Occurrence{CalendarObject: obj, Event: &event, Start: first, End: last})
+				}
 			}
+			continue
+		}
+		for inst := range instances {
 			out = append(out, Occurrence{
-				CalendarObject: obj, Event: event,
-				Start: at, End: at.Add(span),
+				CalendarObject: obj, Event: &ical.Event{Component: series.Component(inst)},
+				Start: inst.Start, End: inst.End,
 			})
 		}
 	}

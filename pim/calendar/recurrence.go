@@ -1,11 +1,13 @@
 package calendar
 
 import (
+	"cmp"
 	"fmt"
-	"strconv"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/alborzmail/go-recur"
 	"github.com/emersion/go-ical"
 
 	"git.mehdix.org/alborz"
@@ -24,71 +26,36 @@ const repeatCustom = "custom"
 
 var repeatFreqs = []string{"daily", "weekly", "monthly", "yearly"}
 
-type rule struct {
-	freq     string
-	interval int
-	until    time.Time
-	count    int
-	cal      calsys.System
-	skip     string
-	other    bool
-}
-
-func parseRule(s string, loc *time.Location) rule {
-	r := rule{interval: 1, cal: calsys.Of(""), skip: "OMIT"}
-	for _, part := range strings.Split(s, ";") {
-		key, value, _ := strings.Cut(part, "=")
-		switch strings.ToUpper(key) {
-		case "FREQ":
-			r.freq = strings.ToLower(value)
-		case "INTERVAL":
-			r.interval, _ = strconv.Atoi(value)
-		case "COUNT":
-			r.count, _ = strconv.Atoi(value)
-		case "UNTIL":
-			r.until = parseUntil(value, loc)
-		case "RSCALE":
-			cal, ok := calsys.OfRSCALE(value)
-			if !ok {
-				r.other = true
-			}
-			r.cal = cal
-		case "SKIP":
-			r.skip = strings.ToUpper(value)
-		case "WKST":
-		default:
-			r.other = true
-		}
-	}
-	return r
-}
-
-func parseUntil(s string, loc *time.Location) time.Time {
-	if t, err := time.Parse("20060102T150405Z", s); err == nil {
-		return t
-	}
-	for _, layout := range []string{"20060102T150405", "20060102"} {
-		if t, err := time.ParseInLocation(layout, s, loc); err == nil {
-			return t
-		}
-	}
-	return time.Time{}
-}
-
 func formRepeat(ctx *alborz.Context, event *ical.Event, loc *time.Location) Repeat {
-	prop := event.Props.Get(ical.PropRecurrenceRule)
-	if prop == nil {
+	if event.Props.Get(ical.PropRecurrenceRule) == nil {
 		return Repeat{Until: ctx.InputDate(time.Time{})}
 	}
-	r := parseRule(prop.Value, loc)
-	// A monthly or yearly rule in another calendar would mean other days if rewritten.
-	neutral := r.freq == "daily" || r.freq == "weekly"
-	simple := !r.other && r.interval == 1 && r.count == 0 &&
-		(neutral || r.cal.Name() == ctx.CalendarSystem().Name())
-	if !simple {
+	rule, err := event.Props.RecurrenceRule()
+	if err != nil || !plain(*rule) {
 		return Repeat{Freq: repeatCustom, Until: ctx.InputDate(time.Time{})}
 	}
-	return Repeat{Freq: r.freq, Until: ctx.InputDate(r.until.In(loc))}
+	freq := strings.ToLower(rule.Freq.String())
+	scale := cmp.Or(rule.Scale, calsys.Of("").RSCALE())
+	// A monthly or yearly rule in another calendar would mean other days if rewritten.
+	neutral := rule.Freq == recur.Daily || rule.Freq == recur.Weekly
+	if !slices.Contains(repeatFreqs, freq) || !neutral && scale != ctx.CalendarSystem().RSCALE() {
+		return Repeat{Freq: repeatCustom, Until: ctx.InputDate(time.Time{})}
+	}
+	var until time.Time
+	if rule.Until != nil {
+		until = rule.Until.Time.In(loc)
+		if rule.Until.Kind != recur.DateTime {
+			until = time.Date(rule.Until.Year(), rule.Until.Month(), rule.Until.Day(), rule.Until.Hour(), rule.Until.Minute(), rule.Until.Second(), 0, loc)
+		}
+	}
+	return Repeat{Freq: freq, Until: ctx.InputDate(until)}
+}
+
+// plain reports whether the form can say rule: a frequency, a last day, and
+// the scale and SKIP it writes itself.
+func plain(r recur.Rule) bool {
+	return r.Interval <= 1 && r.Count == 0 && r.BySecond == nil && r.ByMinute == nil && r.ByHour == nil &&
+		r.ByDay == nil && r.ByMonthDay == nil && r.ByYearDay == nil && r.ByWeekNo == nil && r.ByMonth == nil && r.BySetPos == nil
 }
 
 // UNTIL takes DTSTART's value type (RFC 5545 3.3.10) and includes the last day.
@@ -100,11 +67,16 @@ func setRepeat(ctx *alborz.Context, event *ical.Event, rep Repeat, start time.Ti
 	case repeatCustom:
 		return nil
 	}
-	parts := []string{"FREQ=" + strings.ToUpper(rep.Freq)}
+	if !slices.Contains(repeatFreqs, rep.Freq) {
+		return fmt.Errorf("no repeat %q", rep.Freq)
+	}
+	rule, err := recur.Parse("FREQ=" + strings.ToUpper(rep.Freq))
+	if err != nil {
+		return err
+	}
 	cal := ctx.CalendarSystem()
-	if (rep.Freq == "monthly" || rep.Freq == "yearly") && cal.RSCALE() != calsys.Of("").RSCALE() {
-		parts = append([]string{"RSCALE=" + cal.RSCALE()}, parts...)
-		parts = append(parts, "SKIP=BACKWARD")
+	if (rule.Freq == recur.Monthly || rule.Freq == recur.Yearly) && cal.RSCALE() != calsys.Of("").RSCALE() {
+		rule.Scale, rule.Skip = cal.RSCALE(), recur.Backward
 	}
 	if rep.Until.Value != "" {
 		last, err := rep.Until.Date(loc)
@@ -115,15 +87,12 @@ func setRepeat(ctx *alborz.Context, event *ical.Event, rep Repeat, start time.Ti
 			return fmt.Errorf("ends before it starts")
 		}
 		if allDay {
-			parts = append(parts, "UNTIL="+last.Format("20060102"))
+			rule.Until = &recur.Value{Time: last, Kind: recur.Date}
 		} else {
-			parts = append(parts, "UNTIL="+last.AddDate(0, 0, 1).Add(-time.Second).UTC().Format("20060102T150405Z"))
+			rule.Until = &recur.Value{Time: last.AddDate(0, 0, 1).Add(-time.Second).UTC(), Kind: recur.DateTime}
 		}
 	}
-	prop := ical.NewProp(ical.PropRecurrenceRule)
-	prop.SetValueType(ical.ValueRecurrence)
-	prop.Value = strings.Join(parts, ";")
-	event.Props.Set(prop)
+	event.Props.SetRecurrenceRule(&rule)
 	return nil
 }
 
@@ -140,62 +109,4 @@ func repeatWords(ctx *alborz.Context, event *ical.Event, loc *time.Location) (wo
 		return fmt.Sprintf(ctx.T("calendar.repeat.until"), words), rep.Until.Value
 	}
 	return words, ""
-}
-
-// A rule with a part not read here, or counted where its calendar cannot, yields only its first instance: a wrong one is worse.
-func expandRule(s string, first, from, to time.Time) []time.Time {
-	r := parseRule(s, first.Location())
-	if r.other || r.interval < 1 || calsys.For(r.cal, first) != r.cal {
-		return []time.Time{first}
-	}
-	var out []time.Time
-	loc := first.Location()
-	y, m, d := r.cal.Date(first)
-	h, mi, sec := first.Clock()
-	at := func(day time.Time) time.Time {
-		return time.Date(day.Year(), day.Month(), day.Day(), h, mi, sec, 0, loc)
-	}
-	// Bounded so a runaway rule cannot spin.
-	made := 0
-	for n := 0; n < 100000 && (r.count == 0 || made < r.count); n++ {
-		var t time.Time
-		switch r.freq {
-		case "daily":
-			t = first.AddDate(0, 0, n*r.interval)
-		case "weekly":
-			t = first.AddDate(0, 0, 7*n*r.interval)
-		case "monthly", "yearly":
-			months := n * r.interval
-			if r.freq == "yearly" {
-				months *= 12
-			}
-			i := m - 1 + months
-			// The rule ends where its calendar stops counting.
-			month, err := r.cal.Day(y+i/12, i%12+1, 1, loc)
-			if err != nil {
-				return out
-			}
-			days := r.cal.DaysInMonth(month)
-			switch {
-			case d <= days:
-				t = at(month.AddDate(0, 0, d-1))
-			case r.skip == "BACKWARD":
-				t = at(month.AddDate(0, 0, days-1))
-			case r.skip == "FORWARD":
-				t = at(month.AddDate(0, 0, days))
-			default:
-				continue
-			}
-		default:
-			return []time.Time{first}
-		}
-		if (!r.until.IsZero() && t.After(r.until)) || !t.Before(to) {
-			break
-		}
-		made++
-		if !t.Before(from) {
-			out = append(out, t)
-		}
-	}
-	return out
 }

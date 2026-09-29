@@ -2,8 +2,8 @@ github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/ProtonMail/go-crypto v1.5.0 h1:sKmuvjOgsnrtpMvZ+84MCnTJCpjxZ1qCFn076lz1yT0=
 github.com/ProtonMail/go-crypto v1.5.0/go.mod h1:/RaSu30DaKO4RY+XdV/ACcCcZkGr7AhUIduq5sjzzCo=
-github.com/alborzmail/go-ical v0.0.0-20260928213756-d103982e72b1 h1:SpRBu/EZc9W321AwP2PlZJK18ySZ9TBozKiRHNruwTo=
-github.com/alborzmail/go-ical v0.0.0-20260928213756-d103982e72b1/go.mod h1:WdcLP4nI5QEkYrRShVi1qLT70IS7W2zfsf2P27rNSJY=
+github.com/alborzmail/go-ical v0.0.0-20260929134259-007cc45012fd h1:wvX2N2b8rJy3yWNnHfhb63ao6QGYcXkrji+fHSHXzVU=
+github.com/alborzmail/go-ical v0.0.0-20260929134259-007cc45012fd/go.mod h1:aOkxw4zyl8kedQiRO7l4AzcubyqLb+jY/ISo/fuNzuA=
 github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26 h1:fP5cUVkFPLWab8omeK/sWtGirXpXmUL5PuJwyKXAMNg=
 github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26/go.mod h1:dhoFe2Q0PwLrMD7oZw8ODuaD0vLYPe5uj2wcOMnvh48=
 github.com/alborzmail/go-itip v0.0.0-20260929111949-05f20f0ab6b6 h1:eAULlOggIEAywrpdQtZthJ3c1wJLOcNVD0IzND2HEO8=
@@ -12,10 +12,12 @@ github.com/alborzmail/go-mbox v0.0.0-20260921114627-f2df45e279df h1:KOcM48S3sXU2
 github.com/alborzmail/go-mbox v0.0.0-20260921114627-f2df45e279df/go.mod h1:Yp9IVuuOYLEuMv4yjgDHvhb5mHOcYH6x92Oas3QqEZI=
 github.com/alborzmail/go-msgauth v0.0.0-20260928213517-dae367b5cecf h1:hud+wLir8ciZ1WfbAv1fuvVC0OA2YabKxahNl0J2jAc=
 github.com/alborzmail/go-msgauth v0.0.0-20260928213517-dae367b5cecf/go.mod h1:9vHeiBKZywph9DZEVdXYAFrustFrmPZ+fWdlbnGT4hc=
+github.com/alborzmail/go-recur v0.0.0-20260929133629-dcb73b0bbb94 h1:uPGlV/quYC6ECXVBxpgQGpR0q5KzICWYo05LXvRM0jg=
+github.com/alborzmail/go-recur v0.0.0-20260929133629-dcb73b0bbb94/go.mod h1:ebvBQ1HoUkMOmk93waXUZwZjG5NNp2LF6GAjN9TaYT4=
 github.com/alborzmail/go-vcard v0.0.0-20260928213329-9000c5176aff h1:TqI0zNSMtZGXyXeOX2f9F4+AGovBAlCbyyM5YNUwtMU=
 github.com/alborzmail/go-vcard v0.0.0-20260928213329-9000c5176aff/go.mod h1:HMJKR5wlh/ziNp+sHEDV2ltblO4JD2+IdDOWtGcQBTM=
-github.com/alborzmail/go-webdav v0.0.0-20260929113412-604ca2afee6a h1:KFsl4x9/vDmu6FARdMi8oYKR3zFNxjAcxa1pROZinAA=
-github.com/alborzmail/go-webdav v0.0.0-20260929113412-604ca2afee6a/go.mod h1:/CletBm2Vo0CX6I20VQsoRkkX1CzzNCK1PNCqKW//iQ=
+github.com/alborzmail/go-webdav v0.0.0-20260929134702-aa2ea5b738c4 h1:QpzStGwN47o87Kw8yMVqLbCvPoX35Ujiy3NZ6+/jN1o=
+github.com/alborzmail/go-webdav v0.0.0-20260929134702-aa2ea5b738c4/go.mod h1:to4om/cS1gNReES1/mUwuLOW0jRHrrtm8MUyjSwcLts=
 github.com/aymerick/douceur v0.2.0 h1:Mv+mAeH1Q+n9Fr+oyamOlAkUNPWPlA8PPGR0QAaYuPk=
 github.com/aymerick/douceur v0.2.0/go.mod h1:wlT5vV2O3h55X9m7iVYN0TBM0NH/MmbLnd30/FjWUq4=
 github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a h1:MISbI8sU/PSK/ztvmWKFcI7UGb5/HQT7B+i3a2myKgI=
@@ -79,8 +81,6 @@ github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf h1:pvbZ0lM0XWPBqUKqFU8cma
 github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf/go.mod h1:RJID2RhlZKId02nZ62WenDCkgHFerpIOmW0iT7GKmXM=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
-github.com/teambition/rrule-go v1.8.2 h1:lIjpjvWTj9fFUZCmuoVDrKVOtdiyzbzc93qTmRVe/J8=
-github.com/teambition/rrule-go v1.8.2/go.mod h1:Ieq5AbrKGciP1V//Wq8ktsTXwSwJHDD5mD/wLBGl3p4=
 github.com/tinylib/msgp v1.6.4 h1:mOwYbyYDLPj35mkA2BjjYejgJk9BuHxDdvRnb6v2ZcQ=
 github.com/tinylib/msgp v1.6.4/go.mod h1:RSp0LW9oSxFut3KzESt5Voq4GVWyS+PSulT77roAqEA=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=

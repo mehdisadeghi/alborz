@@ -45,7 +45,7 @@ name is printed as text)
 
 # SIGNALS
 
-**SIGUSR1**: reloads templates
+**SIGUSR1**: reloads templates and `custom.css`
 
 **SIGINT**, **SIGTERM**: stop, giving requests in flight up to five seconds
 

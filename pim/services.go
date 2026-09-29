@@ -97,6 +97,11 @@ func handleServer(ctx *alborz.Context) error {
 			return refuse(err)
 		}
 	}
+	if named.CalDAV != data.Services.CalDAV || named.CardDAV != data.Services.CardDAV || named.Username != data.Services.Username {
+		for _, changed := range ctx.Server.OnServersChanged {
+			changed(ctx.Login.Username())
+		}
+	}
 	// The cache was read with the servers or password just left.
 	ctx.Server.ForgetAccount(ctx.Login.Username())
 	ctx.PutNotice(ctx.T("notice.serverssaved"))

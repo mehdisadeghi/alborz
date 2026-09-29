@@ -30,22 +30,22 @@ func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
 	if err != nil && !errors.Is(err, errNoAddressBook) {
 		return pim.CreateForm{}, err
 	}
-	return pim.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: "/contacts",
-		Made: func(string) (string, string) { return ctx.T("notice.bookcreated"), "/contacts" }}, nil
+	return pim.CreateForm{Rail: rail, Title: ctx.T("contacts.newbook"), Section: ctx.T("nav.contacts"), List: ctx.Path("contacts.list"),
+		Made: func(string) (string, string) { return ctx.T("notice.bookcreated"), ctx.Path("contacts.list") }}, nil
 }
 
 func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
-	return p.dav.RailInvitations(ctx, p.collectionPage().Base)
+	return p.dav.RailInvitations(ctx, p.collectionPage().Collection)
 }
 
 func (p *plugin) collectionPage() pim.Page {
 	return pim.Page{
-		Base:   "/address-books/",
-		List:   "/contacts",
-		Ext:    ".vcf",
-		Forget: p.dav.Forget,
-		Show:   show,
-		Rail:   func(ctx *web.Context, _ string) (pim.Rail, error) { return p.bookRail(ctx) },
+		Collection: "contacts.book",
+		List:       "contacts.list",
+		Ext:        ".vcf",
+		Forget:     p.dav.Forget,
+		Show:       show,
+		Rail:       func(ctx *web.Context, _ string) (pim.Rail, error) { return p.bookRail(ctx) },
 		Create: func(ctx *web.Context, _, name, place string) (string, error) {
 			return p.dav.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, nil)
 		},
@@ -72,15 +72,15 @@ func (p *plugin) collectionPage() pim.Page {
 			if info == nil {
 				return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
 			}
-			return *info, p.dav.CountObjects(ctx, info.Path), "/contacts", ctx.T("nav.contacts"), nil
+			return *info, p.dav.CountObjects(ctx, info.Path), ctx.Path("contacts.list"), ctx.T("nav.contacts"), nil
 		},
 	}
 }
 
 func (p *plugin) bookRail(ctx *web.Context) (pim.Rail, error) {
-	rail := pim.Rail{Path: "/contacts", Field: "book", ItemClass: "addressbook-item", Action: "/contacts", EditHref: "/address-books/",
-		NewHref: "/address-books/create?next=" + web.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
-		ImportHref: "/contacts/import", ImportLabel: ctx.T("contacts.import")}
+	rail := pim.Rail{Path: ctx.Path("contacts.list"), Field: "book", ItemClass: "addressbook-item", Action: ctx.Path("contacts.list"), Edit: "contacts.book",
+		NewHref: ctx.Path("contacts.books.create") + "?next=" + web.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
+		ImportHref: ctx.Path("contacts.import"), ImportLabel: ctx.T("contacts.import")}
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
 		return rail, err
@@ -98,8 +98,8 @@ func (p *plugin) bookRail(ctx *web.Context) (pim.Rail, error) {
 	if err != nil {
 		return rail, err
 	}
-	rail.Groups = contactGroupRows(list.Groups, list.Group, ctx.URLAccount())
-	rail.Categories = contactCategoryRows(list.Categories, list.Category, ctx.URLAccount())
+	rail.Groups = contactGroupRows(ctx, list.Groups, list.Group, ctx.URLAccount())
+	rail.Categories = contactCategoryRows(ctx, list.Categories, list.Category, ctx.URLAccount())
 	return rail, nil
 }
 
@@ -145,7 +145,7 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	if book := dav.At(books, bookPath); book == nil || !book.Writable {
 		return web.NewError(http.StatusBadRequest, "no address book to file it in")
 	}
-	to := "/contacts"
+	to := ctx.Path("contacts.list")
 	if acct != ctx.Login.Username() {
 		to += "?account=" + web.QueryValue(acct)
 	}
@@ -317,7 +317,7 @@ func (p *plugin) addAddress(ctx *web.Context) error {
 		return err
 	}
 	book := dav.At(books, to.Path)
-	back := ctx.NextOr(ctx.AccountPath("/contacts"))
+	back := ctx.NextOr(ctx.URL("contacts.list"))
 	held, err := emails(ctx.Request().Context(), to.Client, []dav.Collection{*book})
 	if err != nil {
 		return err
@@ -336,7 +336,7 @@ func (p *plugin) addAddress(ctx *web.Context) error {
 	}
 	named := AddressObject{AddressObject: ao}
 	sentence := ctx.T("notice.contactcreated")
-	href := named.URL() + "?account=" + web.QueryValue(to.Account)
+	href := ctx.Path("contacts.contact", named.Path) + "?account=" + web.QueryValue(to.Account)
 	ctx.Notify(web.Notice{Kind: web.NoticeDone,
 		Text:   fmt.Sprintf(sentence, named.DisplayName()),
 		Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeLink(named.DisplayName(), href)))})

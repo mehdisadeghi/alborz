@@ -98,8 +98,8 @@ func RowParams(ctx *web.Context, path string, params url.Values) url.Values {
 	return q
 }
 
-// ObjectURL is an object's page, with the list's parameters and, in a pooled list, its account.
-func ObjectURL(base, path, account string, params url.Values) string {
+// ObjectURL is an object's page, the route's, with the list's parameters and, in a pooled list, its account.
+func ObjectURL(ctx *web.Context, route, path, account string, params url.Values) string {
 	q := url.Values{}
 	for key, values := range params {
 		q[key] = values
@@ -107,14 +107,14 @@ func ObjectURL(base, path, account string, params url.Values) string {
 	if account != "" {
 		q.Set("account", account)
 	}
-	href := base + url.PathEscape(path)
+	href := ctx.Path(route, path)
 	if len(q) > 0 {
 		href += "?" + web.Query(q)
 	}
 	return href
 }
 
-// Labels name the collection a pooled row lies in and the list narrowed to it through field.
+// Labels name the collection a pooled row lies in and the list, the route's, narrowed to it through field.
 func Labels(ctx *web.Context, colls []dav.Collection, list, field string, shape url.Values) (collection func(account, path string) dav.Collection, href func(account, path string) string) {
 	collection = func(account, path string) dav.Collection {
 		if c := dav.Holding(colls, account, path); c != nil {
@@ -137,7 +137,7 @@ func Labels(ctx *web.Context, colls []dav.Collection, list, field string, shape 
 		if account != "" {
 			q.Set("account", account)
 		}
-		return list + "?" + web.Query(q)
+		return ctx.Path(list) + "?" + web.Query(q)
 	}
 	return collection, href
 }

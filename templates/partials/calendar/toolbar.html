@@ -3,12 +3,12 @@
 {{$suffix := $scope}}
 {{with .View}}{{$suffix = printf "%s&view=%s" $suffix .}}{{end}}
 {{if and .View (eq .Span "month")}}{{$suffix = printf "%s&span=month" $suffix}}{{end}}
-{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.MonthYearShort .Time) "subtitle" ($.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" "/calendar/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
+{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.MonthYearShort .Time) "subtitle" ($.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" (url "calendar.event.create") "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
   {{ with .SelectForm }}
-  {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" . "formaction" "/calendar/delete" "priority" 11) }}
+  {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" . "formaction" (url "calendar.events.delete") "priority" 11) }}
   {{ end }}
-  <a hx-boost="false" class="icon-button" href="/calendar/export{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}" data-priority="10">{{ template "icon" "download" }}<span class="label">{{$.T "common.download"}}</span></a>
+  <a hx-boost="false" class="icon-button" href="{{url "calendar.month.export"}}{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}" data-priority="10">{{ template "icon" "download" }}<span class="label">{{$.T "common.download"}}</span></a>
 </span>
 {{ template "refresh-menu" $ }}
 {{ template "toolbar-end" }}
@@ -18,7 +18,7 @@
       {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime)) "icon" "prev" "go" "p") }}
       {{if not .ThisMonth}}
       {{/* localhref, or html/template escapes the whole query as one value. */}}
-      {{ $today := "/calendar" }}{{ if $suffix }}{{ $today = printf "/calendar?%s" (slice $suffix 1) }}{{ end }}
+      {{ $today := (url "calendar.month") }}{{ if $suffix }}{{ $today = printf "%s?%s" (url "calendar.month") (slice $suffix 1) }}{{ end }}
       <a href="{{ localhref $today }}" class="button-link">{{$.T "calendar.today"}}</a>
       {{else}}
       <span class="button-link" aria-disabled="true">{{$.T "calendar.today"}}</span>

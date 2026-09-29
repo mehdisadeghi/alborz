@@ -12,7 +12,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
-	"git.mehdix.org/alborz/settings"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav"
 )
@@ -103,7 +102,7 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: ctx.Path("mail.account") + "?account=" + web.QueryValue(username)}
 		// A 403 stays a permission answer, with the way to the password beside it.
 		if code == http.StatusForbidden {
-			key, action = "notice.davforbidden", &web.NoticeAction{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + settings.ServerDAV + "?account=" + web.QueryValue(username)}
+			key, action = "notice.davforbidden", &web.NoticeAction{Label: ctx.T("servers.dav"), Path: ctx.Path("pim.server") + "?account=" + web.QueryValue(username)}
 		}
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
 			Text:    fmt.Sprintf(ctx.T(key), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
@@ -113,7 +112,7 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 	if len(refused) > 0 {
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
 			Text:    ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
-			Actions: []*web.NoticeAction{{Label: ctx.T("servers.dav"), Path: "/settings/servers/" + settings.ServerDAV + "?account=" + web.QueryValue(refused[0])}}})
+			Actions: []*web.NoticeAction{{Label: ctx.T("servers.dav"), Path: ctx.Path("pim.server") + "?account=" + web.QueryValue(refused[0])}}})
 	}
 	return accounts, nil
 }
@@ -198,7 +197,7 @@ func Visible[C any](accounts []Account[C], scope string, only map[string]bool, c
 	return infos, sites, nil
 }
 
-// HandleChoose keeps which collections of list the reader ticked and lands on the list, no longer narrowed.
+// HandleChoose keeps which collections of list, a route, the reader ticked and lands on the list, no longer narrowed.
 func HandleChoose(list, field string, keep func(ctx context.Context, store alborz.Store, paths []string) error) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		params, err := ctx.FormParams()
@@ -211,7 +210,7 @@ func HandleChoose(list, field string, keep func(ctx context.Context, store albor
 			// The list comes back holding what was chosen.
 			ctx.Quiet()
 		}
-		return ctx.Redirect(http.StatusFound, Widened(ctx.NextOr(list), field))
+		return ctx.Redirect(http.StatusFound, Widened(ctx.NextOr(ctx.Path(list)), field))
 	}
 }
 

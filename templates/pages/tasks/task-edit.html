@@ -7,7 +7,7 @@
 {{ define "main" }}
   {{ $acct := .GlobalData.AccountQuery }}
       <form method="post">
-        {{ template "object-form-head" (dict "g" $ "editing" .CalendarObject "collection" .Calendar "groups" .Groups "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal"
+        {{ template "object-form-head" (dict "g" $ "editing" .CalendarObject "collection" .Calendar "groups" .Groups "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal"
            "title" (or (and .CalendarObject ($.T "tasks.edittitle")) ($.T "tasks.createtitle")) "name" "calendar" "key" "task") }}
 
         {{$summary := ""}}
@@ -31,6 +31,6 @@
         </div>
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" $desc "dir" "auto" "rows" "4") }}
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/tasks%s" $acct)) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "%s%s" (url "calendar.tasks") $acct)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

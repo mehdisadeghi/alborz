@@ -8,10 +8,11 @@ type Rail struct {
 	Field     string
 	ItemClass string
 	Action    string
-	EditHref  string
-	Items     []dav.Collection
-	NewHref   string
-	NewLabel  string
+	// Edit is the route of a collection's own page.
+	Edit     string
+	Items    []dav.Collection
+	NewHref  string
+	NewLabel string
 	// FollowHref is the calendar's second way of adding one; empty elsewhere.
 	FollowHref  string
 	FollowLabel string

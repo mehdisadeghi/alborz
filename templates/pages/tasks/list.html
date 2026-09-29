@@ -1,25 +1,25 @@
 {{ define "rail" }}
-  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" "/tasks" "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" "/tasks" "edithref" "/calendars/" "invitations" .Invitations
-     "new" (dict "href" (printf "/calendars/create?for=tasks&next=%s" (.GlobalData.URL.RequestURI | qv)) "label" ($.T "tasks.newlist"))
-     "views" (dict "path" "/tasks" "view" .View "account" .GlobalData.URLAccount)) }}
+  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "calendar.tasks") "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" (url "calendar.tasks") "edit" "calendar.collection" "invitations" .Invitations
+     "new" (dict "href" (printf "%s?for=tasks&next=%s" (url "calendar.calendars.create") (.GlobalData.URL.RequestURI | qv)) "label" ($.T "tasks.newlist"))
+     "views" (dict "path" (url "calendar.tasks") "view" .View "account" .GlobalData.URLAccount)) }}
 {{ end }}
 
 {{ define "before-main" }}
     {{ template "next-form" (dict "id" "tasks-form" "next" $.GlobalData.URL.RequestURI) }}
-    {{ template "next-form" (dict "id" "refresh-form" "action" "/tasks/refresh" "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "next-form" (dict "id" "refresh-form" "action" (url "calendar.tasks.refresh") "next" $.GlobalData.URL.RequestURI) }}
 {{ end }}
 
 {{ define "main-class" }} class="task-list"{{ end }}
 
 {{ define "main" }}
-        {{ template "toolbar-head" (dict "g" . "selectall" true "newhref" "/tasks/create" "back" .GlobalData.URL.RequestURI "newlabel" ($.T "tasks.new")) }}
+        {{ template "toolbar-head" (dict "g" . "selectall" true "newhref" (url "calendar.task.create") "back" .GlobalData.URL.RequestURI "newlabel" ($.T "tasks.new")) }}
           <span class="icon-group">
-            {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "priority" 12 "form" "tasks-form" "formaction" "/tasks/complete") }}
-            {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" "/tasks/delete" "priority" 11) }}
-            {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" "/tasks/export" "priority" 10 "download" true) }}
+            {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "priority" 12 "form" "tasks-form" "formaction" (url "calendar.tasks.complete")) }}
+            {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" (url "calendar.tasks.delete") "priority" 11) }}
+            {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" (url "calendar.tasks.export") "priority" 10 "download" true) }}
           </span>
           {{ template "more-open" $ }}
-              <button form="tasks-form" formaction="/tasks/move" formmethod="get">{{$.T "mailbox.moveto"}}</button>
+              <button form="tasks-form" formaction="{{url "calendar.tasks.move"}}" formmethod="get">{{$.T "mailbox.moveto"}}</button>
               <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
           {{ template "more-close" }}
         {{ template "toolbar-end" }}
@@ -32,12 +32,12 @@
                (tuple ($.T "common.added") "added"))) }}
         {{ template "toolbar-foot" }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" "/tasks" "field" "cal" "items" .Calendars "collection" "" "path" "" "heading" true) }}
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "items" .Calendars "collection" "" "path" "" "heading" true) }}
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 
       {{ with .Quick }}
-      <form method="post" action="/tasks/create" class="quick-add" hx-boost="false">
+      <form method="post" action="{{url "calendar.task.create"}}" class="quick-add" hx-boost="false">
         <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}#quick">
         {{ $one := .Only }}
         {{ $list := .Name }}{{ if $.GlobalData.Unified }}{{ $list = printf "%s · %s" .Name ($.GlobalData.AccountLabel .Account) }}{{ end }}

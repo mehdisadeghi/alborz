@@ -272,9 +272,9 @@ func (s *Server) checkURLs(r *renderer) error {
 				errs = append(errs, fmt.Errorf("%s: url wants a route name", at))
 				return
 			}
+			// A name a partial puts together is only known as it runs.
 			name, ok := cmd.Args[1].(*parse.StringNode)
 			if !ok {
-				errs = append(errs, fmt.Errorf("%s: url wants a route name written out", at))
 				return
 			}
 			n := len(cmd.Args) - 2

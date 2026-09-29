@@ -218,7 +218,7 @@ func (p *plugin) contact(ctx *web.Context) error {
 		In:             in,
 		Groups:         rest,
 		Neighbours:     pim.Around(list.Items, path),
-		List:           cmp.Or(ctx.From(), pim.ListURL("/contacts", pim.ListParams(ctx, contactListParams...))),
+		List:           cmp.Or(ctx.From(), pim.ListURL(ctx.Path("contacts.list"), pim.ListParams(ctx, contactListParams...))),
 		Rail:           rail,
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(AddressObject{AddressObject: ao}.DisplayName()).WithItem(),
 		AddressBook:    addressBook,
@@ -394,7 +394,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		}
 		// The PUT answer carries only the path, so the card as written names the contact.
 		named := AddressObject{AddressObject: &carddav.AddressObject{Path: ao.Path, Card: card}}
-		return pim.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), named.URL(), "/contacts", to.Account)
+		return pim.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), ctx.Path("contacts.contact", named.Path), ctx.Path("contacts.list"), to.Account)
 	}
 
 	// Map values evaluate eagerly; a missing object must not reach DisplayName.
@@ -421,7 +421,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 
 func (p *plugin) note(ctx *web.Context) error {
 	note := strings.TrimSpace(ctx.FormValue("note"))
-	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: pim.Quiet[*carddav.Client],
+	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "contacts.list", Done: pim.Quiet[*carddav.Client],
 		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
 			if note == "" {
 				return nil
@@ -439,14 +439,14 @@ func (p *plugin) note(ctx *web.Context) error {
 
 // Its own request: Enter in a name field must not delete the photo.
 func (p *plugin) deletePhoto(ctx *web.Context) error {
-	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "/contacts", Done: pim.Quiet[*carddav.Client],
+	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.client, List: "contacts.list", Done: pim.Quiet[*carddav.Client],
 		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
 			return changeCard(ctx, ref, func(card vcard.Card) { delete(card, vcard.FieldPhoto) })
 		}})
 }
 
 func (p *plugin) color(ctx *web.Context) error {
-	return pim.Star(ctx, p.client, "/contacts", func(ctx *web.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
+	return pim.Star(ctx, p.client, "contacts.list", "contacts.contact", func(ctx *web.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
 		err = changeCard(ctx, ref, func(card vcard.Card) {
 			was = CardColor(card)
 			SetColor(card, name)

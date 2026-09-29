@@ -18,9 +18,9 @@ import (
 )
 
 // copyTo writes an event or a task into a calendar the reader chooses, as an object of its own (ADR 63).
-func (p *plugin) copyTo(list string) func(*web.Context) error {
+func (p *plugin) copyTo(s section) func(*web.Context) error {
 	section, supports, key, first, rail, missing := "nav.calendar", supportsEvent, "event", firstEvent, p.eventRail, "notfound.event"
-	if list == "/tasks" {
+	if s == taskSection {
 		section, supports, key, first, rail, missing = "nav.tasks", supportsTodo, "task", getFirstTodo, p.taskRail, "notfound.task"
 	}
 	return func(ctx *web.Context) error {
@@ -48,7 +48,7 @@ func (p *plugin) copyTo(list string) func(*web.Context) error {
 		if from := ctx.From(); from != "" {
 			kept = url.Values{"from": {from}}
 		}
-		back := pim.ObjectURL(list+"/", src, ctx.URLAccount(), kept)
+		back := pim.ObjectURL(ctx, s.object, src, ctx.URLAccount(), kept)
 		groups, err := p.writableGroups(ctx, supports)
 		if err != nil {
 			return err
@@ -64,7 +64,7 @@ func (p *plugin) copyTo(list string) func(*web.Context) error {
 				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("common.copyask")),
 				Rail:           r,
 				Section:        ctx.T(section),
-				Home:           list,
+				Home:           ctx.Path(s.list),
 				Title:          ctx.T("common.copyask"),
 				Lead:           summary,
 				Label:          ctx.T("common.saveto"),
@@ -108,9 +108,9 @@ func (p *plugin) copyTo(list string) func(*web.Context) error {
 		ctx.Notify(web.Notice{Kind: web.NoticeDone,
 			Text:   fmt.Sprintf(sentence, name),
 			Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeName(name))),
-			Actions: []*web.NoticeAction{ctx.Undo(list+"/"+url.PathEscape(made.Path)+"/delete?account="+web.QueryValue(to.Account),
+			Actions: []*web.NoticeAction{ctx.Undo(ctx.Path(s.object+".delete", made.Path)+"?account="+web.QueryValue(to.Account),
 				url.Values{"next": {back}})}})
-		return ctx.Redirect(http.StatusFound, pim.ObjectURL(list+"/", made.Path, to.Account, kept))
+		return ctx.Redirect(http.StatusFound, pim.ObjectURL(ctx, s.object, made.Path, to.Account, kept))
 	}
 }
 

@@ -7,7 +7,7 @@
 {{ define "main" }}
   {{ $acct := .GlobalData.AccountQuery }}
       <form method="post">
-        {{ template "object-form-head" (dict "g" $ "editing" .CalendarObject "collection" .Calendar "groups" .Groups "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal"
+        {{ template "object-form-head" (dict "g" $ "editing" .CalendarObject "collection" .Calendar "groups" .Groups "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal"
            "title" (or (and .CalendarObject ($.T "calendar.edittitle")) ($.T "calendar.createtitle")) "name" "calendar" "key" "event") }}
 
         {{ template "field" (dict "label" ($.T "calendar.eventname") "name" "summary" "value" (.Event.Props.Text "SUMMARY") "dir" "auto" "required" true) }}
@@ -34,6 +34,6 @@
         {{ template "field" (dict "label" ($.T "calendar.attendees") "name" "attendees" "value" .Attendees "rows" 3) }}
         {{ template "hint" (dict "text" ($.T "help.attendees")) }}
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/calendar%s" $acct)) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "%s%s" (url "calendar.month") $acct)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

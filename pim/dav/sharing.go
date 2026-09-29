@@ -19,10 +19,10 @@ type Invitation struct {
 	Expires time.Time
 }
 
-// RailInvitations are a section's open invitations and the prefix their answers post under.
+// RailInvitations are a section's open invitations and the route of the collection page their answers post under.
 type RailInvitations struct {
-	Base  string
-	Items []Invitation
+	Collection string
+	Items      []Invitation
 }
 
 func (p *Provider) invitations(ctx *web.Context) ([]Invitation, error) {
@@ -53,13 +53,13 @@ func (p *Provider) invitations(ctx *web.Context) ([]Invitation, error) {
 	return out, nil
 }
 
-// RailInvitations are the open invitations the section's rail offers, answered under base; nil for none.
-func (p *Provider) RailInvitations(ctx *web.Context, base string) (*RailInvitations, error) {
+// RailInvitations are the open invitations the section's rail offers, answered under the collection route; nil for none.
+func (p *Provider) RailInvitations(ctx *web.Context, collection string) (*RailInvitations, error) {
 	items, err := p.invitations(ctx)
 	if err != nil || len(items) == 0 {
 		return nil, err
 	}
-	return &RailInvitations{Base: base, Items: items}, nil
+	return &RailInvitations{Collection: collection, Items: items}, nil
 }
 
 // Held reads a path on this alborz as the store holds it: the collection, and the home it is reached through.

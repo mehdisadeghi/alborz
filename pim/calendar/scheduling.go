@@ -229,7 +229,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 		return web.NewError(http.StatusBadRequest, "this message carries no invitation")
 	}
 	inv := readInvitation(msg, nil)
-	back := ctx.NextOr(ctx.AccountPath("/calendar"))
+	back := ctx.NextOr(ctx.URL("calendar.month"))
 
 	groups, err := p.writableGroups(ctx, supportsEvent)
 	if err != nil {
@@ -303,9 +303,9 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	ctx.PutNotice(ctx.T("invite.filed"))
 	if account != "" {
 		return ctx.Redirect(http.StatusFound,
-			CalendarObject{CalendarObject: co}.URL()+"?account="+web.QueryValue(account))
+			ctx.Path("calendar.event", co.Path)+"?account="+web.QueryValue(account))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath(CalendarObject{CalendarObject: co}.URL()))
+	return ctx.Redirect(http.StatusFound, ctx.URL("calendar.event", co.Path))
 }
 
 func itipRefusal(err error) string {
@@ -388,7 +388,7 @@ func (p *plugin) importCalendar(ctx *web.Context) error {
 	} else if err != nil {
 		return err
 	}
-	to := "/calendar"
+	to := ctx.Path("calendar.month")
 	if account != "" {
 		to += "?account=" + web.QueryValue(account)
 	}

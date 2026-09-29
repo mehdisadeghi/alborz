@@ -16,18 +16,18 @@ import (
 )
 
 func (p *plugin) invitations(ctx *web.Context) (*dav.RailInvitations, error) {
-	return p.dav.RailInvitations(ctx, p.collectionPage().Base)
+	return p.dav.RailInvitations(ctx, p.collectionPage().Collection)
 }
 
 func (p *plugin) collectionPage() pim.Page {
 	return pim.Page{
-		Base:   "/calendars/",
-		List:   "/calendar",
-		Ext:    ".ics",
-		Forget: p.dav.Forget,
-		Show:   show,
+		Collection: "calendar.collection",
+		List:       "calendar.month",
+		Ext:        ".ics",
+		Forget:     p.dav.Forget,
+		Show:       show,
 		Rail: func(ctx *web.Context, list string) (pim.Rail, error) {
-			if list == "/tasks" {
+			if list == ctx.Path("calendar.tasks") {
 				return p.taskRail(ctx)
 			}
 			return p.eventRail(ctx)
@@ -42,7 +42,7 @@ func (p *plugin) collectionPage() pim.Page {
 		Create: func(ctx *web.Context, list, name, place string) (string, error) {
 			// A task list takes tasks; an imported calendar keeps events and tasks both.
 			components := []string{"VEVENT", "VTODO"}
-			if list == "/tasks" {
+			if list == ctx.Path("calendar.tasks") {
 				components = []string{"VTODO"}
 			}
 			return p.dav.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, components)
@@ -63,9 +63,9 @@ func (p *plugin) collectionPage() pim.Page {
 			if info == nil {
 				return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
 			}
-			list := collectionList(*info)
+			list := collectionList(ctx, *info)
 			label := ctx.T("nav.calendar")
-			if list == "/tasks" {
+			if list == ctx.Path("calendar.tasks") {
 				label = ctx.T("nav.tasks")
 			}
 			return *info, p.dav.CountObjects(ctx, info.Path), list, label, nil
@@ -73,11 +73,11 @@ func (p *plugin) collectionPage() pim.Page {
 	}
 }
 
-func collectionList(info dav.Collection) string {
+func collectionList(ctx *web.Context, info dav.Collection) string {
 	if !supportsEvent(info.Components) {
-		return "/tasks"
+		return ctx.Path("calendar.tasks")
 	}
-	return "/calendar"
+	return ctx.Path("calendar.month")
 }
 
 func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
@@ -85,17 +85,17 @@ func (p *plugin) createForm(ctx *web.Context) (pim.CreateForm, error) {
 	// Back to the rail that asked, when the new collection shows there.
 	made := func(holds string) (string, string) {
 		if holds == "tasks" {
-			return ctx.T("notice.tasklistcreated"), "/tasks"
+			return ctx.T("notice.tasklistcreated"), ctx.Path("calendar.tasks")
 		}
-		return ctx.T("notice.calendarcreated"), "/calendar"
+		return ctx.T("notice.calendarcreated"), ctx.Path("calendar.month")
 	}
 	if forTasks {
 		rail, err := p.taskRail(ctx)
-		return pim.CreateForm{Rail: rail, Title: ctx.T("tasks.newlist"), Section: ctx.T("nav.tasks"), List: "/tasks",
+		return pim.CreateForm{Rail: rail, Title: ctx.T("tasks.newlist"), Section: ctx.T("nav.tasks"), List: ctx.Path("calendar.tasks"),
 			Holds: "tasks", Made: made}, err
 	}
 	rail, err := p.eventRail(ctx)
-	return pim.CreateForm{Rail: rail, Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: "/calendar",
+	return pim.CreateForm{Rail: rail, Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: ctx.Path("calendar.month"),
 		Holds: "both", OffersHolds: true, Made: made}, err
 }
 
@@ -170,6 +170,6 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 		if err := p.follows(rc, login, func(c store.Collection) error { return p.feeds.store.Fill(c.Ref(), got, objects) }); err != nil {
 			return err
 		}
-		return ctx.Redirect(http.StatusFound, ctx.NextOr("/calendar"))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("calendar.month")))
 	}
 }

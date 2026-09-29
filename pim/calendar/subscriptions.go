@@ -421,5 +421,5 @@ func (p *plugin) refresh(ctx *web.Context) error {
 		})
 	}
 	fetches.Wait()
-	return p.dav.HandleRefresh("/calendar")(ctx)
+	return p.dav.HandleRefresh("calendar.month")(ctx)
 }

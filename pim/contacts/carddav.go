@@ -95,10 +95,6 @@ type AddressObject struct {
 	Account string
 }
 
-func (ao AddressObject) URL() string {
-	return "/contacts/" + url.PathEscape(ao.Path)
-}
-
 func (ao AddressObject) DisplayName() string {
 	if fn := ao.Card.PreferredValue("FN"); fn != "" {
 		return fn

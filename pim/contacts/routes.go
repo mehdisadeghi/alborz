@@ -47,26 +47,26 @@ const uidURN = "urn:uuid:"
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
-		return p.dav.Guarded(errNoAddressBook, "/address-books/create", h)
+		return p.dav.Guarded(errNoAddressBook, "contacts.books.create", h)
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
 	upload := func(name, path string, limit int64, h, over func(*web.Context) error) {
 		g.Upload(name, path, limit, guard(h), guard(over))
 	}
-	POST("list", "/contacts", pim.HandleChoose("/contacts", "book", choose))
+	POST("list", "/contacts", pim.HandleChoose("contacts.list", "book", choose))
 	GET("list", "/contacts", p.contacts)
-	POST("export", "/contacts/export", pim.HandleExport(p.client, "/contacts",
+	POST("export", "/contacts/export", pim.HandleExport(p.client, "contacts.list",
 		func(ctx *web.Context) string { return ctx.T("nav.contacts") + ".vcf" }, joinCards))
-	POST("refresh", "/contacts/refresh", p.dav.HandleRefresh("/contacts"))
+	POST("refresh", "/contacts/refresh", p.dav.HandleRefresh("contacts.list"))
 	GET("contact", "/contacts/{path}", p.contact)
 
 	GET("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pim.Raw(ctx, p.client) })
 	page := p.collectionPage()
 	GET("books.create", "/address-books/create", page.HandleCreate(p.dav, p.createForm))
 	POST("books.create", "/address-books/create", page.HandleCreate(p.dav, p.createForm))
-	GET("exportall", "/contacts/export-all", page.HandleExportAll("/contacts", "address-books.zip"))
-	contactsImport, contactsOver := page.HandleImportPage(p.dav, "/contacts", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false)
+	GET("exportall", "/contacts/export-all", page.HandleExportAll("contacts.list", "address-books.zip"))
+	contactsImport, contactsOver := page.HandleImportPage(p.dav, "contacts.list", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false)
 	GET("import", "/contacts/import", contactsImport)
 	upload("import", "/contacts/import", pim.ImportBodySize, contactsImport, contactsOver)
 	GET("book", "/address-books/{path}", page.Handle(p.dav))
@@ -88,7 +88,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("contact.color", "/contacts/{path}/color", p.color)
 	POST("contact.note", "/contacts/{path}/note", p.note)
 	POST("contact.photo.delete", "/contacts/{path}/photo/delete", p.deletePhoto)
-	remove := pim.Handler(pim.Action[*carddav.Client]{Client: p.client, Do: pim.Delete[*carddav.Client], List: "/contacts",
+	remove := pim.Handler(pim.Action[*carddav.Client]{Client: p.client, Do: pim.Delete[*carddav.Client], List: "contacts.list",
 		Done: func(ctx *web.Context, done []pim.Ref[*carddav.Client], _ string) web.Notice {
 			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.contactsdeleted", len(done))}
 		}})

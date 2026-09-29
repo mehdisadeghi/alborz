@@ -46,8 +46,9 @@ templates and assets from `./templates`
 plain HTTP or a private address
 
 **-trusted-proxy**: comma-separated addresses or CIDR ranges of the proxies in
-front of alborz, whose `X-Forwarded-For` names the reader (default: unset, the
-connection's address)
+front of alborz, whose `X-Forwarded-For` names the reader and
+`X-Forwarded-Proto` the scheme; required behind a TLS-terminating proxy for
+Secure cookies (default: unset, the connection's own address and scheme)
 
 **-public-url**: where readers reach alborz, such as
 `https://mail.example.org`, used for links in mail and addresses shown to other

@@ -41,7 +41,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/contacts"
-	"git.mehdix.org/alborz/settings"
+	settingsweb "git.mehdix.org/alborz/settings/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/emersion/go-imap/v2"
@@ -345,7 +345,7 @@ func newAlborz(t *testing.T, ln net.Listener, options web.Options, setup ...func
 	web.EventRoutes(events)
 	authweb.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
 	mail.Mount(app.Group("", "mail"))
-	settings.Mount(app.Group("", "settings"))
+	settingsweb.Mount(app.Group("", "settings"))
 	st, err := pim.Mount(dav, app.Group("", "pim"))
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)

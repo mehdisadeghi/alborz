@@ -8,7 +8,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
-	"git.mehdix.org/alborz/settings"
+	settingsweb "git.mehdix.org/alborz/settings/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -23,7 +23,7 @@ var placeIDs = []string{"domain", "host", "own", "here"}
 
 // ServerRenderData is the DAV servers' page, with the servers the account names for itself.
 type ServerRenderData struct {
-	*settings.ServersRenderData
+	*settingsweb.ServersRenderData
 	Services        dav.Services
 	HasHTTPPassword bool
 }
@@ -42,13 +42,13 @@ func (d *ServerRenderData) DefaultPlace() string {
 }
 
 func handleServer(ctx *web.Context) error {
-	servers, err := settings.NewServersRenderData(ctx, settings.ServerDAV)
+	servers, err := settingsweb.NewServersRenderData(ctx, settingsweb.ServerDAV)
 	if err != nil {
 		return err
 	}
 	data := &ServerRenderData{ServersRenderData: servers}
 	render := func(status int) error {
-		return settings.RenderServers(ctx, status, "settings/server", data, servers)
+		return settingsweb.RenderServers(ctx, status, "settings/server", data, servers)
 	}
 	if data.HasHTTPPassword, err = ctx.Login.HasHTTPPassword(ctx.Request().Context()); err != nil {
 		return err

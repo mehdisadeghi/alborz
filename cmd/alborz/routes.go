@@ -7,7 +7,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/contacts"
-	"git.mehdix.org/alborz/settings"
+	settingsweb "git.mehdix.org/alborz/settings/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -28,7 +28,7 @@ func mount(s *web.Server) error {
 	web.EventRoutes(events)
 	authweb.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
 	mail.Mount(app.Group("", "mail"))
-	settings.Mount(app.Group("", "settings"))
+	settingsweb.Mount(app.Group("", "settings"))
 	st, err := pim.Mount(dav, app.Group("", "pim"))
 	if err != nil {
 		return err

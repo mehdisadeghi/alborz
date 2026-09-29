@@ -35,6 +35,7 @@ func (p *plugin) registerRoutes() {
 
 	p.GET("/message/:mbox/:uid", p.handleGetPart)
 	p.GET("/message/:mbox/:uid/raw", handleRaw)
+	p.GET("/message/:mbox/:uid/signature", p.handleSignature)
 	p.GET("/message/:mbox/:uid/attachments.zip", handleDownloadAttachments)
 	p.GET("/message/:mbox/:uid/eml", func(ctx *alborz.Context) error {
 		return handleDownloadMessage(ctx, false)

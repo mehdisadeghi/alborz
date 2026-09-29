@@ -213,13 +213,9 @@
                 {{template "addr-list" (dict "addrs" .Message.Envelope.From "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
                 {{ end }}
               {{/* Outside the body frame: a message can style its own body to look
-                   like a verdict. */}}
-                            {{ if .Signature.Confirmed }}
-              <span class="sig sig-verified" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.verified"}}</span>
-              {{ else if eq .Signature.State "good" }}
-              <span class="sig sig-good" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.good"}}</span>
-              {{ else if eq .Signature.State "bad" }}
-              <span class="sig sig-bad" title="{{$.T .Signature.Reason}}">{{$.T "pgp.bad"}}</span>
+                   like a verdict. It may read the whole message, so it comes after the page. */}}
+              {{ if .Message.Signed }}
+              <span hx-get="{{.Message.URL}}/signature{{account "?" $.GlobalData.URLAccount}}" hx-trigger="load" hx-swap="outerHTML"></span>
               {{ end }}
             </td>
           </tr>

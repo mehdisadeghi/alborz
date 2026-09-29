@@ -27,3 +27,13 @@
 {{ template "message-navigation" . }}
 <template><tbody id="message-conversation-body" hx-swap-oob="outerHTML">{{ template "message-conversation" . }}</tbody></template>
 {{ end }}
+
+{{ define "message-signature" }}
+{{ if .Signature.Confirmed }}
+<span class="sig sig-verified" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.verified"}}</span>
+{{ else if eq .Signature.State "good" }}
+<span class="sig sig-good" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.good"}}</span>
+{{ else if eq .Signature.State "bad" }}
+<span class="sig sig-bad" title="{{$.T .Signature.Reason}}">{{$.T "pgp.bad"}}</span>
+{{ end }}
+{{ end }}

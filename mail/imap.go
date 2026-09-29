@@ -1844,6 +1844,19 @@ func streamSection(c *imapclient.Client, uid imap.UID, options *imap.FetchOption
 	return nil
 }
 
+// transferDecoded undoes a part's transfer encoding as it is read; an unknown one leaves the bytes.
+func transferDecoded(encoding string, r io.Reader) io.Reader {
+	var h message.Header
+	h.Set("Content-Transfer-Encoding", encoding)
+	e, _ := message.New(h, r)
+	return e.Body
+}
+
+// Signed says the page has a verdict to ask for.
+func (msg *IMAPMessage) Signed() bool {
+	return isSigned(msg.BodyStructure)
+}
+
 // A whole message carried inside another, arriving intact (RFC 2046 5.2).
 type messageAttachment struct {
 	Path messagePath

@@ -23,6 +23,8 @@ type davStub struct {
 	cals   map[string]davCal
 	books  map[string]davCal
 	refuse map[string]bool
+	// hangup closes the connection on a PUT into the collection, a server that does not answer.
+	hangup map[string]bool
 	keep   map[string]bool
 	gone   map[string]bool
 	// rscales is the supported-rscale-set it advertises; nil advertises none.
@@ -50,6 +52,11 @@ func (s *davStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "REPORT":
 		writeMS(w)
 	case "PUT":
+		if s.hangup[path.Dir(r.URL.Path)+"/"] {
+			conn, _, _ := w.(http.Hijacker).Hijack()
+			conn.Close()
+			return
+		}
 		if s.refuse[path.Dir(r.URL.Path)+"/"] || s.refuse[r.URL.Path] {
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusForbidden)

@@ -269,9 +269,9 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 // A server refusing the write is an answer for the reader, not an error page.
 func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 	const refused = "The change was not saved. The server said:"
-	personal, friends, family := davHome+"personal/", davBooks+"friends/", davBooks+"family/"
+	personal, work, friends, family := davHome+"personal/", davHome+"work/", davBooks+"friends/", davBooks+"family/"
 	card := "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:ada\r\nFN:Ada\r\nEND:VCARD\r\n"
-	stub := &davStub{cals: map[string]davCal{personal: {"Personal", "#3366cc"}}, books: map[string]davCal{friends: {"Friends", ""}, family: {"Family", ""}},
+	stub := &davStub{cals: map[string]davCal{personal: {"Personal", "#3366cc"}, work: {"Work", "#3366cc"}}, hangup: map[string]bool{work: true}, books: map[string]davCal{friends: {"Friends", ""}, family: {"Family", ""}},
 		refuse: map[string]bool{personal: true, friends: true, family + "bob.vcf": true}, keep: map[string]bool{}, gone: map[string]bool{}}
 	srv := httptest.NewServer(stub)
 	defer srv.Close()
@@ -371,6 +371,12 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 		}
 		if !strings.Contains(strings.Join(stub.puts, ""), "UID:ada") {
 			t.Errorf("the card before the refusal was not written")
+		}
+	})
+	t.Run("a server that does not answer the import page", func(t *testing.T) {
+		resp := upload(base+"/calendar/import", url.Values{"collection": {smokeUser + "|" + work}}, "plan.ics", event("plan", "Plan"))
+		if resp.StatusCode != http.StatusInternalServerError {
+			t.Errorf("the import no server answered gave %s, want 500", resp.Status)
 		}
 	})
 }

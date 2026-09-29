@@ -315,7 +315,7 @@ func (p *plugin) exportVisible(ctx *alborz.Context, kind func([]string) bool, ch
 		return err
 	}
 	var children []*ical.Component
-	for _, r := range pim.Present(p.dav, dav.Each(ctx.Request().Context(), sites, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]*ical.Component, error) {
+	for _, r := range pim.Present(p.dav, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]*ical.Component, error) {
 		return calendarComponents(ctx, site.Client, site.Collection.Path, comps, from, to)
 	})) {
 		if r.Err != nil {

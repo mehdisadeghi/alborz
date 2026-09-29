@@ -94,10 +94,7 @@ type GlobalRenderData struct {
 
 // Dir is the writing direction of the UI language.
 func (g *GlobalRenderData) Dir() string {
-	if g.Lang == "fa" {
-		return "rtl"
-	}
-	return "ltr"
+	return g.T("language.dir")
 }
 
 // BaseRenderData is the base type for templates, embedded in template-specific ones.
@@ -174,14 +171,7 @@ func (g *GlobalRenderData) FormatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return fmt.Sprintf("%s%s %s", g.LongDate(t), g.comma(), g.FormatTime(t))
-}
-
-func (g *GlobalRenderData) comma() string {
-	if g.Lang == "fa" {
-		return "،"
-	}
-	return ","
+	return g.printer().Sprintf(g.T("date.withtime"), g.LongDate(t), g.FormatTime(t))
 }
 
 // ShortDate is a bare date in the secondary calendar when one is chosen, without the current year.
@@ -190,20 +180,10 @@ func (g *GlobalRenderData) ShortDate(t time.Time) string {
 	year, m, day := cal.Date(g.InTimezone(t))
 	thisYear, _, _ := cal.Date(g.InTimezone(time.Now()))
 	month := g.ShortMonth(cal, m)
-	p := g.printer()
-	var s, yearSep string
-	switch g.Lang {
-	case "de":
-		s, yearSep = p.Sprintf("%d. %s", day, month), " "
-	case "es", "fa":
-		s, yearSep = p.Sprintf("%d %s", day, month), " "
-	default:
-		s, yearSep = p.Sprintf("%s %d", month, day), ", "
-	}
 	if year != thisYear {
-		s = s + yearSep + g.FormatYear(year)
+		return g.printer().Sprintf(g.T("date.shortyear"), day, month, g.FormatYear(year))
 	}
-	return s
+	return g.printer().Sprintf(g.T("date.short"), day, month)
 }
 
 // FormatTime formats just the time portion in the user's timezone.
@@ -391,16 +371,7 @@ func (g *GlobalRenderData) LongDate(t time.Time) string {
 	weekday := g.WeekdayName(g.InTimezone(t).Weekday())
 	month := g.MonthName(t)
 	y, _, d := g.PrimaryCalendar().Date(g.InTimezone(t))
-	switch g.Lang {
-	case "fa":
-		return g.printer().Sprintf("%s، %d %s %s", weekday, d, month, g.FormatYear(y))
-	case "de":
-		return g.printer().Sprintf("%s, %d. %s %s", weekday, d, month, g.FormatYear(y))
-	case "es":
-		return g.printer().Sprintf("%s, %d de %s de %s", weekday, d, month, g.FormatYear(y))
-	default:
-		return g.printer().Sprintf("%s, %s %d, %s", weekday, month, d, g.FormatYear(y))
-	}
+	return g.printer().Sprintf(g.T("date.long"), weekday, d, month, g.FormatYear(y))
 }
 
 // RenderData is implemented by template data structs.

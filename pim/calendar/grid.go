@@ -124,13 +124,5 @@ func (d *CalendarRenderData) CalendarDayLabel(t time.Time) string {
 	if day != 1 {
 		return g.Num(day)
 	}
-	month := g.ShortMonth(cal, m)
-	switch g.Lang {
-	case "de":
-		return g.Num(day) + ". " + month
-	case "es", "fa":
-		return g.Num(day) + " " + month
-	default:
-		return month + " " + g.Num(day)
-	}
+	return g.Tf("date.short", day, g.ShortMonth(cal, m))
 }

@@ -71,8 +71,10 @@ replace github.com/emersion/go-vcard => github.com/alborzmail/go-vcard v0.0.0-20
 // relies on (#147 #174 #179 #180 #181 #182 #194 #208 #209 #211), our
 // own server patches: PROPPATCH, dead properties, octets kept as sent,
 // and client ones: collections made, changed and listed, ETags and syncs
-// handed over as sent, files listed without a length.
-replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260928212109-20ebaeed9ddf
+// handed over as sent, files listed without a length; time ranges
+// matched by RFC 4791 9.9 for recurring events, to-dos, journals and
+// moved instances, and a rule it cannot read keeps its object.
+replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260929113412-604ca2afee6a
 
 // Our fork of go-msgauth carries the authres parser rework upstream has
 // not merged (emersion/go-msgauth#53): quoted values and comments, and

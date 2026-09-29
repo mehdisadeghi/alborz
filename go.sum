@@ -14,8 +14,8 @@ github.com/alborzmail/go-msgauth v0.0.0-20260928213517-dae367b5cecf h1:hud+wLir8
 github.com/alborzmail/go-msgauth v0.0.0-20260928213517-dae367b5cecf/go.mod h1:9vHeiBKZywph9DZEVdXYAFrustFrmPZ+fWdlbnGT4hc=
 github.com/alborzmail/go-vcard v0.0.0-20260928213329-9000c5176aff h1:TqI0zNSMtZGXyXeOX2f9F4+AGovBAlCbyyM5YNUwtMU=
 github.com/alborzmail/go-vcard v0.0.0-20260928213329-9000c5176aff/go.mod h1:HMJKR5wlh/ziNp+sHEDV2ltblO4JD2+IdDOWtGcQBTM=
-github.com/alborzmail/go-webdav v0.0.0-20260928212109-20ebaeed9ddf h1:hGY5VC5JvwpZKtvs5ySvbxBCU4XvwO50UU/+Vgl6vkQ=
-github.com/alborzmail/go-webdav v0.0.0-20260928212109-20ebaeed9ddf/go.mod h1:/CletBm2Vo0CX6I20VQsoRkkX1CzzNCK1PNCqKW//iQ=
+github.com/alborzmail/go-webdav v0.0.0-20260929113412-604ca2afee6a h1:KFsl4x9/vDmu6FARdMi8oYKR3zFNxjAcxa1pROZinAA=
+github.com/alborzmail/go-webdav v0.0.0-20260929113412-604ca2afee6a/go.mod h1:/CletBm2Vo0CX6I20VQsoRkkX1CzzNCK1PNCqKW//iQ=
 github.com/aymerick/douceur v0.2.0 h1:Mv+mAeH1Q+n9Fr+oyamOlAkUNPWPlA8PPGR0QAaYuPk=
 github.com/aymerick/douceur v0.2.0/go.mod h1:wlT5vV2O3h55X9m7iVYN0TBM0NH/MmbLnd30/FjWUq4=
 github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a h1:MISbI8sU/PSK/ztvmWKFcI7UGb5/HQT7B+i3a2myKgI=

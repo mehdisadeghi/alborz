@@ -168,6 +168,26 @@ func TestAMonthWithNoEventsExportsNothing(t *testing.T) {
 	}
 }
 
+// Its own store answers for a rule alborz writes, and alborz expands it (ADR 10).
+func TestAKeptCalendarDrawsItsSolarHijriRule(t *testing.T) {
+	base := startAlborzKept(t, startIMAP(t))
+	c := login(t, base)
+	coll := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
+	postForm(t, c, base+"/settings", url.Values{"calendar": {"shcal"}, "secondary": {""}})
+	form := url.Values{"summary": {"Nowruz"}, "calendar": {smokeUser + "|" + coll},
+		"start": {"1405/01/01 10:00"}, "start-calendar": {"shcal"},
+		"end": {"1405/01/01 11:00"}, "end-calendar": {"shcal"}, "repeat": {"yearly"}}
+	if resp := postForm(t, c, base+"/calendar/create", form); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the yearly event answered %s", resp.Status)
+	}
+	if page := get(t, c, base+"/calendar?month=1406-01"); !strings.Contains(page, "Nowruz") {
+		t.Errorf("the next year's Farvardin does not show the event")
+	}
+	if page := get(t, c, base+"/calendar?month=1406-02"); strings.Contains(page, "Nowruz") {
+		t.Errorf("a month without an instance shows the event")
+	}
+}
+
 // An address book query with no filter asks for every card (RFC 6352 10.5).
 func TestABookKeptHereListsItsCards(t *testing.T) {
 	base := startAlborzKept(t, startIMAP(t))

@@ -1,9 +1,10 @@
-package filters
+package web
 
 import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/filters"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -18,8 +19,8 @@ func rail(ctx *web.Context) map[string][]web.RailRow {
 		q := "?account=" + web.QueryValue(account.Username)
 		var include, vacation bool
 		err := login.DoSieve(func(c alborz.SieveClient) error {
-			include = HasExtension(c, "include")
-			vacation = HasExtension(c, "vacation")
+			include = filters.HasExtension(c, "include")
+			vacation = filters.HasExtension(c, "vacation")
 			return nil
 		})
 		if err != nil {

@@ -414,7 +414,7 @@ func (p *plugin) move(ctx *alborz.Context) error {
 		if err != nil {
 			return err
 		}
-		return ctx.Render(http.StatusOK, "tasks/move", &MoveTasksRenderData{
+		return ctx.Render(http.StatusOK, "calendar/destination", &MoveTasksRenderData{
 			BaseRenderData: *alborz.NewBaseRenderData(ctx).WithTitle(ctx.T("folder.moveask")),
 			Rail:           rail,
 			Calendars:      list.Calendars,

@@ -969,6 +969,11 @@ main.create-update > form > h1 {
   line-height: 1.25;
 }
 
+/* A form's lead line is a block of its own, one gap from the field under it. */
+main.create-update > form > p:not(.hint) {
+  margin-bottom: var(--space-3);
+}
+
 main.create-update:has(.headers) {
   flex: 1 auto;
 }

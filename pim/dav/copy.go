@@ -1,6 +1,7 @@
 package dav
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/xml"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sync"
 
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-ical"
@@ -161,14 +163,23 @@ func (b calendars) GetCalendarObject(_ context.Context, p string, _ *caldav.Cale
 	return &b.objects[i], nil
 }
 
+// QueryCalendarObjects parses only the objects that begin every component the filter requires.
 func (b calendars) QueryCalendarObjects(_ context.Context, _ string, query *caldav.CalendarQuery) ([]caldav.CalendarObject, error) {
-	for i := range b.objects {
+	br := lineReaders.Get().(*bufio.Reader)
+	defer lineReaders.Put(br)
+	var held []caldav.CalendarObject
+	for _, o := range b.objects {
+		if !beginsAll(o.Raw, query.CompFilter.Comps) {
+			continue
+		}
+		br.Reset(bytes.NewReader(o.Raw))
 		var err error
-		if b.objects[i].Data, err = ical.NewDecoder(bytes.NewReader(b.objects[i].Raw)).Decode(); err != nil {
+		if o.Data, err = ical.NewDecoder(br).Decode(); err != nil {
 			return nil, err
 		}
+		held = append(held, o)
 	}
-	found, err := caldav.Filter(query, b.objects)
+	found, err := caldav.Filter(query, held)
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +188,59 @@ func (b calendars) QueryCalendarObjects(_ context.Context, _ string, query *cald
 		found[i].Data = nil
 	}
 	return found, nil
+}
+
+// lineReaders spare a parse its own buffer, which outweighs the object it reads.
+var lineReaders = sync.Pool{New: func() any { return bufio.NewReader(nil) }}
+
+// beginsAll says whether raw may hold every component filters require: it holds each one's BEGIN line.
+func beginsAll(raw []byte, filters []caldav.CompFilter) bool {
+	for _, f := range filters {
+		if !f.IsNotDefined && !holdsLine(raw, "BEGIN:"+f.Name) {
+			return false
+		}
+	}
+	return true
+}
+
+// holdsLine finds want in raw as RFC 5545 3.1 reads it: unfolded, names in any case.
+func holdsLine(raw []byte, want string) bool {
+	for start := range raw {
+		i, j := start, 0
+		for j < len(want) && i < len(raw) {
+			if n := foldAt(raw[i:]); n > 0 {
+				i += n
+				continue
+			}
+			if lower(raw[i]) != lower(want[j]) {
+				break
+			}
+			i, j = i+1, j+1
+		}
+		if j == len(want) {
+			return true
+		}
+	}
+	return false
+}
+
+// foldAt is the length of the line fold raw starts with, or zero; a bare LF is taken for CRLF.
+func foldAt(raw []byte) int {
+	n := 0
+	if len(raw) > 0 && raw[0] == '\r' {
+		n = 1
+	}
+	if len(raw) > n+1 && raw[n] == '\n' && (raw[n+1] == ' ' || raw[n+1] == '\t') {
+		return n + 2
+	}
+	return 0
+}
+
+func lower(b byte) byte {
+	if 'A' <= b && b <= 'Z' {
+		return b + 'a' - 'A'
+	}
+	return b
 }
 
 // books is calendars for an address book.

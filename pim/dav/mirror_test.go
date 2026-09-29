@@ -363,6 +363,34 @@ func TestMirrorNeverServesOneNamesCopyToAnother(t *testing.T) {
 	}
 }
 
+// A component's BEGIN line may be folded or in any case (RFC 5545 3.1); the copy must not skip such an object.
+func TestCopyParsesWhatMayHoldTheComponent(t *testing.T) {
+	events := []caldav.CompFilter{{Name: "VEVENT"}}
+	for _, c := range []struct {
+		name    string
+		raw     string
+		filters []caldav.CompFilter
+		want    bool
+	}{
+		{"plain", event("a"), events, true},
+		{"folded with a space", strings.Replace(event("a"), "BEGIN:VEVENT", "BEGIN:VEV\r\n ENT", 1), events, true},
+		{"folded with a tab", strings.Replace(event("a"), "BEGIN:VEVENT", "BEGIN:\r\n\tVEVENT", 1), events, true},
+		{"folded with a bare LF", strings.Replace(event("a"), "BEGIN:VEVENT", "BEG\n IN:VEVENT", 1), events, true},
+		{"lower case", strings.Replace(event("a"), "BEGIN:VEVENT", "begin:vevent", 1), events, true},
+		{"mixed case", strings.Replace(event("a"), "BEGIN:VEVENT", "Begin:vEvent", 1), events, true},
+		{"a task", strings.ReplaceAll(event("a"), "VEVENT", "VTODO"), events, false},
+		{"a task asked without events", strings.ReplaceAll(event("a"), "VEVENT", "VTODO"),
+			[]caldav.CompFilter{{Name: "VEVENT", IsNotDefined: true}}, true},
+	} {
+		if _, err := ical.NewDecoder(strings.NewReader(c.raw)).Decode(); err != nil {
+			t.Fatalf("%s is not iCalendar: %v", c.name, err)
+		}
+		if got := beginsAll([]byte(c.raw), c.filters); got != c.want {
+			t.Errorf("%s: parsed %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 // Past its budget the copy lets the least recently read collections go from memory, never from disk.
 func TestMirrorHoldsOpenedCollectionsWithinItsBudget(t *testing.T) {
 	m, _ := through(t, newFake())

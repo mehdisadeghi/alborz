@@ -8,7 +8,6 @@ import (
 	"html/template"
 	"net/http"
 	netmail "net/mail"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -77,13 +76,12 @@ func (pg Page) offer(ctx *web.Context, p *dav.Provider, collPath, account string
 	case sh.Left:
 		state = "left"
 	}
-	base := pg.Base + url.PathEscape(collPath)
 	q := "?account=" + web.QueryValue(account)
 	return &Offer{
 		Kind: pg.kindKey(c), Name: c.Name, From: c.Owner, Write: sh.Write,
 		Expires: sh.Expires, Offered: sh.Created, Answered: sh.Answered, State: state,
-		Accept: base + "/accept" + q, Decline: base + "/decline" + q,
-		Answer: ctx.QueryParam("answer"), Next: pg.List + q,
+		Accept: ctx.Path(pg.Collection+".accept", collPath) + q, Decline: ctx.Path(pg.Collection+".decline", collPath) + q,
+		Answer: ctx.QueryParam("answer"), Next: ctx.Path(pg.List) + q,
 	}, nil
 }
 
@@ -152,7 +150,7 @@ func (pg Page) owned(ctx *web.Context, p *dav.Provider) (dav.Collection, store.R
 }
 
 func (pg Page) pageOf(ctx *web.Context, path string) string {
-	return ctx.AccountPath(pg.Base + url.PathEscape(path))
+	return ctx.URL(pg.Collection, path)
 }
 
 var (
@@ -245,7 +243,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
 func (pg Page) offerMail(ctx *web.Context, p *dav.Provider, c *store.Collection, sh store.Share) (subject, text string) {
 	kind := pg.kindKey(c)
 	subject = fmt.Sprintf(ctx.T(kind+"mail"), sh.Owner, c.Name)
-	page := ctx.Origin() + pg.Base + url.PathEscape(p.PathOf(sh.To, *c)) + "?account=" + web.QueryValue(sh.To)
+	page := ctx.Origin() + ctx.Path(pg.Collection, p.PathOf(sh.To, *c)) + "?account=" + web.QueryValue(sh.To)
 	access := ctx.T("share.canview")
 	if sh.Write {
 		access = ctx.T("share.canedit")
@@ -324,17 +322,17 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*web.Context) err
 		}
 		if !accept {
 			ctx.PutNotice(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name))
-			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(pg.List)))
 		}
 		if err := pg.Show(ctx.Request().Context(), ctx.Login.Store(), dav.CanonicalCollectionPath(collPath)); err != nil {
 			ctx.Notify(Refused(ctx, err))
-			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(pg.List)))
 		}
 		// The name leads to the collection the account just accepted.
 		ctx.Notify(web.Notice{Kind: web.NoticeDone,
 			Text:   fmt.Sprintf(ctx.T("notice.shareaccepted"), c.Name),
 			Markup: template.HTML(fmt.Sprintf(ctx.T("notice.shareaccepted"), web.NoticeLink(c.Name, pg.pageOf(ctx, dav.CanonicalCollectionPath(collPath)))))})
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(pg.List)))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(pg.List)))
 	}
 }
 

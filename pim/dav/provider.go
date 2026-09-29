@@ -523,7 +523,7 @@ func (p *Provider) CountObjects(ctx *web.Context, coll string) func() int {
 	}
 }
 
-// HandleRefresh asks every signed-in account's server again and lands on list.
+// HandleRefresh asks every signed-in account's server again and lands on list, a route.
 func (p *Provider) HandleRefresh(list string) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		for _, s := range ctx.Logins() {
@@ -538,7 +538,7 @@ func (p *Provider) HandleRefresh(list string) func(*web.Context) error {
 		}
 		// The list itself is what was asked for.
 		ctx.Quiet()
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(list)))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(list)))
 	}
 }
 
@@ -557,13 +557,13 @@ func (p *Provider) Warm(ctx *web.Context, s *alborz.Login, fetch func(context.Co
 	}()
 }
 
-// Guarded sends an account with none of the kind to create its first here instead of failing.
+// Guarded sends an account with none of the kind to create its first, at the route create, instead of failing.
 func (p *Provider) Guarded(none error, create string, h func(*web.Context) error) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		if err := h(ctx); !errors.Is(err, none) {
 			return err
 		}
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(create))
+		return ctx.Redirect(http.StatusFound, ctx.URL(create))
 	}
 }
 

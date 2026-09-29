@@ -7,15 +7,15 @@
 {{ define "main" }}
       {{ $acct := .GlobalData.AccountQuery }}
       {{ template "next-form" (dict "id" "contact-color-form" "next" $.GlobalData.URL.RequestURI) }}
-      {{ template "object-toolbar" (dict "g" $ "url" .AddressObject.URL "acct" $acct "list" .List "new" "/contacts/create" "newlabel" ($.T "contacts.new") "edit" "edit" "ext" ".vcf" "readonly" false
-         "section" ($.T "nav.contacts") "home" "/contacts" "field" "book" "collection" .AddressBook.Name "path" .AddressBook.Path) }}
+      {{ template "object-toolbar" (dict "g" $ "object" "contacts.contact" "id" .AddressObject.Path "acct" $acct "list" .List "new" (url "contacts.contact.create") "newlabel" ($.T "contacts.new") "edit" "edit" "ext" ".vcf" "readonly" false
+         "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book" "collection" .AddressBook.Name "path" .AddressBook.Path) }}
 
       <section class="details">
         {{$photo := .AddressObject.PhotoURL}}
         {{if $photo}}
         <img class="contact-photo" src="{{photodatauri $photo}}" alt="">
         {{end}}
-        {{ template "object-title" (dict "g" $ "title" .AddressObject.DisplayName "form" "contact-color-form" "action" (printf "%s/color%s" .AddressObject.URL $acct) "current" .AddressObject.Color) }}
+        {{ template "object-title" (dict "g" $ "title" .AddressObject.DisplayName "form" "contact-color-form" "action" (printf "%s%s" (url "contacts.contact.color" .AddressObject.Path) $acct) "current" .AddressObject.Color) }}
         <dl>
           {{with .AddressObject.Card.PreferredValue "NICKNAME"}}
           <dt>{{$.T "contacts.nickname"}}</dt>
@@ -55,15 +55,15 @@
           {{end}}
           {{with .AddressObject.Categories}}
           <dt>{{$.T "contacts.categories"}}</dt>
-          <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="/contacts?category={{$word | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>
+          <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="{{url "contacts.list"}}?category={{$word | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>
           {{end}}
           {{with .In}}
           <dt>{{$.T "contacts.ingroups"}}</dt>
           <dd class="contact-groups">
             {{ range . }}
             <span class="chip">
-              <a href="/contacts?group={{.UID | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{.DisplayName}}</a>
-              <form method="post" action="{{$.AddressObject.URL}}/group{{$acct}}">
+              <a href="{{url "contacts.list"}}?group={{.UID | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{.DisplayName}}</a>
+              <form method="post" action="{{url "contacts.contact.group" $.AddressObject.Path}}{{$acct}}">
                 <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
                 <button type="submit" name="leave" value="{{.UID}}" class="button-link"
                         title="{{$.T "contacts.leavegroup"}}" aria-label="{{$.T "contacts.leavegroup"}}">&times;</button>
@@ -73,7 +73,7 @@
           </dd>
           {{end}}
         </dl>
-        <form method="post" action="{{.AddressObject.URL}}/group{{$acct}}" class="group-form">
+        <form method="post" action="{{url "contacts.contact.group" .AddressObject.Path}}{{$acct}}" class="group-form">
           <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
           <label for="group">{{$.T "contacts.addtogroup"}}</label>
           {{ if .Groups }}
@@ -86,7 +86,7 @@
           <button type="submit">{{$.T "common.add"}}</button>
         </form>
         {{ template "note-box" (dict
-           "action" (printf "/contacts/%s/note%s" (.AddressObject.Path | pathescape) $acct)
+           "action" (printf "%s%s" (url "contacts.contact.note" .AddressObject.Path) $acct)
            "next" .GlobalData.URL.RequestURI
            "label" ($.T "common.addnote") "add" ($.T "common.add")) }}
         {{ template "object-dates" (dict "g" $.Global

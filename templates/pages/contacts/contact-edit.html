@@ -4,7 +4,7 @@
 
 {{ define "before-main" }}
     {{ if and .AddressObject .Photo }}
-    {{ template "next-form" (dict "id" "photo-remove-form" "action" (printf "/contacts/%s/photo/delete%s" (.AddressObject.Path | pathescape) .GlobalData.AccountQuery) "next" .GlobalData.URL.RequestURI) }}
+    {{ template "next-form" (dict "id" "photo-remove-form" "action" (printf "%s%s" (url "contacts.contact.photo.delete" .AddressObject.Path) .GlobalData.AccountQuery) "next" .GlobalData.URL.RequestURI) }}
     {{ end }}
 {{ end }}
 
@@ -13,7 +13,7 @@
 {{ define "main" }}
   {{ $acct := .GlobalData.AccountQuery }}
       <form method="post" enctype="multipart/form-data">
-        {{ template "object-form-head" (dict "g" $ "editing" .AddressObject "collection" .AddressBook "groups" .Groups "section" ($.T "nav.contacts") "home" "/contacts" "field" "book"
+        {{ template "object-form-head" (dict "g" $ "editing" .AddressObject "collection" .AddressBook "groups" .Groups "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book"
            "title" (or (and .AddressObject ($.T "contacts.edittitle")) ($.T "contacts.createtitle")) "name" "addressbook" "key" "contact") }}
 
 
@@ -40,6 +40,6 @@
         {{ template "field" (dict "label" ($.T "contacts.categories") "name" "categories" "value" (.Card.Value "CATEGORIES") "dir" "auto" "hint" ($.T "contacts.categorieshint")) }}
         {{ template "field" (dict "label" ($.T "contacts.notes") "name" "note" "value" (.Card.PreferredValue "NOTE") "dir" "auto" "rows" "3") }}
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "/contacts%s" $acct)) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "%s%s" (url "contacts.list") $acct)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

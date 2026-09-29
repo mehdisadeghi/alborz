@@ -1,15 +1,15 @@
 {{ define "rail" }}
   {{ $q := .GlobalData.AccountQuery }}{{ $sep := "?" }}{{ if $q }}{{ $sep = "&" }}{{ end }}
-  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" "/contacts" "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" "/contacts" "edithref" "/address-books/" "invitations" .Invitations
-     "new" (dict "href" (printf "/address-books/create?next=%s" (.GlobalData.URL.RequestURI | qv)) "label" ($.T "contacts.newbook"))
-     "views" (dict "path" "/contacts" "view" .View "account" .GlobalData.URLAccount)
-     "groups" (dict "key" (printf "groups:%s" $q) "label" ($.T "aside.groups") "open" (ne .Group "") "rows" .GroupRows "editlabel" ($.T "common.edit") "new" (dict "href" (printf "/contacts/create%s%skind=group" $q $sep) "label" ($.T "contacts.newgroup")))
+  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "contacts.list") "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" (url "contacts.list") "edit" "contacts.book" "invitations" .Invitations
+     "new" (dict "href" (printf "%s?next=%s" (url "contacts.books.create") (.GlobalData.URL.RequestURI | qv)) "label" ($.T "contacts.newbook"))
+     "views" (dict "path" (url "contacts.list") "view" .View "account" .GlobalData.URLAccount)
+     "groups" (dict "key" (printf "groups:%s" $q) "label" ($.T "aside.groups") "open" (ne .Group "") "rows" .GroupRows "editlabel" ($.T "common.edit") "new" (dict "href" (printf "%s%s%skind=group" (url "contacts.contact.create") $q $sep) "label" ($.T "contacts.newgroup")))
      "categories" (dict "key" (printf "categories:%s" $q) "label" ($.T "aside.categories") "open" (ne .Category "") "rows" .CategoryRows)) }}
 {{ end }}
 
 {{ define "before-main" }}
     {{ template "next-form" (dict "id" "address-book-form" "next" $.GlobalData.URL.RequestURI) }}
-    {{ template "next-form" (dict "id" "refresh-form" "action" "/contacts/refresh" "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "next-form" (dict "id" "refresh-form" "action" (url "contacts.refresh") "next" $.GlobalData.URL.RequestURI) }}
 {{ end }}
 
 {{ define "main-class" }} class="contact-list"{{ end }}
@@ -17,7 +17,7 @@
 {{ define "main" }}
         {{ template "contacts-toolbar" . }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" "/contacts" "field" "book" "items" .AddressBooks "collection" "" "path" "" "heading" true) }}
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book" "items" .AddressBooks "collection" "" "path" "" "heading" true) }}
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 
@@ -45,7 +45,7 @@
             </div>
             <div class="list-star list-cell" role="cell">
               {{ template "card-star" (dict
-                 "Action" (printf "%s/color%s" .URL (account "?" .Account))
+                 "Action" (printf "%s%s" (url "contacts.contact.color" .Path) (account "?" .Account))
                  "Current" .Color
                  "Next" $.GlobalData.URL.RequestURI
                  "Label" (or (and .Color ($.T "mailbox.flagnone")) ($.T "mailbox.flagcolor"))

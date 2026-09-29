@@ -18,19 +18,19 @@
       {{ end }}
     title="{{$.T "nav.email"}}" aria-label="{{$.T "nav.email"}}">{{ template "icon" "mail" }}<span class="label">{{$.T "nav.email"}}</span></a>
     <a
-      href="/calendar{{$q}}" data-go="l"
+      href="{{url "calendar.month"}}{{$q}}" data-go="l"
       {{ if eq $page "calendar" }}
       class="active" aria-current="page"
       {{ end }}
     title="{{$.T "nav.calendar"}}" aria-label="{{$.T "nav.calendar"}}">{{ template "icon" "month" }}<span class="label">{{$.T "nav.calendar"}}</span></a>
     <a
-      href="/contacts{{$q}}" data-go="c"
+      href="{{url "contacts.list"}}{{$q}}" data-go="c"
       {{ if eq $page "contacts" }}
       class="active" aria-current="page"
       {{ end }}
     title="{{$.T "nav.contacts"}}" aria-label="{{$.T "nav.contacts"}}">{{ template "icon" "users" }}<span class="label">{{$.T "nav.contacts"}}</span></a>
     <a
-      href="/tasks{{$q}}" data-go="k"
+      href="{{url "calendar.tasks"}}{{$q}}" data-go="k"
       {{ if eq $page "tasks" }}
       class="active" aria-current="page"
       {{ end }}

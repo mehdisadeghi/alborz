@@ -165,7 +165,7 @@
       {{ with .Contact }}
       <dialog id="add-contact" class="form-dialog" closedby="any" aria-labelledby="add-contact-title">
         <h2 id="add-contact-title">{{$.T "import.tocontacts"}}</h2>
-        <form method="post" action="/contacts/add{{$aq}}">
+        <form method="post" action="{{url "contacts.add"}}{{$aq}}">
           <input type="hidden" name="next" value="{{$here}}">
           <label>
             <span>{{$.T "contacts.email"}}</span>
@@ -329,7 +329,7 @@
                   {{ end }}
                 </dl>
                 {{ if and (not .Cancelled) (not .Answer) (not .Published) }}
-                <form method="post" action="/message/{{$.Mailbox.Name | pathescape}}/{{$.Message.UID}}/invite{{$aq}}" class="invitation-actions">
+                <form method="post" action="{{url "calendar.invite" $.Mailbox.Name $.Message.UID}}{{$aq}}" class="invitation-actions">
                   <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
                   <button name="status" value="ACCEPTED" class="button-primary">{{$.T "invite.accept"}}</button>
                   <button name="status" value="TENTATIVE">{{$.T "invite.tentative"}}</button>
@@ -338,7 +338,7 @@
                 </form>
                 {{ end }}
                 {{ if $.InviteFiled }}
-                <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
+                <form method="post" action="{{url "calendar.frommessage"}}{{$aq}}" class="invitation-actions">
                   <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                   <input type="hidden" name="uid" value="{{$.Message.UID}}">
                   <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
@@ -351,7 +351,7 @@
                   {{ end }}
                 </form>
                 {{ else if $.InviteCalendars }}
-                <form method="post" action="/calendar/from-message{{$aq}}" class="invitation-actions">
+                <form method="post" action="{{url "calendar.frommessage"}}{{$aq}}" class="invitation-actions">
                   <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                   <input type="hidden" name="uid" value="{{$.Message.UID}}">
                   {{ template "collection-picker" (dict "groups" $.InviteCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
@@ -411,7 +411,7 @@
               {{- end -}}
               </a> ({{.MIMEType}}, {{.SizeString}})
               {{ if and (or (eq .MIMEType "text/calendar") (eq .MIMEType "application/ics")) $.ImportCalendars }}
-              <form method="post" action="/calendar/from-attachment{{$aq}}" class="invitation-actions">
+              <form method="post" action="{{url "calendar.fromattachment"}}{{$aq}}" class="invitation-actions">
                 <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                 <input type="hidden" name="uid" value="{{$.Message.UID}}">
                 <input type="hidden" name="part" value="{{.PathString}}">
@@ -421,7 +421,7 @@
               </form>
               {{ end }}
               {{ if and (or (eq .MIMEType "text/vcard") (eq .MIMEType "text/x-vcard") (eq .MIMEType "text/directory")) $.ImportBooks }}
-              <form method="post" action="/contacts/from-message{{$aq}}" class="invitation-actions">
+              <form method="post" action="{{url "contacts.frommessage"}}{{$aq}}" class="invitation-actions">
                 <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
                 <input type="hidden" name="uid" value="{{$.Message.UID}}">
                 <input type="hidden" name="part" value="{{.PathString}}">

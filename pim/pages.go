@@ -24,15 +24,16 @@ import (
 // CollectionRenderData renders collection.html, a calendar's, task list's or address book's own page.
 type CollectionRenderData struct {
 	web.BaseRenderData
-	Name      string
-	Color     string
-	Path      string
-	Account   string
-	Count     int // -1 when the server would not say
-	Base      string
-	ListHref  string
-	BackLabel string
-	Rail      Rail
+	Name    string
+	Color   string
+	Path    string
+	Account string
+	Count   int // -1 when the server would not say
+	// Collection is the route of the page, whose actions are its routes beneath.
+	Collection string
+	ListHref   string
+	BackLabel  string
+	Rail       Rail
 	// Ext is the export and import file type; OffersRange says the export takes a date range.
 	Ext         string
 	OffersRange bool
@@ -152,21 +153,21 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 		}
 		if err := pg.Show(ctx.Request().Context(), login.Store(), path); err != nil {
 			ctx.Notify(Refused(ctx, err))
-			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.List))
+			return ctx.Redirect(http.StatusFound, ctx.URL(pg.List))
 		}
 		account := ""
 		if data.Account != ctx.Login.Username() {
 			account = data.Account
 		}
 		sentence, list := f.Made(data.Holds)
-		return Made(ctx, sentence, data.Name, pg.Base+url.PathEscape(path), list, account)
+		return Made(ctx, sentence, data.Name, ctx.Path(pg.Collection, path), list, account)
 	}
 }
 
-// Page is what a collection's own page needs from its kind; Base is its path prefix.
+// Page is what a collection's own page needs from its kind; Collection is its route.
 type Page struct {
-	Base string
-	// List is the section's list, where an answered invitation lands.
+	Collection string
+	// List is the route of the section's list, where an answered invitation lands.
 	List   string
 	Ext    string
 	Lookup func(ctx *web.Context, path string) (info dav.Collection, count func() int, list, label string, err error)
@@ -193,13 +194,13 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 		}
 		// An unanswered invitation is not yet a collection: its page is the invitation.
 		if offer != nil && offer.State != "accepted" {
-			rail, err := pg.Rail(ctx, pg.List)
+			rail, err := pg.Rail(ctx, ctx.Path(pg.List))
 			if err != nil {
 				return err
 			}
 			return ctx.Render(http.StatusOK, "pim/collection", &CollectionRenderData{
 				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(offer.Name),
-				Rail:           rail, Name: offer.Name, Base: pg.Base, ListHref: pg.List,
+				Rail:           rail, Name: offer.Name, Collection: pg.Collection, ListHref: ctx.Path(pg.List),
 				Account: ctx.Login.Username(), Offer: offer,
 			})
 		}
@@ -253,7 +254,7 @@ func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*Collec
 		Path:           info.Path,
 		Account:        ctx.Login.Username(),
 		Count:          count(),
-		Base:           pg.Base,
+		Collection:     pg.Collection,
 		ListHref:       list,
 		BackLabel:      label,
 		Ext:            pg.Ext,
@@ -276,7 +277,7 @@ func importTooLarge(ctx *web.Context) string { return ctx.Tf("import.toolarge", 
 func (pg Page) HandleImportTooLarge(ctx *web.Context) error {
 	collPath := ctx.Param("path")
 	ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)})
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(dav.CanonicalCollectionPath(collPath))))
+	return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, dav.CanonicalCollectionPath(collPath)))
 }
 
 // HandleImport writes an uploaded file into the collection.
@@ -287,7 +288,7 @@ func (pg Page) HandleImport(p *dav.Provider) func(*web.Context) error {
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err != nil {
 			return err
 		}
-		back := ctx.NextOr(ctx.AccountPath(pg.Base + url.PathEscape(collPath)))
+		back := ctx.NextOr(pg.pageOf(ctx, collPath))
 		file, err := ctx.FormFile("file")
 		if err == nil && file.Size > maxImportSize {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)})
@@ -551,15 +552,14 @@ type ImportData struct {
 	URL     string
 }
 
-// HandleImportPage is the section's import page, reached from its rail; any writable collection may receive.
-// over answers an upload past the limit on the page.
+// HandleImportPage is the section's import page, reached from the rail of list, a route; any writable collection
+// may receive. over answers an upload past the limit on the page.
 func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key string, address bool) (page, over func(*web.Context) error) {
 	build := func(ctx *web.Context) (*ImportData, error) {
-		rail, err := pg.Rail(ctx, list)
+		rail, err := pg.Rail(ctx, ctx.Path(list))
 		if err != nil {
 			return nil, err
 		}
-		rail.ImportHref = list + "/import"
 		var groups []dav.Group
 		for _, coll := range rail.Items {
 			account := coll.Account
@@ -661,13 +661,13 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 		}
 		if place, isNew := strings.CutPrefix(collPath, newPrefix); isNew || len(files) > 1 {
-			if err := pg.importMany(ctx, list, files, place, isNew, collPath); ImportAnswered(err) {
+			if err := pg.importMany(ctx, ctx.Path(list), files, place, isNew, collPath); ImportAnswered(err) {
 				data.Refused(ImportRefusal(ctx, err))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			} else if err != nil {
 				return err
 			}
-			return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
+			return ctx.Redirect(http.StatusFound, ctx.URL(list))
 		}
 		if err := pg.importRaw(ctx, collPath, raw); ImportAnswered(err) {
 			// A file that is not what it claims answers on the form, where another can be picked.
@@ -676,7 +676,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		} else if err != nil {
 			return err
 		}
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
+		return ctx.Redirect(http.StatusFound, ctx.URL(list))
 	}
 	return page, over
 }
@@ -723,10 +723,10 @@ func (pg Page) HandleExport(p *dav.Provider) func(*web.Context) error {
 	}
 }
 
-// HandleExportAll zips every readable collection of the section.
+// HandleExportAll zips every readable collection of the section whose list is the route list.
 func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		rail, err := pg.Rail(ctx, list)
+		rail, err := pg.Rail(ctx, ctx.Path(list))
 		if err != nil {
 			return err
 		}
@@ -782,14 +782,14 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*web.Context) error {
 		if err := c.RemoveAll(rc, collPath); err != nil {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectiondeletefailed"), info.Name)})
-			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
+			return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
 		}
 		pg.Forget(ctx.Login.Username())
 		// A 2xx is not taken as proof; listing again shows what the reader will see.
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err == nil {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectionnotdeleted"), info.Name)})
-			return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(collPath)))
+			return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
 		}
 		done := "notice.collectiondeleted"
 		if info.SharedBy != "" {

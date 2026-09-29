@@ -145,7 +145,7 @@ func (p *plugin) task(ctx *web.Context) error {
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       calendar,
 		Task:           TaskObject{CalendarObject: task},
-		List:           cmp.Or(ctx.From(), pim.ListURL("/tasks", pim.ListParams(ctx, taskListParams...))),
+		List:           cmp.Or(ctx.From(), pim.ListURL(ctx.Path("calendar.tasks"), pim.ListParams(ctx, taskListParams...))),
 		Star:           componentColor(getFirstTodo(task.Data)),
 		Priority:       priorityBand(getFirstTodo(task.Data)),
 		Neighbours:     pim.Around(list.Items, path),
@@ -289,7 +289,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
-		return pim.Saved(ctx, creating, ctx.T("notice.taskcreated"), summary, TaskObject{CalendarObject: co}.URL(), "/tasks", to.Account)
+		return pim.Saved(ctx, creating, ctx.T("notice.taskcreated"), summary, ctx.Path("calendar.task", co.Path), ctx.Path("calendar.tasks"), to.Account)
 	}
 
 	summary, _ := todo.Props.Text("SUMMARY")

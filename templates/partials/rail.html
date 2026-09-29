@@ -53,11 +53,11 @@
           {{ range $inv.Items }}
           {{ $item := . }}
           <li class="rail-invitation">
-            <a href="{{$inv.Base}}{{$item.Path | pathescape}}{{ account "?" $item.Account }}" dir="auto">{{.Name}}</a>
+            <a href="{{url $inv.Collection $item.Path}}{{ account "?" $item.Account }}" dir="auto">{{.Name}}</a>
             <span class="hint">{{ template "ltr" .From }}</span>
             <span class="rail-invitation-answer">
               {{ range tuple (tuple "accept" "share.accept" "") (tuple "decline" "share.decline" "button-quiet") }}
-              <form method="post" action="{{$inv.Base}}{{$item.Path | pathescape}}/{{index . 0}}{{ account "?" $item.Account }}">
+              <form method="post" action="{{url (printf "%s.%s" $inv.Collection (index . 0)) $item.Path}}{{ account "?" $item.Account }}">
                 <input type="hidden" name="next" value="{{$.g.GlobalData.URL.RequestURI}}">
                 <button{{ with index . 2 }} class="{{.}}"{{ end }}>{{$.g.T (index . 1)}}</button>
               </form>
@@ -132,14 +132,14 @@
 </div>
 {{ end }}
 {{ range $d.items }}{{ if eq .Account $.account }}
-{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "onlylabel" $d.onlylabel "alllabel" $d.alllabel "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edithref" $d.edithref "editlabel" $d.editlabel "g" $.g) }}
+{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "onlylabel" $d.onlylabel "alllabel" $d.alllabel "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edit" $d.edit "editlabel" $d.editlabel "g" $.g) }}
 {{ end }}{{ end }}
 <button>{{$d.apply}}</button>
 </form>
 {{ end }}
 
 {{/* dict: item field itemclass action onlylabel shown keep nested
-     [edithref editlabel]. */}}
+     [edit editlabel]. */}}
 {{ define "dav-filter-item" }}
 {{ $i := .item }}
 {{ $base := printf "%s?%s=%s" .action .field ($i.Path | qv) }}{{ with .keep }}{{ $base = printf "%s%s" $base . }}{{ end }}
@@ -148,7 +148,7 @@
     <span>{{$i.Name}}</span>
     {{ template "collection-mark" (dict "g" $.g "c" $i) }}
   </a>
-  <a class="filter-edit" href="{{.edithref}}{{$i.Path | pathescape}}{{account "?" $i.Account}}" title="{{.editlabel}}" hx-boost="false">{{.editlabel}}</a>
+  <a class="filter-edit" href="{{url .edit $i.Path}}{{account "?" $i.Account}}" title="{{.editlabel}}" hx-boost="false">{{.editlabel}}</a>
   <label class="filter-tick" title="{{.shown}}">
     <input type="checkbox" name="{{.field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }} aria-label="{{.shown}}: {{$i.Name}}">
   </label>
@@ -165,7 +165,7 @@
 {{/* dict: g rail. */}}
 {{ define "dav-rail" }}
 {{ $g := .g }}{{ $r := .rail }}
-{{ template "pim-rail" (dict "g" $g "urlaccount" $g.GlobalData.Scope "path" $r.Path "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "edithref" $r.EditHref "invitations" $r.Invitations
+{{ template "pim-rail" (dict "g" $g "urlaccount" $g.GlobalData.Scope "path" $r.Path "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "edit" $r.Edit "invitations" $r.Invitations
    "new" (dict "href" $r.NewHref "label" $r.NewLabel)
    "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref))
    "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref))
@@ -301,10 +301,10 @@
 {{/* Not boosted: a boosted link scrolls to the top. dict: g href. */}}
 {{ define "list-get" }}{{ if and (eq (index .g.Path 0) "mailbox") (eq (hrefaccount .href) .g.URLAccount) }} hx-get="{{.href}}"{{ end }}{{ end }}
 
-{{/* dict: g urlaccount path items field itemclass action edithref new
+{{/* dict: g urlaccount path items field itemclass action edit new
      [keep follow import views groups categories invitations]. */}}
 {{ define "pim-rail" }}
 <aside>
-  {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "all" (.g.T "aside.all") "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "onlylabel" (.g.T "common.only") "alllabel" (.g.T "common.showall") "shown" (.g.T "common.shown") "edithref" .edithref "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
+  {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "all" (.g.T "aside.all") "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "onlylabel" (.g.T "common.only") "alllabel" (.g.T "common.showall") "shown" (.g.T "common.shown") "edit" .edit "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
 </aside>
 {{ end }}

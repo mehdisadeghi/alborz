@@ -6,16 +6,16 @@
 
 {{ define "main" }}
       {{ $acct := .GlobalData.AccountQuery }}
-      {{ template "object-toolbar" (dict "g" $ "url" .Event.URL "acct" $acct "list" .List "new" "/calendar/create" "newlabel" ($.T "calendar.new") "edit" "update" "ext" ".ics" "readonly" .Event.ReadOnly
-         "copy" (printf "%s/copy%s" .Event.URL $acct)
-         "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
+      {{ template "object-toolbar" (dict "g" $ "object" "calendar.event" "id" .Event.Path "acct" $acct "list" .List "new" (url "calendar.event.create") "newlabel" ($.T "calendar.new") "edit" "update" "ext" ".ics" "readonly" .Event.ReadOnly
+         "copy" (printf "%s%s" (url "calendar.event.copy" .Event.Path) $acct)
+         "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
 
       {{ if not .Event.ReadOnly }}
       {{ template "next-form" (dict "id" "event-color-form" "next" $.GlobalData.URL.RequestURI) }}
       {{ end }}
       <section class="details">
         {{ if .Event.Data.Events }}{{$event := index .Event.Data.Events 0}}
-        {{ template "object-title" (dict "g" $ "title" ($event.Props.Text "SUMMARY") "form" "event-color-form" "action" (printf "%s/color%s" .Event.URL $acct) "current" .Star "readonly" .Event.ReadOnly) }}
+        {{ template "object-title" (dict "g" $ "title" ($event.Props.Text "SUMMARY") "form" "event-color-form" "action" (printf "%s%s" (url "calendar.event.color" .Event.Path) $acct) "current" .Star "readonly" .Event.ReadOnly) }}
         <table>
           <tr>
             <th scope="row">{{$.T "calendar.startdate"}}</th>
@@ -49,7 +49,7 @@
         {{ template "user-text" ($event.Props.Text "DESCRIPTION") }}
         {{ if not .Event.ReadOnly }}
         {{ template "note-box" (dict
-           "action" (printf "%s/note%s" .Event.URL $acct)
+           "action" (printf "%s%s" (url "calendar.event.note" .Event.Path) $acct)
            "next" .GlobalData.URL.RequestURI
            "label" ($.T "common.addnote") "add" ($.T "common.add")) }}
         {{ end }}

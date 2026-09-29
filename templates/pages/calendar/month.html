@@ -1,10 +1,10 @@
 {{ define "rail" }}
   {{ $keep := printf "&month=%s" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
-  {{ template "calendar-rail" (dict "g" $ "keep" $keep "path" (printf "/calendar?%s" (slice $keep 1)) "action" "/calendar" "views" (dict "path" (printf "/calendar?month=%s" .Page) "view" .StarView "account" .GlobalData.URLAccount)) }}
+  {{ template "calendar-rail" (dict "g" $ "keep" $keep "path" (printf "%s?%s" (url "calendar.month") (slice $keep 1)) "action" (url "calendar.month") "views" (dict "path" (printf "%s?month=%s" (url "calendar.month") .Page) "view" .StarView "account" .GlobalData.URLAccount)) }}
 {{ end }}
 
 {{ define "before-main" }}
-    {{ template "next-form" (dict "id" "refresh-form" "action" "/calendar/refresh" "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "next-form" (dict "id" "refresh-form" "action" (url "calendar.refresh") "next" $.GlobalData.URL.RequestURI) }}
 {{ end }}
 
 {{ define "main-class" }} class="calendar"{{ end }}
@@ -13,7 +13,7 @@
   {{ $keep := printf "&month=%s" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
         {{ template "calendar-toolbar" . }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" "/calendar" "field" "cal" "items" .Calendars "keep" $keep "collection" "" "path" "") }}
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Calendars "keep" $keep "collection" "" "path" "") }}
 
       <section class="dates">
         {{range .Weekdays}}
@@ -26,7 +26,7 @@
           {{if not ($base.SameMonth $base.Time .)}}extra{{end}}
           {{if eq (.Format "2006-01-02") ($base.Now.Format "2006-01-02")}}active{{end}}
           ">
-          <a href="/calendar/date?date={{.Format "2006-01-02"}}{{ account "&" $base.GlobalData.URLAccount }}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}"></a>
+          <a href="{{url "calendar.day"}}?date={{.Format "2006-01-02"}}{{ account "&" $base.GlobalData.URLAccount }}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}"></a>
           <h3>
             {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.WeekTitle $day}}">{{$base.WeekNumber $day}}</span>{{ end }}
             <span class="day-label">{{ $label := $base.CalendarDayLabel . }}{{ $num := $base.Day . }}{{ if eq $label $num }}{{ $num }}{{ else }}<span class="label-long">{{ $label }}</span><span class="label-short">{{ $num }}</span>{{ end }}</span>

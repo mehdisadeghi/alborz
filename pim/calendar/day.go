@@ -41,7 +41,7 @@ func (p *plugin) day(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	collection, href := pim.Labels(ctx, dv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
+	collection, href := pim.Labels(ctx, dv.calendars, "calendar.month", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)
 	if err != nil {
 		return err

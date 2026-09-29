@@ -19,29 +19,20 @@ import (
 // FilterRow is one narrowing the rail offers.
 type FilterRow = pim.FilterRow
 
-// GroupRows and CategoryRows are the rail rows for groups and categories.
-func (d *AddressBookRenderData) GroupRows() []FilterRow {
-	return contactGroupRows(d.Groups, d.Group, d.GlobalData.URLAccount)
-}
-
-func (d *AddressBookRenderData) CategoryRows() []FilterRow {
-	return contactCategoryRows(d.Categories, d.Category, d.GlobalData.URLAccount)
-}
-
-func contactGroupRows(groups []AddressObject, active, account string) []FilterRow {
+func contactGroupRows(ctx *web.Context, groups []AddressObject, active, account string) []FilterRow {
 	rows := make([]FilterRow, 0, len(groups))
 	for _, g := range groups {
 		uid := g.UID()
 		if uid == "" {
 			continue
 		}
-		edit := g.URL()
+		edit := ctx.Path("contacts.contact", g.Path)
 		if g.Account != "" {
 			edit += "?account=" + web.QueryValue(g.Account)
 		}
 		rows = append(rows, FilterRow{
 			Label:  g.DisplayName(),
-			Href:   filterHref("group", uid, account),
+			Href:   filterHref(ctx, "group", uid, account),
 			Active: uid == active,
 			Edit:   edit,
 		})
@@ -49,24 +40,24 @@ func contactGroupRows(groups []AddressObject, active, account string) []FilterRo
 	return rows
 }
 
-func contactCategoryRows(categories []string, active, account string) []FilterRow {
+func contactCategoryRows(ctx *web.Context, categories []string, active, account string) []FilterRow {
 	rows := make([]FilterRow, 0, len(categories))
 	for _, word := range categories {
 		rows = append(rows, FilterRow{
 			Label:  word,
-			Href:   filterHref("category", word, account),
+			Href:   filterHref(ctx, "category", word, account),
 			Active: word == active,
 		})
 	}
 	return rows
 }
 
-func filterHref(name, value, account string) string {
+func filterHref(ctx *web.Context, name, value, account string) string {
 	q := url.Values{name: {value}}
 	if account != "" {
 		q.Set("account", account)
 	}
-	return "/contacts?" + web.Query(q)
+	return ctx.Path("contacts.list") + "?" + web.Query(q)
 }
 
 // A group's card names its members, so that card changes; a card without a UID gets one first.
@@ -87,7 +78,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 		ao.Card.SetValue(vcard.FieldUID, memberPrefix+uid)
 		if err := writeCard(ctx, c, ao.Path, ao.Card); err != nil {
 			ctx.Notify(pim.Refused(ctx, err))
-			return ctx.Redirect(http.StatusFound, ctx.NextOr(contact.URL()))
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
 		}
 	}
 
@@ -97,7 +88,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 	}
 	// The contact comes back naming the groups it is now in.
 	ctx.Quiet()
-	back := ctx.NextOr(ctx.AccountPath(contact.URL()))
+	back := ctx.NextOr(ctx.URL("contacts.contact", contact.Path))
 	if leaving := ctx.FormValue("leave"); leaving != "" {
 		for _, g := range list.Groups {
 			if g.UID() != leaving {

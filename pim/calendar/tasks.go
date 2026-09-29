@@ -178,7 +178,7 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 	if withCompleted || view == viewHigh {
 		star = ""
 	}
-	params := pim.RowParams(ctx, "/tasks", pim.ListParams(ctx, taskListParams...))
+	params := pim.RowParams(ctx, ctx.Path("calendar.tasks"), pim.ListParams(ctx, taskListParams...))
 
 	query := taskQuery()
 
@@ -214,7 +214,7 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 					continue
 				}
 			}
-			rows = append(rows, taskRow(&task, result.Site.Collection, loc, params))
+			rows = append(rows, taskRow(ctx, &task, result.Site.Collection, loc, params))
 		}
 	}
 
@@ -302,12 +302,12 @@ func (p *plugin) complete(ctx *web.Context) error {
 		for i, ref := range marked {
 			paths[i] = ref.Account + "|" + ref.Path
 		}
-		return completedNotice(ctx, done, len(marked), "/tasks/complete", url.Values{"paths": paths, "next": {next}})
+		return completedNotice(ctx, done, len(marked), ctx.Path("calendar.tasks.complete"), url.Values{"paths": paths, "next": {next}})
 	}
 	var marked *caldav.CalendarObject
 	return pim.Run(ctx, pim.Action[*caldav.Client]{
 		Client: p.client,
-		List:   "/tasks",
+		List:   "calendar.tasks",
 		Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) (err error) {
 			marked, err = changeComponent(ctx, ref, getFirstTodo, func(todo *ical.Component) { markTodo(todo, done) })
 			return err
@@ -335,7 +335,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 			// The list's shape is in the return address, not the write's own URL.
 			params := pim.ListParamsIn(next, taskListParams...)
 			params.Set("from", next)
-			row := taskRow(marked, cal, web.UserLocation(ctx), params)
+			row := taskRow(ctx, marked, cal, web.UserLocation(ctx), params)
 			row.AddedBy = p.dav.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)
 			data := &TaskRowRenderData{BaseRenderData: *web.NewBaseRenderData(ctx), Row: row, Next: next}
 			data.G = &data.BaseRenderData
@@ -353,7 +353,7 @@ type TaskRowRenderData struct {
 	Next string
 }
 
-func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location, params url.Values) TaskRow {
+func taskRow(ctx *web.Context, task *caldav.CalendarObject, cal dav.Collection, loc *time.Location, params url.Values) TaskRow {
 	todo := getFirstTodo(task.Data)
 	summary, _ := todo.Props.Text("SUMMARY")
 	status, _ := todo.Props.Text("STATUS")
@@ -369,7 +369,7 @@ func taskRow(task *caldav.CalendarObject, cal dav.Collection, loc *time.Location
 	object := TaskObject{CalendarObject: task, Account: cal.Account}
 	return TaskRow{
 		Task:      object,
-		Href:      pim.ObjectURL("/tasks/", task.Path, object.Account, params),
+		Href:      pim.ObjectURL(ctx, "calendar.task", task.Path, object.Account, params),
 		Calendar:  cal,
 		Summary:   summary,
 		Status:    status,
@@ -423,16 +423,16 @@ func (p *plugin) move(ctx *web.Context) error {
 			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("folder.moveask")),
 			Rail:           rail,
 			Section:        ctx.T("nav.tasks"),
-			Home:           "/tasks",
+			Home:           ctx.Path("calendar.tasks"),
 			Title:          ctx.T("folder.moveask"),
 			Lead:           ctx.Tf("tasks.movecount", len(params["paths"])),
 			Label:          ctx.T("tasks.movelist"),
 			Save:           ctx.T("folder.movedo"),
-			Action:         "/tasks/move",
+			Action:         ctx.Path("calendar.tasks.move"),
 			Key:            "move",
 			Groups:         groups,
 			Paths:          params["paths"],
-			Next:           ctx.NextOr(ctx.AccountPath("/tasks")),
+			Next:           ctx.NextOr(ctx.URL("calendar.tasks")),
 		}
 		data.Refused(refusal)
 		return ctx.Render(status, "calendar/destination", data)
@@ -446,7 +446,7 @@ func (p *plugin) move(ctx *web.Context) error {
 	} else if err != nil {
 		return err
 	}
-	return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.client, List: "/tasks",
+	return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.client, List: "calendar.tasks",
 		Done: func(ctx *web.Context, done []pim.Ref[*caldav.Client], _ string) web.Notice {
 			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.tasksmoved", len(done))}
 		},

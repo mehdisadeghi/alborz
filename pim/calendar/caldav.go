@@ -244,10 +244,6 @@ func occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) [
 	return out
 }
 
-func (ao CalendarObject) URL() string {
-	return "/calendar/" + url.PathEscape(ao.Path)
-}
-
 // AllDay reports whether the object's start is a bare date.
 func (ao CalendarObject) AllDay() bool {
 	events := ao.Data.Events()
@@ -262,10 +258,6 @@ type TaskObject struct {
 	*caldav.CalendarObject
 
 	Account string
-}
-
-func (t TaskObject) URL() string {
-	return "/tasks/" + url.PathEscape(t.Path)
 }
 
 // pooledCalendars lists every account's calendars, subscriptions another alborz added to the settings made here first.

@@ -101,5 +101,5 @@ func handleServer(ctx *web.Context) error {
 	// The cache was read with the servers or password just left.
 	ctx.Server.ForgetAccount(ctx.Login.Username())
 	ctx.PutNotice(ctx.T("notice.serverssaved"))
-	return ctx.Redirect(http.StatusFound, ctx.AccountPath("/settings/servers/"+settings.ServerDAV))
+	return ctx.Redirect(http.StatusFound, ctx.URL("pim.server"))
 }

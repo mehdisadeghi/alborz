@@ -1,4 +1,4 @@
-{{/* dict: g url acct list new newlabel edit ext readonly section home field collection path [copy].
+{{/* dict: g object id acct list new newlabel edit ext readonly section home field collection path [copy].
      An event's, task's or contact's toolbar and crumb; a page adds its own actions through the object-actions block. */}}
 {{ define "object-toolbar" }}
 {{ $g := .g }}
@@ -6,12 +6,12 @@
         <span class="icon-group">
           {{ block "object-actions" . }}{{ end }}
           {{ if not .readonly }}
-          <a class="icon-button" href="{{ localhref (from (printf "%s/%s%s" .url .edit .acct) $g.GlobalData.From) }}" title="{{$g.T "common.edit"}}" aria-label="{{$g.T "common.edit"}}">{{ template "icon" "edit" }}</a>
+          <a class="icon-button" href="{{ localhref (from (printf "%s%s" (url (printf "%s.%s" .object .edit) .id) .acct) $g.GlobalData.From) }}" title="{{$g.T "common.edit"}}" aria-label="{{$g.T "common.edit"}}">{{ template "icon" "edit" }}</a>
           {{ end }}
-          <a hx-boost="false" class="icon-button" href="{{.url}}/raw{{ $g.GlobalData.AccountQuery }}" title="{{$g.T "common.source"}}" aria-label="{{$g.T "common.source"}}">{{ template "icon" "source" }}</a>
-          <a hx-boost="false" class="icon-button" href="{{.url}}/raw?save=1{{ account "&" $g.GlobalData.URLAccount }}" title="{{ printf ($g.T "common.saveas") .ext }}" aria-label="{{ printf ($g.T "common.saveas") .ext }}">{{ template "icon" "download" }}</a>
+          <a hx-boost="false" class="icon-button" href="{{url (printf "%s.raw" .object) .id}}{{ $g.GlobalData.AccountQuery }}" title="{{$g.T "common.source"}}" aria-label="{{$g.T "common.source"}}">{{ template "icon" "source" }}</a>
+          <a hx-boost="false" class="icon-button" href="{{url (printf "%s.raw" .object) .id}}?save=1{{ account "&" $g.GlobalData.URLAccount }}" title="{{ printf ($g.T "common.saveas") .ext }}" aria-label="{{ printf ($g.T "common.saveas") .ext }}">{{ template "icon" "download" }}</a>
           {{ if not .readonly }}
-          <form action="{{.url}}/delete{{.acct}}" method="post">
+          <form action="{{url (printf "%s.delete" .object) .id}}{{.acct}}" method="post">
             <input type="hidden" name="next" value="{{.list}}">
             <button type="submit" class="icon-button icon-danger" title="{{$g.T "common.delete"}}" aria-label="{{$g.T "common.delete"}}">{{ template "icon" "trash" }}</button>
           </form>

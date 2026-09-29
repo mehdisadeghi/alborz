@@ -136,7 +136,7 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pim.Item, error) {
 			continue
 		}
 		seen[oc.Path] = true
-		items = append(items, pim.Item{Path: oc.Path, URL: pim.ObjectURL("/calendar/", oc.Path, oc.Account, params)})
+		items = append(items, pim.Item{Path: oc.Path, URL: pim.ObjectURL(ctx, "calendar.event", oc.Path, oc.Account, params)})
 	}
 	return items, nil
 }
@@ -405,7 +405,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			ctx.PutNotice(ctx.T("invite.sent"))
 		}
 
-		return pim.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, CalendarObject{CalendarObject: co}.URL(), "/calendar", to.Account)
+		return pim.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, ctx.Path("calendar.event", co.Path), ctx.Path("calendar.month"), to.Account)
 	}
 
 	summary, _ := event.Props.Text("SUMMARY")
@@ -432,7 +432,7 @@ func eventList(ctx *web.Context) string {
 	}
 	params := pim.ListParams(ctx, eventListParams...)
 	if params.Get("date") != "" {
-		return pim.ListURL("/calendar/date", params)
+		return pim.ListURL(ctx.Path("calendar.day"), params)
 	}
-	return pim.ListURL("/calendar", params)
+	return pim.ListURL(ctx.Path("calendar.month"), params)
 }

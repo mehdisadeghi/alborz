@@ -95,7 +95,7 @@ func (p *plugin) month(ctx *web.Context) error {
 	if mv.view != "" {
 		template = "calendar/list"
 	}
-	collection, href := pim.Labels(ctx, mv.calendars, "/calendar", "cal", url.Values{"view": {"list"}})
+	collection, href := pim.Labels(ctx, mv.calendars, "calendar.month", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)
 	if err != nil {
 		return err

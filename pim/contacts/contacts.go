@@ -40,6 +40,8 @@ type AddressBookRenderData struct {
 	Categories []string
 	Group      string
 	Category   string
+	// GroupRows and CategoryRows are the rail rows for groups and categories.
+	GroupRows, CategoryRows []FilterRow
 
 	Invitations *dav.RailInvitations
 }
@@ -60,7 +62,9 @@ type ContactList struct {
 	View       string
 	Group      string
 	Category   string
-	Sorting    pim.Sorting
+	// GroupRows and CategoryRows are the rail rows for groups and categories.
+	GroupRows, CategoryRows []FilterRow
+	Sorting                 pim.Sorting
 }
 
 func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
@@ -70,7 +74,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		return ContactList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
-	params := pim.RowParams(ctx, "/contacts", pim.ListParams(ctx, contactListParams...))
+	params := pim.RowParams(ctx, ctx.Path("contacts.list"), pim.ListParams(ctx, contactListParams...))
 
 	only := pim.Only(ctx, "book")
 	accounts, err := p.pooledBooks(ctx)
@@ -157,7 +161,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 
 	items := make([]pim.Item, len(aos))
 	for i, ao := range aos {
-		items[i] = pim.Item{Path: ao.Path, URL: pim.ObjectURL("/contacts/", ao.Path, ao.Account, params)}
+		items[i] = pim.Item{Path: ao.Path, URL: pim.ObjectURL(ctx, "contacts.contact", ao.Path, ao.Account, params)}
 	}
 	return ContactList{
 		Cards:      aos,
@@ -204,7 +208,7 @@ func (p *plugin) contacts(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	collection, href := pim.Labels(ctx, addressBookInfos, "/contacts", "book", nil)
+	collection, href := pim.Labels(ctx, addressBookInfos, "contacts.list", "book", nil)
 	invitations, err := p.invitations(ctx)
 	if err != nil {
 		return err
@@ -220,6 +224,8 @@ func (p *plugin) contacts(ctx *web.Context) error {
 		View:           list.View,
 		Groups:         list.Groups,
 		Categories:     list.Categories,
+		GroupRows:      contactGroupRows(ctx, list.Groups, list.Group, ctx.URLAccount()),
+		CategoryRows:   contactCategoryRows(ctx, list.Categories, list.Category, ctx.URLAccount()),
 		Group:          list.Group,
 		Category:       list.Category,
 		Filters:        searchFilter(ctx, list),

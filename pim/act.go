@@ -34,7 +34,7 @@ type Action[C any] struct {
 	Client func(context.Context, *alborz.Login) (C, error)
 	// Do acts on one object; an error is the server's refusal, said on the page, and ends the run.
 	Do func(ctx *web.Context, ref Ref[C]) error
-	// List is where the action lands when the form names no page.
+	// List is the route the action lands on when the form names no page.
 	List string
 	// Done words the result; Quiet where the action shows where the reader already is.
 	Done func(ctx *web.Context, done []Ref[C], next string) web.Notice
@@ -48,7 +48,7 @@ func Run[C any](ctx *web.Context, a Action[C]) error {
 	if err != nil {
 		return err
 	}
-	next := ctx.NextOr(ctx.AccountPath(a.List))
+	next := ctx.NextOr(ctx.URL(a.List))
 	done := 0
 	for _, ref := range refs {
 		if err := a.Do(ctx, ref); err != nil {
@@ -107,7 +107,8 @@ type StarRenderData struct {
 }
 
 // Star marks the selection with the form's colour; a refused write leaves the star as the server holds it.
-func Star[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error), list string, mark func(ctx *web.Context, ref Ref[C], name string) (was string, err error)) error {
+// list and object are the routes of the list and of one object.
+func Star[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error), list, object string, mark func(ctx *web.Context, ref Ref[C], name string) (was string, err error)) error {
 	name := ctx.FormValue("color")
 	if name != "" && !slices.Contains(web.FlagColors[:], name) {
 		return web.NewError(http.StatusBadRequest, "no such colour")
@@ -122,7 +123,7 @@ func Star[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (
 			return err
 		},
 		Piece: func(ctx *web.Context, ref Ref[C], next string) error {
-			action := ctx.AccountPath(ObjectURL(list+"/", ref.Path, "", nil) + "/color")
+			action := ctx.URL(object+".color", ref.Path)
 			// Changing a star the list is narrowed to takes the row out of the list.
 			if web.StarLeaves(next, name) {
 				ctx.Notify(web.StarNotice(ctx, name, action, url.Values{"color": {was}, "next": {next}}))

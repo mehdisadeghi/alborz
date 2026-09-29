@@ -150,8 +150,8 @@ func (p *plugin) importFromMessage(ctx *alborz.Context) error {
 		to += "?account=" + alborz.QueryValue(acct)
 	}
 	n, err := importBook(ctx.Request().Context(), c, bookPath, raw)
-	if dav.ServerRefused(err) {
-		ctx.Notify(pim.Refused(ctx, err))
+	if pim.ImportAnswered(err) {
+		ctx.Notify(pim.ImportRefused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 	} else if err != nil {
 		return err
@@ -173,7 +173,7 @@ func importBook(ctx context.Context, client *carddav.Client, bookPath string, ra
 			return n, nil
 		}
 		if err != nil {
-			return n, fmt.Errorf("failed to read the card: %v", err)
+			return n, &pim.UnreadableError{Err: err}
 		}
 		if _, ok := card[vcard.FieldVersion]; !ok {
 			card.SetValue(vcard.FieldVersion, "4.0")

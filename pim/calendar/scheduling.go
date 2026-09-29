@@ -393,8 +393,8 @@ func (p *plugin) importCalendar(ctx *alborz.Context) error {
 		to += "?account=" + alborz.QueryValue(account)
 	}
 	n, err := importObjects(ctx.Request().Context(), client, calendarPath, raw)
-	if dav.ServerRefused(err) {
-		ctx.Notify(pim.Refused(ctx, err))
+	if pim.ImportAnswered(err) {
+		ctx.Notify(pim.ImportRefused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 	} else if err != nil {
 		return err
@@ -416,11 +416,11 @@ func importObjects(ctx context.Context, client *caldav.Client, calendarPath stri
 			return n, nil
 		}
 		if err != nil {
-			return n, fmt.Errorf("failed to read the calendar: %v", err)
+			return n, &pim.UnreadableError{Err: err}
 		}
 		objects, err := objectsByUID(cal)
 		if err != nil {
-			return n, err
+			return n, &pim.UnreadableError{Err: err}
 		}
 		for uid, obj := range objects {
 			target := path.Join(calendarPath, dav.SafeObjectName(uid)+".ics")

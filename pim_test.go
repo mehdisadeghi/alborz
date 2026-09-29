@@ -287,9 +287,12 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 			"--b1\r\nContent-Type: "+mime+"; charset=utf-8\r\nContent-Disposition: attachment; filename=\""+name+"\"\r\n\r\n"+
 			body+"--b1--\r\n")
 	}
-	upload := func(u, name, body string) *http.Response {
+	upload := func(u string, fields url.Values, name, body string) *http.Response {
 		var form strings.Builder
 		w := multipart.NewWriter(&form)
+		for k := range fields {
+			w.WriteField(k, fields.Get(k))
+		}
 		part, err := w.CreateFormFile("file", name)
 		if err != nil {
 			t.Fatal(err)
@@ -302,7 +305,9 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		page, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		resp.Body = io.NopCloser(strings.NewReader(string(page)))
 		return resp
 	}
 	for _, tc := range []struct {
@@ -310,10 +315,10 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 		post func() *http.Response
 	}{
 		{"a file into a calendar", func() *http.Response {
-			return upload(base+"/calendars/"+url.PathEscape(personal)+"/import", "plan.ics", event("plan", "Plan"))
+			return upload(base+"/calendars/"+url.PathEscape(personal)+"/import", nil, "plan.ics", event("plan", "Plan"))
 		}},
 		{"a file into an address book", func() *http.Response {
-			return upload(base+"/address-books/"+url.PathEscape(friends)+"/import", "ada.vcf", card)
+			return upload(base+"/address-books/"+url.PathEscape(friends)+"/import", nil, "ada.vcf", card)
 		}},
 		{"a calendar attachment", func() *http.Response {
 			uid := attached("text/calendar", "plan.ics", event("plan", "Plan"))
@@ -334,6 +339,27 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 			}
 		})
 	}
+	const unreadable = "The file could not be read:"
+	t.Run("an unreadable file on the import page", func(t *testing.T) {
+		resp := upload(base+"/calendar/import", url.Values{"collection": {smokeUser + "|" + personal}}, "plan.ics",
+			"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:plan\r\nSUMMARY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+		page, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("the unreadable file answered %s, want 422", resp.Status)
+		}
+		if !strings.Contains(string(page), unreadable) || !strings.Contains(string(page), "missing colon") {
+			t.Errorf("the import page does not say the file could not be read, and why")
+		}
+	})
+	t.Run("an unreadable file into an address book", func(t *testing.T) {
+		resp := upload(base+"/address-books/"+url.PathEscape(friends)+"/import", nil, "ada.vcf", "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Ada\r\n")
+		if resp.StatusCode != http.StatusFound {
+			t.Fatalf("the unreadable file answered %s, want a redirect", resp.Status)
+		}
+		if page := get(t, c, base+resp.Header.Get("Location")); !strings.Contains(page, unreadable) || !strings.Contains(page, "no END field") {
+			t.Errorf("the page after the unreadable file does not say it could not be read, and why")
+		}
+	})
 }
 
 // An EXDATE takes one year out of a Solar Hijri rule, in the store's query and on the page.

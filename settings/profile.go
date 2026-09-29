@@ -136,7 +136,7 @@ func handleProfile(ctx *web.Context) error {
 		}
 	}
 	ctx.PutNotice(ctx.T("notice.settingssaved"))
-	return ctx.Redirect(http.StatusFound, "/settings")
+	return ctx.Redirect(http.StatusFound, ctx.Path("settings.profile"))
 }
 
 func handleProfileTake(ctx *web.Context) error {
@@ -158,7 +158,7 @@ func answerProfile(ctx *web.Context, answer func(*alborz.Login) error, done stri
 	} else {
 		ctx.PutNotice(fmt.Sprintf(ctx.T(done), account))
 	}
-	return ctx.Redirect(http.StatusFound, "/settings")
+	return ctx.Redirect(http.StatusFound, ctx.Path("settings.profile"))
 }
 
 func lockMinutes(l alborz.Lock) int {

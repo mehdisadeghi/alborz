@@ -5,4 +5,4 @@
 {{ end }}
 
 {{/* dict: g collection path [object chooses]. */}}
-{{ define "settings-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.settings") "home" "/settings" "noroot" true "chooses" .chooses "field" "" "collection" .collection "path" .path "object" .object) }}{{ end }}
+{{ define "settings-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.settings") "home" (url "settings.profile") "noroot" true "chooses" .chooses "field" "" "collection" .collection "path" .path "object" .object) }}{{ end }}

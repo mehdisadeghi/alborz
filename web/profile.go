@@ -152,8 +152,8 @@ func (ctx *Context) askProfile(account string, diff []profileChange) {
 		Markup: template.HTML(fmt.Sprintf(ctx.T("profile.differs"),
 			`<bdi class="ltr">`+template.HTMLEscapeString(account)+`</bdi>`, strings.Join(marked, " · "))),
 		Actions: []*NoticeAction{
-			{Label: ctx.T("profile.take"), Path: "/settings/profile/take", Fields: fields},
-			{Label: ctx.T("profile.discard"), Path: "/settings/profile/discard", Fields: fields},
+			{Label: ctx.T("profile.take"), Path: ctx.Path("settings.profile.take"), Fields: fields},
+			{Label: ctx.T("profile.discard"), Path: ctx.Path("settings.profile.discard"), Fields: fields},
 		},
 	})
 }

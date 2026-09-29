@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="settings"{{ end }}
 
 {{ define "main" }}
-      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.general") "path" "/settings" "chooses" true) }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.general") "path" (url "settings.profile") "chooses" true) }}
       {{/* A whole page: these are attributes of the root, which a swap keeps. */}}
       <form method="post" hx-boost="false">
         <div class="action-group">

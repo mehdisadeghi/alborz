@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
-      {{ template "settings-head" (dict "g" $ "title" ($.T "passkeys.title") "path" "/settings/passkeys" "newhref" "/settings/passkeys/create" "newlabel" ($.T "passkeys.new")) }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "passkeys.title") "path" (url "settings.passkeys") "newhref" (url "settings.passkeys.create") "newlabel" ($.T "passkeys.new")) }}
       <section class="list-items">
         {{ range .Passkeys }}
         <div class="list-item">
@@ -13,7 +13,7 @@
             <span class="list-summary" dir="auto">{{ or .Name ($.T "passkeys.unnamed") }}</span>
             <span class="list-detail">{{ if .LastUsed.IsZero }}{{ printf ($.T "passkeys.added") ($.GlobalData.ShortDate .Added) }}{{ else }}{{ printf ($.T "passkeys.lastused") ($.GlobalData.ShortDate .LastUsed) }}{{ end }}</span>
           </div>
-          <form method="post" action="/settings/passkeys/remove">
+          <form method="post" action="{{url "settings.passkeys.remove"}}">
             <input type="hidden" name="passkey" value="{{.ID}}">
             <button class="button-danger">{{$.T "passkeys.remove"}}</button>
           </form>

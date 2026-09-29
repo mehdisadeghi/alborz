@@ -88,6 +88,8 @@ type ServersRenderData struct {
 	Cards []ServerCard
 	// Places are where the account's new calendars and address books can go (ADR 28).
 	Places []Place
+	// server is the address of a server group's own page.
+	server func(group string) string
 }
 
 // Server groups, in the order the list shows them.
@@ -166,7 +168,7 @@ func (d *ServersRenderData) Rows() []ServerRow {
 		}
 		row.Hosts = strings.Join(hosts, ", ")
 		if serverPages[group] {
-			row.Href = "/settings/servers/" + group + mail.AccountQuery(d.GlobalData.URLAccount)
+			row.Href = d.server(group) + mail.AccountQuery(d.GlobalData.URLAccount)
 		}
 		rows = append(rows, row)
 	}
@@ -241,6 +243,7 @@ func handleServers(ctx *web.Context) error {
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.servers")),
 		Rail:           mail.SettingsRail(ctx),
 		Cards:          cards,
+		server:         func(group string) string { return ctx.Path("settings.server", group) },
 	}
 	return RenderServers(ctx, http.StatusOK, "settings/servers", data, data)
 }

@@ -68,6 +68,6 @@ func registerPasskeyRoutes(g *web.Group) {
 			return err
 		}
 		ctx.PutNotice(ctx.T("notice.passkeyremoved"))
-		return ctx.Redirect(http.StatusFound, "/settings/passkeys")
+		return ctx.Redirect(http.StatusFound, ctx.Path("settings.passkeys"))
 	})
 }

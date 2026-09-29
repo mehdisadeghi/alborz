@@ -162,7 +162,7 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, s section) func
 				}
 				_, err := calendar.ChangeComponent(ctx.Request().Context(), ref, comp, func(target *ical.Component) {
 					existing, _ := target.Props.Text(ical.PropDescription)
-					target.Props.SetText(ical.PropDescription, pim.AppendNote(ctx, existing, note))
+					target.Props.SetText(ical.PropDescription, pim.AppendNote(existing, note, time.Now().In(web.UserLocation(ctx))))
 				})
 				return err
 			}})

@@ -67,22 +67,27 @@ func Sort[T any](ctx *web.Context, rows []T, columns []Column[T], tie func(T) st
 		s.Params = "&" + web.Query(kept)
 		s.Reset = "?" + web.Query(kept)
 	}
+	Order(rows, columns[at], tie, dir == "desc")
+	return s, nil
+}
+
+// Order sorts rows by column, equal rows by tie; desc reverses both.
+func Order[T any](rows []T, column Column[T], tie func(T) string, desc bool) {
 	// Each row's values are taken once, not once per comparison.
 	type keyed struct {
 		row        T
 		value, tie string
 	}
-	value := columns[at].Value
 	all := make([]keyed, len(rows))
 	for i, row := range rows {
-		all[i] = keyed{row, value(row), tie(row)}
+		all[i] = keyed{row, column.Value(row), tie(row)}
 	}
 	slices.SortStableFunc(all, func(a, b keyed) int {
 		x, y := a.value, b.value
 		if x == y {
 			x, y = a.tie, b.tie
 		}
-		if dir == "desc" {
+		if desc {
 			x, y = y, x
 		}
 		return strings.Compare(x, y)
@@ -90,5 +95,4 @@ func Sort[T any](ctx *web.Context, rows []T, columns []Column[T], tie func(T) st
 	for i := range all {
 		rows[i] = all[i].row
 	}
-	return s, nil
 }

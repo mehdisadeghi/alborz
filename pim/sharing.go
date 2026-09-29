@@ -1,14 +1,10 @@
 package pim
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
-	netmail "net/mail"
-	"slices"
 	"strings"
 	"time"
 
@@ -155,29 +151,16 @@ func (pg Page) pageOf(ctx *web.Context, path string) string {
 }
 
 var (
-	errNotAnAddress = errors.New("form.sharenotaddress")
-	errNotServed    = errors.New("form.sharenotserved")
-	errOwnAddress   = errors.New("form.shareown")
-	errPastDate     = errors.New("form.sharepast")
-	errNotADate     = errors.New("form.shareuntil")
+	errPastDate = errors.New("the last day has passed")
+	errNotADate = errors.New("not a date")
 )
 
-func invitee(ctx *web.Context, typed string) (string, error) {
-	addr, err := netmail.ParseAddress(strings.TrimSpace(typed))
-	if err != nil {
-		return "", errNotAnAddress
-	}
-	to := strings.ToLower(addr.Address)
-	_, domain, _ := strings.Cut(to, "@")
-	served := ctx.Server.Domains()
-	// The unnamed domain takes sign-ins from anywhere.
-	if !slices.Contains(served, domain) && !slices.Contains(served, "") {
-		return "", errNotServed
-	}
-	if to == strings.ToLower(ctx.Login.Username()) {
-		return "", errOwnAddress
-	}
-	return to, nil
+var shareRefusals = map[error]string{
+	ErrNotAnAddress: "form.sharenotaddress",
+	ErrNotServed:    "form.sharenotserved",
+	ErrOwnAddress:   "form.shareown",
+	errPastDate:     "form.sharepast",
+	errNotADate:     "form.shareuntil",
 }
 
 // HandleShare invites an address to the collection, or changes an existing invitation's terms.
@@ -191,7 +174,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
 			Owner: ref.Owner, Collection: ref.ID,
 			Write: ctx.FormValue("access") == "write", Created: time.Now().UTC(),
 		}
-		share.To, err = invitee(ctx, ctx.FormValue("to"))
+		share.To, err = Invitee(ctx.FormValue("to"), ctx.Server.Domains(), ctx.Login.Username())
 		if until := ctx.DateField("until"); err == nil && until.Value != "" {
 			var day time.Time
 			if day, err = until.Read(web.UserLocation(ctx)); err == nil {
@@ -209,16 +192,12 @@ func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
 			if dataErr != nil {
 				return dataErr
 			}
-			data.Refused(ctx.T(err.Error()))
+			data.Refused(ctx.T(shareRefusals[err]))
 			data.Sharing.To, data.Sharing.Until = ctx.FormValue("to"), ctx.DateField("until")
 			data.Sharing.Write = share.Write
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
 		}
-		// Changing a share keeps a yes already given; sharing again after a no is a new invitation.
-		if was, err := p.Store.Share(ref, share.To); err == nil && was.Accepted {
-			share.Accepted, share.Created = true, was.Created
-		}
-		if err := p.Store.PutShare(share); err != nil {
+		if share, err = Share(p.Store, share); err != nil {
 			return err
 		}
 		// The invitation waits in the invitee's rail regardless of the mail, so a refused mail is only a warning.
@@ -337,9 +316,6 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*web.Context) err
 	}
 }
 
-// 192 bits: past guessing, short enough to paste.
-const publicSecretBytes = 24
-
 // HandlePublish gives the calendar a public address or takes it away; republishing makes a new one.
 func (pg Page) HandlePublish(p *dav.Provider, publish bool) func(*web.Context) error {
 	return func(ctx *web.Context) error {
@@ -347,13 +323,7 @@ func (pg Page) HandlePublish(p *dav.Provider, publish bool) func(*web.Context) e
 		if err != nil {
 			return err
 		}
-		secret := ""
-		if publish {
-			raw := make([]byte, publicSecretBytes)
-			rand.Read(raw)
-			secret = base64.RawURLEncoding.EncodeToString(raw)
-		}
-		if err := p.Store.Update(ref, func(c *store.Collection) { c.Public = secret }); err != nil {
+		if err := Publish(p.Store, ref, publish); err != nil {
 			return err
 		}
 		notice := "notice.unpublished"

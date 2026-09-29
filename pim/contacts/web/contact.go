@@ -349,7 +349,7 @@ func (p *plugin) note(ctx *web.Context) error {
 				return nil
 			}
 			return contacts.ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
-				text := pim.AppendNote(ctx, card.Value(vcard.FieldNote), note)
+				text := pim.AppendNote(card.Value(vcard.FieldNote), note, time.Now().In(web.UserLocation(ctx)))
 				if field := card.Preferred(vcard.FieldNote); field != nil {
 					field.Value = text
 				} else {

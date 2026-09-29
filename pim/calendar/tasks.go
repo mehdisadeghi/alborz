@@ -39,7 +39,7 @@ type TasksRenderData struct {
 	FilterRows []alborz.FilterRow
 	Query      string
 	Sorting    pim.Sorting
-	Pager      pim.Pager
+	Pager      alborz.Pager
 
 	Invitations *dav.RailInvitations
 }
@@ -258,7 +258,7 @@ func (p *plugin) tasks(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	rows, pager := pim.Paginate(ctx, list.Rows)
+	rows, pager := alborz.Paginate(ctx, list.Rows)
 	addedBy := p.dav.AddedBy(ctx.Login.Username())
 	for i := range rows {
 		rows[i].AddedBy = addedBy(rows[i].Calendar.Account, rows[i].Task.Path)

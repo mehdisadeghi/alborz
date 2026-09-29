@@ -19,7 +19,7 @@ type listPlace struct {
 
 func (p *plugin) cachedPlace(ctx *alborz.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
 	sortKey, _ := listOrder(ctx)
-	return p.listings.message(ctx.Login.Username(), listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, PerPage(ctx))
+	return p.listings.message(ctx.Login.Username(), listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, alborz.PerPage(ctx))
 }
 
 func placeInList(ctx *alborz.Context, c *imapclient.Client, settings *Settings, mailbox string, uid imap.UID, query, view string) (place listPlace, err error) {

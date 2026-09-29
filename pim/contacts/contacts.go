@@ -18,7 +18,7 @@ import (
 
 type AddressBookRenderData struct {
 	// Pager walks the pages of AddressObjects.
-	Pager pim.Pager
+	Pager alborz.Pager
 	alborz.BaseRenderData
 	AddressBooks   []dav.Collection
 	AddressObjects []AddressObject
@@ -201,7 +201,7 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 	for _, item := range list.Items {
 		hrefs[item.Path] = item.URL
 	}
-	cards, pager := pim.Paginate(ctx, list.Cards)
+	cards, pager := alborz.Paginate(ctx, list.Cards)
 	collection, href := pim.Labels(ctx, addressBookInfos, "/contacts", "book", nil)
 	invitations, err := p.invitations(ctx)
 	if err != nil {

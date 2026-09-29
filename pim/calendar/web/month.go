@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -51,7 +51,7 @@ type CalendarRenderData struct {
 	Group string
 	Sub   func(a, b int) int
 
-	Invitations *dav.RailInvitations
+	Invitations *pimweb.RailInvitations
 }
 
 type monthView struct {
@@ -96,7 +96,7 @@ func (p *plugin) month(ctx *web.Context) error {
 	if mv.view != "" {
 		template = "calendar/list"
 	}
-	collection, href := pim.Labels(ctx, mv.calendars, "calendar.month", "cal", url.Values{"view": {"list"}})
+	collection, href := pimweb.Labels(ctx, mv.calendars, "calendar.month", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func (p *plugin) month(ctx *web.Context) error {
 		PrevTime:  mv.prevTime,
 		NextTime:  mv.nextTime,
 		ListQuery: monthQuery(ctx, mv),
-		Scope:     web.Query(pim.ListParams(ctx, "account", "cal")),
+		Scope:     web.Query(pimweb.ListParams(ctx, "account", "cal")),
 		SelectForm: func() string {
 			if mv.view != "" {
 				return "events-form"
@@ -205,7 +205,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	totalCells := offset + daysInMonth
 	rows := (totalCells + 6) / 7
 
-	only := pim.Only(ctx, "cal")
+	only := pimweb.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return monthView{}, err

@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -27,7 +27,7 @@ type CalendarDateRenderData struct {
 	// AddedBy names who added an event, where not the row's own account.
 	AddedBy func(account, path string) string
 
-	Invitations *dav.RailInvitations
+	Invitations *pimweb.RailInvitations
 }
 
 type dayView struct {
@@ -42,7 +42,7 @@ func (p *plugin) day(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	collection, href := pim.Labels(ctx, dv.calendars, "calendar.month", "cal", url.Values{"view": {"list"}})
+	collection, href := pimweb.Labels(ctx, dv.calendars, "calendar.month", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)
 	if err != nil {
 		return err
@@ -80,7 +80,7 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 	}
 	end := start.AddDate(0, 0, 1)
 
-	only := pim.Only(ctx, "cal")
+	only := pimweb.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return dayView{}, err

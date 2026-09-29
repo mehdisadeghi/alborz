@@ -1,4 +1,4 @@
-package pim
+package web
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 )
@@ -41,18 +42,18 @@ func Saved(ctx *web.Context, made bool, sentence, name, object, list, account st
 }
 
 // Destination turns a create form's "account|path" into that account's client and path.
-func Destination[C any](ctx *web.Context, value string, open func(context.Context, *alborz.Login) (C, []dav.Collection, error), keep func(dav.Collection) bool) (Ref[C], error) {
+func Destination[C any](ctx *web.Context, value string, open func(context.Context, *alborz.Login) (C, []dav.Collection, error), keep func(dav.Collection) bool) (pim.Ref[C], error) {
 	account, path, ok := strings.Cut(value, "|")
 	login := ctx.LoginFor(account)
 	if !ok || login == nil {
-		return Ref[C]{}, ErrNoDestination
+		return pim.Ref[C]{}, pim.ErrNoDestination
 	}
 	c, colls, err := open(ctx.Request().Context(), login)
 	if err != nil {
-		return Ref[C]{}, err
+		return pim.Ref[C]{}, err
 	}
 	if coll := dav.At(colls, path); coll == nil || !keep(*coll) {
-		return Ref[C]{}, ErrNoDestination
+		return pim.Ref[C]{}, pim.ErrNoDestination
 	}
-	return Ref[C]{c, account, path}, nil
+	return pim.Ref[C]{Client: c, Account: account, Path: path}, nil
 }

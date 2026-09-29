@@ -1,9 +1,10 @@
-package pim
+package web
 
 import (
 	"net/http"
 	"slices"
 
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -19,13 +20,13 @@ type Sorting struct {
 var sortDrops = []string{"sort", "dir", "page"}
 
 // Sort orders rows as the URL asks, by the first column by default; tie breaks equal rows.
-func Sort[T any](ctx *web.Context, rows []T, columns []Column[T], tie func(T) string, keep ...string) (Sorting, error) {
+func Sort[T any](ctx *web.Context, rows []T, columns []pim.Column[T], tie func(T) string, keep ...string) (Sorting, error) {
 	key, dir := ctx.QueryParam("sort"), ctx.QueryParam("dir")
 	s := Sorting{Key: key, Dir: dir, Explicit: key != "", DirExplicit: dir != "", Reset: "?"}
 	if key == "" {
 		s.Key = columns[0].Key
 	}
-	at := slices.IndexFunc(columns, func(c Column[T]) bool { return c.Key == s.Key })
+	at := slices.IndexFunc(columns, func(c pim.Column[T]) bool { return c.Key == s.Key })
 	if at < 0 {
 		return s, web.NewError(http.StatusBadRequest, "invalid sort order")
 	}
@@ -40,6 +41,6 @@ func Sort[T any](ctx *web.Context, rows []T, columns []Column[T], tie func(T) st
 		s.Params = "&" + web.Query(kept)
 		s.Reset = "?" + web.Query(kept)
 	}
-	Order(rows, columns[at], tie, dir == "desc")
+	pim.Order(rows, columns[at], tie, dir == "desc")
 	return s, nil
 }

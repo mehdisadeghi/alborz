@@ -15,6 +15,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -23,7 +24,7 @@ import (
 // DestinationRenderData asks where a move or a copy goes; a menu holds actions, so the choice is a page.
 type DestinationRenderData struct {
 	web.BaseRenderData
-	Rail          pim.Rail
+	Rail          pimweb.Rail
 	Section, Home string
 	Title, Lead   string
 	Label, Save   string
@@ -46,10 +47,10 @@ type TasksRenderData struct {
 	Filters    []web.Filter
 	FilterRows []web.FilterRow
 	Query      string
-	Sorting    pim.Sorting
+	Sorting    pimweb.Sorting
 	Pager      web.Pager
 
-	Invitations *dav.RailInvitations
+	Invitations *pimweb.RailInvitations
 }
 
 // TaskRow is one row of the task list.
@@ -149,16 +150,16 @@ type TaskList struct {
 	Rows      []TaskRow
 	Calendars []dav.Collection
 	// Items are the rows as a single task's neighbours, in the same order.
-	Items   []pim.Item
+	Items   []pimweb.Item
 	Query   string
 	View    string
-	Sorting pim.Sorting
+	Sorting pimweb.Sorting
 }
 
 func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 	var rows []TaskRow
 	loc := web.UserLocation(ctx)
-	only := pim.Only(ctx, "cal")
+	only := pimweb.Only(ctx, "cal")
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return TaskList{}, err
@@ -179,7 +180,7 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 	if withCompleted || view == viewHigh {
 		star = ""
 	}
-	params := pim.RowParams(ctx, ctx.Path("calendar.tasks"), pim.ListParams(ctx, taskListParams...))
+	params := pimweb.RowParams(ctx, ctx.Path("calendar.tasks"), pimweb.ListParams(ctx, taskListParams...))
 
 	query := calendar.TaskQuery()
 
@@ -219,15 +220,15 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 		}
 	}
 
-	sorting, err := pim.Sort(ctx, rows, taskColumns, func(row TaskRow) string {
+	sorting, err := pimweb.Sort(ctx, rows, taskColumns, func(row TaskRow) string {
 		return strings.ToLower(row.Task.Account + "\x00" + row.Calendar.Name + "\x00" + row.Summary)
 	}, taskListParams...)
 	if err != nil {
 		return TaskList{}, err
 	}
-	items := make([]pim.Item, len(rows))
+	items := make([]pimweb.Item, len(rows))
 	for i, row := range rows {
-		items[i] = pim.Item{Path: row.Task.Path, URL: row.Href}
+		items[i] = pimweb.Item{Path: row.Task.Path, URL: row.Href}
 	}
 	return TaskList{
 		Rows:      rows,
@@ -306,7 +307,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 		return completedNotice(ctx, done, len(marked), ctx.Path("calendar.tasks.complete"), url.Values{"paths": paths, "next": {next}})
 	}
 	var marked *caldav.CalendarObject
-	return pim.Run(ctx, pim.Action[*caldav.Client]{
+	return pimweb.Run(ctx, pimweb.Action[*caldav.Client]{
 		Client: p.Client,
 		List:   "calendar.tasks",
 		Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) (err error) {
@@ -316,7 +317,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 		Done: words,
 		Piece: func(ctx *web.Context, ref pim.Ref[*caldav.Client], next string) error {
 			// A task the list no longer shows leaves it, with a notice that brings it back.
-			view := pim.ListParamsIn(next, "view").Get("view")
+			view := pimweb.ListParamsIn(next, "view").Get("view")
 			if view != viewAll && done != (view == viewCompleted) {
 				ctx.Notify(words(ctx, []pim.Ref[*caldav.Client]{ref}, next))
 				return ctx.Relocate(next)
@@ -334,7 +335,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 			cal := *holder
 			cal.Account = ref.Account
 			// The list's shape is in the return address, not the write's own URL.
-			params := pim.ListParamsIn(next, taskListParams...)
+			params := pimweb.ListParamsIn(next, taskListParams...)
 			params.Set("from", next)
 			row := taskRow(ctx, marked, cal, web.UserLocation(ctx), params)
 			row.AddedBy = p.DAV.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)
@@ -370,7 +371,7 @@ func taskRow(ctx *web.Context, task *caldav.CalendarObject, cal dav.Collection, 
 	object := calendar.TaskObject{CalendarObject: task, Account: cal.Account}
 	return TaskRow{
 		Task:      object,
-		Href:      pim.ObjectURL(ctx, "calendar.task", task.Path, object.Account, params),
+		Href:      pimweb.ObjectURL(ctx, "calendar.task", task.Path, object.Account, params),
 		Calendar:  cal,
 		Summary:   summary,
 		Status:    status,
@@ -437,7 +438,7 @@ func (p *plugin) move(ctx *web.Context) error {
 	} else if err != nil {
 		return err
 	}
-	return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.Client, List: "calendar.tasks",
+	return pimweb.Run(ctx, pimweb.Action[*caldav.Client]{Client: p.Client, List: "calendar.tasks",
 		Done: func(ctx *web.Context, done []pim.Ref[*caldav.Client], _ string) web.Notice {
 			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.tasksmoved", len(done))}
 		},
@@ -455,7 +456,7 @@ func (p *plugin) move(ctx *web.Context) error {
 				return err
 			}
 			// A list that keeps its task, a read-only share, leaves it where it was rather than in two lists.
-			if err := pim.Delete(ctx, ref); err != nil {
+			if err := pimweb.Delete(ctx, ref); err != nil {
 				return errors.Join(err, target.Client.RemoveAll(ctx.Request().Context(), made.Path))
 			}
 			return nil

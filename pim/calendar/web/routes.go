@@ -11,6 +11,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -18,7 +19,7 @@ import (
 
 const datePageLayout = "2006-01-02"
 
-func (p *plugin) eventRail(ctx *web.Context) (pim.Rail, error) {
+func (p *plugin) eventRail(ctx *web.Context) (pimweb.Rail, error) {
 	rail, err := p.calendarRail(ctx, calendar.SupportsEvent, calendar.EventVisibility)
 	next := web.QueryValue(ctx.Request().URL.RequestURI())
 	rail.Path, rail.Action = ctx.Path("calendar.month"), ctx.Path("calendar.month")
@@ -28,7 +29,7 @@ func (p *plugin) eventRail(ctx *web.Context) (pim.Rail, error) {
 	return rail, err
 }
 
-func (p *plugin) taskRail(ctx *web.Context) (pim.Rail, error) {
+func (p *plugin) taskRail(ctx *web.Context) (pimweb.Rail, error) {
 	rail, err := p.calendarRail(ctx, calendar.SupportsTodo, calendar.TaskVisibility)
 	rail.Path, rail.Action = ctx.Path("calendar.tasks"), ctx.Path("calendar.tasks")
 	rail.NewHref, rail.NewLabel = ctx.Path("calendar.calendars.create")+"?for=tasks&next="+web.QueryValue(ctx.Request().URL.RequestURI()), ctx.T("tasks.newlist")
@@ -36,8 +37,8 @@ func (p *plugin) taskRail(ctx *web.Context) (pim.Rail, error) {
 	return rail, err
 }
 
-func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen func(*calendar.Settings) (bool, []string)) (pim.Rail, error) {
-	rail := pim.Rail{Field: "cal", ItemClass: "calendar-item", Edit: "calendar.collection"}
+func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen func(*calendar.Settings) (bool, []string)) (pimweb.Rail, error) {
+	rail := pimweb.Rail{Field: "cal", ItemClass: "calendar-item", Edit: "calendar.collection"}
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return rail, err
@@ -60,21 +61,21 @@ var (
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
-		return p.DAV.Guarded(calendar.ErrNoCalendar, "calendar.calendars.create", h)
+		return pimweb.Guarded(p.DAV, calendar.ErrNoCalendar, "calendar.calendars.create", h)
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
 	upload := func(name, path string, h, over func(*web.Context) error) {
-		g.Upload(name, path, pim.ImportBodySize, guard(h), guard(over))
+		g.Upload(name, path, pimweb.ImportBodySize, guard(h), guard(over))
 	}
-	POST("month", "/calendar", pim.HandleChoose("calendar.month", "cal", calendar.Choose(func(s *calendar.Settings, paths []string) {
+	POST("month", "/calendar", pimweb.HandleChoose("calendar.month", "cal", calendar.Choose(func(s *calendar.Settings, paths []string) {
 		s.CalendarFilter, s.VisibleCalendars = true, paths
 	})))
-	POST("tasks", "/tasks", pim.HandleChoose("calendar.tasks", "cal", calendar.Choose(func(s *calendar.Settings, paths []string) {
+	POST("tasks", "/tasks", pimweb.HandleChoose("calendar.tasks", "cal", calendar.Choose(func(s *calendar.Settings, paths []string) {
 		s.TaskFilter, s.VisibleTasks = true, paths
 	})))
 	POST("refresh", "/calendar/refresh", p.refresh)
-	POST("tasks.refresh", "/tasks/refresh", p.DAV.HandleRefresh("calendar.tasks"))
+	POST("tasks.refresh", "/tasks/refresh", pimweb.HandleRefresh(p.DAV, "calendar.tasks"))
 	GET("month", "/calendar", p.month)
 	GET("month.export", "/calendar/export", p.exportMonth)
 	GET("day", "/calendar/date", p.day)
@@ -116,9 +117,9 @@ func registerRoutes(p *plugin, g *web.Group) {
 	remove := func(s section) func(*web.Context) error {
 		key, do := "notice.eventsdeleted", p.deleteEvent
 		if s == taskSection {
-			key, do = "notice.tasksdeleted", pim.Delete[*caldav.Client]
+			key, do = "notice.tasksdeleted", pimweb.Delete[*caldav.Client]
 		}
-		return pim.Handler(pim.Action[*caldav.Client]{Client: p.Client, Do: do, List: s.list,
+		return pimweb.Handler(pimweb.Action[*caldav.Client]{Client: p.Client, Do: do, List: s.list,
 			Done: func(ctx *web.Context, done []pim.Ref[*caldav.Client], _ string) web.Notice {
 				return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf(key, len(done))}
 			}})
@@ -141,7 +142,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("tasks.complete", "/tasks/complete", p.complete)
 	GET("tasks.move", "/tasks/move", p.move)
 	POST("tasks.move", "/tasks/move", p.move)
-	POST("tasks.export", "/tasks/export", pim.HandleExport(p.Client, "calendar.tasks",
+	POST("tasks.export", "/tasks/export", pimweb.HandleExport(p.Client, "calendar.tasks",
 		func(ctx *web.Context) string { return ctx.T("nav.tasks") + ".ics" }, calendar.Join))
 
 	POST("task.note", "/tasks/{path}/note", p.note(calendar.FirstTodo, taskSection))
@@ -155,7 +156,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, s section) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		note := strings.TrimSpace(ctx.FormValue("note"))
-		return pim.Run(ctx, pim.Action[*caldav.Client]{Client: p.Client, List: s.list, Done: pim.Quiet[*caldav.Client],
+		return pimweb.Run(ctx, pimweb.Action[*caldav.Client]{Client: p.Client, List: s.list, Done: pimweb.Quiet[*caldav.Client],
 			Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) error {
 				if note == "" {
 					return nil
@@ -199,7 +200,7 @@ func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chose
 	if err != nil {
 		return err
 	}
-	_, sites, err := calendar.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), pim.Only(ctx, "cal"), kind, chosen)
+	_, sites, err := calendar.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), pimweb.Only(ctx, "cal"), kind, chosen)
 	if err != nil {
 		return err
 	}
@@ -223,16 +224,16 @@ func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chose
 	if err != nil {
 		return err
 	}
-	return pim.Download(ctx, name+".ics", body)
+	return pimweb.Download(ctx, name+".ics", body)
 }
 
 func (p *plugin) rawObject(ctx *web.Context) error {
-	return pim.Raw(ctx, p.Client)
+	return pimweb.Raw(ctx, p.Client)
 }
 
 func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, s section) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		return pim.Star(ctx, p.Client, s.list, s.object, func(ctx *web.Context, ref pim.Ref[*caldav.Client], name string) (was string, err error) {
+		return pimweb.Star(ctx, p.Client, s.list, s.object, func(ctx *web.Context, ref pim.Ref[*caldav.Client], name string) (was string, err error) {
 			_, err = calendar.ChangeComponent(ctx.Request().Context(), ref, comp, func(target *ical.Component) {
 				was = calendar.ComponentColor(target)
 				calendar.SetComponentColor(target, name)
@@ -253,7 +254,7 @@ func validStarView(view string) bool {
 
 // pooledCalendars lists every account's calendars.
 func (p *plugin) pooledCalendars(ctx *web.Context) ([]pim.Account[*caldav.Client], error) {
-	return pim.Pooled(ctx, p.DAV, p.OpenWithFeeds, calendar.ErrNoCalendar)
+	return pimweb.Pooled(ctx, p.DAV, p.OpenWithFeeds, calendar.ErrNoCalendar)
 }
 
 func (p *plugin) writableGroups(ctx *web.Context, supports func([]string) bool) ([]dav.Group, error) {
@@ -265,7 +266,7 @@ func (p *plugin) writableGroups(ctx *web.Context, supports func([]string) bool) 
 }
 
 func (p *plugin) destination(ctx *web.Context, value string, supports func([]string) bool) (pim.Ref[*caldav.Client], error) {
-	return pim.Destination(ctx, value, p.Open, func(cal dav.Collection) bool {
+	return pimweb.Destination(ctx, value, p.Open, func(cal dav.Collection) bool {
 		return cal.Writable && supports(cal.Components)
 	})
 }
@@ -275,5 +276,5 @@ func (p *plugin) refresh(ctx *web.Context) error {
 	if err := p.RefreshFeeds(ctx.Request().Context(), ctx.Logins()); err != nil {
 		return err
 	}
-	return p.DAV.HandleRefresh("calendar.month")(ctx)
+	return pimweb.HandleRefresh(p.DAV, "calendar.month")(ctx)
 }

@@ -1,4 +1,4 @@
-package pim
+package web
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 
 	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
@@ -156,11 +157,11 @@ var (
 )
 
 var shareRefusals = map[error]string{
-	ErrNotAnAddress: "form.sharenotaddress",
-	ErrNotServed:    "form.sharenotserved",
-	ErrOwnAddress:   "form.shareown",
-	errPastDate:     "form.sharepast",
-	errNotADate:     "form.shareuntil",
+	pim.ErrNotAnAddress: "form.sharenotaddress",
+	pim.ErrNotServed:    "form.sharenotserved",
+	pim.ErrOwnAddress:   "form.shareown",
+	errPastDate:         "form.sharepast",
+	errNotADate:         "form.shareuntil",
 }
 
 // HandleShare invites an address to the collection, or changes an existing invitation's terms.
@@ -174,7 +175,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
 			Owner: ref.Owner, Collection: ref.ID,
 			Write: ctx.FormValue("access") == "write", Created: time.Now().UTC(),
 		}
-		share.To, err = Invitee(ctx.FormValue("to"), ctx.Server.Domains(), ctx.Login.Username())
+		share.To, err = pim.Invitee(ctx.FormValue("to"), ctx.Server.Domains(), ctx.Login.Username())
 		if until := ctx.DateField("until"); err == nil && until.Value != "" {
 			var day time.Time
 			if day, err = until.Read(web.UserLocation(ctx)); err == nil {
@@ -197,7 +198,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
 			data.Sharing.Write = share.Write
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
 		}
-		if share, err = Share(p.Store, share); err != nil {
+		if share, err = pim.Share(p.Store, share); err != nil {
 			return err
 		}
 		// The invitation waits in the invitee's rail regardless of the mail, so a refused mail is only a warning.
@@ -323,7 +324,7 @@ func (pg Page) HandlePublish(p *dav.Provider, publish bool) func(*web.Context) e
 		if err != nil {
 			return err
 		}
-		if err := Publish(p.Store, ref, publish); err != nil {
+		if err := pim.Publish(p.Store, ref, publish); err != nil {
 			return err
 		}
 		notice := "notice.unpublished"

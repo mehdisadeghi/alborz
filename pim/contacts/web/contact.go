@@ -15,6 +15,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav"
@@ -23,7 +24,7 @@ import (
 
 type AddressObjectRenderData struct {
 	web.BaseRenderData
-	Rail pim.Rail
+	Rail pimweb.Rail
 	// Authors are who added and last changed the object, where another account.
 	Authors dav.Authors
 	// List is the list the page was opened from.
@@ -42,7 +43,7 @@ type AddressObjectRenderData struct {
 
 type UpdateAddressObjectRenderData struct {
 	web.BaseRenderData
-	Rail          pim.Rail
+	Rail          pimweb.Rail
 	Groups        []dav.Group
 	AddressBook   *dav.Collection
 	AddressObject *carddav.AddressObject
@@ -139,8 +140,8 @@ func (p *plugin) contact(ctx *web.Context) error {
 		Authors:        p.DAV.Authors(object.Path, ctx.Login.Username()),
 		In:             in,
 		Groups:         rest,
-		Neighbours:     pim.Around(list.Items, path),
-		List:           cmp.Or(ctx.From(), pim.ListURL(ctx.Path("contacts.list"), pim.ListParams(ctx, contactListParams...))),
+		Neighbours:     pimweb.Around(list.Items, path),
+		List:           cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))),
 		Rail:           rail,
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(contacts.AddressObject{AddressObject: ao}.DisplayName()).WithItem(),
 		AddressBook:    addressBook,
@@ -216,7 +217,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		to := pim.Ref[*carddav.Client]{Client: c}
 		creating := ao == nil
 		if creating {
-			to, err = pim.Destination(ctx, ctx.FormValue("addressbook"), p.Open, func(book dav.Collection) bool { return book.Writable })
+			to, err = pimweb.Destination(ctx, ctx.FormValue("addressbook"), p.Open, func(book dav.Collection) bool { return book.Writable })
 			if errors.Is(err, pim.ErrNoDestination) {
 				return reject(ctx.T("form.destinationneeded"))
 			} else if err != nil {
@@ -316,7 +317,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		}
 		// The PUT answer carries only the path, so the card as written names the contact.
 		named := contacts.AddressObject{AddressObject: &carddav.AddressObject{Path: ao.Path, Card: card}}
-		return pim.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), ctx.Path("contacts.contact", named.Path), ctx.Path("contacts.list"), to.Account)
+		return pimweb.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), ctx.Path("contacts.contact", named.Path), ctx.Path("contacts.list"), to.Account)
 	}
 
 	// Map values evaluate eagerly; a missing object must not reach DisplayName.
@@ -343,7 +344,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 
 func (p *plugin) note(ctx *web.Context) error {
 	note := strings.TrimSpace(ctx.FormValue("note"))
-	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.Client, List: "contacts.list", Done: pim.Quiet[*carddav.Client],
+	return pimweb.Run(ctx, pimweb.Action[*carddav.Client]{Client: p.Client, List: "contacts.list", Done: pimweb.Quiet[*carddav.Client],
 		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
 			if note == "" {
 				return nil
@@ -361,14 +362,14 @@ func (p *plugin) note(ctx *web.Context) error {
 
 // Its own request: Enter in a name field must not delete the photo.
 func (p *plugin) deletePhoto(ctx *web.Context) error {
-	return pim.Run(ctx, pim.Action[*carddav.Client]{Client: p.Client, List: "contacts.list", Done: pim.Quiet[*carddav.Client],
+	return pimweb.Run(ctx, pimweb.Action[*carddav.Client]{Client: p.Client, List: "contacts.list", Done: pimweb.Quiet[*carddav.Client],
 		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
 			return contacts.ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) { delete(card, vcard.FieldPhoto) })
 		}})
 }
 
 func (p *plugin) color(ctx *web.Context) error {
-	return pim.Star(ctx, p.Client, "contacts.list", "contacts.contact", func(ctx *web.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
+	return pimweb.Star(ctx, p.Client, "contacts.list", "contacts.contact", func(ctx *web.Context, ref pim.Ref[*carddav.Client], name string) (was string, err error) {
 		err = contacts.ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
 			was = contacts.CardColor(card)
 			contacts.SetColor(card, name)

@@ -1,4 +1,4 @@
-package pim
+package web
 
 import (
 	"crypto/rand"

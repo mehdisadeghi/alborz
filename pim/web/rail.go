@@ -1,4 +1,4 @@
-package pim
+package web
 
 import "git.mehdix.org/alborz/pim/dav"
 
@@ -22,7 +22,7 @@ type Rail struct {
 	Groups     []FilterRow
 	Categories []FilterRow
 	// Invitations are the section's open invitations, nil for none.
-	Invitations *dav.RailInvitations
+	Invitations *RailInvitations
 }
 
 // FilterRow is one narrowing beside the collections.

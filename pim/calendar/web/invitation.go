@@ -13,6 +13,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
@@ -225,7 +226,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 			_, err = c.PutCalendarObject(ctx.Request().Context(), stored.Path, out, nil)
 		}
 		if err != nil {
-			ctx.Notify(pim.Refused(ctx, err))
+			ctx.Notify(pimweb.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, back)
 		}
 		switch {
@@ -254,7 +255,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	co, err := client.PutCalendarObject(ctx.Request().Context(),
 		path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), out, nil)
 	if err != nil {
-		ctx.Notify(pim.Refused(ctx, err))
+		ctx.Notify(pimweb.Refused(ctx, err))
 		return ctx.Redirect(http.StatusFound, back)
 	}
 	ctx.PutNotice(ctx.T("invite.filed"))
@@ -316,7 +317,7 @@ func (p *plugin) importCalendar(ctx *web.Context) error {
 	}
 	n, err := calendar.Import(ctx.Request().Context(), client, calendarPath, raw)
 	if pim.ImportAnswered(err) {
-		ctx.Notify(pim.ImportRefused(ctx, err))
+		ctx.Notify(pimweb.ImportRefused(ctx, err))
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 	} else if err != nil {
 		return err

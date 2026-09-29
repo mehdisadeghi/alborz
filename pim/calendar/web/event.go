@@ -14,6 +14,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
@@ -25,7 +26,7 @@ var eventListParams = []string{"account", "cal", "month", "date", "view", "span"
 
 type EventRenderData struct {
 	web.BaseRenderData
-	Rail     pim.Rail
+	Rail     pimweb.Rail
 	Calendar *dav.Collection
 	Event    calendar.CalendarObject
 	// Authors are who added and last changed the object, where another account.
@@ -40,7 +41,7 @@ type EventRenderData struct {
 
 type UpdateEventRenderData struct {
 	web.BaseRenderData
-	Rail           pim.Rail
+	Rail           pimweb.Rail
 	Groups         []dav.Group
 	Calendar       *dav.Collection
 	CalendarObject *caldav.CalendarObject
@@ -97,13 +98,13 @@ func fillEventForm(ctx *web.Context, d *UpdateEventRenderData, loc *time.Locatio
 }
 
 func dayQuery(ctx *web.Context, start time.Time) string {
-	q := pim.ListParams(ctx, "account", "cal")
+	q := pimweb.ListParams(ctx, "account", "cal")
 	q.Set("date", start.Format(datePageLayout))
 	return web.Query(q)
 }
 
 func monthQuery(ctx *web.Context, mv monthView) string {
-	q := pim.ListParams(ctx, "account", "cal", "span", "group")
+	q := pimweb.ListParams(ctx, "account", "cal", "span", "group")
 	q.Set("month", mv.page)
 	if mv.view != "" {
 		q.Set("view", mv.view)
@@ -111,7 +112,7 @@ func monthQuery(ctx *web.Context, mv monthView) string {
 	return web.Query(q)
 }
 
-func (p *plugin) eventItems(ctx *web.Context) ([]pim.Item, error) {
+func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
 	var shown []calendar.Occurrence
 	switch {
 	case ctx.QueryParam("date") != "":
@@ -130,15 +131,15 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pim.Item, error) {
 		return nil, nil
 	}
 
-	params := pim.RowParams(ctx, "", pim.ListParams(ctx, eventListParams...))
-	var items []pim.Item
+	params := pimweb.RowParams(ctx, "", pimweb.ListParams(ctx, eventListParams...))
+	var items []pimweb.Item
 	seen := map[string]bool{}
 	for _, oc := range shown {
 		if seen[oc.Path] {
 			continue
 		}
 		seen[oc.Path] = true
-		items = append(items, pim.Item{Path: oc.Path, URL: pim.ObjectURL(ctx, "calendar.event", oc.Path, oc.Account, params)})
+		items = append(items, pimweb.Item{Path: oc.Path, URL: pimweb.ObjectURL(ctx, "calendar.event", oc.Path, oc.Account, params)})
 	}
 	return items, nil
 }
@@ -199,7 +200,7 @@ func (p *plugin) event(ctx *web.Context) error {
 		Calendar:       coll,
 		Event:          calendar.CalendarObject{CalendarObject: event, ReadOnly: !coll.Writable},
 		Star:           calendar.ComponentColor(vevents[0].Component),
-		Neighbours:     pim.Around(items, path),
+		Neighbours:     pimweb.Around(items, path),
 		Authors:        p.DAV.Authors(event.Path, ctx.Login.Username()),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], web.UserLocation(ctx))
@@ -381,7 +382,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		calendar.EnsureTimezones(cal, start)
 		co, err = calendar.PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
 		if err != nil {
-			return reject(pim.Refusal(ctx, err))
+			return reject(pimweb.Refusal(ctx, err))
 		}
 
 		// Saved before sending: a failed send must not lose the event.
@@ -407,7 +408,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			ctx.PutNotice(ctx.T("invite.sent"))
 		}
 
-		return pim.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, ctx.Path("calendar.event", co.Path), ctx.Path("calendar.month"), to.Account)
+		return pimweb.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, ctx.Path("calendar.event", co.Path), ctx.Path("calendar.month"), to.Account)
 	}
 
 	summary, _ := event.Props.Text("SUMMARY")
@@ -432,11 +433,11 @@ func eventList(ctx *web.Context) string {
 	if from := ctx.From(); from != "" {
 		return from
 	}
-	params := pim.ListParams(ctx, eventListParams...)
+	params := pimweb.ListParams(ctx, eventListParams...)
 	if params.Get("date") != "" {
-		return pim.ListURL(ctx.Path("calendar.day"), params)
+		return pimweb.ListURL(ctx.Path("calendar.day"), params)
 	}
-	return pim.ListURL(ctx.Path("calendar.month"), params)
+	return pimweb.ListURL(ctx.Path("calendar.month"), params)
 }
 
 func repeatWords(ctx *web.Context, event *ical.Event, loc *time.Location) (words, until string) {

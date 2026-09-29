@@ -1,4 +1,4 @@
-package pim
+package web
 
 import (
 	"archive/zip"
@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav"
@@ -115,10 +116,10 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 			BackLabel:      f.Section,
 			OffersHolds:    f.OffersHolds,
 			Holds:          f.Holds,
-			Places:         p.Places(ctx),
+			Places:         Places(ctx, p),
 			Next:           ctx.FormValue("next"),
 		}
-		data.Account, data.Place = p.ReadPlace(ctx, data.Account)
+		data.Account, data.Place = ReadPlace(ctx, p, data.Account)
 		if ctx.Request().Method != http.MethodPost {
 			return ctx.Render(http.StatusOK, "pim/collection-create", data)
 		}
@@ -301,7 +302,7 @@ func (pg Page) HandleImport(p *dav.Provider) func(*web.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := pg.importRaw(ctx, collPath, raw); ImportAnswered(err) {
+		if err := pg.importRaw(ctx, collPath, raw); pim.ImportAnswered(err) {
 			ctx.Notify(ImportRefused(ctx, err))
 			return ctx.Redirect(http.StatusFound, back)
 		} else if err != nil {
@@ -414,7 +415,7 @@ func (pg Page) importMany(ctx *web.Context, list string, files []importFile, pla
 	begins := map[string]string{".ics": "BEGIN:VCALENDAR", ".vcf": "BEGIN:VCARD"}[pg.Ext]
 	for _, f := range files {
 		if !strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(string(f.raw), "\ufeff")), begins) {
-			return &UnreadableError{Err: fmt.Errorf(ctx.T("import.notkind"), f.name, pg.Ext)}
+			return &pim.UnreadableError{Err: fmt.Errorf(ctx.T("import.notkind"), f.name, pg.Ext)}
 		}
 	}
 	objects, collections := 0, 0
@@ -491,8 +492,8 @@ func ImportRefused(ctx *web.Context, err error) web.Notice {
 // a server's refusal as any write's with how much was saved before it; a bundle names the file.
 func ImportRefusal(ctx *web.Context, err error) string {
 	var file *fileError
-	var unreadable *UnreadableError
-	var partly *PartlySavedError
+	var unreadable *pim.UnreadableError
+	var partly *pim.PartlySavedError
 	switch {
 	case errors.As(err, &file):
 		return file.name + ": " + ImportRefusal(ctx, file.err)
@@ -551,7 +552,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			groups[i].Collections = append(groups[i].Collections, coll)
 		}
 		// A new collection per file is a destination too, first in each account's group.
-		for _, place := range p.Places(ctx) {
+		for _, place := range Places(ctx, p) {
 			var news []dav.Collection
 			for _, at := range place.Collections {
 				news = append(news, dav.Collection{Path: newPrefix + at.Path, Name: fmt.Sprintf(ctx.T("import.newon"), at.Name)})
@@ -635,7 +636,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 		}
 		if place, isNew := strings.CutPrefix(collPath, newPrefix); isNew || len(files) > 1 {
-			if err := pg.importMany(ctx, ctx.Path(list), files, place, isNew, collPath); ImportAnswered(err) {
+			if err := pg.importMany(ctx, ctx.Path(list), files, place, isNew, collPath); pim.ImportAnswered(err) {
 				data.Refused(ImportRefusal(ctx, err))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			} else if err != nil {
@@ -643,7 +644,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			}
 			return ctx.Redirect(http.StatusFound, ctx.URL(list))
 		}
-		if err := pg.importRaw(ctx, collPath, raw); ImportAnswered(err) {
+		if err := pg.importRaw(ctx, collPath, raw); pim.ImportAnswered(err) {
 			// A file that is not what it claims answers on the form, where another can be picked.
 			data.Refused(ImportRefusal(ctx, err))
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
@@ -682,7 +683,7 @@ func (pg Page) HandleExport(p *dav.Provider) func(*web.Context) error {
 			to = to.AddDate(0, 0, 1)
 		}
 		body, err := pg.Export(ctx, collPath, from, to)
-		if errors.Is(err, ErrNothingToExport) {
+		if errors.Is(err, pim.ErrNothingToExport) {
 			ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("export.empty")})
 			return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
 		}
@@ -713,7 +714,7 @@ func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
 				continue
 			}
 			body, err := pg.Export(ctx, coll.Path, time.Time{}, time.Time{})
-			if errors.Is(err, ErrNothingToExport) || (err == nil && len(body) == 0) {
+			if errors.Is(err, pim.ErrNothingToExport) || (err == nil && len(body) == 0) {
 				continue
 			}
 			if err != nil {

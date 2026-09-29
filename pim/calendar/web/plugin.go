@@ -4,6 +4,7 @@ import (
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -21,7 +22,7 @@ func Mount(g *web.Group, st *store.Store) error {
 	registerRoutes(p, g)
 	p.registerScheduling(g)
 	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.DAV))
-	srv.OnServers = append(srv.OnServers, p.DAV.Cards("settings.davcalendar", davAbilities))
+	srv.OnServers = append(srv.OnServers, pimweb.Cards(p.DAV, "settings.davcalendar", davAbilities))
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 
 	return nil

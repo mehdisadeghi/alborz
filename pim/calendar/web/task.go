@@ -15,6 +15,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
@@ -23,7 +24,7 @@ import (
 
 type TaskRenderData struct {
 	web.BaseRenderData
-	Rail     pim.Rail
+	Rail     pimweb.Rail
 	Calendar *dav.Collection
 	Task     calendar.TaskObject
 	// Authors are who added and last changed the object, where another account.
@@ -37,7 +38,7 @@ type TaskRenderData struct {
 
 type UpdateTaskRenderData struct {
 	web.BaseRenderData
-	Rail           pim.Rail
+	Rail           pimweb.Rail
 	Groups         []dav.Group
 	Calendar       *dav.Collection
 	CalendarObject *caldav.CalendarObject
@@ -104,10 +105,10 @@ func (p *plugin) task(ctx *web.Context) error {
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       coll,
 		Task:           calendar.TaskObject{CalendarObject: task},
-		List:           cmp.Or(ctx.From(), pim.ListURL(ctx.Path("calendar.tasks"), pim.ListParams(ctx, taskListParams...))),
+		List:           cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("calendar.tasks"), pimweb.ListParams(ctx, taskListParams...))),
 		Star:           calendar.ComponentColor(calendar.FirstTodo(task.Data)),
 		Priority:       calendar.PriorityBand(calendar.FirstTodo(task.Data)),
-		Neighbours:     pim.Around(list.Items, path),
+		Neighbours:     pimweb.Around(list.Items, path),
 		Authors:        p.DAV.Authors(task.Path, ctx.Login.Username()),
 	})
 }
@@ -248,7 +249,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
 
-		return pim.Saved(ctx, creating, ctx.T("notice.taskcreated"), summary, ctx.Path("calendar.task", co.Path), ctx.Path("calendar.tasks"), to.Account)
+		return pimweb.Saved(ctx, creating, ctx.T("notice.taskcreated"), summary, ctx.Path("calendar.task", co.Path), ctx.Path("calendar.tasks"), to.Account)
 	}
 
 	summary, _ := todo.Props.Text("SUMMARY")

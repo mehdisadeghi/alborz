@@ -8,6 +8,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/calsys"
+	"git.mehdix.org/alborz/internal/locale"
 )
 
 // The value lands in a stylesheet URL, so only listed themes are accepted.
@@ -145,7 +146,7 @@ func (ctx *Context) CalendarSystem() calsys.System {
 
 // SetLanguage sets the UI language; empty follows Accept-Language.
 func (ctx *Context) SetLanguage(code string) error {
-	if !alborz.IsLanguage(code) {
+	if !locale.Supported(code) {
 		code = ""
 	}
 	p := ctx.Profile()
@@ -158,7 +159,7 @@ func (ctx *Context) SetLanguage(code string) error {
 
 // language returns the explicit UI language, empty when following the browser.
 func (ctx *Context) language() string {
-	if code := ctx.Profile().Display.Language; alborz.IsLanguage(code) {
+	if code := ctx.Profile().Display.Language; locale.Supported(code) {
 		return code
 	}
 	return ""

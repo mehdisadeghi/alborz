@@ -8,6 +8,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/calsys"
+	"git.mehdix.org/alborz/internal/locale"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 )
@@ -76,7 +77,7 @@ func handleProfile(ctx *web.Context) error {
 	p := shown
 	reading := &p.Reading
 	if v, ok := given("messages_per_page"); ok {
-		reading.MessagesPerPage, err = web.ReadInt(v)
+		reading.MessagesPerPage, err = locale.ReadInt(v)
 		if err != nil || reading.MessagesPerPage <= 0 || reading.MessagesPerPage > web.MaxMessagesPerPage {
 			return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.perpage"), web.MaxMessagesPerPage), shown)
 		}
@@ -86,7 +87,7 @@ func handleProfile(ctx *web.Context) error {
 	}
 	reading.PreferHTML = ctx.FormValue("prefer_html") != ""
 	if fdow, ok := given("first_day_of_week"); ok && fdow != "" {
-		reading.FirstDayOfWeek, err = web.ReadInt(fdow)
+		reading.FirstDayOfWeek, err = locale.ReadInt(fdow)
 		if err != nil || reading.FirstDayOfWeek < 1 || reading.FirstDayOfWeek > 7 {
 			return render(http.StatusUnprocessableEntity, ctx.T("form.firstday"), shown)
 		}
@@ -119,7 +120,7 @@ func handleProfile(ctx *web.Context) error {
 	p.Display.AlignByScript = ctx.FormValue("align_script") != ""
 	var lockAfter time.Duration
 	if v, ok := given("lock_minutes"); ok {
-		minutes, err := web.ReadInt(v)
+		minutes, err := locale.ReadInt(v)
 		lockAfter = time.Duration(minutes) * time.Minute
 		if err != nil || lockAfter < alborz.MinLockAfter {
 			return render(http.StatusUnprocessableEntity, ctx.T("form.lockminutes"), shown)

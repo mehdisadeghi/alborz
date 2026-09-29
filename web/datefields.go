@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz/internal/calsys"
+	"git.mehdix.org/alborz/internal/locale"
 )
 
 // Gregorian fields are picked, since a native date picker speaks only Gregorian; other calendars take dates typed.
@@ -50,9 +51,9 @@ func (g *GlobalRenderData) inputIn(cal calsys.System, t time.Time, clock bool) D
 		f.Value = t.Format(isoDate)
 	default:
 		y, m, d := cal.Date(t)
-		f.Value = g.shapeDigits(fmt.Sprintf(typedDate, y, m, d))
+		f.Value = locale.Shape(g.Lang, fmt.Sprintf(typedDate, y, m, d))
 		if clock {
-			f.Value += " " + g.shapeDigits(fmt.Sprintf(typedTime, t.Hour(), t.Minute()))
+			f.Value += " " + locale.Shape(g.Lang, fmt.Sprintf(typedTime, t.Hour(), t.Minute()))
 		}
 	}
 	return f
@@ -128,7 +129,7 @@ func (f DateField) calendar() (calsys.System, error) {
 }
 
 func typedDay(cal calsys.System, s string, loc *time.Location) (time.Time, string, error) {
-	s = strings.TrimSpace(latinDigits(s))
+	s = strings.TrimSpace(locale.Latin(s))
 	date, rest, _ := strings.Cut(s, " ")
 	var y, m, d int
 	if n, err := fmt.Sscanf(strings.ReplaceAll(date, "-", "/"), "%d/%d/%d", &y, &m, &d); n != 3 || err != nil {

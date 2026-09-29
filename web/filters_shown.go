@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/locale"
 )
 
 // Filter is one narrowing in force on a listing, with the page without it.
@@ -108,7 +109,7 @@ func PerPage(ctx *Context) int {
 
 func perPage(ctx *Context, q url.Values) int {
 	if raw := q.Get("ipp"); raw != "" {
-		if n, err := ReadInt(raw); err == nil &&
+		if n, err := locale.ReadInt(raw); err == nil &&
 			n > 0 && n <= MaxMessagesPerPage {
 			return n
 		}
@@ -151,7 +152,7 @@ func (ctx *Context) ListPage() (Page, error) {
 func (ctx *Context) ListPageAt(q url.Values) (Page, error) {
 	p := Page{Size: perPage(ctx, q)}
 	if raw := q.Get("page"); raw != "" {
-		n, err := ReadInt(raw)
+		n, err := locale.ReadInt(raw)
 		if err != nil || n < 0 {
 			return p, NewError(http.StatusBadRequest, "invalid page index")
 		}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/locale"
 )
 
 // Profile returns the session's profile while signed in, else the browser's cookie copy.
@@ -218,7 +219,7 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 	})
 	add("settings.alignscript", func(p alborz.Profile) string { return onOff(p.Display.AlignByScript) })
 	add("settings.language", func(p alborz.Profile) string {
-		return or(alborz.LanguageNames[p.Display.Language], "settings.langauto")
+		return or(locale.Name(p.Display.Language), "settings.langauto")
 	})
 	return out
 }

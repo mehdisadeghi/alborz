@@ -14,6 +14,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
+	"git.mehdix.org/alborz/internal/locale"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 )
@@ -267,7 +268,7 @@ func replyFromForm(ctx *web.Context) (Reply, error) {
 		Text:      strings.TrimRight(strings.ReplaceAll(ctx.FormValue("text"), "\r\n", "\n"), "\n"),
 		Addresses: params["addresses"],
 	}
-	v.Days, err = web.ReadInt(ctx.FormValue("days"))
+	v.Days, err = locale.ReadInt(ctx.FormValue("days"))
 	switch {
 	case v.Name == "":
 		return v, errors.New(ctx.T("form.nameneeded"))

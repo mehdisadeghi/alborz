@@ -8,18 +8,16 @@ import (
 	"maps"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 	"text/template/parse"
 	"time"
 
-	"golang.org/x/text/language"
-	"golang.org/x/text/message"
 	"golang.org/x/text/number"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/calsys"
 	"git.mehdix.org/alborz/internal/lang"
+	"git.mehdix.org/alborz/internal/locale"
 )
 
 // GlobalRenderData contains data available in all templates.
@@ -53,7 +51,7 @@ type GlobalRenderData struct {
 	ProjectURL string
 	// Language is the explicit choice, empty while following the browser.
 	Language        string
-	LanguageChoices []alborz.LanguageChoice
+	LanguageChoices []locale.Choice
 	Year            int
 	// Primary is the calendar the page counts in, Secondary the one glossed beside it, empty for none.
 	Primary   string
@@ -122,7 +120,7 @@ func (brd *BaseRenderData) Global() *GlobalRenderData {
 
 // T translates a namespaced string key into the UI language.
 func (brd *BaseRenderData) T(key string) string {
-	return alborz.Translate(brd.GlobalData.Lang, key)
+	return locale.T(brd.GlobalData.Lang, key)
 }
 
 // Since dates a message in the reader's language, as short as a list column.
@@ -136,7 +134,7 @@ func (g *GlobalRenderData) Since(t time.Time) string {
 		key, n = "since.ahead", -n
 	}
 	// A year count is never grouped: "2025 yrs ago", not "2,025".
-	span := g.printer().Sprintf(alborz.TranslateCount(g.Lang, "since."+unit, n), number.Decimal(n, number.NoSeparator()))
+	span := locale.Sprintf(g.Lang, locale.Plural(g.Lang, "since."+unit, n), number.Decimal(n, number.NoSeparator()))
 	return g.Tf(key, span)
 }
 
@@ -184,7 +182,7 @@ func (g *GlobalRenderData) FormatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return g.printer().Sprintf(g.T("date.withtime"), g.LongDate(t), g.FormatTime(t))
+	return locale.Sprintf(g.Lang, g.T("date.withtime"), g.LongDate(t), g.FormatTime(t))
 }
 
 // ShortDate is a bare date in the secondary calendar when one is chosen, without the current year.
@@ -194,15 +192,15 @@ func (g *GlobalRenderData) ShortDate(t time.Time) string {
 	thisYear, _, _ := cal.Date(g.InTimezone(time.Now()))
 	month := g.ShortMonth(cal, m)
 	if year != thisYear {
-		return g.printer().Sprintf(g.T("date.shortyear"), day, month, g.FormatYear(year))
+		return locale.Sprintf(g.Lang, g.T("date.shortyear"), day, month, g.FormatYear(year))
 	}
-	return g.printer().Sprintf(g.T("date.short"), day, month)
+	return locale.Sprintf(g.Lang, g.T("date.short"), day, month)
 }
 
 // FormatTime formats just the time portion in the user's timezone.
 func (g *GlobalRenderData) FormatTime(t time.Time) string {
 	t = g.InTimezone(t)
-	return g.printer().Sprintf("%02d:%02d", t.Hour(), t.Minute())
+	return locale.Sprintf(g.Lang, "%02d:%02d", t.Hour(), t.Minute())
 }
 
 // InTimezone converts a time to the user's timezone.
@@ -285,83 +283,15 @@ func (g GlobalRenderData) AccountTrack() template.CSS {
 	return template.CSS(fmt.Sprintf("%dch", n))
 }
 
-var printers = map[string]*message.Printer{}
-
-func init() {
-	for _, code := range alborz.Languages {
-		printers[code] = message.NewPrinter(language.MustParse(code))
-	}
-}
-
 // Value receivers: templates box the global in a tuple, leaving pointer methods out of reach.
-func (g GlobalRenderData) printer() *message.Printer {
-	if p, ok := printers[g.Lang]; ok {
-		return p
-	}
-	return printers["en"]
-}
+func (g GlobalRenderData) Num(n int) string { return locale.Num(g.Lang, n) }
 
-// Num writes a grouped count as the page's language writes one.
-func (g GlobalRenderData) Num(n int) string {
-	return g.printer().Sprintf("%d", n)
-}
+func (g GlobalRenderData) FormatYear(n int) string { return locale.Year(g.Lang, n) }
 
-// FormatYear writes a year in the page's digits, never grouped.
-func (g GlobalRenderData) FormatYear(n int) string {
-	return g.printer().Sprint(number.Decimal(n, number.NoSeparator()))
-}
+func (g GlobalRenderData) T(key string) string { return locale.T(g.Lang, key) }
 
-// T translates a key in the page's language.
-func (g GlobalRenderData) T(key string) string {
-	return alborz.Translate(g.Lang, key)
-}
-
-// Tf translates a format string and fills it in the page's language.
 func (g GlobalRenderData) Tf(key string, args ...interface{}) string {
-	count := 1
-	if len(args) > 0 {
-		if n, ok := args[0].(int); ok {
-			count = n
-		}
-	}
-	return g.printer().Sprintf(alborz.TranslateCount(g.Lang, key, count), args...)
-}
-
-var persianDigits = [10]rune{'۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'}
-
-// latinDigits rewrites Persian and Arabic digits into Latin ones for parsing.
-func latinDigits(s string) string {
-	return strings.Map(func(r rune) rune {
-		switch {
-		case r >= '۰' && r <= '۹':
-			return '0' + (r - '۰')
-		case r >= '٠' && r <= '٩':
-			return '0' + (r - '٠')
-		}
-		return r
-	}, s)
-}
-
-// ReadInt reads a typed whole number in either digit shape, with the language's thousands separator.
-func ReadInt(s string) (int, error) {
-	return strconv.Atoi(strings.NewReplacer("٬", "", ",", "").Replace(latinDigits(strings.TrimSpace(s))))
-}
-
-// A string still carrying a Latin word is left alone: half-converted reads worse than either script.
-func (g GlobalRenderData) shapeDigits(s string) string {
-	if g.Lang != "fa" || strings.ContainsFunc(s, isLatinLetter) {
-		return s
-	}
-	return strings.Map(func(r rune) rune {
-		if r >= '0' && r <= '9' {
-			return persianDigits[r-'0']
-		}
-		return r
-	}, s)
-}
-
-func isLatinLetter(r rune) bool {
-	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+	return locale.Tf(g.Lang, key, args...)
 }
 
 // SecondaryDate is the full secondary date of one day.
@@ -371,7 +301,7 @@ func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
 		return ""
 	}
 	y, m, d := cal.Date(g.InTimezone(t))
-	return g.printer().Sprintf("%d %s %s", d, g.T(cal.MonthKey(m)), g.FormatYear(y))
+	return locale.Sprintf(g.Lang, "%d %s %s", d, g.T(cal.MonthKey(m)), g.FormatYear(y))
 }
 
 // MonthYear renders the calendar heading for t's month.
@@ -385,7 +315,7 @@ func (g *GlobalRenderData) LongDate(t time.Time) string {
 	weekday := g.WeekdayName(g.InTimezone(t).Weekday())
 	month := g.MonthName(t)
 	y, _, d := calsys.For(g.PrimaryCalendar(), g.InTimezone(t)).Date(g.InTimezone(t))
-	return g.printer().Sprintf(g.T("date.long"), weekday, d, month, g.FormatYear(y))
+	return locale.Sprintf(g.Lang, g.T("date.long"), weekday, d, month, g.FormatYear(y))
 }
 
 // RenderData is implemented by template data structs.
@@ -415,10 +345,10 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 		}
 	}
 	// A person reads the brand in their own script; what a machine reads stays BrandName.
-	global.Brand = alborz.Translate(lang, "brand.name")
+	global.Brand = locale.T(lang, "brand.name")
 	global.ProjectURL = ctx.Server.projectURL
 	global.Language = ctx.language()
-	global.LanguageChoices = alborz.LanguageChoices()
+	global.LanguageChoices = locale.Choices()
 	global.Year = time.Now().Year()
 	global.Primary, global.Secondary = ctx.calendars()
 	global.Theme = ctx.Theme()
@@ -462,13 +392,12 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 
 // Tf is T with a count and arguments, in the plural form the count calls for.
 func (ctx *Context) Tf(key string, args ...interface{}) string {
-	g := GlobalRenderData{Lang: requestLanguage(ctx)}
-	return g.Tf(key, args...)
+	return locale.Tf(requestLanguage(ctx), key, args...)
 }
 
 // T translates a namespaced string key into the request's UI language.
 func (ctx *Context) T(key string) string {
-	return alborz.Translate(requestLanguage(ctx), key)
+	return locale.T(requestLanguage(ctx), key)
 }
 
 // PageLanguage is the UI language this request resolves to.
@@ -488,7 +417,7 @@ func (g GlobalRenderData) LanguageName() string {
 
 // The URL's language outranks the cookie, so a page can be handed to a reader of another language.
 func queryLanguage(ctx *Context) string {
-	if v := ctx.QueryParam("lang"); alborz.IsLanguage(v) {
+	if v := ctx.QueryParam("lang"); locale.Supported(v) {
 		return v
 	}
 	return ""
@@ -501,7 +430,7 @@ func requestLanguage(ctx *Context) string {
 	if v := ctx.language(); v != "" {
 		return v
 	}
-	return alborz.MatchLanguage(ctx.Request().Header.Get("Accept-Language"))
+	return locale.Match(ctx.Request().Header.Get("Accept-Language"))
 }
 
 // renderInfo renders a full page carrying one explanatory sentence.

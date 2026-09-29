@@ -275,6 +275,14 @@ type RefusedError struct {
 
 func (e *RefusedError) Error() string { return e.Host + " refused the account's password" }
 
+// ServerRefused says whether err is a DAV server's answer rather than a failure to get one:
+// a status it sent, its refusal of the password, or a scale it does not list.
+func ServerRefused(err error) bool {
+	_, answered := webdav.HTTPErrorCode(err)
+	var password *RefusedError
+	return answered || errors.As(err, &password) || errors.Is(err, ErrScaleUnlisted)
+}
+
 // send follows redirects keeping the method, since Go's client turns a redirected PROPFIND into a GET.
 // The login goes to the source's host only, TLS is never left, and a 401 from any hop is a refusal.
 func (r sourceRouter) send(req *http.Request, src Source) (*http.Response, error) {

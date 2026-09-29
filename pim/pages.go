@@ -303,7 +303,7 @@ func (pg Page) HandleImport(p *dav.Provider) func(*alborz.Context) error {
 			return err
 		}
 		back := ctx.NextOr(ctx.AccountPath(pg.Base + url.PathEscape(collPath)))
-		if err := pg.importRaw(ctx, collPath, raw); errors.Is(err, dav.ErrScaleUnlisted) {
+		if err := pg.importRaw(ctx, collPath, raw); dav.ServerRefused(err) {
 			ctx.Notify(Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, back)
 		} else if err != nil {
@@ -480,9 +480,9 @@ func (pg Page) importRaw(ctx *alborz.Context, collPath string, raw []byte) error
 	return nil
 }
 
-// importRefusal says why an import stopped: alborz's own refusal in the reader's words, any other as it came.
+// importRefusal says why an import stopped: a server's refusal as any write's, any other as it came.
 func importRefusal(ctx *alborz.Context, err error) string {
-	if errors.Is(err, dav.ErrScaleUnlisted) {
+	if dav.ServerRefused(err) {
 		return Refusal(ctx, err)
 	}
 	return err.Error()

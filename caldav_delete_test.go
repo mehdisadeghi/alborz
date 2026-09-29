@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"sort"
 	"strings"
 	"testing"
@@ -16,10 +17,11 @@ import (
 
 type davCal struct{ name, color string }
 
-// davStub answers the CalDAV a collection's create and delete need. A path in
-// refuse answers DELETE with 403; one in keep answers 204 but stays listed.
+// davStub answers the CalDAV and CardDAV a collection's create and delete need. A path in
+// refuse answers DELETE, and a PUT into it, with 403; one in keep answers 204 but stays listed.
 type davStub struct {
 	cals   map[string]davCal
+	books  map[string]davCal
 	refuse map[string]bool
 	keep   map[string]bool
 	gone   map[string]bool
@@ -31,12 +33,13 @@ type davStub struct {
 }
 
 const davHome = "/dav/calendars/u/"
+const davBooks = "/dav/addressbooks/u/"
 
 func (s *davStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	switch r.Method {
 	case "OPTIONS":
-		w.Header().Set("DAV", "1, 3, calendar-access")
+		w.Header().Set("DAV", "1, 3, calendar-access, addressbook")
 		w.WriteHeader(http.StatusOK)
 	case "PROPFIND":
 		s.propfind(w, r, string(body))
@@ -47,6 +50,12 @@ func (s *davStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "REPORT":
 		writeMS(w)
 	case "PUT":
+		if s.refuse[path.Dir(r.URL.Path)+"/"] {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusForbidden)
+			io.WriteString(w, "read-only collection")
+			return
+		}
 		s.puts = append(s.puts, string(body))
 		w.WriteHeader(http.StatusOK)
 	case "GET":
@@ -68,6 +77,7 @@ func writeMS(w http.ResponseWriter, responses ...string) {
 	w.WriteHeader(http.StatusMultiStatus)
 	io.WriteString(w, `<?xml version="1.0"?><multistatus xmlns="DAV:" `+
 		`xmlns:C="urn:ietf:params:xml:ns:caldav" `+
+		`xmlns:CR="urn:ietf:params:xml:ns:carddav" `+
 		`xmlns:CS="http://calendarserver.org/ns/" `+
 		`xmlns:AP="http://apple.com/ns/ical/">`)
 	for _, resp := range responses {
@@ -89,6 +99,17 @@ func (s *davStub) propfind(w http.ResponseWriter, r *http.Request, body string) 
 	case strings.Contains(body, "calendar-home-set"):
 		writeMS(w, propResponse(r.URL.Path,
 			"<C:calendar-home-set><href>"+davHome+"</href></C:calendar-home-set>"))
+	case strings.Contains(body, "addressbook-home-set"):
+		writeMS(w, propResponse(r.URL.Path,
+			"<CR:addressbook-home-set><href>"+davBooks+"</href></CR:addressbook-home-set>"))
+	case strings.HasPrefix(r.URL.Path, davBooks):
+		var resps []string
+		for p, b := range s.books {
+			resps = append(resps, propResponse(p, "<resourcetype><collection/><CR:addressbook/></resourcetype>"+
+				"<displayname>"+b.name+"</displayname>"+
+				"<current-user-privilege-set><privilege><write/></privilege></current-user-privilege-set>"))
+		}
+		writeMS(w, resps...)
 	case r.Header.Get("Depth") == "0" && strings.Contains(body, "getctag"):
 		writeMS(w, propResponse(r.URL.Path, "<CS:getctag>v1</CS:getctag>"))
 	default:

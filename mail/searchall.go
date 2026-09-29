@@ -87,7 +87,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 		found := &listingEntry{sortSupported: true}
 		for _, folder := range searchFolders(sb.mailboxes, q) {
 			e, err := readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
-				return fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.window(), listFetchOptions, false)
+				return fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.page.Window(), listFetchOptions, false)
 			})(ctx.Request().Context())
 			if err != nil {
 				return nil, err
@@ -106,7 +106,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 	if err != nil {
 		return err
 	}
-	msgs := cutPage(merged.msgs, ask)
+	page, msgs := cutPage(merged, ask.page)
 
 	track := 0
 	for i := range msgs {
@@ -130,7 +130,7 @@ func (p *plugin) handleSearch(ctx *alborz.Context) error {
 	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	// No name, so the rail marks no folder.
 	ibase.Mailbox = &MailboxStatus{StatusData: &imap.StatusData{}, Label: title}
-	data := listPage(ctx, ask, merged, msgs)
+	data := listPage(ctx, spec, page, merged, msgs)
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = []CrumbLink{{Label: title}}
 	data.Merged, data.Spanning, data.Role = true, true, searchRole

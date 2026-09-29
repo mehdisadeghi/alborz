@@ -201,7 +201,10 @@ func (p *plugin) contacts(ctx *alborz.Context) error {
 	for _, item := range list.Items {
 		hrefs[item.Path] = item.URL
 	}
-	cards, pager := alborz.Paginate(ctx, list.Cards)
+	cards, pager, err := alborz.Paginate(ctx, list.Cards)
+	if err != nil {
+		return err
+	}
 	collection, href := pim.Labels(ctx, addressBookInfos, "/contacts", "book", nil)
 	invitations, err := p.invitations(ctx)
 	if err != nil {

@@ -6,12 +6,12 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      <form method="post" enctype="multipart/form-data" action="/filters/import{{$aq}}">
+      <form method="post" enctype="multipart/form-data" action="{{url "filters.import"}}{{$aq}}">
         {{ template "filters-crumb" (dict "g" $ "chooses" (gt (len .Accounts) 1)) }}
         <h1>{{$.T "filters.import"}}</h1>
         {{ if gt (len .Accounts) 1 }}
         {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}
         {{ end }}
-        {{ template "import-fields" (dict "g" $ "file" ($.T "filters.importfile") "accept" ".sieve,.siv,text/plain" "hint" ($.T "filters.importhint") "go" ($.T "filters.importgo") "cancel" (printf "/filters%s" $aq)) }}
+        {{ template "import-fields" (dict "g" $ "file" ($.T "filters.importfile") "accept" ".sieve,.siv,text/plain" "hint" ($.T "filters.importhint") "go" ($.T "filters.importgo") "cancel" (printf "%s%s" (url "filters.list") $aq)) }}
       </form>
 {{ end }}

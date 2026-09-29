@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"path"
 	"strings"
 
@@ -357,11 +356,11 @@ func handleSaveFilter(ctx *web.Context) error {
 	case loaded == "":
 		account := "?account=" + web.QueryValue(ctx.Login.Username())
 		ctx.Made(ctx.T("notice.filtercreated"), name,
-			"/filters/"+url.PathEscape(name)+account, "/filters/create"+account)
+			ctx.Path("filters.filter", name)+account, ctx.Path("filters.create")+account)
 	default:
 		ctx.PutNotice(ctx.T("notice.filtersaved"))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr("/filters?account="+web.QueryValue(ctx.Login.Username())))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("filters.list")+"?account="+web.QueryValue(ctx.Login.Username())))
 }
 
 func handleActivateFilter(ctx *web.Context) error {
@@ -373,14 +372,14 @@ func handleActivateFilter(ctx *web.Context) error {
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.ActivateScript(name)
 	})
-	return answer(ctx, err, "/filters", ctx.T("notice.filteron"))
+	return answer(ctx, err, "filters.list", ctx.T("notice.filteron"))
 }
 
 func handleDeactivateFilter(ctx *web.Context) error {
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.ActivateScript("")
 	})
-	return answer(ctx, err, "/filters", ctx.T("notice.filteroff"))
+	return answer(ctx, err, "filters.list", ctx.T("notice.filteroff"))
 }
 
 func handleDeleteFilter(ctx *web.Context) error {
@@ -392,7 +391,7 @@ func handleDeleteFilter(ctx *web.Context) error {
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		return c.DeleteScript(name)
 	})
-	return answer(ctx, err, "/filters", ctx.T("notice.filterdeleted"))
+	return answer(ctx, err, "filters.list", ctx.T("notice.filterdeleted"))
 }
 
 // An extension with no entry keeps its bare name: an invented hint is worse than none.

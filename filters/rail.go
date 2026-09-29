@@ -31,13 +31,13 @@ func rail(ctx *web.Context) map[string][]web.RailRow {
 		}
 		var pages []web.RailRow
 		if include {
-			pages = append(pages, row("filters.rules", "/filters/rules"), row("filters.forwarding", "/filters/forwarding"))
+			pages = append(pages, row("filters.rules", ctx.Path("filters.rules")), row("filters.forwarding", ctx.Path("filters.forwarding")))
 			if vacation {
-				pages = append(pages, row("filters.autoreply", "/filters/autoreply"))
+				pages = append(pages, row("filters.autoreply", ctx.Path("filters.autoreply")))
 			}
 		}
 		// The scripts page is active for whatever the other pages do not claim.
-		scripts := web.RailRow{Label: ctx.T("filters.title"), Href: "/filters" + q, Active: scoped}
+		scripts := web.RailRow{Label: ctx.T("filters.title"), Href: ctx.Path("filters.list") + q, Active: scoped}
 		for _, p := range pages {
 			if p.Active {
 				scripts.Active = false

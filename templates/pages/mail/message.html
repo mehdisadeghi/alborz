@@ -96,15 +96,15 @@
                 <a hx-boost="false" class="button-link" href="{{.Message.URL}}/eml{{$aq}}" download>{{$.T "message.downloademl"}}</a>
                 {{ if $.Filters }}
                 {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
-                <a class="button-link" href="{{ localhref (printf "/filters/rules/create?from=%s&list=%s&subject=%s%v" ($from | qv) (.Message.ListID | qv) (.Message.Envelope.Subject | qv) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
+                <a class="button-link" href="{{ localhref (printf "%s?from=%s&list=%s&subject=%s%v" (url "filters.rules.create") ($from | qv) (.Message.ListID | qv) (.Message.Envelope.Subject | qv) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
                 {{ if $from }}
-                <form method="POST" action="/filters/rules/block{{$aq}}">
+                <form method="POST" action="{{url "filters.rules.block"}}{{$aq}}">
                   <input type="hidden" name="value" value="{{$from}}">
                   <input type="hidden" name="next" value="{{$.Message.URL}}">
                   <button>{{ printf ($.T "message.blocksender") $from }}</button>
                 </form>
                 {{ $domain := .Message.FromDomain }}
-                <form method="POST" action="/filters/rules/block{{$aq}}">
+                <form method="POST" action="{{url "filters.rules.block"}}{{$aq}}">
                   <input type="hidden" name="value" value="{{$domain}}">
                   <input type="hidden" name="domain" value="1">
                   <input type="hidden" name="next" value="{{$.Message.URL}}">

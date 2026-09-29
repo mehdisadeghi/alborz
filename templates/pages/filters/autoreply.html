@@ -6,22 +6,22 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-        {{ template "list-toolbar" (dict "g" $ "title" ($.T "filters.autoreply") "newhref" (printf "/filters/autoreply/create%s" $aq) "newlabel" ($.T "filters.replynew")) }}
+        {{ template "list-toolbar" (dict "g" $ "title" ($.T "filters.autoreply") "newhref" (printf "%s%s" (url "filters.autoreply.create") $aq) "newlabel" ($.T "filters.replynew")) }}
 
-      {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.autoreply") "path" "/filters/autoreply") }}
+      {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.autoreply") "path" (url "filters.autoreply")) }}
 
       {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
-      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="/filters/{{.Script | pathescape}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
+      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="{{url "filters.filter" .Script}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
 
       <section class="list-items">
         {{ range $i, $r := .Replies }}
         <div class="list-item">
           <div class="list-content">
-            <a href="/filters/autoreply/{{$i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
+            <a href="{{url "filters.autoreply.reply" $i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
             <span class="list-detail" dir="auto">{{ with .From }}{{ template "ltr" ($.GlobalData.InputDay .).Value }}{{ end }}{{ if or .From .Until }} – {{ end }}{{ with .Until }}{{ template "ltr" ($.GlobalData.InputDay .).Value }}{{ end }}{{ if or .From .Until }} · {{ end }}{{ with .Subject }}{{.}}{{ else }}{{.Text}}{{ end }}</span>
             {{ if eq $i $.Active }}<span class="list-meta">{{$.T "filters.active"}}</span>{{ end }}
           </div>
-          <form method="post" action="/filters/autoreply/activate{{$aq}}">
+          <form method="post" action="{{url "filters.autoreply.activate"}}{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">
             {{ if eq $i $.Active }}
             <input type="hidden" name="index" value="">
@@ -31,7 +31,7 @@
             <button>{{$.T "filters.activate"}}</button>
             {{ end }}
           </form>
-          <form method="post" action="/filters/autoreply/delete{{$aq}}">
+          <form method="post" action="{{url "filters.autoreply.delete"}}{{$aq}}">
             <input type="hidden" name="loaded" value="{{$.Loaded}}">
             <input type="hidden" name="index" value="{{$i}}">
             <button class="button-danger">{{$.T "common.delete"}}</button>

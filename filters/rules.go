@@ -366,11 +366,11 @@ func handleRuleSave(ctx *web.Context) error {
 	})
 	if err == nil && made >= 0 {
 		ctx.Made(ctx.T("notice.rulecreated"), r.Name,
-			ctx.AccountPath(fmt.Sprintf("/filters/rules/%d", made)),
-			ctx.AccountPath("/filters/rules/create"))
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/filters/rules"))
+			ctx.URL("filters.rule", made),
+			ctx.URL("filters.rules.create"))
+		return ctx.Redirect(http.StatusFound, ctx.URL("filters.rules"))
 	}
-	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
+	return answer(ctx, err, "filters.rules", ctx.T("notice.rulesaved"))
 }
 
 func handleBlock(ctx *web.Context) error {
@@ -414,7 +414,7 @@ func handleBlock(ctx *web.Context) error {
 			return rulesScriptFor(append(rules, block)), nil
 		})
 	})
-	return answer(ctx, err, ctx.FormValue("next"), fmt.Sprintf(ctx.T("notice.blocked"), value))
+	return answer(ctx, err, "filters.rules", fmt.Sprintf(ctx.T("notice.blocked"), value))
 }
 
 func handleRuleDelete(ctx *web.Context) error {
@@ -428,7 +428,7 @@ func handleRuleDelete(ctx *web.Context) error {
 		}
 		return append(rules[:index], rules[index+1:]...)
 	})
-	return answer(ctx, err, "/filters/rules", ctx.T("notice.ruledeleted"))
+	return answer(ctx, err, "filters.rules", ctx.T("notice.ruledeleted"))
 }
 
 // Order is meaning: the first rule that stops wins.
@@ -448,7 +448,7 @@ func handleRuleMove(ctx *web.Context) error {
 		rules[index], rules[to] = rules[to], rules[index]
 		return rules
 	})
-	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
+	return answer(ctx, err, "filters.rules", ctx.T("notice.rulesaved"))
 }
 
 func handleRuleToggle(ctx *web.Context) error {
@@ -462,7 +462,7 @@ func handleRuleToggle(ctx *web.Context) error {
 		}
 		return rules
 	})
-	return answer(ctx, err, "/filters/rules", ctx.T("notice.rulesaved"))
+	return answer(ctx, err, "filters.rules", ctx.T("notice.rulesaved"))
 }
 
 func changeRules(ctx *web.Context, change func([]Rule) []Rule) error {

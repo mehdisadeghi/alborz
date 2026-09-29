@@ -23,6 +23,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -3358,5 +3359,131 @@ func TestNeighboursOnTheThirdPageOfASortedList(t *testing.T) {
 	}
 	if n := asked.sorts.Load(); n != 1 {
 		t.Errorf("listing and opening sent %d SORTs, want the one", n)
+	}
+}
+
+// sieveScripts is a ManageSieve server's store, as the fake below keeps it.
+type sieveScripts struct {
+	mu      sync.Mutex
+	scripts map[string]string
+	active  string
+}
+
+func (s *sieveScripts) get(name string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.scripts[name]
+}
+
+// startSieve serves enough of ManageSieve (RFC 5804) for the filters pages: the commands the client sends, strings as literals.
+func startSieve(t *testing.T) (string, *sieveScripts) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	store := &sieveScripts{scripts: map[string]string{}}
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go serveSieve(conn, store)
+		}
+	}()
+	return ln.Addr().String(), store
+}
+
+var sieveLiteral = regexp.MustCompile(`\{(\d+)\+?\}$`)
+
+func serveSieve(conn net.Conn, s *sieveScripts) {
+	defer conn.Close()
+	r := bufio.NewReader(conn)
+	capability := `"IMPLEMENTATION" "fake"` + "\r\n" + `"SASL" "PLAIN"` + "\r\n" +
+		`"SIEVE" "fileinto imap4flags copy include vacation"` + "\r\n" + `"VERSION" "1.0"` + "\r\nOK\r\n"
+	io.WriteString(conn, capability)
+	literal := func(v string) string { return fmt.Sprintf("{%d}\r\n%s", len(v), v) }
+	for {
+		var args []string
+		line, err := r.ReadString('\n')
+		if err != nil {
+			return
+		}
+		line = strings.TrimRight(line, "\r\n")
+		for {
+			m := sieveLiteral.FindStringSubmatchIndex(line)
+			if m == nil {
+				break
+			}
+			args = append(args, strings.Fields(line[:m[0]])...)
+			n, _ := strconv.Atoi(line[m[2]:m[3]])
+			buf := make([]byte, n)
+			if _, err := io.ReadFull(r, buf); err != nil {
+				return
+			}
+			args = append(args, string(buf))
+			rest, err := r.ReadString('\n')
+			if err != nil {
+				return
+			}
+			line = strings.TrimRight(rest, "\r\n")
+		}
+		args = append(args, strings.Fields(line)...)
+		s.mu.Lock()
+		switch strings.ToUpper(args[0]) {
+		case "AUTHENTICATE":
+			io.WriteString(conn, "OK\r\n")
+		case "CAPABILITY":
+			io.WriteString(conn, capability)
+		case "LISTSCRIPTS":
+			for name := range s.scripts {
+				active := ""
+				if name == s.active {
+					active = " ACTIVE"
+				}
+				fmt.Fprintf(conn, "%s%s\r\n", literal(name), active)
+			}
+			io.WriteString(conn, "OK\r\n")
+		case "GETSCRIPT":
+			fmt.Fprintf(conn, "%s\r\nOK\r\n", literal(s.scripts[args[1]]))
+		case "PUTSCRIPT":
+			s.scripts[args[1]] = args[2]
+			io.WriteString(conn, "OK\r\n")
+		case "SETACTIVE":
+			s.active = args[1]
+			io.WriteString(conn, "OK\r\n")
+		case "DELETESCRIPT":
+			delete(s.scripts, args[1])
+			io.WriteString(conn, "OK\r\n")
+		default:
+			io.WriteString(conn, "NO\r\n")
+		}
+		s.mu.Unlock()
+	}
+}
+
+// Blocking lands wherever the form says, not on a route, and leaves the rule in the script.
+func TestBlockingASenderLandsOnTheMessage(t *testing.T) {
+	sieve, scripts := startSieve(t)
+	base := startAlborzWith(t, []string{"test.local=imap+insecure://" + startIMAP(t), "test.local=sieve+insecure://" + sieve})
+	c := login(t, base)
+	resp, err := c.PostForm(base+"/filters/rules/block?account="+smokeUser,
+		url.Values{"value": {"spam@example.org"}, "next": {"/mailbox/INBOX"}})
+	if err != nil {
+		t.Fatalf("block: %v", err)
+	}
+	var body bytes.Buffer
+	body.ReadFrom(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Request.URL.Path != "/mailbox/INBOX" {
+		t.Fatalf("block landed on %s with %s, want /mailbox/INBOX", resp.Request.URL.Path, resp.Status)
+	}
+	if !strings.Contains(body.String(), "Mail from spam@example.org now goes to Junk.") {
+		t.Errorf("the landing page does not say the sender was blocked")
+	}
+	if rules := scripts.get("alborz-rules"); !strings.Contains(rules, `address :is "from" "spam@example.org"`) {
+		t.Errorf("the rules script does not block the sender:\n%s", rules)
 	}
 }

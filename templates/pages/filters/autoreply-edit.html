@@ -6,8 +6,8 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      <form method="post" action="/filters/autoreply{{$aq}}">
-        {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.autoreply") "path" "/filters/autoreply") }}
+      <form method="post" action="{{url "filters.autoreply"}}{{$aq}}">
+        {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.autoreply") "path" (url "filters.autoreply")) }}
         <h1>{{ if ge .Index 0 }}{{$.T "filters.replyedit"}}{{ else }}{{$.T "filters.replynew"}}{{ end }}</h1>
         <input type="hidden" name="loaded" value="{{.Loaded}}">
         {{ if ge .Index 0 }}<input type="hidden" name="index" value="{{.Index}}">{{ end }}
@@ -40,6 +40,6 @@
           {{ end }}
         </fieldset>
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/filters/autoreply%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "%s%s" (url "filters.autoreply") $aq) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

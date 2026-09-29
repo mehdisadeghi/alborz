@@ -106,12 +106,14 @@ func (ctx *Context) Cookie(name string) (*http.Cookie, error) { return ctx.reque
 
 func (ctx *Context) SetCookie(c *http.Cookie) { http.SetCookie(ctx.response, c) }
 
-// Scheme is https behind TLS or a proxy that says so, else http.
+// Scheme is https behind TLS or a trusted proxy that says so, else http.
 func (ctx *Context) Scheme() string {
 	h := ctx.request.Header
 	switch {
 	case ctx.request.TLS != nil:
 		return "https"
+	case !ctx.viaTrustedProxy():
+		return "http"
 	case h.Get("X-Forwarded-Proto") != "":
 		return h.Get("X-Forwarded-Proto")
 	case h.Get("X-Forwarded-Protocol") != "":
@@ -143,6 +145,12 @@ func (ctx *Context) RealIP() string {
 	}
 	// Every hop is trusted, so the farthest is the best guess.
 	return strings.TrimSpace(hops[0])
+}
+
+// viaTrustedProxy reports whether the connection comes from a proxy whose forwarded headers are believed.
+func (ctx *Context) viaTrustedProxy() bool {
+	peer, err := netip.ParseAddrPort(ctx.request.RemoteAddr)
+	return err == nil && ctx.Server.trusts(peer.Addr())
 }
 
 // Redirect answers with code and the location, and no body.

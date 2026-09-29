@@ -121,4 +121,7 @@ Behind nginx with TLS (certificates via certbot):
         ssl_certificate_key /etc/letsencrypt/live/webmail.example.org/privkey.pem;
     }
 
-`X-Forwarded-Proto` matters: alborz marks its cookies Secure based on it.
+Run alborz with `-trusted-proxy 127.0.0.1` behind it: `X-Forwarded-Proto` and
+`X-Forwarded-For` are believed only from a trusted proxy, and behind TLS
+alborz marks its cookies Secure only when that proxy says the request came
+over https.

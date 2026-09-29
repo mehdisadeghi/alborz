@@ -52,7 +52,7 @@ func startIMAP(t *testing.T) string {
 }
 
 // serve mounts the routes as run does over the data in dir; stop closes the server so another can open dir.
-func serve(t *testing.T, dir, imapAddr string) (s *web.Server, base string, stop func()) {
+func serve(t *testing.T, dir, imapAddr string, proxies ...string) (s *web.Server, base string, stop func()) {
 	t.Helper()
 	s, err := web.New(log.New(io.Discard, "", 0), web.Options{
 		Options: alborz.Options{
@@ -60,6 +60,7 @@ func serve(t *testing.T, dir, imapAddr string) (s *web.Server, base string, stop
 			LoginKey:  testKey,
 			DataDir:   dir,
 		},
+		TrustedProxies: proxies,
 	}, mail.TemplateFuncs)
 	if err != nil {
 		t.Fatal(err)
@@ -160,6 +161,36 @@ func TestALockedSessionReachesOnlyTheWayBackIn(t *testing.T) {
 	for name := range lockOpen {
 		if !named[name] {
 			t.Errorf("no route named %q", name)
+		}
+	}
+}
+
+// A header anyone can send marks cookies Secure only from a proxy in front.
+func TestTheForwardedSchemeIsTakenOnlyFromATrustedProxy(t *testing.T) {
+	for _, trusted := range []bool{false, true} {
+		var proxies []string
+		if trusted {
+			proxies = []string{"127.0.0.1"}
+		}
+		_, base, _ := serve(t, t.TempDir(), startIMAP(t), proxies...)
+		req, err := http.NewRequest(http.MethodGet, base+"/login?lang=fa", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("X-Forwarded-Proto", "https")
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		cookies := resp.Cookies()
+		if len(cookies) == 0 {
+			t.Fatal("choosing a language set no cookie; the check is vacuous")
+		}
+		for _, c := range cookies {
+			if c.Secure != trusted {
+				t.Errorf("trusted=%v: cookie %s Secure=%v", trusted, c.Name, c.Secure)
+			}
 		}
 	}
 }

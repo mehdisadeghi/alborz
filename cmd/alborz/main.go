@@ -80,7 +80,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 	fs.BoolVar(&options.PrivateServices, "private-services", false,
 		"let an account name a calendar or contacts server on plain HTTP or a private address")
 	fs.StringVar(&proxies, "trusted-proxy", "",
-		"comma-separated addresses or CIDR ranges of the proxies in front of alborz, whose X-Forwarded-For names the reader; unset takes the connection's address")
+		"comma-separated addresses or CIDR ranges of the proxies in front of alborz, whose X-Forwarded-For names the reader and X-Forwarded-Proto the scheme; unset takes the connection's own")
 	fs.StringVar(&options.PublicURL, "public-url", getenv("LBRZ_PUBLIC_URL"),
 		"where readers reach alborz, such as https://mail.example.org, for links in mail and addresses shown to other clients (or $LBRZ_PUBLIC_URL); unset uses each request's own")
 	// The environment keeps the key out of the process list.

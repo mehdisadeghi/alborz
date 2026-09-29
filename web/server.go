@@ -35,7 +35,7 @@ type Server struct {
 	// loaded is what a reload swaps: the templates and custom.css.
 	loaded atomic.Pointer[loaded]
 
-	// trusted are the proxies whose X-Forwarded-For names the reader.
+	// trusted are the proxies whose X-Forwarded-For names the reader and X-Forwarded-Proto the scheme.
 	trusted []netip.Prefix
 	// projectURL is where the footer's name links; strictNotices fails a POST that redirects saying nothing.
 	projectURL    string
@@ -76,7 +76,7 @@ type loaded struct {
 // Options are alborz's, and what the web adds.
 type Options struct {
 	alborz.Options
-	// TrustedProxies are the addresses or CIDR ranges of the proxies in front, whose X-Forwarded-For names the reader.
+	// TrustedProxies are the addresses or CIDR ranges of the proxies in front, whose X-Forwarded-For names the reader and X-Forwarded-Proto the scheme.
 	TrustedProxies []string
 	// ProjectURL is where the footer's name links; empty prints the name alone.
 	ProjectURL string

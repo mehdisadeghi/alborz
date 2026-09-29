@@ -500,11 +500,53 @@ func (s *Server) Router() Router { return Router{s.e} }
 // Pre answers requests ahead of routing, sessions and cookies, inside the reload lock.
 func (s *Server) Pre(mw echo.MiddlewareFunc) { s.e.Pre(mw) }
 
-func (r Router) GET(path string, h HandlerFunc)  { r.add(http.MethodGet, path, h) }
-func (r Router) POST(path string, h HandlerFunc) { r.add(http.MethodPost, path, h) }
+// MaxFormSize bounds a form with no file: several times the longest text one carries, a Sieve script.
+const MaxFormSize = 4 << 20
 
-func (r Router) add(method, path string, h HandlerFunc) {
-	r.e.Add(method, path, func(ectx echo.Context) error { return h(ectx.(*Context)) })
+// FormFieldsSize is the room a file's form takes beside it, for the other fields and the part headers.
+const FormFieldsSize = 64 << 10
+
+// formMemory is what a parsed form holds in memory before files go to disk, as echo's own parse.
+const formMemory = 32 << 20
+
+func (r Router) GET(path string, h HandlerFunc) {
+	r.add(http.MethodGet, path, MaxFormSize, h, refuseTooLarge)
+}
+func (r Router) POST(path string, h HandlerFunc) {
+	r.add(http.MethodPost, path, MaxFormSize, h, refuseTooLarge)
+}
+
+// Upload takes a form carrying files up to limit; one past it is answered by over, h never seeing its empty fields.
+func (r Router) Upload(path string, limit int64, h, over HandlerFunc) {
+	r.add(http.MethodPost, path, limit, h, over)
+}
+
+// Stream leaves a body up to limit to the handler, to read as it arrives and meet *http.MaxBytesError where it stops.
+func (r Router) Stream(path string, limit int64, h HandlerFunc) {
+	r.add(http.MethodPost, path, limit, h, nil)
+}
+
+func refuseTooLarge(*Context) error { return echo.NewHTTPError(http.StatusRequestEntityTooLarge) }
+
+// add bounds the body before the handler reads it, so an upload past the limit is refused unread.
+// A form is parsed first, since one cut short reads as empty fields; with no over, the handler streams it.
+func (r Router) add(method, path string, limit int64, h, over HandlerFunc) {
+	r.e.Add(method, path, func(ectx echo.Context) error {
+		ctx := ectx.(*Context)
+		req := ctx.Request()
+		req.Body = http.MaxBytesReader(ctx.Response(), req.Body, limit)
+		if method != http.MethodPost || over == nil {
+			return h(ctx)
+		}
+		err := req.ParseMultipartForm(formMemory)
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return over(ctx)
+		} else if err != nil && !errors.Is(err, http.ErrNotMultipart) {
+			return echo.NewHTTPError(http.StatusBadRequest, err)
+		}
+		return h(ctx)
+	})
 }
 
 // Logger returns this server's logger.

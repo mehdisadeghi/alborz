@@ -61,6 +61,9 @@ const photoLongestSide = 320
 // Beyond this the answer is no rather than a slow yes.
 const photoMaxUpload = 12 << 20
 
+// photoBodySize bounds a contact's form: its fields and the photo.
+const photoBodySize = photoMaxUpload + alborz.MaxFormSize
+
 var (
 	errPhotoTooLarge   = errors.New("carddav: photo over the upload limit")
 	errPhotoUnreadable = errors.New("carddav: photo is not an image")
@@ -68,6 +71,12 @@ var (
 
 // Past this the bytes grow faster than a thumbnail improves.
 const photoQuality = 82
+
+// photoTooLarge answers a contact form past its limit: the fields did not arrive, so it opens again on what the server holds.
+func photoTooLarge(ctx *alborz.Context) error {
+	ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.T("form.phototoolarge")})
+	return ctx.Redirect(http.StatusFound, ctx.Request().URL.String())
+}
 
 func applyPhoto(ctx *alborz.Context, card vcard.Card) error {
 	file, err := ctx.FormFile("photo")

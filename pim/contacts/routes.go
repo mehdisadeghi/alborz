@@ -50,6 +50,9 @@ func registerRoutes(p *plugin) {
 	}
 	GET := func(path string, h func(*alborz.Context) error) { p.Router.GET(path, guard(h)) }
 	POST := func(path string, h func(*alborz.Context) error) { p.Router.POST(path, guard(h)) }
+	upload := func(path string, limit int64, h, over func(*alborz.Context) error) {
+		p.Router.Upload(path, limit, guard(h), guard(over))
+	}
 	POST("/contacts", pim.HandleChoose("/contacts", "book", choose))
 	GET("/contacts", p.contacts)
 	POST("/contacts/export", pim.HandleExport(p.client, "/contacts",
@@ -62,12 +65,13 @@ func registerRoutes(p *plugin) {
 	GET("/address-books/create", page.HandleCreate(p.dav, p.createForm))
 	POST("/address-books/create", page.HandleCreate(p.dav, p.createForm))
 	GET("/contacts/export-all", page.HandleExportAll("/contacts", "address-books.zip"))
-	GET("/contacts/import", page.HandleImportPage(p.dav, "/contacts", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false))
-	POST("/contacts/import", page.HandleImportPage(p.dav, "/contacts", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false))
+	contactsImport, contactsOver := page.HandleImportPage(p.dav, "/contacts", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false)
+	GET("/contacts/import", contactsImport)
+	upload("/contacts/import", pim.ImportBodySize, contactsImport, contactsOver)
 	GET("/address-books/:path", page.Handle(p.dav))
 	POST("/address-books/:path", page.Handle(p.dav))
 	POST("/address-books/:path/delete", page.HandleDelete(p.dav))
-	POST("/address-books/:path/import", page.HandleImport(p.dav))
+	upload("/address-books/:path/import", pim.ImportBodySize, page.HandleImport(p.dav), page.HandleImportTooLarge)
 	GET("/address-books/:path/export", page.HandleExport(p.dav))
 	POST("/address-books/:path/share", page.HandleShare(p.dav))
 	POST("/address-books/:path/unshare", page.HandleUnshare(p.dav))
@@ -75,9 +79,9 @@ func registerRoutes(p *plugin) {
 	POST("/address-books/:path/accept", page.HandleAnswer(p.dav, true))
 	POST("/address-books/:path/decline", page.HandleAnswer(p.dav, false))
 	GET("/contacts/create", p.updateContact)
-	POST("/contacts/create", p.updateContact)
+	upload("/contacts/create", photoBodySize, p.updateContact, photoTooLarge)
 	GET("/contacts/:path/edit", p.updateContact)
-	POST("/contacts/:path/edit", p.updateContact)
+	upload("/contacts/:path/edit", photoBodySize, p.updateContact, photoTooLarge)
 	POST("/contacts/color", p.color)
 	POST("/contacts/:path/group", p.groupContact)
 	POST("/contacts/:path/color", p.color)

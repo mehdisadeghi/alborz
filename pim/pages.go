@@ -280,6 +280,21 @@ func (pg Page) data(ctx *alborz.Context, p *dav.Provider, collPath string) (*Col
 
 const maxImportSize = 16 << 20
 
+// ImportBodySize bounds an import's upload: the file and the form around it.
+const ImportBodySize = maxImportSize + alborz.FormFieldsSize
+
+func importTooLarge(ctx *alborz.Context) string { return ctx.Tf("import.toolarge", maxImportSize>>20) }
+
+// HandleImportTooLarge answers an upload past the limit on the collection it was sent to.
+func (pg Page) HandleImportTooLarge(ctx *alborz.Context) error {
+	collPath, err := ParseObjectPath(ctx.Param("path"))
+	if err != nil {
+		return err
+	}
+	ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: importTooLarge(ctx)})
+	return ctx.Redirect(http.StatusFound, ctx.AccountPath(pg.Base+url.PathEscape(dav.CanonicalCollectionPath(collPath))))
+}
+
 // HandleImport writes an uploaded file into the collection.
 func (pg Page) HandleImport(p *dav.Provider) func(*alborz.Context) error {
 	return func(ctx *alborz.Context) error {
@@ -293,12 +308,12 @@ func (pg Page) HandleImport(p *dav.Provider) func(*alborz.Context) error {
 		}
 		back := ctx.NextOr(ctx.AccountPath(pg.Base + url.PathEscape(collPath)))
 		file, err := ctx.FormFile("file")
+		if err == nil && file.Size > maxImportSize {
+			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: importTooLarge(ctx)})
+			return ctx.Redirect(http.StatusFound, back)
+		}
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "no file was sent")
-		}
-		if file.Size > maxImportSize {
-			ctx.Notify(alborz.Notice{Kind: alborz.NoticeFailed, Text: ctx.Tf("import.toolarge", maxImportSize>>20)})
-			return ctx.Redirect(http.StatusFound, back)
 		}
 		raw, err := readUpload(file)
 		if err != nil {
@@ -345,7 +360,7 @@ func fetchAddress(ctx *alborz.Context, client *http.Client, address string) ([]b
 		return nil, errors.New(ctx.Tf("import.fetchfailed", err))
 	}
 	if len(raw) > maxImportSize {
-		return nil, errors.New(ctx.Tf("import.toolarge", maxImportSize>>20))
+		return nil, errors.New(importTooLarge(ctx))
 	}
 	return raw, nil
 }
@@ -556,11 +571,12 @@ type ImportData struct {
 }
 
 // HandleImportPage is the section's import page, reached from its rail; any writable collection may receive.
-func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key string, address bool) func(*alborz.Context) error {
-	return func(ctx *alborz.Context) error {
+// over answers an upload past the limit on the page.
+func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key string, address bool) (page, over func(*alborz.Context) error) {
+	build := func(ctx *alborz.Context) (*ImportData, error) {
 		rail, err := pg.Rail(ctx, list)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		rail.ImportHref = list + "/import"
 		var groups []dav.Group
@@ -608,6 +624,21 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		if ctx.URLAccount() != "" {
 			data.Account = ctx.URLAccount()
 		}
+		return data, nil
+	}
+	over = func(ctx *alborz.Context) error {
+		data, err := build(ctx)
+		if err != nil {
+			return err
+		}
+		data.Refused(importTooLarge(ctx))
+		return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
+	}
+	page = func(ctx *alborz.Context) error {
+		data, err := build(ctx)
+		if err != nil {
+			return err
+		}
 		if ctx.Request().Method != http.MethodPost {
 			return ctx.Render(http.StatusOK, "pim/import", data)
 		}
@@ -633,7 +664,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
 			if file.Size > maxImportSize {
-				data.Refused(ctx.Tf("import.toolarge", maxImportSize>>20))
+				data.Refused(importTooLarge(ctx))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
 			if raw, err = readUpload(file); err != nil {
@@ -666,6 +697,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		}
 		return ctx.Redirect(http.StatusFound, ctx.AccountPath(list))
 	}
+	return page, over
 }
 
 // HandleExport sends the collection as one file; a date range narrows a calendar.

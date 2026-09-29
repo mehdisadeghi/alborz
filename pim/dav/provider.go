@@ -73,6 +73,9 @@ type Provider struct {
 	// Startup probes fill it after NewProvider returns; hostsMu guards the writes.
 	hosts   map[string]*url.URL
 	hostsMu sync.Mutex
+	// instance is this alborz's name; selves holds, per domain server, whether it is this alborz.
+	instance string
+	selves   sync.Map
 	// mirror is nil with caching off.
 	mirror *Mirror
 	// trusted reaches the servers the deployment names or finds; named reaches the one an account names,
@@ -128,6 +131,7 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 		p.named = srv.Outgoing.Guarded
 	}
 	p.here, p.local, p.Store = here, st.Handler(), st
+	p.instance = srv.Instance
 	if srv.Options.Debug {
 		p.debug = srv.Logger()
 	}
@@ -241,6 +245,13 @@ func route(sources []Source, p string) (Source, string, error) {
 	return found, rest, nil
 }
 
+// isHere says whether the server at u is this alborz. It is asked once, on first use rather than at
+// start: a request is being served by then, so this alborz answers.
+func (p *Provider) isHere(u *url.URL) bool {
+	once, _ := p.selves.LoadOrStore(u.String(), sync.OnceValue(func() bool { return answersAs(p.trusted, u, p.instance) }))
+	return once.(func() bool)()
+}
+
 // Sources are the account's DAV servers, each once: its own, its domain's, its mail host's and this alborz.
 func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	var out []Source
@@ -257,7 +268,7 @@ func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 		domain = ""
 		u, ok = p.urls[""]
 	}
-	if ok {
+	if ok && !p.isHere(u) {
 		origin := "servers.fromconfig"
 		if p.found[domain] != "" {
 			origin = "servers.fromsrv"

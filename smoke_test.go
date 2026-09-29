@@ -346,16 +346,20 @@ func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
 
 func serveAlborz(t *testing.T, upstreams []string, cache bool) string {
 	t.Helper()
-	return serveAlborzAt(t, upstreams, cache, nil)
+	return serveAlborzAt(t, func(string) []string { return upstreams }, cache, nil)
 }
 
-// serveAlborzAt serves an alborz whose -public-url is public.
-func serveAlborzAt(t *testing.T, upstreams []string, cache bool, public *url.URL) string {
+// serveAlborzAt serves an alborz whose -public-url is public, with upstreams that may name its own host.
+func serveAlborzAt(t *testing.T, upstreams func(host string) []string, cache bool, public *url.URL) string {
 	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
 	newAlborz(t, e, &alborz.Options{
-		Upstreams: upstreams,
+		Upstreams: upstreams(ln.Addr().String()),
 		LoginKey:  smokeKey,
 		DataDir:   t.TempDir(),
 		Cache:     cache,
@@ -363,10 +367,6 @@ func serveAlborzAt(t *testing.T, upstreams []string, cache bool, public *url.URL
 		// A handler that sends the reader elsewhere says what it did.
 		StrictNotices: true,
 	})
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
 	go e.Server.Serve(ln)
 	t.Cleanup(func() { e.Close() })
 	return "http://" + ln.Addr().String()

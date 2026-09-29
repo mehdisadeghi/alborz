@@ -31,7 +31,7 @@ type TaskRenderData struct {
 	List       string
 	Star       string
 	Priority   string
-	Neighbours pim.Neighbours
+	Neighbours alborz.Neighbours
 }
 
 type UpdateTaskRenderData struct {

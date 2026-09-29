@@ -194,6 +194,14 @@ func Paginate[T any](ctx *Context, items []T) ([]T, Pager, error) {
 	return items[from:to], NewPager(ctx.Request().URL, p, len(items), PerPageChoices(ctx)), nil
 }
 
+// Neighbours are the objects either side of the one on the page; Total is zero without a list.
+type Neighbours struct {
+	PrevURL  string
+	NextURL  string
+	Position int
+	Total    int
+}
+
 // FlagColors names the colours the flag bits address, indexed by their value.
 var FlagColors = [7]string{"red", "orange", "yellow", "green", "blue", "purple", "grey"}
 

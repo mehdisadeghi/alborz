@@ -31,7 +31,7 @@ type EventRenderData struct {
 	// List is the view the page was opened from.
 	List       string
 	Star       string
-	Neighbours pim.Neighbours
+	Neighbours alborz.Neighbours
 	// Repeats says the rule in words; RepeatsUntil its last day.
 	Repeats, RepeatsUntil string
 }

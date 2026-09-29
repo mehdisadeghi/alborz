@@ -36,7 +36,7 @@ type AddressObjectRenderData struct {
 	AddressObject AddressObject
 	Birthday      string
 	BirthdayDate  time.Time
-	Neighbours    pim.Neighbours
+	Neighbours    alborz.Neighbours
 	// In are the groups naming this contact, Groups the others.
 	In     []AddressObject
 	Groups []AddressObject

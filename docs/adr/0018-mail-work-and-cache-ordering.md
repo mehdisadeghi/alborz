@@ -59,14 +59,16 @@ then the connection is closed and the next call dials a new one.
 ## Transfers
 
 A download (a part, the whole message or its source, the attachments as
-a zip, an mbox export) streams from the server's literal to the reader
-and holds neither connection: it gets a connection of its own
-(`DoIMAPTransfer`). A login runs at most two at once, since Dovecot
-allows ten connections per user and address by default. A transfer has
-no total bound: it ends when the reader leaves, the login ends, or the
-server sends nothing for 30 s. Its connection is kept for the next
-transfer, as a page's images follow one another, and closes after 30 s
-unused; one idle for more than half of that is not reused.
+a zip, an mbox export) streams from the server's literal to the reader.
+A signature check, which the page asks for once it has loaded, streams
+the signed part through the verifier. Neither holds a lane: each gets a
+connection of its own (`DoIMAPTransfer`). A login runs at most two at
+once, since Dovecot allows ten connections per user and address by
+default. A transfer has no total bound: it ends when the reader leaves,
+the login ends, or the server sends nothing for 30 s. Its connection is
+kept for the next transfer, as a page's images follow one another, and
+closes after 30 s unused; one idle for more than half of that is not
+reused.
 
 ## Write and invalidation rules
 

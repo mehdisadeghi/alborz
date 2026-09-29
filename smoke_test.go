@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/settings"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-imap/v2/imapserver"
@@ -1897,6 +1899,85 @@ func TestDownloadedPartIsTheFileSent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Opening a signed message reads only the part it shows; the verdict, which
+// streams the signed part through the check, comes from a request of its own.
+func TestSignedMessageOpensWithoutItsAttachment(t *testing.T) {
+	key, err := openpgp.NewEntity("Gil", "", "gil@example.org", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var public bytes.Buffer
+	if err := key.Serialize(&public); err != nil {
+		t.Fatal(err)
+	}
+	attachment := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xa5}, 1<<21))
+	var wrapped strings.Builder
+	for len(attachment) > 76 {
+		wrapped.WriteString(attachment[:76] + "\r\n")
+		attachment = attachment[76:]
+	}
+	signed := "Content-Type: multipart/mixed; boundary=in\r\n\r\n" +
+		"--in\r\nContent-Type: text/plain\r\n\r\nThe signed words.\r\n" +
+		"--in\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n" +
+		"Content-Disposition: attachment; filename=\"big.bin\"\r\n\r\n" + wrapped.String() + attachment + "\r\n--in--\r\n"
+	var sig bytes.Buffer
+	if err := openpgp.ArmoredDetachSign(&sig, key, strings.NewReader(signed), nil); err != nil {
+		t.Fatal(err)
+	}
+	raw := "From: Gil <gil@example.org>\r\nTo: <" + smokeUser + ">\r\nSubject: Signed and large\r\nMIME-Version: 1.0\r\n" +
+		"Autocrypt: addr=gil@example.org; keydata=" + base64.StdEncoding.EncodeToString(public.Bytes()) + "\r\n" +
+		"Content-Type: multipart/signed; micalg=pgp-sha256; protocol=\"application/pgp-signature\"; boundary=sig\r\n\r\n" +
+		"--sig\r\n" + signed + "\r\n--sig\r\nContent-Type: application/pgp-signature\r\n\r\n" + sig.String() + "\r\n--sig--\r\n"
+
+	mem := imapmemserver.New()
+	user := imapmemserver.NewUser(smokeUser, smokePass)
+	if err := user.Create("INBOX", nil); err != nil {
+		t.Fatal(err)
+	}
+	appended, err := user.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mem.AddUser(user)
+	var wire trafficCount
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := imapserver.New(&imapserver.Options{
+		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
+			return mem.NewSession(), nil, nil
+		},
+		Caps:         rigCaps(),
+		InsecureAuth: true,
+		DebugWriter:  &wire,
+	})
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+
+	base := startAlborz(t, ln.Addr().String())
+	c := login(t, base)
+	message := fmt.Sprintf("%s/message/INBOX/%d", base, appended.UID)
+	before := wire.n.Load()
+	page := get(t, c, message)
+	if moved := wire.n.Load() - before; moved >= 1<<21 {
+		t.Errorf("opening the message moved %d bytes, as much as its attachment", moved)
+	}
+	if !strings.Contains(page, "The signed words.") || !strings.Contains(page, "/signature") {
+		t.Fatal("the page shows neither the signed words nor a place for the verdict")
+	}
+	if verdict := get(t, c, message+"/signature"); !strings.Contains(verdict, "sig-good") {
+		t.Errorf("the verdict on a good signature reads %q", verdict)
+	}
+}
+
+type trafficCount struct{ n atomic.Int64 }
+
+func (w *trafficCount) Write(b []byte) (int, error) {
+	w.n.Add(int64(len(b)))
+	return len(b), nil
 }
 
 func TestListCardOnlyWhenItHasRows(t *testing.T) {

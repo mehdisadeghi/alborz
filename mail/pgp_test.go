@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/x509"
@@ -12,9 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"git.mehdix.org/alborz/internal/pgp"
 	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"github.com/emersion/go-message/textproto"
+	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-imap/v2/imapserver"
+	"github.com/emersion/go-imap/v2/imapserver/imapmemserver"
 )
 
 const signedWords = "Content-Type: text/plain; charset=UTF-8\r\n\r\nOne part, signed.\r\n"
@@ -28,10 +32,10 @@ func pgpKey(t *testing.T, config *packet.Config) *openpgp.Entity {
 	return entity
 }
 
-func pgpSignature(t *testing.T, entity *openpgp.Entity, config *packet.Config) string {
+func pgpSignature(t *testing.T, entity *openpgp.Entity, signed string, config *packet.Config) string {
 	t.Helper()
 	var sig bytes.Buffer
-	if err := openpgp.ArmoredDetachSign(&sig, entity, strings.NewReader(signedWords), config); err != nil {
+	if err := openpgp.ArmoredDetachSign(&sig, entity, strings.NewReader(signed), config); err != nil {
 		t.Fatal(err)
 	}
 	return "Content-Type: application/pgp-signature\r\n\r\n" + sig.String()
@@ -64,11 +68,23 @@ func (unresolvable) RoundTrip(r *http.Request) (*http.Response, error) {
 func TestVerdict(t *testing.T) {
 	key := pgpKey(t, nil)
 	carried := autocryptFor(t, key)
-	signature := pgpSignature(t, key, nil)
+	signature := pgpSignature(t, key, signedWords, nil)
+	var armoredKey bytes.Buffer
+	w, err := armor.Encode(&armoredKey, openpgp.PublicKeyType, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := key.Serialize(w); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	// Armor ends its lines in LF alone; a sender signs the canonical CRLF.
+	withKey := string(pgp.CRLF([]byte("Content-Type: multipart/mixed; boundary=in\r\n\r\n--in\r\n" + signedWords +
+		"--in\r\nContent-Type: application/pgp-keys\r\n\r\n" + armoredKey.String() + "\r\n--in--\r\n")))
 
 	past := time.Now().Add(-48 * time.Hour)
 	expired := pgpKey(t, &packet.Config{Time: func() time.Time { return past }, KeyLifetimeSecs: 3600})
-	expiredSignature := pgpSignature(t, expired, &packet.Config{Time: func() time.Time { return past.Add(time.Minute) }})
+	expiredSignature := pgpSignature(t, expired, signedWords, &packet.Config{Time: func() time.Time { return past.Add(time.Minute) }})
 
 	ca, sign := signer(t, "gil@example.org")
 	trusted := x509.NewCertPool()
@@ -84,6 +100,7 @@ func TestVerdict(t *testing.T) {
 		want SignatureState
 	}{
 		{"root PGP/MIME", mailFrom(carried, multipartSigned(pgpProtocol, signedWords, signature)), SignatureGood},
+		{"key attached beside the signed words", mailFrom("", multipartSigned(pgpProtocol, withKey, pgpSignature(t, key, withKey, nil))), SignatureGood},
 		{"tampered", mailFrom(carried, multipartSigned(pgpProtocol, strings.Replace(signedWords, "signed", "sigued", 1), signature)), SignatureBad},
 		{"signed by a key the sender did not carry", mailFrom(autocryptFor(t, pgpKey(t, nil)), multipartSigned(pgpProtocol, signedWords, signature)), SignatureNone},
 		{"expired key", mailFrom(autocryptFor(t, expired), multipartSigned(pgpProtocol, signedWords, expiredSignature)), SignatureNone},
@@ -95,12 +112,7 @@ func TestVerdict(t *testing.T) {
 		{"root S/MIME", mailFrom("", multipartSigned("application/pkcs7-signature", signedWords, smimeSignature)), SignatureGood},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			h, err := textproto.ReadHeader(bufio.NewReader(strings.NewReader(c.raw)))
-			if err != nil {
-				t.Fatal(err)
-			}
-			p := &plugin{wkd: newWKDCache(0)}
-			v := p.verify(context.Background(), &http.Client{Transport: unresolvable{}}, []byte(c.raw), h, "gil@example.org")
+			v := verdictOver(t, c.raw)
 			if v.State != c.want {
 				t.Fatalf("verdict %+v, want %q", v, c.want)
 			}
@@ -109,4 +121,57 @@ func TestVerdict(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Over IMAP, as the check reads the signed part the way the server cuts it.
+func verdictOver(t *testing.T, raw string) Verification {
+	t.Helper()
+	mem := imapmemserver.New()
+	user := imapmemserver.NewUser("a@test.local", "x")
+	if err := user.Create("INBOX", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := user.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	mem.AddUser(user)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := imapserver.New(&imapserver.Options{
+		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
+			return mem.NewSession(), nil, nil
+		},
+		Caps:         imap.CapSet{imap.CapIMAP4rev1: {}},
+		InsecureAuth: true,
+	})
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+
+	c, err := imapclient.DialInsecure(ln.Addr().String(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := c.Login("a@test.local", "x").Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Select("INBOX", nil).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	msgs, err := c.Fetch(imap.UIDSetNum(1), partFetchOptions(nil, true)).Collect()
+	if err != nil || len(msgs) != 1 {
+		t.Fatalf("fetch: %v", err)
+	}
+	msg, _, err := messagePart(msgs[0], "INBOX", 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &plugin{wkd: newWKDCache(0)}
+	v, err := p.verifySignature(context.Background(), &http.Client{Transport: unresolvable{}}, c, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
 }

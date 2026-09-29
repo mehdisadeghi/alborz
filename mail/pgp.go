@@ -5,16 +5,19 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/mail"
+	"slices"
 	"strings"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/pgp"
 	"github.com/ProtonMail/go-crypto/openpgp"
 	pgperrors "github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/textproto"
 )
 
@@ -35,6 +38,54 @@ const (
 	KeyFromDomain  KeySource = "domain"  // the Web Key Directory
 	KeyFromCA      KeySource = "ca"      // an S/MIME certificate's issuer
 )
+
+// handleSignature answers the page's request for its verdict, which may
+// stream the whole signed part; the reader leaving drops the connection.
+func (p *plugin) handleSignature(ctx *alborz.Context) error {
+	mboxName, uid, err := messageRef(ctx)
+	if err != nil {
+		return err
+	}
+	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	if err != nil {
+		return err
+	}
+	trusted := p.TrustedAuthServ(ctx, settings)
+	var v Verification
+	err = ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
+		if err := ensureMailboxSelected(c, mboxName); err != nil {
+			return err
+		}
+		msgs, err := c.Fetch(imap.UIDSetNum(uid), partFetchOptions(nil, true)).Collect()
+		if err != nil {
+			return err
+		}
+		if len(msgs) == 0 {
+			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
+		}
+		msg, _, err := messagePart(msgs[0], mboxName, uid, nil)
+		if err != nil {
+			return err
+		}
+		if v, err = p.verifySignature(ctx.Request().Context(), ctx.Server.Outgoing.Remote(wkdTimeout), c, msg); err != nil {
+			return err
+		}
+		v = withDelivery(v, readAuthResults(messageRootHeader(msg), trusted))
+		return nil
+	})
+	// A verdict that could not be drawn says nothing, as one without a key does.
+	if err != nil {
+		ctx.Logger().Printf("signature %q uid %v: %v", mboxName, uid, err)
+	}
+	return ctx.Render(http.StatusOK, "message-signature", &VerdictRenderData{
+		BaseRenderData: *alborz.NewBaseRenderData(ctx), Signature: v})
+}
+
+// VerdictRenderData fills the page's place for the verdict.
+type VerdictRenderData struct {
+	alborz.BaseRenderData
+	Signature Verification
+}
 
 // Verification is a message's authenticity verdict, drawn outside the frame the message controls.
 type Verification struct {
@@ -70,64 +121,117 @@ func isSigned(bs imap.BodyStructure) bool {
 	return media == pgpProtocol || smimeProtocols[media]
 }
 
-func (p *plugin) verifySignature(ctx context.Context, client *http.Client, conn *imapclient.Client, mboxName string, uid imap.UID,
-	bs imap.BodyStructure, rootHeader textproto.Header, from string) Verification {
+// A signature or key, certificates included, is kilobytes; a larger part is none this reads.
+const maxSignaturePart = 1 << 20
 
-	if !isSigned(bs) {
-		return Verification{}
+// verifySignature draws the verdict on msg from its parts on c; the signed
+// part streams through the check, never held, and only when a check can come of it.
+func (p *plugin) verifySignature(ctx context.Context, client *http.Client, c *imapclient.Client, msg *IMAPMessage) (Verification, error) {
+	if !isSigned(msg.BodyStructure) {
+		return Verification{}, nil
 	}
-	raw, _, err := fetchRawMessage(conn, mboxName, uid)
+	multi := msg.BodyStructure.(*imap.BodyStructureMultiPart)
+	second := multi.Children[1].(*imap.BodyStructureSinglePart)
+	protocol := strings.ToLower(second.MediaType())
+	if multi.Extended == nil || !strings.EqualFold(multi.Extended.Params["protocol"], protocol) || second.Size > maxSignaturePart {
+		return Verification{}, nil
+	}
+
+	inner := &imap.FetchItemBodySection{Peek: true, Part: []int{1}, Specifier: imap.PartSpecifierMIME}
+	sig := &imap.FetchItemBodySection{Peek: true, Part: []int{2}}
+	sections := []*imap.FetchItemBodySection{inner, sig}
+	var keyParts []*imap.BodyStructureSinglePart
+	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
+		single, ok := part.(*imap.BodyStructureSinglePart)
+		if ok && strings.EqualFold(single.MediaType(), "application/pgp-keys") && single.Size <= maxSignaturePart {
+			sections = append(sections, &imap.FetchItemBodySection{Peek: true, Part: path})
+			keyParts = append(keyParts, single)
+		}
+		return true
+	})
+	msgs, err := c.Fetch(imap.UIDSetNum(msg.UID), &imap.FetchOptions{UID: true, BodySection: sections}).Collect()
 	if err != nil {
-		return Verification{}
+		return Verification{}, err
 	}
-	return p.verify(ctx, client, raw, rootHeader, from)
+	if len(msgs) == 0 {
+		return Verification{}, alborz.NotFound("notfound.message", fmt.Sprint(msg.UID))
+	}
+	innerBytes := msgs[0].FindBodySection(inner)
+	// A broken header only loses the protected From; the root's still names the authors.
+	innerHeader, _ := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(innerBytes)))
+	signature, err := io.ReadAll(transferDecoded(second.Encoding, bytes.NewReader(msgs[0].FindBodySection(sig))))
+	if err != nil {
+		return Verification{}, nil
+	}
+	var keys openpgp.EntityList
+	for i, part := range keyParts {
+		armored := transferDecoded(part.Encoding, bytes.NewReader(msgs[0].FindBodySection(sections[2+i])))
+		if k, err := openpgp.ReadArmoredKeyRing(armored); err == nil {
+			keys = append(keys, k...)
+		}
+	}
+
+	check := p.verifier(ctx, client, signedMessage{header: msg.rootHeader, inner: innerHeader, protocol: protocol,
+		sig: signature, keys: keys, from: envelopeSender(msg.Envelope)})
+	if check == nil {
+		return Verification{}, nil
+	}
+	var v Verification
+	body := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{{Peek: true, Part: []int{1}}}}
+	err = streamSection(c, msg.UID, body, func(lit imap.LiteralReader) error {
+		// The signed part as transmitted: its MIME header, then its body (RFC 1847 2.1).
+		v = check(pgp.CRLFReader(io.MultiReader(bytes.NewReader(innerBytes), lit)))
+		return nil
+	})
+	return v, err
 }
 
-func (p *plugin) verify(ctx context.Context, client *http.Client, raw []byte, rootHeader textproto.Header, from string) Verification {
-	signed, sig, protocol, err := pgp.Signed(raw)
-	if err != nil {
-		return Verification{}
+// signedMessage is what a verdict needs of a signed message besides the signed part.
+type signedMessage struct {
+	// header is the root's, inner the signed part's, which carries the protected From.
+	header, inner textproto.Header
+	protocol      string
+	sig           []byte
+	// keys are the application/pgp-keys parts the message carries.
+	keys openpgp.EntityList
+	from string
+}
+
+// verifier readies the check the signed part streams through; nil when none can give a verdict.
+func (p *plugin) verifier(ctx context.Context, client *http.Client, m signedMessage) func(signed io.Reader) Verification {
+	authors := authorAddresses(m.header, m.inner)
+	if smimeProtocols[m.protocol] {
+		return smimeVerifier(m.sig, authors)
 	}
-	authors := authorAddresses(rootHeader, signed)
-	if smimeProtocols[protocol] {
-		return verifySMIME(signed, sig, authors)
-	}
-	if protocol != pgpProtocol {
-		return Verification{}
+	if m.protocol != pgpProtocol {
+		return nil
 	}
 	domainKeys := p.domainKeys(ctx, client, authors)
-	messageKeys := senderKeys(rootHeader, raw, from, authors)
+	messageKeys := senderKeys(m.header, m.keys, m.from, authors)
+	if len(domainKeys)+len(messageKeys) == 0 {
+		return nil
+	}
 	claim := "pgp.claimmessage"
 	if len(domainKeys) > 0 {
 		claim = "pgp.claimmessageother"
 	}
-
-	bad := false
-	for _, try := range []struct {
-		keys   openpgp.EntityList
-		source KeySource
-		claim  string
-	}{
-		{domainKeys, KeyFromDomain, "pgp.claimdomain"},
-		{messageKeys, KeyFromMessage, claim},
-	} {
-		if len(try.keys) == 0 {
-			continue
-		}
-		signer, err := openpgp.CheckArmoredDetachedSignature(try.keys, bytes.NewReader(signed), bytes.NewReader(sig), nil)
+	return func(signed io.Reader) Verification {
+		signer, err := openpgp.CheckArmoredDetachedSignature(slices.Concat(domainKeys, messageKeys), signed, bytes.NewReader(m.sig), nil)
 		if err == nil {
-			return Verification{State: SignatureGood, Signer: identityOf(signer, authors, from),
-				Source: try.source, Claim: try.claim}
+			v := Verification{State: SignatureGood, Signer: identityOf(signer, authors, m.from), Source: KeyFromMessage, Claim: claim}
+			if slices.ContainsFunc(domainKeys, func(k *openpgp.Entity) bool {
+				return bytes.Equal(k.PrimaryKey.Fingerprint, signer.PrimaryKey.Fingerprint)
+			}) {
+				v.Source, v.Claim = KeyFromDomain, "pgp.claimdomain"
+			}
+			return v
 		}
 		// A signer comes back only when the bytes matched; an expired or revoked key, or another key, is silence.
 		if signer == nil && !errors.Is(err, pgperrors.ErrUnknownIssuer) {
-			bad = true
+			return Verification{State: SignatureBad, Reason: reasonUnverified}
 		}
+		return Verification{}
 	}
-	if bad {
-		return Verification{State: SignatureBad, Reason: reasonUnverified}
-	}
-	return Verification{}
 }
 
 func withDelivery(v Verification, a *AuthResults) Verification {
@@ -152,9 +256,9 @@ func (p *plugin) domainKeys(ctx context.Context, client *http.Client, authors []
 }
 
 // Only keys claiming an author count: another address's key says nothing about this message.
-func senderKeys(h textproto.Header, raw []byte, from string, authors []string) openpgp.EntityList {
+func senderKeys(h textproto.Header, attached openpgp.EntityList, from string, authors []string) openpgp.EntityList {
 	found, _ := pgp.Autocrypt(h, from)
-	for _, key := range attachedKeys(raw) {
+	for _, key := range attached {
 		if claimsAddress(key, authors) {
 			found = append(found, key)
 		}
@@ -163,7 +267,7 @@ func senderKeys(h textproto.Header, raw []byte, from string, authors []string) o
 }
 
 // From alone is not enough, since mailing lists rewrite it: the signed protected From comes first.
-func authorAddresses(h textproto.Header, signed []byte) []string {
+func authorAddresses(h, inner textproto.Header) []string {
 	var out []string
 	add := func(value string) {
 		for _, a := range strings.Split(value, ",") {
@@ -172,46 +276,10 @@ func authorAddresses(h textproto.Header, signed []byte) []string {
 			}
 		}
 	}
-	if inner, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(signed))); err == nil {
-		add(inner.Get("From"))
-	}
+	add(inner.Get("From"))
 	add(h.Get("Reply-To"))
 	add(h.Get("From"))
 	return out
-}
-
-func attachedKeys(raw []byte) openpgp.EntityList {
-	entity, err := message.Read(bytes.NewReader(raw))
-	if err != nil {
-		return nil
-	}
-	var keys openpgp.EntityList
-	reader := entity.MultipartReader()
-	if reader == nil {
-		return nil
-	}
-	var walk func(message.MultipartReader)
-	walk = func(r message.MultipartReader) {
-		for {
-			part, err := r.NextPart()
-			if err != nil {
-				return
-			}
-			if inner := part.MultipartReader(); inner != nil {
-				walk(inner)
-				continue
-			}
-			mediaType, _, err := part.Header.ContentType()
-			if err != nil || !strings.EqualFold(mediaType, "application/pgp-keys") {
-				continue
-			}
-			if k, err := openpgp.ReadArmoredKeyRing(part.Body); err == nil {
-				keys = append(keys, k...)
-			}
-		}
-	}
-	walk(reader)
-	return keys
 }
 
 func claimsAddress(key *openpgp.Entity, authors []string) bool {

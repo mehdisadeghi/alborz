@@ -79,9 +79,6 @@ type MessageRenderData struct {
 	Total    int
 	Query    string
 
-	// Signature is what the page says about the message's authenticity; its zero value says nothing.
-	Signature Verification
-
 	// HasRemoteResources says the shown part asks for resources elsewhere, loaded only when RemoteResourcesAllowed.
 	HasRemoteResources     bool
 	RemoteResourcesAllowed bool
@@ -246,14 +243,7 @@ func handleDownloadPart(ctx *alborz.Context, mboxName string, uid imap.UID, part
 				ctx.Response().Header().Set("Content-Length", fmt.Sprint(lit.Size()))
 				return ctx.Stream(http.StatusOK, contentType, lit)
 			}
-			var h message.Header
-			h.Set("Content-Transfer-Encoding", part.Encoding)
-			// An unknown encoding leaves the part as its bytes.
-			decoded, err := message.New(h, lit)
-			if err != nil && !message.IsUnknownEncoding(err) {
-				return err
-			}
-			return ctx.Stream(http.StatusOK, contentType, decoded.Body)
+			return ctx.Stream(http.StatusOK, contentType, transferDecoded(part.Encoding, lit))
 		})
 	}))
 }
@@ -438,15 +428,9 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 			}
 		}
 	}
-	// A body fetched ahead serves the page, unless signed: the check reads parts on the folder's connection.
 	held := p.bodies.current(ctx.Login.Username(), mboxName, uid, partPath)
 	if held != nil && len(partPath) == 0 {
 		partPath = held.part
-	}
-	if held != nil && held.buf.BodyStructure != nil {
-		if isSigned(held.buf.BodyStructure) {
-			held = nil
-		}
 	}
 	alborz.CacheTiming(ctx.Request().Context(), "body", held != nil)
 	var (
@@ -454,7 +438,6 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 		msg             *IMAPMessage
 		part            *message.Entity
 		permanentFlags  []imap.Flag
-		signature       Verification
 		authResults     *AuthResults
 		inReplyTo       *ThreadNeighbour
 		answers         []ThreadNeighbour
@@ -516,11 +499,8 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 				sent = sentFolder(load.sb.mailboxes)
 			}
 			inReplyTo, answers = readThread(ctx, c, mboxName, sent, msg)
-			if held == nil && msg.BodyStructure != nil {
-				signature = p.verifySignature(ctx.Request().Context(), ctx.Server.Outgoing.Remote(wkdTimeout), c, mboxName, uid, msg.BodyStructure,
-					messageRootHeader(msg), envelopeSender(msg.Envelope))
+			if held == nil {
 				authResults = readAuthResults(messageRootHeader(msg), trusted)
-				signature = withDelivery(signature, authResults)
 			}
 			if load != nil {
 				sb, err = load.finish()
@@ -639,7 +619,6 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 		Position:           place.position,
 		Total:              place.total,
 		Query:              query,
-		Signature:          signature,
 		AuthResults:        authResults,
 		Warnings:           warnings,
 		Mark:               mark,

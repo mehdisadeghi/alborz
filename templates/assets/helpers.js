@@ -394,6 +394,13 @@ if (location.hash === "#quick") {
 }
 document.addEventListener("htmx:load", enhance);
 
+// htmx lets a removed element's request run on; aborting it lets the server stop, as for a signature check.
+document.addEventListener("htmx:beforeCleanupElement", ev => {
+	if (ev.target.classList && ev.target.classList.contains("htmx-request")) {
+		htmx.trigger(ev.target, "htmx:abort");
+	}
+});
+
 // A suggestion popup open when htmx swaps the body would outlive its field.
 document.addEventListener("htmx:beforeSwap", () => {
 	const focused = document.activeElement;

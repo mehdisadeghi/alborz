@@ -163,10 +163,6 @@ func (p *plugin) prefetchBodies(s *alborz.Login, preferHTML bool, mbox string, v
 	paths := map[string][]int{}
 	for i := range rows {
 		row := &rows[i]
-		// A signed message is verified from its raw bytes by the page.
-		if isSigned(row.BodyStructure) {
-			continue
-		}
 		part := row.PreferredPart(preferHTML)
 		if part == nil || len(part.Path) == 0 || part.Size > bodyMaxPartSize {
 			continue

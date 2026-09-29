@@ -7,6 +7,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,28 +88,36 @@ func TestSMIMESaysOnlyWhatItChecked(t *testing.T) {
 	sig := sign([]byte(body))
 	authors := []string{"gil@example.org"}
 
-	if v := verifySMIME([]byte(body), sig, authors); v.State != SignatureGood ||
+	if v := smime(body, sig, authors); v.State != SignatureGood ||
 		v.Signer != "gil@example.org" || v.Source != KeyFromCA {
 		t.Errorf("a signature by a trusted issuer for the sender reads %+v", v)
 	}
 
-	if v := verifySMIME([]byte(body), []byte(wrapped(sig)), authors); v.State != SignatureGood {
+	if v := smime(body, []byte(wrapped(sig)), authors); v.State != SignatureGood {
 		t.Errorf("the same signature in base64 reads %+v", v)
 	}
 
 	tampered := body + "One line more.\r\n"
-	if v := verifySMIME([]byte(tampered), sig, authors); v.State != SignatureBad {
+	if v := smime(tampered, sig, authors); v.State != SignatureBad {
 		t.Errorf("a signature over other bytes reads %+v, want bad", v)
 	}
 
-	if v := verifySMIME([]byte(body), sig, []string{"eve@example.org"}); v.State != SignatureNone {
+	if v := smime(body, sig, []string{"eve@example.org"}); v.State != SignatureNone {
 		t.Errorf("a certificate issued to somebody else reads %+v, want nothing", v)
 	}
 
 	smimeRoots = func() *x509.CertPool { return x509.NewCertPool() }
-	if v := verifySMIME([]byte(body), sig, authors); v.State != SignatureNone {
+	if v := smime(body, sig, authors); v.State != SignatureNone {
 		t.Errorf("an issuer this server cannot check reads %+v, want nothing", v)
 	}
+}
+
+func smime(signed string, sig []byte, authors []string) Verification {
+	check := smimeVerifier(sig, authors)
+	if check == nil {
+		return Verification{}
+	}
+	return check(strings.NewReader(signed))
 }
 
 func wrapped(der []byte) string {
@@ -129,6 +138,6 @@ func FuzzSMIME(f *testing.F) {
 	f.Add(sig[:len(sig)/2])
 	f.Add([]byte("not a signature at all"))
 	f.Fuzz(func(t *testing.T, sig []byte) {
-		verifySMIME([]byte("body"), sig, []string{"gil@example.org"})
+		smime("body", sig, []string{"gil@example.org"})
 	})
 }

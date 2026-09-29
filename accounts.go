@@ -146,11 +146,6 @@ func (ctx *Context) LoginFor(username string) *Login {
 	return nil
 }
 
-// Logout signs out the request's login and returns the next remaining one, or nil.
-func (ctx *Context) Logout() *Login {
-	return ctx.LogoutAccount(ctx.Login.username)
-}
-
 // LogoutAccount signs out the named account and returns the next remaining one, or nil.
 func (ctx *Context) LogoutAccount(username string) *Login {
 	s := ctx.lookupSession()

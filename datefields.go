@@ -57,8 +57,7 @@ func (g *GlobalRenderData) InputDay(iso string) string {
 	return g.InputDate(t)
 }
 
-func (ctx *Context) InputDate(t time.Time) string     { return ctx.dates().InputDate(t) }
-func (ctx *Context) InputDateTime(t time.Time) string { return ctx.dates().InputDateTime(t) }
+func (ctx *Context) InputDate(t time.Time) string { return ctx.dates().InputDate(t) }
 
 // ReadDate and ReadDateTime read a field's date back in the reader's calendar.
 func (ctx *Context) ReadDate(s string, loc *time.Location) (time.Time, error) {
@@ -90,7 +89,7 @@ func (ctx *Context) ReadDateTime(s string, loc *time.Location) (time.Time, error
 }
 
 func typedDay(cal calsys.System, s string, loc *time.Location) (time.Time, string, error) {
-	s = strings.TrimSpace(LatinDigits(s))
+	s = strings.TrimSpace(latinDigits(s))
 	date, rest, _ := strings.Cut(s, " ")
 	var y, m, d int
 	if n, err := fmt.Sscanf(strings.ReplaceAll(date, "-", "/"), "%d/%d/%d", &y, &m, &d); n != 3 || err != nil {

@@ -60,8 +60,8 @@ const (
 	themeCookieName    = "alborz_theme"
 	alignCookieName    = "alborz_align"
 	textSizeCookieName = "alborz_text"
-	// TimezoneCookieName is written by the page: only the browser knows its zone.
-	TimezoneCookieName = "alborz_tz"
+	// timezoneCookieName is written by the page: only the browser knows its zone.
+	timezoneCookieName = "alborz_tz"
 )
 
 const (
@@ -78,7 +78,7 @@ const (
 // Server holds all the alborz server state.
 type Server struct {
 	e       *echo.Echo
-	Logins  *LoginManager
+	logins  *loginManager
 	Options *Options
 
 	mutex sync.RWMutex
@@ -216,8 +216,8 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 	if err := CheckKey(s.data, s.dataPath, options.LoginKey, sessionsOwner+"/", settingsOwner+"/"); err != nil {
 		return nil, err
 	}
-	s.Sessions = newSessions(OpenSessionRecords(s.data, options.LoginKey))
-	if err := s.Sessions.Sweep(time.Now().Add(-credentialCookieLife)); err != nil {
+	s.Sessions = newSessions(openSessionRecords(s.data, options.LoginKey))
+	if err := s.Sessions.sweep(time.Now().Add(-credentialCookieLife)); err != nil {
 		return nil, err
 	}
 	settings := openSettingsRecords(s.data, options.LoginKey)
@@ -274,7 +274,7 @@ func newServer(e *echo.Echo, options *Options) (*Server, error) {
 		return nil, fmt.Errorf("no usable domains left")
 	}
 
-	s.Logins = newLoginManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, settings)
+	s.logins = newLoginManager(s.dialIMAP, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, e.Logger, settings)
 	return s, nil
 }
 
@@ -288,8 +288,8 @@ func (s *Server) Domains() []string {
 	return names
 }
 
-// ErrNotFound marks errors the HTTP layer answers with 404.
-var ErrNotFound = errors.New("not found")
+// errNotFound marks errors the HTTP layer answers with 404.
+var errNotFound = errors.New("not found")
 
 type notFoundError struct {
 	key  string
@@ -297,28 +297,28 @@ type notFoundError struct {
 }
 
 func (e *notFoundError) Error() string { return fmt.Sprintf("%s %v", e.key, e.args) }
-func (e *notFoundError) Unwrap() error { return ErrNotFound }
+func (e *notFoundError) Unwrap() error { return errNotFound }
 
 // NotFound builds a not-found error naming the missing subject by its locale key.
 func NotFound(key string, args ...interface{}) error {
 	return &notFoundError{key, args}
 }
 
-// UnknownDomainError is returned when a login address does not belong to a served domain.
-type UnknownDomainError struct {
-	Domain string
+// unknownDomainError is returned when a login address does not belong to a served domain.
+type unknownDomainError struct {
+	domain string
 }
 
-func (err UnknownDomainError) Error() string {
-	if err.Domain == "" {
+func (err unknownDomainError) Error() string {
+	if err.domain == "" {
 		return "log in with a full user@domain address"
 	}
-	return fmt.Sprintf("mail domain %q is not served here", err.Domain)
+	return fmt.Sprintf("mail domain %q is not served here", err.domain)
 }
 
 func (s *Server) Close() {
 	s.Schedule.close()
-	s.Logins.Close()
+	s.logins.close()
 	s.data.Close()
 	for _, release := range s.OnClose {
 		if err := release(); err != nil {
@@ -354,7 +354,7 @@ func (s *Server) upstreamsFor(domain string) (*domainUpstreams, bool) {
 func (s *Server) Upstream(domain string, schemes ...string) (*url.URL, error) {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {
-		return nil, UnknownDomainError{domain}
+		return nil, unknownDomainError{domain}
 	}
 	var urls []*url.URL
 	for _, scheme := range schemes {
@@ -522,7 +522,7 @@ type Context struct {
 	session       *Session
 	sessionSecret string
 	Login         *Login
-	DefaultLogin  *Login // the first listed account, for a page that needs one and was given none
+	defaultLogin  *Login // the first listed account, for a page that needs one and was given none
 
 	// Unified marks the merged all-accounts view; Login then anchors to one of its accounts.
 	Unified bool
@@ -535,7 +535,7 @@ type Context struct {
 	// A cookie written to the answer is not in the request, so a handler reads its own writes here.
 	prefs map[string]string
 
-	timing *Timing
+	timing *timing
 
 	urlAccount string
 }
@@ -664,9 +664,9 @@ func renderUpstreamDown(ctx *Context, cause UpstreamError) error {
 	}
 	data := upstreamRenderData{
 		BaseRenderData: *NewBaseRenderData(ctx),
-		Service:        cause.Service,
-		Seconds:        fmt.Sprintf("%d", int(cause.After.Seconds())),
-		Waited:         cause.After > 0,
+		Service:        cause.service,
+		Seconds:        fmt.Sprintf("%d", int(cause.after.Seconds())),
+		Waited:         cause.after > 0,
 		Retry:          ctx.Request().URL.RequestURI(),
 	}
 	data.BaseRenderData.WithTitle(ctx.T("upstream.title"))
@@ -740,7 +740,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 		var he *echo.HTTPError
 		if errors.As(err, &he) {
 			code = he.Code
-		} else if errors.Is(err, ErrNotFound) {
+		} else if errors.Is(err, errNotFound) {
 			code = http.StatusNotFound
 		}
 
@@ -755,7 +755,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 						message = m
 					}
 				}
-				if err := RenderInfo(actx, code, message); err == nil {
+				if err := renderInfo(actx, code, message); err == nil {
 					return
 				}
 			}
@@ -885,7 +885,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 				login.ping()
 			}
 			ctx.Login = logins[0]
-			ctx.DefaultLogin = logins[0]
+			ctx.defaultLogin = logins[0]
 			// An account that timed out while others stayed is said once, on the page.
 			if len(ctx.lostAccounts) > 0 {
 				ctx.Notify(Notice{Kind: NoticeWarning,
@@ -896,7 +896,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 			if acct := ctx.QueryParam("account"); acct != "" {
 				login := ctx.LoginFor(acct)
 				if login == nil {
-					return RenderInfo(ctx, http.StatusOK, fmt.Sprintf(ctx.T("account.notsignedin"), acct))
+					return renderInfo(ctx, http.StatusOK, fmt.Sprintf(ctx.T("account.notsignedin"), acct))
 				}
 				ctx.Login = login
 				ctx.urlAccount = acct
@@ -920,7 +920,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 			if ctx.quiet {
 				return err
 			}
-			if session := ctx.lookupSession(); session != nil && session.HasNotice() {
+			if session := ctx.lookupSession(); session != nil && session.hasNotice() {
 				return err
 			}
 			ctx.Logger().Printf("POST %s answered %d with no notice", ctx.Request().URL.Path, status)
@@ -967,7 +967,7 @@ func New(e *echo.Echo, options *Options, funcs template.FuncMap) (*Server, error
 		defer s.mutex.RLock()
 		return handleEvents(ectx.Get("context").(*Context))
 	})
-	e.Server.RegisterOnShutdown(s.Changes.Close)
+	e.Server.RegisterOnShutdown(s.Changes.close)
 
 	// Served here rather than under /assets/: a worker's scope is the path it is served from.
 	e.GET("/sw.js", func(ectx echo.Context) error {

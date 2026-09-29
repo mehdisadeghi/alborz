@@ -18,7 +18,7 @@ func TestExpiryUnlistsTheLogin(t *testing.T) {
 		close(done)
 	}()
 
-	s.Close()
+	s.close()
 	select {
 	case <-done:
 	case <-time.After(time.Second):
@@ -32,15 +32,15 @@ func TestExpiryUnlistsTheLogin(t *testing.T) {
 func TestFullAttachmentCacheStaysUsable(t *testing.T) {
 	s, _ := newSession()
 	big := &multipart.FileHeader{Size: MaxAttachmentSize}
-	if _, err := s.PutAttachment(big, nil); err != nil {
+	if _, err := s.putAttachment(big, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.PutAttachment(big, nil); err != ErrAttachmentCacheSize {
+	if _, err := s.putAttachment(big, nil); err != ErrAttachmentCacheSize {
 		t.Fatalf("a second full-size attachment was taken: %v", err)
 	}
 	done := make(chan struct{})
 	go func() {
-		s.PopAttachment("none")
+		s.popAttachment("none")
 		close(done)
 	}()
 	select {
@@ -52,14 +52,14 @@ func TestFullAttachmentCacheStaysUsable(t *testing.T) {
 
 func TestEnvelopeOpensOnlyWithTheMailPassword(t *testing.T) {
 	login := func(password string) *Login { return &Login{password: password} }
-	e, err := login("first").Seal("app-password")
+	e, err := login("first").seal("app-password")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plain, err := login("first").Open(e); err != nil || plain != "app-password" {
+	if plain, err := login("first").open(e); err != nil || plain != "app-password" {
 		t.Fatalf("with the password it was sealed under: %q, %v", plain, err)
 	}
-	if _, err := login("second").Open(e); err != ErrSealed {
+	if _, err := login("second").open(e); err != ErrSealed {
 		t.Fatalf("after a password change: %v, want ErrSealed", err)
 	}
 }

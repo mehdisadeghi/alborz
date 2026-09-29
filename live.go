@@ -11,8 +11,8 @@ import (
 
 // Change says a folder of an account changed; it stays unrendered for the reader's language.
 type Change struct {
-	Account string
-	Mailbox string
+	account string
+	mailbox string
 }
 
 // Changes fans changes out to open streams without waiting on slow readers.
@@ -26,8 +26,8 @@ func newChanges() *Changes {
 	return &Changes{subs: map[chan Change]struct{}{}}
 }
 
-// Listen returns a channel of changes and the function that closes it.
-func (c *Changes) Listen() (<-chan Change, func()) {
+// listen returns a channel of changes and the function that closes it.
+func (c *Changes) listen() (<-chan Change, func()) {
 	ch := make(chan Change, 8)
 	c.mu.Lock()
 	if c.closed {
@@ -58,8 +58,8 @@ func (c *Changes) Publish(ch Change) {
 	}
 }
 
-// Close ends every stream, and every one opened after, so shutdown does not wait on open tabs.
-func (c *Changes) Close() {
+// close ends every stream, and every one opened after, so shutdown does not wait on open tabs.
+func (c *Changes) close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.closed = true
@@ -71,7 +71,7 @@ func (c *Changes) Close() {
 
 // Announce publishes that a folder of an account changed.
 func (c *Changes) Announce(account, mailbox string) {
-	c.Publish(Change{Account: account, Mailbox: mailbox})
+	c.Publish(Change{account: account, mailbox: mailbox})
 }
 
 // livePing keeps proxies from dropping an idle stream.
@@ -84,7 +84,7 @@ func handleEvents(ctx *Context) error {
 		live, _ := s.Accounts()
 		return slices.ContainsFunc(live, func(s *Login) bool { return s.Username() == account })
 	}
-	changes, stop := ctx.Server.Changes.Listen()
+	changes, stop := ctx.Server.Changes.listen()
 	defer stop()
 
 	res := ctx.Response()
@@ -114,12 +114,12 @@ func handleEvents(ctx *Context) error {
 			if !ok {
 				return nil
 			}
-			if !mine(change.Account) {
+			if !mine(change.account) {
 				continue
 			}
 			// A newline in either value would end the frame.
 			_, err := fmt.Fprintf(res, "event: mailbox\ndata: %s %s\n\n",
-				oneLine(change.Account), oneLine(change.Mailbox))
+				oneLine(change.account), oneLine(change.mailbox))
 			if err != nil {
 				return nil
 			}

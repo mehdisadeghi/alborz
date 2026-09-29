@@ -27,12 +27,11 @@ type SieveClient interface {
 	// Implementation and Extensions are what the server announces about itself.
 	Implementation() string
 	Extensions() []string
-	Logout() error
 	Close() error
 }
 
-// DialSieveFunc connects and authenticates to the domain's ManageSieve server.
-type DialSieveFunc func(domain, username, password string) (SieveClient, error)
+// dialSieveFunc connects and authenticates to the domain's ManageSieve server.
+type dialSieveFunc func(domain, username, password string) (SieveClient, error)
 
 func (s *Server) parseSieveUpstream(domain string) error {
 	d := s.domains[domain]
@@ -74,7 +73,7 @@ type Upstreams struct {
 	// Found is the SRV record each was found at, "" where configured; Security
 	// is tls, starttls or none.
 	IMAPFound, SMTPFound, SieveFound          string
-	IMAPSecurity, SMTPSecurity, SieveSecurity string
+	IMAPSecurity, smtpSecurity, sieveSecurity string
 }
 
 func security(tls, insecure bool) string {
@@ -96,8 +95,8 @@ func (s *Server) UpstreamsFor(domain string) Upstreams {
 	return Upstreams{
 		IMAP: d.imap.host, SMTP: d.smtp.host, Sieve: d.sieve.host,
 		IMAPFound: d.imap.found, SMTPFound: d.smtp.found, SieveFound: d.sieve.found,
-		IMAPSecurity: security(d.imap.tls, d.imap.insecure), SMTPSecurity: security(d.smtp.tls, d.smtp.insecure),
-		SieveSecurity: security(false, d.sieve.insecure),
+		IMAPSecurity: security(d.imap.tls, d.imap.insecure), smtpSecurity: security(d.smtp.tls, d.smtp.insecure),
+		sieveSecurity: security(false, d.sieve.insecure),
 	}
 }
 
@@ -191,10 +190,6 @@ func (sc *sieveClient) ActivateScript(name string) error {
 
 func (sc *sieveClient) DeleteScript(name string) error {
 	return sc.c.DeleteScript(name)
-}
-
-func (sc *sieveClient) Logout() error {
-	return sc.c.Logout()
 }
 
 func (sc *sieveClient) Close() error {

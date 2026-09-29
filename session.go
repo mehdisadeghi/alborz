@@ -21,7 +21,7 @@ import (
 // screen rather than to any one account.
 type Session struct {
 	ID      string
-	Created time.Time
+	created time.Time
 
 	mu          sync.Mutex
 	seen        time.Time
@@ -88,24 +88,24 @@ func (s *Session) forget(address string) {
 }
 
 // record keeps only what means something after a restart.
-func (s *Session) record() *SessionRecord {
+func (s *Session) record() *sessionRecord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rec := &SessionRecord{ID: s.ID, Created: s.Created, Seen: s.seen, Proof: s.proof,
+	rec := &sessionRecord{ID: s.ID, Created: s.created, Seen: s.seen, Proof: s.proof,
 		Profile: s.profile, Lock: s.lock, Device: s.device, Address: s.address}
 	for address, sealed := range s.remember {
-		rec.Accounts = append(rec.Accounts, RememberedAccount{Address: address, Sealed: sealed})
+		rec.Accounts = append(rec.Accounts, rememberedAccount{Address: address, Sealed: sealed})
 	}
-	slices.SortFunc(rec.Accounts, func(a, b RememberedAccount) int {
+	slices.SortFunc(rec.Accounts, func(a, b rememberedAccount) int {
 		return strings.Compare(a.Address, b.Address)
 	})
 	return rec
 }
 
-func sessionFromRecord(rec *SessionRecord) *Session {
+func sessionFromRecord(rec *sessionRecord) *Session {
 	s := &Session{
 		ID:          rec.ID,
-		Created:     rec.Created,
+		created:     rec.Created,
 		proof:       rec.Proof,
 		seen:        time.Now(),
 		attachments: map[string]*Attachment{},
@@ -135,13 +135,13 @@ func (s *Session) Accounts() (live []*Login, lost []string) {
 	return slices.Clone(s.accounts), lost
 }
 
-// Add puts an account in the session, replacing an earlier login for it.
-func (s *Session) Add(login *Login) {
+// add puts an account in the session, replacing an earlier login for it.
+func (s *Session) add(login *Login) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, other := range s.accounts {
 		if other.username == login.username {
-			other.Close()
+			other.close()
 			s.accounts[i] = login
 			byName(s.accounts)
 			return
@@ -151,8 +151,8 @@ func (s *Session) Add(login *Login) {
 	byName(s.accounts)
 }
 
-// Remove takes an account out of the session and closes it.
-func (s *Session) Remove(username string) *Login {
+// remove takes an account out of the session and closes it.
+func (s *Session) remove(username string) *Login {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, login := range s.accounts {
@@ -167,49 +167,46 @@ func (s *Session) Remove(username string) *Login {
 // sessionCookieName carries only the id and the secret; the state stays on the server.
 const sessionCookieName = "alborz_session"
 
-// SessionRecord is a session kept across a restart.
-type SessionRecord struct {
+// sessionRecord is a session kept across a restart.
+type sessionRecord struct {
 	ID       string
 	Created  time.Time
 	Seen     time.Time
 	Proof    []byte
-	Accounts []RememberedAccount
+	Accounts []rememberedAccount
 	Profile  *Profile
 	Lock     Lock
 	Device   string `json:",omitempty"`
 	Address  string `json:",omitempty"`
 }
 
-// RememberedAccount is one account of a remembered session.
-type RememberedAccount struct {
+// rememberedAccount is one account of a remembered session.
+type rememberedAccount struct {
 	Address string
 	Sealed  []byte
 }
 
-// SessionRecords keeps remembered sessions.
-type SessionRecords interface {
-	Load(id string) (*SessionRecord, bool)
-	Save(rec *SessionRecord) error
+// sessionRecords keeps remembered sessions.
+type sessionRecords interface {
+	Load(id string) (*sessionRecord, bool)
+	Save(rec *sessionRecord) error
 	Delete(id string) error
 	Sweep(before time.Time) error
-	Each(func(*SessionRecord)) error
+	Each(func(*sessionRecord)) error
 }
 
 // Sessions are the browsers signed in.
 type Sessions struct {
 	mu      sync.Mutex
 	live    map[string]*Session
-	records SessionRecords
+	records sessionRecords
 }
 
-func newSessions(records SessionRecords) *Sessions {
+func newSessions(records sessionRecords) *Sessions {
 	return &Sessions{live: map[string]*Session{}, records: records}
 }
 
-// Records is where remembered sessions are written.
-func (ss *Sessions) Records() SessionRecords { return ss.records }
-
-func (ss *Sessions) Get(id string) *Session {
+func (ss *Sessions) get(id string) *Session {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 	s := ss.live[id]
@@ -223,13 +220,13 @@ func (ss *Sessions) Get(id string) *Session {
 	return s
 }
 
-func (ss *Sessions) Put(s *Session) {
+func (ss *Sessions) put(s *Session) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 	ss.live[s.ID] = s
 }
 
-func (ss *Sessions) Delete(id string) error {
+func (ss *Sessions) delete(id string) error {
 	ss.mu.Lock()
 	s := ss.live[id]
 	delete(ss.live, id)
@@ -240,8 +237,8 @@ func (ss *Sessions) Delete(id string) error {
 	return ss.records.Delete(id)
 }
 
-// Record returns the remembered session of that id.
-func (ss *Sessions) Record(id string) (*SessionRecord, bool) {
+// record returns the remembered session of that id.
+func (ss *Sessions) record(id string) (*sessionRecord, bool) {
 	return ss.records.Load(id)
 }
 
@@ -253,8 +250,8 @@ func (ss *Sessions) Save(s *Session) error {
 	return ss.records.Save(s.record())
 }
 
-// Sweep drops the records nobody has come back to.
-func (ss *Sessions) Sweep(before time.Time) error {
+// sweep drops the records nobody has come back to.
+func (ss *Sessions) sweep(before time.Time) error {
 	return ss.records.Sweep(before)
 }
 
@@ -270,7 +267,7 @@ func newSession() (*Session, string) {
 	secret := base64.RawURLEncoding.EncodeToString(b[32:])
 	s := &Session{
 		ID:          base64.RawURLEncoding.EncodeToString(b[:32]),
-		Created:     now,
+		created:     now,
 		proof:       sessionProof(secret),
 		seen:        now,
 		active:      now,
@@ -305,8 +302,8 @@ func (s *Session) Once(key string) bool {
 	return true
 }
 
-// Notify records what the next page tells the reader.
-func (s *Session) Notify(n Notice) {
+// notify records what the next page tells the reader.
+func (s *Session) notify(n Notice) {
 	// An empty notice means the action speaks for itself.
 	if n.Text == "" && n.Markup == "" {
 		return
@@ -316,15 +313,15 @@ func (s *Session) Notify(n Notice) {
 	s.mu.Unlock()
 }
 
-// HasNotice reports whether a notice waits for the next page.
-func (s *Session) HasNotice() bool {
+// hasNotice reports whether a notice waits for the next page.
+func (s *Session) hasNotice() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.notice != nil
 }
 
-// PopNotice takes the pending notice, once.
-func (s *Session) PopNotice() *Notice {
+// popNotice takes the pending notice, once.
+func (s *Session) popNotice() *Notice {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n := s.notice
@@ -332,8 +329,8 @@ func (s *Session) PopNotice() *Notice {
 	return n
 }
 
-// PutAttachment keeps a file the compose form has taken but not sent.
-func (s *Session) PutAttachment(in *multipart.FileHeader, form *multipart.Form) (string, error) {
+// putAttachment keeps a file the compose form has taken but not sent.
+func (s *Session) putAttachment(in *multipart.FileHeader, form *multipart.Form) (string, error) {
 	id := uuid.New()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -349,15 +346,15 @@ func (s *Session) PutAttachment(in *multipart.FileHeader, form *multipart.Form) 
 	return id.String(), nil
 }
 
-// PeekAttachment leaves the attachment in place, so a refused send finds it again.
-func (s *Session) PeekAttachment(id string) *Attachment {
+// peekAttachment leaves the attachment in place, so a refused send finds it again.
+func (s *Session) peekAttachment(id string) *Attachment {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.attachments[id]
 }
 
-// PopAttachment takes an attachment back, once.
-func (s *Session) PopAttachment(id string) *Attachment {
+// popAttachment takes an attachment back, once.
+func (s *Session) popAttachment(id string) *Attachment {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a, ok := s.attachments[id]
@@ -385,7 +382,7 @@ func (ctx *Context) Session() *Session {
 		return s
 	}
 	s, secret := newSession()
-	ctx.Server.Sessions.Put(s)
+	ctx.Server.Sessions.put(s)
 	ctx.SetCookie(ctx.cookie(sessionCookieName, s.ID+"."+secret, credentialCookieLife))
 	ctx.session, ctx.sessionSecret = s, secret
 	return s
@@ -402,10 +399,10 @@ func (ctx *Context) lookupSession() *Session {
 		return nil
 	}
 	id, secret, _ := strings.Cut(value, ".")
-	s := ctx.Server.Sessions.Get(id)
+	s := ctx.Server.Sessions.get(id)
 	stored := s == nil
 	if stored {
-		rec, found := ctx.Server.Sessions.Record(id)
+		rec, found := ctx.Server.Sessions.record(id)
 		if !found {
 			return nil
 		}
@@ -415,7 +412,7 @@ func (ctx *Context) lookupSession() *Session {
 		return nil
 	}
 	if stored {
-		ctx.Server.Sessions.Put(s)
+		ctx.Server.Sessions.put(s)
 	}
 	s.touch()
 	ctx.session, ctx.sessionSecret = s, secret
@@ -475,7 +472,7 @@ func (ctx *Context) Notify(n Notice) {
 		ctx.Quiet()
 		return
 	}
-	ctx.Session().Notify(n)
+	ctx.Session().notify(n)
 }
 
 // PutNotice says a request did what it was asked.
@@ -483,28 +480,28 @@ func (ctx *Context) PutNotice(text string) {
 	ctx.Notify(Notice{Kind: NoticeDone, Text: text})
 }
 
-func (ctx *Context) PopNotice() *Notice {
+func (ctx *Context) popNotice() *Notice {
 	if s := ctx.lookupSession(); s != nil {
-		return s.PopNotice()
+		return s.popNotice()
 	}
 	return nil
 }
 
 // PutAttachment holds a file the compose form has taken but not sent.
 func (ctx *Context) PutAttachment(in *multipart.FileHeader, form *multipart.Form) (string, error) {
-	return ctx.Session().PutAttachment(in, form)
+	return ctx.Session().putAttachment(in, form)
 }
 
 func (ctx *Context) PeekAttachment(id string) *Attachment {
 	if s := ctx.lookupSession(); s != nil {
-		return s.PeekAttachment(id)
+		return s.peekAttachment(id)
 	}
 	return nil
 }
 
 func (ctx *Context) PopAttachment(id string) *Attachment {
 	if s := ctx.lookupSession(); s != nil {
-		return s.PopAttachment(id)
+		return s.popAttachment(id)
 	}
 	return nil
 }

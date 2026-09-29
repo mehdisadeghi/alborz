@@ -40,7 +40,7 @@ func (s *Session) holds(account string) bool {
 func (s *Session) signed() Signed {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return Signed{ID: s.ID, Device: s.device, Address: s.address, Created: s.Created, Seen: s.seen}
+	return Signed{ID: s.ID, Device: s.device, Address: s.address, Created: s.created, Seen: s.seen}
 }
 
 // requestAddress is "" for loopback and private addresses: an untrusted proxy
@@ -70,8 +70,8 @@ func (ss *Sessions) SignedIn(account, current string) ([]Signed, error) {
 		}
 	}
 	ss.mu.Unlock()
-	err := ss.records.Each(func(rec *SessionRecord) {
-		if seen[rec.ID] || !slices.ContainsFunc(rec.Accounts, func(a RememberedAccount) bool { return a.Address == account }) {
+	err := ss.records.Each(func(rec *sessionRecord) {
+		if seen[rec.ID] || !slices.ContainsFunc(rec.Accounts, func(a rememberedAccount) bool { return a.Address == account }) {
 			return
 		}
 		out = append(out, Signed{ID: rec.ID, Device: rec.Device, Address: rec.Address, Created: rec.Created, Seen: rec.Seen})
@@ -92,12 +92,12 @@ func (ss *Sessions) SignOut(id, account string) error {
 	s := ss.live[id]
 	ss.mu.Unlock()
 	if s != nil {
-		if s := s.Remove(account); s != nil {
-			s.Close()
+		if s := s.remove(account); s != nil {
+			s.close()
 		}
 		s.forget(account)
 		if live, _ := s.Accounts(); len(live) == 0 && !s.remembered() {
-			ss.Delete(id)
+			ss.delete(id)
 			return nil
 		}
 		return ss.Save(s)
@@ -106,7 +106,7 @@ func (ss *Sessions) SignOut(id, account string) error {
 	if !ok {
 		return nil
 	}
-	rec.Accounts = slices.DeleteFunc(rec.Accounts, func(a RememberedAccount) bool { return a.Address == account })
+	rec.Accounts = slices.DeleteFunc(rec.Accounts, func(a rememberedAccount) bool { return a.Address == account })
 	if len(rec.Accounts) == 0 {
 		return ss.records.Delete(id)
 	}

@@ -94,8 +94,8 @@ func (ctx *Context) Themes() []Theme {
 	return ctx.Server.themes
 }
 
-// ThemeScheme is the scheme the chosen theme pins, empty when it follows the reader.
-func (ctx *Context) ThemeScheme() string {
+// themeScheme is the scheme the chosen theme pins, empty when it follows the reader.
+func (ctx *Context) themeScheme() string {
 	name := ctx.Theme()
 	for _, t := range ctx.Server.themes {
 		if t.Name == name {
@@ -113,8 +113,8 @@ func (ctx *Context) Theme() string {
 	return ""
 }
 
-// AlignByScript reports whether lines align by their own script rather than the interface's edge.
-func (ctx *Context) AlignByScript() bool {
+// alignByScript reports whether lines align by their own script rather than the interface's edge.
+func (ctx *Context) alignByScript() bool {
 	return ctx.Profile().Display.AlignByScript
 }
 
@@ -131,8 +131,8 @@ func (ctx *Context) TextSize() string {
 	return ""
 }
 
-// Calendars returns the primary system, empty for Gregorian, and the secondary, empty for none.
-func (ctx *Context) Calendars() (primary, secondary string) {
+// calendars returns the primary system, empty for Gregorian, and the secondary, empty for none.
+func (ctx *Context) calendars() (primary, secondary string) {
 	r := ctx.Reading()
 	return r.Primary, r.Secondary
 }
@@ -144,7 +144,7 @@ func (ctx *Context) CalendarSystem() calsys.System {
 
 // SetLanguage sets the UI language; empty follows Accept-Language.
 func (ctx *Context) SetLanguage(code string) error {
-	if !IsLanguage(code) {
+	if !isLanguage(code) {
 		code = ""
 	}
 	p := ctx.Profile()
@@ -155,9 +155,9 @@ func (ctx *Context) SetLanguage(code string) error {
 	return ctx.SetProfile(p)
 }
 
-// Language returns the explicit UI language, empty when following the browser.
-func (ctx *Context) Language() string {
-	if code := ctx.Profile().Display.Language; IsLanguage(code) {
+// language returns the explicit UI language, empty when following the browser.
+func (ctx *Context) language() string {
+	if code := ctx.Profile().Display.Language; isLanguage(code) {
 		return code
 	}
 	return ""

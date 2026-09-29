@@ -12,8 +12,8 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
-// DefaultLockAfter is how long a session with a passkey may idle before it locks.
-const DefaultLockAfter = loginDuration
+// defaultLockAfter is how long a session with a passkey may idle before it locks.
+const defaultLockAfter = loginDuration
 
 // MinLockAfter keeps a typed lock time from locking between two clicks.
 const MinLockAfter = time.Minute
@@ -60,7 +60,7 @@ type Lock struct {
 // Wait is the lock time in force.
 func (l Lock) Wait() time.Duration {
 	if l.After < MinLockAfter {
-		return DefaultLockAfter
+		return defaultLockAfter
 	}
 	return l.After
 }
@@ -287,12 +287,12 @@ func (ctx *Context) EndSession() {
 	live, _ := session.Accounts()
 	for _, s := range live {
 		ctx.Server.ForgetAccount(s.Username())
-		session.Remove(s.Username())
-		s.Close()
+		session.remove(s.Username())
+		s.close()
 	}
-	if err := ctx.Server.Sessions.Delete(session.ID); err != nil {
+	if err := ctx.Server.Sessions.delete(session.ID); err != nil {
 		ctx.Logger().Printf("failed to forget the session: %v", err)
 	}
 	ctx.SetCookie(ctx.cookie(sessionCookieName, "", 0))
-	ctx.session, ctx.Login, ctx.DefaultLogin = nil, nil, nil
+	ctx.session, ctx.Login, ctx.defaultLogin = nil, nil, nil
 }

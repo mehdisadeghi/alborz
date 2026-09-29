@@ -9,15 +9,12 @@ import (
 
 // The month grid's labels, in the reader's primary and secondary calendars.
 
-// sunday is a Sunday, so adding a weekday index names that weekday.
-var sunday = time.Date(2023, time.January, 1, 12, 0, 0, 0, time.UTC)
-
 // Weekdays returns translated weekday names starting from FirstDayOfWeek.
 func (d *CalendarRenderData) Weekdays() []string {
 	g := &d.GlobalData
 	result := make([]string, 7)
 	for i := range result {
-		result[i] = g.WeekdayName(sunday.AddDate(0, 0, (g.FirstDayOfWeek+i)%7))
+		result[i] = g.WeekdayName((g.FirstDayOfWeek + time.Weekday(i)) % 7)
 	}
 	return result
 }

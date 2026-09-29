@@ -19,8 +19,9 @@ type Profile struct {
 type Reading struct {
 	MessagesPerPage int
 	Timezone        string
-	FirstDayOfWeek  int // 0 = Sunday
-	PreferHTML      bool
+	// FirstDayOfWeek counts as ISO 8601 does, 1 for Monday to 7 for Sunday; 0 was never chosen.
+	FirstDayOfWeek int
+	PreferHTML     bool
 	// Primary and Secondary are calendar systems; empty means Gregorian and none.
 	Primary   string
 	Secondary string
@@ -45,6 +46,9 @@ const profileKey = "profile"
 // DefaultMessagesPerPage is the page size of a reader who never chose one.
 const DefaultMessagesPerPage = 50
 
+// defaultFirstDayOfWeek is Monday, the first day of an ISO 8601 week.
+const defaultFirstDayOfWeek = 1
+
 // Profile returns the session's profile while signed in, else the browser's cookie copy.
 func (ctx *Context) Profile() Profile {
 	if s := ctx.lookupSession(); s != nil && len(ctx.accountLogins()) > 0 {
@@ -61,7 +65,13 @@ func (ctx *Context) Reading() Reading {
 	if r.MessagesPerPage <= 0 {
 		r.MessagesPerPage = DefaultMessagesPerPage
 	}
+	r.FirstDayOfWeek = cmp.Or(r.FirstDayOfWeek, defaultFirstDayOfWeek)
 	return r
+}
+
+// WeekStart is the weekday a week begins on.
+func (r Reading) WeekStart() time.Weekday {
+	return time.Weekday(cmp.Or(r.FirstDayOfWeek, defaultFirstDayOfWeek) % 7)
 }
 
 // UserLocation resolves the reader's timezone.
@@ -228,7 +238,7 @@ func (ctx *Context) profileDiff(theirs, ours Profile) []profileChange {
 	})
 	add("settings.timezone", func(p Profile) string { return or(p.Reading.Timezone, "settings.tzauto") })
 	add("settings.firstday", func(p Profile) string {
-		return g.WeekdayName(weekOne.AddDate(0, 0, p.Reading.FirstDayOfWeek))
+		return g.WeekdayName(p.Reading.WeekStart())
 	})
 	add("settings.preferhtml", func(p Profile) string { return onOff(p.Reading.PreferHTML) })
 	add("settings.calendar", func(p Profile) string { return calendar(p.Reading.Primary, "settings.gregorian") })

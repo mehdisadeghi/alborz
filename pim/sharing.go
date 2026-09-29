@@ -114,8 +114,9 @@ type Sharing struct {
 	PublicURL    string
 	OffersPublic bool
 	// To and Until keep what a refused share had typed.
-	To, Until string
-	Write     bool
+	To    string
+	Until alborz.DateField
+	Write bool
 }
 
 func (pg Page) sharing(ctx *alborz.Context, p *dav.Provider, info dav.Collection) (*Sharing, error) {
@@ -131,7 +132,7 @@ func (pg Page) sharing(ctx *alborz.Context, p *dav.Provider, info dav.Collection
 	if err != nil {
 		return nil, err
 	}
-	sharing := &Sharing{Shares: shares, OffersPublic: pg.Ext == ".ics"}
+	sharing := &Sharing{Shares: shares, OffersPublic: pg.Ext == ".ics", Until: ctx.InputDate(time.Time{})}
 	if c.Public != "" {
 		sharing.PublicURL = ctx.Origin() + store.PublicPath(c.Public)
 	}
@@ -209,9 +210,9 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 			Write: ctx.FormValue("access") == "write", Created: time.Now().UTC(),
 		}
 		share.To, err = invitee(ctx, ctx.FormValue("to"))
-		if until := strings.TrimSpace(ctx.FormValue("until")); err == nil && until != "" {
+		if until := ctx.DateField("until"); err == nil && until.Value != "" {
 			var day time.Time
-			if day, err = ctx.ReadDate(until, alborz.UserLocation(ctx)); err == nil {
+			if day, err = until.Date(alborz.UserLocation(ctx)); err == nil {
 				// The form names the last day; the share ends after it.
 				share.Expires = day.AddDate(0, 0, 1)
 				if !share.Expires.After(time.Now()) {
@@ -227,7 +228,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*alborz.Context) error {
 				return dataErr
 			}
 			data.Refused(ctx.T(err.Error()))
-			data.Sharing.To, data.Sharing.Until = ctx.FormValue("to"), ctx.FormValue("until")
+			data.Sharing.To, data.Sharing.Until = ctx.FormValue("to"), ctx.DateField("until")
 			data.Sharing.Write = share.Write
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
 		}

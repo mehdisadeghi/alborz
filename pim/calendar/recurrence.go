@@ -17,7 +17,7 @@ import (
 // Repeat is a rule as the form holds it.
 type Repeat struct {
 	Freq  string
-	Until string
+	Until alborz.DateField
 }
 
 const repeatCustom = "custom"
@@ -78,7 +78,7 @@ func parseUntil(s string, loc *time.Location) time.Time {
 func formRepeat(ctx *alborz.Context, event *ical.Event, loc *time.Location) Repeat {
 	prop := event.Props.Get(ical.PropRecurrenceRule)
 	if prop == nil {
-		return Repeat{}
+		return Repeat{Until: ctx.InputDate(time.Time{})}
 	}
 	r := parseRule(prop.Value, loc)
 	// A monthly or yearly rule in another calendar would mean other days if rewritten.
@@ -86,13 +86,9 @@ func formRepeat(ctx *alborz.Context, event *ical.Event, loc *time.Location) Repe
 	simple := !r.other && r.interval == 1 && r.count == 0 &&
 		(neutral || r.cal.Name() == ctx.CalendarSystem().Name())
 	if !simple {
-		return Repeat{Freq: repeatCustom}
+		return Repeat{Freq: repeatCustom, Until: ctx.InputDate(time.Time{})}
 	}
-	var until string
-	if !r.until.IsZero() {
-		until = ctx.InputDate(r.until.In(loc))
-	}
-	return Repeat{Freq: r.freq, Until: until}
+	return Repeat{Freq: r.freq, Until: ctx.InputDate(r.until.In(loc))}
 }
 
 // UNTIL takes DTSTART's value type (RFC 5545 3.3.10) and includes the last day.
@@ -110,8 +106,8 @@ func setRepeat(ctx *alborz.Context, event *ical.Event, rep Repeat, start time.Ti
 		parts = append([]string{"RSCALE=" + cal.RSCALE()}, parts...)
 		parts = append(parts, "SKIP=BACKWARD")
 	}
-	if rep.Until != "" {
-		last, err := ctx.ReadDate(rep.Until, loc)
+	if rep.Until.Value != "" {
+		last, err := rep.Until.Date(loc)
 		if err != nil {
 			return err
 		}
@@ -140,16 +136,16 @@ func repeatWords(ctx *alborz.Context, event *ical.Event, loc *time.Location) (wo
 		return ctx.T("calendar.repeat.custom"), ""
 	}
 	words = ctx.T("calendar.repeat." + rep.Freq)
-	if rep.Until != "" {
-		return fmt.Sprintf(ctx.T("calendar.repeat.until"), words), rep.Until
+	if rep.Until.Value != "" {
+		return fmt.Sprintf(ctx.T("calendar.repeat.until"), words), rep.Until.Value
 	}
 	return words, ""
 }
 
-// A rule with a part not read here yields only its first instance: a wrong one is worse.
+// A rule with a part not read here, or counted where its calendar cannot, yields only its first instance: a wrong one is worse.
 func expandRule(s string, first, from, to time.Time) []time.Time {
 	r := parseRule(s, first.Location())
-	if r.other || r.interval < 1 {
+	if r.other || r.interval < 1 || calsys.For(r.cal, first) != r.cal {
 		return []time.Time{first}
 	}
 	var out []time.Time
@@ -173,16 +169,20 @@ func expandRule(s string, first, from, to time.Time) []time.Time {
 			if r.freq == "yearly" {
 				months *= 12
 			}
-			month := r.cal.AddMonths(r.cal.Time(y, m, 1, loc), months)
-			my, mm, _ := r.cal.Date(month)
+			i := m - 1 + months
+			// The rule ends where its calendar stops counting.
+			month, err := r.cal.Day(y+i/12, i%12+1, 1, loc)
+			if err != nil {
+				return out
+			}
 			days := r.cal.DaysInMonth(month)
 			switch {
 			case d <= days:
-				t = at(r.cal.Time(my, mm, d, loc))
+				t = at(month.AddDate(0, 0, d-1))
 			case r.skip == "BACKWARD":
-				t = at(r.cal.Time(my, mm, days, loc))
+				t = at(month.AddDate(0, 0, days-1))
 			case r.skip == "FORWARD":
-				t = at(r.cal.AddMonths(month, 1))
+				t = at(month.AddDate(0, 0, days))
 			default:
 				continue
 			}

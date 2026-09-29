@@ -15,6 +15,8 @@ type System interface {
 	// Date reads t in this calendar, and Time is midnight on a date of it.
 	Date(t time.Time) (year, month, day int)
 	Time(year, month, day int, loc *time.Location) time.Time
+	// Day is Time for a date as typed, refusing one the calendar does not have or cannot count.
+	Day(year, month, day int, loc *time.Location) (time.Time, error)
 	// MonthStart is midnight on the first day of the month t falls in.
 	MonthStart(t time.Time) time.Time
 	// AddMonths moves a month start by n months.
@@ -67,6 +69,30 @@ func OfRSCALE(scale string) (System, bool) {
 	return gregorian{}, false
 }
 
+// For is s where it reckons t, else Gregorian: a date s cannot count is shown in one that can, never guessed.
+func For(s System, t time.Time) System {
+	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	if s == (solarHijri{}) && (day.Before(shFirst) || !day.Before(shEnd)) {
+		return gregorian{}
+	}
+	return s
+}
+
+// validDay refuses a date cal does not have or cannot count.
+func validDay(cal System, y, m, d int, loc *time.Location) (time.Time, error) {
+	if m < 1 || m > 12 {
+		return time.Time{}, fmt.Errorf("no month %d", m)
+	}
+	t := cal.Time(y, m, d, loc)
+	if For(cal, t) != cal || d < 1 || d > cal.DaysInMonth(cal.Time(y, m, 1, loc)) {
+		return time.Time{}, fmt.Errorf("no day %d/%d/%d", y, m, d)
+	}
+	return t, nil
+}
+
+// shFirst is Nowruz of the first year shYear reckons, -61; shEnd the first day whose year may be past its last.
+var shFirst, shEnd = time.Date(560, time.March, 20, 0, 0, 0, 0, time.UTC), time.Date(3799, time.January, 1, 0, 0, 0, 0, time.UTC)
+
 type gregorian struct{}
 
 func (gregorian) Name() string   { return Gregorian }
@@ -80,6 +106,9 @@ func (gregorian) Time(y, m, d int, loc *time.Location) time.Time {
 }
 func (gregorian) MonthStart(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location())
+}
+func (g gregorian) Day(y, m, d int, loc *time.Location) (time.Time, error) {
+	return validDay(g, y, m, d, loc)
 }
 func (gregorian) AddMonths(start time.Time, n int) time.Time { return start.AddDate(0, n, 0) }
 func (gregorian) DaysInMonth(start time.Time) int {
@@ -128,6 +157,12 @@ func (solarHijri) Time(y, m, d int, loc *time.Location) time.Time {
 	// The first six months hold 31 days and the next five hold 30.
 	return time.Date(nowruz.Year(), nowruz.Month(), nowruz.Day()+(m-1)*31-(m/7)*(m-7)+d-1, 0, 0, 0, 0, loc)
 }
+func (s solarHijri) Day(y, m, d int, loc *time.Location) (time.Time, error) {
+	if y < shBreaks[0] || y >= shBreaks[len(shBreaks)-1] {
+		return time.Time{}, fmt.Errorf("solar hijri year %d is outside the reckoning", y)
+	}
+	return validDay(s, y, m, d, loc)
+}
 func (solarHijri) MonthStart(t time.Time) time.Time {
 	y, m, _ := solarHijri{}.Date(t)
 	return solarHijri{}.Time(y, m, 1, t.Location())
@@ -160,12 +195,14 @@ func (solarHijri) Page(t time.Time) string {
 	y, m, _ := solarHijri{}.Date(t)
 	return fmt.Sprintf("%04d-%02d", y, m)
 }
+
+// A page links the months either side of it, so the years either side must be reckoned too.
 func (solarHijri) ParsePage(s string, loc *time.Location) (time.Time, error) {
 	var y, m int
-	if _, err := fmt.Sscanf(s, "%d-%d", &y, &m); err != nil || m < 1 || m > 12 {
+	if _, err := fmt.Sscanf(s, "%d-%d", &y, &m); err != nil || y <= shBreaks[0] || y+1 >= shBreaks[len(shBreaks)-1] {
 		return time.Time{}, fmt.Errorf("not a month: %q", s)
 	}
-	return solarHijri{}.Time(y, m, 1, loc), nil
+	return solarHijri{}.Day(y, m, 1, loc)
 }
 func (solarHijri) MonthKey(month int) string {
 	return fmt.Sprintf("calendar.shmonth.%d", month)
@@ -179,9 +216,12 @@ func (solarHijri) YearDay(t time.Time) int {
 }
 func (solarHijri) WeekStarts() time.Weekday { return time.Saturday }
 
+// shBreaks are the years shYear reckons from; the last is the first it cannot.
+var shBreaks = [...]int{-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178}
+
 // shYear returns the years since the last leap year (0 for a leap year) and the Gregorian day of Nowruz, per Borkowski (Earth, Moon and Planets 74, 1996).
 func shYear(jy int) (sinceLeap int, nowruz time.Time) {
-	breaks := [...]int{-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178}
+	breaks := shBreaks
 	if jy < breaks[0] || jy >= breaks[len(breaks)-1] {
 		panic(fmt.Sprintf("solar hijri year %d is outside the reckoning", jy))
 	}

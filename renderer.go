@@ -176,7 +176,7 @@ func (g *GlobalRenderData) FormatDate(t time.Time) string {
 
 // ShortDate is a bare date in the secondary calendar when one is chosen, without the current year.
 func (g *GlobalRenderData) ShortDate(t time.Time) string {
-	cal := g.PrimaryCalendar()
+	cal := calsys.For(g.PrimaryCalendar(), g.InTimezone(t))
 	year, m, day := cal.Date(g.InTimezone(t))
 	thisYear, _, _ := cal.Date(g.InTimezone(time.Now()))
 	month := g.ShortMonth(cal, m)
@@ -207,7 +207,7 @@ func (g *GlobalRenderData) WeekdayName(d time.Weekday) string {
 
 // MonthName translates the month of t, in the primary calendar.
 func (g *GlobalRenderData) MonthName(t time.Time) string {
-	cal := g.PrimaryCalendar()
+	cal := calsys.For(g.PrimaryCalendar(), g.InTimezone(t))
 	_, m, _ := cal.Date(g.InTimezone(t))
 	return g.T(cal.MonthKey(m))
 }
@@ -223,12 +223,13 @@ func (g *GlobalRenderData) ShortMonth(cal calsys.System, month int) string {
 // PrimaryCalendar is the calendar the page counts in.
 func (g *GlobalRenderData) PrimaryCalendar() calsys.System { return calsys.Of(g.Primary) }
 
-// SecondaryCalendar is the calendar glossed beside the primary one; false for none.
-func (g *GlobalRenderData) SecondaryCalendar() (calsys.System, bool) {
+// SecondaryCalendar is the calendar glossed beside the primary one at t; false for none, or one that cannot count t.
+func (g *GlobalRenderData) SecondaryCalendar(t time.Time) (calsys.System, bool) {
 	if g.Secondary == "" || g.Secondary == g.PrimaryCalendar().Name() {
 		return nil, false
 	}
-	return calsys.Of(g.Secondary), true
+	cal := calsys.Of(g.Secondary)
+	return cal, calsys.For(cal, t) == cal
 }
 
 // ContentLang names the language of interface text, empty where it matches the page.
@@ -352,7 +353,7 @@ func isLatinLetter(r rune) bool {
 
 // SecondaryDate is the full secondary date of one day.
 func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
-	cal, ok := g.SecondaryCalendar()
+	cal, ok := g.SecondaryCalendar(g.InTimezone(t))
 	if !ok || t.IsZero() {
 		return ""
 	}
@@ -362,7 +363,7 @@ func (g *GlobalRenderData) SecondaryDate(t time.Time) string {
 
 // MonthYear renders the calendar heading for t's month.
 func (g *GlobalRenderData) MonthYear(t time.Time) string {
-	y, _, _ := g.PrimaryCalendar().Date(g.InTimezone(t))
+	y, _, _ := calsys.For(g.PrimaryCalendar(), g.InTimezone(t)).Date(g.InTimezone(t))
 	return fmt.Sprintf("%s %s", g.MonthName(t), g.FormatYear(y))
 }
 
@@ -370,7 +371,7 @@ func (g *GlobalRenderData) MonthYear(t time.Time) string {
 func (g *GlobalRenderData) LongDate(t time.Time) string {
 	weekday := g.WeekdayName(g.InTimezone(t).Weekday())
 	month := g.MonthName(t)
-	y, _, d := g.PrimaryCalendar().Date(g.InTimezone(t))
+	y, _, d := calsys.For(g.PrimaryCalendar(), g.InTimezone(t)).Date(g.InTimezone(t))
 	return g.printer().Sprintf(g.T("date.long"), weekday, d, month, g.FormatYear(y))
 }
 

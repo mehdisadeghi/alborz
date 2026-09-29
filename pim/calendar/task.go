@@ -42,7 +42,7 @@ type UpdateTaskRenderData struct {
 	CalendarObject *caldav.CalendarObject
 	Todo           *ical.Component
 	// Due is the due date as the field holds it.
-	Due string
+	Due alborz.DateField
 	// Priority is the band the select holds; PriorityBands the bands offered.
 	Priority      string
 	PriorityBands []string
@@ -202,7 +202,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 	if ctx.Request().Method == "POST" {
 		summary := ctx.FormValue("summary")
 		description := ctx.FormValue("description")
-		dueDate := ctx.FormValue("due-date")
+		dueDate := ctx.DateField("due-date")
 		params, err := ctx.FormParams()
 		if err != nil {
 			return err
@@ -262,8 +262,8 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 
 		// The zone definition must cover the date it qualifies, so it brackets the due date.
 		due := time.Now().In(loc)
-		if dueDate != "" {
-			at, err := ctx.ReadDate(dueDate, loc)
+		if dueDate.Value != "" {
+			at, err := dueDate.Date(loc)
 			if err != nil {
 				return reject(ctx.T("form.duedate"))
 			}
@@ -299,7 +299,6 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 
 	summary, _ := todo.Props.Text("SUMMARY")
 	// DUE, or DTSTART from a writer that sent only the start.
-	var due string
 	at, err := todo.Props.DateTime(ical.PropDue, loc)
 	if err != nil {
 		return err
@@ -308,9 +307,6 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		if at, err = todo.Props.DateTime(ical.PropDateTimeStart, loc); err != nil {
 			return err
 		}
-	}
-	if !at.IsZero() {
-		due = ctx.InputDate(at)
 	}
 
 	rail, err := p.taskRail(ctx)
@@ -324,7 +320,7 @@ func (p *plugin) updateTask(ctx *alborz.Context) error {
 		Calendar:       currentCalendar,
 		CalendarObject: co,
 		Todo:           todo,
-		Due:            due,
+		Due:            ctx.InputDate(at),
 		Priority:       priorityBand(todo),
 		PriorityBands:  priorityBands,
 	})

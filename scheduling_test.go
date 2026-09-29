@@ -124,7 +124,7 @@ func TestAnOrganizerKeepsAttendeesInformed(t *testing.T) {
 	c.Jar.SetCookies(u, []*http.Cookie{{Name: "alborz_tz", Value: "Europe/Berlin"}})
 	coll := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
 
-	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"},
+	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
 		"calendar": {smokeUser + "|" + coll}, "attendees": {"b@example.org\nc@example.org"}}
 	created(t, postForm(t, c, base+"/calendar/create", form))
 	got := sentCalendars(t, sent.All())
@@ -273,7 +273,7 @@ func TestAnAnswerIsRecordedOnTheEvent(t *testing.T) {
 	base := startAlborz(t, imapAddr, smtpAddr)
 	c := login(t, base)
 	coll := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
-	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"},
+	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
 		"calendar": {smokeUser + "|" + coll}, "attendees": {"b@example.org"}}
 	created(t, postForm(t, c, base+"/calendar/create", form))
 	eventUID := prop(sentCalendars(t, sent.All())[0].event, ical.PropUID)
@@ -360,7 +360,7 @@ func TestAServerThatSchedulesSendsTheInvitations(t *testing.T) {
 	c := login(t, base)
 	kept := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
 
-	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"},
+	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
 		"calendar": {smokeUser + "|" + personal}, "attendees": {"b@example.org"}}
 	created(t, postForm(t, c, base+"/calendar/create", form))
 	if got := sent.All(); len(got) != 0 {

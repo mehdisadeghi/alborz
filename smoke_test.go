@@ -1306,6 +1306,100 @@ func TestNewestFirstWithoutSort(t *testing.T) {
 	}
 }
 
+func TestDatesPastTheSolarHijriReckoningShowGregorian(t *testing.T) {
+	imapAddr := startIMAP(t)
+	base := startAlborz(t, imapAddr)
+	c := login(t, base)
+	dates := map[string]string{
+		"Mon, 1 Jan 4000 10:00:00 +0000": "January 1, 4000",
+		"Fri, 1 Jan 0560 10:00:00 +0000": "January 1, 560",
+	}
+	var uids []string
+	for date := range dates {
+		uids = append(uids, appendMessage(t, imapAddr, "INBOX", "From: a@example.org\r\nTo: "+smokeUser+
+			"\r\nSubject: Dated\r\nDate: "+date+"\r\n\r\n"))
+	}
+	for _, reading := range []url.Values{
+		{"calendar": {"shcal"}, "secondary": {""}},
+		{"calendar": {"gregorian"}, "secondary": {"shcal"}},
+	} {
+		postForm(t, c, base+"/settings", reading)
+		list := get(t, c, base+"/mailbox/INBOX")
+		for _, uid := range uids {
+			get(t, c, base+"/message/INBOX/"+uid)
+		}
+		for _, shown := range dates {
+			if !strings.Contains(list, shown) {
+				t.Errorf("with %v the list does not show %q", reading, shown)
+			}
+		}
+	}
+}
+
+// A date is read in the calendar its field names: typed Solar Hijri beyond the reckoning is refused, a stored date beyond it round-trips in Gregorian.
+func TestInputPastTheSolarHijriReckoning(t *testing.T) {
+	base := startAlborzKept(t, startIMAP(t))
+	c := login(t, base)
+	coll := strings.TrimPrefix(keptCalendar(t, base, c, "Plans", "plans"), base)
+	put(t, base, coll+"far.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n"+
+		"BEGIN:VEVENT\r\nUID:far\r\nDTSTAMP:20260901T080000Z\r\nDTSTART:40000101T100000Z\r\nDTEND:40000101T110000Z\r\n"+
+		"SUMMARY:Far\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	edit := base + "/calendar/" + url.PathEscape(coll+"far.ics") + "/update"
+	saved := func() string {
+		_, body := dav(t, http.MethodGet, base+coll+"far.ics", nil, "")
+		return body
+	}
+
+	postForm(t, c, base+"/settings", url.Values{"calendar": {"shcal"}, "secondary": {""}})
+	for _, month := range []string{"3178-01", "-62-01"} {
+		resp, err := c.Get(base + "/calendar?month=" + month)
+		if err != nil {
+			t.Fatalf("month %s: %v", month, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("month %s answered %s, want it refused", month, resp.Status)
+		}
+	}
+	typed := url.Values{"summary": {"Typed"}, "calendar": {smokeUser + "|" + coll},
+		"start": {"3178/01/01 10:00"}, "end": {"3178/01/01 11:00"}, "start-calendar": {"shcal"}, "end-calendar": {"shcal"}}
+	if resp := postForm(t, c, base+"/calendar/create", typed); resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Errorf("a typed year past the reckoning answered %s, want the form refused", resp.Status)
+	}
+
+	page := get(t, c, edit)
+	shown := url.Values{"summary": {"Far again"}}
+	for _, name := range []string{"start", "end", "start-calendar", "end-calendar"} {
+		field := regexp.MustCompile(`name="` + name + `"[^>]*value="([^"]*)"`).FindStringSubmatch(page)
+		if field == nil {
+			t.Fatalf("the edit form has no %s", name)
+		}
+		shown.Set(name, field[1])
+	}
+	if shown.Get("start") != "4000-01-01T10:00" || shown.Get("start-calendar") != "gregorian" {
+		t.Fatalf("the edit form holds the stored start as %v, want it in Gregorian", shown)
+	}
+	if resp := postForm(t, c, edit, shown); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving the form as shown answered %s", resp.Status)
+	}
+	if body := saved(); !strings.Contains(body, "DTSTART:40000101T100000Z") || !strings.Contains(body, "Far again") {
+		t.Errorf("the saved event moved: %s", body)
+	}
+
+	early := url.Values{"summary": {"Early"}, "allday": {"on"},
+		"start_date": {"0100-01-01"}, "end_date": {"0100-01-01"}, "start_date-calendar": {"shcal"}, "end_date-calendar": {"shcal"}}
+	if resp := postForm(t, c, edit, early); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving Solar Hijri 0100-01-01 answered %s", resp.Status)
+	}
+	// 1 Farvardin 100 falls in March 721.
+	if body := saved(); !strings.Contains(body, "DTSTART;VALUE=DATE:0721032") {
+		t.Errorf("Solar Hijri 0100-01-01 was not saved as a day of Nowruz 721: %s", body)
+	}
+
+	postForm(t, c, base+"/settings", url.Values{"calendar": {"gregorian"}, "secondary": {"shcal"}})
+	get(t, c, base+"/calendar?month=4000-01")
+}
+
 func TestComposeOpensFromTheAccountNamed(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)

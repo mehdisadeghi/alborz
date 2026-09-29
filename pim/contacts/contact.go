@@ -50,7 +50,7 @@ type UpdateAddressObjectRenderData struct {
 	AddressObject *carddav.AddressObject
 	Card          vcard.Card
 	Name          string
-	Birthday      string
+	Birthday      alborz.DateField
 	// Photo is the card's current picture, shown beside its replacement.
 	Photo string
 }
@@ -278,7 +278,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 				AddressObject:  ao,
 				Card:           card,
 				Name:           fn,
-				Birthday:       ctx.FormValue("bday"),
+				Birthday:       ctx.DateField("bday"),
 				Photo:          card.PreferredValue(vcard.FieldPhoto),
 			})
 		}
@@ -329,9 +329,9 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		}
 		setValue(vcard.FieldOrganization, strings.TrimSpace(ctx.FormValue("org")))
 		setValue(vcard.FieldTitle, strings.TrimSpace(ctx.FormValue("title")))
-		birthday := strings.TrimSpace(ctx.FormValue("bday"))
-		if birthday != "" {
-			day, err := ctx.ReadDate(birthday, time.UTC)
+		var birthday string
+		if field := ctx.DateField("bday"); field.Value != "" {
+			day, err := field.Date(time.UTC)
 			if err != nil {
 				return reject(ctx.T("form.birthday"))
 			}
@@ -409,7 +409,7 @@ func (p *plugin) updateContact(ctx *alborz.Context) error {
 		AddressObject:  ao,
 		Card:           card,
 		Name:           name,
-		Birthday:       birthdayValue(card),
+		Birthday:       ctx.InputDay(birthdayValue(card)),
 		Photo:          card.PreferredValue(vcard.FieldPhoto),
 	})
 }

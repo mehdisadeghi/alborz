@@ -8,6 +8,6 @@ func Mount(public, unlock, app *web.Group) {
 	public.GET("login", "/login", handleLogin)
 	public.POST("login", "/login", handleLogin)
 
-	app.POST("logout", "/logout", HandleLogout)
+	app.POST("logout", "/logout", handleLogout)
 	registerPasskeyRoutes(unlock, app)
 }

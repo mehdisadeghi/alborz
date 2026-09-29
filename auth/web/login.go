@@ -76,7 +76,7 @@ func loginRedirect(ctx *web.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.Path("mail.mailbox", "INBOX"))
 }
 
-func HandleLogout(ctx *web.Context) error {
+func handleLogout(ctx *web.Context) error {
 	username := ctx.Login.Username()
 	if ctx.FormValue("account") != "" {
 		username = ctx.FormValue("account")

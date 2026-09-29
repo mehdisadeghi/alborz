@@ -60,7 +60,7 @@ func (ctx *Context) SetRequest(r *http.Request) {
 func (ctx *Context) Response() *Response { return ctx.response }
 
 // Logger is the server's logger.
-func (ctx *Context) Logger() *log.Logger { return ctx.Server.log }
+func (ctx *Context) Logger() *log.Logger { return ctx.Server.Logger() }
 
 // Param is the path value the route names, unescaped.
 func (ctx *Context) Param(name string) string { return ctx.request.PathValue(name) }

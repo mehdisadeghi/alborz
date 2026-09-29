@@ -157,9 +157,9 @@ func (s *Server) serve(h HandlerFunc) http.HandlerFunc {
 		ctx := &Context{Server: s, request: req, response: &Response{ResponseWriter: w}}
 		if s.Options.Debug {
 			// Arrivals too, so a request that never finishes names its URI.
-			s.log.Printf("-> %s %s", req.Method, req.RequestURI)
+			s.Logger().Printf("-> %s %s", req.Method, req.RequestURI)
 			defer func() {
-				s.log.Printf("method=%s, uri=%s, status=%d", req.Method, req.RequestURI, ctx.response.Status)
+				s.Logger().Printf("method=%s, uri=%s, status=%d", req.Method, req.RequestURI, ctx.response.Status)
 			}()
 		}
 		defer func() {

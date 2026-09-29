@@ -25,7 +25,6 @@ import (
 // Server is alborz as the web serves it.
 type Server struct {
 	*alborz.Server
-	log *log.Logger
 
 	routes routes
 	// serving is set once the routes are final.
@@ -103,7 +102,7 @@ func New(logger *log.Logger, options Options, funcs template.FuncMap) (*Server, 
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{Server: core, log: logger, assets: make(map[string]assetStamp), trusted: trusted,
+	s := &Server{Server: core, assets: make(map[string]assetStamp), trusted: trusted,
 		projectURL: options.ProjectURL, strictNotices: options.StrictNotices,
 		routes: routes{mux: http.NewServeMux(), names: map[string]string{}}}
 	s.files = os.DirFS(templatesDir)
@@ -168,12 +167,9 @@ func (s *Server) load() error {
 
 // Reload reads the templates and custom.css from disk again.
 func (s *Server) Reload() error {
-	s.log.Printf("Reloading templates and custom.css")
+	s.Logger().Printf("Reloading templates and custom.css")
 	return s.load()
 }
-
-// Logger returns this server's logger.
-func (s *Server) Logger() *log.Logger { return s.log }
 
 // What a launcher paints before any stylesheet has loaded.
 const (

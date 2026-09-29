@@ -210,6 +210,9 @@ func New(log *log.Logger, options Options) (*Server, error) {
 	return s, nil
 }
 
+// Logger returns this server's logger.
+func (s *Server) Logger() *log.Logger { return s.log }
+
 // Domains lists the served mail domains in stable order.
 func (s *Server) Domains() []string {
 	names := make([]string, 0, len(s.domains))

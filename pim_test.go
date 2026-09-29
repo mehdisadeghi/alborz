@@ -162,6 +162,24 @@ func TestACalendarOnAlborzDrawsItsSolarHijriRule(t *testing.T) {
 	}
 }
 
+// An EXDATE takes one year out of a Solar Hijri rule, in the store's query and on the page.
+func TestAnExceptionHidesOneSolarHijriYear(t *testing.T) {
+	base := startAlborz(t, startIMAP(t))
+	c := login(t, base)
+	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+	postForm(t, c, base+"/settings", url.Values{"calendar": {"shcal"}, "secondary": {""}})
+	// 1 Farvardin 1405, 1406 and 1407 are 2026-03-21, 2027-03-21 and 2028-03-20.
+	put(t, base, coll+"nowruz.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n"+
+		"BEGIN:VEVENT\r\nUID:nowruz\r\nDTSTAMP:20260101T080000Z\r\nDTSTART:20260321T100000Z\r\nDTEND:20260321T110000Z\r\n"+
+		"RRULE:RSCALE=PERSIAN;FREQ=YEARLY;SKIP=BACKWARD\r\nEXDATE:20270321T100000Z\r\nSUMMARY:Nowruz\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	if page := get(t, c, base+"/calendar?month=1406-01"); strings.Contains(page, "Nowruz") {
+		t.Errorf("the excepted year still shows the event")
+	}
+	if page := get(t, c, base+"/calendar?month=1407-01"); !strings.Contains(page, "Nowruz") {
+		t.Errorf("the year after the exception does not show the event")
+	}
+}
+
 // An address book query with no filter asks for every card (RFC 6352 10.5).
 func TestABookOnAlborzListsItsCards(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))

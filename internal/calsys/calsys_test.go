@@ -50,12 +50,8 @@ var nowruzes = []struct {
 }
 
 func TestJalaliNowruz(t *testing.T) {
-	cal := solarHijri{}
+	cal := solarHijri
 	for _, c := range nowruzes {
-		since, nowruz := shYear(c.year)
-		if !nowruz.Equal(c.nowruz) || (since == 0) != c.leap {
-			t.Errorf("shYear(%d) = %d, %s; want Nowruz %s, leap %v", c.year, since, nowruz.Format(time.DateOnly), c.nowruz.Format(time.DateOnly), c.leap)
-		}
 		if got := cal.Time(c.year, 1, 1, time.UTC); !got.Equal(c.nowruz) {
 			t.Errorf("Time(%d, 1, 1) = %s; want %s", c.year, got.Format(time.DateOnly), c.nowruz.Format(time.DateOnly))
 		}
@@ -66,7 +62,7 @@ func TestJalaliNowruz(t *testing.T) {
 }
 
 func TestJalaliEsfandLength(t *testing.T) {
-	cal := solarHijri{}
+	cal := solarHijri
 	for _, c := range nowruzes {
 		// Esfand of the last year runs into a Gregorian year whose Nowruz is outside the reckoning.
 		if c.year == 3177 {
@@ -102,7 +98,7 @@ func TestJalaliDate(t *testing.T) {
 		{day(1900, 1, 1), 1278, 10, 11},
 		{day(3798, 12, 31), 3177, 10, 11},
 	}
-	cal := solarHijri{}
+	cal := solarHijri
 	for _, c := range cases {
 		if y, m, d := cal.Date(c.t); y != c.y || m != c.m || d != c.d {
 			t.Errorf("Date(%s) = %d/%d/%d; want %d/%d/%d", c.t.Format(time.DateOnly), y, m, d, c.y, c.m, c.d)
@@ -114,7 +110,7 @@ func TestJalaliDate(t *testing.T) {
 }
 
 func TestJalaliRoundTrip(t *testing.T) {
-	cal := solarHijri{}
+	cal := solarHijri
 	spans := [][2]time.Time{
 		{day(1826, 1, 1), day(1833, 1, 1)},
 		{day(2016, 1, 1), day(2032, 1, 1)},
@@ -136,15 +132,10 @@ func TestJalaliRoundTrip(t *testing.T) {
 	}
 }
 
-func TestJalaliOutsideReckoningPanics(t *testing.T) {
+func TestJalaliOutsideReckoningRefused(t *testing.T) {
 	for _, y := range []int{-62, 3178} {
-		func() {
-			defer func() {
-				if recover() == nil {
-					t.Errorf("shYear(%d) did not panic", y)
-				}
-			}()
-			shYear(y)
-		}()
+		if got, err := solarHijri.Day(y, 1, 1, time.UTC); err == nil {
+			t.Errorf("Day(%d, 1, 1) = %s; want it refused", y, got.Format(time.DateOnly))
+		}
 	}
 }

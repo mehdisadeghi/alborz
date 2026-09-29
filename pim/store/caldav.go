@@ -15,6 +15,8 @@ import (
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/caldav"
+
+	"git.mehdix.org/alborz/internal/calsys"
 )
 
 type calendars struct{ *Store }
@@ -34,6 +36,7 @@ func calendarOf(viewer string, c Collection, may access) (*caldav.Calendar, erro
 		Description:           c.Description,
 		Color:                 c.Color,
 		SupportedComponentSet: c.Components,
+		SupportedRScaleSet:    calsys.RSCALEs(),
 		ReadOnly:              may < write,
 		CTag:                  strconv.FormatUint(c.CTag, 10),
 		DeadProperties:        deadOf(c),

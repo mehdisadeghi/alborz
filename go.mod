@@ -6,6 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/ProtonMail/go-crypto v1.5.0
 	github.com/alborzmail/go-itip v0.0.0-20260929111949-05f20f0ab6b6
+	github.com/alborzmail/go-recur v0.0.0-20260929133629-dcb73b0bbb94
 	github.com/aymerick/douceur v0.2.0
 	github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
@@ -52,7 +53,6 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
-	github.com/teambition/rrule-go v1.8.2 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
@@ -73,8 +73,10 @@ replace github.com/emersion/go-vcard => github.com/alborzmail/go-vcard v0.0.0-20
 // and client ones: collections made, changed and listed, ETags and syncs
 // handed over as sent, files listed without a length; time ranges
 // matched by RFC 4791 9.9 for recurring events, to-dos, journals and
-// moved instances, and a rule it cannot read keeps its object.
-replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260929113412-604ca2afee6a
+// moved instances, Solar Hijri rules by their instances, and a rule it
+// cannot read keeps its object; the calendar scales it expands advertised
+// (RFC 7529 supported-rscale-set).
+replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260929134702-aa2ea5b738c4
 
 // Our fork of go-msgauth carries the authres parser rework upstream has
 // not merged (emersion/go-msgauth#53): quoted values and comments, and
@@ -88,8 +90,10 @@ replace github.com/emersion/go-mbox => github.com/alborzmail/go-mbox v0.0.0-2026
 
 // Our fork of go-ical adds what upstream leaves to every caller:
 // NewTimezone, the VTIMEZONE of a zone over a span, the zones a calendar
-// refers to, alarm triggers, splitting by UID, dropping repeated zones.
-replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-20260928213756-d103982e72b1
+// refers to, alarm triggers, splitting by UID, dropping repeated zones;
+// and recurrence by go-recur, RSCALE included, with a component and its
+// overrides read as one series.
+replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-20260929134259-007cc45012fd
 
 // Our fork of go-imap carries what upstream has open: ID with fields
 // RFC 2971 does not name, so Dovecot learns the reader's address

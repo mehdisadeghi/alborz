@@ -4,6 +4,9 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/emersion/go-ical"
+	"github.com/emersion/go-webdav/caldav"
 )
 
 // Expected days follow RFC 7529 section 4.1 (SKIP) and 4.2 (COUNT), counted by hand from Nowruz 1404 = 2025-03-21,
@@ -48,7 +51,9 @@ func TestRSCALE(t *testing.T) {
 			[]time.Time{inTehran(2025, 9, 22), inTehran(2025, 10, 22)}},
 		{"UNTIL in UTC a second early", "RSCALE=PERSIAN;FREQ=MONTHLY;SKIP=BACKWARD;UNTIL=20251022T052959Z", inTehran(2025, 9, 22), far,
 			[]time.Time{inTehran(2025, 9, 22)}},
-		{"unreadable part yields the first", "RSCALE=PERSIAN;FREQ=MONTHLY;BYMONTHDAY=-1", shahrivar31, far,
+		{"last day of each month", "RSCALE=PERSIAN;FREQ=MONTHLY;BYMONTHDAY=-1;COUNT=3", shahrivar31, far,
+			[]time.Time{shahrivar31, at9(2025, 10, 22), at9(2025, 11, 21)}},
+		{"unreadable rule yields the first", "RSCALE=PERSIAN;FREQ=MONTHLY;BYMONTHDAY=32", shahrivar31, far,
 			[]time.Time{shahrivar31}},
 		{"unknown scale yields the first", "RSCALE=HEBREW;FREQ=MONTHLY", shahrivar31, far,
 			[]time.Time{shahrivar31}},
@@ -56,7 +61,8 @@ func TestRSCALE(t *testing.T) {
 			[]time.Time{at9(4000, 1, 1)}},
 		{"the rule ends where the reckoning does", "RSCALE=PERSIAN;FREQ=MONTHLY", at9(3798, 3, 20), at9(3800, 1, 1),
 			[]time.Time{at9(3798, 3, 20), at9(3798, 4, 20), at9(3798, 5, 21), at9(3798, 6, 21), at9(3798, 7, 22),
-				at9(3798, 8, 22), at9(3798, 9, 22), at9(3798, 10, 22), at9(3798, 11, 21), at9(3798, 12, 21)}},
+				at9(3798, 8, 22), at9(3798, 9, 22), at9(3798, 10, 22), at9(3798, 11, 21), at9(3798, 12, 21),
+				at9(3799, 1, 20), at9(3799, 2, 19)}},
 		{"gregorian Jan 31 backward", "RSCALE=GREGORIAN;FREQ=MONTHLY;SKIP=BACKWARD;COUNT=4", jan31, far,
 			[]time.Time{jan31, at9(2025, 2, 28), at9(2025, 3, 31), at9(2025, 4, 30)}},
 		{"gregorian Jan 31 omit", "RSCALE=GREGORIAN;FREQ=MONTHLY;COUNT=3", jan31, far,
@@ -65,7 +71,16 @@ func TestRSCALE(t *testing.T) {
 			[]time.Time{jan31, at9(2025, 3, 1), at9(2025, 3, 31)}},
 	}
 	for _, c := range cases {
-		got := expandRule(c.rule, c.first, c.first, c.to)
+		event := ical.NewEvent()
+		event.Props.SetText(ical.PropUID, "rule")
+		event.Props.SetDateTime(ical.PropDateTimeStart, c.first)
+		event.Props.Set(&ical.Prop{Name: ical.PropRecurrenceRule, Params: ical.Params{}, Value: c.rule})
+		cal := ical.NewCalendar()
+		cal.Children = append(cal.Children, event.Component)
+		var got []time.Time
+		for _, o := range occurrences(CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}, time.UTC, c.first, c.to) {
+			got = append(got, o.Start)
+		}
 		if !slices.EqualFunc(got, c.want, time.Time.Equal) {
 			t.Errorf("%s: got %v; want %v", c.name, got, c.want)
 		}

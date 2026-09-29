@@ -346,6 +346,12 @@ func newAlborz(t *testing.T, e *echo.Echo, options *alborz.Options) {
 
 func serveAlborz(t *testing.T, upstreams []string, cache bool) string {
 	t.Helper()
+	return serveAlborzAt(t, upstreams, cache, nil)
+}
+
+// serveAlborzAt serves an alborz whose -public-url is public.
+func serveAlborzAt(t *testing.T, upstreams []string, cache bool, public *url.URL) string {
+	t.Helper()
 	e := echo.New()
 	e.HideBanner, e.HidePort = true, true
 	newAlborz(t, e, &alborz.Options{
@@ -353,6 +359,7 @@ func serveAlborz(t *testing.T, upstreams []string, cache bool) string {
 		LoginKey:  smokeKey,
 		DataDir:   t.TempDir(),
 		Cache:     cache,
+		PublicURL: public,
 		// A handler that sends the reader elsewhere says what it did.
 		StrictNotices: true,
 	})
@@ -1659,7 +1666,7 @@ func TestInputPastTheSolarHijriReckoning(t *testing.T) {
 	put(t, base, coll+"far.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n"+
 		"BEGIN:VEVENT\r\nUID:far\r\nDTSTAMP:20260901T080000Z\r\nDTSTART:40000101T100000Z\r\nDTEND:40000101T110000Z\r\n"+
 		"SUMMARY:Far\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
-	edit := base + "/calendar/" + url.PathEscape(coll+"far.ics") + "/update"
+	edit := base + "/calendar/" + url.PathEscape(hereAt+coll+"far.ics") + "/update"
 	saved := func() string {
 		_, body := dav(t, http.MethodGet, base+coll+"far.ics", nil, "")
 		return body
@@ -1676,7 +1683,7 @@ func TestInputPastTheSolarHijriReckoning(t *testing.T) {
 			t.Errorf("month %s answered %s, want it refused", month, resp.Status)
 		}
 	}
-	typed := url.Values{"summary": {"Typed"}, "calendar": {smokeUser + "|" + coll},
+	typed := url.Values{"summary": {"Typed"}, "calendar": {smokeUser + "|" + hereAt + coll},
 		"start": {"3178/01/01 10:00"}, "end": {"3178/01/01 11:00"}, "start-calendar": {"shcal"}, "end-calendar": {"shcal"}}
 	if resp := postForm(t, c, base+"/calendar/create", typed); resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("a typed year past the reckoning answered %s, want the form refused", resp.Status)

@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -36,6 +38,18 @@ type davStub struct {
 
 const davHome = "/dav/calendars/u/"
 const davBooks = "/dav/addressbooks/u/"
+
+// hereAt begins the paths pages hold for collections on the test's alborz, which has no -public-url.
+var hereAt = func() string {
+	host, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+	return "/@" + strings.ToLower(host)
+}()
+
+// at begins the paths pages hold for collections on the server at u (ADR 28).
+func at(u string) string { return "/@" + strings.TrimPrefix(u, "http://") }
 
 func (s *davStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
@@ -205,9 +219,6 @@ func startAlborzDav(t *testing.T, imapAddr, davURL string) string {
 	return "http://" + ln.Addr().String()
 }
 
-const personalDelete = "/calendars/%2Fdav%2Fcalendars%2Fu%2Fpersonal%2F/delete"
-const personalPage = "/calendars/%2Fdav%2Fcalendars%2Fu%2Fpersonal%2F"
-
 func TestCollectionDeleteReportsItsOutcome(t *testing.T) {
 	personal := davHome + "personal/"
 	stub := &davStub{
@@ -220,6 +231,8 @@ func TestCollectionDeleteReportsItsOutcome(t *testing.T) {
 	defer srv.Close()
 	base := startAlborzDav(t, startIMAP(t), srv.URL)
 	c := login(t, base)
+	personalPage := "/calendars/" + url.PathEscape(at(srv.URL)+personal)
+	personalDelete := personalPage + "/delete"
 
 	if resp := postForm(t, c, base+personalDelete, nil); resp.StatusCode != http.StatusFound {
 		t.Fatalf("a refused delete answered %s, want a redirect not a 500", resp.Status)

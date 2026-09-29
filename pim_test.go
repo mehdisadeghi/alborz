@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/mail"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -149,7 +150,7 @@ func TestAMonthWithNoEventsExportsNothing(t *testing.T) {
 func TestACalendarOnAlborzDrawsItsSolarHijriRule(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)
-	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+	coll := hereAt + strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 	postForm(t, c, base+"/settings", url.Values{"calendar": {"shcal"}, "secondary": {""}})
 	form := url.Values{"summary": {"Nowruz"}, "calendar": {smokeUser + "|" + coll},
 		"start": {"1405/01/01 10:00"}, "start-calendar": {"shcal"},
@@ -170,6 +171,8 @@ func TestACalendarOnAlborzDrawsItsSolarHijriRule(t *testing.T) {
 func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 	const refused = "does not say it can keep a repeat"
 	personal := davHome + "personal/"
+	// onStub is personal as pages hold it, on the stub a subtest started.
+	var onStub string
 	nowruz := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:nowruz\r\n" +
 		"DTSTAMP:20260101T080000Z\r\nDTSTART:20260321T100000Z\r\nDTEND:20260321T110000Z\r\n" +
 		"RRULE:RSCALE=PERSIAN;FREQ=YEARLY;SKIP=BACKWARD\r\nSUMMARY:Nowruz\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
@@ -179,6 +182,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 			rscales: rscales, objects: map[string]string{personal + "nowruz.ics": nowruz}}
 		srv := httptest.NewServer(stub)
 		t.Cleanup(srv.Close)
+		onStub = at(srv.URL) + personal
 		base := serveAlborz(t, []string{
 			"test.local=imap+insecure://" + startIMAP(t),
 			"test.local=caldav+insecure://" + strings.TrimPrefix(srv.URL, "http://") + "/dav",
@@ -187,7 +191,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 	}
 	create := func(t *testing.T, base string, c *http.Client) (*http.Response, string) {
 		postForm(t, c, base+"/settings", url.Values{"calendar": {"shcal"}, "secondary": {""}})
-		return postBody(t, c, base+"/calendar/create", url.Values{"summary": {"Nowruz"}, "calendar": {smokeUser + "|" + personal},
+		return postBody(t, c, base+"/calendar/create", url.Values{"summary": {"Nowruz"}, "calendar": {smokeUser + "|" + onStub},
 			"start": {"1405/01/01 10:00"}, "start-calendar": {"shcal"},
 			"end": {"1405/01/01 11:00"}, "end-calendar": {"shcal"}, "repeat": {"yearly"}}, nil)
 	}
@@ -213,7 +217,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 		base, c, stub := start(t, nil)
 		var body strings.Builder
 		w := multipart.NewWriter(&body)
-		w.WriteField("collection", smokeUser+"|"+personal)
+		w.WriteField("collection", smokeUser+"|"+onStub)
 		part, err := w.CreateFormFile("file", "nowruz.ics")
 		if err != nil {
 			t.Fatal(err)
@@ -243,7 +247,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 		put(t, base, task, "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VTODO\r\n"+
 			"UID:water\r\nDTSTAMP:20260101T080000Z\r\nDTSTART:20260321T100000Z\r\n"+
 			"RRULE:RSCALE=PERSIAN;FREQ=YEARLY;SKIP=BACKWARD\r\nSUMMARY:Water the ferns\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
-		if resp := postForm(t, c, base+"/tasks/move", url.Values{"paths": {smokeUser + "|" + task}, "to": {smokeUser + "|" + personal}}); resp.StatusCode != http.StatusFound {
+		if resp := postForm(t, c, base+"/tasks/move", url.Values{"paths": {smokeUser + "|" + hereAt + task}, "to": {smokeUser + "|" + onStub}}); resp.StatusCode != http.StatusFound {
 			t.Fatalf("the move answered %s", resp.Status)
 		}
 		if page := get(t, c, base+"/tasks"); !strings.Contains(html.UnescapeString(page), refused) {
@@ -260,7 +264,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 		base, c, stub := start(t, nil)
 		form := url.Values{"summary": {"Nowruz at home"}, "start": {"2026-03-21T10:00"}, "start-calendar": {"gregorian"},
 			"end": {"2026-03-21T11:00"}, "end-calendar": {"gregorian"}, "repeat": {"custom"}}
-		resp := postForm(t, c, base+"/calendar/"+url.PathEscape(personal+"nowruz.ics")+"/update", form)
+		resp := postForm(t, c, base+"/calendar/"+url.PathEscape(onStub+"nowruz.ics")+"/update", form)
 		if resp.StatusCode != http.StatusFound || len(stub.puts) != 1 || !strings.Contains(stub.puts[0], "RSCALE=PERSIAN") {
 			t.Fatalf("the edit answered %s and wrote %q, want the rule kept", resp.Status, stub.puts)
 		}
@@ -281,6 +285,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 	base := serveAlborz(t, []string{"test.local=imap+insecure://" + imapAddr,
 		"test.local=caldav+insecure://" + host + "/dav", "test.local=carddav+insecure://" + host + "/dav"}, false)
 	c := login(t, base)
+	personal, work, friends, family = at(srv.URL)+personal, at(srv.URL)+work, at(srv.URL)+friends, at(srv.URL)+family
 	attached := func(mime, name, body string) string {
 		return appendMessage(t, imapAddr, "INBOX", "From: eve@example.org\r\nTo: "+smokeUser+"\r\nSubject: "+name+"\r\n"+
 			"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b1\r\n\r\n"+
@@ -601,8 +606,10 @@ func walk(t *testing.T, base string, c *http.Client, k walked, scope string) {
 			t.Fatalf("%s answered %s", what, resp.Status)
 		}
 	}
-	object := func(uid string) string { return base + k.objects + url.PathEscape(k.collection+uid+k.ext) }
-	ref := func(uid string) string { return smokeUser + "|" + k.collection + uid + k.ext }
+	// held is the collection as pages hold it; put and dav reach it as any client does.
+	held := hereAt + k.collection
+	object := func(uid string) string { return base + k.objects + url.PathEscape(held+uid+k.ext) }
+	ref := func(uid string) string { return smokeUser + "|" + held + uid + k.ext }
 	uids := []string{"first", "second", "third"}
 	for _, uid := range uids {
 		put(t, base, k.collection+uid+k.ext, k.mime, k.object(uid, "Walked "+uid))
@@ -636,15 +643,15 @@ func walk(t *testing.T, base string, c *http.Client, k walked, scope string) {
 	}
 
 	found("the create form", get(t, c, base+k.objects+"create"+scope), `name="`+k.titleField+`"`)
-	form := url.Values{k.titleField: {"Walked made"}, k.destField: {smokeUser + "|" + k.collection}}
+	form := url.Values{k.titleField: {"Walked made"}, k.destField: {smokeUser + "|" + held}}
 	for field, values := range k.form {
 		form[field] = values
 	}
-	form.Set(k.destField, smokeUser+"|/alborz/dav/nowhere/")
+	form.Set(k.destField, smokeUser+"|"+hereAt+"/alborz/dav/nowhere/")
 	if resp := postForm(t, c, base+k.objects+"create"+scope, form); resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("a create into a collection the account has not answered %s", resp.Status)
 	}
-	form.Set(k.destField, smokeUser+"|"+k.collection)
+	form.Set(k.destField, smokeUser+"|"+held)
 	moved("the create form", postForm(t, c, base+k.objects+"create"+scope, form))
 	found("the list after a create", get(t, c, list), "Walked made")
 
@@ -701,8 +708,8 @@ func walk(t *testing.T, base string, c *http.Client, k walked, scope string) {
 		}
 		found("the move page", where, `name="to"`)
 		found("the move page", where, "Chores")
-		moved("moving to the list it is in", postForm(t, c, base+"/tasks/move", url.Values{"paths": {ref("first")}, "to": {smokeUser + "|" + k.collection}, "next": {next}}))
-		errands := strings.Replace(k.collection, "/chores/", "/errands/", 1)
+		moved("moving to the list it is in", postForm(t, c, base+"/tasks/move", url.Values{"paths": {ref("first")}, "to": {smokeUser + "|" + held}, "next": {next}}))
+		errands := strings.Replace(held, "/chores/", "/errands/", 1)
 		put(t, base, k.collection+"carried"+k.ext, k.mime, k.object("carried", "Walked carried"))
 		moved("moving the checked", postForm(t, c, base+"/tasks/move", url.Values{"paths": {ref("carried")}, "to": {smokeUser + "|" + errands}, "next": {next}}))
 		found("the moved task", get(t, c, base+k.objects+url.PathEscape(errands+"carried"+k.ext)+"/raw"+acct), "Walked carried")
@@ -728,7 +735,7 @@ func walk(t *testing.T, base string, c *http.Client, k walked, scope string) {
 	}
 	found("the import page's picker", get(t, c, base+k.list+"/import"+scope), k.collName+"</option>")
 
-	chosen := postForm(t, c, list, url.Values{k.collField: {k.collection}, "next": {next}})
+	chosen := postForm(t, c, list, url.Values{k.collField: {held}, "next": {next}})
 	moved("choosing the collections", chosen)
 	if got := chosen.Header.Get("Location"); got != next {
 		t.Errorf("choosing the collections lands on %q, not %q", got, next)
@@ -849,4 +856,55 @@ func TestAddToContactsWritesTheChosenBook(t *testing.T) {
 	if cards := bookCards(t, base, "People"); strings.Contains(cards, parsed.Address) {
 		t.Errorf("a book not chosen got the card:\n%s", cards)
 	}
+}
+
+// Ticks, links and rows name a collection by its path, and an account's settings may be shared by
+// every alborz it signs in to; each alborz's "Personal" is its own (ADR 28).
+func TestTwoAlborzKeepTheirCollectionsApart(t *testing.T) {
+	imapAddr := startIMAP(t)
+	var held []string
+	for _, host := range []string{"a.example", "b.example"} {
+		base := serveAlborzAt(t, []string{"test.local=imap+insecure://" + imapAddr}, true, &url.URL{Scheme: "https", Host: host})
+		c := login(t, base)
+		createCalendar(t, base, c, "Personal", "personal")
+		path := "/@" + host + "/alborz/dav/calendars/" + smokeUser + "/personal/"
+		if !listed(t, c, base)[path] {
+			t.Fatalf("%s does not name its Personal by %s", host, path)
+		}
+		held = append(held, path)
+	}
+	if held[0] == held[1] {
+		t.Errorf("both name their Personal %s", held[0])
+	}
+}
+
+// A domain's DAV server that is another alborz is a server like any, not this one (ADR 28).
+func TestADomainServedByAnotherAlborzListsItsCollections(t *testing.T) {
+	imapAddr := startIMAP(t)
+	other := startAlborz(t, imapAddr)
+	createCalendar(t, other, login(t, other), "Remote", "remote")
+	base := startAlborzWith(t, []string{"test.local=imap+insecure://" + imapAddr,
+		"test.local=caldav+insecure://" + strings.TrimPrefix(other, "http://") + "/alborz/dav/"})
+	c := login(t, base)
+	createCalendar(t, base, c, "Local", "local")
+	there := at(other) + "/alborz/dav/calendars/" + smokeUser + "/"
+	here := hereAt + "/alborz/dav/calendars/" + smokeUser + "/"
+	got := listed(t, c, base)
+	if !got[there+"remote/"] || !got[here+"local/"] || len(got) != 2 {
+		t.Errorf("listed %v, want the other alborz's Remote and this one's Local", got)
+	}
+}
+
+// listed are the calendars the calendar page links to.
+func listed(t *testing.T, c *http.Client, base string) map[string]bool {
+	t.Helper()
+	out := map[string]bool{}
+	for _, m := range regexp.MustCompile(`href="/calendars/(%2F[^"?/]+)`).FindAllStringSubmatch(get(t, c, base+"/calendar"), -1) {
+		p, err := url.PathUnescape(m[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		out[p] = true
+	}
+	return out
 }

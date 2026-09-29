@@ -122,7 +122,7 @@ func TestAnOrganizerKeepsAttendeesInformed(t *testing.T) {
 	c := login(t, base)
 	u, _ := url.Parse(base)
 	c.Jar.SetCookies(u, []*http.Cookie{{Name: "alborz_tz", Value: "Europe/Berlin"}})
-	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+	coll := hereAt + strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
 		"calendar": {smokeUser + "|" + coll}, "attendees": {"b@example.org\nc@example.org"}}
@@ -274,7 +274,7 @@ func TestAnAnswerIsRecordedOnTheEvent(t *testing.T) {
 	c := login(t, base)
 	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
-		"calendar": {smokeUser + "|" + coll}, "attendees": {"b@example.org"}}
+		"calendar": {smokeUser + "|" + hereAt + coll}, "attendees": {"b@example.org"}}
 	created(t, postForm(t, c, base+"/calendar/create", form))
 	eventUID := prop(sentCalendars(t, sent.All())[0].event, ical.PropUID)
 	_, object := eventPath(coll, eventUID)
@@ -330,7 +330,7 @@ func TestAnIcsAttachmentIsImported(t *testing.T) {
 	if m == nil {
 		t.Fatalf("the attachment has no import form")
 	}
-	form := url.Values{"mbox": {"INBOX"}, "uid": {uid}, "part": {"2"}, "calendar": {smokeUser + "|" + coll}}
+	form := url.Values{"mbox": {"INBOX"}, "uid": {uid}, "part": {"2"}, "calendar": {smokeUser + "|" + hereAt + coll}}
 	if resp := postForm(t, c, base+html.UnescapeString(m[1]), form); resp.StatusCode != http.StatusFound {
 		t.Fatalf("importing the attachment answered %s", resp.Status)
 	}
@@ -358,10 +358,10 @@ func TestAServerThatSchedulesSendsTheInvitations(t *testing.T) {
 		"test.local=caldav+insecure://" + strings.TrimPrefix(dav.URL, "http://") + "/dav",
 	}, smtpUpstreams([]string{smtpAddr})...))
 	c := login(t, base)
-	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+	coll := hereAt + strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
 
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
-		"calendar": {smokeUser + "|" + personal}, "attendees": {"b@example.org"}}
+		"calendar": {smokeUser + "|" + at(dav.URL) + personal}, "attendees": {"b@example.org"}}
 	created(t, postForm(t, c, base+"/calendar/create", form))
 	if got := sent.All(); len(got) != 0 {
 		t.Fatalf("saving on a scheduling server sent %d messages, want none", len(got))

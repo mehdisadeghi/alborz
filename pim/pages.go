@@ -234,7 +234,7 @@ func (pg Page) Handle(p *dav.Provider) func(*alborz.Context) error {
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
 			}
 			rc := ctx.Request().Context()
-			if err := p.Kind.Change(rc, p.HTTPClient(rc, ctx.Login), p.URL(rc, ctx.Login), collPath, name, ctx.FormValue("color")); err != nil {
+			if err := p.Kind.Change(rc, p.HTTPClient(rc, ctx.Login), dav.Base(), collPath, name, ctx.FormValue("color")); err != nil {
 				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
 			}
@@ -805,7 +805,7 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*alborz.Context) error {
 			}
 		}
 		rc := ctx.Request().Context()
-		c, err := webdav.NewClient(p.HTTPClient(rc, ctx.Login), p.URL(rc, ctx.Login).String())
+		c, err := webdav.NewClient(p.HTTPClient(rc, ctx.Login), dav.Base().String())
 		if err != nil {
 			return err
 		}

@@ -26,14 +26,16 @@ const requestTimeout = 10 * time.Second
 const maxRedirects = 10
 
 func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Client {
+	sources := p.Sources(ctx, login)
 	return &http.Client{
 		// A wedged DAV server fails the request instead of hanging it.
 		Timeout: requestTimeout,
 		Transport: scaleGuard{
 			next: hereTripper{
-				here:    p.here,
+				sources: sources,
+				local:   p.local,
 				account: login.Username(),
-				remote:  p.mirror.Transport(login.Username(), p.router(ctx, login)),
+				remote:  p.mirror.Transport(login.Username(), p.router(sources, login)),
 			},
 			colls: func(req *http.Request) ([]Collection, error) { return p.Collections(req.Context(), login) },
 		},
@@ -43,9 +45,9 @@ func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Cli
 	}
 }
 
-func (p *Provider) router(ctx context.Context, login *alborz.Login) sourceRouter {
+func (p *Provider) router(sources []Source, login *alborz.Login) sourceRouter {
 	return sourceRouter{
-		sources: p.Sources(ctx, login),
+		sources: sources,
 		trusted: p.trusted,
 		named:   p.named,
 		sign: func(req *http.Request, src Source) error {
@@ -75,8 +77,8 @@ func IfUnchanged(etag string) webdav.ConditionalMatch {
 	return webdav.ConditionalMatch(etag)
 }
 
-// sourceRouter sends a path under a source's marker to that source and marks what comes back (ADR 28).
-// It sits below the mirror, which keys by path, so two sources holding one path are two copies.
+// sourceRouter sends a marked path to its source and marks what comes back (ADR 28).
+// It sits below the mirror, which keys by the marked path, so one path on two servers is two copies.
 type sourceRouter struct {
 	sources []Source
 	// trusted dials the deployment's servers, named the account's own.
@@ -88,52 +90,48 @@ type sourceRouter struct {
 	debug echo.Logger
 }
 
-func (r sourceRouter) source(id string) (Source, error) {
-	for _, s := range r.sources {
-		if s.ID == id {
-			return s, nil
-		}
-	}
-	return Source{}, fmt.Errorf("dav: no source %q for this account", id)
-}
-
 func (r sourceRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 	defer alborz.AddTiming(req.Context(), "dav", time.Now())
-	rest, ok := strings.CutPrefix(req.URL.Path, "/@")
-	if !ok {
-		src, err := r.source(SourceDomain)
-		if err != nil {
-			return nil, err
-		}
-		return r.send(req, src)
-	}
-	id, path, _ := strings.Cut(rest, "/")
-	src, err := r.source(id)
+	src, out, err := unmarked(r.sources, req)
 	if err != nil {
 		return nil, err
-	}
-	out := req.Clone(req.Context())
-	out.URL.Scheme, out.URL.Host, out.Host = src.URL.Scheme, src.URL.Host, ""
-	out.URL.Path, out.URL.RawPath = "/"+path, ""
-	// A multiget names its objects in the body by marked paths; the source knows them unmarked.
-	if req.Body != nil {
-		body, err := io.ReadAll(req.Body)
-		req.Body.Close()
-		if err != nil {
-			return nil, err
-		}
-		body = hrefPattern.ReplaceAllFunc(body, func(m []byte) []byte {
-			parts := hrefPattern.FindSubmatch(m)
-			return slices.Concat(parts[1], bytes.TrimPrefix(parts[2], []byte(marker(src.ID))), parts[3])
-		})
-		out.Body = io.NopCloser(bytes.NewReader(body))
-		out.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
-		out.ContentLength = int64(len(body))
 	}
 	resp, err := r.send(out, src)
 	if err != nil {
 		return nil, err
 	}
+	return marked(resp, req, src)
+}
+
+// unmarked is req as its source knows it, and the source.
+func unmarked(sources []Source, req *http.Request) (Source, *http.Request, error) {
+	src, path, err := route(sources, req.URL.Path)
+	if err != nil {
+		return Source{}, nil, err
+	}
+	out := req.Clone(req.Context())
+	out.URL.Scheme, out.URL.Host, out.Host = src.URL.Scheme, src.URL.Host, ""
+	out.URL.Path, out.URL.RawPath = path, ""
+	// A multiget names its objects in the body by marked paths; the source knows them unmarked.
+	if req.Body != nil {
+		body, err := io.ReadAll(req.Body)
+		req.Body.Close()
+		if err != nil {
+			return Source{}, nil, err
+		}
+		body = hrefPattern.ReplaceAllFunc(body, func(m []byte) []byte {
+			parts := hrefPattern.FindSubmatch(m)
+			return slices.Concat(parts[1], bytes.TrimPrefix(parts[2], []byte(marker(src.URL.Host))), parts[3])
+		})
+		out.Body = io.NopCloser(bytes.NewReader(body))
+		out.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
+		out.ContentLength = int64(len(body))
+	}
+	return src, out, nil
+}
+
+// marked is the source's answer to req with every href and Location as alborz holds it.
+func marked(resp *http.Response, req *http.Request, src Source) (*http.Response, error) {
 	// A client takes an object's path from the request its answer names.
 	resp.Request = req
 	if loc := resp.Header.Get("Location"); loc != "" {
@@ -160,40 +158,47 @@ func (r sourceRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 // hrefPattern is a DAV href element in any prefix a server writes it.
 var hrefPattern = regexp.MustCompile(`(<(?:[A-Za-z0-9_.-]+:)?href(?:\s[^>]*)?>)\s*([^<]*?)\s*(</(?:[A-Za-z0-9_.-]+:)?href>)`)
 
-// markHref marks the source's absolute paths and full addresses; other hosts and relative references stay.
+// markHref marks a full address by its own host and an absolute path by the source's; relative references stay.
 func markHref(href string, src Source) string {
 	u, err := url.Parse(href)
 	if err != nil {
 		return href
 	}
+	host := src.URL.Host
 	if u.IsAbs() {
-		if u.Host != src.URL.Host {
-			return href
-		}
-		u.Scheme, u.Host = "", ""
+		host, u.Scheme, u.Host = u.Host, "", ""
 	}
 	if !strings.HasPrefix(u.Path, "/") {
 		return href
 	}
-	u.Path = marker(src.ID) + u.Path
+	u.Path = marker(host) + u.Path
 	if u.RawPath != "" {
-		u.RawPath = marker(src.ID) + u.RawPath
+		u.RawPath = marker(host) + u.RawPath
 	}
 	return u.String()
 }
 
-// hereTripper serves collections kept here in-process, ahead of the mirror, so a share shows the moment it is made.
+// hereTripper answers paths on this alborz in-process, ahead of the mirror, so a share shows the moment it is made.
 type hereTripper struct {
-	here    http.Handler
+	sources []Source
+	local   http.Handler
 	account string
 	remote  http.RoundTripper
 }
 
 func (t hereTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if !strings.HasPrefix(req.URL.Path, store.Prefix+"/") {
+	src, _, err := route(t.sources, req.URL.Path)
+	if err != nil {
+		return nil, err
+	}
+	if src.ID != SourceHere {
 		return t.remote.RoundTrip(req)
 	}
-	return respond(t.here, req.WithContext(store.As(req.Context(), t.account))), nil
+	src, out, err := unmarked(t.sources, req)
+	if err != nil {
+		return nil, err
+	}
+	return marked(respond(t.local, out.WithContext(store.As(req.Context(), t.account))), req, src)
 }
 
 func respond(h http.Handler, req *http.Request) *http.Response {

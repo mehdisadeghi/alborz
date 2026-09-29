@@ -147,7 +147,7 @@ func sendScheduling(ctx *alborz.Context, msg *ical.Calendar, to []string) error 
 func (p *plugin) serverSchedules(ctx *alborz.Context, account, object string) (bool, error) {
 	login := ctx.LoginFor(account)
 	rctx := ctx.Request().Context()
-	coll := p.dav.URL(rctx, login).ResolveReference(&url.URL{Path: path.Dir(object) + "/"})
+	coll := dav.Base().ResolveReference(&url.URL{Path: path.Dir(object) + "/"})
 	found, err := dav.Describe(rctx, p.dav.HTTPClient(rctx, login), coll)
 	return found.Has("calendar-auto-schedule"), err
 }

@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-webdav"
 )
 
@@ -25,6 +24,8 @@ type Collection struct {
 	RScales []string
 	// Account owns the collection, set only where accounts are pooled.
 	Account string
+	// Source is the ID of the source the collection is on (ADR 28).
+	Source string
 	// Visible is the reader's standing choice; Shown is what this page shows, which "only" narrows.
 	Visible, Shown bool
 	// Only marks the sole collection a URL is narrowed to, so pressing its link again widens back.
@@ -51,20 +52,20 @@ func ListCollections(ctx context.Context, homes []Home, list func(ctx context.Co
 			failed = append(failed, fmt.Errorf("%s: %w", r.Site.Path, r.Err))
 			continue
 		}
-		out = append(out, r.Value...)
-	}
-	for i := range out {
-		c := &out[i]
-		c.Path = CanonicalCollectionPath(c.Path)
-		// DAV:displayname is optional, but the rail needs a name.
-		if c.Name == "" {
-			c.Name = nameFromPath(c.Path)
-		}
-		if ref, home, here := store.Held(c.Path); here {
-			c.Here = true
-			if ref.Owner != home {
-				c.SharedBy = ref.Owner
+		for _, c := range r.Value {
+			c.Path = CanonicalCollectionPath(c.Path)
+			// DAV:displayname is optional, but the rail needs a name.
+			if c.Name == "" {
+				c.Name = nameFromPath(c.Path)
 			}
+			c.Source = r.Site.Source.ID
+			if ref, home, here := r.Site.Source.held(c.Path); here {
+				c.Here = true
+				if ref.Owner != home {
+					c.SharedBy = ref.Owner
+				}
+			}
+			out = append(out, c)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -122,18 +123,6 @@ func SafeObjectName(uid string) string {
 // ErrNameTaken refuses a display name the account already has; no client could tell the two apart.
 var ErrNameTaken = errors.New("a collection with that name is already there")
 
-// Source is the source the collection is on, which its path names (ADR 28).
-func (c Collection) Source() string {
-	if rest, ok := strings.CutPrefix(c.Path, "/@"); ok {
-		id, _, _ := strings.Cut(rest, "/")
-		return id
-	}
-	if strings.HasPrefix(c.Path, store.Prefix+"/") {
-		return SourceHere
-	}
-	return SourceDomain
-}
-
 // At is the collection at path, or nil.
 func At(colls []Collection, path string) *Collection {
 	for i := range colls {
@@ -160,7 +149,7 @@ func Holding(colls []Collection, account, path string) *Collection {
 // NameTaken says whether name is, but for case and edges, a display name the account has on place.
 func NameTaken(name, place string, existing []Collection) bool {
 	for _, c := range existing {
-		if c.Source() == place && strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(name)) {
+		if c.Source == place && strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(name)) {
 			return true
 		}
 	}

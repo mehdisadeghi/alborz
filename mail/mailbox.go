@@ -115,7 +115,7 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 		ListView:        spec.view,
 		SidebarAccounts: p.sidebarAccounts(ctx),
 	}
-	data.Crumb = []CrumbLink{{Label: named, URL: mailboxPageURL(role).String()}}
+	data.Crumb = []CrumbLink{{Label: named, URL: ctx.Path("mail.mailbox", role)}}
 	data.Outgoing = role == "Sent" || role == "Drafts"
 	data.Merged, data.Role = true, role
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
@@ -461,7 +461,7 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 
 	data := listPage(ctx, spec, page, e, msgs)
 	data.IMAPBaseRenderData = *ibase
-	data.Crumb = mailboxCrumb(sb.mailboxes, mboxName, ctx.Login.Username())
+	data.Crumb = mailboxCrumb(sb.mailboxes, mboxName, ctx.Login.Username(), folderPath(ctx))
 	data.Outgoing = outgoingFolder(sb.mailboxes, mboxName)
 	data.ThreadSupported = e.threadAlgorithm != ""
 	data.Threaded = spec.sortKey == threadSort && e.threadAlgorithm != ""
@@ -476,7 +476,7 @@ func starViewPath(ctx *web.Context, view string) string {
 			kept.Set(name, value)
 		}
 	}
-	return ctx.AccountPath("/search?" + web.Query(kept))
+	return ctx.AccountPath(ctx.Path("mail.search") + "?" + web.Query(kept))
 }
 
 // A search leaves junk and trash out until it is asked for them.
@@ -522,7 +522,7 @@ func readListAskAt(ctx *web.Context, q url.Values, also string) (listAsk, error)
 
 func searchInstead(ctx *web.Context, ask listAsk) string {
 	if folder, everywhere := search.Parse(ask.spec.query).Scope(); folder != "" || everywhere {
-		return ctx.AccountPath("/search?query=" + web.QueryValue(ask.spec.query))
+		return ctx.AccountPath(ctx.Path("mail.search") + "?query=" + web.QueryValue(ask.spec.query))
 	}
 	// A star is on the message, not in the folder, so its view is the search page's fan-out.
 	if StarView(ask.spec.view) {
@@ -784,7 +784,7 @@ func (l *NewMailboxLocation) folder(name string) string {
 }
 
 func folderURL(ctx *web.Context, account, name string) string {
-	destination := fmt.Sprintf("/mailbox/%s", url.PathEscape(name))
+	destination := ctx.Path("mail.mailbox", name)
 	if len(ctx.Logins()) > 1 {
 		destination += AccountQuery(account)
 	}
@@ -830,7 +830,7 @@ func (p *plugin) handleDeleteMailbox(ctx *web.Context) error {
 			})
 		}
 		ctx.PutNotice(ctx.T("notice.mailboxdeleted"))
-		return ctx.Redirect(http.StatusFound, ctx.AccountPath("/mailbox/INBOX"))
+		return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
 	}
 
 	return ctx.Render(http.StatusOK, "mail/folder-delete", &DeleteMailboxRenderData{
@@ -895,7 +895,7 @@ func (p *plugin) handleRefreshMailbox(ctx *web.Context) error {
 		for _, s := range ctx.Logins() {
 			p.viewForgotten(s.Username(), "#"+mboxName)
 		}
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(fmt.Sprintf("/mailbox/%s", url.PathEscape(mboxName))))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("mail.mailbox", mboxName)))
 	}
 	p.viewForgotten(ctx.Login.Username(), mboxName)
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
@@ -954,7 +954,7 @@ func (p *plugin) handleMove(ctx *web.Context) error {
 			fields.Add("uids", fmt.Sprint(r.uid))
 		}
 		return movedNotice(ctx, done, label, mailboxURL(ctx, to), len(landed),
-			ctx.AccountPath("/message/"+url.PathEscape(to)+"/move"), fields)
+			ctx.URL("mail.messages.move", to), fields)
 	}, landOn(ctx, target))
 }
 
@@ -1186,7 +1186,7 @@ func (p *plugin) handleEmptyAllMailbox(ctx *web.Context) error {
 			failed = append(failed, s.Username()+": "+err.Error())
 		}
 	}
-	back := ctx.NextOr("/mailbox/" + url.PathEscape(role) + "?all=1")
+	back := ctx.NextOr(ctx.Path("mail.mailbox", role) + "?all=1")
 	if len(failed) > 0 {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), strings.Join(failed, "; "))})
 		return ctx.Redirect(http.StatusFound, back)
@@ -1224,7 +1224,7 @@ func (p *plugin) handleDelete(ctx *web.Context) error {
 		if done >= web.PerPage(ctx) && left > 0 {
 			notice.Actions = []*web.NoticeAction{{
 				Label: ctx.Tf("notice.deleteall", left),
-				Path:  ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName) + "/empty"),
+				Path:  ctx.URL("mail.mailbox.empty", mboxName),
 			}}
 		}
 		return notice
@@ -1275,7 +1275,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 			if !leaves {
 				return web.Notice{}
 			}
-			action := "/message/" + url.PathEscape(mboxName) + "/flag?account=" + web.QueryValue(ctx.Login.Username())
+			action := ctx.Path("mail.messages.flag", mboxName) + "?account=" + web.QueryValue(ctx.Login.Username())
 			return web.StarNotice(ctx, color[0], action, url.Values{
 				"uids": {fmt.Sprint(uids[0])}, "color": {ctx.FormValue("was")}, "next": {back}})
 		}, func(done bool) error {
@@ -1336,7 +1336,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 			// Redirecting to the message view would mark the message as read again
 			target = mailboxURL(ctx, mboxName)
 		} else {
-			target = ctx.AccountPath(fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uids[0]))
+			target = ctx.URL("mail.message", mboxName, uids[0])
 		}
 	}
 	return runAct(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), p.flagAct(op, l), func(int) web.Notice {
@@ -1366,7 +1366,7 @@ func flaggedNotice(ctx *web.Context, uids, flags []string, op imap.StoreFlagsOp,
 	inverse := map[imap.StoreFlagsOp]string{imap.StoreFlagsAdd: "remove", imap.StoreFlagsDel: "add"}[op]
 	if inverse != "" {
 		fields := url.Values{"uids": uids, "flags": flags, "action": {inverse}, "next": {target}}
-		notice.Actions = []*web.NoticeAction{ctx.Undo(ctx.AccountPath("/message/"+url.PathEscape(mboxName)+"/flag"), fields)}
+		notice.Actions = []*web.NoticeAction{ctx.Undo(ctx.URL("mail.messages.flag", mboxName), fields)}
 	}
 	return notice
 }
@@ -1447,7 +1447,7 @@ func (p *plugin) handleUnifiedAct(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	back := ctx.NextOr("/mailbox/" + url.PathEscape(role) + "?all=1")
+	back := ctx.NextOr(ctx.Path("mail.mailbox", role) + "?all=1")
 	if len(refs) == 0 {
 		return nothingSelected(ctx, back)
 	}
@@ -1490,8 +1490,8 @@ func (p *plugin) handleUnifiedAct(ctx *web.Context) error {
 			for _, r := range landed {
 				fields.Add("refs", r.String())
 			}
-			return movedNotice(ctx, done, ctx.T("aside."+strings.ToLower(to)), "/mailbox/"+url.PathEscape(to)+"?all=1", len(landed),
-				"/mailbox/"+url.PathEscape(to)+"/all/act?action=move&to="+web.QueryValue(role), fields)
+			return movedNotice(ctx, done, ctx.T("aside."+strings.ToLower(to)), ctx.Path("mail.mailbox", to)+"?all=1", len(landed),
+				ctx.Path("mail.role.act", to)+"?action=move&to="+web.QueryValue(role), fields)
 		case "read", "unread":
 			// The rows change weight in view, so no line is needed.
 			return web.Notice{}

@@ -7,7 +7,7 @@
 {{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
 {{ $asked := or .Query .ListView }}
 {{ $empty := and .Mailbox.IsEmpty (not $asked) }}
-{{ template "toolbar-head" (dict "g" . "selectall" true "newhref" "/compose" "newlabel" ($.T "aside.compose") "newicon" "compose") }}
+{{ template "toolbar-head" (dict "g" . "selectall" true "newhref" (url "mail.compose") "newlabel" ($.T "aside.compose") "newicon" "compose") }}
     {{$common := .CategorizedMailboxes.Common}}
     {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
     {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
@@ -16,7 +16,7 @@
 
     {{ $archiveAction := "" }}{{ $junkAction := "" }}{{ $junkIcon := "junk" }}{{ $junkLabel := $.T "mailbox.spam" }}{{ $trashAction := "" }}{{ $trashLabel := "" }}{{ $trashFinal := false }}
     {{ $role := "" }}{{ if .Merged }}{{ $role = .Role }}{{ end }}
-    {{ $act := printf "/mailbox/%s/all/act" ($role | pathescape) }}
+    {{ $act := url "mail.role.act" $role }}
     {{ if .Merged }}
       {{ if ne $role "Archive" }}{{ $archiveAction = printf "%s?action=move&to=Archive" $act }}{{ end }}
       {{ if eq $role "Junk" }}
@@ -27,21 +27,21 @@
       {{ if ne $role "Trash" }}{{ $trashLabel = $.T "mailbox.delete" }}{{ $trashAction = printf "%s?action=move&to=Trash" $act }}{{ end }}
     {{ else }}
       {{ if and $archive (ne .Mailbox.Name $archive) }}
-        {{ $archiveAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($archive | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
+        {{ $archiveAction = printf "%s?to=%s%s" (url "mail.messages.move" .Mailbox.Name) ($archive | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ end }}
       {{ if and $junk (eq .Mailbox.Name $junk) }}
         {{ $junkIcon = "notjunk" }}{{ $junkLabel = $.T "mailbox.notspam" }}
-        {{ $junkAction = printf "/message/%s/move?to=INBOX%s" (.Mailbox.Name | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
+        {{ $junkAction = printf "%s?to=INBOX%s" (url "mail.messages.move" .Mailbox.Name) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ else if and $junk (not (eq .Mailbox.Name $common.Sent.Info.Name)) (not (eq .Mailbox.Name $common.Drafts.Info.Name)) }}
         {{ $junkLabel = $.T "mailbox.spam" }}
-        {{ $junkAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($junk | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
+        {{ $junkAction = printf "%s?to=%s%s" (url "mail.messages.move" .Mailbox.Name) ($junk | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ end }}
       {{ if and $trash (ne .Mailbox.Name $trash) }}
         {{ $trashLabel = $.T "mailbox.delete" }}
-        {{ $trashAction = printf "/message/%s/move?to=%s%s" (.Mailbox.Name | pathescape) ($trash | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
+        {{ $trashAction = printf "%s?to=%s%s" (url "mail.messages.move" .Mailbox.Name) ($trash | pathescape) (printf "%v" (account "&" $.GlobalData.URLAccount)) }}
       {{ else }}
         {{ $trashLabel = $.T "mailbox.deleteperm" }}{{ $trashFinal = true }}
-        {{ $trashAction = printf "/message/%s/delete%s" (.Mailbox.Name | pathescape) $aq }}
+        {{ $trashAction = printf "%s%s" (url "mail.messages.delete" .Mailbox.Name) $aq }}
       {{ end }}
     {{ end }}
     <span class="icon-group">
@@ -51,7 +51,7 @@
     </span>
     </span>
 
-    {{ $flagAction := printf "/message/%s/flag%v" (.Mailbox.Name | pathescape) $.GlobalData.AccountQuery }}{{ if .Merged }}{{ $flagAction = printf "%s?action=flag" $act }}{{ end }}
+    {{ $flagAction := printf "%s%v" (url "mail.messages.flag" .Mailbox.Name) $.GlobalData.AccountQuery }}{{ if .Merged }}{{ $flagAction = printf "%s?action=flag" $act }}{{ end }}
     {{ template "flag-menu" (dict
        "priority" 12
        "form" "messages-form"
@@ -60,24 +60,24 @@
 
     {{ if not .Merged }}
     {{ template "more-open" $ }}
-        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/forward{{$aq}}">{{$.T "message.forward"}}</button>
-        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/export{{ or $aq "?" }}{{ if $aq }}&{{ end }}ask=1">{{$.T "mailbox.export"}}</button>
+        <button form="messages-form" formaction="{{url "mail.messages.forward" .Mailbox.Name}}{{$aq}}">{{$.T "message.forward"}}</button>
+        <button form="messages-form" formaction="{{url "mail.messages.export" .Mailbox.Name}}{{ or $aq "?" }}{{ if $aq }}&{{ end }}ask=1">{{$.T "mailbox.export"}}</button>
         {{ if not .Merged }}
-        {{ $exportall := printf "/message/%s/export%s" (.Mailbox.Name | pathescape) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | qv) }}{{ else }}{{ with .ListView }}{{ $exportall = printf "%s%sview=%s" $exportall (or (and $aq "&") "?") . }}{{ end }}{{ end }}
+        {{ $exportall := printf "%s%s" (url "mail.messages.export" .Mailbox.Name) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | qv) }}{{ else }}{{ with .ListView }}{{ $exportall = printf "%s%sview=%s" $exportall (or (and $aq "&") "?") . }}{{ end }}{{ end }}
         <a class="button-link" href="{{ localhref $exportall }}"{{ if $empty }} aria-disabled="true"{{ end }}>{{ if .Query }}{{$.T "mailbox.exportresults"}}{{ else }}{{$.T "mailbox.exportfolder"}}{{ end }}</a>
         {{ end }}
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
-        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
-        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/flag?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
-        <button form="messages-form" formaction="/message/{{.Mailbox.Name | pathescape}}/move{{$aq}}">{{$.T "mailbox.moveto"}}</button>
+        <button form="messages-form" formaction="{{url "mail.messages.flag" .Mailbox.Name}}?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
+        <button form="messages-form" formaction="{{url "mail.messages.flag" .Mailbox.Name}}?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
+        <button form="messages-form" formaction="{{url "mail.messages.move" .Mailbox.Name}}{{$aq}}">{{$.T "mailbox.moveto"}}</button>
         {{ if or (and $junk (eq .Mailbox.Name $junk)) (and $trash (eq .Mailbox.Name $trash)) }}
-        <form method="post" action="/mailbox/{{.Mailbox.Name | pathescape}}/empty{{$aq}}">
+        <form method="post" action="{{url "mail.mailbox.empty" .Mailbox.Name}}{{$aq}}">
           <button class="button-danger"{{ if .Mailbox.IsEmpty }} disabled{{ end }}>{{$.T "mailbox.emptyfolder"}}</button>
         </form>
         {{ end }}
         {{ if not (eq .Mailbox.Name "INBOX") }}
-        <a class="button-link" href="/rename-mailbox/{{.Mailbox.Name | pathescape}}{{$aq}}">{{$.T "mailbox.renamefolder"}}</a>
-        <a class="button-link button-danger" href="/delete-mailbox/{{.Mailbox.Name | pathescape}}{{$aq}}">{{$.T "mailbox.deletefolder"}}</a>
+        <a class="button-link" href="{{url "mail.mailbox.rename" .Mailbox.Name}}{{$aq}}">{{$.T "mailbox.renamefolder"}}</a>
+        <a class="button-link button-danger" href="{{url "mail.mailbox.delete" .Mailbox.Name}}{{$aq}}">{{$.T "mailbox.deletefolder"}}</a>
         {{ end }}
     {{ template "more-close" }}
     {{ end }}
@@ -89,8 +89,8 @@
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
         <button form="messages-form" formaction="{{$act}}?action=read">{{$.T "mailbox.markread"}}</button>
         <button form="messages-form" formaction="{{$act}}?action=unread">{{$.T "mailbox.markunread"}}</button>
-        {{ if or (eq $path "/mailbox/Junk") (eq $path "/mailbox/Trash") }}
-        <form method="post" action="{{$path}}/empty-all">
+        {{ if or (eq $path (url "mail.mailbox" "Junk")) (eq $path (url "mail.mailbox" "Trash")) }}
+        <form method="post" action="{{url "mail.role.empty" $role}}">
           <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
           <button class="button-danger"{{ if eq .Total 0 }} disabled{{ end }}>{{$.T "mailbox.emptyfolder"}}</button>
         </form>

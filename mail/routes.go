@@ -2,7 +2,6 @@ package mail
 
 import (
 	"net/http"
-	"net/url"
 
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
@@ -13,7 +12,7 @@ const composeBodySize = web.MaxAttachmentSize + web.MaxFormSize
 
 func (p *plugin) registerRoutes(g *web.Group) {
 	g.GET("home", "/{$}", func(ctx *web.Context) error {
-		return ctx.Redirect(http.StatusFound, "/mailbox/INBOX")
+		return ctx.Redirect(http.StatusFound, ctx.Path("mail.mailbox", "INBOX"))
 	})
 
 	g.GET("mailbox", "/mailbox/{mbox}", p.handleGetMailbox)
@@ -94,8 +93,13 @@ func Scoped(h web.HandlerFunc) web.HandlerFunc {
 	}
 }
 
+// folderPath is a folder's address, for code that builds many.
+func folderPath(ctx *web.Context) func(string) string {
+	return func(name string) string { return ctx.Path("mail.mailbox", name) }
+}
+
 func mailboxURL(ctx *web.Context, mboxName string) string {
-	return ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName))
+	return ctx.URL("mail.mailbox", mboxName)
 }
 
 func mailboxRef(ctx *web.Context) (string, error) {

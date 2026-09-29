@@ -6,8 +6,8 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      <form method="post" action="/signatures{{$aq}}">
-        {{ template "settings-crumb" (dict "g" $ "collection" ($.T "settings.signatures") "path" "/signatures") }}
+      <form method="post" action="{{url "mail.signatures"}}{{$aq}}">
+        {{ template "settings-crumb" (dict "g" $ "collection" ($.T "settings.signatures") "path" (url "mail.signatures")) }}
         <h1>{{ if .Was }}{{$.T "settings.signatureedit"}}{{ else }}{{$.T "settings.signaturenew"}}{{ end }}</h1>
 
 
@@ -18,6 +18,6 @@
           <p class="hint">{{$.T "settings.signaturehint"}}</p>
         </div>
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "/signatures%s" $aq) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "%s%s" (url "mail.signatures") $aq) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

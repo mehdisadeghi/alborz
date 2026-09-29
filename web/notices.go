@@ -43,7 +43,7 @@ func (ctx *Context) Unreachable(accounts []string) {
 	}
 	linked := make([]string, len(accounts))
 	for i, name := range accounts {
-		linked[i] = NoticeLink(name, "/settings/account?account="+QueryValue(name))
+		linked[i] = NoticeLink(name, ctx.Path("mail.account")+"?account="+QueryValue(name))
 	}
 	ctx.Notify(Notice{Kind: NoticeWarning,
 		Text:   ctx.Tf("notice.unreachable", len(accounts), strings.Join(accounts, ", ")),

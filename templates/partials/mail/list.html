@@ -1,9 +1,9 @@
 {{ define "message-list" }}
       {{ template "next-form" (dict "id" "messages-form" "next" $.GlobalData.URL.RequestURI) }}
-      {{ template "next-form" (dict "id" "refresh-form" "action" (printf "/mailbox/%s/refresh%s" (.Mailbox.Name | pathescape) $.GlobalData.AccountQuery) "next" $.GlobalData.URL.RequestURI) }}
+      {{ template "next-form" (dict "id" "refresh-form" "action" (printf "%s%s" (url "mail.mailbox.refresh" .Mailbox.Name) $.GlobalData.AccountQuery) "next" $.GlobalData.URL.RequestURI) }}
         {{ template "mail-toolbar" . }}
       <div class="crumb-slot">
-      {{ template "crumb" (dict "g" $ "home" "/mailbox/INBOX" "heading" true "steps" .Crumb) }}
+      {{ template "crumb" (dict "g" $ "home" (url "mail.mailbox" "INBOX") "heading" true "steps" .Crumb) }}
       {{ if gt .Total (len .Messages) }}
       <div class="select-everything" data-form="messages-form" role="status" hidden>
         <span class="select-page">{{ $.GlobalData.Tf "select.page" (len .Messages) }}</span>
@@ -16,11 +16,11 @@
       </div>
 
       {{ $whole := "" }}{{ with .TextQuery }}{{ $whole = printf "?query=%s%s%s" (. | qv) (account "&" $.GlobalData.URLAccount) (or (and $.GlobalData.Unified "&all=1") "") }}{{ end }}
-      {{ $everywhere := "" }}{{ with .Everywhere }}{{ $everywhere = localhref (printf "/search?query=%s%s" (. | qv) (account "&" $.GlobalData.URLAccount)) }}{{ end }}
+      {{ $everywhere := "" }}{{ with .Everywhere }}{{ $everywhere = localhref (printf "%s?query=%s%s" (url "mail.search") (. | qv) (account "&" $.GlobalData.URLAccount)) }}{{ end }}
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove") "offers" (tuple (tuple $whole ($.T "mailbox.searchtext")) (tuple $everywhere ($.T "search.allfolders")))) }}
       {{/* On the part every swap renews: on main they stayed those of the first
            folder loaded. */}}
-      <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{.Mailbox.URL}}{{ $.GlobalData.AccountQuery }}"{{ end }}>
+      <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{url "mail.mailbox" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}"{{ end }}>
         <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}>
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
@@ -82,11 +82,11 @@
             </a>
             {{ end }}
                         {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
-            {{ if $.Spanning }}<a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "/mailbox/%s?query=%s%s" (.Mailbox | pathescape) ($.FolderQuery | qv) (account "&" .Account)) }}">{{.Mailbox}}</a>{{ end }}
+            {{ if $.Spanning }}<a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "%s?query=%s%s" (url "mail.mailbox" .Mailbox) ($.FolderQuery | qv) (account "&" .Account)) }}">{{.Mailbox}}</a>{{ end }}
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
             {{if $.Merged}}
-            {{$mlink := printf "%v" .URL}}{{$msep := "?"}}
+            {{$mlink := url "mail.message" .Mailbox .UID}}{{$msep := "?"}}
             {{with .Account}}{{$mlink = printf "%s%saccount=%s" $mlink $msep (. | qv)}}{{$msep = "&"}}{{end}}
             {{with $.ListView}}{{$mlink = printf "%s%sview=%s" $mlink $msep .}}{{$msep = "&"}}{{end}}{{with $.Query}}{{$mlink = printf "%s%squery=%s" $mlink $msep (. | qv)}}{{$msep = "&"}}{{end}}
             {{with $.Sort}}{{$mlink = printf "%s%ssort=%s&dir=%s" $mlink $msep . $.SortDir}}{{$msep = "&"}}{{end}}
@@ -95,7 +95,7 @@
             {{else}}
             {{/* Built in one piece: the escaper cannot follow a URL whose query grows across branches. */}}
             {{$link := ""}}{{$sep := "?"}}
-            {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%v" ($open.URL false "")}}{{$sep = "&"}}{{else}}{{$link = printf "%v" .URL}}{{end}}
+            {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%s%s" (url "mail.message" .Mailbox .UID) ($open.Query "")}}{{$sep = "&"}}{{else}}{{$link = url "mail.message" .Mailbox .UID}}{{end}}
             {{with $.ListView}}{{$link = printf "%s%sview=%s" $link $sep .}}{{$sep = "&"}}{{end}}{{with $.Query}}{{$link = printf "%s%squery=%s" $link $sep (. | qv)}}{{$sep = "&"}}{{end}}
             {{with $.Sort}}{{$link = printf "%s%ssort=%s&dir=%s" $link $sep . $.SortDir}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | qv)}}{{end}}
@@ -114,7 +114,7 @@
             <span class="attach-line">
               {{ range $i, $a := . }}{{ if lt $i 3 }}
               {{ $name := $a.Filename }}{{ if eq $name "" }}{{ $name = $.T "mailbox.attachment" }}{{ end }}
-              <a hx-boost="false" class="attach-chip" href="{{ localhref (printf "%v" ($a.URL true $owner)) }}"
+              <a hx-boost="false" class="attach-chip" href="{{ localhref (printf "%s%s" (url "mail.message.raw" $a.Message.Mailbox $a.Message.UID) ($a.Query $owner)) }}"
                  title="{{$name}} ({{$a.SizeString}})">{{ template "ltr" $name }}</a>
               {{ end }}{{ end }}
               {{ if gt (len .) 3 }}

@@ -12,7 +12,7 @@
     <span class="header-brand">{{ template "brand" (dict "g" $ "build" .GlobalData.Revision) }}</span>
     {{ end }}
     {{$q := account "?" .GlobalData.Scope}}
-    <a href="/mailbox/INBOX{{$q}}" data-go="m"
+    <a href="{{url "mail.mailbox" "INBOX"}}{{$q}}" data-go="m"
       {{ if eq $section "mailbox" }}
       class="active" aria-current="page"
       {{ end }}
@@ -82,8 +82,8 @@
   <div class="accounts-menu"{{ if not .drawer }} popover id="menu-accounts"{{ end }}>
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
-    {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = "/mailbox/INBOX" }}{{ $merged = $section }}{{ end }}
-    {{ if or (eq $page "settings") (eq $page "signatures") }}{{ $section = "/settings/account" }}{{ $merged = url "settings.profile" }}{{ end }}
+    {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = url "mail.mailbox" "INBOX" }}{{ $merged = $section }}{{ end }}
+    {{ if or (eq $page "settings") (eq $page "signatures") }}{{ $section = url "mail.account" }}{{ $merged = url "settings.profile" }}{{ end }}
     {{ range $g.GlobalData.Accounts }}
     <div class="account-menu-row">
     {{ $to := printf "%s%s" $section (account "?" .Username) }}{{ if and $g.GlobalData.Item (eq .Username $g.GlobalData.URLAccount) }}{{ $to = $g.GlobalData.Own }}{{ end }}
@@ -139,7 +139,7 @@
 
 {{/* dict: g build. */}}
 {{ define "brand" }}
-<a class="brand" href="/" title="{{.g.GlobalData.Brand}}">
+<a class="brand" href="{{url "mail.home"}}" title="{{.g.GlobalData.Brand}}">
   <img class="brand-mark" src="{{call .g.GlobalData.Asset "brand.svg"}}" alt="" width="20" height="20">
   <span class="brand-text">
     <span class="brand-name">{{.g.GlobalData.Brand}}</span>

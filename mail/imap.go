@@ -45,9 +45,9 @@ type CrumbLink struct {
 	Address bool // reads left to right whatever the page does
 }
 
-// Steps are named by path segment: a custom folder's Label is its whole wire name.
-func mailboxCrumb(mailboxes []MailboxInfo, name, account string) []CrumbLink {
-	crumb := []CrumbLink{{Label: account, URL: "/mailbox/INBOX", Address: true}}
+// Steps are named by path segment: a custom folder's Label is its whole wire name. folder is a folder's address.
+func mailboxCrumb(mailboxes []MailboxInfo, name, account string, folder func(string) string) []CrumbLink {
+	crumb := []CrumbLink{{Label: account, URL: folder("INBOX"), Address: true}}
 	if name == "" {
 		return crumb
 	}
@@ -73,7 +73,7 @@ func mailboxCrumb(mailboxes []MailboxInfo, name, account string) []CrumbLink {
 				step.Label = mbox.Label
 			}
 			if !slices.Contains(mbox.Attrs, imap.MailboxAttrNoSelect) {
-				step.URL = mbox.URL().String()
+				step.URL = folder(mbox.Name())
 			}
 		}
 		crumb = append(crumb, step)
@@ -102,18 +102,6 @@ func (mbox *MailboxInfo) role() string {
 
 func (mbox *MailboxInfo) Name() string {
 	return mbox.Mailbox
-}
-
-func (mbox *MailboxInfo) URL() *url.URL {
-	return mailboxPageURL(mbox.Name())
-}
-
-// RawPath keeps a slash in a folder name from being encoded twice.
-func mailboxPageURL(name string) *url.URL {
-	return &url.URL{
-		Path:    "/mailbox/" + name,
-		RawPath: "/mailbox/" + url.PathEscape(name),
-	}
 }
 
 func (mbox *MailboxInfo) HasAttr(flag string) bool {
@@ -218,10 +206,6 @@ func (mbox *MailboxStatus) Name() string {
 // IsEmpty reports a folder the server says holds nothing; an absent count is not empty.
 func (mbox *MailboxStatus) IsEmpty() bool {
 	return mbox.NumMessages != nil && *mbox.NumMessages == 0
-}
-
-func (mbox *MailboxStatus) URL() *url.URL {
-	return mailboxPageURL(mbox.Name())
 }
 
 func getMailboxByRole(conn *imapclient.Client, role string) (*MailboxInfo, error) {
@@ -505,10 +489,6 @@ func (msg *IMAPMessage) ListDetails() bool {
 		msg.ListOwner != "" || msg.ListArchive != ""
 }
 
-func (msg *IMAPMessage) URL() *url.URL {
-	return messageURL(msg.Mailbox, msg.UID)
-}
-
 func neighbours(ctx *web.Context, mboxName string, place listPlace) web.Neighbours {
 	account := ctx.QueryParam("account")
 	return web.Neighbours{
@@ -520,8 +500,7 @@ func neighbours(ctx *web.Context, mboxName string, place listPlace) web.Neighbou
 
 // Without the narrowing and order, one step sideways lands in the plain folder.
 func neighbourHref(ctx *web.Context, account, mboxName string, uid imap.UID) string {
-	u := messageURL(mboxName, uid)
-	if u == nil {
+	if uid == 0 {
 		return ""
 	}
 	kept := url.Values{}
@@ -536,19 +515,11 @@ func neighbourHref(ctx *web.Context, account, mboxName string, uid imap.UID) str
 	if from := ctx.From(); from != "" {
 		kept.Set("from", from)
 	}
-	u.RawQuery = web.Query(kept)
-	return u.String()
-}
-
-// messageURL returns nil for the zero UID so templates can elide the link.
-func messageURL(mboxName string, uid imap.UID) *url.URL {
-	if uid == 0 {
-		return nil
+	href := ctx.Path("mail.message", mboxName, uid)
+	if q := web.Query(kept); q != "" {
+		href += "?" + q
 	}
-	return &url.URL{
-		Path:    fmt.Sprintf("/message/%v/%v", mboxName, uid),
-		RawPath: fmt.Sprintf("/message/%v/%v", url.PathEscape(mboxName), uid),
-	}
+	return href
 }
 
 func newIMAPPartNode(msg *IMAPMessage, path []int, part imap.BodyStructure) *IMAPPartNode {
@@ -865,21 +836,13 @@ func formatSize(n int64) string {
 	}
 }
 
-// URL is where a part is fetched from; without the account the first signed-in one serves it.
-func (node IMAPPartNode) URL(raw bool, account string) *url.URL {
-	u := node.Message.URL()
-	// Both halves or neither: url.URL uses RawPath only while it encodes Path.
-	if raw {
-		u.Path += "/raw"
-		u.RawPath += "/raw"
-	}
-	q := u.Query()
-	q.Set("part", node.PathString())
+// Query picks the part out of its message's page or download; without the account the first signed-in one serves it.
+func (node IMAPPartNode) Query(account string) string {
+	q := url.Values{"part": {node.PathString()}}
 	if account != "" {
 		q.Set("account", account)
 	}
-	u.RawQuery = web.Query(q)
-	return u
+	return "?" + web.Query(q)
 }
 
 // IsText reports a part the page itself can show, which not every text/* part is.
@@ -1349,8 +1312,8 @@ type ThreadNeighbour struct {
 	UID     imap.UID
 	Subject string
 	// From tells apart the messages of a list thread, which share one subject.
-	From string
-	URL  *url.URL
+	From    string
+	Mailbox string
 }
 
 func threadParent(conn *imapclient.Client, mboxName, sent string, msg *IMAPMessage) (*ThreadNeighbour, error) {
@@ -1498,7 +1461,7 @@ func findByHeader(conn *imapclient.Client, mboxName, key, value string, limit in
 			UID:     uid,
 			Subject: m.Envelope.Subject,
 			From:    envelopeName(m.Envelope.From),
-			URL:     messageURL(mboxName, uid),
+			Mailbox: mboxName,
 		})
 	}
 	return out, nil

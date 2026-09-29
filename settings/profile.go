@@ -35,7 +35,7 @@ func handleLanguage(ctx *web.Context) error {
 	} else {
 		ctx.Quiet()
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr("/"))
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("mail.home")))
 }
 
 func handleProfile(ctx *web.Context) error {

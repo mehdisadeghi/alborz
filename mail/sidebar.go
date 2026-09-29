@@ -17,7 +17,7 @@ func (p *plugin) handleSidebar(ctx *web.Context) error {
 	base := web.NewBaseRenderData(ctx)
 	page := ctx.QueryParam("path")
 	if !strings.HasPrefix(page, "/") || strings.HasPrefix(page, "//") {
-		page = "/mailbox/INBOX"
+		page = ctx.Path("mail.mailbox", "INBOX")
 	}
 	u := *base.GlobalData.URL
 	u.Path = page

@@ -160,13 +160,13 @@
           </select>
           <button type="submit" name="signature_apply" value="1" formnovalidate
                   {{ if not .Signatures }}disabled title="{{$.T "settings.signaturesnone"}}"{{ end }}>{{$.T "compose.signatureapply"}}</button>
-          <a class="signature-edit" href="/signatures{{ $.GlobalData.AccountQuery }}">{{$.T "settings.signaturesedit"}}</a>
+          <a class="signature-edit" href="{{url "mail.signatures"}}{{ $.GlobalData.AccountQuery }}">{{$.T "settings.signaturesedit"}}</a>
         </div>
 
         <div class="actions">
           <button id="send-button" class="button-primary" type="submit">{{$.T "compose.send"}}</button>
           <button id="save-button" type="submit" name="save_as_draft" formnovalidate>{{$.T "compose.savedraft"}}</button>
-          <a class="button-link button-quiet" href="/mailbox/INBOX">{{$.T "common.cancel"}}</a>
+          <a class="button-link button-quiet" href="{{url "mail.mailbox" "INBOX"}}">{{$.T "common.cancel"}}</a>
         </div>
       </form>
 {{ end }}

@@ -31,7 +31,8 @@ type inlineImage struct {
 	Attachment
 }
 
-func localImages(body string, msg *IMAPMessage, account string) string {
+// raw is where the message's parts are fetched.
+func localImages(body, raw string, msg *IMAPMessage, account string) string {
 	return imageSrc.ReplaceAllStringFunc(body, func(tag string) string {
 		m := imageSrc.FindStringSubmatch(tag)
 		src := html.UnescapeString(m[2])
@@ -47,7 +48,7 @@ func localImages(body string, msg *IMAPMessage, account string) string {
 		if part == nil || !strings.HasPrefix(part.MIMEType, "image/") {
 			return tag
 		}
-		return m[1] + html.EscapeString(part.URL(true, account).String()) + m[3]
+		return m[1] + html.EscapeString(raw+part.Query(account)) + m[3]
 	})
 }
 

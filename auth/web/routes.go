@@ -1,4 +1,4 @@
-package auth
+package web
 
 import "git.mehdix.org/alborz/web"
 

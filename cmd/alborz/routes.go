@@ -1,7 +1,7 @@
 package main
 
 import (
-	"git.mehdix.org/alborz/auth"
+	authweb "git.mehdix.org/alborz/auth/web"
 	"git.mehdix.org/alborz/filters"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
@@ -26,7 +26,7 @@ func mount(s *web.Server) error {
 
 	web.PublicRoutes(public)
 	web.EventRoutes(events)
-	auth.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
+	authweb.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
 	mail.Mount(app.Group("", "mail"))
 	settings.Mount(app.Group("", "settings"))
 	st, err := pim.Mount(dav, app.Group("", "pim"))

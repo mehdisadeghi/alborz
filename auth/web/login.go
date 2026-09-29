@@ -1,4 +1,4 @@
-package auth
+package web
 
 import (
 	"fmt"

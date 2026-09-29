@@ -3,7 +3,7 @@ package settings
 import (
 	"net/http"
 
-	"git.mehdix.org/alborz/auth"
+	authweb "git.mehdix.org/alborz/auth/web"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 )
@@ -21,7 +21,7 @@ func handleSessions(ctx *web.Context) error {
 	if ctx.Request().Method == http.MethodPost {
 		id := ctx.FormValue("session")
 		if id == ctx.Session().ID {
-			return auth.HandleLogout(ctx)
+			return authweb.HandleLogout(ctx)
 		}
 		if err := ctx.Server.Sessions.SignOut(id, account); err != nil {
 			return err

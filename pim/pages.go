@@ -323,25 +323,25 @@ func readUpload(file *multipart.FileHeader) ([]byte, error) {
 }
 
 // fetchAddress reads a calendar from an address once, unlike a subscription; webcal: is https:.
-func fetchAddress(client *http.Client, address string) ([]byte, error) {
+func fetchAddress(ctx *alborz.Context, client *http.Client, address string) ([]byte, error) {
 	u, err := url.Parse(address)
 	if err != nil {
-		return nil, fmt.Errorf("not an address: %w", err)
+		return nil, errors.New(ctx.Tf("import.notaddress", address))
 	}
 	if u.Scheme == "webcal" {
 		u.Scheme = "https"
 	}
 	resp, err := client.Get(u.String())
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch the calendar: %w", err)
+		return nil, errors.New(ctx.Tf("import.fetchfailed", err))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch the calendar: %s", resp.Status)
+		return nil, errors.New(ctx.Tf("import.fetchfailed", resp.Status))
 	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxImportSize+1))
 	if err != nil {
-		return nil, err
+		return nil, errors.New(ctx.Tf("import.fetchfailed", err))
 	}
 	if len(raw) > maxImportSize {
 		return nil, echo.NewHTTPError(http.StatusRequestEntityTooLarge, "the calendar is too large to import")
@@ -366,13 +366,13 @@ const maxBundleFiles = 200
 const maxBundleSize = 4 * maxImportSize
 
 // importFiles reads a zip as each file of the kind inside it; anything else is itself.
-func (pg Page) importFiles(name string, raw []byte) ([]importFile, error) {
+func (pg Page) importFiles(ctx *alborz.Context, name string, raw []byte) ([]importFile, error) {
 	if !bytes.HasPrefix(raw, []byte("PK\x03\x04")) {
 		return []importFile{{name, raw}}, nil
 	}
 	z, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
 	if err != nil {
-		return nil, fmt.Errorf("not a zip file: %v", err)
+		return nil, errors.New(ctx.Tf("import.notzip", err))
 	}
 	var out []importFile
 	size := 0
@@ -381,22 +381,22 @@ func (pg Page) importFiles(name string, raw []byte) ([]importFile, error) {
 			continue
 		}
 		if len(out) == maxBundleFiles {
-			return nil, fmt.Errorf("more than %d files in the bundle", maxBundleFiles)
+			return nil, errors.New(ctx.Tf("import.zipfiles", maxBundleFiles))
 		}
 		r, err := f.Open()
 		if err != nil {
-			return nil, err
+			return nil, errors.New(ctx.Tf("import.zipentry", f.Name, err))
 		}
 		body, err := io.ReadAll(io.LimitReader(r, maxImportSize+1))
 		r.Close()
 		if err != nil {
-			return nil, err
+			return nil, errors.New(ctx.Tf("import.zipentry", f.Name, err))
 		}
 		if len(body) > maxImportSize {
-			return nil, fmt.Errorf("%s is too large to import", f.Name)
+			return nil, errors.New(ctx.Tf("import.ziplarge", f.Name, maxImportSize>>20))
 		}
 		if size += len(body); size > maxBundleSize {
-			return nil, fmt.Errorf("the bundle unpacks to more than %d MB", maxBundleSize>>20)
+			return nil, errors.New(ctx.Tf("import.zipsize", maxBundleSize>>20))
 		}
 		out = append(out, importFile{f.Name, body})
 	}
@@ -620,7 +620,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		var raw []byte
 		name := ""
 		if data.URL = strings.TrimSpace(ctx.FormValue("url")); address && data.URL != "" {
-			raw, err = fetchAddress(ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), data.URL)
+			raw, err = fetchAddress(ctx, ctx.Server.Outgoing.Remote(alborz.RoundTripTimeout), data.URL)
 			if err != nil {
 				data.Refused(err.Error())
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
@@ -641,7 +641,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		}
 		// The page's hooks read the account off the context, so the chosen account becomes the context's.
 		ctx.Login = login
-		files, err := pg.importFiles(name, raw)
+		files, err := pg.importFiles(ctx, name, raw)
 		if err != nil {
 			data.Refused(err.Error())
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)

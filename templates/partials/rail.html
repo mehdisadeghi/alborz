@@ -12,16 +12,20 @@
   {{ $acct := .Username }}
   {{ $has := eq $.kind "mail" }}
   {{ if eq $.kind "rows" }}{{ $has = index $.data.rows $acct }}{{ end }}
-  {{ if eq $.kind "dav" }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ end }}{{ end }}{{ end }}
-  {{ if $has }}
+  {{ if eq $.kind "dav" }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ break }}{{ end }}{{ end }}{{ end }}
+  {{/* A DAV account draws its collections only where it is the scope: the heading is the way there (ADR 64). */}}
+  {{ if and $has (eq $.kind "dav") }}
+  <div class="acct-folders{{ if eq $acct $.urlaccount }} open{{ end }}">
+    <a class="aside-account" href="{{$.path}}{{ account (qsep $.path) $acct }}">{{ template "ltr" $acct }}</a>
+    {{ if eq $acct $.urlaccount }}{{ template "rail-dav-account" (dict "account" $acct "data" $.data "g" $.g "all" $.all "path" $.path "urlaccount" $.urlaccount) }}{{ end }}
+  </div>
+  {{ else if $has }}
   <details class="acct-folders" data-rail-key="{{$acct}}"{{ if eq $acct $.urlaccount }} open{{ end }}>
     <summary class="aside-account"><a href="{{$.path}}{{ account (qsep $.path) $acct }}">{{ template "ltr" $acct }}</a></summary>
     {{ if eq $.kind "mail" }}
     {{ template "rail-mail-account" (dict "account" $acct "data" $.data) }}
-    {{ else if eq $.kind "rows" }}
-    {{ template "rail-rows" (index $.data.rows $acct) }}
     {{ else }}
-    {{ template "rail-dav-account" (dict "account" $acct "data" $.data "g" $.g "all" $.all "path" $.path "urlaccount" $.urlaccount) }}
+    {{ template "rail-rows" (index $.data.rows $acct) }}
     {{ end }}
   </details>
   {{ end }}

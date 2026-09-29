@@ -338,6 +338,33 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 	})
 }
 
+// A move is a copy and a delete; a list that keeps its task must not leave it in two lists.
+func TestAMoveTheSourceRefusesLeavesTheTaskWhereItWas(t *testing.T) {
+	personal := davHome + "personal/"
+	stub := &davStub{cals: map[string]davCal{personal: {"Personal", "#3366cc"}},
+		refuse: map[string]bool{personal + "water.ics": true}, keep: map[string]bool{}, gone: map[string]bool{},
+		objects: map[string]string{personal + "water.ics": todo("water", "Water the ferns")}}
+	srv := httptest.NewServer(stub)
+	t.Cleanup(srv.Close)
+	base := startAlborzDav(t, startIMAP(t), srv.URL)
+	c := login(t, base)
+	form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {"Chores"}, "color": {"#22aa55"}, "holds": {"tasks"}}
+	if resp := postForm(t, c, base+"/calendars/create", form); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the task list answered %s", resp.Status)
+	}
+	chores := "/alborz/dav/calendars/" + smokeUser + "/chores/"
+	move := url.Values{"paths": {smokeUser + "|" + at(srv.URL) + personal + "water.ics"}, "to": {smokeUser + "|" + hereAt + chores}}
+	if resp := postForm(t, c, base+"/tasks/move", move); resp.StatusCode != http.StatusFound {
+		t.Fatalf("the move answered %s", resp.Status)
+	}
+	if page := get(t, c, base+"/tasks"); !strings.Contains(html.UnescapeString(page), "The change was not saved.") {
+		t.Errorf("the refused move left no reason on the page")
+	}
+	if resp, _ := dav(t, http.MethodGet, base+chores+"water.ics", nil, ""); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("the refused move left a copy in Chores: %s", resp.Status)
+	}
+}
+
 // A server refusing the write is an answer for the reader, not an error page.
 func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 	const refused = "The change was not saved. The server said:"

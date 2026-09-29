@@ -78,7 +78,7 @@ func listCalendars(ctx context.Context, client *http.Client, baseURL *url.URL, h
 		}
 		out := make([]dav.Collection, len(cals))
 		for i, cal := range cals {
-			out[i] = dav.Collection{Path: cal.Path, Name: cal.Name, Color: cal.Color, Writable: !cal.ReadOnly, Components: cal.SupportedComponentSet}
+			out[i] = dav.Collection{Path: cal.Path, Name: cal.Name, Color: cal.Color, Writable: !cal.ReadOnly, Components: cal.SupportedComponentSet, RScales: cal.SupportedRScaleSet}
 		}
 		return out, nil
 	})

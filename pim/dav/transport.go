@@ -29,10 +29,13 @@ func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Cli
 	return &http.Client{
 		// A wedged DAV server fails the request instead of hanging it.
 		Timeout: requestTimeout,
-		Transport: hereTripper{
-			here:    p.here,
-			account: login.Username(),
-			remote:  p.mirror.Transport(login.Username(), p.router(ctx, login)),
+		Transport: scaleGuard{
+			next: hereTripper{
+				here:    p.here,
+				account: login.Username(),
+				remote:  p.mirror.Transport(login.Username(), p.router(ctx, login)),
+			},
+			colls: func(req *http.Request) ([]Collection, error) { return p.Collections(req.Context(), login) },
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse

@@ -352,6 +352,7 @@
 "calendar.repeat.until" = "%s hasta"
 "calendar.repeatuntil" = "Último día de la repetición"
 "form.repeatuntil" = "La repetición termina antes del comienzo, o su último día no es una fecha."
+"form.repeatscale" = "El servidor de este calendario no indica que pueda guardar una repetición contada en otro sistema de calendario, como los meses y años de la hégira solar. Elija un calendario en Alborz u otra repetición."
 "calendar.time" = "Hora"
 "calendar.event" = "Evento"
 "calendar.edittitle" = "Editar evento"

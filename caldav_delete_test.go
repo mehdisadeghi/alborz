@@ -23,6 +23,11 @@ type davStub struct {
 	refuse map[string]bool
 	keep   map[string]bool
 	gone   map[string]bool
+	// rscales is the supported-rscale-set it advertises; nil advertises none.
+	rscales []string
+	puts    []string
+	// objects are served by path; any other GET finds nothing.
+	objects map[string]string
 }
 
 const davHome = "/dav/calendars/u/"
@@ -41,6 +46,18 @@ func (s *davStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.deleteColl(w, r)
 	case "REPORT":
 		writeMS(w)
+	case "PUT":
+		s.puts = append(s.puts, string(body))
+		w.WriteHeader(http.StatusOK)
+	case "GET":
+		obj, ok := s.objects[r.URL.Path]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/calendar")
+		w.Header().Set("ETag", `"1"`)
+		io.WriteString(w, obj)
 	default:
 		w.WriteHeader(http.StatusOK)
 	}
@@ -86,12 +103,20 @@ func (s *davStub) propfind(w http.ResponseWriter, r *http.Request, body string) 
 				continue
 			}
 			c := s.cals[p]
+			rscales := ""
+			if s.rscales != nil {
+				rscales = "<C:supported-rscale-set>"
+				for _, scale := range s.rscales {
+					rscales += "<C:supported-rscale>" + scale + "</C:supported-rscale>"
+				}
+				rscales += "</C:supported-rscale-set>"
+			}
 			resps = append(resps, propResponse(p,
 				"<resourcetype><collection/><C:calendar/></resourcetype>"+
 					"<displayname>"+c.name+"</displayname>"+
 					"<AP:calendar-color>"+c.color+"</AP:calendar-color>"+
 					"<C:supported-calendar-component-set><C:comp name=\"VEVENT\"/>"+
-					"<C:comp name=\"VTODO\"/></C:supported-calendar-component-set>"+
+					"<C:comp name=\"VTODO\"/></C:supported-calendar-component-set>"+rscales+
 					"<current-user-privilege-set><privilege><write/></privilege>"+
 					"</current-user-privilege-set>"))
 		}

@@ -21,6 +21,8 @@ type Collection struct {
 	Writable bool
 	// Components are the iCalendar components a calendar takes (RFC 4791 5.2.3).
 	Components []string
+	// RScales are the scales a rule may count in (RFC 7529 10): nil when the server does not say, empty for any.
+	RScales []string
 	// Account owns the collection, set only where accounts are pooled.
 	Account string
 	// Visible is the reader's standing choice; Shown is what this page shows, which "only" narrows.

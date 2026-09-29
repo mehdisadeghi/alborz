@@ -89,10 +89,13 @@ func (l *Login) Open(e Envelope) (string, error) {
 const httpPasswordKey = "http-password"
 
 // HTTPPassword returns the kept HTTP password, else the login password. One the
-// mail password no longer opens is dropped with ErrSealed.
+// mail password no longer opens stays kept, for the reader to enter again or clear.
 func (l *Login) HTTPPassword(ctx context.Context) (string, error) {
 	l.httpLocker.Lock()
 	defer l.httpLocker.Unlock()
+	if l.httpSealed {
+		return "", ErrSealed
+	}
 	if l.httpLoaded {
 		return l.httpPassword, nil
 	}
@@ -106,12 +109,7 @@ func (l *Login) HTTPPassword(ctx context.Context) (string, error) {
 		return "", err
 	}
 	plain, err := l.Open(e)
-	if errors.Is(err, ErrSealed) {
-		if err := l.store.Put(ctx, httpPasswordKey, &Envelope{}); err != nil {
-			return "", err
-		}
-		return "", ErrSealed
-	}
+	l.httpSealed = errors.Is(err, ErrSealed)
 	if err != nil {
 		return "", err
 	}
@@ -149,7 +147,7 @@ func (l *Login) SetHTTPPassword(ctx context.Context, password string) error {
 		password = l.password
 	}
 	l.httpLocker.Lock()
-	l.httpPassword, l.httpLoaded = password, true
+	l.httpPassword, l.httpLoaded, l.httpSealed = password, true, false
 	l.httpLocker.Unlock()
 	return nil
 }

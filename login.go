@@ -95,6 +95,7 @@ type Login struct {
 	httpLocker   sync.Mutex
 	httpPassword string // protected by httpLocker
 	httpLoaded   bool   // protected by httpLocker
+	httpSealed   bool   // protected by httpLocker
 
 	imapLocker imapQueue
 	imapConn   *imapclient.Client // protected by imapLocker

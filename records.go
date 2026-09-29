@@ -35,7 +35,6 @@ type vault struct {
 	key *fernet.Key
 }
 
-// open is nil for a record sealed with a rotated key.
 func (v vault) open(sealed []byte) []byte {
 	return fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{v.key})
 }
@@ -148,7 +147,7 @@ func (r *records) Sweep(before time.Time) error {
 	return r.db.Update(func(tx kv.Tx) error {
 		return kv.DeleteUnder(tx, sessionsOwner+"/", func(sealed []byte) bool {
 			var rec SessionRecord
-			return !r.read(sealed, &rec) || rec.Seen.Before(before)
+			return r.read(sealed, &rec) && rec.Seen.Before(before)
 		})
 	})
 }

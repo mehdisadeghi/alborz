@@ -50,7 +50,7 @@ func Pooled[C any](ctx *alborz.Context, p *dav.Provider, load func(context.Conte
 			refused = append(refused, username)
 		}
 	}
-	results := dav.Each(ctx.Request().Context(), ctx.Logins(), func(reqCtx context.Context, s *alborz.Login) (Account[C], error) {
+	results := dav.Across(ctx.Request().Context(), ctx.Logins(), (*alborz.Login).Username, func(reqCtx context.Context, s *alborz.Login) (Account[C], error) {
 		reqCtx, cancel := context.WithTimeout(reqCtx, accountLoadBudget)
 		defer cancel()
 		c, infos, err := load(reqCtx, s)
@@ -140,6 +140,9 @@ type Site[C any] struct {
 	Client     C
 	Collection dav.Collection
 }
+
+// Account is the site's account, whose turn it takes.
+func (s Site[C]) Account() string { return s.Collection.Account }
 
 // Present leaves out the answers of listed collections their server no longer has: deleted by another
 // client, they are gone, not an error, and each one's account is listed afresh on the next page.

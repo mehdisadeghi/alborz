@@ -1,48 +1,10 @@
 package calendar
 
 import (
-	"context"
-	"time"
-
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
-	"github.com/emersion/go-webdav/caldav"
 )
-
-// Calendars are every account's calendars and task lists, and the feeds some of them are filled from.
-type Calendars struct {
-	DAV   *dav.Provider
-	feeds *feeds
-}
-
-// New finds each served domain's CalDAV server and opens the feeds of the calendars kept in st.
-func New(srv *alborz.Server, st *store.Store) (*Calendars, error) {
-	provider, err := dav.NewProvider(srv, st, dav.Kind{
-		Name: "caldav", Label: "CalDAV",
-		Schemes: [2]string{"caldavs", "caldav+insecure"},
-		// Invitations and tasks ticked on a phone should show within minutes.
-		Poll:     2 * time.Minute,
-		Discover: caldav.DiscoverContextURL,
-		Own:      func(s dav.Services) string { return s.CalDAV },
-		Holds:    store.Calendar,
-		FindHome: findHome,
-		List:     listCalendars,
-		Make:     makeCalendar,
-		Change:   changeCalendar,
-		Unnamed:  "calendar",
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &Calendars{DAV: provider, feeds: openFeeds(srv, st)}, nil
-}
-
-// Client is the login's CalDAV client.
-func (p *Calendars) Client(ctx context.Context, login *alborz.Login) (*caldav.Client, error) {
-	return newClient(dav.Base(), p.DAV.HTTPClient(ctx, login))
-}
 
 type plugin struct{ *Calendars }
 

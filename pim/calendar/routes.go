@@ -1,11 +1,9 @@
 package calendar
 
 import (
-	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,75 +15,7 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-type Settings struct {
-	CalendarFilter   bool
-	VisibleCalendars []string
-	TaskFilter       bool
-	VisibleTasks     []string
-}
-
-const (
-	datePageLayout = "2006-01-02"
-	settingsKey    = "caldav.settings"
-	// Subscriptions have their own entry: METADATA has no compare-and-set, so a tick written from one tab would drop a subscription added in another.
-	subscriptionsKey = "caldav.subscriptions"
-)
-
-func loadSettings(ctx context.Context, store alborz.Store) (*Settings, error) {
-	settings := &Settings{}
-	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
-		return nil, err
-	}
-	return settings, nil
-}
-
-func choose(set func(*Settings, []string)) func(context.Context, alborz.Store, []string) error {
-	return func(ctx context.Context, store alborz.Store, paths []string) error {
-		settings, err := loadSettings(ctx, store)
-		if err != nil {
-			return err
-		}
-		set(settings, paths)
-		return store.Put(ctx, settingsKey, settings)
-	}
-}
-
-// A collection made after the choice was not chosen to be hidden.
-func show(ctx context.Context, store alborz.Store, path string) error {
-	settings, err := loadSettings(ctx, store)
-	if err != nil {
-		return err
-	}
-	if !settings.CalendarFilter && !settings.TaskFilter {
-		return nil
-	}
-	if settings.CalendarFilter {
-		settings.VisibleCalendars = append(settings.VisibleCalendars, path)
-	}
-	if settings.TaskFilter {
-		settings.VisibleTasks = append(settings.VisibleTasks, path)
-	}
-	return store.Put(ctx, settingsKey, settings)
-}
-
-func firstEvent(cal *ical.Calendar) *ical.Component {
-	if evs := cal.Events(); len(evs) > 0 {
-		return evs[0].Component
-	}
-	return nil
-}
-
-func getFirstTodo(cal *ical.Calendar) *ical.Component {
-	for _, child := range cal.Children {
-		if child.Name == ical.CompToDo {
-			return child
-		}
-	}
-	return nil
-}
-
-func eventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
-func taskVisibility(s *Settings) (bool, []string)  { return s.TaskFilter, s.VisibleTasks }
+const datePageLayout = "2006-01-02"
 
 func (p *plugin) eventRail(ctx *web.Context) (pim.Rail, error) {
 	rail, err := p.calendarRail(ctx, supportsEvent, eventVisibility)
@@ -117,41 +47,6 @@ func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen
 	infos, _, err := visibleCalendars(ctx.Request().Context(), accounts, ctx.URLAccount(), nil, kind, chosen)
 	rail.Items = infos
 	return rail, err
-}
-
-func visibleCalendars(ctx context.Context, accounts []pim.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []pim.Site[*caldav.Client], error) {
-	return pim.Visible(accounts, scope, only, func(acc pim.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {
-		settings, err := loadSettings(ctx, acc.Login.Store())
-		if err != nil {
-			return nil, false, nil, fmt.Errorf("failed to load CalDAV settings: %w", err)
-		}
-		var cals []dav.Collection
-		for _, cal := range acc.Collections {
-			if kind(cal.Components) {
-				cals = append(cals, cal)
-			}
-		}
-		filter, paths := chosen(settings)
-		return cals, filter, paths, nil
-	})
-}
-
-func eventQuery(start, end time.Time) caldav.CalendarQuery {
-	return caldav.CalendarQuery{
-		CompRequest: caldav.CalendarCompRequest{
-			Name:  "VCALENDAR",
-			Props: []string{"VERSION"},
-			// The whole event: an unexpanded rule must arrive, or only the first instance is drawn.
-			Comps: []caldav.CalendarCompRequest{{
-				Name: "VEVENT", AllProps: true, AllComps: true,
-			}},
-			Expand: &caldav.CalendarExpandRequest{Start: start, End: end},
-		},
-		CompFilter: caldav.CompFilter{
-			Name:  "VCALENDAR",
-			Comps: []caldav.CompFilter{{Name: "VEVENT", Start: start, End: end}},
-		},
-	}
 }
 
 // section is the events or the tasks: the routes of their list and of one of them.
@@ -273,22 +168,6 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, s section) func
 	}
 }
 
-func changeComponent(ctx context.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
-	co, err := ref.Client.GetCalendarObject(ctx, ref.Path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get object: %v", err)
-	}
-	target := comp(co.Data)
-	if target == nil {
-		return nil, errors.New("the object holds no such component")
-	}
-	change(target)
-	target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
-	target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
-	_, err = ref.Client.PutCalendarObject(ctx, co.Path, co.Data, nil)
-	return co, err
-}
-
 func calendarFilters(ctx *web.Context, calendars []dav.Collection) []web.Filter {
 	var out []web.Filter
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok && f.Value != "list" {
@@ -350,24 +229,6 @@ func (p *plugin) rawObject(ctx *web.Context) error {
 	return pim.Raw(ctx, p.Client)
 }
 
-func newCalendar(comp *ical.Component) *ical.Calendar {
-	cal := ical.NewCalendar()
-	cal.Props.SetText(ical.PropProductID, ItipProductID)
-	cal.Props.SetText(ical.PropVersion, "2.0")
-	cal.Children = append(cal.Children, comp)
-	return cal
-}
-
-func putObject(ctx context.Context, to pim.Ref[*caldav.Client], name string, was *caldav.CalendarObject, cal *ical.Calendar) (*caldav.CalendarObject, error) {
-	held, etag := "", ""
-	if was != nil {
-		held, etag = was.Path, was.ETag
-	}
-	at, ifMatch, ifNoneMatch := pim.Target(to.Path, name, held, etag)
-	return to.Client.PutCalendarObject(ctx, at, cal,
-		&caldav.PutCalendarObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
-}
-
 func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, s section) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		return pim.Star(ctx, p.Client, s.list, s.object, func(ctx *web.Context, ref pim.Ref[*caldav.Client], name string) (was string, err error) {
@@ -380,53 +241,38 @@ func (p *plugin) color(comp func(*ical.Calendar) *ical.Component, s section) fun
 	}
 }
 
-func joinCalendars(objects [][]byte) ([]byte, error) {
-	var children []*ical.Component
-	for _, object := range objects {
-		cal, err := ical.NewDecoder(bytes.NewReader(object)).Decode()
-		if err != nil {
-			return nil, err
-		}
-		children = append(children, cal.Children...)
-	}
-	return encodeCalendar(children)
-}
-
 func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
 	loc := web.UserLocation(ctx)
 	p.DAV.Warm(s, func(bg context.Context) error { return p.WarmAccount(bg, s, loc) })
 }
 
-// WarmAccount reads the login's month around now and its tasks, so the pages open from the mirror.
-func (p *Calendars) WarmAccount(ctx context.Context, s *alborz.Login, loc *time.Location) error {
-	c, calendars, err := p.Open(ctx, s)
+func validStarView(view string) bool {
+	return view == "" || view == web.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
+}
+
+// pooledCalendars lists every account's calendars.
+func (p *plugin) pooledCalendars(ctx *web.Context) ([]pim.Account[*caldav.Client], error) {
+	return pim.Pooled(ctx, p.DAV, p.OpenWithFeeds, errNoCalendar)
+}
+
+func (p *plugin) writableGroups(ctx *web.Context, supports func([]string) bool) ([]dav.Group, error) {
+	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
+		return nil, err
+	}
+	return pim.WritableGroups(accounts, func(cal dav.Collection) bool { return cal.Writable && supports(cal.Components) }), nil
+}
+
+func (p *plugin) destination(ctx *web.Context, value string, supports func([]string) bool) (pim.Ref[*caldav.Client], error) {
+	return pim.Destination(ctx, value, p.Open, func(cal dav.Collection) bool {
+		return cal.Writable && supports(cal.Components)
+	})
+}
+
+// refresh fetches every signed-in account's feeds, then asks the DAV servers again.
+func (p *plugin) refresh(ctx *web.Context) error {
+	if err := p.RefreshFeeds(ctx.Request().Context(), ctx.Logins()); err != nil {
 		return err
 	}
-	now := time.Now().In(loc)
-	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
-	events := eventQuery(start.AddDate(0, 0, -7), start.AddDate(0, 1, 0).AddDate(0, 0, 7))
-	tasks := taskQuery()
-	type ask struct {
-		path  string
-		query caldav.CalendarQuery
-	}
-	var asks []ask
-	for _, cal := range calendars {
-		if supportsEvent(cal.Components) {
-			asks = append(asks, ask{cal.Path, events})
-		}
-		if supportsTodo(cal.Components) {
-			asks = append(asks, ask{cal.Path, tasks})
-		}
-	}
-	for _, r := range dav.Each(ctx, asks, func(ctx context.Context, a ask) (int, error) {
-		_, err := c.QueryCalendar(ctx, a.path, &a.query)
-		return 0, err
-	}) {
-		if r.Err != nil {
-			return r.Err
-		}
-	}
-	return nil
+	return p.DAV.HandleRefresh("calendar.month")(ctx)
 }

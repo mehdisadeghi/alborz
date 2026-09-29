@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 	"uuid"
@@ -47,48 +46,6 @@ type UpdateTaskRenderData struct {
 	// Priority is the band the select holds; PriorityBands the bands offered.
 	Priority      string
 	PriorityBands []string
-}
-
-// PRIORITY bands (RFC 5545 3.8.1.9): 1-4 high, 5 medium, 6-9 low, 0 none.
-const (
-	priorityHigh   = "high"
-	priorityMedium = "medium"
-	priorityLow    = "low"
-)
-
-var priorityBands = []string{priorityHigh, priorityMedium, priorityLow}
-
-func priorityBand(todo *ical.Component) string {
-	prop := todo.Props.Get(ical.PropPriority)
-	if prop == nil {
-		return ""
-	}
-	n, err := strconv.Atoi(prop.Value)
-	switch {
-	case err != nil || n <= 0:
-		return ""
-	case n <= 4:
-		return priorityHigh
-	case n == 5:
-		return priorityMedium
-	default:
-		return priorityLow
-	}
-}
-
-// A number another client wrote stays while it falls in the chosen band.
-func setPriorityBand(todo *ical.Component, band string) {
-	if band == priorityBand(todo) {
-		return
-	}
-	value := map[string]string{priorityHigh: "1", priorityMedium: "5", priorityLow: "9"}[band]
-	if value == "" {
-		todo.Props.Del(ical.PropPriority)
-		return
-	}
-	prop := ical.NewProp(ical.PropPriority)
-	prop.Value = value
-	todo.Props.Set(prop)
 }
 
 func (p *plugin) task(ctx *web.Context) error {

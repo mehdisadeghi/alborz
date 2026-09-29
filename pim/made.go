@@ -2,15 +2,12 @@ package pim
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"path"
 	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
-	"github.com/emersion/go-webdav"
 )
 
 // Made lands a create on the new object's list with a banner naming it; account is the form's chosen owner.
@@ -43,9 +40,6 @@ func Saved(ctx *web.Context, made bool, sentence, name, object, list, account st
 	return ctx.Redirect(http.StatusFound, object)
 }
 
-// ErrNoDestination is a create form naming a collection the account lacks or that refuses the object.
-var ErrNoDestination = errors.New("dav: no such collection to write into")
-
 // Destination turns a create form's "account|path" into that account's client and path.
 func Destination[C any](ctx *web.Context, value string, open func(context.Context, *alborz.Login) (C, []dav.Collection, error), keep func(dav.Collection) bool) (Ref[C], error) {
 	account, path, ok := strings.Cut(value, "|")
@@ -61,12 +55,4 @@ func Destination[C any](ctx *web.Context, value string, open func(context.Contex
 		return Ref[C]{}, ErrNoDestination
 	}
 	return Ref[C]{c, account, path}, nil
-}
-
-// Target is where a form's object is written: a new name only while free, a held one only while unchanged.
-func Target(collection, name, held, etag string) (at string, ifMatch, ifNoneMatch webdav.ConditionalMatch) {
-	if held == "" {
-		return path.Join(collection, name), "", dav.IfNew
-	}
-	return held, dav.IfUnchanged(etag), ""
 }

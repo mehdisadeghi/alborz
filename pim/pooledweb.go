@@ -1,0 +1,166 @@
+package pim
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"maps"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
+
+	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/pim/dav"
+	"git.mehdix.org/alborz/web"
+	"github.com/emersion/go-webdav"
+)
+
+// Discovery across an account may take several exchanges; bound the whole load.
+const accountLoadBudget = 30 * time.Second
+
+// Pooled resolves every signed-in account with the service; a failing account is logged and skipped.
+func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context, *alborz.Login) (C, []dav.Collection, error), none error) ([]Account[C], error) {
+	var accounts []Account[C]
+	var lastErr error
+	var down, refused []string
+	// answered counts servers that refused other than over the password.
+	answered := map[string]int{}
+	fail := func(username string, err error) {
+		if code, ok := webdav.HTTPErrorCode(err); ok {
+			answered[username] = code
+			return
+		}
+		if !slices.Contains(down, username) {
+			down = append(down, username)
+		}
+	}
+	// A refusal stands until the reader changes something, so it is said once per browser.
+	refuse := func(username string) {
+		if ctx.Session().Once("davrefused:" + p.Kind.Name + ":" + username) {
+			refused = append(refused, username)
+		}
+	}
+	results := dav.Across(ctx.Request().Context(), ctx.Logins(), (*alborz.Login).Username, func(reqCtx context.Context, s *alborz.Login) (Account[C], error) {
+		reqCtx, cancel := context.WithTimeout(reqCtx, accountLoadBudget)
+		defer cancel()
+		c, infos, err := load(reqCtx, s)
+		return Account[C]{Client: c, Collections: infos}, err
+	})
+	for _, result := range results {
+		s, err := result.Site, result.Err
+		c, infos := result.Value.Client, result.Value.Collections
+		// An account with nothing of the kind keeps its place, empty, so the first one can be made.
+		if errors.Is(err, none) {
+			accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c})
+			continue
+		}
+		// A refused password keeps the account's place, empty, and tells the reader.
+		var no *dav.RefusedError
+		if errors.As(err, &no) {
+			accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c})
+			refuse(s.Username())
+			continue
+		}
+		if err != nil {
+			lastErr = err
+			fail(s.Username(), err)
+			ctx.Logger().Printf("%s: skipping %q in the pooled view: %v", p.Kind.Name, s.Username(), err)
+			continue
+		}
+		owned := slices.Clone(infos)
+		for i := range owned {
+			owned[i].Account = s.Username()
+		}
+		accounts = append(accounts, Account[C]{Name: s.Username(), Login: s, Client: c, Collections: owned})
+		for _, trouble := range p.Troubles(s.Username()) {
+			ctx.Logger().Printf("%s: %q in the pooled view without a source: %v", p.Kind.Name, s.Username(), trouble)
+			if errors.As(trouble, &no) {
+				refuse(s.Username())
+			} else {
+				fail(s.Username(), trouble)
+			}
+		}
+	}
+	if len(accounts) == 0 {
+		if lastErr != nil {
+			return nil, lastErr
+		}
+		return nil, none
+	}
+	ctx.Unreachable(down)
+	for _, username := range slices.Sorted(maps.Keys(answered)) {
+		code := answered[username]
+		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: ctx.Path("mail.account") + "?account=" + web.QueryValue(username)}
+		// A 403 stays a permission answer, with the way to the password beside it.
+		if code == http.StatusForbidden {
+			key, action = "notice.davforbidden", &web.NoticeAction{Label: ctx.T("servers.dav"), Path: ctx.Path("pim.server") + "?account=" + web.QueryValue(username)}
+		}
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
+			Text:    fmt.Sprintf(ctx.T(key), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
+			Actions: []*web.NoticeAction{action}})
+	}
+	// A refusal is the one the reader can end, so it wins when both happened.
+	if len(refused) > 0 {
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
+			Text:    ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
+			Actions: []*web.NoticeAction{{Label: ctx.T("servers.dav"), Path: ctx.Path("pim.server") + "?account=" + web.QueryValue(refused[0])}}})
+	}
+	return accounts, nil
+}
+
+// Only is the set a URL asks to see through field, overriding stored visibility for that request.
+func Only(ctx *web.Context, field string) map[string]bool {
+	values := ctx.QueryParams()[field]
+	if len(values) == 0 {
+		return nil
+	}
+	only := make(map[string]bool, len(values))
+	for _, v := range values {
+		only[dav.CanonicalCollectionPath(v)] = true
+	}
+	return only
+}
+
+// HandleChoose keeps which collections of list, a route, the reader ticked and lands on the list, no longer narrowed.
+func HandleChoose(list, field string, keep func(ctx context.Context, store alborz.Store, paths []string) error) func(*web.Context) error {
+	return func(ctx *web.Context) error {
+		params, err := ctx.FormParams()
+		if err != nil {
+			return err
+		}
+		if err := keep(ctx.Request().Context(), ctx.Login.Store(), params[field]); err != nil {
+			ctx.Notify(Refused(ctx, err))
+		} else {
+			// The list comes back holding what was chosen.
+			ctx.Quiet()
+		}
+		return ctx.Redirect(http.StatusFound, Widened(ctx.NextOr(ctx.Path(list)), field))
+	}
+}
+
+// Selected resolves checked "account|path" rows to their accounts' clients; a selection can span accounts.
+func Selected[C any](ctx *web.Context, refs []string, client func(context.Context, *alborz.Login) (C, error)) ([]Ref[C], error) {
+	clients := map[string]C{}
+	out := make([]Ref[C], 0, len(refs))
+	for _, ref := range refs {
+		account, objPath, ok := strings.Cut(ref, "|")
+		if !ok {
+			return nil, web.NewError(http.StatusBadRequest, "unqualified selection")
+		}
+		c, ok := clients[account]
+		if !ok {
+			login := ctx.LoginFor(account)
+			if login == nil {
+				return nil, web.NewError(http.StatusBadRequest, "not signed in to that account")
+			}
+			var err error
+			if c, err = client(ctx.Request().Context(), login); err != nil {
+				return nil, err
+			}
+			clients[account] = c
+		}
+		out = append(out, Ref[C]{c, account, objPath})
+	}
+	return out, nil
+}

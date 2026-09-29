@@ -813,6 +813,68 @@ func TestReopenedDraftKeepsItsLines(t *testing.T) {
 	}
 }
 
+// Another client's deleted message is its to expunge, never ours.
+func TestSavingADraftLeavesOthersDeletedMessages(t *testing.T) {
+	withoutUIDPlus := rigCaps()
+	delete(withoutUIDPlus, imap.CapIMAP4rev2)
+	for name, caps := range map[string]imap.CapSet{"uidplus": rigCaps(), "without uidplus": withoutUIDPlus} {
+		t.Run(name, func(t *testing.T) {
+			addr, _ := startIMAPServer(t, caps)
+			base := startAlborz(t, addr)
+			c := login(t, base)
+
+			ic, err := imapclient.DialInsecure(addr, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ic.Close()
+			if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
+				t.Fatal(err)
+			}
+			theirs := "From: <eve@example.org>\r\nSubject: discarded elsewhere\r\n\r\nGone later.\r\n"
+			cmd := ic.Append("Drafts", int64(len(theirs)), &imap.AppendOptions{Flags: []imap.Flag{imap.FlagDeleted}})
+			cmd.Write([]byte(theirs))
+			cmd.Close()
+			if _, err := cmd.Wait(); err != nil {
+				t.Fatal(err)
+			}
+			drafts := func(criteria *imap.SearchCriteria) []imap.UID {
+				t.Helper()
+				if _, err := ic.Select("Drafts", nil).Wait(); err != nil {
+					t.Fatal(err)
+				}
+				found, err := ic.UIDSearch(criteria, nil).Wait()
+				if err != nil {
+					t.Fatal(err)
+				}
+				return found.AllUIDs()
+			}
+			ours := &imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Subject", Value: "direction"}}}
+
+			sendFrom(t, c, base, "/compose", get(t, c, base+"/compose"), "save_as_draft", "1")
+			first := drafts(ours)
+			if len(first) != 1 {
+				t.Fatalf("want the saved draft, found %d", len(first))
+			}
+			path := fmt.Sprintf("/message/Drafts/%d/edit?part=1", first[0])
+			sendFrom(t, c, base, path, get(t, c, base+path), "save_as_draft", "1")
+
+			if n := len(drafts(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Subject", Value: "discarded elsewhere"}}})); n != 1 {
+				t.Errorf("another client's deleted message was expunged")
+			}
+			if n := len(drafts(&imap.SearchCriteria{Header: ours.Header, NotFlag: []imap.Flag{imap.FlagDeleted}})); n != 1 {
+				t.Errorf("want one live draft after saving again, found %d", n)
+			}
+			replaced := drafts(&imap.SearchCriteria{UID: []imap.UIDSet{imap.UIDSetNum(first[0])}, Flag: []imap.Flag{imap.FlagDeleted}})
+			// Without UIDPLUS only a plain EXPUNGE could remove it, and that takes the others too.
+			want := !caps.Has(imap.CapUIDPlus)
+			if left := len(replaced) == 1; left != want {
+				t.Errorf("replaced draft left marked deleted: %v, want %v", left, want)
+			}
+		})
+	}
+}
+
 // Both read the message only to decide; opening it is what marks it read.
 func TestUnsubscribeAndAddToCalendarLeaveTheMessageUnread(t *testing.T) {
 	addr, _ := startIMAPServer(t, rigCaps())

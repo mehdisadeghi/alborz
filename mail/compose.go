@@ -520,6 +520,8 @@ func (p *plugin) handleCompose(ctx *alborz.Context, msg *OutgoingMessage, option
 						Header: []imap.SearchCriteriaHeaderField{
 							{Key: "Message-Id", Value: msg.MessageID},
 						},
+						// The draft it replaces keeps the Message-ID and is only marked deleted.
+						NotFlag: []imap.Flag{imap.FlagDeleted},
 					}
 					if data, err := c.UIDSearch(&criteria, nil).Wait(); err != nil {
 						return err

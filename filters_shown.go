@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"sort"
 	"strconv"
 )
 
@@ -69,6 +70,87 @@ func (ctx *Context) PageHref(n int) string {
 		return u.Path
 	}
 	return u.Path + "?" + u.RawQuery
+}
+
+const MaxMessagesPerPage = 100
+
+// Three steps, "a few more" or "the lot", as links that need no script.
+var perPageLadder = []int{25, 50, 100}
+
+func perPageOptions(chosen int) []int {
+	seen := map[int]bool{}
+	var out []int
+	for _, n := range append(append([]int{}, perPageLadder...), chosen) {
+		if n <= 0 || n > MaxMessagesPerPage || seen[n] {
+			continue
+		}
+		seen[n] = true
+		out = append(out, n)
+	}
+	sort.Ints(out)
+	return out
+}
+
+// PerPageChoices are the page sizes a list's menu offers.
+func PerPageChoices(ctx *Context) []int {
+	return perPageOptions(ctx.Reading().MessagesPerPage)
+}
+
+// PerPage is how many rows a page of a list holds, the reader's rather than the account's.
+func PerPage(ctx *Context) int {
+	if raw := ctx.QueryParam("ipp"); raw != "" {
+		if n, err := ReadInt(raw); err == nil &&
+			n > 0 && n <= MaxMessagesPerPage {
+			return n
+		}
+	}
+	if n := ctx.Reading().MessagesPerPage; n > 0 && n <= MaxMessagesPerPage {
+		return n
+	}
+	return DefaultMessagesPerPage
+}
+
+// Pager is one page of a list held whole, since a DAV query cannot ask for rows after the first n.
+type Pager struct {
+	From, To, Total int
+	Prev, Next      string
+
+	Per     int
+	Options []int
+	IppBase string
+}
+
+// Paginate returns the requested page of items and the pager for the rest.
+func Paginate[T any](ctx *Context, items []T) ([]T, Pager) {
+	per := PerPage(ctx)
+	page, err := ReadInt(ctx.QueryParam("page"))
+	if err != nil || page < 0 {
+		page = 0
+	}
+	// A page past the end is the last one: the list may have shrunk since the link was drawn.
+	if last := max(0, (len(items)-1)/per); page > last {
+		page = last
+	}
+	from, to := page*per, min((page+1)*per, len(items))
+	q := ctx.Request().URL.Query()
+	q.Del("ipp")
+	q.Del("page")
+	base := ""
+	if len(q) > 0 {
+		base = "&" + Query(q)
+	}
+	pager := Pager{From: from + 1, To: to, Total: len(items),
+		Per: per, Options: PerPageChoices(ctx), IppBase: base}
+	if len(items) == 0 {
+		pager.From = 0
+	}
+	if page > 0 {
+		pager.Prev = ctx.PageHref(page - 1)
+	}
+	if to < len(items) {
+		pager.Next = ctx.PageHref(page + 1)
+	}
+	return items[from:to], pager
 }
 
 // FlagColors names the colours the flag bits address, indexed by their value.

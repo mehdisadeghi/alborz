@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"github.com/labstack/echo/v4"
 )
 
@@ -81,47 +80,4 @@ func Sort[T any](ctx *alborz.Context, rows []T, columns []Column[T], tie func(T)
 		return strings.Compare(x, y)
 	})
 	return s, nil
-}
-
-// Pager is one page of a list held whole, since a DAV query cannot ask for rows after the first n.
-type Pager struct {
-	From, To, Total int
-	Prev, Next      string
-
-	Per     int
-	Options []int
-	IppBase string
-}
-
-// Paginate returns the requested page of items and the pager for the rest.
-func Paginate[T any](ctx *alborz.Context, items []T) ([]T, Pager) {
-	per := mail.PerPage(ctx)
-	page, err := alborz.ReadInt(ctx.QueryParam("page"))
-	if err != nil || page < 0 {
-		page = 0
-	}
-	// A page past the end is the last one: the list may have shrunk since the link was drawn.
-	if last := max(0, (len(items)-1)/per); page > last {
-		page = last
-	}
-	from, to := page*per, min((page+1)*per, len(items))
-	q := ctx.Request().URL.Query()
-	q.Del("ipp")
-	q.Del("page")
-	base := ""
-	if len(q) > 0 {
-		base = "&" + alborz.Query(q)
-	}
-	pager := Pager{From: from + 1, To: to, Total: len(items),
-		Per: per, Options: mail.PerPageChoices(ctx), IppBase: base}
-	if len(items) == 0 {
-		pager.From = 0
-	}
-	if page > 0 {
-		pager.Prev = ctx.PageHref(page - 1)
-	}
-	if to < len(items) {
-		pager.Next = ctx.PageHref(page + 1)
-	}
-	return items[from:to], pager
 }

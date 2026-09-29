@@ -414,7 +414,7 @@ func (p *plugin) handleGetPart(ctx *alborz.Context) error {
 	}
 	// Read before the message's IMAP work: it may sample the inbox, and the login lock is not reentrant.
 	trusted := p.TrustedAuthServ(ctx, settings)
-	messagesPerPage := PerPage(ctx)
+	messagesPerPage := alborz.PerPage(ctx)
 
 	query := ctx.QueryParam("query")
 	railView, err := readView(ctx)

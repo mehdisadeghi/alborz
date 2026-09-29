@@ -49,7 +49,7 @@ func handleProfile(ctx *alborz.Context) error {
 			TextSize:       p.Display.TextSize,
 			Reading:        p.Reading,
 			Writing:        p.Writing,
-			MaxPerPage:     mail.MaxMessagesPerPage,
+			MaxPerPage:     alborz.MaxMessagesPerPage,
 			LockMinutes:    lockMinutes(ctx.Session().Lock()),
 		})
 	}
@@ -77,8 +77,8 @@ func handleProfile(ctx *alborz.Context) error {
 	reading := &p.Reading
 	if v, ok := given("messages_per_page"); ok {
 		reading.MessagesPerPage, err = alborz.ReadInt(v)
-		if err != nil || reading.MessagesPerPage <= 0 || reading.MessagesPerPage > mail.MaxMessagesPerPage {
-			return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.perpage"), mail.MaxMessagesPerPage), shown)
+		if err != nil || reading.MessagesPerPage <= 0 || reading.MessagesPerPage > alborz.MaxMessagesPerPage {
+			return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.perpage"), alborz.MaxMessagesPerPage), shown)
 		}
 	}
 	if v, ok := given("timezone"); ok {

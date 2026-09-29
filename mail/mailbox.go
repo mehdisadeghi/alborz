@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -227,7 +226,7 @@ func listPage(ctx *alborz.Context, ask listAsk, e *listingEntry, rows []IMAPMess
 		FilterRows:     alborz.ViewRows(ctx, ask.spec.view, true, ctx.WithoutParam("view")),
 		TextQuery:      textQueryOffered(ask.spec.query, e.headersOnly),
 		PerPage:        ask.perPage,
-		PerPageOptions: perPageOptions(ctx.Reading().MessagesPerPage),
+		PerPageOptions: alborz.PerPageChoices(ctx),
 		Sort:           ask.spec.sortKey,
 		SortDir:        map[bool]string{true: "desc", false: "asc"}[ask.spec.reverse()],
 		SortSupported:  e.sortSupported,
@@ -490,7 +489,7 @@ type listAsk struct {
 
 // also is the one order the page has beyond the columns.
 func readListAsk(ctx *alborz.Context, also string) (listAsk, error) {
-	ask := listAsk{perPage: PerPage(ctx)}
+	ask := listAsk{perPage: alborz.PerPage(ctx)}
 	if raw := ctx.QueryParam("page"); raw != "" {
 		var err error
 		if ask.page, err = strconv.Atoi(raw); err != nil || ask.page < 0 {
@@ -1195,7 +1194,7 @@ func (p *plugin) handleDelete(ctx *alborz.Context) error {
 	}, func(done int) alborz.Notice {
 		notice := alborz.Notice{Kind: alborz.NoticeDone, Text: ctx.Tf("notice.deleted", done)}
 		// A whole page ticked with more behind: the rest is offered on a page, never taken on its own.
-		if done >= PerPage(ctx) && left > 0 {
+		if done >= alborz.PerPage(ctx) && left > 0 {
 			notice.Actions = []*alborz.NoticeAction{{
 				Label: ctx.Tf("notice.deleteall", left),
 				Path:  ctx.AccountPath("/mailbox/" + url.PathEscape(mboxName) + "/empty"),
@@ -1343,42 +1342,6 @@ func flaggedNotice(ctx *alborz.Context, uids, flags []string, op imap.StoreFlags
 		notice.Actions = []*alborz.NoticeAction{ctx.Undo(ctx.AccountPath("/message/"+url.PathEscape(mboxName)+"/flag"), fields)}
 	}
 	return notice
-}
-
-// Three steps, "a few more" or "the lot", as links that need no script.
-var perPageLadder = []int{25, 50, 100}
-
-func perPageOptions(chosen int) []int {
-	seen := map[int]bool{}
-	var out []int
-	for _, n := range append(append([]int{}, perPageLadder...), chosen) {
-		if n <= 0 || n > MaxMessagesPerPage || seen[n] {
-			continue
-		}
-		seen[n] = true
-		out = append(out, n)
-	}
-	sort.Ints(out)
-	return out
-}
-
-// PerPageChoices are the page sizes a list's menu offers.
-func PerPageChoices(ctx *alborz.Context) []int {
-	return perPageOptions(ctx.Reading().MessagesPerPage)
-}
-
-// PerPage is how many rows a page of a list holds, the reader's rather than the account's.
-func PerPage(ctx *alborz.Context) int {
-	if raw := ctx.QueryParam("ipp"); raw != "" {
-		if n, err := alborz.ReadInt(raw); err == nil &&
-			n > 0 && n <= MaxMessagesPerPage {
-			return n
-		}
-	}
-	if n := ctx.Reading().MessagesPerPage; n > 0 && n <= MaxMessagesPerPage {
-		return n
-	}
-	return defaultMessagesPerPage
 }
 
 func textQueryOffered(query string, headersOnly bool) string {

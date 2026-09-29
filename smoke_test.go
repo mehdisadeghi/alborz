@@ -39,7 +39,7 @@ import (
 	filtersweb "git.mehdix.org/alborz/filters/web"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
-	"git.mehdix.org/alborz/pim/calendar"
+	calendarweb "git.mehdix.org/alborz/pim/calendar/web"
 	"git.mehdix.org/alborz/pim/contacts"
 	settingsweb "git.mehdix.org/alborz/settings/web"
 	"git.mehdix.org/alborz/web"
@@ -350,7 +350,7 @@ func newAlborz(t *testing.T, ln net.Listener, options web.Options, setup ...func
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
-	if err := calendar.Mount(app.Group("", "calendar"), st); err != nil {
+	if err := calendarweb.Mount(app.Group("", "calendar"), st); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
 	if err := contacts.Mount(app.Group("", "contacts"), st); err != nil {

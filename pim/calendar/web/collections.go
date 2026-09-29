@@ -1,4 +1,4 @@
-package calendar
+package web
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 )
@@ -24,7 +25,7 @@ func (p *plugin) collectionPage() pim.Page {
 		List:       "calendar.month",
 		Ext:        ".ics",
 		Forget:     p.DAV.Forget,
-		Show:       Show,
+		Show:       calendar.Show,
 		Rail: func(ctx *web.Context, list string) (pim.Rail, error) {
 			if list == ctx.Path("calendar.tasks") {
 				return p.taskRail(ctx)
@@ -36,7 +37,7 @@ func (p *plugin) collectionPage() pim.Page {
 			if err != nil {
 				return 0, err
 			}
-			return Import(ctx.Request().Context(), c, path, raw)
+			return calendar.Import(ctx.Request().Context(), c, path, raw)
 		},
 		Create: func(ctx *web.Context, list, name, place string) (string, error) {
 			// A task list takes tasks; an imported calendar keeps events and tasks both.
@@ -51,7 +52,7 @@ func (p *plugin) collectionPage() pim.Page {
 			if err != nil {
 				return nil, err
 			}
-			return Export(ctx.Request().Context(), c, path, from, to)
+			return calendar.Export(ctx.Request().Context(), c, path, from, to)
 		},
 		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
 			_, calendars, err := p.Open(ctx.Request().Context(), ctx.Login)
@@ -73,7 +74,7 @@ func (p *plugin) collectionPage() pim.Page {
 }
 
 func collectionList(ctx *web.Context, info dav.Collection) string {
-	if !SupportsEvent(info.Components) {
+	if !calendar.SupportsEvent(info.Components) {
 		return ctx.Path("calendar.tasks")
 	}
 	return ctx.Path("calendar.month")
@@ -136,28 +137,28 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 		if login == nil {
 			return web.NewError(http.StatusBadRequest, "not signed in to that account")
 		}
-		sub := Subscription{URL: NormalizeFeedURL(data.Address), Color: dav.DefaultColor, Changed: time.Now().UTC()}
+		sub := calendar.Subscription{URL: calendar.NormalizeFeedURL(data.Address), Color: dav.DefaultColor, Changed: time.Now().UTC()}
 		rc := ctx.Request().Context()
-		subs, err := LoadSubscriptions(rc, login.Store())
+		subs, err := calendar.LoadSubscriptions(rc, login.Store())
 		if err != nil {
 			return err
 		}
-		if slices.ContainsFunc(subs, func(s Subscription) bool { return s.URL == sub.URL }) {
+		if slices.ContainsFunc(subs, func(s calendar.Subscription) bool { return s.URL == sub.URL }) {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL))
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
 		got, cal, err := p.Fetch(rc, sub.URL)
 		if err != nil {
 			data.Refused(fmt.Sprintf(ctx.T("calendar.feedfailed"), sub.URL, err))
-			if errors.Is(err, ErrNotFeed) {
+			if errors.Is(err, calendar.ErrNotFeed) {
 				data.Refused(fmt.Sprintf(ctx.T("calendar.notfeed"), sub.URL))
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
-		if sub.Name = FeedName(cal); sub.Name == "" {
-			sub.Name = FeedHost(sub.URL)
+		if sub.Name = calendar.FeedName(cal); sub.Name == "" {
+			sub.Name = calendar.FeedHost(sub.URL)
 		}
-		if err := SaveSubscriptions(rc, login.Store(), append(subs, sub)); err != nil {
+		if err := calendar.SaveSubscriptions(rc, login.Store(), append(subs, sub)); err != nil {
 			data.Refused(ctx.SaveRefusal(err))
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}

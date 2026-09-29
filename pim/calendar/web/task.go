@@ -1,4 +1,4 @@
-package calendar
+package web
 
 import (
 	"cmp"
@@ -13,6 +13,7 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
@@ -24,7 +25,7 @@ type TaskRenderData struct {
 	web.BaseRenderData
 	Rail     pim.Rail
 	Calendar *dav.Collection
-	Task     TaskObject
+	Task     calendar.TaskObject
 	// Authors are who added and last changed the object, where another account.
 	Authors dav.Authors
 	// List is the list the page was opened from.
@@ -56,8 +57,8 @@ func (p *plugin) task(ctx *web.Context) error {
 		return err
 	}
 
-	calendar := dav.Holding(calendars, "", path)
-	if calendar == nil {
+	coll := dav.Holding(calendars, "", path)
+	if coll == nil {
 		return alborz.NotFound("notfound.task")
 	}
 
@@ -84,7 +85,7 @@ func (p *plugin) task(ctx *web.Context) error {
 		return fmt.Errorf("expected exactly one task with path %q, got %v", path, len(tasks))
 	}
 	task := &tasks[0]
-	todo := FirstTodo(task.Data)
+	todo := calendar.FirstTodo(task.Data)
 	if todo == nil {
 		return fmt.Errorf("no VTODO component found")
 	}
@@ -101,11 +102,11 @@ func (p *plugin) task(ctx *web.Context) error {
 	return ctx.Render(http.StatusOK, "tasks/task", &TaskRenderData{
 		Rail:           rail,
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
-		Calendar:       calendar,
-		Task:           TaskObject{CalendarObject: task},
+		Calendar:       coll,
+		Task:           calendar.TaskObject{CalendarObject: task},
 		List:           cmp.Or(ctx.From(), pim.ListURL(ctx.Path("calendar.tasks"), pim.ListParams(ctx, taskListParams...))),
-		Star:           ComponentColor(FirstTodo(task.Data)),
-		Priority:       PriorityBand(FirstTodo(task.Data)),
+		Star:           calendar.ComponentColor(calendar.FirstTodo(task.Data)),
+		Priority:       calendar.PriorityBand(calendar.FirstTodo(task.Data)),
 		Neighbours:     pim.Around(list.Items, path),
 		Authors:        p.DAV.Authors(task.Path, ctx.Login.Username()),
 	})
@@ -134,13 +135,13 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 			}
 			return fmt.Errorf("failed to get task: %v", err)
 		}
-		todo = FirstTodo(co.Data)
+		todo = calendar.FirstTodo(co.Data)
 		if todo == nil {
 			return fmt.Errorf("no VTODO component found")
 		}
 		currentCalendar = dav.Holding(calendars, "", co.Path)
 	} else {
-		groups, err = p.writableGroups(ctx, SupportsTodo)
+		groups, err = p.writableGroups(ctx, calendar.SupportsTodo)
 		if err != nil {
 			return err
 		}
@@ -163,7 +164,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		// A form without the select changes no priority.
 		_, prioritySent := params["priority"]
 		band := ctx.FormValue("priority")
-		if band != "" && !slices.Contains(PriorityBands, band) {
+		if band != "" && !slices.Contains(calendar.PriorityBands, band) {
 			return web.NewError(http.StatusBadRequest, "no such priority")
 		}
 
@@ -181,7 +182,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 				Todo:           todo,
 				Due:            dueDate,
 				Priority:       band,
-				PriorityBands:  PriorityBands,
+				PriorityBands:  calendar.PriorityBands,
 			})
 		}
 		if summary == "" {
@@ -191,7 +192,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		to := pim.Ref[*caldav.Client]{Client: c}
 		creating := co == nil
 		if creating {
-			to, err = p.destination(ctx, ctx.FormValue("calendar"), SupportsTodo)
+			to, err = p.destination(ctx, ctx.FormValue("calendar"), calendar.SupportsTodo)
 			if errors.Is(err, pim.ErrNoDestination) {
 				return reject(ctx.T("form.destinationneeded"))
 			} else if err != nil {
@@ -228,7 +229,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		// alborz keeps the date in DUE, where the form shows it.
 		todo.Props.Del(ical.PropDateTimeStart)
 		if prioritySent {
-			SetPriorityBand(todo, band)
+			calendar.SetPriorityBand(todo, band)
 		}
 
 		newID := uuid.New()
@@ -237,12 +238,12 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 			todo.Props.SetText(ical.PropStatus, "NEEDS-ACTION")
 		}
 
-		cal := NewCalendar(todo)
+		cal := calendar.NewCalendar(todo)
 		if !creating {
 			cal = co.Data
 		}
-		EnsureTimezones(cal, due)
-		co, err = PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
+		calendar.EnsureTimezones(cal, due)
+		co, err = calendar.PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
 		if err != nil {
 			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
 		}
@@ -274,7 +275,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		CalendarObject: co,
 		Todo:           todo,
 		Due:            ctx.Dates().Input(at),
-		Priority:       PriorityBand(todo),
-		PriorityBands:  PriorityBands,
+		Priority:       calendar.PriorityBand(todo),
+		PriorityBands:  calendar.PriorityBands,
 	})
 }

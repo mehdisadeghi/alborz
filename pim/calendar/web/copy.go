@@ -1,4 +1,4 @@
-package calendar
+package web
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
@@ -19,9 +20,9 @@ import (
 
 // copyTo writes an event or a task into a calendar the reader chooses, as an object of its own (ADR 63).
 func (p *plugin) copyTo(s section) func(*web.Context) error {
-	section, supports, key, first, rail, missing := "nav.calendar", SupportsEvent, "event", FirstEvent, p.eventRail, "notfound.event"
+	section, supports, key, first, rail, missing := "nav.calendar", calendar.SupportsEvent, "event", calendar.FirstEvent, p.eventRail, "notfound.event"
 	if s == taskSection {
-		section, supports, key, first, rail, missing = "nav.tasks", SupportsTodo, "task", FirstTodo, p.taskRail, "notfound.task"
+		section, supports, key, first, rail, missing = "nav.tasks", calendar.SupportsTodo, "task", calendar.FirstTodo, p.taskRail, "notfound.task"
 	}
 	return func(ctx *web.Context) error {
 		src := ctx.Param("path")
@@ -92,8 +93,8 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 			}
 		}
 		uid := uuid.New().String()
-		AsCopy(co.Data, uid, source, time.Now().UTC())
-		made, err := PutObject(ctx.Request().Context(), to, uid+".ics", nil, co.Data)
+		calendar.AsCopy(co.Data, uid, source, time.Now().UTC())
+		made, err := calendar.PutObject(ctx.Request().Context(), to, uid+".ics", nil, co.Data)
 		if err != nil {
 			return page(http.StatusUnprocessableEntity, pim.Refusal(ctx, err))
 		}

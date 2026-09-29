@@ -1,4 +1,4 @@
-package calendar
+package web
 
 import (
 	"net/http"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 )
@@ -18,7 +19,7 @@ type CalendarDateRenderData struct {
 	SelectForm         string
 	Time               time.Time
 	Calendars          []dav.Collection
-	Events             []Occurrence
+	Events             []calendar.Occurrence
 	PrevPage, NextPage string
 
 	CollectionFor  func(account, path string) dav.Collection
@@ -32,7 +33,7 @@ type CalendarDateRenderData struct {
 type dayView struct {
 	start     time.Time
 	calendars []dav.Collection
-	events    []Occurrence
+	events    []calendar.Occurrence
 	accounts  int
 }
 
@@ -85,11 +86,11 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 		return dayView{}, err
 	}
 
-	calendarInfos, sites, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, SupportsEvent, EventVisibility)
+	calendarInfos, sites, err := calendar.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, calendar.SupportsEvent, calendar.EventVisibility)
 	if err != nil {
 		return dayView{}, err
 	}
-	query := EventQuery(start, end)
+	query := calendar.EventQuery(start, end)
 
 	events, err := p.QuerySites(ctx.Request().Context(), sites, &query)
 	if err != nil {
@@ -97,9 +98,9 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 	}
 
 	// Keep only what falls in the day; an unexpanded master matched as a whole.
-	var shown []Occurrence
+	var shown []calendar.Occurrence
 	for _, ev := range events {
-		for _, oc := range Occurrences(ev, loc, start, end) {
+		for _, oc := range calendar.Occurrences(ev, loc, start, end) {
 			if oc.Start.Before(end) && (oc.End.After(start) || !oc.End.After(oc.Start)) {
 				shown = append(shown, oc)
 			}

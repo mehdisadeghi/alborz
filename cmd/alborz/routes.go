@@ -5,7 +5,7 @@ import (
 	filtersweb "git.mehdix.org/alborz/filters/web"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
-	"git.mehdix.org/alborz/pim/calendar"
+	calendarweb "git.mehdix.org/alborz/pim/calendar/web"
 	"git.mehdix.org/alborz/pim/contacts"
 	settingsweb "git.mehdix.org/alborz/settings/web"
 	"git.mehdix.org/alborz/web"
@@ -34,7 +34,7 @@ func mount(s *web.Server) error {
 		return err
 	}
 	// Calendar before contacts, so the servers page lists the collections on alborz last.
-	if err := calendar.Mount(app.Group("", "calendar"), st); err != nil {
+	if err := calendarweb.Mount(app.Group("", "calendar"), st); err != nil {
 		return err
 	}
 	if err := contacts.Mount(app.Group("", "contacts"), st); err != nil {

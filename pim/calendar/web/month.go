@@ -1,4 +1,4 @@
-package calendar
+package web
 
 import (
 	"net/http"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz/pim"
+	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 )
@@ -22,7 +23,7 @@ type CalendarRenderData struct {
 	ThisMonth          bool
 	Dates              []time.Time
 	Calendars          []dav.Collection
-	Events             []CalendarObject
+	Events             []calendar.CalendarObject
 	Page               string
 	View               string
 	PrevPage, NextPage string
@@ -34,7 +35,7 @@ type CalendarRenderData struct {
 	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
 	SelectForm string
 
-	EventsForDate func(time.Time) []Occurrence
+	EventsForDate func(time.Time) []calendar.Occurrence
 	// CollectionFor is a row's calendar, CollectionHref the agenda narrowed to it.
 	CollectionFor  func(account, path string) dav.Collection
 	CollectionHref func(account, path string) string
@@ -69,14 +70,14 @@ type monthView struct {
 	nextTime  time.Time
 	accounts  int
 	calendars []dav.Collection
-	events    []CalendarObject
+	events    []calendar.CalendarObject
 	dates     []time.Time
-	on        map[time.Time][]Occurrence
+	on        map[time.Time][]calendar.Occurrence
 	day       func(time.Time) time.Time
 }
 
-func (mv monthView) shown() []Occurrence {
-	var out []Occurrence
+func (mv monthView) shown() []calendar.Occurrence {
+	var out []calendar.Occurrence
 	for _, date := range mv.dates {
 		if mv.view != "" && (date.Month() != mv.start.Month() || date.Before(mv.since)) {
 			continue
@@ -136,7 +137,7 @@ func (p *plugin) month(ctx *web.Context) error {
 		GroupRows:  groupRows(ctx, mv),
 		Group:      mv.group,
 
-		EventsForDate: func(when time.Time) []Occurrence {
+		EventsForDate: func(when time.Time) []calendar.Occurrence {
 			return mv.on[mv.day(when)]
 		},
 
@@ -210,11 +211,11 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 		return monthView{}, err
 	}
 
-	calendarInfos, sites, err := Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, SupportsEvent, EventVisibility)
+	calendarInfos, sites, err := calendar.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, calendar.SupportsEvent, calendar.EventVisibility)
 	if err != nil {
 		return monthView{}, err
 	}
-	query := EventQuery(queryStart, queryEnd)
+	query := calendar.EventQuery(queryStart, queryEnd)
 
 	events, err := p.QuerySites(ctx.Request().Context(), sites, &query)
 	if err != nil {
@@ -239,9 +240,9 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
 	}
 	gridEnd := gridStart.AddDate(0, 0, rows*7)
-	eventMap := make(map[time.Time][]Occurrence)
+	eventMap := make(map[time.Time][]calendar.Occurrence)
 	for _, ev := range events {
-		for _, oc := range Occurrences(ev, loc, queryStart, queryEnd) {
+		for _, oc := range calendar.Occurrences(ev, loc, queryStart, queryEnd) {
 			if view != "list" && !web.StarMatches(oc.Star(), view) {
 				continue
 			}
@@ -337,6 +338,6 @@ func (p *plugin) exportMonth(ctx *web.Context) error {
 			return web.NewError(http.StatusBadRequest, err)
 		}
 	}
-	return p.exportVisible(ctx, SupportsEvent, EventVisibility, []string{"VEVENT"},
+	return p.exportVisible(ctx, calendar.SupportsEvent, calendar.EventVisibility, []string{"VEVENT"},
 		from, cal.AddMonths(from, 1), ctx.T("nav.calendar")+" "+cal.Page(from))
 }

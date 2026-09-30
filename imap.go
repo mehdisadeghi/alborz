@@ -26,6 +26,12 @@ func init() {
 // FlagColors names the colours the flag bits address, indexed by their value.
 var FlagColors = [7]string{"red", "orange", "yellow", "green", "blue", "purple", "grey"}
 
+// Views narrow a folder by a flag.
+const (
+	ViewStarred = "starred"
+	ViewUnread  = "unread"
+)
+
 func (s *Server) dialIMAP(domain, from string) (*imapclient.Client, error) {
 	return s.dial(domain, from, nil, 0)
 }

@@ -72,7 +72,7 @@ type ContactList struct {
 func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	queryText := ctx.QueryParam("query")
 	view := ctx.QueryParam("view")
-	if view != "" && view != web.ViewStarred && !slices.Contains(alborz.FlagColors[:], view) {
+	if view != "" && view != alborz.ViewStarred && !slices.Contains(alborz.FlagColors[:], view) {
 		return ContactList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
@@ -106,10 +106,10 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 				continue
 			}
 			// A colour is a view, as in the mail rail; starred is any colour.
-			if view == web.ViewStarred && ao.Color() == "" {
+			if view == alborz.ViewStarred && ao.Color() == "" {
 				continue
 			}
-			if view != "" && view != web.ViewStarred && ao.Color() != view {
+			if view != "" && view != alborz.ViewStarred && ao.Color() != view {
 				continue
 			}
 			aos = append(aos, ao)
@@ -182,7 +182,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 func contactColumns(books []dav.Collection) []pim.Column[contacts.AddressObject] {
 	return []pim.Column[contacts.AddressObject]{
 		{Key: "name", Value: func(ao contacts.AddressObject) string { return strings.ToLower(ao.DisplayName()) }},
-		{Key: web.ViewStarred, Value: func(ao contacts.AddressObject) string { return pim.StarredFirst(ao.Color()) }},
+		{Key: alborz.ViewStarred, Value: func(ao contacts.AddressObject) string { return pim.StarredFirst(ao.Color()) }},
 		{Key: "email", Value: func(ao contacts.AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("EMAIL")) }},
 		{Key: "phone", Value: func(ao contacts.AddressObject) string { return strings.ToLower(ao.Card.PreferredValue("TEL")) }},
 		{Key: "account", Value: func(ao contacts.AddressObject) string { return strings.ToLower(ao.Account) }},
@@ -245,7 +245,7 @@ func searchFilter(ctx *web.Context, list ContactList) []web.Filter {
 		out = append(out, f)
 	}
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok {
-		if f.Value == web.ViewStarred {
+		if f.Value == alborz.ViewStarred {
 			f.Value = ctx.T("mailbox.starred")
 		} else {
 			f.Value = ctx.T("color." + f.Value)

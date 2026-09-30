@@ -47,7 +47,7 @@ func (p *plugin) loadListing(ctx *web.Context, s *alborz.Login, view string, siz
 	return p.listings.load(ctx.Request().Context(), s.Username(), view, size, false, readOn(s, class, bound, fetch))
 }
 
-func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page web.Page) {
+func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page alborz.Page) {
 	key := listingPage(listingView(spec.mbox, spec.query, spec.view, spec.sortKey, spec.sortDir), page.Number, page.Size)
 	if e, _ := p.listings.lookup(s.Username(), key, page.Size); e != nil {
 		return

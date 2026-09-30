@@ -9,21 +9,14 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-// DoIMAP runs the IMAP operation and times it.
+// DoIMAP runs the IMAP operation for the request.
 func (ctx *Context) DoIMAP(f func(*imapclient.Client) error) error {
-	return ctx.doIMAPWithin(alborz.RoundTripTimeout, f)
+	return ctx.Login.DoIMAPContext(ctx.Request().Context(), alborz.RoundTripTimeout, f)
 }
 
 // DoIMAPScan runs a whole-folder search, which may outlast a round trip, off the connection the reader's clicks wait on.
 func (ctx *Context) DoIMAPScan(f func(*imapclient.Client) error) error {
 	return ctx.Login.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, alborz.ScanTimeout, f)
-}
-
-func (ctx *Context) doIMAPWithin(bound time.Duration, f func(*imapclient.Client) error) error {
-	start := time.Now()
-	err := ctx.Login.DoIMAPContext(ctx.Request().Context(), bound, f)
-	ctx.timing.Add("imap", start, time.Now())
-	return err
 }
 
 // DoSieve runs the ManageSieve operation and times it.

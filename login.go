@@ -207,6 +207,7 @@ func waitError(err error, bound time.Duration) error {
 }
 
 func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Duration, f func(*imapclient.Client) error) (err error) {
+	defer AddTiming(ctx, "imap", time.Now())
 	deadline := time.Now().Add(bound)
 	waiting, stopWaiting := context.WithDeadline(ctx, deadline)
 	defer stopWaiting()

@@ -232,3 +232,24 @@ func ThemeName(name string) string {
 	}
 	return strings.ToUpper(name[:1]) + name[1:]
 }
+
+// SettingsRail is the settings pages' rail: what this browser keeps, then each account's pages.
+func SettingsRail(ctx *Context) map[string][]RailRow {
+	path := ctx.Request().URL.Path
+	// Under no account: what this browser keeps.
+	rows := map[string][]RailRow{"": {
+		{Label: ctx.T("settings.general"), Href: ctx.Path("settings.profile"), Active: path == ctx.Path("settings.profile")},
+		{Label: ctx.T("passkeys.title"), Href: ctx.Path("settings.passkeys"), Active: strings.HasPrefix(path, ctx.Path("settings.passkeys"))},
+	}}
+	for _, account := range ctx.Accounts() {
+		scoped := ctx.Login != nil && account.Username == ctx.Login.Username()
+		q := AccountQuery(account.Username)
+		rows[account.Username] = []RailRow{
+			{Label: ctx.T("settings.account"), Href: ctx.Path("mail.account") + q, Active: scoped && path == ctx.Path("mail.account")},
+			{Label: ctx.T("settings.signatures"), Href: ctx.Path("mail.signatures") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("mail.signatures"))},
+			{Label: ctx.T("settings.servers"), Href: ctx.Path("settings.servers") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("settings.servers"))},
+			{Label: ctx.T("sessions.title"), Href: ctx.Path("settings.sessions") + q, Active: scoped && path == ctx.Path("settings.sessions")},
+		}
+	}
+	return rows
+}

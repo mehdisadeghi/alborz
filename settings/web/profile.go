@@ -9,7 +9,6 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/calsys"
 	"git.mehdix.org/alborz/internal/locale"
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -43,7 +42,7 @@ func handleProfile(ctx *web.Context) error {
 	render := func(status int, message string, p alborz.Profile) error {
 		return ctx.Render(status, "settings/general", &ProfileRenderData{
 			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.general")).Refused(message),
-			Rail:           mail.SettingsRail(ctx),
+			Rail:           web.SettingsRail(ctx),
 			Theme:          p.Display.Theme,
 			Themes:         ctx.Themes(),
 			AlignByScript:  p.Display.AlignByScript,

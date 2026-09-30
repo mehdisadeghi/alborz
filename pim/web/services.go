@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 )
@@ -46,7 +45,7 @@ func (d *ServerRenderData) DefaultPlace() string {
 func handleServer(ctx *web.Context) error {
 	data := &ServerRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("servers." + web.ServerDAV)),
-		Rail:           mail.SettingsRail(ctx),
+		Rail:           web.SettingsRail(ctx),
 	}
 	render := func(status int) error {
 		servers, err := ctx.Servers(web.ServerDAV)

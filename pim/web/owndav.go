@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
 )
@@ -29,8 +28,8 @@ func Mount(dav, app *web.Group) (*store.Store, error) {
 	}
 	st := store.New(db)
 	serveOwn(dav, srv, st)
-	app.GET("server", "/settings/servers/"+web.ServerDAV, mail.Scoped(handleServer))
-	app.POST("server", "/settings/servers/"+web.ServerDAV, mail.Scoped(handleServer))
+	app.GET("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))
+	app.POST("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))
 	return st, nil
 }
 

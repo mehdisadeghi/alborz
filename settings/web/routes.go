@@ -1,7 +1,6 @@
 package web
 
 import (
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -11,11 +10,11 @@ func Mount(g *web.Group) {
 	g.POST("profile", "/settings", handleProfile)
 	g.POST("profile.take", "/settings/profile/take", handleProfileTake)
 	g.POST("profile.discard", "/settings/profile/discard", handleProfileDiscard)
-	g.GET("sessions", "/settings/sessions", mail.Scoped(handleSessions))
-	g.POST("sessions", "/settings/sessions", mail.Scoped(handleSessions))
-	g.GET("servers", "/settings/servers", mail.Scoped(handleServers))
-	g.GET("server", "/settings/servers/{server}", mail.Scoped(handleServer))
-	g.POST("server", "/settings/servers/{server}", mail.Scoped(handleServer))
+	g.GET("sessions", "/settings/sessions", web.Scoped(handleSessions))
+	g.POST("sessions", "/settings/sessions", web.Scoped(handleSessions))
+	g.GET("servers", "/settings/servers", web.Scoped(handleServers))
+	g.GET("server", "/settings/servers/{server}", web.Scoped(handleServer))
+	g.POST("server", "/settings/servers/{server}", web.Scoped(handleServer))
 	g.POST("language", "/language", handleLanguage)
 	registerPasskeyRoutes(g)
 	srv := g.Server()

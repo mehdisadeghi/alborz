@@ -72,25 +72,15 @@ func (p *plugin) registerRoutes(g *web.Group) {
 
 	g.POST("messages.flag", "/message/{mbox}/flag", p.handleSetFlags)
 
-	g.GET("signatures", "/signatures", Scoped(handleSignatures))
-	g.GET("signatures.create", "/signatures/create", Scoped(handleSignatureForm))
-	g.GET("signature", "/signatures/{name}", Scoped(handleSignatureForm))
+	g.GET("signatures", "/signatures", web.Scoped(handleSignatures))
+	g.GET("signatures.create", "/signatures/create", web.Scoped(handleSignatureForm))
+	g.GET("signature", "/signatures/{name}", web.Scoped(handleSignatureForm))
 	g.POST("signatures", "/signatures", handleSignatureSave)
 	g.POST("signatures.delete", "/signatures/delete", handleSignatureDelete)
 	g.POST("signatures.default", "/signatures/default", handleSignatureDefault)
-	g.GET("account", "/settings/account", Scoped(p.handleSettings))
+	g.GET("account", "/settings/account", web.Scoped(p.handleSettings))
 	g.POST("account", "/settings/account", p.handleSettings)
 	g.POST("account.forget", "/settings/account/forget", p.handleForget)
-}
-
-// Scoped serves h per account: settings are per account, so a unified GET redirects to name its account.
-func Scoped(h web.HandlerFunc) web.HandlerFunc {
-	return func(ctx *web.Context) error {
-		if ctx.Unified && ctx.Request().Method == http.MethodGet {
-			return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+AccountQuery(ctx.Login.Username()))
-		}
-		return h(ctx)
-	}
 }
 
 // folderPath is a folder's address, for code that builds many.

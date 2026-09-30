@@ -1,6 +1,8 @@
 package alborz
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -39,6 +41,38 @@ func TestEnvelopeOpensOnlyWithTheMailPassword(t *testing.T) {
 	}
 	if _, err := login("second").open(e); err != ErrSealed {
 		t.Fatalf("after a password change: %v, want ErrSealed", err)
+	}
+}
+
+type mapStore map[string][]byte
+
+func (m mapStore) Get(_ context.Context, key string, out any) error {
+	raw, ok := m[key]
+	if !ok {
+		return ErrNoStoreEntry
+	}
+	return json.Unmarshal(raw, out)
+}
+
+func (m mapStore) Put(_ context.Context, key string, v any) error {
+	raw, err := json.Marshal(v)
+	m[key] = raw
+	return err
+}
+
+func TestEnvelopeFollowsAPasswordChange(t *testing.T) {
+	ctx, store := context.Background(), mapStore{}
+	if err := (&Login{password: "first", store: store}).SetHTTPPassword(ctx, "app-password"); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&Login{password: "first", store: store}).rewrap(ctx, "second"); err != nil {
+		t.Fatal(err)
+	}
+	if plain, err := (&Login{password: "second", store: store}).HTTPPassword(ctx); err != nil || plain != "app-password" {
+		t.Fatalf("under the new password: %q, %v", plain, err)
+	}
+	if _, err := (&Login{password: "first", store: store}).HTTPPassword(ctx); err != ErrSealed {
+		t.Fatalf("under the old password: %v, want ErrSealed", err)
 	}
 }
 

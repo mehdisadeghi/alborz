@@ -94,7 +94,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 	fs.Usage = func() {
 		fmt.Fprint(fs.Output(), `usage: alborz [options...] <upstreams...>
 
-Plain imap[s]://, smtp[s]://, sieve://, https:// or +insecure URLs
+Plain imap[s]://, smtp[s]://, sieve://, https://, poppassd:// or +insecure URLs
 configure a single provider accepting logins of any domain. Alternatively,
 each argument serves one mail domain and logins are only accepted for the
 listed domains: a bare domain uses SRV auto-discovery, and explicit

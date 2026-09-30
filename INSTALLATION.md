@@ -96,8 +96,44 @@ from then on.
 
 That password is kept in the account's IMAP METADATA, or in alborz.db
 where the server has none, encrypted under a key derived from the mail
-password. After a mail password change it no longer opens, and alborz
-asks for it again.
+password. A change made in alborz seals it under the new password; after
+a change made elsewhere it no longer opens, and alborz asks for it again.
+
+## Password changes
+
+alborz does not touch the mail server's user database. It asks a
+password server on the mail host over the poppassd protocol (USER,
+PASS, NEWPASS), named per domain like the other upstreams:
+
+    example.org=poppassd://127.0.0.1:106
+    example.org=poppassd+unix:///run/poppassd.sock
+
+With one configured, Settings > Password changes the password of the
+domain's accounts; without, the page says it is not set up. A refused
+current password counts against the reader like a refused sign-in. After
+a change, alborz signs the account in again with the new password, keeps
+it for this browser if it was remembered, and signs every other browser
+out of the account. Mail, calendar and contacts apps are not signed out.
+
+poppassd sends passwords in plain text, so alborz refuses to start with
+a poppassd server that is not on `localhost`, a loopback address or a
+Unix socket. A server on another host is reached through a tunnel
+ending on loopback.
+
+For system users (PAM), run
+[poppassd-ceti](https://github.com/kravietz/poppassd-ceti) from its
+systemd socket unit (port 106 on localhost) and add `?user=local`, since
+PAM knows `alice`, not `alice@example.org`:
+
+    example.org=poppassd://127.0.0.1:106?user=local
+
+With user names wrong, poppassd-ceti answers "Old password is incorrect".
+
+For Dovecot users in a passwd-file or an SQL database, or FreeBSD
+system users, run alborz's own password server, alborzmail/passwd,
+which speaks the same protocol on a Unix socket and refuses to listen
+beyond loopback. It takes the full address as the user; FreeBSD system
+users need `?user=local`.
 
 ## Reverse proxy
 

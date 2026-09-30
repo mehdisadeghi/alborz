@@ -33,6 +33,8 @@ type IMAPServer struct {
 	armed  chan struct{}
 	sorts  atomic.Int32
 	thread atomic.Int32
+	// passwords holds the passwords changed from Password.
+	passwords sync.Map
 }
 
 type imapConfig struct {
@@ -103,10 +105,11 @@ func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	}
 	s.srv = imapserver.New(&imapserver.Options{
 		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
+			sess := changedPasswords{mem.NewSession().(imapserver.SessionIMAP4rev2), s}
 			if c.failWholeFetch {
-				return wholeFetchFails{mem.NewSession()}, nil, nil
+				return wholeFetchFails{sess}, nil, nil
 			}
-			return mem.NewSession(), nil, nil
+			return sess, nil, nil
 		},
 		Caps:         c.caps,
 		InsecureAuth: true,
@@ -275,6 +278,30 @@ func seedElsewhere(t *testing.T) *imapmemserver.User {
 	appendTo(t, u, "INBOX", fmt.Sprintf("From: gil@example.org\r\nTo: %s\r\nSubject: from elsewhere\r\n"+
 		"Message-ID: <elsewhere@test>\r\nContent-Type: text/plain\r\n\r\nHello.\r\n", Elsewhere))
 	return u
+}
+
+// SetPassword changes user's password, as the mail host's password server does.
+func (s *IMAPServer) SetPassword(user, password string) { s.passwords.Store(user, password) }
+
+func (s *IMAPServer) opens(user, password string) bool {
+	want, changed := s.passwords.Load(user)
+	if !changed {
+		want = Password
+	}
+	return password == want
+}
+
+// changedPasswords signs in with the passwords SetPassword gave, which the in-memory server cannot change.
+type changedPasswords struct {
+	imapserver.SessionIMAP4rev2
+	s *IMAPServer
+}
+
+func (c changedPasswords) Login(username, password string) error {
+	if !c.s.opens(username, password) {
+		return imapserver.ErrAuthFailed
+	}
+	return c.SessionIMAP4rev2.Login(username, Password)
 }
 
 type wholeFetchFails struct{ imapserver.Session }

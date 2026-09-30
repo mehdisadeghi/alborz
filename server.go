@@ -114,6 +114,7 @@ type domainUpstreams struct {
 		insecure bool
 		found    string
 	}
+	passwd passwdServer
 }
 
 // New opens the data file and the upstreams the options name.
@@ -203,6 +204,9 @@ func New(log *log.Logger, options Options) (*Server, error) {
 			continue
 		}
 		if err := s.parseSieveUpstream(name); err != nil {
+			return nil, err
+		}
+		if err := s.parsePasswdUpstream(name); err != nil {
 			return nil, err
 		}
 	}

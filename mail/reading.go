@@ -190,7 +190,7 @@ func joinedHTML(c *imapclient.Client, mboxName string, uid imap.UID, pieces []IM
 		if err != nil {
 			return nil, err
 		}
-		piece, err := readPart(h, bodyBuf, p.Cut())
+		piece, err := readPart(h, bodyBuf, &p, p.Cut())
 		if err != nil {
 			return nil, err
 		}

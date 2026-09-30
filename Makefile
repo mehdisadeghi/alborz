@@ -36,6 +36,6 @@ lint:
 test:
 	$(GO) test ./...
 
-# Generate a Fernet key for -login-key.
+# Generate a key for -login-key.
 login-key:
-	$(GO) run github.com/fernet/fernet-go/cmd/fernet-keygen
+	openssl rand -base64 32

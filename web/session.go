@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -15,7 +16,7 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
-	"github.com/fernet/fernet-go"
+	"git.mehdix.org/alborz/internal/seal"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -408,29 +409,30 @@ func (s *Session) opens(secret string) bool {
 
 // sessionKey derives the sealing key; the secret never leaves the cookie, so a
 // stolen store decrypts nothing.
-func sessionKey(secret string) *fernet.Key {
-	sum := sha256.Sum256([]byte(secret))
-	var key fernet.Key
-	copy(key[:], sum[:])
-	return &key
-}
+func sessionKey(secret string) *seal.Key { return seal.NewKey(sha256.Sum256([]byte(secret))) }
 
+// seal keeps the password with when it was sealed, so it opens for a cookie's life and no longer.
 func (ctx *Context) seal(password string) ([]byte, error) {
 	if ctx.sessionSecret == "" {
 		return nil, fmt.Errorf("alborz: this session carries no secret")
 	}
-	return fernet.EncryptAndSign([]byte(password), sessionKey(ctx.sessionSecret))
+	plain := binary.BigEndian.AppendUint64(nil, uint64(time.Now().Unix()))
+	return sessionKey(ctx.sessionSecret).Seal(append(plain, password...)), nil
 }
 
 func (ctx *Context) unseal(sealed []byte) (string, bool) {
 	if ctx.sessionSecret == "" {
 		return "", false
 	}
-	raw := fernet.VerifyAndDecrypt(sealed, alborz.CredentialCookieLife(), []*fernet.Key{sessionKey(ctx.sessionSecret)})
-	if raw == nil {
+	raw, err := sessionKey(ctx.sessionSecret).Open(sealed)
+	if err != nil || len(raw) < 8 {
 		return "", false
 	}
-	return string(raw), true
+	at := time.Unix(int64(binary.BigEndian.Uint64(raw)), 0)
+	if time.Since(at) > alborz.CredentialCookieLife() {
+		return "", false
+	}
+	return string(raw[8:]), true
 }
 
 // Quiet says this action needs no notice. Said explicitly, so a forgotten

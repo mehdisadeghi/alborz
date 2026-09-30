@@ -61,7 +61,7 @@ Secure cookies (default: unset, the connection's own address and scheme)
 clients; scheme and host only. Can also be given as `LBRZ_PUBLIC_URL`
 (default: unset, each request's own)
 
-**-login-key**: required Fernet key sealing what alborz keeps: remembered
+**-login-key**: required key sealing what alborz keeps: remembered
 logins, settings and the cache. Can also be given as the `LBRZ_LOGIN_KEY`
 environment variable, which keeps it out of the process list.
 
@@ -85,9 +85,11 @@ name is printed as text)
 
 # LOGIN-KEY
 
-Generate one with `go run github.com/fernet/fernet-go/cmd/fernet-keygen`.
+32 random bytes in base64; generate one with `openssl rand -base64 32`.
 What alborz seals under a key opens only with that key. Each file it keeps
 records the key it was sealed under, and alborz refuses to start on a file
-another key sealed; restore the key, or move the file aside.
+another key sealed; restore the key, or move the file aside. A file written
+before alborz sealed with AES-256-GCM, in the Fernet format, is refused the
+same way.
 
 [RFC 6186]: https://tools.ietf.org/html/rfc6186

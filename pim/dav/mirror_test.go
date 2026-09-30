@@ -3,6 +3,8 @@ package dav
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -17,10 +19,10 @@ import (
 	"testing"
 	"time"
 
+	"git.mehdix.org/alborz/internal/seal"
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
-	"github.com/fernet/fernet-go"
 )
 
 // fakeDAV is one calendar at /cal/; tokens are its change log's length, and forget refuses them all.
@@ -161,11 +163,13 @@ var someone = Principal{Account: "u", Name: "u"}
 
 func through(t *testing.T, s *fakeDAV) (*Mirror, *caldav.Client) {
 	t.Helper()
-	var key fernet.Key
-	if err := key.Generate(); err != nil {
+	var key [seal.KeySize]byte
+	rand.Read(key[:])
+	root, err := seal.ParseRoot(base64.StdEncoding.EncodeToString(key[:]))
+	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := OpenMirror(t.TempDir(), Kind{Name: "caldav", Poll: time.Hour, Holds: store.Calendar}, &key, func(string) {})
+	m, err := OpenMirror(t.TempDir(), Kind{Name: "caldav", Poll: time.Hour, Holds: store.Calendar}, root, func(string) {})
 	if err != nil {
 		t.Fatal(err)
 	}

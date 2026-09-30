@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 
-	"github.com/fernet/fernet-go"
+	"git.mehdix.org/alborz/internal/seal"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -28,40 +28,35 @@ const (
 	envelopeSalt = 16
 )
 
-func passwordKey(password string, salt []byte) *fernet.Key {
-	var k fernet.Key
-	copy(k[:], argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, uint32(len(k))))
-	return &k
+func passwordKey(password string, salt []byte) *seal.Key {
+	return seal.NewKey([seal.KeySize]byte(argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, seal.KeySize)))
 }
 
-func wrap(secret []byte, k *fernet.Key) string {
-	tok, err := fernet.EncryptAndSign(secret, k)
+func wrap(secret []byte, k *seal.Key) string {
+	return base64.URLEncoding.EncodeToString(k.Seal(secret))
+}
+
+// unwrap opens tok, nil where k does not; a Fernet token of earlier builds decodes to another format.
+func unwrap(tok string, k *seal.Key) []byte {
+	sealed, err := base64.URLEncoding.DecodeString(tok)
 	if err != nil {
-		panic(err)
-	}
-	return string(tok)
-}
-
-func unwrap(tok string, k *fernet.Key) []byte {
-	if tok == "" {
 		return nil
 	}
-	return fernet.VerifyAndDecrypt([]byte(tok), 0, []*fernet.Key{k})
+	plain, _ := k.Open(sealed)
+	return plain
 }
 
 // seal wraps plain for this account under its mail password.
-func (l *Login) seal(plain string) (envelope, error) {
-	var k fernet.Key
-	if err := k.Generate(); err != nil {
-		return envelope{}, err
-	}
+func (l *Login) seal(plain string) envelope {
+	var k [seal.KeySize]byte
+	rand.Read(k[:])
 	salt := make([]byte, envelopeSalt)
 	rand.Read(salt)
 	return envelope{
-		Secret:     wrap([]byte(plain), &k),
+		Secret:     wrap([]byte(plain), seal.NewKey(k)),
 		Salt:       base64.StdEncoding.EncodeToString(salt),
 		ByPassword: wrap(k[:], passwordKey(l.password, salt)),
-	}, nil
+	}
 }
 
 // open reads the secret with the mail password.
@@ -71,12 +66,10 @@ func (l *Login) open(e envelope) (string, error) {
 		return "", err
 	}
 	raw := unwrap(e.ByPassword, passwordKey(l.password, salt))
-	if raw == nil {
+	if len(raw) != seal.KeySize {
 		return "", ErrSealed
 	}
-	var k fernet.Key
-	copy(k[:], raw)
-	plain := unwrap(e.Secret, &k)
+	plain := unwrap(e.Secret, seal.NewKey([seal.KeySize]byte(raw)))
 	if plain == nil {
 		return "", ErrSealed
 	}
@@ -133,10 +126,7 @@ func (l *Login) SetHTTPPassword(ctx context.Context, password string) error {
 	}
 	var e envelope
 	if password != "" {
-		var err error
-		if e, err = l.seal(password); err != nil {
-			return err
-		}
+		e = l.seal(password)
 	}
 	if err := l.store.Put(ctx, httpPasswordKey, &e); err != nil {
 		return err

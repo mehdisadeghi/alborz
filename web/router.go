@@ -61,6 +61,12 @@ func (g *Group) POST(name, path string, h HandlerFunc) {
 	g.add(http.MethodPost, name, path, g.bounded(http.MethodPost, MaxFormSize, h, refuseTooLarge))
 }
 
+// Download serves a file at path: the service worker leaves its fetch to the browser, which saves it.
+func (g *Group) Download(name, path string, h HandlerFunc) {
+	g.GET(name, path, h)
+	g.s.routes.downloads = append(g.s.routes.downloads, g.prefix+path)
+}
+
 // Upload takes a form carrying files up to limit; one past it is answered by over, h never seeing its empty fields.
 func (g *Group) Upload(name, path string, limit int64, h, over HandlerFunc) {
 	g.add(http.MethodPost, name, path, g.bounded(http.MethodPost, limit, h, over))
@@ -111,6 +117,8 @@ type routes struct {
 	names map[string]string
 	all   []Route
 	errs  []error
+	// downloads are the patterns served as files (Download).
+	downloads []string
 }
 
 // Route is one route served; Method is "" where it serves every method.
@@ -246,6 +254,27 @@ func (s *Server) PathPattern(name string, wildcards ...string) (string, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+// pathRegexp matches the escaped paths of a route pattern: a wildcard one segment, a {name...} the rest.
+func pathRegexp(pattern string) string {
+	literals, wildcards := wildcard.Split(pattern, -1), wildcard.FindAllString(pattern, -1)
+	b := strings.Builder{}
+	b.WriteString("^")
+	for i, literal := range literals {
+		b.WriteString(regexp.QuoteMeta(literal))
+		if i < len(wildcards) {
+			switch {
+			case wildcards[i] == "{$}":
+			case strings.HasSuffix(wildcards[i], "...}"):
+				b.WriteString(".*")
+			default:
+				b.WriteString("[^/]+")
+			}
+		}
+	}
+	b.WriteString("$")
+	return b.String()
 }
 
 // Match is the route a GET of u takes, by name, and what its wildcards hold; ok is false where no named route serves it.

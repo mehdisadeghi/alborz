@@ -65,6 +65,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
+	download := func(name, path string, h func(*web.Context) error) { g.Download(name, path, guard(h)) }
 	upload := func(name, path string, h, over func(*web.Context) error) {
 		g.Upload(name, path, pimweb.ImportBodySize, guard(h), guard(over))
 	}
@@ -77,12 +78,12 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("refresh", "/calendar/refresh", p.refresh)
 	POST("tasks.refresh", "/tasks/refresh", pimweb.HandleRefresh(p.DAV, "calendar.tasks"))
 	GET("month", "/calendar", p.month)
-	GET("month.export", "/calendar/export", p.exportMonth)
+	download("month.export", "/calendar/export", p.exportMonth)
 	GET("day", "/calendar/date", p.day)
 	GET("event", "/calendar/{path}", p.event)
 
-	GET("event.raw", "/calendar/{path}/raw", p.rawObject)
-	GET("task.raw", "/tasks/{path}/raw", p.rawObject)
+	download("event.raw", "/calendar/{path}/raw", p.rawObject)
+	download("task.raw", "/tasks/{path}/raw", p.rawObject)
 	GET("subscribe", "/calendars/subscribe", handleSubscribe(p))
 	POST("subscribe", "/calendars/subscribe", handleSubscribe(p))
 	page := p.collectionPage()
@@ -102,7 +103,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("collection", "/calendars/{path}", page.Handle(p.DAV))
 	POST("collection.delete", "/calendars/{path}/delete", page.HandleDelete(p.DAV))
 	upload("collection.import", "/calendars/{path}/import", page.HandleImport(p.DAV), page.HandleImportTooLarge)
-	GET("collection.export", "/calendars/{path}/export", page.HandleExport(p.DAV))
+	download("collection.export", "/calendars/{path}/export", page.HandleExport(p.DAV))
 	POST("collection.share", "/calendars/{path}/share", page.HandleShare(p.DAV))
 	POST("collection.unshare", "/calendars/{path}/unshare", page.HandleUnshare(p.DAV))
 	POST("collection.access", "/calendars/{path}/access", page.HandleAccess(p.DAV))

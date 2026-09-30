@@ -20,7 +20,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
-	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
@@ -776,15 +775,6 @@ func FormatSize(n int64) string {
 	default:
 		return fmt.Sprintf("%d B", n)
 	}
-}
-
-// Query picks the part out of its message's page or download; without the account the first signed-in one serves it.
-func (node IMAPPartNode) Query(account string) string {
-	q := url.Values{"part": {node.PathString()}}
-	if account != "" {
-		q.Set("account", account)
-	}
-	return "?" + web.Query(q)
 }
 
 // IsText reports a part the page itself can show, which not every text/* part is.

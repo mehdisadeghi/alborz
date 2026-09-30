@@ -618,7 +618,7 @@ func forwardHTML(ctx *web.Context, original *IMAPMessage, body string) template.
 func (p *plugin) quotedHTML(ctx *web.Context, path MessagePath, msg *IMAPMessage) (string, error) {
 	raw := ctx.Path("mail.message.raw", msg.Mailbox, msg.UID)
 	quoted, err := QuotedHTML(ctx.Request().Context(), ctx.Login, path, msg, func(part *IMAPPartNode) string {
-		return raw + part.Query(ctx.Login.Username())
+		return raw + partQuery(*part, ctx.Login.Username())
 	})
 	if err != nil || quoted == "" {
 		return "", err

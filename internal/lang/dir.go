@@ -70,7 +70,7 @@ type block struct {
 
 func blocks(text string) []block {
 	var out []block
-	for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
 		quoted := strings.HasPrefix(line, ">")
 		if quoted {
 			line = strings.TrimPrefix(strings.TrimPrefix(line, ">"), " ")

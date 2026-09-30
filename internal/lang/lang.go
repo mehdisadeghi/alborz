@@ -1,6 +1,7 @@
 package lang
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -86,11 +87,8 @@ func arabicLang(s string) string {
 		return !unicode.IsLetter(r)
 	}) {
 		for lang, list := range arabicScriptWords {
-			for _, w := range list {
-				if word == w {
-					words[lang]++
-					break
-				}
+			if slices.Contains(list, word) {
+				words[lang]++
 			}
 		}
 	}
@@ -119,11 +117,8 @@ func latinLang(s string) string {
 		return !unicode.IsLetter(r)
 	}) {
 		for lang, list := range latinWords {
-			for _, w := range list {
-				if word == w {
-					words[lang]++
-					break
-				}
+			if slices.Contains(list, word) {
+				words[lang]++
 			}
 		}
 	}

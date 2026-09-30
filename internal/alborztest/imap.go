@@ -2,12 +2,14 @@ package alborztest
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -39,6 +41,7 @@ type imapConfig struct {
 	trickle        int
 	cut            int64
 	sorting        bool
+	metadata       bool
 }
 
 type IMAPOption func(*imapConfig)
@@ -75,11 +78,15 @@ func Cut(limit int64) IMAPOption { return func(c *imapConfig) { c.cut = limit } 
 // answers in its order, reversed where the sort was, or two messages to a conversation.
 func Sorting() IMAPOption { return func(c *imapConfig) { c.sorting = true } }
 
+// Metadata offers METADATA-SERVER (RFC 5464), which the in-memory server lacks: a proxy in front
+// keeps each account's server entries under /private and answers GETMETADATA and SETMETADATA.
+func Metadata() IMAPOption { return func(c *imapConfig) { c.metadata = true } }
+
 // IMAP serves User, User2 and Elsewhere, with the rig's folders and messages.
 func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	t.Helper()
-	// METADATA, SORT and THREAD are not listed: the in-memory server does not implement them; Sorting
-	// offers the last two.
+	// METADATA, SORT and THREAD are not listed: the in-memory server does not implement them; Metadata
+	// offers the first, Sorting the last two.
 	c := imapConfig{caps: imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {}, imap.CapCondStore: {}, imap.CapBinary: {}}}
 	for _, o := range opts {
 		o(&c)
@@ -109,6 +116,10 @@ func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	t.Cleanup(func() { s.srv.Close() })
 	s.direct = ln.Addr().String()
 	s.Addr = s.direct
+	// First, so it reads the server's own capabilities.
+	if c.metadata {
+		s.Addr = s.metadataProxy(t, s.Addr)
+	}
 	if c.trickle > 0 {
 		s.Addr = proxy(t, s.Addr, trickle(c.trickle))
 	}
@@ -287,6 +298,18 @@ func (c counter) Write(b []byte) (int, error) {
 // proxy passes IMAP traffic through, the server's side by relay.
 func proxy(t *testing.T, upstream string, relay func(client, server net.Conn)) string {
 	t.Helper()
+	return proxyPair(t, upstream, func(client, server net.Conn) {
+		go func() {
+			io.Copy(server, client)
+			server.Close()
+		}()
+		relay(client, server)
+	})
+}
+
+// proxyPair hands relay both sides of each connection, closed once it returns.
+func proxyPair(t *testing.T, upstream string, relay func(client, server net.Conn)) string {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -303,10 +326,6 @@ func proxy(t *testing.T, upstream string, relay func(client, server net.Conn)) s
 				client.Close()
 				continue
 			}
-			go func() {
-				io.Copy(server, client)
-				server.Close()
-			}()
 			go func() {
 				defer client.Close()
 				defer server.Close()
@@ -452,4 +471,229 @@ func (s *IMAPServer) sortingProxy(t *testing.T, upstream string) string {
 		}
 	}()
 	return ln.Addr().String()
+}
+
+// metadata are the entries of each account, by name.
+type metadata struct {
+	mu      sync.Mutex
+	entries map[string]map[string][]byte
+}
+
+// A line ending in a literal's announcement, {n} or the non-synchronizing {n+}.
+var literalAhead = regexp.MustCompile(`\{(\d+)(\+?)\}\r\n$`)
+
+func literalSize(line string) (n int, sync, ok bool) {
+	m := literalAhead.FindStringSubmatch(line)
+	if m == nil {
+		return 0, false, false
+	}
+	n, _ = strconv.Atoi(m[1])
+	return n, m[2] == "", true
+}
+
+func (s *IMAPServer) metadataProxy(t *testing.T, upstream string) string {
+	t.Helper()
+	md := &metadata{entries: map[string]map[string][]byte{}}
+	return proxyPair(t, upstream, func(client, server net.Conn) {
+		var wmu sync.Mutex
+		send := func(b []byte) error {
+			wmu.Lock()
+			defer wmu.Unlock()
+			_, err := client.Write(b)
+			return err
+		}
+		go func() {
+			// Half closed, so the server's last answers still reach the client.
+			defer server.(*net.TCPConn).CloseWrite()
+			r := bufio.NewReader(client)
+			var user string
+			for {
+				line, err := r.ReadString('\n')
+				if err != nil {
+					return
+				}
+				tag, rest, _ := strings.Cut(line, " ")
+				command, _, _ := strings.Cut(strings.TrimRight(rest, "\r\n"), " ")
+				switch strings.ToUpper(command) {
+				case "GETMETADATA", "SETMETADATA":
+					cmd := []byte(line)
+					for n, sync, ok := literalSize(line); ok; n, sync, ok = literalSize(line) {
+						if sync && send([]byte("+ Ready\r\n")) != nil {
+							return
+						}
+						lit := make([]byte, n)
+						if _, err := io.ReadFull(r, lit); err != nil {
+							return
+						}
+						if line, err = r.ReadString('\n'); err != nil {
+							return
+						}
+						cmd = append(append(cmd, lit...), line...)
+					}
+					if send(md.answer(user, tag, cmd)) != nil {
+						return
+					}
+					continue
+				case "LOGIN":
+					if args := imapArgs(line); len(args) > 2 {
+						user = args[2].s
+					}
+				}
+				if _, err := io.WriteString(server, line); err != nil {
+					return
+				}
+				for n, _, ok := literalSize(line); ok; n, _, ok = literalSize(line) {
+					if _, err := io.CopyN(server, r, int64(n)); err != nil {
+						return
+					}
+					if line, err = r.ReadString('\n'); err != nil {
+						return
+					}
+					if _, err := io.WriteString(server, line); err != nil {
+						return
+					}
+				}
+			}
+		}()
+		r := bufio.NewReader(server)
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				return
+			}
+			out := []byte(strings.Replace(line, "CAPABILITY IMAP4", "CAPABILITY METADATA-SERVER IMAP4", 1))
+			for n, _, ok := literalSize(line); ok; n, _, ok = literalSize(line) {
+				lit := make([]byte, n)
+				if _, err := io.ReadFull(r, lit); err != nil {
+					return
+				}
+				if line, err = r.ReadString('\n'); err != nil {
+					return
+				}
+				out = append(append(out, lit...), line...)
+			}
+			if send(out) != nil {
+				return
+			}
+		}
+	})
+}
+
+// answer serves one GETMETADATA or SETMETADATA of user's on the server, the mailbox "".
+func (md *metadata) answer(user, tag string, cmd []byte) []byte {
+	all := imapArgs(string(cmd))
+	command, args := strings.ToUpper(all[1].s), all[2:]
+	depth := "0"
+	if command == "GETMETADATA" && len(args) > 0 && args[0].open {
+		i := slices.IndexFunc(args, func(a imapArg) bool { return a.close })
+		for j := 1; j+1 < i; j += 2 {
+			if strings.EqualFold(args[j].s, "DEPTH") {
+				depth = strings.ToLower(args[j+1].s)
+			}
+		}
+		args = args[i+1:]
+	}
+	if len(args) < 2 || args[0].s != "" {
+		return fmt.Appendf(nil, "%s NO [NONEXISTENT] only the server's entries are kept\r\n", tag)
+	}
+	var names []imapArg
+	for _, a := range args[1:] {
+		if !a.open && !a.close {
+			names = append(names, a)
+		}
+	}
+	md.mu.Lock()
+	defer md.mu.Unlock()
+	mine := md.entries[user]
+	if mine == nil {
+		mine = map[string][]byte{}
+		md.entries[user] = mine
+	}
+	if command == "SETMETADATA" {
+		for i := 0; i+1 < len(names); i += 2 {
+			if !strings.HasPrefix(names[i].s, "/private/") {
+				return fmt.Appendf(nil, "%s BAD only /private entries are kept\r\n", tag)
+			}
+			if names[i+1].nil {
+				delete(mine, names[i].s)
+			} else {
+				mine[names[i].s] = []byte(names[i+1].s)
+			}
+		}
+		return fmt.Appendf(nil, "%s OK SETMETADATA done\r\n", tag)
+	}
+	var values [][]byte
+	value := func(name string, v []byte, found bool) {
+		if !found {
+			values = append(values, fmt.Appendf(nil, "%q NIL", name))
+			return
+		}
+		values = append(values, fmt.Appendf(nil, "%q {%d}\r\n%s", name, len(v), v))
+	}
+	for _, n := range names {
+		v, found := mine[n.s]
+		value(n.s, v, found)
+		if depth == "0" {
+			continue
+		}
+		var below []string
+		for name := range mine {
+			rest, ok := strings.CutPrefix(name, n.s+"/")
+			if ok && (depth == "infinity" || !strings.Contains(rest, "/")) {
+				below = append(below, name)
+			}
+		}
+		slices.Sort(below)
+		for _, name := range below {
+			value(name, mine[name], true)
+		}
+	}
+	return fmt.Appendf(nil, "* METADATA \"\" (%s)\r\n%s OK GETMETADATA done\r\n", bytes.Join(values, []byte(" ")), tag)
+}
+
+// imapArg is one argument of a command: a string, an atom, NIL, or a parenthesis.
+type imapArg struct {
+	s                string
+	nil, open, close bool
+}
+
+// imapArgs splits a command, literals included, into its tag, its name and its arguments.
+func imapArgs(cmd string) []imapArg {
+	var out []imapArg
+	for i := 0; i < len(cmd); {
+		switch c := cmd[i]; {
+		case c == ' ' || c == '\r' || c == '\n':
+			i++
+		case c == '(':
+			out = append(out, imapArg{open: true})
+			i++
+		case c == ')':
+			out = append(out, imapArg{close: true})
+			i++
+		case c == '"':
+			var b strings.Builder
+			for i++; i < len(cmd) && cmd[i] != '"'; i++ {
+				if cmd[i] == '\\' {
+					i++
+				}
+				b.WriteByte(cmd[i])
+			}
+			out = append(out, imapArg{s: b.String()})
+			i++
+		case c == '{':
+			end := strings.Index(cmd[i:], "}\r\n")
+			n, _ := strconv.Atoi(strings.TrimSuffix(cmd[i+1:i+end], "+"))
+			start := i + end + 3
+			out = append(out, imapArg{s: cmd[start : start+n]})
+			i = start + n
+		default:
+			j := i
+			for j < len(cmd) && !strings.ContainsRune(" ()\r\n", rune(cmd[j])) {
+				j++
+			}
+			out = append(out, imapArg{s: cmd[i:j], nil: strings.EqualFold(cmd[i:j], "NIL")})
+			i = j
+		}
+	}
+	return out
 }

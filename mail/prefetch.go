@@ -6,7 +6,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
-	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
@@ -29,10 +28,10 @@ func readOn(s *alborz.Login, class alborz.IMAPClass, bound time.Duration, fetch 
 	}
 }
 
-func (p *plugin) cachedListing(ctx *web.Context, s *alborz.Login, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
+func (p *plugin) cachedListing(ctx context.Context, s *alborz.Login, view string, size int, spec listingSpec, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
 	// A folder the watcher saw change is read again: its count beside the folder already moved.
 	if e, state := p.listings.lookup(s.Username(), view, size); e != nil && state != listingChanged {
-		alborz.CacheTiming(ctx.Request().Context(), "listing", true)
+		alborz.CacheTiming(ctx, "listing", true)
 		if state == listingStale {
 			p.revalidate(s, view, e, folder, fetch)
 		}
@@ -41,10 +40,10 @@ func (p *plugin) cachedListing(ctx *web.Context, s *alborz.Login, view string, s
 	return p.loadListing(ctx, s, view, size, spec, fetch)
 }
 
-func (p *plugin) loadListing(ctx *web.Context, s *alborz.Login, view string, size int, spec listingSpec, fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
-	alborz.CacheTiming(ctx.Request().Context(), "listing", false)
+func (p *plugin) loadListing(ctx context.Context, s *alborz.Login, view string, size int, spec listingSpec, fetch func(*imapclient.Client) (*listingEntry, error)) (*listingEntry, error) {
+	alborz.CacheTiming(ctx, "listing", false)
 	class, bound := listingBudget(spec)
-	return p.listings.load(ctx.Request().Context(), s.Username(), view, size, false, readOn(s, class, bound, fetch))
+	return p.listings.load(ctx, s.Username(), view, size, false, readOn(s, class, bound, fetch))
 }
 
 func (p *plugin) prefetchPage(s *alborz.Login, settings *Settings, spec listingSpec, page alborz.Page) {

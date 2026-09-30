@@ -30,13 +30,18 @@ func (p *plugin) watchAccount(ctx *web.Context, s *alborz.Login) {
 	p.Watch(s, ctx.Logger(), ctx.Server.Changes)
 }
 
-func (p *plugin) warmAccount(ctx *web.Context, s *alborz.Login) {
+func (p *plugin) warmAccount(_ *web.Context, s *alborz.Login) {
+	p.Warm(s)
+}
+
+// Warm reads ahead what an account's first pages need: its senders, its authserv-id and its inbox.
+func (p *plugin) Warm(s *alborz.Login) {
 	p.senderBookFor(s)
-	p.SuggestAuthServ(ctx)
+	p.SuggestAuthServ(s)
 	if !p.listings.keeps() {
 		return
 	}
-	log := ctx.Logger()
+	log := p.server.Logger()
 	go func() {
 		if err := p.warmInbox(s); err != nil {
 			log.Printf("warm %s: %v", s.Username(), err)

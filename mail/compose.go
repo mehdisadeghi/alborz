@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html"
@@ -166,7 +167,7 @@ func attachedNames(ctx *web.Context, msg *OutgoingMessage, paths []messagePath) 
 			return err
 		}
 		msg.Attachments = append(msg.Attachments, &messageAttachment{
-			Path: p, Name: attachmentName(env.Subject), transfer: transferOf(ctx, ctx.Login),
+			Path: p, Name: attachmentName(env.Subject), transfer: transferOf(ctx.Request().Context(), ctx.Login),
 		})
 	}
 	return nil
@@ -191,56 +192,13 @@ func (err refused) Error() string { return err.cause.Error() }
 
 // The sender is the From account; the draft and the answered message stay on the request's account.
 func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
-	body, err := deliver(sender, msg)
+	sent, sentUID, err := p.submit(ctx.Request().Context(), ctx.Login, sender, msg, options)
+	if _, ok := err.(alborz.AuthError); ok {
+		return web.NewError(http.StatusForbidden, err)
+	}
 	if err != nil {
-		if _, ok := err.(alborz.AuthError); ok {
-			return web.NewError(http.StatusForbidden, err)
-		}
 		return err
 	}
-	defer body.Close()
-
-	if inReplyTo := options.InReplyTo; inReplyTo != nil {
-		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			return markMessageAnswered(c, inReplyTo.Mailbox, inReplyTo.Uid)
-		})
-		if err != nil {
-			return fmt.Errorf("failed to mark original message as answered: %w", err)
-		}
-	}
-
-	// A keyword the server may refuse after the send: note the refusal, do not fail the send.
-	if forward := options.Forward; forward != nil {
-		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			return markMessageForwarded(c, forward.Mailbox, forward.Uid)
-		})
-		if err != nil {
-			ctx.Logger().Printf("failed to mark original message as forwarded: %v", err)
-		}
-	}
-
-	var sent *MailboxInfo
-	var sentUID imap.UID
-	err = sender.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
-		var err error
-		sent, sentUID, err = appendMessage(c, body, "sent")
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("failed to save message to Sent mailbox: %w", err)
-	}
-
-	if draft := options.Draft; draft != nil {
-		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			return deleteMessage(c, draft.Mailbox, draft.Uid)
-		})
-		if err != nil {
-			return fmt.Errorf("failed to delete draft: %w", err)
-		}
-	}
-
-	p.accountChanged(ctx.Login.Username())
-	p.accountChanged(sender.Username())
 
 	to, err := prepareAddressList(slices.Concat(msg.To, msg.Cc, msg.Bcc))
 	if err != nil {
@@ -261,6 +219,59 @@ func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *Outg
 	}
 	ctx.Notify(notice)
 	return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
+}
+
+// submit delivers msg from sender and files it in Sent, marking what it answers or forwards and dropping
+// its draft on account; it says where the Sent copy landed.
+func (p *plugin) submit(ctx context.Context, account, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) (*MailboxInfo, imap.UID, error) {
+	body, err := deliver(sender, msg)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer body.Close()
+
+	if inReplyTo := options.InReplyTo; inReplyTo != nil {
+		err = account.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+			return markMessageAnswered(c, inReplyTo.Mailbox, inReplyTo.Uid)
+		})
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to mark original message as answered: %w", err)
+		}
+	}
+
+	// A keyword the server may refuse after the send: note the refusal, do not fail the send.
+	if forward := options.Forward; forward != nil {
+		err = account.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+			return markMessageForwarded(c, forward.Mailbox, forward.Uid)
+		})
+		if err != nil {
+			p.server.Logger().Printf("failed to mark original message as forwarded: %v", err)
+		}
+	}
+
+	var sent *MailboxInfo
+	var sentUID imap.UID
+	err = sender.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
+		var err error
+		sent, sentUID, err = appendMessage(c, body, "sent")
+		return err
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to save message to Sent mailbox: %w", err)
+	}
+
+	if draft := options.Draft; draft != nil {
+		err = account.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+			return deleteMessage(c, draft.Mailbox, draft.Uid)
+		})
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to delete draft: %w", err)
+		}
+	}
+
+	p.accountChanged(account.Username())
+	p.accountChanged(sender.Username())
+	return sent, sentUID, nil
 }
 
 func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *composeOptions) error {
@@ -428,7 +439,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 					Uid:      original.Uid,
 					Node:     newIMAPPartNode(nil, path, part),
 					Encoding: part.Encoding,
-					transfer: transferOf(ctx, ctx.Login),
+					transfer: transferOf(ctx.Request().Context(), ctx.Login),
 				})
 			}
 		} else if len(form.Value["prev_attachments"]) > 0 {
@@ -487,42 +498,9 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 					uid    imap.UID
 				)
 				err = ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
-					drafts, uid, err = appendMessage(c, body, "drafts")
-					if err != nil {
-						return err
-					}
-
-					if draft := options.Draft; draft != nil {
-						if err := deleteMessage(c, draft.Mailbox, draft.Uid); err != nil {
-							return err
-						}
-					}
-
-					if err := ensureMailboxSelected(c, drafts.Name()); err != nil {
-						return err
-					}
-
-					// Without UIDPLUS the server names no UID, so the draft is found by Message-ID.
-					if uid != 0 {
-						return nil
-					}
-					criteria := imap.SearchCriteria{
-						Header: []imap.SearchCriteriaHeaderField{
-							{Key: "Message-Id", Value: msg.MessageID},
-						},
-						// The draft it replaces keeps the Message-ID and is only marked deleted.
-						NotFlag: []imap.Flag{imap.FlagDeleted},
-					}
-					if data, err := c.UIDSearch(&criteria, nil).Wait(); err != nil {
-						return err
-					} else if uids := data.AllUIDs(); len(uids) == 0 {
-						return fmt.Errorf("the saved draft was not found by its Message-ID")
-					} else if len(uids) > 1 {
-						return fmt.Errorf("%d drafts carry the Message-ID %s", len(uids), msg.MessageID)
-					} else {
-						uid = uids[0]
-					}
-					return nil
+					var err error
+					drafts, uid, err = fileDraft(c, body, msg.MessageID, options.Draft)
+					return err
 				})
 				if err != nil {
 					return refused{"form.draftrefused", err}
@@ -633,7 +611,7 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 	}
 
 	return p.handleCompose(ctx, &OutgoingMessage{
-		From:      ownIdentity(settings, p.newDeliveryTrust(ctx, settings, ctx.Login.Username()), ctx.QueryParam("from")),
+		From:      ownIdentity(settings, p.newDeliveryTrust(ctx.Login, settings), ctx.QueryParam("from")),
 		To:        strings.Split(ctx.QueryParam("to"), ","),
 		Subject:   ctx.QueryParam("subject"),
 		MessageID: newMessageID(),
@@ -808,7 +786,7 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToP
 	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
 	ret.References = strings.TrimSpace(inReplyTo.References + " " + ret.InReplyTo)
 	// A mail to an identity is answered by that identity; Cc counts too.
-	ret.From = writeAs(settings, p.newDeliveryTrust(ctx, settings, ctx.Login.Username()),
+	ret.From = writeAs(settings, p.newDeliveryTrust(ctx.Login, settings),
 		inReplyTo, inReplyTo.Envelope.To, inReplyTo.Envelope.Cc)
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
@@ -1130,4 +1108,43 @@ func formatMsgIDList(l []string) string {
 		return ""
 	}
 	return "<" + strings.Join(l, ">, <") + ">"
+}
+
+// fileDraft saves the spooled draft in Drafts in place of the one it replaces, if any, and says where it landed.
+func fileDraft(c *imapclient.Client, body io.ReadSeeker, messageID string, replaces *messagePath) (drafts *MailboxInfo, uid imap.UID, err error) {
+	drafts, uid, err = appendMessage(c, body, "drafts")
+	if err != nil {
+		return nil, 0, err
+	}
+	if replaces != nil {
+		if err := deleteMessage(c, replaces.Mailbox, replaces.Uid); err != nil {
+			return nil, 0, err
+		}
+	}
+	if err := ensureMailboxSelected(c, drafts.Name()); err != nil {
+		return nil, 0, err
+	}
+	// Without UIDPLUS the server names no UID, so the draft is found by Message-ID.
+	if uid != 0 {
+		return drafts, uid, nil
+	}
+	criteria := imap.SearchCriteria{
+		Header: []imap.SearchCriteriaHeaderField{
+			{Key: "Message-Id", Value: messageID},
+		},
+		// The draft it replaces keeps the Message-ID and is only marked deleted.
+		NotFlag: []imap.Flag{imap.FlagDeleted},
+	}
+	data, err := c.UIDSearch(&criteria, nil).Wait()
+	if err != nil {
+		return nil, 0, err
+	}
+	switch uids := data.AllUIDs(); len(uids) {
+	case 0:
+		return nil, 0, fmt.Errorf("the saved draft was not found by its Message-ID")
+	case 1:
+		return drafts, uids[0], nil
+	default:
+		return nil, 0, fmt.Errorf("%d drafts carry the Message-ID %s", len(uids), messageID)
+	}
 }

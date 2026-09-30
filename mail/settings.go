@@ -334,7 +334,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 	// The suggestion costs a fetch, so only when nothing is set.
 	guess := ""
 	if settings.TrustedAuthServ == "" {
-		guess = p.SuggestAuthServ(ctx)
+		guess = p.SuggestAuthServ(ctx.Login)
 	}
 	return ctx.Render(http.StatusOK, "settings/account", &SettingsRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),

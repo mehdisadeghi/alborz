@@ -130,7 +130,7 @@ func fetchPartImage(ctx *web.Context, src string) (*imapAttachment, error) {
 		Uid:      uid,
 		Node:     node,
 		Encoding: part.Encoding,
-		transfer: transferOf(ctx, login),
+		transfer: transferOf(ctx.Request().Context(), login),
 	}, nil
 }
 

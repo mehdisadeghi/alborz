@@ -60,7 +60,7 @@ func (p *plugin) registerRoutes(g *web.Group) {
 	g.GET("message.forward", "/message/{mbox}/{uid}/forward", p.handleForward)
 	g.Upload("message.forward", "/message/{mbox}/{uid}/forward", composeBodySize, p.handleForward, composeTooLarge)
 	g.POST("messages.forward", "/message/{mbox}/forward", handleForwardSelection)
-	g.POST("message.unsubscribe", "/message/{mbox}/{uid}/unsubscribe", handleUnsubscribe)
+	g.POST("message.unsubscribe", "/message/{mbox}/{uid}/unsubscribe", p.handleUnsubscribe)
 	g.GET("messages.forward", "/message/{mbox}/forward", p.handleForwardAttached)
 
 	g.GET("message.edit", "/message/{mbox}/{uid}/edit", p.handleEdit)

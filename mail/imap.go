@@ -1828,9 +1828,9 @@ func streamSection(c *imapclient.Client, uid imap.UID, options *imap.FetchOption
 // transfer runs f on a connection of its own to the account holding a message.
 type transfer func(f func(*imapclient.Client) error) error
 
-func transferOf(ctx *web.Context, login *alborz.Login) transfer {
+func transferOf(ctx context.Context, login *alborz.Login) transfer {
 	return func(f func(*imapclient.Client) error) error {
-		return login.DoIMAPTransfer(ctx.Request().Context(), f)
+		return login.DoIMAPTransfer(ctx, f)
 	}
 }
 

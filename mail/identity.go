@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-message/mail"
 )
@@ -108,11 +107,11 @@ type deliveryTrust struct {
 	authserv string
 }
 
-func (p *plugin) newDeliveryTrust(ctx *web.Context, settings *Settings, account string) deliveryTrust {
+func (p *plugin) newDeliveryTrust(login *alborz.Login, settings *Settings) deliveryTrust {
 	return deliveryTrust{
-		account:  account,
-		domains:  ctx.Server.Domains(),
-		authserv: p.TrustedAuthServ(ctx, settings),
+		account:  login.Username(),
+		domains:  p.server.Domains(),
+		authserv: p.TrustedAuthServ(login, settings),
 	}
 }
 

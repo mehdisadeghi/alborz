@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"maps"
 	"net/http"
 	"net/url"
@@ -63,7 +64,7 @@ func selection(ctx *web.Context, mboxName string, form url.Values) ([]imap.UID, 
 		}
 		return uids, nil
 	}
-	return folderViewUIDs(ctx, mboxName, query, view)
+	return folderViewUIDs(ctx.Request().Context(), ctx.Login, mboxName, query, view)
 }
 
 func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids []imap.UID, err error) {
@@ -77,13 +78,14 @@ func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids [
 	return mboxName, form, uids, err
 }
 
-func folderViewUIDs(ctx *web.Context, mboxName, query, view string) ([]imap.UID, error) {
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+// folderViewUIDs lists what a folder's view holds, off the connection the reader's clicks wait on.
+func folderViewUIDs(ctx context.Context, login *alborz.Login, mboxName, query, view string) ([]imap.UID, error) {
+	settings, err := LoadSettings(ctx, login.Store())
 	if err != nil {
 		return nil, err
 	}
 	var uids []imap.UID
-	err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
+	err = login.DoIMAPWork(ctx, alborz.IMAPScan, alborz.ScanTimeout, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
@@ -119,39 +121,48 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 	}
 	var refs []rowRef
 	for _, s := range logins {
-		var folders []string
-		if spanning {
-			sb, err := p.sidebarFor(s)
-			if err != nil {
-				return nil, err
-			}
-			folders = searchFolders(sb.mailboxes, search.Parse(query))
-		}
-		err := s.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, alborz.ScanTimeout, func(c *imapclient.Client) error {
-			if !spanning {
-				folder, err := p.resolveRole(c, s.Username(), role)
-				if err != nil || folder == "" {
-					return err
-				}
-				folders = []string{folder}
-			}
-			for _, folder := range folders {
-				if err := ensureMailboxSelected(c, folder); err != nil {
-					return err
-				}
-				uids, err := viewUIDs(c, settings, query, view)
-				if err != nil {
-					return err
-				}
-				for _, uid := range uids {
-					refs = append(refs, rowRef{account: s.Username(), mailbox: folder, uid: uid})
-				}
-			}
-			return nil
-		})
+		found, err := p.viewRefs(ctx.Request().Context(), s, role, spanning, settings, query, view)
 		if err != nil {
 			return nil, err
 		}
+		refs = append(refs, found...)
 	}
 	return refs, nil
+}
+
+// viewRefs are what a merged view holds on one account: its role's folder, or every folder a search spans.
+func (p *plugin) viewRefs(ctx context.Context, s *alborz.Login, role string, spanning bool, settings *Settings, query, view string) ([]rowRef, error) {
+	var folders []string
+	if spanning {
+		sb, err := p.sidebarFor(s)
+		if err != nil {
+			return nil, err
+		}
+		folders = searchFolders(sb.mailboxes, search.Parse(query))
+	}
+	var refs []rowRef
+	err := s.DoIMAPWork(ctx, alborz.IMAPScan, alborz.ScanTimeout, func(c *imapclient.Client) error {
+		if !spanning {
+			folder, err := p.resolveRole(c, s.Username(), role)
+			if err != nil || folder == "" {
+				return err
+			}
+			folders = []string{folder}
+		}
+		for _, folder := range folders {
+			if err := ensureMailboxSelected(c, folder); err != nil {
+				return err
+			}
+			uids, err := viewUIDs(c, settings, query, view)
+			if err != nil {
+				return err
+			}
+			for _, uid := range uids {
+				refs = append(refs, rowRef{account: s.Username(), mailbox: folder, uid: uid})
+			}
+		}
+		return nil
+	})
+	return refs, err
+
 }

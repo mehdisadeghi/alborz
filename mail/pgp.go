@@ -51,9 +51,19 @@ func (p *plugin) handleSignature(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	trusted := p.TrustedAuthServ(ctx, settings)
+	v, err := p.verify(ctx.Request().Context(), ctx.Login, mboxName, uid, p.TrustedAuthServ(ctx.Login, settings))
+	// A verdict that could not be drawn says nothing, as one without a key does.
+	if err != nil {
+		ctx.Logger().Printf("signature %q uid %v: %v", mboxName, uid, err)
+	}
+	return ctx.Render(http.StatusOK, "message-signature", &VerdictRenderData{
+		BaseRenderData: *web.NewBaseRenderData(ctx), Signature: v})
+}
+
+// verify draws the verdict on one message, streaming its signed part; trusted is the account's authserv-id.
+func (p *plugin) verify(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, trusted string) (Verification, error) {
 	var v Verification
-	err = ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
+	err := login.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
@@ -68,18 +78,13 @@ func (p *plugin) handleSignature(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		if v, err = p.verifySignature(ctx.Request().Context(), ctx.Server.Outgoing.Remote(wkdTimeout), c, msg); err != nil {
+		if v, err = p.verifySignature(ctx, p.server.Outgoing.Remote(wkdTimeout), c, msg); err != nil {
 			return err
 		}
 		v = withDelivery(v, readAuthResults(messageRootHeader(msg), trusted))
 		return nil
 	})
-	// A verdict that could not be drawn says nothing, as one without a key does.
-	if err != nil {
-		ctx.Logger().Printf("signature %q uid %v: %v", mboxName, uid, err)
-	}
-	return ctx.Render(http.StatusOK, "message-signature", &VerdictRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx), Signature: v})
+	return v, err
 }
 
 // VerdictRenderData fills the page's place for the verdict.

@@ -9,6 +9,7 @@ import (
 )
 
 type plugin struct {
+	server          *alborz.Server
 	listings        *listingCache
 	bodies          *bodyCache
 	accountSidebars *memo.Memo[sidebar]
@@ -19,10 +20,12 @@ type plugin struct {
 	watchers        sync.Map
 }
 
-func newPlugin(o *alborz.Options) *plugin {
+func newPlugin(s *alborz.Server) *plugin {
+	o := s.Options
 	bodies := newBodyCache(o.CacheFor(bodyKeepFor))
 	sidebars := memo.NewBackground[sidebar](o.CacheFor(listingFreshFor))
 	p := &plugin{
+		server:          s,
 		listings:        newListingCache(o.CacheFor(listingKeepFor), sidebars, bodies),
 		bodies:          bodies,
 		accountSidebars: sidebars,
@@ -38,7 +41,7 @@ func newPlugin(o *alborz.Options) *plugin {
 // Mount serves mail.
 func Mount(g *web.Group) {
 	s := g.Server()
-	p := newPlugin(s.Options)
+	p := newPlugin(s.Server)
 	p.registerRoutes(g)
 	// A restored account skips the login handler, so it is followed here too.
 	s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)

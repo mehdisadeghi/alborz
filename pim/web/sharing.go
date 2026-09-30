@@ -84,9 +84,8 @@ func (pg Page) offer(ctx *web.Context, p *dav.Provider, collPath, account string
 }
 
 // ShowOffer puts the invitation a mail announces beside it; the header only points, so a forged one shows nothing.
-func (pg Page) ShowOffer(p *dav.Provider) func(*web.Context, web.RenderData) error {
-	return func(ctx *web.Context, data web.RenderData) error {
-		m := data.(*mail.MessageRenderData)
+func (pg Page) ShowOffer(p *dav.Provider) func(*web.Context, *mail.Shown) error {
+	return func(ctx *web.Context, m *mail.Shown) error {
 		path := strings.TrimSpace(m.Message.HeaderField(mail.ShareHeader))
 		if path == "" {
 			return nil
@@ -95,7 +94,7 @@ func (pg Page) ShowOffer(p *dav.Provider) func(*web.Context, web.RenderData) err
 		if err != nil || offer == nil {
 			return err
 		}
-		offer.Next = m.GlobalData.URL.RequestURI()
+		offer.Next = ctx.Request().URL.RequestURI()
 		m.ShareOffer = offer
 		return nil
 	}

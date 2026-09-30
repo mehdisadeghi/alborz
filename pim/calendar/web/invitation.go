@@ -142,9 +142,8 @@ func (p *plugin) deleteEvent(ctx *web.Context, ref pim.Ref[*caldav.Client]) erro
 
 func (p *plugin) registerScheduling(g *web.Group) {
 	srv := g.Server()
-	srv.OnMessage = append(srv.OnMessage, func(ctx *web.Context, _data web.RenderData) error {
-		data := _data.(*mail.MessageRenderData)
-		inv := messageInvitation(ctx, data.Message, data.Mailbox.Name(), data.Message.UID)
+	web.Extend(srv, func(ctx *web.Context, data *mail.Shown) error {
+		inv := messageInvitation(ctx, data.Message, data.Message.Mailbox, data.Message.UID)
 		if inv != nil {
 			data.Invitation = inv
 		}

@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -43,8 +44,8 @@ type Server struct {
 	// OnAccountReady is called when an account signs in.
 	OnAccountReady []AccountReadyFunc
 
-	// OnMessage adds another feature's part to the message page.
-	OnMessage []func(*Context, RenderData) error
+	// additions are what features add to another's pages, by the type the page hands them (Extend).
+	additions map[reflect.Type][]any
 	// OnServers puts each feature's servers among the account's.
 	OnServers []func(*Context, *Servers) error
 
@@ -114,6 +115,7 @@ func New(logger *log.Logger, options Options, funcs template.FuncMap) (*Server, 
 		s.files = files
 	}
 	s.themes = readThemes(s.files)
+	s.additions = map[reflect.Type][]any{}
 	s.Sessions = newSessions(core.SessionRecords)
 	s.funcs = maps.Clone(funcs)
 	s.funcs["url"] = s.templateURL
@@ -336,3 +338,19 @@ func renderUpstreamDown(ctx *Context, cause alborz.UpstreamError) error {
 
 // OnAccountReady runs when an account is signed in, including one restored from remembered credentials.
 type AccountReadyFunc func(*Context, *alborz.Login)
+
+// Extend adds a feature's part to another feature's page: every page that hands its readers a T runs add.
+func Extend[T any](s *Server, add func(*Context, T) error) {
+	k := reflect.TypeFor[T]()
+	s.additions[k] = append(s.additions[k], add)
+}
+
+// Extended runs what the features added to pages that hand them a T, in the order they were added.
+func Extended[T any](ctx *Context, page T) error {
+	for _, add := range ctx.Server.additions[reflect.TypeFor[T]()] {
+		if err := add.(func(*Context, T) error)(ctx, page); err != nil {
+			return err
+		}
+	}
+	return nil
+}

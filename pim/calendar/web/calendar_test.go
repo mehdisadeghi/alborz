@@ -159,6 +159,48 @@ func TestATaskListPagesAndItsTasksWalkIt(t *testing.T) {
 	}
 }
 
+// The pager swaps the next page into main, so that answer is main alone, never a second page with its nav.
+func TestAPagedTaskListSwapsOnlyItsMain(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	chores := c.CreateCalendar(t, "Chores", "tasks")
+	for i := 1; i <= 3; i++ {
+		a.Put(t, fmt.Sprintf("%st%d.ics", chores, i), "text/calendar", Todo(fmt.Sprintf("t%d", i), fmt.Sprintf("Chore %d", i)))
+	}
+	first := c.Page(t, "calendar.tasks", url.Values{"sort": {"summary"}, "ipp": {"2"}})
+	swap := regexp.MustCompile(`hx-get="([^"]+)" hx-target="#main"`).FindStringSubmatch(Between(first, `class="actions-pagination"`, "</div>"))
+	if swap == nil {
+		t.Fatal("the first page's pager swaps nothing into main")
+	}
+	resp := swapIntoMain(t, a, c, html.UnescapeString(swap[1]))
+	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Text, ">Chore 3</a>") {
+		t.Fatalf("the swapped page answered %s without chore 3", resp.Status)
+	}
+	if strings.Contains(resp.Text, "<nav") || strings.Contains(resp.Text, "<html") {
+		t.Error("the swap into main carries a whole page, nav and all")
+	}
+
+	// htmx swaps no error, so the list stays and the failed notice says so.
+	if resp := swapIntoMain(t, a, c, a.Path("calendar.tasks", url.Values{"page": {"x"}})); resp.StatusCode != http.StatusBadRequest || strings.Contains(resp.Text, "<nav") {
+		t.Errorf("an unreadable page swapped into main answered %s, want a bare 400", resp.Status)
+	}
+
+	// Signing in takes the window, not the list's place in it.
+	resp = swapIntoMain(t, a, a.Client(), html.UnescapeString(swap[1]))
+	if to := resp.Header.Get("HX-Redirect"); resp.StatusCode != http.StatusOK || !strings.HasPrefix(to, a.Path("auth.login")+"?") {
+		t.Errorf("a swap after the session ended answered %s sending the window to %q, want the sign-in", resp.Status, to)
+	}
+}
+
+// swapIntoMain asks for path as the pager does.
+func swapIntoMain(t *testing.T, a *App, c *Client, path string) *Response {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, a.URL+path, nil)
+	req.Header.Set("HX-Request", "true")
+	req.Header.Set("HX-Target", "main")
+	return c.Do(t, req)
+}
+
 // A VCALENDAR holds one component at least (RFC 5545 3.6), so no file is written.
 func TestAMonthWithNoEventsExportsNothing(t *testing.T) {
 	a := Alborz(t)

@@ -251,6 +251,10 @@ func (san *sanitizer) sanitizeNode(n *html.Node) {
 			// Don't use `i, attr := range n.Attr` since `attr` would be a copy
 			attr := &n.Attr[i]
 
+			// A background is an image, and resolves as one.
+			if strings.EqualFold(attr.Key, "background") {
+				attr.Val = san.sanitizeImageURL(attr.Val)
+			}
 			if strings.EqualFold(attr.Key, "style") {
 				// douceur reads an unterminated last value as empty and rejects ";;".
 				value := strings.TrimSpace(attr.Val)
@@ -293,19 +297,95 @@ func (san *sanitizer) sanitizeHTML(b []byte) ([]byte, error) {
 	b = buf.Bytes()
 
 	// bluemonday must always be run last
-	p := bluemonday.UGCPolicy()
+	return incomingPolicy().SanitizeBytes(b), nil
+}
 
-	// Style elements need AllowUnsafe; their content was already filtered above.
+// incomingPolicy names all an incoming message keeps: the markup mail is laid out with, and nothing
+// that can run, fetch or address what lies outside the message (ADR 44).
+func incomingPolicy() *bluemonday.Policy {
+	var (
+		colour = regexp.MustCompile(`^(?:#?[0-9a-fA-F]{3,8}|[a-zA-Z]+)$`)
+		length = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?(?:%|px)?$`)
+		flag   = func(name string) *regexp.Regexp { return regexp.MustCompile(`(?i)^(?:|` + name + `)$`) }
+		// A relative URL resolves against alborz, not the message, so links and citations are absolute.
+		link = regexp.MustCompile(`(?i)^\s*(?:https?|mailto):`)
+		// Images are written by sanitizeImageURL as paths on this server: a part of the message or the proxy.
+		image = regexp.MustCompile(`^/[^/\\]`)
+	)
+	p := bluemonday.NewPolicy()
+
+	p.AllowElements(
+		"article", "aside", "details", "summary", "figure", "figcaption", "section", "hgroup",
+		"h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "span", "br", "wbr", "hr", "blockquote", "pre", "center",
+		"a", "map", "area", "img",
+		"abbr", "acronym", "cite", "code", "dfn", "em", "mark", "q", "s", "samp", "strong", "sub", "sup", "var", "time",
+		"b", "i", "u", "strike", "tt", "big", "small", "font",
+		"bdi", "bdo", "ruby", "rp", "rt", "del", "ins",
+		"ul", "ol", "li", "dl", "dt", "dd",
+		"table", "caption", "colgroup", "col", "thead", "tbody", "tfoot", "tr", "td", "th",
+		"meter", "progress",
+		"style",
+	)
+	// bluemonday drops an element left without attributes unless it is on its own list, which lacks big.
+	p.AllowNoAttrs().OnElements("big")
+
+	// A style sheet runs no script and allowedStyles has already emptied its url()s; bluemonday
+	// lets the element through only with AllowUnsafe.
 	p.AllowUnsafe(true)
-	p.AllowElements("style")
 	p.AllowElementsContent("style")
+	// id and class reach only the message's own style sheet.
 	p.AllowAttrs("style", "class", "id").Globally()
-	// Mailers still centre logos and buttons with <center>; it takes no attributes.
-	p.AllowElements("center")
+	p.AllowAttrs("dir").Matching(bluemonday.Direction).Globally()
+	p.AllowAttrs("lang").Matching(regexp.MustCompile(`^[a-zA-Z]{1,8}(?:[-_][a-zA-Z0-9]{1,8})*$`)).Globally()
+	p.AllowAttrs("title").Matching(bluemonday.Paragraph).Globally()
 
-	p.AddTargetBlankToFullyQualifiedLinks(true)
+	p.RequireParseableURLs(true)
+	p.AllowURLSchemes("http", "https", "mailto")
+	p.AllowRelativeURLs(true)
 	p.RequireNoFollowOnLinks(true)
 	p.RequireNoReferrerOnLinks(true)
+	p.AddTargetBlankToFullyQualifiedLinks(true)
+	p.AllowAttrs("href").Matching(link).OnElements("a", "area")
+	p.AllowAttrs("cite").Matching(link).OnElements("blockquote", "q", "del", "ins")
 
-	return p.SanitizeBytes(b), nil
+	p.AllowAttrs("src").Matching(image).OnElements("img")
+	p.AllowAttrs("background").Matching(image).OnElements("table", "tr", "td", "th")
+	p.AllowAttrs("alt").Matching(bluemonday.Paragraph).OnElements("img", "area")
+	p.AllowAttrs("align").Matching(bluemonday.ImageAlign).OnElements("img")
+	p.AllowAttrs("width", "height").Matching(length).OnElements("img")
+	p.AllowAttrs("border").Matching(bluemonday.Integer).OnElements("img", "table")
+	p.AllowAttrs("usemap").Matching(regexp.MustCompile(`^#[\p{L}\p{N}_-]+$`)).OnElements("img")
+	p.AllowAttrs("name").Matching(regexp.MustCompile(`^[\p{L}\p{N}_-]+$`)).OnElements("map")
+	p.AllowAttrs("coords").Matching(regexp.MustCompile(`^(?:[0-9]+,)+[0-9]+$`)).OnElements("area")
+	p.AllowAttrs("shape").Matching(regexp.MustCompile(`(?i)^(?:default|circle|rect|poly)$`)).OnElements("area")
+	p.AllowAttrs("rel").Matching(bluemonday.SpaceSeparatedTokens).OnElements("area")
+
+	p.AllowAttrs("color").Matching(colour).OnElements("font", "hr")
+	p.AllowAttrs("size").Matching(regexp.MustCompile(`^[+-]?[1-7]$`)).OnElements("font")
+	p.AllowAttrs("face").Matching(regexp.MustCompile(`^[\p{L}\p{N}\s,'"_-]+$`)).OnElements("font")
+	p.AllowAttrs("align").Matching(bluemonday.CellAlign).OnElements("div", "p", "h1", "h2", "h3", "h4", "h5", "h6", "caption", "hr")
+	p.AllowAttrs("size").Matching(bluemonday.Integer).OnElements("hr")
+	p.AllowAttrs("width").Matching(length).OnElements("hr")
+	p.AllowAttrs("noshade").Matching(flag("noshade")).OnElements("hr")
+
+	p.AllowAttrs("align").Matching(bluemonday.CellAlign).OnElements("table", "colgroup", "col", "thead", "tbody", "tfoot", "tr", "td", "th")
+	p.AllowAttrs("valign").Matching(bluemonday.CellVerticalAlign).OnElements("colgroup", "col", "thead", "tbody", "tfoot", "tr", "td", "th")
+	p.AllowAttrs("bgcolor").Matching(colour).OnElements("table", "tr", "td", "th")
+	p.AllowAttrs("width", "height").Matching(length).OnElements("table", "colgroup", "col", "tr", "td", "th")
+	p.AllowAttrs("cellpadding", "cellspacing").Matching(bluemonday.Integer).OnElements("table")
+	p.AllowAttrs("summary").Matching(bluemonday.Paragraph).OnElements("table")
+	p.AllowAttrs("span").Matching(bluemonday.Integer).OnElements("colgroup", "col")
+	p.AllowAttrs("colspan", "rowspan").Matching(bluemonday.Integer).OnElements("td", "th")
+	p.AllowAttrs("nowrap").Matching(flag("nowrap")).OnElements("td", "th")
+	p.AllowAttrs("abbr").Matching(bluemonday.Paragraph).OnElements("td", "th")
+	p.AllowAttrs("headers").Matching(bluemonday.SpaceSeparatedTokens).OnElements("td", "th")
+	p.AllowAttrs("scope").Matching(regexp.MustCompile(`(?i)^(?:row|col)(?:group)?$`)).OnElements("td", "th")
+
+	p.AllowAttrs("open").Matching(flag("open")).OnElements("details")
+	p.AllowAttrs("datetime").Matching(bluemonday.ISO8601).OnElements("time", "del", "ins")
+	p.AllowAttrs("type").Matching(bluemonday.ListType).OnElements("ol", "ul", "li")
+	p.AllowAttrs("value").Matching(bluemonday.Integer).OnElements("li")
+	p.AllowAttrs("value", "min", "max", "low", "high", "optimum").Matching(bluemonday.Number).OnElements("meter")
+	p.AllowAttrs("value", "max").Matching(bluemonday.Number).OnElements("progress")
+	return p
 }

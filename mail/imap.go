@@ -1599,7 +1599,6 @@ func fetchMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, pa
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, nil, err
 	}
-	// TODO: stream attachments
 	msgs, err := conn.Fetch(imap.UIDSetNum(uid), partFetchOptions(partPath, false, cut)).Collect()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)

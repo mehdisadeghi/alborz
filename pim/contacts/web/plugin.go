@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	netmail "net/mail"
 	"slices"
@@ -137,10 +138,6 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
-	raw, _, err := mail.PartAt(ctx.Request().Context(), ctx.Login, mboxName, uid, part)
-	if err != nil {
-		return err
-	}
 	acct, bookPath, ok := strings.Cut(ctx.FormValue("addressbook"), "|")
 	login := ctx.LoginFor(acct)
 	if !ok || login == nil {
@@ -156,6 +153,17 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	to := ctx.Path("contacts.list")
 	if acct != ctx.Login.Username() {
 		to += "?account=" + web.QueryValue(acct)
+	}
+	var raw []byte
+	err = mail.PartAt(ctx.Request().Context(), ctx.Login, mboxName, uid, part, func(r io.Reader) (err error) {
+		raw, err = pim.ReadImport(r)
+		return err
+	})
+	if pim.ImportAnswered(err) {
+		ctx.Notify(pimweb.ImportRefused(ctx, err))
+		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
+	} else if err != nil {
+		return err
 	}
 	n, err := contacts.Import(ctx.Request().Context(), c, bookPath, raw)
 	if pim.ImportAnswered(err) {

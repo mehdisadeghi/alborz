@@ -102,6 +102,16 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 			t.Errorf("the import page does not state the limit")
 		}
 	})
+	t.Run("an attachment over the limit", func(t *testing.T) {
+		uid := attached("text/calendar", "big.ics", strings.Repeat("x\r\n", 16<<20/3+2))
+		resp := c.Post(t, "calendar.fromattachment", url.Values{"mbox": {"INBOX"}, "uid": {uid}, "part": {"2"}, "calendar": {User + "|" + personal}})
+		if resp.StatusCode != http.StatusFound {
+			t.Fatalf("the attachment over the limit answered %s, want a redirect", resp.Status)
+		}
+		if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "larger than 16 MB") {
+			t.Errorf("the page after the attachment over the limit does not state the limit")
+		}
+	})
 	t.Run("a server that does not answer the import page", func(t *testing.T) {
 		resp := c.Upload(t, "calendar.import", url.Values{"collection": {User + "|" + work}}, file("plan.ics", Event("plan", "Plan")))
 		if resp.StatusCode != http.StatusInternalServerError {

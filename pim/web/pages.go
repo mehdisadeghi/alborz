@@ -267,12 +267,10 @@ func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*Collec
 	}, nil
 }
 
-const maxImportSize = 16 << 20
-
 // ImportBodySize bounds an import's upload: the file and the form around it.
-const ImportBodySize = maxImportSize + web.FormFieldsSize
+const ImportBodySize = pim.MaxImportSize + web.FormFieldsSize
 
-func importTooLarge(ctx *web.Context) string { return ctx.Tf("import.toolarge", maxImportSize>>20) }
+func importTooLarge(ctx *web.Context) string { return ctx.Tf("import.toolarge", pim.MaxImportSize>>20) }
 
 // HandleImportTooLarge answers an upload past the limit on the collection it was sent to.
 func (pg Page) HandleImportTooLarge(ctx *web.Context) error {
@@ -291,7 +289,7 @@ func (pg Page) HandleImport(p *dav.Provider) func(*web.Context) error {
 		}
 		back := ctx.NextOr(pg.pageOf(ctx, collPath))
 		file, err := ctx.FormFile("file")
-		if err == nil && file.Size > maxImportSize {
+		if err == nil && file.Size > pim.MaxImportSize {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)})
 			return ctx.Redirect(http.StatusFound, back)
 		}
@@ -338,11 +336,11 @@ func fetchAddress(ctx *web.Context, client *http.Client, address string) ([]byte
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New(ctx.Tf("import.fetchfailed", resp.Status))
 	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxImportSize+1))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, pim.MaxImportSize+1))
 	if err != nil {
 		return nil, errors.New(ctx.Tf("import.fetchfailed", err))
 	}
-	if len(raw) > maxImportSize {
+	if len(raw) > pim.MaxImportSize {
 		return nil, errors.New(importTooLarge(ctx))
 	}
 	return raw, nil
@@ -359,7 +357,7 @@ type importFile struct {
 const maxBundleFiles = 200
 
 // An upload can inflate a thousandfold, and every file is held in memory until the last is imported.
-const maxBundleSize = 4 * maxImportSize
+const maxBundleSize = 4 * pim.MaxImportSize
 
 // importFiles reads a zip as each file of the kind inside it; anything else is itself.
 func (pg Page) importFiles(ctx *web.Context, name string, raw []byte) ([]importFile, error) {
@@ -383,13 +381,13 @@ func (pg Page) importFiles(ctx *web.Context, name string, raw []byte) ([]importF
 		if err != nil {
 			return nil, errors.New(ctx.Tf("import.zipentry", f.Name, err))
 		}
-		body, err := io.ReadAll(io.LimitReader(r, maxImportSize+1))
+		body, err := io.ReadAll(io.LimitReader(r, pim.MaxImportSize+1))
 		r.Close()
 		if err != nil {
 			return nil, errors.New(ctx.Tf("import.zipentry", f.Name, err))
 		}
-		if len(body) > maxImportSize {
-			return nil, errors.New(ctx.Tf("import.ziplarge", f.Name, maxImportSize>>20))
+		if len(body) > pim.MaxImportSize {
+			return nil, errors.New(ctx.Tf("import.ziplarge", f.Name, pim.MaxImportSize>>20))
 		}
 		if size += len(body); size > maxBundleSize {
 			return nil, errors.New(ctx.Tf("import.zipsize", maxBundleSize>>20))
@@ -499,6 +497,8 @@ func ImportRefusal(ctx *web.Context, err error) string {
 		return file.name + ": " + ImportRefusal(ctx, file.err)
 	case errors.As(err, &unreadable):
 		return fmt.Sprintf(ctx.T("import.unreadable"), unreadable.Err)
+	case errors.Is(err, pim.ErrTooLarge):
+		return importTooLarge(ctx)
 	case errors.Is(err, dav.ErrPlaceDown):
 		return ctx.T("form.placedown")
 	case !errors.As(err, &partly):
@@ -619,7 +619,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 				data.Refused(ctx.T("form.fileneeded"))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
-			if file.Size > maxImportSize {
+			if file.Size > pim.MaxImportSize {
 				data.Refused(importTooLarge(ctx))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}

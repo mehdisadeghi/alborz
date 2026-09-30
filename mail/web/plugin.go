@@ -6,6 +6,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
+	"git.mehdix.org/alborz/mail/imapsearch"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/microcosm-cc/bluemonday"
@@ -23,6 +24,7 @@ func Mount(g *web.Group) error {
 	s := g.Server()
 	p := &plugin{Mailboxes: mail.New(s.Server)}
 	p.registerRoutes(g)
+	s.Searchers = append(s.Searchers, web.Searcher{Kind: "mail", Answers: imapsearch.Keys(), Rows: "mail-found", Search: p.found})
 	images, err := localImage(s)
 	if err != nil {
 		return err

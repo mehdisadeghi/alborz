@@ -51,6 +51,8 @@ type MailboxRenderData struct {
 	Filters []web.Filter
 	// FilterRows are the views the filter menu offers.
 	FilterRows []web.FilterRow
+	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
+	SelectForm string
 }
 
 var unifiedRoles = []string{"INBOX", "Drafts", "Sent", "Junk", "Trash", "Archive"}
@@ -120,6 +122,7 @@ func listPage(ctx *web.Context, ask mail.ListAsk, l *mail.Listing) *MailboxRende
 		SortDir:       map[bool]string{true: "desc", false: "asc"}[ask.Descending()],
 		SortSupported: l.SortSupported,
 		PreferHTML:    ctx.Reading().PreferHTML,
+		SelectForm:    "messages-form",
 	}
 }
 

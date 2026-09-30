@@ -3178,7 +3178,8 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .event-summary a:hover { text-decoration: underline; }
 
-.event-grid .event-day-header {
+.event-grid .event-day-header,
+.search-kind {
   grid-column: 1 / -1;
   margin: 0;
   padding: var(--row-pad);
@@ -3190,6 +3191,15 @@ aside details.folder-branch details.folder-branch > ul > li {
 }
 
 .event-grid .empty-list { grid-column: 1 / -1; }
+
+/* Rows that offer no selection draw no box; the empty track takes nothing. A phone's rows are grids of their own. */
+:is(.message-grid, .task-grid, .contact-grid):not(:has(.list-checkbox)) { --check-track: 0rem; }
+
+@media (width > 600px) {
+  :is(.message-grid, .task-grid, .contact-grid):not(:has(.list-checkbox)) > .list-row > .list-cell:first-child {
+    grid-column-start: 2;
+  }
+}
 
 .task-list {
   flex-grow: 1;
@@ -4674,6 +4684,9 @@ h1.no-word .title-short {
   }
 
   .contact-row > .contact-list-checkbox { grid-area: check; }
+
+  /* No box: the empty first track's gap stands in for the card's padding. */
+  :is(.message-row, .task-row, .contact-row):not(:has(> .list-checkbox)) { padding-inline-start: 0; }
   .contact-row > .list-star { grid-area: star; align-self: center; }
   .contact-row > .contact-list-photo { grid-area: photo; }
   .contact-row > .contact-list-name { grid-area: name; }

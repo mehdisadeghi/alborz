@@ -61,6 +61,12 @@
 "search.title" = "Search"
 "search.allfolders" = "Search all folders"
 "search.none" = "Nothing found."
+"search.placeholder" = "Search everything..."
+"search.unasked" = "Not searched:"
+"mail.search" = "Email"
+"events.search" = "Events"
+"tasks.search" = "Tasks"
+"contacts.search" = "Contacts"
 "nav.email" = "Email"
 "nav.contacts" = "Contacts"
 "nav.calendar" = "Calendar"
@@ -1293,3 +1299,7 @@ other = "Next at %[2]s"
 ["notifications.keptfor"]
 one = "This lasts up to %d day after this browser was last used if it signed in with \"Remember me\", and %d minutes otherwise. A restart of the server also ends it until this browser is used again."
 other = "This lasts up to %d days after this browser was last used if it signed in with \"Remember me\", and %d minutes otherwise. A restart of the server also ends it until this browser is used again."
+
+["search.all"]
+one = "%[1]d result in %[2]s"
+other = "All %[1]d results in %[2]s"

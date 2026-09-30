@@ -61,6 +61,12 @@
 "search.title" = "Suche"
 "search.allfolders" = "Alle Ordner durchsuchen"
 "search.none" = "Nichts gefunden."
+"search.placeholder" = "Alles durchsuchen …"
+"search.unasked" = "Nicht durchsucht:"
+"mail.search" = "E-Mail"
+"events.search" = "Termine"
+"tasks.search" = "Aufgaben"
+"contacts.search" = "Kontakte"
 "nav.email" = "E-Mail"
 "nav.contacts" = "Kontakte"
 "nav.calendar" = "Kalender"
@@ -1294,3 +1300,7 @@ other = "Nächster um %[2]s"
 ["notifications.keptfor"]
 one = "Das gilt bis zu %d Tag nach der letzten Nutzung dieses Browsers, wenn er mit „Angemeldet bleiben“ angemeldet wurde, sonst %d Minuten. Ein Neustart des Servers beendet es ebenfalls, bis dieser Browser wieder genutzt wird."
 other = "Das gilt bis zu %d Tage nach der letzten Nutzung dieses Browsers, wenn er mit „Angemeldet bleiben“ angemeldet wurde, sonst %d Minuten. Ein Neustart des Servers beendet es ebenfalls, bis dieser Browser wieder genutzt wird."
+
+["search.all"]
+one = "%[1]d Treffer in %[2]s"
+other = "Alle %[1]d Treffer in %[2]s"

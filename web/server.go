@@ -48,6 +48,8 @@ type Server struct {
 	additions map[reflect.Type][]any
 	// OnServers puts each feature's servers among the account's.
 	OnServers []func(*Context, *Servers) error
+	// Searchers are the sections the search across sections asks, in the order it shows them.
+	Searchers []Searcher
 
 	// Status are the segments the status bar offers, in the order it draws them.
 	Status []Segment

@@ -35,7 +35,8 @@ func mergedOrigin(ctx *web.Context) *mail.Origin {
 		return nil
 	}
 	route, values, _ := ctx.Server.Match(u)
-	if route == "mail.search" {
+	// The search across sections shows mail's search of every folder, so a message walks that.
+	if route == "mail.search" || route == "core.search" {
 		ask.Query = strings.TrimSpace(ask.Query)
 		if !mail.StarView(ask.View) {
 			ask.View = ""

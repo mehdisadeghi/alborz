@@ -66,3 +66,10 @@
    "timeLabel" ($base.T "calendar.time") "eventLabel" ($base.T "calendar.event") "calendarLabel" ($base.T "common.calendar")) }}
 {{ end }}
 {{ end }}
+
+{{/* A search's first rows on the search across sections. */}}
+{{ define "events-found" }}
+<div class="event-grid list-grid" role="table">
+{{ template "event-rows" (dict "events" .Found "base" . "dated" true) }}
+</div>
+{{ end }}

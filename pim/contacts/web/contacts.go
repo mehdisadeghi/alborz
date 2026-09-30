@@ -12,6 +12,7 @@ import (
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
+	"git.mehdix.org/alborz/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-webdav/carddav"
 )
@@ -43,6 +44,8 @@ type AddressBookRenderData struct {
 	Category   string
 	// GroupRows and CategoryRows are the rail rows for groups and categories.
 	GroupRows, CategoryRows []FilterRow
+	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
+	SelectForm string
 
 	Invitations *pimweb.RailInvitations
 }
@@ -226,6 +229,7 @@ func (p *plugin) contacts(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "contacts/list", &AddressBookRenderData{
+		SelectForm:     "address-book-form",
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
 		AddressBooks:   addressBookInfos,
 		AddressObjects: cards,
@@ -276,4 +280,31 @@ func searchFilter(ctx *web.Context, list ContactList) []web.Filter {
 		out = append(out, f)
 	}
 	return out
+}
+
+// found is the contacts' part in the search across sections, in the list's own order.
+func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	cards, _, books, unread, err := p.shownCards(ctx, nil, view, q.String())
+	if err != nil {
+		return web.Found{}, err
+	}
+	pimweb.WarnUnread(ctx, unread)
+	if _, err := pimweb.Sort(ctx, cards, contactColumns(books), cardTie); err != nil {
+		return web.Found{}, err
+	}
+	params := pimweb.ListParams(ctx, contactListParams...)
+	params.Set("from", ctx.Request().URL.RequestURI())
+	shown := cards[:min(limit, len(cards))]
+	hrefs := make(map[string]string, len(shown))
+	for _, ao := range shown {
+		hrefs[ao.Path] = pimweb.ObjectURL(ctx, "contacts.contact", ao.Path, ao.Account, params)
+	}
+	collection, href := pimweb.Labels(ctx, books, "contacts.list", "book", nil)
+	return web.Found{Rows: &AddressBookRenderData{
+		AddressObjects: shown,
+		HrefFor:        func(_, path string) string { return hrefs[path] },
+		AddedBy:        p.DAV.AddedBy(ctx.Login.Username()),
+		CollectionFor:  collection,
+		CollectionHref: href,
+	}, Total: len(cards), All: ctx.SearchURL("contacts.list", q, view)}, nil
 }

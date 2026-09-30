@@ -29,6 +29,26 @@ func TestBodyIdentityAndFlagWrite(t *testing.T) {
 	}
 }
 
+func TestBodyExpiresUnread(t *testing.T) {
+	bc := newBodyCache(bodyKeepFor)
+	bc.observe("u", "INBOX", 1)
+	for _, uid := range []imap.UID{7, 8} {
+		token := bc.claim(bodyKey{"u", "INBOX", 1, uid}, []int{1})
+		bc.put("u", "INBOX", 1, token, &cachedBody{buf: &imapclient.FetchMessageBuffer{UID: uid}, part: []int{1}})
+	}
+	bc.entries[bodyKey{"u", "INBOX", 1, 7}].lastUse = time.Now().Add(-bodyKeepFor - time.Second)
+	bc.entries[bodyKey{"u", "INBOX", 1, 8}].lastUse = time.Now().Add(-bodyKeepFor + time.Minute)
+	if bc.current("u", "INBOX", 7, nil) != nil || bc.entries[bodyKey{"u", "INBOX", 1, 7}] != nil {
+		t.Error("a body unread for longer than a login lasts was still held")
+	}
+	if bc.current("u", "INBOX", 8, nil) == nil {
+		t.Fatal("a body within its lifetime was dropped")
+	}
+	if b := bc.entries[bodyKey{"u", "INBOX", 1, 8}]; time.Since(b.lastUse) > time.Minute {
+		t.Error("reading a body did not renew its lifetime")
+	}
+}
+
 func TestListingFetchOutlivesItsFirstReader(t *testing.T) {
 	lc := newListingCache(listingKeepFor, memo.NewBackground[Rail](listingFreshFor), newBodyCache(bodyKeepFor))
 	started, finish := make(chan struct{}), make(chan struct{})

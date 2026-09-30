@@ -1,6 +1,10 @@
 package web
 
 import (
+	"html/template"
+	"slices"
+	"strings"
+
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
@@ -36,4 +40,22 @@ func davAbilities(found dav.Advertised) []web.Ability {
 		{Label: "settings.davabilitysched", Hint: "settings.davabilityschedhint", Have: found.Has("calendar-auto-schedule")},
 		{Label: "settings.davabilitymkcol", Hint: "settings.davabilitymkcolhint", Have: found.Has("extended-mkcol")},
 	}
+}
+
+// warnUnread logs what a page left out and names the calendars it leaves incomplete.
+func warnUnread(ctx *web.Context, unread []calendar.Unread) {
+	var names, marked []string
+	for _, u := range unread {
+		ctx.Logger().Printf("calendar: %s: %v", u.Calendar, u.Err)
+		if !slices.Contains(names, u.Calendar) {
+			names = append(names, u.Calendar)
+			marked = append(marked, web.NoticeName(u.Calendar))
+		}
+	}
+	if len(names) == 0 {
+		return
+	}
+	ctx.Notify(web.Notice{Kind: web.NoticeWarning,
+		Text:   ctx.Tf("notice.calendarunread", len(names), strings.Join(names, ", ")),
+		Markup: template.HTML(ctx.Tf("notice.calendarunread", len(names), strings.Join(marked, ", ")))})
 }

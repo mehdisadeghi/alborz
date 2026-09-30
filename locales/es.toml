@@ -113,6 +113,7 @@
 "filter.view" = "Vista"
 "list.groupby" = "Agrupar por"
 "calendar.groupday" = "Día"
+"calendar.unreadable" = "El servidor envió este elemento en una forma que no se puede leer."
 "filter.category" = "Categoría"
 "filter.group" = "Grupo"
 "aside.groups" = "Grupos"
@@ -1074,6 +1075,10 @@ other = "%[1]d carpetas más"
 ["notice.davrefused"]
 one = "El servidor de calendario y contactos de %[2]s rechazó la contraseña. Vuelve a introducirla."
 other = "Los servidores de calendario y contactos de %[2]s rechazaron las contraseñas. Vuelve a introducirlas."
+
+["notice.calendarunread"]
+one = "No se pudo leer parte de %[2]s."
+other = "No se pudieron leer partes de %[2]s."
 
 ["notice.unreachable"]
 one = "El servidor de %[2]s no respondió."

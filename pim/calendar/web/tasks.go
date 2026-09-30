@@ -155,6 +155,7 @@ type TaskList struct {
 	Query   string
 	View    string
 	Sorting pimweb.Sorting
+	Unread  []calendar.Unread
 }
 
 func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
@@ -184,15 +185,21 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 	params := pimweb.RowParams(ctx, ctx.Path("calendar.tasks"), pimweb.ListParams(ctx, taskListParams...))
 
 	query := calendar.TaskQuery()
+	var unread []calendar.Unread
 
 	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
 	})) {
 		if result.Err != nil {
-			return TaskList{}, fmt.Errorf("failed to query tasks from %s: %v", result.Site.Collection.Name, result.Err)
+			unread = append(unread, calendar.Unread{Calendar: result.Site.Collection.Name, Err: result.Err})
+			continue
 		}
 
 		for _, task := range result.Value {
+			if task.Data == nil {
+				unread = append(unread, calendar.Unparsed(result.Site.Collection.Name, &task))
+				continue
+			}
 			todo := calendar.FirstTodo(task.Data)
 			if todo == nil {
 				continue
@@ -238,6 +245,7 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 		Query:     search,
 		View:      view,
 		Sorting:   sorting,
+		Unread:    unread,
 	}, nil
 }
 
@@ -268,6 +276,7 @@ func (p *plugin) tasks(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	warnUnread(ctx, list.Unread)
 	rows, pager, err := web.Paginate(ctx, list.Rows)
 	if err != nil {
 		return err

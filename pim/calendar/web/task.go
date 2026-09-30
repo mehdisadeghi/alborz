@@ -86,6 +86,9 @@ func (p *plugin) task(ctx *web.Context) error {
 		return fmt.Errorf("expected exactly one task with path %q, got %v", path, len(tasks))
 	}
 	task := &tasks[0]
+	if task.Data == nil {
+		return web.NewError(http.StatusBadGateway, ctx.T("calendar.unreadable"))
+	}
 	todo := calendar.FirstTodo(task.Data)
 	if todo == nil {
 		return fmt.Errorf("no VTODO component found")

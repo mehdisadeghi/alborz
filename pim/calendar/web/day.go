@@ -35,6 +35,7 @@ type dayView struct {
 	calendars []dav.Collection
 	events    []calendar.Occurrence
 	accounts  int
+	unread    []calendar.Unread
 }
 
 func (p *plugin) day(ctx *web.Context) error {
@@ -42,6 +43,7 @@ func (p *plugin) day(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	warnUnread(ctx, dv.unread)
 	collection, href := pimweb.Labels(ctx, dv.calendars, "calendar.month", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)
 	if err != nil {
@@ -92,15 +94,16 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 	}
 	query := calendar.EventQuery(start, end)
 
-	events, err := p.QuerySites(ctx.Request().Context(), sites, &query)
-	if err != nil {
-		return dayView{}, err
-	}
+	events, unread := p.QuerySites(ctx.Request().Context(), sites, &query)
 
 	// Keep only what falls in the day; an unexpanded master matched as a whole.
 	var shown []calendar.Occurrence
 	for _, ev := range events {
-		for _, oc := range calendar.Occurrences(ev, loc, start, end) {
+		occurrences, err := calendar.Occurrences(ev, loc, start, end)
+		if err != nil {
+			unread = append(unread, calendar.Unread{Calendar: ev.Calendar, Err: err})
+		}
+		for _, oc := range occurrences {
 			if oc.Start.Before(end) && (oc.End.After(start) || !oc.End.After(oc.Start)) {
 				shown = append(shown, oc)
 			}
@@ -110,5 +113,5 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 		return shown[i].Start.Before(shown[j].Start)
 	})
 
-	return dayView{start: start, calendars: calendarInfos, events: shown, accounts: len(accounts)}, nil
+	return dayView{start: start, calendars: calendarInfos, events: shown, accounts: len(accounts), unread: unread}, nil
 }

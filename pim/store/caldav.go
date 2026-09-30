@@ -172,7 +172,9 @@ func (b calendars) ListCalendarObjects(ctx context.Context, p string, req *calda
 	return out, nil
 }
 
-// QueryCalendarObjects parses, which a filter cannot do without.
+// QueryCalendarObjects parses, which a filter cannot do without. An object
+// that does not parse goes to the filter as its bytes, which it keeps for
+// the client to judge.
 func (b calendars) QueryCalendarObjects(ctx context.Context, p string, query *caldav.CalendarQuery) ([]caldav.CalendarObject, error) {
 	objects, err := b.objects(ctx, p, Calendar)
 	if err != nil {
@@ -182,7 +184,7 @@ func (b calendars) QueryCalendarObjects(ctx context.Context, p string, query *ca
 	for i, o := range objects {
 		all[i] = calendarObject(path.Join(p, o.Name), o, &query.CompRequest)
 		if all[i].Data, err = ical.NewDecoder(bytes.NewReader(o.Data)).Decode(); err != nil {
-			return nil, err
+			all[i].Data, all[i].Raw = nil, o.Data
 		}
 	}
 	return caldav.Filter(query, all)

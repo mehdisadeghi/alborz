@@ -164,6 +164,7 @@ func (b calendars) GetCalendarObject(_ context.Context, p string, _ *caldav.Cale
 }
 
 // QueryCalendarObjects parses only the objects that begin every component the filter requires.
+// One that does not parse goes to the filter as its bytes, as in the store.
 func (b calendars) QueryCalendarObjects(_ context.Context, _ string, query *caldav.CalendarQuery) ([]caldav.CalendarObject, error) {
 	br := lineReaders.Get().(*bufio.Reader)
 	defer lineReaders.Put(br)
@@ -175,7 +176,7 @@ func (b calendars) QueryCalendarObjects(_ context.Context, _ string, query *cald
 		br.Reset(bytes.NewReader(o.Raw))
 		var err error
 		if o.Data, err = ical.NewDecoder(br).Decode(); err != nil {
-			return nil, err
+			o.Data = nil
 		}
 		held = append(held, o)
 	}

@@ -1,11 +1,13 @@
 package alborztest
 
 import (
+	"encoding/xml"
 	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -155,7 +157,7 @@ func (d *DAVServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		multistatus(w)
+		d.report(w, r, string(body))
 	case "PUT":
 		if d.hangup[path.Dir(r.URL.Path)+"/"] {
 			conn, _, _ := w.(http.Hijacker).Hijack()
@@ -183,6 +185,33 @@ func (d *DAVServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 }
+
+// report answers a REPORT on a calendar with the objects in it, or those a multiget names, as a server
+// that filters by nothing but the text it is asked to match; a sync-collection gets a token as well.
+func (d *DAVServer) report(w http.ResponseWriter, r *http.Request, body string) {
+	if _, ok := d.cals[r.URL.Path]; !ok {
+		multistatus(w)
+		return
+	}
+	var resps []string
+	for _, p := range slices.Sorted(maps.Keys(d.objects)) {
+		if path.Dir(p)+"/" != r.URL.Path || strings.Contains(body, "multiget") && !strings.Contains(body, p) {
+			continue
+		}
+		if m := textMatch.FindStringSubmatch(body); m != nil && !strings.Contains(d.objects[p], m[1]) {
+			continue
+		}
+		var data strings.Builder
+		xml.EscapeText(&data, []byte(d.objects[p]))
+		resps = append(resps, propResponse(p, `<getetag>"1"</getetag><C:calendar-data>`+data.String()+"</C:calendar-data>"))
+	}
+	if strings.Contains(body, "sync-collection") {
+		resps = append(resps, "<sync-token>1</sync-token>")
+	}
+	multistatus(w, resps...)
+}
+
+var textMatch = regexp.MustCompile(`text-match[^>]*>([^<]*)<`)
 
 func multistatus(w http.ResponseWriter, responses ...string) {
 	w.Header().Set("Content-Type", "application/xml")

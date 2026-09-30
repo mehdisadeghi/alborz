@@ -271,6 +271,10 @@ func Components(ctx context.Context, client *caldav.Client, calendarPath string,
 			return nil, fmt.Errorf("failed to read the calendar: %v", err)
 		}
 		for _, obj := range objects {
+			// An export leaves out nothing it does not say.
+			if obj.Data == nil {
+				return nil, fmt.Errorf("failed to read the calendar: %w", Unparsed("", &obj).Err)
+			}
 			out = append(out, obj.Data.Children...)
 		}
 	}

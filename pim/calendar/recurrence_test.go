@@ -77,8 +77,10 @@ func TestRSCALE(t *testing.T) {
 		event.Props.Set(&ical.Prop{Name: ical.PropRecurrenceRule, Params: ical.Params{}, Value: c.rule})
 		cal := ical.NewCalendar()
 		cal.Children = append(cal.Children, event.Component)
+		// A rule not read is drawn at its start and named in the error.
+		occurrences, _ := Occurrences(CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}, time.UTC, c.first, c.to)
 		var got []time.Time
-		for _, o := range Occurrences(CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}, time.UTC, c.first, c.to) {
+		for _, o := range occurrences {
 			got = append(got, o.Start)
 		}
 		if !slices.EqualFunc(got, c.want, time.Time.Equal) {

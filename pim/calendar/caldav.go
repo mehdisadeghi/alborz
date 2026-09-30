@@ -122,6 +122,8 @@ type CalendarObject struct {
 	*caldav.CalendarObject
 
 	Account string
+	// Calendar is the name of the collection it was read from.
+	Calendar string
 	// ReadOnly marks an object whose calendar this account may not write: no edit, no delete.
 	ReadOnly bool
 }
@@ -208,8 +210,11 @@ func SetComponentColor(comp *ical.Component, name string) {
 	comp.Props.SetText(ical.PropColor, name)
 }
 
-func Occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) []Occurrence {
+// Occurrences places obj's events between start and end. The error names each series not read, whose components
+// are drawn at their own start or, where that does not read either, left out; it never stops the others.
+func Occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) ([]Occurrence, error) {
 	var out []Occurrence
+	var errs []error
 	seen := make(map[string]bool)
 	for _, event := range obj.Data.Events() {
 		uid, _ := event.Props.Text(ical.PropUID)
@@ -224,9 +229,14 @@ func Occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) [
 		}
 		if err != nil {
 			// A series not read here shows each component once, at its own start: a wrong instance is worse than a missing one.
+			errs = append(errs, fmt.Errorf("%s: %w", obj.Path, err))
 			for _, event := range obj.Data.Events() {
 				if id, _ := event.Props.Text(ical.PropUID); id == uid {
-					first, _ := event.DateTimeStart(loc)
+					first, err := event.DateTimeStart(loc)
+					if err != nil {
+						continue
+					}
+					// An end that does not read leaves the event at its start.
 					last, _ := event.DateTimeEnd(loc)
 					out = append(out, Occurrence{CalendarObject: obj, Event: &event, Start: first, End: last})
 				}
@@ -240,7 +250,7 @@ func Occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) [
 			})
 		}
 	}
-	return out
+	return out, errors.Join(errs...)
 }
 
 // AllDay reports whether the object's start is a bare date.
@@ -274,21 +284,41 @@ func (p *Calendars) OpenWithFeeds(ctx context.Context, login *alborz.Login) (*ca
 	return p.Open(ctx, login)
 }
 
-// QuerySites asks each site for the objects query matches.
-func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, error) {
+// Unread is what a page could not read of a calendar: all of it, or one object.
+type Unread struct {
+	Calendar string
+	Err      error
+}
+
+// Unparsed is the object of calendar the client could not parse.
+func Unparsed(calendar string, obj *caldav.CalendarObject) Unread {
+	_, err := ical.NewDecoder(bytes.NewReader(obj.Raw)).Decode()
+	return Unread{calendar, fmt.Errorf("%s: %w", obj.Path, err)}
+}
+
+// QuerySites asks each site for the objects query matches. A calendar that fails and an object that does not
+// parse are returned as unread, so that they cost the page nothing else.
+func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, []Unread) {
 	var events []CalendarObject
+	var unread []Unread
 	for _, r := range pim.Present(p.DAV, dav.Across(ctx, sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, query)
 	})) {
+		name := r.Site.Collection.Name
 		if r.Err != nil {
-			return nil, fmt.Errorf("failed to query calendar %s: %v", r.Site.Collection.Name, r.Err)
+			unread = append(unread, Unread{name, r.Err})
+			continue
 		}
 		for i := range r.Value {
+			if r.Value[i].Data == nil {
+				unread = append(unread, Unparsed(name, &r.Value[i]))
+				continue
+			}
 			events = append(events, CalendarObject{CalendarObject: &r.Value[i], Account: r.Site.Collection.Account,
-				ReadOnly: !r.Site.Collection.Writable})
+				Calendar: name, ReadOnly: !r.Site.Collection.Writable})
 		}
 	}
-	return events, nil
+	return events, unread
 }
 
 func FirstEvent(cal *ical.Calendar) *ical.Component {

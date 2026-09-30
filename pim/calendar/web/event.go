@@ -179,6 +179,9 @@ func (p *plugin) event(ctx *web.Context) error {
 		return fmt.Errorf("expected exactly one calendar object with path %q, got %v", path, len(events))
 	}
 	event := &events[0]
+	if event.Data == nil {
+		return web.NewError(http.StatusBadGateway, ctx.T("calendar.unreadable"))
+	}
 	vevents := event.Data.Events()
 	if len(vevents) == 0 {
 		return alborz.NotFound("notfound.event")

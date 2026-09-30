@@ -38,6 +38,16 @@
           {{ template "sort-col" (dict "s" $s "plain" $plain "target" "main" "key" "date" "label" ($.T "sort.date") "cell" "message-list-date") }}
           {{ template "sort-col" (dict "s" $s "plain" $plain "target" "main" "key" "size" "label" ($.T "sort.size") "cell" "message-list-size") }}
           </div>
+          {{ template "message-rows" $ }}
+          {{if not .Messages}}
+          <p class="empty-list">{{if .Query}}{{printf (.T "common.noresults") .Query}}{{else if eq .ListView "starred"}}{{$.T "mailbox.nostarred"}}{{else if eq .ListView "unread"}}{{$.T "mailbox.nounread"}}{{else if .ListView}}{{printf ($.T "mailbox.nocolor") ($.T (printf "color.%s" .ListView))}}{{else}}{{$.T "common.empty"}}{{end}}</p>
+          {{end}}
+        </div>
+      </section>
+{{ end }}
+
+{{/* The list page's data: rows read the list's query, view, order and scope. */}}
+{{ define "message-rows" }}
           {{ $scope := "" }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | qv) }}{{ end }}
           {{range .Messages}}
           {{ $owner := $.GlobalData.URLAccount }}{{ if $.Merged }}{{ $owner = .Account }}{{ end }}
@@ -133,9 +143,4 @@
           {{ end }}
 
           {{ end }}
-          {{if not .Messages}}
-          <p class="empty-list">{{if .Query}}{{printf (.T "common.noresults") .Query}}{{else if eq .ListView "starred"}}{{$.T "mailbox.nostarred"}}{{else if eq .ListView "unread"}}{{$.T "mailbox.nounread"}}{{else if .ListView}}{{printf ($.T "mailbox.nocolor") ($.T (printf "color.%s" .ListView))}}{{else}}{{$.T "common.empty"}}{{end}}</p>
-          {{end}}
-        </div>
-      </section>
 {{ end }}

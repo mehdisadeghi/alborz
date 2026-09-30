@@ -264,6 +264,7 @@ func SettingsRail(ctx *Context) map[string][]RailRow {
 			{Label: ctx.T("sessions.title"), Href: ctx.Path("settings.sessions") + q, Active: scoped && path == ctx.Path("settings.sessions")},
 			{Label: ctx.T("settings.password"), Href: ctx.Path("settings.password") + q, Active: scoped && path == ctx.Path("settings.password")},
 			{Label: ctx.T("settings.data"), Href: ctx.Path("settings.data") + q, Active: scoped && path == ctx.Path("settings.data")},
+			{Label: ctx.T("settings.encryption"), Href: ctx.Path("settings.encryption") + q, Active: scoped && path == ctx.Path("settings.encryption")},
 		}
 	}
 	return rows

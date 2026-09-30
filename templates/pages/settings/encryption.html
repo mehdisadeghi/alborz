@@ -1,0 +1,64 @@
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="settings"{{ end }}
+
+{{ define "main" }}
+  {{ $aq := .GlobalData.AccountQuery }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.encryption") "path" (url "settings.encryption")) }}
+
+      <section class="info-card">
+        <dl>
+          <dt>{{$.T "encryption.state"}}</dt>
+          <dd>{{ if .Locked }}{{$.T "encryption.statelocked"}}{{ else if .On }}{{$.T "encryption.stateon"}}{{ else }}{{$.T "encryption.stateoff"}}{{ end }}</dd>
+          <dt>{{$.T "encryption.kept"}}</dt>
+          <dd>{{ if .OnServer }}{{$.T "encryption.keptserver"}}{{ else }}{{$.T "encryption.keptfile"}}{{ end }}</dd>
+        </dl>
+      </section>
+
+      {{ with .Recovery }}
+      <section class="info-card recovery">
+        <h2>{{$.T "encryption.recovery"}}</h2>
+        <p class="recovery-key" dir="ltr"><code>{{.}}</code></p>
+        {{ template "hint" (dict "text" ($.T "encryption.recoveryhint")) }}
+        <div class="actions">
+          <a class="button-link button-primary" href="{{$.RecoveryFile}}" download="{{printf "alborz-recovery-%s.txt" $.GlobalData.Username}}">{{$.T "encryption.download"}}</a>
+        </div>
+      </section>
+      {{ end }}
+
+      {{ if .Locked }}
+      <form method="post" action="{{url "settings.encryption.recover"}}{{$aq}}">
+        <details class="list-card warning-card warning-caution" open>
+          <summary>{{$.T "encryption.lockedtitle"}}</summary>
+          <ul><li>{{$.T "encryption.locked"}}</li></ul>
+        </details>
+        {{ template "field" (dict "label" ($.T "encryption.recovery") "name" "recovery" "dir" "ltr" "required" true "hint" ($.T "encryption.recoveryenter")) }}
+        <button type="submit" class="button-primary">{{$.T "encryption.open"}}</button>
+      </form>
+
+      <form method="post" action="{{url "settings.encryption.startover"}}{{$aq}}">
+        <h2>{{$.T "encryption.startover"}}</h2>
+        <div class="action-group">
+          {{ template "hint" (dict "text" ($.T "encryption.startoverhint")) }}
+          <label for="confirm" class="checkbox">
+            <input type="checkbox" name="confirm" id="confirm" value="1" required>
+            {{$.T "encryption.startoverconfirm"}}
+          </label>
+        </div>
+        <button type="submit" class="button-danger">{{$.T "encryption.startover"}}</button>
+      </form>
+      {{ else }}
+      <form method="post" action="{{ if .On }}{{url "settings.encryption.off"}}{{ else }}{{url "settings.encryption"}}{{ end }}{{$aq}}">
+        <div class="action-group">
+          <p class="hint">{{$.T "encryption.covers"}}</p>
+          <p class="hint">{{$.T "encryption.notcovered"}}</p>
+          <p class="hint">{{$.T "encryption.paused"}}</p>
+          {{ if not .OnServer }}<p class="hint">{{$.T "encryption.offline"}}</p>{{ end }}
+        </div>
+        {{ template "field" (dict "label" ($.T "encryption.password") "name" "password" "type" "password" "dir" "ltr" "required" true) }}
+        <button type="submit" class="button-primary">{{ if .On }}{{$.T "encryption.turnoff"}}{{ else }}{{$.T "encryption.turnon"}}{{ end }}</button>
+      </form>
+      {{ end }}
+{{ end }}

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
@@ -110,7 +109,8 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 		return nil, err
 	}
 	next, _ := url.Parse(form.Get("next"))
-	spanning := strings.TrimSuffix(next.Path, "/") == "/search"
+	route, _, _ := ctx.Server.Match(next)
+	spanning := route == "mail.search"
 	logins := ctx.Logins()
 	if account := next.Query().Get("account"); account != "" {
 		s := ctx.LoginFor(account)

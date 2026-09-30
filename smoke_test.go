@@ -344,7 +344,9 @@ func newAlborz(t *testing.T, ln net.Listener, options web.Options, setup ...func
 	web.PublicRoutes(public)
 	web.EventRoutes(events)
 	authweb.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
-	mail.Mount(app.Group("", "mail"))
+	if err := mail.Mount(app.Group("", "mail")); err != nil {
+		t.Fatalf("start alborz: %v", err)
+	}
 	settingsweb.Mount(app.Group("", "settings"))
 	st, err := pimweb.Mount(dav, app.Group("", "pim"))
 	if err != nil {

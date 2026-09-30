@@ -27,7 +27,9 @@ func mount(s *web.Server) error {
 	web.PublicRoutes(public)
 	web.EventRoutes(events)
 	authweb.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
-	mail.Mount(app.Group("", "mail"))
+	if err := mail.Mount(app.Group("", "mail")); err != nil {
+		return err
+	}
 	settingsweb.Mount(app.Group("", "settings"))
 	st, err := pimweb.Mount(dav, app.Group("", "pim"))
 	if err != nil {

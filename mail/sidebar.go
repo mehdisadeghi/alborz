@@ -27,9 +27,9 @@ func (p *plugin) handleSidebar(ctx *web.Context) error {
 	base.GlobalData.URL = &u
 	base.GlobalData.Path = strings.Split(page, "/")[1:]
 	folder := ""
-	parts := strings.Split(page, "/")
-	if len(parts) > 2 && (parts[1] == "mailbox" || parts[1] == "message") {
-		folder, _ = url.PathUnescape(parts[2])
+	if at, err := url.Parse(page); err == nil {
+		_, values, _ := ctx.Server.Match(at)
+		folder = values["mbox"]
 	}
 	view, err := readView(ctx.QueryParams())
 	if err != nil {

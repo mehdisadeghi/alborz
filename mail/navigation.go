@@ -102,18 +102,18 @@ func mergedOrigin(ctx *web.Context) *mergedList {
 	if err != nil {
 		return nil
 	}
-	if u.Path == "/search" {
+	route, values, _ := ctx.Server.Match(u)
+	if route == "mail.search" {
 		ask.spec.query = strings.TrimSpace(ask.spec.query)
 		if !StarView(ask.spec.view) {
 			ask.spec.view = ""
 		}
 		return &mergedList{search: true, logins: logins, ask: ask}
 	}
-	role, ok := strings.CutPrefix(u.Path, "/mailbox/")
-	if !ok || len(logins) < 2 {
+	if route != "mail.mailbox" || len(logins) < 2 {
 		return nil
 	}
-	return &mergedList{role: role, logins: logins, ask: ask}
+	return &mergedList{role: values["mbox"], logins: logins, ask: ask}
 }
 
 // mergedNeighbours places a message among the merged rows it was opened

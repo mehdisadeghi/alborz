@@ -9,12 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"git.mehdix.org/alborz/internal/keyring"
 	"git.mehdix.org/alborz/internal/kv"
+	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/internal/seal"
 )
 
 func TestExpiryUnlistsTheLogin(t *testing.T) {
-	sm := newLoginManager(nil, nil, nil, nil, nil, nil, nil)
+	sm := newLoginManager(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	s := &Login{manager: sm, closed: make(chan struct{}), pings: make(chan struct{}, 5),
 		username: "a@test.local"}
 	sm.logins[s] = struct{}{}
@@ -35,9 +37,32 @@ func TestExpiryUnlistsTheLogin(t *testing.T) {
 	}
 }
 
+// plainManager holds its accounts' keys in a file of the test's, none of them encrypted.
+func plainManager(t *testing.T) *loginManager {
+	t.Helper()
+	db, err := bolt.Open(filepath.Join(t.TempDir(), storeFile), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	root, err := seal.ParseRoot("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys, err := keyring.New(db, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newLoginManager(nil, nil, nil, nil, nil, nil, nil, keys, nil)
+}
+
 func TestEnvelopeOpensOnlyWithTheMailPassword(t *testing.T) {
-	login := func(password string) *Login { return &Login{password: password} }
-	e := login("first").seal("app-password")
+	sm := plainManager(t)
+	login := func(password string) *Login { return &Login{password: password, manager: sm} }
+	e, err := login("first").seal("app-password")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if plain, err := login("first").open(e); err != nil || plain != "app-password" {
 		t.Fatalf("with the password it was sealed under: %q, %v", plain, err)
 	}
@@ -63,17 +88,18 @@ func (m mapStore) Put(_ context.Context, key string, v any) error {
 }
 
 func TestEnvelopeFollowsAPasswordChange(t *testing.T) {
-	ctx, store := context.Background(), mapStore{}
-	if err := (&Login{password: "first", store: store}).SetHTTPPassword(ctx, "app-password"); err != nil {
+	ctx, store, sm := context.Background(), mapStore{}, plainManager(t)
+	login := func(password string) *Login { return &Login{password: password, store: store, manager: sm} }
+	if err := login("first").SetHTTPPassword(ctx, "app-password"); err != nil {
 		t.Fatal(err)
 	}
-	if err := (&Login{password: "first", store: store}).rewrap(ctx, "second"); err != nil {
+	if err := login("first").rewrap(ctx, "second"); err != nil {
 		t.Fatal(err)
 	}
-	if plain, err := (&Login{password: "second", store: store}).HTTPPassword(ctx); err != nil || plain != "app-password" {
+	if plain, err := login("second").HTTPPassword(ctx); err != nil || plain != "app-password" {
 		t.Fatalf("under the new password: %q, %v", plain, err)
 	}
-	if _, err := (&Login{password: "first", store: store}).HTTPPassword(ctx); err != ErrSealed {
+	if _, err := login("first").HTTPPassword(ctx); err != ErrSealed {
 		t.Fatalf("under the old password: %v, want ErrSealed", err)
 	}
 }

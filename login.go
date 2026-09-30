@@ -11,9 +11,11 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	"git.mehdix.org/alborz/internal/keyring"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-sasl"
@@ -90,6 +92,11 @@ type Login struct {
 	httpPassword string // protected by httpLocker
 	httpLoaded   bool   // protected by httpLocker
 	httpSealed   bool   // protected by httpLocker
+
+	// locked is an account whose encryption is on and whose key the password did not open (ADR 71).
+	locked atomic.Bool
+	// release lets the account's key go when the login ends.
+	release func()
 
 	imapLocker imapQueue
 	imapConn   *imapclient.Client // protected by imapLocker
@@ -439,6 +446,17 @@ func (l *Login) Close() {
 	}
 }
 
+// Locked reports an account whose encryption is on and whose key this login could not open: its password
+// changed and no other login held the key.
+func (l *Login) Locked() bool { return l.locked.Load() }
+
+// forgetHTTPPassword has the HTTP password read again, after the key it is sealed under changed.
+func (l *Login) forgetHTTPPassword() {
+	l.httpLocker.Lock()
+	l.httpLoaded, l.httpSealed = false, false
+	l.httpLocker.Unlock()
+}
+
 // Store returns the account's settings store.
 func (l *Login) Store() Store {
 	return l.store
@@ -464,6 +482,9 @@ type loginManager struct {
 	logger           *log.Logger
 	// settings holds settings for servers without METADATA; nil if alborz keeps none.
 	settings *settingsRecords
+	keys     *keyring.Ring
+	// unlock opens a new login's own key.
+	unlock func(*Login) error
 
 	locker sync.Mutex
 	// logins are the open ones, for shutdown to close.
@@ -471,9 +492,11 @@ type loginManager struct {
 	warnedNoMetadata bool                // protected by locker
 }
 
-func newLoginManager(dialIMAP, dialTransfer dialIMAPFunc, dialWatch dialIMAPWatchFunc, dialSMTP dialSMTPFunc, dialSieve dialSieveFunc, logger *log.Logger, settings *settingsRecords) *loginManager {
+func newLoginManager(dialIMAP, dialTransfer dialIMAPFunc, dialWatch dialIMAPWatchFunc, dialSMTP dialSMTPFunc, dialSieve dialSieveFunc, logger *log.Logger, settings *settingsRecords, keys *keyring.Ring, unlock func(*Login) error) *loginManager {
 	return &loginManager{
 		settings:         settings,
+		keys:             keys,
+		unlock:           unlock,
 		logins:           make(map[*Login]struct{}),
 		dialIMAP:         dialIMAP,
 		dialIMAPTransfer: dialTransfer,
@@ -550,9 +573,6 @@ func (sm *loginManager) put(username, password, from string) (*Login, error) {
 		return nil, err
 	}
 
-	sm.locker.Lock()
-	defer sm.locker.Unlock()
-
 	s := &Login{
 		manager:   sm,
 		closed:    make(chan struct{}),
@@ -568,15 +588,23 @@ func (sm *loginManager) put(username, password, from string) (*Login, error) {
 		s.transfers <- idleTransfer{}
 	}
 
+	sm.locker.Lock()
 	s.store, err = sm.newStore(s)
+	if err == nil {
+		sm.logins[s] = struct{}{}
+	}
+	sm.locker.Unlock()
 	if err != nil {
 		return nil, err
 	}
 
-	sm.logins[s] = struct{}{}
-
+	// Before the reaper starts, which reads what unlock holds.
+	err = sm.unlock(s)
 	go sm.reap(s)
-
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -623,6 +651,10 @@ func (sm *loginManager) reap(s *Login) {
 		if t := <-s.transfers; t.c != nil {
 			t.c.Close()
 		}
+	}
+
+	if s.release != nil {
+		s.release()
 	}
 
 	// Caches outlive expiry; only signing out forgets (Server.ForgetAccount).

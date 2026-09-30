@@ -120,6 +120,11 @@ func (s *Store) restore(c Collection, a archived, files map[string][]byte) (publ
 	ref := c.Ref()
 	published = true
 	err = s.change(ref, func(tx kv.Tx) error {
+		if owner := s.ring.Name(c.Owner); s.ring.On(owner) {
+			if err := keyed(tx).encrypt(s.ref(ref), []string{owner}); err != nil {
+				return err
+			}
+		}
 		before := ""
 		if held, err := get[Collection](tx, s.collectionKey(ref)); err == nil {
 			before = held.Public
@@ -173,6 +178,9 @@ func (s *Store) restore(c Collection, a archived, files map[string][]byte) (publ
 				return err
 			}
 			if err := put(tx, s.receivedKey(sh.To, ref), ref); err != nil {
+				return err
+			}
+			if err := keyed(tx).wrapTo(s.ref(ref), s.ring.Name(sh.To)); err != nil {
 				return err
 			}
 		}

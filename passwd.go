@@ -78,7 +78,7 @@ func (s *Server) PasswdEnabled(domain string) bool {
 
 // ChangePassword asks the domain's password server to change the login's password. A refused
 // current password counts against the reader as a refused sign-in does (ADR 30). The password
-// the login keeps for DAV is sealed under the new one.
+// the login keeps for DAV and the account's own key are sealed under the new one.
 func (s *Server) ChangePassword(ctx context.Context, l *Login, current, next, from string) error {
 	d, _ := s.upstreamsFor(l.domain)
 	if d.passwd.network == "" {
@@ -97,6 +97,9 @@ func (s *Server) ChangePassword(ctx context.Context, l *Login, current, next, fr
 	// The password has changed; a DAV password left sealed is asked for again (ADR 5).
 	if err := l.rewrap(ctx, next); err != nil {
 		s.log.Printf("%s: the DAV password stays sealed under the old mail password: %v", l.username, err)
+	}
+	if err := s.rewrapKey(ctx, l, next); err != nil {
+		s.log.Printf("%s: the account's key stays wrapped under the old mail password: %v", l.username, err)
 	}
 	return nil
 }

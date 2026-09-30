@@ -115,11 +115,12 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 	var p *Provider
 	var mirror *Mirror
 	if srv.Options.Cache {
-		m, err := OpenMirror(srv.Options.CacheDir, kind, srv.LoginKey, func(account string) { p.Forget(account) })
+		m, err := OpenMirror(srv.Options.CacheDir, kind, srv.LoginKey, srv.Keys, func(account string) { p.Forget(account) })
 		if err != nil {
 			return nil, err
 		}
 		mirror = m
+		srv.Sealers = append(srv.Sealers, alborz.Sealer{Reseal: m.Reseal, Drop: m.Drop})
 		srv.Schedule.Add(tick, m.round)
 	}
 	here, err := hereSource(srv.PublicURL)

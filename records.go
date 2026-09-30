@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"git.mehdix.org/alborz/internal/keyring"
 	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/internal/record"
 	"git.mehdix.org/alborz/internal/seal"
@@ -146,14 +147,18 @@ func (r *records) Sweep(before time.Time) error {
 	})
 }
 
-// settingsRecords keeps settings for servers without METADATA, one record per account.
+// settingsRecords keeps settings for servers without METADATA, one record per account, sealed under the
+// key the ring gives the account (ADR 71). The account's own key is kept apart, under the instance's key:
+// it has to be read before anything under it can be.
 type settingsRecords struct {
-	vault
+	db    kv.DB
+	keys  *keyring.Ring
 	names seal.Names
+	apart vault
 }
 
-func openSettingsRecords(db kv.DB, key *seal.Key, names seal.Names) *settingsRecords {
-	return &settingsRecords{vault{db: db, key: key}, names}
+func openSettingsRecords(db kv.DB, key *seal.Key, names seal.Names, keys *keyring.Ring) *settingsRecords {
+	return &settingsRecords{db: db, keys: keys, names: names, apart: vault{db: db, key: key}}
 }
 
 // A keyed name, so the file names nobody to whoever lacks the login key.
@@ -161,31 +166,44 @@ func (r *settingsRecords) key(account string) string {
 	return settingsOwner + "/" + r.names.Of(account)
 }
 
-func (r *settingsRecords) entries(tx kv.Tx, account string) map[string]json.RawMessage {
-	entries := map[string]json.RawMessage{}
-	r.read(tx.Get(r.key(account)), &entries)
-	return entries
+func (r *settingsRecords) keyEntryKey(account string) string {
+	return settingsOwner + "/key/" + r.names.Of(account)
 }
 
+func (r *settingsRecords) entries(tx kv.Tx, account string) (map[string]json.RawMessage, error) {
+	entries := map[string]json.RawMessage{}
+	sealed := tx.Get(r.key(account))
+	if sealed == nil {
+		return entries, nil
+	}
+	raw, err := r.keys.Open(r.keys.Name(account), settingsOwner, sealed)
+	if err != nil {
+		return nil, err
+	}
+	return entries, json.Unmarshal(raw, &entries)
+}
+
+// Get reads an entry a key at hand does not open as absent.
 func (r *settingsRecords) Get(account, key string, out any) error {
 	var raw json.RawMessage
 	err := r.db.View(func(tx kv.Tx) error {
-		raw = r.entries(tx, account)[key]
-		return nil
-	})
-	if err != nil {
+		entries, err := r.entries(tx, account)
+		raw = entries[key]
 		return err
-	}
-	if raw == nil {
+	})
+	if raw == nil || err != nil {
 		return ErrNoStoreEntry
 	}
 	return json.Unmarshal(raw, out)
 }
 
-// Put merges v into the stored entry in one transaction.
+// Put merges v into the stored entry in one transaction; nothing is written over a record that does not open.
 func (r *settingsRecords) Put(account, key string, v any) error {
 	return r.db.Update(func(tx kv.Tx) error {
-		entries := r.entries(tx, account)
+		entries, err := r.entries(tx, account)
+		if err != nil {
+			return err
+		}
 		merged, err := record.Keep(entries[key], v)
 		if err != nil {
 			return err
@@ -195,24 +213,61 @@ func (r *settingsRecords) Put(account, key string, v any) error {
 		if err != nil {
 			return err
 		}
-		return r.put(tx, r.key(account), raw)
+		k, err := r.keys.For(r.keys.Name(account), settingsOwner)
+		if err != nil {
+			return err
+		}
+		return tx.Put(r.key(account), k.Seal(raw))
 	})
 }
 
 func (r *settingsRecords) Entries(account string) ([]string, error) {
 	var names []string
 	err := r.db.View(func(tx kv.Tx) error {
-		for name := range r.entries(tx, account) {
+		entries, err := r.entries(tx, account)
+		for name := range entries {
 			names = append(names, name)
 		}
-		return nil
+		return err
 	})
 	slices.Sort(names)
 	return names, err
 }
 
+// Forget keeps the account's own key, which is not a setting but what opens its data.
 func (r *settingsRecords) Forget(account string) error {
-	return r.remove(r.key(account))
+	return r.apart.remove(r.key(account))
+}
+
+// reseal moves the account's record under the key the ring gives it now.
+func (r *settingsRecords) reseal(account string) error {
+	name := r.keys.Name(account)
+	return r.db.Update(func(tx kv.Tx) error {
+		sealed := tx.Get(r.key(account))
+		k, err := r.keys.For(name, settingsOwner)
+		if sealed == nil || err != nil || !r.keys.Stale(name, settingsOwner, sealed) {
+			return err
+		}
+		raw, err := r.keys.Open(name, settingsOwner, sealed)
+		if err != nil {
+			return err
+		}
+		return tx.Put(r.key(account), k.Seal(raw))
+	})
+}
+
+// drop deletes the account's record where it is under an own key that is lost.
+func (r *settingsRecords) drop(account string) error {
+	return r.db.Update(func(tx kv.Tx) error {
+		sealed := tx.Get(r.key(account))
+		if sealed == nil {
+			return nil
+		}
+		if _, err := r.keys.Open(r.keys.Name(account), settingsOwner, sealed); !errors.Is(err, keyring.ErrLocked) {
+			return nil
+		}
+		return tx.Delete(r.key(account))
+	})
 }
 
 // SessionRecord is a session kept across a restart.

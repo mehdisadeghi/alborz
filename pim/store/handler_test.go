@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"git.mehdix.org/alborz/internal/keyring"
 	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/internal/seal"
 )
@@ -29,7 +30,11 @@ func open(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(db, root)
+	ring, err := keyring.New(db, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return New(db, root, ring)
 }
 
 func serve(t *testing.T, h http.Handler, account, method, path, body string) int {

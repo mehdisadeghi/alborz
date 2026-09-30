@@ -1005,6 +1005,10 @@
 "settings.textdefault" = "Standard"
 "settings.textlarge" = "Groß"
 "settings.textlarger" = "Größer"
+"status.label" = "Statusleiste"
+"settings.status" = "Statusleiste"
+"date-gregorian.status" = "Gregorianisches Datum"
+"date-shcal.status" = "Sonnen-Hidschri-Datum"
 
 
 ["calendar.more"]

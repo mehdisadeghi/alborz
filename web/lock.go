@@ -97,6 +97,9 @@ func (s *Session) usedPasskey(credential webauthn.Credential, now time.Time) {
 }
 
 func redirectToUnlock(ctx *Context) error {
+	if unasked(ctx) {
+		return ctx.NoContent(http.StatusNoContent)
+	}
 	to := ctx.Path("auth.unlock")
 	if ctx.Request().Method == http.MethodGet {
 		to += "?next=" + QueryValue(ctx.Request().URL.RequestURI())

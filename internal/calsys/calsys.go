@@ -49,6 +49,9 @@ func Of(name string) System {
 	return gregorian
 }
 
+// Systems are every calendar alborz counts in.
+func Systems() []System { return slices.Clone(systems) }
+
 // RSCALEs names the scales of every system, which a rule may count in.
 func RSCALEs() []string {
 	var names []string

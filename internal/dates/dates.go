@@ -149,6 +149,11 @@ func (r Reader) SecondaryDate(t time.Time) string {
 	if !ok || t.IsZero() {
 		return ""
 	}
+	return r.DateIn(cal, t)
+}
+
+// DateIn is the date of t in cal, day, month and year.
+func (r Reader) DateIn(cal calsys.System, t time.Time) string {
 	y, m, d := cal.Date(r.In(t))
 	return locale.Sprintf(r.Lang, "%d %s %s", d, r.t(cal.MonthKey(m)), locale.Year(r.Lang, y))
 }

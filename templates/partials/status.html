@@ -1,0 +1,29 @@
+{{/* The segments the reader turned on, each asked for on its own: a slow one holds up no other,
+     and none holds up the page. A request the page makes by itself keeps no session open. */}}
+{{ define "status-bar" }}
+{{ if or .GlobalData.StatusStart .GlobalData.StatusEnd }}
+<footer class="status-bar" aria-label="{{$.T "status.label"}}">
+  <div class="status-start">
+    {{ range .GlobalData.StatusStart }}{{ template "status-slot" (dict "Name" . "Page" $) }}{{ end }}
+  </div>
+  <div class="status-end">
+    {{ range .GlobalData.StatusEnd }}{{ template "status-slot" (dict "Name" . "Page" $) }}{{ end }}
+  </div>
+</footer>
+{{ end }}
+{{ end }}
+
+{{ define "status-slot" }}
+<span class="status-segment" id="status-{{.Name}}-{{.Page.GlobalData.URLAccount}}" hx-preserve hx-get="{{url "core.status" .Name}}{{.Page.GlobalData.AccountQuery}}" hx-trigger="load, every {{.Page.GlobalData.StatusSeconds}}s, htmx:pushedIntoHistory from:body" hx-headers='{"Alborz-Unasked": "1"}'>–</span>
+{{ end }}
+
+{{/* The title holds the whole text for a segment cut short. */}}
+{{ define "status-segment" }}
+{{- if .Parts }}
+{{- $title := or .Title (join .Parts " · ") }}
+{{- if .Link }}<a href="{{.Link}}" title="{{$title}}">{{ template "status-parts" .Parts }}</a>
+{{- else }}<span title="{{$title}}">{{ template "status-parts" .Parts }}</span>{{ end }}
+{{- else }}–{{ end }}
+{{- end }}
+
+{{ define "status-parts" }}{{ range $i, $p := . }}{{ if $i }} · {{ end }}<bdi>{{ $p }}</bdi>{{ end }}{{ end }}

@@ -49,6 +49,9 @@ type Server struct {
 	// OnServers puts each feature's servers among the account's.
 	OnServers []func(*Context, *Servers) error
 
+	// Status are the segments the status bar offers, in the order it draws them.
+	Status []Segment
+
 	// Suggest offers addresses to write to.
 	Suggest []func(*Context) []string
 
@@ -307,6 +310,9 @@ func stampOf(content []byte) string {
 }
 
 func redirectToLogin(ctx *Context) error {
+	if unasked(ctx) {
+		return ctx.NoContent(http.StatusNoContent)
+	}
 	path, to := ctx.Request().URL.Path, ctx.Path("auth.login")
 	// Only a GET can be resumed after login; a POST-only route must not be replayed as a GET.
 	if ctx.Request().Method == http.MethodGet && path != ctx.Path("mail.home") && path != to {

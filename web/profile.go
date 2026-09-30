@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -218,6 +219,18 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 		return g.T("settings.text" + cmp.Or(p.Display.TextSize, "default"))
 	})
 	add("settings.alignscript", func(p alborz.Profile) string { return onOff(p.Display.AlignByScript) })
+	add("settings.status", func(p alborz.Profile) string {
+		var on []string
+		for _, seg := range ctx.Server.Status {
+			if slices.Contains(p.Display.Status, seg.Name) {
+				on = append(on, g.T(seg.Name+".status"))
+			}
+		}
+		if len(on) == 0 {
+			return g.T("profile.off")
+		}
+		return strings.Join(on, " · ")
+	})
 	add("settings.language", func(p alborz.Profile) string {
 		return or(locale.Name(p.Display.Language), "settings.langauto")
 	})

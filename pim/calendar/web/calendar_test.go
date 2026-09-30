@@ -82,6 +82,35 @@ func TestAnOpenTaskWithoutStatusIsListed(t *testing.T) {
 	}
 }
 
+// Completing a task revises its DTSTAMP (RFC 5545 3.8.7.2); the added date is its CREATED and stays.
+func TestCompletingATaskKeepsItsAddedDate(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	chores := c.CreateCalendar(t, "Chores", "tasks")
+	a.Put(t, chores+"water.ics", "text/calendar", strings.Replace(Todo("water", "Water the ferns"),
+		"DTSTAMP:", "CREATED:20250301T080000Z\r\nDTSTAMP:", 1))
+	added := func() string {
+		cell := regexp.MustCompile(`class="task-list-added list-cell"[^>]*title="([^"]*)"`).FindStringSubmatch(c.Page(t, "calendar.tasks", url.Values{"view": {"all"}}))
+		if cell == nil {
+			t.Fatal("the task list has no added cell")
+		}
+		return cell[1]
+	}
+	before := added()
+	if !strings.Contains(before, "2025") {
+		t.Fatalf("the task shows added %q, want its CREATED in 2025", before)
+	}
+	if resp := c.Post(t, "calendar.task.complete", url.Values{}, Here+chores+"water.ics"); resp.StatusCode != http.StatusFound {
+		t.Fatalf("completing the task answered %s", resp.Status)
+	}
+	if !strings.Contains(a.DAV(t, http.MethodGet, chores+"water.ics", nil, "").Text, "STATUS:COMPLETED") {
+		t.Fatal("the task was not completed")
+	}
+	if after := added(); after != before {
+		t.Errorf("completing the task moved its added date from %q to %q", before, after)
+	}
+}
+
 // A list held whole pages as mail does, and a task opened from one page walks
 // the whole list, not the page it was on.
 func TestATaskListPagesAndItsTasksWalkIt(t *testing.T) {

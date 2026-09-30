@@ -201,11 +201,8 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 			}
 		}
 
-		if creating {
-			todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
-		} else {
-			todo.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
-		}
+		todo.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
+		todo.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
 		todo.Props.SetText(ical.PropSummary, summary)
 
 		if description != "" {

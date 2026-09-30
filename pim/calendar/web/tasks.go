@@ -63,7 +63,7 @@ type TaskRow struct {
 	AddedBy string
 	Status  string
 	Due     time.Time
-	// Added is DTSTAMP, else CREATED; zero where the writer sent neither.
+	// Added is CREATED; zero where the writer sent none, since DTSTAMP moves with every change.
 	Added     time.Time
 	Completed bool
 	// Priority is the band the task's PRIORITY falls in, or empty.
@@ -365,10 +365,7 @@ func taskRow(ctx *web.Context, task *caldav.CalendarObject, cal dav.Collection, 
 	if due.IsZero() {
 		due, _ = todo.Props.DateTime(ical.PropDateTimeStart, loc)
 	}
-	added, _ := todo.Props.DateTime(ical.PropDateTimeStamp, loc)
-	if added.IsZero() {
-		added, _ = todo.Props.DateTime(ical.PropCreated, loc)
-	}
+	added, _ := todo.Props.DateTime(ical.PropCreated, loc)
 	object := calendar.TaskObject{CalendarObject: task, Account: cal.Account}
 	return TaskRow{
 		Task:      object,

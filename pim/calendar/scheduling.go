@@ -265,19 +265,22 @@ func objectPathByUID(ctx context.Context, client *caldav.Client, calendarPath, u
 }
 
 func Export(ctx context.Context, client *caldav.Client, calendarPath string, from, to time.Time) ([]byte, error) {
-	children, err := Components(ctx, client, calendarPath, []string{"VEVENT", "VTODO"}, from, to)
+	children, left, err := Components(ctx, client, calendarPath, []string{"VEVENT", "VTODO"}, from, to)
 	if err != nil {
 		return nil, err
 	}
 	// A VCALENDAR holds one component at least (RFC 5545 3.6).
-	if len(children) == 0 {
+	if len(children) == 0 && len(left) == 0 {
 		return nil, pim.ErrNothingToExport
 	}
-	return Encode(children, nil)
+	return Encode(children, left)
 }
 
-func Components(ctx context.Context, client *caldav.Client, calendarPath string, comps []string, from, to time.Time) ([]*ical.Component, error) {
-	var out []*ical.Component
+// Components are the components of comps the calendar holds; left says why each object that does not parse
+// was left out.
+func Components(ctx context.Context, client *caldav.Client, calendarPath string, comps []string, from, to time.Time) (out []*ical.Component, left []error, err error) {
+	// An object that does not parse matches every filter, and is left out once.
+	unparsed := map[string]bool{}
 	for _, comp := range comps {
 		filter := caldav.CompFilter{Name: comp}
 		if comp == "VEVENT" && (!from.IsZero() || !to.IsZero()) {
@@ -288,17 +291,20 @@ func Components(ctx context.Context, client *caldav.Client, calendarPath string,
 			CompFilter:  caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{filter}},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to read the calendar: %v", err)
+			return nil, nil, fmt.Errorf("failed to read the calendar: %w", err)
 		}
 		for _, obj := range objects {
-			// An export leaves out nothing it does not say.
 			if obj.Data == nil {
-				return nil, fmt.Errorf("failed to read the calendar: %w", Unparsed("", &obj).Err)
+				if !unparsed[obj.Path] {
+					unparsed[obj.Path] = true
+					left = append(left, Unparsed("", &obj).Err)
+				}
+				continue
 			}
 			out = append(out, obj.Data.Children...)
 		}
 	}
-	return out, nil
+	return out, left, nil
 }
 
 // Encode writes children as one calendar; left are objects already left out. A component go-ical will

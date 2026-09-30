@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -205,23 +206,34 @@ func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chose
 	if err != nil {
 		return err
 	}
+	type read struct {
+		children []*ical.Component
+		left     []error
+	}
 	var children []*ical.Component
-	for _, r := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]*ical.Component, error) {
-		return calendar.Components(ctx, site.Client, site.Collection.Path, comps, from, to)
+	var left []error
+	for _, r := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) (read, error) {
+		children, left, err := calendar.Components(ctx, site.Client, site.Collection.Path, comps, from, to)
+		return read{children, left}, err
 	})) {
+		// A calendar that does not answer is left out with its reason, as an object that does not parse is.
 		if r.Err != nil {
-			return r.Err
+			left = append(left, fmt.Errorf("%s: %w", r.Site.Collection.Name, r.Err))
+			continue
 		}
-		children = append(children, r.Value...)
+		children = append(children, r.Value.children...)
+		for _, err := range r.Value.left {
+			left = append(left, fmt.Errorf("%s: %w", r.Site.Collection.Name, err))
+		}
 	}
 	// A VCALENDAR holds one component at least (RFC 5545 3.6).
-	if len(children) == 0 {
+	if len(children) == 0 && len(left) == 0 {
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("calendar.noevents")})
 		page := *ctx.Request().URL
 		page.Path = ctx.Path("calendar.month")
 		return ctx.Redirect(http.StatusFound, page.RequestURI())
 	}
-	body, err := calendar.Encode(children, nil)
+	body, err := calendar.Encode(children, left)
 	if err := pimweb.LeftOut(ctx, err); err != nil {
 		return err
 	}

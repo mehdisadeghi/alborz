@@ -28,6 +28,7 @@ type DAVServer struct {
 	books     map[string]string
 	refuse    map[string]bool
 	hangup    map[string]bool
+	failing   map[string]bool
 	keep      map[string]bool
 	gone      map[string]bool
 	rscales   []string
@@ -49,6 +50,9 @@ func Refusing(paths ...string) DAVOption { return func(d *DAVServer) { d.refuse 
 
 // Hangup closes the connection on a PUT into a collection, a server that does not answer.
 func Hangup(paths ...string) DAVOption { return func(d *DAVServer) { d.hangup = set(paths) } }
+
+// Failing answers a REPORT on a collection with 503, a server that cannot serve it for now.
+func Failing(paths ...string) DAVOption { return func(d *DAVServer) { d.failing = set(paths) } }
 
 // Keeping answers a DELETE of a collection with 204, and lists it all the same.
 func Keeping(paths ...string) DAVOption { return func(d *DAVServer) { d.keep = set(paths) } }
@@ -78,7 +82,7 @@ func set(paths []string) map[string]bool {
 func DAV(t *testing.T, opts ...DAVOption) *DAVServer {
 	t.Helper()
 	d := &DAVServer{cals: map[string]string{}, books: map[string]string{}, objects: map[string]string{},
-		refuse: map[string]bool{}, hangup: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}}
+		refuse: map[string]bool{}, hangup: map[string]bool{}, failing: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}}
 	d.Apply(opts...)
 	d.Server = httptest.NewServer(d)
 	t.Cleanup(d.Close)
@@ -155,6 +159,10 @@ func (d *DAVServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "REPORT":
 		if d.gone[r.URL.Path] {
 			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if d.failing[r.URL.Path] {
+			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		d.report(w, r, string(body))

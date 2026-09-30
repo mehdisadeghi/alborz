@@ -34,6 +34,18 @@ func TestProfileReachesEveryAccount(t *testing.T) {
 	}
 }
 
+// A mail server with METADATA keeps the profile, so another alborz reading it opens with it.
+func TestProfileTravelsBetweenAlborz(t *testing.T) {
+	srv := IMAP(t, Metadata())
+	first, second := Alborz(t, WithIMAP(srv)), Alborz(t, WithIMAP(srv))
+	if resp := first.SignIn(t, User).Post(t, "settings.profile", url.Values{"messages_per_page": {"17"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving the profile: %s", resp.Status)
+	}
+	if got := perPage(t, second.SignIn(t, User)); got != "17" {
+		t.Errorf("the other alborz holds a page size of %s, want 17", got)
+	}
+}
+
 func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 	for _, answer := range []struct{ route, want string }{
 		{"settings.profile.take", "17"},

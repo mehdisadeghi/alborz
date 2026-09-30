@@ -183,3 +183,46 @@ func TestAPhoneDeletingASubscriptionUnsubscribes(t *testing.T) {
 		t.Errorf("following the feed again made %s, want %s", again, path)
 	}
 }
+
+// followers are two alborz reading one mail server with METADATA, so an account's subscriptions are
+// one list both keep, and the first following the feed.
+func followers(t *testing.T, f *feed) (first, second *Client, path string) {
+	t.Helper()
+	srv := IMAP(t, Metadata())
+	a, b := Alborz(t, WithIMAP(srv), Guarded(f.Client().Transport)), Alborz(t, WithIMAP(srv), Guarded(f.Client().Transport))
+	first, second = a.SignIn(t, User), b.SignIn(t, User)
+	path = subscribe(t, first, f.URL+"/f.ics")
+	if !second.Listed(t)[path] || !strings.Contains(second.Page(t, "calendar.month"), "Feast") {
+		t.Fatalf("the other alborz does not list %s with the feed's event", path)
+	}
+	return first, second, path
+}
+
+func TestAnotherAlborzFollowsTheSameList(t *testing.T) {
+	followers(t, startFeed(t, "Feast"))
+}
+
+func TestARenameTravels(t *testing.T) {
+	first, second, path := followers(t, startFeed(t, "Feast"))
+	resp := first.Post(t, "calendar.collection", url.Values{"name": {"Feasts"}, "color": {"#654321"}}, path)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("renaming answered %s", resp.Status)
+	}
+	// The list learns of the change on the next page, the one the redirect names.
+	first.Follow(t, resp.Header.Get("Location"))
+	if page := second.Page(t, "calendar.collection", path); !strings.Contains(page, "Feasts") || !strings.Contains(page, "#654321") {
+		t.Error("the other alborz does not call the calendar Feasts in #654321")
+	}
+}
+
+func TestAnUnsubscribeTravels(t *testing.T) {
+	first, second, path := followers(t, startFeed(t, "Feast"))
+	resp := first.Post(t, "calendar.collection.delete", url.Values{}, path)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("unsubscribing answered %s", resp.Status)
+	}
+	first.Follow(t, resp.Header.Get("Location"))
+	if second.Listed(t)[path] {
+		t.Error("the other alborz still lists the calendar after unsubscribing")
+	}
+}

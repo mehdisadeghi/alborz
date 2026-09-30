@@ -1005,6 +1005,10 @@
 "settings.textdefault" = "Default"
 "settings.textlarge" = "Large"
 "settings.textlarger" = "Larger"
+"status.label" = "Status bar"
+"settings.status" = "Status bar"
+"date-gregorian.status" = "Gregorian date"
+"date-shcal.status" = "Solar Hijri date"
 
 
 ["calendar.more"]

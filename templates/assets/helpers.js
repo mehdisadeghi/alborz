@@ -1139,4 +1139,12 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 	};
 })();
 
+// A status bar the page does not draw, as on a phone, asks for nothing.
+document.addEventListener("htmx:confirm", ev => {
+	const segment = ev.target.closest(".status-segment");
+	if (segment && !segment.checkVisibility()) {
+		ev.preventDefault();
+	}
+});
+
 // @license-end

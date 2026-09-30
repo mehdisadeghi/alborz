@@ -1005,6 +1005,10 @@
 "settings.textdefault" = "پیش‌فرض"
 "settings.textlarge" = "بزرگ"
 "settings.textlarger" = "بزرگ‌تر"
+"status.label" = "نوار وضعیت"
+"settings.status" = "نوار وضعیت"
+"date-gregorian.status" = "تاریخ میلادی"
+"date-shcal.status" = "تاریخ هجری شمسی"
 
 
 ["calendar.more"]

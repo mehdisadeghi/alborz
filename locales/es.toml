@@ -1005,6 +1005,10 @@
 "settings.textdefault" = "Predeterminado"
 "settings.textlarge" = "Grande"
 "settings.textlarger" = "Más grande"
+"status.label" = "Barra de estado"
+"settings.status" = "Barra de estado"
+"date-gregorian.status" = "Fecha gregoriana"
+"date-shcal.status" = "Fecha de la hégira solar"
 
 
 ["calendar.more"]

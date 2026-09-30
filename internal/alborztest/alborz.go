@@ -42,6 +42,7 @@ type config struct {
 	imap      *IMAPServer
 	upstreams []string
 	selfDAV   bool
+	segments  []web.Segment
 }
 
 type Option func(*config)
@@ -86,6 +87,11 @@ func TrustedProxies(proxies ...string) Option {
 	return func(c *config) { c.options.TrustedProxies = proxies }
 }
 
+// Segments adds segments to the status bar, after those alborz mounts.
+func Segments(segments ...web.Segment) Option {
+	return func(c *config) { c.segments = append(c.segments, segments...) }
+}
+
 // Guarded carries the requests to servers outsiders name.
 func Guarded(rt http.RoundTripper) Option { return func(c *config) { c.options.Guarded = rt } }
 
@@ -121,6 +127,7 @@ func Alborz(t *testing.T, opts ...Option) *App {
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
+	s.Status = append(s.Status, c.segments...)
 	server := &http.Server{Handler: h}
 	server.RegisterOnShutdown(s.Changes.Close)
 	go server.Serve(ln)

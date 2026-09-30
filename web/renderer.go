@@ -86,6 +86,11 @@ type GlobalRenderData struct {
 	// TextSize is empty for the default size.
 	TextSize string
 
+	// StatusStart and StatusEnd name the status bar's segments turned on, by the end they sit at;
+	// StatusSeconds is how often a page asks them again.
+	StatusStart, StatusEnd []string
+	StatusSeconds          int
+
 	Lang string
 }
 
@@ -281,6 +286,8 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 		global.Username = ctx.Login.Username()
 		global.Accounts = ctx.Accounts()
 		global.FirstDayOfWeek = ctx.Reading().WeekStart()
+		global.StatusStart, global.StatusEnd = ctx.statusOn()
+		global.StatusSeconds = int(statusEvery / time.Second)
 	}
 
 	return &BaseRenderData{GlobalData: global}

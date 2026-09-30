@@ -776,6 +776,79 @@ a.notice-name {
 
 footer { text-align: end; }
 
+/* One line at the foot of the window: segments at natural width from the start, the dates from
+   the end. The two ends are laid out apart, so the start growing never pushes a date. */
+.status-bar {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 11;
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  block-size: calc(var(--control-height) + env(safe-area-inset-bottom));
+  padding: 0 var(--space-2) env(safe-area-inset-bottom);
+  border-block-start: 1px solid var(--border);
+  /* Raised: it floats over the page, which must not show through. */
+  background-color: var(--surface-raised);
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+}
+
+.status-start,
+.status-end {
+  display: flex;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.status-start {
+  flex: 0 1 auto;
+}
+
+.status-end {
+  flex: none;
+  flex-direction: row-reverse;
+  margin-inline-start: auto;
+}
+
+/* The last segment at the start has nothing after it, so it yields when the line is full. */
+.status-segment {
+  flex: none;
+}
+
+.status-start > .status-segment:last-child {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
+
+.status-segment > * {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-segment > a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.status-segment > a:hover {
+  text-decoration: underline;
+}
+
+/* A phone has no room for a line of facts beside the page. */
+@media (width <= 600px) {
+  .status-bar { display: none; }
+}
+
+/* The segments are asked for by the script, so without one the bar would hold only dashes. */
+@media (scripting: none) {
+  .status-bar { display: none; }
+}
+
 .container {
   flex: 1 auto;
   display: flex;

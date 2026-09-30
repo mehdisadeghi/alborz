@@ -35,6 +35,8 @@ type Display struct {
 	TextSize      string
 	AlignByScript bool
 	Language      string
+	// Status names the status bar's segments turned on; the bar keeps the order they were mounted in.
+	Status []string
 }
 
 const ProfileKey = "profile"

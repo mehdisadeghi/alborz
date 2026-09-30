@@ -85,6 +85,10 @@ func Prepare(next HandlerFunc) HandlerFunc {
 // unaskedHeader marks a request a page makes by itself; sending it can only bring the lock nearer.
 const unaskedHeader = "Alborz-Unasked"
 
+// unasked reports a request the page made by itself. Sent to sign in, it would draw the sign-in page
+// where its answer goes; it gets nothing, and the reader's next click meets the sign-in instead.
+func unasked(ctx *Context) bool { return ctx.Request().Header.Get(unaskedHeader) != "" }
+
 // Activity counts the request as the reader acting, which keeps the session from locking.
 func Activity(next HandlerFunc) HandlerFunc {
 	return func(ctx *Context) error {
@@ -98,7 +102,7 @@ func Activity(next HandlerFunc) HandlerFunc {
 		}
 		now := time.Now()
 		// A request the page made by itself is not the reader acting, or an open tab would never lock.
-		if !session.Locked(now) && ctx.Request().Header.Get(unaskedHeader) == "" {
+		if !session.Locked(now) && !unasked(ctx) {
 			session.act(now)
 			if session.note(ctx.Request().UserAgent(), alborz.RequestAddress(ctx.RealIP())) {
 				if err := ctx.Server.Sessions.Save(session); err != nil {

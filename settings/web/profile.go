@@ -21,6 +21,9 @@ type ProfileRenderData struct {
 	Themes        []web.Theme
 	AlignByScript bool
 	TextSize      string
+	// Segments are the status bar's on offer, StatusOn those turned on.
+	Segments []string
+	StatusOn map[string]bool
 
 	Reading    alborz.Reading
 	Writing    alborz.Writing
@@ -47,6 +50,8 @@ func handleProfile(ctx *web.Context) error {
 			Themes:         ctx.Themes(),
 			AlignByScript:  p.Display.AlignByScript,
 			TextSize:       p.Display.TextSize,
+			Segments:       segments(ctx),
+			StatusOn:       statusOn(p.Display.Status),
 			Reading:        p.Reading,
 			Writing:        p.Writing,
 			MaxPerPage:     web.MaxMessagesPerPage,
@@ -117,6 +122,15 @@ func handleProfile(ctx *web.Context) error {
 		}
 	}
 	p.Display.AlignByScript = ctx.FormValue("align_script") != ""
+	// A segment this deployment does not offer was not on the page, so it stays as it was.
+	offered := segments(ctx)
+	status := slices.DeleteFunc(slices.Clone(p.Display.Status), func(name string) bool { return slices.Contains(offered, name) })
+	for _, name := range sent["status"] {
+		if slices.Contains(offered, name) && !slices.Contains(status, name) {
+			status = append(status, name)
+		}
+	}
+	p.Display.Status = status
 	var lockAfter time.Duration
 	if v, ok := given("lock_minutes"); ok {
 		minutes, err := locale.ReadInt(v)
@@ -159,6 +173,22 @@ func answerProfile(ctx *web.Context, answer func(*alborz.Login) error, done stri
 		ctx.PutNotice(fmt.Sprintf(ctx.T(done), account))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.Path("settings.profile"))
+}
+
+func segments(ctx *web.Context) []string {
+	var names []string
+	for _, s := range ctx.Server.Status {
+		names = append(names, s.Name)
+	}
+	return names
+}
+
+func statusOn(names []string) map[string]bool {
+	on := map[string]bool{}
+	for _, name := range names {
+		on[name] = true
+	}
+	return on
 }
 
 func lockMinutes(l alborz.Lock) int {

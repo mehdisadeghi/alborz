@@ -779,7 +779,13 @@ const endProgress = () => {
 	}, 200);
 };
 
+// What the page asks for by itself is not a request the reader waits on.
+const askedByPage = ev => Boolean(ev.detail && ev.detail.requestConfig && ev.detail.requestConfig.headers[unasked]);
+
 document.addEventListener("htmx:beforeRequest", ev => {
+	if (askedByPage(ev)) {
+		return;
+	}
 	inFlight++;
 	const target = ev.detail && ev.detail.target;
 	if (target && target.setAttribute) {
@@ -792,6 +798,9 @@ document.addEventListener("htmx:beforeRequest", ev => {
 
 for (const event of ["htmx:afterRequest", "htmx:sendError", "htmx:timeout", "htmx:responseError"]) {
 	document.addEventListener(event, ev => {
+		if (askedByPage(ev)) {
+			return;
+		}
 		inFlight = Math.max(0, inFlight - 1);
 		const target = ev.detail && ev.detail.target;
 		if (target && target.removeAttribute) {

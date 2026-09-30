@@ -75,7 +75,7 @@ func handleStartOver(ctx *web.Context) error {
 	}
 	recovery, err := ctx.Server.StartOver(ctx.Request().Context(), ctx.Login)
 	if err != nil {
-		return err
+		return encryptionRefusal(ctx, err)
 	}
 	if recovery != "" {
 		return renderEncryption(ctx, http.StatusOK, "", recovery, "notice.startedover")
@@ -94,7 +94,7 @@ func encryptionRefusal(ctx *web.Context, err error) error {
 		return renderEncryption(ctx, http.StatusUnprocessableEntity, ctx.T("encryption.wrongpassword"), "", "")
 	case errors.Is(err, alborz.ErrRecoveryKey):
 		return renderEncryption(ctx, http.StatusUnprocessableEntity, ctx.T("encryption.wrongrecovery"), "", "")
-	case errors.Is(err, errors.ErrUnsupported), errors.Is(err, alborz.ErrLocked):
+	case errors.Is(err, errors.ErrUnsupported), errors.Is(err, alborz.ErrLocked), errors.As(err, new(alborz.StoreRefusedError)):
 		return renderEncryption(ctx, http.StatusUnprocessableEntity, ctx.SaveRefusal(err), "", "")
 	}
 	return err

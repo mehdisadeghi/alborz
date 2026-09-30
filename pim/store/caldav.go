@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"path"
 	"slices"
@@ -174,7 +175,8 @@ func (b calendars) ListCalendarObjects(ctx context.Context, p string, req *calda
 
 // QueryCalendarObjects parses, which a filter cannot do without. An object
 // that does not parse goes to the filter as its bytes, which it keeps for
-// the client to judge.
+// the client to judge; one go-ical would not write back, as one a client
+// stored with a property twice, is filtered as read and sent as stored.
 func (b calendars) QueryCalendarObjects(ctx context.Context, p string, query *caldav.CalendarQuery) ([]caldav.CalendarObject, error) {
 	objects, err := b.objects(ctx, p, Calendar)
 	if err != nil {
@@ -187,7 +189,13 @@ func (b calendars) QueryCalendarObjects(ctx context.Context, p string, query *ca
 			all[i].Data, all[i].Raw = nil, o.Data
 		}
 	}
-	return caldav.Filter(query, all)
+	found, err := caldav.Filter(query, all)
+	for i := range found {
+		if found[i].Data != nil && found[i].Raw != nil && ical.NewEncoder(io.Discard).Encode(found[i].Data) != nil {
+			found[i].Data = nil
+		}
+	}
+	return found, err
 }
 
 func (b calendars) PutCalendarObject(ctx context.Context, p string, cal *ical.Calendar, opts *caldav.PutCalendarObjectOptions) (*caldav.CalendarObject, error) {

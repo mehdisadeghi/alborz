@@ -610,3 +610,20 @@ func TestAnExportLeavesOutWhatCannotBeWritten(t *testing.T) {
 		t.Errorf("the page after the export does not say what was left out, and why:\n%s", bar)
 	}
 }
+
+// An event alborz's DAV server took as sent, though go-ical would not write it, is served as stored: the
+// month shows it beside the rest.
+func TestAStoredEventGoIcalWouldNotWriteIsServed(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	coll := c.CreateCalendar(t, "Plans", "")
+	a.Put(t, coll+"plain.ics", "text/calendar", Event("plain", "Plain"))
+	a.Put(t, coll+"twice.ics", "text/calendar", strings.Replace(Event("twice", "One"), "SUMMARY:One", "SUMMARY:One\r\nSUMMARY:Two", 1))
+	resp := c.Get(t, "calendar.month", url.Values{"month": {"2026-09"}})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the month answered %s", resp.Status)
+	}
+	if !strings.Contains(resp.Text, "Plain") || !strings.Contains(resp.Text, "One") {
+		t.Errorf("the month does not show both events")
+	}
+}

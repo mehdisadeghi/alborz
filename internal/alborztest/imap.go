@@ -79,7 +79,7 @@ func Sorting() IMAPOption { return func(c *imapConfig) { c.sorting = true } }
 func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	t.Helper()
 	// METADATA is not listed: the in-memory server does not implement it.
-	c := imapConfig{caps: imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {}, imap.CapCondStore: {}, imap.CapSort: {}}}
+	c := imapConfig{caps: imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {}, imap.CapCondStore: {}, imap.CapSort: {}, imap.CapBinary: {}}}
 	for _, o := range opts {
 		o(&c)
 	}

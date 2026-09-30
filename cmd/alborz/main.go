@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/cmd/alborz/app"
 	mailweb "git.mehdix.org/alborz/mail/web"
 	"git.mehdix.org/alborz/web"
 )
@@ -136,7 +137,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		return err
 	}
 	defer s.Close()
-	if err := mount(s); err != nil {
+	if err := app.Mount(s); err != nil {
 		return err
 	}
 	handler, err := s.Handler()

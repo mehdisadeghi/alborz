@@ -13,6 +13,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/kv/bolt"
+	"git.mehdix.org/alborz/internal/seal"
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-ical"
 )
@@ -25,7 +26,11 @@ func feedsAt(t *testing.T, client *http.Client) *feeds {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return &feeds{client: client, log: log.Default(), store: store.New(db),
+	root, err := seal.ParseRoot("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &feeds{client: client, log: log.Default(), store: store.New(db, root),
 		fetching: map[string]bool{}, failed: map[string]time.Time{}}
 }
 
@@ -96,7 +101,7 @@ func TestFeedRefreshesOnItsOwnClockOncePerFeed(t *testing.T) {
 			hits, asked.Get("If-None-Match"), asked.Get("If-Modified-Since"))
 	}
 	for _, account := range accounts {
-		if objects, err := f.store.Objects(feedCalendar(account, srv.URL)); err != nil || len(objects) != 2 {
+		if objects, err := f.store.Objects(f.store.FeedRef(account, srv.URL)); err != nil || len(objects) != 2 {
 			t.Fatalf("%s's calendar holds %d objects (%v), want the feed's two", account, len(objects), err)
 		}
 	}

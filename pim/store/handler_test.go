@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz/internal/kv/bolt"
+	"git.mehdix.org/alborz/internal/seal"
 )
 
 const event = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:e1\r\n" +
@@ -22,7 +23,11 @@ func open(t *testing.T) *Store {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return New(db)
+	root, err := seal.ParseRoot("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return New(db, root)
 }
 
 func serve(t *testing.T, h http.Handler, account, method, path, body string) int {

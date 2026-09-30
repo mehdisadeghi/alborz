@@ -1088,7 +1088,7 @@ other = "%[1]d carpetas más"
 one = "El servidor de calendario y contactos de %[2]s rechazó la contraseña. Vuelve a introducirla."
 other = "Los servidores de calendario y contactos de %[2]s rechazaron las contraseñas. Vuelve a introducirlas."
 
-["notice.calendarunread"]
+["notice.unread"]
 one = "No se pudo leer parte de %[2]s."
 other = "No se pudieron leer partes de %[2]s."
 

@@ -199,10 +199,15 @@ func (d *DAVServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // sync-collection gets a token as well.
 func (d *DAVServer) report(w http.ResponseWriter, r *http.Request, body string) {
 	_, calendar := d.cals[r.URL.Path]
+	_, book := d.books[r.URL.Path]
 	_, object := d.objects[r.URL.Path]
-	if !calendar && !object {
+	if !calendar && !book && !object {
 		multistatus(w)
 		return
+	}
+	element := `C:calendar-data`
+	if _, inBook := d.books[path.Dir(r.URL.Path)+"/"]; book || inBook {
+		element = `A:address-data xmlns:A="urn:ietf:params:xml:ns:carddav"`
 	}
 	var resps []string
 	for _, p := range slices.Sorted(maps.Keys(d.objects)) {
@@ -214,7 +219,7 @@ func (d *DAVServer) report(w http.ResponseWriter, r *http.Request, body string) 
 		}
 		var data strings.Builder
 		xml.EscapeText(&data, []byte(d.objects[p]))
-		resps = append(resps, propResponse(p, `<getetag>"1"</getetag><C:calendar-data>`+data.String()+"</C:calendar-data>"))
+		resps = append(resps, propResponse(p, `<getetag>"1"</getetag><`+element+`>`+data.String()+"</"+strings.Fields(element)[0]+">"))
 	}
 	if strings.Contains(body, "sync-collection") {
 		resps = append(resps, "<sync-token>1</sync-token>")

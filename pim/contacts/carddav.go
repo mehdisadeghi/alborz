@@ -10,6 +10,7 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -216,10 +217,27 @@ func WriteCard(ctx context.Context, c *carddav.Client, at string, card vcard.Car
 	return err
 }
 
+// GetObject is the card at p, or alborz.ErrUnreadable for an answer that does not parse.
+func GetObject(ctx context.Context, c *carddav.Client, p string) (*carddav.AddressObject, error) {
+	ao, err := c.GetAddressObject(ctx, p)
+	// What is neither the server's status nor the transport's failure, a *url.Error, is the answer.
+	var transport net.Error
+	if _, answered := webdav.HTTPErrorCode(err); err != nil && !answered && !errors.As(err, &transport) && ctx.Err() == nil {
+		return nil, fmt.Errorf("%w: %s: %v", alborz.ErrUnreadable, p, err)
+	}
+	return ao, err
+}
+
+// Unparsed is the card of book the client could not parse.
+func Unparsed(book string, ao *carddav.AddressObject) pim.Unread {
+	_, err := vcard.NewDecoder(bytes.NewReader(ao.Raw)).Decode()
+	return pim.Unread{Collection: book, Err: fmt.Errorf("%s: %w", ao.Path, err)}
+}
+
 func ChangeCard(ctx context.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
-	ao, err := ref.Client.GetAddressObject(ctx, ref.Path)
+	ao, err := GetObject(ctx, ref.Client, ref.Path)
 	if err != nil {
-		return fmt.Errorf("failed to read the contact: %v", err)
+		return fmt.Errorf("failed to read the contact: %w", err)
 	}
 	change(ao.Card)
 	return WriteCard(ctx, ref.Client, ao.Path, ao.Card)

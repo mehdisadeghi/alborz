@@ -98,7 +98,9 @@ func (b books) ListAddressObjects(ctx context.Context, p string, req *carddav.Ad
 	return out, nil
 }
 
-// QueryAddressObjects parses only when the query has a filter to run.
+// QueryAddressObjects parses only when the query has a filter to run. A card
+// that does not parse goes to the filter as its bytes, which it keeps for the
+// client to judge.
 func (b books) QueryAddressObjects(ctx context.Context, p string, query *carddav.AddressBookQuery) ([]carddav.AddressObject, error) {
 	objects, err := b.objects(ctx, p, AddressBook)
 	if err != nil {
@@ -111,7 +113,7 @@ func (b books) QueryAddressObjects(ctx context.Context, p string, query *carddav
 			continue
 		}
 		if all[i].Card, err = vcard.NewDecoder(bytes.NewReader(o.Data)).Decode(); err != nil {
-			return nil, err
+			all[i].Card, all[i].Raw = nil, o.Data
 		}
 	}
 	return carddav.Filter(query, all)

@@ -729,3 +729,22 @@ func TestAnUnknownTransferEncodingShowsTheBytes(t *testing.T) {
 		t.Errorf("the zip holds %q, want %q", got, want)
 	}
 }
+
+// A Content-Type whose parameters do not parse is read as the server's structure has it.
+func TestAMalformedContentTypeIsReadAsTheServerHasIt(t *testing.T) {
+	head := "From: <eve@example.org>\r\nTo: <" + User + ">\r\nSubject: Odd parameters\r\nMIME-Version: 1.0\r\n"
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	for _, contentType := range []string{`text/plain; charset="utf-8; format=flowed`, "text/plain; charset=utf-8; =bad"} {
+		uid := a.IMAP.Append(t, "INBOX", head+"Content-Type: "+contentType+"\r\n\r\nSalam, donya.\r\n")
+		for _, route := range []string{"mail.message", "mail.message.reply", "mail.message.forward"} {
+			resp := c.Get(t, route, "INBOX", uid, url.Values{"part": {"1"}})
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("%s under %q: %s", route, contentType, resp.Status)
+			}
+			if !strings.Contains(resp.Text, "Salam, donya.") {
+				t.Errorf("%s under %q does not show the text", route, contentType)
+			}
+		}
+	}
+}

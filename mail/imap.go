@@ -472,6 +472,7 @@ func newIMAPPartNode(msg *IMAPMessage, path []int, part imap.BodyStructure) *IMA
 		node.Filename = singlePart.Filename()
 		node.Size = decodedSize(singlePart)
 		node.octets = singlePart.Size
+		node.params = singlePart.Params
 		if inner := singlePart.MessageRFC822; node.Filename == "" && inner != nil && inner.Envelope != nil {
 			node.Filename = attachmentName(inner.Envelope.Subject)
 		}
@@ -742,6 +743,8 @@ type IMAPPartNode struct {
 	Size     uint32
 	// octets is the size as transferred, which a partial fetch counts.
 	octets uint32
+	// params are the Content-Type parameters as the server read them.
+	params map[string]string
 }
 
 func (node IMAPPartNode) PathString() string {
@@ -1662,7 +1665,7 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 	}
 
 	node := out.PartByPath(partPath)
-	part, err := readPart(h, bodyBuf, cut && node != nil && node.Cut())
+	part, err := readPart(h, bodyBuf, node, cut && node != nil && node.Cut())
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create message reader: %v", err)
 	}
@@ -1671,12 +1674,17 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 
 // readPart reads a part's body under its header. A cut body ends at its last
 // line break, where a transfer encoding can end, and on a whole rune.
-func readPart(h textproto.Header, body []byte, cut bool) (*message.Entity, error) {
+func readPart(h textproto.Header, body []byte, node *IMAPPartNode, cut bool) (*message.Entity, error) {
 	if i := bytes.LastIndexByte(body, '\n'); cut && i >= 0 {
 		body = body[:i+1]
 	}
+	header := message.Header{Header: h}
+	// A Content-Type that does not parse is read as the server's structure has it.
+	if _, _, err := header.ContentType(); err != nil && node != nil {
+		header.SetContentType(node.MIMEType, node.params)
+	}
 	// An unknown charset or transfer encoding, its only errors, leaves the part as its bytes, as the download does.
-	part, _ := message.New(message.Header{Header: h}, bytes.NewReader(body))
+	part, _ := message.New(header, bytes.NewReader(body))
 	if cut {
 		text, err := io.ReadAll(part.Body)
 		if err != nil {

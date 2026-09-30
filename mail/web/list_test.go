@@ -256,20 +256,17 @@ func TestNextStaysOnTheSite(t *testing.T) {
 	if len(uids) == 0 {
 		t.Fatal("no seeded messages")
 	}
-	flag := func(next string) string {
-		resp := c.Post(t, "mail.messages.flag", url.Values{"uids": {uids[0]}, "flags": {"\\Seen"}, "next": {next}}, "INBOX")
-		if resp.StatusCode != http.StatusFound {
-			t.Fatalf("flag with next=%q: %s", next, resp.Status)
-		}
-		return resp.Header.Get("Location")
-	}
+	message := a.Path("mail.message", "INBOX", uids[0])
 	ours := a.Path("mail.mailbox", "INBOX", url.Values{"all": {"1"}})
-	if to := flag(ours); to != ours {
-		t.Errorf("a page of ours was not returned to: %q", to)
-	}
-	for _, next := range []string{"https://evil.example/", "//evil.example/", "/\\evil.example/"} {
-		if to := flag(next); to != a.Path("mail.message", "INBOX", uids[0]) {
-			t.Errorf("next=%q redirected to %q", next, to)
+	for next, want := range map[string]string{
+		ours:                    ours,
+		"https://evil.example/": message,
+		"//evil.example/":       message,
+		"/\\evil.example/":      message,
+	} {
+		resp := c.Post(t, "mail.messages.flag", url.Values{"uids": {uids[0]}, "flags": {"\\Seen"}, "next": {next}}, "INBOX")
+		if to := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound || to != want {
+			t.Errorf("next=%q answered %s to %q, want %q", next, resp.Status, to, want)
 		}
 	}
 }

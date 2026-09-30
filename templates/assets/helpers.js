@@ -1280,4 +1280,154 @@ document.addEventListener("htmx:confirm", ev => {
 	}
 });
 
+// The header's search, as the reader types. Without it the dialog's form is a plain GET of the search page.
+(() => {
+	// Long enough to wait out a word being typed; short enough to read as instant.
+	const TYPED_MS = 250;
+	// A section that asks a server is asked once the reader stops, or at Enter: typing asks nothing of it.
+	const PAUSED_MS = 1000;
+
+	let typed = 0;
+	let paused = 0;
+	// The query asked, and the controller that withdraws its requests when the next one starts.
+	let run = null;
+
+	const parts = () => {
+		const dialog = document.getElementById("search-dialog");
+		if (!dialog) {
+			return null;
+		}
+		return {
+			dialog,
+			form: dialog.querySelector("form"),
+			input: dialog.querySelector('input[name="query"]'),
+			found: dialog.querySelector(".search-dialog-found"),
+		};
+	};
+
+	const blocks = found => [...found.querySelectorAll("section[data-section]")];
+
+	// Only the dialog asks for a fragment, and names itself as htmx would.
+	const ask = (p, block, extra) => {
+		const params = new URLSearchParams(new FormData(p.form));
+		params.set("section", block.dataset.section);
+		for (const [k, v] of Object.entries(extra)) {
+			params.set(k, v);
+		}
+		// A section asked twice for one query shows the last answer asked for, whichever arrives last.
+		const current = run;
+		const token = {};
+		current.latest[block.dataset.section] = token;
+		block.setAttribute("aria-busy", "true");
+		fetch(p.form.action + "?" + params, {
+			signal: current.ctrl.signal,
+			headers: { "HX-Request": "true", "HX-Target": p.dialog.id },
+		})
+			.then(r => r.ok ? r.text() : Promise.reject(new Error(r.status)))
+			.then(html => {
+				const t = document.createElement("template");
+				t.innerHTML = html;
+				const answer = t.content.querySelector("section[data-section]");
+				const now = p.found.querySelector(`section[data-section="${CSS.escape(block.dataset.section)}"]`);
+				if (answer && now && current === run && current.latest[block.dataset.section] === token) {
+					now.replaceWith(answer);
+					if (window.htmx) {
+						htmx.process(answer);
+					}
+				}
+			})
+			.catch(err => {
+				if (err.name === "AbortError" || current !== run || current.latest[block.dataset.section] !== token) {
+					return;
+				}
+				const now = p.found.querySelector(`section[data-section="${CSS.escape(block.dataset.section)}"]`);
+				if (now) {
+					const note = document.createElement("p");
+					note.className = "hint list-option";
+					note.textContent = p.found.dataset.failed;
+					now.replaceChildren(now.querySelector(".search-kind"), note);
+					now.removeAttribute("aria-busy");
+				}
+			});
+	};
+
+	const start = p => {
+		const query = p.input.value.trim();
+		if (run && run.query === query) {
+			return;
+		}
+		if (run) {
+			run.ctrl.abort();
+		}
+		run = { query, ctrl: new AbortController(), latest: {} };
+		p.found.hidden = query === "";
+		if (query === "") {
+			return;
+		}
+		for (const block of blocks(p.found)) {
+			ask(p, block, "remote" in block.dataset ? { held: "1" } : {});
+		}
+	};
+
+	const full = p => {
+		clearTimeout(paused);
+		if (!run || run.query === "") {
+			return;
+		}
+		for (const block of blocks(p.found)) {
+			if ("remote" in block.dataset) {
+				ask(p, block, {});
+			}
+		}
+	};
+
+	document.addEventListener("input", ev => {
+		const p = parts();
+		if (!p || ev.target !== p.input) {
+			return;
+		}
+		clearTimeout(typed);
+		clearTimeout(paused);
+		typed = setTimeout(() => start(p), TYPED_MS);
+		paused = setTimeout(() => { start(p); full(p); }, PAUSED_MS);
+	});
+
+	// Captured, so the form is not marked as sent: it never leaves the page.
+	document.addEventListener("submit", ev => {
+		const p = parts();
+		if (!p || ev.target !== p.form) {
+			return;
+		}
+		ev.preventDefault();
+		clearTimeout(typed);
+		start(p);
+		full(p);
+	}, true);
+
+	// The field is where the dialog opens, with what was typed last ready to be replaced.
+	document.addEventListener("command", ev => {
+		const p = parts();
+		if (p && ev.target === p.dialog) {
+			requestAnimationFrame(() => p.input.select());
+		}
+	}, true);
+
+	// Arrows walk the field and each result's link; Enter opens the link, as it would anywhere.
+	document.addEventListener("keydown", ev => {
+		const p = parts();
+		if (!p || !p.dialog.open || (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") || ev.isComposing) {
+			return;
+		}
+		const stops = [p.input, ...p.found.querySelectorAll(".list-primary a, .list-option a")];
+		const at = stops.indexOf(document.activeElement);
+		if (at < 0) {
+			return;
+		}
+		ev.preventDefault();
+		const to = Math.min(stops.length - 1, Math.max(0, at + (ev.key === "ArrowDown" ? 1 : -1)));
+		stops[to].focus();
+		stops[to].scrollIntoView({ block: "nearest" });
+	});
+})();
+
 // @license-end

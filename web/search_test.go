@@ -149,3 +149,74 @@ func TestSearchSaysWhereAKeyWasNotSearched(t *testing.T) {
 		t.Errorf("mail's own search at %s does not find Eve's message", all)
 	}
 }
+
+// asked is what the header's search is answered when it asks one section, as its script does.
+func asked(t *testing.T, a *App, c *Client, params url.Values) *Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, a.URL+a.Path("core.search", params), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("HX-Request", "true")
+	req.Header.Set("HX-Target", "search-dialog")
+	return c.Do(t, req)
+}
+
+// Typing asks mail nothing: its block answers from the rows alborz holds, so thirty accounts cost no
+// IMAP search a keystroke, and says the search goes on.
+func TestHeaderSearchAsksNoMailServerWhileTyping(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	if !strings.Contains(c.Page(t, "mail.mailbox", "INBOX"), "Ideas for the redesign") {
+		t.Fatal("the inbox does not list Eve's message")
+	}
+	a.IMAP.Close()
+
+	held := asked(t, a, c, url.Values{"query": {"eve"}, "section": {"mail"}, "held": {"1"}})
+	if held.StatusCode != http.StatusOK {
+		t.Fatalf("the held answer is %s with the server gone", held.Status)
+	}
+	if strings.Count(held.Text, "<section") != 1 || !strings.Contains(held.Text, `id="search-dialog-mail"`) || strings.Contains(held.Text, "<!DOCTYPE") {
+		t.Fatalf("the held answer is not mail's block alone: %q", held.Text)
+	}
+	if !strings.Contains(held.Text, "Ideas for the redesign") || !strings.Contains(held.Text, "Searching") || strings.Contains(held.Text, "All ") {
+		t.Errorf("the held block does not show Eve's message and say the search goes on: %q", held.Text)
+	}
+	// A state is not in a row's headers: nothing held is shown for it.
+	unread := asked(t, a, c, url.Values{"query": {"is:unread"}, "section": {"mail"}, "held": {"1"}})
+	if strings.Contains(unread.Text, "message-row") || !strings.Contains(unread.Text, "Searching") {
+		t.Errorf("held rows answer is:unread: %q", unread.Text)
+	}
+}
+
+// Each section is asked on its own, and answers with its block; a plain request gets the whole page.
+func TestHeaderSearchAsksEachSection(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	sections(t, a, c, "Lantern", "Kettle")
+
+	page := c.Page(t, "mail.mailbox", "INBOX")
+	form := Between(page, `<dialog id="search-dialog"`, "</form>")
+	if !strings.Contains(form, `method="get" action="`+a.Path("core.search")+`"`) || !strings.Contains(form, `name="query"`) {
+		t.Errorf("the header's search is not a form that asks the search page: %q", form)
+	}
+
+	tasks := asked(t, a, c, url.Values{"query": {"Lantern"}, "section": {"tasks"}})
+	if strings.Count(tasks.Text, "<section") != 1 || !strings.Contains(tasks.Text, "Lantern task") || strings.Contains(tasks.Text, "Kettle") ||
+		strings.Contains(tasks.Text, "data-remote") || strings.Contains(tasks.Text, "aria-busy") {
+		t.Errorf("the tasks block is not the one task, answered: %q", tasks.Text)
+	}
+	mail := asked(t, a, c, url.Values{"query": {"eve"}, "section": {"mail"}})
+	if !strings.Contains(mail.Text, "Ideas for the redesign") || !strings.Contains(mail.Text, "2 results in Email") || strings.Contains(mail.Text, "aria-busy") {
+		t.Errorf("mail's block is not its search of every folder: %q", mail.Text)
+	}
+	for _, bad := range []url.Values{{"query": {"eve"}, "section": {"nowhere"}}, {"query": {"eve"}, "section": {"tasks"}, "held": {"1"}}} {
+		if resp := asked(t, a, c, bad); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%v answered %s", bad, resp.Status)
+		}
+	}
+	whole := c.Page(t, "core.search", url.Values{"query": {"eve"}, "section": {"mail"}})
+	if !strings.Contains(whole, "<!DOCTYPE") || !strings.Contains(whole, `id="search-mail"`) || strings.Contains(whole, `id="search-tasks"`) {
+		t.Errorf("a plain request for one section is not the page with that section")
+	}
+}

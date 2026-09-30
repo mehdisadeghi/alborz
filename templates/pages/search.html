@@ -11,17 +11,5 @@
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 
-      {{ range .Blocks }}
-      <section class="search-block" aria-labelledby="search-{{.Kind}}">
-        <h2 id="search-{{.Kind}}" class="search-kind">{{.Label}}</h2>
-        {{ if .Unasked }}
-        <p class="hint list-option">{{ $.T "search.unasked" }} {{ range $i, $key := .Unasked }}{{ if $i }}, {{ end }}{{ template "ltr" (printf "%s:" $key) }}{{ end }}</p>
-        {{ else if .Total }}
-        {{ .Rows }}
-        <p class="list-option"><a href="{{ localhref .All }}">{{ $.GlobalData.Tf "search.all" .Total .Label }}</a></p>
-        {{ else }}
-        <p class="hint list-option">{{ $.T "search.none" }}</p>
-        {{ end }}
-      </section>
-      {{ end }}
+      {{ template "search-found" (dict "g" $ "id" "search" "blocks" .Blocks) }}
 {{ end }}

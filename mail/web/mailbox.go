@@ -53,6 +53,8 @@ type MailboxRenderData struct {
 	FilterRows []web.FilterRow
 	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
 	SelectForm string
+	// ListPath is the list a row's sender narrows; empty for the page's own.
+	ListPath string
 }
 
 var unifiedRoles = []string{"INBOX", "Drafts", "Sent", "Junk", "Trash", "Archive"}

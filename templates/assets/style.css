@@ -615,6 +615,120 @@ header a.active {
   text-decoration: none;
 }
 
+/* A field in the header opens the search; it yields before the sections' words do, then is their icon. */
+header nav > .nav-search-open {
+  display: flex;
+  flex: 0 1 16rem;
+  min-width: 8rem;
+  margin: 0;
+  margin-inline-start: auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: 0 var(--space-2);
+  color: var(--fg-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.04);
+  cursor: text;
+}
+
+header nav > .nav-search-open + div { margin-inline-start: 0; }
+
+header nav .nav-search-open:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  color: var(--fg);
+  background: var(--bg);
+  border-color: var(--border-strong);
+}
+
+header nav .nav-search-open .label {
+  flex: 1;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+header nav .nav-search-open kbd {
+  padding: 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+header nav.is-icons > .nav-search-open {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  align-self: stretch;
+  padding: 0;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+header nav.is-icons .nav-search-open:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  background: none;
+  border-bottom-color: var(--border-strong);
+}
+
+header nav.is-icons .nav-search-open :is(.label, kbd) { display: none; }
+
+/* Held to the top, not centred: the field stays put as the answers grow under it. */
+.search-dialog {
+  width: min(64rem, calc(100vw - 2 * var(--space-4)));
+  max-width: none;
+  max-height: calc(100dvh - 2 * var(--space-6));
+  margin-block: var(--space-6) auto;
+  padding: 0;
+  color: var(--fg);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+}
+
+.search-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-dialog::backdrop { background: var(--scrim); }
+
+.search-dialog > form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.search-dialog > form > .icon { color: var(--fg-muted); flex: none; }
+
+.search-dialog > form > input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  box-shadow: none;
+  background: none;
+  font-size: var(--text-lg);
+}
+
+/* The field is the dialog's whole purpose; its line under it carries the focus. */
+.search-dialog > form > input[type="text"]:focus-visible { outline: none; }
+.search-dialog > form:has(input:focus-visible) { border-bottom-color: var(--link); }
+
+.search-dialog-found { overflow-y: auto; }
+
+/* An answer under way leaves the last one readable, dimmed as not yet this query's. */
+.search-block[aria-busy="true"] > :not(.search-kind) { opacity: 0.6; }
+
 /* Fixed to the window: a reader scrolled down a list is the one told mail arrived (ADR 41). */
 .notices {
   position: fixed;
@@ -4684,6 +4798,15 @@ h1.no-word .title-short {
   }
 
   .contact-row > .contact-list-checkbox { grid-area: check; }
+
+  .search-dialog {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
 
   /* No box: the empty first track's gap stands in for the card's padding. */
   :is(.message-row, .task-row, .contact-row):not(:has(> .list-checkbox)) { padding-inline-start: 0; }

@@ -44,7 +44,7 @@
 		o: () => { const row = rowOf(document.activeElement); if (row) { linkOf(row).click(); } },
 		x: () => { const box = inRow('input[type="checkbox"][form]'); if (box) { box.click(); } },
 		s: () => { const star = inRow(".flag-button") || document.querySelector(".subject-row .flag-button"); if (star) { star.click(); } },
-		"/": () => { const search = document.querySelector(".actions-search input"); if (search) { search.focus(); search.select(); } },
+		"/": () => { const open = document.querySelector(".nav-search-open"); if (open) { open.click(); } },
 		"?": () => help(),
 	};
 
@@ -191,7 +191,16 @@
 	let going = 0;
 	document.addEventListener("keydown", ev => {
 		// A key pressed while an input method composes is part of a character.
-		if (ev.defaultPrevented || ev.isComposing || ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target)) {
+		if (ev.defaultPrevented || ev.isComposing) {
+			return;
+		}
+		// The one chord, as other apps have it: search from anywhere, a field or the search itself included.
+		if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && ev.key.toLowerCase() === "k") {
+			ev.preventDefault();
+			builtin["/"]();
+			return;
+		}
+		if (ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target)) {
 			return;
 		}
 		const dialog = document.querySelector("dialog[open], [popover]:popover-open");

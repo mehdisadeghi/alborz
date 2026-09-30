@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -36,13 +37,24 @@ func status(err error) int {
 		return http.StatusBadGateway
 	case errors.Is(err, alborz.ErrIMAPQueueFull):
 		return http.StatusServiceUnavailable
+	case errors.Is(err, alborz.ErrSuperseded):
+		return http.StatusConflict
 	}
 	return http.StatusInternalServerError
 }
 
 // fail answers a handler's error with a page: what was not found, which server did not answer, or the status.
 func (s *Server) fail(ctx *Context, err error) {
+	// A reader who has gone reads no answer, and going is no failure.
+	if errors.Is(err, context.Canceled) && errors.Is(ctx.Request().Context().Err(), context.Canceled) {
+		return
+	}
 	code := status(err)
+	if errors.Is(err, alborz.ErrSuperseded) {
+		if err := renderInfo(ctx, code, ctx.T("search.superseded")); err == nil {
+			return
+		}
+	}
 	if code == http.StatusNotFound {
 		message := err.Error()
 		var missing *alborz.NotFoundError

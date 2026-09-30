@@ -326,6 +326,26 @@ func TestSearchMoveUndoesIntoTheFolderItCameFrom(t *testing.T) {
 	}
 }
 
+// The first search is held on its first folder until the second reaches the server.
+func TestANewerSearchWithdrawsTheOlder(t *testing.T) {
+	rig := IMAP(t, Hold("stallword", "redesign"))
+	a := Alborz(t, WithIMAP(rig))
+	c := a.SignIn(t, User)
+	older := make(chan *Response, 1)
+	go func() { older <- c.Get(t, "mail.search", url.Values{"query": {"text:stallword"}}) }()
+	<-rig.Held()
+	newer := c.Page(t, "mail.search", url.Values{"query": {"redesign"}})
+	if len(MessageUIDs(newer)) == 0 {
+		t.Fatal("the newer search found nothing")
+	}
+	if resp := <-older; resp.StatusCode != http.StatusConflict || !Says(t, resp.Text, "search.superseded") {
+		t.Errorf("the withdrawn search answered %s, want a conflict saying a newer search replaced it", resp.Status)
+	}
+	if n := rig.Asked(); n != 1 {
+		t.Errorf("the withdrawn search asked %d folders, want the one it held", n)
+	}
+}
+
 // Both offers are followed as the browser would, relative to the page that drew them.
 func TestFolderSearchOffersEveryFolder(t *testing.T) {
 	a := Alborz(t)

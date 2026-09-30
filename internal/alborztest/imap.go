@@ -33,6 +33,8 @@ type IMAPServer struct {
 	armed  chan struct{}
 	sorts  atomic.Int32
 	thread atomic.Int32
+	asked  atomic.Int32
+	held   chan struct{}
 	// passwords holds the passwords changed from Password.
 	passwords sync.Map
 	// md holds the entries the Metadata proxy keeps.
@@ -47,6 +49,7 @@ type imapConfig struct {
 	sorting        bool
 	metadata       bool
 	refuseAppend   string
+	hold, until    string
 }
 
 type IMAPOption func(*imapConfig)
@@ -91,6 +94,12 @@ func Metadata() IMAPOption { return func(c *imapConfig) { c.metadata = true } }
 // filter does.
 func RefuseAppend(marker string) IMAPOption { return func(c *imapConfig) { c.refuseAppend = marker } }
 
+// Hold stalls the first command naming hold until one naming until has gone to the server, on any
+// connection, and counts the commands naming hold.
+func Hold(hold, until string) IMAPOption {
+	return func(c *imapConfig) { c.hold, c.until = hold, until }
+}
+
 // IMAP serves User, User2 and Elsewhere, with the rig's folders and messages.
 func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	t.Helper()
@@ -101,7 +110,7 @@ func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 		o(&c)
 	}
 	mem := imapmemserver.New()
-	s := &IMAPServer{armed: make(chan struct{}), user: seedFirst(t)}
+	s := &IMAPServer{armed: make(chan struct{}), held: make(chan struct{}), user: seedFirst(t)}
 	mem.AddUser(s.user)
 	mem.AddUser(seedSecond(t))
 	mem.AddUser(seedElsewhere(t))
@@ -142,6 +151,9 @@ func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	if c.sorting {
 		s.Addr = s.sortingProxy(t, s.Addr)
 	}
+	if c.hold != "" {
+		s.Addr = proxyPair(t, s.Addr, s.holding(c.hold, c.until))
+	}
 	return s
 }
 
@@ -160,6 +172,12 @@ func (s *IMAPServer) Wire() int64 { return s.wire.Load() }
 // Sorts and Threads count the SORT and THREAD commands the Sorting proxy answered.
 func (s *IMAPServer) Sorts() int32   { return s.sorts.Load() }
 func (s *IMAPServer) Threads() int32 { return s.thread.Load() }
+
+// Asked counts the commands naming Hold's word.
+func (s *IMAPServer) Asked() int32 { return s.asked.Load() }
+
+// Held is closed once Hold stalls a command.
+func (s *IMAPServer) Held() <-chan struct{} { return s.held }
 
 // Append puts raw into User's mbox.
 func (s *IMAPServer) Append(t *testing.T, mbox, raw string, flags ...imap.Flag) imap.UID {
@@ -398,6 +416,31 @@ func trickle(chunk int) func(client, server net.Conn) {
 				return
 			}
 			time.Sleep(time.Millisecond)
+		}
+	}
+}
+
+func (s *IMAPServer) holding(hold, until string) func(client, server net.Conn) {
+	released := make(chan struct{})
+	var release sync.Once
+	return func(client, server net.Conn) {
+		go func() {
+			io.Copy(client, server)
+			client.Close()
+		}()
+		r := bufio.NewReader(client)
+		for {
+			line, err := r.ReadBytes('\n')
+			if bytes.Contains(line, []byte(until)) {
+				release.Do(func() { close(released) })
+			}
+			if bytes.Contains(line, []byte(hold)) && s.asked.Add(1) == 1 {
+				close(s.held)
+				<-released
+			}
+			if _, werr := server.Write(line); werr != nil || err != nil {
+				return
+			}
 		}
 	}
 }

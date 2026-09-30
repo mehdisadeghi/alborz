@@ -93,7 +93,7 @@
       {{ end }}
 
       {{ if .Writable }}
-      <form method="post" enctype="multipart/form-data" action="{{url (printf "%s.import" .Collection) .Path}}{{account "?" .Account}}" class="collection-file">
+      <form method="post" enctype="multipart/form-data" hx-boost="false" action="{{url (printf "%s.import" .Collection) .Path}}{{account "?" .Account}}" class="collection-file">
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
         <h2>{{$.T "collection.importtitle"}}</h2>
         <label>

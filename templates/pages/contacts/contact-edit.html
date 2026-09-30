@@ -12,7 +12,7 @@
 
 {{ define "main" }}
   {{ $acct := .GlobalData.AccountQuery }}
-      <form method="post" enctype="multipart/form-data">
+      <form method="post" enctype="multipart/form-data" hx-boost="false">
         {{ template "object-form-head" (dict "g" $ "editing" .AddressObject "collection" .AddressBook "groups" .Groups "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book"
            "title" (or (and .AddressObject ($.T "contacts.edittitle")) ($.T "contacts.createtitle")) "name" "addressbook" "key" "contact") }}
 

@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-      <form method="post" enctype="multipart/form-data" id="compose-form" data-upload="{{url "mail.attachment.add"}}" data-local-image="{{.LocalImage}}"{{ if .Reply }} data-reply{{ end }}>
+      <form method="post" enctype="multipart/form-data" hx-boost="false" id="compose-form" data-upload="{{url "mail.attachment.add"}}" data-local-image="{{.LocalImage}}"{{ if .Reply }} data-reply{{ end }}>
         {{ template "mail-crumb" $ }}
         <h1 class="visually-hidden">{{$.T "aside.compose"}}</h1>
         <input type="hidden" name="message_id" value="{{.Message.MessageID}}">

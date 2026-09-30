@@ -27,7 +27,7 @@ func servedFeed(t *testing.T, body string) *httptest.Server {
 // clubNight repeats weekly from today in Berlin, with an exception, an extra date, a moved
 // instance and an organizer, as a club's published calendar has them.
 func clubNight() string {
-	day := func(n int) string { return time.Now().AddDate(0, 0, n).Format("20060102") }
+	day := func(n int) string { return time.Now().UTC().AddDate(0, 0, n).Format("20060102") }
 	return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\nMETHOD:PUBLISH\r\nX-WR-CALNAME:Club\r\n" +
 		"BEGIN:VTIMEZONE\r\nTZID:Europe/Berlin\r\n" +
 		"BEGIN:STANDARD\r\nDTSTART:19701025T030000\r\nRRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\nTZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nEND:STANDARD\r\n" +

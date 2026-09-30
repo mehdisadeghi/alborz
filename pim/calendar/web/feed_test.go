@@ -39,7 +39,7 @@ func startFeed(t *testing.T, summary string) *feed {
 		}
 		w.Header().Set("ETag", `"`+s+`"`)
 		w.Write([]byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\nX-WR-CALNAME:Hols\r\n" +
-			"BEGIN:VEVENT\r\nUID:" + s + "\r\nDTSTART;VALUE=DATE:" + time.Now().Format("20060102") +
+			"BEGIN:VEVENT\r\nUID:" + s + "\r\nDTSTART;VALUE=DATE:" + time.Now().UTC().Format("20060102") +
 			"\r\nSUMMARY:" + s + "\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
 	}))
 	t.Cleanup(f.Close)

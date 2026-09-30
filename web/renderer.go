@@ -380,9 +380,7 @@ func (ctx *Context) Dates() dates.Reader {
 	r.Primary, r.Secondary = ctx.calendars()
 	// Unset means times keep their stored zones.
 	if ctx.Login != nil {
-		if loc := UserLocation(ctx); loc != time.UTC {
-			r.Loc = loc
-		}
+		r.Loc = UserLocation(ctx)
 	}
 	return r
 }

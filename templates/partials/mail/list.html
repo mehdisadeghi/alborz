@@ -15,7 +15,7 @@
       {{ end }}
       </div>
 
-      {{ $whole := "" }}{{ with .TextQuery }}{{ $whole = printf "?query=%s%s%s" (. | qv) (account "&" $.GlobalData.URLAccount) (or (and $.GlobalData.Unified "&all=1") "") }}{{ end }}
+      {{ $whole := "" }}{{ with .TextQuery }}{{ $whole = localhref (printf "?query=%s%s%s" (. | qv) (account "&" $.GlobalData.URLAccount) (or (and $.GlobalData.Unified "&all=1") "")) }}{{ end }}
       {{ $everywhere := "" }}{{ with .Everywhere }}{{ $everywhere = localhref (printf "%s?query=%s%s" (url "mail.search") (. | qv) (account "&" $.GlobalData.URLAccount)) }}{{ end }}
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove") "offers" (tuple (tuple $whole ($.T "mailbox.searchtext")) (tuple $everywhere ($.T "search.allfolders")))) }}
       {{/* On the part every swap renews: on main they stayed those of the first

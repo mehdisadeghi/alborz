@@ -49,7 +49,7 @@ func TestAnUnreachableSieveServerIsNamed(t *testing.T) {
 	c := Alborz(t, Upstream(Domain, "sieve+insecure://"+gone)).SignIn(t, User)
 	for _, route := range []string{"filters.rules", "filters.forwarding", "filters.autoreply"} {
 		resp := c.Get(t, route, url.Values{"account": {User}})
-		if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "The sieve server could not be reached.") {
+		if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "The filter server could not be reached.") || !strings.Contains(resp.Text, "<h1>The filter server did not answer</h1>") {
 			t.Errorf("%s answered %s without naming the server", route, resp.Status)
 		}
 	}

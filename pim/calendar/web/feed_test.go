@@ -57,8 +57,12 @@ func subscriber(t *testing.T, f *httptest.Server) (*App, *Client) {
 func subscribe(t *testing.T, c *Client, address string) string {
 	t.Helper()
 	before := c.Listed(t)
-	if resp := c.Post(t, "calendar.subscribe", url.Values{"address": {address}}); resp.StatusCode != http.StatusFound {
+	resp := c.Post(t, "calendar.subscribe", url.Values{"address": {address}})
+	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("subscribing answered %s", resp.Status)
+	}
+	if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "Subscribed to ") {
+		t.Error("subscribing says nothing of what it did")
 	}
 	var added []string
 	for p := range c.Listed(t) {

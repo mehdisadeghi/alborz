@@ -195,6 +195,7 @@
 "list.owner" = "مسئول"
 "list.archive" = "بایگانی"
 "notice.unsubscribed" = "اشتراک لغو شد."
+"notice.subscribed" = "اشتراک %s برقرار شد."
 "notice.unsubfailed" = "فهرست لغو اشتراک را نپذیرفت؛ شاید صفحهٔ خودش کار کند."
 "notice.misread" = "برخی از تنظیمات ذخیره‌شده خوانده نشد."
 "message.editdraft" = "ویرایش پیش‌نویس"

@@ -1078,6 +1078,8 @@
 "notice.notificationson" = "Notificaciones activadas para este navegador."
 "notice.notificationsoff" = "Notificaciones desactivadas."
 "notifications.failed" = "El navegador no pudo suscribirse a las notificaciones."
+"push.mail" = "Correo nuevo"
+"push.event" = "Evento a las %s"
 ["calendar.more"]
 one = "%d más"
 other = "%d más"

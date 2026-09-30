@@ -1078,6 +1078,8 @@
 "notice.notificationson" = "اعلان‌ها برای این مرورگر روشن شد."
 "notice.notificationsoff" = "اعلان‌ها خاموش شد."
 "notifications.failed" = "مرورگر نتوانست برای اعلان‌ها مشترک شود."
+"push.mail" = "نامهٔ تازه"
+"push.event" = "رویداد ساعت %s"
 ["calendar.more"]
 one = "%d مورد دیگر"
 other = "%d مورد دیگر"

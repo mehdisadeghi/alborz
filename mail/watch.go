@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -104,10 +105,13 @@ func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes, reconnect b
 	defer c.Close()
 
 	idle := c.Caps().Has(imap.CapIdle)
+	var validity uint32
 	if idle {
-		if _, err := c.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
+		selected, err := c.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait()
+		if err != nil {
 			return fmt.Errorf("failed to select INBOX: %w", err)
 		}
+		validity = selected.UIDValidity
 	}
 	// A reconnection may have missed changes in any folder.
 	if reconnect {
@@ -134,7 +138,7 @@ func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes, reconnect b
 			return nil
 		default:
 		}
-		if err := p.idleOnce(s, c, changed, changes, window); err != nil {
+		if err := p.idleOnce(s, c, validity, changed, changes, window); err != nil {
 			return err
 		}
 		// What the server stopped saying is unknown; reconnecting arms NOTIFY again.
@@ -179,7 +183,7 @@ func (p *Mailboxes) folderSweep(user string, c *imapclient.Client, changes *albo
 				slices.Contains(f.Attrs, imap.MailboxAttrNonExistent) {
 				continue
 			}
-			status, err := c.Status(f.Mailbox, &imap.StatusOptions{UIDNext: true}).Wait()
+			status, err := c.Status(f.Mailbox, &imap.StatusOptions{UIDNext: true, UIDValidity: true}).Wait()
 			if err != nil {
 				continue
 			}
@@ -188,6 +192,10 @@ func (p *Mailboxes) folderSweep(user string, c *imapclient.Client, changes *albo
 			if known && status.UIDNext != last {
 				p.mailboxStale(user, f.Mailbox)
 				changes.Announce(user, f.Mailbox)
+				// UIDNEXT grows only with a message added (RFC 9051 section 2.3.1.1).
+				if strings.EqualFold(f.Mailbox, "INBOX") && status.UIDNext > last {
+					p.newMail(user, status.UIDValidity, status.UIDNext-1)
+				}
 			}
 		}
 		return nil
@@ -209,12 +217,13 @@ func sweepEvery(done <-chan struct{}, sweep func() error, window time.Duration) 
 }
 
 // On an IDLE change, keep serving the old listing until its replacement is ready.
-func (p *Mailboxes) idleOnce(s *alborz.Login, c *imapclient.Client, changed chan struct{}, changes *alborz.Changes, length time.Duration) error {
+func (p *Mailboxes) idleOnce(s *alborz.Login, c *imapclient.Client, validity uint32, changed chan struct{}, changes *alborz.Changes, length time.Duration) error {
 	cmd, err := c.Idle()
 	if err != nil {
 		return fmt.Errorf("failed to idle: %w", err)
 	}
 
+	held := inboxCount(c)
 	window := time.NewTimer(length)
 	defer window.Stop()
 	select {
@@ -230,6 +239,16 @@ func (p *Mailboxes) idleOnce(s *alborz.Login, c *imapclient.Client, changed chan
 
 	if err := cmd.Close(); err != nil {
 		return fmt.Errorf("failed to leave idle: %w", err)
+	}
+	if count := inboxCount(c); count > held {
+		// The newest message names what arrived; UIDs only grow (RFC 9051 section 2.3.1.1).
+		msgs, err := c.Fetch(imap.SeqSetNum(count), &imap.FetchOptions{UID: true}).Collect()
+		if err != nil {
+			return fmt.Errorf("failed to read the newest message: %w", err)
+		}
+		if len(msgs) == 1 {
+			p.newMail(s.Username(), validity, msgs[0].UID)
+		}
 	}
 	return nil
 }
@@ -259,6 +278,20 @@ func (p *Mailboxes) warmInbox(s *alborz.Login) error {
 	}
 	p.listings.storeAt(user, listingView("#INBOX", "", "", "", ""), merged, generation)
 	return nil
+}
+
+// inboxCount is the selected INBOX's EXISTS, which the client lowers with each EXPUNGE.
+func inboxCount(c *imapclient.Client) uint32 {
+	if m := c.Mailbox(); m != nil {
+		return m.NumMessages
+	}
+	return 0
+}
+
+func (p *Mailboxes) newMail(account string, validity uint32, newest imap.UID) {
+	if p.NewMail != nil {
+		p.NewMail(account, validity, newest)
+	}
 }
 
 func notify(ch chan struct{}) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -160,6 +161,8 @@ func TestWithoutIdleTheSweepNoticesNewMail(t *testing.T) {
 	}
 
 	p := New(&alborz.Server{Options: &alborz.Options{Cache: true}})
+	var told atomic.Int32
+	p.NewMail = func(string, uint32, imap.UID) { told.Add(1) }
 	for _, name := range []string{"INBOX", "Junk"} {
 		p.listings.storeAt("u", name, &listingEntry{perPage: 25}, p.listings.epoch("u"))
 	}
@@ -191,5 +194,9 @@ func TestWithoutIdleTheSweepNoticesNewMail(t *testing.T) {
 		if _, state := p.listings.lookup("u", name, 25); state != listingChanged {
 			t.Errorf("new mail in %s went unnoticed: %v", name, state)
 		}
+	}
+	// Only the inbox's new mail is pushed.
+	if n := told.Load(); n != 1 {
+		t.Errorf("new mail was told %d times, want once", n)
 	}
 }

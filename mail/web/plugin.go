@@ -1,11 +1,13 @@
 package web
 
 import (
+	"fmt"
 	"regexp"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
+	"github.com/emersion/go-imap/v2"
 	"github.com/microcosm-cc/bluemonday"
 )
 
@@ -26,6 +28,14 @@ func Mount(g *web.Group) error {
 		return err
 	}
 	p.images, p.composed = images, mail.ComposedPolicy(images)
+	inbox, err := s.Path("mail.mailbox", "INBOX")
+	if err != nil {
+		return err
+	}
+	p.NewMail = func(account string, validity uint32, newest imap.UID) {
+		item := fmt.Sprintf("mail %s %d %d", account, validity, newest)
+		s.Push(account, web.PushNote{Key: "push.mail", Item: item, Path: inbox, Replaces: true, Badge: true})
+	}
 	// A restored account skips the login handler, so it is followed here too.
 	s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)
 	s.OnAccountGone = append(s.OnAccountGone, p.ForgetAccount)

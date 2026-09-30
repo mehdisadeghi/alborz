@@ -64,7 +64,7 @@ func (p *Mailboxes) Submit(ctx context.Context, account, sender *alborz.Login, m
 	var sentUID imap.UID
 	err = sender.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
 		var err error
-		sent, sentUID, err = appendMessage(c, body, "sent")
+		sent, sentUID, err = appendMessage(c, body.Open(), "sent")
 		return err
 	})
 	if err != nil {
@@ -230,7 +230,7 @@ func (p *Mailboxes) SaveDraft(ctx context.Context, login *alborz.Login, msg *Out
 	)
 	err = login.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
 		var err error
-		drafts, uid, err = fileDraft(c, body, msg.MessageID, replaces)
+		drafts, uid, err = fileDraft(c, body.Open(), msg.MessageID, replaces)
 		return err
 	})
 	if err != nil {

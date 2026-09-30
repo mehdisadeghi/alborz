@@ -253,7 +253,7 @@ func (p *plugin) warmInbox(s *alborz.Login) error {
 		return err
 	}
 	merged := own.snapshot()
-	merged.sb = sidebar{}
+	merged.sb = Rail{}
 	for i := range merged.msgs {
 		merged.msgs[i].Account = user
 	}

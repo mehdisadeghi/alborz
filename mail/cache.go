@@ -55,7 +55,7 @@ func listingView(folder, query, view, sortKey, sortDir string) string {
 
 // Merged entries are keyed by role with a "#" prefix.
 type listingEntry struct {
-	sb              sidebar
+	sb              Rail
 	msgs            []IMAPMessage
 	total           int
 	perPage         int
@@ -73,7 +73,7 @@ type listingEntry struct {
 
 type listingKey struct{ user, view string }
 
-func newListingCache(keepFor time.Duration, sidebars *memo.Memo[sidebar], bodies *bodyCache) *listingCache {
+func newListingCache(keepFor time.Duration, sidebars *memo.Memo[Rail], bodies *bodyCache) *listingCache {
 	return &listingCache{
 		keepFor: keepFor, accountSidebars: sidebars, bodies: bodies,
 		entries: make(map[listingKey]*listingEntry), orders: make(map[listingKey]*heldOrder), refreshing: make(map[listingKey]bool),
@@ -83,7 +83,7 @@ func newListingCache(keepFor time.Duration, sidebars *memo.Memo[sidebar], bodies
 
 type listingCache struct {
 	keepFor         time.Duration
-	accountSidebars *memo.Memo[sidebar]
+	accountSidebars *memo.Memo[Rail]
 	bodies          *bodyCache
 
 	mu         sync.Mutex
@@ -289,7 +289,7 @@ func (lc *listingCache) epoch(user string) uint64 {
 	return lc.generation[user]
 }
 
-func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) (*listingEntry, listPlace, bool) {
+func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) (*listingEntry, Place, bool) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	var found *listingEntry
@@ -302,7 +302,7 @@ func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) (*
 		}
 	}
 	if found == nil {
-		return nil, listPlace{}, false
+		return nil, Place{}, false
 	}
 	found.lastUse = time.Now()
 	held := func(page int) *listingEntry {
@@ -311,9 +311,9 @@ func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) (*
 		}
 		return nil
 	}
-	var place listPlace
+	var place Place
 	var placed bool
-	place.newer, place.older, place.position, place.total, placed = found.neighbours(uid, held(found.page-1), held(found.page+1))
+	place.Newer, place.Older, place.Position, place.Total, placed = found.neighbours(uid, held(found.page-1), held(found.page+1))
 	return found.snapshot(), place, placed
 }
 
@@ -339,7 +339,7 @@ func (e *listingEntry) absorb(other *listingEntry) {
 
 func (e *listingEntry) snapshot() *listingEntry {
 	return &listingEntry{
-		sb:              e.sb.clone(),
+		sb:              e.sb.Clone(),
 		msgs:            append([]IMAPMessage(nil), e.msgs...),
 		total:           e.total,
 		perPage:         e.perPage,
@@ -418,8 +418,8 @@ func (lc *listingCache) storeAt(user, view string, e *listingEntry, generation u
 	if lc.generation[user] != generation {
 		return
 	}
-	if kept.sb.mailboxes != nil {
-		lc.accountSidebars.Put(user, kept.sb.clone())
+	if kept.sb.Mailboxes != nil {
+		lc.accountSidebars.Put(user, kept.sb.Clone())
 	}
 	if kept.snap != nil {
 		lc.bodies.observe(user, kept.snap.Mailbox, kept.snap.UIDValidity)
@@ -461,8 +461,8 @@ func (lc *listingCache) markSeen(user, folder string, uid imap.UID) {
 }
 
 func (lc *listingCache) railUnseen(user, folder string, delta int) {
-	lc.accountSidebars.Update(user, func(sb sidebar) sidebar {
-		sb = sb.clone()
+	lc.accountSidebars.Update(user, func(sb Rail) Rail {
+		sb = sb.Clone()
 		sb.adjustUnseen(folder, delta)
 		return sb
 	})

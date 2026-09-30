@@ -27,7 +27,7 @@ type CategorizedMailboxes struct {
 // railFolderLimit caps unsubscribed folders on the rail; more run off a laptop's screen.
 const railFolderLimit = 25
 
-func (cc *CategorizedMailboxes) trim() {
+func (cc *CategorizedMailboxes) Trim() {
 	if len(cc.Additional) <= railFolderLimit {
 		return
 	}
@@ -49,7 +49,7 @@ func (cc *CategorizedMailboxes) Append(mi MailboxInfo, status *MailboxStatus) {
 		Info:   &mi,
 		Status: status,
 	}
-	switch mi.role() {
+	switch mi.Role() {
 	case "inbox":
 		cc.Common.Inbox = details
 	case "drafts":
@@ -144,15 +144,16 @@ func (cc CategorizedMailboxes) additionalForest() []MailboxNode {
 	return roots
 }
 
-type sidebar struct {
-	mailboxes     []MailboxInfo
-	statuses      map[string]*MailboxStatus
-	active, inbox *MailboxStatus
+// Rail is an account's folders, the counts of those a rail shows, and the one in view.
+type Rail struct {
+	Mailboxes     []MailboxInfo
+	Statuses      map[string]*MailboxStatus
+	Active, Inbox *MailboxStatus
 }
 
 // The status is shared with copies of the sidebar, so the folder gets its own.
-func (sb *sidebar) adjustUnseen(folder string, delta int) {
-	st := sb.statuses[folder]
+func (sb *Rail) adjustUnseen(folder string, delta int) {
+	st := sb.Statuses[folder]
 	if st == nil || st.StatusData == nil || st.NumUnseen == nil || int(*st.NumUnseen)+delta < 0 {
 		return
 	}
@@ -162,50 +163,50 @@ func (sb *sidebar) adjustUnseen(folder string, delta int) {
 	st.StatusData = &data
 }
 
-func (sb sidebar) clone() sidebar {
-	out := sidebar{
-		mailboxes: append([]MailboxInfo(nil), sb.mailboxes...),
-		statuses:  make(map[string]*MailboxStatus, len(sb.statuses)),
+func (sb Rail) Clone() Rail {
+	out := Rail{
+		Mailboxes: append([]MailboxInfo(nil), sb.Mailboxes...),
+		Statuses:  make(map[string]*MailboxStatus, len(sb.Statuses)),
 	}
-	for k, v := range sb.statuses {
+	for k, v := range sb.Statuses {
 		if v == nil {
-			out.statuses[k] = nil
+			out.Statuses[k] = nil
 			continue
 		}
 		c := *v
-		out.statuses[k] = &c
-		if v == sb.active {
-			out.active = out.statuses[k]
+		out.Statuses[k] = &c
+		if v == sb.Active {
+			out.Active = out.Statuses[k]
 		}
-		if v == sb.inbox {
-			out.inbox = out.statuses[k]
+		if v == sb.Inbox {
+			out.Inbox = out.Statuses[k]
 		}
 	}
 	return out
 }
 
-func (p *plugin) railFor(s *alborz.Login, mboxName string, fetched sidebar) sidebar {
-	sb, err := p.sidebarFor(s)
+func (p *plugin) railFor(s *alborz.Login, mboxName string, fetched Rail) Rail {
+	sb, err := p.Rail(s)
 	if err != nil {
 		return fetched
 	}
-	sb = sb.clone()
-	if active := sb.statuses[mboxName]; active != nil {
-		sb.active = active
+	sb = sb.Clone()
+	if active := sb.Statuses[mboxName]; active != nil {
+		sb.Active = active
 	} else {
-		sb.active = fetched.active
+		sb.Active = fetched.Active
 	}
 	return sb
 }
 
-func (p *plugin) sidebarFor(s *alborz.Login) (sidebar, error) {
-	return p.accountSidebars.Get(s.Username(), func() (sidebar, error) {
+func (p *plugin) Rail(s *alborz.Login) (Rail, error) {
+	return p.accountSidebars.Get(s.Username(), func() (Rail, error) {
 		// Loaded before DoIMAP: on a METADATA server the settings read is itself a DoIMAP, and the lock is not reentrant.
 		settings, err := LoadSettings(context.Background(), s.Store())
 		if err != nil {
-			return sidebar{}, err
+			return Rail{}, err
 		}
-		var sb sidebar
+		var sb Rail
 		err = s.DoIMAPBackground(func(c *imapclient.Client) error {
 			load, err := startSidebar(c, "", "", settings.Subscriptions)
 			if err != nil {
@@ -233,7 +234,7 @@ func countedMailboxes(mailboxes []MailboxInfo, mboxName string, subs []string) [
 	add("INBOX")
 	add(mboxName)
 	for i := range mailboxes {
-		if mailboxes[i].role() != "" && !mailboxes[i].IsInternal() {
+		if mailboxes[i].Role() != "" && !mailboxes[i].IsInternal() {
 			add(mailboxes[i].Name())
 		}
 	}
@@ -244,7 +245,7 @@ func countedMailboxes(mailboxes []MailboxInfo, mboxName string, subs []string) [
 }
 
 type sidebarLoad struct {
-	sb       sidebar
+	sb       Rail
 	names    []string
 	cmds     []*imapclient.StatusCommand
 	mboxName string
@@ -253,7 +254,7 @@ type sidebarLoad struct {
 // STATUS commands stay in flight so they share a round trip with the page's own; finish drains them.
 func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []string) (*sidebarLoad, error) {
 	l := &sidebarLoad{mboxName: mboxName}
-	l.sb.statuses = make(map[string]*MailboxStatus)
+	l.sb.Statuses = make(map[string]*MailboxStatus)
 
 	list := startListMailboxes(c)
 	var sel *imapclient.SelectCommand
@@ -262,7 +263,7 @@ func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []stri
 	}
 
 	var err error
-	l.sb.mailboxes, err = finishListMailboxes(list)
+	l.sb.Mailboxes, err = finishListMailboxes(list)
 	if err != nil {
 		if sel != nil {
 			sel.Wait()
@@ -275,17 +276,17 @@ func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []stri
 		}
 	}
 
-	listed := make(map[string]*imap.StatusData, len(l.sb.mailboxes))
-	for _, m := range l.sb.mailboxes {
+	listed := make(map[string]*imap.StatusData, len(l.sb.Mailboxes))
+	for _, m := range l.sb.Mailboxes {
 		if m.Status != nil {
 			listed[m.Mailbox] = m.Status
 		}
 	}
-	l.names = countedMailboxes(l.sb.mailboxes, mboxName, subs)
+	l.names = countedMailboxes(l.sb.Mailboxes, mboxName, subs)
 	l.cmds = make([]*imapclient.StatusCommand, len(l.names))
 	for i, name := range l.names {
 		if st, ok := listed[name]; ok {
-			l.sb.statuses[name] = &MailboxStatus{StatusData: st}
+			l.sb.Statuses[name] = &MailboxStatus{StatusData: st}
 			continue
 		}
 		l.cmds[i] = c.Status(name, listingStatusOptions(c))
@@ -293,7 +294,7 @@ func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []stri
 	return l, nil
 }
 
-func (l *sidebarLoad) finish() (sidebar, error) {
+func (l *sidebarLoad) finish() (Rail, error) {
 	for i, cmd := range l.cmds {
 		if cmd == nil {
 			continue
@@ -306,14 +307,28 @@ func (l *sidebarLoad) finish() (sidebar, error) {
 			}
 			continue
 		}
-		l.sb.statuses[l.names[i]] = &MailboxStatus{StatusData: data}
+		l.sb.Statuses[l.names[i]] = &MailboxStatus{StatusData: data}
 	}
-	l.sb.inbox = l.sb.statuses["INBOX"]
-	l.sb.active = l.sb.statuses[l.mboxName]
+	l.sb.Inbox = l.sb.Statuses["INBOX"]
+	l.sb.Active = l.sb.Statuses[l.mboxName]
 	return l.sb, nil
 }
 
 type MailboxDetails struct {
 	Info   *MailboxInfo
 	Status *MailboxStatus
+}
+
+// LoadRail reads an account's folders and the counts of those a rail shows, mbox's among them.
+func LoadRail(ctx context.Context, login *alborz.Login, settings *Settings, mbox string) (Rail, error) {
+	var sb Rail
+	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+		load, err := startSidebar(c, mbox, "", settings.Subscriptions)
+		if err != nil {
+			return err
+		}
+		sb, err = load.finish()
+		return err
+	})
+	return sb, err
 }

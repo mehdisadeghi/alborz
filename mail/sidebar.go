@@ -9,7 +9,6 @@ import (
 
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 func (p *plugin) handleSidebar(ctx *web.Context) error {
@@ -34,12 +33,12 @@ func (p *plugin) handleSidebar(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	sb, err := p.sidebarFor(ctx.Login)
+	sb, err := p.Rail(ctx.Login)
 	if err != nil {
 		return err
 	}
-	sb = sb.clone()
-	sb.active = sb.statuses[folder]
+	sb = sb.Clone()
+	sb.Active = sb.Statuses[folder]
 	data := assembleIMAPBase(ctx, base, folder, sb, view)
 	data.SidebarAccounts = p.sidebarAccounts(ctx)
 	return ctx.Render(http.StatusOK, "mail-rail", data)
@@ -99,12 +98,12 @@ func (p *plugin) sidebarAccounts(ctx *web.Context) []AccountSidebar {
 	}
 	var accounts []AccountSidebar
 	for _, s := range logins {
-		sb, err := p.sidebarFor(s)
+		sb, err := p.Rail(s)
 		if err != nil {
 			ctx.Logger().Printf("sidebar for %q: %v", s.Username(), err)
 			continue
 		}
-		ib := assembleIMAPBase(ctx, &web.BaseRenderData{}, "", sb.clone(), "")
+		ib := assembleIMAPBase(ctx, &web.BaseRenderData{}, "", sb.Clone(), "")
 		accounts = append(accounts, AccountSidebar{
 			Account:     s.Username(),
 			Categorized: ib.CategorizedMailboxes,
@@ -113,40 +112,40 @@ func (p *plugin) sidebarAccounts(ctx *web.Context) []AccountSidebar {
 	return accounts
 }
 
-func assembleIMAPBase(ctx *web.Context, base *web.BaseRenderData, mboxName string, sb sidebar, view string) *IMAPBaseRenderData {
+func assembleIMAPBase(ctx *web.Context, base *web.BaseRenderData, mboxName string, sb Rail, view string) *IMAPBaseRenderData {
 	if mboxName != "" {
-		sb.statuses[mboxName] = sb.active
+		sb.Statuses[mboxName] = sb.Active
 	}
-	sb.statuses["INBOX"] = sb.inbox
+	sb.Statuses["INBOX"] = sb.Inbox
 
 	var categorized CategorizedMailboxes
-	for i := range sb.mailboxes {
-		if sb.active != nil && sb.mailboxes[i].Name() == sb.active.Mailbox && view == "" {
-			sb.mailboxes[i].Active = true
+	for i := range sb.Mailboxes {
+		if sb.Active != nil && sb.Mailboxes[i].Name() == sb.Active.Mailbox && view == "" {
+			sb.Mailboxes[i].Active = true
 		}
-		sb.mailboxes[i].Label = sb.mailboxes[i].Name()
-		if role := sb.mailboxes[i].role(); role != "" {
-			sb.mailboxes[i].Label = ctx.T("aside." + role)
+		sb.Mailboxes[i].Label = sb.Mailboxes[i].Name()
+		if role := sb.Mailboxes[i].Role(); role != "" {
+			sb.Mailboxes[i].Label = ctx.T("aside." + role)
 		}
-		if sb.active != nil && sb.mailboxes[i].Name() == sb.active.Mailbox {
-			sb.active.Label = sb.mailboxes[i].Label
+		if sb.Active != nil && sb.Mailboxes[i].Name() == sb.Active.Mailbox {
+			sb.Active.Label = sb.Mailboxes[i].Label
 		}
-		status := sb.statuses[sb.mailboxes[i].Name()]
+		status := sb.Statuses[sb.Mailboxes[i].Name()]
 		if status != nil {
-			sb.mailboxes[i].Unseen = int(*status.NumUnseen)
-			sb.mailboxes[i].Total = int(*status.NumMessages)
+			sb.Mailboxes[i].Unseen = int(*status.NumUnseen)
+			sb.Mailboxes[i].Total = int(*status.NumMessages)
 		}
-		categorized.Append(sb.mailboxes[i], status)
+		categorized.Append(sb.Mailboxes[i], status)
 	}
-	categorized.trim()
+	categorized.Trim()
 
 	return &IMAPBaseRenderData{
 		BaseRenderData:       *base,
 		CategorizedMailboxes: categorized,
-		Mailboxes:            sb.mailboxes,
-		Inbox:                sb.inbox,
-		Mailbox:              sb.active,
-		Subscriptions:        sb.statuses,
+		Mailboxes:            sb.Mailboxes,
+		Inbox:                sb.Inbox,
+		Mailbox:              sb.Active,
+		Subscriptions:        sb.Statuses,
 		ListView:             view,
 	}
 }
@@ -164,15 +163,7 @@ func (p *plugin) newIMAPBaseRenderData(ctx *web.Context,
 		return nil, fmt.Errorf("failed to load settings: %w", err)
 	}
 
-	var sb sidebar
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		load, err := startSidebar(c, mboxName, "", settings.Subscriptions)
-		if err != nil {
-			return err
-		}
-		sb, err = load.finish()
-		return err
-	})
+	sb, err := LoadRail(ctx.Request().Context(), ctx.Login, settings, mboxName)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +208,7 @@ func mailboxCrumb(mailboxes []MailboxInfo, name, account string, folder func(str
 		step := CrumbLink{Label: parts[i]}
 		path := strings.Join(parts[:i+1], string(delim))
 		if mbox, ok := byName[path]; ok {
-			if mbox.role() != "" {
+			if mbox.Role() != "" {
 				step.Label = mbox.Label
 			}
 			if !slices.Contains(mbox.Attrs, imap.MailboxAttrNoSelect) {

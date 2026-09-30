@@ -39,7 +39,7 @@ type MailboxInfo struct {
 	Label string
 }
 
-func (mbox *MailboxInfo) role() string {
+func (mbox *MailboxInfo) Role() string {
 	name := mbox.Mailbox
 	switch {
 	case name == "INBOX":
@@ -135,6 +135,17 @@ func RoleFolder(ctx context.Context, login *alborz.Login, role string) (string, 
 	return name, err
 }
 
+// Folders lists the account's folders.
+func Folders(ctx context.Context, login *alborz.Login) ([]MailboxInfo, error) {
+	var mailboxes []MailboxInfo
+	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+		var err error
+		mailboxes, err = listMailboxes(c)
+		return err
+	})
+	return mailboxes, err
+}
+
 // MailboxNames lists the account's selectable folders.
 func MailboxNames(ctx context.Context, login *alborz.Login) ([]string, error) {
 	var names []string
@@ -172,7 +183,7 @@ func getMailboxByRole(conn *imapclient.Client, role string) (*MailboxInfo, error
 		return nil, err
 	}
 	for i := range mailboxes {
-		if mailboxes[i].role() == role {
+		if mailboxes[i].Role() == role {
 			return &mailboxes[i], nil
 		}
 	}
@@ -956,7 +967,7 @@ func (msg *IMAPMessage) setRowHeaders(buf []byte) {
 }
 
 // Whether a reply goes to a list is asked of the message, not of a form field.
-func messageListID(conn *imapclient.Client, mboxName string, uid imap.UID) (string, error) {
+func listIDOf(conn *imapclient.Client, mboxName string, uid imap.UID) (string, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return "", err
 	}
@@ -1507,30 +1518,30 @@ func orderedPage(conn *imapclient.Client, mboxName string, uids []imap.UID, page
 }
 
 // placeIn finds a message in a view's order; a zero position means it is not there.
-func placeIn(uids []imap.UID, uid imap.UID) listPlace {
+func placeIn(uids []imap.UID, uid imap.UID) Place {
 	i := slices.Index(uids, uid)
 	if i < 0 {
-		return listPlace{}
+		return Place{}
 	}
-	place := listPlace{position: i + 1, total: len(uids)}
+	place := Place{Position: i + 1, Total: len(uids)}
 	if i > 0 {
-		place.newer = uids[i-1]
+		place.Newer = uids[i-1]
 	}
 	if i+1 < len(uids) {
-		place.older = uids[i+1]
+		place.Older = uids[i+1]
 	}
 	return place
 }
 
 // folderNeighbors places a message in its folder's own order, newest first.
 // Asked in UIDs: a remembered sequence number may predate an expunge.
-func folderNeighbors(conn *imapclient.Client, uid imap.UID) (listPlace, error) {
+func folderNeighbors(conn *imapclient.Client, uid imap.UID) (Place, error) {
 	if conn.Caps().Has(imap.CapESearch) {
 		return uidNeighbors(conn, uid)
 	}
 	data, err := conn.UIDSearch(&imap.SearchCriteria{}, nil).Wait()
 	if err != nil {
-		return listPlace{}, fmt.Errorf("UID SEARCH failed: %v", err)
+		return Place{}, fmt.Errorf("UID SEARCH failed: %v", err)
 	}
 	uids := data.AllUIDs()
 	slices.Reverse(uids)
@@ -1538,7 +1549,7 @@ func folderNeighbors(conn *imapclient.Client, uid imap.UID) (listPlace, error) {
 }
 
 // Counting either side answers a folder of any size in a few numbers.
-func uidNeighbors(conn *imapclient.Client, uid imap.UID) (listPlace, error) {
+func uidNeighbors(conn *imapclient.Client, uid imap.UID) (Place, error) {
 	within := func(r imap.UIDRange) *imap.SearchCriteria {
 		return &imap.SearchCriteria{UID: []imap.UIDSet{{r}}}
 	}
@@ -1552,26 +1563,26 @@ func uidNeighbors(conn *imapclient.Client, uid imap.UID) (listPlace, error) {
 	}
 	above, err := aboveCmd.Wait()
 	if err != nil {
-		return listPlace{}, fmt.Errorf("UID SEARCH failed: %v", err)
+		return Place{}, fmt.Errorf("UID SEARCH failed: %v", err)
 	}
 	self, err := selfCmd.Wait()
 	if err != nil {
-		return listPlace{}, fmt.Errorf("UID SEARCH failed: %v", err)
+		return Place{}, fmt.Errorf("UID SEARCH failed: %v", err)
 	}
 	below := &imap.SearchData{}
 	if belowCmd != nil {
 		if below, err = belowCmd.Wait(); err != nil {
-			return listPlace{}, fmt.Errorf("UID SEARCH failed: %v", err)
+			return Place{}, fmt.Errorf("UID SEARCH failed: %v", err)
 		}
 	}
 	if self.Count == 0 {
-		return listPlace{}, nil
+		return Place{}, nil
 	}
 	if imap.UID(above.Min) <= uid {
 		above = &imap.SearchData{}
 	}
-	return listPlace{newer: imap.UID(above.Min), older: imap.UID(below.Max),
-		position: int(above.Count) + 1, total: int(above.Count + 1 + below.Count)}, nil
+	return Place{Newer: imap.UID(above.Min), Older: imap.UID(below.Max),
+		Position: int(above.Count) + 1, Total: int(above.Count + 1 + below.Count)}, nil
 }
 
 // A page reads no more of a part than this, to show it or to parse it: text

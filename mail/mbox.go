@@ -22,11 +22,11 @@ import (
 )
 
 // exportRun streams one account's run of messages into the archive, on a connection of its own.
-func exportRun(ctx context.Context, log *log.Logger, s *alborz.Login, run []rowRef, archive *mbox.Writer, strip bool, note string, begin, flush func()) error {
+func exportRun(ctx context.Context, log *log.Logger, s *alborz.Login, run []Ref, archive *mbox.Writer, strip bool, note string, begin, flush func()) error {
 	return s.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
 		for _, r := range run {
 			if err := exportMessage(log, c, archive, r, strip, note, begin); err != nil {
-				return fmt.Errorf("export %s %q uid %v: %w", r.account, r.mailbox, r.uid, err)
+				return fmt.Errorf("export %s %q uid %v: %w", r.Account, r.Mailbox, r.UID, err)
 			}
 			flush()
 		}
@@ -35,36 +35,36 @@ func exportRun(ctx context.Context, log *log.Logger, s *alborz.Login, run []rowR
 }
 
 // exportMessage streams one message into the archive; stripped, only its text is held, note standing for what went.
-func exportMessage(log *log.Logger, c *imapclient.Client, archive *mbox.Writer, r rowRef, strip bool, note string, begin func()) error {
-	if err := ensureMailboxSelected(c, r.mailbox); err != nil {
+func exportMessage(log *log.Logger, c *imapclient.Client, archive *mbox.Writer, r Ref, strip bool, note string, begin func()) error {
+	if err := ensureMailboxSelected(c, r.Mailbox); err != nil {
 		return err
 	}
-	msgs, err := c.Fetch(imap.UIDSetNum(r.uid), &imap.FetchOptions{UID: true, Envelope: true}).Collect()
+	msgs, err := c.Fetch(imap.UIDSetNum(r.UID), &imap.FetchOptions{UID: true, Envelope: true}).Collect()
 	if err != nil {
 		return err
 	}
 	if len(msgs) == 0 {
-		return alborz.NotFound("notfound.message", fmt.Sprint(r.uid))
+		return alborz.NotFound("notfound.message", fmt.Sprint(r.UID))
 	}
 	env := msgs[0].Envelope
 	whole := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{{Peek: true}}}
 	var stripped []byte
 	if strip {
-		err := streamSection(c, r.uid, whole, func(lit imap.LiteralReader) error {
+		err := streamSection(c, r.UID, whole, func(lit imap.LiteralReader) error {
 			var err error
 			stripped, err = withoutAttachments(lit, note)
 			return err
 		})
 		if err != nil && !errors.Is(err, errKeepWhole) {
 			// A message that cannot be taken apart goes out whole: larger than asked, not wrong.
-			log.Printf("export %q uid %v: kept attachments: %v", r.mailbox, r.uid, err)
+			log.Printf("export %q uid %v: kept attachments: %v", r.Mailbox, r.UID, err)
 		}
 	}
 	if stripped != nil {
 		begin()
 		return writeMbox(archive, bytes.NewReader(stripped), env)
 	}
-	return streamSection(c, r.uid, whole, func(lit imap.LiteralReader) error {
+	return streamSection(c, r.UID, whole, func(lit imap.LiteralReader) error {
 		begin()
 		return writeMbox(archive, lit, env)
 	})
@@ -201,8 +201,9 @@ func (h *heldBreak) end() error {
 	return err
 }
 
-// importFile appends the messages of an mbox or .eml file to folder, taking the connection once.
-func importFile(ctx context.Context, login *alborz.Login, folder string, r io.Reader) (added, held int, err error) {
+// ImportFile appends the messages of an mbox or .eml file to folder, taking the connection once.
+func (p *plugin) ImportFile(ctx context.Context, login *alborz.Login, folder string, r io.Reader) (added, held int, err error) {
+	defer p.accountChanged(login.Username())
 	err = login.DoIMAPWork(ctx, alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
 		var err error
 		added, held, err = appendMessages(c, folder, r, map[string]bool{})
@@ -211,10 +212,11 @@ func importFile(ctx context.Context, login *alborz.Login, folder string, r io.Re
 	return added, held, err
 }
 
-// dropFiles appends the messages of each file next gives, until io.EOF, to folder; the connection is
+// DropFiles appends the messages of each file next gives, until io.EOF, to folder; the connection is
 // taken once and the files read inside, so they are appended as they arrive. A file that fails to
 // arrive is fileErr, the sender's; err is the server's.
-func dropFiles(ctx context.Context, login *alborz.Login, folder string, next func() (io.Reader, error)) (added, held int, fileErr, err error) {
+func (p *plugin) DropFiles(ctx context.Context, login *alborz.Login, folder string, next func() (io.Reader, error)) (added, held int, fileErr, err error) {
+	defer p.accountChanged(login.Username())
 	err = login.DoIMAPWork(ctx, alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, folder); err != nil {
 			return err

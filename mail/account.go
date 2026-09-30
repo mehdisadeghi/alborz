@@ -7,7 +7,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/web"
-	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 type SettingsRenderData struct {
@@ -151,7 +150,7 @@ func handleSignatureSave(ctx *web.Context) error {
 	if key, limit := settings.check(); key != "" {
 		return render(fmt.Sprintf(ctx.T(key), limit))
 	}
-	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+	if err := SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
 		return render(ctx.SaveRefusal(err))
 	}
 	if !replaced {
@@ -178,7 +177,7 @@ func handleSignatureDelete(ctx *web.Context) error {
 	if settings.DefaultSignature == name {
 		settings.DefaultSignature = ""
 	}
-	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+	if err := SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
@@ -195,7 +194,7 @@ func handleSignatureDefault(ctx *web.Context) error {
 		chosen = ""
 	}
 	settings.DefaultSignature = chosen
-	if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+	if err := SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
@@ -207,11 +206,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
 
-	var mailboxes []MailboxInfo
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		mailboxes, err = listMailboxes(c)
-		return err
-	})
+	mailboxes, err := Folders(ctx.Request().Context(), ctx.Login)
 	if err != nil {
 		return err
 	}
@@ -249,10 +244,10 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		if key, limit := settings.check(); key != "" {
 			return reject(fmt.Sprintf(ctx.T(key), limit))
 		}
-		if err := ctx.Login.Store().Put(ctx.Request().Context(), settingsKey, settings); err != nil {
+		if err := SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
 			return reject(ctx.SaveRefusal(err))
 		}
-		p.accountChanged(ctx.Login.Username())
+		p.Changed(ctx.Login.Username())
 		ctx.PutNotice(ctx.T("notice.settingssaved"))
 		return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
 	}
@@ -284,7 +279,7 @@ func (p *plugin) handleForget(ctx *web.Context) error {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 		return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
 	}
-	p.accountChanged(ctx.Login.Username())
+	p.Changed(ctx.Login.Username())
 	ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: ctx.T("settings.forgotten")})
 	return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
 }

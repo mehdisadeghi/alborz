@@ -3,12 +3,10 @@ package mail
 import (
 	"errors"
 	"fmt"
-	"html"
 	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
-	"strings"
 
 	"git.mehdix.org/alborz/web"
 )
@@ -16,27 +14,6 @@ import (
 // Raster formats alone: an SVG is a document that can script.
 var shownTypes = map[string]bool{
 	"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true,
-}
-
-// raw is where the message's parts are fetched.
-func localImages(body, raw string, msg *IMAPMessage, account string) string {
-	return imageSrc.ReplaceAllStringFunc(body, func(tag string) string {
-		m := imageSrc.FindStringSubmatch(tag)
-		src := html.UnescapeString(m[2])
-		var part *IMAPPartNode
-		switch {
-		case strings.HasPrefix(strings.ToLower(src), "cid:"):
-			part = msg.PartByID(src[len("cid:"):])
-		case strings.HasPrefix(src, "part:"):
-			if path, err := ParsePartPath(src[len("part:"):]); err == nil {
-				part = msg.PartByPath(path)
-			}
-		}
-		if part == nil || !strings.HasPrefix(part.MIMEType, "image/") {
-			return tag
-		}
-		return m[1] + html.EscapeString(raw+part.Query(account)) + m[3]
-	})
 }
 
 // Anything but a raster image is offered as a file, so no upload runs as a page here.

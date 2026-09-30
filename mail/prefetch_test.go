@@ -30,7 +30,7 @@ func TestBodyIdentityAndFlagWrite(t *testing.T) {
 }
 
 func TestListingFetchOutlivesItsFirstReader(t *testing.T) {
-	lc := newListingCache(listingKeepFor, memo.NewBackground[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
+	lc := newListingCache(listingKeepFor, memo.NewBackground[Rail](listingFreshFor), newBodyCache(bodyKeepFor))
 	started, finish := make(chan struct{}), make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	first := make(chan error, 1)
@@ -85,7 +85,7 @@ func TestMailboxResetInvalidatesBodiesAndPendingWrites(t *testing.T) {
 }
 
 func TestListingFetchCannotUndoInvalidation(t *testing.T) {
-	lc := newListingCache(listingKeepFor, memo.NewBackground[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
+	lc := newListingCache(listingKeepFor, memo.NewBackground[Rail](listingFreshFor), newBodyCache(bodyKeepFor))
 	_, err := lc.load(context.Background(), "u", "INBOX", 25, false, func(context.Context) (*listingEntry, error) {
 		lc.evict("u", "INBOX")
 		return &listingEntry{perPage: 25, total: 3}, nil

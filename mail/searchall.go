@@ -23,12 +23,11 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	ask.spec.query = strings.TrimSpace(ask.spec.query)
-	if !StarView(ask.spec.view) {
-		ask.spec.view = ""
+	ask.Query = strings.TrimSpace(ask.Query)
+	if !StarView(ask.View) {
+		ask.View = ""
 	}
-	spec := ask.spec
-	if spec.query == "" && spec.view == "" {
+	if ask.Query == "" && ask.View == "" {
 		return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
 	}
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
@@ -40,37 +39,36 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	if ctx.Unified {
 		logins = ctx.Logins()
 	}
-	q := search.Parse(spec.query)
-	merged, down, err := p.searchWindow(ctx.Request().Context(), logins, ask, settings)
+	q := search.Parse(ask.Query)
+	list, down, err := p.Search(ctx.Request().Context(), logins, settings, ask)
 	if err != nil {
 		return err
 	}
 	ctx.Unreachable(down)
-	page, msgs := cutPage(merged, ask.page)
 
 	track := 0
-	for i := range msgs {
-		track = max(track, len([]rune(msgs[i].Mailbox)))
+	for i := range list.Rows {
+		track = max(track, len([]rune(list.Rows[i].Mailbox)))
 	}
 	title := ctx.T("search.title")
-	heading := fmt.Sprintf("%s: %s", title, spec.query)
-	if spec.view != "" {
-		title = ViewLabel(ctx, spec.view)
+	heading := fmt.Sprintf("%s: %s", title, ask.Query)
+	if ask.View != "" {
+		title = ViewLabel(ctx, ask.View)
 		heading = title
 	}
 	base := web.NewBaseRenderData(ctx).WithTitle(heading)
-	ibase := &IMAPBaseRenderData{BaseRenderData: *base, ListView: spec.view}
+	ibase := &IMAPBaseRenderData{BaseRenderData: *base, ListView: ask.View}
 	if !ctx.Unified {
-		sb, err := p.sidebarFor(ctx.Login)
+		sb, err := p.Rail(ctx.Login)
 		if err != nil {
 			return err
 		}
-		ibase = assembleIMAPBase(ctx, base, "", sb.clone(), spec.view)
+		ibase = assembleIMAPBase(ctx, base, "", sb.Clone(), ask.View)
 	}
 	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	// No name, so the rail marks no folder.
 	ibase.Mailbox = &MailboxStatus{StatusData: &imap.StatusData{}, Label: title}
-	data := listPage(ctx, spec, page, merged, msgs)
+	data := listPage(ctx, ask, list)
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = []CrumbLink{{Label: title}}
 	data.Merged, data.Spanning, data.Role = true, true, searchRole

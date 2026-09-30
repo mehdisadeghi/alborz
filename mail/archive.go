@@ -51,10 +51,10 @@ func (p *plugin) handleExportMbox(ctx *web.Context) error {
 	if strip {
 		name += " " + ctx.T("mailbox.textonly")
 	}
-	return streamMbox(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), name, strip)
+	return streamMbox(ctx, FolderRefs(ctx.Login.Username(), mboxName, uids), name, strip)
 }
 
-func streamMbox(ctx *web.Context, refs []rowRef, name string, strip bool) error {
+func streamMbox(ctx *web.Context, refs []Ref, name string, strip bool) error {
 	// The header waits for the first message, so a failed fetch never renders into an .mbox body.
 	res := ctx.Response()
 	archive := mbox.NewWriter(res)
@@ -70,12 +70,12 @@ func streamMbox(ctx *web.Context, refs []rowRef, name string, strip bool) error 
 	for len(refs) > 0 {
 		// Each account's run of messages shares one connection of its own.
 		n := 1
-		for n < len(refs) && refs[n].account == refs[0].account {
+		for n < len(refs) && refs[n].Account == refs[0].Account {
 			n++
 		}
 		run := refs[:n]
 		refs = refs[n:]
-		s := ctx.LoginFor(run[0].account)
+		s := ctx.LoginFor(run[0].Account)
 		if s == nil {
 			continue
 		}
@@ -249,12 +249,11 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 		return web.NewError(http.StatusBadRequest, "not signed in to that account")
 	}
 	fullName := location.folder(name)
-	if err := createFolder(login, fullName); err != nil {
+	if err := p.CreateFolder(login, fullName); err != nil {
 		return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.foldertaken"), fullName, err))
 	}
 
-	count, held, importErr := importFile(ctx.Request().Context(), login, fullName, file)
-	p.accountChanged(selectedAccount)
+	count, held, importErr := p.ImportFile(ctx.Request().Context(), login, fullName, file)
 	if importErr != nil {
 		ctx.Logger().Printf("import into %q stopped after %d: %v", fullName, count, importErr)
 		ctx.PutNotice(ctx.Tf("notice.importstopped", count, fullName))
@@ -302,18 +301,15 @@ func (p *plugin) handleDropImport(ctx *web.Context) error {
 			}
 		}
 	}
-	count, held, bodyErr, importErr := dropFiles(ctx.Request().Context(), login, mboxName, files)
+	count, held, bodyErr, importErr := p.DropFiles(ctx.Request().Context(), login, mboxName, files)
 	if bodyErr != nil {
-		p.accountChanged(account)
 		return importBodyError(bodyErr)
 	}
 	if importErr != nil {
-		p.accountChanged(account)
 		ctx.Logger().Printf("drop into %q stopped after %d: %v", mboxName, count, importErr)
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.Tf("notice.importstopped", count, mboxName)})
 		return ctx.NoContent(http.StatusOK)
 	}
-	p.accountChanged(account)
 	ctx.Notify(web.Notice{Text: ctx.Tf("notice.imported", count, mboxName)})
 	if held > 0 {
 		ctx.Notify(web.Notice{Text: ctx.Tf("notice.importheld", held)})

@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 )
@@ -46,11 +47,11 @@ func (p *plugin) handleSidebar(ctx *web.Context) error {
 
 type IMAPBaseRenderData struct {
 	web.BaseRenderData
-	CategorizedMailboxes CategorizedMailboxes
-	Mailboxes            []MailboxInfo
-	Mailbox              *MailboxStatus
-	Inbox                *MailboxStatus
-	Subscriptions        map[string]*MailboxStatus
+	CategorizedMailboxes mail.CategorizedMailboxes
+	Mailboxes            []mail.MailboxInfo
+	Mailbox              *mail.MailboxStatus
+	Inbox                *mail.MailboxStatus
+	Subscriptions        map[string]*mail.MailboxStatus
 	// ListView is the rail row a non-folder page answers to; not "View", which the message page uses.
 	ListView string
 
@@ -63,7 +64,7 @@ func (d *IMAPBaseRenderData) AllUnseen(role string) int {
 	sum := 0
 	for _, acc := range d.SidebarAccounts {
 		c := acc.Categorized.Common
-		var details *MailboxDetails
+		var details *mail.MailboxDetails
 		switch role {
 		case "INBOX":
 			details = c.Inbox
@@ -88,7 +89,7 @@ func (d *IMAPBaseRenderData) AllUnseen(role string) int {
 // AccountSidebar is one account's folder tree for the mail aside.
 type AccountSidebar struct {
 	Account     string
-	Categorized CategorizedMailboxes
+	Categorized mail.CategorizedMailboxes
 }
 
 func (p *plugin) sidebarAccounts(ctx *web.Context) []AccountSidebar {
@@ -112,13 +113,13 @@ func (p *plugin) sidebarAccounts(ctx *web.Context) []AccountSidebar {
 	return accounts
 }
 
-func assembleIMAPBase(ctx *web.Context, base *web.BaseRenderData, mboxName string, sb Rail, view string) *IMAPBaseRenderData {
+func assembleIMAPBase(ctx *web.Context, base *web.BaseRenderData, mboxName string, sb mail.Rail, view string) *IMAPBaseRenderData {
 	if mboxName != "" {
 		sb.Statuses[mboxName] = sb.Active
 	}
 	sb.Statuses["INBOX"] = sb.Inbox
 
-	var categorized CategorizedMailboxes
+	var categorized mail.CategorizedMailboxes
 	for i := range sb.Mailboxes {
 		if sb.Active != nil && sb.Mailboxes[i].Name() == sb.Active.Mailbox && view == "" {
 			sb.Mailboxes[i].Active = true
@@ -158,12 +159,12 @@ func (p *plugin) newIMAPBaseRenderData(ctx *web.Context,
 		return nil, err
 	}
 
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load settings: %w", err)
 	}
 
-	sb, err := LoadRail(ctx.Request().Context(), ctx.Login, settings, mboxName)
+	sb, err := mail.LoadRail(ctx.Request().Context(), ctx.Login, settings, mboxName)
 	if err != nil {
 		return nil, err
 	}
@@ -185,13 +186,13 @@ type CrumbLink struct {
 }
 
 // Steps are named by path segment: a custom folder's Label is its whole wire name. folder is a folder's address.
-func mailboxCrumb(mailboxes []MailboxInfo, name, account string, folder func(string) string) []CrumbLink {
+func mailboxCrumb(mailboxes []mail.MailboxInfo, name, account string, folder func(string) string) []CrumbLink {
 	crumb := []CrumbLink{{Label: account, URL: folder("INBOX"), Address: true}}
 	if name == "" {
 		return crumb
 	}
 
-	byName := make(map[string]*MailboxInfo, len(mailboxes))
+	byName := make(map[string]*mail.MailboxInfo, len(mailboxes))
 	delim := rune(0)
 	for i := range mailboxes {
 		byName[mailboxes[i].Name()] = &mailboxes[i]

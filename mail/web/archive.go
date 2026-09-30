@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -34,7 +35,7 @@ func (p *plugin) handleExportMbox(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		if uids, err = FolderView(ctx.Request().Context(), ctx.Login, mboxName, query, view); err != nil {
+		if uids, err = mail.FolderView(ctx.Request().Context(), ctx.Login, mboxName, query, view); err != nil {
 			return err
 		}
 	} else if uids, err = selection(ctx, mboxName, params); err != nil {
@@ -51,10 +52,10 @@ func (p *plugin) handleExportMbox(ctx *web.Context) error {
 	if strip {
 		name += " " + ctx.T("mailbox.textonly")
 	}
-	return streamMbox(ctx, FolderRefs(ctx.Login.Username(), mboxName, uids), name, strip)
+	return streamMbox(ctx, mail.FolderRefs(ctx.Login.Username(), mboxName, uids), name, strip)
 }
 
-func streamMbox(ctx *web.Context, refs []Ref, name string, strip bool) error {
+func streamMbox(ctx *web.Context, refs []mail.Ref, name string, strip bool) error {
 	// The header waits for the first message, so a failed fetch never renders into an .mbox body.
 	res := ctx.Response()
 	archive := mbox.NewWriter(res)
@@ -79,7 +80,7 @@ func streamMbox(ctx *web.Context, refs []Ref, name string, strip bool) error {
 		if s == nil {
 			continue
 		}
-		err := ExportRun(ctx.Request().Context(), ctx.Logger(), s, run, archive, strip, ctx.T("mailbox.attachmentremoved"), begin, res.Flush)
+		err := mail.ExportRun(ctx.Request().Context(), ctx.Logger(), s, run, archive, strip, ctx.T("mailbox.attachmentremoved"), begin, res.Flush)
 		// Too late for the response: stop, leave the file short, and log why.
 		if err != nil {
 			return streamed(ctx, err)
@@ -157,13 +158,13 @@ func (p *plugin) handleExportPage(ctx *web.Context) error {
 	if ibase.ListView != "" {
 		data.ViewName = viewTitle(ctx, ibase.ListView)
 	}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
 	err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
 		var err error
-		data.Count, data.Size, err = ExportSize(c, settings, mboxName, data.Query, ibase.ListView)
+		data.Count, data.Size, err = mail.ExportSize(c, settings, mboxName, data.Query, ibase.ListView)
 		return err
 	})
 	if err != nil {

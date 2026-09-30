@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"net/http"
@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 )
 
 // mergedOrigin reads the list a message was opened from; nil where it is one folder's.
-func mergedOrigin(ctx *web.Context) *Origin {
+func mergedOrigin(ctx *web.Context) *mail.Origin {
 	from := ctx.From()
 	if from == "" {
 		return nil
@@ -36,19 +37,19 @@ func mergedOrigin(ctx *web.Context) *Origin {
 	route, values, _ := ctx.Server.Match(u)
 	if route == "mail.search" {
 		ask.Query = strings.TrimSpace(ask.Query)
-		if !StarView(ask.View) {
+		if !mail.StarView(ask.View) {
 			ask.View = ""
 		}
-		return &Origin{Search: true, Logins: logins, Ask: ask}
+		return &mail.Origin{Search: true, Logins: logins, Ask: ask}
 	}
 	if route != "mail.mailbox" || len(logins) < 2 {
 		return nil
 	}
-	return &Origin{Role: values["mbox"], Logins: logins, Ask: ask}
+	return &mail.Origin{Role: values["mbox"], Logins: logins, Ask: ask}
 }
 
 // mergedNeighbours places a message among the merged rows it was opened from.
-func (p *plugin) mergedNeighbours(ctx *web.Context, settings *Settings, o *Origin, mailbox string, uid imap.UID) (web.Neighbours, error) {
+func (p *plugin) mergedNeighbours(ctx *web.Context, settings *mail.Settings, o *mail.Origin, mailbox string, uid imap.UID) (web.Neighbours, error) {
 	prev, next, position, total, down, err := p.Beside(ctx.Request().Context(), settings, *o, ctx.Login.Username(), mailbox, uid)
 	if err != nil {
 		return web.Neighbours{}, err
@@ -83,12 +84,12 @@ func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
 	sb = sb.Clone()
 	sb.Active = sb.Statuses[mailbox]
 	data := &MessageRenderData{Query: ctx.QueryParam("query")}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
 	merged := mergedOrigin(ctx)
-	list := ListAsk{Page: alborz.Page{Size: web.PerPage(ctx)}, Query: data.Query, View: view,
+	list := mail.ListAsk{Page: alborz.Page{Size: web.PerPage(ctx)}, Query: data.Query, View: view,
 		Sort: ctx.QueryParam("sort"), Dir: ctx.QueryParam("dir")}
 	around, err := p.Around(ctx.Request().Context(), ctx.Login, settings, &sb, mailbox, uid, list, merged != nil)
 	if err != nil {
@@ -106,7 +107,7 @@ func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
 	return ctx.Render(http.StatusOK, "message-context", data)
 }
 
-func neighbours(ctx *web.Context, mboxName string, place Place) web.Neighbours {
+func neighbours(ctx *web.Context, mboxName string, place mail.Place) web.Neighbours {
 	account := ctx.QueryParam("account")
 	return web.Neighbours{
 		PrevURL:  neighbourHref(ctx, account, mboxName, place.Newer),

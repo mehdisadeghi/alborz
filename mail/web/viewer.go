@@ -1,8 +1,9 @@
-package mail
+package web
 
 import (
 	"fmt"
 
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-message"
 )
@@ -17,7 +18,7 @@ type View struct {
 	Remote bool
 }
 
-func viewMessagePart(ctx *web.Context, msg *IMAPMessage, path []int, part *message.Entity) (View, error) {
+func viewMessagePart(ctx *web.Context, msg *mail.IMAPMessage, path []int, part *message.Entity) (View, error) {
 	v, err := viewHTML(ctx, msg, part)
 	if err != ErrViewUnsupported {
 		return v, err

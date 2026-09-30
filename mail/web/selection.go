@@ -1,10 +1,11 @@
-package mail
+package web
 
 import (
 	"net/http"
 	"net/url"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 )
@@ -21,7 +22,7 @@ func wholeView(form url.Values) (query, view string, whole bool) {
 		return "", "", false
 	}
 	view = next.Query().Get("view")
-	if !KnownView(view) {
+	if !mail.KnownView(view) {
 		view = ""
 	}
 	return next.Query().Get("query"), view, true
@@ -30,13 +31,13 @@ func wholeView(form url.Values) (query, view string, whole bool) {
 func selection(ctx *web.Context, mboxName string, form url.Values) ([]imap.UID, error) {
 	query, view, whole := wholeView(form)
 	if !whole {
-		uids, err := ParseUIDs(form["uids"])
+		uids, err := mail.ParseUIDs(form["uids"])
 		if err != nil {
 			return nil, web.NewError(http.StatusBadRequest, err)
 		}
 		return uids, nil
 	}
-	return FolderView(ctx.Request().Context(), ctx.Login, mboxName, query, view)
+	return mail.FolderView(ctx.Request().Context(), ctx.Login, mboxName, query, view)
 }
 
 func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids []imap.UID, err error) {
@@ -50,16 +51,16 @@ func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids [
 	return mboxName, form, uids, err
 }
 
-func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values) ([]Ref, error) {
+func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values) ([]mail.Ref, error) {
 	query, view, whole := wholeView(form)
 	if !whole {
-		refs, err := ParseRefs(form["refs"])
+		refs, err := mail.ParseRefs(form["refs"])
 		if err != nil {
 			return nil, web.NewError(http.StatusBadRequest, err)
 		}
 		return refs, nil
 	}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 		}
 		logins = []*alborz.Login{s}
 	}
-	var refs []Ref
+	var refs []mail.Ref
 	for _, s := range logins {
 		found, err := p.ViewRefs(ctx.Request().Context(), s, role, spanning, settings, query, view)
 		if err != nil {

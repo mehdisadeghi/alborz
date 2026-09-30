@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"git.mehdix.org/alborz/mail"
 	"github.com/aymerick/douceur/css"
 	cssparser "github.com/aymerick/douceur/parser"
 	"github.com/microcosm-cc/bluemonday"
@@ -95,7 +96,7 @@ var allowedStyles = map[string]bool{
 }
 
 type sanitizer struct {
-	msg     *IMAPMessage
+	msg     *mail.IMAPMessage
 	account string
 	// raw is where the message's parts are fetched, proxy where a remote image is.
 	raw, proxy           string

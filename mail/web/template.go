@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 )
@@ -29,7 +30,7 @@ var TemplateFuncs = template.FuncMap{
 		}
 		return template.URL("data:image/jpeg;base64," + data)
 	},
-	"humansize": FormatSize,
+	"humansize": mail.FormatSize,
 	"partquery": partQuery,
 	"sub":       func(a, b int) int { return a - b },
 	// A theme's name is a proper noun, so it is not a locale string.
@@ -67,10 +68,10 @@ var TemplateFuncs = template.FuncMap{
 		return values
 	},
 	// Takes the render data for its translator: a method value cannot be passed through a dict.
-	"flagcolors": func(t interface{ T(string) string }) []FlagColorOption {
-		opts := make([]FlagColorOption, len(alborz.FlagColors))
+	"flagcolors": func(t interface{ T(string) string }) []mail.FlagColorOption {
+		opts := make([]mail.FlagColorOption, len(alborz.FlagColors))
 		for i, name := range alborz.FlagColors {
-			opts[i] = FlagColorOption{Name: name, Label: t.T("color." + name)}
+			opts[i] = mail.FlagColorOption{Name: name, Label: t.T("color." + name)}
 		}
 		return opts
 	},
@@ -146,7 +147,7 @@ var TemplateFuncs = template.FuncMap{
 }
 
 // partQuery picks the part out of its message's page or download; without the account the first signed-in one serves it.
-func partQuery(node IMAPPartNode, account string) string {
+func partQuery(node mail.IMAPPartNode, account string) string {
 	q := url.Values{"part": {node.PathString()}}
 	if account != "" {
 		q.Set("account", account)

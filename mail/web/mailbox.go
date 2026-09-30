@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/mail/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
@@ -17,7 +18,7 @@ import (
 
 type MailboxRenderData struct {
 	IMAPBaseRenderData
-	Messages []IMAPMessage
+	Messages []mail.IMAPMessage
 	Pager    web.Pager
 	Total    int
 	Query    string
@@ -68,7 +69,7 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 	if to := searchInstead(ctx, ask); to != "" {
 		return ctx.Redirect(http.StatusFound, to)
 	}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -94,7 +95,7 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 	data.IMAPBaseRenderData = IMAPBaseRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("mailbox.allaccounts"), title)),
 		// The role is the name the rail marks and the refresh form posts to; Label is what is read.
-		Mailbox:         &MailboxStatus{StatusData: &imap.StatusData{Mailbox: role}, Label: title},
+		Mailbox:         &mail.MailboxStatus{StatusData: &imap.StatusData{Mailbox: role}, Label: title},
 		ListView:        ask.View,
 		SidebarAccounts: p.sidebarAccounts(ctx),
 	}
@@ -104,16 +105,16 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 
-func listPage(ctx *web.Context, ask ListAsk, l *Listing) *MailboxRenderData {
+func listPage(ctx *web.Context, ask mail.ListAsk, l *mail.Listing) *MailboxRenderData {
 	return &MailboxRenderData{
 		Messages:      l.Rows,
 		Pager:         web.NewPager(ctx.Request().URL, l.Page, l.Total, web.PerPageChoices(ctx)),
 		Total:         l.Total,
 		Query:         ask.Query,
-		Everywhere:    Everywhere(ask.Query),
+		Everywhere:    mail.Everywhere(ask.Query),
 		Filters:       searchFilters(ctx),
 		FilterRows:    web.ViewRows(ctx, ask.View, true, ctx.WithoutParam("view")),
-		TextQuery:     TextQuery(ask.Query, l.HeadersOnly),
+		TextQuery:     mail.TextQuery(ask.Query, l.HeadersOnly),
 		Sort:          ask.Sort,
 		SortDir:       map[bool]string{true: "desc", false: "asc"}[ask.Descending()],
 		SortSupported: l.SortSupported,
@@ -132,14 +133,14 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 	}
 
 	// thread is not a sort column, but travels in the same parameter.
-	ask, err := readListAsk(ctx, SortThread)
+	ask, err := readListAsk(ctx, mail.SortThread)
 	if err != nil {
 		return err
 	}
 	if to := searchInstead(ctx, ask); to != "" {
 		return ctx.Redirect(http.StatusFound, to)
 	}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -170,9 +171,9 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 	data := listPage(ctx, ask, list)
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = mailboxCrumb(sb.Mailboxes, mboxName, ctx.Login.Username(), folderPath(ctx))
-	data.Outgoing = Outgoing(sb.Mailboxes, mboxName)
+	data.Outgoing = mail.Outgoing(sb.Mailboxes, mboxName)
 	data.ThreadSupported = list.ThreadAlgorithm != ""
-	data.Threaded = ask.Sort == SortThread && list.ThreadAlgorithm != ""
+	data.Threaded = ask.Sort == mail.SortThread && list.ThreadAlgorithm != ""
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 
@@ -188,33 +189,33 @@ func starViewPath(ctx *web.Context, view string) string {
 }
 
 // also is the one order the page has beyond the columns.
-func readListAsk(ctx *web.Context, also string) (ListAsk, error) {
+func readListAsk(ctx *web.Context, also string) (mail.ListAsk, error) {
 	return readListAskAt(ctx, ctx.QueryParams(), also)
 }
 
 // readListAskAt reads a list's address, the request's or the one an object was opened from.
-func readListAskAt(ctx *web.Context, q url.Values, also string) (ListAsk, error) {
+func readListAskAt(ctx *web.Context, q url.Values, also string) (mail.ListAsk, error) {
 	page, err := ctx.ListPageAt(q)
 	if err != nil {
-		return ListAsk{}, err
+		return mail.ListAsk{}, err
 	}
 	view, err := readView(q)
 	if err != nil {
-		return ListAsk{}, err
+		return mail.ListAsk{}, err
 	}
 	sortKey, sortDir, err := readSort(q, also)
 	if err != nil {
-		return ListAsk{}, err
+		return mail.ListAsk{}, err
 	}
-	return ListAsk{Page: page, Query: q.Get("query"), View: view, Sort: sortKey, Dir: sortDir}, nil
+	return mail.ListAsk{Page: page, Query: q.Get("query"), View: view, Sort: sortKey, Dir: sortDir}, nil
 }
 
-func searchInstead(ctx *web.Context, ask ListAsk) string {
+func searchInstead(ctx *web.Context, ask mail.ListAsk) string {
 	if folder, everywhere := search.Parse(ask.Query).Scope(); folder != "" || everywhere {
 		return ctx.AccountPath(ctx.Path("mail.search") + "?query=" + web.QueryValue(ask.Query))
 	}
 	// A star is on the message, not in the folder, so its view is the search page's fan-out.
-	if StarView(ask.View) {
+	if mail.StarView(ask.View) {
 		return starViewPath(ctx, ask.View)
 	}
 	return ""
@@ -223,7 +224,7 @@ func searchInstead(ctx *web.Context, ask ListAsk) string {
 // also is the one order the page has beyond the columns.
 func readSort(q url.Values, also string) (sortKey, sortDir string, err error) {
 	sortKey = q.Get("sort")
-	if !KnownSort(sortKey) && sortKey != also {
+	if !mail.KnownSort(sortKey) && sortKey != also {
 		return "", "", web.NewError(http.StatusBadRequest, "invalid sort order")
 	}
 	sortDir = q.Get("dir")
@@ -236,7 +237,7 @@ func readSort(q url.Values, also string) (sortKey, sortDir string, err error) {
 // A view is a link in the rail, never typed, so an unknown one is refused.
 func readView(q url.Values) (string, error) {
 	view := q.Get("view")
-	if !KnownView(view) {
+	if !mail.KnownView(view) {
 		return "", web.NewError(http.StatusBadRequest, "unknown view")
 	}
 	return view, nil
@@ -536,10 +537,10 @@ func (p *plugin) handleMove(ctx *web.Context) error {
 		})
 	}
 
-	var landed []Ref
-	return runAct(ctx, FolderRefs(ctx.Login.Username(), mboxName, uids), p.Move(to, &landed), func(done int) web.Notice {
+	var landed []mail.Ref
+	return runAct(ctx, mail.FolderRefs(ctx.Login.Username(), mboxName, uids), p.Move(to, &landed), func(done int) web.Notice {
 		label := to
-		if role := (&MailboxInfo{ListData: &imap.ListData{Mailbox: to}}).Role(); role != "" {
+		if role := (&mail.MailboxInfo{ListData: &imap.ListData{Mailbox: to}}).Role(); role != "" {
 			label = ctx.T("aside." + role)
 		}
 		fields := url.Values{"to": {mboxName}, "next": {target}}
@@ -647,7 +648,7 @@ func (p *plugin) handleDelete(ctx *web.Context) error {
 	}
 
 	var left int
-	return runAct(ctx, FolderRefs(ctx.Login.Username(), mboxName, uids), p.Delete(&left), func(done int) web.Notice {
+	return runAct(ctx, mail.FolderRefs(ctx.Login.Username(), mboxName, uids), p.Delete(&left), func(done int) web.Notice {
 		notice := web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.deleted", done)}
 		// A whole page ticked with more behind: the rest is offered on a page, never taken on its own.
 		if done >= web.PerPage(ctx) && left > 0 {
@@ -691,7 +692,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 	}
 
 	if color, ok := formParams["color"]; ok {
-		add, del := FlagColorFlags(color[0])
+		add, del := mail.FlagColorFlags(color[0])
 		if add == nil && del == nil {
 			return web.NewError(http.StatusBadRequest, "unknown flag colour")
 		}
@@ -700,7 +701,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 		back := ctx.NextOr(mailboxURL(ctx, mboxName))
 		oneStar := ctx.Partial() && len(uids) == 1
 		leaves := oneStar && web.StarLeaves(ctx.FormValue("next"), color[0])
-		return runAct(ctx, FolderRefs(ctx.Login.Username(), mboxName, uids), p.Colour(add, del), func(int) web.Notice {
+		return runAct(ctx, mail.FolderRefs(ctx.Login.Username(), mboxName, uids), p.Colour(add, del), func(int) web.Notice {
 			if !leaves {
 				return web.Notice{}
 			}
@@ -768,7 +769,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 			target = ctx.URL("mail.message", mboxName, uids[0])
 		}
 	}
-	return runAct(ctx, FolderRefs(ctx.Login.Username(), mboxName, uids), p.Flag(op, l), func(int) web.Notice {
+	return runAct(ctx, mail.FolderRefs(ctx.Login.Username(), mboxName, uids), p.Flag(op, l), func(int) web.Notice {
 		return flaggedNotice(ctx, formParams["uids"], flags, op, mboxName, target)
 	}, landOn(ctx, target))
 }
@@ -820,14 +821,14 @@ func (p *plugin) handleUnifiedAct(ctx *web.Context) error {
 	}
 
 	// What a move put where, so that the undo can name it.
-	var landed []Ref
+	var landed []mail.Ref
 	to := formOrQueryParam(ctx, "to")
-	var act Act
+	var act mail.Act
 	switch action {
 	case "move":
 		act = p.MoveToRole(to, &landed)
 	case "flag":
-		add, del := FlagColorFlags(ctx.FormValue("color"))
+		add, del := mail.FlagColorFlags(ctx.FormValue("color"))
 		if add == nil && del == nil {
 			return web.NewError(http.StatusBadRequest, "unknown flag colour")
 		}
@@ -862,9 +863,9 @@ func nothingSelected(ctx *web.Context, back string) error {
 }
 
 // A server's no is a notice naming who refused, never an error page.
-func runAct(ctx *web.Context, refs []Ref, act Act, done func(n int) web.Notice, land func(done bool) error) error {
+func runAct(ctx *web.Context, refs []mail.Ref, act mail.Act, done func(n int) web.Notice, land func(done bool) error) error {
 	// Only when no server answered is it the upstream page.
-	n, failed, err := ActOn(ctx.Logins(), refs, act)
+	n, failed, err := mail.ActOn(ctx.Logins(), refs, act)
 	if err != nil {
 		return err
 	}

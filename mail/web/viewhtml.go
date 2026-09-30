@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz/internal/lang"
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-message"
 )
@@ -42,7 +43,7 @@ type frameData struct {
 	Style  string
 }
 
-func viewHTML(ctx *web.Context, msg *IMAPMessage, part *message.Entity) (View, error) {
+func viewHTML(ctx *web.Context, msg *mail.IMAPMessage, part *message.Entity) (View, error) {
 	allowRemoteResources := ctx.QueryParam("allow-remote-resources") == "1"
 
 	mimeType, _, err := part.Header.ContentType()

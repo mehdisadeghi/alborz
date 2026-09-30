@@ -37,7 +37,7 @@ import (
 	"git.mehdix.org/alborz"
 	authweb "git.mehdix.org/alborz/auth/web"
 	filtersweb "git.mehdix.org/alborz/filters/web"
-	"git.mehdix.org/alborz/mail"
+	mailweb "git.mehdix.org/alborz/mail/web"
 	calendarweb "git.mehdix.org/alborz/pim/calendar/web"
 	contactsweb "git.mehdix.org/alborz/pim/contacts/web"
 	pimweb "git.mehdix.org/alborz/pim/web"
@@ -328,7 +328,7 @@ const smokeKey = "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA="
 // newAlborz wires the features as cmd/alborz does and serves them on ln; setup runs first.
 func newAlborz(t *testing.T, ln net.Listener, options web.Options, setup ...func(*web.Server)) {
 	t.Helper()
-	s, err := web.New(log.New(os.Stderr, "", log.LstdFlags), options, mail.TemplateFuncs)
+	s, err := web.New(log.New(os.Stderr, "", log.LstdFlags), options, mailweb.TemplateFuncs)
 	if err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
@@ -344,7 +344,7 @@ func newAlborz(t *testing.T, ln net.Listener, options web.Options, setup ...func
 	web.PublicRoutes(public)
 	web.EventRoutes(events)
 	authweb.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
-	if err := mail.Mount(app.Group("", "mail")); err != nil {
+	if err := mailweb.Mount(app.Group("", "mail")); err != nil {
 		t.Fatalf("start alborz: %v", err)
 	}
 	settingsweb.Mount(app.Group("", "settings"))

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
+	mailweb "git.mehdix.org/alborz/mail/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapserver"
@@ -61,7 +61,7 @@ func serve(t *testing.T, dir, imapAddr string, proxies ...string) (s *web.Server
 			DataDir:   dir,
 		},
 		TrustedProxies: proxies,
-	}, mail.TemplateFuncs)
+	}, mailweb.TemplateFuncs)
 	if err != nil {
 		t.Fatal(err)
 	}

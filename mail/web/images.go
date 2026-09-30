@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -38,8 +39,8 @@ func handleGetAttachment(ctx *web.Context) error {
 
 // imageSource opens an image the composed HTML shows: an upload the session holds, or a part of a message.
 // The session keeps the uploads it names in held until the message has left.
-func imageSource(ctx *web.Context, held *[]string) func(src string) (Attachment, error) {
-	return func(src string) (Attachment, error) {
+func imageSource(ctx *web.Context, held *[]string) func(src string) (mail.Attachment, error) {
+	return func(src string) (mail.Attachment, error) {
 		u, err := url.Parse(src)
 		if err != nil {
 			return nil, err
@@ -53,13 +54,13 @@ func imageSource(ctx *web.Context, held *[]string) func(src string) (Attachment,
 				return nil, fmt.Errorf("the image %s is no longer held", id)
 			}
 			*held = append(*held, id)
-			return &FormAttachment{FileHeader: upload.File, ID: id}, nil
+			return &mail.FormAttachment{FileHeader: upload.File, ID: id}, nil
 		case "mail.message.raw":
-			uid, err := ParseUID(values["uid"])
+			uid, err := mail.ParseUID(values["uid"])
 			if err != nil {
 				return nil, err
 			}
-			path, err := ParsePartPath(u.Query().Get("part"))
+			path, err := mail.ParsePartPath(u.Query().Get("part"))
 			if err != nil {
 				return nil, err
 			}
@@ -69,8 +70,8 @@ func imageSource(ctx *web.Context, held *[]string) func(src string) (Attachment,
 					return nil, fmt.Errorf("not signed in to %s", account)
 				}
 			}
-			image, err := PartImage(ctx.Request().Context(), login, values["mbox"], uid, path)
-			if errors.Is(err, ErrNotImage) {
+			image, err := mail.PartImage(ctx.Request().Context(), login, values["mbox"], uid, path)
+			if errors.Is(err, mail.ErrNotImage) {
 				return nil, fmt.Errorf("%s is not an image", src)
 			}
 			if err != nil {

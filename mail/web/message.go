@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -18,8 +19,8 @@ import (
 
 type MessageRenderData struct {
 	IMAPBaseRenderData
-	Shown
-	Part *IMAPPartNode
+	mail.Shown
+	Part *mail.IMAPPartNode
 	// AsText is the HTML part read as words, offered only without a plain part.
 	AsText         bool
 	View           interface{}
@@ -29,10 +30,10 @@ type MessageRenderData struct {
 	ContextURL     template.URL
 
 	// AuthResults is what the receiving server said about the sender's domain.
-	AuthResults *AuthResults
+	AuthResults *mail.AuthResults
 	// Warnings are the indicators that earned a colour, and Mark the colour.
-	Warnings []Indicator
-	Mark     Grade
+	Warnings []mail.Indicator
+	Mark     mail.Grade
 
 	// Unsubscribe is where the unsubscribe control sends the reader.
 	Unsubscribe string
@@ -40,10 +41,10 @@ type MessageRenderData struct {
 	List listLinks
 
 	// InReplyTo is the message this one answers, when it is in the same folder.
-	InReplyTo *ThreadNeighbour
+	InReplyTo *mail.ThreadNeighbour
 
 	// Answers are the messages answering this one, found only in Sent.
-	Answers []ThreadNeighbour
+	Answers []mail.ThreadNeighbour
 
 	// ThreadSupported says the server can group the folder into conversations.
 	ThreadSupported bool
@@ -85,7 +86,7 @@ func handleDownloadMessage(ctx *web.Context, plain bool) error {
 	if err != nil {
 		return err
 	}
-	return streamed(ctx, StreamMessage(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope, lit imap.LiteralReader) error {
+	return streamed(ctx, mail.StreamMessage(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope, lit imap.LiteralReader) error {
 		ctx.Response().Header().Set("Content-Length", fmt.Sprint(lit.Size()))
 		if plain {
 			// No charset can be right for a whole message whose parts each name their own.
@@ -111,7 +112,7 @@ func handleDownloadAttachments(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	return streamed(ctx, ZipAttachments(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope) io.Writer {
+	return streamed(ctx, mail.ZipAttachments(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope) io.Writer {
 		ctx.Response().Header().Set("Content-Disposition", downloadName(env.Subject, fmt.Sprint(uid), ".zip"))
 		ctx.Response().Header().Set("Content-Type", "application/zip")
 		ctx.Response().WriteHeader(http.StatusOK)
@@ -121,7 +122,7 @@ func handleDownloadAttachments(ctx *web.Context) error {
 
 // handleDownloadPart streams one part, decoded, as it comes from the server.
 func handleDownloadPart(ctx *web.Context, mboxName string, uid imap.UID, partPath []int) error {
-	return streamed(ctx, StreamPart(ctx.Request().Context(), ctx.Login, mboxName, uid, partPath, func(part *imap.BodyStructureSinglePart, name string, size int64, body io.Reader) error {
+	return streamed(ctx, mail.StreamPart(ctx.Request().Context(), ctx.Login, mboxName, uid, partPath, func(part *imap.BodyStructureSinglePart, name string, size int64, body io.Reader) error {
 		mimeType := strings.ToLower(part.MediaType())
 		contentType := mimeType
 		if charset := part.Params["charset"]; charset != "" && part.Type == "text" {
@@ -153,7 +154,7 @@ func handleRaw(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	partPath, err := ParsePartPath(ctx.QueryParam("part"))
+	partPath, err := mail.ParsePartPath(ctx.QueryParam("part"))
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
@@ -169,12 +170,12 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		return err
 	}
 
-	partPath, err := ParsePartPath(ctx.QueryParam("part"))
+	partPath, err := mail.ParsePartPath(ctx.QueryParam("part"))
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
 
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -188,10 +189,10 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 
 	// A list across accounts or folders is read back through its own pages, not this folder's order.
 	merged := mergedOrigin(ctx)
-	shown, err := p.Read(ctx.Request().Context(), ReadAsk{
+	shown, err := p.Read(ctx.Request().Context(), mail.ReadAsk{
 		Login: ctx.Login, Logins: ctx.Logins(), Settings: settings,
 		Mailbox: mboxName, UID: uid, Part: partPath, Named: ctx.QueryParam("part") != "",
-		List: ListAsk{Page: alborz.Page{Size: messagesPerPage}, Query: query, View: railView,
+		List: mail.ListAsk{Page: alborz.Page{Size: messagesPerPage}, Query: query, View: railView,
 			Sort: ctx.QueryParam("sort"), Dir: ctx.QueryParam("dir")},
 		PreferHTML: ctx.Reading().PreferHTML, Partial: ctx.Partial(), Merged: merged != nil,
 		MoneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
@@ -216,7 +217,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 			fmt.Sprintf("message %v has no part %v", uid, ctx.QueryParam("part")))
 	}
 
-	part, asText, err := Body(ctx.Request().Context(), ctx.Login, msg, shown.Part, partPath, ctx.QueryParam("text") == "1")
+	part, asText, err := mail.Body(ctx.Request().Context(), ctx.Login, msg, shown.Part, partPath, ctx.QueryParam("text") == "1")
 	if err != nil {
 		return err
 	}
@@ -253,7 +254,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		ContextPending:     shown.DeferContext,
 		ContextURL:         template.URL(contextURL.RequestURI()),
 		IMAPBaseRenderData: *ibase,
-		Shown:              Shown{Message: msg},
+		Shown:              mail.Shown{Message: msg},
 		Part:               msg.PartByPath(partPath),
 		AsText:             asText,
 		View:               view.Body,
@@ -290,11 +291,11 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 
 // UnsubscribeExternal reports whether the unsubscribe link leaves alborz.
 func (d *MessageRenderData) UnsubscribeExternal() bool {
-	return d.Unsubscribe != "" && Mailto(d.Message.ListUnsubscribe) == nil
+	return d.Unsubscribe != "" && mail.Mailto(d.Message.ListUnsubscribe) == nil
 }
 
 // unsubscribeHref is where the unsubscribe control sends the reader: the list's page, or compose with mail as its fields.
-func unsubscribeHref(ctx *web.Context, mail url.Values, msg *IMAPMessage) string {
+func unsubscribeHref(ctx *web.Context, mail url.Values, msg *mail.IMAPMessage) string {
 	if mail != nil {
 		return ctx.Path("mail.compose") + "?" + web.Query(mail)
 	}
@@ -306,7 +307,7 @@ type listLinks struct{ Help, Subscribe, Owner string }
 
 // A mailto opens this account's compose page, not whatever mail app the machine has.
 func listHref(ctx *web.Context, uri string) string {
-	if q := Mailto(uri); q != nil {
+	if q := mail.Mailto(uri); q != nil {
 		return ctx.Path("mail.compose") + "?" + web.Query(q)
 	}
 	return uri
@@ -321,7 +322,7 @@ func (p *plugin) handleUnsubscribe(ctx *web.Context) error {
 	var oneClick string
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		var err error
-		oneClick, err = OneClick(c, mboxName, uid)
+		oneClick, err = mail.OneClick(c, mboxName, uid)
 		return err
 	})
 	if err != nil {

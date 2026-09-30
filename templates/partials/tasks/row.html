@@ -42,3 +42,10 @@
 </div>
 {{ end }}
 {{ end }}
+
+{{/* The list page's data. */}}
+{{ define "task-rows" }}
+          {{range .Tasks}}
+          {{ template "task-row" (dict "G" $ "Row" . "Next" $.GlobalData.URL.RequestURI) }}
+          {{end}}
+{{ end }}

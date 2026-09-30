@@ -64,9 +64,7 @@
             {{ template "sort-col" (dict "s" .Sorting "key" "added" "label" ($.T "common.added") "cell" "task-list-added") }}
           </div>
 
-          {{range .Tasks}}
-          {{ template "task-row" (dict "G" $ "Row" . "Next" $.GlobalData.URL.RequestURI) }}
-          {{end}}
+          {{ template "task-rows" $ }}
           {{else}}
           <p class="empty-list">{{if .Query}}{{printf ($.T "common.noresults") .Query}}{{else}}{{$.T "tasks.empty"}}{{end}}</p>
           {{end}}

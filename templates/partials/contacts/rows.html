@@ -1,0 +1,44 @@
+{{/* The list page's data. */}}
+{{ define "contact-rows" }}
+          {{range .AddressObjects}}
+          {{$book := call $.CollectionFor .Account .Path}}{{$color := $book.Color}}
+          {{$photo := .PhotoURL}}
+          <div class="contact-row list-row" role="row">
+            <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
+              <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form" aria-label="{{$.T "a11y.selectcontact"}}{{with .DisplayName}}: {{.}}{{end}}">
+            </div>
+            <div class="list-star list-cell" role="cell">
+              {{ template "card-star" (dict
+                 "Action" (printf "%s%s" (url "contacts.contact.color" .Path) (account "?" .Account))
+                 "Current" .Color
+                 "Next" $.GlobalData.URL.RequestURI
+                 "Label" (or (and .Color ($.T "mailbox.flagnone")) ($.T "mailbox.flagcolor"))
+                 "MenuLabel" ($.T "mailbox.flagcolor")) }}
+            </div>
+            <div class="contact-list-photo list-cell" role="cell">
+              {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
+            </div>
+            <div class="contact-list-name list-primary list-cell" role="cell">
+              <a href="{{ call $.HrefFor .Account .Path }}" dir="auto"{{ with call $.AddedBy .Account .Path }} title="{{ printf ($.T "share.addedby") . }}"{{ end }}>
+                {{.DisplayName}}
+              </a>
+              {{if $.GlobalData.Unified}}<span class="row-account card-only" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+            </div>
+            <div class="contact-list-email list-cell" role="cell">
+              {{$email := .Card.PreferredValue "EMAIL"}}
+              {{if $email}}
+                <a href="{{ localhref (printf "/compose?to=%s" ($email | qv)) }}">{{ template "ltr" $email }}</a>
+              {{end}}
+            </div>
+            <div class="contact-list-phone list-cell" role="cell">
+              {{ template "ltr" (.Card.PreferredValue "TEL") }}
+            </div>
+            {{ $changed := "" }}{{ $changedTitle := "" }}
+            {{ $m := .Modified }}{{ if not $m.IsZero }}{{ $changed = $.GlobalData.Since $m }}{{ $changedTitle = $.GlobalData.FormatDate $m }}{{ end }}
+            <div class="contact-list-changed list-cell" role="cell" title="{{$changedTitle}}">{{$changed}}</div>
+            <div class="contact-list-book list-cell" role="cell">
+              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}<a href="{{ call $.CollectionHref .Account .Path }}">{{$book.Name}}</a>{{ template "collection-mark" (dict "g" $ "c" $book) }}{{if $.GlobalData.Unified}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+            </div>
+          </div>
+          {{end}}
+{{ end }}

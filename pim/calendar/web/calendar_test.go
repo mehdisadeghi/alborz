@@ -627,3 +627,30 @@ func TestAStoredEventGoIcalWouldNotWriteIsServed(t *testing.T) {
 		t.Errorf("the month does not show both events")
 	}
 }
+
+// An object that does not parse, and a calendar the server cannot serve, are left out of an export with
+// their reasons; the rest downloads.
+func TestAnExportLeavesOutWhatCannotBeRead(t *testing.T) {
+	personal, work := DAVHome+"personal/", DAVHome+"work/"
+	cut := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:cut\r\nSUMMARY:Cut\r\n"
+	d := DAV(t, Calendar(personal, "Personal"), Calendar(work, "Work"), Failing(work),
+		Object(personal+"plain.ics", Event("plain", "Plain")), Object(personal+"cut.ics", cut))
+	c := Alborz(t, NoCache(), WithDAV(d)).SignIn(t, User)
+
+	for _, tc := range []struct {
+		route string
+		args  []any
+		left  string
+	}{
+		{"calendar.collection.export", []any{d.At() + personal}, "1 left out of the export: "},
+		{"calendar.month.export", []any{url.Values{"month": {"2026-09"}}}, "2 left out of the export: "},
+	} {
+		resp := c.Get(t, tc.route, tc.args...)
+		if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Text, "UID:plain") || strings.Contains(resp.Text, "UID:cut") {
+			t.Fatalf("%s answered %s without the readable event alone:\n%s", tc.route, resp.Status, resp.Text)
+		}
+		if bar := NoticeBar(c.Page(t, "settings.profile")); !strings.Contains(bar, tc.left) || !strings.Contains(bar, "cut.ics: unexpected EOF") {
+			t.Errorf("%s: the page after does not say what was left out:\n%s", tc.route, bar)
+		}
+	}
+}

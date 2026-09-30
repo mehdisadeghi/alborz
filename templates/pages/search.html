@@ -1,0 +1,27 @@
+{{ define "main-class" }} class="search-results"{{ end }}
+
+{{ define "main" }}
+        {{ template "toolbar-head" (dict "g" .) }}
+        {{ template "toolbar-end" }}
+            {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "keep" (dict "view" .View) "placeholder" ($.T "search.placeholder") "button" ($.T "mailbox.search")) }}
+            {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
+        {{ template "toolbar-foot" }}
+
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "search.title") "home" (url "core.search") "field" "" "collection" "" "path" "" "heading" true) }}
+
+      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+
+      {{ range .Blocks }}
+      <section class="search-block" aria-labelledby="search-{{.Kind}}">
+        <h2 id="search-{{.Kind}}" class="search-kind">{{.Label}}</h2>
+        {{ if .Unasked }}
+        <p class="hint list-option">{{ $.T "search.unasked" }} {{ range $i, $key := .Unasked }}{{ if $i }}, {{ end }}{{ template "ltr" (printf "%s:" $key) }}{{ end }}</p>
+        {{ else if .Total }}
+        {{ .Rows }}
+        <p class="list-option"><a href="{{ localhref .All }}">{{ $.GlobalData.Tf "search.all" .Total .Label }}</a></p>
+        {{ else }}
+        <p class="hint list-option">{{ $.T "search.none" }}</p>
+        {{ end }}
+      </section>
+      {{ end }}
+{{ end }}

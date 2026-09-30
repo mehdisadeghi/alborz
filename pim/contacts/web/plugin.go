@@ -38,6 +38,7 @@ func Mount(g *web.Group, st *store.Store) error {
 	p := &plugin{b}
 
 	registerRoutes(p, g)
+	srv.Searchers = append(srv.Searchers, web.Searcher{Kind: "contacts", Rows: "contacts-found", Search: p.found})
 	web.Extend(srv, p.collectionPage().ShowOffer(p.DAV))
 	// Calendar registers first, so the collections on alborz come last.
 	srv.OnServers = append(srv.OnServers, pimweb.Cards(p.DAV, "settings.davcontacts", bookAbilities), pimweb.HereCard(p.DAV))

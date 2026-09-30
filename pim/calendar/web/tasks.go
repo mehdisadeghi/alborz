@@ -51,6 +51,8 @@ type TasksRenderData struct {
 	Query      string
 	Sorting    pimweb.Sorting
 	Pager      web.Pager
+	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
+	SelectForm string
 
 	Invitations *pimweb.RailInvitations
 }
@@ -307,6 +309,7 @@ func (p *plugin) tasks(ctx *web.Context) error {
 		Pager:          pager,
 		Query:          list.Query,
 		Sorting:        list.Sorting,
+		SelectForm:     tasksForm,
 		Invitations:    invitations,
 	})
 }
@@ -357,6 +360,9 @@ func (p *plugin) complete(ctx *web.Context) error {
 			row := taskRow(ctx, marked, cal, web.UserLocation(ctx), params)
 			row.AddedBy = p.DAV.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)
 			data := &TaskRowRenderData{BaseRenderData: *web.NewBaseRenderData(ctx), Row: row, Next: next}
+			if ctx.FormValue("select") == tasksForm {
+				data.Select = tasksForm
+			}
 			data.G = &data.BaseRenderData
 			return ctx.Render(http.StatusOK, "task-row", data)
 		},
@@ -370,7 +376,12 @@ type TaskRowRenderData struct {
 	G    *web.BaseRenderData
 	Row  TaskRow
 	Next string
+	// Select is the list's selection form, as the row was drawn; empty where it offered none.
+	Select string
 }
+
+// tasksForm is the task list's selection form.
+const tasksForm = "tasks-form"
 
 func taskRow(ctx *web.Context, task *caldav.CalendarObject, cal dav.Collection, loc *time.Location, params url.Values) TaskRow {
 	todo := calendar.FirstTodo(task.Data)

@@ -23,7 +23,7 @@
 
       <section class="contacts">
         {{ $multi := gt (len .GlobalData.Accounts) 1 }}
-        <div class="contact-grid list-grid" role="table">
+        <div {{ template "contact-grid" }}>
           {{if .AddressObjects}}
           <div class="list-row" role="row">
           <div class="list-header list-checkbox" role="columnheader"></div>

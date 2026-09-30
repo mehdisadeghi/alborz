@@ -1,12 +1,14 @@
 {{/* The list page's data. */}}
 {{ define "contact-rows" }}
-          {{range .AddressObjects}}
+          {{range $row := .AddressObjects}}
           {{$book := call $.CollectionFor .Account .Path}}{{$color := $book.Color}}
           {{$photo := .PhotoURL}}
           <div class="contact-row list-row" role="row">
+            {{ with $.SelectForm }}
             <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
-              <input type="checkbox" name="paths" value="{{.Account}}|{{.Path}}" form="address-book-form" aria-label="{{$.T "a11y.selectcontact"}}{{with .DisplayName}}: {{.}}{{end}}">
+              <input type="checkbox" name="paths" value="{{$row.Account}}|{{$row.Path}}" form="{{.}}" aria-label="{{$.T "a11y.selectcontact"}}{{with $row.DisplayName}}: {{.}}{{end}}">
             </div>
+            {{ end }}
             <div class="list-star list-cell" role="cell">
               {{ template "card-star" (dict
                  "Action" (printf "%s%s" (url "contacts.contact.color" .Path) (account "?" .Account))
@@ -41,4 +43,13 @@
             </div>
           </div>
           {{end}}
+{{ end }}
+
+{{ define "contact-grid" }}class="contact-grid list-grid" role="table"{{ end }}
+
+{{/* A search's first rows on the search across sections. */}}
+{{ define "contacts-found" }}
+<div {{ template "contact-grid" }}>
+{{ template "contact-rows" . }}
+</div>
 {{ end }}

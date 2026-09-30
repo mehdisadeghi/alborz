@@ -47,6 +47,7 @@ func Mount(s *web.Server) error {
 	}
 	filtersweb.Mount(app.Group("/filters", "filters"))
 	web.StatusRoutes(app)
+	web.SearchRoutes(app)
 	web.Fallback(app)
 	return nil
 }

@@ -52,7 +52,7 @@
       {{ end }}
 
       <section class="tasks">
-        <div class="task-grid list-grid{{if $.GlobalData.Unified}} multi{{end}}" role="table">
+        <div {{ template "task-grid" $ }}>
           {{if .Tasks}}
           <div class="task-header-row list-row" role="row">
             <div class="list-header list-checkbox" role="columnheader"></div>

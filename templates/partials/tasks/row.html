@@ -1,10 +1,12 @@
-{{/* dict: G Row Next. */}}
+{{/* dict: G Row Next Select. */}}
 {{ define "task-row" }}
-{{ $g := .G }}{{ $next := .Next }}{{ with .Row }}
+{{ $g := .G }}{{ $next := .Next }}{{ $select := .Select }}{{ with $row := .Row }}
 <div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
+  {{ with $select }}
   <div class="task-list-checkbox list-checkbox list-cell" role="cell">
-    <input type="checkbox" name="paths" value="{{.Task.Account}}|{{.Task.Path}}" form="tasks-form" aria-label="{{$g.T "a11y.selecttask"}}{{with .Summary}}: {{.}}{{end}}">
+    <input type="checkbox" name="paths" value="{{$row.Task.Account}}|{{$row.Task.Path}}" form="{{.}}" aria-label="{{$g.T "a11y.selecttask"}}{{with $row.Summary}}: {{.}}{{end}}">
   </div>
+  {{ end }}
   <div class="list-star list-cell" role="cell">
     {{ template "card-star" (dict
        "Action" (printf "%s%s" (url "calendar.task.color" .Task.Path) (account "?" .Task.Account))
@@ -19,6 +21,7 @@
     <form method="post" action="{{url "calendar.task.complete" .Task.Path}}{{account "?" .Task.Account}}" class="task-checkbox"
           hx-post="{{url "calendar.task.complete" .Task.Path}}{{account "?" .Task.Account}}" hx-target="closest .task-row" hx-swap="outerHTML">
       <input type="hidden" name="next" value="{{$next}}">
+      {{ with $select }}<input type="hidden" name="select" value="{{.}}">{{ end }}
       {{ if .Completed }}<input type="hidden" name="reopen" value="1">{{ end }}
       <button type="submit" class="checkbox-button{{if .Completed}} checked{{end}}{{with .Priority}} prio-{{.}}{{end}}" aria-label="{{$mark}}" title="{{$mark}}">
         {{if .Completed}}&#10003;{{end}}
@@ -46,6 +49,15 @@
 {{/* The list page's data. */}}
 {{ define "task-rows" }}
           {{range .Tasks}}
-          {{ template "task-row" (dict "G" $ "Row" . "Next" $.GlobalData.URL.RequestURI) }}
+          {{ template "task-row" (dict "G" $ "Row" . "Next" $.GlobalData.URL.RequestURI "Select" $.SelectForm) }}
           {{end}}
+{{ end }}
+
+{{ define "task-grid" }}class="task-grid list-grid{{if .GlobalData.Unified}} multi{{end}}" role="table"{{ end }}
+
+{{/* A search's first rows on the search across sections. */}}
+{{ define "tasks-found" }}
+<div {{ template "task-grid" . }}>
+{{ template "task-rows" . }}
+</div>
 {{ end }}

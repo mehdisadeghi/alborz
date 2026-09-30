@@ -41,6 +41,12 @@
       class="active" aria-current="page"
       {{ end }}
     title="{{$.T "nav.filters"}}" aria-label="{{$.T "nav.filters"}}">{{ template "icon" "filter" }}<span class="label">{{$.T "nav.filters"}}</span></a>
+    <a
+      href="{{url "core.search"}}{{$q}}"
+      {{ if eq $page "search" }}
+      class="active" aria-current="page"
+      {{ end }}
+    title="{{$.T "search.title"}}" aria-label="{{$.T "search.title"}}">{{ template "icon" "search" }}<span class="label">{{$.T "search.title"}}</span></a>
     {{ if .GlobalData.LoggedIn }}
     <div>
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" false) }}

@@ -21,7 +21,7 @@
       {{/* On the part every swap renews: on main they stayed those of the first
            folder loaded. */}}
       <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{url "mail.mailbox" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}" data-drop-import="{{url "mail.mailbox.import" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}"{{ end }}>
-        <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}>
+        <div {{ template "message-grid" . }}>
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hreset := ne ($.GlobalData.URL.Query.Get "dir") "" }}
@@ -49,7 +49,7 @@
 {{/* The list page's data: rows read the list's query, view, order and scope. */}}
 {{ define "message-rows" }}
           {{ $scope := "" }}{{ with $.GlobalData.URLAccount }}{{ $scope = printf "&account=%s" (. | qv) }}{{ end }}
-          {{range .Messages}}
+          {{range $row := .Messages}}
           {{ $owner := $.GlobalData.URLAccount }}{{ if $.Merged }}{{ $owner = .Account }}{{ end }}
           {{ $classes := "list-cell" }}
           {{ if not (.HasFlag "\\Seen") }}
@@ -61,13 +61,15 @@
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
           <div class="message-row list-row" role="row"{{ if $.Threaded }} style="--depth: {{.Depth}}"{{ end }}>
+          {{ with $.SelectForm }}
           <div class="message-list-checkbox list-checkbox {{$classes}}" role="cell">
             {{ if $.Merged }}
-            <input type="checkbox" name="refs" value="{{.Account}}|{{.Mailbox}}|{{.UID}}" form="messages-form" aria-label="{{$.T "a11y.selectrow"}}{{with .Envelope.Subject}}: {{.}}{{end}}">
+            <input type="checkbox" name="refs" value="{{$row.Account}}|{{$row.Mailbox}}|{{$row.UID}}" form="{{.}}" aria-label="{{$.T "a11y.selectrow"}}{{with $row.Envelope.Subject}}: {{.}}{{end}}">
             {{ else }}
-            <input type="checkbox" name="uids" value="{{.UID}}" form="messages-form" aria-label="{{$.T "a11y.selectrow"}}{{with .Envelope.Subject}}: {{.}}{{end}}">
+            <input type="checkbox" name="uids" value="{{$row.UID}}" form="{{.}}" aria-label="{{$.T "a11y.selectrow"}}{{with $row.Envelope.Subject}}: {{.}}{{end}}">
             {{ end }}
           </div>
+          {{ end }}
           <div class="message-list-flags {{$classes}}" role="cell">
             {{ $starred := .HasFlag "\\Flagged" }}
             {{ template "row-star" (dict "Mailbox" .Mailbox "Account" (account "?" $owner) "UID" .UID
@@ -143,4 +145,14 @@
           {{ end }}
 
           {{ end }}
+{{ end }}
+
+{{/* The grid's attributes: the tracks its account and folder columns share. */}}
+{{ define "message-grid" }}role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}{{ end }}
+
+{{/* A search's first rows on the search across sections. */}}
+{{ define "mail-found" }}
+<div {{ template "message-grid" . }}>
+{{ template "message-rows" . }}
+</div>
 {{ end }}

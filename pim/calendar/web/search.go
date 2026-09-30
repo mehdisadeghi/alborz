@@ -131,3 +131,35 @@ func eventShown(oc calendar.Occurrence, view string, q search.Query) bool {
 	location, _ := oc.Event.Props.Text(ical.PropLocation)
 	return pim.Matches(q, oc.Summary(), description, location)
 }
+
+// foundEvents is the events' part in the search across sections.
+func (p *plugin) foundEvents(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	data, err := p.eventSearch(ctx, nil, view, q)
+	if err != nil {
+		return web.Found{}, err
+	}
+	pimweb.WarnUnread(ctx, data.unread)
+	total := len(data.Found)
+	data.Found = data.Found[:min(limit, total)]
+	return web.Found{Rows: data, Total: total, All: ctx.SearchURL("calendar.search", q, view)}, nil
+}
+
+// foundTasks is the tasks' part in the search across sections, in the list's own order.
+func (p *plugin) foundTasks(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	params := pimweb.ListParams(ctx, taskListParams...)
+	params.Set("from", ctx.Request().URL.RequestURI())
+	rows, _, unread, err := p.shownTasks(ctx, nil, view, q, params)
+	if err != nil {
+		return web.Found{}, err
+	}
+	pimweb.WarnUnread(ctx, unread)
+	if _, err := pimweb.Sort(ctx, rows, taskColumns, taskTie); err != nil {
+		return web.Found{}, err
+	}
+	shown := rows[:min(limit, len(rows))]
+	addedBy := p.DAV.AddedBy(ctx.Login.Username())
+	for i := range shown {
+		shown[i].AddedBy = addedBy(shown[i].Calendar.Account, shown[i].Task.Path)
+	}
+	return web.Found{Rows: &TasksRenderData{Tasks: shown}, Total: len(rows), All: ctx.SearchURL("calendar.tasks", q, view)}, nil
+}

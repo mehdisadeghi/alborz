@@ -61,6 +61,12 @@
 "search.title" = "Búsqueda"
 "search.allfolders" = "Buscar en todas las carpetas"
 "search.none" = "No se encontró nada."
+"search.placeholder" = "Buscar en todo…"
+"search.unasked" = "No buscado:"
+"mail.search" = "Correo"
+"events.search" = "Eventos"
+"tasks.search" = "Tareas"
+"contacts.search" = "Contactos"
 "nav.email" = "Correo"
 "nav.contacts" = "Contactos"
 "nav.calendar" = "Calendario"
@@ -1294,3 +1300,7 @@ other = "Siguiente a las %[2]s"
 ["notifications.keptfor"]
 one = "Dura hasta %d día después del último uso de este navegador si inició sesión con «Recordarme», y %d minutos si no. Un reinicio del servidor también lo termina hasta que se vuelva a usar este navegador."
 other = "Dura hasta %d días después del último uso de este navegador si inició sesión con «Recordarme», y %d minutos si no. Un reinicio del servidor también lo termina hasta que se vuelva a usar este navegador."
+
+["search.all"]
+one = "%[1]d resultado en %[2]s"
+other = "Los %[1]d resultados en %[2]s"

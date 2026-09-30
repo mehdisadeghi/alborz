@@ -32,26 +32,12 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	if ask.Query == "" && ask.View == "" {
 		return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
 	}
-	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
-		return err
-	}
-
-	logins := []*alborz.Login{ctx.Login}
-	if ctx.Unified {
-		logins = ctx.Logins()
-	}
-	q := search.Parse(ask.Query)
-	list, down, err := p.Search(ctx.Request().Context(), logins, settings, ask)
+	data, down, err := p.searchRows(ctx, ask)
 	if err != nil {
 		return err
 	}
 	ctx.Unreachable(down)
 
-	track := 0
-	for i := range list.Rows {
-		track = max(track, len([]rune(list.Rows[i].Mailbox)))
-	}
 	title := ctx.T("search.title")
 	heading := fmt.Sprintf("%s: %s", title, ask.Query)
 	if ask.View != "" {
@@ -70,13 +56,46 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	// No name, so the rail marks no folder.
 	ibase.Mailbox = &mail.MailboxStatus{StatusData: &imap.StatusData{}, Label: title}
-	data := listPage(ctx, ask, list)
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = []CrumbLink{{Label: title}}
-	data.Merged, data.Spanning, data.Role = true, true, searchRole
-	data.FolderQuery = q.Without(imapsearch.In)
-	data.FolderTrack = template.CSS(fmt.Sprintf("%dch", min(track, folderTrackMax)))
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
+}
+
+// searchRows are a page of a search across folders as its list draws them, and the accounts whose
+// servers did not answer.
+func (p *plugin) searchRows(ctx *web.Context, ask mail.ListAsk) (*MailboxRenderData, []string, error) {
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	if err != nil {
+		return nil, nil, err
+	}
+	logins := []*alborz.Login{ctx.Login}
+	if ctx.Unified {
+		logins = ctx.Logins()
+	}
+	list, down, err := p.Search(ctx.Request().Context(), logins, settings, ask)
+	if err != nil {
+		return nil, nil, err
+	}
+	track := 0
+	for i := range list.Rows {
+		track = max(track, len([]rune(list.Rows[i].Mailbox)))
+	}
+	data := listPage(ctx, ask, list)
+	data.Merged, data.Spanning, data.Role = true, true, searchRole
+	data.FolderQuery = search.Parse(ask.Query).Without(imapsearch.In)
+	data.FolderTrack = template.CSS(fmt.Sprintf("%dch", min(track, folderTrackMax)))
+	return data, down, nil
+}
+
+// found is mail's part in the search across sections: a search of every folder.
+func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	ask := mail.ListAsk{Page: alborz.Page{Size: limit}, Query: q.String(), View: view}
+	data, down, err := p.searchRows(ctx, ask)
+	if err != nil {
+		return web.Found{}, err
+	}
+	data.SelectForm = ""
+	return web.Found{Rows: data, Total: data.Total, All: ctx.SearchURL("mail.search", q, view), Down: down}, nil
 }
 
 // ViewLabel names a view for a page heading.

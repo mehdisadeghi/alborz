@@ -41,6 +41,11 @@ func PublicRoutes(g *Group) {
 				icon("icon-512.png", ""),
 				icon("icon-maskable-512.png", "maskable"),
 			},
+			"share_target": map[string]any{
+				"action": ctx.Path("mail.share"), "method": "POST", "enctype": "multipart/form-data",
+				"params": map[string]any{"title": "title", "text": "text", "url": "url",
+					"files": []map[string]any{{"name": "files", "accept": []string{"*/*"}}}},
+			},
 		})
 	})
 

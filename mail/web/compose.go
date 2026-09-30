@@ -437,12 +437,13 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 	}
 
 	return p.handleCompose(ctx, &mail.OutgoingMessage{
-		From:      p.OwnIdentity(ctx.Login, settings, ctx.QueryParam("from")),
-		To:        strings.Split(ctx.QueryParam("to"), ","),
-		Subject:   ctx.QueryParam("subject"),
-		MessageID: mail.NewMessageID(),
-		InReplyTo: ctx.QueryParam("in-reply-to"),
-		Text:      text,
+		From:        p.OwnIdentity(ctx.Login, settings, ctx.QueryParam("from")),
+		To:          strings.Split(ctx.QueryParam("to"), ","),
+		Subject:     ctx.QueryParam("subject"),
+		MessageID:   mail.NewMessageID(),
+		InReplyTo:   ctx.QueryParam("in-reply-to"),
+		Text:        text,
+		Attachments: uploaded(ctx),
 	}, &mail.ComposeOptions{Signature: chosen})
 }
 

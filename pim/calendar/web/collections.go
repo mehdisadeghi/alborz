@@ -166,6 +166,7 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 		if err := p.Fill(rc, login, sub.URL, got, cal); err != nil {
 			return err
 		}
+		ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: fmt.Sprintf(ctx.T("notice.subscribed"), sub.Name)})
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("calendar.month")))
 	}
 }

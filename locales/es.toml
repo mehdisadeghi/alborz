@@ -195,6 +195,7 @@
 "list.owner" = "Responsable"
 "list.archive" = "Archivo"
 "notice.unsubscribed" = "Suscripción cancelada."
+"notice.subscribed" = "Suscrito a %s."
 "notice.unsubfailed" = "La lista no aceptó la baja; su propia página puede servir."
 "notice.misread" = "Algunos ajustes guardados no se pudieron leer."
 "message.editdraft" = "Editar borrador"

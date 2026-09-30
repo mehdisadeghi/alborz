@@ -1,0 +1,26 @@
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="settings"{{ end }}
+
+{{ define "main" }}
+  {{ $aq := .GlobalData.AccountQuery }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "settings.data") "path" (url "settings.data")) }}
+
+      <form method="get" action="{{url "settings.data.export"}}" hx-boost="false">
+        <input type="hidden" name="account" value="{{ .GlobalData.Username }}">
+        <h2>{{$.T "data.export"}}</h2>
+        <div class="action-group">
+          <p class="hint">{{$.T "data.exporthint"}}</p>
+          <p class="hint">{{$.T "data.plain"}}</p>
+        </div>
+        <button type="submit" class="button-primary">{{$.T "data.download"}}</button>
+      </form>
+
+      <form method="post" enctype="multipart/form-data" action="{{url "settings.data"}}{{$aq}}">
+        <h2>{{$.T "data.import"}}</h2>
+        {{ template "import-fields" (dict "g" $ "file" ($.T "data.importfile") "accept" ".tar.gz,.tgz,application/gzip" "hint" ($.T "data.importhint")) }}
+        <button type="submit" class="button-primary">{{$.T "data.importgo"}}</button>
+      </form>
+{{ end }}

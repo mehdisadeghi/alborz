@@ -241,7 +241,7 @@ type IMAPMessage struct {
 
 	// ListPost is empty unless the whole message's header was fetched.
 	ListPost string
-	// ListUnsubscribe is where the page sends the reader to leave the list.
+	// ListUnsubscribe is where the reader leaves the list: a page, or a mailto naming someone.
 	ListUnsubscribe string
 	// OneClick is the RFC 8058 endpoint, posted from the server.
 	OneClick   string
@@ -253,7 +253,7 @@ type IMAPMessage struct {
 	Via    *imap.Address
 	// ListID names the list; it, not List-Post, says a message is list mail.
 	ListID string
-	// ListHelp, ListSubscribe, ListOwner and ListArchive are the rest of RFC 2369.
+	// ListHelp, ListSubscribe, ListOwner and ListArchive are the rest of RFC 2369, each a page or a mailto.
 	ListHelp      string
 	ListSubscribe string
 	ListOwner     string
@@ -293,14 +293,14 @@ func firstListURI(value string, wanted ...string) string {
 	return ""
 }
 
-// A mailto would open whatever mail app the machine has, not this account.
-func composeFromMailto(uri string) string {
+// Mailto reads a mailto URI (RFC 6068) as what compose takes; nil where it is none or names nobody.
+func Mailto(uri string) url.Values {
 	if !strings.HasPrefix(strings.ToLower(uri), "mailto:") {
-		return uri
+		return nil
 	}
 	u, err := url.Parse(uri)
 	if err != nil {
-		return ""
+		return nil
 	}
 	q := url.Values{}
 	if to := u.Opaque; to != "" {
@@ -312,9 +312,9 @@ func composeFromMailto(uri string) string {
 		}
 	}
 	if q.Get("to") == "" {
-		return ""
+		return nil
 	}
-	return "/compose?" + web.Query(q)
+	return q
 }
 
 // Which header holds the alias depends on the server, so all are collected.
@@ -383,11 +383,15 @@ func deliveryAddresses(h textproto.Header, authserv string) (addrs []string, cut
 	return addrs, cut
 }
 
+// listAction is a list's link: a page, or a mailto naming someone.
 func listAction(value string) string {
 	if uri := firstListURI(value, "https", "http"); uri != "" {
 		return uri
 	}
-	return composeFromMailto(firstListURI(value, "mailto"))
+	if uri := firstListURI(value, "mailto"); Mailto(uri) != nil {
+		return uri
+	}
+	return ""
 }
 
 // Senders put encoded-words even in structured fields like List-Unsubscribe.
@@ -472,8 +476,8 @@ func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 	if strings.Contains(strings.ToLower(decodedField(h, "List-Unsubscribe-Post")), "one-click") {
 		msg.OneClick = msg.ListUnsubscribe
 	}
-	if msg.ListUnsubscribe == "" {
-		msg.ListUnsubscribe = composeFromMailto(firstListURI(decodedField(h, "List-Unsubscribe"), "mailto"))
+	if uri := firstListURI(decodedField(h, "List-Unsubscribe"), "mailto"); msg.ListUnsubscribe == "" && Mailto(uri) != nil {
+		msg.ListUnsubscribe = uri
 	}
 	if msg.FetchMessageBuffer != nil && msg.Envelope != nil && len(msg.Envelope.From) > 0 {
 		from := msg.Envelope.From[0]

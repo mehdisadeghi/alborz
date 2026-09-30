@@ -692,7 +692,7 @@ func flagButtonColor(t *testing.T, page string) string {
 	return ""
 }
 
-// Redirecting to whatever composeFromMailto returns would forward the reader anywhere.
+// Redirecting to whatever a mailto parameter names would forward the reader anywhere.
 func TestMailtoHandlerRefusesForeignURI(t *testing.T) {
 	base := startAlborz(t, startIMAP(t))
 	c := login(t, base)

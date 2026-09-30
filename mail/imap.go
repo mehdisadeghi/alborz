@@ -1675,11 +1675,8 @@ func readPart(h textproto.Header, body []byte, cut bool) (*message.Entity, error
 	if i := bytes.LastIndexByte(body, '\n'); cut && i >= 0 {
 		body = body[:i+1]
 	}
-	// An unknown charset leaves the part as its bytes, as the download does.
-	part, err := message.New(message.Header{Header: h}, bytes.NewReader(body))
-	if err != nil && !message.IsUnknownCharset(err) {
-		return nil, err
-	}
+	// An unknown charset or transfer encoding, its only errors, leaves the part as its bytes, as the download does.
+	part, _ := message.New(message.Header{Header: h}, bytes.NewReader(body))
 	if cut {
 		text, err := io.ReadAll(part.Body)
 		if err != nil {

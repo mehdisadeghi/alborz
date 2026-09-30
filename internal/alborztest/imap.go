@@ -78,8 +78,9 @@ func Sorting() IMAPOption { return func(c *imapConfig) { c.sorting = true } }
 // IMAP serves User, User2 and Elsewhere, with the rig's folders and messages.
 func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	t.Helper()
-	// METADATA is not listed: the in-memory server does not implement it.
-	c := imapConfig{caps: imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {}, imap.CapCondStore: {}, imap.CapSort: {}, imap.CapBinary: {}}}
+	// METADATA, SORT and THREAD are not listed: the in-memory server does not implement them; Sorting
+	// offers the last two.
+	c := imapConfig{caps: imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {}, imap.CapCondStore: {}, imap.CapBinary: {}}}
 	for _, o := range opts {
 		o(&c)
 	}

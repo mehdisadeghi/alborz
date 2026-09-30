@@ -135,7 +135,7 @@ func flagButtonColor(t *testing.T, page string) string {
 }
 
 func TestNewestFirstWithoutSort(t *testing.T) {
-	c := Alborz(t, WithIMAP(IMAP(t, Without(imap.CapSort)))).SignIn(t, User)
+	c := Alborz(t).SignIn(t, User)
 	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX", url.Values{"query": {"example"}}))
 	if len(uids) < 2 {
 		t.Fatalf("need two seeded messages to match, found %d", len(uids))

@@ -3,7 +3,6 @@ package web
 import (
 	"net/http"
 
-	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -31,7 +30,7 @@ func handleSessions(ctx *web.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "settings/sessions", &SessionsRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("sessions.title")),
-		Rail:           mail.SettingsRail(ctx),
+		Rail:           web.SettingsRail(ctx),
 		Signed:         signed,
 		Account:        account,
 	})

@@ -147,33 +147,6 @@ type SignatureRenderData struct {
 	Rail map[string][]web.RailRow
 }
 
-func AccountQuery(address string) string {
-	if address == "" {
-		return ""
-	}
-	return "?account=" + web.QueryValue(address)
-}
-
-func SettingsRail(ctx *web.Context) map[string][]web.RailRow {
-	path := ctx.Request().URL.Path
-	// Under no account: what this browser keeps.
-	rows := map[string][]web.RailRow{"": {
-		{Label: ctx.T("settings.general"), Href: ctx.Path("settings.profile"), Active: path == ctx.Path("settings.profile")},
-		{Label: ctx.T("passkeys.title"), Href: ctx.Path("settings.passkeys"), Active: strings.HasPrefix(path, ctx.Path("settings.passkeys"))},
-	}}
-	for _, account := range ctx.Accounts() {
-		scoped := ctx.Login != nil && account.Username == ctx.Login.Username()
-		q := AccountQuery(account.Username)
-		rows[account.Username] = []web.RailRow{
-			{Label: ctx.T("settings.account"), Href: ctx.Path("mail.account") + q, Active: scoped && path == ctx.Path("mail.account")},
-			{Label: ctx.T("settings.signatures"), Href: ctx.Path("mail.signatures") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("mail.signatures"))},
-			{Label: ctx.T("settings.servers"), Href: ctx.Path("settings.servers") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("settings.servers"))},
-			{Label: ctx.T("sessions.title"), Href: ctx.Path("settings.sessions") + q, Active: scoped && path == ctx.Path("settings.sessions")},
-		}
-	}
-	return rows
-}
-
 func handleSignatures(ctx *web.Context) error {
 	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
@@ -182,7 +155,7 @@ func handleSignatures(ctx *web.Context) error {
 	return ctx.Render(http.StatusOK, "settings/signatures", &SignaturesRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
 		Settings:       settings,
-		Rail:           SettingsRail(ctx),
+		Rail:           web.SettingsRail(ctx),
 	})
 }
 
@@ -193,7 +166,7 @@ func handleSignatureForm(ctx *web.Context) error {
 	}
 	data := &SignatureRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
-		Rail:           SettingsRail(ctx),
+		Rail:           web.SettingsRail(ctx),
 	}
 	if name := ctx.Param("name"); name != "" {
 		found, ok := settings.signatureNamed(name)
@@ -219,7 +192,7 @@ func handleSignatureSave(ctx *web.Context) error {
 			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")).Refused(message),
 			Editing:        editing,
 			Was:            was,
-			Rail:           SettingsRail(ctx),
+			Rail:           web.SettingsRail(ctx),
 		})
 	}
 	switch {
@@ -331,7 +304,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 			Mailboxes:      mailboxes,
 			Subscriptions:  Subscriptions(settings.Subscriptions),
 			Storage:        storage,
-			Rail:           SettingsRail(ctx),
+			Rail:           web.SettingsRail(ctx),
 		})
 	}
 
@@ -370,7 +343,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		Mailboxes:      mailboxes,
 		Subscriptions:  Subscriptions(settings.Subscriptions),
 		Storage:        storage,
-		Rail:           SettingsRail(ctx),
+		Rail:           web.SettingsRail(ctx),
 	})
 }
 

@@ -335,3 +335,21 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	}
 	return restored
 }
+
+// Scoped serves h per account: settings are per account, so a unified GET redirects to name its account.
+func Scoped(h HandlerFunc) HandlerFunc {
+	return func(ctx *Context) error {
+		if ctx.Unified && ctx.Request().Method == http.MethodGet {
+			return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+AccountQuery(ctx.Login.Username()))
+		}
+		return h(ctx)
+	}
+}
+
+// AccountQuery is the query naming an account, empty for none.
+func AccountQuery(address string) string {
+	if address == "" {
+		return ""
+	}
+	return "?account=" + QueryValue(address)
+}

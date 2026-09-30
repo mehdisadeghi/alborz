@@ -786,7 +786,7 @@ func (l *NewMailboxLocation) folder(name string) string {
 func folderURL(ctx *web.Context, account, name string) string {
 	destination := ctx.Path("mail.mailbox", name)
 	if len(ctx.Logins()) > 1 {
-		destination += AccountQuery(account)
+		destination += web.AccountQuery(account)
 	}
 	return destination
 }
@@ -1288,7 +1288,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 			star := &StarRenderData{
 				BaseRenderData: *web.NewBaseRenderData(ctx),
 				Mailbox:        mboxName,
-				Account:        template.URL(AccountQuery(ctx.Login.Username())),
+				Account:        template.URL(web.AccountQuery(ctx.Login.Username())),
 				UID:            uids[0],
 				Flagged:        color[0] != "",
 				Color:          color[0],

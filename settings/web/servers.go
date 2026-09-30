@@ -110,7 +110,7 @@ func (d *ServersRenderData) Rows() []ServerRow {
 		}
 		row.Hosts = strings.Join(hosts, ", ")
 		if serverPages[group] {
-			row.Href = d.server(group) + mail.AccountQuery(d.GlobalData.URLAccount)
+			row.Href = d.server(group) + web.AccountQuery(d.GlobalData.URLAccount)
 		}
 		rows = append(rows, row)
 	}
@@ -175,7 +175,7 @@ func handleServers(ctx *web.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "settings/servers", &ServersRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.servers")),
-		Rail:           mail.SettingsRail(ctx),
+		Rail:           web.SettingsRail(ctx),
 		Servers:        servers,
 		server:         func(group string) string { return ctx.Path("settings.server", group) },
 	})
@@ -192,7 +192,7 @@ func handleServer(ctx *web.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "settings/server", &ServersRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("servers." + showing)),
-		Rail:           mail.SettingsRail(ctx),
+		Rail:           web.SettingsRail(ctx),
 		Servers:        servers,
 	})
 }

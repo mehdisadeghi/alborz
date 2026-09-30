@@ -57,6 +57,8 @@ type Display struct {
 	Status []string
 	// Addons names the add-ons turned on.
 	Addons []string
+	// PhoneBar puts the sections and the primary action at the bottom of a phone screen (ADR 94).
+	PhoneBar bool
 }
 
 const ProfileKey = "profile"

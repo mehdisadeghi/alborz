@@ -12,41 +12,12 @@
     <span class="header-brand">{{ template "brand" (dict "g" $ "build" .GlobalData.Revision) }}</span>
     {{ end }}
     {{$q := account "?" .GlobalData.Scope}}
-    <a href="{{url "mail.mailbox" "INBOX"}}{{$q}}" data-go="m" data-tour="sections"
-      {{ if eq $section "mailbox" }}
-      class="active" aria-current="page"
-      {{ end }}
-    title="{{$.T "nav.email"}}" aria-label="{{$.T "nav.email"}}">{{ template "icon" "mail" }}<span class="label">{{$.T "nav.email"}}</span></a>
-    <a
-      href="{{url "calendar.month"}}{{$q}}" data-go="l"
-      {{ if eq $page "calendar" }}
-      class="active" aria-current="page"
-      {{ end }}
-    title="{{$.T "nav.calendar"}}" aria-label="{{$.T "nav.calendar"}}">{{ template "icon" "month" }}<span class="label">{{$.T "nav.calendar"}}</span></a>
-    <a
-      href="{{url "contacts.list"}}{{$q}}" data-go="c"
-      {{ if eq $page "contacts" }}
-      class="active" aria-current="page"
-      {{ end }}
-    title="{{$.T "nav.contacts"}}" aria-label="{{$.T "nav.contacts"}}">{{ template "icon" "users" }}<span class="label">{{$.T "nav.contacts"}}</span></a>
-    <a
-      href="{{url "calendar.tasks"}}{{$q}}" data-go="k"
-      {{ if eq $page "tasks" }}
-      class="active" aria-current="page"
-      {{ end }}
-    title="{{$.T "nav.tasks"}}" aria-label="{{$.T "nav.tasks"}}">{{ template "icon" "tasks" }}<span class="label">{{$.T "nav.tasks"}}</span></a>
-    <a
-      href="{{url "calendar.journal"}}{{$q}}" data-go="j"
-      {{ if eq $page "journal" }}
-      class="active" aria-current="page"
-      {{ end }}
-    title="{{$.T "nav.journal"}}" aria-label="{{$.T "nav.journal"}}">{{ template "icon" "journal" }}<span class="label">{{$.T "nav.journal"}}</span></a>
-    <a
-      href="{{url "filters.list"}}{{$q}}" data-go="f"
-      {{ if eq $page "filters" }}
-      class="active" aria-current="page"
-      {{ end }}
-    title="{{$.T "nav.filters"}}" aria-label="{{$.T "nav.filters"}}">{{ template "icon" "filter" }}<span class="label">{{$.T "nav.filters"}}</span></a>
+    {{ template "nav-section" (dict "href" (printf "%s%s" (url "mail.mailbox" "INBOX") $q) "go" "m" "tour" "sections" "active" (eq $section "mailbox") "icon" "mail" "label" ($.T "nav.email")) }}
+    {{ template "nav-section" (dict "href" (printf "%s%s" (url "calendar.month") $q) "go" "l" "active" (eq $page "calendar") "icon" "month" "label" ($.T "nav.calendar")) }}
+    {{ template "nav-section" (dict "href" (printf "%s%s" (url "contacts.list") $q) "go" "c" "active" (eq $page "contacts") "icon" "users" "label" ($.T "nav.contacts")) }}
+    {{ template "nav-section" (dict "href" (printf "%s%s" (url "calendar.tasks") $q) "go" "k" "active" (eq $page "tasks") "icon" "tasks" "label" ($.T "nav.tasks")) }}
+    {{ template "nav-section" (dict "href" (printf "%s%s" (url "calendar.journal") $q) "go" "j" "active" (eq $page "journal") "icon" "journal" "label" ($.T "nav.journal")) }}
+    {{ template "nav-section" (dict "href" (printf "%s%s" (url "filters.list") $q) "go" "f" "active" (eq $page "filters") "icon" "filter" "label" ($.T "nav.filters")) }}
     {{ if .GlobalData.LoggedIn }}
     <button type="button" class="nav-search-open" data-tour="search" commandfor="search-dialog" command="show-modal" title="{{$.T "search.title"}}" aria-label="{{$.T "search.title"}}">{{ template "icon" "search" }}<span class="label">{{$.T "search.placeholder"}}</span><kbd aria-hidden="true">/</kbd></button>
     <div>
@@ -108,6 +79,38 @@
   </dialog>
   {{ end }}
 </header>
+{{ if .GlobalData.LoggedIn }}
+{{ if .GlobalData.PhoneBar }}
+{{/* ADR 94: the middle track reserves room for the page's primary control. */}}
+<div class="phone-bar-shell">
+<nav class="phone-bar" aria-label="{{$.T "a11y.sections"}}">
+  {{ template "nav-section" (dict "href" (printf "%s%s" (url "mail.mailbox" "INBOX") $q) "active" (eq $section "mailbox") "icon" "mail" "label" ($.T "nav.email")) }}
+  {{ template "nav-section" (dict "href" (printf "%s%s" (url "calendar.month") $q) "active" (eq $page "calendar") "icon" "month" "label" ($.T "nav.calendar")) }}
+  {{ template "nav-section" (dict "href" (printf "%s%s" (url "contacts.list") $q) "class" "phone-bar-extra" "active" (eq $page "contacts") "icon" "users" "label" ($.T "nav.contacts")) }}
+  <span class="phone-bar-slot" aria-hidden="true"></span>
+  {{ template "nav-section" (dict "href" (printf "%s%s" (url "calendar.tasks") $q) "active" (eq $page "tasks") "icon" "tasks" "label" ($.T "nav.tasks")) }}
+  {{ template "nav-section" (dict "href" (printf "%s%s" (url "calendar.journal") $q) "class" "phone-bar-extra" "active" (eq $page "journal") "icon" "journal" "label" ($.T "nav.journal")) }}
+  {{ template "nav-section" (dict "href" (printf "%s%s" (url "filters.list") $q) "class" "phone-bar-extra" "active" (eq $page "filters") "icon" "filter" "label" ($.T "nav.filters")) }}
+  {{ $more := $.T "common.more" }}
+  {{ $child := "" }}
+  {{ if eq $page "contacts" }}{{ $child = $.T "nav.contacts" }}{{ end }}
+  {{ if eq $page "journal" }}{{ $child = $.T "nav.journal" }}{{ end }}
+  {{ if eq $page "filters" }}{{ $child = $.T "nav.filters" }}{{ end }}
+  <button type="button" class="phone-bar-more{{ if $child }} active{{ end }}" popovertarget="phone-sections" title="{{$more}}{{ with $child }}: {{.}}{{ end }}" aria-label="{{$more}}{{ with $child }}: {{.}}{{ end }}">{{ template "icon" "more" }}<span class="label">{{ if $child }}{{$child}}{{ else }}{{$more}}{{ end }}</span></button>
+  <div id="phone-sections" class="overflow-menu phone-sections" popover aria-label="{{$more}}">
+    {{ template "nav-section" (dict "href" (printf "%s%s" (url "contacts.list") $q) "active" (eq $page "contacts") "icon" "users" "label" ($.T "nav.contacts")) }}
+    {{ template "nav-section" (dict "href" (printf "%s%s" (url "calendar.journal") $q) "active" (eq $page "journal") "icon" "journal" "label" ($.T "nav.journal")) }}
+    {{ template "nav-section" (dict "href" (printf "%s%s" (url "filters.list") $q) "active" (eq $page "filters") "icon" "filter" "label" ($.T "nav.filters")) }}
+  </div>
+</nav>
+</div>
+{{ end }}
+{{ end }}
+{{ end }}
+
+{{/* dict: href active icon label [class go tour]. */}}
+{{ define "nav-section" }}
+<a href="{{.href}}"{{ with .go }} data-go="{{.}}"{{ end }}{{ with .tour }} data-tour="{{.}}"{{ end }}{{ if or .class .active }} class="{{ with .class }}{{.}}{{ if $.active }} {{ end }}{{ end }}{{ if .active }}active{{ end }}"{{ end }}{{ if .active }} aria-current="page"{{ end }} title="{{.label}}" aria-label="{{.label}}">{{ template "icon" .icon }}<span class="label">{{.label}}</span></a>
 {{ end }}
 
 {{/* dict: g page. Desktop account and language menus. */}}

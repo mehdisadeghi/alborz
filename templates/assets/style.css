@@ -4154,6 +4154,11 @@ div.overflow {
   margin-block-start: 2px;
   position-area: block-end span-inline-start;
   position-try-fallbacks: flip-inline, flip-block;
+  inline-size: max-content;
+  max-inline-size: calc(100vw - 2 * var(--space-2));
+  max-block-size: calc(var(--phone-viewport-height, 100dvh) - 2 * var(--space-2));
+  overflow-y: auto;
+  overflow-wrap: anywhere;
   color: inherit;
 }
 
@@ -4452,7 +4457,7 @@ main.message .actions-end {
   flex-direction: column;
   align-items: stretch;
   gap: 0.25rem;
-  min-width: max-content;
+  min-width: 0;
   padding: 0.5rem;
   background-color: var(--surface-raised);
   border: 1px solid var(--border);
@@ -4474,6 +4479,8 @@ main.message .actions-end {
 .overflow-menu button,
 .overflow-menu .button-link {
   width: 100%;
+  min-inline-size: 0;
+  white-space: normal;
   text-align: start;
 }
 
@@ -5604,3 +5611,194 @@ aside .rail-invitation-answer button { padding: var(--space-1) var(--space-2); }
 }
 
 .rail-mark .icon { width: 0.9em; height: 0.9em; }
+
+/* ADR 94: the phone bar and the toolbar's way up exist only on a phone. */
+.phone-bar-shell,
+section.actions > .phone-up { display: none; }
+
+/* A menu kept only to take yielded marks shows once one has. */
+:root[data-phone="bar"] section.actions .overflow:has(> [popovertarget="menu-more"]):not(:has(> .overflow-menu > *)) { display: none; }
+
+@media (width <= 600px) {
+  :root[data-phone="bar"] {
+    --phone-bar: 3.5rem;
+    --phone-primary: 3rem;
+    /* The touch minimum. */
+    --tap: 2.75rem;
+    /* The page's text edge, or on a list the checkbox column: the toolbar's padding and the select-all's margin. */
+    --phone-edge: var(--space-2);
+  }
+
+  :root[data-phone="bar"]:has(#action-checkbox-all) { --phone-edge: calc(var(--space-2) + 0.75rem); }
+
+  /* The sections live in the bar; the header names the one in force, or the app where none is. */
+  :root[data-phone="bar"] header nav > a:not(.active):not(.nav-session-lock) { display: none; }
+  :root[data-phone="bar"] header nav:not(:has(> a.active)) .header-brand { display: flex; }
+
+  /* The drawer's button stays put on every page; the ☰ glyph draws 0.15em inside its advance. */
+  :root[data-phone="bar"] header .sidebar-button {
+    line-height: var(--tap);
+    margin-inline-start: -0.15em;
+    padding-inline: 0 0.3rem;
+  }
+
+  :root[data-phone="bar"] .context-crumb { padding-inline-start: var(--phone-edge); }
+
+  :root[data-phone="bar"] body { padding-bottom: calc(var(--phone-bar) + env(safe-area-inset-bottom)); }
+
+  :root[data-phone="bar"] .phone-bar-shell {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    /* Under the toolbar's stacking context, which draws the primary control over the bar. */
+    z-index: 10;
+    display: block;
+    container: phone-nav / inline-size;
+  }
+
+  :root[data-phone="bar"] .phone-bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) calc(var(--phone-primary) + var(--space-2)) repeat(2, minmax(0, 1fr));
+    height: calc(var(--phone-bar) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background-color: var(--bg);
+    box-shadow: inset 0 1px var(--border);
+  }
+
+  .phone-bar > :is(a, button) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    min-width: 0;
+    min-height: var(--tap);
+    padding: 0 var(--space-1);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: var(--text-2xs);
+    text-decoration: none;
+  }
+
+  .phone-bar > :is(a, button) .icon { width: 1.375rem; height: 1.375rem; }
+
+  .phone-bar > :is(a, button) .label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .phone-bar > .phone-bar-extra { display: none; }
+
+  /* The line identifies the current section without relying on colour. */
+  .phone-bar > .active {
+    color: var(--accent);
+    box-shadow: inset 0 3px currentColor;
+  }
+
+  .phone-bar > :is(a, button):focus-visible { outline-offset: -4px; }
+
+  .phone-sections[popover] {
+    position-area: block-start;
+    margin-block: 0 var(--space-2);
+    inline-size: min(24rem, calc(100vw - 2 * var(--space-2)));
+  }
+
+  .phone-sections > a {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-block-size: var(--tap);
+    padding: var(--space-1) var(--space-2);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .phone-sections > a.active { font-weight: 700; text-decoration: underline; }
+  .phone-sections > a .icon { flex: none; }
+
+  :root[data-phone="bar"] .overflow-menu[popover] {
+    max-block-size: calc(var(--phone-viewport-height, 100dvh) - var(--toolbar-height) - var(--phone-bar) - env(safe-area-inset-bottom) - 2 * var(--space-2));
+  }
+
+  /* Container rem units follow the chosen text size; older browsers keep the compact bar. */
+  @container phone-nav (min-width: 24rem) {
+    :root[data-phone="bar"] .phone-bar { grid-template-columns: repeat(3, minmax(0, 1fr)) calc(var(--phone-primary) + var(--space-2)) repeat(3, minmax(0, 1fr)); }
+    .phone-bar > .phone-bar-extra { display: flex; }
+    .phone-bar > .phone-bar-more { display: none; }
+  }
+
+  /* The toolbar's own control, drawn in the bar's middle track. */
+  :root[data-phone="bar"] section.actions [data-key="c"],
+  :root[data-phone="bar"] main.message section.actions [data-key="r"] {
+    position: fixed;
+    inset-block-end: calc(env(safe-area-inset-bottom) + (var(--phone-bar) - var(--phone-primary)) / 2);
+    left: calc(50% - var(--phone-primary) / 2);
+    width: var(--phone-primary);
+    min-width: 0;
+    height: var(--phone-primary);
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: var(--shadow-raised);
+  }
+
+  :root[data-phone="bar"] section.actions [data-key="c"]:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+  :root[data-phone="bar"] main.message section.actions [data-key="r"]:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+    background: var(--accent-strong);
+    color: var(--on-accent);
+  }
+
+  :root[data-phone="bar"] section.actions [data-key="c"] .label { display: none; }
+  :root[data-phone="bar"] section.actions [data-key="c"] .icon { width: 1.375rem; height: 1.375rem; }
+  :root[data-phone="bar"] .actions-message > .toolbar-rule { display: none; }
+
+  /* Forms have their own controls; viewport occlusion, rather than focus, identifies a keyboard. */
+  :root[data-phone="bar"] body:has(main.create-update) .phone-bar-shell,
+  :root[data-phone="bar"][data-phone-keyboard="open"] :is(.phone-bar-shell, section.actions [data-key="c"], main.message section.actions [data-key="r"]) {
+    display: none;
+  }
+
+  :root[data-phone="bar"] body:has(main.create-update) { padding-bottom: 0; }
+
+  :root[data-phone="bar"] section.actions {
+    z-index: 11;
+    flex-wrap: nowrap;
+    padding-block-start: max(var(--space-1), env(safe-area-inset-top));
+  }
+
+  :root[data-phone="bar"] section.actions > .actions-wrap { flex: 1 1 0; min-width: 0; }
+
+  /* Without a script the row wraps (ADR 8), and three stuck rows would hide the page. */
+  @media (scripting: enabled) {
+    :root[data-phone="bar"] section.actions { position: sticky; top: 0; }
+  }
+
+  :root[data-phone="bar"] section.actions > .phone-up {
+    display: inline-flex;
+    flex: none;
+    font-size: var(--text-xl);
+  }
+
+  :root[data-phone="bar"] section.actions :is(.icon-button, button, .button-link, .actions-search input) {
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
+
+  /* Above the bar, where the thumb that acted can reach Undo. */
+  :root[data-phone="bar"] header .notices {
+    inset-block-start: auto;
+    inset-block-end: calc(var(--phone-bar) + env(safe-area-inset-bottom) + var(--space-2));
+  }
+
+  /* The tour's sheet too: a stop points at the sections and the primary control under it. */
+  :root[data-phone="bar"] .tour { inset-block-end: calc(var(--phone-bar) + env(safe-area-inset-bottom) + var(--space-2)); }
+
+  /* The primary control is filled with the ring's colour, and stands clear of the viewport's edge. */
+  :root[data-phone="bar"] section.actions [data-key="c"].tour-target { outline-offset: 2px; }
+
+  :root[data-phone="bar"] header nav > .scheme-toggle .icon-button { width: var(--tap); height: var(--tap); }
+}

@@ -196,6 +196,13 @@
         <script defer src="{{.}}"></script>
         {{- end }}
         {{ end }}
+        <div class="action-group">
+          <label for="phone_bar" class="checkbox">
+            <input type="checkbox" name="phone_bar" id="phone_bar" value="1"{{if .PhoneBar}} checked{{end}}>
+            {{$.T "settings.phonebar"}}
+          </label>
+          {{ template "hint" (dict "text" ($.T "settings.phonebarhint")) }}
+        </div>
 
         {{ with .LockMinutes }}
           <section class="settings-section" aria-labelledby="security">

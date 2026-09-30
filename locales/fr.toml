@@ -1265,6 +1265,12 @@
 "settings.accountnames" = "Afficher les adresses des comptes dans les listes"
 "settings.accountnameshint" = "Désactive pour utiliser une bande de couleur. Touche la bande pour voir l’adresse complète."
 
+"common.more" = "Plus"
+"nav.back" = "Retour"
+"settings.phonebar" = "Barre de navigation en bas sur téléphone"
+"settings.phonebarhint" = "Les sections et l’action principale s’affichent en bas de l’écran."
+"a11y.sections" = "Sections"
+
 ["calendar.more"]
 one = "%d de plus"
 other = "%d de plus"

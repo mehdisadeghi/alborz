@@ -75,6 +75,8 @@ type GlobalRenderData struct {
 	AlignByScript    bool
 	HideAccountNames bool
 
+	PhoneBar bool
+
 	// URLAccount keeps links pointing into the request's account; empty otherwise.
 	URLAccount string
 
@@ -285,6 +287,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.HideAccountNames = ctx.Profile().Display.HideAccountNames
 	swipes, _ := json.Marshal(ctx.Profile().Gestures.Resolved()) // Fixed string fields cannot fail to encode.
 	global.Swipes = string(swipes)
+	global.PhoneBar = ctx.Profile().Display.PhoneBar
 	global.CustomCSS = len(ctx.Server.loaded.Load().custom) > 0
 	theme := ctx.theme()
 	global.SchemePinned = theme.Scheme != ""

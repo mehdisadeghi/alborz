@@ -1265,6 +1265,12 @@
 "settings.accountnames" = "إظهار عناوين الحسابات في القوائم"
 "settings.accountnameshint" = "عطّل هذا الخيار لاستخدام شريط ملوّن. اضغط على الشريط لعرض العنوان الكامل."
 
+"common.more" = "المزيد"
+"nav.back" = "رجوع"
+"settings.phonebar" = "شريط التنقّل السفلي على الهاتف"
+"settings.phonebarhint" = "تظهر الأقسام والإجراء الرئيسي أسفل الشاشة."
+"a11y.sections" = "الأقسام"
+
 ["calendar.more"]
 one = "%d آخر"
 other = "%d أخرى"

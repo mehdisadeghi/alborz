@@ -1,6 +1,6 @@
-{{/* dict: mbox aq uid next to label [icon] [class]. */}}
+{{/* dict: mbox aq uid next to label [icon class priority phonepriority]. */}}
 {{ define "msg-move-form" }}
-<form class="action-group{{ with .formclass }} {{.}}{{ end }}" method="post" action="{{url "mail.messages.move" .mbox}}{{.aq}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
+<form class="action-group{{ with .formclass }} {{.}}{{ end }}" method="post" action="{{url "mail.messages.move" .mbox}}{{.aq}}"{{ with .priority }} data-priority="{{.}}"{{ end }}{{ with .phonepriority }} data-phone-priority="{{.}}"{{ end }}>
   {{ template "message-action-fields" . }}
   <input type="hidden" name="to" value="{{.to}}">
   {{ if .icon }}
@@ -47,8 +47,8 @@
       <form id="message-flag-form" method="post" hx-boost="false">
         {{ template "message-action-fields" (dict "uid" .Message.UID "next" $here) }}
       </form>
-      {{ template "toolbar-head" (dict "g" $) }}
-            {{$back := printf "%s?page=%v%s" (url "mail.mailbox" .Mailbox.Name) .MailboxPage $aamp}}{{ with .GlobalData.From }}{{ $back = . }}{{ end }}
+      {{$back := printf "%s?page=%v%s" (url "mail.mailbox" .Mailbox.Name) .MailboxPage $aamp}}{{ with .GlobalData.From }}{{ $back = . }}{{ end }}
+      {{ template "toolbar-head" (dict "g" $ "up" $back) }}
             {{$common := .CategorizedMailboxes.Common}}
             {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
             {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}
@@ -80,7 +80,7 @@
 
             <span class="icon-group">
               {{ if and $junk (ne .Mailbox.Name $junk) (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) }}
-              {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $junk "label" ($.T "mailbox.spam") "icon" "junk") }}
+              {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $junk "label" ($.T "mailbox.spam") "icon" "junk" "phonepriority" 13) }}
               {{ else if and $junk (eq .Mailbox.Name $junk) }}
               {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" "INBOX" "label" ($.T "mailbox.notspam") "icon" "notjunk") }}
               {{ end }}
@@ -90,7 +90,7 @@
                 <button class="icon-button icon-danger" title="{{$.T "mailbox.deleteperm"}}" aria-label="{{$.T "mailbox.deleteperm"}}">{{ template "icon" "trash" }}</button>
               </form>
               {{ else }}
-              {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $trash "label" ($.T "mailbox.delete") "icon" "trash" "class" "icon-danger") }}
+              {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "next" $back "to" $trash "label" ($.T "mailbox.delete") "icon" "trash" "class" "icon-danger" "phonepriority" 11) }}
               {{ end }}
             </span>
 

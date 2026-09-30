@@ -19,6 +19,13 @@
 - Align mobile list stars and dates, including undated tasks and contacts;
   keep quick-add controls at 32px and sidebar addresses on one line.
 
+- Mobile navigation reserves its primary action’s space, accounts for safe-area
+  insets, and groups less frequent sections under More on narrow layouts.
+- Passkey setup remains reachable when mobile bottom navigation is enabled.
+- Keyboard dismissal restores mobile navigation even while an editor retains
+  focus. Overflow menus remain reachable in short viewports and without CSS
+  anchor positioning; selected sections have a visible indicator.
+
 ### Changed
 
 - Use the mobile drawer’s account rows for switching, with a color legend and

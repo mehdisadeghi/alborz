@@ -1,6 +1,8 @@
-{{/* dict: g [class title shorttitle subtitle selectall newhref newlabel newicon back]; closed by toolbar-end and toolbar-foot. */}}
+{{/* dict: g [class title shorttitle subtitle selectall newhref newlabel newicon back up]; closed by toolbar-end and toolbar-foot.
+     With the phone bar an object's row opens with the way up, the list it came from (ADR 94). */}}
 {{ define "toolbar-head" }}
 <section class="actions{{ with .class }} {{.}}{{ end }}" data-tour="toolbar" aria-label="{{.g.T "a11y.toolbar"}}">
+{{ if .g.GlobalData.PhoneBar }}{{ with .up }}<a class="icon-button phone-up" href="{{ localhref . }}" title="{{$.g.T "nav.back"}}" aria-label="{{$.g.T "nav.back"}}">{{ template "icon" "prev" }}</a>{{ end }}{{ end }}
 {{ if .selectall }}{{ template "toolbar-select-all" .g }}{{ end }}
 <div class="actions-wrap">
   <div class="actions-message">

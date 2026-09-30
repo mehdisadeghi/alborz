@@ -1,5 +1,5 @@
 {{ define "layout" }}<!DOCTYPE html>
-<html{{if .GlobalData.HideAccountNames}} data-account-names="hidden"{{end}} lang="{{.GlobalData.Lang}}" dir="{{.GlobalData.Dir}}"{{if .GlobalData.AlignByScript}} data-align="script"{{end}}{{with .GlobalData.TextSize}} data-text="{{.}}"{{end}}{{if and .GlobalData.LoggedIn .GlobalData.LockSeconds}} data-session-concealed{{end}}>
+<html{{if .GlobalData.HideAccountNames}} data-account-names="hidden"{{end}} lang="{{.GlobalData.Lang}}" dir="{{.GlobalData.Dir}}"{{if .GlobalData.AlignByScript}} data-align="script"{{end}}{{with .GlobalData.TextSize}} data-text="{{.}}"{{end}}{{if .GlobalData.PhoneBar}} data-phone="bar"{{end}}{{if and .GlobalData.LoggedIn .GlobalData.LockSeconds}} data-session-concealed{{end}}>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -46,6 +46,7 @@
     <script defer src="{{call .GlobalData.Asset "history.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "event-edit.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "keys.js"}}"></script>
+    <script defer src="{{call .GlobalData.Asset "phone.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "gestures.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "tour.js"}}"></script>
     {{/* In the head, which a swap keeps, so an add-on's script runs once per page load. */}}

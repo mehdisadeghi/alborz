@@ -308,6 +308,7 @@ const enhance = () => {
 	}
 
 	// Priority-plus toolbar: data-yield is "hide", "word", "split" (a group whose members move into the menu one by one), or by default a move into the overflow menu.
+	const phoneBar = () => document.documentElement.dataset.phone === "bar" && matchMedia("(width <= 600px)").matches;
 	for (const wrap of document.querySelectorAll(".actions-wrap")) {
 		if (fits.has(wrap)) {
 			fits.get(wrap).fit();
@@ -318,10 +319,12 @@ const enhance = () => {
 		if (!menu) {
 			continue;
 		}
-		const own = () => Array.prototype.filter.call(wrap.querySelectorAll("[data-priority]"), el => !menu.contains(el));
+		const own = () => Array.prototype.filter.call(wrap.querySelectorAll("[data-priority], [data-phone-priority]"), el => !menu.contains(el));
 		if (own().length === 0) {
 			continue;
 		}
+		// A phone with the bar (ADR 94) takes its own order where an element declares one; a step with no rank is never taken.
+		const rank = el => Number((phoneBar() && el.dataset.phonePriority) || el.dataset.priority || Infinity);
 		const ownItems = menu.children.length;
 		// Held at full size while measuring: a flex-shrunk title spills unseen by scrollWidth.
 		const pinned = wrap.querySelectorAll(":scope > .actions-message, :scope > .actions-end, .actions-message h1");
@@ -353,11 +356,11 @@ const enhance = () => {
 			fitting = true;
 			unfit();
 			// Collected after the restore: what the last run moved is back on the row, and a swap may have brought new items.
-			items = own().map(el => ({ el, priority: Number(el.dataset.priority), how: el.dataset.yield, parent: el.parentNode, next: el.nextSibling }));
-			const leaving = items.slice().sort((a, b) => a.priority - b.priority);
+			items = own().map(el => ({ el, how: el.dataset.yield, parent: el.parentNode, next: el.nextSibling }));
 			details.hidden = ownItems === 0;
 			pin(true);
 			const moved = new Set();
+			const leaving = items.filter(it => rank(it.el) !== Infinity).sort((a, b) => rank(a.el) - rank(b.el));
 			for (const it of leaving) {
 				if (wrap.scrollWidth <= wrap.clientWidth) {
 					break;
@@ -414,13 +417,29 @@ const enhance = () => {
 					return;
 				}
 				const button = document.querySelector(`[popovertarget="${panel.id}"]`);
+				if (!button) return;
 				const box = button.getBoundingClientRect();
-				panel.style.top = `${box.bottom + 2}px`;
-				if (document.documentElement.dir === "rtl") {
-					panel.style.left = `${box.left}px`;
-				} else {
-					panel.style.right = `${window.innerWidth - box.right}px`;
-				}
+				const viewport = window.visualViewport;
+				const edge = 8, gap = 2;
+				const left = (viewport?.offsetLeft || 0) + edge;
+				const top = (viewport?.offsetTop || 0) + edge;
+				const width = Math.max(0, (viewport?.width || window.innerWidth) - 2 * edge);
+				const height = Math.max(0, (viewport?.height || window.innerHeight) - 2 * edge);
+				// Clear the previous opening's bounds before measuring, including after
+				// a viewport change. Explicit coordinates do not use anchor margins.
+				panel.style.margin = "0";
+				panel.style.right = panel.style.bottom = "auto";
+				panel.style.maxWidth = panel.style.maxHeight = "";
+				if (panel.getBoundingClientRect().width > width) panel.style.maxWidth = `${width}px`;
+				if (panel.getBoundingClientRect().height > height) panel.style.maxHeight = `${height}px`;
+				panel.style.overflowY = "auto";
+				const menu = panel.getBoundingClientRect();
+				const below = box.bottom + gap;
+				const above = box.top - menu.height - gap;
+				const y = below + menu.height <= top + height || box.top - top < top + height - box.bottom ? below : above;
+				const x = document.documentElement.dir === "rtl" ? box.left : box.right - menu.width;
+				panel.style.top = `${Math.max(top, Math.min(y, top + height - menu.height))}px`;
+				panel.style.left = `${Math.max(left, Math.min(x, left + width - menu.width))}px`;
 			});
 		}
 	}

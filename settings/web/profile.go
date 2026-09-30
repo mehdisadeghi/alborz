@@ -21,6 +21,7 @@ type ProfileRenderData struct {
 	// Themes are the overlays on offer, built in or dropped in by a deployment.
 	Themes           []web.Theme
 	AlignByScript    bool
+	PhoneBar         bool
 	ShowAccountNames bool
 	TextSize         string
 	// Segments are the status bar's on offer, StatusOn those turned on.
@@ -70,6 +71,7 @@ func handleProfile(ctx *web.Context) error {
 			Theme:            p.Display.Theme,
 			Themes:           ctx.Themes(),
 			AlignByScript:    p.Display.AlignByScript,
+			PhoneBar:         p.Display.PhoneBar,
 			ShowAccountNames: !p.Display.HideAccountNames,
 			TextSize:         p.Display.TextSize,
 			Segments:         segments(ctx),
@@ -185,6 +187,7 @@ func handleProfile(ctx *web.Context) error {
 	}
 	p.Display.Status = chosen(p.Display.Status, segments(ctx), sent["status"])
 	p.Display.Addons = chosen(p.Display.Addons, addons(ctx), sent["addon"])
+	p.Display.PhoneBar = ctx.FormValue("phone_bar") != ""
 	var lockAfter time.Duration
 	if v, ok := given("lock_minutes"); ok {
 		minutes, err := locale.ReadInt(v)

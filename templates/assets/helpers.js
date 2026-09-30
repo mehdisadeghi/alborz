@@ -409,10 +409,10 @@ document.addEventListener("htmx:beforeCleanupElement", ev => {
 	}
 });
 
-// A suggestion popup open when htmx swaps the body would outlive its field.
-document.addEventListener("htmx:beforeSwap", () => {
+// A suggestion popup open when htmx swaps the body would outlive its field; focus outside the swap stays.
+document.addEventListener("htmx:beforeSwap", ev => {
 	const focused = document.activeElement;
-	if (focused && focused !== document.body && focused.blur) {
+	if (focused && focused !== document.body && focused.blur && ev.detail.target.contains(focused)) {
 		focused.blur();
 	}
 });

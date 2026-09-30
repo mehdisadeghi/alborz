@@ -512,6 +512,13 @@ func (s *IMAPServer) SetEntry(user, key, value string) {
 	s.md.entries[user]["/private/vendor/alborz/"+key] = []byte(value)
 }
 
+// Entry is an alborz entry of user's as the server holds it, or "".
+func (s *IMAPServer) Entry(user, key string) string {
+	s.md.mu.Lock()
+	defer s.md.mu.Unlock()
+	return string(s.md.entries[user]["/private/vendor/alborz/"+key])
+}
+
 // RefuseEntries makes the Metadata proxy answer every SETMETADATA with NO, as a server over its quota does.
 func (s *IMAPServer) RefuseEntries() {
 	s.md.mu.Lock()

@@ -94,6 +94,8 @@ func encryptionRefusal(ctx *web.Context, err error) error {
 		return renderEncryption(ctx, http.StatusUnprocessableEntity, ctx.T("encryption.wrongpassword"), "", "")
 	case errors.Is(err, alborz.ErrRecoveryKey):
 		return renderEncryption(ctx, http.StatusUnprocessableEntity, ctx.T("encryption.wrongrecovery"), "", "")
+	case errors.Is(err, alborz.ErrKeyUnread):
+		return renderEncryption(ctx, http.StatusUnprocessableEntity, ctx.T("encryption.keyunread"), "", "")
 	case errors.Is(err, errors.ErrUnsupported), errors.Is(err, alborz.ErrLocked), errors.As(err, new(alborz.StoreRefusedError)):
 		return renderEncryption(ctx, http.StatusUnprocessableEntity, ctx.SaveRefusal(err), "", "")
 	}
@@ -105,9 +107,13 @@ func warnLocked(ctx *web.Context, l *alborz.Login) {
 	if !l.Locked() {
 		return
 	}
+	why := "notice.encryptionlocked"
+	if l.KeyUnread() {
+		why = "notice.keyunread"
+	}
 	ctx.Notify(web.Notice{
 		Kind: web.NoticeWarning,
-		Text: fmt.Sprintf(ctx.T("notice.encryptionlocked"), l.Username()),
+		Text: fmt.Sprintf(ctx.T(why), l.Username()),
 		Actions: []*web.NoticeAction{{Label: ctx.T("settings.encryption"),
 			Path: ctx.Path("settings.encryption") + web.AccountQuery(l.Username())}},
 	})

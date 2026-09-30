@@ -137,7 +137,7 @@ func (s *imapMetadataStore) Get(ctx context.Context, key string, out any) error 
 	if err := json.Unmarshal(v, out); err != nil {
 		// The account's own key is no setting: read as absent, a new one would be made over it.
 		if key == keyEntry {
-			return fmt.Errorf("alborz: failed to unmarshal IMAP store entry %q: %v", key, err)
+			return fmt.Errorf("%w: %v", ErrKeyUnread, err)
 		}
 		s.login.misread(key, err)
 	}

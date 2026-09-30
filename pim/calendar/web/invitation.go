@@ -216,12 +216,11 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	if stored != nil {
 		held = stored.Data
 	}
+	// Apply reads the message against the stored event and nothing else, so its every error is theirs.
 	out, err := itip.Apply(held, msg)
-	if key := itipRefusal(err); key != "" {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T(key)})
+	if err != nil {
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: itipRefusal(ctx, err)})
 		return ctx.Redirect(http.StatusFound, back)
-	} else if err != nil {
-		return err
 	}
 
 	if stored != nil {
@@ -272,20 +271,21 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	return ctx.Redirect(http.StatusFound, ctx.URL("calendar.event", co.Path))
 }
 
-func itipRefusal(err error) string {
+func itipRefusal(ctx *web.Context, err error) string {
 	switch {
 	case errors.Is(err, itip.ErrOrganizer):
-		return "invite.notorganizer"
+		return ctx.T("invite.notorganizer")
 	case errors.Is(err, itip.ErrOutdated):
-		return "invite.outdated"
+		return ctx.T("invite.outdated")
 	case errors.Is(err, itip.ErrSuperseded):
-		return "invite.superseded"
+		return ctx.T("invite.superseded")
 	case errors.Is(err, itip.ErrUninvited):
-		return "invite.uninvited"
+		return ctx.T("invite.uninvited")
 	case errors.Is(err, itip.ErrInstance):
-		return "invite.noinstance"
+		return ctx.T("invite.noinstance")
 	}
-	return ""
+	ctx.Logger().Printf("invitation not applied: %v", err)
+	return ctx.Tf("invite.notapplied", err)
 }
 
 var calendarTypes = []string{"text/calendar", "application/ics"}

@@ -1008,6 +1008,7 @@
 "invite.cancelfailed" = "El evento se eliminó, pero no se pudo enviar la cancelación."
 "invite.notorganizer" = "Este mensaje no es del organizador del evento."
 "invite.outdated" = "Este mensaje trata de otra versión del evento."
+"invite.notapplied" = "El mensaje no se pudo aplicar al evento: %s"
 "invite.superseded" = "Ya se guardó una respuesta posterior de este asistente."
 "invite.uninvited" = "Este asistente no está invitado al evento."
 "invite.noinstance" = "El evento no tiene esa repetición."

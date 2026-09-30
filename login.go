@@ -547,6 +547,19 @@ func newLoginManager(dialIMAP, dialTransfer dialIMAPFunc, dialWatch dialIMAPWatc
 	}
 }
 
+// live are the logins alive, for work that runs with no request.
+func (sm *loginManager) live() []*Login {
+	sm.locker.Lock()
+	defer sm.locker.Unlock()
+	var out []*Login
+	for l := range sm.logins {
+		if l.Alive() {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
 func (sm *loginManager) close() {
 	sm.locker.Lock()
 	defer sm.locker.Unlock()

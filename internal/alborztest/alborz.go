@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/cmd/alborz/app"
@@ -91,6 +92,9 @@ func TrustedProxies(proxies ...string) Option {
 func Segments(segments ...web.Segment) Option {
 	return func(c *config) { c.segments = append(c.segments, segments...) }
 }
+
+// ReminderTick paces the round that fires event reminders.
+func ReminderTick(d time.Duration) Option { return func(c *config) { c.options.ReminderTick = d } }
 
 // Guarded carries the requests to servers outsiders name.
 func Guarded(rt http.RoundTripper) Option { return func(c *config) { c.options.Guarded = rt } }

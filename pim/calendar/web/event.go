@@ -338,6 +338,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		}
 
 		event.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
+		event.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
 		event.Props.SetText(ical.PropSummary, summary)
 		if allDay {
 			event.Props.SetDate(ical.PropDateTimeStart, start)

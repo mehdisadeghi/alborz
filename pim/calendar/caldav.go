@@ -517,6 +517,7 @@ func AsCopy(cal *ical.Calendar, uid, source string, now time.Time) {
 		was, _ := comp.Props.Text(ical.PropUID)
 		comp.Props.SetText(ical.PropUID, uid)
 		comp.Props.SetDateTime(ical.PropDateTimeStamp, now)
+		comp.Props.SetDateTime(ical.PropCreated, now)
 		comp.Props.Del(ical.PropOrganizer)
 		comp.Props.Del(ical.PropAttendee)
 		comp.Props.Add(link("URI", source))

@@ -221,9 +221,14 @@ func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chose
 		page.Path = ctx.Path("calendar.month")
 		return ctx.Redirect(http.StatusFound, page.RequestURI())
 	}
-	body, err := calendar.Encode(children)
-	if err != nil {
+	body, err := calendar.Encode(children, nil)
+	if err := pimweb.LeftOut(ctx, err); err != nil {
 		return err
+	}
+	if len(body) == 0 {
+		page := *ctx.Request().URL
+		page.Path = ctx.Path("calendar.month")
+		return ctx.Redirect(http.StatusFound, page.RequestURI())
 	}
 	return pimweb.Download(ctx, name+".ics", body)
 }

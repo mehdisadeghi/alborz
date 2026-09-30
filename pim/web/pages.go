@@ -472,6 +472,17 @@ type fileError struct {
 func (e *fileError) Error() string { return e.name + ": " + e.err.Error() }
 func (e *fileError) Unwrap() error { return e.err }
 
+// LeftOut tells the reader how many objects an export left out, and why; any other error is returned.
+func LeftOut(ctx *web.Context, err error) error {
+	var left *pim.LeftOutError
+	if !errors.As(err, &left) {
+		return err
+	}
+	ctx.Logger().Printf("export: %v", left)
+	ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.Tf("export.leftout", left.Left, left.Err)})
+	return nil
+}
+
 // ImportRefused is a failed notice for an import the file or the server stopped.
 func ImportRefused(ctx *web.Context, err error) web.Notice {
 	return web.Notice{Kind: web.NoticeFailed, Text: ImportRefusal(ctx, err)}
@@ -678,8 +689,11 @@ func (pg Page) HandleExport(p *dav.Provider) func(*web.Context) error {
 			ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("export.empty")})
 			return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
 		}
-		if err != nil {
+		if err := LeftOut(ctx, err); err != nil {
 			return err
+		}
+		if len(body) == 0 {
+			return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
 		}
 		name := info.Name
 		if name == "" {
@@ -699,12 +713,17 @@ func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
 		var buf bytes.Buffer
 		z := zip.NewWriter(&buf)
 		taken := map[string]int{}
+		var left pim.LeftOutError
 		for _, coll := range rail.Items {
 			account := coll.Account
 			if account != "" && account != ctx.Login.Username() {
 				continue
 			}
 			body, err := pg.Export(ctx, coll.Path, time.Time{}, time.Time{})
+			var out *pim.LeftOutError
+			if errors.As(err, &out) {
+				left.Left, left.Err, err = left.Left+out.Left, errors.Join(left.Err, fmt.Errorf("%s: %w", coll.Name, out.Err)), nil
+			}
 			if errors.Is(err, pim.ErrNothingToExport) || (err == nil && len(body) == 0) {
 				continue
 			}
@@ -726,6 +745,9 @@ func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
 		}
 		if err := z.Close(); err != nil {
 			return err
+		}
+		if left.Left > 0 {
+			LeftOut(ctx, &left)
 		}
 		return Download(ctx, filename, buf.Bytes())
 	}

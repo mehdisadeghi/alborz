@@ -84,8 +84,11 @@ func HandleExport[C files](client func(context.Context, *alborz.Login) (C, error
 			objects = append(objects, r.Value)
 		}
 		file, err := join(objects)
-		if err != nil {
+		if err := LeftOut(ctx, err); err != nil {
 			return err
+		}
+		if len(file) == 0 {
+			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(list)))
 		}
 		return Download(ctx, name(ctx), file)
 	}

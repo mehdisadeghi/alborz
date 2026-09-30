@@ -851,6 +851,7 @@
 "import.fetchfailed" = "No se pudo obtener el calendario: %s"
 "import.toolarge" = "El archivo ocupa más de %d MB y es demasiado grande para importarlo."
 "export.empty" = "La colección está vacía; no hay nada que exportar."
+"export.leftout" = "%d sin exportar: %s"
 "import.exportall" = "Exportar todo como .zip"
 "import.untitled" = "Importado"
 "import.newon" = "Nuevo, en %s"

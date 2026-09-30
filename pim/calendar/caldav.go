@@ -404,14 +404,16 @@ func PutObject(ctx context.Context, to pim.Ref[*caldav.Client], name string, was
 
 func Join(objects [][]byte) ([]byte, error) {
 	var children []*ical.Component
+	var left []error
 	for _, object := range objects {
 		cal, err := ical.NewDecoder(bytes.NewReader(object)).Decode()
 		if err != nil {
-			return nil, err
+			left = append(left, err)
+			continue
 		}
 		children = append(children, cal.Children...)
 	}
-	return Encode(children)
+	return Encode(children, left)
 }
 
 // WarmAccount reads the login's month around now and its tasks, so the pages open from the mirror.

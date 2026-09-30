@@ -35,6 +35,9 @@ const once = (el, key) => {
 	return true;
 };
 
+// One fit per toolbar: a second one, from enhance running again, would take the items the first moved for the menu's own.
+const fits = new WeakMap();
+
 const enhance = () => {
 	// The row stars' chevrons need this script to open the colours menu.
 	for (const chevron of document.querySelectorAll("[data-row-colors][hidden]")) {
@@ -305,21 +308,24 @@ const enhance = () => {
 
 	// Priority-plus toolbar: data-yield is "hide", "word", or by default a move into the overflow menu.
 	for (const wrap of document.querySelectorAll(".actions-wrap")) {
+		if (fits.has(wrap)) {
+			fits.get(wrap)();
+			continue;
+		}
 		const details = wrap.querySelector("div.overflow:not(.flag-menu)");
 		const menu = details && details.querySelector(":scope > .overflow-menu");
 		if (!menu) {
 			continue;
 		}
-		const items = Array.prototype.filter.call(wrap.querySelectorAll("[data-priority]"), el => !menu.contains(el))
-			.map(el => ({ el, priority: Number(el.dataset.priority), how: el.dataset.yield, parent: el.parentNode, next: el.nextSibling }));
-		if (items.length === 0) {
+		const own = () => Array.prototype.filter.call(wrap.querySelectorAll("[data-priority]"), el => !menu.contains(el));
+		if (own().length === 0) {
 			continue;
 		}
-		const leaving = items.slice().sort((a, b) => a.priority - b.priority);
 		const ownItems = menu.children.length;
 		// Held at full size while measuring: a flex-shrunk title spills unseen by scrollWidth.
 		const pinned = wrap.querySelectorAll(":scope > .actions-message, :scope > .actions-end, .actions-message h1");
 		const pin = on => { for (const el of pinned) { el.style.flexShrink = on ? "0" : ""; } };
+		let items = [];
 		let fitting = false;
 		const fit = () => {
 			if (fitting) {
@@ -331,6 +337,9 @@ const enhance = () => {
 				items[i].el.classList.remove("no-word");
 				items[i].parent.insertBefore(items[i].el, items[i].next);
 			}
+			// Collected after the restore: what the last run moved is back on the row, and a swap may have brought new items.
+			items = own().map(el => ({ el, priority: Number(el.dataset.priority), how: el.dataset.yield, parent: el.parentNode, next: el.nextSibling }));
+			const leaving = items.slice().sort((a, b) => a.priority - b.priority);
 			details.hidden = ownItems === 0;
 			pin(true);
 			const moved = new Set();
@@ -356,9 +365,8 @@ const enhance = () => {
 			}
 			fitting = false;
 		};
-		if (once(wrap, "fit")) {
-			new ResizeObserver(fit).observe(wrap);
-		}
+		fits.set(wrap, fit);
+		new ResizeObserver(fit).observe(wrap);
 		fit();
 	}
 

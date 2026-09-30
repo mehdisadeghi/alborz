@@ -41,13 +41,8 @@
       class="active" aria-current="page"
       {{ end }}
     title="{{$.T "nav.filters"}}" aria-label="{{$.T "nav.filters"}}">{{ template "icon" "filter" }}<span class="label">{{$.T "nav.filters"}}</span></a>
-    <a
-      href="{{url "core.search"}}{{$q}}"
-      {{ if eq $page "search" }}
-      class="active" aria-current="page"
-      {{ end }}
-    title="{{$.T "search.title"}}" aria-label="{{$.T "search.title"}}">{{ template "icon" "search" }}<span class="label">{{$.T "search.title"}}</span></a>
     {{ if .GlobalData.LoggedIn }}
+    <button type="button" class="nav-search-open" commandfor="search-dialog" command="show-modal" title="{{$.T "search.title"}}" aria-label="{{$.T "search.title"}}">{{ template "icon" "search" }}<span class="label">{{$.T "search.placeholder"}}</span><kbd aria-hidden="true">/</kbd></button>
     <div>
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" false) }}
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" true) }}
@@ -59,6 +54,17 @@
   {{ if .GlobalData.LoggedIn }}{{ template "flag-colors-menu" (dict "id" "row-colors" "row" true "colors" (flagcolors $) "clear" ($.T "mailbox.flagnone")) }}{{ end }}
   {{ template "notices" (dict "g" $) }}
   {{ if .GlobalData.LoggedIn }}
+  <dialog id="search-dialog" class="search-dialog" closedby="any" aria-label="{{$.T "search.title"}}">
+    <form method="get" action="{{url "core.search"}}" role="search" hx-boost="false">
+      {{ with .GlobalData.Scope }}<input type="hidden" name="account" value="{{.}}">{{ end }}
+      {{ template "icon" "search" }}
+      <input type="text" name="query" dir="auto" autocomplete="off" enterkeyhint="search" autofocus placeholder="{{$.T "search.placeholder"}}" aria-label="{{$.T "search.placeholder"}}">
+      <button type="submit">{{$.T "mailbox.search"}}</button>
+    </form>
+    <div class="search-dialog-found" data-failed="{{$.T "search.failed"}}" hidden>
+      {{ template "search-found" (dict "g" $ "id" "search-dialog" "blocks" .GlobalData.SearchBlocks) }}
+    </div>
+  </dialog>
   <dialog id="keys-help" class="keys-help" closedby="any" aria-labelledby="keys-help-title">
     <h2 id="keys-help-title">{{$.T "keys.title"}}</h2>
     <dl>
@@ -153,3 +159,30 @@
   </span>
 </a>
 {{ end }}
+
+{{/* dict: g id blocks. id names the blocks: the page's and the header's are on one page. */}}
+{{ define "search-found" }}
+{{ $g := .g }}{{ $id := .id }}
+{{ range .blocks }}
+<section class="search-block" id="{{$id}}-{{.Kind}}" data-section="{{.Kind}}"{{ if .Remote }} data-remote{{ end }}{{ if or .Waiting .Held }} aria-busy="true"{{ end }} aria-labelledby="{{$id}}-{{.Kind}}-label">
+  <h2 id="{{$id}}-{{.Kind}}-label" class="search-kind">{{.Label}}</h2>
+  {{ if .Unasked }}
+  <p class="hint list-option">{{ $g.T "search.unasked" }} {{ range $i, $key := .Unasked }}{{ if $i }}, {{ end }}{{ template "ltr" (printf "%s:" $key) }}{{ end }}</p>
+  {{ else if .Waiting }}
+  <p class="hint list-option">{{ $g.T "search.searching" }}</p>
+  {{ else }}
+  {{ .Rows }}
+  {{ if .Held }}
+  <p class="hint list-option">{{ $g.T "search.searching" }}</p>
+  {{ else if .Total }}
+  <p class="list-option"><a href="{{ localhref .All }}">{{ $g.GlobalData.Tf "search.all" .Total .Label }}</a></p>
+  {{ else }}
+  <p class="hint list-option">{{ $g.T "search.none" }}</p>
+  {{ end }}
+  {{ end }}
+</section>
+{{ end }}
+{{ end }}
+
+{{/* The header search's answer: the blocks it asked for. */}}
+{{ define "search-answer" }}{{ template "search-found" (dict "g" . "id" "search-dialog" "blocks" .Blocks) }}{{ end }}

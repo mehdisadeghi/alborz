@@ -25,6 +25,8 @@ type GlobalRenderData struct {
 	URL  *url.URL
 
 	LoggedIn bool
+	// SearchBlocks are the header search's sections, waiting to be asked.
+	SearchBlocks []SearchBlock
 
 	Username string
 	Accounts []Account
@@ -307,6 +309,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 		global.FirstDayOfWeek = ctx.Reading().WeekStart()
 		global.StatusStart, global.StatusEnd = ctx.statusOn()
 		global.StatusSeconds = int(statusEvery / time.Second)
+		global.SearchBlocks = ctx.waitingBlocks()
 	}
 
 	return &BaseRenderData{GlobalData: global}

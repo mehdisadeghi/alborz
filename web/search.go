@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"cmp"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -23,6 +24,9 @@ type Searcher struct {
 	Rows string
 	// Search finds the first limit rows the query and the view find, view being a star or empty.
 	Search func(ctx *Context, q search.Query, view string, limit int) (Found, error)
+	// Held is Search answered from what alborz holds, where Search asks a server; nil where it asks none.
+	// Rows nil says the query asks what is not held.
+	Held func(ctx *Context, q search.Query, view string, limit int) (Found, error)
 }
 
 // Found is what a section found: its first rows, how many there are in all, the section's own list
@@ -46,7 +50,15 @@ type SearchBlock struct {
 	Rows    template.HTML
 	Total   int
 	All     string
+	// Remote says the section's search asks a server, and Held that these rows are what alborz holds
+	// while it does.
+	Remote, Held bool
+	// Waiting says the section has not been asked yet.
+	Waiting bool
 }
+
+// searchDialog is the header's search, which asks for its blocks one section at a time.
+const searchDialog = "search-dialog"
 
 type searchRenderData struct {
 	BaseRenderData
@@ -79,6 +91,17 @@ func handleSearch(ctx *Context) error {
 	if view != "" && view != alborz.ViewStarred && !slices.Contains(alborz.FlagColors[:], view) {
 		return NewError(http.StatusBadRequest, "no such view")
 	}
+	searchers := ctx.searchers()
+	if section := ctx.QueryParam("section"); section != "" {
+		searchers = slices.DeleteFunc(searchers, func(s Searcher) bool { return s.Kind != section })
+		if len(searchers) == 0 {
+			return NewError(http.StatusBadRequest, "no such section")
+		}
+	}
+	held := ctx.QueryParam("held") != ""
+	if held && (len(searchers) != 1 || searchers[0].Held == nil) {
+		return NewError(http.StatusBadRequest, "only a section that asks a server holds rows of its own")
+	}
 	data := &searchRenderData{
 		BaseRenderData: *NewBaseRenderData(ctx).WithTitle(ctx.T("search.title")),
 		Query:          text,
@@ -97,16 +120,42 @@ func handleSearch(ctx *Context) error {
 	}
 	if text != "" || view != "" {
 		var err error
-		if data.Blocks, err = ctx.searchSections(search.Parse(text), view, data.GlobalData); err != nil {
+		if data.Blocks, err = ctx.searchSections(searchers, search.Parse(text), view, held, data.GlobalData); err != nil {
 			return err
 		}
+	}
+	if ctx.PartialFor(searchDialog) {
+		return ctx.Render(http.StatusOK, "search-answer", data)
 	}
 	return ctx.Render(http.StatusOK, "search", data)
 }
 
-// searchSections asks every section that reads the query's keys, all at once, and draws what each found.
-func (ctx *Context) searchSections(q search.Query, view string, global GlobalRenderData) ([]SearchBlock, error) {
-	searchers := ctx.Server.Searchers
+// searchers are the sections in the order they are shown: those that ask a server last, so that what
+// they bring moves nothing under it.
+func (ctx *Context) searchers() []Searcher {
+	return slices.SortedStableFunc(slices.Values(ctx.Server.Searchers), func(a, b Searcher) int {
+		return cmp.Compare(remote(a), remote(b))
+	})
+}
+
+func remote(s Searcher) int {
+	if s.Held != nil {
+		return 1
+	}
+	return 0
+}
+
+func (ctx *Context) waitingBlocks() []SearchBlock {
+	var blocks []SearchBlock
+	for _, s := range ctx.searchers() {
+		blocks = append(blocks, SearchBlock{Kind: s.Kind, Label: ctx.T(s.Kind + ".search"), Remote: s.Held != nil, Waiting: true})
+	}
+	return blocks
+}
+
+// searchSections asks the sections that read the query's keys, all at once, and draws what each found;
+// held asks them for what alborz holds.
+func (ctx *Context) searchSections(searchers []Searcher, q search.Query, view string, held bool, global GlobalRenderData) ([]SearchBlock, error) {
 	blocks := make([]SearchBlock, len(searchers))
 	found := make([]Found, len(searchers))
 	errs := make([]error, len(searchers))
@@ -115,7 +164,7 @@ func (ctx *Context) searchSections(q search.Query, view string, global GlobalRen
 	ctx.Logins()
 	var wg sync.WaitGroup
 	for i, s := range searchers {
-		blocks[i] = SearchBlock{Kind: s.Kind, Label: ctx.T(s.Kind + ".search")}
+		blocks[i] = SearchBlock{Kind: s.Kind, Label: ctx.T(s.Kind + ".search"), Remote: s.Held != nil, Held: held}
 		for _, key := range q.Keys() {
 			if !slices.Contains(s.Answers, key) {
 				blocks[i].Unasked = append(blocks[i].Unasked, key)
@@ -124,8 +173,11 @@ func (ctx *Context) searchSections(q search.Query, view string, global GlobalRen
 		if len(blocks[i].Unasked) > 0 {
 			continue
 		}
-		own := *ctx
-		wg.Go(func() { found[i], errs[i] = s.Search(&own, q, view, searchLimit) })
+		own, ask := *ctx, s.Search
+		if held {
+			ask = s.Held
+		}
+		wg.Go(func() { found[i], errs[i] = ask(&own, q, view, searchLimit) })
 	}
 	wg.Wait()
 	var down []string

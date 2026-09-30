@@ -367,7 +367,16 @@ func (p *Mailboxes) Merged(ctx context.Context, logins []*alborz.Login, settings
 // Search is one page of a search's rows, from every folder it spans; down names the accounts whose
 // servers did not answer.
 func (p *Mailboxes) Search(ctx context.Context, logins []*alborz.Login, settings *Settings, ask ListAsk) (*Listing, []string, error) {
+	users := make([]string, len(logins))
+	for i, s := range logins {
+		users[i] = s.Username()
+	}
+	ctx, done := p.listings.supersede(ctx, users)
+	defer done()
 	window, down, err := p.searchWindow(ctx, logins, ask, settings)
+	if errors.Is(context.Cause(ctx), alborz.ErrSuperseded) {
+		return nil, nil, alborz.ErrSuperseded
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -532,4 +541,60 @@ func (p *Mailboxes) searchWindow(ctx context.Context, logins []*alborz.Login, as
 		}
 		return found, nil
 	})
+}
+
+// heldFields are the headers a held row answers a key from; a bare term is asked of them all, as the
+// server asks a search that reaches only the headers.
+var heldFields = map[string]func(env *imap.Envelope) string{
+	"from":    func(env *imap.Envelope) string { return addressesText(env.From) },
+	"to":      func(env *imap.Envelope) string { return addressesText(env.To) },
+	"cc":      func(env *imap.Envelope) string { return addressesText(env.Cc) },
+	"subject": func(env *imap.Envelope) string { return env.Subject },
+}
+
+func addressesText(list []imap.Address) string {
+	var b strings.Builder
+	for _, a := range list {
+		b.WriteString(a.Name + " <" + a.Addr() + ">\n")
+	}
+	return b.String()
+}
+
+// Held is up to limit rows, newest first, of the accounts' mail alborz holds from the lists it has read,
+// that the query finds in their headers. Junk and trash are left out, as a search leaves them. ok is
+// false when the query asks what a row's headers cannot tell.
+func (p *Mailboxes) Held(logins []*alborz.Login, q search.Query, limit int) (rows []IMAPMessage, ok bool) {
+	for _, term := range q {
+		if _, known := heldFields[term.Key]; term.Key != "" && !known {
+			return nil, false
+		}
+	}
+	users := make(map[string]bool, len(logins))
+	for _, s := range logins {
+		users[s.Username()] = true
+	}
+	for _, m := range p.listings.held(users) {
+		if m.Envelope != nil && heldMatches(q, m.Envelope) {
+			rows = append(rows, m)
+		}
+	}
+	slices.SortStableFunc(rows, unifiedLess("", true))
+	return rows[:min(limit, len(rows))], true
+}
+
+func heldMatches(q search.Query, env *imap.Envelope) bool {
+	for _, term := range q {
+		var text string
+		if read := heldFields[term.Key]; read != nil {
+			text = read(env)
+		} else {
+			for _, key := range []string{"from", "to", "cc", "subject"} {
+				text += heldFields[key](env) + "\n"
+			}
+		}
+		if strings.Contains(strings.ToLower(text), strings.ToLower(term.Value)) == term.Not {
+			return false
+		}
+	}
+	return true
 }

@@ -272,6 +272,9 @@ func (s *Server) Domains() []string {
 // input, which a page names rather than failing on (502).
 var ErrUnreadable = errors.New("the server sent data that does not parse")
 
+// ErrSuperseded marks a search a newer one of the same account replaced (409).
+var ErrSuperseded = errors.New("a newer search replaced this one")
+
 // ErrNotFound marks errors the HTTP layer answers with 404.
 var ErrNotFound = errors.New("not found")
 

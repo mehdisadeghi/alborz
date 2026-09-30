@@ -77,7 +77,7 @@ func newListingCache(keepFor time.Duration, sidebars *memo.Memo[Rail], bodies *b
 	return &listingCache{
 		keepFor: keepFor, accountSidebars: sidebars, bodies: bodies,
 		entries: make(map[listingKey]*listingEntry), orders: make(map[listingKey]*heldOrder), refreshing: make(map[listingKey]bool),
-		flights: make(map[listingKey]*listingFlight), generation: make(map[string]uint64),
+		flights: make(map[listingKey]*listingFlight), generation: make(map[string]uint64), searches: make(map[string]*searchRun),
 	}
 }
 
@@ -93,6 +93,36 @@ type listingCache struct {
 	refreshing map[listingKey]bool
 	flights    map[listingKey]*listingFlight
 	generation map[string]uint64
+	searches   map[string]*searchRun
+}
+
+// searchRun is a search of every folder, withdrawn by the next one on any account it asks.
+type searchRun struct{ cancel context.CancelCauseFunc }
+
+// supersede makes this search the one each user's folders are searched for: an older search
+// still asking them stops before its next folder, so a reader typing on queues no scans behind
+// the one they wait for. done releases the users.
+func (lc *listingCache) supersede(ctx context.Context, users []string) (work context.Context, done func()) {
+	work, cancel := context.WithCancelCause(ctx)
+	run := &searchRun{cancel}
+	lc.mu.Lock()
+	for _, user := range users {
+		if older := lc.searches[user]; older != nil {
+			older.cancel(alborz.ErrSuperseded)
+		}
+		lc.searches[user] = run
+	}
+	lc.mu.Unlock()
+	return work, func() {
+		lc.mu.Lock()
+		for _, user := range users {
+			if lc.searches[user] == run {
+				delete(lc.searches, user)
+			}
+		}
+		lc.mu.Unlock()
+		cancel(nil)
+	}
 }
 
 // messageOrder is a view's messages in the list's order. A conversation view
@@ -720,4 +750,40 @@ func statusUnchanged(a, b *imap.StatusData) bool {
 	return a.UIDValidity == b.UIDValidity && a.UIDNext == b.UIDNext &&
 		eq(a.NumMessages, b.NumMessages) && eq(a.NumUnseen, b.NumUnseen) &&
 		a.HighestModSeq == b.HighestModSeq
+}
+
+// held is a copy of every distinct row the users' listings hold and do not know to be wrong, each
+// naming its account, less those in junk and trash.
+func (lc *listingCache) held(users map[string]bool) []IMAPMessage {
+	type ref struct {
+		account, folder string
+		uid             imap.UID
+	}
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	seen := map[ref]bool{}
+	var out []IMAPMessage
+	for k, e := range lc.entries {
+		if !users[k.user] || e.changed {
+			continue
+		}
+		merged, isMerged := strings.CutPrefix(k.view, "#")
+		merged, _, _ = strings.Cut(merged, listingSep)
+		for _, m := range e.msgs {
+			role := strings.ToLower(merged)
+			if !isMerged {
+				role = folderRole(e.sb.Mailboxes, m.Mailbox)
+			}
+			if m.Account == "" {
+				m.Account = k.user
+			}
+			r := ref{m.Account, m.Mailbox, m.UID}
+			if role == "junk" || role == "trash" || seen[r] {
+				continue
+			}
+			seen[r] = true
+			out = append(out, m)
+		}
+	}
+	return out
 }

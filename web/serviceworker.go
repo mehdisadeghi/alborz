@@ -246,8 +246,11 @@ self.addEventListener("fetch", event => {
 		return;
 	}
 	// What htmx asks for: a boosted page or a fragment of one. The
-	// event stream and downloads are neither, and pass untouched.
-	if (request.headers.get("HX-Request") === "true") {
+	// event stream and downloads are neither, and pass untouched. So
+	// does a search: a page that gives one up aborts its fetch, and
+	// only the browser's own fetch carries that to the server, which
+	// then stops searching; a worker's fetch never learns of it.
+	if (request.headers.get("HX-Request") === "true" && !url.searchParams.has("query")) {
 		event.respondWith(page(event, signal => fetch(request, { signal })));
 	}
 });

@@ -24,7 +24,7 @@ func Mount(g *web.Group) error {
 	s := g.Server()
 	p := &plugin{Mailboxes: mail.New(s.Server)}
 	p.registerRoutes(g)
-	s.Searchers = append(s.Searchers, web.Searcher{Kind: "mail", Answers: imapsearch.Keys(), Rows: "mail-found", Search: p.found})
+	s.Searchers = append(s.Searchers, web.Searcher{Kind: "mail", Answers: imapsearch.Keys(), Rows: "mail-found", Search: p.found, Held: p.held})
 	images, err := localImage(s)
 	if err != nil {
 		return err

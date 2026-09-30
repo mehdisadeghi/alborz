@@ -85,7 +85,7 @@
             {{ $people := .Envelope.From }}{{ $field := "from" }}{{ if $.Outgoing }}{{ $people = .Envelope.To }}{{ $field = "to" }}{{ end }}
             {{ if not $people }}{{$.T "mailbox.nosender"}}{{ end }}
             {{ range $people }}
-            <a dir="auto"{{with $.GlobalData.ContentLang .Name}} lang="{{.}}"{{end}} href="{{ localhref (printf "?query=%s:%s%s" $field (.Addr | qv) $scope) }}">
+            <a dir="auto"{{with $.GlobalData.ContentLang .Name}} lang="{{.}}"{{end}} href="{{ localhref (printf "%s?query=%s:%s%s" $.ListPath $field (.Addr | qv) $scope) }}">
             {{ if .Name }}
               {{.Name}}
             {{ else }}

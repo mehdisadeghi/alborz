@@ -76,6 +76,11 @@ func (p *plugin) searchRows(ctx *web.Context, ask mail.ListAsk) (*MailboxRenderD
 	if err != nil {
 		return nil, nil, err
 	}
+	return spanningPage(ctx, ask, list), down, nil
+}
+
+// spanningPage is a list of rows from any folder of any account, as a search draws it.
+func spanningPage(ctx *web.Context, ask mail.ListAsk, list *mail.Listing) *MailboxRenderData {
 	track := 0
 	for i := range list.Rows {
 		track = max(track, len([]rune(list.Rows[i].Mailbox)))
@@ -84,7 +89,7 @@ func (p *plugin) searchRows(ctx *web.Context, ask mail.ListAsk) (*MailboxRenderD
 	data.Merged, data.Spanning, data.Role = true, true, searchRole
 	data.FolderQuery = search.Parse(ask.Query).Without(imapsearch.In)
 	data.FolderTrack = template.CSS(fmt.Sprintf("%dch", min(track, folderTrackMax)))
-	return data, down, nil
+	return data
 }
 
 // found is mail's part in the search across sections: a search of every folder.
@@ -94,8 +99,27 @@ func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int)
 	if err != nil {
 		return web.Found{}, err
 	}
-	data.SelectForm = ""
+	data.SelectForm, data.ListPath = "", ctx.Path("mail.search")
 	return web.Found{Rows: data, Total: data.Total, All: ctx.SearchURL("mail.search", q, view), Down: down}, nil
+}
+
+// held is mail's part in the search across sections from the rows alborz holds, which asks no server.
+func (p *plugin) held(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	if view != "" {
+		return web.Found{}, nil
+	}
+	logins := []*alborz.Login{ctx.Login}
+	if ctx.Unified {
+		logins = ctx.Logins()
+	}
+	rows, ok := p.Held(logins, q, limit)
+	if !ok {
+		return web.Found{}, nil
+	}
+	ask := mail.ListAsk{Page: alborz.Page{Size: limit}, Query: q.String()}
+	data := spanningPage(ctx, ask, &mail.Listing{Rows: rows, Page: alborz.Page{Size: limit}, Total: len(rows)})
+	data.SelectForm, data.ListPath = "", ctx.Path("mail.search")
+	return web.Found{Rows: data, Total: len(rows)}, nil
 }
 
 // ViewLabel names a view for a page heading.

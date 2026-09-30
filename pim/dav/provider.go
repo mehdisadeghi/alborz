@@ -113,7 +113,7 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 	}
 	var p *Provider
 	var mirror *Mirror
-	if srv.Options.Cache && srv.Options.CacheDir != "" {
+	if srv.Options.Cache {
 		m, err := OpenMirror(srv.Options.CacheDir, kind, srv.LoginKey, func(account string) { p.Forget(account) })
 		if err != nil {
 			return nil, err

@@ -71,7 +71,8 @@ func Upstream(domain, u string) Option {
 	return func(c *config) { c.upstreams = append(c.upstreams, domain+"="+u) }
 }
 
-// NoCache keeps nothing the servers answered.
+// NoCache keeps nothing the servers answered, as -cache=false; without it the copies go in a
+// directory of the test's, as cmd/alborz keeps them in the user cache directory.
 func NoCache() Option { return func(c *config) { c.options.Cache = false } }
 
 func PublicURL(u string) Option { return func(c *config) { c.options.PublicURL = u } }
@@ -82,9 +83,6 @@ func DataDir(dir string) Option { return func(c *config) { c.options.DataDir = d
 func TrustedProxies(proxies ...string) Option {
 	return func(c *config) { c.options.TrustedProxies = proxies }
 }
-
-// CacheDir keeps the sealed copies of DAV collections and calendar feeds in dir.
-func CacheDir(dir string) Option { return func(c *config) { c.options.CacheDir = dir } }
 
 // Guarded carries the requests to servers outsiders name.
 func Guarded(rt http.RoundTripper) Option { return func(c *config) { c.options.Guarded = rt } }
@@ -105,6 +103,9 @@ func Alborz(t *testing.T, opts ...Option) *App {
 	}
 	if c.options.DataDir == "" {
 		c.options.DataDir = t.TempDir()
+	}
+	if c.options.Cache {
+		c.options.CacheDir = t.TempDir()
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

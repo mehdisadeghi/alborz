@@ -49,7 +49,7 @@ func startFeed(t *testing.T, summary string) *feed {
 // subscriber serves an alborz whose outgoing client trusts the feed's certificate.
 func subscriber(t *testing.T, f *httptest.Server) (*App, *Client) {
 	t.Helper()
-	a := Alborz(t, Guarded(f.Client().Transport), CacheDir(t.TempDir()))
+	a := Alborz(t, Guarded(f.Client().Transport))
 	return a, a.SignIn(t, User)
 }
 

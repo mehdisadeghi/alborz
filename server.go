@@ -417,7 +417,7 @@ type Options struct {
 	LoginKey string
 	// Cache keeps what the servers answered.
 	Cache bool
-	// CacheDir keeps sealed copies of synced DAV collections and calendar feeds; empty keeps none.
+	// CacheDir keeps sealed copies of synced DAV collections while Cache is on.
 	CacheDir string
 	// DataDir holds alborz.db; empty is the working directory.
 	DataDir string

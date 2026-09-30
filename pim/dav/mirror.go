@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/keyring"
 	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/internal/seal"
@@ -40,8 +41,9 @@ const (
 // Mirror keeps a copy of each remote collection an account reads, in step with its server (ADR 53).
 // A nil Mirror keeps nothing: every read goes to the server.
 type Mirror struct {
-	db  kv.DB
-	key *seal.Key
+	db kv.DB
+	// ring gives each account's copies the key its encryption asks for (ADR 71).
+	ring *keyring.Ring
 	// names turns accounts, principals, collections and objects into the file's keys.
 	names seal.Names
 	wire  wire
@@ -141,7 +143,7 @@ func (m *Mirror) objectsKey(u, coll string) string {
 }
 
 // OpenMirror opens the kind's copies in dir; round keeps them in step.
-func OpenMirror(dir string, kind Kind, root seal.Root, gone func(account string)) (*Mirror, error) {
+func OpenMirror(dir string, kind Kind, root seal.Root, ring *keyring.Ring, gone func(account string)) (*Mirror, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -155,7 +157,7 @@ func OpenMirror(dir string, kind Kind, root seal.Root, gone func(account string)
 		return nil, err
 	}
 	key := root.Key(owner)
-	m := &Mirror{db: db, key: key, names: root.Names(), wire: wireFor(kind.Holds), poll: kind.Poll, gone: gone,
+	m := &Mirror{db: db, ring: ring, names: root.Names(), wire: wireFor(kind.Holds), poll: kind.Poll, gone: gone,
 		readers: map[string]*reader{}, hot: map[string]*opened{}, hotMax: hotMaxBytes, changed: map[string]uint64{}}
 	if err := alborz.CheckKey(db, file, root, map[string]*seal.Key{owner + "/": key}); err != nil {
 		db.Close()
@@ -175,16 +177,32 @@ func (m *Mirror) Close() error {
 	return m.db.Close()
 }
 
+// accountOf is the keyed name of the account a key of the file belongs to: its third part.
+func accountOf(k string) string {
+	parts := strings.SplitN(k, "/", 4)
+	return parts[2]
+}
+
+// nameOf is the keyed name of a user's account.
+func nameOf(u string) string {
+	name, _, _ := strings.Cut(u, "/")
+	return name
+}
+
 func (m *Mirror) put(tx kv.Tx, k string, v any) error {
 	raw, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	return tx.Put(k, m.key.Seal(raw))
+	key, err := m.ring.For(accountOf(k), owner)
+	if err != nil {
+		return err
+	}
+	return tx.Put(k, key.Seal(raw))
 }
 
-func (m *Mirror) open(sealed []byte, v any) error {
-	raw, err := m.key.Open(sealed)
+func (m *Mirror) open(k string, sealed []byte, v any) error {
+	raw, err := m.ring.Open(accountOf(k), owner, sealed)
 	if err != nil {
 		return err
 	}
@@ -194,9 +212,9 @@ func (m *Mirror) open(sealed []byte, v any) error {
 func scan[T any](m *Mirror, prefix string) ([]T, error) {
 	var out []T
 	err := m.db.View(func(tx kv.Tx) error {
-		return tx.Scan(prefix, func(_ string, sealed []byte) error {
+		return tx.Scan(prefix, func(k string, sealed []byte) error {
 			var v T
-			err := m.open(sealed, &v)
+			err := m.open(k, sealed, &v)
 			out = append(out, v)
 			return err
 		})
@@ -213,7 +231,7 @@ func (m *Mirror) held(u, coll string) (mirrored, bool, error) {
 			return nil
 		}
 		ok = true
-		return m.open(sealed, &h)
+		return m.open(m.heldKey(u, coll), sealed, &h)
 	})
 	return h, ok, err
 }
@@ -317,7 +335,9 @@ type Principal struct {
 	Account, Name string
 }
 
-func (m *Mirror) user(p Principal) string { return m.names.Of(p.Account) + "/" + m.names.Of(p.Name) }
+func (m *Mirror) user(p Principal) string {
+	return m.names.Of(strings.ToLower(p.Account)) + "/" + m.names.Of(p.Name)
+}
 
 // Transport answers reads of held collections and passes everything else to next.
 func (m *Mirror) Transport(who Principal, next http.RoundTripper) http.RoundTripper {
@@ -335,6 +355,10 @@ type tripper struct {
 }
 
 func (t tripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// The copy of an account whose key is not open is neither read nor written until it is.
+	if t.m.ring.Locked(nameOf(t.user)) {
+		return t.next.RoundTrip(req)
+	}
 	t.m.note(t.who, t.next)
 	switch req.Method {
 	case "REPORT", http.MethodGet:
@@ -567,7 +591,7 @@ func (m *Mirror) Forget(username string) {
 	}
 	m.mu.Lock()
 	for u := range m.readers {
-		if strings.HasPrefix(u, m.names.Of(username)+"/") {
+		if strings.HasPrefix(u, m.names.Of(strings.ToLower(username))+"/") {
 			delete(m.readers, u)
 		}
 	}
@@ -608,7 +632,8 @@ func (m *Mirror) round(ctx context.Context, now time.Time) {
 	m.mu.Lock()
 	var users []string
 	for u, r := range m.readers {
-		if r.out != nil {
+		// An account whose key is not open waits for its next login (ADR 71).
+		if r.out != nil && !m.ring.Locked(nameOf(u)) {
 			users = append(users, u)
 		}
 	}
@@ -651,4 +676,90 @@ func parallel[T any](values []T, f func(T)) {
 	}
 	close(jobs)
 	wg.Wait()
+}
+
+// Reseal moves the account's copies under the key the ring gives it now, a collection per transaction.
+func (m *Mirror) Reseal(account string) error {
+	if m == nil {
+		return nil
+	}
+	name := m.names.Of(strings.ToLower(account))
+	key, err := m.ring.For(name, owner)
+	if err != nil {
+		return err
+	}
+	stale, err := m.heldBy(name, func(sealed []byte) bool { return m.ring.Stale(name, owner, sealed) })
+	if err != nil {
+		return err
+	}
+	for _, held := range stale {
+		err := m.db.Update(func(tx kv.Tx) error {
+			moved := map[string][]byte{}
+			err := tx.Scan(owner+"/objects/"+held+"/", func(k string, sealed []byte) error {
+				moved[k] = sealed
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			moved[owner+"/held/"+held] = tx.Get(owner + "/held/" + held)
+			for k, sealed := range moved {
+				if !m.ring.Stale(name, owner, sealed) {
+					continue
+				}
+				raw, err := m.ring.Open(name, owner, sealed)
+				if err != nil {
+					return err
+				}
+				if err := tx.Put(k, key.Seal(raw)); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Drop deletes the account's copies under an own key that is lost.
+func (m *Mirror) Drop(account string) error {
+	if m == nil {
+		return nil
+	}
+	name := m.names.Of(strings.ToLower(account))
+	lost, err := m.heldBy(name, func(sealed []byte) bool {
+		_, err := m.ring.Open(name, owner, sealed)
+		return errors.Is(err, keyring.ErrLocked)
+	})
+	if err != nil {
+		return err
+	}
+	return m.db.Update(func(tx kv.Tx) error {
+		for _, held := range lost {
+			if err := tx.Delete(owner + "/held/" + held); err != nil {
+				return err
+			}
+			if err := kv.DeleteUnder(tx, owner+"/objects/"+held+"/", nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// heldBy are the account's collections whose held record match picks, each as its user and path's names.
+func (m *Mirror) heldBy(name string, match func(sealed []byte) bool) ([]string, error) {
+	var out []string
+	err := m.db.View(func(tx kv.Tx) error {
+		return tx.Scan(owner+"/held/"+name+"/", func(k string, sealed []byte) error {
+			if match(sealed) {
+				out = append(out, strings.TrimPrefix(k, owner+"/held/"))
+			}
+			return nil
+		})
+	})
+	return out, err
 }

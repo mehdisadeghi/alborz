@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/keyring"
 	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/internal/seal"
 	"git.mehdix.org/alborz/pim/store"
@@ -19,7 +21,7 @@ import (
 )
 
 // The production client refuses loopback, so the tests inject a plain one.
-func feedsAt(t *testing.T, client *http.Client) *feeds {
+func feedsAt(t *testing.T, client *http.Client) (*feeds, *keyring.Ring) {
 	t.Helper()
 	db, err := bolt.Open(filepath.Join(t.TempDir(), "alborz.db"), time.Second)
 	if err != nil {
@@ -30,8 +32,12 @@ func feedsAt(t *testing.T, client *http.Client) *feeds {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &feeds{client: client, log: log.Default(), store: store.New(db, root),
-		fetching: map[string]bool{}, failed: map[string]time.Time{}}
+	ring, err := keyring.New(db, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &feeds{client: client, log: log.Default(), store: store.New(db, root, ring),
+		fetching: map[string]bool{}, failed: map[string]time.Time{}}, ring
 }
 
 // shared are an account's settings as its mail server keeps them, which every alborz reads.
@@ -74,7 +80,7 @@ func TestFeedRefreshesOnItsOwnClockOncePerFeed(t *testing.T) {
 		w.Write([]byte(holidays))
 	}))
 	defer srv.Close()
-	f := feedsAt(t, srv.Client())
+	f, _ := feedsAt(t, srv.Client())
 	accounts := []string{"a@test.local", "b@test.local"}
 	for _, account := range accounts {
 		list := shared{}
@@ -140,5 +146,44 @@ func TestNormalizeFeedURL(t *testing.T) {
 		if got := NormalizeFeedURL(in); got != want {
 			t.Errorf("%q: got %q, want %q", in, got, want)
 		}
+	}
+}
+
+// An encrypted account's subscription is fetched only while a login of the account holds its key (ADR 71).
+func TestAFeedWaitsForItsEncryptedOwner(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "text/calendar")
+		w.Write([]byte(holidays))
+	}))
+	defer srv.Close()
+	f, ring := feedsAt(t, srv.Client())
+	const account = "a@test.local"
+	own := bytes.Repeat([]byte{7}, seal.KeySize)
+	release, err := ring.Hold(ring.Name(account), own, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := shared{}
+	if err := list.Put(context.Background(), subscriptionsKey, []Subscription{{URL: srv.URL, Name: "Holidays"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reconcile(context.Background(), f.store, account, list); err != nil {
+		t.Fatal(err)
+	}
+	release()
+
+	now := time.Now()
+	f.round(context.Background(), now)
+	if hits != 0 {
+		t.Fatalf("with no login of its owner the feed was fetched %d times", hits)
+	}
+	if _, err := ring.Hold(ring.Name(account), own, true); err != nil {
+		t.Fatal(err)
+	}
+	f.round(context.Background(), now)
+	if objects, err := f.store.Objects(f.store.FeedRef(account, srv.URL)); hits != 1 || err != nil || len(objects) != 2 {
+		t.Fatalf("with its owner back: %d fetches, %d objects (%v), want one and the feed's two", hits, len(objects), err)
 	}
 }

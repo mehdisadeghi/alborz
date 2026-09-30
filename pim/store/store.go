@@ -13,6 +13,7 @@ import (
 	"time"
 	"uuid"
 
+	"git.mehdix.org/alborz/internal/keyring"
 	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/internal/record"
 	"git.mehdix.org/alborz/internal/seal"
@@ -181,16 +182,17 @@ func (k keys) droppedOf(owner string) string {
 // Counted across collections, so a name made again cannot reuse ctags a client holds.
 const ctagKey = Name + "/ctag"
 
-// Store keeps collections in the data file, sealed under a key of the login key's; every method is one
-// transaction.
+// Store keeps collections in the data file, sealed under a key of the login key's or, while the owner's
+// encryption is on, of the collection's own; every method is one transaction.
 type Store struct {
-	db kv.DB
+	db   sealed
+	ring *keyring.Ring
 	keys
 	watchers []func(accounts []string)
 }
 
-func New(db kv.DB, root seal.Root) *Store {
-	return &Store{db: sealed{db: db, key: root.Key(Name)}, keys: keys{root.Names()}}
+func New(db kv.DB, root seal.Root, ring *keyring.Ring) *Store {
+	return &Store{db: sealed{db: db, key: root.Key(Name), ring: ring}, ring: ring, keys: keys{root.Names()}}
 }
 
 // FeedRef names a subscription's calendar by its address, so two pages making it at once make one; a keyed
@@ -231,6 +233,11 @@ func (s *Store) change(ref Ref, write func(kv.Tx) error) error {
 }
 
 func (s *Store) publish(tx kv.Tx, before string, c Collection) error {
+	if c.ID != "" {
+		if err := keyed(tx).publicWrap(s.ref(c.Ref()), c.Public != ""); err != nil {
+			return err
+		}
+	}
 	if before != "" && before != c.Public {
 		if err := tx.Delete(s.publicKey(before)); err != nil {
 			return err
@@ -311,6 +318,11 @@ func (s *Store) Create(c Collection) (*Collection, error) {
 	err := s.change(c.Ref(), func(tx kv.Tx) error {
 		if tx.Get(s.collectionKey(c.Ref())) != nil {
 			return ErrExists
+		}
+		if owner := s.ring.Name(c.Owner); s.ring.On(owner) {
+			if err := keyed(tx).encrypt(s.ref(c.Ref()), []string{owner}); err != nil {
+				return err
+			}
 		}
 		if err := stamp(tx, &c); err != nil {
 			return err
@@ -398,7 +410,7 @@ func (s *Store) Delete(ref Ref) error {
 				return err
 			}
 		}
-		return nil
+		return keyed(tx).dropKey(s.ref(ref))
 	})
 }
 
@@ -416,12 +428,19 @@ func (s *Store) Visible(account string, kind Kind, now time.Time) ([]Seen, error
 		if err != nil {
 			return err
 		}
+		// A share whose collection's key this account cannot open yet is passed over (ADR 71).
 		return each(tx, s.receivedBy(account), func(ref Ref) error {
 			sh, err := get[Share](tx, s.shareKey(ref, account))
+			if errors.Is(err, ErrNotFound) {
+				return nil
+			}
 			if err != nil || !sh.Live(now) {
 				return err
 			}
 			c, err := get[Collection](tx, s.collectionKey(ref))
+			if errors.Is(err, ErrNotFound) {
+				return nil
+			}
 			if err != nil {
 				return err
 			}
@@ -709,6 +728,9 @@ func (s *Store) PutShare(sh Share) error {
 		if err := put(tx, s.shareKey(sh.Ref(), sh.To), &sh); err != nil {
 			return err
 		}
+		if err := keyed(tx).wrapTo(s.ref(sh.Ref()), s.ring.Name(sh.To)); err != nil {
+			return err
+		}
 		return put(tx, s.receivedKey(sh.To, sh.Ref()), sh.Ref())
 	})
 }
@@ -751,6 +773,9 @@ func (s *Store) RemoveShare(ref Ref, to string) error {
 		if err := tx.Delete(s.receivedKey(to, ref)); err != nil {
 			return err
 		}
+		if err := keyed(tx).unwrapFrom(s.ref(ref), s.ring.Name(to)); err != nil {
+			return err
+		}
 		return tx.Delete(s.shareKey(ref, to))
 	})
 }
@@ -768,70 +793,4 @@ func (s *Store) Shares(keep func(Share) bool) ([]Share, error) {
 	})
 	sort.Slice(out, func(i, j int) bool { return out[i].To < out[j].To })
 	return out, err
-}
-
-// sealed is db with every value sealed. A value that does not open fails its transaction, so nothing is
-// written over what could not be read.
-type sealed struct {
-	db  kv.DB
-	key *seal.Key
-}
-
-func (s sealed) View(fn func(kv.Tx) error) error {
-	return s.db.View(func(tx kv.Tx) error { return s.run(tx, fn) })
-}
-
-func (s sealed) Update(fn func(kv.Tx) error) error {
-	return s.db.Update(func(tx kv.Tx) error { return s.run(tx, fn) })
-}
-
-func (s sealed) Close() error { return s.db.Close() }
-
-func (s sealed) run(tx kv.Tx, fn func(kv.Tx) error) error {
-	t := &sealedTx{tx: tx, key: s.key}
-	err := fn(t)
-	if t.err != nil {
-		return t.err
-	}
-	return err
-}
-
-type sealedTx struct {
-	tx  kv.Tx
-	key *seal.Key
-	err error
-}
-
-func (t *sealedTx) open(k string, v []byte) ([]byte, error) {
-	plain, err := t.key.Open(v)
-	if err != nil {
-		return nil, fmt.Errorf("collections: %s: %w", k, err)
-	}
-	return plain, nil
-}
-
-func (t *sealedTx) Get(k string) []byte {
-	v := t.tx.Get(k)
-	if v == nil {
-		return nil
-	}
-	plain, err := t.open(k, v)
-	if err != nil && t.err == nil {
-		t.err = err
-	}
-	return plain
-}
-
-func (t *sealedTx) Put(k string, v []byte) error { return t.tx.Put(k, t.key.Seal(v)) }
-
-func (t *sealedTx) Delete(k string) error { return t.tx.Delete(k) }
-
-func (t *sealedTx) Scan(prefix string, fn func(k string, v []byte) error) error {
-	return t.tx.Scan(prefix, func(k string, v []byte) error {
-		plain, err := t.open(k, v)
-		if err != nil {
-			return err
-		}
-		return fn(k, plain)
-	})
 }

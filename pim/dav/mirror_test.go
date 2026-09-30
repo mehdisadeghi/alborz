@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -19,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"git.mehdix.org/alborz/internal/keyring"
+	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/internal/seal"
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-ical"
@@ -169,7 +172,16 @@ func through(t *testing.T, s *fakeDAV) (*Mirror, *caldav.Client) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := OpenMirror(t.TempDir(), Kind{Name: "caldav", Poll: time.Hour, Holds: store.Calendar}, root, func(string) {})
+	data, err := bolt.Open(filepath.Join(t.TempDir(), "alborz.db"), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { data.Close() })
+	ring, err := keyring.New(data, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := OpenMirror(t.TempDir(), Kind{Name: "caldav", Poll: time.Hour, Holds: store.Calendar}, root, ring, func(string) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,5 +501,38 @@ func TestMirrorLetsGoOfACollectionItsServerLost(t *testing.T) {
 	}
 	if _, held, err := m.held(m.user(someone), "/cal/"); err != nil || held {
 		t.Errorf("the copy of a collection its server lost is still held (err %v)", err)
+	}
+}
+
+// The round passes over an account whose key no login holds, and syncs it again once one does (ADR 72).
+func TestMirrorRoundWaitsForALockedAccount(t *testing.T) {
+	s := newFake()
+	m, c := through(t, s)
+	name, own := m.names.Of(someone.Account), bytes.Repeat([]byte{7}, seal.KeySize)
+	release, err := m.ring.Hold(name, own, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	summaries(t, c)
+	release()
+	s.change("b.ics", event("b"))
+	later := time.Now().Add(2 * time.Hour)
+	before := s.count()
+	m.round(context.Background(), later)
+	m.work.Wait()
+	if n := s.count() - before; n != 0 {
+		t.Fatalf("the round asked the server %d times for a locked account", n)
+	}
+	if _, err := m.ring.Hold(name, own, true); err != nil {
+		t.Fatal(err)
+	}
+	m.round(context.Background(), later)
+	m.work.Wait()
+	if s.count() == before {
+		t.Fatal("with the key held again, the round did not sync")
+	}
+	before = s.count()
+	if got := summaries(t, c); !slices.Equal(got, []string{"a", "b"}) || s.count() != before {
+		t.Fatalf("after the round the copy read %v, asking the server %d times", got, s.count()-before)
 	}
 }

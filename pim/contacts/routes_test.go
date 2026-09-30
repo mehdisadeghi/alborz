@@ -2,6 +2,7 @@ package contacts
 
 import (
 	"context"
+	"git.mehdix.org/alborz/internal/keyring"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -43,7 +44,11 @@ func TestAUIDIsMatchedExactlyAndANameRegardlessOfCase(t *testing.T) {
 		t.Fatal(err)
 	}
 	const account = "u@example.org"
-	h := store.New(db, root).Handler()
+	ring, err := keyring.New(db, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := store.New(db, root, ring).Handler()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.ServeHTTP(w, r.WithContext(store.As(r.Context(), account)))
 	}))

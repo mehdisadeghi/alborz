@@ -11,7 +11,8 @@ import (
 )
 
 // An envelope keeps a secret under a random key, wrapped under a key derived
-// from the mail password.
+// from the mail password; while the account's encryption is on, under the
+// account's own key instead, and Salt and ByPassword are empty (ADR 71).
 type envelope struct {
 	Secret     string
 	Salt       string
@@ -46,8 +47,24 @@ func unwrap(tok string, k *seal.Key) []byte {
 	return plain
 }
 
-// seal wraps plain for this account under its mail password.
-func (l *Login) seal(plain string) envelope {
+// httpPasswordPurpose names the key of the HTTP password under the account's own.
+const httpPasswordPurpose = "alborz.http-password"
+
+func (e envelope) own() bool {
+	sealed, _ := base64.URLEncoding.DecodeString(e.Secret)
+	return seal.Format(sealed) == seal.ByAccount
+}
+
+// seal wraps plain for this account under its own key, or else under its mail password.
+func (l *Login) seal(plain string) (envelope, error) {
+	keys := l.manager.keys
+	if name := keys.Name(l.username); keys.On(name) {
+		k, err := keys.For(name, httpPasswordPurpose)
+		if err != nil {
+			return envelope{}, err
+		}
+		return envelope{Secret: wrap([]byte(plain), k)}, nil
+	}
 	var k [seal.KeySize]byte
 	rand.Read(k[:])
 	salt := make([]byte, envelopeSalt)
@@ -56,11 +73,20 @@ func (l *Login) seal(plain string) envelope {
 		Secret:     wrap([]byte(plain), seal.NewKey(k)),
 		Salt:       base64.StdEncoding.EncodeToString(salt),
 		ByPassword: wrap(k[:], passwordKey(l.password, salt)),
-	}
+	}, nil
 }
 
-// open reads the secret with the mail password.
+// open reads the secret with the account's own key or the mail password.
 func (l *Login) open(e envelope) (string, error) {
+	if e.own() {
+		sealed, _ := base64.URLEncoding.DecodeString(e.Secret)
+		keys := l.manager.keys
+		plain, err := keys.Open(keys.Name(l.username), httpPasswordPurpose, sealed)
+		if err != nil {
+			return "", ErrSealed
+		}
+		return string(plain), nil
+	}
 	salt, err := base64.StdEncoding.DecodeString(e.Salt)
 	if err != nil {
 		return "", err
@@ -126,7 +152,10 @@ func (l *Login) SetHTTPPassword(ctx context.Context, password string) error {
 	}
 	var e envelope
 	if password != "" {
-		e = l.seal(password)
+		var err error
+		if e, err = l.seal(password); err != nil {
+			return err
+		}
 	}
 	if err := l.store.Put(ctx, httpPasswordKey, &e); err != nil {
 		return err
@@ -148,7 +177,7 @@ func (l *Login) rewrap(ctx context.Context, next string) error {
 	if err == ErrNoStoreEntry || (err == nil && e.Secret == "") {
 		return nil
 	}
-	if err != nil {
+	if err != nil || e.own() {
 		return err
 	}
 	salt, err := base64.StdEncoding.DecodeString(e.Salt)
@@ -163,4 +192,41 @@ func (l *Login) rewrap(ctx context.Context, next string) error {
 	rand.Read(salt)
 	e.Salt, e.ByPassword = base64.StdEncoding.EncodeToString(salt), wrap(k, passwordKey(next, salt))
 	return l.store.Put(ctx, httpPasswordKey, &e)
+}
+
+// resealHTTPPassword moves the kept HTTP password under the key the account's encryption asks for. One
+// that no longer opens stays as it is (ADR 5).
+func (l *Login) resealHTTPPassword(ctx context.Context) error {
+	var e envelope
+	err := l.store.Get(ctx, httpPasswordKey, &e)
+	if err == ErrNoStoreEntry || (err == nil && e.Secret == "") {
+		return nil
+	}
+	keys := l.manager.keys
+	name := keys.Name(l.username)
+	sealed, _ := base64.URLEncoding.DecodeString(e.Secret)
+	if err != nil || e.own() && !keys.Stale(name, httpPasswordPurpose, sealed) || !e.own() && !keys.On(name) {
+		return err
+	}
+	plain, err := l.open(e)
+	if err != nil {
+		return nil
+	}
+	if e, err = l.seal(plain); err != nil {
+		return err
+	}
+	return l.store.Put(ctx, httpPasswordKey, &e)
+}
+
+// dropHTTPPassword clears a kept HTTP password under an own key that is lost.
+func (l *Login) dropHTTPPassword(ctx context.Context) error {
+	var e envelope
+	err := l.store.Get(ctx, httpPasswordKey, &e)
+	if err == ErrNoStoreEntry || (err == nil && !e.own()) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return l.store.Put(ctx, httpPasswordKey, &envelope{})
 }

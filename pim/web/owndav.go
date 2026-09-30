@@ -28,7 +28,8 @@ func Mount(dav, app *web.Group) (*store.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	st := store.New(db, srv.LoginKey)
+	st := store.New(db, srv.LoginKey, srv.Keys)
+	srv.Sealers = append(srv.Sealers, alborz.Sealer{Reseal: st.Reseal, Drop: st.Drop})
 	srv.Archive = append(srv.Archive, alborz.ArchivePart{Dir: "collections",
 		Export: func(_ context.Context, l *alborz.Login, put func(string, []byte) error) error {
 			return st.Export(l.Username(), put)
@@ -143,6 +144,12 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 				return nil
 			}
 			ok = err == nil
+		}
+		// A phone syncing without a login in a browser opens the account's key itself (ADR 71).
+		if ok {
+			if err := srv.Unlock(username, password, davPasswordLife); err != nil {
+				srv.Logger().Printf("%s: opening the account's key for a DAV client: %v", username, err)
+			}
 		}
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="`+davRealm+`", charset="UTF-8"`)

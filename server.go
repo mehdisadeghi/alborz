@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"git.mehdix.org/alborz/internal/keyring"
 	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/internal/seal"
 )
@@ -69,6 +70,11 @@ type Server struct {
 	// Archive are the features' shares of an account's archive, beside its settings.
 	Archive []ArchivePart
 
+	// Keys holds the accounts' own keys and key pairs (ADR 71); Sealers are the features keeping values
+	// under them.
+	Keys    *keyring.Ring
+	Sealers []Sealer
+
 	// OnClose releases what a feature holds open.
 	OnClose []func() error
 
@@ -93,6 +99,8 @@ type Server struct {
 	DataPath string
 
 	loginFailures sync.Map
+	// unlockRefused holds when a phone's password last did not open its account's key.
+	unlockRefused sync.Map
 }
 
 type domainUpstreams struct {
@@ -162,7 +170,10 @@ func New(log *log.Logger, options Options) (*Server, error) {
 	if err := s.SessionRecords.Sweep(time.Now().Add(-credentialCookieLife)); err != nil {
 		return nil, err
 	}
-	settings := openSettingsRecords(s.data, settingsKey, s.LoginKey.Names())
+	if s.Keys, err = keyring.New(s.data, s.LoginKey); err != nil {
+		return nil, fmt.Errorf("%s: the key pairs do not read: %w", s.DataPath, err)
+	}
+	settings := openSettingsRecords(s.data, settingsKey, s.LoginKey.Names(), s.Keys)
 
 	s.domains = make(map[string]*domainUpstreams)
 	for _, arg := range options.Upstreams {
@@ -219,7 +230,7 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		return nil, fmt.Errorf("no usable domains left")
 	}
 
-	s.logins = newLoginManager(s.dialIMAP, s.dialIMAPTransfer, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, log, settings)
+	s.logins = newLoginManager(s.dialIMAP, s.dialIMAPTransfer, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, log, settings, s.Keys, s.unlock)
 	return s, nil
 }
 

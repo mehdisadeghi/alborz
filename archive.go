@@ -146,7 +146,8 @@ func readArchive(r io.Reader) (map[string][]byte, error) {
 	return files, nil
 }
 
-// The HTTP password is sealed under the mail password, which does not travel (ADR 5).
+// The HTTP password is sealed under the mail password, which does not travel (ADR 5), and the account's own
+// key opens nothing the archive holds (ADR 71).
 func exportSettings(ctx context.Context, l *Login, put func(string, []byte) error) error {
 	settings, ok := l.Store().(Settings)
 	if !ok {
@@ -158,7 +159,7 @@ func exportSettings(ctx context.Context, l *Login, put func(string, []byte) erro
 	}
 	for _, name := range names {
 		name = strings.TrimPrefix(name, vendorRoot+"/")
-		if name == httpPasswordKey {
+		if name == httpPasswordKey || name == keyEntry {
 			continue
 		}
 		var raw json.RawMessage
@@ -175,7 +176,7 @@ func exportSettings(ctx context.Context, l *Login, put func(string, []byte) erro
 func importSettings(ctx context.Context, l *Login, files map[string][]byte) ([]ImportNote, error) {
 	for _, file := range slices.Sorted(maps.Keys(files)) {
 		name, ok := strings.CutSuffix(file, ".json")
-		if !ok || name == httpPasswordKey {
+		if !ok || name == httpPasswordKey || name == keyEntry {
 			continue
 		}
 		if !json.Valid(files[file]) {

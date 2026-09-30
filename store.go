@@ -186,11 +186,13 @@ func (s *imapMetadataStore) Entries(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
+// Forget keeps the account's own key, which is not a setting but what opens its data.
 func (s *imapMetadataStore) Forget(ctx context.Context) error {
 	names, err := s.Entries(ctx)
 	if err != nil {
 		return err
 	}
+	names = slices.DeleteFunc(names, func(name string) bool { return name == s.key(keyEntry) })
 	if len(names) == 0 {
 		return nil
 	}
@@ -221,10 +223,19 @@ type localStore struct {
 }
 
 func (s localStore) Get(_ context.Context, key string, out any) error {
+	if key == keyEntry {
+		if !s.records.apart.load(s.records.keyEntryKey(s.account), out) {
+			return ErrNoStoreEntry
+		}
+		return nil
+	}
 	return s.records.Get(s.account, key, out)
 }
 
 func (s localStore) Put(_ context.Context, key string, v any) error {
+	if key == keyEntry {
+		return s.records.apart.save(s.records.keyEntryKey(s.account), v)
+	}
 	return s.records.Put(s.account, key, v)
 }
 

@@ -166,6 +166,10 @@ func exportSettings(ctx context.Context, l *Login, put func(string, []byte) erro
 		if err := settings.Get(ctx, name, &raw); err != nil {
 			return err
 		}
+		// An entry that does not read is left out; the store has said so.
+		if raw == nil {
+			continue
+		}
 		if err := put(name+".json", raw); err != nil {
 			return err
 		}
@@ -173,18 +177,26 @@ func exportSettings(ctx context.Context, l *Login, put func(string, []byte) erro
 	return nil
 }
 
+// One entry that does not read, or that the mail server will not keep, leaves the others to be imported.
 func importSettings(ctx context.Context, l *Login, files map[string][]byte) ([]ImportNote, error) {
+	var notes []ImportNote
 	for _, file := range slices.Sorted(maps.Keys(files)) {
 		name, ok := strings.CutSuffix(file, ".json")
 		if !ok || name == httpPasswordKey || name == keyEntry {
 			continue
 		}
 		if !json.Valid(files[file]) {
-			return nil, fmt.Errorf("%w: %s/%s does not read", ErrNotArchive, settingsDir, file)
+			notes = append(notes, ImportNote{Key: "data.entryunread", Name: name})
+			continue
 		}
-		if err := l.Store().Put(ctx, name, json.RawMessage(files[file])); err != nil {
-			return nil, err
+		err := l.Store().Put(ctx, name, json.RawMessage(files[file]))
+		if errors.As(err, new(StoreRefusedError)) {
+			l.manager.logger.Printf("%s: import: the store refused %s: %v", l.username, name, err)
+			notes = append(notes, ImportNote{Key: "data.entryrefused", Name: name})
+			continue
+		} else if err != nil {
+			return notes, err
 		}
 	}
-	return nil, nil
+	return notes, nil
 }

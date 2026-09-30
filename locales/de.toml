@@ -1235,6 +1235,14 @@ other = "%d J"
 one = "Der öffentliche Link von %[2]s wurde nicht übernommen: Er gehört hier zu einem anderen Kalender."
 other = "Die öffentlichen Links von %[2]s wurden nicht übernommen: Sie gehören hier zu anderen Kalendern."
 
+["data.entryunread"]
+one = "Die Einstellung %[2]s im Archiv ist nicht lesbar und wurde nicht importiert."
+other = "Die Einstellungen %[2]s im Archiv sind nicht lesbar und wurden nicht importiert."
+
+["data.entryrefused"]
+one = "Der Mailserver hat die Einstellung %[2]s nicht gespeichert."
+other = "Der Mailserver hat die Einstellungen %[2]s nicht gespeichert."
+
 ["mail.status.unread"]
 one = "%d ungelesen"
 other = "%d ungelesen"

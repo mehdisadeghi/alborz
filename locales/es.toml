@@ -1234,6 +1234,14 @@ other = "%d años"
 one = "No se conservó el enlace público de %[2]s: aquí sirve a otro calendario."
 other = "No se conservaron los enlaces públicos de %[2]s: aquí sirven a otros calendarios."
 
+["data.entryunread"]
+one = "El ajuste %[2]s del archivo no se puede leer y no se importó."
+other = "Los ajustes %[2]s del archivo no se pueden leer y no se importaron."
+
+["data.entryrefused"]
+one = "El servidor de correo no guardó el ajuste %[2]s."
+other = "El servidor de correo no guardó los ajustes %[2]s."
+
 ["mail.status.unread"]
 one = "%d sin leer"
 other = "%d sin leer"

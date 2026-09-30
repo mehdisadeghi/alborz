@@ -111,9 +111,10 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 			found[domain] = record
 		}
 	}
+	var p *Provider
 	var mirror *Mirror
 	if srv.Options.Cache && srv.Options.CacheDir != "" {
-		m, err := OpenMirror(srv.Options.CacheDir, kind, srv.LoginKey)
+		m, err := OpenMirror(srv.Options.CacheDir, kind, srv.LoginKey, func(account string) { p.Forget(account) })
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +125,7 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 	if err != nil {
 		return nil, err
 	}
-	p := &Provider{Kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
+	p = &Provider{Kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
 		collections: memo.NewBackground[[]Collection](srv.Options.CacheFor(discoveryTTL))}
 	p.trusted, p.named = srv.Outgoing.Trusted, srv.Outgoing.Trusted
 	if !srv.Options.PrivateServices {

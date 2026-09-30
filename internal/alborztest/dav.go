@@ -134,6 +134,10 @@ func (d *DAVServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("DAV", dav)
 		w.WriteHeader(http.StatusOK)
 	case "PROPFIND":
+		if d.gone[r.URL.Path] {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		d.propfind(w, r, string(body))
 	case "MKCALENDAR":
 		d.mkcalendar(w, r, string(body))

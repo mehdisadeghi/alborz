@@ -46,6 +46,8 @@ type Mirror struct {
 	key  *fernet.Key
 	wire wire
 	poll time.Duration
+	// gone hears of an account's collection its server says is not there, for the listing to follow.
+	gone func(account string)
 
 	// saving orders a sync's result against own writes and deletes made while it ran.
 	saving  sync.Mutex
@@ -80,6 +82,7 @@ func sizeOf(objects []object) int {
 }
 
 type reader struct {
+	account string
 	// out is the account's way to its servers as its last request had it; background syncs use it.
 	out   http.RoundTripper
 	colls map[string]*collection
@@ -141,7 +144,7 @@ func heldKey(u, coll string) string    { return owner + "/held/" + u + "/" + has
 func objectsKey(u, coll string) string { return owner + "/objects/" + u + "/" + hashed(coll) + "/" }
 
 // OpenMirror opens the kind's copies in dir; round keeps them in step.
-func OpenMirror(dir string, kind Kind, key *fernet.Key) (*Mirror, error) {
+func OpenMirror(dir string, kind Kind, key *fernet.Key, gone func(account string)) (*Mirror, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -154,7 +157,7 @@ func OpenMirror(dir string, kind Kind, key *fernet.Key) (*Mirror, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := &Mirror{db: db, key: key, wire: wireFor(kind.Holds), poll: kind.Poll,
+	m := &Mirror{db: db, key: key, wire: wireFor(kind.Holds), poll: kind.Poll, gone: gone,
 		readers: map[string]*reader{}, hot: map[string]*opened{}, hotMax: hotMaxBytes, changed: map[string]uint64{}}
 	if err := alborz.CheckKey(db, file, key, owner+"/"); err != nil {
 		db.Close()
@@ -303,9 +306,10 @@ func (m *Mirror) reader(u string) *reader {
 	return r
 }
 
-func (m *Mirror) note(u string, out http.RoundTripper) {
+func (m *Mirror) note(who Principal, out http.RoundTripper) {
 	m.mu.Lock()
-	m.reader(u).out = out
+	r := m.reader(who.key())
+	r.account, r.out = who.Account, out
 	m.mu.Unlock()
 }
 
@@ -322,17 +326,18 @@ func (m *Mirror) Transport(who Principal, next http.RoundTripper) http.RoundTrip
 	if m == nil {
 		return next
 	}
-	return tripper{m: m, user: who.key(), next: next}
+	return tripper{m: m, who: who, user: who.key(), next: next}
 }
 
 type tripper struct {
 	m    *Mirror
+	who  Principal
 	user string
 	next http.RoundTripper
 }
 
 func (t tripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	t.m.note(t.user, t.next)
+	t.m.note(t.who, t.next)
 	switch req.Method {
 	case "REPORT", http.MethodGet:
 		return t.read(req)
@@ -449,7 +454,12 @@ func (m *Mirror) sync(ctx context.Context, r *reader, u string, target *url.URL,
 	h.URL = target.String()
 	d, err := m.wire.pull(ctx, client, target, h, func() (map[string]string, error) { return m.etags(u, target.Path) })
 	if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
-		return errors.Join(err, m.drop(u, target.Path))
+		m.mu.Lock()
+		account := r.account
+		m.mu.Unlock()
+		err = errors.Join(err, m.drop(u, target.Path))
+		m.gone(account)
+		return err
 	}
 	if err != nil {
 		return err
@@ -572,7 +582,7 @@ func (m *Mirror) Refresh(ctx context.Context, who Principal, next http.RoundTrip
 		return nil
 	}
 	u := who.key()
-	m.note(u, next)
+	m.note(who, next)
 	all, err := m.heldOf(u)
 	if err != nil {
 		return err

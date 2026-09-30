@@ -733,7 +733,7 @@ func TestSendingKeepsNewRecipientsInPreviousRecipients(t *testing.T) {
 	a.Put(t, book+"known.vcf", "text/vcard",
 		"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:known\r\nFN:Known\r\nEMAIL:known@example.org\r\nEND:VCARD\r\n")
 
-	sendFrom(t, c, c.Page(t, "mail.compose"),
+	c.Send(t, c.Page(t, "mail.compose"),
 		url.Values{"to": {"Parvin Etesami <parvin@example.org>"}, "cc": {"known@example.org"}}, "mail.compose")
 
 	cards := bookCards(t, a, "Previous recipients")

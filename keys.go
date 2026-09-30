@@ -154,6 +154,9 @@ type Sealer struct {
 var (
 	// ErrLocked is a write to an account whose encryption is on while its key is not open.
 	ErrLocked = keyring.ErrLocked
+	// ErrKeyUnread is an account's key as stored that does not decode: nothing opens its data, and nothing is
+	// written over it.
+	ErrKeyUnread = errors.New("alborz: the account's key does not read")
 	// ErrRecoveryKey is a recovery key that does not open the account's key.
 	ErrRecoveryKey = errors.New("alborz: the recovery key does not open the account's key")
 )
@@ -166,6 +169,15 @@ func (s *Server) unlock(l *Login) error {
 	defer cancel()
 	name := s.Keys.Name(l.username)
 	k, err := keyOf(ctx, l.store)
+	if errors.Is(err, ErrKeyUnread) {
+		// Held as on and locked: nothing is written in the clear, and no new key over the one stored.
+		s.log.Printf("%s: signed in locked: %v", l.username, err)
+		l.keyUnread.Store(true)
+		if l.release, err = s.Keys.Hold(name, nil, true); err != nil {
+			return err
+		}
+		return s.settle(l)
+	}
 	if err != nil {
 		return err
 	}
@@ -227,6 +239,9 @@ type Encryption struct {
 func (s *Server) Encryption(ctx context.Context, l *Login) (Encryption, error) {
 	k, err := keyOf(ctx, l.store)
 	_, metadata := l.store.(*imapMetadataStore)
+	if errors.Is(err, ErrKeyUnread) {
+		return Encryption{On: true, Locked: l.Locked(), OnServer: metadata}, nil
+	}
 	return Encryption{On: k.on(), Locked: l.Locked(), OnServer: metadata}, err
 }
 
@@ -343,6 +358,11 @@ func (s *Server) StartOver(ctx context.Context, l *Login) (string, error) {
 	if !l.Locked() {
 		return "", errors.New("alborz: the account's key is open; there is nothing to start over from")
 	}
+	// Read before anything is deleted, so a key that does not read deletes nothing.
+	k, err := keyOf(ctx, l.store)
+	if err != nil {
+		return "", err
+	}
 	var errs []error
 	if st, ok := l.store.(localStore); ok {
 		errs = append(errs, st.records.drop(l.username))
@@ -352,10 +372,6 @@ func (s *Server) StartOver(ctx context.Context, l *Login) (string, error) {
 		errs = append(errs, sealer.Drop(l.username))
 	}
 	if err := errors.Join(errs...); err != nil {
-		return "", err
-	}
-	k, err := keyOf(ctx, l.store)
-	if err != nil {
 		return "", err
 	}
 	name, recovery := s.Keys.Name(l.username), ""

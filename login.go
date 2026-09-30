@@ -95,6 +95,8 @@ type Login struct {
 
 	// locked is an account whose encryption is on and whose key the password did not open (ADR 71).
 	locked atomic.Bool
+	// keyUnread is an account locked because its key as stored does not decode.
+	keyUnread atomic.Bool
 	// release lets the account's key go when the login ends.
 	release func()
 
@@ -455,6 +457,9 @@ func (l *Login) Close() {
 // Locked reports an account whose encryption is on and whose key this login could not open: its password
 // changed and no other login held the key.
 func (l *Login) Locked() bool { return l.locked.Load() }
+
+// KeyUnread reports a login locked because the account's key as stored does not decode.
+func (l *Login) KeyUnread() bool { return l.keyUnread.Load() }
 
 // forgetHTTPPassword has the HTTP password read again, after the key it is sealed under changed.
 func (l *Login) forgetHTTPPassword() {

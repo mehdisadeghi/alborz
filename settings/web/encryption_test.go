@@ -343,3 +343,28 @@ func TestAKeyTheServerWillNotKeepIsRefusedOnTheForm(t *testing.T) {
 		t.Error("the refused form shows a recovery key")
 	}
 }
+
+// A key on the server that does not decode signs in locked, says why, and is never written over.
+func TestAKeyThatDoesNotReadSignsInLocked(t *testing.T) {
+	imap := IMAP(t, Metadata())
+	imap.SetEntry(User, "key", "not json")
+	c, page := signInWith(t, Alborz(t, WithIMAP(imap)), Password)
+	if bar := NoticeBar(page); !strings.Contains(bar, "The key to the data alborz keeps for "+User+" could not be read.") {
+		t.Errorf("the page after signing in does not say why the account is locked:\n%s", bar)
+	}
+	if resp := c.Get(t, "settings.encryption", url.Values{"account": {User}}); resp.StatusCode != http.StatusOK {
+		t.Errorf("the encryption page answered %s", resp.Status)
+	}
+	for route, form := range map[string]url.Values{
+		"settings.encryption":           {"password": {Password}},
+		"settings.encryption.startover": {"confirm": {"1"}},
+	} {
+		form.Set("account", User)
+		if resp := c.Post(t, route, form); resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Errorf("%s answered %s, want 422", route, resp.Status)
+		}
+	}
+	if got := imap.Entry(User, "key"); got != "not json" {
+		t.Errorf("the key was written over with %q", got)
+	}
+}

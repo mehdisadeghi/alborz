@@ -328,3 +328,36 @@ func TestAServerThatSchedulesSendsTheInvitations(t *testing.T) {
 		t.Fatalf("saving on a calendar on alborz sent %d calendars, want one REQUEST", len(got))
 	}
 }
+
+// A reply the event cannot take, as one stamped with no date, is refused with the reason, and the event
+// stays as it was.
+func TestAMessageTheEventCannotTakeIsRefused(t *testing.T) {
+	sent := SMTP(t)
+	a := Alborz(t, WithSMTP(sent))
+	c := a.SignIn(t, User)
+	coll := c.CreateCalendar(t, "Plans", "")
+	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
+		"calendar": {User + "|" + Here + coll}, "attendees": {"b@example.org"}}
+	created(t, c.Post(t, "calendar.event.create", form))
+	eventUID := prop(sentCalendars(t, sent.All())[0].event, ical.PropUID)
+	before := a.DAV(t, http.MethodGet, coll+eventUID+".ics", nil, "").Text
+
+	for _, tc := range []struct{ method, stamp, reason string }{
+		{"REPLY", "yesterday", "DTSTAMP"},
+	} {
+		message := fmt.Sprintf("BEGIN:VCALENDAR\nPRODID:-//Example//EN\nMETHOD:%s\nVERSION:2.0\nBEGIN:VEVENT\n"+
+			"ATTENDEE;PARTSTAT=ACCEPTED:mailto:b@example.org\nORGANIZER:mailto:%s\nUID:%s\nSEQUENCE:0\nDTSTAMP:%s\n"+
+			"END:VEVENT\nEND:VCALENDAR\n", tc.method, User, eventUID, tc.stamp)
+		uid := a.IMAP.Append(t, "INBOX", calendarMail("b@example.org", "Accepted: Review", tc.method, message))
+		resp := c.Post(t, "calendar.frommessage", url.Values{"mbox": {"INBOX"}, "uid": {fmt.Sprint(uid)}})
+		if resp.StatusCode != http.StatusFound {
+			t.Fatalf("%s: applying the message answered %s", tc.method, resp.Status)
+		}
+		if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !strings.Contains(bar, "could not be applied") || !strings.Contains(bar, tc.reason) {
+			t.Errorf("%s: the page after does not say the message was refused, and why:\n%s", tc.method, bar)
+		}
+	}
+	if after := a.DAV(t, http.MethodGet, coll+eventUID+".ics", nil, ""); after.StatusCode != http.StatusOK || after.Text != before {
+		t.Errorf("the refused messages changed the event (%s)", after.Status)
+	}
+}

@@ -1008,6 +1008,7 @@
 "invite.cancelfailed" = "Der Termin wurde gelöscht, die Absage aber nicht gesendet."
 "invite.notorganizer" = "Diese Nachricht stammt nicht vom Organisator des Termins."
 "invite.outdated" = "Diese Nachricht betrifft eine andere Fassung des Termins."
+"invite.notapplied" = "Die Nachricht konnte nicht auf den Termin angewendet werden: %s"
 "invite.superseded" = "Eine spätere Antwort dieses Teilnehmers ist bereits gespeichert."
 "invite.uninvited" = "Dieser Teilnehmer ist zu dem Termin nicht eingeladen."
 "invite.noinstance" = "Der Termin hat kein solches Vorkommen."

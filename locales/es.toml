@@ -1062,6 +1062,22 @@
 "date-shcal.status" = "Fecha de la hégira solar"
 
 
+"notifications.title" = "Notificaciones"
+"notifications.new" = "Notificar a este navegador"
+"notifications.on" = "Activar"
+"notifications.off" = "Desactivar"
+"notifications.since" = "Activas desde %s"
+"notifications.gone" = "Sesión cerrada, no se envía nada"
+"notifications.none" = "Ningún navegador recibe notificaciones."
+"notifications.what" = "Una notificación dice «Correo nuevo» o «Evento a las» y una hora, con la dirección de la cuenta. No incluye remitente, asunto ni título del evento."
+"notifications.privacy" = "Cada notificación va cifrada para el navegador. El servicio push del navegador (Google, Mozilla, Apple o Microsoft) la entrega y ve cuándo se envía y su tamaño, no su contenido."
+"notifications.unsupported" = "Este navegador no puede recibir notificaciones."
+"notifications.denied" = "El navegador rechazó las notificaciones. Permítalas en su configuración para este sitio."
+"notifications.needsscript" = "Las notificaciones necesitan JavaScript."
+"notifications.refused" = "La suscripción del navegador no fue aceptada."
+"notice.notificationson" = "Notificaciones activadas para este navegador."
+"notice.notificationsoff" = "Notificaciones desactivadas."
+"notifications.failed" = "El navegador no pudo suscribirse a las notificaciones."
 ["calendar.more"]
 one = "%d más"
 other = "%d más"
@@ -1267,3 +1283,7 @@ other = "%d eventos hoy"
 ["calendar.status.next"]
 one = "%[2]s"
 other = "Siguiente a las %[2]s"
+
+["notifications.when"]
+one = "Las notificaciones se envían mientras esta cuenta tiene la sesión iniciada y está en uso. Se detienen %d minuto después del último uso."
+other = "Las notificaciones se envían mientras esta cuenta tiene la sesión iniciada y está en uso. Se detienen %d minutos después del último uso."

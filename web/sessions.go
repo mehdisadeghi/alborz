@@ -77,8 +77,23 @@ func (ss *Sessions) SignedIn(account, current string) ([]Signed, error) {
 	return out, nil
 }
 
-// SignOut takes the account out of one browser; a browser left with none is forgotten.
+// Holds says whether the browser of that session is signed into the account, live or remembered.
+func (ss *Sessions) Holds(id, account string) bool {
+	if s := ss.get(id); s != nil && s.holds(account) {
+		return true
+	}
+	rec, ok := ss.records.Load(id)
+	// A record outlives its cookie until the next start sweeps it.
+	return ok && time.Since(rec.Seen) <= alborz.CredentialCookieLife() &&
+		slices.ContainsFunc(rec.Accounts, func(a alborz.RememberedAccount) bool { return a.Address == account })
+}
+
+// SignOut takes the account out of one browser, and its notifications with it; a browser left with none
+// is forgotten.
 func (ss *Sessions) SignOut(id, account string) error {
+	if err := ss.pushes.SignedOut(account, id); err != nil {
+		return err
+	}
 	ss.mu.Lock()
 	s := ss.live[id]
 	ss.mu.Unlock()

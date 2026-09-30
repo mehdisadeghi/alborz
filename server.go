@@ -90,6 +90,9 @@ type Server struct {
 	// SessionRecords keeps the browsers signed in across a restart.
 	SessionRecords SessionRecords
 
+	// Pushes keeps the devices notified and the key signing what they are sent.
+	Pushes *Pushes
+
 	// Instance names this alborz to another asking whether a DAV server is it; see InstanceHeader.
 	Instance string
 
@@ -173,6 +176,10 @@ func New(log *log.Logger, options Options) (*Server, error) {
 	if s.Keys, err = keyring.New(s.data, s.LoginKey); err != nil {
 		return nil, fmt.Errorf("%s: the key pairs do not read: %w", s.DataPath, err)
 	}
+	if s.Pushes, err = openPushes(s.data, s.LoginKey, s.Keys, s.DataPath); err != nil {
+		return nil, err
+	}
+	s.Sealers = append(s.Sealers, Sealer{Reseal: s.Pushes.reseal, Drop: s.Pushes.drop})
 	settings := openSettingsRecords(s.data, settingsKey, s.LoginKey.Names(), s.Keys)
 
 	s.domains = make(map[string]*domainUpstreams)

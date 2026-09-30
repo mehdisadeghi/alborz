@@ -2835,6 +2835,11 @@ main.calendar .actions {
   width: 100%;
 }
 
+/* A box taller than the line, as iOS draws it, would hang into the next label and push it along. */
+.action-group .checkbox {
+  display: flow-root;
+}
+
 .action-group .checkbox input {
   display: inline;
   width: 1rem;

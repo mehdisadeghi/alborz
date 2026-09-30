@@ -358,7 +358,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		msg.Subject = ctx.FormValue("subject")
 		msg.Text = ctx.FormValue("text")
 		// The text is derived from the HTML so the plain part and the draft agree.
-		if msg.HTML = composedHTML(ctx.FormValue("html")); msg.HTML != "" {
+		if msg.HTML = composedHTML(p.composed, ctx.FormValue("html")); msg.HTML != "" {
 			msg.Text = composedText(msg.HTML)
 		}
 
@@ -466,12 +466,11 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		}
 
 		if msg.HTML != "" {
-			images, held, err := inlineImages(ctx, msg.HTML, msg.MessageID)
+			images, err := inlineImages(msg.HTML, msg.MessageID, imageSource(ctx, &uploads))
 			if err != nil {
 				return err
 			}
 			msg.Inline = images
-			uploads = append(uploads, held...)
 		}
 
 		// A draft may be addressed later; a message with nowhere to go is not sent.
@@ -775,7 +774,7 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToP
 	below := ctx.Profile().Writing.ReplyBelowQuote
 	ret.Text = replyBody(ctx, inReplyTo, quoted, below)
 	ret.QuoteBelow = !below
-	if quoted, err := quotedHTML(ctx, inReplyToPath, inReplyTo); err != nil {
+	if quoted, err := p.quotedHTML(ctx, inReplyToPath, inReplyTo); err != nil {
 		return ret, err
 	} else if quoted != "" {
 		ret.QuoteHTML = replyHTML(ctx, inReplyTo, quoted, below)
@@ -849,7 +848,7 @@ func forwardHTML(ctx *web.Context, original *IMAPMessage, body string) template.
 		`<p dir="` + lang.ParagraphDir(head) + `">` + strings.Join(lines, "<br>") + "</p>\n<div>" + body + "</div>\n")
 }
 
-func quotedHTML(ctx *web.Context, path messagePath, msg *IMAPMessage) (string, error) {
+func (p *plugin) quotedHTML(ctx *web.Context, path messagePath, msg *IMAPMessage) (string, error) {
 	node := msg.HTMLPart()
 	if node == nil {
 		return "", nil
@@ -874,7 +873,7 @@ func quotedHTML(ctx *web.Context, path messagePath, msg *IMAPMessage) (string, e
 	if err != nil {
 		return "", err
 	}
-	return composedHTML(localImages(string(raw), ctx.Path("mail.message.raw", msg.Mailbox, msg.UID), msg, ctx.Login.Username())), nil
+	return composedHTML(p.composed, localImages(string(raw), ctx.Path("mail.message.raw", msg.Mailbox, msg.UID), msg, ctx.Login.Username())), nil
 }
 
 func addressLine(a imap.Address) string {
@@ -1012,7 +1011,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 		}
 		msg.Text = forwardBody(ctx, source, body)
 		msg.QuoteBelow = true
-		if quoted, err := quotedHTML(ctx, sourcePath, source); err != nil {
+		if quoted, err := p.quotedHTML(ctx, sourcePath, source); err != nil {
 			return err
 		} else if quoted != "" {
 			msg.QuoteHTML = forwardHTML(ctx, source, quoted)
@@ -1078,7 +1077,7 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 		if msg.Text, err = readText(part); err != nil {
 			return fmt.Errorf("failed to read part body: %v", err)
 		}
-		if msg.HTML, err = quotedHTML(ctx, sourcePath, source); err != nil {
+		if msg.HTML, err = p.quotedHTML(ctx, sourcePath, source); err != nil {
 			return fmt.Errorf("failed to read the draft's HTML: %v", err)
 		}
 

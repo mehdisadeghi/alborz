@@ -11,21 +11,21 @@ import (
 	"git.mehdix.org/alborz/internal/lang"
 )
 
-// Drops what the editor did not write, so a paste cannot carry styles or scripts.
-var composedPolicy = func() *bluemonday.Policy {
+// composedPolicy drops what the editor did not write, so a paste cannot carry styles or scripts; images
+// may reference only what alborz holds (ADR 40), which images matches.
+func composedPolicy(images *regexp.Regexp) *bluemonday.Policy {
 	p := bluemonday.NewPolicy()
 	p.AllowElements("p", "div", "br", "b", "strong", "i", "em", "u", "s", "ul", "ol", "li", "blockquote", "a")
 	p.AllowAttrs("dir").Matching(regexp.MustCompile(`^(ltr|rtl|auto)$`)).OnElements("p", "div", "li", "blockquote", "ul", "ol")
 	p.AllowAttrs("href").Matching(regexp.MustCompile(`^(?i)(https?|mailto):`)).OnElements("a")
 	p.AllowURLSchemes("http", "https", "mailto")
-	// Images may reference only what alborz holds (ADR 40).
 	p.AllowRelativeURLs(true)
 	p.AllowElements("img")
-	p.AllowAttrs("src").Matching(localImage).OnElements("img")
+	p.AllowAttrs("src").Matching(images).OnElements("img")
 	p.AllowAttrs("alt").OnElements("img")
 	p.RequireNoFollowOnLinks(false)
 	return p
-}()
+}
 
 var (
 	composedBlock = regexp.MustCompile(`(?s)<(p|li)((?: [^>]*)?)>(.*?)</(?:p|li)>`)
@@ -36,8 +36,8 @@ var (
 	quoteTag      = regexp.MustCompile(`<blockquote([^>]*)>`)
 )
 
-func composedHTML(raw string) string {
-	clean := composedPolicy.Sanitize(raw)
+func composedHTML(policy *bluemonday.Policy, raw string) string {
+	clean := policy.Sanitize(raw)
 	if strings.TrimSpace(composedTag.ReplaceAllString(clean, "")) == "" && !strings.Contains(clean, "<img") {
 		return ""
 	}

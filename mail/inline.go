@@ -1,6 +1,8 @@
 package mail
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"html"
 	"mime"
@@ -9,14 +11,13 @@ import (
 	"regexp"
 	"strings"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // The images a message written here shows in its HTML (ADR 40).
-
-var localImage = regexp.MustCompile(`^/compose/attachment/[0-9a-f-]+$|^/message/[^?]+/[0-9]+/raw\?(account=[^&]+&)?part=[0-9.]+$`)
 
 var imageSrc = regexp.MustCompile(`(?i)(<img\b[^>]*?\bsrc=")([^"]*)(")`)
 
@@ -52,12 +53,9 @@ func localImages(body, raw string, msg *IMAPMessage, account string) string {
 	})
 }
 
-// The session keeps the named uploads until the message has left.
-func inlineImages(ctx *web.Context, body, messageID string) ([]inlineImage, []string, error) {
-	var (
-		images  []inlineImage
-		uploads []string
-	)
+// inlineImages are the images an HTML body shows, each once, as parts to send with it; open reads what a src names.
+func inlineImages(body, messageID string, open func(src string) (Attachment, error)) ([]inlineImage, error) {
+	var images []inlineImage
 	seen := map[string]bool{}
 	for _, m := range imageSrc.FindAllStringSubmatch(body, -1) {
 		src := html.UnescapeString(m[2])
@@ -65,20 +63,9 @@ func inlineImages(ctx *web.Context, body, messageID string) ([]inlineImage, []st
 			continue
 		}
 		seen[src] = true
-		var att Attachment
-		if id, ok := strings.CutPrefix(src, "/compose/attachment/"); ok {
-			held := ctx.PeekAttachment(id)
-			if held == nil {
-				return nil, nil, fmt.Errorf("the image %s is no longer held", id)
-			}
-			att = &formAttachment{FileHeader: held.File, ID: id}
-			uploads = append(uploads, id)
-		} else {
-			image, err := fetchPartImage(ctx, src)
-			if err != nil {
-				return nil, nil, err
-			}
-			att = image
+		att, err := open(src)
+		if err != nil {
+			return nil, err
 		}
 		images = append(images, inlineImage{
 			Src:        src,
@@ -86,53 +73,34 @@ func inlineImages(ctx *web.Context, body, messageID string) ([]inlineImage, []st
 			Attachment: att,
 		})
 	}
-	return images, uploads, nil
+	return images, nil
 }
 
-func fetchPartImage(ctx *web.Context, src string) (*imapAttachment, error) {
-	u, err := url.Parse(src)
-	if err != nil {
-		return nil, err
-	}
-	segments := strings.Split(strings.TrimPrefix(u.EscapedPath(), "/"), "/")
-	if len(segments) != 4 || segments[0] != "message" || segments[3] != "raw" {
-		return nil, fmt.Errorf("not an image reference: %s", src)
-	}
-	mboxName, uid, err := parseMboxAndUid(segments[1], segments[2])
-	if err != nil {
-		return nil, err
-	}
-	path, err := ParsePartPath(u.Query().Get("part"))
-	if err != nil {
-		return nil, err
-	}
-	login := ctx.Login
-	if account := u.Query().Get("account"); account != "" {
-		if login = ctx.LoginFor(account); login == nil {
-			return nil, fmt.Errorf("not signed in to %s", account)
-		}
-	}
+// partImage is an image part of a message, to be sent again as it is.
+func partImage(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, path []int) (*imapAttachment, error) {
 	var part *imap.BodyStructureSinglePart
-	err = login.DoIMAP(func(c *imapclient.Client) error {
+	err := login.DoIMAP(func(c *imapclient.Client) error {
 		var err error
 		part, err = singlePart(c, mboxName, uid, path)
 		return err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch image %s: %w", src, err)
+		return nil, err
 	}
 	node := newIMAPPartNode(nil, path, part)
 	if !strings.HasPrefix(node.MIMEType, "image/") {
-		return nil, fmt.Errorf("%s is not an image", src)
+		return nil, errNotImage
 	}
 	return &imapAttachment{
 		Mailbox:  mboxName,
 		Uid:      uid,
 		Node:     node,
 		Encoding: part.Encoding,
-		transfer: transferOf(ctx.Request().Context(), login),
+		transfer: transferOf(ctx, login),
 	}, nil
 }
+
+var errNotImage = errors.New("not an image")
 
 func cidImages(body string, images []inlineImage) string {
 	cids := map[string]string{}
@@ -166,4 +134,63 @@ func handleGetAttachment(ctx *web.Context) error {
 			mime.FormatMediaType("attachment", map[string]string{"filename": held.File.Filename}))
 	}
 	return ctx.Stream(http.StatusOK, mimeType, f)
+}
+
+// imageSource opens an image the composed HTML shows: an upload the session holds, or a part of a message.
+// The session keeps the uploads it names in held until the message has left.
+func imageSource(ctx *web.Context, held *[]string) func(src string) (Attachment, error) {
+	return func(src string) (Attachment, error) {
+		u, err := url.Parse(src)
+		if err != nil {
+			return nil, err
+		}
+		route, values, _ := ctx.Server.Match(u)
+		switch route {
+		case "mail.attachment":
+			id := values["uuid"]
+			upload := ctx.PeekAttachment(id)
+			if upload == nil {
+				return nil, fmt.Errorf("the image %s is no longer held", id)
+			}
+			*held = append(*held, id)
+			return &formAttachment{FileHeader: upload.File, ID: id}, nil
+		case "mail.message.raw":
+			uid, err := ParseUID(values["uid"])
+			if err != nil {
+				return nil, err
+			}
+			path, err := ParsePartPath(u.Query().Get("part"))
+			if err != nil {
+				return nil, err
+			}
+			login := ctx.Login
+			if account := u.Query().Get("account"); account != "" {
+				if login = ctx.LoginFor(account); login == nil {
+					return nil, fmt.Errorf("not signed in to %s", account)
+				}
+			}
+			image, err := partImage(ctx.Request().Context(), login, values["mbox"], uid, path)
+			if errors.Is(err, errNotImage) {
+				return nil, fmt.Errorf("%s is not an image", src)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch image %s: %w", src, err)
+			}
+			return image, nil
+		}
+		return nil, fmt.Errorf("not an image reference: %s", src)
+	}
+}
+
+// localImage matches the images alborz holds (ADR 40): an upload, or a part of a message.
+func localImage(s *web.Server) (*regexp.Regexp, error) {
+	upload, err := s.PathPattern("mail.attachment", "[0-9a-f-]+")
+	if err != nil {
+		return nil, err
+	}
+	part, err := s.PathPattern("mail.message.raw", "[^?]+", "[0-9]+")
+	if err != nil {
+		return nil, err
+	}
+	return regexp.Compile("^" + upload + "$|^" + part + `\?(account=[^&]+&)?part=[0-9.]+$`)
 }

@@ -228,6 +228,72 @@ func (s *Server) Path(name string, values ...any) (string, error) {
 	}), nil
 }
 
+// PathPattern is a regular expression for the route's paths, its wildcards in turn matching wildcards.
+func (s *Server) PathPattern(name string, wildcards ...string) (string, error) {
+	pattern, ok := s.routes.names[name]
+	if !ok {
+		return "", fmt.Errorf("no route named %q", name)
+	}
+	literals := wildcard.Split(strings.ReplaceAll(pattern, "{$}", ""), -1)
+	if len(literals)-1 != len(wildcards) {
+		return "", fmt.Errorf("route %q takes %d values, given %d", name, len(literals)-1, len(wildcards))
+	}
+	var b strings.Builder
+	for i, literal := range literals {
+		b.WriteString(regexp.QuoteMeta(literal))
+		if i < len(wildcards) {
+			b.WriteString(wildcards[i])
+		}
+	}
+	return b.String(), nil
+}
+
+// Match is the route a GET of u takes, by name, and what its wildcards hold; ok is false where no named route serves it.
+func (s *Server) Match(u *url.URL) (name string, values map[string]string, ok bool) {
+	_, pattern := s.routes.mux.Handler(&http.Request{Method: http.MethodGet, URL: u})
+	for _, r := range s.routes.all {
+		if r.Name != "" && (r.Method+" "+r.Pattern == pattern || r.Method == "" && r.Pattern == pattern) {
+			values, ok = wildcards(r.Pattern, u.EscapedPath())
+			return r.Name, values, ok
+		}
+	}
+	return "", nil, false
+}
+
+// wildcards reads the values of a pattern's wildcards from the escaped path it matches.
+func wildcards(pattern, escaped string) (map[string]string, bool) {
+	want, have := strings.Split(pattern, "/"), strings.Split(escaped, "/")
+	values := map[string]string{}
+	for i, w := range want {
+		if w == "{$}" {
+			return values, i == len(have)-1 && have[i] == ""
+		}
+		if i >= len(have) {
+			return nil, false
+		}
+		if !strings.HasPrefix(w, "{") {
+			if w != have[i] {
+				return nil, false
+			}
+			continue
+		}
+		name, rest := strings.CutSuffix(strings.Trim(w, "{}"), "...")
+		value := have[i]
+		if rest {
+			value = strings.Join(have[i:], "/")
+		}
+		v, err := url.PathUnescape(value)
+		if err != nil {
+			return nil, false
+		}
+		values[name] = v
+		if rest {
+			return values, true
+		}
+	}
+	return values, len(want) == len(have)
+}
+
 // A colon escaped too, or a segment after a dynamic prefix reads to the escaper as a scheme: a DAV path's
 // marker carries a host's port (ADR 28).
 func escapeSegment(s string) string { return strings.ReplaceAll(url.PathEscape(s), ":", "%3A") }

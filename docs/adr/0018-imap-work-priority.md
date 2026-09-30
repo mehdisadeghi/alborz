@@ -1,113 +1,96 @@
-# 18. Interactive mail stays ahead of speculative work
+# ADR 18: IMAP work priority and cache ordering
 
 Status: accepted.
 
+## Context
+
+Speculative work (body prefetch, next-page metadata, long SEARCHes)
+shares a login's IMAP connections with the reader's own requests. It
+must not delay them, and no cache write may overwrite newer state.
+
 ## Decision
 
-Each login (an account signed in) has two ordinary IMAP connections,
-opened as needed, plus the IDLE watcher. Connection choice is explicit:
+### Connections
 
-- Foreground reads and all writes use the interactive connection.
-- Body warming, next-page metadata and long scans use the work connection.
-- A reader joining a speculative listing still queued withdraws it and
-  fetches the page itself on the interactive connection; one already
-  running is joined. An already-running command finishes before another starts.
-- Signing in shares its INBOX fetch with the first page on the
-  interactive connection. The merged INBOX reuses those rows.
+1. A login has two IMAP connections, opened on demand, plus the IDLE
+   watcher: interactive (foreground reads, all writes) and work
+   (speculative work and scans).
+2. Every call names a class (`IMAPClass`):
 
-Speculative page loads fetch metadata only. Body prefetch starts when a
-page is visited; fetching unvisited pages' bodies increased traffic and
-evicted bodies the reader was still using. The next-page metadata stays
-off the interactive connection so opening a message cannot queue behind it.
+   | Class | Connection | Bound | Used for |
+   |---|---|---|---|
+   | `IMAPForeground` | interactive | 10 s | pages, writes |
+   | `IMAPScan` | work | 2 min; 10 min for an import | SEARCH of message text, selections, mbox import |
+   | `IMAPBackground` | work | 10 s | body prefetch, next-page metadata, counts |
 
-Shared listing fetches have a bounded lifetime independent of their
-first reader.
+3. Each connection has one queue. A caller holds the connection for
+   one callback. On release, the first waiting non-background call
+   runs next, else the first background one. A queue holds at most 64
+   waiters; further callers are refused immediately.
+4. The bound covers waiting and running, from the call. A call still
+   queued at its bound reports the server as slow (ADR 33); one whose
+   reader left returns cancelled. Neither touches the connection.
+5. Once a callback runs, the reader leaving does not stop it: a
+   half-sent command would leave the connection unusable. Only the
+   bound or the login ending stops it; the connection is then closed
+   and the next call dials a new one.
+6. Speculative listings carry a start check (`WithIMAPStart`): if a
+   reader took the page over while it queued, it releases the
+   connection unused. A reader joining a queued speculative listing
+   withdraws it and fetches on the interactive connection; one already
+   running is joined.
+7. Speculative page loads fetch metadata only. Body prefetch starts
+   when a page is visited. Sign-in shares its INBOX fetch with the
+   first page. Navigation fragments MUST NOT fetch bodies or set
+   `\Seen`.
 
-## Priority and cancellation
+### Transfers
 
-Every call names a class (`IMAPClass`), which picks the connection and
-the place in its queue:
+8. Downloads (a part, a message, its source, attachments as zip, mbox
+   export) and signature checks stream from the server's literal and
+   run on connections of their own (`DoIMAPTransfer`), at most two per
+   login (Dovecot's default is ten connections per user and IP).
+9. A transfer has no total bound: it ends when the reader leaves, the
+   login ends, or the server is silent for 30 s. Its connection is
+   kept for the next transfer and not reused after 15 s idle.
 
-| Class | Connection | Bound | Used for |
-|---|---|---|---|
-| `IMAPForeground` | interactive | 10 s | pages, writes |
-| `IMAPScan` | work | 2 min; 10 for an mbox import | searches of message text, selections, mbox import |
-| `IMAPBackground` | work | 10 s | body warming, next-page metadata, counts, samples |
+### Cache writes
 
-Each connection has one queue (`imap_queue.go`). A caller holds the
-connection for one callback; on release the first waiting call that
-is not background goes next, else the first background one. A scan
-goes ahead of queued body fetches but waits for the batch holding the
-connection. On the interactive connection every call is foreground and the
-queue is plain first come, first served. A queue holds at most 64
-waiters; the next caller is refused at once rather than waiting behind
-a slow server.
+10. The server's confirmation MUST precede a cache update, within the
+    same interactive callback as the write.
 
-The bound covers waiting and running together, from the call. A call
-still waiting when the bound runs out reports the server as slow
-(ADR 33); one whose reader left returns cancelled, and in both cases
-it leaves the queue without touching the connection. A speculative
-listing carries a start check (`WithIMAPStart`), asked once it holds
-the connection: if a reader took the page over meanwhile, it gives the
-connection back unused.
+    | Change | Cache operation |
+    |---|---|
+    | Automatic `\Seen` on opening a cached body | Register a pending token before returning the page; check it on the interactive connection; STORE, then update listing and body flags before release. |
+    | Explicit read/unread or flag replacement | Cancel pending automatic-read tokens first; on success `listings.flags` (updates bodies too). |
+    | Other confirmed flag change | `listings.flags`: plain pages patched, filtered and merged listings invalidated; in-flight body fetches for those UIDs lose their tokens. |
+    | MOVE, EXPUNGE, mailbox membership change | `evict`/`evictAll` the listings; `bodies.discard` the bodies and tokens (the whole mailbox for EXPUNGE). |
+    | IDLE arrival or reconnect | Mark listings stale, keep serving the previous snapshot, replace it on successful refresh. |
+    | UIDVALIDITY change | `bodies.observe` discards the mailbox's bodies and tokens. |
+    | Sign out | `Mailboxes.ForgetAccount` drops listings, bodies, tokens, UIDVALIDITY records and account memos. |
 
-Once a callback runs, the reader leaving no longer stops it: a command
-half sent would leave the connection unusable. It drains under the
-call's deadline. Only that deadline, or the login ending, stops it;
-then the connection is closed and the next call dials a new one.
+11. Listing invalidation increments a per-account generation used for
+    both fetch sharing and publication, so an older fetch cannot fill
+    an invalidated cache. Bodies use fetch tokens; memos a version, so
+    an older refresh cannot overwrite a confirmed update.
 
-## Transfers
+## Consequences
 
-A download (a part, the whole message or its source, the attachments as
-a zip, an mbox export) streams from the server's literal to the reader.
-A signature check, which the page asks for once it has loaded, streams
-the signed part through the verifier. Neither holds a lane: each gets a
-connection of its own (`DoIMAPTransfer`). A login runs at most two at
-once, since Dovecot allows ten connections per user and address by
-default. A transfer has no total bound: it ends when the reader leaves,
-the login ends, or the server sends nothing for 30 s. Its connection is
-kept for the next transfer, as a page's images follow one another, and
-closes after 30 s unused; one idle for more than half of that is not
-reused.
+- A clicked page waits only for a speculative fetch of the same page
+  already on the wire, never for a body batch.
+- Cached views can lag the server while revalidation runs.
+- Bodies: 100 per account within 64 MiB shared; listings: 512 entries
+  shared. These are not a measured memory limit.
+- DAV is limited separately: 4 connections per host, 2 of them for
+  background work.
 
-## Write and invalidation rules
+## References
 
-Upstream confirmation precedes cache updates. Keep a mutation and its
-cache confirmation within the same interactive connection callback.
-
-| Change | Required cache operation |
-| --- | --- |
-| Automatic read after opening a cached body | Register a pending token before returning the page; check it after acquiring the interactive connection; STORE, then update listing and body flags before releasing the connection. |
-| Explicit read/unread or replacement flags | Cancel pending automatic-read tokens before queueing the write. On success call `listings.flags`, which updates body flags too. |
-| Other confirmed flag edit | Call `listings.flags`. Plain pages are patched; filtered and merged listings are invalidated. In-flight body fetches for affected UIDs lose their tokens. |
-| Move, delete, or folder membership change | Invalidate affected listings with `evict` or `evictAll`; `bodies.discard` removes bodies and pending fetch/read tokens (the whole mailbox for EXPUNGE, which may remove other deleted messages too). Destination UIDs identify different cached bodies. |
-| IDLE arrival or reconnect gap | Mark listings stale, retain the previous snapshot, and replace it after successful refresh. Failed refreshes leave the old snapshot available. |
-| UIDVALIDITY changes | `bodies.observe` discards old bodies, in-flight body tokens and pending read tokens for that mailbox. Mailbox identity is independent of listing eviction. |
-| Sign out | `forgetAccount` drops listings, bodies, pending reads, mailbox identities and account memos. |
-
-Listing invalidation increments an account generation. Both shared-flight
-identity and publication use that generation: an old fetch cannot repopulate
-an invalidated cache or satisfy a new-generation reader. Bodies use fetch
-tokens for the same reason. Memo writes increment a version so an older
-background refresh cannot overwrite a confirmed local update.
-
-Navigation fragments fetch only missing headers and envelope data. They
-never fetch message bodies or mark a message read.
-
-## Limits and consequences
-
-A clicked page waits only for a speculative fetch of that same page
-already on the wire, never for a body batch.
-The IMAP queue is bounded. Body storage is limited per account and by a
-shared byte budget; listing storage has a shared entry limit. These limits
-do not represent a measured process RSS limit.
-
-DAV has independent per-host limits, with half the transport capacity
-reserved for foreground requests. Collection fan-out and transport limits
-are separate controls. Foreground account discovery has its own deadline.
-
-Cached displays can lag upstream state while revalidation runs. The tests
-cover shared-fetch cancellation, invalidation generations,
-mailbox identity, flag updates and memo write ordering. The local latency
-benchmark measures IMAP journeys; it does not establish production behaviour
-for METADATA, THREAD, full-text indexing, multiple accounts or DAV servers.
+- RFC 9051 (FETCH, STORE, EXPUNGE, IDLE, UIDVALIDITY)
+- ADR 6, ADR 7, ADR 20, ADR 33
+- `login.go` (`IMAPClass`, `DoIMAPWork`, `DoIMAPTransfer`,
+  `maxIMAPTransfers`, `ScanTimeout`, `RoundTripTimeout`),
+  `imap_queue.go` (`imapQueueLimit`, `WithIMAPStart`), `imap.go`
+  (`transferStall`), `mail/cache.go`, `mail/bodies.go`,
+  `mail/cacheevents.go`, `mail/prefetch.go`, `mail/mbox.go`
+  (`importBound`), `internal/memo`, `remote.go` (`connectionsPerHost`)

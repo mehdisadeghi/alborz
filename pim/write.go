@@ -3,6 +3,7 @@ package pim
 import (
 	"errors"
 	"fmt"
+	"io"
 	"path"
 
 	"git.mehdix.org/alborz/pim/dav"
@@ -42,8 +43,24 @@ func (e *PartlySavedError) Error() string {
 
 func (e *PartlySavedError) Unwrap() error { return e.Err }
 
+// MaxImportSize is the most an import reads of one file, whatever it came from: an import is held
+// in memory while parsed and written.
+const MaxImportSize = 16 << 20
+
+// ErrTooLarge is a file over MaxImportSize.
+var ErrTooLarge = errors.New("the file is too large to import")
+
+// ReadImport reads a file to import, refusing one over MaxImportSize.
+func ReadImport(r io.Reader) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(r, MaxImportSize+1))
+	if err == nil && len(raw) > MaxImportSize {
+		return nil, ErrTooLarge
+	}
+	return raw, err
+}
+
 // ImportAnswered says whether an import stopped on the reader's file or the server's answer, rather than alborz failing.
 func ImportAnswered(err error) bool {
 	var unreadable *UnreadableError
-	return errors.As(err, &unreadable) || errors.Is(err, dav.ErrPlaceDown) || dav.ServerRefused(err)
+	return errors.As(err, &unreadable) || errors.Is(err, ErrTooLarge) || errors.Is(err, dav.ErrPlaceDown) || dav.ServerRefused(err)
 }

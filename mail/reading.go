@@ -22,6 +22,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
+	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-message/textproto"
 	"jaytaylor.com/html2text"
@@ -281,20 +282,15 @@ func unsubscribeMail(settings *Settings, trust deliveryTrust, msg *IMAPMessage) 
 	return q
 }
 
-// PartAt reads one part of a message as the bytes it was sent as, with its media type.
-func PartAt(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, partPath []int) ([]byte, string, error) {
-	var raw []byte
-	var mediaType string
-	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
-		_, entity, err := getMessagePart(c, mboxName, uid, partPath)
-		if err != nil {
-			return err
+// PartAt hands read one part of a message as it arrives, in UTF-8 where its charset is known.
+func PartAt(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, partPath []int, read func(io.Reader) error) error {
+	return StreamPart(ctx, login, mboxName, uid, partPath, func(part *imap.BodyStructureSinglePart, _ string, _ int64, body io.Reader) error {
+		// An unknown charset leaves the part as its bytes, as the download does.
+		if r, err := charset.Reader(part.Params["charset"], body); err == nil {
+			body = r
 		}
-		mediaType, _, _ = entity.Header.ContentType()
-		raw, err = io.ReadAll(entity.Body)
-		return err
+		return read(body)
 	})
-	return raw, mediaType, err
 }
 
 // CalendarPartAt reads the scheduling message of one mail, and the part it is.

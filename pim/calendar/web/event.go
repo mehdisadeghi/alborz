@@ -235,15 +235,17 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			}
 			return fmt.Errorf("failed to get CalDAV event: %w", err)
 		}
-		// The VEVENT without RECURRENCE-ID is the series; the form edits that.
+		// The VEVENT without RECURRENCE-ID is the series; the form edits that. An invitation to single
+		// occurrences carries no series (RFC 5546 4.4.4), and the form edits the one the event's page shows.
 		events := co.Data.Events()
+		if len(events) == 0 {
+			return alborz.NotFound("notfound.event")
+		}
+		event = &events[0]
 		for i := range events {
 			if events[i].Props.Get(ical.PropRecurrenceID) == nil {
 				event = &events[i]
 			}
-		}
-		if event == nil {
-			return fmt.Errorf("calendar object %q holds no event to edit", calendarObjectPath)
 		}
 		before = calendar.Clone(co.Data)
 		currentCalendar = dav.Holding(calendars, "", co.Path)

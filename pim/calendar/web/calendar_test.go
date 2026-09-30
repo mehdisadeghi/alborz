@@ -560,3 +560,33 @@ func TestAnEventIsReadInTheZoneItsObjectDefines(t *testing.T) {
 		})
 	}
 }
+
+// An object of occurrences alone, as an invitation to one of a series brings, edits the one its page shows.
+func TestAnEventOfOccurrencesAloneIsEdited(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	coll := c.CreateCalendar(t, "Plans", "")
+	occurrence := func(day, summary string) string {
+		return "BEGIN:VEVENT\r\nUID:weekly\r\nRECURRENCE-ID:202609" + day + "T100000Z\r\nDTSTAMP:20260901T080000Z\r\n" +
+			"DTSTART:202609" + day + "T100000Z\r\nDTEND:202609" + day + "T110000Z\r\nSUMMARY:" + summary + "\r\nEND:VEVENT\r\n"
+	}
+	a.Put(t, coll+"weekly.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n"+
+		occurrence("15", "First")+occurrence("22", "Second")+"END:VCALENDAR\r\n")
+	weekly := Here + coll + "weekly.ics"
+
+	resp := c.Get(t, "calendar.event.update", weekly)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Text, `value="First"`) {
+		t.Fatalf("the edit form answered %s without the occurrence the page shows", resp.Status)
+	}
+	form := url.Values{"summary": {"First moved"}, "start": {"2026-09-15T12:00"}, "end": {"2026-09-15T13:00"},
+		"start-calendar": {"gregorian"}, "end-calendar": {"gregorian"}}
+	if resp := c.Post(t, "calendar.event.update", form, weekly); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving the occurrence answered %s", resp.Status)
+	}
+	saved := a.DAV(t, http.MethodGet, coll+"weekly.ics", nil, "").Text
+	for _, want := range []string{"SUMMARY:First moved", "RECURRENCE-ID:20260915T100000Z", "SUMMARY:Second", "RECURRENCE-ID:20260922T100000Z"} {
+		if !strings.Contains(saved, want) {
+			t.Errorf("the saved object lacks %s:\n%s", want, saved)
+		}
+	}
+}
